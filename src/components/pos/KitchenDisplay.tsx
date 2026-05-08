@@ -354,12 +354,14 @@ function KitchenOrderCard({
   order,
   onItemStatusChange,
   onOrderStatusChange,
-  viewMode
+  viewMode,
+  stationFilter
 }: {
   order: EnrichedOrder
   onItemStatusChange: (itemId: string, status: string) => void
   onOrderStatusChange: (orderId: string, status: string) => void
   viewMode: 'cards' | 'list'
+  stationFilter?: 'all' | 'kuhinja' | 'sank'
 }) {
   const typeLabels: Record<string, string> = {
     'dine-in': '🍽️ Na mestu',
@@ -386,6 +388,10 @@ function KitchenOrderCard({
   const drinkItems = order.orderItems.filter(oi =>
     oi.menuItem.category.menu.name === 'Pijača'
   )
+
+  // Filtriraj glede na postajo (kuhinja = samo hrana, šank = samo pijača)
+  const displayFoodItems = stationFilter === 'sank' ? [] : foodItems
+  const displayDrinkItems = stationFilter === 'kuhinja' ? [] : drinkItems
 
   if (viewMode === 'list') {
     return (
@@ -492,37 +498,37 @@ function KitchenOrderCard({
 
       {/* Food Items */}
       <CardContent className="p-3 space-y-2">
-        {foodItems.length > 0 && (
+        {displayFoodItems.length > 0 && (
           <div>
             <div className="flex items-center gap-1.5 mb-1.5">
               <UtensilsCrossed className="h-3.5 w-3.5 text-primary" />
               <span className="text-xs font-semibold text-primary">Hrana</span>
-              <Badge variant="outline" className="text-[9px] h-4 px-1">{foodItems.length}</Badge>
+              <Badge variant="outline" className="text-[9px] h-4 px-1">{displayFoodItems.length}</Badge>
             </div>
             <div className="space-y-1.5">
-              {foodItems.map(item => (
+              {displayFoodItems.map(item => (
                 <KitchenOrderItem key={item.id} item={item} onStatusChange={onItemStatusChange} />
               ))}
             </div>
           </div>
         )}
 
-        {drinkItems.length > 0 && (
+        {displayDrinkItems.length > 0 && (
           <div>
             <div className="flex items-center gap-1.5 mb-1.5">
               <span className="text-sm">🥤</span>
               <span className="text-xs font-semibold text-primary">Pijača</span>
-              <Badge variant="outline" className="text-[9px] h-4 px-1">{drinkItems.length}</Badge>
+              <Badge variant="outline" className="text-[9px] h-4 px-1">{displayDrinkItems.length}</Badge>
             </div>
             <div className="space-y-1.5">
-              {drinkItems.map(item => (
+              {displayDrinkItems.map(item => (
                 <KitchenOrderItem key={item.id} item={item} onStatusChange={onItemStatusChange} />
               ))}
             </div>
           </div>
         )}
 
-        {foodItems.length === 0 && drinkItems.length === 0 && (
+        {displayFoodItems.length === 0 && displayDrinkItems.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-2">Ni artiklov</p>
         )}
       </CardContent>
@@ -582,6 +588,7 @@ export function KitchenDisplay() {
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards')
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'in-progress'>('all')
+  const [stationFilter, setStationFilter] = useState<'all' | 'kuhinja' | 'sank'>('all')
   const [lastOrderCount, setLastOrderCount] = useState(0)
   const prevOrdersRef = useRef<string[]>([])
   const { isFullscreen, toggle: toggleFullscreen } = useFullscreen()
@@ -704,6 +711,26 @@ export function KitchenDisplay() {
             <div className="flex items-center gap-2">
               <ChefHat className="h-5 w-5 text-primary" />
               <h1 className="text-lg font-bold">Kuhinjski zaslon</h1>
+            </div>
+            {/* Station filter - Kuhinja/Šank/Vse */}
+            <div className="flex border rounded-lg overflow-hidden ml-2">
+              {[
+                { value: 'all' as const, label: 'Vse', icon: '📋' },
+                { value: 'kuhinja' as const, label: 'Kuhinja', icon: '🍳' },
+                { value: 'sank' as const, label: 'Šank', icon: '🍹' },
+              ].map(station => (
+                <button
+                  key={station.value}
+                  onClick={() => setStationFilter(station.value)}
+                  className={`px-3 py-1 text-xs font-semibold transition-colors touch-manipulation ${
+                    stationFilter === station.value
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:bg-accent'
+                  }`}
+                >
+                  {station.icon} {station.label}
+                </button>
+              ))}
             </div>
             {stats && (
               <div className="flex gap-2">
@@ -841,6 +868,7 @@ export function KitchenDisplay() {
                       onItemStatusChange={handleItemStatusChange}
                       onOrderStatusChange={handleOrderStatusChange}
                       viewMode="cards"
+                      stationFilter={stationFilter}
                     />
                   ))}
                 </div>
@@ -863,6 +891,7 @@ export function KitchenDisplay() {
                       onItemStatusChange={handleItemStatusChange}
                       onOrderStatusChange={handleOrderStatusChange}
                       viewMode="cards"
+                      stationFilter={stationFilter}
                     />
                   ))}
                 </div>
@@ -885,6 +914,7 @@ export function KitchenDisplay() {
                       onItemStatusChange={handleItemStatusChange}
                       onOrderStatusChange={handleOrderStatusChange}
                       viewMode="cards"
+                      stationFilter={stationFilter}
                     />
                   ))}
                 </div>
@@ -901,6 +931,7 @@ export function KitchenDisplay() {
                 onItemStatusChange={handleItemStatusChange}
                 onOrderStatusChange={handleOrderStatusChange}
                 viewMode="list"
+                stationFilter={stationFilter}
               />
             ))}
           </div>
