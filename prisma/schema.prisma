@@ -172,18 +172,23 @@ model Shift {
 }
 
 model InventoryItem {
-  id            String    @id @default(cuid())
-  name          String
-  unit          String    @default("pcs")
-  quantity      Float     @default(0)
-  minQuantity   Float     @default(10)
-  costPerUnit   Float     @default(0)
-  supplier      String    @default("")
-  category      String    @default("general")
-  expiryDate    DateTime?
-  menuItemId    String?   @unique
-  menuItem      MenuItem? @relation(fields: [menuItemId], references: [id])
-  lastRestocked DateTime  @default(now())
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  name            String
+  unit            String    @default("pcs")       // Enota zaloge: steklenica, keg, kos, L, kg
+  quantity        Float     @default(0)            // Količina na zalogi (v enotah)
+  minQuantity     Float     @default(10)           // Minimalna količina za opozorilo
+  costPerUnit     Float     @default(0)            // Nabavna cena na enoto zaloge
+  supplier        String    @default("")           // Dobavitelj
+  category        String    @default("general")    // Kategorija zaloge
+  expiryDate      DateTime?
+  // --- NORMATIVI (standardizirano odmerjanje) ---
+  servingsPerUnit Float     @default(1)            // Število servisov iz ene enote zaloge (npr. 7 kozarcev iz 0.75L steklenice)
+  servingSize     String    @default("")           // Velikost servisa (npr. "0.10L", "0.03L", "0.50L")
+  costPerServing  Float     @default(0)            // Strošek na servis (costPerUnit / servingsPerUnit)
+  // --- Povezava z menijem ---
+  menuItemId      String?   @unique
+  menuItem        MenuItem? @relation(fields: [menuItemId], references: [id])
+  lastRestocked   DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
