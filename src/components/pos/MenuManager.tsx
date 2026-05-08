@@ -58,7 +58,7 @@ export function MenuManager() {
       if (!res.ok) throw new Error('Failed')
       return res.json()
     },
-    onSuccess: () => { toast.success('Menu item created'); queryClient.invalidateQueries({ queryKey: ['menu-items'] }); setDialogOpen(false) },
+    onSuccess: () => { toast.success('Artikel ustvarjen'); queryClient.invalidateQueries({ queryKey: ['menu-items'] }); setDialogOpen(false) },
   })
 
   const updateItemMutation = useMutation({
@@ -67,7 +67,7 @@ export function MenuManager() {
       if (!res.ok) throw new Error('Failed')
       return res.json()
     },
-    onSuccess: () => { toast.success('Menu item updated'); queryClient.invalidateQueries({ queryKey: ['menu-items'] }); setDialogOpen(false); setEditingItem(null) },
+    onSuccess: () => { toast.success('Artikel posodobljen'); queryClient.invalidateQueries({ queryKey: ['menu-items'] }); setDialogOpen(false); setEditingItem(null) },
   })
 
   const deleteItemMutation = useMutation({
@@ -76,7 +76,7 @@ export function MenuManager() {
       if (!res.ok) throw new Error('Failed')
       return res.json()
     },
-    onSuccess: () => { toast.success('Menu item deleted'); queryClient.invalidateQueries({ queryKey: ['menu-items'] }) },
+    onSuccess: () => { toast.success('Artikel izbrisan'); queryClient.invalidateQueries({ queryKey: ['menu-items'] }) },
   })
 
   const toggleAvailabilityMutation = useMutation({
@@ -95,7 +95,7 @@ export function MenuManager() {
       if (!res.ok) throw new Error('Failed')
       return res.json()
     },
-    onSuccess: () => { toast.success('Category created'); queryClient.invalidateQueries({ queryKey: ['categories'] }); setCatDialogOpen(false) },
+    onSuccess: () => { toast.success('Kategorija ustvarjena'); queryClient.invalidateQueries({ queryKey: ['categories'] }); setCatDialogOpen(false) },
   })
 
   // Note: No PUT/DELETE for categories in API spec, so skip for now
@@ -132,12 +132,12 @@ export function MenuManager() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Menu Management</h2>
-          <p className="text-muted-foreground">Manage your menu items and categories</p>
+          <h2 className="text-2xl font-bold">Upravljanje jedilnika</h2>
+          <p className="text-muted-foreground">Upravljajte jedilnik in kategorije</p>
         </div>
         <Button onClick={openCreateItem}>
           <Plus className="h-4 w-4 mr-2" />
-          Add Item
+          Dodaj artikel
         </Button>
       </div>
 
@@ -145,21 +145,21 @@ export function MenuManager() {
         <TabsList>
           <TabsTrigger value="items">
             <UtensilsCrossed className="h-4 w-4 mr-1" />
-            Menu Items
+            Artikli
           </TabsTrigger>
           <TabsTrigger value="categories">
             <Tag className="h-4 w-4 mr-1" />
-            Categories
+            Kategorije
           </TabsTrigger>
         </TabsList>
 
-        {/* Menu Items Tab */}
+        {/* Tab artiklov */}
         <TabsContent value="items" className="space-y-4">
           <div className="flex flex-wrap gap-3 items-center">
             <div className="relative flex-1 min-w-48 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search items..."
+                placeholder="Išči artikle..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
@@ -167,10 +167,10 @@ export function MenuManager() {
             </div>
             <Select value={filterCategory} onValueChange={setFilterCategory}>
               <SelectTrigger className="w-48">
-                <SelectValue placeholder="All Categories" />
+                <SelectValue placeholder="Vse kategorije" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
+                <SelectItem value="all">Vse kategorije</SelectItem>
                 {categories?.map((cat: { id: string; name: string; icon: string }) => (
                   <SelectItem key={cat.id} value={cat.id}>{cat.icon} {cat.name}</SelectItem>
                 ))}
@@ -278,15 +278,15 @@ export function MenuManager() {
           )}
 
           {filteredItems.length === 0 && !isLoading && (
-            <p className="text-center py-12 text-muted-foreground">No menu items found</p>
+            <p className="text-center py-12 text-muted-foreground">Ni najdenih artiklov</p>
           )}
         </TabsContent>
 
-        {/* Categories Tab */}
+        {/* Tab kategorij */}
         <TabsContent value="categories" className="space-y-4">
           <Button onClick={() => { setEditingCat(null); setCatForm({ name: '', icon: '🍽️', color: '#f59e0b' }); setCatDialogOpen(true) }}>
             <Plus className="h-4 w-4 mr-2" />
-            Add Category
+            Dodaj kategorijo
           </Button>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -314,7 +314,7 @@ export function MenuManager() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingItem ? 'Edit Menu Item' : 'Add Menu Item'}</DialogTitle>
+            <DialogTitle>{editingItem ? 'Uredi artikel' : 'Dodaj artikel'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             {/* Image preview */}
@@ -324,23 +324,23 @@ export function MenuManager() {
               </div>
             )}
             <div>
-              <Label>Image URL</Label>
-              <Input value={itemForm.image} onChange={(e) => setItemForm({ ...itemForm, image: e.target.value })} placeholder="/menu-images/item-name.png" />
+              <Label>URL slike</Label>
+              <Input value={itemForm.image} onChange={(e) => setItemForm({ ...itemForm, image: e.target.value })} placeholder="/menu-images/ime-artikla.png" />
             </div>
             <div>
-              <Label>Name</Label>
+              <Label>Ime</Label>
               <Input value={itemForm.name} onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })} />
             </div>
             <div>
-              <Label>Description</Label>
+              <Label>Opis</Label>
               <Textarea value={itemForm.description} onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })} />
             </div>
             <div>
-              <Label>Price ($)</Label>
+              <Label>Cena ($)</Label>
               <Input type="number" step="0.01" value={itemForm.price} onChange={(e) => setItemForm({ ...itemForm, price: e.target.value })} />
             </div>
             <div>
-              <Label>Category</Label>
+              <Label>Kategorija</Label>
               <Select value={itemForm.categoryId} onValueChange={(v) => setItemForm({ ...itemForm, categoryId: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -352,13 +352,13 @@ export function MenuManager() {
             </div>
             <div className="flex items-center gap-2">
               <Switch checked={itemForm.isAvailable} onCheckedChange={(c) => setItemForm({ ...itemForm, isAvailable: c })} />
-              <Label>Available</Label>
+              <Label>Na voljo</Label>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Prekliči</Button>
             <Button onClick={handleItemSubmit} disabled={!itemForm.name || !itemForm.price || !itemForm.categoryId}>
-              {editingItem ? 'Update' : 'Create'}
+              {editingItem ? 'Posodobi' : 'Ustvari'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -368,26 +368,26 @@ export function MenuManager() {
       <Dialog open={catDialogOpen} onOpenChange={setCatDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add Category</DialogTitle>
+            <DialogTitle>Dodaj kategorijo</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Name</Label>
+              <Label>Ime</Label>
               <Input value={catForm.name} onChange={(e) => setCatForm({ ...catForm, name: e.target.value })} />
             </div>
             <div>
-              <Label>Icon (emoji)</Label>
+              <Label>Ikona (emoji)</Label>
               <Input value={catForm.icon} onChange={(e) => setCatForm({ ...catForm, icon: e.target.value })} />
             </div>
             <div>
-              <Label>Color</Label>
+              <Label>Barva</Label>
               <Input type="color" value={catForm.color} onChange={(e) => setCatForm({ ...catForm, color: e.target.value })} className="h-10" />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCatDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setCatDialogOpen(false)}>Prekliči</Button>
             <Button onClick={() => createCatMutation.mutate(catForm)} disabled={!catForm.name}>
-              Create
+              Ustvari
             </Button>
           </DialogFooter>
         </DialogContent>

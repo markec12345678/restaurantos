@@ -47,32 +47,32 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Dashboard</h2>
-        <p className="text-muted-foreground">Today&apos;s overview and key metrics</p>
+        <h2 className="text-2xl font-bold">Nadzorna plošča</h2>
+        <p className="text-muted-foreground">Pregled dneva in ključni kazalniki</p>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
-          title="Today's Revenue"
+          title="Današnji prihodek"
           value={`$${(data?.todayRevenue || 0).toFixed(2)}`}
-          subtitle={data?.pendingOrders > 0 ? `${data.pendingOrders} pending orders` : undefined}
+          subtitle={data?.pendingOrders > 0 ? `${data.pendingOrders} čakajočih naročil` : undefined}
           icon={DollarSign}
           trend="up"
         />
         <StatsCard
-          title="Total Orders"
+          title="Skupno naročil"
           value={data?.totalOrders || 0}
-          subtitle={data?.inProgressOrders > 0 ? `${data.inProgressOrders} in progress` : undefined}
+          subtitle={data?.inProgressOrders > 0 ? `${data.inProgressOrders} v obdelavi` : undefined}
           icon={ShoppingBag}
         />
         <StatsCard
-          title="Avg Order Value"
+          title="Povpr. vrednost naročila"
           value={`$${(data?.avgOrderValue || 0).toFixed(2)}`}
           icon={Calculator}
         />
         <StatsCard
-          title="Active Tables"
+          title="Zasedene mize"
           value={`${data?.activeTables || 0}/${data?.totalTables || 0}`}
           icon={BarChartBig}
         />
@@ -81,7 +81,7 @@ export function Dashboard() {
       {/* Revenue Chart */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg">Revenue (Last 7 Days)</CardTitle>
+          <CardTitle className="text-lg">Prihodek (zadnjih 7 dni)</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-64">
@@ -96,7 +96,7 @@ export function Dashboard() {
                 />
                 <YAxis className="text-xs" tick={{ fontSize: 12 }} tickFormatter={(v) => `$${v}`} />
                 <Tooltip
-                  formatter={(value: number) => [`$${value.toFixed(2)}`, 'Revenue']}
+                  formatter={(value: number) => [`$${value.toFixed(2)}`, 'Prihodek']}
                   labelFormatter={(label) => format(new Date(label), 'MMM dd, yyyy')}
                   contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }}
                 />
@@ -111,7 +111,7 @@ export function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Recent Orders</CardTitle>
+            <CardTitle className="text-lg">Zadnja naročila</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3 max-h-72 overflow-y-auto custom-scrollbar">
@@ -130,7 +130,7 @@ export function Dashboard() {
                       <Clock className="h-4 w-4" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium">#{order.orderNumber} - {order.customerName || 'Walk-in'}</p>
+                      <p className="text-sm font-medium">#{order.orderNumber} - {order.customerName || 'Hodič'}</p>
                       <p className="text-xs text-muted-foreground">
                         {format(new Date(order.createdAt), 'HH:mm')} · {order.type}
                       </p>
@@ -145,7 +145,7 @@ export function Dashboard() {
                 </div>
               ))}
               {(data?.recentOrders || []).length === 0 && (
-                <p className="text-center text-muted-foreground py-8">No orders yet today</p>
+                <p className="text-center text-muted-foreground py-8">Danes še ni naročil</p>
               )}
             </div>
           </CardContent>
@@ -153,22 +153,22 @@ export function Dashboard() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Quick Actions</CardTitle>
+            <CardTitle className="text-lg">Hitri dostop</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <Button className="w-full justify-start gap-2" onClick={() => setActiveModule('orders')}>
               <ShoppingBag className="h-4 w-4" />
-              New Order
+              Novo naročilo
               <ArrowRight className="h-3 w-3 ml-auto" />
             </Button>
             <Button variant="outline" className="w-full justify-start gap-2" onClick={() => setActiveModule('tables')}>
               <BarChartBig className="h-4 w-4" />
-              View Tables
+              Pregled miz
               <ArrowRight className="h-3 w-3 ml-auto" />
             </Button>
             <Button variant="outline" className="w-full justify-start gap-2" onClick={() => setActiveModule('menu')}>
               <Calculator className="h-4 w-4" />
-              Manage Menu
+              Upravljaj jedilnik
               <ArrowRight className="h-3 w-3 ml-auto" />
             </Button>
           </CardContent>
@@ -179,7 +179,7 @@ export function Dashboard() {
       {data?.lowStockItems?.length > 0 && (
         <Card className="border-red-200 dark:border-red-900/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg text-red-600">Low Stock Alerts</CardTitle>
+            <CardTitle className="text-lg text-red-600">Opozorila nizke zaloge</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
@@ -198,7 +198,7 @@ export function Dashboard() {
         <CardHeader className="pb-2">
           <CardTitle className="text-lg flex items-center gap-2">
             <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            Kitchen Display
+            Kuhinjski zaslon
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -229,7 +229,7 @@ export function Dashboard() {
                     </Badge>
                   </div>
                   <div className="text-xs text-muted-foreground mb-2">
-                    {order.type === 'dine-in' && order.table ? `Table ${order.table.number}` : order.type}
+                    {order.type === 'dine-in' && order.table ? `Miza ${order.table.number}` : order.type}
                     {' · '}
                     {format(new Date(order.createdAt), 'HH:mm')}
                   </div>
@@ -245,7 +245,7 @@ export function Dashboard() {
               ))}
             {(data?.recentOrders || []).filter((o: { status: string }) => o.status === 'pending' || o.status === 'in-progress').length === 0 && (
               <div className="col-span-full text-center py-6 text-muted-foreground text-sm">
-                No active orders in the kitchen
+                V kuhinji ni aktivnih naročil
               </div>
             )}
           </div>

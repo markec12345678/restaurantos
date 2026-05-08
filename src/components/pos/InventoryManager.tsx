@@ -16,6 +16,16 @@ import { useState } from 'react'
 
 const invCategories = ['all', 'general', 'produce', 'meat', 'dairy', 'beverages', 'dry-goods']
 
+const categoryLabels: Record<string, string> = {
+  all: 'Vse kategorije',
+  general: 'Splošno',
+  produce: 'Sveže',
+  meat: 'Meso',
+  dairy: 'Mlečno',
+  beverages: 'Pijače',
+  'dry-goods': 'Suho blago',
+}
+
 const stockLevelColor = (quantity: number, minQuantity: number) => {
   if (quantity <= 0) return 'destructive'
   if (quantity <= minQuantity) return 'secondary'
@@ -23,10 +33,10 @@ const stockLevelColor = (quantity: number, minQuantity: number) => {
 }
 
 const stockLevelText = (quantity: number, minQuantity: number) => {
-  if (quantity <= 0) return 'Out of Stock'
-  if (quantity <= minQuantity * 0.5) return 'Critical'
-  if (quantity <= minQuantity) return 'Low'
-  return 'In Stock'
+  if (quantity <= 0) return 'Ni na zalogi'
+  if (quantity <= minQuantity * 0.5) return 'Kritično'
+  if (quantity <= minQuantity) return 'Nizko'
+  return 'Na zalogi'
 }
 
 export function InventoryManager() {
@@ -72,7 +82,7 @@ export function InventoryManager() {
       if (!res.ok) throw new Error('Failed')
       return res.json()
     },
-    onSuccess: () => { toast.success('Inventory item created'); queryClient.invalidateQueries({ queryKey: ['inventory'] }); setDialogOpen(false) },
+    onSuccess: () => { toast.success('Artikel zaloge ustvarjen'); queryClient.invalidateQueries({ queryKey: ['inventory'] }); setDialogOpen(false) },
   })
 
   const updateMutation = useMutation({
@@ -81,7 +91,7 @@ export function InventoryManager() {
       if (!res.ok) throw new Error('Failed')
       return res.json()
     },
-    onSuccess: () => { toast.success('Inventory item updated'); queryClient.invalidateQueries({ queryKey: ['inventory'] }); setDialogOpen(false); setEditingItem(null) },
+    onSuccess: () => { toast.success('Artikel zaloge posodobljen'); queryClient.invalidateQueries({ queryKey: ['inventory'] }); setDialogOpen(false); setEditingItem(null) },
   })
 
   const deleteMutation = useMutation({
@@ -90,7 +100,7 @@ export function InventoryManager() {
       if (!res.ok) throw new Error('Failed')
       return res.json()
     },
-    onSuccess: () => { toast.success('Inventory item deleted'); queryClient.invalidateQueries({ queryKey: ['inventory'] }) },
+    onSuccess: () => { toast.success('Artikel zaloge izbrisan'); queryClient.invalidateQueries({ queryKey: ['inventory'] }) },
   })
 
   const openCreate = () => {
@@ -141,12 +151,12 @@ export function InventoryManager() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Inventory</h2>
-          <p className="text-muted-foreground">Track stock levels and supplies</p>
+          <h2 className="text-2xl font-bold">Zaloga</h2>
+          <p className="text-muted-foreground">Spremljajte zaloge in dobave</p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4 mr-2" />
-          Add Item
+          Dodaj artikel
         </Button>
       </div>
 
@@ -156,7 +166,7 @@ export function InventoryManager() {
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-2">
               <AlertTriangle className="h-5 w-5 text-red-500" />
-              <span className="font-semibold text-red-600">Low Stock Alerts ({lowStockItems.length})</span>
+              <span className="font-semibold text-red-600">Opozorila nizke zaloge ({lowStockItems.length})</span>
             </div>
             <div className="flex flex-wrap gap-2">
               {lowStockItems.map((item: { id: string; name: string; quantity: number; minQuantity: number; unit: string }) => (
@@ -173,15 +183,15 @@ export function InventoryManager() {
       <div className="flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-48 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search inventory..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          <Input placeholder="Išči v zalogi..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
         <Select value={filterCategory} onValueChange={setFilterCategory}>
           <SelectTrigger className="w-48">
-            <SelectValue placeholder="All Categories" />
+            <SelectValue placeholder="Vse kategorije" />
           </SelectTrigger>
           <SelectContent>
             {invCategories.map(c => (
-              <SelectItem key={c} value={c} className="capitalize">{c === 'all' ? 'All Categories' : c.replace('-', ' ')}</SelectItem>
+              <SelectItem key={c} value={c}>{categoryLabels[c] || c}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -206,7 +216,7 @@ export function InventoryManager() {
                       <Package className="h-4 w-4 text-muted-foreground" />
                       <div>
                         <p className="font-medium text-sm">{String(item.name)}</p>
-                        <p className="text-xs text-muted-foreground">{String(item.supplier || 'No supplier')}</p>
+                        <p className="text-xs text-muted-foreground">{String(item.supplier || 'Brez dobavitelja')}</p>
                       </div>
                     </div>
                     <div className="flex gap-1">
@@ -240,15 +250,15 @@ export function InventoryManager() {
                         type="number"
                         value={quickUpdateQty}
                         onChange={(e) => setQuickUpdateQty(e.target.value)}
-                        placeholder="New qty"
+                        placeholder="Nova količina"
                         className="h-7 text-xs"
                       />
-                      <Button size="sm" className="h-7 text-xs" onClick={() => handleQuickUpdate(item.id as string)}>Save</Button>
+                      <Button size="sm" className="h-7 text-xs" onClick={() => handleQuickUpdate(item.id as string)}>Shrani</Button>
                       <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setQuickUpdateId(null)}>X</Button>
                     </div>
                   ) : (
                     <Button variant="outline" size="sm" className="w-full h-7 text-xs" onClick={() => { setQuickUpdateId(item.id as string); setQuickUpdateQty(String(qty)) }}>
-                      Quick Stock Update
+                      Hitra posodobitev zaloge
                     </Button>
                   )}
                 </CardContent>
@@ -259,52 +269,52 @@ export function InventoryManager() {
       )}
 
       {filteredItems.length === 0 && !isLoading && (
-        <p className="text-center py-12 text-muted-foreground">No inventory items found</p>
+        <p className="text-center py-12 text-muted-foreground">Ni najdenih artiklov v zalogi</p>
       )}
 
       {/* Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingItem ? 'Edit Inventory Item' : 'Add Inventory Item'}</DialogTitle>
+            <DialogTitle>{editingItem ? 'Uredi artikel zaloge' : 'Dodaj artikel v zalogo'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <div><Label>Name</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} /></div>
+            <div><Label>Ime</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Unit</Label><Input value={formData.unit} onChange={(e) => setFormData({ ...formData, unit: e.target.value })} /></div>
-              <div><Label>Quantity</Label><Input type="number" value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} /></div>
+              <div><Label>Enota</Label><Input value={formData.unit} onChange={(e) => setFormData({ ...formData, unit: e.target.value })} /></div>
+              <div><Label>Količina</Label><Input type="number" value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div><Label>Min Quantity</Label><Input type="number" value={formData.minQuantity} onChange={(e) => setFormData({ ...formData, minQuantity: e.target.value })} /></div>
-              <div><Label>Cost/Unit ($)</Label><Input type="number" step="0.01" value={formData.costPerUnit} onChange={(e) => setFormData({ ...formData, costPerUnit: e.target.value })} /></div>
+              <div><Label>Min. količina</Label><Input type="number" value={formData.minQuantity} onChange={(e) => setFormData({ ...formData, minQuantity: e.target.value })} /></div>
+              <div><Label>Strošek/enota ($)</Label><Input type="number" step="0.01" value={formData.costPerUnit} onChange={(e) => setFormData({ ...formData, costPerUnit: e.target.value })} /></div>
             </div>
-            <div><Label>Supplier</Label><Input value={formData.supplier} onChange={(e) => setFormData({ ...formData, supplier: e.target.value })} /></div>
-            <div><Label>Category</Label>
+            <div><Label>Dobavitelj</Label><Input value={formData.supplier} onChange={(e) => setFormData({ ...formData, supplier: e.target.value })} /></div>
+            <div><Label>Kategorija</Label>
               <Select value={formData.category} onValueChange={(v) => setFormData({ ...formData, category: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {['general', 'produce', 'meat', 'dairy', 'beverages', 'dry-goods'].map(c => (
-                    <SelectItem key={c} value={c} className="capitalize">{c.replace('-', ' ')}</SelectItem>
+                    <SelectItem key={c} value={c}>{categoryLabels[c] || c}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>Linked Menu Item</Label>
+            <div><Label>Povezan artikel</Label>
               <Select value={formData.menuItemId || 'none'} onValueChange={(v) => setFormData({ ...formData, menuItemId: v === 'none' ? '' : v })}>
-                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Brez" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="none">Brez</SelectItem>
                   {menuItems?.map((mi: { id: string; name: string }) => (
                     <SelectItem key={mi.id} value={mi.id}>{mi.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>Expiry Date</Label><Input type="date" value={formData.expiryDate} onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })} /></div>
+            <div><Label>Rok uporabe</Label><Input type="date" value={formData.expiryDate} onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })} /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSubmit} disabled={!formData.name}>{editingItem ? 'Update' : 'Create'}</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Prekliči</Button>
+            <Button onClick={handleSubmit} disabled={!formData.name}>{editingItem ? 'Posodobi' : 'Ustvari'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -96,7 +96,7 @@ export function OrderPanel() {
       return res.json()
     },
     onSuccess: () => {
-      toast.success('Order placed successfully!')
+      toast.success('Naročilo uspešno oddano!')
       clearCart()
       setCustomerName('')
       setCustomerPhone('')
@@ -107,7 +107,7 @@ export function OrderPanel() {
       queryClient.invalidateQueries({ queryKey: ['tables'] })
     },
     onError: () => {
-      toast.error('Failed to place order')
+      toast.error('Napaka pri oddaji naročila')
     },
   })
 
@@ -122,7 +122,7 @@ export function OrderPanel() {
       return res.json()
     },
     onSuccess: () => {
-      toast.success('Order status updated')
+      toast.success('Status naročila posodobljen')
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['tables'] })
@@ -140,7 +140,7 @@ export function OrderPanel() {
       return res.json()
     },
     onSuccess: () => {
-      toast.success('Payment processed successfully!')
+      toast.success('Plačilo uspešno obdelano!')
       setPaymentDialogOpen(false)
       setSelectedOrder(null)
       setPaymentMethod('')
@@ -175,14 +175,14 @@ export function OrderPanel() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="text-2xl font-bold">Orders</h2>
-        <p className="text-muted-foreground">Create and manage orders</p>
+        <h2 className="text-2xl font-bold">Naročila</h2>
+        <p className="text-muted-foreground">Ustvarjaj in upravljaj naročila</p>
       </div>
 
       <Tabs defaultValue="new-order" className="w-full">
         <TabsList className="grid w-full grid-cols-2 max-w-md">
-          <TabsTrigger value="new-order">New Order</TabsTrigger>
-          <TabsTrigger value="order-list">Order List</TabsTrigger>
+          <TabsTrigger value="new-order">Novo naročilo</TabsTrigger>
+          <TabsTrigger value="order-list">Seznam naročil</TabsTrigger>
         </TabsList>
 
         {/* New Order Tab */}
@@ -197,21 +197,21 @@ export function OrderPanel() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="dine-in">Dine-in</SelectItem>
-                    <SelectItem value="takeaway">Takeaway</SelectItem>
-                    <SelectItem value="delivery">Delivery</SelectItem>
+                    <SelectItem value="dine-in">Na mestu</SelectItem>
+                    <SelectItem value="takeaway">Za s seboj</SelectItem>
+                    <SelectItem value="delivery">Dostava</SelectItem>
                   </SelectContent>
                 </Select>
 
                 {orderType === 'dine-in' && (
                   <Select value={selectedTable || ''} onValueChange={setSelectedTable}>
                     <SelectTrigger className="w-40">
-                      <SelectValue placeholder="Select table" />
+                      <SelectValue placeholder="Izberi mizo" />
                     </SelectTrigger>
                     <SelectContent>
                       {tables?.filter((t: { status: string }) => t.status === 'available' || t.status === 'occupied').map((table: { id: string; number: number; capacity: number }) => (
                         <SelectItem key={table.id} value={table.id}>
-                          Table {table.number} ({table.capacity} seats)
+                          Miza {table.number} ({table.capacity} mest)
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -226,7 +226,7 @@ export function OrderPanel() {
                   size="sm"
                   onClick={() => setActiveCategory('all')}
                 >
-                  All
+                  Vse
                 </Button>
                 {categories?.map((cat: { id: string; name: string; icon: string }) => (
                   <Button
@@ -298,7 +298,7 @@ export function OrderPanel() {
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <ShoppingBag className="h-4 w-4" />
-                    Cart
+                    Košarica
                   </CardTitle>
                   {cart.length > 0 && (
                     <Button variant="ghost" size="sm" onClick={clearCart} className="text-destructive">
@@ -311,7 +311,7 @@ export function OrderPanel() {
                 {/* Cart Items */}
                 <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
                   {cart.length === 0 && (
-                    <p className="text-center text-muted-foreground text-sm py-6">Cart is empty</p>
+                    <p className="text-center text-muted-foreground text-sm py-6">Košarica je prazna</p>
                   )}
                   {cart.map((item) => (
                     <div key={item.id} className="flex items-start gap-2 p-2 rounded-md bg-muted/50">
@@ -327,7 +327,7 @@ export function OrderPanel() {
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">${item.price.toFixed(2)} each</p>
+                        <p className="text-xs text-muted-foreground">${item.price.toFixed(2)} na kos</p>
                         {item.notes && <p className="text-xs text-primary italic mt-0.5">📝 {item.notes}</p>}
                       </div>
                       <div className="flex items-center gap-1">
@@ -369,19 +369,19 @@ export function OrderPanel() {
                 {/* Customer Info */}
                 <div className="space-y-2">
                   <Input
-                    placeholder="Customer name"
+                    placeholder="Ime stranke"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     className="h-8 text-sm"
                   />
                   <Input
-                    placeholder="Phone number"
+                    placeholder="Telefonska številka"
                     value={customerPhone}
                     onChange={(e) => setCustomerPhone(e.target.value)}
                     className="h-8 text-sm"
                   />
                   <Input
-                    placeholder="Order notes"
+                    placeholder="Opombe k naročilu"
                     value={orderNotes}
                     onChange={(e) => setOrderNotes(e.target.value)}
                     className="h-8 text-sm"
@@ -390,7 +390,7 @@ export function OrderPanel() {
 
                 {/* Discount */}
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Discount ($)</span>
+                  <span className="text-sm text-muted-foreground">Popust ($)</span>
                   <Input
                     type="number"
                     min="0"
@@ -406,21 +406,21 @@ export function OrderPanel() {
                 {/* Totals */}
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotal</span>
+                    <span className="text-muted-foreground">Vmesna vsota</span>
                     <span>${subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Tax (10%)</span>
+                    <span className="text-muted-foreground">Davek (10%)</span>
                     <span>${tax.toFixed(2)}</span>
                   </div>
                   {discount > 0 && (
                     <div className="flex justify-between text-emerald-600">
-                      <span>Discount</span>
+                      <span>Popust</span>
                       <span>-${discount.toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between font-bold text-base pt-1">
-                    <span>Total</span>
+                    <span>Skupaj</span>
                     <span>${Math.max(0, total).toFixed(2)}</span>
                   </div>
                 </div>
@@ -430,7 +430,7 @@ export function OrderPanel() {
                   disabled={cart.length === 0 || placeOrderMutation.isPending}
                   onClick={() => placeOrderMutation.mutate()}
                 >
-                  {placeOrderMutation.isPending ? 'Placing...' : 'Place Order'}
+                  {placeOrderMutation.isPending ? 'Naročam...' : 'Oddaj naročilo'}
                 </Button>
               </CardContent>
             </Card>
@@ -442,11 +442,11 @@ export function OrderPanel() {
           <div className="space-y-4">
             <Tabs value={orderListTab} onValueChange={setOrderListTab}>
               <TabsList>
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="pending">Pending</TabsTrigger>
-                <TabsTrigger value="in-progress">In Progress</TabsTrigger>
-                <TabsTrigger value="ready">Ready</TabsTrigger>
-                <TabsTrigger value="completed">Completed</TabsTrigger>
+                <TabsTrigger value="all">Vse</TabsTrigger>
+                <TabsTrigger value="pending">Čakajoče</TabsTrigger>
+                <TabsTrigger value="in-progress">V obdelavi</TabsTrigger>
+                <TabsTrigger value="ready">Pripravljeno</TabsTrigger>
+                <TabsTrigger value="completed">Zaključeno</TabsTrigger>
               </TabsList>
             </Tabs>
 
@@ -493,8 +493,8 @@ export function OrderPanel() {
                       </div>
 
                       <div className="text-sm">
-                        <p>{order.customerName || 'Walk-in'} · {order.type}</p>
-                        {order.table && <p className="text-muted-foreground">Table {order.table.number}</p>}
+                        <p>{order.customerName || 'Hodič'} · {order.type}</p>
+                        {order.table && <p className="text-muted-foreground">Miza {order.table.number}</p>}
                       </div>
 
                       <div className="space-y-1">
@@ -505,7 +505,7 @@ export function OrderPanel() {
                           </div>
                         ))}
                         {order.orderItems.length > 3 && (
-                          <p className="text-xs text-muted-foreground">+{order.orderItems.length - 3} more items</p>
+                          <p className="text-xs text-muted-foreground">+{order.orderItems.length - 3} artiklov več</p>
                         )}
                       </div>
 
@@ -521,7 +521,7 @@ export function OrderPanel() {
                             onClick={() => setDetailOrder(order)}
                           >
                             <Eye className="h-3 w-3 mr-1" />
-                            View
+                            Poglej
                           </Button>
                           {order.status !== 'completed' && order.status !== 'cancelled' && nextStatus[order.status] && (
                             <Button
@@ -545,7 +545,7 @@ export function OrderPanel() {
                               }}
                             >
                               <CreditCard className="h-3 w-3 mr-1" />
-                              Pay
+                              Plačaj
                             </Button>
                           )}
                           {order.paymentStatus === 'paid' && (
@@ -556,7 +556,7 @@ export function OrderPanel() {
                               onClick={() => setReceiptOrder(order)}
                             >
                               <Printer className="h-3 w-3 mr-1" />
-                              Receipt
+                              Račun
                             </Button>
                           )}
                         </div>
@@ -566,7 +566,7 @@ export function OrderPanel() {
                 ))}
                 {(!orders || orders.length === 0) && (
                   <div className="col-span-full text-center py-12 text-muted-foreground">
-                    No orders found
+                    Ni najdenih naročil
                   </div>
                 )}
               </div>
@@ -577,7 +577,7 @@ export function OrderPanel() {
           <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Process Payment</DialogTitle>
+                <DialogTitle>Obdelava plačila</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
                 <p className="text-2xl font-bold text-center">
@@ -590,7 +590,7 @@ export function OrderPanel() {
                     onClick={() => setPaymentMethod('cash')}
                   >
                     <Banknote className="h-5 w-5" />
-                    <span className="text-xs">Cash</span>
+                    <span className="text-xs">Gotovina</span>
                   </Button>
                   <Button
                     variant={paymentMethod === 'card' ? 'default' : 'outline'}
@@ -598,7 +598,7 @@ export function OrderPanel() {
                     onClick={() => setPaymentMethod('card')}
                   >
                     <CreditCard className="h-5 w-5" />
-                    <span className="text-xs">Card</span>
+                    <span className="text-xs">Kartica</span>
                   </Button>
                   <Button
                     variant={paymentMethod === 'upi' ? 'default' : 'outline'}
@@ -611,7 +611,7 @@ export function OrderPanel() {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>Cancel</Button>
+                <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>Prekliči</Button>
                 <Button
                   disabled={!paymentMethod || processPaymentMutation.isPending}
                   onClick={() => {
@@ -620,7 +620,7 @@ export function OrderPanel() {
                     }
                   }}
                 >
-                  Confirm Payment
+                  Potrdi plačilo
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -631,7 +631,7 @@ export function OrderPanel() {
             <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
-                  Order #{(detailOrder?.orderNumber as number) || ''}
+                  Naročilo #{(detailOrder?.orderNumber as number) || ''}
                   <Badge variant="outline" className={statusColors[(detailOrder?.status as string) || ''] || ''}>
                     {String(detailOrder?.status || '')}
                   </Badge>
@@ -641,19 +641,19 @@ export function OrderPanel() {
                 {/* Order Info */}
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
-                    <p className="text-muted-foreground">Customer</p>
-                    <p className="font-medium">{String(detailOrder?.customerName || 'Walk-in')}</p>
+                    <p className="text-muted-foreground">Stranka</p>
+                    <p className="font-medium">{String(detailOrder?.customerName || 'Hodič')}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Type</p>
+                    <p className="text-muted-foreground">Vrsta</p>
                     <p className="font-medium capitalize">{String(detailOrder?.type || '')}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Table</p>
-                    <p className="font-medium">{detailOrder?.table ? `Table ${(detailOrder.table as { number: number }).number}` : 'N/A'}</p>
+                    <p className="text-muted-foreground">Miza</p>
+                    <p className="font-medium">{detailOrder?.table ? `Miza ${(detailOrder.table as { number: number }).number}` : 'Brez'}</p>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Payment</p>
+                    <p className="text-muted-foreground">Plačilo</p>
                     <div className="flex items-center gap-1">
                       <Badge variant="outline" className={detailOrder?.paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-yellow-100 text-yellow-800'}>
                         {String(detailOrder?.paymentStatus || 'unpaid')}
@@ -662,8 +662,8 @@ export function OrderPanel() {
                     </div>
                   </div>
                   <div>
-                    <p className="text-muted-foreground">Time</p>
-                    <p className="font-medium">{detailOrder?.createdAt ? format(new Date(detailOrder.createdAt as string), 'MMM dd, yyyy HH:mm') : 'N/A'}</p>
+                    <p className="text-muted-foreground">Čas</p>
+                    <p className="font-medium">{detailOrder?.createdAt ? format(new Date(detailOrder.createdAt as string), 'MMM dd, yyyy HH:mm') : 'Brez'}</p>
                   </div>
                 </div>
 
@@ -671,7 +671,7 @@ export function OrderPanel() {
 
                 {/* Items */}
                 <div className="space-y-2">
-                  <p className="text-sm font-semibold">Items</p>
+                  <p className="text-sm font-semibold">Artikli</p>
                   {((detailOrder?.orderItems as { id: string; menuItem: { name: string; image: string }; quantity: number; price: number; notes: string; status: string }[]) || []).map((oi) => (
                     <div key={oi.id} className="flex items-start justify-between text-sm py-1 gap-2">
                       <div className="flex items-start gap-2 flex-1">
@@ -703,28 +703,28 @@ export function OrderPanel() {
                 {/* Totals */}
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Subtotal</span>
+                    <span className="text-muted-foreground">Vmesna vsota</span>
                     <span>${((detailOrder?.subtotal as number) || 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Tax</span>
+                    <span className="text-muted-foreground">Davek</span>
                     <span>${((detailOrder?.tax as number) || 0).toFixed(2)}</span>
                   </div>
                   {Number(detailOrder?.discount || 0) > 0 && (
                     <div className="flex justify-between text-emerald-600">
-                      <span>Discount</span>
+                      <span>Popust</span>
                       <span>-${((detailOrder?.discount as number) || 0).toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between font-bold text-base pt-1">
-                    <span>Total</span>
+                    <span>Skupaj</span>
                     <span>${((detailOrder?.total as number) || 0).toFixed(2)}</span>
                   </div>
                 </div>
 
                 {detailOrder?.notes && (
                   <div className="text-sm bg-muted/50 p-3 rounded-lg">
-                    <p className="text-muted-foreground text-xs mb-1">Order Notes</p>
+                    <p className="text-muted-foreground text-xs mb-1">Opombe k naročilu</p>
                     <p>{String(detailOrder.notes)}</p>
                   </div>
                 )}
@@ -738,7 +738,7 @@ export function OrderPanel() {
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Printer className="h-4 w-4" />
-                  Receipt
+                  Račun
                 </DialogTitle>
               </DialogHeader>
               <div ref={receiptRef} className="bg-white text-black p-4 rounded-lg text-sm font-mono space-y-3">
@@ -748,30 +748,30 @@ export function OrderPanel() {
                   <p className="text-xs text-gray-500">123 Main Street, Foodville</p>
                   <p className="text-xs text-gray-500">Tel: (555) 123-4567</p>
                   <div className="border-b border-dashed border-gray-300 my-2" />
-                  <p className="text-xs">RECEIPT</p>
+                  <p className="text-xs">RAČUN</p>
                 </div>
 
                 {/* Receipt Info */}
                 <div className="text-xs space-y-0.5">
                   <div className="flex justify-between">
-                    <span>Order #</span>
+                    <span>Naročilo #</span>
                     <span>{(receiptOrder?.orderNumber as number) || ''}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Date</span>
+                    <span>Datum</span>
                     <span>{receiptOrder?.createdAt ? format(new Date(receiptOrder.createdAt as string), 'MMM dd, yyyy HH:mm') : ''}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Customer</span>
-                    <span>{String(receiptOrder?.customerName || 'Walk-in')}</span>
+                    <span>Stranka</span>
+                    <span>{String(receiptOrder?.customerName || 'Hodič')}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Type</span>
+                    <span>Vrsta</span>
                     <span className="capitalize">{String(receiptOrder?.type || '')}</span>
                   </div>
                   {receiptOrder?.table && (
                     <div className="flex justify-between">
-                      <span>Table</span>
+                      <span>Miza</span>
                       <span>{(receiptOrder.table as { number: number }).number}</span>
                     </div>
                   )}
@@ -794,53 +794,53 @@ export function OrderPanel() {
                 {/* Totals */}
                 <div className="text-xs space-y-0.5">
                   <div className="flex justify-between">
-                    <span>Subtotal:</span>
+                    <span>Vmesna vsota:</span>
                     <span>${((receiptOrder?.subtotal as number) || 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Tax:</span>
+                    <span>Davek:</span>
                     <span>${((receiptOrder?.tax as number) || 0).toFixed(2)}</span>
                   </div>
                   {Number(receiptOrder?.discount || 0) > 0 && (
                     <div className="flex justify-between">
-                      <span>Discount:</span>
+                      <span>Popust:</span>
                       <span>-${((receiptOrder?.discount as number) || 0).toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between font-bold text-sm pt-1">
-                    <span>TOTAL:</span>
+                    <span>SKUPAJ:</span>
                     <span>${((receiptOrder?.total as number) || 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Payment:</span>
-                    <span className="uppercase">{String(receiptOrder?.paymentMethod || 'N/A')}</span>
+                    <span>Plačilo:</span>
+                    <span className="uppercase">{String(receiptOrder?.paymentMethod || 'Brez')}</span>
                   </div>
                 </div>
 
                 <div className="border-b border-dashed border-gray-300" />
 
                 <div className="text-center text-xs text-gray-500">
-                  <p>Thank you for dining with us!</p>
-                  <p>We hope to see you again soon.</p>
+                  <p>Hvala, ker ste jedli pri nas!</p>
+                  <p>Upamo, da se kmalu vrnete.</p>
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => setReceiptOrder(null)}>Close</Button>
+                <Button variant="outline" onClick={() => setReceiptOrder(null)}>Zapri</Button>
                 <Button onClick={() => {
                   if (receiptRef.current) {
                     const printWindow = window.open('', '_blank')
                     if (printWindow) {
-                      printWindow.document.write('<html><head><title>Receipt</title><style>body{font-family:monospace;padding:20px;max-width:300px;margin:0 auto;}</style></head><body>')
+                      printWindow.document.write('<html><head><title>Račun</title><style>body{font-family:monospace;padding:20px;max-width:300px;margin:0 auto;}</style></head><body>')
                       printWindow.document.write(receiptRef.current.innerHTML)
                       printWindow.document.write('</body></html>')
                       printWindow.document.close()
                       printWindow.print()
                     }
                   }
-                  toast.success('Receipt sent to printer')
+                  toast.success('Račun poslan na tiskalnik')
                 }}>
                   <Printer className="h-4 w-4 mr-2" />
-                  Print
+                  Natisni
                 </Button>
               </DialogFooter>
             </DialogContent>

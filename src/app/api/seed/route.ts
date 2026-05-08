@@ -13,64 +13,64 @@ export async function POST() {
     await db.table.deleteMany()
     await db.employee.deleteMany()
 
-    // Categories
+    // Kategorije
     const categories = await Promise.all([
-      db.category.create({ data: { name: 'Appetizers', icon: '🥗', color: '#10b981', sortOrder: 0 } }),
-      db.category.create({ data: { name: 'Main Course', icon: '🥩', color: '#ef4444', sortOrder: 1 } }),
-      db.category.create({ data: { name: 'Pasta', icon: '🍝', color: '#f59e0b', sortOrder: 2 } }),
-      db.category.create({ data: { name: 'Pizza', icon: '🍕', color: '#8b5cf6', sortOrder: 3 } }),
-      db.category.create({ data: { name: 'Burgers', icon: '🍔', color: '#ec4899', sortOrder: 4 } }),
-      db.category.create({ data: { name: 'Desserts', icon: '🍰', color: '#06b6d4', sortOrder: 5 } }),
-      db.category.create({ data: { name: 'Beverages', icon: '🥤', color: '#3b82f6', sortOrder: 6 } }),
-      db.category.create({ data: { name: 'Sides', icon: '🍟', color: '#84cc16', sortOrder: 7 } }),
+      db.category.create({ data: { name: 'Predjedi', icon: '🥗', color: '#10b981', sortOrder: 0 } }),
+      db.category.create({ data: { name: 'Glavne jedi', icon: '🥩', color: '#ef4444', sortOrder: 1 } }),
+      db.category.create({ data: { name: 'Testenine', icon: '🍝', color: '#f59e0b', sortOrder: 2 } }),
+      db.category.create({ data: { name: 'Pica', icon: '🍕', color: '#8b5cf6', sortOrder: 3 } }),
+      db.category.create({ data: { name: 'Burgerji', icon: '🍔', color: '#ec4899', sortOrder: 4 } }),
+      db.category.create({ data: { name: 'Sladice', icon: '🍰', color: '#06b6d4', sortOrder: 5 } }),
+      db.category.create({ data: { name: 'Pijače', icon: '🥤', color: '#3b82f6', sortOrder: 6 } }),
+      db.category.create({ data: { name: 'Priloge', icon: '🍟', color: '#84cc16', sortOrder: 7 } }),
     ])
 
     const [appetizers, mainCourse, pasta, pizza, burgers, desserts, beverages, sides] = categories
 
-    // Menu Items (with images)
+    // Artikli jedilnika (s slikami)
     const menuItems = await Promise.all([
-      // Appetizers
-      db.menuItem.create({ data: { name: 'Caesar Salad', description: 'Crisp romaine with parmesan and croutons', price: 9.99, image: '/menu-images/caesar-salad.png', categoryId: appetizers.id, sortOrder: 0 } }),
-      db.menuItem.create({ data: { name: 'Bruschetta', description: 'Toasted bread with fresh tomato and basil', price: 8.49, image: '/menu-images/bruschetta.png', categoryId: appetizers.id, sortOrder: 1 } }),
-      db.menuItem.create({ data: { name: 'Spring Rolls', description: 'Crispy vegetable spring rolls with dip', price: 7.99, image: '/menu-images/spring-rolls.png', categoryId: appetizers.id, sortOrder: 2 } }),
-      db.menuItem.create({ data: { name: 'Soup of the Day', description: 'Freshly made daily soup', price: 6.99, image: '/menu-images/soup-of-the-day.png', categoryId: appetizers.id, sortOrder: 3 } }),
-      // Main Course
-      db.menuItem.create({ data: { name: 'Grilled Salmon', description: 'Atlantic salmon with lemon butter sauce', price: 24.99, image: '/menu-images/grilled-salmon.png', categoryId: mainCourse.id, sortOrder: 0 } }),
-      db.menuItem.create({ data: { name: 'Ribeye Steak', description: '12oz ribeye cooked to your preference', price: 32.99, image: '/menu-images/ribeye-steak.png', categoryId: mainCourse.id, sortOrder: 1 } }),
-      db.menuItem.create({ data: { name: 'Chicken Parmesan', description: 'Breaded chicken with marinara and mozzarella', price: 18.99, image: '/menu-images/chicken-parmesan.png', categoryId: mainCourse.id, sortOrder: 2 } }),
-      db.menuItem.create({ data: { name: 'Lamb Chops', description: 'Herb-crusted lamb chops with rosemary', price: 28.99, image: '/menu-images/lamb-chops.png', categoryId: mainCourse.id, sortOrder: 3 } }),
-      // Pasta
-      db.menuItem.create({ data: { name: 'Spaghetti Carbonara', description: 'Classic carbonara with pancetta and egg', price: 16.99, image: '/menu-images/spaghetti-carbonara.png', categoryId: pasta.id, sortOrder: 0 } }),
-      db.menuItem.create({ data: { name: 'Fettuccine Alfredo', description: 'Creamy alfredo sauce with parmesan', price: 15.99, image: '/menu-images/fettuccine-alfredo.png', categoryId: pasta.id, sortOrder: 1 } }),
-      db.menuItem.create({ data: { name: 'Penne Arrabbiata', description: 'Spicy tomato sauce with garlic and chili', price: 14.49, image: '/menu-images/penne-arrabbiata.png', categoryId: pasta.id, sortOrder: 2 } }),
-      db.menuItem.create({ data: { name: 'Lasagna', description: 'Layers of pasta, meat sauce, and cheese', price: 17.99, image: '/menu-images/lasagna.png', categoryId: pasta.id, sortOrder: 3 } }),
-      // Pizza
-      db.menuItem.create({ data: { name: 'Margherita', description: 'Fresh mozzarella, tomato, and basil', price: 14.99, image: '/menu-images/margherita-pizza.png', categoryId: pizza.id, sortOrder: 0 } }),
-      db.menuItem.create({ data: { name: 'Pepperoni', description: 'Classic pepperoni with mozzarella', price: 16.99, image: '/menu-images/pepperoni-pizza.png', categoryId: pizza.id, sortOrder: 1 } }),
-      db.menuItem.create({ data: { name: 'BBQ Chicken', description: 'BBQ sauce, chicken, and red onion', price: 18.49, image: '/menu-images/bbq-chicken-pizza.png', categoryId: pizza.id, sortOrder: 2 } }),
-      db.menuItem.create({ data: { name: 'Vegetarian', description: 'Bell peppers, mushrooms, olives, and onion', price: 15.99, image: '/menu-images/vegetarian-pizza.png', categoryId: pizza.id, sortOrder: 3 } }),
-      // Burgers
-      db.menuItem.create({ data: { name: 'Classic Burger', description: 'Beef patty with lettuce, tomato, and onion', price: 13.99, image: '/menu-images/classic-burger.png', categoryId: burgers.id, sortOrder: 0 } }),
-      db.menuItem.create({ data: { name: 'Bacon Cheeseburger', description: 'Beef patty with bacon and cheddar', price: 16.49, image: '/menu-images/bacon-cheeseburger.png', categoryId: burgers.id, sortOrder: 1 } }),
-      db.menuItem.create({ data: { name: 'Mushroom Swiss', description: 'Beef patty with sautéed mushrooms and Swiss', price: 15.99, image: '/menu-images/mushroom-swiss-burger.png', categoryId: burgers.id, sortOrder: 2 } }),
-      db.menuItem.create({ data: { name: 'Veggie Burger', description: 'Plant-based patty with avocado', price: 14.49, image: '/menu-images/veggie-burger.png', categoryId: burgers.id, sortOrder: 3 } }),
-      // Desserts
-      db.menuItem.create({ data: { name: 'Tiramisu', description: 'Classic Italian coffee dessert', price: 9.99, image: '/menu-images/tiramisu.png', categoryId: desserts.id, sortOrder: 0 } }),
-      db.menuItem.create({ data: { name: 'Chocolate Lava Cake', description: 'Warm chocolate cake with molten center', price: 10.99, image: '/menu-images/chocolate-lava-cake.png', categoryId: desserts.id, sortOrder: 1 } }),
+      // Predjedi
+      db.menuItem.create({ data: { name: 'Cezarjeva solata', description: 'Hrustljav rimski ohrovt s parmezanom in krutoni', price: 9.99, image: '/menu-images/caesar-salad.png', categoryId: appetizers.id, sortOrder: 0 } }),
+      db.menuItem.create({ data: { name: 'Bruschetta', description: 'Opečen kruh s svežim paradižnikom in baziliko', price: 8.49, image: '/menu-images/bruschetta.png', categoryId: appetizers.id, sortOrder: 1 } }),
+      db.menuItem.create({ data: { name: 'Vijolični zavitki', description: 'Hrustljavi zelenjavni zavitki s prelivom', price: 7.99, image: '/menu-images/spring-rolls.png', categoryId: appetizers.id, sortOrder: 2 } }),
+      db.menuItem.create({ data: { name: 'Juha dneva', description: 'Sveže pripravljena dnevna juha', price: 6.99, image: '/menu-images/soup-of-the-day.png', categoryId: appetizers.id, sortOrder: 3 } }),
+      // Glavne jedi
+      db.menuItem.create({ data: { name: 'Žar losos', description: 'Atlantski losos z omako iz limone in masla', price: 24.99, image: '/menu-images/grilled-salmon.png', categoryId: mainCourse.id, sortOrder: 0 } }),
+      db.menuItem.create({ data: { name: 'Ribeye zrezek', description: '12oz ribeye, pripravljen po vaši želji', price: 32.99, image: '/menu-images/ribeye-steak.png', categoryId: mainCourse.id, sortOrder: 1 } }),
+      db.menuItem.create({ data: { name: 'Piščanec parmezan', description: 'Paniran piščanec s paradižnikovo omako in mocarelo', price: 18.99, image: '/menu-images/chicken-parmesan.png', categoryId: mainCourse.id, sortOrder: 2 } }),
+      db.menuItem.create({ data: { name: 'Janječji kotleti', description: 'Zeliščno obloženi jagnječji kotleti z rožmarinom', price: 28.99, image: '/menu-images/lamb-chops.png', categoryId: mainCourse.id, sortOrder: 3 } }),
+      // Testenine
+      db.menuItem.create({ data: { name: 'Špageti karbonara', description: 'Klasična karbonara s panceto in jajcem', price: 16.99, image: '/menu-images/spaghetti-carbonara.png', categoryId: pasta.id, sortOrder: 0 } }),
+      db.menuItem.create({ data: { name: 'Fettuccine alfredo', description: 'Kremna alfredo omaka s parmezanom', price: 15.99, image: '/menu-images/fettuccine-alfredo.png', categoryId: pasta.id, sortOrder: 1 } }),
+      db.menuItem.create({ data: { name: 'Penne arrabbiata', description: 'Pikantna paradižnikova omaka s česnom in čilijem', price: 14.49, image: '/menu-images/penne-arrabbiata.png', categoryId: pasta.id, sortOrder: 2 } }),
+      db.menuItem.create({ data: { name: 'Lazanja', description: 'Plasti testenin, mesne omake in sira', price: 17.99, image: '/menu-images/lasagna.png', categoryId: pasta.id, sortOrder: 3 } }),
+      // Pica
+      db.menuItem.create({ data: { name: 'Margherita', description: 'Sveža mocarela, paradižnik in bazilika', price: 14.99, image: '/menu-images/margherita-pizza.png', categoryId: pizza.id, sortOrder: 0 } }),
+      db.menuItem.create({ data: { name: 'Pepperoni', description: 'Klasična pepperoni z mocarelo', price: 16.99, image: '/menu-images/pepperoni-pizza.png', categoryId: pizza.id, sortOrder: 1 } }),
+      db.menuItem.create({ data: { name: 'BBQ piščanec', description: 'BBQ omaka, piščanec in rdeča čebula', price: 18.49, image: '/menu-images/bbq-chicken-pizza.png', categoryId: pizza.id, sortOrder: 2 } }),
+      db.menuItem.create({ data: { name: 'Vegetarijanska', description: 'Paprika, gobe, olive in čebula', price: 15.99, image: '/menu-images/vegetarian-pizza.png', categoryId: pizza.id, sortOrder: 3 } }),
+      // Burgerji
+      db.menuItem.create({ data: { name: 'Klasičen burger', description: 'Goveji patty s solato, paradižnikom in čebulo', price: 13.99, image: '/menu-images/classic-burger.png', categoryId: burgers.id, sortOrder: 0 } }),
+      db.menuItem.create({ data: { name: 'Bacon cheeseburger', description: 'Goveji patty s slanino in cheddarjem', price: 16.49, image: '/menu-images/bacon-cheeseburger.png', categoryId: burgers.id, sortOrder: 1 } }),
+      db.menuItem.create({ data: { name: 'Gobe in švicar', description: 'Goveji patty z dušenimi gobami in švicarskim sirom', price: 15.99, image: '/menu-images/mushroom-swiss-burger.png', categoryId: burgers.id, sortOrder: 2 } }),
+      db.menuItem.create({ data: { name: 'Zelenjavni burger', description: 'Rastlinski patty z avokadom', price: 14.49, image: '/menu-images/veggie-burger.png', categoryId: burgers.id, sortOrder: 3 } }),
+      // Sladice
+      db.menuItem.create({ data: { name: 'Tiramisu', description: 'Klasična italijanska kavnana sladica', price: 9.99, image: '/menu-images/tiramisu.png', categoryId: desserts.id, sortOrder: 0 } }),
+      db.menuItem.create({ data: { name: 'Čokoladni lava cake', description: 'Topla čokoladna torta s tekočim sredinskim delom', price: 10.99, image: '/menu-images/chocolate-lava-cake.png', categoryId: desserts.id, sortOrder: 1 } }),
       db.menuItem.create({ data: { name: 'Cheesecake', description: 'New York style cheesecake', price: 8.99, image: '/menu-images/cheesecake.png', categoryId: desserts.id, sortOrder: 2 } }),
-      db.menuItem.create({ data: { name: 'Crème Brûlée', description: 'Vanilla custard with caramelized sugar', price: 9.49, image: '/menu-images/creme-brulee.png', categoryId: desserts.id, sortOrder: 3 } }),
-      // Beverages
-      db.menuItem.create({ data: { name: 'Fresh Lemonade', description: 'House-made lemonade', price: 4.99, image: '/menu-images/fresh-lemonade.png', categoryId: beverages.id, sortOrder: 0 } }),
-      db.menuItem.create({ data: { name: 'Iced Coffee', description: 'Cold brew with cream', price: 5.49, image: '/menu-images/iced-coffee.png', categoryId: beverages.id, sortOrder: 1 } }),
-      db.menuItem.create({ data: { name: 'Sparkling Water', description: 'San Pellegrino', price: 3.49, image: '/menu-images/sparkling-water.png', categoryId: beverages.id, sortOrder: 2 } }),
-      db.menuItem.create({ data: { name: 'Mango Smoothie', description: 'Fresh mango and yogurt blend', price: 6.99, image: '/menu-images/mango-smoothie.png', categoryId: beverages.id, sortOrder: 3 } }),
-      db.menuItem.create({ data: { name: 'Craft Beer', description: 'Local IPA on tap', price: 7.99, image: '/menu-images/craft-beer.png', categoryId: beverages.id, sortOrder: 4 } }),
-      db.menuItem.create({ data: { name: 'House Wine', description: 'Red or white, by the glass', price: 9.99, image: '/menu-images/house-wine.png', categoryId: beverages.id, sortOrder: 5 } }),
-      // Sides
-      db.menuItem.create({ data: { name: 'French Fries', description: 'Crispy golden fries', price: 5.49, image: '/menu-images/french-fries.png', categoryId: sides.id, sortOrder: 0 } }),
-      db.menuItem.create({ data: { name: 'Garlic Bread', description: 'Toasted with garlic butter', price: 4.99, image: '/menu-images/garlic-bread.png', categoryId: sides.id, sortOrder: 1 } }),
-      db.menuItem.create({ data: { name: 'Coleslaw', description: 'Creamy coleslaw', price: 3.99, image: '/menu-images/coleslaw.png', categoryId: sides.id, sortOrder: 2 } }),
-      db.menuItem.create({ data: { name: 'Onion Rings', description: 'Beer-battered onion rings', price: 5.99, image: '/menu-images/onion-rings.png', categoryId: sides.id, sortOrder: 3 } }),
+      db.menuItem.create({ data: { name: 'Crème brûlée', description: 'Vaniljeva krema s karameliziranim sladkorjem', price: 9.49, image: '/menu-images/creme-brulee.png', categoryId: desserts.id, sortOrder: 3 } }),
+      // Pijače
+      db.menuItem.create({ data: { name: 'Sveža limonada', description: 'Domača limonada', price: 4.99, image: '/menu-images/fresh-lemonade.png', categoryId: beverages.id, sortOrder: 0 } }),
+      db.menuItem.create({ data: { name: 'Ledena kava', description: 'Cold brew s smetano', price: 5.49, image: '/menu-images/iced-coffee.png', categoryId: beverages.id, sortOrder: 1 } }),
+      db.menuItem.create({ data: { name: 'Mešana voda', description: 'San Pellegrino', price: 3.49, image: '/menu-images/sparkling-water.png', categoryId: beverages.id, sortOrder: 2 } }),
+      db.menuItem.create({ data: { name: 'Mango smoothie', description: 'Svež mango in jogurt', price: 6.99, image: '/menu-images/mango-smoothie.png', categoryId: beverages.id, sortOrder: 3 } }),
+      db.menuItem.create({ data: { name: 'Craft pivo', description: 'Lokalno IPA pivo iz toča', price: 7.99, image: '/menu-images/craft-beer.png', categoryId: beverages.id, sortOrder: 4 } }),
+      db.menuItem.create({ data: { name: 'Hišno vino', description: 'Rdeče ali belo, kozarec', price: 9.99, image: '/menu-images/house-wine.png', categoryId: beverages.id, sortOrder: 5 } }),
+      // Priloge
+      db.menuItem.create({ data: { name: 'Pomfri', description: 'Hrustljavi zlato rumeni pomfri', price: 5.49, image: '/menu-images/french-fries.png', categoryId: sides.id, sortOrder: 0 } }),
+      db.menuItem.create({ data: { name: 'Česnov kruh', description: 'Opečen s česnovim maslom', price: 4.99, image: '/menu-images/garlic-bread.png', categoryId: sides.id, sortOrder: 1 } }),
+      db.menuItem.create({ data: { name: 'Coleslaw', description: 'Kremna solata iz zelja', price: 3.99, image: '/menu-images/coleslaw.png', categoryId: sides.id, sortOrder: 2 } }),
+      db.menuItem.create({ data: { name: 'Čebulni obročki', description: 'V pivskem testu ocvrti čebulni obročki', price: 5.99, image: '/menu-images/onion-rings.png', categoryId: sides.id, sortOrder: 3 } }),
     ])
 
     // Tables
@@ -206,9 +206,9 @@ export async function POST() {
       }
     }
 
-    return NextResponse.json({ success: true, message: 'Database seeded successfully' })
+    return NextResponse.json({ success: true, message: 'Podatki so bili uspešno naloženi' })
   } catch (error) {
     console.error('Seed error:', error)
-    return NextResponse.json({ error: 'Failed to seed database' }, { status: 500 })
+    return NextResponse.json({ error: 'Napaka pri nalaganju podatkov' }, { status: 500 })
   }
 }

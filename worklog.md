@@ -88,3 +88,26 @@ Stage Summary:
 - Menu item Add/Edit dialog includes Image URL field with live preview
 - Fallback placeholders shown when no image is available
 - Build successful, no errors
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Translate entire POS system to Slovenian language
+
+Work Log:
+- Translated Sidebar.tsx: navigation labels (Nadzorna plošča, Naročila, Mize, Jedilnik, Zaloga, Zaposleni, Poročila), "Prodajna točka", seed/light/dark mode buttons, toast messages
+- Translated Dashboard.tsx: all headings, stat cards (Današnji prihodek, Skupno naročil, Povpr. vrednost naročila, Zasedene mize), chart title, recent orders, quick actions, low stock alerts, kitchen display
+- Translated OrderPanel.tsx: all 73+ strings including order type (Na mestu, Za s seboj, Dostava), cart (Košarica), payment dialog (Gotovina, Kartica, UPI), receipt (RAČUN), all toast messages
+- Translated MenuManager.tsx: all headings, form labels, dialog titles, search/filter, toast messages
+- Translated TableMap.tsx: all headings, area labels (Glavna dvorana, Terasa, Bar, Zasebni prostor), status labels (Prosta, Zasedena, Rezervirana, Čiščenje), form labels, toast messages
+- Translated InventoryManager.tsx: all headings, stock level labels (Ni na zalogi, Kritično, Nizko, Na zalogi), category labels, form labels, toast messages
+- Translated EmployeeManager.tsx: all headings, role labels (Skrbnik, Vodja, Osebje, Kuhar), shift dialog, status labels, toast messages
+- Translated ReportsView.tsx: all headings, chart titles, date range options, stat card labels, tooltip labels
+- Translated seed data: all 8 category names (Predjedi, Glavne jedi, Testenine, Pica, Burgerji, Sladice, Pijače, Priloge), all 34 menu item names and descriptions
+- Reset database and re-seeded with Slovenian data
+- Build passes cleanly with no errors
+
+Stage Summary:
+- Complete Slovenian translation of all UI text across 8 components + seed data
+- All navigation, buttons, labels, dialogs, toasts, receipts, and data are now in Slovenian
+- Build successful, no errors

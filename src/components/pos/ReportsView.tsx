@@ -43,18 +43,18 @@ export function ReportsView() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Reports</h2>
-          <p className="text-muted-foreground">Sales analytics and performance insights</p>
+          <h2 className="text-2xl font-bold">Poročila</h2>
+          <p className="text-muted-foreground">Analitika prodaje in vpogledi v učinkovitost</p>
         </div>
         <Select value={dateRange} onValueChange={setDateRange}>
           <SelectTrigger className="w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="7">Last 7 days</SelectItem>
-            <SelectItem value="14">Last 14 days</SelectItem>
-            <SelectItem value="30">Last 30 days</SelectItem>
-            <SelectItem value="90">Last 90 days</SelectItem>
+            <SelectItem value="7">Zadnjih 7 dni</SelectItem>
+            <SelectItem value="14">Zadnjih 14 dni</SelectItem>
+            <SelectItem value="30">Zadnjih 30 dni</SelectItem>
+            <SelectItem value="90">Zadnjih 90 dni</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -62,22 +62,22 @@ export function ReportsView() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
-          title="Total Revenue"
+          title="Skupni prihodek"
           value={`$${(salesData?.totalRevenue || 0).toFixed(2)}`}
           icon={DollarSign}
         />
         <StatsCard
-          title="Total Orders"
+          title="Skupno naročil"
           value={salesData?.totalOrders || 0}
           icon={ShoppingBag}
         />
         <StatsCard
-          title="Avg Order Value"
+          title="Povpr. vrednost naročila"
           value={`$${(salesData?.avgOrderValue || 0).toFixed(2)}`}
           icon={TrendingUp}
         />
         <StatsCard
-          title="Top Items"
+          title="Top artikli"
           value={popularData?.popularItems?.length || 0}
           icon={UtensilsCrossed}
         />
@@ -93,7 +93,7 @@ export function ReportsView() {
           {/* Revenue Line Chart */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Revenue Trend</CardTitle>
+              <CardTitle className="text-lg">Trend prihodka</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-64">
@@ -103,7 +103,7 @@ export function ReportsView() {
                     <XAxis dataKey="date" tickFormatter={(v) => format(new Date(v), 'MMM dd')} tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${v}`} />
                     <Tooltip
-                      formatter={(value: number) => [`$${value.toFixed(2)}`, 'Revenue']}
+                      formatter={(value: number) => [`$${value.toFixed(2)}`, 'Prihodek']}
                       labelFormatter={(label) => format(new Date(label), 'MMM dd, yyyy')}
                       contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }}
                     />
@@ -118,7 +118,7 @@ export function ReportsView() {
             {/* Top Selling Items */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Top Selling Items</CardTitle>
+                <CardTitle className="text-lg">Najbolj prodajani artikli</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-64">
@@ -128,7 +128,7 @@ export function ReportsView() {
                       <XAxis type="number" tick={{ fontSize: 11 }} />
                       <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11 }} />
                       <Tooltip
-                        formatter={(value: number) => [value, 'Qty Sold']}
+                        formatter={(value: number) => [value, 'Prodana količina']}
                         contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }}
                       />
                       <Bar dataKey="quantity" fill="oklch(0.7 0.15 55)" radius={[0, 4, 4, 0]} />
@@ -141,7 +141,7 @@ export function ReportsView() {
             {/* Order Type Distribution */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Order Type Distribution</CardTitle>
+                <CardTitle className="text-lg">Porazdelitev po vrsti naročila</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-64">
@@ -160,7 +160,7 @@ export function ReportsView() {
                           <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: number) => [`$${value.toFixed(2)}`, 'Revenue']} />
+                      <Tooltip formatter={(value: number) => [`$${value.toFixed(2)}`, 'Prihodek']} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -171,7 +171,7 @@ export function ReportsView() {
           {/* Revenue by Category */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-lg">Revenue by Category</CardTitle>
+              <CardTitle className="text-lg">Prihodek po kategorijah</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-64">
@@ -181,7 +181,7 @@ export function ReportsView() {
                     <XAxis dataKey="category" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${v}`} />
                     <Tooltip
-                      formatter={(value: number) => [`$${value.toFixed(2)}`, 'Revenue']}
+                      formatter={(value: number) => [`$${value.toFixed(2)}`, 'Prihodek']}
                       contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }}
                     />
                     <Bar dataKey="revenue" fill="oklch(0.7 0.15 55)" radius={[4, 4, 0, 0]} />

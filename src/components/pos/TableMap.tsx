@@ -27,10 +27,17 @@ const statusDot: Record<string, string> = {
 }
 
 const areaLabels: Record<string, string> = {
-  main: 'Main Hall',
-  patio: 'Patio',
+  main: 'Glavna dvorana',
+  patio: 'Terasa',
   bar: 'Bar',
-  private: 'Private Room',
+  private: 'Zasebni prostor',
+}
+
+const statusLabels: Record<string, string> = {
+  available: 'Prosta',
+  occupied: 'Zasedena',
+  reserved: 'Rezervirana',
+  cleaning: 'Čiščenje',
 }
 
 export function TableMap() {
@@ -58,7 +65,7 @@ export function TableMap() {
       return res.json()
     },
     onSuccess: () => {
-      toast.success('Table created')
+      toast.success('Miza ustvarjena')
       queryClient.invalidateQueries({ queryKey: ['tables'] })
       setDialogOpen(false)
     },
@@ -75,7 +82,7 @@ export function TableMap() {
       return res.json()
     },
     onSuccess: () => {
-      toast.success('Table updated')
+      toast.success('Miza posodobljena')
       queryClient.invalidateQueries({ queryKey: ['tables'] })
       setDialogOpen(false)
       setEditingTable(null)
@@ -89,7 +96,7 @@ export function TableMap() {
       return res.json()
     },
     onSuccess: () => {
-      toast.success('Table deleted')
+      toast.success('Miza izbrisana')
       queryClient.invalidateQueries({ queryKey: ['tables'] })
     },
   })
@@ -136,12 +143,12 @@ export function TableMap() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Tables</h2>
-          <p className="text-muted-foreground">Manage restaurant tables and seating</p>
+          <h2 className="text-2xl font-bold">Mize</h2>
+          <p className="text-muted-foreground">Upravljajte mize in sedežni red</p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4 mr-2" />
-          Add Table
+          Dodaj mizo
         </Button>
       </div>
 
@@ -150,7 +157,7 @@ export function TableMap() {
         {Object.entries(statusDot).map(([status, color]) => (
           <div key={status} className="flex items-center gap-2">
             <div className={`h-3 w-3 rounded-full ${color}`} />
-            <span className="capitalize">{status}</span>
+            <span>{statusLabels[status] || status}</span>
           </div>
         ))}
       </div>
@@ -197,10 +204,10 @@ export function TableMap() {
                     <div className="text-2xl font-bold">{String(table.number)}</div>
                     <div className="flex items-center justify-center gap-1 text-xs text-muted-foreground">
                       <Users className="h-3 w-3" />
-                      {String(table.capacity)} seats
+                      {String(table.capacity)} mest
                     </div>
-                    <Badge variant="outline" className="text-xs capitalize">
-                      {String(table.status)}
+                    <Badge variant="outline" className="text-xs">
+                      {statusLabels[String(table.status)] || String(table.status)}
                     </Badge>
                   </CardContent>
                 </Card>
@@ -214,11 +221,11 @@ export function TableMap() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingTable ? 'Edit Table' : 'Add Table'}</DialogTitle>
+            <DialogTitle>{editingTable ? 'Uredi mizo' : 'Dodaj mizo'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <label className="text-sm font-medium">Table Number</label>
+              <label className="text-sm font-medium">Številka mize</label>
               <Input
                 type="number"
                 value={formData.number}
@@ -226,7 +233,7 @@ export function TableMap() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Capacity</label>
+              <label className="text-sm font-medium">Kapaciteta</label>
               <Input
                 type="number"
                 value={formData.capacity}
@@ -234,16 +241,16 @@ export function TableMap() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Area</label>
+              <label className="text-sm font-medium">Območje</label>
               <Select value={formData.area} onValueChange={(v) => setFormData({ ...formData, area: v })}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="main">Main Hall</SelectItem>
-                  <SelectItem value="patio">Patio</SelectItem>
+                  <SelectItem value="main">Glavna dvorana</SelectItem>
+                  <SelectItem value="patio">Terasa</SelectItem>
                   <SelectItem value="bar">Bar</SelectItem>
-                  <SelectItem value="private">Private Room</SelectItem>
+                  <SelectItem value="private">Zasebni prostor</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -254,18 +261,18 @@ export function TableMap() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="available">Available</SelectItem>
-                  <SelectItem value="occupied">Occupied</SelectItem>
-                  <SelectItem value="reserved">Reserved</SelectItem>
-                  <SelectItem value="cleaning">Cleaning</SelectItem>
+                  <SelectItem value="available">Prosta</SelectItem>
+                  <SelectItem value="occupied">Zasedena</SelectItem>
+                  <SelectItem value="reserved">Rezervirana</SelectItem>
+                  <SelectItem value="cleaning">Čiščenje</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Prekliči</Button>
             <Button onClick={handleSubmit} disabled={!formData.number}>
-              {editingTable ? 'Update' : 'Create'}
+              {editingTable ? 'Posodobi' : 'Ustvari'}
             </Button>
           </DialogFooter>
         </DialogContent>

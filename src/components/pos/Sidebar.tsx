@@ -32,13 +32,13 @@ function useMounted() {
 }
 
 const navItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'orders', label: 'Orders', icon: ShoppingCart },
-  { id: 'tables', label: 'Tables', icon: BarChartBig },
-  { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
-  { id: 'inventory', label: 'Inventory', icon: Package },
-  { id: 'employees', label: 'Employees', icon: Users },
-  { id: 'reports', label: 'Reports', icon: BarChart3 },
+  { id: 'dashboard', label: 'Nadzorna plošča', icon: LayoutDashboard },
+  { id: 'orders', label: 'Naročila', icon: ShoppingCart },
+  { id: 'tables', label: 'Mize', icon: BarChartBig },
+  { id: 'menu', label: 'Jedilnik', icon: UtensilsCrossed },
+  { id: 'inventory', label: 'Zaloga', icon: Package },
+  { id: 'employees', label: 'Zaposleni', icon: Users },
+  { id: 'reports', label: 'Poročila', icon: BarChart3 },
 ]
 
 export function Sidebar() {
@@ -67,11 +67,11 @@ export function Sidebar() {
       return res.json()
     },
     onSuccess: () => {
-      toast.success('Demo data seeded successfully! Refresh to see updates.')
+      toast.success('Demo podatki so bili naloženi! Osvežite stran za prikaz.')
       setTimeout(() => window.location.reload(), 1000)
     },
     onError: () => {
-      toast.error('Failed to seed demo data')
+      toast.error('Napaka pri nalaganju demo podatkov')
     },
   })
 
@@ -109,7 +109,7 @@ export function Sidebar() {
           </div>
           <div>
             <h1 className="font-bold text-base leading-tight">RestaurantOS</h1>
-            <p className="text-xs text-muted-foreground">Point of Sale</p>
+            <p className="text-xs text-muted-foreground">Prodajna točka</p>
           </div>
         </div>
 
@@ -153,7 +153,7 @@ export function Sidebar() {
             disabled={seedMutation.isPending}
           >
             <Database className="h-4 w-4" />
-            {seedMutation.isPending ? 'Seeding...' : 'Seed Demo Data'}
+            {seedMutation.isPending ? 'Nalagam...' : 'Naloži demo podatke'}
           </Button>
 
           {mounted && (
@@ -163,7 +163,7 @@ export function Sidebar() {
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             >
               {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+              {theme === 'dark' ? 'Svetli način' : 'Temni način'}
             </Button>
           )}
         </div>
