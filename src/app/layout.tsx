@@ -16,8 +16,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RestaurantOS - Point of Sale",
-  description: "Comprehensive restaurant POS system for managing orders, tables, menu, inventory, and staff.",
+  title: "RestaurantOS - Prodajna točka",
+  description: "Celovit POS sistem za restavracije - naročila, mize, jedilnik, zaloga, HACCP, FURS",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "RestaurantOS POS",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export default function RootLayout({
@@ -26,7 +35,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="sl" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >

@@ -1,24 +1,28 @@
 ---
-Task ID: 4
-Agent: main
-Task: Implement table→order linking, enhanced payment, search, and notifications
+Task ID: 1
+Agent: Main Agent
+Task: Implement all missing features for the Slovenian restaurant POS system
 
 Work Log:
-- Added editingOrderId/editingOrderNumber to Zustand store for tracking order editing mode
-- Created POST /api/orders/[id]/add-items API endpoint - adds items and recalculates totals
-- Updated TableMap: "Dodaj artikle k naročilu #XX" button on each active order in table dialog
-- Updated OrderPanel: editing mode shows "Dodaj k #XX" header, back button, modified submit text
-- Added tip and totalWithTip fields to Order Prisma model, ran db push
-- Added splitCount field to Order model for split payment tracking
-- Updated order PUT API to accept tip, totalWithTip, splitCount fields
-- Enhanced PaymentDialog: cash quick amounts (€5-100), auto-change calculation, split payment with method selection, mešano (mixed) option
-- Updated financial report API to use order.tip field for totalTips
-- Improved search: Ctrl+K/Cmd+K keyboard shortcut, Escape to close, larger visible search button
-- Enhanced GlobalNotifications: polling reduced to 5s, added low-stock badge polling (60s), low-stock indicator button
-- Build successful with all 30+ API routes
+- Reviewed current project state: 14+ Prisma models, 22+ API routes, 13 POS components
+- Identified missing features: HACCP UI, Settings UI, Recipe Manager, FURS integration, storno, PWA
+- Created HaccpManager.tsx - full HACCP management with 5 category tabs, templates, date filtering
+- Created SettingsManager.tsx - 4 tabs (Company, Tax/DDV, FURS, Receipt), FURS connection test
+- Created RecipeManager.tsx - multi-ingredient recipes with margin analysis per menu item
+- Created FURS API (/api/furs/route.ts) - fiscal verification, ZOI generation, storno, stock deduction
+- Updated ReceiptDialog.tsx - added FURS verification button, storno button, auto-verify on print
+- Updated Sidebar.tsx - added Recepti (BookOpen), Nastavitve (Settings) nav items
+- Updated page.tsx - registered RecipeManager, SettingsManager modules
+- Updated layout.tsx - PWA manifest, Slovenian lang, apple-web-app meta
+- Created public/manifest.json - PWA manifest for Android/iOS tablet support
+- Build successful - all 38+ routes compile without errors
 
 Stage Summary:
-- Full table→order flow complete: click occupied table → see orders → add items to existing order
-- Enhanced payment: tip presets (0/5/10/15/20%), custom tip, quick cash amounts, split bill (2-6 people), mešano payment
-- Search: Ctrl+K shortcut, visible button, instant filtering across all items
-- Notifications: order sounds (new/ready/payment), low-stock visual badge, 5s polling
+- All major missing features now implemented
+- FURS fiscal verification system with ZOI/EOR generation
+- Storno receipt functionality
+- Multi-ingredient recipe management with margin analysis
+- HACCP management with temperature, cleaning, delivery, cooling, training logs
+- Settings with FURS cert config, DDV rate management, receipt preview
+- PWA support for multi-device (Android tablet, iPad)
+- Full Slovenian UI throughout

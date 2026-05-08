@@ -11,6 +11,9 @@ import { InventoryManager } from '@/components/pos/InventoryManager'
 import { EmployeeManager } from '@/components/pos/EmployeeManager'
 import { CashRegister } from '@/components/pos/CashRegister'
 import { ReportsView } from '@/components/pos/ReportsView'
+import { HaccpManager } from '@/components/pos/HaccpManager'
+import { RecipeManager } from '@/components/pos/RecipeManager'
+import { SettingsManager } from '@/components/pos/SettingsManager'
 import { GlobalNotifications } from '@/components/pos/GlobalNotifications'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -22,8 +25,11 @@ const moduleComponents: Record<string, React.ComponentType> = {
   'cash-register': CashRegister,
   menu: MenuManager,
   inventory: InventoryManager,
+  recipes: RecipeManager,
+  haccp: HaccpManager,
   employees: EmployeeManager,
   reports: ReportsView,
+  settings: SettingsManager,
 }
 
 export default function POSPage() {

@@ -87,6 +87,7 @@ export function ReceiptDialog({
   onClose: () => void
 }) {
   const [isPreview, setIsPreview] = useState(true)
+  const [verifying, setVerifying] = useState(false)
   const queryClient = useQueryClient()
 
   const { data: receipt, isLoading } = useQuery({
@@ -140,6 +141,54 @@ export function ReceiptDialog({
     },
   })
 
+  // FURS davčno overjanje
+  const fiscalVerify = useMutation({
+    mutationFn: async () => {
+      if (!orderId) return null
+      setVerifying(true)
+      const res = await fetch('/api/furs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Napaka pri overjanju')
+      return result
+    },
+    onSuccess: (result) => {
+      setVerifying(false)
+      toast.success(result.message || 'Račun davčno overjen!')
+      queryClient.invalidateQueries({ queryKey: ['receipt', orderId] })
+      queryClient.invalidateQueries({ queryKey: ['inventory'] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+    },
+    onError: (err: Error) => {
+      setVerifying(false)
+      toast.error(`Napaka pri overjanju: ${err.message}`)
+    },
+  })
+
+  // Storno račun
+  const stornoMutation = useMutation({
+    mutationFn: async () => {
+      if (!orderId) return null
+      const res = await fetch('/api/furs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Napaka pri storniranju')
+      return result
+    },
+    onSuccess: (result) => {
+      toast.success(result.message || 'Storno račun ustvarjen')
+      queryClient.invalidateQueries({ queryKey: ['receipt', orderId] })
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+    },
+    onError: (err: Error) => toast.error(`Napaka: ${err.message}`),
+  })
+
   const typeLabels: Record<string, string> = {
     'dine-in': 'Na mestu',
     'takeaway': 'Za s seboj',
@@ -177,6 +226,8 @@ export function ReceiptDialog({
   const handleConfirmAndPrint = () => {
     setIsPreview(false)
     saveReceipt.mutate()
+    // Avtomatsko zaženi FURS overitev
+    fiscalVerify.mutate()
     setTimeout(() => {
       window.print()
       markPrinted.mutate()
@@ -213,6 +264,19 @@ export function ReceiptDialog({
                     Natisni
                   </Button>
                 </>
+              )}
+              {/* FURS overitev gumb */}
+              {receipt && !receipt.fiscalVerified && !isPreview && (
+                <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700" onClick={() => fiscalVerify.mutate()} disabled={verifying}>
+                  <Shield className="h-3 w-3 mr-1" />
+                  {verifying ? 'Overjam...' : 'Davčno overi'}
+                </Button>
+              )}
+              {/* Storno gumb */}
+              {receipt && !receipt.isStorno && receipt.fiscalVerified && !isPreview && (
+                <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => { if (confirm('Ali ste prepričani, da želite stornirati ta račun?')) stornoMutation.mutate() }}>
+                  STORNO
+                </Button>
               )}
             </div>
           </DialogTitle>

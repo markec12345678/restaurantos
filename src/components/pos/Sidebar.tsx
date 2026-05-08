@@ -17,6 +17,9 @@ import {
   Menu,
   X,
   Store,
+  ShieldCheck,
+  BookOpen,
+  Settings,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore } from 'react'
@@ -40,8 +43,11 @@ const navItems = [
   { id: 'dashboard', label: 'Nadzorna plošča', icon: LayoutDashboard },
   { id: 'menu', label: 'Jedilnik', icon: UtensilsCrossed },
   { id: 'inventory', label: 'Zaloga', icon: Package },
+  { id: 'recipes', label: 'Recepti', icon: BookOpen },
+  { id: 'haccp', label: 'HACCP', icon: ShieldCheck },
   { id: 'employees', label: 'Zaposleni', icon: Users },
   { id: 'reports', label: 'Poročila', icon: BarChart3 },
+  { id: 'settings', label: 'Nastavitve', icon: Settings },
 ]
 
 export function Sidebar() {
