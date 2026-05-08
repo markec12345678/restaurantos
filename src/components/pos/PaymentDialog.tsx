@@ -1,13 +1,13 @@
 'use client'
 
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CreditCard, Banknote, Smartphone, Split, Heart, CheckCircle2, Receipt } from 'lucide-react'
+import { CreditCard, Banknote, Smartphone, Split, Heart, CheckCircle2, Gift, Star, Ticket } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
@@ -19,6 +19,7 @@ interface OrderItemType {
   menuItem: { name: string }
   quantity: number
   price: number
+  vatRate: number
 }
 
 interface PaymentDialogProps {
@@ -45,14 +46,54 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
   const [tipAmount, setTipAmount] = useState(0)
   const [tipPercent, setTipPercent] = useState(0)
   const [splitCount, setSplitCount] = useState(1)
-  const [splitPayments, setSplitPayments] = useState<Array<{ method: string; amount: number }>>([])
   const [activeTab, setActiveTab] = useState('single')
+
+  // Alternate payment, gift card, loyalty
+  const [giftCardNumber, setGiftCardNumber] = useState('')
+  const [loyaltySearch, setLoyaltySearch] = useState('')
+  const [selectedAltPayment, setSelectedAltPayment] = useState('')
+  const [selectedGiftCardId, setSelectedGiftCardId] = useState<string | null>(null)
+  const [selectedLoyaltyId, setSelectedLoyaltyId] = useState<string | null>(null)
 
   const orderTotal = order?.total || 0
   const totalWithTip = orderTotal + tipAmount
   const splitAmount = splitCount > 0 ? totalWithTip / splitCount : totalWithTip
 
   const tipPresets = [0, 5, 10, 15, 20]
+
+  // Naloži alternativna plačila
+  const { data: altPayments } = useQuery({
+    queryKey: ['alt-payment-types'],
+    queryFn: async () => {
+      const res = await fetch('/api/configuration/alt-payment-types')
+      if (!res.ok) return []
+      return res.json()
+    },
+    enabled: open,
+  })
+
+  // Naloži darilne kartice
+  const { data: giftCards } = useQuery({
+    queryKey: ['gift-cards'],
+    queryFn: async () => {
+      const res = await fetch('/api/gift-cards')
+      if (!res.ok) return []
+      return res.json()
+    },
+    enabled: open && paymentMethod === 'giftcard',
+  })
+
+  // Išči zvestobni račun
+  const { data: loyaltyResults } = useQuery({
+    queryKey: ['loyalty-search', loyaltySearch],
+    queryFn: async () => {
+      if (!loyaltySearch || loyaltySearch.length < 2) return []
+      const res = await fetch(`/api/loyalty?search=${encodeURIComponent(loyaltySearch)}`)
+      if (!res.ok) return []
+      return res.json()
+    },
+    enabled: open && paymentMethod === 'loyalty' && loyaltySearch.length >= 2,
+  })
 
   const handleTipPercent = (pct: number) => {
     setTipPercent(pct)
@@ -65,29 +106,73 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
     setTipPercent(orderTotal > 0 ? Math.round((amount / orderTotal) * 100) : 0)
   }
 
+  // ============================================
+  // CHECK-BASED PLAČILO (Toast POS standard)
+  // ============================================
   const processPaymentMutation = useMutation({
-    mutationFn: async ({ id, method, tip, splitCount: sc }: { id: string; method: string; tip: number; splitCount: number }) => {
-      const res = await fetch(`/api/orders/${id}`, {
+    mutationFn: async () => {
+      if (!order) return null
+
+      // 1. Ustvari Check za naročilo
+      const checkRes = await fetch('/api/checks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          subtotal: order.subtotal,
+          tax: order.tax,
+          discount: order.discount,
+          total: orderTotal,
+          tip: tipAmount,
+          totalWithTip: totalWithTip,
+          paymentMethod,
+          orderItemIds: order.orderItems.map(oi => oi.id),
+        }),
+      })
+      if (!checkRes.ok) throw new Error('Napaka pri ustvarjanju čeka')
+      const check = await checkRes.json()
+
+      // 2. Ustvari Payment za Check
+      const paymentRes = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checkId: check.id,
+          amount: totalWithTip,
+          tipAmount: tipAmount,
+          type: paymentMethod === 'cash' ? 'cash' : paymentMethod === 'card' ? 'card' : paymentMethod === 'mobile' ? 'mobile' : paymentMethod === 'giftcard' ? 'giftcard' : paymentMethod === 'loyalty' ? 'loyalty' : paymentMethod === 'alternate' ? 'alternate' : paymentMethod === 'split' ? 'split' : 'cash',
+          alternatePaymentTypeId: paymentMethod === 'alternate' ? selectedAltPayment : null,
+          giftCardId: paymentMethod === 'giftcard' ? selectedGiftCardId : null,
+          loyaltyAccountId: paymentMethod === 'loyalty' ? selectedLoyaltyId : null,
+          status: 'completed',
+        }),
+      })
+      if (!paymentRes.ok) throw new Error('Napaka pri ustvarjanju plačila')
+
+      // 3. Posodobi naročilo
+      const orderRes = await fetch(`/api/orders/${order.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           paymentStatus: 'paid',
-          paymentMethod: method,
-          tip,
-          totalWithTip: (order?.total || 0) + tip,
-          splitCount: sc,
+          paymentMethod: paymentMethod === 'split' ? 'split' : paymentMethod,
+          tip: tipAmount,
+          totalWithTip,
+          splitCount,
+          status: 'completed',
         }),
       })
-      if (!res.ok) throw new Error('Failed to process payment')
-      return res.json()
+      if (!orderRes.ok) throw new Error('Napaka pri posodobitvi naročila')
+      return orderRes.json()
     },
     onSuccess: () => {
-      toast.success('Plačilo uspešno obdelano!')
+      toast.success('Plačilo uspešno obdelano! Ček ustvarjen.')
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['tables'] })
       queryClient.invalidateQueries({ queryKey: ['kitchen'] })
       queryClient.invalidateQueries({ queryKey: ['cash-register'] })
+      queryClient.invalidateQueries({ queryKey: ['checks'] })
       resetAndClose()
     },
     onError: () => {
@@ -100,8 +185,12 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
     setTipAmount(0)
     setTipPercent(0)
     setSplitCount(1)
-    setSplitPayments([])
     setActiveTab('single')
+    setGiftCardNumber('')
+    setLoyaltySearch('')
+    setSelectedAltPayment('')
+    setSelectedGiftCardId(null)
+    setSelectedLoyaltyId(null)
     onClose()
   }
 
@@ -110,33 +199,37 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
       toast.error('Izberite način plačila')
       return
     }
-    if (!order) return
-    processPaymentMutation.mutate({ id: order.id, method: paymentMethod, tip: tipAmount, splitCount: 1 })
+    if (paymentMethod === 'giftcard' && !selectedGiftCardId) {
+      toast.error('Izberite darilno kartico')
+      return
+    }
+    if (paymentMethod === 'alternate' && !selectedAltPayment) {
+      toast.error('Izberite vrsto alternativnega plačila')
+      return
+    }
+    processPaymentMutation.mutate()
   }
 
   const handleSplitPayment = () => {
-    if (!order) return
-    // Pri deljenem plačilu shranimo kot "split" + informacija o metodah
-    processPaymentMutation.mutate({ id: order.id, method: 'split', tip: tipAmount, splitCount })
+    processPaymentMutation.mutate()
   }
 
   const paymentMethods = [
     { id: 'cash', label: 'Gotovina', icon: Banknote, color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' },
     { id: 'card', label: 'Kartično', icon: CreditCard, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
     { id: 'mobile', label: 'Mobilno', icon: Smartphone, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' },
+    { id: 'giftcard', label: 'Darilna kartica', icon: Gift, color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' },
+    { id: 'loyalty', label: 'Zvestoba', icon: Star, color: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400' },
+    { id: 'alternate', label: 'Bon/Vavčer', icon: Ticket, color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400' },
   ]
 
-  // Hitri zneski za gotovino
   const quickCashAmounts = [5, 10, 20, 50, 100]
-  const cashChange = paymentMethod === 'cash' && tipAmount === 0
-    ? quickCashAmounts.find(a => a >= totalWithTip) 
-    : null
 
   if (!order) return null
 
   return (
     <Dialog open={open} onOpenChange={() => resetAndClose()}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Plačilo #{order.orderNumber}</span>
@@ -168,7 +261,6 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
               <span>Skupaj</span>
               <span>€{orderTotal.toFixed(2)}</span>
             </div>
-            {/* Artikli za pregled */}
             <Separator />
             <div className="space-y-0.5">
               {order.orderItems.map(oi => (
@@ -271,7 +363,6 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
                       <button
                         key={amount}
                         onClick={() => {
-                          // Avtomatsko izračunaj napitnino kot razliko
                           const tip = Math.max(0, amount - orderTotal)
                           if (tip > 0) {
                             setTipAmount(Math.round(tip * 100) / 100)
@@ -288,11 +379,107 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
                       </button>
                     ))}
                   </div>
-                  {cashChange && (
-                    <p className="text-xs text-muted-foreground mt-1 text-center">
-                      Vračilo: €{(cashChange - totalWithTip).toFixed(2)}
-                    </p>
-                  )}
+                </div>
+              )}
+
+              {/* Darilna kartica izbira */}
+              {paymentMethod === 'giftcard' && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold">Izberi darilno kartico</p>
+                  <Input
+                    placeholder="Išči po številki kartice..."
+                    value={giftCardNumber}
+                    onChange={e => setGiftCardNumber(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {(giftCards || [])
+                      .filter((gc: { cardNumber: string; status: string; balance: number }) =>
+                        gc.status === 'active' && gc.balance > 0 &&
+                        (!giftCardNumber || gc.cardNumber.toLowerCase().includes(giftCardNumber.toLowerCase()))
+                      )
+                      .map((gc: { id: string; cardNumber: string; ownerName: string; balance: number }) => (
+                        <button
+                          key={gc.id}
+                          onClick={() => setSelectedGiftCardId(gc.id)}
+                          className={`w-full flex items-center justify-between p-2 rounded-md text-xs transition-colors ${
+                            selectedGiftCardId === gc.id
+                              ? 'bg-primary/10 border-primary border'
+                              : 'bg-muted/50 hover:bg-muted'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Gift className="h-3.5 w-3.5" />
+                            <span className="font-mono font-medium">{gc.cardNumber}</span>
+                            {gc.ownerName && <span className="text-muted-foreground">({gc.ownerName})</span>}
+                          </div>
+                          <span className="font-bold">€{gc.balance.toFixed(2)}</span>
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Zvestobni račun */}
+              {paymentMethod === 'loyalty' && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold">Išči zvestobni račun</p>
+                  <Input
+                    placeholder="Ime, telefon ali email..."
+                    value={loyaltySearch}
+                    onChange={e => setLoyaltySearch(e.target.value)}
+                    className="h-8 text-xs"
+                  />
+                  <div className="space-y-1 max-h-32 overflow-y-auto">
+                    {(loyaltyResults || []).map((la: { id: string; customerName: string; phone: string; pointsBalance: number; tier: string }) => (
+                      <button
+                        key={la.id}
+                        onClick={() => setSelectedLoyaltyId(la.id)}
+                        className={`w-full flex items-center justify-between p-2 rounded-md text-xs transition-colors ${
+                          selectedLoyaltyId === la.id
+                            ? 'bg-primary/10 border-primary border'
+                            : 'bg-muted/50 hover:bg-muted'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Star className="h-3.5 w-3.5" />
+                          <span className="font-medium">{la.customerName}</span>
+                          <span className="text-muted-foreground">{la.phone}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Badge variant="outline" className="text-[9px] h-4">{la.tier}</Badge>
+                          <span className="font-bold">{la.pointsBalance} točk</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Alternativno plačilo */}
+              {paymentMethod === 'alternate' && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold">Izberi vrsto</p>
+                  <div className="space-y-1">
+                    {(altPayments || []).map((apt: { id: string; name: string; code: string; type: string }) => (
+                      <button
+                        key={apt.id}
+                        onClick={() => setSelectedAltPayment(apt.id)}
+                        className={`w-full flex items-center justify-between p-2 rounded-md text-xs transition-colors ${
+                          selectedAltPayment === apt.id
+                            ? 'bg-primary/10 border-primary border'
+                            : 'bg-muted/50 hover:bg-muted'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Ticket className="h-3.5 w-3.5" />
+                          <span className="font-medium">{apt.name}</span>
+                          <span className="text-muted-foreground">({apt.code})</span>
+                        </div>
+                        <Badge variant="secondary" className="text-[9px] h-4">{apt.type}</Badge>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -360,42 +547,6 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
                     <span>€{tipAmount.toFixed(2)} (€{(tipAmount / splitCount).toFixed(2)}/osebo)</span>
                   </div>
                 )}
-              </div>
-
-              {/* Izbira plačilne metode za deljeno */}
-              <div>
-                <p className="text-xs font-semibold mb-2">Način plačila</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {paymentMethods.map(pm => {
-                    const Icon = pm.icon
-                    const isSelected = paymentMethod === pm.id
-                    return (
-                      <button
-                        key={pm.id}
-                        onClick={() => setPaymentMethod(pm.id)}
-                        className={`flex flex-col items-center gap-1 py-2 rounded-lg border-2 transition-all ${
-                          isSelected
-                            ? 'border-primary bg-primary/5 shadow-sm'
-                            : 'border-border hover:bg-accent'
-                        }`}
-                      >
-                        <Icon className={`h-4 w-4 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
-                        <span className="text-[10px] font-semibold">{pm.label}</span>
-                      </button>
-                    )
-                  })}
-                  <button
-                    onClick={() => setPaymentMethod('mixed')}
-                    className={`flex flex-col items-center gap-1 py-2 rounded-lg border-2 transition-all ${
-                      paymentMethod === 'mixed'
-                        ? 'border-primary bg-primary/5 shadow-sm'
-                        : 'border-border hover:bg-accent'
-                    }`}
-                  >
-                    <Split className={`h-4 w-4 ${paymentMethod === 'mixed' ? 'text-primary' : 'text-muted-foreground'}`} />
-                    <span className="text-[10px] font-semibold">Mešano</span>
-                  </button>
-                </div>
               </div>
 
               <Button

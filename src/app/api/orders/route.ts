@@ -67,6 +67,8 @@ export async function POST(req: Request) {
       type: body.type || 'dine-in',
       status: 'pending',
       tableId: body.tableId || null,
+      diningOptionId: body.diningOptionId || null,
+      revenueCenterId: body.revenueCenterId || null,
       customerName: body.customerName || '',
       customerPhone: body.customerPhone || '',
       subtotal,

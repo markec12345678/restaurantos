@@ -138,19 +138,19 @@ export async function GET() {
   const empMap: Record<string, { name: string; orders: number; revenue: number }> = {}
   for (const order of todayOrders.filter(o => o.paymentStatus === 'paid')) {
     const empId = order.employeeId || 'none'
-    const empName = order.employee ? `${order.employee.firstName} ${order.employee.lastName}` : 'Nedodeljeno'
+    const empName = order.employee ? order.employee.name : 'Nedodeljeno'
     if (!empMap[empId]) empMap[empId] = { name: empName, orders: 0, revenue: 0 }
     empMap[empId].orders += 1
     empMap[empId].revenue += order.total
   }
   const employeePerformance = Object.values(empMap).sort((a, b) => b.revenue - a.revenue)
 
-  // 8. Average wait time
-  const completedOrders = todayOrders.filter(o => o.status === 'completed' && o.completedAt)
+  // 8. Average wait time (updatedAt - createdAt za completed orders)
+  const completedOrders = todayOrders.filter(o => o.status === 'completed')
   const avgWaitMinutes = completedOrders.length > 0
     ? completedOrders.reduce((sum, o) => {
         const created = new Date(o.createdAt).getTime()
-        const completed = new Date(o.completedAt!).getTime()
+        const completed = new Date(o.updatedAt).getTime()
         return sum + (completed - created) / 60000
       }, 0) / completedOrders.length
     : 0

@@ -131,6 +131,26 @@ export function OrderPanel() {
     },
   })
 
+  // Konfiguracijski podatki za naročilo
+  const { data: discounts } = useQuery({
+    queryKey: ['discounts-active'],
+    queryFn: async () => {
+      const res = await fetch('/api/discounts')
+      if (!res.ok) return []
+      const all = await res.json()
+      return all.filter((d: { isActive: boolean }) => d.isActive)
+    },
+  })
+
+  const { data: diningOptions } = useQuery({
+    queryKey: ['dining-options'],
+    queryFn: async () => {
+      const res = await fetch('/api/configuration/dining-options')
+      if (!res.ok) return []
+      return res.json()
+    },
+  })
+
   // ============================================
   // MUTACIJE
   // ============================================
@@ -163,9 +183,11 @@ export function OrderPanel() {
         body: JSON.stringify({
           type: orderType,
           tableId: orderType === 'dine-in' ? selectedTable : null,
+          diningOptionId: diningOptionId || undefined,
           customerName,
           customerPhone,
           discount,
+          appliedDiscountId: appliedDiscountId || undefined,
           taxRate,
           notes: orderNotes,
           orderItems: cart.map(item => ({
@@ -360,6 +382,22 @@ export function OrderPanel() {
                     <SelectItem value="delivery">🚚 Dostava</SelectItem>
                   </SelectContent>
                 </Select>
+                {/* Dining option iz konfiguracije */}
+                {diningOptions?.length > 0 && (
+                  <Select value={diningOptionId || ''} onValueChange={setDiningOptionId}>
+                    <SelectTrigger className="w-40 h-8 text-xs">
+                      <SelectValue placeholder="Način postrežbe" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Privzeto</SelectItem>
+                      {diningOptions.map((opt: { id: string; name: string; type: string }) => (
+                        <SelectItem key={opt.id} value={opt.id}>
+                          {opt.type === 'dine-in' ? '🍽️' : opt.type === 'takeout' ? '📦' : '🚚'} {opt.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 {orderType === 'dine-in' && (
                   <Select value={selectedTable || ''} onValueChange={setSelectedTable}>
                     <SelectTrigger className="w-36 h-8 text-xs">
