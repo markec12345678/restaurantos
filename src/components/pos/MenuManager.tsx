@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Search, LayoutGrid, List, UtensilsCrossed, Tag } from 'lucide-react'
+import { Plus, Pencil, Trash2, Search, LayoutGrid, List, UtensilsCrossed, Tag, ImageIcon } from 'lucide-react'
 import { useState } from 'react'
 
 export function MenuManager() {
@@ -24,7 +24,7 @@ export function MenuManager() {
   const [activeTab, setActiveTab] = useState('items')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<Record<string, unknown> | null>(null)
-  const [itemForm, setItemForm] = useState({ name: '', description: '', price: '', categoryId: '', isAvailable: true })
+  const [itemForm, setItemForm] = useState({ name: '', description: '', price: '', categoryId: '', isAvailable: true, image: '' })
   const [catDialogOpen, setCatDialogOpen] = useState(false)
   const [editingCat, setEditingCat] = useState<Record<string, unknown> | null>(null)
   const [catForm, setCatForm] = useState({ name: '', icon: '🍽️', color: '#f59e0b' })
@@ -102,7 +102,7 @@ export function MenuManager() {
 
   const openCreateItem = () => {
     setEditingItem(null)
-    setItemForm({ name: '', description: '', price: '', categoryId: categories?.[0]?.id || '', isAvailable: true })
+    setItemForm({ name: '', description: '', price: '', categoryId: categories?.[0]?.id || '', isAvailable: true, image: '' })
     setDialogOpen(true)
   }
 
@@ -114,6 +114,7 @@ export function MenuManager() {
       price: String(item.price),
       categoryId: String(item.categoryId),
       isAvailable: Boolean(item.isAvailable),
+      image: String(item.image || ''),
     })
     setDialogOpen(true)
   }
@@ -194,21 +195,38 @@ export function MenuManager() {
               {filteredItems.map((item: Record<string, unknown>) => {
                 const cat = categories?.find((c: { id: string }) => c.id === item.categoryId)
                 return (
-                  <Card key={item.id as string} className={`hover:shadow-md transition-shadow ${!item.isAvailable ? 'opacity-60' : ''}`}>
-                    <CardContent className="p-4 space-y-2">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium text-sm">{String(item.name)}</p>
-                          <p className="text-primary font-bold">${Number(item.price).toFixed(2)}</p>
-                        </div>
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditItem(item)}>
-                            <Pencil className="h-3 w-3" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteItemMutation.mutate(item.id as string)}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                  <Card key={item.id as string} className={`hover:shadow-md transition-shadow overflow-hidden ${!item.isAvailable ? 'opacity-60' : ''}`}>
+                    {/* Item image header */}
+                    <div className="w-full aspect-[16/9] bg-muted/50 relative overflow-hidden">
+                      {item.image ? (
+                        <img
+                          src={String(item.image)}
+                          alt={String(item.name)}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement
+                            target.style.display = 'none'
+                            target.nextElementSibling?.classList.remove('hidden')
+                          }}
+                        />
+                      ) : null}
+                      <div className={`absolute inset-0 flex items-center justify-center ${item.image ? 'hidden' : ''}`}>
+                        <ImageIcon className="h-10 w-10 text-muted-foreground/30" />
+                      </div>
+                      {/* Edit/Delete overlay buttons */}
+                      <div className="absolute top-2 right-2 flex gap-1">
+                        <Button variant="secondary" size="icon" className="h-7 w-7 shadow-sm" onClick={() => openEditItem(item)}>
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button variant="secondary" size="icon" className="h-7 w-7 shadow-sm text-destructive" onClick={() => deleteItemMutation.mutate(item.id as string)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <CardContent className="p-3 space-y-2">
+                      <div>
+                        <p className="font-medium text-sm">{String(item.name)}</p>
+                        <p className="text-primary font-bold text-sm">${Number(item.price).toFixed(2)}</p>
                       </div>
                       {item.description && <p className="text-xs text-muted-foreground line-clamp-2">{String(item.description)}</p>}
                       <div className="flex items-center justify-between">
@@ -231,6 +249,16 @@ export function MenuManager() {
                 return (
                   <div key={item.id as string} className={`flex items-center justify-between p-3 rounded-lg border bg-card ${!item.isAvailable ? 'opacity-60' : ''}`}>
                     <div className="flex items-center gap-3">
+                      {/* List view thumbnail */}
+                      {item.image ? (
+                        <div className="w-12 h-12 rounded-md overflow-hidden flex-shrink-0">
+                          <img src={String(item.image)} alt={String(item.name)} className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-12 h-12 rounded-md bg-muted flex-shrink-0 flex items-center justify-center">
+                          <ImageIcon className="h-5 w-5 text-muted-foreground/40" />
+                        </div>
+                      )}
                       <div>
                         <p className="font-medium text-sm">{String(item.name)}</p>
                         <p className="text-xs text-muted-foreground">{String(item.description || '')}</p>
@@ -289,6 +317,16 @@ export function MenuManager() {
             <DialogTitle>{editingItem ? 'Edit Menu Item' : 'Add Menu Item'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            {/* Image preview */}
+            {itemForm.image && (
+              <div className="w-full aspect-[16/9] rounded-lg overflow-hidden bg-muted/50">
+                <img src={itemForm.image} alt="Preview" className="w-full h-full object-cover" />
+              </div>
+            )}
+            <div>
+              <Label>Image URL</Label>
+              <Input value={itemForm.image} onChange={(e) => setItemForm({ ...itemForm, image: e.target.value })} placeholder="/menu-images/item-name.png" />
+            </div>
             <div>
               <Label>Name</Label>
               <Input value={itemForm.name} onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })} />
