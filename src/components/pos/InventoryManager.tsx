@@ -84,6 +84,8 @@ const stockLevelText = (quantity: number, minQuantity: number) => {
 interface InventoryItemData {
   id: string
   name: string
+  description: string
+  image: string
   unit: string
   quantity: number
   minQuantity: number
@@ -95,7 +97,7 @@ interface InventoryItemData {
   servingSize: string
   costPerServing: number
   menuItemId: string | null
-  menuItem?: { id: string; name: string; price: number } | null
+  menuItem?: { id: string; name: string; price: number; image: string } | null
   lastRestocked: string
 }
 
@@ -131,7 +133,7 @@ export function InventoryManager() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<InventoryItemData | null>(null)
   const [formData, setFormData] = useState({
-    name: '', unit: 'pcs', quantity: '', minQuantity: '10', costPerUnit: '',
+    name: '', description: '', image: '', unit: 'pcs', quantity: '', minQuantity: '10', costPerUnit: '',
     supplier: '', category: 'general', expiryDate: '', menuItemId: '',
     servingsPerUnit: '1', servingSize: '', costPerServing: '',
   })
@@ -259,7 +261,7 @@ export function InventoryManager() {
 
   const openCreate = () => {
     setEditingItem(null)
-    setFormData({ name: '', unit: 'pcs', quantity: '', minQuantity: '10', costPerUnit: '', supplier: '', category: 'general', expiryDate: '', menuItemId: '', servingsPerUnit: '1', servingSize: '', costPerServing: '' })
+    setFormData({ name: '', description: '', image: '', unit: 'pcs', quantity: '', minQuantity: '10', costPerUnit: '', supplier: '', category: 'general', expiryDate: '', menuItemId: '', servingsPerUnit: '1', servingSize: '', costPerServing: '' })
     setDialogOpen(true)
   }
 
@@ -267,6 +269,8 @@ export function InventoryManager() {
     setEditingItem(item)
     setFormData({
       name: item.name,
+      description: item.description || '',
+      image: item.image || '',
       unit: item.unit,
       quantity: String(item.quantity),
       minQuantity: String(item.minQuantity),
@@ -445,16 +449,41 @@ export function InventoryManager() {
                 const isExpanded = expandedItem === item.id
 
                 return (
-                  <Card key={item.id} className="hover:shadow-md transition-shadow">
+                  <Card key={item.id} className="hover:shadow-md transition-shadow overflow-hidden">
+                    {/* Slika artikla */}
+                    {item.image && (
+                      <div className="relative w-full h-32 bg-muted overflow-hidden">
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                        />
+                        <div className="absolute top-2 right-2">
+                          <Badge variant={stockLevelColor(qty, minQty)} className="text-xs shadow-sm">
+                            {stockLevelText(qty, minQty)}
+                          </Badge>
+                        </div>
+                      </div>
+                    )}
                     <CardContent className="p-4 space-y-3">
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-2 min-w-0">
-                          <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          {item.image ? null : <Package className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
                           <div className="min-w-0">
                             <p className="font-medium text-sm truncate">{item.name}</p>
-                            <p className="text-xs text-muted-foreground truncate">{item.supplier || 'Brez dobavitelja'}</p>
+                            {item.description ? (
+                              <p className="text-xs text-muted-foreground truncate">{item.description}</p>
+                            ) : (
+                              <p className="text-xs text-muted-foreground truncate">{item.supplier || 'Brez dobavitelja'}</p>
+                            )}
                           </div>
                         </div>
+                        {!item.image && (
+                          <Badge variant={stockLevelColor(qty, minQty)} className="text-xs flex-shrink-0">
+                            {stockLevelText(qty, minQty)}
+                          </Badge>
+                        )}
                         <div className="flex gap-1 flex-shrink-0">
                           <Button variant="ghost" size="icon" className="h-7 w-7" title="Nabava" onClick={() => openRestock(item.id)}>
                             <ArrowDownCircle className="h-3.5 w-3.5 text-green-600" />
@@ -473,9 +502,7 @@ export function InventoryManager() {
 
                       <div className="flex items-center justify-between text-sm">
                         <span className="font-semibold">{qty} {item.unit}</span>
-                        <Badge variant={stockLevelColor(qty, minQty)} className="text-xs">
-                          {stockLevelText(qty, minQty)}
-                        </Badge>
+                        <span className="text-xs text-muted-foreground">{item.supplier || ''}</span>
                       </div>
 
                       <Progress value={pct} className="h-1.5" />
@@ -901,6 +928,21 @@ export function InventoryManager() {
           </DialogHeader>
           <div className="space-y-3">
             <div><Label>Ime *</Label><Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} /></div>
+            <div>
+              <Label>Opis</Label>
+              <Textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="Opis artikla (npr. Goveji patty za burgerje, 150g)" rows={2} />
+            </div>
+            <div>
+              <Label>Slika (URL)</Label>
+              <div className="flex gap-2">
+                <Input value={formData.image} onChange={(e) => setFormData({ ...formData, image: e.target.value })} placeholder="/inventory-images/artikel.png" />
+                {formData.image && (
+                  <div className="w-10 h-10 rounded border overflow-hidden flex-shrink-0">
+                    <img src={formData.image} alt="Predogled" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Enota</Label><Input value={formData.unit} onChange={(e) => setFormData({ ...formData, unit: e.target.value })} placeholder="npr. steklenica, kg, L, kos" /></div>
               <div><Label>Količina</Label><Input type="number" value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} /></div>

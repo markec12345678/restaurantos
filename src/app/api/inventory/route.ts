@@ -62,6 +62,8 @@ export async function POST(req: Request) {
   const item = await db.inventoryItem.create({
     data: {
       name: body.name,
+      description: body.description || '',
+      image: body.image || '',
       unit: body.unit || 'pcs',
       quantity: body.quantity || 0,
       minQuantity: body.minQuantity || 10,

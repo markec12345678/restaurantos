@@ -11,6 +11,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
   const updateData: Record<string, unknown> = {}
   if (body.name !== undefined) updateData.name = body.name
+  if (body.description !== undefined) updateData.description = body.description
+  if (body.image !== undefined) updateData.image = body.image
   if (body.unit !== undefined) updateData.unit = body.unit
   if (body.quantity !== undefined) updateData.quantity = parseFloat(body.quantity)
   if (body.minQuantity !== undefined) updateData.minQuantity = parseFloat(body.minQuantity)

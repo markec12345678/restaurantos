@@ -211,6 +211,8 @@ model CashRegisterShift {
 model InventoryItem {
   id              String    @id @default(cuid())
   name            String
+  description     String    @default("")           // Opis artikla (npr. "Goveji patty za burgerje, 150g")
+  image           String    @default("")           // Pot do slike (npr. "/inventory-images/govy-patty.png")
   unit            String    @default("pcs")       // Enota zaloge: steklenica, keg, kos, L, kg
   quantity        Float     @default(0)            // Količina na zalogi (v enotah)
   minQuantity     Float     @default(10)           // Minimalna količina za opozorilo
