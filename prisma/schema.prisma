@@ -308,6 +308,10 @@ model Order {
   splitCount      Int        @default(1)
   notes           String     @default("")
   employeeId      String?
+  // --- Preklic/Storno metapodatki ---
+  cancelReason    String     @default("")   // Razlog za preklic/storno
+  cancelledAt     DateTime?                 // Kdaj je bilo preklicano/stornirano
+  cancelledBy     String     @default("")   // Kdo je preklical (employeeId ali ime)
   // --- Toast: Delivery Info ---
   deliveryInfoId  String?   @unique
   deliveryInfo    DeliveryInfo? @relation(fields: [deliveryInfoId], references: [id])
