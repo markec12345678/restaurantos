@@ -1,42 +1,27 @@
 ---
-Task ID: 1
+Task ID: 2
 Agent: Main Agent
-Task: Implement professional POS menu hierarchy based on industry research
+Task: Implement 5 major POS features (#1-#5)
 
 Work Log:
-- Researched how professional POS systems (Toast POS, Square, Lightspeed, Revel) organize menus
-- Key finding: Toast POS uses Menu → Category → MenuItem → ModifierGroup → Modifier hierarchy
-- Updated Prisma schema with new models: Menu, Category (with menuId), ModifierGroup, Modifier, MenuItemModifierGroup
-- Added modifiersJson field to OrderItem for storing selected modifiers per order item
-- Updated seed data with professional structure:
-  - 2 Menus: Hrana (🍽️) and Pijača (🥤)
-  - 8 Food categories: Predjedi, Juhe, Glavne jedi, Testenine, Pica, Burgerji, Sladice, Priloge
-  - 4 Drink categories: Vroče pijače, Hladne pijače, Alkoholne pijače, Koktajli
-  - 10 Modifier groups: Način pečenja, Priloga, Omaka, Sir, Mleko, Sladilo, Alkoholni dodatek, Velikost pice, Velikost burgerja, Velikost pijače
-  - 40+ menu items with proper modifier group associations
-- Created new API routes: /api/menus, /api/menus/[id], /api/modifier-groups, /api/modifier-groups/[id]
-- Updated existing API routes: /api/categories (with menuId), /api/menu-items (with modifier groups), /api/orders (with modifiersJson)
-- Updated store.ts with modifier support in cart (SelectedModifier type, cartKey for same item with different modifiers)
-- Rewrote OrderPanel with:
-  - Menu tabs (Hrana/Pijača) at the top
-  - Category pills filtered by active menu
-  - Modifier selection dialog when adding items with modifiers
-  - Modifier badges in cart items
-  - Slovenian status labels (Čakajoče, V obdelavi, Pripravljeno, Zaključeno)
-  - Currency changed from $ to € throughout
-- Rewrote MenuManager with 4 tabs: Artikli, Kategorije, Meniji, Dodatki
-  - Category creation now requires selecting a menu
-  - Item form includes modifier group checkboxes
-  - Categories displayed grouped by menu
-  - Modifier groups tab shows all groups with their options and usage
-- Updated Dashboard, ReportsView, InventoryManager to use € instead of $
-- Updated Dashboard status labels to Slovenian
-- Build successful, all 24 API routes working
+- Created KitchenDisplay.tsx component with real-time order tracking, urgency levels, wait time timers, sound notifications
+- Created /api/kitchen endpoint with enriched order data (wait times, urgency, item status counts)
+- Created /api/order-items/[id] endpoint for individual item status updates (pending→preparing→ready→served)
+- Added KDS to Sidebar navigation with ChefHat icon and active order count badge
+- Updated orders/[id] PUT to auto-update items when order moves to in-progress, and auto-free tables on completion
+- Created ReceiptDialog.tsx component with professional receipt format (restaurant info, itemized list, modifiers, tax, payment info, QR placeholder)
+- Created /api/receipts/[id] endpoint generating receipt data from orders
+- Replaced old inline receipt dialog in OrderPanel with new ReceiptDialog component
+- Created PaymentDialog.tsx with tip system (preset percentages + custom amount), split bill (2-6 people), 3 payment methods (cash/card/mobile)
+- Replaced old inline payment dialog in OrderPanel with new PaymentDialog component
+- Rewrote TableMap.tsx with table-order linking: click occupied table → see orders, click available → start new order
+- Added summary stats (available/occupied/total), table orders dialog with order details
+- Added item search to OrderPanel with Search icon, keyboard shortcut hint (Ctrl+K), result count badge
+- All features use Slovenian language throughout
 
 Stage Summary:
-- Professional menu hierarchy implemented following Toast POS standard
-- Food and drinks are separated at the top level (Menu tabs)
-- Modifier system allows items like steaks to have cooking level, side choice, sauce choice
-- Coffee drinks support milk type, sweetener, and alcohol additions
-- Pizza supports size selection with price differences
-- All UI in Slovenian, all currency in €
+- 5 major features implemented: KDS, Receipts, Enhanced Payments, Table-Order Linking, Item Search
+- 3 new API endpoints: /api/kitchen, /api/order-items/[id], /api/receipts/[id]
+- 3 new components: KitchenDisplay.tsx, ReceiptDialog.tsx, PaymentDialog.tsx
+- 1 major rewrite: TableMap.tsx with table-order integration
+- Build successful with all 26 API routes

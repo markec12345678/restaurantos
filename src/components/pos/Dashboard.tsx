@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { DollarSign, ShoppingBag, Calculator, BarChartBig, Clock, ArrowRight } from 'lucide-react'
+import { DollarSign, ShoppingBag, Calculator, BarChartBig, Clock, ArrowRight, ChefHat } from 'lucide-react'
 import { usePOSStore } from '@/lib/store'
 import { format } from 'date-fns'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -167,6 +167,11 @@ export function Dashboard() {
             <Button className="w-full justify-start gap-2" onClick={() => setActiveModule('orders')}>
               <ShoppingBag className="h-4 w-4" />
               Novo naročilo
+              <ArrowRight className="h-3 w-3 ml-auto" />
+            </Button>
+            <Button variant="outline" className="w-full justify-start gap-2" onClick={() => setActiveModule('kitchen')}>
+              <ChefHat className="h-4 w-4" />
+              Kuhinjski zaslon
               <ArrowRight className="h-3 w-3 ml-auto" />
             </Button>
             <Button variant="outline" className="w-full justify-start gap-2" onClick={() => setActiveModule('tables')}>

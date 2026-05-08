@@ -10,6 +10,7 @@ import {
   Package,
   Users,
   BarChart3,
+  ChefHat,
   Sun,
   Moon,
   Menu,
@@ -32,6 +33,7 @@ function useMounted() {
 
 const navItems = [
   { id: 'orders', label: 'Prodaja', icon: ShoppingCart, highlight: true },
+  { id: 'kitchen', label: 'Kuhinja', icon: ChefHat },
   { id: 'tables', label: 'Mize', icon: BarChartBig },
   { id: 'dashboard', label: 'Nadzorna plošča', icon: LayoutDashboard },
   { id: 'menu', label: 'Jedilnik', icon: UtensilsCrossed },
@@ -122,6 +124,11 @@ export function Sidebar() {
                 {item.label}
                 {item.id === 'orders' && activeOrderCount > 0 && (
                   <span className="ml-auto flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1">
+                    {activeOrderCount}
+                  </span>
+                )}
+                {item.id === 'kitchen' && activeOrderCount > 0 && (
+                  <span className="ml-auto flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-orange-500 text-white text-[9px] font-bold px-1">
                     {activeOrderCount}
                   </span>
                 )}

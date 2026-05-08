@@ -8,9 +8,12 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
-import { Plus, Users, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Users, ShoppingBag, CreditCard, Clock, ChevronRight, X } from 'lucide-react'
+import { usePOSStore } from '@/lib/store'
 import { useState } from 'react'
+import { format } from 'date-fns'
 
 const statusColors: Record<string, string> = {
   available: 'bg-emerald-100 border-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-800',
@@ -40,11 +43,27 @@ const statusLabels: Record<string, string> = {
   cleaning: 'Čiščenje',
 }
 
+const orderStatusColors: Record<string, string> = {
+  pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+  'in-progress': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+  ready: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
+  completed: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
+}
+
+const orderStatusLabels: Record<string, string> = {
+  pending: 'Čakajoče',
+  'in-progress': 'V obdelavi',
+  ready: 'Pripravljeno',
+  completed: 'Zaključeno',
+}
+
 export function TableMap() {
   const queryClient = useQueryClient()
+  const { setActiveModule, setSelectedTable, setOrderType } = usePOSStore()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTable, setEditingTable] = useState<Record<string, unknown> | null>(null)
   const [formData, setFormData] = useState({ number: '', capacity: '4', area: 'main', status: 'available' })
+  const [selectedTableForOrders, setSelectedTableForOrders] = useState<Record<string, unknown> | null>(null)
 
   const { data: tables, isLoading } = useQuery({
     queryKey: ['tables'],
@@ -52,6 +71,20 @@ export function TableMap() {
       const res = await fetch('/api/tables')
       return res.json()
     },
+  })
+
+  // Fetch orders for selected table
+  const { data: tableOrders } = useQuery({
+    queryKey: ['table-orders', selectedTableForOrders?.id],
+    queryFn: async () => {
+      if (!selectedTableForOrders) return []
+      const res = await fetch('/api/orders')
+      const allOrders = await res.json()
+      return allOrders.filter((o: { tableId: string; status: string }) =>
+        o.tableId === selectedTableForOrders.id && o.status !== 'cancelled'
+      )
+    },
+    enabled: !!selectedTableForOrders,
   })
 
   const createMutation = useMutation({
@@ -132,12 +165,38 @@ export function TableMap() {
     }
   }
 
+  const handleTableClick = (table: Record<string, unknown>) => {
+    if (table.status === 'occupied') {
+      // Show orders for this table
+      setSelectedTableForOrders(table)
+    } else if (table.status === 'available') {
+      // Start new order for this table
+      setSelectedTable(table.id as string)
+      setOrderType('dine-in')
+      setActiveModule('orders')
+      toast.info(`Miza ${table.number} izbrana za novo naročilo`)
+    }
+  }
+
+  const handleNewOrderForTable = (tableId: string, tableNumber: number) => {
+    setSelectedTable(tableId)
+    setOrderType('dine-in')
+    setActiveModule('orders')
+    setSelectedTableForOrders(null)
+    toast.info(`Miza ${tableNumber} izbrana za novo naročilo`)
+  }
+
   const groupedTables = (tables || []).reduce((acc: Record<string, unknown[]>, table: Record<string, unknown>) => {
     const area = (table.area as string) || 'main'
     if (!acc[area]) acc[area] = []
     acc[area].push(table)
     return acc
   }, {})
+
+  // Calculate summary stats
+  const totalTables = (tables || []).length
+  const occupiedTables = (tables || []).filter((t: { status: string }) => t.status === 'occupied').length
+  const availableTables = (tables || []).filter((t: { status: string }) => t.status === 'available').length
 
   return (
     <div className="space-y-6">
@@ -150,6 +209,28 @@ export function TableMap() {
           <Plus className="h-4 w-4 mr-2" />
           Dodaj mizo
         </Button>
+      </div>
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-3 gap-3">
+        <Card className="border-emerald-200 dark:border-emerald-900/50">
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold text-emerald-600">{availableTables}</p>
+            <p className="text-xs text-muted-foreground">Proste</p>
+          </CardContent>
+        </Card>
+        <Card className="border-red-200 dark:border-red-900/50">
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold text-red-600">{occupiedTables}</p>
+            <p className="text-xs text-muted-foreground">Zasedene</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-3 text-center">
+            <p className="text-2xl font-bold">{totalTables}</p>
+            <p className="text-xs text-muted-foreground">Skupaj</p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Legend */}
@@ -177,17 +258,17 @@ export function TableMap() {
                 <Card
                   key={table.id as string}
                   className={`cursor-pointer border-2 hover:shadow-md transition-all ${statusColors[table.status as string] || ''}`}
-                  onClick={() => openEdit(table)}
+                  onClick={() => handleTableClick(table)}
                 >
                   <CardContent className="p-4 text-center space-y-2">
                     <div className="flex items-center justify-between">
                       <div className={`h-3 w-3 rounded-full ${statusDot[table.status as string] || ''}`} />
-                      <div className="flex gap-1">
+                      <div className="flex gap-1" onClick={e => e.stopPropagation()}>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6"
-                          onClick={(e) => { e.stopPropagation(); openEdit(table) }}
+                          onClick={() => openEdit(table)}
                         >
                           <Pencil className="h-3 w-3" />
                         </Button>
@@ -195,7 +276,7 @@ export function TableMap() {
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 text-destructive"
-                          onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(table.id as string) }}
+                          onClick={() => deleteMutation.mutate(table.id as string)}
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>
@@ -209,6 +290,16 @@ export function TableMap() {
                     <Badge variant="outline" className="text-xs">
                       {statusLabels[String(table.status)] || String(table.status)}
                     </Badge>
+                    {table.status === 'occupied' && (
+                      <p className="text-[10px] text-primary font-medium">
+                        Klikni za naročila →
+                      </p>
+                    )}
+                    {table.status === 'available' && (
+                      <p className="text-[10px] text-emerald-600 font-medium">
+                        Klikni za novo naročilo
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               ))}
@@ -216,6 +307,94 @@ export function TableMap() {
           </div>
         ))
       )}
+
+      {/* Table Orders Dialog */}
+      <Dialog open={!!selectedTableForOrders} onOpenChange={() => setSelectedTableForOrders(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Miza {selectedTableForOrders?.number as number} — Naročila
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {(!tableOrders || tableOrders.length === 0) ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <ShoppingBag className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                <p className="text-sm">Ni aktivnih naročil za to mizo</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-96 overflow-y-auto custom-scrollbar">
+                {(tableOrders || []).map((order: {
+                  id: string
+                  orderNumber: number
+                  status: string
+                  total: number
+                  customerName: string
+                  paymentStatus: string
+                  createdAt: string
+                  orderItems: { id: string; menuItem: { name: string }; quantity: number; price: number }[]
+                }) => (
+                  <Card key={order.id} className="border-2">
+                    <CardContent className="p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold">#{order.orderNumber}</span>
+                          <Badge variant="outline" className={orderStatusColors[order.status] || ''}>
+                            {orderStatusLabels[order.status] || order.status}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {order.paymentStatus === 'paid' ? (
+                            <Badge variant="outline" className="bg-emerald-100 text-emerald-800 text-[10px]">
+                              Plačano
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-amber-100 text-amber-800 text-[10px]">
+                              Neplačano
+                            </Badge>
+                          )}
+                          <span className="font-bold text-sm">€{order.total.toFixed(2)}</span>
+                        </div>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3 inline mr-1" />
+                        {format(new Date(order.createdAt), 'HH:mm')}
+                        {order.customerName && ` · ${order.customerName}`}
+                      </div>
+                      <div className="space-y-1">
+                        {order.orderItems.map(oi => (
+                          <div key={oi.id} className="flex justify-between text-sm">
+                            <span>{oi.quantity}x {oi.menuItem.name}</span>
+                            <span className="text-muted-foreground">€{(oi.price * oi.quantity).toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            <Separator />
+
+            <Button
+              className="w-full"
+              onClick={() => {
+                if (selectedTableForOrders) {
+                  handleNewOrderForTable(
+                    selectedTableForOrders.id as string,
+                    selectedTableForOrders.number as number
+                  )
+                }
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Dodaj novo naročilo za mizo {selectedTableForOrders?.number as number}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

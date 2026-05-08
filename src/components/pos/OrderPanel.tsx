@@ -13,9 +13,11 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Plus, Minus, Trash2, ShoppingBag, CreditCard, Banknote, Smartphone, X, Printer, Eye, ImageIcon, ChevronRight, Check, ArrowLeft, UtensilsCrossed, GlassWater, Users, Clock } from 'lucide-react'
-import { useState, useRef, useMemo } from 'react'
+import { Plus, Minus, Trash2, ShoppingBag, CreditCard, X, Printer, Eye, ImageIcon, ChevronRight, Check, ArrowLeft, UtensilsCrossed, GlassWater, Users, Clock, Search } from 'lucide-react'
+import { useState, useMemo } from 'react'
 import { format } from 'date-fns'
+import { ReceiptDialog } from '@/components/pos/ReceiptDialog'
+import { PaymentDialog } from '@/components/pos/PaymentDialog'
 
 // ============================================
 // TIPI
@@ -71,14 +73,13 @@ export function OrderPanel() {
   const [orderNotes, setOrderNotes] = useState('')
   const [activeCategory, setActiveCategory] = useState('all')
   const [activeSuperGroup, setActiveSuperGroup] = useState('all')
+  const [itemSearch, setItemSearch] = useState('')
   const [mainTab, setMainTab] = useState('new-order')
   const [orderListTab, setOrderListTab] = useState('all')
   const [selectedOrder, setSelectedOrder] = useState<Record<string, unknown> | null>(null)
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState('')
   const [detailOrder, setDetailOrder] = useState<Record<string, unknown> | null>(null)
   const [receiptOrder, setReceiptOrder] = useState<Record<string, unknown> | null>(null)
-  const receiptRef = useRef<HTMLDivElement>(null)
 
   // Modifier dialog
   const [modifierDialogItem, setModifierDialogItem] = useState<MenuItemType | null>(null)
@@ -173,26 +174,6 @@ export function OrderPanel() {
     },
   })
 
-  const processPaymentMutation = useMutation({
-    mutationFn: async ({ id, method }: { id: string; method: string }) => {
-      const res = await fetch(`/api/orders/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentStatus: 'paid', paymentMethod: method }),
-      })
-      if (!res.ok) throw new Error('Failed to process payment')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Plačilo uspešno obdelano!')
-      setPaymentDialogOpen(false)
-      setSelectedOrder(null)
-      setPaymentMethod('')
-      queryClient.invalidateQueries({ queryKey: ['orders'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-    },
-  })
-
   // ============================================
   // IZRAČUNI
   // ============================================
@@ -227,13 +208,13 @@ export function OrderPanel() {
       (item: MenuItemType) => {
         const matchesMenu = !resolvedMenuId || item.category?.menu?.id === resolvedMenuId
         const matchesCategory = activeCategory === 'all' || item.categoryId === activeCategory
-        // Also filter by super-group if one is active
         const matchesSuperGroup = activeSuperGroup === 'all' || 
           superGroups.some(sg => sg.id === activeSuperGroup && sg.categoryIds.includes(item.categoryId))
-        return matchesMenu && matchesCategory && matchesSuperGroup && item.isAvailable
+        const matchesSearch = !itemSearch || item.name.toLowerCase().includes(itemSearch.toLowerCase())
+        return matchesMenu && matchesCategory && matchesSuperGroup && matchesSearch && item.isAvailable
       }
     ) || []
-  }, [menuItems, resolvedMenuId, activeCategory, activeSuperGroup, superGroups])
+  }, [menuItems, resolvedMenuId, activeCategory, activeSuperGroup, superGroups, itemSearch])
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const tax = subtotal * taxRate
@@ -467,6 +448,37 @@ export function OrderPanel() {
               )}
 
               {/* ITEMS GRID - Toast Style Large Buttons */}
+              {/* Quick Search */}
+              {itemSearch && (
+                <div className="px-3 pt-2 flex items-center gap-2 flex-shrink-0">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Išči artikel..."
+                      value={itemSearch}
+                      onChange={e => setItemSearch(e.target.value)}
+                      className="h-8 text-xs pl-8 pr-8"
+                      autoFocus
+                    />
+                    <Button variant="ghost" size="icon" className="absolute right-0.5 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setItemSearch('')}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <Badge variant="secondary" className="text-[10px] h-6 flex-shrink-0">{filteredMenuItems.length}</Badge>
+                </div>
+              )}
+              {!itemSearch && (
+                <div className="px-3 pt-2 flex-shrink-0">
+                  <button
+                    onClick={() => setItemSearch(' ')}
+                    className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5 px-2 rounded-md hover:bg-muted/50"
+                  >
+                    <Search className="h-3.5 w-3.5" />
+                    <span>Išči artikel...</span>
+                    <kbd className="ml-auto text-[9px] bg-muted px-1.5 py-0.5 rounded border">Ctrl+K</kbd>
+                  </button>
+                </div>
+              )}
               <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
                 {menuLoading || menusLoading ? (
                   <div className="grid grid-cols-3 lg:grid-cols-4 gap-2.5">
@@ -812,36 +824,12 @@ export function OrderPanel() {
         </DialogContent>
       </Dialog>
 
-      {/* ============================================
-           PAYMENT DIALOG
-           ============================================ */}
-      <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Obdelava plačila</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-2xl font-bold text-center">€{((selectedOrder?.total as number) || 0).toFixed(2)}</p>
-            <div className="grid grid-cols-3 gap-3">
-              <Button variant={paymentMethod === 'cash' ? 'default' : 'outline'} className="flex flex-col gap-1 h-auto py-3" onClick={() => setPaymentMethod('cash')}>
-                <Banknote className="h-5 w-5" /><span className="text-xs">Gotovina</span>
-              </Button>
-              <Button variant={paymentMethod === 'card' ? 'default' : 'outline'} className="flex flex-col gap-1 h-auto py-3" onClick={() => setPaymentMethod('card')}>
-                <CreditCard className="h-5 w-5" /><span className="text-xs">Kartica</span>
-              </Button>
-              <Button variant={paymentMethod === 'valuto' ? 'default' : 'outline'} className="flex flex-col gap-1 h-auto py-3" onClick={() => setPaymentMethod('valuto')}>
-                <Smartphone className="h-5 w-5" /><span className="text-xs">Valuto</span>
-              </Button>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>Prekliči</Button>
-            <Button disabled={!paymentMethod || processPaymentMutation.isPending} onClick={() => { if (selectedOrder?.id && paymentMethod) processPaymentMutation.mutate({ id: selectedOrder.id as string, method: paymentMethod }) }}>
-              Potrdi plačilo
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Payment Dialog */}
+      <PaymentDialog
+        order={selectedOrder as { id: string; orderNumber: number; total: number; subtotal: number; tax: number; discount: number; orderItems: { id: string; menuItem: { name: string }; quantity: number; price: number }[] } | null}
+        open={paymentDialogOpen}
+        onClose={() => { setPaymentDialogOpen(false); setSelectedOrder(null) }}
+      />
 
       {/* ============================================
            ORDER DETAIL DIALOG
@@ -923,42 +911,12 @@ export function OrderPanel() {
         </DialogContent>
       </Dialog>
 
-      {/* ============================================
-           RECEIPT DIALOG
-           ============================================ */}
-      <Dialog open={!!receiptOrder} onOpenChange={(open) => !open && setReceiptOrder(null)}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Račun #{(receiptOrder?.orderNumber as number) || ''}</DialogTitle>
-          </DialogHeader>
-          <div ref={receiptRef} className="font-mono text-xs space-y-2 p-4 bg-white text-black rounded">
-            <div className="text-center">
-              <p className="font-bold">RestaurantOS</p>
-              <p>Restavracija</p>
-              <p className="text-[10px] text-gray-500">{receiptOrder?.createdAt ? format(new Date(receiptOrder.createdAt as string), 'dd.MM.yyyy HH:mm') : ''}</p>
-            </div>
-            <Separator />
-            {((receiptOrder?.orderItems as { quantity: number; menuItem: { name: string }; price: number }[]) || []).map((oi, i) => (
-              <div key={i} className="flex justify-between">
-                <span>{oi.quantity}x {oi.menuItem.name}</span>
-                <span>€{(oi.price * oi.quantity).toFixed(2)}</span>
-              </div>
-            ))}
-            <Separator />
-            <div className="flex justify-between"><span>Vmesna vsota</span><span>€{((receiptOrder?.subtotal as number) || 0).toFixed(2)}</span></div>
-            <div className="flex justify-between"><span>Davek</span><span>€{((receiptOrder?.tax as number) || 0).toFixed(2)}</span></div>
-            {Number(receiptOrder?.discount || 0) > 0 && <div className="flex justify-between"><span>Popust</span><span>-€{((receiptOrder?.discount as number) || 0).toFixed(2)}</span></div>}
-            <div className="flex justify-between font-bold text-sm"><span>SKUPAJ</span><span>€{((receiptOrder?.total as number) || 0).toFixed(2)}</span></div>
-            <div className="text-center text-[10px] text-gray-400 pt-2">Hvala za obisk!</div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReceiptOrder(null)}>Zapri</Button>
-            <Button onClick={() => { if (receiptRef.current) { const w = window.open('', '', 'width=400,height=600'); if (w) { w.document.write(receiptRef.current.innerHTML); w.document.close(); w.print() } } }}>
-              <Printer className="h-4 w-4 mr-1" />Natisni
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Receipt Dialog */}
+      <ReceiptDialog
+        orderId={receiptOrder?.id as string || null}
+        open={!!receiptOrder}
+        onClose={() => setReceiptOrder(null)}
+      />
     </div>
   )
 }

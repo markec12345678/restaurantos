@@ -4,6 +4,7 @@ import { usePOSStore } from '@/lib/store'
 import { Sidebar } from '@/components/pos/Sidebar'
 import { Dashboard } from '@/components/pos/Dashboard'
 import { OrderPanel } from '@/components/pos/OrderPanel'
+import { KitchenDisplay } from '@/components/pos/KitchenDisplay'
 import { TableMap } from '@/components/pos/TableMap'
 import { MenuManager } from '@/components/pos/MenuManager'
 import { InventoryManager } from '@/components/pos/InventoryManager'
@@ -14,6 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 const moduleComponents: Record<string, React.ComponentType> = {
   dashboard: Dashboard,
   orders: OrderPanel,
+  kitchen: KitchenDisplay,
   tables: TableMap,
   menu: MenuManager,
   inventory: InventoryManager,
