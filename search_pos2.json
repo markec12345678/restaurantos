@@ -1,0 +1,65 @@
+[
+  {
+    "url": "https://doc.toasttab.com/doc/platformguide/adminMenuHierarchy.html",
+    "name": "Menu hierarchy - - Platform guide - Toast Tab",
+    "snippet": "Menus are the highest level of the hierarchy and represent top-level categories for the offerings your restaurant serves, for example, Food, Drinks, Lunch, Dinner, Happy Hour, or Bar.",
+    "host_name": "doc.toasttab.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://support.revelsystems.com/s/article/Menu-Build-Guide-1583151247013",
+    "name": "Menu Build Guide - Revel Systems",
+    "snippet": "This guide is designed to help users build their products, organize their menus, and understand the various aspects of the products page as it affects the POS. Note: the Management Console must be configured before you can use the iPad POS.",
+    "host_name": "support.revelsystems.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://getanewpos.com/blog/toasttabpos/toast-tab-capabilities/how-to-use-menu-hierarchy-with-toast-pos-build-better-restaurant-menus",
+    "name": "How to Use Menu Hierarchy with Toast POS: Build Better",
+    "snippet": "Learn how to use Toast POS’s menu hierarchy to organize your restaurant menus efficiently. Discover best practices for building menus, using modifiers, and optimizing the order process across in-house and online platforms.",
+    "host_name": "getanewpos.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://squareup.com/help/us/en/article/6424-create-menus-with-square-for-restaurants",
+    "name": "Create and update menus | Square Support Center - United States",
+    "snippet": "After you create your menu, you can manage your restaurant POS modes, online ordering, kiosks, and delivery apps across all locations from a single place in your Square Dashboard.",
+    "host_name": "squareup.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://help.touchbistro.com/s/article/How-to-Use-Menu-Management?language=en_US",
+    "name": "Menu Management: How to Use Menu Management - TouchBistro",
+    "snippet": "Menu Management is used to create and update your TouchBistro POS's menu using TouchBistro Cloud. Using the Menu Management feature, you can add new menu items, change prices, edit/create new discounts, and do much more.",
+    "host_name": "help.touchbistro.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://getquantic.com/support/menu-management-fs",
+    "name": "Menu Management | Quantic POS Learning Resources",
+    "snippet": "Here, you can create the menu, create super-categories, categories, and add the items in their respective sections. This process ensures seamless ordering and reporting.",
+    "host_name": "getquantic.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://touchbistro.my.site.com/helpsite/s/topic/0TODp000000klJtOAI/menu-management?language=en_US",
+    "name": "Menu Management",
+    "snippet": "Menu Management: Modifier Groups This guide will show you how to add ways to modify menu items via menu item modifiers and kitchen instructions.",
+    "host_name": "touchbistro.my.site.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  }
+]

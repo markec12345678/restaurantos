@@ -7,32 +7,92 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ============================================
+// PROFESIONALNA MENU HIERARHIJA (Toast POS standard)
+// Menu → Category → MenuItem → ModifierGroup → Modifier
+// ============================================
+
+model Menu {
+  id         String     @id @default(cuid())
+  name       String     // "Hrana", "Pijača"
+  icon       String     @default("📋")
+  color      String     @default("#f59e0b")
+  sortOrder  Int        @default(0)
+  isActive   Boolean    @default(true)
+  categories Category[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
 model Category {
-  id        String     @id @default(cuid())
-  name      String
-  icon      String     @default("🍽️")
-  color     String     @default("#f59e0b")
-  sortOrder Int        @default(0)
-  menuItems MenuItem[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id         String     @id @default(cuid())
+  name       String     // "Predjedi", "Glavne jedi", "Vroče pijače"
+  icon       String     @default("🍽️")
+  color      String     @default("#f59e0b")
+  sortOrder  Int        @default(0)
+  menuId     String
+  menu       Menu       @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  menuItems  MenuItem[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
 }
 
 model MenuItem {
+  id              String           @id @default(cuid())
+  name            String
+  description     String           @default("")
+  price           Float
+  image           String           @default("")
+  isAvailable     Boolean          @default(true)
+  sortOrder       Int              @default(0)
+  categoryId      String
+  category        Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  orderItems      OrderItem[]
+  inventory       InventoryItem?
+  modifierGroups  MenuItemModifierGroup[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model ModifierGroup {
   id          String   @id @default(cuid())
-  name        String
-  description String   @default("")
-  price       Float
-  image       String   @default("")
-  isAvailable Boolean  @default(true)
+  name        String   // "Način pečenja", "Priloge", "Velikost"
+  required    Boolean  @default(false)
+  minSelect   Int      @default(0)
+  maxSelect   Int?     // null = neomejeno
   sortOrder   Int      @default(0)
-  categoryId  String
-  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  orderItems  OrderItem[]
-  inventory   InventoryItem?
+  modifiers   Modifier[]
+  menuItems   MenuItemModifierGroup[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
+
+model Modifier {
+  id              String        @id @default(cuid())
+  name            String        // "Srednje pečeno", "Francoski krompir"
+  price           Float         @default(0)
+  isAvailable     Boolean       @default(true)
+  sortOrder       Int           @default(0)
+  modifierGroupId String
+  modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+model MenuItemModifierGroup {
+  id              String        @id @default(cuid())
+  menuItemId      String
+  modifierGroupId String
+  sortOrder       Int           @default(0)
+  menuItem        MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+
+  @@unique([menuItemId, modifierGroupId])
+}
+
+// ============================================
+// NAROČILA IN MIZE
+// ============================================
 
 model Table {
   id        String   @id @default(cuid())
@@ -68,18 +128,23 @@ model Order {
 }
 
 model OrderItem {
-  id         String   @id @default(cuid())
-  orderId    String
-  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItemId String
-  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
-  quantity   Int      @default(1)
-  price      Float
-  notes      String   @default("")
-  status     String   @default("pending")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id             String   @id @default(cuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId     String
+  menuItem       MenuItem @relation(fields: [menuItemId], references: [id])
+  quantity       Int      @default(1)
+  price          Float
+  notes          String   @default("")
+  modifiersJson  String   @default("[]") // JSON array of selected modifiers [{name, price}]
+  status         String   @default("pending")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
+
+// ============================================
+// ZAPOSLENI IN INVENTAR
+// ============================================
 
 model Employee {
   id        String   @id @default(cuid())
