@@ -16,8 +16,15 @@ import { RecipeManager } from '@/components/pos/RecipeManager'
 import { SettingsManager } from '@/components/pos/SettingsManager'
 import { ConfigurationManager } from '@/components/pos/ConfigurationManager'
 import { DeliveryManager } from '@/components/pos/DeliveryManager'
+import { GiftCardManager } from '@/components/pos/GiftCardManager'
+import { LoyaltyManager } from '@/components/pos/LoyaltyManager'
+import { PrinterManager } from '@/components/pos/PrinterManager'
+import { WebhookManager } from '@/components/pos/WebhookManager'
+import { ShiftManager } from '@/components/pos/ShiftManager'
 import { GlobalNotifications } from '@/components/pos/GlobalNotifications'
+import { PinLogin, getCurrentUser, setCurrentUser } from '@/components/pos/PinLogin'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useEffect } from 'react'
 
 const moduleComponents: Record<string, React.ComponentType> = {
   dashboard: Dashboard,
@@ -33,12 +40,31 @@ const moduleComponents: Record<string, React.ComponentType> = {
   reports: ReportsView,
   configuration: ConfigurationManager,
   delivery: DeliveryManager,
+  'gift-cards': GiftCardManager,
+  loyalty: LoyaltyManager,
+  printers: PrinterManager,
+  webhooks: WebhookManager,
+  shifts: ShiftManager,
   settings: SettingsManager,
 }
 
 export default function POSPage() {
   const { activeModule } = usePOSStore()
   const ActiveComponent = moduleComponents[activeModule] || OrderPanel
+  const [authUser, setAuthUser] = useState<ReturnType<typeof getCurrentUser>>(null)
+
+  useEffect(() => {
+    const stored = getCurrentUser()
+    if (stored) setAuthUser(stored)
+  }, [])
+
+  if (!authUser) {
+    return (
+      <div className="h-screen bg-background">
+        <PinLogin onLogin={(user) => { setAuthUser(user); setCurrentUser(user) }} />
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

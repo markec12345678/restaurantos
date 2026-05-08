@@ -378,7 +378,7 @@ export function OrderPanel() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="dine-in">🍽️ Na mestu</SelectItem>
-                    <SelectItem value="takeaway">📦 Za s seboj</SelectItem>
+                    <SelectItem value="takeout">📦 Za s seboj</SelectItem>
                     <SelectItem value="delivery">🚚 Dostava</SelectItem>
                   </SelectContent>
                 </Select>
@@ -849,7 +849,7 @@ export function OrderPanel() {
                           </div>
                         </div>
                         <div className="text-sm">
-                          <p>{order.customerName || 'Hodič'} · {order.type === 'dine-in' ? 'Na mestu' : order.type === 'takeaway' ? 'Za s seboj' : 'Dostava'}</p>
+                          <p>{order.customerName || 'Hodič'} · {order.type === 'dine-in' ? 'Na mestu' : order.type === 'takeout' ? 'Za s seboj' : 'Dostava'}</p>
                           {order.table && <p className="text-muted-foreground">Miza {order.table.number}</p>}
                         </div>
                         <div className="space-y-1">
@@ -992,7 +992,7 @@ export function OrderPanel() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div><p className="text-muted-foreground">Stranka</p><p className="font-medium">{String(detailOrder?.customerName || 'Hodič')}</p></div>
-              <div><p className="text-muted-foreground">Vrsta</p><p className="font-medium">{detailOrder?.type === 'dine-in' ? 'Na mestu' : detailOrder?.type === 'takeaway' ? 'Za s seboj' : 'Dostava'}</p></div>
+              <div><p className="text-muted-foreground">Vrsta</p><p className="font-medium">{detailOrder?.type === 'dine-in' ? 'Na mestu' : detailOrder?.type === 'takeout' ? 'Za s seboj' : 'Dostava'}</p></div>
               <div><p className="text-muted-foreground">Miza</p><p className="font-medium">{detailOrder?.table ? `Miza ${(detailOrder.table as { number: number }).number}` : 'Brez'}</p></div>
               <div>
                 <p className="text-muted-foreground">Plačilo</p>

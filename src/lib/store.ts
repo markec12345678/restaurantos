@@ -160,7 +160,7 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   setEditingOrderId: (orderId) => set({ editingOrderId: orderId }),
   editingOrderNumber: null,
   setEditingOrderNumber: (num) => set({ editingOrderNumber: num }),
-  taxRate: 0.22,
+  taxRate: 22.0,  // Privzeta DDV stopnja v % (konsistentno z MenuItem.vatRate)
   setTaxRate: (rate) => set({ taxRate: rate }),
   appliedDiscountId: null,
   setAppliedDiscountId: (id) => set({ appliedDiscountId: id }),

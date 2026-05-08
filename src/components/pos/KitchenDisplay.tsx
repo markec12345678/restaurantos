@@ -340,7 +340,7 @@ function KitchenOrderCard({
 }) {
   const typeLabels: Record<string, string> = {
     'dine-in': '🍽️ Na mestu',
-    'takeaway': '📦 Za s seboj',
+    'takeout': '📦 Za s seboj',
     'delivery': '🚚 Dostava',
   }
 

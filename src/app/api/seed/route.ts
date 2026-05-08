@@ -544,7 +544,7 @@ export async function POST() {
     // PRIMERNI NAROČILA
     // ============================================
     const customerNames = ['Jože N.', 'Maja S.', 'Miha R.', 'Ana L.', 'Tomaž V.', 'Ema B.', 'Aleš K.', 'Lidija M.']
-    const orderTypes = ['dine-in', 'takeaway', 'delivery']
+    const orderTypes = ['dine-in', 'takeout', 'delivery']
     const paymentMethods = ['cash', 'card', 'valuto']
 
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {

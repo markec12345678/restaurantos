@@ -314,7 +314,7 @@ model Order {
   // --- Relations ---
   orderItems      OrderItem[]
   checks          Check[]
-  receipt         Receipt?
+  receipt         Receipt[]
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 }
@@ -676,7 +676,7 @@ model RecipeItem {
 model Receipt {
   id                String   @id @default(cuid())
   receiptNumber     String   @unique               // Sekvenčna številka: R-2026-000001
-  orderId           String   @unique
+  orderId           String                         // Omogoča več računov na naročilo (split payments)
   order             Order    @relation(fields: [orderId], references: [id])
   // --- Podatki izdajatelja ---
   businessName      String

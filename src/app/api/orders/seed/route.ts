@@ -36,7 +36,7 @@ export async function POST() {
       const discount = Math.random() > 0.8 ? Math.floor(subtotal * 0.1) : 0
       const total = subtotal + tax - discount
 
-      const type = ['dine-in', 'takeaway', 'delivery'][Math.floor(Math.random() * 3)]
+      const type = ['dine-in', 'takeout', 'delivery'][Math.floor(Math.random() * 3)]
       const statuses = ['pending', 'in-progress', 'ready', 'completed']
       const statusIdx = dayOffset === 0 ? Math.floor(Math.random() * 3) : 3
       const status = statuses[statusIdx]

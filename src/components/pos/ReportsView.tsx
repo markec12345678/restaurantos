@@ -35,7 +35,7 @@ const paymentMethodLabels: Record<string, string> = {
 
 const orderTypeLabels: Record<string, string> = {
   'dine-in': 'V lokalu',
-  takeaway: 'Za s seboj',
+  takeout: 'Za s seboj',
   delivery: 'Dostava',
 }
 

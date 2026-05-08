@@ -22,11 +22,17 @@ import {
   Settings,
   SlidersHorizontal,
   Truck,
+  CreditCard,
+  Award,
+  Printer,
+  Webhook,
+  CalendarDays,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore } from 'react'
 import { Button } from '@/components/ui/button'
 import { useQuery } from '@tanstack/react-query'
+import { UserIndicator } from '@/components/pos/PinLogin'
 
 const emptySubscribe = () => () => {}
 function useMounted() {
@@ -42,6 +48,7 @@ const navItems = [
   { id: 'kitchen', label: 'Kuhinja', icon: ChefHat },
   { id: 'tables', label: 'Mize', icon: BarChartBig },
   { id: 'cash-register', label: 'Blagajna', icon: Wallet },
+  { id: 'shifts', label: 'Izmene', icon: CalendarDays },
   { id: 'dashboard', label: 'Nadzorna plošča', icon: LayoutDashboard },
   { id: 'menu', label: 'Jedilnik', icon: UtensilsCrossed },
   { id: 'inventory', label: 'Zaloga', icon: Package },
@@ -51,6 +58,10 @@ const navItems = [
   { id: 'reports', label: 'Poročila', icon: BarChart3 },
   { id: 'configuration', label: 'Konfiguracija', icon: SlidersHorizontal },
   { id: 'delivery', label: 'Dostava', icon: Truck },
+  { id: 'gift-cards', label: 'Darilne kartice', icon: CreditCard },
+  { id: 'loyalty', label: 'Zvestoba', icon: Award },
+  { id: 'printers', label: 'Tiskalniki', icon: Printer },
+  { id: 'webhooks', label: 'Webhooks', icon: Webhook },
   { id: 'settings', label: 'Nastavitve', icon: Settings },
 ]
 
@@ -150,6 +161,7 @@ export function Sidebar() {
         </nav>
 
         {/* Bottom section */}
+        <UserIndicator />
         <div className="px-2 py-2 border-t border-border">
           {mounted && (
             <Button

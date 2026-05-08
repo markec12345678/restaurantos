@@ -46,7 +46,7 @@ export function Dashboard() {
   const statusLabels: Record<string, string> = {
     pending: 'Čakajoče', 'in-progress': 'V obdelavi', ready: 'Pripravljeno', completed: 'Zaključeno', cancelled: 'Preklicano',
   }
-  const typeLabels: Record<string, string> = { 'dine-in': 'Na mestu', takeaway: 'Za s seboj', delivery: 'Dostava' }
+  const typeLabels: Record<string, string> = { 'dine-in': 'Na mestu', takeout: 'Za s seboj', delivery: 'Dostava' }
 
   return (
     <div className="space-y-6 overflow-y-auto h-full p-1 custom-scrollbar">
@@ -140,7 +140,7 @@ export function Dashboard() {
                 {data.orderTypeBreakdown.map((item: { type: string; revenue: number; count: number }) => (
                   <div key={item.type} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-lg">{item.type === 'dine-in' ? '🍽️' : item.type === 'takeaway' ? '📦' : item.type === 'delivery' ? '🚚' : '❓'}</span>
+                      <span className="text-lg">{item.type === 'dine-in' ? '🍽️' : item.type === 'takeout' ? '📦' : item.type === 'delivery' ? '🚚' : '❓'}</span>
                       <div>
                         <p className="text-sm font-medium">{typeLabels[item.type] || item.type}</p>
                         <p className="text-xs text-muted-foreground">{item.count} naročil</p>
