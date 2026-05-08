@@ -217,6 +217,30 @@ model InventoryItem {
   menuItemId      String?   @unique
   menuItem        MenuItem? @relation(fields: [menuItemId], references: [id])
   lastRestocked   DateTime  @default(now())
+  // --- Transakcije ---
+  transactions    StockTransaction[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+}
+
+// ============================================
+// ZALOŽNE TRANSAKCIJE (sledenje vseh premikov)
+// ============================================
+
+model StockTransaction {
+  id              String        @id @default(cuid())
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  type            String        // "procurement" (nabava), "sale" (prodaja), "write-off" (odpis), "adjustment" (popravek), "return" (vrnitev dobavitelju)
+  quantity        Float         // Količina v enotah zaloge (pozitivno za nabavo, negativno za odpis/prodajo)
+  previousQty     Float         // Količina pred transakcijo
+  newQty          Float         // Količina po transakciji
+  costPerUnit     Float         // Nabavna cena ob transakciji
+  totalCost       Float         // Skupni strošek (quantity × costPerUnit)
+  reason          String        @default("")   // Razlog (npr. "Dobava", "Kvar", "Razbitje", "Popravek inventorja")
+  note            String        @default("")   // Dodatna opomba
+  supplierDoc     String        @default("")   // Številka dobavnice/predračuna
+  employeeName    String        @default("")   // Kdo je izvedel transakcijo
+  orderId         String?                      // Povezava z naročilom (pri avtomatski razknjžbi)
+  createdAt       DateTime      @default(now())
 }

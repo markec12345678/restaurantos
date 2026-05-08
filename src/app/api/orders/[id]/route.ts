@@ -33,14 +33,52 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     })
   }
 
-  // When order is completed, free the table
-  if (body.status === 'completed' && order.tableId) {
-    await db.table.update({ where: { id: order.tableId }, data: { status: 'available' } })
+  // When order is completed, free the table & auto-deduct inventory
+  if (body.status === 'completed') {
+    if (order.tableId) {
+      await db.table.update({ where: { id: order.tableId }, data: { status: 'available' } })
+    }
     // Mark all items as served
     await db.orderItem.updateMany({
       where: { orderId: id, status: { in: ['pending', 'preparing', 'ready'] } },
       data: { status: 'served' },
     })
+
+    // Avtomatsko razknjiževanje zalog glede na normativi
+    const orderItems = await db.orderItem.findMany({ where: { orderId: id } })
+    for (const oi of orderItems) {
+      // Poišči inventorizacijski artikel povezan s tem menijem
+      const invItem = await db.inventoryItem.findFirst({
+        where: { menuItemId: oi.menuItemId },
+      })
+      if (invItem && invItem.servingsPerUnit > 0) {
+        // Izračunaj porabo: količina naročenih × (1 / servingsPerUnit) enot zaloge
+        const unitsPerServing = 1 / invItem.servingsPerUnit
+        const totalUnitsToDeduct = oi.quantity * unitsPerServing
+        const previousQty = invItem.quantity
+        const newQty = Math.max(0, previousQty - totalUnitsToDeduct)
+
+        await db.$transaction(async (tx) => {
+          await tx.inventoryItem.update({
+            where: { id: invItem.id },
+            data: { quantity: newQty },
+          })
+          await tx.stockTransaction.create({
+            data: {
+              inventoryItemId: invItem.id,
+              type: 'sale',
+              quantity: -totalUnitsToDeduct,
+              previousQty,
+              newQty,
+              costPerUnit: invItem.costPerUnit,
+              totalCost: totalUnitsToDeduct * invItem.costPerUnit,
+              reason: `Prodaja - naročilo #${order.orderNumber}`,
+              orderId: id,
+            },
+          })
+        })
+      }
+    }
   }
 
   // When order is cancelled, free the table if no other active orders
