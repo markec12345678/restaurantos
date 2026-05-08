@@ -29,6 +29,7 @@ import {
   CalendarDays,
   Maximize,
   Minimize,
+  Monitor,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore, useState, useEffect } from 'react'
@@ -68,7 +69,7 @@ const navItems = [
 ]
 
 export function Sidebar() {
-  const { activeModule, setActiveModule, sidebarOpen, setSidebarOpen } = usePOSStore()
+  const { activeModule, setActiveModule, sidebarOpen, setSidebarOpen, setKioskMode } = usePOSStore()
   const { theme, setTheme } = useTheme()
   const mounted = useMounted()
   const [isFullscreen, setIsFullscreen] = useState(false)
@@ -190,6 +191,15 @@ export function Sidebar() {
           >
             {isFullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
             {isFullscreen ? 'Izhod iz cel. zaslona' : 'Celozaslonski način'}
+          </Button>
+          {/* Kiosk način */}
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-2 text-xs h-8 touch-manipulation"
+            onClick={() => setKioskMode(true)}
+          >
+            <Monitor className="h-3.5 w-3.5" />
+            Kiosk način
           </Button>
           {/* Tema */}
           {mounted && (

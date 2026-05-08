@@ -1,6 +1,19 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 
+// Helper za WebSocket broadcast
+async function broadcastWS(type: string, payload: unknown) {
+  try {
+    await fetch('http://localhost:3000/api/ws-broadcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, payload }),
+    })
+  } catch {
+    // WS strežnik ni na voljo
+  }
+}
+
 // PUT /api/order-items/[id] — Update individual order item (status, void, etc.)
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -94,6 +107,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         data: { status: 'ready' },
       })
     }
+  }
+
+  // WebSocket: obvesti KDS o spremembi statusa artikla
+  if (body.status) {
+    broadcastWS('ITEM_STATUS_CHANGED', {
+      orderItemId: orderItem.id,
+      orderId: orderItem.orderId,
+      newStatus: body.status,
+      menuItemName: orderItem.menuItem.name,
+    })
   }
 
   return NextResponse.json(orderItem)

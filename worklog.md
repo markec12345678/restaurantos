@@ -55,3 +55,112 @@ Work Log:
 - Station filter buttons added to KDS header with touch-manipulation
 - Documented complete network architecture and hardware setup
 - Build verified clean
+
+---
+Task ID: 2
+Agent: Main
+Task: WebSocket server, Kiosk mode, Kitchen Printer API, PWA improvements
+
+Work Log:
+
+## 1. WebSocket Server za Real-Time KDS Komunikacijo
+
+- **`server.js`** — Custom Next.js server z WebSocket podporo (ws package)
+  - WSS na poti `/ws` na istem HTTP strežniku (port 3000)
+  - Broadcast dogodki: `NEW_ORDER`, `ORDER_UPDATED`, `ITEM_STATUS_CHANGED`, `ORDER_CANCELLED`
+  - Heartbeat/ping vsakih 30 sekund za zaznavanje nepovezanih klientov
+  - Sledenje povezanih klientov (Set), identifikacija klienta (IDENTIFY sporočilo)
+  - Graceful shutdown s SIGINT/SIGTERM
+  - `globalThis.__wsBroadcast` izpostavljen za API rute
+
+- **`src/app/api/ws-broadcast/route.ts`** — API ruta za broadcast
+  - POST endpoint, ki kliče `globalThis.__wsBroadcast` iz server.js
+  - Varno deluje tudi brez WS strežnika (next dev brez server.js)
+
+- **`src/lib/websocket-client.ts`** — Client-side WebSocket hook
+  - `useKitchenWebSocket()` hook z auto-reconnect (eksponentna zakasnitev, max 10 poskusov, max 30s)
+  - Ob dogodkih samodejno invalidira React Query poizvedbe (kitchen, orders, dashboard)
+  - `onEvent` callback za zvok in obvestila
+  - Refs za onEvent in connectFn (izogibanje cirkularnim odvisnostim)
+
+- **Posodobljene API rute z WS broadcast:**
+  - `orders/route.ts` — broadcast `NEW_ORDER` + auto-print kuhinjskega naročila
+  - `order-items/[id]/route.ts` — broadcast `ITEM_STATUS_CHANGED`
+  - `orders/[id]/route.ts` — broadcast `ORDER_CANCELLED` in `ORDER_UPDATED`
+
+- **KitchenDisplay.tsx** posodobljen:
+  - Uporablja `useKitchenWebSocket()` za real-time posodobitve
+  - Ko je WS povezan: polling vsakih 30s (samo za zagotovitev)
+  - Ko WS ni povezan: polling vsakih 5s (fallback)
+  - Prikaz stanja povezave v footerju (Wifi/WifiOff ikoni)
+  - Zvok ob WS dogodkih (NEW_ORDER, ORDER_CANCELLED)
+
+## 2. Kiosk Način
+
+- **`src/lib/store.ts`** — Dodano:
+  - `kioskMode: boolean` (privzeto false)
+  - `setKioskMode: (mode: boolean) => void`
+  - `kioskAllowedModules: string[]` (privzeto ['orders', 'kitchen', 'tables'])
+  - `setKioskAllowedModules: (modules: string[]) => void`
+
+- **`src/components/pos/KioskBar.tsx`** — Kompaktna vrstica za kiosk
+  - 40px višina, RestaurantOS logotip, moduli tabi (samo kioskAllowedModules), ura
+  - Izhod iz kioska zahteva admin PIN (Dialog s števčno tipkovnico)
+  - Vsi gumbi touch-friendly (min 44px touch target)
+  - Slovenian UI besedila
+
+- **`src/app/page.tsx`** — Posodobljen:
+  - Ko je kioskMode true: prikaže KioskBar namesto Sidebar
+  - Layout: flex-col z KioskBar na vrhu in main pod njim
+
+- **`src/components/pos/Sidebar.tsx`** — Dodan gumb:
+  - "Kiosk način" z Monitor ikono v spodnjem delu stranske vrstice
+
+## 3. Kitchen Printer API (ESC/POS over LAN)
+
+- **`src/lib/escpos.ts`** — ESC/POS ukazni gradilnik
+  - Podpora za Epson TM-T88VI (standardni ESC/POS) in Star SP700 (impact printer)
+  - Funkcije: init(), bold(), center(), left(), right(), text(), lineFeed(), separator(), cut(), largeText(), smallText(), normalText(), underline(), inverted()
+  - Kodna stran 852 (Latin 2) za slovenske znake (č, š, ž, Č, Š, Ž, ć, đ)
+  - `generateKitchenOrder()` — ESC/POS podatki za kuhinjsko naročilo
+  - `generateReceipt()` — FURS-compliant račun z ZOI, EOR, DDV razčlenitvijo
+  - `generateTestPrint()` — Testni tisk
+
+- **`src/app/api/print/route.ts`** — API za tiskanje
+  - POST: `{ type: 'order' | 'receipt' | 'test', orderId?, printerId? }`
+  - TCP/IP povezava na tiskalnik (port 9100) z 10s timeout
+  - Samodejna izbira tiskalnika glede na printRules iz baze
+  - Fallback: prvi aktivni tiskalnik, če ni specifičnega pravila
+  - PrinterModel določen iz tipa tiskalnika (dot-matrix → Star, thermal → Epson)
+
+## 4. PWA Izboljšave
+
+- **`manifest.json`** posodobljen:
+  - `orientation: "landscape"` za tablice (restavracijska uporaba)
+  - `prefer_related_applications: true` in `related_applications: []`
+  - Dodani shortcuts: "Blagajna", "Mize", "Kuhinja", "Novo naročilo"
+
+- **`layout.tsx`** posodobljen:
+  - `<meta name="installable" content="yes">`
+  - Body `overscroll-none` razred in `overscroll-behavior: none` style
+  - `touchAction: 'manipulation'` na body
+
+- **`sw.js`** posodobljen (v2):
+  - Agresivno cahiranje app shell (cache first za statične datoteke)
+  - WebSocket zahteve (/ws) niso cahirane
+  - Background sync za offline naročila (IndexedDB shranjevanje)
+  - Message handler za komunikacijo z aplikacijo
+  - Push notification podpora (pripravljeno za prihodnjo uporabo)
+
+## 5. Package.json Scripts
+
+- Dodano: `"dev:ws": "node server.js"` — razvoj z WebSocket
+- Dodano: `"start:ws": "NODE_ENV=production node server.js"` — produkcija z WebSocket
+
+## Paketi nameščeni
+- `ws` (8.20.0) — WebSocket strežnik
+- `@types/ws` (8.18.1) — TypeScript tipi
+
+## Build Status
+- Build: ✅ Uspešen (vsi API route-ji vključeni, vključno z /api/print in /api/ws-broadcast)
+- Lint: 7 pre-existing napak (page.tsx, GlobalNotifications, ReportsView, SettingsManager) — nobena iz novih datotek

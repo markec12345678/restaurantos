@@ -10,9 +10,10 @@ import { toast } from 'sonner'
 import {
   ChefHat, Clock, AlertTriangle, CheckCircle2, Flame,
   UtensilsCrossed, ArrowRight, Volume2, VolumeX, RefreshCw,
-  Grid3X3, List, Timer, Bell, BellRing, Maximize, Minimize
+  Grid3X3, List, Timer, Bell, BellRing, Maximize, Minimize, Wifi, WifiOff
 } from 'lucide-react'
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useKitchenWebSocket } from '@/lib/websocket-client'
 
 // ============================================
 // FULLSCREEN HELPER
@@ -593,15 +594,38 @@ export function KitchenDisplay() {
   const prevOrdersRef = useRef<string[]>([])
   const { isFullscreen, toggle: toggleFullscreen } = useFullscreen()
 
-  // Fetch KDS data with frequent refresh
+  // WebSocket za real-time posodobitve
+  const { connected: wsConnected, lastEvent: wsLastEvent } = useKitchenWebSocket({
+    onEvent: (msg) => {
+      // Ob novem dogodku sproži zvok
+      if (msg.type === 'NEW_ORDER' && soundEnabled) {
+        soundManager.playNewOrder()
+        toast.info(`🍽️ Novo naročilo!`, { duration: 3000 })
+      }
+      if (msg.type === 'ORDER_CANCELLED' && soundEnabled) {
+        soundManager.playUrgent()
+      }
+    },
+  })
+
+  // Fetch KDS data — uporabi polling samo kot fallback, ko WebSocket ni povezan
   const { data, isLoading } = useQuery({
     queryKey: ['kitchen'],
     queryFn: async () => {
       const res = await fetch('/api/kitchen')
       return res.json() as Promise<KDSData>
     },
-    refetchInterval: 5000, // Refresh every 5 seconds
+    // Ko je WS povezan, ne potrebujemo pogostega pollinga (samo vsakih 30s za zagotovitev)
+    // Ko WS ni povezan, pollamo vsakih 5s kot fallback
+    refetchInterval: wsConnected ? 30000 : 5000,
   })
+
+  // Ob vsakem WS dogodku takoj invalidiraj poizvedbe
+  useEffect(() => {
+    if (wsLastEvent) {
+      queryClient.invalidateQueries({ queryKey: ['kitchen'] })
+    }
+  }, [wsLastEvent, queryClient])
 
   // Detect new orders for sound notification
   useEffect(() => {
@@ -845,8 +869,17 @@ export function KitchenDisplay() {
               <p className="text-sm">Ni aktivnih naročil za pripravo</p>
             </div>
             <div className="flex items-center gap-2 text-xs">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-              Samodejno osveževanje vsakih 5s
+              {wsConnected ? (
+                <>
+                  <Wifi className="h-3 w-3 text-emerald-500" />
+                  Real-time povezava
+                </>
+              ) : (
+                <>
+                  <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                  Samodejno osveževanje vsakih 5s
+                </>
+              )}
             </div>
           </div>
         ) : viewMode === 'cards' ? (
@@ -946,8 +979,17 @@ export function KitchenDisplay() {
             <span>Artikli: <strong>{stats.totalItemsPending}</strong> čaka / <strong>{stats.totalItemsPreparing}</strong> v pripravi / <strong className="text-emerald-600">{stats.totalItemsReady}</strong> pripravljeni</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Samoosvežitev: 5s</span>
+            {wsConnected ? (
+              <>
+                <Wifi className="h-3 w-3 text-emerald-500" />
+                <span>Real-time</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="h-3 w-3 text-amber-500" />
+                <span>Polling: 5s</span>
+              </>
+            )}
           </div>
         </div>
       )}

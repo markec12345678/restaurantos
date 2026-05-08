@@ -2,6 +2,7 @@
 
 import { usePOSStore } from '@/lib/store'
 import { Sidebar } from '@/components/pos/Sidebar'
+import { KioskBar } from '@/components/pos/KioskBar'
 import { Dashboard } from '@/components/pos/Dashboard'
 import { OrderPanel } from '@/components/pos/OrderPanel'
 import { KitchenDisplay } from '@/components/pos/KitchenDisplay'
@@ -49,7 +50,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
 }
 
 export default function POSPage() {
-  const { activeModule } = usePOSStore()
+  const { activeModule, kioskMode } = usePOSStore()
   const ActiveComponent = moduleComponents[activeModule] || OrderPanel
   const [authUser, setAuthUser] = useState<ReturnType<typeof getCurrentUser>>(null)
 
@@ -74,21 +75,44 @@ export default function POSPage() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar />
-      <main className="flex-1 overflow-hidden">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeModule}
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.12 }}
-            className="h-full"
-          >
-            <ActiveComponent />
-          </motion.div>
-        </AnimatePresence>
-      </main>
+      {/* Kiosk način: KioskBar namesto Sidebar */}
+      {kioskMode ? (
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <KioskBar />
+          <main className="flex-1 overflow-hidden">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeModule}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.12 }}
+                className="h-full"
+              >
+                <ActiveComponent />
+              </motion.div>
+            </AnimatePresence>
+          </main>
+        </div>
+      ) : (
+        <>
+          <Sidebar />
+          <main className="flex-1 overflow-hidden">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeModule}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.12 }}
+                className="h-full"
+              >
+                <ActiveComponent />
+              </motion.div>
+            </AnimatePresence>
+          </main>
+        </>
+      )}
       <GlobalNotifications />
     </div>
   )

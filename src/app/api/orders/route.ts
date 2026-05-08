@@ -1,6 +1,32 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 
+// Helper za WebSocket broadcast (varen klic — deluje tudi brez WS strežnika)
+async function broadcastWS(type: string, payload: unknown) {
+  try {
+    await fetch('http://localhost:3000/api/ws-broadcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, payload }),
+    })
+  } catch {
+    // WS strežnik ni na voljo — tiho prezri
+  }
+}
+
+// Helper za samodejni tisk kuhinjskega naročila
+async function autoPrintKitchenOrder(order: Record<string, unknown>) {
+  try {
+    await fetch('http://localhost:3000/api/print', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'order', orderId: order.id }),
+    })
+  } catch {
+    // Tiskanje ni na voljo — tiho prezri
+  }
+}
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status')
@@ -92,6 +118,18 @@ export async function POST(req: Request) {
   if (body.tableId && body.type === 'dine-in') {
     await db.table.update({ where: { id: body.tableId }, data: { status: 'occupied' } })
   }
+
+  // WebSocket: obvesti KDS o novem naročilu
+  broadcastWS('NEW_ORDER', {
+    orderId: order.id,
+    orderNumber: order.orderNumber,
+    type: order.type,
+    tableId: order.tableId,
+    total: order.total,
+  })
+
+  // Samodejni tisk kuhinjskega naročila (v ozadju)
+  autoPrintKitchenOrder(order as unknown as Record<string, unknown>)
 
   return NextResponse.json(order)
 }

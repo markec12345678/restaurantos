@@ -59,6 +59,11 @@ interface POSStore {
   // Selected dining option
   diningOptionId: string | null
   setDiningOptionId: (id: string | null) => void
+  // Kiosk način
+  kioskMode: boolean
+  setKioskMode: (mode: boolean) => void
+  kioskAllowedModules: string[]
+  setKioskAllowedModules: (modules: string[]) => void
 }
 
 function generateCartKey(itemId: string, modifiers: SelectedModifier[]): string {
@@ -166,4 +171,8 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   setAppliedDiscountId: (id) => set({ appliedDiscountId: id }),
   diningOptionId: null,
   setDiningOptionId: (id) => set({ diningOptionId: id }),
+  kioskMode: false,
+  setKioskMode: (mode) => set({ kioskMode: mode }),
+  kioskAllowedModules: ['orders', 'kitchen', 'tables'],
+  setKioskAllowedModules: (modules) => set({ kioskAllowedModules: modules }),
 }))

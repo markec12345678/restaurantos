@@ -1,6 +1,19 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 
+// Helper za WebSocket broadcast
+async function broadcastWS(type: string, payload: unknown) {
+  try {
+    await fetch('http://localhost:3000/api/ws-broadcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, payload }),
+    })
+  } catch {
+    // WS strežnik ni na voljo
+  }
+}
+
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json()
@@ -108,6 +121,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       where: { orderId: id, status: { in: ['pending', 'preparing', 'ready'] } },
       data: { status: 'cancelled' },
     })
+
+    // WebSocket: obvesti KDS o preklicu naročila
+    broadcastWS('ORDER_CANCELLED', {
+      orderId: id,
+      orderNumber: order.orderNumber,
+      cancelReason: body.cancelReason || '',
+    })
+  } else if (body.status) {
+    // WebSocket: obvesti KDS o spremembi statusa naročila
+    broadcastWS('ORDER_UPDATED', {
+      orderId: id,
+      orderNumber: order.orderNumber,
+      newStatus: body.status,
+    })
   }
 
   // Re-fetch to get updated items
@@ -157,6 +184,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         await db.table.update({ where: { id: order.tableId }, data: { status: 'available' } })
       }
     }
+    // WebSocket: obvesti KDS o preklicu
+    broadcastWS('ORDER_CANCELLED', { orderId: id, orderNumber: order.orderNumber, cancelReason: 'Izbrisano iz seznama' })
     return NextResponse.json({ success: true, action: 'soft-delete', message: 'Naročilo označeno kot preklicano (ima račun)' })
   }
 
@@ -179,6 +208,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       await db.table.update({ where: { id: order.tableId }, data: { status: 'available' } })
     }
   }
+  // WebSocket: obvesti KDS o preklicu
+  broadcastWS('ORDER_CANCELLED', { orderId: id, orderNumber: order.orderNumber, cancelReason: 'Izbrisano iz seznama (brez računa)' })
 
   return NextResponse.json({ success: true, action: 'soft-delete', message: 'Naročilo preklicano' })
 }

@@ -6,8 +6,10 @@
   "display": "standalone",
   "background_color": "#09090b",
   "theme_color": "#f59e0b",
-  "orientation": "any",
+  "orientation": "landscape",
   "scope": "/",
+  "prefer_related_applications": true,
+  "related_applications": [],
   "icons": [
     {
       "src": "/logo.svg",
@@ -33,10 +35,17 @@
   "dir": "ltr",
   "shortcuts": [
     {
-      "name": "Novo naročilo",
-      "short_name": "Naročilo",
-      "description": "Oddaj novo naročilo",
+      "name": "Blagajna",
+      "short_name": "Blagajna",
+      "description": "Odprite prodajni zaslon",
       "url": "/?module=orders",
+      "icons": [{ "src": "/logo.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Mize",
+      "short_name": "Mize",
+      "description": "Pregled mest in miz",
+      "url": "/?module=tables",
       "icons": [{ "src": "/logo.svg", "sizes": "any" }]
     },
     {
@@ -44,6 +53,13 @@
       "short_name": "Kuhinja",
       "description": "Kuhinjski zaslon",
       "url": "/?module=kitchen",
+      "icons": [{ "src": "/logo.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Novo naročilo",
+      "short_name": "Naročilo",
+      "description": "Oddaj novo naročilo",
+      "url": "/?module=orders",
       "icons": [{ "src": "/logo.svg", "sizes": "any" }]
     }
   ]
