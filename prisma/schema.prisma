@@ -312,6 +312,10 @@ model Order {
   cancelReason    String     @default("")   // Razlog za preklic/storno
   cancelledAt     DateTime?                 // Kdaj je bilo preklicano/stornirano
   cancelledBy     String     @default("")   // Kdo je preklical (employeeId ali ime)
+  // --- Razknjiževanje zaloge (prepreči dvojno razknjiževanje) ---
+  inventoryDeducted Boolean   @default(false) // Ali je bila zaloga že razknjižena
+  // --- Čas plačila ---
+  paidAt          DateTime?                  // Kdaj je bilo plačano
   // --- Toast: Delivery Info ---
   deliveryInfoId  String?   @unique
   deliveryInfo    DeliveryInfo? @relation(fields: [deliveryInfoId], references: [id])
@@ -321,6 +325,11 @@ model Order {
   receipt         Receipt[]
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
+
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([tableId])
+  @@index([createdAt])
 }
 
 model OrderItem {
@@ -351,6 +360,9 @@ model OrderItem {
   status         String   @default("pending")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([status])
 }
 
 // ============================================
@@ -603,6 +615,8 @@ model CashRegisterShift {
   notes             String   @default("")      // Opombe ob zaključku
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+
+  @@index([status])
 }
 
 model InventoryItem {
@@ -708,6 +722,8 @@ model Receipt {
   stornoOf          String   @default("")
   printedAt         DateTime?
   createdAt         DateTime @default(now())
+
+  @@index([orderId])
 }
 
 // ============================================
@@ -858,4 +874,14 @@ model Webhook {
   failureCount Int     @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// ============================================
+// ATOMICNI ŠTEVCI (Race-condition safe)
+// ============================================
+
+model Counter {
+  id    String @id @default(cuid())
+  name  String @unique  // "orderNumber", "receiptNumber", "checkNumber"
+  value Int    @default(0)
 }

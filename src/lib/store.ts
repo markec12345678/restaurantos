@@ -126,8 +126,8 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   clearCart: () =>
     set({ cart: [], discount: 0, selectedTable: null, editingOrderId: null, editingOrderNumber: null }),
   cartSubtotal: () => {
-    const { cart, discount } = get()
-    return cart.reduce((sum, item) => sum + item.price * item.quantity, 0) - discount
+    const { cart } = get()
+    return cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
   },
   cartTaxTotal: () => {
     const { cart } = get()
@@ -137,7 +137,8 @@ export const usePOSStore = create<POSStore>((set, get) => ({
     const { cart, discount } = get()
     const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
     const tax = cart.reduce((sum, item) => sum + item.price * item.quantity * (item.vatRate / 100), 0)
-    return subtotal + tax - discount
+    const effectiveDiscount = Math.min(discount, subtotal) // FIX: popust ne more preseči osnove
+    return Math.max(0, subtotal + tax - effectiveDiscount)
   },
   cartVatBreakdown: () => {
     const { cart } = get()

@@ -720,16 +720,16 @@ export function OrderPanel() {
                         </div>
                         {/* Controls */}
                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                          <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive" onClick={() => removeFromCart(item.cartKey)}>
-                            <X className="h-2.5 w-2.5" />
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive touch-manipulation" onClick={() => removeFromCart(item.cartKey)}>
+                            <X className="h-3.5 w-3.5" />
                           </Button>
-                          <div className="flex items-center gap-0.5">
-                            <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateCartQuantity(item.cartKey, item.quantity - 1)}>
-                              <Minus className="h-2.5 w-2.5" />
+                          <div className="flex items-center gap-1">
+                            <Button variant="outline" size="icon" className="h-10 w-10 touch-manipulation" onClick={() => updateCartQuantity(item.cartKey, item.quantity - 1)}>
+                              <Minus className="h-3.5 w-3.5" />
                             </Button>
-                            <span className="text-xs font-bold w-5 text-center">{item.quantity}</span>
-                            <Button variant="outline" size="icon" className="h-6 w-6" onClick={() => updateCartQuantity(item.cartKey, item.quantity + 1)}>
-                              <Plus className="h-2.5 w-2.5" />
+                            <span className="text-sm font-bold w-7 text-center">{item.quantity}</span>
+                            <Button variant="outline" size="icon" className="h-10 w-10 touch-manipulation" onClick={() => updateCartQuantity(item.cartKey, item.quantity + 1)}>
+                              <Plus className="h-3.5 w-3.5" />
                             </Button>
                           </div>
                           <p className="text-xs font-bold">€{(item.price * item.quantity).toFixed(2)}</p>

@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { getNextCounter } from '@/lib/counters'
 
 export async function GET(req: Request) {
   try {
@@ -24,8 +25,8 @@ export async function GET(req: Request) {
 
     return NextResponse.json(checks)
   } catch (error) {
-    console.error('Failed to fetch checks:', error)
-    return NextResponse.json({ error: 'Failed to fetch checks' }, { status: 500 })
+    console.error('Napaka pri pridobivanju čekov:', error)
+    return NextResponse.json({ error: 'Napaka pri pridobivanju čekov' }, { status: 500 })
   }
 }
 
@@ -33,9 +34,12 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
 
+    // FIX 1: Atomna številka čeka
+    const checkNumber = await getNextCounter('checkNumber')
+
     const check = await db.check.create({
       data: {
-        checkNumber: body.checkNumber || 1,
+        checkNumber,
         orderId: body.orderId,
         subtotal: body.subtotal || 0,
         tax: body.tax || 0,
@@ -57,7 +61,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(check, { status: 201 })
   } catch (error) {
-    console.error('Failed to create check:', error)
-    return NextResponse.json({ error: 'Failed to create check' }, { status: 500 })
+    console.error('Napaka pri ustvarjanju čeka:', error)
+    return NextResponse.json({ error: 'Napaka pri ustvarjanju čeka' }, { status: 500 })
   }
 }

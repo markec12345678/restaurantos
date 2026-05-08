@@ -215,8 +215,72 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
     processPaymentMutation.mutate()
   }
 
-  const handleSplitPayment = () => {
-    processPaymentMutation.mutate()
+  // FIX H-04: Split payment — ustvari N ločenih plačil namesto enega
+  const handleSplitPayment = async () => {
+    if (!order) return
+    try {
+      // 1. Ustvari en Check za celotno naročilo
+      const checkRes = await fetch('/api/checks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderId: order.id,
+          subtotal: order.subtotal,
+          tax: order.tax,
+          discount: order.discount,
+          total: orderTotal,
+          tip: tipAmount,
+          totalWithTip: totalWithTip,
+          paymentMethod: 'split',
+          orderItemIds: order.orderItems.map(oi => oi.id),
+        }),
+      })
+      if (!checkRes.ok) throw new Error('Napaka pri ustvarjanju čeka')
+      const check = await checkRes.json()
+
+      // 2. Ustvari N ločenih plačil
+      for (let i = 0; i < splitCount; i++) {
+        const paymentRes = await fetch('/api/payments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            checkId: check.id,
+            amount: Math.round(splitAmount * 100) / 100,
+            tipAmount: Math.round((tipAmount / splitCount) * 100) / 100,
+            type: 'cash',
+            status: 'completed',
+          }),
+        })
+        if (!paymentRes.ok) throw new Error(`Napaka pri ustvarjanju plačila ${i + 1}`)
+      }
+
+      // 3. Posodobi naročilo
+      const orderRes = await fetch(`/api/orders/${order.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentStatus: 'paid',
+          paymentMethod: 'split',
+          tip: tipAmount,
+          totalWithTip,
+          splitCount,
+          status: 'completed',
+        }),
+      })
+      if (!orderRes.ok) throw new Error('Napaka pri posodobitvi naročila')
+
+      toast.success(`Plačilo uspešno! ${splitCount}x €${splitAmount.toFixed(2)}`)
+      queryClient.invalidateQueries({ queryKey: ['orders'] })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['tables'] })
+      queryClient.invalidateQueries({ queryKey: ['kitchen'] })
+      queryClient.invalidateQueries({ queryKey: ['cash-register'] })
+      queryClient.invalidateQueries({ queryKey: ['checks'] })
+      if (onPaymentSuccess && order.id) onPaymentSuccess(order.id)
+      resetAndClose()
+    } catch {
+      toast.error('Napaka pri obdelavi deljenega plačila')
+    }
   }
 
   const paymentMethods = [
@@ -359,30 +423,69 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
                 </div>
               </div>
 
-              {/* Hitri zneski za gotovino */}
+              {/* FIX M-14: Hitri zneski za gotovino z vračilom */}
               {paymentMethod === 'cash' && (
                 <div>
                   <p className="text-xs font-semibold mb-1.5">Hitri zneski</p>
-                  <div className="flex gap-1.5">
-                    {quickCashAmounts.map(amount => (
-                      <button
-                        key={amount}
-                        onClick={() => {
-                          const tip = Math.max(0, amount - orderTotal)
-                          if (tip > 0) {
-                            setTipAmount(Math.round(tip * 100) / 100)
-                            setTipPercent(orderTotal > 0 ? Math.round((tip / orderTotal) * 100) : 0)
+                  <div className="flex gap-1.5 mb-2">
+                    {quickCashAmounts.map(amount => {
+                      const change = amount - totalWithTip
+                      return (
+                        <button
+                          key={amount}
+                          onClick={() => {
+                            if (change > 0) {
+                              // Prikaži vračilo — ne nastavi kot napitnino samodejno
+                              setTipAmount(0)
+                              setTipPercent(0)
+                            }
+                          }}
+                          className={`flex-1 py-2 rounded-md text-xs font-bold transition-colors touch-manipulation ${
+                            amount >= totalWithTip
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
+                              : 'bg-muted text-muted-foreground hover:bg-accent'
+                          }`}
+                        >
+                          €{amount}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {/* Vračilo */}
+                  {(() => {
+                    // Izračunaj vračilo za gotovino
+                    const cashGiven = totalWithTip // privzeto: točno znesek
+                    return null // Placeholder — vračilo se izračuna dinamično
+                  })()}
+                  <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2 text-xs space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Znesek za plačilo:</span>
+                      <span className="font-bold">€{totalWithTip.toFixed(2)}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Prejeto:</span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        defaultValue={totalWithTip.toFixed(2)}
+                        className="h-7 text-xs w-24"
+                        onChange={(e) => {
+                          const received = parseFloat(e.target.value) || 0
+                          const change = received - totalWithTip
+                          const changeEl = document.getElementById('cash-change-display')
+                          if (changeEl) {
+                            changeEl.textContent = change >= 0 ? `€${change.toFixed(2)}` : '€0.00'
+                            changeEl.className = change >= 0 ? 'font-bold text-emerald-700 dark:text-emerald-400' : 'font-bold text-red-600'
                           }
                         }}
-                        className={`flex-1 py-2 rounded-md text-xs font-bold transition-colors ${
-                          amount >= totalWithTip
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
-                            : 'bg-muted text-muted-foreground hover:bg-accent'
-                        }`}
-                      >
-                        €{amount}
-                      </button>
-                    ))}
+                      />
+                      <span className="text-xs">€</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-semibold">Vračilo:</span>
+                      <span id="cash-change-display" className="font-bold text-emerald-700 dark:text-emerald-400">€0.00</span>
+                    </div>
                   </div>
                 </div>
               )}
