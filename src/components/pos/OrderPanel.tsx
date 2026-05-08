@@ -70,6 +70,7 @@ export function OrderPanel() {
   const [customerPhone, setCustomerPhone] = useState('')
   const [orderNotes, setOrderNotes] = useState('')
   const [activeCategory, setActiveCategory] = useState('all')
+  const [activeSuperGroup, setActiveSuperGroup] = useState('all')
   const [mainTab, setMainTab] = useState('new-order')
   const [orderListTab, setOrderListTab] = useState('all')
   const [selectedOrder, setSelectedOrder] = useState<Record<string, unknown> | null>(null)
@@ -204,15 +205,35 @@ export function OrderPanel() {
   const activeMenu = menus?.find((m: MenuType) => m.id === resolvedMenuId)
   const categoriesForMenu = activeMenu?.categories || []
 
+  // ============================================
+  // SUPER-GROUPS for drinks menu (Toast POS style sub-groups)
+  // ============================================
+  const superGroups = useMemo(() => {
+    const catNames = categoriesForMenu.map((c: { name: string }) => c.name)
+    // Only define super-groups for the drinks menu (Pijača)
+    if (!catNames.includes('Penine in Šampanjci')) return []
+
+    return [
+      { id: 'vina', name: 'Vina', icon: '🍷', color: '#7c2d12', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Penine in Šampanjci', 'Bela Vina', 'Rosé Vino', 'Rdeča Vina', 'Tuja Vina', 'Likersko Vino'].includes(c.name)).map((c: { id: string }) => c.id) },
+      { id: 'piva', name: 'Piva', icon: '🍺', color: '#d97706', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Točeno Pivo', 'Pivo', 'Craft Piva', 'Brezalkoholno Pivo'].includes(c.name)).map((c: { id: string }) => c.id) },
+      { id: 'zganepijace', name: 'Žgane pijače', icon: '🥃', color: '#6b21a8', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Viski', 'Gin', 'Likerji', 'Grenčice', 'Destilati, Konjak in Rum'].includes(c.name)).map((c: { id: string }) => c.id) },
+      { id: 'napitki', name: 'Napitki', icon: '☕', color: '#92400e', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Topli Napitki', 'Mešane Pijače'].includes(c.name)).map((c: { id: string }) => c.id) },
+      { id: 'brezalkoholne', name: 'Brezalkoholne', icon: '🥤', color: '#0ea5e9', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Vode', 'Naravni Sokovi', 'Sokovi', 'Gazirane Pijače'].includes(c.name)).map((c: { id: string }) => c.id) },
+    ]
+  }, [categoriesForMenu])
+
   const filteredMenuItems = useMemo(() => {
     return menuItems?.filter(
       (item: MenuItemType) => {
         const matchesMenu = !resolvedMenuId || item.category?.menu?.id === resolvedMenuId
         const matchesCategory = activeCategory === 'all' || item.categoryId === activeCategory
-        return matchesMenu && matchesCategory && item.isAvailable
+        // Also filter by super-group if one is active
+        const matchesSuperGroup = activeSuperGroup === 'all' || 
+          superGroups.some(sg => sg.id === activeSuperGroup && sg.categoryIds.includes(item.categoryId))
+        return matchesMenu && matchesCategory && matchesSuperGroup && item.isAvailable
       }
     ) || []
-  }, [menuItems, resolvedMenuId, activeCategory])
+  }, [menuItems, resolvedMenuId, activeCategory, activeSuperGroup, superGroups])
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const tax = subtotal * taxRate
@@ -344,7 +365,7 @@ export function OrderPanel() {
                   return (
                     <button
                       key={menu.id}
-                      onClick={() => { setActiveMenuId(menu.id); setActiveCategory('all') }}
+                      onClick={() => { setActiveMenuId(menu.id); setActiveCategory('all'); setActiveSuperGroup('all') }}
                       className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-base font-bold transition-all duration-150 ${
                         isActive
                           ? 'text-white shadow-md scale-[1.02]'
@@ -359,33 +380,91 @@ export function OrderPanel() {
                 })}
               </div>
 
-              {/* CATEGORY PILLS */}
-              <div className="flex gap-1.5 px-4 py-2 border-b border-border overflow-x-auto flex-shrink-0 custom-scrollbar">
-                <button
-                  onClick={() => setActiveCategory('all')}
-                  className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                    activeCategory === 'all'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:bg-accent'
-                  }`}
-                >
-                  Vse
-                </button>
-                {categoriesForMenu.map((cat: { id: string; name: string; icon: string; color: string }) => (
+              {/* CATEGORY NAVIGATION - Smart layout for large category counts */}
+              {categoriesForMenu.length > 10 ? (
+                /* GROUPED CATEGORIES for drinks menu (21 categories) */
+                <div className="border-b border-border flex-shrink-0">
+                  {/* Super-group tabs */}
+                  <div className="flex gap-1 px-4 py-1.5 overflow-x-auto custom-scrollbar">
+                    <button
+                      onClick={() => { setActiveCategory('all'); setActiveSuperGroup('all') }}
+                      className={`flex-shrink-0 px-3 py-1 rounded-md text-[11px] font-bold transition-colors ${
+                        activeCategory === 'all' && activeSuperGroup === 'all'
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-muted text-muted-foreground hover:bg-accent'
+                      }`}
+                    >
+                      Vse
+                    </button>
+                    {superGroups.map((sg) => (
+                      <button
+                        key={sg.id}
+                        onClick={() => { setActiveSuperGroup(sg.id); setActiveCategory('all') }}
+                        className={`flex-shrink-0 px-3 py-1 rounded-md text-[11px] font-bold transition-colors ${
+                          activeSuperGroup === sg.id
+                            ? 'text-white'
+                            : 'bg-muted text-muted-foreground hover:bg-accent'
+                        }`}
+                        style={activeSuperGroup === sg.id ? { backgroundColor: sg.color } : {}}
+                      >
+                        {sg.icon} {sg.name}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Sub-categories within active super-group */}
+                  {activeSuperGroup !== 'all' && (
+                    <div className="flex gap-1 px-4 py-1.5 overflow-x-auto custom-scrollbar">
+                      {categoriesForMenu
+                        .filter((cat: { id: string; name: string; icon: string; color: string }) => {
+                          const sg = superGroups.find(s => s.categoryIds.includes(cat.id))
+                          return sg?.id === activeSuperGroup
+                        })
+                        .map((cat: { id: string; name: string; icon: string; color: string }) => (
+                          <button
+                            key={cat.id}
+                            onClick={() => setActiveCategory(cat.id)}
+                            className={`flex-shrink-0 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors ${
+                              activeCategory === cat.id
+                                ? 'text-white'
+                                : 'bg-muted/60 text-muted-foreground hover:bg-accent'
+                            }`}
+                            style={activeCategory === cat.id ? { backgroundColor: cat.color || '#6b7280' } : {}}
+                          >
+                            {cat.icon} {cat.name}
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* SIMPLE PILLS for food menu (8 categories) */
+                <div className="flex gap-1.5 px-4 py-2 border-b border-border overflow-x-auto flex-shrink-0 custom-scrollbar">
                   <button
-                    key={cat.id}
-                    onClick={() => setActiveCategory(cat.id)}
+                    onClick={() => setActiveCategory('all')}
                     className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                      activeCategory === cat.id
-                        ? 'text-white'
+                      activeCategory === 'all'
+                        ? 'bg-primary text-primary-foreground'
                         : 'bg-muted text-muted-foreground hover:bg-accent'
                     }`}
-                    style={activeCategory === cat.id ? { backgroundColor: cat.color || '#6b7280' } : {}}
                   >
-                    {cat.icon} {cat.name}
+                    Vse
                   </button>
-                ))}
-              </div>
+                  {categoriesForMenu.map((cat: { id: string; name: string; icon: string; color: string }) => (
+                    <button
+                      key={cat.id}
+                      onClick={() => setActiveCategory(cat.id)}
+                      className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                        activeCategory === cat.id
+                          ? 'text-white'
+                          : 'bg-muted text-muted-foreground hover:bg-accent'
+                      }`}
+                      style={activeCategory === cat.id ? { backgroundColor: cat.color || '#6b7280' } : {}}
+                    >
+                      {cat.icon} {cat.name}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* ITEMS GRID - Toast Style Large Buttons */}
               <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
