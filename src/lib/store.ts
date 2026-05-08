@@ -7,13 +7,14 @@ export interface CartItemType {
   quantity: number
   categoryId: string
   notes: string
+  image: string
 }
 
 interface POSStore {
   activeModule: string
   setActiveModule: (module: string) => void
   cart: CartItemType[]
-  addToCart: (item: { id: string; name: string; price: number; categoryId: string }) => void
+  addToCart: (item: { id: string; name: string; price: number; categoryId: string; image: string }) => void
   removeFromCart: (itemId: string) => void
   updateCartQuantity: (itemId: string, quantity: number) => void
   updateCartNotes: (itemId: string, notes: string) => void
@@ -45,7 +46,7 @@ export const usePOSStore = create<POSStore>((set, get) => ({
         }
       }
       return {
-        cart: [...state.cart, { ...item, quantity: 1, notes: '' }],
+        cart: [...state.cart, { ...item, quantity: 1, notes: '', image: item.image || '' }],
       }
     }),
   removeFromCart: (itemId) =>

@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Plus, Minus, Trash2, ShoppingBag, CreditCard, Banknote, Smartphone, StickyNote, X, Printer, Eye, Clock } from 'lucide-react'
+import { Plus, Minus, Trash2, ShoppingBag, CreditCard, Banknote, Smartphone, StickyNote, X, Printer, Eye, Clock, ImageIcon } from 'lucide-react'
 import { useState, useRef } from 'react'
 import { format } from 'date-fns'
 
@@ -249,21 +249,39 @@ export function OrderPanel() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {filteredMenuItems.map((item: { id: string; name: string; price: number; description: string }) => {
+                  {filteredMenuItems.map((item: { id: string; name: string; price: number; description: string; image: string }) => {
                     const inCart = cart.find((c) => c.id === item.id)
                     return (
                       <button
                         key={item.id}
-                        onClick={() => addToCart({ id: item.id, name: item.name, price: item.price, categoryId: item.categoryId || '' })}
-                        className="relative flex flex-col items-start p-3 rounded-lg border border-border bg-card hover:bg-accent transition-colors text-left"
+                        onClick={() => addToCart({ id: item.id, name: item.name, price: item.price, categoryId: item.categoryId || '', image: item.image || '' })}
+                        className="relative flex flex-col items-start p-2 rounded-lg border border-border bg-card hover:bg-accent transition-colors text-left overflow-hidden group"
                       >
                         {inCart && (
-                          <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs">
+                          <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs z-10">
                             {inCart.quantity}
                           </Badge>
                         )}
+                        {/* Item Image */}
+                        <div className="w-full aspect-[4/3] rounded-md overflow-hidden mb-2 bg-muted/50 relative">
+                          {item.image ? (
+                            <img
+                              src={item.image}
+                              alt={item.name}
+                              className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement
+                                target.style.display = 'none'
+                                target.nextElementSibling?.classList.remove('hidden')
+                              }}
+                            />
+                          ) : null}
+                          <div className={`absolute inset-0 flex items-center justify-center ${item.image ? 'hidden' : ''}`}>
+                            <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
+                          </div>
+                        </div>
                         <span className="font-medium text-sm leading-tight">{item.name}</span>
-                        <span className="text-primary font-bold text-sm mt-1">${item.price.toFixed(2)}</span>
+                        <span className="text-primary font-bold text-sm mt-0.5">${item.price.toFixed(2)}</span>
                         {item.description && (
                           <span className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.description}</span>
                         )}
@@ -297,6 +315,16 @@ export function OrderPanel() {
                   )}
                   {cart.map((item) => (
                     <div key={item.id} className="flex items-start gap-2 p-2 rounded-md bg-muted/50">
+                      {/* Cart item thumbnail */}
+                      {item.image ? (
+                        <div className="w-10 h-10 rounded-md overflow-hidden flex-shrink-0">
+                          <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                        </div>
+                      ) : (
+                        <div className="w-10 h-10 rounded-md bg-muted flex-shrink-0 flex items-center justify-center">
+                          <ImageIcon className="h-4 w-4 text-muted-foreground/50" />
+                        </div>
+                      )}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{item.name}</p>
                         <p className="text-xs text-muted-foreground">${item.price.toFixed(2)} each</p>
@@ -644,16 +672,28 @@ export function OrderPanel() {
                 {/* Items */}
                 <div className="space-y-2">
                   <p className="text-sm font-semibold">Items</p>
-                  {((detailOrder?.orderItems as { id: string; menuItem: { name: string }; quantity: number; price: number; notes: string; status: string }[]) || []).map((oi) => (
-                    <div key={oi.id} className="flex items-start justify-between text-sm py-1">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{oi.quantity}x {oi.menuItem.name}</span>
-                          <Badge variant="outline" className="text-[10px] h-4 capitalize">{oi.status}</Badge>
+                  {((detailOrder?.orderItems as { id: string; menuItem: { name: string; image: string }; quantity: number; price: number; notes: string; status: string }[]) || []).map((oi) => (
+                    <div key={oi.id} className="flex items-start justify-between text-sm py-1 gap-2">
+                      <div className="flex items-start gap-2 flex-1">
+                        {/* Item thumbnail in detail dialog */}
+                        {oi.menuItem.image ? (
+                          <div className="w-9 h-9 rounded-md overflow-hidden flex-shrink-0">
+                            <img src={oi.menuItem.image} alt={oi.menuItem.name} className="w-full h-full object-cover" />
+                          </div>
+                        ) : (
+                          <div className="w-9 h-9 rounded-md bg-muted flex-shrink-0 flex items-center justify-center">
+                            <ImageIcon className="h-3.5 w-3.5 text-muted-foreground/50" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{oi.quantity}x {oi.menuItem.name}</span>
+                            <Badge variant="outline" className="text-[10px] h-4 capitalize">{oi.status}</Badge>
+                          </div>
+                          {oi.notes && <p className="text-xs text-muted-foreground italic mt-0.5">{oi.notes}</p>}
                         </div>
-                        {oi.notes && <p className="text-xs text-muted-foreground italic mt-0.5">{oi.notes}</p>}
                       </div>
-                      <span className="font-medium">${(oi.price * oi.quantity).toFixed(2)}</span>
+                      <span className="font-medium flex-shrink-0">${(oi.price * oi.quantity).toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
