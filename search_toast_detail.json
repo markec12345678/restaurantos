@@ -1,0 +1,74 @@
+[
+  {
+    "url": "https://doc.toasttab.com/doc/platformguide/adminMenuHierarchy.html",
+    "name": "Menu hierarchy - - Platform guide",
+    "snippet": "Toast products use a hierarchical structure to organize a restaurant's menu offerings. Menu groups contain menu items, which are the offerings themselves. Read more",
+    "host_name": "doc.toasttab.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://support.toasttab.com/en/article/Creating-Menus-Groups-and-Items-in-the-Menu-Builder",
+    "name": "Create Menus, Groups, Subgroups, and Items in the Menu",
+    "snippet": "24-Apr-2026 — In this article, learn how to use the menu builder to create menus, groups, subgroups, and items for your menu.",
+    "host_name": "support.toasttab.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://doc.toasttab.com/doc/platformguide/platformMenuManagerWorkingWithMenuGroups.html",
+    "name": "Working with menu groups and subgroups - - Platform guide",
+    "snippet": "To create a menu group , select + Add menu group (or + Add subgroup if you are adding a subgroup), enter a name for the new menu group , and select the check ... Read more\nTo create a menu group, select + Add menu group (or + Add subgroup if you are adding a subgroup), enter a name for the new menu group, and select the check ...",
+    "host_name": "doc.toasttab.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://doc.toasttab.com/doc/platformguide/adminUnderstandingTheMenuHierarchy.html",
+    "name": "Understanding the menu hierarchy - - Platform guide",
+    "snippet": "Toast products use a hierarchical structure to organize your menu offerings . Menu groups can also contain menu subgroups that further classify the items in the ... Read more\nToast products use a hierarchical structure to organize your menu offerings. Menu groups can also contain menu subgroups that further classify the items in the ...",
+    "host_name": "doc.toasttab.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://support.toasttab.com/en/article/Menus-Menu-Groups-and-Subgroups",
+    "name": "Create and Manage Menus, Menu Groups, and Subgroups",
+    "snippet": "27-Apr-2026 — Toast uses a hierarchical system to organize your menu offerings. Menus are the highest level of the hierarchy and typically map out the ... Read more",
+    "host_name": "support.toasttab.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://support.lunchbox.io/en/articles/8684458-2m-review-menu-configuration-toast",
+    "name": "2m - Review Menu Configuration (Toast)",
+    "snippet": "Disclaimer: This article is for Lunchbox 2.0 customers only. The following article explains how to setup your Toast Menu for Lunchbox 2.0.",
+    "host_name": "support.lunchbox.io",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=XqebkNDpeoA",
+    "name": "Get Started With Menus in Toast POS",
+    "snippet": "Watch this three-minute video to learn about the relationship between menus in Toast Web and the POS , which pages in Toast Web to use to add ...\nWatch this three-minute video to learn about the relationship between menus in Toast Web and the POS, which pages in Toast Web to use to add ... Missing: hierarchy groups structure drinks",
+    "host_name": "www.youtube.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=ATI8C_gNaOE",
+    "name": "Toast POS - How to Setup Modifier Group Ordering Priority",
+    "snippet": "You can actually put in here the display ordering priority for each modifier group lower numbers prioritize first so you can put zero.\nJoin my free tech newsletter: https://got-sheet.beehiiv.com/ How to set the order priority for your modifier groups using Toast point of ... Missing: hierarchy menus structure drinks",
+    "host_name": "www.youtube.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  }
+]

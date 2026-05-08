@@ -1,0 +1,74 @@
+[
+  {
+    "url": "https://k-series-support.lightspeedhq.com/hc/en-us/articles/1260804656649-Creating-menus",
+    "name": "Creating menus",
+    "snippet": "Adding main screens . Main screens are menu categories that sort buttons into groups. In one menu , you can have a maximum of 20 main screens . The menu ...\nAdding main screens. Main screens are menu categories that sort buttons into groups. In one menu, you can have a maximum of 20 main screens. The menu ...",
+    "host_name": "k-series-support.lightspeedhq.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://o-series-support.lightspeedhq.com/hc/en-us/articles/31329530566683-Building-your-drinks-menu",
+    "name": "Building your drinks menu",
+    "snippet": "This guide walks you through creating a flexible, efficient drinks menu in Lightspeed Restaurant. What's in this guide? Adding core menu items. Creating product ...\nAdding core menu items · Creating product variants · Creating options and Modifiers · Arranging your POS menu layout.",
+    "host_name": "o-series-support.lightspeedhq.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://k-series-support.lightspeedhq.com/hc/en-us/articles/1260804605390-About-menu-management",
+    "name": "About menu management",
+    "snippet": "For example, a menu could be called Dinner Menu, with 6 main screens of Appetizer, Main course, Dessert, Soft drinks, Beer, and Wine . The Wine main screen could ...",
+    "host_name": "k-series-support.lightspeedhq.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://k-series-support.lightspeedhq.com/hc/en-us/articles/1260804513170-Creating-items-and-menus",
+    "name": "Creating items and menus",
+    "snippet": "Menus are a way to categorize your items into various screens and sub-screens. They consist of two key components: screens and buttons . Screens. Screens are ...\nScreens. Screens are categories on your menu that group similar items together. They can also contain sub-screens that further organize items into smaller ...",
+    "host_name": "k-series-support.lightspeedhq.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://o-series-support.lightspeedhq.com/hc/en-us/articles/31329442916891-Design-your-POS-look-and-layout",
+    "name": "Design your POS look and layout",
+    "snippet": "Lightspeed offers a simple drag-and-drop tool so you can arrange your products and categories. Organising how your POS appears can streamline your operations.\nRating 4,5 (108) Lightspeed offers a simple drag-and-drop tool so you can arrange your products and categories. Organising how your POS appears can streamline your operations.",
+    "host_name": "o-series-support.lightspeedhq.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://k-series-support.lightspeedhq.com/hc/en-us/articles/1260804647349-About-menus-and-items",
+    "name": "About menus and items",
+    "snippet": "By having multiple menus, you can assign specific menus to particular POS devices (such as a Drinks menu for the bar device) or set up separate menus for ...",
+    "host_name": "k-series-support.lightspeedhq.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://o-series-support.lightspeedhq.com/hc/en-us/articles/31329504284187-Build-the-Best-Restaurant-Food-Menu",
+    "name": "Build the Best Restaurant Food Menu",
+    "snippet": "You can build your menu easily with Lightspeed . Empower your waitstaff to handle any type of order - even enter special requests and dietary requirements.",
+    "host_name": "o-series-support.lightspeedhq.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://k-series-support.lightspeedhq.com/hc/en-us/articles/1260804604870-Creating-and-editing-items",
+    "name": "Creating and editing items",
+    "snippet": "Add and manage item buttons in your POS menus . Click Add item to menu and then select the menu and sub-screen where this button will appear on your POS. After ...",
+    "host_name": "k-series-support.lightspeedhq.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  }
+]

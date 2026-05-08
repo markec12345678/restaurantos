@@ -1,0 +1,65 @@
+[
+  {
+    "url": "https://o-series-support.lightspeedhq.com/hc/en-us/articles/31329442916891-Design-your-POS-look-and-layout",
+    "name": "Design your POS look and layout – Lightspeed Restaurant POS",
+    "snippet": "To make your products easy to find for your staff, Lightspeed offers a simple drag-and-drop tool so you can arrange your products and categories. Organising how your POS appears can streamline your operations, making it easier for you to assist your customers by providing faster transactions.",
+    "host_name": "o-series-support.lightspeedhq.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://help.sumup.com/en-GB/pos/sections/75000008666-back-office-products-options-menus-meals",
+    "name": "Products, Options, Menus & Meals - SumUp - Support Centre",
+    "snippet": "How to change the order of a category in the product list? How to create a meal from the back office? How to activate an option on a product? How to create a new menu for your establishment? How to add a product sold by weight?",
+    "host_name": "help.sumup.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://eposability.zendesk.com/hc/en-us/articles/360009699497-Configuring-Menus-in-K-Series",
+    "name": "Configuring Menus in K Series – Eposability",
+    "snippet": "Menus consist of the following components: 1. Main screens: Menu categories that sort buttons into groups. 2. Buttons: Items, sub-screens (screens within the main screen), discounts, production instructions, transfer operations, account profiles, or web extensions that can be selected on the POS within the main screen. For example, a menu could be ...",
+    "host_name": "eposability.zendesk.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=R8kZbl7BliU",
+    "name": "How to Edit Menus in SumUp POS for Quick Service Restaurants",
+    "snippet": "Learn how to edit menus in SumUp POS for quick service restaurants (QSR). This tutorial covers how to create and customize categories, menus, and items. Discover features like assigning...",
+    "host_name": "www.youtube.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://support.doshii.com/menus-operating-hours/troubleshooting/lightspeed",
+    "name": "Managing menus with Lightspeed Kounta - support.doshii.com",
+    "snippet": "If you wish to use these product variations as options in a connected app menu, you must create an Option Set in your Lightspeed POS first and assign it to the specific Product.",
+    "host_name": "support.doshii.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://help.bopple.com/lightspeed-kounta-menu-management",
+    "name": "Structuring your online menu with Lightspeed Kounta and Bopple",
+    "snippet": "If you'd like to customise and control what parts of your menu are offered depending on whether your customer chooses to order for dine-in, pick-up or delivery, take a look at the guide below.",
+    "host_name": "help.bopple.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://sites.google.com/sumup.com/sumupposquickstartguideen/pos/essential-setup",
+    "name": "Essential Setup - Google Sites",
+    "snippet": "You can start by adding your main product categories (e.g., hot drinks, cakes, etc). These will be displayed alphabetically at the top of your POS checkout screen.",
+    "host_name": "sites.google.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  }
+]

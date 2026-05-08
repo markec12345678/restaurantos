@@ -56,7 +56,7 @@ function getItemEffectivePrice(basePrice: number, modifiers: SelectedModifier[])
 }
 
 export const usePOSStore = create<POSStore>((set, get) => ({
-  activeModule: 'dashboard',
+  activeModule: 'orders',
   setActiveModule: (module) => set({ activeModule: module }),
   cart: [],
   addToCart: (item) =>

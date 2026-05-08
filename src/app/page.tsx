@@ -28,20 +28,19 @@ export default function POSPage() {
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <main className="flex-1 overflow-y-auto custom-scrollbar">
-        <div className="p-4 md:p-6 lg:p-8 pt-14 md:pt-6 lg:pt-8">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeModule}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.15 }}
-            >
-              <ActiveComponent />
-            </motion.div>
-          </AnimatePresence>
-        </div>
+      <main className="flex-1 overflow-hidden">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeModule}
+            className="h-full"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.15 }}
+          >
+            <ActiveComponent />
+          </motion.div>
+        </AnimatePresence>
       </main>
     </div>
   )

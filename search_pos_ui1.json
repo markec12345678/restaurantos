@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://www.odoo.com/slides/slide/pos-categories-9378",
+    "name": "POS categories | Odoo",
+    "snippet": "In this course, you'll learn to organize your POS using POS categories by practicing. You can check the provided resources if you're stuck on a question, ... Missing: layout | Show results with: layout",
+    "host_name": "www.odoo.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://dribbble.com/shots/27223211-Restaurant-POS-System-Dashboard-UI-Design",
+    "name": "Restaurant POS System – Dashboard UI Design - Dribbble",
+    "snippet": "This design introduces a unified POS interface where order tracking, menu browsing, and billing are all accessible in one place. Order status ... Missing: drinks categories hierarchy",
+    "host_name": "dribbble.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.bpapos.com/blog/post/2024/10/10/User-Interface-Design-of-POS?srsltid=AfmBOoqIeYu3yNzu7i5CUHbdL7SZanScomOREXUSGTNvdlghu3cPGVvR",
+    "name": "User Interface Design of POS: Key to Restaurant Growth - BPA POS",
+    "snippet": "A restaurant POS interface displaying various food categories, menu items, and order management options. Think about it: with faster order ... Missing: drinks | Show results with: drinks",
+    "host_name": "www.bpapos.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=cBWQBsffeQk",
+    "name": "Toast POS Menu Hierarchy - YouTube",
+    "snippet": "Learn about the hierarchical system Toast uses to organize menus and how this hierarchy will display on the POS and Online Ordering page. Missing: interface food drinks separate",
+    "host_name": "www.youtube.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://abarabove.com/pos-buttons",
+    "name": "10 Tips for Better POS Buttons: Set up your System so  - A Bar Above",
+    "snippet": "The restaurant level is based of the restaurant's unique location. If you had multiple restaurants, you would duplicate this structure for each ... Missing: interface food hierarchy",
+    "host_name": "abarabove.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://o-series-support.lightspeedhq.com/hc/en-us/articles/31329530566683-Building-your-drinks-menu",
+    "name": "Building your drinks menu - Lightspeed Restaurant POS (O-Series)",
+    "snippet": "Adding core menu items · Creating product variants · Creating options and Modifiers · Arranging your POS menu layout. Missing: interface hierarchy",
+    "host_name": "o-series-support.lightspeedhq.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.getknowapp.com/blog/restaurant-hierarchy-chart",
+    "name": "What is a Restaurant Hierarchy Chart? Examples & Best Practices",
+    "snippet": "A restaurant hierarchy chart is a vital visual tool that delineates the organizational framework within a restaurant.",
+    "host_name": "www.getknowapp.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.scribd.com/document/284427891/Improving-Restaurant-Point-of-Sale-Systems-with-a-Focus-on-User-Interface-Design",
+    "name": "Enhancing Restaurant POS User Interfaces | PDF | Point Of Sale",
+    "snippet": "Enhancing Restaurant POS User Interfaces. An analysis of the typical restaurant POS system and the ways these systems can be improved to help serve customers ...",
+    "host_name": "www.scribd.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.behance.net/gallery/210280099/Restaurant-POS-System-Point-of-Sale-UIUX-Design",
+    "name": "Restaurant POS System | Point of Sale | UI/UX Design - Behance",
+    "snippet": "This application should simplify the work of waiters, make the process of serving customers faster and more efficient, and also give ... Missing: food drinks separate categories hierarchy",
+    "host_name": "www.behance.net",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://doc.toasttab.com/doc/platformguide/adminMenuHierarchy.html",
+    "name": "Menu hierarchy - - Platform guide",
+    "snippet": "Menus are the highest level of the hierarchy and represent top-level categories for the offerings your restaurant serves, for example, Food, Drinks, Lunch, ... Missing: system interface",
+    "host_name": "doc.toasttab.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]
