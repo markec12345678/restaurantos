@@ -309,6 +309,13 @@ export function OrderPanel() {
   }
   const nextStatus: Record<string, string> = { pending: 'in-progress', 'in-progress': 'ready', ready: 'completed' }
   const statusLabels: Record<string, string> = { pending: 'Čakajoče', 'in-progress': 'V obdelavi', ready: 'Pripravljeno', completed: 'Zaključeno', cancelled: 'Preklicano' }
+  const paymentStatusLabels: Record<string, string> = { unpaid: 'Neplačano', paid: 'Plačano', partial: 'Delno', storno: 'Stornirano' }
+  const paymentStatusColors: Record<string, string> = {
+    unpaid: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+    paid: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
+    partial: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+    storno: 'bg-red-200 text-red-900 dark:bg-red-900/40 dark:text-red-300',
+  }
 
   // ============================================
   // HANDLERJI
@@ -849,6 +856,7 @@ export function OrderPanel() {
                   <TabsTrigger value="in-progress">V obdelavi</TabsTrigger>
                   <TabsTrigger value="ready">Pripravljeno</TabsTrigger>
                   <TabsTrigger value="completed">Zaključeno</TabsTrigger>
+                  <TabsTrigger value="cancelled" className="text-red-600">Preklicano</TabsTrigger>
                 </TabsList>
               </Tabs>
 
@@ -871,10 +879,12 @@ export function OrderPanel() {
                             <p className="font-semibold">#{order.orderNumber}</p>
                             <p className="text-xs text-muted-foreground">{format(new Date(order.createdAt), 'MMM dd, HH:mm')}</p>
                           </div>
-                          <div className="flex gap-1">
-                            <Badge variant="outline" className={statusColors[order.status]}>{statusLabels[order.status] || order.status}</Badge>
-                            {order.paymentStatus === 'paid' && (
-                              <Badge variant="outline" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">Plačano</Badge>
+                          <div className="flex gap-1 flex-wrap">
+                            <Badge variant="outline" className={statusColors[order.status] || ''}>{statusLabels[order.status] || order.status}</Badge>
+                            {(order.paymentStatus === 'paid' || order.paymentStatus === 'storno') && (
+                              <Badge variant="outline" className={paymentStatusColors[order.paymentStatus] || ''}>
+                                {paymentStatusLabels[order.paymentStatus] || order.paymentStatus}
+                              </Badge>
                             )}
                           </div>
                         </div>
@@ -913,11 +923,17 @@ export function OrderPanel() {
                                 <Printer className="h-3 w-3 mr-1" />Tiskaj račun
                               </Button>
                             )}
-                            {/* Storno/Preklic - odpre StornoDialog z razlogom */}
+                            {/* Storno/Preklic gumb */}
                             {order.status !== 'cancelled' && order.paymentStatus !== 'storno' && (
                               <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => setStornoOrder(order)}>
                                 <FileWarning className="h-3 w-3 mr-1" />{order.paymentStatus === 'paid' ? 'Storno' : 'Prekliči'}
                               </Button>
+                            )}
+                            {/* Pregled storniranega naročila */}
+                            {(order.status === 'cancelled' || order.paymentStatus === 'storno') && (
+                              <Badge variant="outline" className="bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-400 text-[10px]">
+                                {order.paymentStatus === 'storno' ? 'STORNO' : 'PREKLICANO'}
+                              </Badge>
                             )}
                             {order.status !== 'completed' && order.status !== 'cancelled' && order.paymentStatus !== 'paid' && (
                               <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setEditingOrderId(order.id); setEditingOrderNumber(order.orderNumber); setMainTab('new-order') }}>
@@ -1025,9 +1041,37 @@ export function OrderPanel() {
               <Badge variant="outline" className={statusColors[(detailOrder?.status as string) || ''] || ''}>
                 {statusLabels[(detailOrder?.status as string)] || String(detailOrder?.status || '')}
               </Badge>
+              {(detailOrder?.paymentStatus === 'paid' || detailOrder?.paymentStatus === 'storno') && (
+                <Badge variant="outline" className={paymentStatusColors[(detailOrder?.paymentStatus as string)] || ''}>
+                  {paymentStatusLabels[(detailOrder?.paymentStatus as string)] || String(detailOrder?.paymentStatus || '')}
+                </Badge>
+              )}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {/* Storno/Preklic opozorilo */}
+            {(detailOrder?.status === 'cancelled' || detailOrder?.paymentStatus === 'storno') && (
+              <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg p-3 space-y-1">
+                <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+                  {detailOrder?.paymentStatus === 'storno' ? 'Stornirano naročilo' : 'Preklicano naročilo'}
+                </p>
+                {detailOrder?.cancelReason && (
+                  <p className="text-xs text-red-600 dark:text-red-400">
+                    Razlog: {String(detailOrder.cancelReason)}
+                  </p>
+                )}
+                {detailOrder?.cancelledAt && (
+                  <p className="text-xs text-red-600/70 dark:text-red-400/70">
+                    Preklicano: {format(new Date(detailOrder.cancelledAt as string), 'dd.MM.yyyy HH:mm')}
+                  </p>
+                )}
+                {detailOrder?.cancelledBy && (
+                  <p className="text-xs text-red-600/70 dark:text-red-400/70">
+                    Preklical/a: {String(detailOrder.cancelledBy)}
+                  </p>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div><p className="text-muted-foreground">Stranka</p><p className="font-medium">{String(detailOrder?.customerName || 'Hodič')}</p></div>
               <div><p className="text-muted-foreground">Vrsta</p><p className="font-medium">{detailOrder?.type === 'dine-in' ? 'Na mestu' : detailOrder?.type === 'takeout' ? 'Za s seboj' : 'Dostava'}</p></div>
@@ -1035,8 +1079,8 @@ export function OrderPanel() {
               <div>
                 <p className="text-muted-foreground">Plačilo</p>
                 <div className="flex items-center gap-1">
-                  <Badge variant="outline" className={detailOrder?.paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-yellow-100 text-yellow-800'}>
-                    {detailOrder?.paymentStatus === 'paid' ? 'Plačano' : 'Neplačano'}
+                  <Badge variant="outline" className={paymentStatusColors[(detailOrder?.paymentStatus as string)] || 'bg-yellow-100 text-yellow-800'}>
+                    {paymentStatusLabels[(detailOrder?.paymentStatus as string)] || 'Neplačano'}
                   </Badge>
                   {detailOrder?.paymentMethod && <span className="text-xs text-muted-foreground uppercase">{String(detailOrder.paymentMethod)}</span>}
                 </div>
@@ -1092,7 +1136,7 @@ export function OrderPanel() {
                             name: oi.menuItem.name,
                             quantity: oi.quantity,
                             price: oi.price,
-                            vatRate: 22.0,
+                            vatRate: (detailOrder?.orderItems as { id: string; vatRate: number }[])?.find(i => i.id === oi.id)?.vatRate || 22.0,
                             voided: false,
                             orderId: detailOrder?.id as string,
                           })

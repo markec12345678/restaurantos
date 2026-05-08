@@ -1,11 +1,11 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
-import { AlertTriangle, ShieldOff, FileWarning } from 'lucide-react'
+import { AlertTriangle, ShieldOff, FileWarning, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
@@ -23,6 +23,7 @@ interface StornoDialogProps {
     tip: number
     paymentMethod: string
     paymentStatus: string
+    status?: string
   } | null
   open: boolean
   onClose: () => void
@@ -39,6 +40,15 @@ const STORNO_REASONS = [
   { id: 'other', name: 'Drug razlog', description: 'Drugi razlogi za storno (navesti morate)' },
 ]
 
+// Razlogi za preklic neplačanega naročila
+const CANCEL_REASONS = [
+  { id: 'customer-cancel', name: 'Stranka preklicala', description: 'Stranka je odpovedala naročilo' },
+  { id: 'waiter-error', name: 'Napaka natakarja', description: 'Naročilo je bilo napačno vneseno' },
+  { id: 'kitchen-issue', name: 'Težava v kuhinji', description: 'Artikla ni mogoče pripraviti' },
+  { id: 'duplicate-order', name: 'Dvojno naročilo', description: 'Naročilo je bilo vneseno dvakrat' },
+  { id: 'other', name: 'Drug razlog', description: 'Drugi razlog za preklic' },
+]
+
 // ============================================
 // KOMPONENTA
 // ============================================
@@ -48,31 +58,55 @@ export function StornoDialog({ order, open, onClose, onStornoComplete }: StornoD
   const [customReason, setCustomReason] = useState('')
   const [confirmText, setConfirmText] = useState('')
 
-  const canSubmit = selectedReason && (selectedReason !== 'other' || customReason.trim().length >= 3)
+  const isPaid = order?.paymentStatus === 'paid'
+  const isStorno = order?.paymentStatus === 'storno'
+  const isCancelled = order?.status === 'cancelled'
 
-  // Storno mutacija
+  const canSubmitStorno = selectedReason && (selectedReason !== 'other' || customReason.trim().length >= 3)
+  const canSubmitCancel = selectedReason || customReason.trim().length >= 3
+
+  // Storno mutacija — za plačana naročila (FURS)
   const stornoMutation = useMutation({
     mutationFn: async () => {
       if (!order) return null
-      const res = await fetch('/api/furs', {
+      const reasonText = selectedReason === 'other'
+        ? customReason
+        : STORNO_REASONS.find(r => r.id === selectedReason)?.name
+
+      // 1. Storno pri FURS — ustvari storno račun
+      const fursRes = await fetch('/api/furs', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId: order.id,
-          reason: selectedReason === 'other' ? customReason : STORNO_REASONS.find(r => r.id === selectedReason)?.name,
+          reason: reasonText,
           reasonCode: selectedReason,
         }),
       })
-      const result = await res.json()
-      if (!res.ok) throw new Error(result.error || 'Napaka pri storniranju')
-      return result
+      const fursResult = await fursRes.json()
+      if (!fursRes.ok) throw new Error(fursResult.error || 'Napaka pri storniranju')
+
+      // 2. Posodobi naročilo — označi kot preklicano z razlogom
+      const orderRes = await fetch(`/api/orders/${order.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'cancelled',
+          cancelReason: `STORNO: ${reasonText}`,
+          cancelledBy: 'Natakar', // TODO: poveži z auth ko bo implementiran
+        }),
+      })
+      if (!orderRes.ok) throw new Error('Napaka pri posodobitvi naročila')
+
+      return fursResult
     },
     onSuccess: (result) => {
-      toast.success(result.message || 'Storno račun uspešno ustvarjen')
+      toast.success(result?.message || 'Storno račun uspešno ustvarjen')
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       queryClient.invalidateQueries({ queryKey: ['receipt'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['cash-register'] })
+      queryClient.invalidateQueries({ queryKey: ['tables'] })
       onStornoComplete?.()
       resetAndClose()
     },
@@ -81,14 +115,22 @@ export function StornoDialog({ order, open, onClose, onStornoComplete }: StornoD
     },
   })
 
-  // Popolna preklic naročila (brez FURS, za neplačana naročila)
+  // Preklic naročila (brez FURS, za neplačana naročila)
   const cancelOrderMutation = useMutation({
     mutationFn: async () => {
       if (!order) return null
+      const reasonText = selectedReason === 'other'
+        ? customReason
+        : CANCEL_REASONS.find(r => r.id === selectedReason)?.name || customReason
+
       const res = await fetch(`/api/orders/${order.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'cancelled' }),
+        body: JSON.stringify({
+          status: 'cancelled',
+          cancelReason: reasonText || 'Preklicano',
+          cancelledBy: 'Natakar', // TODO: poveži z auth
+        }),
       })
       if (!res.ok) throw new Error('Napaka pri preklicu naročila')
       return res.json()
@@ -115,15 +157,45 @@ export function StornoDialog({ order, open, onClose, onStornoComplete }: StornoD
 
   if (!order) return null
 
-  const isPaid = order.paymentStatus === 'paid'
   const totalWithTip = order.total + (order.tip || 0)
+
+  // Če je naročilo že stornirano ali preklicano, prikaži informacijo
+  if (isStorno || isCancelled) {
+    return (
+      <Dialog open={open} onOpenChange={() => resetAndClose()}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <FileWarning className="h-5 w-5" />
+              {isStorno ? 'Stornirano naročilo' : 'Preklicano naročilo'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-sm">
+              <p className="font-medium">Naročilo #{order.orderNumber} je {isStorno ? 'stornirano' : 'preklicano'}.</p>
+              <p className="text-xs text-muted-foreground mt-1">Te operacije ni mogoče razveljaviti.</p>
+            </div>
+            <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Znesek</span>
+                <span className="font-semibold">€{totalWithTip.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={resetAndClose}>Zapri</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )
+  }
 
   return (
     <Dialog open={open} onOpenChange={() => resetAndClose()}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-red-600">
-            <FileWarning className="h-5 w-5" />
+            {isPaid ? <ShieldOff className="h-5 w-5" /> : <Trash2 className="h-5 w-5" />}
             {isPaid ? 'Storno računa' : 'Preklic naročila'}
           </DialogTitle>
         </DialogHeader>
@@ -137,7 +209,8 @@ export function StornoDialog({ order, open, onClose, onStornoComplete }: StornoD
                 <strong>Storno računa je nepovratna operacija!</strong>
                 <span className="block mt-1 text-xs">
                   Ustvari se storno račun z negativnimi zneski, ki se pošlje FURS.
-                  Originalni račun se označi kot storniran. Operacija se zabeleži v dnevnik.
+                  Originalni račun se označi kot storniran. Znesek bo vrnjen stranki.
+                  Operacija se zabeleži v dnevnik in je vidna v poročilih.
                 </span>
               </div>
             </div>
@@ -147,7 +220,12 @@ export function StornoDialog({ order, open, onClose, onStornoComplete }: StornoD
             <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2 text-sm">
               <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <div className="text-amber-800 dark:text-amber-200">
-                Naročilo še ni plačano, zato ga lahko samo prekličete (brez FURS storna).
+                <strong>Naročilo še ni plačano</strong>
+                <span className="block mt-1 text-xs">
+                  Naročilo se bo preklicalo in sprostila bo miza (če je dodeljena).
+                  Ker ni bilo plačano, FURS storno račun ni potreben.
+                  Vsi artikli bodo označeni kot preklicani.
+                </span>
               </div>
             </div>
           )}
@@ -176,7 +254,7 @@ export function StornoDialog({ order, open, onClose, onStornoComplete }: StornoD
             </div>
           </div>
 
-          {/* Izbira razloga - obvezno za storno */}
+          {/* Izbira razloga - obvezno za storno (FURS) */}
           {isPaid && (
             <>
               <div>
@@ -213,21 +291,44 @@ export function StornoDialog({ order, open, onClose, onStornoComplete }: StornoD
             </>
           )}
 
-          {/* Za preklic neplačanega - preprost razlog */}
+          {/* Za preklic neplačanega - izbira razloga */}
           {!isPaid && (
-            <div>
-              <p className="text-sm font-semibold mb-2">Razlog za preklic</p>
-              <Input
-                placeholder="Npr. Stranka odpovedala..."
-                value={customReason}
-                onChange={e => setCustomReason(e.target.value)}
-                className="h-8 text-xs"
-              />
-            </div>
+            <>
+              <div>
+                <p className="text-sm font-semibold mb-2">
+                  Razlog za preklic <span className="text-amber-500">*</span>
+                </p>
+                <div className="space-y-1.5">
+                  {CANCEL_REASONS.map((reason) => (
+                    <button
+                      key={reason.id}
+                      onClick={() => { setSelectedReason(reason.id); if (reason.id !== 'other') setCustomReason('') }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors border ${
+                        selectedReason === reason.id
+                          ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30'
+                          : 'border-border hover:bg-accent'
+                      }`}
+                    >
+                      <div className="font-medium">{reason.name}</div>
+                      <div className="text-xs text-muted-foreground">{reason.description}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {selectedReason === 'other' && (
+                <Input
+                  placeholder="Vnesite razlog za preklic..."
+                  value={customReason}
+                  onChange={e => setCustomReason(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              )}
+            </>
           )}
 
           {/* Potrditveno besedilo za storno */}
-          {isPaid && canSubmit && (
+          {isPaid && canSubmitStorno && (
             <>
               <Separator />
               <div>
@@ -243,6 +344,24 @@ export function StornoDialog({ order, open, onClose, onStornoComplete }: StornoD
               </div>
             </>
           )}
+
+          {/* Potrditveno besedilo za preklic (enostavnejše) */}
+          {!isPaid && canSubmitCancel && (
+            <>
+              <Separator />
+              <div>
+                <p className="text-xs text-muted-foreground mb-1.5">
+                  Za potrditev vpišite <strong>PREKLIČI</strong>:
+                </p>
+                <Input
+                  placeholder="PREKLIČI"
+                  value={confirmText}
+                  onChange={e => setConfirmText(e.target.value)}
+                  className="h-8 text-xs font-mono"
+                />
+              </div>
+            </>
+          )}
         </div>
 
         <DialogFooter className="gap-2">
@@ -250,7 +369,7 @@ export function StornoDialog({ order, open, onClose, onStornoComplete }: StornoD
           {isPaid ? (
             <Button
               variant="destructive"
-              disabled={!canSubmit || confirmText !== 'STORNO' || stornoMutation.isPending}
+              disabled={!canSubmitStorno || confirmText !== 'STORNO' || stornoMutation.isPending}
               onClick={() => stornoMutation.mutate()}
             >
               {stornoMutation.isPending ? 'Storniram...' : (
@@ -263,12 +382,12 @@ export function StornoDialog({ order, open, onClose, onStornoComplete }: StornoD
           ) : (
             <Button
               variant="destructive"
-              disabled={cancelOrderMutation.isPending}
+              disabled={!canSubmitCancel || confirmText !== 'PREKLIČI' || cancelOrderMutation.isPending}
               onClick={() => cancelOrderMutation.mutate()}
             >
               {cancelOrderMutation.isPending ? 'Preklicujem...' : (
                 <>
-                  <FileWarning className="h-4 w-4 mr-1" />
+                  <Trash2 className="h-4 w-4 mr-1" />
                   Prekliči naročilo
                 </>
               )}

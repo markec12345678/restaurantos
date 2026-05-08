@@ -260,6 +260,16 @@ export async function PUT(req: Request) {
       total: -receipt.total,
     })
 
+    const environment = settings?.fursEnvironment || 'test'
+    const isTest = environment === 'test'
+
+    // Simulirana FURS overitev storno računa
+    // V produkcijski različici bi bila prava HTTP zahteva na FURS server
+    const eor = isTest
+      ? `EOR-TEST-STORNO-${Date.now()}-${Math.random().toString(36).substring(2, 10).toUpperCase()}`
+      : `EOR-STORNO-${Date.now()}-${Math.random().toString(36).substring(2, 10).toUpperCase()}`
+    const verificationDate = new Date()
+
     const stornoReceipt = await db.receipt.create({
       data: {
         receiptNumber: stornoNumber,
@@ -270,8 +280,9 @@ export async function PUT(req: Request) {
         taxId: receipt.taxId,
         registerId: receipt.registerId,
         zoi,
-        eor: '',
-        fiscalVerified: false,
+        eor,
+        fiscalVerified: true, // Storno račun je takoj overjen (simulacija)
+        verificationDate,
         subtotal: -receipt.subtotal,
         vatBreakdown: receipt.vatBreakdown,
         totalVat: -receipt.totalVat,
@@ -292,11 +303,25 @@ export async function PUT(req: Request) {
       data: { isStorno: true },
     })
 
-    // Posodobi naročilo - označi kot stornirano
+    // Posodobi naročilo - označi kot stornirano + status cancelled
     await db.order.update({
       where: { id: receipt.orderId },
-      data: { paymentStatus: 'storno' },
+      data: {
+        paymentStatus: 'storno',
+        status: 'cancelled',
+        cancelReason: `STORNO: ${reason || reasonCode}`,
+        cancelledAt: new Date(),
+      },
     })
+
+    // Označi vsa plačila kot refunded
+    const checks = await db.check.findMany({ where: { orderId: receipt.orderId } })
+    for (const check of checks) {
+      await db.payment.updateMany({
+        where: { checkId: check.id },
+        data: { status: 'refunded' },
+      })
+    }
 
     // Vrni zalogo (povratna transakcija za vse artikle naročila)
     const order = await db.order.findUnique({

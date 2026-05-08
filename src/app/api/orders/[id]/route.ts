@@ -18,6 +18,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   if (body.tip !== undefined) updateData.tip = body.tip
   if (body.totalWithTip !== undefined) updateData.totalWithTip = body.totalWithTip
   if (body.splitCount !== undefined) updateData.splitCount = body.splitCount
+  // Preklic/storno metapodatki
+  if (body.cancelReason !== undefined) updateData.cancelReason = body.cancelReason
+  if (body.cancelledBy !== undefined) updateData.cancelledBy = body.cancelledBy
+
+  // Ko se naročilo prekliče/stornira, zabeleži čas
+  if (body.status === 'cancelled') {
+    updateData.cancelledAt = new Date()
+  }
 
   const order = await db.order.update({
     where: { id },
@@ -85,13 +93,21 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
 
   // When order is cancelled, free the table if no other active orders
-  if (body.status === 'cancelled' && order.tableId) {
-    const activeOrders = await db.order.count({
-      where: { tableId: order.tableId, status: { in: ['pending', 'in-progress', 'ready'] } },
-    })
-    if (activeOrders <= 1) {
-      await db.table.update({ where: { id: order.tableId }, data: { status: 'available' } })
+  // Označi tudi vse artikle kot cancelled
+  if (body.status === 'cancelled') {
+    if (order.tableId) {
+      const activeOrders = await db.order.count({
+        where: { tableId: order.tableId, status: { in: ['pending', 'in-progress', 'ready'] } },
+      })
+      if (activeOrders <= 1) {
+        await db.table.update({ where: { id: order.tableId }, data: { status: 'available' } })
+      }
     }
+    // Označi vse artikle kot cancelled
+    await db.orderItem.updateMany({
+      where: { orderId: id, status: { in: ['pending', 'preparing', 'ready'] } },
+      data: { status: 'cancelled' },
+    })
   }
 
   // Re-fetch to get updated items
@@ -106,9 +122,63 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   return NextResponse.json(updatedOrder || order)
 }
 
+// DELETE — Soft delete: označi naročilo kot preklicano (ne izbriše iz baze!)
+// Hard delete je prepovedan za audit sled (FURS zahteva).
+// Če naročilo ni bilo plačano in nima računa, ga lahko izbrišemo.
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  await db.orderItem.deleteMany({ where: { orderId: id } })
-  await db.order.delete({ where: { id } })
-  return NextResponse.json({ success: true })
+
+  const order = await db.order.findUnique({
+    where: { id },
+    include: { receipt: true },
+  })
+
+  if (!order) {
+    return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
+  }
+
+  // Če ima naročilo račun (FURS obveznost), NE smemo izbrisati — samo prekličemo
+  if (order.receipt.length > 0) {
+    // Označi kot preklicano (soft delete)
+    await db.order.update({
+      where: { id },
+      data: {
+        status: 'cancelled',
+        cancelReason: 'Izbrisano iz seznama',
+        cancelledAt: new Date(),
+      },
+    })
+    // Sprosti mizo
+    if (order.tableId) {
+      const activeOrders = await db.order.count({
+        where: { tableId: order.tableId, status: { in: ['pending', 'in-progress', 'ready'] } },
+      })
+      if (activeOrders <= 1) {
+        await db.table.update({ where: { id: order.tableId }, data: { status: 'available' } })
+      }
+    }
+    return NextResponse.json({ success: true, action: 'soft-delete', message: 'Naročilo označeno kot preklicano (ima račun)' })
+  }
+
+  // Če naročilo nima računa in ni plačano, lahko naredimo hard delete
+  // ampak vseeno raje naredimo soft delete za audit sled
+  await db.order.update({
+    where: { id },
+    data: {
+      status: 'cancelled',
+      cancelReason: 'Izbrisano iz seznama (brez računa)',
+      cancelledAt: new Date(),
+    },
+  })
+  // Sprosti mizo
+  if (order.tableId) {
+    const activeOrders = await db.order.count({
+      where: { tableId: order.tableId, status: { in: ['pending', 'in-progress', 'ready'] } },
+    })
+    if (activeOrders <= 1) {
+      await db.table.update({ where: { id: order.tableId }, data: { status: 'available' } })
+    }
+  }
+
+  return NextResponse.json({ success: true, action: 'soft-delete', message: 'Naročilo preklicano' })
 }
