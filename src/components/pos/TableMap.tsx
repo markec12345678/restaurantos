@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Users, ShoppingBag, CreditCard, Clock, ChevronRight, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, Users, ShoppingBag, CreditCard, Clock, ChevronRight, X, UtensilsCrossed } from 'lucide-react'
 import { usePOSStore } from '@/lib/store'
 import { useState } from 'react'
 import { format } from 'date-fns'
@@ -59,7 +59,7 @@ const orderStatusLabels: Record<string, string> = {
 
 export function TableMap() {
   const queryClient = useQueryClient()
-  const { setActiveModule, setSelectedTable, setOrderType } = usePOSStore()
+  const { setActiveModule, setSelectedTable, setOrderType, setEditingOrderId, setEditingOrderNumber } = usePOSStore()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTable, setEditingTable] = useState<Record<string, unknown> | null>(null)
   const [formData, setFormData] = useState({ number: '', capacity: '4', area: 'main', status: 'available' })
@@ -183,7 +183,19 @@ export function TableMap() {
     setOrderType('dine-in')
     setActiveModule('orders')
     setSelectedTableForOrders(null)
+    setEditingOrderId(null)
+    setEditingOrderNumber(null)
     toast.info(`Miza ${tableNumber} izbrana za novo naročilo`)
+  }
+
+  const handleAddToOrder = (orderId: string, orderNumber: number, tableId: string) => {
+    setSelectedTable(tableId)
+    setOrderType('dine-in')
+    setEditingOrderId(orderId)
+    setEditingOrderNumber(orderNumber)
+    setActiveModule('orders')
+    setSelectedTableForOrders(null)
+    toast.info(`Dodajanje artiklov k naročilu #${orderNumber}`)
   }
 
   const groupedTables = (tables || []).reduce((acc: Record<string, unknown[]>, table: Record<string, unknown>) => {
@@ -370,6 +382,18 @@ export function TableMap() {
                           </div>
                         ))}
                       </div>
+                      {/* Gumb za dodajanje artiklov k naročilu */}
+                      {order.status !== 'completed' && order.status !== 'cancelled' && (
+                        <Button
+                          size="sm"
+                          className="w-full h-8 text-xs"
+                          variant="default"
+                          onClick={() => handleAddToOrder(order.id, order.orderNumber, selectedTableForOrders?.id as string)}
+                        >
+                          <UtensilsCrossed className="h-3.5 w-3.5 mr-1.5" />
+                          Dodaj artikle k naročilu #{order.orderNumber}
+                        </Button>
+                      )}
                     </CardContent>
                   </Card>
                 ))}

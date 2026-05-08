@@ -42,6 +42,11 @@ interface POSStore {
   setSidebarOpen: (open: boolean) => void
   activeMenuId: string | null
   setActiveMenuId: (menuId: string | null) => void
+  // Editing existing order
+  editingOrderId: string | null
+  setEditingOrderId: (orderId: string | null) => void
+  editingOrderNumber: number | null
+  setEditingOrderNumber: (num: number | null) => void
 }
 
 function generateCartKey(itemId: string, modifiers: SelectedModifier[]): string {
@@ -100,7 +105,7 @@ export const usePOSStore = create<POSStore>((set, get) => ({
       cart: state.cart.map((c) => (c.cartKey === cartKey ? { ...c, notes } : c)),
     })),
   clearCart: () =>
-    set({ cart: [], discount: 0, selectedTable: null }),
+    set({ cart: [], discount: 0, selectedTable: null, editingOrderId: null, editingOrderNumber: null }),
   cartTotal: () => {
     const { cart, taxRate, discount } = get()
     const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
@@ -118,4 +123,8 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   activeMenuId: null,
   setActiveMenuId: (menuId) => set({ activeMenuId: menuId }),
+  editingOrderId: null,
+  setEditingOrderId: (orderId) => set({ editingOrderId: orderId }),
+  editingOrderNumber: null,
+  setEditingOrderNumber: (num) => set({ editingOrderNumber: num }),
 }))

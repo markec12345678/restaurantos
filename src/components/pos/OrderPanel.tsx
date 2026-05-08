@@ -14,7 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { Plus, Minus, Trash2, ShoppingBag, CreditCard, X, Printer, Eye, ImageIcon, ChevronRight, Check, ArrowLeft, UtensilsCrossed, GlassWater, Users, Clock, Search } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { format } from 'date-fns'
 import { ReceiptDialog } from '@/components/pos/ReceiptDialog'
 import { PaymentDialog } from '@/components/pos/PaymentDialog'
@@ -66,6 +66,7 @@ export function OrderPanel() {
     cartTotal, orderType, setOrderType, selectedTable, setSelectedTable,
     discount, setDiscount, taxRate,
     activeMenuId, setActiveMenuId,
+    editingOrderId, setEditingOrderId, editingOrderNumber, setEditingOrderNumber,
   } = usePOSStore()
   const queryClient = useQueryClient()
   const [customerName, setCustomerName] = useState('')
@@ -84,6 +85,21 @@ export function OrderPanel() {
   // Modifier dialog
   const [modifierDialogItem, setModifierDialogItem] = useState<MenuItemType | null>(null)
   const [selectedModifiers, setSelectedModifiers] = useState<Map<string, SelectedModifier>>(new Map())
+
+  // Ctrl+K za hitro iskanje
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        setItemSearch(prev => prev ? '' : ' ')
+      }
+      if (e.key === 'Escape' && itemSearch) {
+        setItemSearch('')
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [itemSearch])
 
   // ============================================
   // PODATKI
@@ -118,6 +134,26 @@ export function OrderPanel() {
   // ============================================
   const placeOrderMutation = useMutation({
     mutationFn: async () => {
+      // Če urejamo obstoječe naročilo, dodaj artikle
+      if (editingOrderId) {
+        const res = await fetch(`/api/orders/${editingOrderId}/add-items`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            items: cart.map(item => ({
+              menuItemId: item.id,
+              quantity: item.quantity,
+              price: item.price,
+              notes: item.notes,
+              modifiersJson: JSON.stringify(item.modifiers.map(m => ({ name: m.name, price: m.price, modifierGroupName: m.modifierGroupName }))),
+            })),
+          }),
+        })
+        if (!res.ok) throw new Error('Failed to add items')
+        return res.json()
+      }
+
+      // Novo naročilo
       const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
       const res = await fetch('/api/orders', {
         method: 'POST',
@@ -142,8 +178,12 @@ export function OrderPanel() {
       if (!res.ok) throw new Error('Failed to place order')
       return res.json()
     },
-    onSuccess: () => {
-      toast.success('Naročilo uspešno oddano!')
+    onSuccess: (data) => {
+      if (editingOrderId) {
+        toast.success(`Artikli dodani k naročilu #${editingOrderNumber}!`)
+      } else {
+        toast.success('Naročilo uspešno oddano!')
+      }
       clearCart()
       setCustomerName('')
       setCustomerPhone('')
@@ -471,11 +511,11 @@ export function OrderPanel() {
                 <div className="px-3 pt-2 flex-shrink-0">
                   <button
                     onClick={() => setItemSearch(' ')}
-                    className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors py-1.5 px-2 rounded-md hover:bg-muted/50"
+                    className="flex items-center gap-2 w-full text-sm text-muted-foreground hover:text-foreground transition-colors py-2 px-3 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-primary/5"
                   >
-                    <Search className="h-3.5 w-3.5" />
+                    <Search className="h-4 w-4" />
                     <span>Išči artikel...</span>
-                    <kbd className="ml-auto text-[9px] bg-muted px-1.5 py-0.5 rounded border">Ctrl+K</kbd>
+                    <kbd className="ml-auto text-[10px] bg-muted px-1.5 py-0.5 rounded border font-mono">⌘K</kbd>
                   </button>
                 </div>
               )}
@@ -551,18 +591,35 @@ export function OrderPanel() {
               {/* Cart Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
                 <div className="flex items-center gap-2">
-                  <ShoppingBag className="h-4 w-4 text-primary" />
-                  <span className="font-bold text-sm">Naročilo</span>
+                  {editingOrderId ? (
+                    <>
+                      <UtensilsCrossed className="h-4 w-4 text-primary" />
+                      <span className="font-bold text-sm">Dodaj k #{editingOrderNumber}</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingBag className="h-4 w-4 text-primary" />
+                      <span className="font-bold text-sm">Naročilo</span>
+                    </>
+                  )}
                   {cartItemCount > 0 && (
                     <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{cartItemCount}</Badge>
                   )}
                 </div>
-                {cart.length > 0 && (
-                  <Button variant="ghost" size="sm" onClick={clearCart} className="h-7 text-xs text-destructive hover:text-destructive">
-                    <Trash2 className="h-3 w-3 mr-1" />
-                    Zbriši
-                  </Button>
-                )}
+                <div className="flex items-center gap-1">
+                  {editingOrderId && (
+                    <Button variant="ghost" size="sm" onClick={() => { setEditingOrderId(null); setEditingOrderNumber(null); clearCart() }} className="h-7 text-xs">
+                      <ArrowLeft className="h-3 w-3 mr-1" />
+                      Novo
+                    </Button>
+                  )}
+                  {cart.length > 0 && (
+                    <Button variant="ghost" size="sm" onClick={clearCart} className="h-7 text-xs text-destructive hover:text-destructive">
+                      <Trash2 className="h-3 w-3 mr-1" />
+                      Zbriši
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {/* Cart Items */}
@@ -665,7 +722,10 @@ export function OrderPanel() {
                     disabled={cart.length === 0 || placeOrderMutation.isPending}
                     onClick={() => placeOrderMutation.mutate()}
                   >
-                    {placeOrderMutation.isPending ? 'Naročam...' : 'Oddaj naročilo'}
+                    {placeOrderMutation.isPending
+                      ? (editingOrderId ? 'Dodajam...' : 'Naročam...')
+                      : (editingOrderId ? `Dodaj k naročilu #${editingOrderNumber}` : 'Oddaj naročilo')
+                    }
                   </Button>
                 </div>
               </div>
