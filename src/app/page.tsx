@@ -23,20 +23,20 @@ const moduleComponents: Record<string, React.ComponentType> = {
 
 export default function POSPage() {
   const { activeModule } = usePOSStore()
-  const ActiveComponent = moduleComponents[activeModule] || Dashboard
+  const ActiveComponent = moduleComponents[activeModule] || OrderPanel
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />
       <main className="flex-1 overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div
             key={activeModule}
-            className="h-full"
-            initial={{ opacity: 0, y: 8 }}
+            initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.15 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.12 }}
+            className="h-full"
           >
             <ActiveComponent />
           </motion.div>
