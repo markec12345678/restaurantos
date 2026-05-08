@@ -171,6 +171,34 @@ model Shift {
   updatedAt  DateTime @updatedAt
 }
 
+// ============================================
+// BLAGAJNA / IZMENE (Cash Register Shifts)
+// ============================================
+
+model CashRegisterShift {
+  id                String   @id @default(cuid())
+  employeeId        String?
+  employeeName      String   @default("")
+  status            String   @default("open")  // open, closed
+  openedAt          DateTime @default(now())
+  closedAt          DateTime?
+  startingCash      Float    @default(0)       // Začetno stanje gotovine
+  closingCash       Float    @default(0)       // Končno stanje gotovine (dejansko štete)
+  expectedCash      Float    @default(0)       // Pričakovano stanje gotovine
+  cashSales         Float    @default(0)       // Prodaja v gotovini
+  cardSales         Float    @default(0)       // Kartična prodaja
+  mobileSales       Float    @default(0)       // Mobilna prodaja
+  splitPayments     Float    @default(0)       // Deljena plačila
+  totalSales        Float    @default(0)       // Skupna prodaja
+  totalOrders       Int      @default(0)       // Število naročil
+  totalDiscounts    Float    @default(0)       // Skupni popusti
+  totalTips         Float    @default(0)       // Skupne napitnine
+  cashDifference    Float    @default(0)       // Razlika (dejansko - pričakovano)
+  notes             String   @default("")      // Opombe ob zaključku
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
 model InventoryItem {
   id              String    @id @default(cuid())
   name            String

@@ -9,7 +9,9 @@ import { TableMap } from '@/components/pos/TableMap'
 import { MenuManager } from '@/components/pos/MenuManager'
 import { InventoryManager } from '@/components/pos/InventoryManager'
 import { EmployeeManager } from '@/components/pos/EmployeeManager'
+import { CashRegister } from '@/components/pos/CashRegister'
 import { ReportsView } from '@/components/pos/ReportsView'
+import { GlobalNotifications } from '@/components/pos/GlobalNotifications'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const moduleComponents: Record<string, React.ComponentType> = {
@@ -17,6 +19,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
   orders: OrderPanel,
   kitchen: KitchenDisplay,
   tables: TableMap,
+  'cash-register': CashRegister,
   menu: MenuManager,
   inventory: InventoryManager,
   employees: EmployeeManager,
@@ -44,6 +47,7 @@ export default function POSPage() {
           </motion.div>
         </AnimatePresence>
       </main>
+      <GlobalNotifications />
     </div>
   )
 }
