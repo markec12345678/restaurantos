@@ -14,6 +14,8 @@ import { ReportsView } from '@/components/pos/ReportsView'
 import { HaccpManager } from '@/components/pos/HaccpManager'
 import { RecipeManager } from '@/components/pos/RecipeManager'
 import { SettingsManager } from '@/components/pos/SettingsManager'
+import { ConfigurationManager } from '@/components/pos/ConfigurationManager'
+import { DeliveryManager } from '@/components/pos/DeliveryManager'
 import { GlobalNotifications } from '@/components/pos/GlobalNotifications'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -29,6 +31,8 @@ const moduleComponents: Record<string, React.ComponentType> = {
   haccp: HaccpManager,
   employees: EmployeeManager,
   reports: ReportsView,
+  configuration: ConfigurationManager,
+  delivery: DeliveryManager,
   settings: SettingsManager,
 }
 

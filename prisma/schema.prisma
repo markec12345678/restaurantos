@@ -49,6 +49,19 @@ model MenuItem {
   allergens       String           @default("")       // Alergeni: "1,3,7,12" (EU številke)
   categoryId      String
   category        Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  // --- Toast: Sales Category (za poročila, ločeno od meni kategorije) ---
+  salesCategoryId String?
+  salesCategory   SalesCategory?   @relation(fields: [salesCategoryId], references: [id])
+  // --- Toast: Price Group (različni ceniki) ---
+  priceGroupId    String?
+  priceGroup      PriceGroup?      @relation(fields: [priceGroupId], references: [id])
+  // --- Toast: Revenue Center (bar, terasa, dostava) ---
+  revenueCenterId String?
+  revenueCenter   RevenueCenter?   @relation(fields: [revenueCenterId], references: [id])
+  // --- Toast: Prep Station (kuhinja, bar) ---
+  prepStationId   String?
+  prepStation     PrepStation?     @relation(fields: [prepStationId], references: [id])
+  // --- Relations ---
   orderItems      OrderItem[]
   inventory       InventoryItem?
   recipeItems     RecipeItem[]
@@ -94,50 +107,226 @@ model MenuItemModifierGroup {
 }
 
 // ============================================
-// NAROČILA IN MIZE
+// KONFIGURACIJA (Toast Configuration API)
+// ============================================
+
+model TaxRate {
+  id          String   @id @default(cuid())
+  name        String   // "Standard DDV 22%", "Znižana DDV 9.5%", "Oproščeno 0%"
+  rate        Float    // 22.0, 9.5, 0
+  code        String   @default("")  // "S", "R", "Z" (FURS kode)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model DiningOption {
+  id                String   @id @default(cuid())
+  name              String   // "Na mestu", "Vzemi s seboj", "Dostava"
+  type              String   // dine-in, takeout, delivery
+  serviceChargeId   String?  // Povezana servisna postavka
+  serviceCharge     ServiceCharge? @relation(fields: [serviceChargeId], references: [id])
+  prepTimeMinutes   Int      @default(15) // Čas priprave v minutah
+  isActive          Boolean  @default(true)
+  sortOrder         Int      @default(0)
+  orders            Order[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model RevenueCenter {
+  id          String   @id @default(cuid())
+  name        String   // "Bar", "Terasa", "Dostava", "Glavna dvorana"
+  code        String   @default("")  // Kratka koda za poročila
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  menuItems   MenuItem[]
+  tables      Table[]
+  orders      Order[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ServiceCharge {
+  id          String   @id @default(cuid())
+  name        String   // "Servisna postavka 10%", "Paketnina za dostavo"
+  type        String   // percentage, fixed
+  amount      Float    // Odstotek ali fiksni znesek
+  isAutoApply Boolean  @default(false) // Samodejno dodaj
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  diningOptions DiningOption[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SalesCategory {
+  id          String   @id @default(cuid())
+  name        String   // "Hrana", "Pijača", "Alkoholne pijače", "Sladice", "Kava"
+  code        String   @default("")  // Kratka koda za poročila
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  menuItems   MenuItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PriceGroup {
+  id          String   @id @default(cuid())
+  name        String   // "Redni cenik", "Happy Hour", "Lunch Special", "Catering"
+  description String   @default("")
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  menuItems   MenuItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PrepStation {
+  id          String   @id @default(cuid())
+  name        String   // "Vroča kuhinja", "Hladna kuhinja", "Bar", "Pekarna"
+  type        String   @default("kitchen") // kitchen, bar, pastry, grill
+  avgPrepTime Int      @default(15) // Povprečen čas priprave v minutah
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  menuItems   MenuItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AlternatePaymentType {
+  id          String   @id @default(cuid())
+  name        String   // "Dijaški bon", "Malica", "Vavčer", "Žeton"
+  code        String   @default("")
+  type        String   @default("voucher") // voucher, coupon, subsidy, token
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  payments    Payment[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model VoidReason {
+  id          String   @id @default(cuid())
+  name        String   // "Napaka natakarja", "Kuhinja zgrešila", "Stranka zamenjala mnenje", "Alergija"
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  orderItems  OrderItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model NoSaleReason {
+  id          String   @id @default(cuid())
+  name        String   // "Mali dvig", "Vračilo dobavitelju", "Izplačilo napitnine", "Zamenjava"
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Printer {
+  id          String   @id @default(cuid())
+  name        String   // "Kuhinja 1", "Bar tiskalnik", "Blagajna"
+  type        String   @default("thermal") // thermal, dot-matrix, label
+  location    String   @default("") // Fizična lokacija
+  ipAddress   String   @default("") // IP naslov omrežnega tiskalnika
+  isActive    Boolean  @default(true)
+  // Kaj se tiska na tem tiskalniku (JSON array)
+  printRules  String   @default("[]") // [{type: "order", prepStationId: "..."}, {type: "receipt"}]
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PackagingConfig {
+  id          String   @id @default(cuid())
+  name        String   // "Standard embalaža", "Premium embalaža"
+  isActive    Boolean  @default(true)
+  items       PackagingItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PackagingItem {
+  id                String          @id @default(cuid())
+  name              String          // "Kartonska škatla", "Alu folija", "Vrečka za pijačo"
+  price             Float           @default(0) // Dodatna cena za embalažo
+  packagingConfigId String
+  packagingConfig   PackagingConfig @relation(fields: [packagingConfigId], references: [id], onDelete: Cascade)
+  isActive          Boolean         @default(true)
+  sortOrder         Int             @default(0)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+}
+
+// ============================================
+// NAROČILA, ČEKI IN PLAČILA (Toast Orders API)
 // ============================================
 
 model Table {
-  id        String   @id @default(cuid())
-  number    Int      @unique
-  capacity  Int      @default(4)
-  status    String   @default("available")
-  area      String   @default("main")
-  orders    Order[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String   @id @default(cuid())
+  number          Int      @unique
+  capacity        Int      @default(4)
+  status          String   @default("available")
+  area            String   @default("main")
+  revenueCenterId String?
+  revenueCenter   RevenueCenter? @relation(fields: [revenueCenterId], references: [id])
+  orders          Order[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model Order {
-  id            String     @id @default(cuid())
-  orderNumber   Int        @unique
-  type          String     @default("dine-in")
-  status        String     @default("pending")
-  tableId       String?
-  table         Table?     @relation(fields: [tableId], references: [id])
-  customerName  String     @default("")
-  customerPhone String     @default("")
-  subtotal      Float      @default(0)
-  tax           Float      @default(0)
-  discount      Float      @default(0)
-  tip           Float      @default(0)            // Napitnina
-  total         Float      @default(0)            // Subtotal + tax - discount (brez napitnine)
-  totalWithTip  Float      @default(0)            // Total + tip
-  paymentStatus String     @default("unpaid")
-  paymentMethod String     @default("")
-  splitCount    Int        @default(1)            // Število oseb pri deljenem plačilu
-  notes         String     @default("")
-  employeeId    String?
-  orderItems    OrderItem[]
-  receipt       Receipt?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id              String     @id @default(cuid())
+  orderNumber     Int        @unique
+  // --- Toast: Dining Option ---
+  diningOptionId  String?
+  diningOption    DiningOption? @relation(fields: [diningOptionId], references: [id])
+  type            String     @default("dine-in") // dine-in, takeout, delivery
+  status          String     @default("pending")
+  tableId         String?
+  table           Table?     @relation(fields: [tableId], references: [id])
+  // --- Toast: Revenue Center ---
+  revenueCenterId String?
+  revenueCenter   RevenueCenter? @relation(fields: [revenueCenterId], references: [id])
+  // --- Stranka ---
+  customerName    String     @default("")
+  customerPhone   String     @default("")
+  customerEmail   String     @default("")
+  // --- Zneski (iz čekov agregirano) ---
+  subtotal        Float      @default(0)
+  tax             Float      @default(0)
+  discount        Float      @default(0)
+  tip             Float      @default(0)
+  total           Float      @default(0)
+  totalWithTip    Float      @default(0)
+  // --- Status plačila ---
+  paymentStatus   String     @default("unpaid")
+  paymentMethod   String     @default("")
+  splitCount      Int        @default(1)
+  notes           String     @default("")
+  employeeId      String?
+  // --- Toast: Delivery Info ---
+  deliveryInfoId  String?   @unique
+  deliveryInfo    DeliveryInfo? @relation(fields: [deliveryInfoId], references: [id])
+  // --- Relations ---
+  orderItems      OrderItem[]
+  checks          Check[]
+  receipt         Receipt?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 }
 
 model OrderItem {
   id             String   @id @default(cuid())
   orderId        String
   order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // --- Toast: Check povezava ---
+  checkId        String?
+  check          Check?   @relation(fields: [checkId], references: [id])
+  // --- Artikel ---
   menuItemId     String
   menuItem       MenuItem @relation(fields: [menuItemId], references: [id])
   quantity       Int      @default(1)
@@ -146,13 +335,148 @@ model OrderItem {
   vatAmount      Float    @default(0)          // Znesek DDV za ta artikel
   notes          String   @default("")
   modifiersJson  String   @default("[]") // JSON array of selected modifiers [{name, price}]
+  // --- Toast: Void/Poničitev ---
+  voided         Boolean  @default(false)
+  voidReasonId   String?
+  voidReason     VoidReason? @relation(fields: [voidReasonId], references: [id])
+  // --- Toast: Discounts na artikel ---
+  discountAmount Float    @default(0)
+  appliedDiscountId String?
+  appliedDiscount Discount? @relation(fields: [appliedDiscountId], references: [id])
+  // --- Status ---
   status         String   @default("pending")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
 
 // ============================================
-// ZAPOSLENI IN INVENTAR
+// ČEKI (Toast Checks — več čekov na naročilo)
+// ============================================
+
+model Check {
+  id              String     @id @default(cuid())
+  checkNumber     Int                           // Sekvenčna številka čeka znotraj naročila
+  orderId         String
+  order           Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // --- Zneski čeka ---
+  subtotal        Float      @default(0)
+  tax             Float      @default(0)
+  discount        Float      @default(0)
+  serviceCharge   Float      @default(0)     // Servisna postavka
+  total           Float      @default(0)     // Subtotal + tax - discount + serviceCharge
+  tip             Float      @default(0)
+  totalWithTip    Float      @default(0)
+  // --- Plačilo čeka ---
+  paymentStatus   String     @default("unpaid") // unpaid, partial, paid
+  paymentMethod   String     @default("")
+  // --- Popusti na ček ---
+  appliedDiscountId String?
+  appliedDiscount  Discount?  @relation(fields: [appliedDiscountId], references: [id])
+  // --- Relations ---
+  orderItems      OrderItem[]
+  payments        Payment[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+}
+
+// ============================================
+// PLAČILA (Toast Payments/Tender)
+// ============================================
+
+model Payment {
+  id                    String                @id @default(cuid())
+  checkId               String
+  check                 Check                 @relation(fields: [checkId], references: [id], onDelete: Cascade)
+  // --- Znesek ---
+  amount                Float                 // Plačani znesek
+  tipAmount             Float    @default(0)  // Napitnina
+  // --- Vrsta plačila ---
+  type                  String                // cash, card, mobile, voucher, loyalty, giftcard, alternate
+  // --- Toast: Alternate Payment Type ---
+  alternatePaymentTypeId String?
+  alternatePaymentType  AlternatePaymentType? @relation(fields: [alternatePaymentTypeId], references: [id])
+  // --- Kartica ---
+  cardType              String   @default("") // visa, mastercard, maestro, diners, amex
+  cardLast4             String   @default("") // Zadnje 4 številke
+  authorizationCode     String   @default("") // Koda avtorizacije
+  // --- Toast: Gift Card ---
+  giftCardId            String?
+  giftCard              GiftCard?             @relation(fields: [giftCardId], references: [id])
+  // --- Toast: Loyalty ---
+  loyaltyAccountId      String?
+  loyaltyAccount        LoyaltyAccount?       @relation(fields: [loyaltyAccountId], references: [id])
+  loyaltyPointsUsed     Int      @default(0)
+  // --- Status ---
+  status                String   @default("completed") // completed, refunded, voided
+  employeeId            String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+}
+
+// ============================================
+// POPUSTI (Toast Discounts)
+// ============================================
+
+model Discount {
+  id          String   @id @default(cuid())
+  name        String   // "Happy Hour -20%", "Zaposleniški popust", "Domači rojstni dan"
+  type        String   // percentage, fixed_amount, buy_x_get_y
+  amount      Float    // Odstotek ali znesek (odvisno od type)
+  // --- Pogoji ---
+  appliesTo   String   @default("check") // check, item, category
+  triggerType String   @default("manual") // manual, auto, promo_code
+  promoCode   String   @default("") // Koda za aktivacijo
+  // --- Omejitve ---
+  maxUses     Int?     // null = neomejeno
+  currentUses Int      @default(0)
+  validFrom   DateTime?
+  validTo     DateTime?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  // --- Relations ---
+  orderItems  OrderItem[]
+  checks      Check[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============================================
+// DOSTAVA (Toast Delivery)
+// ============================================
+
+model DeliveryInfo {
+  id              String   @id @default(cuid())
+  // --- Naslov ---
+  address         String   // Ulica in hišna številka
+  city            String   @default("")
+  postCode        String   @default("")
+  // --- Kontakt ---
+  recipientName   String   @default("")
+  recipientPhone  String   @default("")
+  deliveryInstructions String @default("") // Navodila za dostavo (npr. "3. nadstropje, levo")
+  // --- Čas ---
+  promisedTime    DateTime? // Obljubljen čas dostave
+  estimatedTime   DateTime? // Predviden čas dostave
+  actualTime      DateTime? // Dejanski čas dostave
+  // --- Courier ---
+  courierName     String   @default("")
+  courierPhone    String   @default("")
+  // --- Status ---
+  status          String   @default("pending") // pending, preparing, ready, picked_up, delivered, failed
+  // --- Pakiranje ---
+  packagingFee    Float    @default(0) // Strošek embalaže
+  deliveryFee     Float    @default(0) // Strošek dostave
+  // --- Koordinate ---
+  latitude        Float?
+  longitude       Float?
+  // --- Relations ---
+  order           Order?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// ZAPOSLENI, FUNKCIJE IN URE (Toast Labor API)
 // ============================================
 
 model Employee {
@@ -163,21 +487,88 @@ model Employee {
   role      String   @default("staff")
   status    String   @default("active")
   hireDate  DateTime @default(now())
+  // --- Toast: PIN za prijavo v POS ---
+  pin       String   @default("") // 4-mestni PIN za hitro prijavo
+  // --- Relations ---
   shifts    Shift[]
+  jobs      EmployeeJob[]
+  timeEntries TimeEntry[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Job {
+  id          String   @id @default(cuid())
+  name        String   // "Natakar", "Kuhar", "Barman", "Vodja izmene", "Skladnik"
+  code        String   @default("") // Kratka koda
+  basePayRate Float    @default(0) // Osnovna urna postavka
+  overtimeRate Float   @default(0) // Osnovna + 50% za presežek
+  // --- Dovoljenja (JSON) ---
+  permissions String   @default("[]") // ["take_orders", "void_items", "apply_discounts", "manage_cash", "admin"]
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  // --- Relations ---
+  employees   EmployeeJob[]
+  shifts      Shift[]
+  timeEntries TimeEntry[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model EmployeeJob {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  jobId      String
+  job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  payRate    Float    @default(0) // Override osnovne plače za tega zaposlenega
+  isPrimary  Boolean  @default(false) // Primarna funkcija
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([employeeId, jobId])
 }
 
 model Shift {
   id         String   @id @default(cuid())
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  jobId      String?
+  job        Job?     @relation(fields: [jobId], references: [id])
   date       DateTime
   startTime  String   @default("09:00")
   endTime    String   @default("17:00")
-  status     String   @default("scheduled")
+  status     String   @default("scheduled") // scheduled, in_progress, completed, absent
+  // --- Toast: Break Types ---
+  breakMinutes Int    @default(30) // Skupaj minut odmora
+  notes      String   @default("")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+model TimeEntry {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  jobId       String?
+  job         Job?     @relation(fields: [jobId], references: [id])
+  // --- Clock In/Out ---
+  clockIn     DateTime
+  clockOut    DateTime?
+  // --- Odmor ---
+  breakStart  DateTime?
+  breakEnd    DateTime?
+  breakMinutes Int     @default(0) // Dejansko minut odmora
+  // --- Izračun ---
+  totalMinutes Int     @default(0) // Skupaj minut (brez odmora)
+  payRate     Float    @default(0) // Urna postavka za ta vnos
+  totalPay    Float    @default(0) // totalMinutes / 60 * payRate
+  // --- Tip ---
+  type        String   @default("regular") // regular, overtime, holiday, sick, vacation
+  status      String   @default("active") // active, approved, disputed
+  notes       String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 // ============================================
@@ -197,11 +588,13 @@ model CashRegisterShift {
   cashSales         Float    @default(0)       // Prodaja v gotovini
   cardSales         Float    @default(0)       // Kartična prodaja
   mobileSales       Float    @default(0)       // Mobilna prodaja
+  alternateSales    Float    @default(0)       // Alternativna plačila (boni, vavčerji)
   splitPayments     Float    @default(0)       // Deljena plačila
   totalSales        Float    @default(0)       // Skupna prodaja
   totalOrders       Int      @default(0)       // Število naročil
   totalDiscounts    Float    @default(0)       // Skupni popusti
   totalTips         Float    @default(0)       // Skupne napitnine
+  totalVoided       Float    @default(0)       // Skupaj poničenih zneskov
   cashDifference    Float    @default(0)       // Razlika (dejansko - pričakovano)
   notes             String   @default("")      // Opombe ob zaključku
   createdAt         DateTime @default(now())
@@ -211,8 +604,8 @@ model CashRegisterShift {
 model InventoryItem {
   id              String    @id @default(cuid())
   name            String
-  description     String    @default("")           // Opis artikla (npr. "Goveji patty za burgerje, 150g")
-  image           String    @default("")           // Pot do slike (npr. "/inventory-images/govy-patty.png")
+  description     String    @default("")           // Opis artikla
+  image           String    @default("")           // Pot do slike
   unit            String    @default("pcs")       // Enota zaloge: steklenica, keg, kos, L, kg
   quantity        Float     @default(0)            // Količina na zalogi (v enotah)
   minQuantity     Float     @default(10)           // Minimalna količina za opozorilo
@@ -221,9 +614,9 @@ model InventoryItem {
   category        String    @default("general")    // Kategorija zaloge
   expiryDate      DateTime?
   // --- NORMATIVI (standardizirano odmerjanje) ---
-  servingsPerUnit Float     @default(1)            // Število servisov iz ene enote zaloge (npr. 7 kozarcev iz 0.75L steklenice)
-  servingSize     String    @default("")           // Velikost servisa (npr. "0.10L", "0.03L", "0.50L")
-  costPerServing  Float     @default(0)            // Strošek na servis (costPerUnit / servingsPerUnit)
+  servingsPerUnit Float     @default(1)            // Število servisov iz ene enote zaloge
+  servingSize     String    @default("")           // Velikost servisa
+  costPerServing  Float     @default(0)            // Strošek na servis
   // --- Povezava z menijem ---
   menuItemId      String?   @unique
   menuItem        MenuItem? @relation(fields: [menuItemId], references: [id])
@@ -243,17 +636,17 @@ model StockTransaction {
   id              String        @id @default(cuid())
   inventoryItemId String
   inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
-  type            String        // "procurement" (nabava), "sale" (prodaja), "write-off" (odpis), "adjustment" (popravek), "return" (vrnitev dobavitelju)
-  quantity        Float         // Količina v enotah zaloge (pozitivno za nabavo, negativno za odpis/prodajo)
-  previousQty     Float         // Količina pred transakcijo
-  newQty          Float         // Količina po transakciji
-  costPerUnit     Float         // Nabavna cena ob transakciji
-  totalCost       Float         // Skupni strošek (quantity × costPerUnit)
-  reason          String        @default("")   // Razlog (npr. "Dobava", "Kvar", "Razbitje", "Popravek inventorja")
-  note            String        @default("")   // Dodatna opomba
-  supplierDoc     String        @default("")   // Številka dobavnice/predračuna
-  employeeName    String        @default("")   // Kdo je izvedel transakcijo
-  orderId         String?                      // Povezava z naročilom (pri avtomatski razknjžbi)
+  type            String        // "procurement", "sale", "write-off", "adjustment", "return"
+  quantity        Float
+  previousQty     Float
+  newQty          Float
+  costPerUnit     Float
+  totalCost       Float
+  reason          String        @default("")
+  note            String        @default("")
+  supplierDoc     String        @default("")
+  employeeName    String        @default("")
+  orderId         String?
   createdAt       DateTime      @default(now())
 }
 
@@ -267,9 +660,9 @@ model RecipeItem {
   menuItem        MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
   inventoryItemId String
   inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
-  quantityPerServing Float     @default(0)       // Količina na porcijo v enoti zaloge (npr. 0.25kg)
-  unit            String        @default("")       // Enota (kg, L, kos, šen)
-  notes           String        @default("")       // Opombe za pripravo
+  quantityPerServing Float     @default(0)
+  unit            String        @default("")
+  notes           String        @default("")
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -286,31 +679,110 @@ model Receipt {
   orderId           String   @unique
   order             Order    @relation(fields: [orderId], references: [id])
   // --- Podatki izdajatelja ---
-  businessName      String                          // Naziv podjetja
-  businessAddress   String                          // Naslov
-  businessId        String                          // Matična številka
-  taxId             String                          // ID za DDV (SIxxxxxxxxx)
-  registerId        String   @default("BLG-001")   // Številka blagajne
+  businessName      String
+  businessAddress   String
+  businessId        String
+  taxId             String
+  registerId        String   @default("BLG-001")
   // --- Davčno potrjevanje (FURS) ---
-  zoi               String   @default("")          // Zaščitni označitelj izdajanja
-  eor               String   @default("")          // Elektronski zapis o računu
-  fiscalVerified    Boolean  @default(false)        // Ali je račun davčno overjen
-  verificationDate  DateTime?                      // Datum in ura overitve
+  zoi               String   @default("")
+  eor               String   @default("")
+  fiscalVerified    Boolean  @default(false)
+  verificationDate  DateTime?
   // --- Vsebina računa ---
-  subtotal          Float                          // Vmesna vsota brez DDV
-  vatBreakdown      String   @default("{}")        // JSON: {"22": {base:100, vat:22}, "9.5": {base:50, vat:4.75}}
-  totalVat          Float                          // Skupni DDV
+  subtotal          Float
+  vatBreakdown      String   @default("{}")
+  totalVat          Float
   discount          Float    @default(0)
-  total             Float                          // Skupaj z DDV
+  total             Float
   tip               Float    @default(0)
   totalWithTip      Float    @default(0)
-  paymentMethod     String                          // gotovina, kartica, mobilno
+  paymentMethod     String
   // --- Meta ---
-  isCopy            Boolean  @default(false)        // Prirejena kopija
-  isStorno          Boolean  @default(false)        // Storno račun
-  stornoOf          String   @default("")          // ID originalnega računa
-  printedAt         DateTime?                      // Kdaj natisnjen
+  isCopy            Boolean  @default(false)
+  isStorno          Boolean  @default(false)
+  stornoOf          String   @default("")
+  printedAt         DateTime?
   createdAt         DateTime @default(now())
+}
+
+// ============================================
+// ZVESTOBNI PROGRAM (Toast Loyalty)
+// ============================================
+
+model LoyaltyAccount {
+  id              String   @id @default(cuid())
+  // --- Stranka ---
+  customerName    String   @default("")
+  customerPhone   String   @default("")
+  customerEmail   String   @default("")
+  // --- Točke ---
+  pointsBalance   Int      @default(0)
+  lifetimePoints  Int      @default(0)
+  // --- Nivoji ---
+  tier            String   @default("bronze") // bronze, silver, gold, platinum
+  // --- Status ---
+  isActive        Boolean  @default(true)
+  // --- Relations ---
+  transactions    LoyaltyTransaction[]
+  payments        Payment[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model LoyaltyTransaction {
+  id              String         @id @default(cuid())
+  loyaltyAccountId String
+  loyaltyAccount  LoyaltyAccount @relation(fields: [loyaltyAccountId], references: [id], onDelete: Cascade)
+  // --- Transakcija ---
+  type            String         // earn, redeem, adjust, expire
+  points          Int            // Pozitivno za earn, negativno za redeem
+  reason          String         @default("") // "Nakup", "Rođendanski bonus", "Potečene točke"
+  // --- Povezava z naročilom ---
+  orderId         String?
+  checkId         String?
+  // --- Vrednost ---
+  monetaryValue   Float          @default(0) // Vrednost v EUR, če se točke unovčijo
+  createdAt       DateTime       @default(now())
+}
+
+// ============================================
+// DARILNE KARTICE (Toast Gift Cards)
+// ============================================
+
+model GiftCard {
+  id              String   @id @default(cuid())
+  cardNumber      String   @unique               // Številka kartice
+  // --- Vrednost ---
+  balance         Float    @default(0)            // Trenutno stanje
+  initialBalance  Float    @default(0)            // Začetna vrednost
+  // --- Status ---
+  status          String   @default("active")     // active, depleted, expired, suspended
+  // --- Lastnik ---
+  ownerName       String   @default("")
+  // --- Datumi ---
+  purchasedAt     DateTime @default(now())
+  expiresAt       DateTime?
+  // --- Relations ---
+  transactions    GiftCardTransaction[]
+  payments        Payment[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model GiftCardTransaction {
+  id              String    @id @default(cuid())
+  giftCardId      String
+  giftCard        GiftCard  @relation(fields: [giftCardId], references: [id], onDelete: Cascade)
+  // --- Transakcija ---
+  type            String    // load, redeem, adjust, transfer
+  amount          Float     // Pozitivno za load, negativno za redeem
+  balanceAfter    Float     // Stanje po transakciji
+  // --- Povezava ---
+  orderId         String?
+  checkId         String?
+  note            String    @default("")
+  createdAt       DateTime  @default(now())
 }
 
 // ============================================
@@ -330,14 +802,18 @@ model RestaurantSettings {
   taxId             String   @default("")           // ID za DDV (SIxxxxxxxxx)
   registerNumber    String   @default("BLG-001")    // Številka blagajne
   // --- FURS certifikat ---
-  fursCertPath      String   @default("")           // Pot do FURS digitalnega certifikata
-  fursCertPassword  String   @default("")           // Geslo certifikata
-  fursEnvironment   String   @default("test")       // test | production
+  fursCertPath      String   @default("")
+  fursCertPassword  String   @default("")
+  fursEnvironment   String   @default("test")
   // --- DDV nastavitve ---
-  defaultVatRate    Float    @default(22.0)          // Privzeta DDV stopnja
-  reducedVatRate    Float    @default(9.5)           // Znižana DDV stopnja
+  defaultVatRate    Float    @default(22.0)
+  reducedVatRate    Float    @default(9.5)
+  // --- Loyalty nastavitve ---
+  loyaltyEnabled    Boolean  @default(false)
+  loyaltyPointsPerEuro Int   @default(1)            // Točk na porabljen EUR
+  loyaltyPointsValue Float  @default(0.01)          // Vrednost ene točke v EUR
   // --- Ostalo ---
-  receiptFooter     String   @default("")           // Noga računa (sporočilo)
+  receiptFooter     String   @default("")
   currency          String   @default("EUR")
   locale            String   @default("sl-SI")
   isActive          Boolean  @default(true)
@@ -353,12 +829,29 @@ model HaccpEntry {
   id              String   @id @default(cuid())
   date            DateTime @default(now())
   category        String                        // temperature, cleaning, delivery, cooling, training
-  title           String                        // Naslov vnosa
-  description     String   @default("")         // Opis
-  value           String   @default("")         // Meritev (npr. "4.2°C")
+  title           String
+  description     String   @default("")
+  value           String   @default("")
   status          String   @default("ok")        // ok, warning, critical
-  correctiveAction String  @default("")         // Korektivni ukrep
-  employeeName    String   @default("")         // Kdo je zabeležil
+  correctiveAction String  @default("")
+  employeeName    String   @default("")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+}
+
+// ============================================
+// WEBHOOKS / INTEGRACIJE
+// ============================================
+
+model Webhook {
+  id          String   @id @default(cuid())
+  name        String   // "Poslano v kuhinjo", "Plačilo prejeto", "Zaloga nizka"
+  url         String   // Endpoint URL
+  events      String   @default("[]") // JSON: ["order.created", "order.paid", "stock.low", "shift.started"]
+  isActive    Boolean  @default(true)
+  secret      String   @default("") // Za podpisovanje payloada
+  lastTriggered DateTime?
+  failureCount Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

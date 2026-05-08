@@ -20,6 +20,8 @@ import {
   ShieldCheck,
   BookOpen,
   Settings,
+  SlidersHorizontal,
+  Truck,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore } from 'react'
@@ -47,6 +49,8 @@ const navItems = [
   { id: 'haccp', label: 'HACCP', icon: ShieldCheck },
   { id: 'employees', label: 'Zaposleni', icon: Users },
   { id: 'reports', label: 'Poročila', icon: BarChart3 },
+  { id: 'configuration', label: 'Konfiguracija', icon: SlidersHorizontal },
+  { id: 'delivery', label: 'Dostava', icon: Truck },
   { id: 'settings', label: 'Nastavitve', icon: Settings },
 ]
 
