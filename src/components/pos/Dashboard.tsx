@@ -179,7 +179,7 @@ export function Dashboard() {
       {data?.lowStockItems?.length > 0 && (
         <Card className="border-red-200 dark:border-red-900/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg text-red-600">⚠️ Low Stock Alerts</CardTitle>
+            <CardTitle className="text-lg text-red-600">Low Stock Alerts</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
@@ -192,6 +192,65 @@ export function Dashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* Kitchen Display */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            Kitchen Display
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {(data?.recentOrders || [])
+              .filter((o: { status: string }) => o.status === 'pending' || o.status === 'in-progress')
+              .map((order: {
+                id: string
+                orderNumber: number
+                status: string
+                type: string
+                table?: { number: number }
+                orderItems: { id: string; menuItem: { name: string }; quantity: number; status: string }[]
+                createdAt: string
+              }) => (
+                <div
+                  key={order.id}
+                  className={`p-3 rounded-lg border-2 ${
+                    order.status === 'pending'
+                      ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 dark:border-yellow-800'
+                      : 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-800'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-sm">#{order.orderNumber}</span>
+                    <Badge variant="outline" className={statusColors[order.status]}>
+                      {order.status}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground mb-2">
+                    {order.type === 'dine-in' && order.table ? `Table ${order.table.number}` : order.type}
+                    {' · '}
+                    {format(new Date(order.createdAt), 'HH:mm')}
+                  </div>
+                  <div className="space-y-1">
+                    {order.orderItems.map((oi) => (
+                      <div key={oi.id} className="flex items-center gap-2 text-sm">
+                        <span className={`h-1.5 w-1.5 rounded-full ${oi.status === 'ready' ? 'bg-emerald-500' : oi.status === 'preparing' ? 'bg-blue-500' : 'bg-yellow-500'}`} />
+                        <span>{oi.quantity}x {oi.menuItem.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            {(data?.recentOrders || []).filter((o: { status: string }) => o.status === 'pending' || o.status === 'in-progress').length === 0 && (
+              <div className="col-span-full text-center py-6 text-muted-foreground text-sm">
+                No active orders in the kitchen
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

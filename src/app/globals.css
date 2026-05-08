@@ -135,3 +135,29 @@
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: oklch(0.7 0.02 55 / 50%);
 }
+
+/* Print styles */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}
+
+/* Pulse animation for active indicators */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.animate-pulse {
+  animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}

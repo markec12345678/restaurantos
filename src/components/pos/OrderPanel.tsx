@@ -13,8 +13,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Plus, Minus, Trash2, ShoppingBag, CreditCard, Banknote, Smartphone, StickyNote, X } from 'lucide-react'
-import { useState } from 'react'
+import { Plus, Minus, Trash2, ShoppingBag, CreditCard, Banknote, Smartphone, StickyNote, X, Printer, Eye, Clock } from 'lucide-react'
+import { useState, useRef } from 'react'
 import { format } from 'date-fns'
 
 export function OrderPanel() {
@@ -32,6 +32,9 @@ export function OrderPanel() {
   const [selectedOrder, setSelectedOrder] = useState<Record<string, unknown> | null>(null)
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState('')
+  const [detailOrder, setDetailOrder] = useState<Record<string, unknown> | null>(null)
+  const [receiptOrder, setReceiptOrder] = useState<Record<string, unknown> | null>(null)
+  const receiptRef = useRef<HTMLDivElement>(null)
 
   const { data: categories } = useQuery({
     queryKey: ['categories'],
@@ -482,11 +485,21 @@ export function OrderPanel() {
 
                       <div className="flex items-center justify-between">
                         <span className="font-bold">${order.total.toFixed(2)}</span>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1 flex-wrap justify-end">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs"
+                            onClick={() => setDetailOrder(order)}
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            View
+                          </Button>
                           {order.status !== 'completed' && order.status !== 'cancelled' && nextStatus[order.status] && (
                             <Button
                               size="sm"
                               variant="default"
+                              className="h-7 text-xs"
                               onClick={() => updateOrderStatusMutation.mutate({ id: order.id, status: nextStatus[order.status] })}
                               disabled={updateOrderStatusMutation.isPending}
                             >
@@ -497,6 +510,7 @@ export function OrderPanel() {
                             <Button
                               size="sm"
                               variant="outline"
+                              className="h-7 text-xs"
                               onClick={() => {
                                 setSelectedOrder(order)
                                 setPaymentDialogOpen(true)
@@ -504,6 +518,17 @@ export function OrderPanel() {
                             >
                               <CreditCard className="h-3 w-3 mr-1" />
                               Pay
+                            </Button>
+                          )}
+                          {order.paymentStatus === 'paid' && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs"
+                              onClick={() => setReceiptOrder(order)}
+                            >
+                              <Printer className="h-3 w-3 mr-1" />
+                              Receipt
                             </Button>
                           )}
                         </div>
@@ -568,6 +593,214 @@ export function OrderPanel() {
                   }}
                 >
                   Confirm Payment
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Order Detail Dialog */}
+          <Dialog open={!!detailOrder} onOpenChange={(open) => !open && setDetailOrder(null)}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  Order #{(detailOrder?.orderNumber as number) || ''}
+                  <Badge variant="outline" className={statusColors[(detailOrder?.status as string) || ''] || ''}>
+                    {String(detailOrder?.status || '')}
+                  </Badge>
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                {/* Order Info */}
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Customer</p>
+                    <p className="font-medium">{String(detailOrder?.customerName || 'Walk-in')}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Type</p>
+                    <p className="font-medium capitalize">{String(detailOrder?.type || '')}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Table</p>
+                    <p className="font-medium">{detailOrder?.table ? `Table ${(detailOrder.table as { number: number }).number}` : 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Payment</p>
+                    <div className="flex items-center gap-1">
+                      <Badge variant="outline" className={detailOrder?.paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-yellow-100 text-yellow-800'}>
+                        {String(detailOrder?.paymentStatus || 'unpaid')}
+                      </Badge>
+                      {detailOrder?.paymentMethod && <span className="text-xs text-muted-foreground uppercase">{String(detailOrder.paymentMethod)}</span>}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Time</p>
+                    <p className="font-medium">{detailOrder?.createdAt ? format(new Date(detailOrder.createdAt as string), 'MMM dd, yyyy HH:mm') : 'N/A'}</p>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Items */}
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold">Items</p>
+                  {((detailOrder?.orderItems as { id: string; menuItem: { name: string }; quantity: number; price: number; notes: string; status: string }[]) || []).map((oi) => (
+                    <div key={oi.id} className="flex items-start justify-between text-sm py-1">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{oi.quantity}x {oi.menuItem.name}</span>
+                          <Badge variant="outline" className="text-[10px] h-4 capitalize">{oi.status}</Badge>
+                        </div>
+                        {oi.notes && <p className="text-xs text-muted-foreground italic mt-0.5">{oi.notes}</p>}
+                      </div>
+                      <span className="font-medium">${(oi.price * oi.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <Separator />
+
+                {/* Totals */}
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span>${((detailOrder?.subtotal as number) || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Tax</span>
+                    <span>${((detailOrder?.tax as number) || 0).toFixed(2)}</span>
+                  </div>
+                  {Number(detailOrder?.discount || 0) > 0 && (
+                    <div className="flex justify-between text-emerald-600">
+                      <span>Discount</span>
+                      <span>-${((detailOrder?.discount as number) || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold text-base pt-1">
+                    <span>Total</span>
+                    <span>${((detailOrder?.total as number) || 0).toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {detailOrder?.notes && (
+                  <div className="text-sm bg-muted/50 p-3 rounded-lg">
+                    <p className="text-muted-foreground text-xs mb-1">Order Notes</p>
+                    <p>{String(detailOrder.notes)}</p>
+                  </div>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          {/* Receipt Dialog */}
+          <Dialog open={!!receiptOrder} onOpenChange={(open) => !open && setReceiptOrder(null)}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Printer className="h-4 w-4" />
+                  Receipt
+                </DialogTitle>
+              </DialogHeader>
+              <div ref={receiptRef} className="bg-white text-black p-4 rounded-lg text-sm font-mono space-y-3">
+                {/* Receipt Header */}
+                <div className="text-center">
+                  <p className="font-bold text-lg">RestaurantOS</p>
+                  <p className="text-xs text-gray-500">123 Main Street, Foodville</p>
+                  <p className="text-xs text-gray-500">Tel: (555) 123-4567</p>
+                  <div className="border-b border-dashed border-gray-300 my-2" />
+                  <p className="text-xs">RECEIPT</p>
+                </div>
+
+                {/* Receipt Info */}
+                <div className="text-xs space-y-0.5">
+                  <div className="flex justify-between">
+                    <span>Order #</span>
+                    <span>{(receiptOrder?.orderNumber as number) || ''}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Date</span>
+                    <span>{receiptOrder?.createdAt ? format(new Date(receiptOrder.createdAt as string), 'MMM dd, yyyy HH:mm') : ''}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Customer</span>
+                    <span>{String(receiptOrder?.customerName || 'Walk-in')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Type</span>
+                    <span className="capitalize">{String(receiptOrder?.type || '')}</span>
+                  </div>
+                  {receiptOrder?.table && (
+                    <div className="flex justify-between">
+                      <span>Table</span>
+                      <span>{(receiptOrder.table as { number: number }).number}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-b border-dashed border-gray-300" />
+
+                {/* Items */}
+                <div className="space-y-1 text-xs">
+                  {((receiptOrder?.orderItems as { id: string; menuItem: { name: string }; quantity: number; price: number }[]) || []).map((oi) => (
+                    <div key={oi.id} className="flex justify-between">
+                      <span>{oi.quantity}x {oi.menuItem.name}</span>
+                      <span>${(oi.price * oi.quantity).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-b border-dashed border-gray-300" />
+
+                {/* Totals */}
+                <div className="text-xs space-y-0.5">
+                  <div className="flex justify-between">
+                    <span>Subtotal:</span>
+                    <span>${((receiptOrder?.subtotal as number) || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Tax:</span>
+                    <span>${((receiptOrder?.tax as number) || 0).toFixed(2)}</span>
+                  </div>
+                  {Number(receiptOrder?.discount || 0) > 0 && (
+                    <div className="flex justify-between">
+                      <span>Discount:</span>
+                      <span>-${((receiptOrder?.discount as number) || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold text-sm pt-1">
+                    <span>TOTAL:</span>
+                    <span>${((receiptOrder?.total as number) || 0).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Payment:</span>
+                    <span className="uppercase">{String(receiptOrder?.paymentMethod || 'N/A')}</span>
+                  </div>
+                </div>
+
+                <div className="border-b border-dashed border-gray-300" />
+
+                <div className="text-center text-xs text-gray-500">
+                  <p>Thank you for dining with us!</p>
+                  <p>We hope to see you again soon.</p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setReceiptOrder(null)}>Close</Button>
+                <Button onClick={() => {
+                  if (receiptRef.current) {
+                    const printWindow = window.open('', '_blank')
+                    if (printWindow) {
+                      printWindow.document.write('<html><head><title>Receipt</title><style>body{font-family:monospace;padding:20px;max-width:300px;margin:0 auto;}</style></head><body>')
+                      printWindow.document.write(receiptRef.current.innerHTML)
+                      printWindow.document.write('</body></html>')
+                      printWindow.document.close()
+                      printWindow.print()
+                    }
+                  }
+                  toast.success('Receipt sent to printer')
+                }}>
+                  <Printer className="h-4 w-4 mr-2" />
+                  Print
                 </Button>
               </DialogFooter>
             </DialogContent>

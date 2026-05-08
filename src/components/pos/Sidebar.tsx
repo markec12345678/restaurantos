@@ -19,7 +19,7 @@ import {
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore } from 'react'
 import { Button } from '@/components/ui/button'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 const emptySubscribe = () => () => {}
@@ -45,6 +45,20 @@ export function Sidebar() {
   const { activeModule, setActiveModule, sidebarOpen, setSidebarOpen } = usePOSStore()
   const { theme, setTheme } = useTheme()
   const mounted = useMounted()
+
+  const { data: ordersData } = useQuery({
+    queryKey: ['sidebar-orders'],
+    queryFn: async () => {
+      const res = await fetch('/api/orders?status=pending&limit=1')
+      const pending = await res.json()
+      const res2 = await fetch('/api/orders?status=in-progress&limit=1')
+      const inProgress = await res2.json()
+      return { pendingCount: pending.length, inProgressCount: inProgress.length }
+    },
+    refetchInterval: 30000,
+  })
+
+  const activeOrderCount = (ordersData?.pendingCount || 0) + (ordersData?.inProgressCount || 0)
 
   const seedMutation = useMutation({
     mutationFn: async () => {
@@ -120,6 +134,11 @@ export function Sidebar() {
               >
                 <Icon className="h-4.5 w-4.5" />
                 {item.label}
+                {item.id === 'orders' && activeOrderCount > 0 && (
+                  <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1">
+                    {activeOrderCount}
+                  </span>
+                )}
               </button>
             )
           })}
