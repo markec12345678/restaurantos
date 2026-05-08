@@ -16,6 +16,21 @@ export async function POST() {
     await db.menu.deleteMany()
     await db.table.deleteMany()
     await db.employee.deleteMany()
+    // Configuration tables (respecting foreign keys: DiningOption → ServiceCharge)
+    await db.diningOption.deleteMany()
+    await db.serviceCharge.deleteMany()
+    await db.taxRate.deleteMany()
+    await db.revenueCenter.deleteMany()
+    await db.salesCategory.deleteMany()
+    await db.priceGroup.deleteMany()
+    await db.prepStation.deleteMany()
+    await db.voidReason.deleteMany()
+    await db.noSaleReason.deleteMany()
+    await db.alternatePaymentType.deleteMany()
+    await db.discount.deleteMany()
+    await db.printer.deleteMany()
+    await db.webhook.deleteMany()
+    await db.job.deleteMany()
 
     // ============================================
     // MENIJI (Menu - top level)
@@ -596,7 +611,98 @@ export async function POST() {
       }
     }
 
-    return NextResponse.json({ success: true, message: 'Podatki so bili uspešno naloženi s slovensko ponudbo in vinsko kartico' })
+    // ============================================
+    // KONFIGURACIJSKI PODATKI (Toast POS)
+    // ============================================
+    // DDV stopnje
+    await Promise.all([
+      db.taxRate.create({ data: { name: 'DDV 22%', rate: 22.0, code: 'S', isActive: true } }),
+      db.taxRate.create({ data: { name: 'DDV 9.5%', rate: 9.5, code: 'R', isActive: true } }),
+      db.taxRate.create({ data: { name: 'DDV 0%', rate: 0.0, code: 'Z', isActive: true } }),
+    ])
+    // Service charges (must be before DiningOptions due to FK)
+    const terraceServiceCharge = await db.serviceCharge.create({ data: { name: 'Postrežba na terasi', type: 'percentage', amount: 10, isAutoApply: false } })
+    // Dining options
+    await Promise.all([
+      db.diningOption.create({ data: { name: 'Na mestu', type: 'dine-in', prepTimeMinutes: 15, linkedServiceChargeId: null } }),
+      db.diningOption.create({ data: { name: 'Za s seboj', type: 'takeout', prepTimeMinutes: 10, linkedServiceChargeId: null } }),
+      db.diningOption.create({ data: { name: 'Dostava', type: 'delivery', prepTimeMinutes: 30, linkedServiceChargeId: terraceServiceCharge.id } }),
+    ])
+    // Revenue centers
+    await Promise.all([
+      db.revenueCenter.create({ data: { name: 'Glavna dvorana', code: 'MAIN', isActive: true } }),
+      db.revenueCenter.create({ data: { name: 'Terasa', code: 'TERRACE', isActive: true } }),
+      db.revenueCenter.create({ data: { name: 'Bar', code: 'BAR', isActive: true } }),
+      db.revenueCenter.create({ data: { name: 'Dostava', code: 'DELIVERY', isActive: true } }),
+    ])
+    // Sales categories
+    await Promise.all([
+      db.salesCategory.create({ data: { name: 'Hrana', code: 'FOOD', isActive: true } }),
+      db.salesCategory.create({ data: { name: 'Pijača', code: 'DRINKS', isActive: true } }),
+      db.salesCategory.create({ data: { name: 'Alkoholne pijače', code: 'ALCOHOL', isActive: true } }),
+      db.salesCategory.create({ data: { name: 'Sladice', code: 'DESSERTS', isActive: true } }),
+      db.salesCategory.create({ data: { name: 'Prigrizki', code: 'SNACKS', isActive: true } }),
+    ])
+    // Price groups
+    await Promise.all([
+      db.priceGroup.create({ data: { name: 'Redna cena', description: 'Standardni cenik', isActive: true } }),
+      db.priceGroup.create({ data: { name: 'Kosilo menu', description: 'Dnevno kosilo 11-14h', isActive: true } }),
+      db.priceGroup.create({ data: { name: 'Happy Hour', description: 'Popoldanski popust 15-17h', isActive: true } }),
+      db.priceGroup.create({ data: { name: 'Catering', description: 'Cenik za catering', isActive: false } }),
+    ])
+    // Prep stations
+    await Promise.all([
+      db.prepStation.create({ data: { name: 'Vroča kuhinja', type: 'kitchen', avgPrepTime: 15 } }),
+      db.prepStation.create({ data: { name: 'Hladna kuhinja', type: 'cold', avgPrepTime: 5 } }),
+      db.prepStation.create({ data: { name: 'Bar', type: 'bar', avgPrepTime: 3 } }),
+      db.prepStation.create({ data: { name: 'Žar', type: 'grill', avgPrepTime: 12 } }),
+      db.prepStation.create({ data: { name: 'Slaščičarna', type: 'pastry', avgPrepTime: 8 } }),
+    ])
+    // Void reasons
+    await Promise.all([
+      db.voidReason.create({ data: { name: 'Naročilo po pomoti', isActive: true } }),
+      db.voidReason.create({ data: { name: 'Nezadovoljstvo stranke', isActive: true } }),
+      db.voidReason.create({ data: { name: 'Napaka v kuhinji', isActive: true } }),
+      db.voidReason.create({ data: { name: 'Alergija', isActive: true } }),
+      db.voidReason.create({ data: { name: 'Menjava artikla', isActive: true } }),
+    ])
+    // No-sale reasons
+    await Promise.all([
+      db.noSaleReason.create({ data: { name: 'Odprt fižek', isActive: true } }),
+      db.noSaleReason.create({ data: { name: 'Menjava', isActive: true } }),
+      db.noSaleReason.create({ data: { name: 'Preverjanje', isActive: true } }),
+    ])
+    // Alternate payment types
+    await Promise.all([
+      db.alternatePaymentType.create({ data: { name: 'Boni', code: 'BON', type: 'voucher' } }),
+      db.alternatePaymentType.create({ data: { name: 'Kupon', code: 'COUPON', type: 'coupon' } }),
+      db.alternatePaymentType.create({ data: { name: 'Studentski bon', code: 'STUDENT', type: 'voucher' } }),
+      db.alternatePaymentType.create({ data: { name: 'Malica', code: 'MALICA', type: 'voucher' } }),
+    ])
+    // Discounts
+    await Promise.all([
+      db.discount.create({ data: { name: 'Zgodnja ptica', type: 'percentage', amount: 10, appliesTo: 'all', triggerType: 'manual', isActive: true } }),
+      db.discount.create({ data: { name: '10% na celotno naročilo', type: 'percentage', amount: 10, appliesTo: 'order', triggerType: 'manual', isActive: true } }),
+      db.discount.create({ data: { name: '5€ popust na pijačo', type: 'fixed', amount: 5, appliesTo: 'categories', triggerType: 'manual', isActive: true } }),
+    ])
+    // Printers
+    await Promise.all([
+      db.printer.create({ data: { name: 'Kuhinja', type: 'thermal', location: 'Kuhinja', ipAddress: '192.168.1.100' } }),
+      db.printer.create({ data: { name: 'Bar', type: 'thermal', location: 'Bar', ipAddress: '192.168.1.101' } }),
+      db.printer.create({ data: { name: 'Blagajna', type: 'receipt', location: 'Blagajna', ipAddress: '192.168.1.102' } }),
+    ])
+    // Webhooks
+    await db.webhook.create({ data: { name: 'Test webhook', url: 'https://hooks.example.com/pos', events: 'order.created,order.completed,payment.received', isActive: false, secret: 'whsec_test123' } })
+    // Jobs
+    await Promise.all([
+      db.job.create({ data: { name: 'Natakar', permissions: JSON.stringify(['orders','payments','tables']), defaultPayRate: 9.50 } }),
+      db.job.create({ data: { name: 'Kuhar', permissions: JSON.stringify(['kitchen','inventory']), defaultPayRate: 10.50 } }),
+      db.job.create({ data: { name: 'Barman', permissions: JSON.stringify(['orders','kitchen']), defaultPayRate: 9.80 } }),
+      db.job.create({ data: { name: 'Vodja smene', permissions: JSON.stringify(['orders','payments','kitchen','inventory','employees','reports']), defaultPayRate: 13.00 } }),
+      db.job.create({ data: { name: 'Upravljalec', permissions: JSON.stringify(['all']), defaultPayRate: 16.00 } }),
+    ])
+
+    return NextResponse.json({ success: true, message: 'Podatki so bili uspešno naloženi s slovensko ponudbo, vinsko kartico in konfiguracijo' })
   } catch (error) {
     console.error('Seed error:', error)
     return NextResponse.json({ error: 'Napaka pri nalaganju podatkov: ' + String(error) }, { status: 500 })

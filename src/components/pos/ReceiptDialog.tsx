@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator'
 import { Printer, Copy, CheckCircle2, AlertTriangle, CreditCard, Banknote, Smartphone, Eye, Shield } from 'lucide-react'
 import { format } from 'date-fns'
 import { useState } from 'react'
+import { toast } from 'sonner'
 
 // ============================================
 // TIPI (ZDDV-1 skladen račun)

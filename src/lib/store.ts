@@ -50,6 +50,15 @@ interface POSStore {
   setEditingOrderId: (orderId: string | null) => void
   editingOrderNumber: number | null
   setEditingOrderNumber: (num: number | null) => void
+  // Default tax rate (fallback, ko artikel nima določene stopnje)
+  taxRate: number
+  setTaxRate: (rate: number) => void
+  // Selected discount ID from configuration
+  appliedDiscountId: string | null
+  setAppliedDiscountId: (id: string | null) => void
+  // Selected dining option
+  diningOptionId: string | null
+  setDiningOptionId: (id: string | null) => void
 }
 
 function generateCartKey(itemId: string, modifiers: SelectedModifier[]): string {
@@ -151,4 +160,10 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   setEditingOrderId: (orderId) => set({ editingOrderId: orderId }),
   editingOrderNumber: null,
   setEditingOrderNumber: (num) => set({ editingOrderNumber: num }),
+  taxRate: 0.22,
+  setTaxRate: (rate) => set({ taxRate: rate }),
+  appliedDiscountId: null,
+  setAppliedDiscountId: (id) => set({ appliedDiscountId: id }),
+  diningOptionId: null,
+  setDiningOptionId: (id) => set({ diningOptionId: id }),
 }))

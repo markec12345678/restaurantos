@@ -63,10 +63,12 @@ interface MenuType {
 export function OrderPanel() {
   const {
     cart, addToCart, removeFromCart, updateCartQuantity, updateCartNotes, clearCart,
-    cartTotal, orderType, setOrderType, selectedTable, setSelectedTable,
+    cartTotal, cartTaxTotal, cartVatBreakdown,
+    orderType, setOrderType, selectedTable, setSelectedTable,
     discount, setDiscount, taxRate,
     activeMenuId, setActiveMenuId,
     editingOrderId, setEditingOrderId, editingOrderNumber, setEditingOrderNumber,
+    appliedDiscountId, setAppliedDiscountId, diningOptionId, setDiningOptionId,
   } = usePOSStore()
   const queryClient = useQueryClient()
   const [customerName, setCustomerName] = useState('')
@@ -257,8 +259,9 @@ export function OrderPanel() {
   }, [menuItems, resolvedMenuId, activeCategory, activeSuperGroup, superGroups, itemSearch])
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  const tax = subtotal * taxRate
-  const total = subtotal + tax - discount
+  const vatBreakdown = cartVatBreakdown()
+  const totalTax = cartTaxTotal()
+  const total = subtotal + totalTax - discount
   const cartItemCount = cart.reduce((s, i) => s + i.quantity, 0)
 
   // ============================================
@@ -696,12 +699,19 @@ export function OrderPanel() {
                 {/* Totals */}
                 <div className="px-3 py-2 space-y-0.5 text-xs">
                   <div className="flex justify-between text-muted-foreground">
-                    <span>Vmesna vsota</span>
+                    <span>Vmesna vsota (brez DDV)</span>
                     <span>€{subtotal.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Davek (10%)</span>
-                    <span>€{tax.toFixed(2)}</span>
+                  {/* Multi-DDV prikaz po stopnjah */}
+                  {Object.entries(vatBreakdown).map(([rate, data]) => (
+                    <div key={rate} className="flex justify-between text-muted-foreground">
+                      <span>DDV {rate}%</span>
+                      <span>€{data.vat.toFixed(2)} <span className="text-[9px] opacity-60">(osn. €{data.base.toFixed(2)})</span></span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-muted-foreground font-medium">
+                    <span>Skupaj DDV</span>
+                    <span>€{totalTax.toFixed(2)}</span>
                   </div>
                   {discount > 0 && (
                     <div className="flex justify-between text-emerald-600">
@@ -710,7 +720,7 @@ export function OrderPanel() {
                     </div>
                   )}
                   <div className="flex justify-between font-bold text-base pt-1">
-                    <span>Skupaj</span>
+                    <span>Skupaj z DDV</span>
                     <span>€{Math.max(0, total).toFixed(2)}</span>
                   </div>
                 </div>

@@ -15,7 +15,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // Pridobi obstoječe naročilo
     const order = await db.order.findUnique({
       where: { id },
-      include: { orderItems: true, table: true },
+      include: { orderItems: { include: { menuItem: true } }, table: true },
     })
 
     if (!order) {
@@ -30,6 +30,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const newItems = await db.$transaction(async (tx) => {
       const created = []
       for (const item of items) {
+        // Pridobi artikel za DDV stopnjo
+        const menuItem = await tx.menuItem.findUnique({ where: { id: item.menuItemId } })
+        const vatRate = menuItem?.vatRate ?? 22.0
+        
         const orderItem = await tx.orderItem.create({
           data: {
             orderId: id,
@@ -39,16 +43,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             notes: item.notes || '',
             modifiersJson: item.modifiersJson || '[]',
             status: 'pending',
+            vatRate,
           },
           include: { menuItem: true },
         })
         created.push(orderItem)
       }
 
-      // Preračunaj skupne zneske
+      // Preračunaj skupne zneske s per-item DDV
       const allItems = [...order.orderItems, ...created]
       const subtotal = allItems.reduce((sum, oi) => sum + oi.price * oi.quantity, 0)
-      const tax = subtotal * 0.22 // 22% DDV Slovenija
+      const tax = allItems.reduce((sum, oi) => {
+        const rate = oi.vatRate ?? 22.0
+        return sum + oi.price * oi.quantity * (rate / 100)
+      }, 0)
       const total = subtotal + tax - order.discount
 
       await tx.order.update({

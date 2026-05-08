@@ -1,28 +1,20 @@
 ---
 Task ID: 1
 Agent: Main Agent
-Task: Implement all missing features for the Slovenian restaurant POS system
+Task: Implement Toast POS improvements - bug fixes, analytics, seed data
 
 Work Log:
-- Reviewed current project state: 14+ Prisma models, 22+ API routes, 13 POS components
-- Identified missing features: HACCP UI, Settings UI, Recipe Manager, FURS integration, storno, PWA
-- Created HaccpManager.tsx - full HACCP management with 5 category tabs, templates, date filtering
-- Created SettingsManager.tsx - 4 tabs (Company, Tax/DDV, FURS, Receipt), FURS connection test
-- Created RecipeManager.tsx - multi-ingredient recipes with margin analysis per menu item
-- Created FURS API (/api/furs/route.ts) - fiscal verification, ZOI generation, storno, stock deduction
-- Updated ReceiptDialog.tsx - added FURS verification button, storno button, auto-verify on print
-- Updated Sidebar.tsx - added Recepti (BookOpen), Nastavitve (Settings) nav items
-- Updated page.tsx - registered RecipeManager, SettingsManager modules
-- Updated layout.tsx - PWA manifest, Slovenian lang, apple-web-app meta
-- Created public/manifest.json - PWA manifest for Android/iOS tablet support
-- Build successful - all 38+ routes compile without errors
+- Fixed Store.ts: Added missing `taxRate`, `appliedDiscountId`, `diningOptionId` fields with defaults
+- Fixed OrderPanel: Replaced hardcoded "Davek (10%)" with multi-DDV breakdown display showing each VAT rate (22%, 9.5%, 0%) separately
+- Fixed ReceiptDialog: Added missing `import { toast } from 'sonner'`
+- Fixed Add-items API: Replaced flat 22% tax calculation with per-item VAT rate from menu items
+- Enhanced Dashboard API: Added 8 new analytics endpoints (category breakdown, hourly revenue, DDV breakdown, payment method, order type, top items, employee performance, avg wait time)
+- Enhanced Dashboard UI: Added PieChart for categories, LineChart for hourly revenue, order type breakdown, DDV breakdown by rate, top selling items, delivery quick access
+- Added configuration seed data: 3 tax rates, 3 dining options, 4 revenue centers, 5 sales categories, 4 price groups, 5 prep stations, 5 void reasons, 3 no-sale reasons, 4 alt payment types, 3 discounts, 3 printers, 1 webhook, 5 jobs with Slovenian permissions
+- Build test: PASSED
 
 Stage Summary:
-- All major missing features now implemented
-- FURS fiscal verification system with ZOI/EOR generation
-- Storno receipt functionality
-- Multi-ingredient recipe management with margin analysis
-- HACCP management with temperature, cleaning, delivery, cooling, training logs
-- Settings with FURS cert config, DDV rate management, receipt preview
-- PWA support for multi-device (Android tablet, iPad)
-- Full Slovenian UI throughout
+- All critical bugs fixed (missing taxRate in store, hardcoded 10% tax, missing toast import, flat 22% VAT)
+- Dashboard now has comprehensive analytics with 8 data dimensions
+- Configuration tables now have Slovenian default seed data (14 model types)
+- Build passes successfully
