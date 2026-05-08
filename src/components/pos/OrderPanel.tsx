@@ -749,12 +749,12 @@ export function OrderPanel() {
                     <span className="text-xs">Kartica</span>
                   </Button>
                   <Button
-                    variant={paymentMethod === 'upi' ? 'default' : 'outline'}
+                    variant={paymentMethod === 'valuto' ? 'default' : 'outline'}
                     className="flex flex-col gap-1 h-auto py-3"
-                    onClick={() => setPaymentMethod('upi')}
+                    onClick={() => setPaymentMethod('valuto')}
                   >
                     <Smartphone className="h-5 w-5" />
-                    <span className="text-xs">UPI</span>
+                    <span className="text-xs">Valuto</span>
                   </Button>
                 </div>
               </div>

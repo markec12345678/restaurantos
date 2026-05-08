@@ -41,17 +41,19 @@ export async function POST() {
     ])
 
     // Pijača kategorije
-    const [hotDrinks, coldDrinks, alcohol, cocktails] = await Promise.all([
+    const [hotDrinks, coldDrinks, beer, wine, spirits, cocktails] = await Promise.all([
       db.category.create({ data: { name: 'Vroče pijače', icon: '☕', color: '#92400e', sortOrder: 0, menuId: drinksMenu.id } }),
       db.category.create({ data: { name: 'Hladne pijače', icon: '🧊', color: '#0ea5e9', sortOrder: 1, menuId: drinksMenu.id } }),
-      db.category.create({ data: { name: 'Alkoholne pijače', icon: '🍷', color: '#7c2d12', sortOrder: 2, menuId: drinksMenu.id } }),
-      db.category.create({ data: { name: 'Koktajli', icon: '🍸', color: '#a855f7', sortOrder: 3, menuId: drinksMenu.id } }),
+      db.category.create({ data: { name: 'Pivo', icon: '🍺', color: '#d97706', sortOrder: 2, menuId: drinksMenu.id } }),
+      db.category.create({ data: { name: 'Vino', icon: '🍷', color: '#7c2d12', sortOrder: 3, menuId: drinksMenu.id } }),
+      db.category.create({ data: { name: 'Žgane pijače', icon: '🥃', color: '#6b21a8', sortOrder: 4, menuId: drinksMenu.id } }),
+      db.category.create({ data: { name: 'Koktajli', icon: '🍸', color: '#a855f7', sortOrder: 5, menuId: drinksMenu.id } }),
     ])
 
     // ============================================
     // MODIFIER SKUPINE (skupne, se delijo med artikli)
     // ============================================
-    const [cookingLevel, sideChoice, sauceChoice, cheeseChoice, milkChoice, sweetenerChoice, alcoholAdd, pizzaSize, burgerSize, drinkSize] = await Promise.all([
+    const [cookingLevel, sideChoice, sauceChoice, cheeseChoice, milkChoice, sweetenerChoice, alcoholAdd, pizzaSize, burgerSize, drinkSize, beerSize, wineSize, iceChoice] = await Promise.all([
       // Način pečenja - za zrezke
       db.modifierGroup.create({ data: { name: 'Način pečenja', required: true, minSelect: 1, maxSelect: 1, sortOrder: 0, modifiers: { create: [
         { name: 'Srednje redko', price: 0, sortOrder: 0 },
@@ -118,6 +120,22 @@ export async function POST() {
         { name: 'Srednja (3dl)', price: 1.00, sortOrder: 1 },
         { name: 'Velika (5dl)', price: 2.00, sortOrder: 2 },
       ] } } }),
+      // Velikost piva
+      db.modifierGroup.create({ data: { name: 'Velikost piva', required: true, minSelect: 1, maxSelect: 1, sortOrder: 10, modifiers: { create: [
+        { name: '0.33L', price: 0, sortOrder: 0 },
+        { name: '0.5L', price: 1.50, sortOrder: 1 },
+      ] } } }),
+      // Vrsta vina
+      db.modifierGroup.create({ data: { name: 'Vrsta vina', required: true, minSelect: 1, maxSelect: 1, sortOrder: 11, modifiers: { create: [
+        { name: 'Kozarec (1.5dl)', price: 0, sortOrder: 0 },
+        { name: 'Kozarec (2.5dl)', price: 2.00, sortOrder: 1 },
+        { name: 'Steklenica (0.75L)', price: 8.00, sortOrder: 2 },
+      ] } } }),
+      // Led za pijačo
+      db.modifierGroup.create({ data: { name: 'Led', required: false, minSelect: 0, maxSelect: 1, sortOrder: 12, modifiers: { create: [
+        { name: 'Z ledom', price: 0, sortOrder: 0 },
+        { name: 'Brez ledu', price: 0, sortOrder: 1 },
+      ] } } }),
     ])
 
     // ============================================
@@ -172,30 +190,57 @@ export async function POST() {
       { name: 'Čebulni obročki', description: 'V pivskem testu ocvrti čebulni obročki', price: 5.99, image: '/menu-images/onion-rings.png', categoryId: sides.id, sortOrder: 3, modifierGroupIds: [sauceChoice.id] },
 
       // --- VROČE PIJAČE ---
-      { name: 'Espresso', description: 'Klasičen italijanski espresso', price: 2.99, image: '/menu-images/espresso.png', categoryId: hotDrinks.id, sortOrder: 0, modifierGroupIds: [milkChoice.id, sweetenerChoice.id, alcoholAdd.id] },
-      { name: 'Cappuccino', description: 'Espresso s toplo mlečno peno', price: 3.99, image: '/menu-images/cappuccino.png', categoryId: hotDrinks.id, sortOrder: 1, modifierGroupIds: [milkChoice.id, sweetenerChoice.id, alcoholAdd.id] },
-      { name: 'Latte', description: 'Espresso z veliko mlekom in peno', price: 4.49, image: '/menu-images/latte.png', categoryId: hotDrinks.id, sortOrder: 2, modifierGroupIds: [milkChoice.id, sweetenerChoice.id, alcoholAdd.id] },
-      { name: 'Čaj', description: 'Izbor čajev po izbiri', price: 3.49, image: '/menu-images/tea.png', categoryId: hotDrinks.id, sortOrder: 3, modifierGroupIds: [sweetenerChoice.id, milkChoice.id] },
-      { name: 'Vroča čokolada', description: 'Gosta čokolada s smetano', price: 4.99, image: '/menu-images/hot-chocolate.png', categoryId: hotDrinks.id, sortOrder: 4, modifierGroupIds: [milkChoice.id, sweetenerChoice.id] },
+      { name: 'Kava', description: 'Klasičen espresso', price: 2.50, image: '/menu-images/kava-espresso.png', categoryId: hotDrinks.id, sortOrder: 0, modifierGroupIds: [milkChoice.id, sweetenerChoice.id, alcoholAdd.id] },
+      { name: 'Kava z mlekom', description: 'Espresso s kapljico mleka', price: 3.00, image: '/menu-images/kava-z-mlekom.png', categoryId: hotDrinks.id, sortOrder: 1, modifierGroupIds: [milkChoice.id, sweetenerChoice.id, alcoholAdd.id] },
+      { name: 'Bela kava', description: 'Espresso z veliko mlekom in peno', price: 3.50, image: '/menu-images/bela-kava.png', categoryId: hotDrinks.id, sortOrder: 2, modifierGroupIds: [milkChoice.id, sweetenerChoice.id, alcoholAdd.id] },
+      { name: 'Cappuccino', description: 'Espresso s toplo mlečno peno', price: 3.50, image: '/menu-images/cappuccino.png', categoryId: hotDrinks.id, sortOrder: 3, modifierGroupIds: [milkChoice.id, sweetenerChoice.id] },
+      { name: 'Čaj', description: 'Izbor čajev po izbiri', price: 3.00, image: '/menu-images/tea.png', categoryId: hotDrinks.id, sortOrder: 4, modifierGroupIds: [sweetenerChoice.id, milkChoice.id] },
+      { name: 'Vroča čokolada', description: 'Gosta čokolada s smetano', price: 4.00, image: '/menu-images/hot-chocolate.png', categoryId: hotDrinks.id, sortOrder: 5, modifierGroupIds: [milkChoice.id, sweetenerChoice.id] },
 
       // --- HLADNE PIJAČE ---
-      { name: 'Sveža limonada', description: 'Domača limonada', price: 4.99, image: '/menu-images/fresh-lemonade.png', categoryId: coldDrinks.id, sortOrder: 0, modifierGroupIds: [drinkSize.id] },
-      { name: 'Ledena kava', description: 'Cold brew s smetano', price: 5.49, image: '/menu-images/iced-coffee.png', categoryId: coldDrinks.id, sortOrder: 1, modifierGroupIds: [milkChoice.id, sweetenerChoice.id] },
-      { name: 'Mešana voda', description: 'San Pellegrino', price: 3.49, image: '/menu-images/sparkling-water.png', categoryId: coldDrinks.id, sortOrder: 2, modifierGroupIds: [] },
-      { name: 'Mango smoothie', description: 'Svež mango in jogurt', price: 6.99, image: '/menu-images/mango-smoothie.png', categoryId: coldDrinks.id, sortOrder: 3, modifierGroupIds: [drinkSize.id] },
-      { name: 'Sok pomaranča', description: 'Sveže stisnjen pomarančni sok', price: 4.49, image: '/menu-images/orange-juice.png', categoryId: coldDrinks.id, sortOrder: 4, modifierGroupIds: [] },
+      { name: 'Coca-Cola 0.33L', description: 'Klasična Coca-Cola', price: 3.00, image: '/menu-images/coca-cola-033.png', categoryId: coldDrinks.id, sortOrder: 0, modifierGroupIds: [iceChoice.id] },
+      { name: 'Coca-Cola 0.5L', description: 'Klasična Coca-Cola, večja steklenica', price: 3.50, image: '/menu-images/coca-cola-05.png', categoryId: coldDrinks.id, sortOrder: 1, modifierGroupIds: [iceChoice.id] },
+      { name: 'Fanta 0.33L', description: 'Pomarančni osvežilni napitek', price: 3.00, image: '/menu-images/fanta-033.png', categoryId: coldDrinks.id, sortOrder: 2, modifierGroupIds: [iceChoice.id] },
+      { name: 'Sprite 0.33L', description: 'Limonin osvežilni napitek', price: 3.00, image: '/menu-images/sprite-033.png', categoryId: coldDrinks.id, sortOrder: 3, modifierGroupIds: [iceChoice.id] },
+      { name: 'Radenska 0.5L', description: 'Radenska naravna mineralna voda', price: 2.50, image: '/menu-images/radenska-05.png', categoryId: coldDrinks.id, sortOrder: 4, modifierGroupIds: [iceChoice.id] },
+      { name: 'Sveža limonada', description: 'Domača limonada', price: 4.50, image: '/menu-images/fresh-lemonade.png', categoryId: coldDrinks.id, sortOrder: 5, modifierGroupIds: [drinkSize.id] },
+      { name: 'Ledena kava', description: 'Cold brew s smetano', price: 4.50, image: '/menu-images/iced-coffee.png', categoryId: coldDrinks.id, sortOrder: 6, modifierGroupIds: [milkChoice.id, sweetenerChoice.id, iceChoice.id] },
+      { name: 'Sok pomaranča', description: 'Sveže stisnjen pomarančni sok', price: 3.50, image: '/menu-images/orange-juice.png', categoryId: coldDrinks.id, sortOrder: 7, modifierGroupIds: [] },
+      { name: 'Jabolčni sok', description: 'Naravni jabolčni sok', price: 3.00, image: '/menu-images/apple-juice.png', categoryId: coldDrinks.id, sortOrder: 8, modifierGroupIds: [] },
 
-      // --- ALKOHOLNE PIJAČE ---
-      { name: 'Craft pivo', description: 'Lokalno IPA pivo iz toča', price: 7.99, image: '/menu-images/craft-beer.png', categoryId: alcohol.id, sortOrder: 0, modifierGroupIds: [drinkSize.id] },
-      { name: 'Hišno vino', description: 'Rdeče ali belo, kozarec', price: 9.99, image: '/menu-images/house-wine.png', categoryId: alcohol.id, sortOrder: 1, modifierGroupIds: [] },
-      { name: 'Whisky', description: 'Premium škotski whisky, 4cl', price: 12.99, image: '/menu-images/whisky.png', categoryId: alcohol.id, sortOrder: 2, modifierGroupIds: [] },
-      { name: 'Aperol Spritz', description: 'Aperol, prosecco in soda', price: 8.99, image: '/menu-images/aperol-spritz.png', categoryId: alcohol.id, sortOrder: 3, modifierGroupIds: [] },
+      // --- PIVO ---
+      { name: 'Laško Zlatorog 0.5L', description: 'Slovenski premium lagar, točeno', price: 4.50, image: '/menu-images/lasko-zlatorog-05.png', categoryId: beer.id, sortOrder: 0, modifierGroupIds: [] },
+      { name: 'Laško Zlatorog 0.33L', description: 'Slovenski premium lagar', price: 3.50, image: '/menu-images/lasko-zlatorog-033.png', categoryId: beer.id, sortOrder: 1, modifierGroupIds: [] },
+      { name: 'Laško Pivo 0.5L', description: 'Klasično Laško pivo, točeno', price: 4.00, image: '/menu-images/lasko-pivo-05.png', categoryId: beer.id, sortOrder: 2, modifierGroupIds: [] },
+      { name: 'Laško Pivo 0.33L', description: 'Klasično Laško pivo', price: 3.20, image: '/menu-images/lasko-pivo-033.png', categoryId: beer.id, sortOrder: 3, modifierGroupIds: [] },
+      { name: 'Union 0.5L', description: 'Ljubljansko Union pivo, točeno', price: 4.00, image: '/menu-images/union-pivo-05.png', categoryId: beer.id, sortOrder: 4, modifierGroupIds: [] },
+      { name: 'Union 0.33L', description: 'Ljubljansko Union pivo', price: 3.20, image: '/menu-images/union-pivo-033.png', categoryId: beer.id, sortOrder: 5, modifierGroupIds: [] },
+      { name: 'Temno pivo 0.5L', description: 'Temno pivo iz toča', price: 5.00, image: '/menu-images/temno-pivo-05.png', categoryId: beer.id, sortOrder: 6, modifierGroupIds: [] },
+      { name: 'Craft pivo', description: 'Lokalno IPA pivo iz toča', price: 5.50, image: '/menu-images/craft-beer.png', categoryId: beer.id, sortOrder: 7, modifierGroupIds: [beerSize.id] },
+
+      // --- VINO ---
+      { name: 'Hišno rdeče vino', description: 'Slovensko rdeče vino, kozarec', price: 3.50, image: '/menu-images/hisno-rdece-vino.png', categoryId: wine.id, sortOrder: 0, modifierGroupIds: [wineSize.id] },
+      { name: 'Hišno belo vino', description: 'Slovensko belo vino, kozarec', price: 3.50, image: '/menu-images/hisno-belo-vino.png', categoryId: wine.id, sortOrder: 1, modifierGroupIds: [wineSize.id] },
+      { name: 'Malvazija', description: 'Primorska malvazija, kozarec', price: 4.50, image: '/menu-images/malvazija.png', categoryId: wine.id, sortOrder: 2, modifierGroupIds: [wineSize.id] },
+      { name: 'Refošk', description: 'Primorski refošk, kozarec', price: 4.50, image: '/menu-images/refosk.png', categoryId: wine.id, sortOrder: 3, modifierGroupIds: [wineSize.id] },
+      { name: 'Modra Frankinja', description: 'Prekmurska modra frankinja, kozarec', price: 5.00, image: '/menu-images/modra-frankinja.png', categoryId: wine.id, sortOrder: 4, modifierGroupIds: [wineSize.id] },
+      { name: 'Laski Rizling', description: 'Podravski laški rizling, kozarec', price: 4.00, image: '/menu-images/laski-rizling.png', categoryId: wine.id, sortOrder: 5, modifierGroupIds: [wineSize.id] },
+
+      // --- ŽGANE PIJAČE ---
+      { name: 'Slivovka', description: 'Slovenska slivovka, 4cl', price: 3.50, image: '/menu-images/slivovka.png', categoryId: spirits.id, sortOrder: 0, modifierGroupIds: [] },
+      { name: 'Pelinkovac', description: 'Tradicionalni pelinkovec, 4cl', price: 3.00, image: '/menu-images/pelinkovac.png', categoryId: spirits.id, sortOrder: 1, modifierGroupIds: [] },
+      { name: 'Jägermeister', description: 'Zeliščni liker, 4cl', price: 4.00, image: '/menu-images/jagermeister.png', categoryId: spirits.id, sortOrder: 2, modifierGroupIds: [iceChoice.id] },
+      { name: 'Whisky', description: 'Premium škotski whisky, 4cl', price: 6.00, image: '/menu-images/whisky.png', categoryId: spirits.id, sortOrder: 3, modifierGroupIds: [iceChoice.id] },
+      { name: 'Rakija', description: 'Domača rakija, 4cl', price: 3.50, image: '/menu-images/rakija.png', categoryId: spirits.id, sortOrder: 4, modifierGroupIds: [] },
+      { name: 'Vodka', description: 'Premium vodka, 4cl', price: 4.50, image: '/menu-images/vodka.png', categoryId: spirits.id, sortOrder: 5, modifierGroupIds: [iceChoice.id] },
 
       // --- KOKTAJLI ---
-      { name: 'Mojito', description: 'Rum, meta, limeta, soda', price: 10.99, image: '/menu-images/mojito.png', categoryId: cocktails.id, sortOrder: 0, modifierGroupIds: [] },
-      { name: 'Margarita', description: 'Tekila, triple sec, limeta', price: 11.99, image: '/menu-images/margarita.png', categoryId: cocktails.id, sortOrder: 1, modifierGroupIds: [] },
-      { name: 'Old Fashioned', description: 'Bourbon, sladkor, bitter, pomaranča', price: 12.99, image: '/menu-images/old-fashioned.png', categoryId: cocktails.id, sortOrder: 2, modifierGroupIds: [] },
-      { name: 'Piña Colada', description: 'Rum, kokosovo mleko, ananas', price: 10.99, image: '/menu-images/pina-colada.png', categoryId: cocktails.id, sortOrder: 3, modifierGroupIds: [] },
+      { name: 'Aperol Spritz', description: 'Aperol, prosecco in soda', price: 8.00, image: '/menu-images/aperol-spritz.png', categoryId: cocktails.id, sortOrder: 0, modifierGroupIds: [iceChoice.id] },
+      { name: 'Mojito', description: 'Rum, meta, limeta, soda', price: 9.00, image: '/menu-images/mojito.png', categoryId: cocktails.id, sortOrder: 1, modifierGroupIds: [iceChoice.id] },
+      { name: 'Margarita', description: 'Tekila, triple sec, limeta', price: 9.50, image: '/menu-images/margarita.png', categoryId: cocktails.id, sortOrder: 2, modifierGroupIds: [iceChoice.id] },
+      { name: 'Gin Tonic', description: 'Gin, tonik, limeta', price: 8.50, image: '/menu-images/gin-tonic.png', categoryId: cocktails.id, sortOrder: 3, modifierGroupIds: [iceChoice.id] },
+      { name: 'Old Fashioned', description: 'Bourbon, sladkor, bitter, pomaranča', price: 10.00, image: '/menu-images/old-fashioned.png', categoryId: cocktails.id, sortOrder: 4, modifierGroupIds: [iceChoice.id] },
+      { name: 'Piña Colada', description: 'Rum, kokosovo mleko, ananas', price: 9.00, image: '/menu-images/pina-colada.png', categoryId: cocktails.id, sortOrder: 5, modifierGroupIds: [iceChoice.id] },
     ]
 
     const menuItems = []
@@ -225,40 +270,44 @@ export async function POST() {
     // ZAPOSLENI
     // ============================================
     const employees = await Promise.all([
-      db.employee.create({ data: { name: 'Maria Rodriguez', email: 'maria@restaurant.com', phone: '555-0101', role: 'admin', status: 'active' } }),
-      db.employee.create({ data: { name: 'James Chen', email: 'james@restaurant.com', phone: '555-0102', role: 'manager', status: 'active' } }),
-      db.employee.create({ data: { name: 'Sarah Johnson', email: 'sarah@restaurant.com', phone: '555-0103', role: 'staff', status: 'active' } }),
-      db.employee.create({ data: { name: 'Ahmed Ali', email: 'ahmed@restaurant.com', phone: '555-0104', role: 'chef', status: 'active' } }),
-      db.employee.create({ data: { name: 'Lisa Park', email: 'lisa@restaurant.com', phone: '555-0105', role: 'staff', status: 'active' } }),
-      db.employee.create({ data: { name: 'Tom Wilson', email: 'tom@restaurant.com', phone: '555-0106', role: 'chef', status: 'inactive' } }),
+      db.employee.create({ data: { name: 'Ana Novak', email: 'ana@restaurant.com', phone: '040-123-456', role: 'admin', status: 'active' } }),
+      db.employee.create({ data: { name: 'Marko Horvat', email: 'marko@restaurant.com', phone: '041-234-567', role: 'manager', status: 'active' } }),
+      db.employee.create({ data: { name: 'Maja Kovač', email: 'maja@restaurant.com', phone: '042-345-678', role: 'staff', status: 'active' } }),
+      db.employee.create({ data: { name: 'Luka Zupan', email: 'luka@restaurant.com', phone: '043-456-789', role: 'chef', status: 'active' } }),
+      db.employee.create({ data: { name: 'Eva Krajnc', email: 'eva@restaurant.com', phone: '044-567-890', role: 'staff', status: 'active' } }),
+      db.employee.create({ data: { name: 'Peter Mlakar', email: 'peter@restaurant.com', phone: '045-678-901', role: 'chef', status: 'inactive' } }),
     ])
 
     // ============================================
     // INVENTAR
     // ============================================
     await Promise.all([
-      db.inventoryItem.create({ data: { name: 'Salmon Fillet', unit: 'kg', quantity: 15, minQuantity: 5, costPerUnit: 18.50, supplier: 'Ocean Fresh', category: 'meat', menuItemId: menuItems[8].id } }),
-      db.inventoryItem.create({ data: { name: 'Ribeye Steak', unit: 'kg', quantity: 20, minQuantity: 8, costPerUnit: 22.00, supplier: 'Prime Meats', category: 'meat', menuItemId: menuItems[9].id } }),
-      db.inventoryItem.create({ data: { name: 'Chicken Breast', unit: 'kg', quantity: 25, minQuantity: 10, costPerUnit: 8.50, supplier: 'Farm Fresh', category: 'meat', menuItemId: menuItems[10].id } }),
-      db.inventoryItem.create({ data: { name: 'Penne Pasta', unit: 'kg', quantity: 30, minQuantity: 5, costPerUnit: 3.50, supplier: 'Italian Imports', category: 'dry-goods' } }),
-      db.inventoryItem.create({ data: { name: 'Spaghetti', unit: 'kg', quantity: 25, minQuantity: 5, costPerUnit: 2.80, supplier: 'Italian Imports', category: 'dry-goods' } }),
-      db.inventoryItem.create({ data: { name: 'Pizza Dough', unit: 'pcs', quantity: 40, minQuantity: 15, costPerUnit: 1.50, supplier: 'In-house', category: 'dry-goods' } }),
-      db.inventoryItem.create({ data: { name: 'Mozzarella', unit: 'kg', quantity: 8, minQuantity: 3, costPerUnit: 12.00, supplier: 'Dairy Direct', category: 'dairy' } }),
-      db.inventoryItem.create({ data: { name: 'Parmesan', unit: 'kg', quantity: 4, minQuantity: 2, costPerUnit: 20.00, supplier: 'Dairy Direct', category: 'dairy' } }),
-      db.inventoryItem.create({ data: { name: 'Romaine Lettuce', unit: 'pcs', quantity: 12, minQuantity: 5, costPerUnit: 2.50, supplier: 'Green Valley', category: 'produce' } }),
-      db.inventoryItem.create({ data: { name: 'Tomatoes', unit: 'kg', quantity: 10, minQuantity: 5, costPerUnit: 4.00, supplier: 'Green Valley', category: 'produce' } }),
-      db.inventoryItem.create({ data: { name: 'Fresh Basil', unit: 'bunch', quantity: 3, minQuantity: 3, costPerUnit: 3.50, supplier: 'Green Valley', category: 'produce' } }),
-      db.inventoryItem.create({ data: { name: 'Beef Patties', unit: 'pcs', quantity: 50, minQuantity: 20, costPerUnit: 2.50, supplier: 'Prime Meats', category: 'meat' } }),
-      db.inventoryItem.create({ data: { name: 'Burger Buns', unit: 'pcs', quantity: 60, minQuantity: 20, costPerUnit: 0.80, supplier: 'Bakery Co', category: 'dry-goods' } }),
-      db.inventoryItem.create({ data: { name: 'Coffee Beans', unit: 'kg', quantity: 5, minQuantity: 2, costPerUnit: 25.00, supplier: 'Roast Masters', category: 'beverages' } }),
-      db.inventoryItem.create({ data: { name: 'Lemons', unit: 'kg', quantity: 4, minQuantity: 2, costPerUnit: 3.00, supplier: 'Green Valley', category: 'produce' } }),
-      db.inventoryItem.create({ data: { name: 'Olive Oil', unit: 'L', quantity: 10, minQuantity: 3, costPerUnit: 8.00, supplier: 'Italian Imports', category: 'dry-goods' } }),
-      db.inventoryItem.create({ data: { name: 'Flour', unit: 'kg', quantity: 20, minQuantity: 5, costPerUnit: 1.50, supplier: 'Bakery Co', category: 'dry-goods' } }),
-      db.inventoryItem.create({ data: { name: 'Sugar', unit: 'kg', quantity: 15, minQuantity: 5, costPerUnit: 2.00, supplier: 'General Supply', category: 'dry-goods' } }),
-      db.inventoryItem.create({ data: { name: 'Red Wine', unit: 'bottle', quantity: 12, minQuantity: 4, costPerUnit: 15.00, supplier: 'Wine Merchants', category: 'beverages' } }),
-      db.inventoryItem.create({ data: { name: 'Beer Kegs', unit: 'keg', quantity: 3, minQuantity: 2, costPerUnit: 85.00, supplier: 'Craft Brewery', category: 'beverages' } }),
-      db.inventoryItem.create({ data: { name: 'Potatoes', unit: 'kg', quantity: 20, minQuantity: 8, costPerUnit: 2.00, supplier: 'Green Valley', category: 'produce' } }),
-      db.inventoryItem.create({ data: { name: 'Onions', unit: 'kg', quantity: 8, minQuantity: 3, costPerUnit: 1.80, supplier: 'Green Valley', category: 'produce' } }),
+      db.inventoryItem.create({ data: { name: 'File lososa', unit: 'kg', quantity: 15, minQuantity: 5, costPerUnit: 18.50, supplier: 'Ocean Fresh', category: 'meat', menuItemId: menuItems[8].id } }),
+      db.inventoryItem.create({ data: { name: 'Ribeye zrezek', unit: 'kg', quantity: 20, minQuantity: 8, costPerUnit: 22.00, supplier: 'Prime Meats', category: 'meat', menuItemId: menuItems[9].id } }),
+      db.inventoryItem.create({ data: { name: 'Piščančji file', unit: 'kg', quantity: 25, minQuantity: 10, costPerUnit: 8.50, supplier: 'Farm Fresh', category: 'meat', menuItemId: menuItems[10].id } }),
+      db.inventoryItem.create({ data: { name: 'Penne testenine', unit: 'kg', quantity: 30, minQuantity: 5, costPerUnit: 3.50, supplier: 'Italian Imports', category: 'dry-goods' } }),
+      db.inventoryItem.create({ data: { name: 'Špageti', unit: 'kg', quantity: 25, minQuantity: 5, costPerUnit: 2.80, supplier: 'Italian Imports', category: 'dry-goods' } }),
+      db.inventoryItem.create({ data: { name: 'Testo za pico', unit: 'kos', quantity: 40, minQuantity: 15, costPerUnit: 1.50, supplier: 'Hišna priprava', category: 'dry-goods' } }),
+      db.inventoryItem.create({ data: { name: 'Mocarela', unit: 'kg', quantity: 8, minQuantity: 3, costPerUnit: 12.00, supplier: 'Dairy Direct', category: 'dairy' } }),
+      db.inventoryItem.create({ data: { name: 'Parmezan', unit: 'kg', quantity: 4, minQuantity: 2, costPerUnit: 20.00, supplier: 'Dairy Direct', category: 'dairy' } }),
+      db.inventoryItem.create({ data: { name: 'Rimski ohrovt', unit: 'kos', quantity: 12, minQuantity: 5, costPerUnit: 2.50, supplier: 'Green Valley', category: 'produce' } }),
+      db.inventoryItem.create({ data: { name: 'Paradižnik', unit: 'kg', quantity: 10, minQuantity: 5, costPerUnit: 4.00, supplier: 'Green Valley', category: 'produce' } }),
+      db.inventoryItem.create({ data: { name: 'Sveža bazilika', unit: 'šen', quantity: 3, minQuantity: 3, costPerUnit: 3.50, supplier: 'Green Valley', category: 'produce' } }),
+      db.inventoryItem.create({ data: { name: 'Goveji patty', unit: 'kos', quantity: 50, minQuantity: 20, costPerUnit: 2.50, supplier: 'Prime Meats', category: 'meat' } }),
+      db.inventoryItem.create({ data: { name: 'Burger žemlje', unit: 'kos', quantity: 60, minQuantity: 20, costPerUnit: 0.80, supplier: 'Pekarna', category: 'dry-goods' } }),
+      db.inventoryItem.create({ data: { name: 'Kavna zrna', unit: 'kg', quantity: 5, minQuantity: 2, costPerUnit: 25.00, supplier: 'Roast Masters', category: 'beverages' } }),
+      db.inventoryItem.create({ data: { name: 'Limone', unit: 'kg', quantity: 4, minQuantity: 2, costPerUnit: 3.00, supplier: 'Green Valley', category: 'produce' } }),
+      db.inventoryItem.create({ data: { name: 'Oljčno olje', unit: 'L', quantity: 10, minQuantity: 3, costPerUnit: 8.00, supplier: 'Italian Imports', category: 'dry-goods' } }),
+      db.inventoryItem.create({ data: { name: 'Moka', unit: 'kg', quantity: 20, minQuantity: 5, costPerUnit: 1.50, supplier: 'Pekarna', category: 'dry-goods' } }),
+      db.inventoryItem.create({ data: { name: 'Sladkor', unit: 'kg', quantity: 15, minQuantity: 5, costPerUnit: 2.00, supplier: 'Dobavitelj', category: 'dry-goods' } }),
+      db.inventoryItem.create({ data: { name: 'Rdeče vino', unit: 'steklenica', quantity: 12, minQuantity: 4, costPerUnit: 15.00, supplier: 'Vinska klet', category: 'beverages' } }),
+      db.inventoryItem.create({ data: { name: 'Belo vino', unit: 'steklenica', quantity: 10, minQuantity: 4, costPerUnit: 14.00, supplier: 'Vinska klet', category: 'beverages' } }),
+      db.inventoryItem.create({ data: { name: 'Laško pivo keg', unit: 'keg', quantity: 3, minQuantity: 2, costPerUnit: 85.00, supplier: 'Laško Pivovarna', category: 'beverages' } }),
+      db.inventoryItem.create({ data: { name: 'Union pivo keg', unit: 'keg', quantity: 2, minQuantity: 2, costPerUnit: 80.00, supplier: 'Pivovarna Union', category: 'beverages' } }),
+      db.inventoryItem.create({ data: { name: 'Coca-Cola', unit: 'steklenica', quantity: 48, minQuantity: 12, costPerUnit: 1.20, supplier: 'Coca-Cola CPC', category: 'beverages' } }),
+      db.inventoryItem.create({ data: { name: 'Radenska', unit: 'steklenica', quantity: 36, minQuantity: 12, costPerUnit: 0.90, supplier: 'Radenska', category: 'beverages' } }),
+      db.inventoryItem.create({ data: { name: 'Krompir', unit: 'kg', quantity: 20, minQuantity: 8, costPerUnit: 2.00, supplier: 'Green Valley', category: 'produce' } }),
+      db.inventoryItem.create({ data: { name: 'Čebula', unit: 'kg', quantity: 8, minQuantity: 3, costPerUnit: 1.80, supplier: 'Green Valley', category: 'produce' } }),
     ])
 
     // ============================================
@@ -287,9 +336,9 @@ export async function POST() {
     // ============================================
     // PRIMERNI NAROČILA
     // ============================================
-    const customerNames = ['John D.', 'Jane S.', 'Mike R.', 'Sarah L.', 'Tom W.', 'Emma B.', 'Alex K.', 'Lisa M.']
+    const customerNames = ['Jože N.', 'Maja S.', 'Miha R.', 'Ana L.', 'Tomaž V.', 'Ema B.', 'Aleš K.', 'Lidija M.']
     const orderTypes = ['dine-in', 'takeaway', 'delivery']
-    const paymentMethods = ['cash', 'card', 'upi']
+    const paymentMethods = ['cash', 'card', 'valuto']
 
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
       const ordersPerDay = Math.floor(Math.random() * 6) + 5
@@ -355,7 +404,7 @@ export async function POST() {
       }
     }
 
-    return NextResponse.json({ success: true, message: 'Podatki so bili uspešno naloženi s profesionalno menu hierarhijo' })
+    return NextResponse.json({ success: true, message: 'Podatki so bili uspešno naloženi s slovensko ponudbo' })
   } catch (error) {
     console.error('Seed error:', error)
     return NextResponse.json({ error: 'Napaka pri nalaganju podatkov: ' + String(error) }, { status: 500 })
