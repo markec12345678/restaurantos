@@ -662,11 +662,13 @@ export async function POST() {
     ])
     // Void reasons
     await Promise.all([
-      db.voidReason.create({ data: { name: 'Naročilo po pomoti', isActive: true } }),
-      db.voidReason.create({ data: { name: 'Nezadovoljstvo stranke', isActive: true } }),
-      db.voidReason.create({ data: { name: 'Napaka v kuhinji', isActive: true } }),
-      db.voidReason.create({ data: { name: 'Alergija', isActive: true } }),
-      db.voidReason.create({ data: { name: 'Menjava artikla', isActive: true } }),
+      db.voidReason.create({ data: { name: 'Napaka natakarja', isActive: true, sortOrder: 1 } }),
+      db.voidReason.create({ data: { name: 'Nezadovoljstvo stranke', isActive: true, sortOrder: 2 } }),
+      db.voidReason.create({ data: { name: 'Napaka v kuhinji', isActive: true, sortOrder: 3 } }),
+      db.voidReason.create({ data: { name: 'Alergija', isActive: true, sortOrder: 4 } }),
+      db.voidReason.create({ data: { name: 'Menjava artikla', isActive: true, sortOrder: 5 } }),
+      db.voidReason.create({ data: { name: 'Naročilo po pomoti', isActive: true, sortOrder: 6 } }),
+      db.voidReason.create({ data: { name: 'Ni na zalogi', isActive: true, sortOrder: 7 } }),
     ])
     // No-sale reasons
     await Promise.all([

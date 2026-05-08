@@ -13,11 +13,13 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Plus, Minus, Trash2, ShoppingBag, CreditCard, X, Printer, Eye, ImageIcon, ChevronRight, Check, ArrowLeft, UtensilsCrossed, GlassWater, Users, Clock, Search } from 'lucide-react'
+import { Plus, Minus, Trash2, ShoppingBag, CreditCard, X, Printer, Eye, ImageIcon, ChevronRight, Check, ArrowLeft, UtensilsCrossed, GlassWater, Users, Clock, Search, XCircle, FileWarning } from 'lucide-react'
 import { useState, useMemo, useEffect } from 'react'
 import { format } from 'date-fns'
 import { ReceiptDialog } from '@/components/pos/ReceiptDialog'
 import { PaymentDialog } from '@/components/pos/PaymentDialog'
+import { VoidItemDialog } from '@/components/pos/VoidItemDialog'
+import { StornoDialog } from '@/components/pos/StornoDialog'
 
 // ============================================
 // TIPI
@@ -85,6 +87,8 @@ export function OrderPanel() {
   const [receiptOrder, setReceiptOrder] = useState<Record<string, unknown> | null>(null)
   const [autoPayOrder, setAutoPayOrder] = useState<Record<string, unknown> | null>(null)
   const [autoReceiptOrderId, setAutoReceiptOrderId] = useState<string | null>(null)
+  const [voidItem, setVoidItem] = useState<{ id: string; name: string; quantity: number; price: number; vatRate: number; voided: boolean; orderId: string } | null>(null)
+  const [stornoOrder, setStornoOrder] = useState<Record<string, unknown> | null>(null)
 
   // Modifier dialog
   const [modifierDialogItem, setModifierDialogItem] = useState<MenuItemType | null>(null)
@@ -909,9 +913,10 @@ export function OrderPanel() {
                                 <Printer className="h-3 w-3 mr-1" />Tiskaj račun
                               </Button>
                             )}
-                            {order.status !== 'completed' && order.status !== 'cancelled' && order.paymentStatus !== 'paid' && (
-                              <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive" onClick={() => { if (confirm('Ali ste prepričani, da želite preklicati to naročilo?')) updateOrderStatusMutation.mutate({ id: order.id, status: 'cancelled' }) }}>
-                                Prekliči
+                            {/* Storno/Preklic - odpre StornoDialog z razlogom */}
+                            {order.status !== 'cancelled' && order.paymentStatus !== 'storno' && (
+                              <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => setStornoOrder(order)}>
+                                <FileWarning className="h-3 w-3 mr-1" />{order.paymentStatus === 'paid' ? 'Storno' : 'Prekliči'}
                               </Button>
                             )}
                             {order.status !== 'completed' && order.status !== 'cancelled' && order.paymentStatus !== 'paid' && (
@@ -1041,8 +1046,8 @@ export function OrderPanel() {
             <Separator />
             <div className="space-y-2">
               <p className="text-sm font-semibold">Artikli</p>
-              {((detailOrder?.orderItems as { id: string; menuItem: { name: string; image: string }; quantity: number; price: number; notes: string; status: string; modifiersJson?: string }[]) || []).map(oi => (
-                <div key={oi.id} className="flex items-start justify-between text-sm py-1 gap-2">
+              {((detailOrder?.orderItems as { id: string; menuItem: { name: string; image: string }; quantity: number; price: number; notes: string; status: string; modifiersJson?: string; voided?: boolean }[]) || []).map(oi => (
+                <div key={oi.id} className={`flex items-start justify-between text-sm py-1 gap-2 ${oi.voided ? 'opacity-40 line-through' : ''}`}>
                   <div className="flex items-start gap-2 flex-1">
                     {oi.menuItem.image ? (
                       <div className="w-9 h-9 rounded-md overflow-hidden flex-shrink-0">
@@ -1056,7 +1061,7 @@ export function OrderPanel() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{oi.quantity}x {oi.menuItem.name}</span>
-                        <Badge variant="outline" className="text-[10px] h-4 capitalize">{oi.status}</Badge>
+                        <Badge variant="outline" className={`text-[10px] h-4 capitalize ${oi.voided ? 'bg-red-100 text-red-800' : ''}`}>{oi.voided ? 'VOID' : oi.status}</Badge>
                       </div>
                       {oi.modifiersJson && (() => {
                         try {
@@ -1074,7 +1079,30 @@ export function OrderPanel() {
                       {oi.notes && <p className="text-xs text-muted-foreground italic mt-0.5">{oi.notes}</p>}
                     </div>
                   </div>
-                  <span className="font-medium flex-shrink-0">€{(oi.price * oi.quantity).toFixed(2)}</span>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <span className="font-medium">€{(oi.price * oi.quantity).toFixed(2)}</span>
+                    {!oi.voided && detailOrder?.paymentStatus !== 'paid' && detailOrder?.status !== 'cancelled' && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => {
+                          setVoidItem({
+                            id: oi.id,
+                            name: oi.menuItem.name,
+                            quantity: oi.quantity,
+                            price: oi.price,
+                            vatRate: 22.0,
+                            voided: false,
+                            orderId: detailOrder?.id as string,
+                          })
+                        }}
+                        title="Void artikla"
+                      >
+                        <XCircle className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1094,6 +1122,26 @@ export function OrderPanel() {
         orderId={receiptOrder?.id as string || null}
         open={!!receiptOrder}
         onClose={() => { setReceiptOrder(null); setAutoReceiptOrderId(null) }}
+      />
+
+      {/* Void Item Dialog */}
+      <VoidItemDialog
+        orderItem={voidItem}
+        orderId={voidItem?.orderId || ''}
+        open={!!voidItem}
+        onClose={() => setVoidItem(null)}
+        onVoided={() => queryClient.invalidateQueries({ queryKey: ['orders'] })}
+      />
+
+      {/* Storno Dialog */}
+      <StornoDialog
+        order={stornoOrder as { id: string; orderNumber: number; total: number; subtotal: number; tax: number; discount: number; tip: number; paymentMethod: string; paymentStatus: string } | null}
+        open={!!stornoOrder}
+        onClose={() => setStornoOrder(null)}
+        onStornoComplete={() => {
+          queryClient.invalidateQueries({ queryKey: ['orders'] })
+          queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+        }}
       />
     </div>
   )

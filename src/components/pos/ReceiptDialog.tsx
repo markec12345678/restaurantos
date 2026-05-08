@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Printer, Copy, CheckCircle2, AlertTriangle, CreditCard, Banknote, Smartphone, Eye, Shield } from 'lucide-react'
+import { Printer, Copy, CheckCircle2, AlertTriangle, CreditCard, Banknote, Smartphone, Eye, Shield, FileWarning } from 'lucide-react'
 import { format } from 'date-fns'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { StornoDialog } from '@/components/pos/StornoDialog'
 
 // ============================================
 // TIPI (ZDDV-1 skladen račun)
@@ -89,6 +90,7 @@ export function ReceiptDialog({
 }) {
   const [isPreview, setIsPreview] = useState(true)
   const [verifying, setVerifying] = useState(false)
+  const [stornoDialogOpen, setStornoDialogOpen] = useState(false)
   const queryClient = useQueryClient()
 
   const { data: receipt, isLoading } = useQuery({
@@ -169,26 +171,10 @@ export function ReceiptDialog({
     },
   })
 
-  // Storno račun
-  const stornoMutation = useMutation({
-    mutationFn: async () => {
-      if (!orderId) return null
-      const res = await fetch('/api/furs', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId }),
-      })
-      const result = await res.json()
-      if (!res.ok) throw new Error(result.error || 'Napaka pri storniranju')
-      return result
-    },
-    onSuccess: (result) => {
-      toast.success(result.message || 'Storno račun ustvarjen')
-      queryClient.invalidateQueries({ queryKey: ['receipt', orderId] })
-      queryClient.invalidateQueries({ queryKey: ['orders'] })
-    },
-    onError: (err: Error) => toast.error(`Napaka: ${err.message}`),
-  })
+  // Storno - odpre StornoDialog z razlogom
+  const handleStorno = () => {
+    setStornoDialogOpen(true)
+  }
 
   const typeLabels: Record<string, string> = {
     'dine-in': 'Na mestu',
@@ -273,9 +259,10 @@ export function ReceiptDialog({
                   {verifying ? 'Overjam...' : 'Davčno overi'}
                 </Button>
               )}
-              {/* Storno gumb */}
+              {/* Storno gumb - odpre StornoDialog z razlogom */}
               {receipt && !receipt.isStorno && receipt.fiscalVerified && !isPreview && (
-                <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={() => { if (confirm('Ali ste prepričani, da želite stornirati ta račun?')) stornoMutation.mutate() }}>
+                <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={handleStorno}>
+                  <FileWarning className="h-3 w-3 mr-1" />
                   STORNO
                 </Button>
               )}
@@ -524,6 +511,28 @@ export function ReceiptDialog({
           </>
         )}
       </DialogContent>
+
+      {/* Storno Dialog - odpre se iz ReceiptDialog */}
+      <StornoDialog
+        order={orderId && receipt ? {
+          id: orderId,
+          orderNumber: receipt.orderNumber,
+          total: receipt.total,
+          subtotal: receipt.subtotal,
+          tax: receipt.totalVat,
+          discount: receipt.discount,
+          tip: receipt.tip,
+          paymentMethod: receipt.paymentMethod,
+          paymentStatus: receipt.paymentStatus,
+        } : null}
+        open={stornoDialogOpen}
+        onClose={() => setStornoDialogOpen(false)}
+        onStornoComplete={() => {
+          queryClient.invalidateQueries({ queryKey: ['receipt', orderId] })
+          queryClient.invalidateQueries({ queryKey: ['orders'] })
+          onClose()
+        }}
+      />
     </Dialog>
   )
 }

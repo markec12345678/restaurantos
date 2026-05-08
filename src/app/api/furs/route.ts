@@ -219,10 +219,14 @@ export async function POST(req: Request) {
 export async function PUT(req: Request) {
   try {
     const body = await req.json()
-    const { orderId } = body
+    const { orderId, reason, reasonCode } = body
 
     if (!orderId) {
       return NextResponse.json({ error: 'Potreben je orderId' }, { status: 400 })
+    }
+
+    if (!reason && !reasonCode) {
+      return NextResponse.json({ error: 'Razlog za storno je obvezen (FURS zahteva)' }, { status: 400 })
     }
 
     const receipt = await db.receipt.findFirst({ where: { orderId } })
@@ -288,10 +292,65 @@ export async function PUT(req: Request) {
       data: { isStorno: true },
     })
 
+    // Posodobi naročilo - označi kot stornirano
+    await db.order.update({
+      where: { id: receipt.orderId },
+      data: { paymentStatus: 'storno' },
+    })
+
+    // Vrni zalogo (povratna transakcija za vse artikle naročila)
+    const order = await db.order.findUnique({
+      where: { id: receipt.orderId },
+      include: { orderItems: { include: { menuItem: true } } },
+    })
+
+    if (order) {
+      for (const oi of order.orderItems) {
+        if (oi.voided) continue // Preskoči že voidane
+
+        // Večslojni normativi prek RecipeItem
+        const recipeItems = await db.recipeItem.findMany({
+          where: { menuItemId: oi.menuItemId },
+        })
+
+        for (const recipe of recipeItems) {
+          const qtyToReturn = recipe.quantityPerServing * oi.quantity
+          const invItem = await db.inventoryItem.findUnique({
+            where: { id: recipe.inventoryItemId },
+          })
+
+          if (invItem) {
+            const previousQty = invItem.quantity
+            const newQty = Math.round((previousQty + qtyToReturn) * 10000) / 10000
+
+            await db.inventoryItem.update({
+              where: { id: invItem.id },
+              data: { quantity: newQty },
+            })
+
+            await db.stockTransaction.create({
+              data: {
+                inventoryItemId: invItem.id,
+                type: 'return',
+                quantity: qtyToReturn,
+                previousQty,
+                newQty,
+                costPerUnit: invItem.costPerUnit,
+                totalCost: -(qtyToReturn * invItem.costPerUnit),
+                reason: `STORNO vračilo - naročilo #${order.orderNumber} - ${reason || reasonCode}`,
+                orderId: order.id,
+              },
+            })
+          }
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       stornoReceipt,
       originalReceiptNumber: receipt.receiptNumber,
+      stornoReason: reason || reasonCode,
       message: `Storno račun ${stornoNumber} ustvarjen za račun ${receipt.receiptNumber}`,
     })
   } catch (error) {

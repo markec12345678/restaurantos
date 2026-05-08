@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 
-// PUT /api/order-items/[id] — Update individual order item status
+// PUT /api/order-items/[id] — Update individual order item (status, void, etc.)
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const body = await req.json()
@@ -10,11 +10,72 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   if (body.status) updateData.status = body.status
   if (body.notes !== undefined) updateData.notes = body.notes
 
+  // === VOID OPERACIJA ===
+  // Void pomeni, da se artikel poniči (ne zaračuna stranki)
+  // Zahteva razlog (voidReasonId ali voidReasonText)
+  if (body.voided === true) {
+    updateData.voided = true
+    if (body.voidReasonId) updateData.voidReasonId = body.voidReasonId
+    updateData.status = 'voided'
+  }
+
   const orderItem = await db.orderItem.update({
     where: { id },
     data: updateData,
     include: { menuItem: true, order: { include: { table: true } } },
   })
+
+  // Če je void, preračunaj zneske naročila
+  if (body.voided === true) {
+    const allItems = await db.orderItem.findMany({
+      where: { orderId: orderItem.orderId },
+    })
+
+    // Preračun brez voidanih artiklov
+    let newSubtotal = 0
+    let newTax = 0
+    for (const item of allItems) {
+      if (!item.voided) {
+        const itemBase = item.price * item.quantity
+        const itemVat = itemBase * (item.vatRate / 100)
+        newSubtotal += itemBase
+        newTax += itemVat
+      }
+    }
+
+    const order = await db.order.findUnique({ where: { id: orderItem.orderId } })
+    const discount = order?.discount || 0
+    const newTotal = newSubtotal + newTax - discount
+
+    await db.order.update({
+      where: { id: orderItem.orderId },
+      data: {
+        subtotal: Math.round(newSubtotal * 100) / 100,
+        tax: Math.round(newTax * 100) / 100,
+        total: Math.max(0, Math.round(newTotal * 100) / 100),
+      },
+    })
+
+    // Zabeleži void transakcijo v dnevnik
+    try {
+      await db.stockTransaction.create({
+        data: {
+          inventoryItemId: 'void-log',
+          type: 'void',
+          quantity: -orderItem.quantity,
+          previousQty: 0,
+          newQty: 0,
+          costPerUnit: orderItem.price,
+          totalCost: -(orderItem.price * orderItem.quantity),
+          reason: `VOID: ${orderItem.menuItem.name} - ${body.voidReasonText || 'Razlog ni naveden'}`,
+          orderId: orderItem.orderId,
+          employeeName: '',
+        },
+      })
+    } catch {
+      // Void log ni kritičen, če ne uspe
+    }
+  }
 
   // Check if all items in the order are ready — auto-update order status
   if (body.status === 'ready' || body.status === 'served') {
