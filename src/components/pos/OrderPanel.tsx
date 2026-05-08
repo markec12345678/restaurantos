@@ -729,8 +729,35 @@ export function OrderPanel() {
                   <Input placeholder="Ime stranke" value={customerName} onChange={e => setCustomerName(e.target.value)} className="h-7 text-xs" />
                   <div className="flex gap-1.5">
                     <Input placeholder="Telefon" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="h-7 text-xs flex-1" />
-                    <Input placeholder="Popust €" type="number" min="0" step="0.01" value={discount || ''} onChange={e => setDiscount(parseFloat(e.target.value) || 0)} className="h-7 text-xs w-20" />
+                    <Input placeholder="Popust €" type="number" min="0" step="0.01" value={discount || ''} onChange={e => { setDiscount(parseFloat(e.target.value) || 0); setAppliedDiscountId(null) }} className="h-7 text-xs w-20" />
                   </div>
+                  {/* Hitri popusti iz konfiguracije */}
+                  {discounts?.length > 0 && (
+                    <div className="flex gap-1 flex-wrap">
+                      <button
+                        onClick={() => { setDiscount(0); setAppliedDiscountId(null) }}
+                        className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${!appliedDiscountId && discount === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
+                      >
+                        Brez
+                      </button>
+                      {discounts.slice(0, 4).map((d: { id: string; name: string; type: string; amount: number }) => (
+                        <button
+                          key={d.id}
+                          onClick={() => {
+                            setAppliedDiscountId(d.id)
+                            if (d.type === 'percentage') {
+                              setDiscount(Math.round(subtotal * d.amount) / 100)
+                            } else {
+                              setDiscount(d.amount)
+                            }
+                          }}
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${appliedDiscountId === d.id ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
+                        >
+                          {d.type === 'percentage' ? `${d.amount}%` : `€${d.amount}`} {d.name.split(' ').slice(0, 2).join(' ')}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <Input placeholder="Opombe" value={orderNotes} onChange={e => setOrderNotes(e.target.value)} className="h-7 text-xs" />
                 </div>
 
@@ -854,6 +881,16 @@ export function OrderPanel() {
                             {order.paymentStatus === 'paid' && (
                               <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setReceiptOrder(order)}>
                                 <Printer className="h-3 w-3 mr-1" />Račun
+                              </Button>
+                            )}
+                            {order.status !== 'completed' && order.status !== 'cancelled' && order.paymentStatus !== 'paid' && (
+                              <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive hover:text-destructive" onClick={() => { if (confirm('Ali ste prepričani, da želite preklicati to naročilo?')) updateOrderStatusMutation.mutate({ id: order.id, status: 'cancelled' }) }}>
+                                Prekliči
+                              </Button>
+                            )}
+                            {order.status !== 'completed' && order.status !== 'cancelled' && order.paymentStatus !== 'paid' && (
+                              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setEditingOrderId(order.id); setEditingOrderNumber(order.orderNumber); setMainTab('new-order') }}>
+                                <Plus className="h-3 w-3 mr-1" />Dodaj
                               </Button>
                             )}
                           </div>

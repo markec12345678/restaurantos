@@ -555,19 +555,19 @@ export async function POST() {
         date.setHours(Math.floor(Math.random() * 10) + 8, Math.floor(Math.random() * 60))
 
         const numItems = Math.floor(Math.random() * 4) + 1
-        const selectedItems: { menuItemId: string; price: number; quantity: number }[] = []
+        const selectedItems: { menuItemId: string; price: number; quantity: number; vatRate: number }[] = []
         for (let j = 0; j < numItems; j++) {
           const item = menuItems[Math.floor(Math.random() * menuItems.length)]
           const existing = selectedItems.find(s => s.menuItemId === item.id)
           if (existing) {
             existing.quantity += 1
           } else {
-            selectedItems.push({ menuItemId: item.id, price: item.price, quantity: Math.floor(Math.random() * 2) + 1 })
+            selectedItems.push({ menuItemId: item.id, price: item.price, quantity: Math.floor(Math.random() * 2) + 1, vatRate: item.vatRate ?? 22.0 })
           }
         }
 
         const subtotal = selectedItems.reduce((sum, item) => sum + item.price * item.quantity, 0)
-        const tax = subtotal * 0.1
+        const tax = selectedItems.reduce((sum, item) => sum + item.price * item.quantity * (item.vatRate / 100), 0)
         const discount = Math.random() > 0.8 ? Math.round(subtotal * 0.1 * 100) / 100 : 0
         const total = subtotal + tax - discount
 
@@ -601,6 +601,8 @@ export async function POST() {
                 menuItemId: item.menuItemId,
                 quantity: item.quantity,
                 price: item.price,
+                vatRate: item.vatRate ?? 22.0,
+                vatAmount: Math.round(item.price * item.quantity * ((item.vatRate ?? 22.0) / 100) * 100) / 100,
                 notes: '',
                 modifiersJson: '[]',
                 status: status === 'completed' ? 'served' : 'pending',
@@ -624,9 +626,9 @@ export async function POST() {
     const terraceServiceCharge = await db.serviceCharge.create({ data: { name: 'Postrežba na terasi', type: 'percentage', amount: 10, isAutoApply: false } })
     // Dining options
     await Promise.all([
-      db.diningOption.create({ data: { name: 'Na mestu', type: 'dine-in', prepTimeMinutes: 15, linkedServiceChargeId: null } }),
-      db.diningOption.create({ data: { name: 'Za s seboj', type: 'takeout', prepTimeMinutes: 10, linkedServiceChargeId: null } }),
-      db.diningOption.create({ data: { name: 'Dostava', type: 'delivery', prepTimeMinutes: 30, linkedServiceChargeId: terraceServiceCharge.id } }),
+      db.diningOption.create({ data: { name: 'Na mestu', type: 'dine-in', prepTimeMinutes: 15, serviceChargeId: null } }),
+      db.diningOption.create({ data: { name: 'Za s seboj', type: 'takeout', prepTimeMinutes: 10, serviceChargeId: null } }),
+      db.diningOption.create({ data: { name: 'Dostava', type: 'delivery', prepTimeMinutes: 30, serviceChargeId: terraceServiceCharge.id } }),
     ])
     // Revenue centers
     await Promise.all([
@@ -695,11 +697,11 @@ export async function POST() {
     await db.webhook.create({ data: { name: 'Test webhook', url: 'https://hooks.example.com/pos', events: 'order.created,order.completed,payment.received', isActive: false, secret: 'whsec_test123' } })
     // Jobs
     await Promise.all([
-      db.job.create({ data: { name: 'Natakar', permissions: JSON.stringify(['orders','payments','tables']), defaultPayRate: 9.50 } }),
-      db.job.create({ data: { name: 'Kuhar', permissions: JSON.stringify(['kitchen','inventory']), defaultPayRate: 10.50 } }),
-      db.job.create({ data: { name: 'Barman', permissions: JSON.stringify(['orders','kitchen']), defaultPayRate: 9.80 } }),
-      db.job.create({ data: { name: 'Vodja smene', permissions: JSON.stringify(['orders','payments','kitchen','inventory','employees','reports']), defaultPayRate: 13.00 } }),
-      db.job.create({ data: { name: 'Upravljalec', permissions: JSON.stringify(['all']), defaultPayRate: 16.00 } }),
+      db.job.create({ data: { name: 'Natakar', code: 'WAIT', basePayRate: 9.50, overtimeRate: 14.25, permissions: JSON.stringify(['take_orders', 'void_items', 'apply_discounts']) } }),
+      db.job.create({ data: { name: 'Kuhar', code: 'CHEF', basePayRate: 10.50, overtimeRate: 15.75, permissions: JSON.stringify(['manage_kitchen', 'view_inventory']) } }),
+      db.job.create({ data: { name: 'Barman', code: 'BAR', basePayRate: 9.80, overtimeRate: 14.70, permissions: JSON.stringify(['take_orders', 'manage_bar']) } }),
+      db.job.create({ data: { name: 'Vodja smene', code: 'LEAD', basePayRate: 13.00, overtimeRate: 19.50, permissions: JSON.stringify(['take_orders', 'manage_cash', 'void_items', 'apply_discounts', 'view_reports']) } }),
+      db.job.create({ data: { name: 'Upravljalec', code: 'ADMIN', basePayRate: 16.00, overtimeRate: 24.00, permissions: JSON.stringify(['admin']) } }),
     ])
 
     return NextResponse.json({ success: true, message: 'Podatki so bili uspešno naloženi s slovensko ponudbo, vinsko kartico in konfiguracijo' })
