@@ -10,9 +10,32 @@ import { toast } from 'sonner'
 import {
   ChefHat, Clock, AlertTriangle, CheckCircle2, Flame,
   UtensilsCrossed, ArrowRight, Volume2, VolumeX, RefreshCw,
-  Grid3X3, List, Timer, Bell, BellRing
+  Grid3X3, List, Timer, Bell, BellRing, Maximize, Minimize
 } from 'lucide-react'
 import { useState, useEffect, useRef, useCallback } from 'react'
+
+// ============================================
+// FULLSCREEN HELPER
+// ============================================
+function useFullscreen() {
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', handler)
+    return () => document.removeEventListener('fullscreenchange', handler)
+  }, [])
+
+  const toggle = useCallback(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {})
+    } else {
+      document.exitFullscreen().catch(() => {})
+    }
+  }, [])
+
+  return { isFullscreen, toggle }
+}
 import { format } from 'date-fns'
 import { sl } from 'date-fns/locale'
 
@@ -278,7 +301,7 @@ function KitchenOrderItem({
   }
 
   return (
-    <div className={`p-3 rounded-lg border-2 ${config.bg} transition-all hover:shadow-sm`}>
+    <div className={`p-3 rounded-lg border-2 ${config.bg} transition-all hover:shadow-sm touch-manipulation`}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
@@ -311,7 +334,7 @@ function KitchenOrderItem({
           {item.status !== 'served' && (
             <Button
               size="sm"
-              className="h-8 text-xs"
+              className="h-10 min-w-[100px] text-sm touch-manipulation"
               onClick={() => onStatusChange(item.id, config.nextStatus)}
             >
               {config.nextLabel}
@@ -529,20 +552,20 @@ function KitchenOrderCard({
         {order.status === 'pending' && (
           <Button
             size="sm"
-            className="h-7 text-xs bg-blue-600 hover:bg-blue-700"
+            className="h-10 text-sm bg-blue-600 hover:bg-blue-700 touch-manipulation"
             onClick={() => onOrderStatusChange(order.id, 'in-progress')}
           >
-            <Flame className="h-3 w-3 mr-1" />
+            <Flame className="h-4 w-4 mr-1" />
             Začni pripravo
           </Button>
         )}
         {order.status === 'in-progress' && order.readyCount === order.totalItems && (
           <Button
             size="sm"
-            className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
+            className="h-10 text-sm bg-emerald-600 hover:bg-emerald-700 touch-manipulation"
             onClick={() => onOrderStatusChange(order.id, 'ready')}
           >
-            <CheckCircle2 className="h-3 w-3 mr-1" />
+            <CheckCircle2 className="h-4 w-4 mr-1" />
             Vse pripravljeno
           </Button>
         )}
@@ -561,6 +584,7 @@ export function KitchenDisplay() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'in-progress'>('all')
   const [lastOrderCount, setLastOrderCount] = useState(0)
   const prevOrdersRef = useRef<string[]>([])
+  const { isFullscreen, toggle: toggleFullscreen } = useFullscreen()
 
   // Fetch KDS data with frequent refresh
   const { data, isLoading } = useQuery({
@@ -740,6 +764,17 @@ export function KitchenDisplay() {
               onClick={() => queryClient.invalidateQueries({ queryKey: ['kitchen'] })}
             >
               <RefreshCw className="h-4 w-4" />
+            </Button>
+
+            {/* Fullscreen */}
+            <Button
+              variant={isFullscreen ? 'default' : 'ghost'}
+              size="icon"
+              className="h-8 w-8"
+              onClick={toggleFullscreen}
+              title={isFullscreen ? 'Izhod iz cel. zaslona' : 'Celozaslonski način'}
+            >
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
             </Button>
           </div>
         </div>

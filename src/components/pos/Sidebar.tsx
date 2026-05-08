@@ -27,9 +27,11 @@ import {
   Printer,
   Webhook,
   CalendarDays,
+  Maximize,
+  Minimize,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
-import { useSyncExternalStore } from 'react'
+import { useSyncExternalStore, useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { useQuery } from '@tanstack/react-query'
 import { UserIndicator } from '@/components/pos/PinLogin'
@@ -69,6 +71,23 @@ export function Sidebar() {
   const { activeModule, setActiveModule, sidebarOpen, setSidebarOpen } = usePOSStore()
   const { theme, setTheme } = useTheme()
   const mounted = useMounted()
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  // Fullscreen toggle
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {})
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {})
+    }
+  }
+
+  // Listen for fullscreen changes (including Esc key)
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', handler)
+    return () => document.removeEventListener('fullscreenchange', handler)
+  }, [])
 
   const { data: ordersData } = useQuery({
     queryKey: ['sidebar-orders'],
@@ -162,7 +181,17 @@ export function Sidebar() {
 
         {/* Bottom section */}
         <UserIndicator />
-        <div className="px-2 py-2 border-t border-border">
+        <div className="px-2 py-2 border-t border-border space-y-0.5">
+          {/* Fullscreen gumb */}
+          <Button
+            variant="ghost"
+            className="w-full justify-start gap-2 text-xs h-8"
+            onClick={toggleFullscreen}
+          >
+            {isFullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
+            {isFullscreen ? 'Izhod iz cel. zaslona' : 'Celozaslonski način'}
+          </Button>
+          {/* Tema */}
           {mounted && (
             <Button
               variant="ghost"

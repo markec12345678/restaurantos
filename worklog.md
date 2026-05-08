@@ -38,11 +38,35 @@ Work Log:
 - Fixed hardcoded vatRate 22.0 - now reads from actual OrderItem.vatRate
 - Enhanced OrderDetail dialog with storno/cancel warning block showing reason, date, who cancelled
 - Enhanced FURS storno - auto-verified receipt, payments marked as refunded, order status cancelled
+- Build verified clean
+
+---
+Task ID: session-5
+Agent: Main
+Task: Fullscreen, PWA, tablet/Android install, KDS setup, touch UI
+
+Work Log:
+- Enhanced PWA manifest.json with shortcuts (Novo naročilo, Kuhinja), icons, proper display: standalone
+- Generated PWA icons (192x192, 512x512) from AI-generated app icon
+- Created service worker (sw.js) with offline support - network-first for API, cache-first for static
+- Updated layout.tsx with: viewport meta (no zoom, device-width), apple-mobile-web-app meta, service worker registration, select-none for body
+- Added fullscreen/kiosk mode toggle button in Sidebar (Maximize/Minimize icons)
+- Added fullscreen toggle in KitchenDisplay header (for KDS tablets)
+- Added useFullscreen hook in KitchenDisplay
+- Enhanced KitchenDisplay touch targets: larger buttons (h-10), touch-manipulation class, min-width for action buttons
+- Added comprehensive touch/tablet/PWA CSS support in globals.css:
+  - touch-action: manipulation (removes 300ms tap delay)
+  - @media (pointer: coarse) for larger touch targets on tablets
+  - @media (display-mode: standalone) for PWA installed mode
+  - overscroll-behavior: none (prevents pull-to-refresh)
+  - Safe area padding for iOS notch
+- Researched Toast POS, Lightspeed KDS, Square KDS best practices for hardware setup
+- Build verified clean
 
 Stage Summary:
-- Full storno (paid orders) and cancellation (unpaid orders) workflow implemented
-- Audit trail: cancelReason, cancelledAt, cancelledBy stored in DB
-- Soft delete only - no hard delete for FURS compliance
-- FURS storno receipt auto-verified, payments refunded
-- Cancelled orders visible in Preklicano tab
-- Build verified clean
+- PWA fully installable on Android/iOS/tablet (Add to Home Screen)
+- Fullscreen/kiosk mode available from Sidebar and KitchenDisplay
+- Touch-optimized UI with larger buttons, no tap delay, safe area support
+- KitchenDisplay ready for dedicated tablet in kitchen/bar
+- Service worker enables basic offline functionality
+- Recommended hardware setup documented for user

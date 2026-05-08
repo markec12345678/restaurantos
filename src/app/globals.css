@@ -161,3 +161,48 @@
 .animate-pulse {
   animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* ============================================
+   TOUCH / TABLET / PWA PODPORA
+   ============================================ */
+
+/* Touch-manipulation — odstrani 300ms zakasnitev na mobilnih napravah */
+button, a, [role="button"], .touch-manipulation {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Večji touch targeti na tablicah */
+@media (pointer: coarse) {
+  button, [role="button"] {
+    min-height: 36px;
+    min-width: 36px;
+  }
+  .touch-manipulation {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* PWA standalone — skrij scrollbar ko je nameščeno kot aplikacija */
+@media all and (display-mode: standalone) {
+  body {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* Prepreči pull-to-refresh na mobilnih */
+html {
+  overscroll-behavior: none;
+}
+
+/* Safe area za iOS zarezo */
+@supports (padding: env(safe-area-inset-top)) {
+  body {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
