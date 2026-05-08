@@ -118,7 +118,7 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   setSelectedTable: (tableId) => set({ selectedTable: tableId }),
   discount: 0,
   setDiscount: (discount) => set({ discount }),
-  taxRate: 0.1,
+  taxRate: 0.22,
   sidebarOpen: false,
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   activeMenuId: null,

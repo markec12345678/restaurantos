@@ -57,9 +57,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       if (invItem && invItem.servingsPerUnit > 0) {
         // Izračunaj porabo: količina naročenih × (1 / servingsPerUnit) enot zaloge
         const unitsPerServing = 1 / invItem.servingsPerUnit
-        const totalUnitsToDeduct = oi.quantity * unitsPerServing
+        const totalUnitsToDeduct = Math.round(oi.quantity * unitsPerServing * 10000) / 10000
         const previousQty = invItem.quantity
-        const newQty = Math.max(0, previousQty - totalUnitsToDeduct)
+        const newQty = Math.max(0, Math.round((previousQty - totalUnitsToDeduct) * 10000) / 10000)
 
         await db.$transaction(async (tx) => {
           await tx.inventoryItem.update({

@@ -48,7 +48,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       // Preračunaj skupne zneske
       const allItems = [...order.orderItems, ...created]
       const subtotal = allItems.reduce((sum, oi) => sum + oi.price * oi.quantity, 0)
-      const tax = subtotal * 0.1 // 10% DDV
+      const tax = subtotal * 0.22 // 22% DDV Slovenija
       const total = subtotal + tax - order.discount
 
       await tx.order.update({

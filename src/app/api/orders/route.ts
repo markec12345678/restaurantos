@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   const orderNumber = (maxOrder?.orderNumber || 0) + 1
 
   const subtotal = body.orderItems.reduce((sum: number, item: { price: number; quantity: number }) => sum + item.price * item.quantity, 0)
-  const taxRate = body.taxRate || 0.1
+  const taxRate = body.taxRate || 0.22
   const tax = subtotal * taxRate
   const discount = body.discount || 0
   const total = subtotal + tax - discount
