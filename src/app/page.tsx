@@ -61,7 +61,13 @@ export default function POSPage() {
   if (!authUser) {
     return (
       <div className="h-screen bg-background">
-        <PinLogin onLogin={(user) => { setAuthUser(user); setCurrentUser(user) }} />
+        <PinLogin
+          onLogin={(user) => { setAuthUser(user); setCurrentUser(user) }}
+          onSkip={() => {
+            setCurrentUser({ id: 'guest', name: 'Gost', email: '', role: 'admin', primaryJob: null, permissions: ['admin'] })
+            setAuthUser({ id: 'guest', name: 'Gost', email: '', role: 'admin', primaryJob: null, permissions: ['admin'] })
+          }}
+        />
       </div>
     )
   }

@@ -59,9 +59,19 @@ export function hasPermission(permission: string): boolean {
 // PIN LOGIN KOMPONENTA
 // ============================================
 
-export function PinLogin({ onLogin }: { onLogin: (user: AuthUser) => void }) {
+export function PinLogin({ onLogin, onSkip }: { onLogin: (user: AuthUser) => void; onSkip?: () => void }) {
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
+
+  // Preveri ali so PIN-i na voljo
+  const { data: authStatus } = useQuery({
+    queryKey: ['auth-status'],
+    queryFn: async () => {
+      const res = await fetch('/api/auth')
+      if (!res.ok) return { authEnabled: false, employeesWithPin: 0 }
+      return res.json()
+    },
+  })
 
   const loginMutation = useMutation({
     mutationFn: async (pinCode: string) => {
@@ -183,6 +193,18 @@ export function PinLogin({ onLogin }: { onLogin: (user: AuthUser) => void }) {
               <LogIn className="h-5 w-5" />
             </Button>
           </div>
+
+          {/* Preskoči gumb — za brez PIN-a */}
+          {onSkip && (
+            <div className="text-center pt-2">
+              <Button variant="ghost" className="text-xs text-muted-foreground" onClick={onSkip}>
+                Preskoči prijavo
+              </Button>
+              {authStatus && !authStatus.authEnabled && (
+                <p className="text-[10px] text-muted-foreground mt-1">Ni zaposlenih s PIN-om — nastavite PIN v Zaposleni</p>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
