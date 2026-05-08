@@ -83,6 +83,8 @@ export function OrderPanel() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
   const [detailOrder, setDetailOrder] = useState<Record<string, unknown> | null>(null)
   const [receiptOrder, setReceiptOrder] = useState<Record<string, unknown> | null>(null)
+  const [autoPayOrder, setAutoPayOrder] = useState<Record<string, unknown> | null>(null)
+  const [autoReceiptOrderId, setAutoReceiptOrderId] = useState<string | null>(null)
 
   // Modifier dialog
   const [modifierDialogItem, setModifierDialogItem] = useState<MenuItemType | null>(null)
@@ -206,7 +208,12 @@ export function OrderPanel() {
       if (editingOrderId) {
         toast.success(`Artikli dodani k naročilu #${editingOrderNumber}!`)
       } else {
-        toast.success('Naročilo uspešno oddano!')
+        toast.success('Naročilo uspešno oddano! Plačaj in natisni račun.')
+      }
+      // Samodejno odpri plačilno okno z novim naročilom
+      if (data && !editingOrderId) {
+        setAutoPayOrder(data)
+        setPaymentDialogOpen(true)
       }
       clearCart()
       setCustomerName('')
@@ -790,18 +797,37 @@ export function OrderPanel() {
                   </div>
                 </div>
 
-                {/* Submit Button */}
-                <div className="px-3 pb-3">
+                {/* Submit Buttons */}
+                <div className="px-3 pb-3 space-y-2">
                   <Button
-                    className="w-full h-11 text-base font-bold"
+                    className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700"
                     disabled={cart.length === 0 || placeOrderMutation.isPending}
                     onClick={() => placeOrderMutation.mutate()}
                   >
                     {placeOrderMutation.isPending
                       ? (editingOrderId ? 'Dodajam...' : 'Naročam...')
-                      : (editingOrderId ? `Dodaj k naročilu #${editingOrderNumber}` : 'Oddaj naročilo')
+                      : (editingOrderId ? `Dodaj k naročilu #${editingOrderNumber}` : (
+                        <>
+                          <CreditCard className="h-4 w-4 mr-2" />
+                          Oddaj in plačaj
+                        </>
+                      ))
                     }
                   </Button>
+                  {!editingOrderId && (
+                    <Button
+                      variant="outline"
+                      className="w-full h-9 text-sm"
+                      disabled={cart.length === 0 || placeOrderMutation.isPending}
+                      onClick={() => {
+                        // Oddaj brez plačila - samo shrani naročilo
+                        placeOrderMutation.mutate()
+                      }}
+                    >
+                      <ShoppingBag className="h-3.5 w-3.5 mr-1.5" />
+                      Oddaj naročilo (plačaj kasneje)
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -879,8 +905,8 @@ export function OrderPanel() {
                               </Button>
                             )}
                             {order.paymentStatus === 'paid' && (
-                              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setReceiptOrder(order)}>
-                                <Printer className="h-3 w-3 mr-1" />Račun
+                              <Button size="sm" variant="default" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700" onClick={() => setReceiptOrder(order)}>
+                                <Printer className="h-3 w-3 mr-1" />Tiskaj račun
                               </Button>
                             )}
                             {order.status !== 'completed' && order.status !== 'cancelled' && order.paymentStatus !== 'paid' && (
@@ -971,9 +997,16 @@ export function OrderPanel() {
 
       {/* Payment Dialog */}
       <PaymentDialog
-        order={selectedOrder as { id: string; orderNumber: number; total: number; subtotal: number; tax: number; discount: number; orderItems: { id: string; menuItem: { name: string }; quantity: number; price: number }[] } | null}
+        order={(autoPayOrder || selectedOrder) as { id: string; orderNumber: number; total: number; subtotal: number; tax: number; discount: number; orderItems: { id: string; menuItem: { name: string }; quantity: number; price: number; vatRate: number }[]; tip?: number } | null}
         open={paymentDialogOpen}
-        onClose={() => { setPaymentDialogOpen(false); setSelectedOrder(null) }}
+        onClose={() => { setPaymentDialogOpen(false); setSelectedOrder(null); setAutoPayOrder(null) }}
+        onPaymentSuccess={(orderId: string) => {
+          // Samodejno odpri račun za tiskanje po plačilu
+          if (orderId) {
+            setAutoReceiptOrderId(orderId)
+            setReceiptOrder({ id: orderId })
+          }
+        }}
       />
 
       {/* ============================================
@@ -1060,7 +1093,7 @@ export function OrderPanel() {
       <ReceiptDialog
         orderId={receiptOrder?.id as string || null}
         open={!!receiptOrder}
-        onClose={() => setReceiptOrder(null)}
+        onClose={() => { setReceiptOrder(null); setAutoReceiptOrderId(null) }}
       />
     </div>
   )

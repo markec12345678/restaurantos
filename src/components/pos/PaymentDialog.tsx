@@ -35,12 +35,13 @@ interface PaymentDialogProps {
   } | null
   open: boolean
   onClose: () => void
+  onPaymentSuccess?: (orderId: string) => void
 }
 
 // ============================================
 // KOMPONENTA
 // ============================================
-export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
+export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: PaymentDialogProps) {
   const queryClient = useQueryClient()
   const [paymentMethod, setPaymentMethod] = useState('')
   const [tipAmount, setTipAmount] = useState(0)
@@ -165,7 +166,7 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
       if (!orderRes.ok) throw new Error('Napaka pri posodobitvi naročila')
       return orderRes.json()
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success('Plačilo uspešno obdelano! Ček ustvarjen.')
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
@@ -173,6 +174,10 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
       queryClient.invalidateQueries({ queryKey: ['kitchen'] })
       queryClient.invalidateQueries({ queryKey: ['cash-register'] })
       queryClient.invalidateQueries({ queryKey: ['checks'] })
+      // Obvesti nadrejeno komponento o uspelem plačilu (za samodejni račun)
+      if (onPaymentSuccess && data?.id) {
+        onPaymentSuccess(data.id)
+      }
       resetAndClose()
     },
     onError: () => {
