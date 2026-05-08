@@ -116,7 +116,19 @@ export function GlobalNotifications() {
         totalActive: pending.length + inProgress.length + ready.length,
       }
     },
-    refetchInterval: 8000,
+    refetchInterval: 5000,
+  })
+
+  // Poll za opozorila nizke zaloge
+  const { data: lowStockData } = useQuery({
+    queryKey: ['notification-low-stock'],
+    queryFn: async () => {
+      const res = await fetch('/api/inventory')
+      const items = await res.json()
+      const lowItems = items.filter((i: { quantity: number; minQuantity: number }) => i.quantity <= i.minQuantity)
+      return { count: lowItems.length, items: lowItems.slice(0, 3) }
+    },
+    refetchInterval: 60000, // vsako minuto
   })
 
   // Detect changes and create notifications
@@ -232,6 +244,17 @@ export function GlobalNotifications() {
         >
           <ShoppingCart className="h-3.5 w-3.5" />
           {orderStats.totalActive} aktivnih
+        </button>
+      )}
+
+      {/* Nizka zaloga badge - obvestilo kadar ni na inventory modulu */}
+      {activeModule !== 'inventory' && lowStockData && lowStockData.count > 0 && (
+        <button
+          onClick={() => usePOSStore.getState().setActiveModule('inventory')}
+          className="fixed bottom-3 right-14 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 shadow-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors text-xs font-semibold"
+        >
+          <AlertTriangle className="h-3.5 w-3.5" />
+          {lowStockData.count} nizkih zal.
         </button>
       )}
     </>

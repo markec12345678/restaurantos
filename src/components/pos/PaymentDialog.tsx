@@ -7,8 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CreditCard, Banknote, Smartphone, Percent, Split, Heart, CheckCircle2, Receipt } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { CreditCard, Banknote, Smartphone, Split, Heart, CheckCircle2, Receipt } from 'lucide-react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 
 // ============================================
@@ -29,6 +29,7 @@ interface PaymentDialogProps {
     subtotal: number
     tax: number
     discount: number
+    tip: number
     orderItems: OrderItemType[]
   } | null
   open: boolean
@@ -65,14 +66,16 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
   }
 
   const processPaymentMutation = useMutation({
-    mutationFn: async ({ id, method, tip }: { id: string; method: string; tip: number }) => {
+    mutationFn: async ({ id, method, tip, splitCount: sc }: { id: string; method: string; tip: number; splitCount: number }) => {
       const res = await fetch(`/api/orders/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           paymentStatus: 'paid',
           paymentMethod: method,
-          total: (order?.total || 0) + tip,
+          tip,
+          totalWithTip: (order?.total || 0) + tip,
+          splitCount: sc,
         }),
       })
       if (!res.ok) throw new Error('Failed to process payment')
@@ -84,6 +87,7 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['tables'] })
       queryClient.invalidateQueries({ queryKey: ['kitchen'] })
+      queryClient.invalidateQueries({ queryKey: ['cash-register'] })
       resetAndClose()
     },
     onError: () => {
@@ -107,13 +111,13 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
       return
     }
     if (!order) return
-    processPaymentMutation.mutate({ id: order.id, method: paymentMethod, tip: tipAmount })
+    processPaymentMutation.mutate({ id: order.id, method: paymentMethod, tip: tipAmount, splitCount: 1 })
   }
 
   const handleSplitPayment = () => {
     if (!order) return
-    // For split payment, we record as "split" method
-    processPaymentMutation.mutate({ id: order.id, method: 'split', tip: tipAmount })
+    // Pri deljenem plačilu shranimo kot "split" + informacija o metodah
+    processPaymentMutation.mutate({ id: order.id, method: 'split', tip: tipAmount, splitCount })
   }
 
   const paymentMethods = [
@@ -121,6 +125,12 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
     { id: 'card', label: 'Kartično', icon: CreditCard, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
     { id: 'mobile', label: 'Mobilno', icon: Smartphone, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' },
   ]
+
+  // Hitri zneski za gotovino
+  const quickCashAmounts = [5, 10, 20, 50, 100]
+  const cashChange = paymentMethod === 'cash' && tipAmount === 0
+    ? quickCashAmounts.find(a => a >= totalWithTip) 
+    : null
 
   if (!order) return null
 
@@ -137,7 +147,7 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Order summary */}
+          {/* Povzetek naročila */}
           <div className="bg-muted/50 rounded-lg p-3 space-y-1.5 text-sm">
             <div className="flex justify-between text-muted-foreground">
               <span>Vmesna vsota</span>
@@ -158,9 +168,19 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
               <span>Skupaj</span>
               <span>€{orderTotal.toFixed(2)}</span>
             </div>
+            {/* Artikli za pregled */}
+            <Separator />
+            <div className="space-y-0.5">
+              {order.orderItems.map(oi => (
+                <div key={oi.id} className="flex justify-between text-xs text-muted-foreground">
+                  <span>{oi.quantity}x {oi.menuItem.name}</span>
+                  <span>€{(oi.price * oi.quantity).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Tip section */}
+          {/* Napitnina */}
           <div>
             <div className="flex items-center gap-2 mb-2">
               <Heart className="h-4 w-4 text-rose-500" />
@@ -192,20 +212,18 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
                 className="h-7 text-xs w-24"
                 placeholder="0.00"
               />
-              <span className="text-xs text-muted-foreground">
-                €{tipAmount.toFixed(2)}
-              </span>
+              <span className="text-xs text-muted-foreground">€</span>
             </div>
           </div>
 
           {tipAmount > 0 && (
-            <div className="flex justify-between font-bold text-base bg-primary/5 p-2 rounded-lg">
-              <span>Skupaj z napitnino</span>
+            <div className="flex justify-between font-bold text-base bg-rose-50 dark:bg-rose-900/20 p-2 rounded-lg">
+              <span className="flex items-center gap-2"><Heart className="h-3.5 w-3.5 text-rose-500" /> Skupaj z napitnino</span>
               <span>€{totalWithTip.toFixed(2)}</span>
             </div>
           )}
 
-          {/* Payment tabs: Single / Split */}
+          {/* Plačilni zavihki */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="w-full">
               <TabsTrigger value="single" className="flex-1 text-xs">
@@ -214,11 +232,11 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
               </TabsTrigger>
               <TabsTrigger value="split" className="flex-1 text-xs">
                 <Split className="h-3 w-3 mr-1" />
-                Deljeno plačilo
+                Deljeno
               </TabsTrigger>
             </TabsList>
 
-            {/* Single payment */}
+            {/* Eno plačilo */}
             <TabsContent value="single" className="space-y-3">
               <div>
                 <p className="text-xs font-semibold mb-2">Način plačila</p>
@@ -244,6 +262,40 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
                 </div>
               </div>
 
+              {/* Hitri zneski za gotovino */}
+              {paymentMethod === 'cash' && (
+                <div>
+                  <p className="text-xs font-semibold mb-1.5">Hitri zneski</p>
+                  <div className="flex gap-1.5">
+                    {quickCashAmounts.map(amount => (
+                      <button
+                        key={amount}
+                        onClick={() => {
+                          // Avtomatsko izračunaj napitnino kot razliko
+                          const tip = Math.max(0, amount - orderTotal)
+                          if (tip > 0) {
+                            setTipAmount(Math.round(tip * 100) / 100)
+                            setTipPercent(orderTotal > 0 ? Math.round((tip / orderTotal) * 100) : 0)
+                          }
+                        }}
+                        className={`flex-1 py-2 rounded-md text-xs font-bold transition-colors ${
+                          amount >= totalWithTip
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
+                            : 'bg-muted text-muted-foreground hover:bg-accent'
+                        }`}
+                      >
+                        €{amount}
+                      </button>
+                    ))}
+                  </div>
+                  {cashChange && (
+                    <p className="text-xs text-muted-foreground mt-1 text-center">
+                      Vračilo: €{(cashChange - totalWithTip).toFixed(2)}
+                    </p>
+                  )}
+                </div>
+              )}
+
               <Button
                 className="w-full h-12 text-base font-bold"
                 disabled={!paymentMethod || processPaymentMutation.isPending}
@@ -254,13 +306,13 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
                 ) : (
                   <>
                     <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Plačaj €{totalWithTip.toFixed(2)}
+                    Plačaj €{totalWithTip.toFixed(2)} ({paymentMethods.find(p => p.id === paymentMethod)?.label || ''})
                   </>
                 )}
               </Button>
             </TabsContent>
 
-            {/* Split payment */}
+            {/* Deljeno plačilo */}
             <TabsContent value="split" className="space-y-3">
               <div>
                 <p className="text-xs font-semibold mb-2">Število oseb</p>
@@ -284,18 +336,15 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
               <div className="bg-muted/50 rounded-lg p-3 space-y-2">
                 <div className="text-center">
                   <p className="text-xs text-muted-foreground">Vsaka oseba plača</p>
-                  <p className="text-2xl font-bold text-primary">€{splitAmount.toFixed(2)}</p>
+                  <p className="text-3xl font-bold text-primary">€{splitAmount.toFixed(2)}</p>
                 </div>
                 <Separator />
                 <div className="space-y-1">
                   {Array.from({ length: splitCount }).map((_, i) => (
-                    <div key={i} className="flex items-center justify-between text-sm">
+                    <div key={i} className="flex items-center justify-between text-sm py-1">
                       <span className="text-muted-foreground">Oseba {i + 1}</span>
                       <div className="flex items-center gap-2">
                         <span className="font-semibold">€{splitAmount.toFixed(2)}</span>
-                        <Badge variant="outline" className="text-[9px] h-4 px-1">
-                          {splitCount}x
-                        </Badge>
                       </div>
                     </div>
                   ))}
@@ -304,6 +353,48 @@ export function PaymentDialog({ order, open, onClose }: PaymentDialogProps) {
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Skupaj ({splitCount} oseb)</span>
                   <span className="font-bold">€{totalWithTip.toFixed(2)}</span>
+                </div>
+                {tipAmount > 0 && (
+                  <div className="flex justify-between text-xs text-rose-600">
+                    <span>Od tega napitnina</span>
+                    <span>€{tipAmount.toFixed(2)} (€{(tipAmount / splitCount).toFixed(2)}/osebo)</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Izbira plačilne metode za deljeno */}
+              <div>
+                <p className="text-xs font-semibold mb-2">Način plačila</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {paymentMethods.map(pm => {
+                    const Icon = pm.icon
+                    const isSelected = paymentMethod === pm.id
+                    return (
+                      <button
+                        key={pm.id}
+                        onClick={() => setPaymentMethod(pm.id)}
+                        className={`flex flex-col items-center gap-1 py-2 rounded-lg border-2 transition-all ${
+                          isSelected
+                            ? 'border-primary bg-primary/5 shadow-sm'
+                            : 'border-border hover:bg-accent'
+                        }`}
+                      >
+                        <Icon className={`h-4 w-4 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                        <span className="text-[10px] font-semibold">{pm.label}</span>
+                      </button>
+                    )
+                  })}
+                  <button
+                    onClick={() => setPaymentMethod('mixed')}
+                    className={`flex flex-col items-center gap-1 py-2 rounded-lg border-2 transition-all ${
+                      paymentMethod === 'mixed'
+                        ? 'border-primary bg-primary/5 shadow-sm'
+                        : 'border-border hover:bg-accent'
+                    }`}
+                  >
+                    <Split className={`h-4 w-4 ${paymentMethod === 'mixed' ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <span className="text-[10px] font-semibold">Mešano</span>
+                  </button>
                 </div>
               </div>
 

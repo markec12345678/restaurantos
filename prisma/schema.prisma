@@ -117,9 +117,12 @@ model Order {
   subtotal      Float      @default(0)
   tax           Float      @default(0)
   discount      Float      @default(0)
-  total         Float      @default(0)
+  tip           Float      @default(0)            // Napitnina
+  total         Float      @default(0)            // Subtotal + tax - discount (brez napitnine)
+  totalWithTip  Float      @default(0)            // Total + tip
   paymentStatus String     @default("unpaid")
   paymentMethod String     @default("")
+  splitCount    Int        @default(1)            // Število oseb pri deljenem plačilu
   notes         String     @default("")
   employeeId    String?
   orderItems    OrderItem[]

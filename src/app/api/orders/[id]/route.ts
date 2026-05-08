@@ -15,6 +15,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   if (body.customerPhone !== undefined) updateData.customerPhone = body.customerPhone
   if (body.discount !== undefined) updateData.discount = body.discount
   if (body.total !== undefined) updateData.total = body.total
+  if (body.tip !== undefined) updateData.tip = body.tip
+  if (body.totalWithTip !== undefined) updateData.totalWithTip = body.totalWithTip
+  if (body.splitCount !== undefined) updateData.splitCount = body.splitCount
 
   const order = await db.order.update({
     where: { id },

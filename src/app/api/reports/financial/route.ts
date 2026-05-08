@@ -239,8 +239,7 @@ export async function GET(req: Request) {
 
     // === NAPITNINE ===
     const totalTips = paidOrders.reduce((sum, o) => {
-      // Če ima order tip polje - dodaj, sicer 0
-      return sum + 0
+      return sum + (o.tip || 0)
     }, 0)
 
     // === BLAGAJNA IZPISKI ===
