@@ -240,7 +240,7 @@ export function InventoryManager() {
 
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>Min: {minQty} {String(item.unit)}</span>
-                    <span>${Number(item.costPerUnit).toFixed(2)}/{String(item.unit)}</span>
+                    <span>€{Number(item.costPerUnit).toFixed(2)}/{String(item.unit)}</span>
                   </div>
 
                   {/* Quick stock update */}
@@ -286,7 +286,7 @@ export function InventoryManager() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Min. količina</Label><Input type="number" value={formData.minQuantity} onChange={(e) => setFormData({ ...formData, minQuantity: e.target.value })} /></div>
-              <div><Label>Strošek/enota ($)</Label><Input type="number" step="0.01" value={formData.costPerUnit} onChange={(e) => setFormData({ ...formData, costPerUnit: e.target.value })} /></div>
+              <div><Label>Strošek/enota (€)</Label><Input type="number" step="0.01" value={formData.costPerUnit} onChange={(e) => setFormData({ ...formData, costPerUnit: e.target.value })} /></div>
             </div>
             <div><Label>Dobavitelj</Label><Input value={formData.supplier} onChange={(e) => setFormData({ ...formData, supplier: e.target.value })} /></div>
             <div><Label>Kategorija</Label>

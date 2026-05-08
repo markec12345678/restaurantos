@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { usePOSStore, CartItemType } from '@/lib/store'
+import { usePOSStore, SelectedModifier } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -13,15 +13,42 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Plus, Minus, Trash2, ShoppingBag, CreditCard, Banknote, Smartphone, StickyNote, X, Printer, Eye, Clock, ImageIcon } from 'lucide-react'
+import { Plus, Minus, Trash2, ShoppingBag, CreditCard, Banknote, Smartphone, X, Printer, Eye, ImageIcon, ChevronRight, Check } from 'lucide-react'
 import { useState, useRef } from 'react'
 import { format } from 'date-fns'
+
+interface ModifierGroupType {
+  id: string
+  sortOrder: number
+  modifierGroup: {
+    id: string
+    name: string
+    required: boolean
+    minSelect: number
+    maxSelect: number | null
+    modifiers: { id: string; name: string; price: number; sortOrder: number }[]
+  }
+}
+
+interface MenuItemType {
+  id: string
+  name: string
+  description: string
+  price: number
+  image: string
+  isAvailable: boolean
+  sortOrder: number
+  categoryId: string
+  category: { id: string; name: string; menu: { id: string; name: string } }
+  modifierGroups: ModifierGroupType[]
+}
 
 export function OrderPanel() {
   const {
     cart, addToCart, removeFromCart, updateCartQuantity, updateCartNotes, clearCart,
     cartTotal, orderType, setOrderType, selectedTable, setSelectedTable,
     discount, setDiscount, taxRate,
+    activeMenuId, setActiveMenuId,
   } = usePOSStore()
   const queryClient = useQueryClient()
   const [customerName, setCustomerName] = useState('')
@@ -36,10 +63,15 @@ export function OrderPanel() {
   const [receiptOrder, setReceiptOrder] = useState<Record<string, unknown> | null>(null)
   const receiptRef = useRef<HTMLDivElement>(null)
 
-  const { data: categories } = useQuery({
-    queryKey: ['categories'],
+  // Modifier dialog state
+  const [modifierDialogItem, setModifierDialogItem] = useState<MenuItemType | null>(null)
+  const [selectedModifiers, setSelectedModifiers] = useState<Map<string, SelectedModifier>>(new Map())
+
+  // Fetch menus with full hierarchy
+  const { data: menus, isLoading: menusLoading } = useQuery({
+    queryKey: ['menus'],
     queryFn: async () => {
-      const res = await fetch('/api/categories')
+      const res = await fetch('/api/menus')
       return res.json()
     },
   })
@@ -89,6 +121,7 @@ export function OrderPanel() {
             quantity: item.quantity,
             price: item.price,
             notes: item.notes,
+            modifiersJson: JSON.stringify(item.modifiers.map(m => ({ name: m.name, price: m.price, modifierGroupName: m.modifierGroupName }))),
           })),
         }),
       })
@@ -149,10 +182,76 @@ export function OrderPanel() {
     },
   })
 
+  // Get categories for the active menu
+  const activeMenu = menus?.find((m: { id: string }) => m.id === activeMenuId)
+  const categoriesForMenu = activeMenu?.categories || []
+
+  // Filter menu items by active menu and category
   const filteredMenuItems = menuItems?.filter(
-    (item: { categoryId: string; isAvailable: boolean }) =>
-      (activeCategory === 'all' || item.categoryId === activeCategory) && item.isAvailable
+    (item: MenuItemType) => {
+      const matchesMenu = !activeMenuId || item.category?.menu?.id === activeMenuId
+      const matchesCategory = activeCategory === 'all' || item.categoryId === activeCategory
+      return matchesMenu && matchesCategory && item.isAvailable
+    }
   ) || []
+
+  // Handle adding item to cart (with modifiers)
+  const handleItemClick = (item: MenuItemType) => {
+    if (item.modifierGroups?.length > 0) {
+      // Open modifier dialog
+      setModifierDialogItem(item)
+      setSelectedModifiers(new Map())
+    } else {
+      // Add directly to cart
+      addToCart({ id: item.id, name: item.name, price: item.price, categoryId: item.categoryId, image: item.image })
+    }
+  }
+
+  // Handle modifier selection
+  const handleModifierToggle = (group: ModifierGroupType['modifierGroup'], modifier: { id: string; name: string; price: number }) => {
+    setSelectedModifiers(prev => {
+      const newMap = new Map(prev)
+      const key = modifier.id
+
+      // Check maxSelect
+      if (group.maxSelect && !newMap.has(key)) {
+        const currentCount = Array.from(newMap.values()).filter(m => m.modifierGroupId === group.id).length
+        if (currentCount >= group.maxSelect) {
+          // Remove the oldest selection in this group
+          const toRemove = Array.from(newMap.entries()).find(([_, v]) => v.modifierGroupId === group.id)
+          if (toRemove) newMap.delete(toRemove[0])
+        }
+      }
+
+      if (newMap.has(key)) {
+        newMap.delete(key)
+      } else {
+        newMap.set(key, {
+          id: modifier.id,
+          name: modifier.name,
+          price: modifier.price,
+          modifierGroupId: group.id,
+          modifierGroupName: group.name,
+        })
+      }
+      return newMap
+    })
+  }
+
+  const handleModifierConfirm = () => {
+    if (!modifierDialogItem) return
+    const modifiers = Array.from(selectedModifiers.values())
+    addToCart({
+      id: modifierDialogItem.id,
+      name: modifierDialogItem.name,
+      price: modifierDialogItem.price,
+      categoryId: modifierDialogItem.categoryId,
+      image: modifierDialogItem.image,
+      modifiers,
+    })
+    setModifierDialogItem(null)
+    setSelectedModifiers(new Map())
+  }
 
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const tax = subtotal * taxRate
@@ -170,6 +269,14 @@ export function OrderPanel() {
     pending: 'in-progress',
     'in-progress': 'ready',
     ready: 'completed',
+  }
+
+  const statusLabels: Record<string, string> = {
+    pending: 'Čakajoče',
+    'in-progress': 'V obdelavi',
+    ready: 'Pripravljeno',
+    completed: 'Zaključeno',
+    cancelled: 'Preklicano',
   }
 
   return (
@@ -219,6 +326,26 @@ export function OrderPanel() {
                 )}
               </div>
 
+              {/* Menu Tabs (Hrana / Pijača) */}
+              <div className="flex gap-2">
+                {menus?.map((menu: { id: string; name: string; icon: string; color: string; isActive: boolean }) => (
+                  <Button
+                    key={menu.id}
+                    variant={activeMenuId === menu.id || (!activeMenuId && menus.indexOf(menu) === 0) ? 'default' : 'outline'}
+                    size="lg"
+                    className="flex-1 text-base font-semibold"
+                    style={activeMenuId === menu.id || (!activeMenuId && menus.indexOf(menu) === 0) ? { backgroundColor: menu.color } : {}}
+                    onClick={() => {
+                      setActiveMenuId(menu.id)
+                      setActiveCategory('all')
+                    }}
+                  >
+                    <span className="text-xl mr-2">{menu.icon}</span>
+                    {menu.name}
+                  </Button>
+                ))}
+              </div>
+
               {/* Category Pills */}
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -228,7 +355,7 @@ export function OrderPanel() {
                 >
                   Vse
                 </Button>
-                {categories?.map((cat: { id: string; name: string; icon: string }) => (
+                {categoriesForMenu.map((cat: { id: string; name: string; icon: string }) => (
                   <Button
                     key={cat.id}
                     variant={activeCategory === cat.id ? 'default' : 'outline'}
@@ -241,7 +368,7 @@ export function OrderPanel() {
               </div>
 
               {/* Menu Items Grid */}
-              {menuLoading ? (
+              {menuLoading || menusLoading ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                   {[...Array(8)].map((_, i) => (
                     <Skeleton key={i} className="h-24" />
@@ -249,18 +376,28 @@ export function OrderPanel() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {filteredMenuItems.map((item: { id: string; name: string; price: number; description: string; image: string }) => {
-                    const inCart = cart.find((c) => c.id === item.id)
+                  {filteredMenuItems.map((item: MenuItemType) => {
+                    const inCart = cart.filter((c) => c.id === item.id)
+                    const totalQty = inCart.reduce((sum, c) => sum + c.quantity, 0)
+                    const hasModifiers = item.modifierGroups?.length > 0
                     return (
                       <button
                         key={item.id}
-                        onClick={() => addToCart({ id: item.id, name: item.name, price: item.price, categoryId: item.categoryId || '', image: item.image || '' })}
+                        onClick={() => handleItemClick(item)}
                         className="relative flex flex-col items-start p-2 rounded-lg border border-border bg-card hover:bg-accent transition-colors text-left overflow-hidden group"
                       >
-                        {inCart && (
+                        {totalQty > 0 && (
                           <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs z-10">
-                            {inCart.quantity}
+                            {totalQty}
                           </Badge>
+                        )}
+                        {hasModifiers && (
+                          <div className="absolute top-1 left-1 z-10">
+                            <Badge variant="secondary" className="text-[9px] h-4 px-1">
+                              <ChevronRight className="h-2 w-2 mr-0.5" />
+                              Izbira
+                            </Badge>
+                          </div>
                         )}
                         {/* Item Image */}
                         <div className="w-full aspect-[4/3] rounded-md overflow-hidden mb-2 bg-muted/50 relative">
@@ -281,7 +418,7 @@ export function OrderPanel() {
                           </div>
                         </div>
                         <span className="font-medium text-sm leading-tight">{item.name}</span>
-                        <span className="text-primary font-bold text-sm mt-0.5">${item.price.toFixed(2)}</span>
+                        <span className="text-primary font-bold text-sm mt-0.5">€{item.price.toFixed(2)}</span>
                         {item.description && (
                           <span className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{item.description}</span>
                         )}
@@ -299,6 +436,7 @@ export function OrderPanel() {
                   <CardTitle className="text-lg flex items-center gap-2">
                     <ShoppingBag className="h-4 w-4" />
                     Košarica
+                    {cart.length > 0 && <Badge variant="secondary" className="ml-1">{cart.reduce((s, i) => s + i.quantity, 0)}</Badge>}
                   </CardTitle>
                   {cart.length > 0 && (
                     <Button variant="ghost" size="sm" onClick={clearCart} className="text-destructive">
@@ -314,7 +452,7 @@ export function OrderPanel() {
                     <p className="text-center text-muted-foreground text-sm py-6">Košarica je prazna</p>
                   )}
                   {cart.map((item) => (
-                    <div key={item.id} className="flex items-start gap-2 p-2 rounded-md bg-muted/50">
+                    <div key={item.cartKey} className="flex items-start gap-2 p-2 rounded-md bg-muted/50">
                       {/* Cart item thumbnail */}
                       {item.image ? (
                         <div className="w-10 h-10 rounded-md overflow-hidden flex-shrink-0">
@@ -327,7 +465,17 @@ export function OrderPanel() {
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">${item.price.toFixed(2)} na kos</p>
+                        <p className="text-xs text-muted-foreground">€{item.price.toFixed(2)} na kos</p>
+                        {/* Show selected modifiers */}
+                        {item.modifiers.length > 0 && (
+                          <div className="flex flex-wrap gap-0.5 mt-0.5">
+                            {item.modifiers.map((m) => (
+                              <Badge key={m.id} variant="outline" className="text-[9px] h-3.5 px-1 py-0">
+                                {m.name}{m.price > 0 ? ` +€${m.price.toFixed(2)}` : ''}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                         {item.notes && <p className="text-xs text-primary italic mt-0.5">📝 {item.notes}</p>}
                       </div>
                       <div className="flex items-center gap-1">
@@ -335,7 +483,7 @@ export function OrderPanel() {
                           variant="outline"
                           size="icon"
                           className="h-6 w-6"
-                          onClick={() => updateCartQuantity(item.id, item.quantity - 1)}
+                          onClick={() => updateCartQuantity(item.cartKey, item.quantity - 1)}
                         >
                           <Minus className="h-3 w-3" />
                         </Button>
@@ -344,7 +492,7 @@ export function OrderPanel() {
                           variant="outline"
                           size="icon"
                           className="h-6 w-6"
-                          onClick={() => updateCartQuantity(item.id, item.quantity + 1)}
+                          onClick={() => updateCartQuantity(item.cartKey, item.quantity + 1)}
                         >
                           <Plus className="h-3 w-3" />
                         </Button>
@@ -352,13 +500,13 @@ export function OrderPanel() {
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 text-destructive"
-                          onClick={() => removeFromCart(item.id)}
+                          onClick={() => removeFromCart(item.cartKey)}
                         >
                           <X className="h-3 w-3" />
                         </Button>
                       </div>
                       <p className="text-sm font-semibold w-16 text-right">
-                        ${(item.price * item.quantity).toFixed(2)}
+                        €{(item.price * item.quantity).toFixed(2)}
                       </p>
                     </div>
                   ))}
@@ -390,7 +538,7 @@ export function OrderPanel() {
 
                 {/* Discount */}
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Popust ($)</span>
+                  <span className="text-sm text-muted-foreground">Popust (€)</span>
                   <Input
                     type="number"
                     min="0"
@@ -407,21 +555,21 @@ export function OrderPanel() {
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Vmesna vsota</span>
-                    <span>${subtotal.toFixed(2)}</span>
+                    <span>€{subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Davek (10%)</span>
-                    <span>${tax.toFixed(2)}</span>
+                    <span>€{tax.toFixed(2)}</span>
                   </div>
                   {discount > 0 && (
                     <div className="flex justify-between text-emerald-600">
                       <span>Popust</span>
-                      <span>-${discount.toFixed(2)}</span>
+                      <span>-€{discount.toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between font-bold text-base pt-1">
                     <span>Skupaj</span>
-                    <span>${Math.max(0, total).toFixed(2)}</span>
+                    <span>€{Math.max(0, total).toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -482,18 +630,18 @@ export function OrderPanel() {
                         </div>
                         <div className="flex gap-1">
                           <Badge variant="outline" className={statusColors[order.status]}>
-                            {order.status}
+                            {statusLabels[order.status] || order.status}
                           </Badge>
                           {order.paymentStatus === 'paid' && (
                             <Badge variant="outline" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
-                              Paid
+                              Plačano
                             </Badge>
                           )}
                         </div>
                       </div>
 
                       <div className="text-sm">
-                        <p>{order.customerName || 'Hodič'} · {order.type}</p>
+                        <p>{order.customerName || 'Hodič'} · {order.type === 'dine-in' ? 'Na mestu' : order.type === 'takeaway' ? 'Za s seboj' : 'Dostava'}</p>
                         {order.table && <p className="text-muted-foreground">Miza {order.table.number}</p>}
                       </div>
 
@@ -501,7 +649,7 @@ export function OrderPanel() {
                         {order.orderItems.slice(0, 3).map((oi) => (
                           <div key={oi.id} className="flex justify-between text-sm">
                             <span>{oi.quantity}x {oi.menuItem.name}</span>
-                            <span>${(oi.price * oi.quantity).toFixed(2)}</span>
+                            <span>€{(oi.price * oi.quantity).toFixed(2)}</span>
                           </div>
                         ))}
                         {order.orderItems.length > 3 && (
@@ -512,7 +660,7 @@ export function OrderPanel() {
                       <Separator />
 
                       <div className="flex items-center justify-between">
-                        <span className="font-bold">${order.total.toFixed(2)}</span>
+                        <span className="font-bold">€{order.total.toFixed(2)}</span>
                         <div className="flex gap-1 flex-wrap justify-end">
                           <Button
                             size="sm"
@@ -531,7 +679,7 @@ export function OrderPanel() {
                               onClick={() => updateOrderStatusMutation.mutate({ id: order.id, status: nextStatus[order.status] })}
                               disabled={updateOrderStatusMutation.isPending}
                             >
-                              → {nextStatus[order.status]}
+                              → {statusLabels[nextStatus[order.status]]}
                             </Button>
                           )}
                           {order.paymentStatus !== 'paid' && order.status !== 'cancelled' && (
@@ -581,7 +729,7 @@ export function OrderPanel() {
               </DialogHeader>
               <div className="space-y-4">
                 <p className="text-2xl font-bold text-center">
-                  ${((selectedOrder?.total as number) || 0).toFixed(2)}
+                  €{((selectedOrder?.total as number) || 0).toFixed(2)}
                 </p>
                 <div className="grid grid-cols-3 gap-3">
                   <Button
@@ -633,7 +781,7 @@ export function OrderPanel() {
                 <DialogTitle className="flex items-center gap-2">
                   Naročilo #{(detailOrder?.orderNumber as number) || ''}
                   <Badge variant="outline" className={statusColors[(detailOrder?.status as string) || ''] || ''}>
-                    {String(detailOrder?.status || '')}
+                    {statusLabels[(detailOrder?.status as string)] || String(detailOrder?.status || '')}
                   </Badge>
                 </DialogTitle>
               </DialogHeader>
@@ -646,7 +794,9 @@ export function OrderPanel() {
                   </div>
                   <div>
                     <p className="text-muted-foreground">Vrsta</p>
-                    <p className="font-medium capitalize">{String(detailOrder?.type || '')}</p>
+                    <p className="font-medium">
+                      {detailOrder?.type === 'dine-in' ? 'Na mestu' : detailOrder?.type === 'takeaway' ? 'Za s seboj' : 'Dostava'}
+                    </p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Miza</p>
@@ -656,7 +806,7 @@ export function OrderPanel() {
                     <p className="text-muted-foreground">Plačilo</p>
                     <div className="flex items-center gap-1">
                       <Badge variant="outline" className={detailOrder?.paymentStatus === 'paid' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-yellow-100 text-yellow-800'}>
-                        {String(detailOrder?.paymentStatus || 'unpaid')}
+                        {detailOrder?.paymentStatus === 'paid' ? 'Plačano' : 'Neplačano'}
                       </Badge>
                       {detailOrder?.paymentMethod && <span className="text-xs text-muted-foreground uppercase">{String(detailOrder.paymentMethod)}</span>}
                     </div>
@@ -672,10 +822,9 @@ export function OrderPanel() {
                 {/* Items */}
                 <div className="space-y-2">
                   <p className="text-sm font-semibold">Artikli</p>
-                  {((detailOrder?.orderItems as { id: string; menuItem: { name: string; image: string }; quantity: number; price: number; notes: string; status: string }[]) || []).map((oi) => (
+                  {((detailOrder?.orderItems as { id: string; menuItem: { name: string; image: string }; quantity: number; price: number; notes: string; status: string; modifiersJson?: string }[]) || []).map((oi) => (
                     <div key={oi.id} className="flex items-start justify-between text-sm py-1 gap-2">
                       <div className="flex items-start gap-2 flex-1">
-                        {/* Item thumbnail in detail dialog */}
                         {oi.menuItem.image ? (
                           <div className="w-9 h-9 rounded-md overflow-hidden flex-shrink-0">
                             <img src={oi.menuItem.image} alt={oi.menuItem.name} className="w-full h-full object-cover" />
@@ -690,10 +839,28 @@ export function OrderPanel() {
                             <span className="font-medium">{oi.quantity}x {oi.menuItem.name}</span>
                             <Badge variant="outline" className="text-[10px] h-4 capitalize">{oi.status}</Badge>
                           </div>
+                          {/* Show modifiers from order item */}
+                          {oi.modifiersJson && (() => {
+                            try {
+                              const mods = JSON.parse(oi.modifiersJson)
+                              if (mods.length > 0) {
+                                return (
+                                  <div className="flex flex-wrap gap-0.5 mt-0.5">
+                                    {mods.map((m: { name: string; price: number }, mi: number) => (
+                                      <Badge key={mi} variant="outline" className="text-[9px] h-3.5 px-1 py-0">
+                                        {m.name}{m.price > 0 ? ` +€${m.price.toFixed(2)}` : ''}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )
+                              }
+                            } catch {}
+                            return null
+                          })()}
                           {oi.notes && <p className="text-xs text-muted-foreground italic mt-0.5">{oi.notes}</p>}
                         </div>
                       </div>
-                      <span className="font-medium flex-shrink-0">${(oi.price * oi.quantity).toFixed(2)}</span>
+                      <span className="font-medium flex-shrink-0">€{(oi.price * oi.quantity).toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
@@ -704,21 +871,21 @@ export function OrderPanel() {
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Vmesna vsota</span>
-                    <span>${((detailOrder?.subtotal as number) || 0).toFixed(2)}</span>
+                    <span>€{((detailOrder?.subtotal as number) || 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Davek</span>
-                    <span>${((detailOrder?.tax as number) || 0).toFixed(2)}</span>
+                    <span>€{((detailOrder?.tax as number) || 0).toFixed(2)}</span>
                   </div>
                   {Number(detailOrder?.discount || 0) > 0 && (
                     <div className="flex justify-between text-emerald-600">
                       <span>Popust</span>
-                      <span>-${((detailOrder?.discount as number) || 0).toFixed(2)}</span>
+                      <span>-€{((detailOrder?.discount as number) || 0).toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between font-bold text-base pt-1">
                     <span>Skupaj</span>
-                    <span>${((detailOrder?.total as number) || 0).toFixed(2)}</span>
+                    <span>€{((detailOrder?.total as number) || 0).toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -767,7 +934,7 @@ export function OrderPanel() {
                   </div>
                   <div className="flex justify-between">
                     <span>Vrsta</span>
-                    <span className="capitalize">{String(receiptOrder?.type || '')}</span>
+                    <span>{receiptOrder?.type === 'dine-in' ? 'Na mestu' : receiptOrder?.type === 'takeaway' ? 'Za s seboj' : 'Dostava'}</span>
                   </div>
                   {receiptOrder?.table && (
                     <div className="flex justify-between">
@@ -784,7 +951,7 @@ export function OrderPanel() {
                   {((receiptOrder?.orderItems as { id: string; menuItem: { name: string }; quantity: number; price: number }[]) || []).map((oi) => (
                     <div key={oi.id} className="flex justify-between">
                       <span>{oi.quantity}x {oi.menuItem.name}</span>
-                      <span>${(oi.price * oi.quantity).toFixed(2)}</span>
+                      <span>€{(oi.price * oi.quantity).toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
@@ -795,21 +962,21 @@ export function OrderPanel() {
                 <div className="text-xs space-y-0.5">
                   <div className="flex justify-between">
                     <span>Vmesna vsota:</span>
-                    <span>${((receiptOrder?.subtotal as number) || 0).toFixed(2)}</span>
+                    <span>€{((receiptOrder?.subtotal as number) || 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Davek:</span>
-                    <span>${((receiptOrder?.tax as number) || 0).toFixed(2)}</span>
+                    <span>€{((receiptOrder?.tax as number) || 0).toFixed(2)}</span>
                   </div>
                   {Number(receiptOrder?.discount || 0) > 0 && (
                     <div className="flex justify-between">
                       <span>Popust:</span>
-                      <span>-${((receiptOrder?.discount as number) || 0).toFixed(2)}</span>
+                      <span>-€{((receiptOrder?.discount as number) || 0).toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between font-bold text-sm pt-1">
                     <span>SKUPAJ:</span>
-                    <span>${((receiptOrder?.total as number) || 0).toFixed(2)}</span>
+                    <span>€{((receiptOrder?.total as number) || 0).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Plačilo:</span>
@@ -847,6 +1014,109 @@ export function OrderPanel() {
           </Dialog>
         </TabsContent>
       </Tabs>
+
+      {/* Modifier Selection Dialog */}
+      <Dialog open={!!modifierDialogItem} onOpenChange={(open) => { if (!open) { setModifierDialogItem(null); setSelectedModifiers(new Map()) } }}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {modifierDialogItem?.name}
+              <span className="text-primary font-bold ml-auto">€{modifierDialogItem?.price.toFixed(2)}</span>
+            </DialogTitle>
+            {modifierDialogItem?.description && (
+              <p className="text-sm text-muted-foreground font-normal">{modifierDialogItem.description}</p>
+            )}
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {modifierDialogItem?.modifierGroups?.sort((a, b) => a.sortOrder - b.sortOrder).map((mg) => {
+              const group = mg.modifierGroup
+              const selectedInGroup = Array.from(selectedModifiers.values()).filter(m => m.modifierGroupId === group.id)
+              return (
+                <div key={group.id} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-semibold text-sm">{group.name}</span>
+                      {group.required && <Badge variant="destructive" className="text-[9px] h-4 px-1">Obvezno</Badge>}
+                    </div>
+                    {group.maxSelect && (
+                      <span className="text-xs text-muted-foreground">Izberi do {group.maxSelect}</span>
+                    )}
+                    {!group.required && group.minSelect === 0 && (
+                      <span className="text-xs text-muted-foreground">Izbirno</span>
+                    )}
+                  </div>
+                  <div className="space-y-1">
+                    {group.modifiers.map((mod) => {
+                      const isSelected = selectedModifiers.has(mod.id)
+                      const wouldExceedMax = group.maxSelect && !isSelected && selectedInGroup.length >= group.maxSelect
+                      return (
+                        <button
+                          key={mod.id}
+                          onClick={() => !wouldExceedMax && handleModifierToggle(group, mod)}
+                          disabled={wouldExceedMax}
+                          className={`w-full flex items-center justify-between p-2.5 rounded-lg border text-sm transition-colors ${
+                            isSelected
+                              ? 'border-primary bg-primary/5 text-primary'
+                              : wouldExceedMax
+                              ? 'border-border/50 bg-muted/30 text-muted-foreground/50 cursor-not-allowed'
+                              : 'border-border hover:bg-accent'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className={`h-4 w-4 rounded ${group.maxSelect === 1 ? 'rounded-full' : 'rounded-sm'} border flex items-center justify-center ${
+                              isSelected ? 'bg-primary border-primary' : 'border-border'
+                            }`}>
+                              {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
+                            </div>
+                            <span className="font-medium">{mod.name}</span>
+                          </div>
+                          {mod.price > 0 && (
+                            <span className={`text-xs font-medium ${isSelected ? 'text-primary' : 'text-muted-foreground'}`}>
+                              +€{mod.price.toFixed(2)}
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Total with modifiers */}
+          <div className="border-t pt-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Skupaj z dodatki:</span>
+              <span className="text-lg font-bold">
+                €{(modifierDialogItem ? modifierDialogItem.price + Array.from(selectedModifiers.values()).reduce((s, m) => s + m.price, 0) : 0).toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setModifierDialogItem(null); setSelectedModifiers(new Map()) }}>
+              Prekliči
+            </Button>
+            <Button
+              onClick={handleModifierConfirm}
+              disabled={(() => {
+                if (!modifierDialogItem) return true
+                // Check all required groups have selections
+                return modifierDialogItem.modifierGroups.some(mg => {
+                  if (!mg.modifierGroup.required) return false
+                  const selectedCount = Array.from(selectedModifiers.values()).filter(m => m.modifierGroupId === mg.modifierGroup.id).length
+                  return selectedCount < mg.modifierGroup.minSelect
+                })
+              })()}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Dodaj v košarico
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

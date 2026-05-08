@@ -52,11 +52,12 @@ export async function POST(req: Request) {
       notes: body.notes || '',
       employeeId: body.employeeId || null,
       orderItems: {
-        create: body.orderItems.map((item: { menuItemId: string; quantity: number; price: number; notes?: string }) => ({
+        create: body.orderItems.map((item: { menuItemId: string; quantity: number; price: number; notes?: string; modifiersJson?: string }) => ({
           menuItemId: item.menuItemId,
           quantity: item.quantity,
           price: item.price,
           notes: item.notes || '',
+          modifiersJson: item.modifiersJson || '[]',
           status: 'pending',
         })),
       },

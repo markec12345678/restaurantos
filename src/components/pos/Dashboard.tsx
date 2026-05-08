@@ -44,6 +44,14 @@ export function Dashboard() {
     cancelled: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
   }
 
+  const statusLabels: Record<string, string> = {
+    pending: 'Čakajoče',
+    'in-progress': 'V obdelavi',
+    ready: 'Pripravljeno',
+    completed: 'Zaključeno',
+    cancelled: 'Preklicano',
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -55,7 +63,7 @@ export function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
           title="Današnji prihodek"
-          value={`$${(data?.todayRevenue || 0).toFixed(2)}`}
+          value={`€${(data?.todayRevenue || 0).toFixed(2)}`}
           subtitle={data?.pendingOrders > 0 ? `${data.pendingOrders} čakajočih naročil` : undefined}
           icon={DollarSign}
           trend="up"
@@ -68,7 +76,7 @@ export function Dashboard() {
         />
         <StatsCard
           title="Povpr. vrednost naročila"
-          value={`$${(data?.avgOrderValue || 0).toFixed(2)}`}
+          value={`€${(data?.avgOrderValue || 0).toFixed(2)}`}
           icon={Calculator}
         />
         <StatsCard
@@ -94,9 +102,9 @@ export function Dashboard() {
                   className="text-xs"
                   tick={{ fontSize: 12 }}
                 />
-                <YAxis className="text-xs" tick={{ fontSize: 12 }} tickFormatter={(v) => `$${v}`} />
+                <YAxis className="text-xs" tick={{ fontSize: 12 }} tickFormatter={(v) => `€${v}`} />
                 <Tooltip
-                  formatter={(value: number) => [`$${value.toFixed(2)}`, 'Prihodek']}
+                  formatter={(value: number) => [`€${value.toFixed(2)}`, 'Prihodek']}
                   labelFormatter={(label) => format(new Date(label), 'MMM dd, yyyy')}
                   contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }}
                 />
@@ -138,9 +146,9 @@ export function Dashboard() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className={statusColors[order.status] || ''}>
-                      {order.status}
+                      {statusLabels[order.status] || order.status}
                     </Badge>
-                    <span className="text-sm font-semibold">${order.total.toFixed(2)}</span>
+                    <span className="text-sm font-semibold">€{order.total.toFixed(2)}</span>
                   </div>
                 </div>
               ))}
@@ -225,7 +233,7 @@ export function Dashboard() {
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-bold text-sm">#{order.orderNumber}</span>
                     <Badge variant="outline" className={statusColors[order.status]}>
-                      {order.status}
+                      {statusLabels[order.status] || order.status}
                     </Badge>
                   </div>
                   <div className="text-xs text-muted-foreground mb-2">

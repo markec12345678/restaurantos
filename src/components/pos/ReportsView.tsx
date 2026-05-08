@@ -63,7 +63,7 @@ export function ReportsView() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
           title="Skupni prihodek"
-          value={`$${(salesData?.totalRevenue || 0).toFixed(2)}`}
+          value={`€${(salesData?.totalRevenue || 0).toFixed(2)}`}
           icon={DollarSign}
         />
         <StatsCard
@@ -73,7 +73,7 @@ export function ReportsView() {
         />
         <StatsCard
           title="Povpr. vrednost naročila"
-          value={`$${(salesData?.avgOrderValue || 0).toFixed(2)}`}
+          value={`€${(salesData?.avgOrderValue || 0).toFixed(2)}`}
           icon={TrendingUp}
         />
         <StatsCard
@@ -101,9 +101,9 @@ export function ReportsView() {
                   <LineChart data={salesData?.dailyRevenue || []}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="date" tickFormatter={(v) => format(new Date(v), 'MMM dd')} tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${v}`} />
+                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
                     <Tooltip
-                      formatter={(value: number) => [`$${value.toFixed(2)}`, 'Prihodek']}
+                      formatter={(value: number) => [`€${value.toFixed(2)}`, 'Prihodek']}
                       labelFormatter={(label) => format(new Date(label), 'MMM dd, yyyy')}
                       contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }}
                     />
@@ -160,7 +160,7 @@ export function ReportsView() {
                           <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: number) => [`$${value.toFixed(2)}`, 'Prihodek']} />
+                      <Tooltip formatter={(value: number) => [`€${value.toFixed(2)}`, 'Prihodek']} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -179,9 +179,9 @@ export function ReportsView() {
                   <BarChart data={popularData?.categoryBreakdown || []}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="category" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${v}`} />
+                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
                     <Tooltip
-                      formatter={(value: number) => [`$${value.toFixed(2)}`, 'Prihodek']}
+                      formatter={(value: number) => [`€${value.toFixed(2)}`, 'Prihodek']}
                       contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }}
                     />
                     <Bar dataKey="revenue" fill="oklch(0.7 0.15 55)" radius={[4, 4, 0, 0]} />
