@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id        String     @id @default(cuid())
+  name      String
+  icon      String     @default("🍽️")
+  color     String     @default("#f59e0b")
+  sortOrder Int        @default(0)
+  menuItems MenuItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model MenuItem {
+  id          String   @id @default(cuid())
+  name        String
+  description String   @default("")
+  price       Float
+  image       String   @default("")
+  isAvailable Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  orderItems  OrderItem[]
+  inventory   InventoryItem?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Table {
+  id        String   @id @default(cuid())
+  number    Int      @unique
+  capacity  Int      @default(4)
+  status    String   @default("available")
+  area      String   @default("main")
+  orders    Order[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Order {
+  id            String     @id @default(cuid())
+  orderNumber   Int        @unique
+  type          String     @default("dine-in")
+  status        String     @default("pending")
+  tableId       String?
+  table         Table?     @relation(fields: [tableId], references: [id])
+  customerName  String     @default("")
+  customerPhone String     @default("")
+  subtotal      Float      @default(0)
+  tax           Float      @default(0)
+  discount      Float      @default(0)
+  total         Float      @default(0)
+  paymentStatus String     @default("unpaid")
+  paymentMethod String     @default("")
+  notes         String     @default("")
+  employeeId    String?
+  orderItems    OrderItem[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+model OrderItem {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+  quantity   Int      @default(1)
+  price      Float
+  notes      String   @default("")
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Employee {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  phone     String   @default("")
+  role      String   @default("staff")
+  status    String   @default("active")
+  hireDate  DateTime @default(now())
+  shifts    Shift[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Shift {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  date       DateTime
+  startTime  String   @default("09:00")
+  endTime    String   @default("17:00")
+  status     String   @default("scheduled")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model InventoryItem {
+  id            String    @id @default(cuid())
+  name          String
+  unit          String    @default("pcs")
+  quantity      Float     @default(0)
+  minQuantity   Float     @default(10)
+  costPerUnit   Float     @default(0)
+  supplier      String    @default("")
+  category      String    @default("general")
+  expiryDate    DateTime?
+  menuItemId    String?   @unique
+  menuItem      MenuItem? @relation(fields: [menuItemId], references: [id])
+  lastRestocked DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
