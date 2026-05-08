@@ -1,9 +1,13 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, createLoyaltySchema } from '@/lib/validations'
 
 export async function GET(req: Request) {
   try {
+    // FIX C-07: Zahtevaj avtentikacijo za zvestobne račune
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
     const { searchParams } = new URL(req.url)
     const tier = searchParams.get('tier')
     const isActive = searchParams.get('isActive')
@@ -31,6 +35,10 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    // FIX C-07: Zahtevaj avtentikacijo za ustvarjanje zvestobnega računa
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
 
     // FIX H-01: Validiraj vnos z Zod

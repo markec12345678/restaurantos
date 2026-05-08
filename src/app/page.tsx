@@ -59,14 +59,26 @@ export default function POSPage() {
     if (stored) setAuthUser(stored)
   }, [])
 
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      setAuthUser(null)
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('pos_user')
+        sessionStorage.removeItem('pos_token')
+      }
+    }
+    window.addEventListener('pos:auth-expired', handleAuthExpired)
+    return () => window.removeEventListener('pos:auth-expired', handleAuthExpired)
+  }, [])
+
   if (!authUser) {
     return (
       <div className="h-screen bg-background">
         <PinLogin
           onLogin={(user) => { setAuthUser(user); setCurrentUser(user) }}
           onSkip={() => {
-            setCurrentUser({ id: 'guest', name: 'Gost', email: '', role: 'admin', primaryJob: null, permissions: ['admin'] })
-            setAuthUser({ id: 'guest', name: 'Gost', email: '', role: 'admin', primaryJob: null, permissions: ['admin'] })
+            setCurrentUser({ id: 'guest', name: 'Gost', email: '', role: 'guest', primaryJob: null, permissions: ['take_orders', 'view_reports'] })
+            setAuthUser({ id: 'guest', name: 'Gost', email: '', role: 'guest', primaryJob: null, permissions: ['take_orders', 'view_reports'] })
           }}
         />
       </div>

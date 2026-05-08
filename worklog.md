@@ -1,6 +1,81 @@
 # RestaurantOS POS - Worklog
 
 ---
+Task ID: 7
+Agent: Main
+Task: Apply critical frontend fixes (C-10, C-11, C-08, C-13, C-14, M-16, H-15, H-19, H-20, H-22)
+
+Work Log:
+
+## FIX 1: C-10 — Remove admin role from skip login guest
+- Changed guest user from `role: 'admin', permissions: ['admin']` to `role: 'guest', permissions: ['take_orders', 'view_reports']`
+- File: src/app/page.tsx
+
+## FIX 2: C-11 — Add auth-expired event listener
+- Added useEffect that listens for 'pos:auth-expired' custom event
+- Resets auth state and clears sessionStorage on event
+- File: src/app/page.tsx
+
+## FIX 3: C-08 — Fix DDV calculation with discounts in store
+- Updated cartVatBreakdown() to distribute discount proportionally across VAT rate bases
+- Updated cartTotal() to recalculate tax on discounted bases instead of applying discount after tax
+- Key principle: Discount reduces the taxable base, VAT is calculated on the reduced base
+- File: src/lib/store.ts
+
+## FIX 4: C-13 — Fix split payment rounding
+- Split amount now uses Math.floor to avoid floating-point rounding errors
+- Last payment absorbs the difference: `totalWithTip - splitAmount * (splitCount - 1)`
+- Tip portions also use the same rounding strategy
+- File: src/components/pos/PaymentDialog.tsx
+
+## FIX 5: C-14 — Fix cash change calculation to use React state
+- Added `cashReceived` state variable and `cashChange` derived value
+- Replaced `document.getElementById('cash-change-display')` DOM manipulation with React state-based rendering
+- Cash change color changes dynamically based on state
+- File: src/components/pos/PaymentDialog.tsx
+
+## FIX 6: M-16 — Fix defaultValue on cash received input
+- Changed from `defaultValue` to controlled `value` prop on cash received Input
+- onChange now sets `cashReceived` state via `setCashReceived`
+- File: src/components/pos/PaymentDialog.tsx
+
+## FIX 7: H-15 — Cap discount to subtotal in OrderPanel
+- Added `cappedDiscount = Math.min(discount, subtotal)` 
+- Applied cap to both display total and server payload
+- File: src/components/pos/OrderPanel.tsx
+
+## FIX 8: H-19 — Replace fetch() with authFetch() in 9 components
+- Replaced all `fetch('/api/...')` with `authFetch('/api/...')` in:
+  - OrderPanel.tsx (5 fetch calls)
+  - CashRegister.tsx (4 fetch calls)
+  - Dashboard.tsx (1 fetch call)
+  - EmployeeManager.tsx (6 fetch calls)
+  - SettingsManager.tsx (2 fetch calls)
+  - TableMap.tsx (5 fetch calls)
+  - GiftCardManager.tsx (5 fetch calls)
+  - LoyaltyManager.tsx (6 fetch calls)
+  - InventoryManager.tsx (8 fetch calls)
+- Also removed redundant `headers: { 'Content-Type': 'application/json' }` since authFetch adds it
+
+## FIX 9: H-20 — Filter sidebar navigation by permissions
+- Imported `getCurrentUser` and `hasPermission` from PinLogin
+- Added `permission` and `adminOnly` properties to navItems
+- Filter navItems before rendering based on user role and permissions
+- Admin-only items: menu, inventory, recipes, haccp, configuration, printers, webhooks, settings
+- Permission-based: employees (manage_employees), cash-register/shifts (manage_cash), dashboard/reports (view_reports), orders/kitchen/tables/delivery/gift-cards/loyalty (take_orders)
+
+## FIX 10: H-22 — Fix ReceiptDialog printing to wait for mutation
+- handlePrint: now uses `await saveReceipt.mutateAsync()` before `window.print()`
+- handleConfirmAndPrint: now awaits both saveReceipt and fiscalVerify before printing
+- No longer uses setTimeout — mutations complete before print triggers
+- On error, printing is skipped
+- File: src/components/pos/ReceiptDialog.tsx
+
+## Lint Status
+- 9 pre-existing errors (none introduced by this task)
+- No new errors added
+
+---
 Task ID: session-3
 Agent: Main
 Task: Fix all bugs, add missing UI components, implement auth
@@ -164,3 +239,79 @@ Work Log:
 ## Build Status
 - Build: ✅ Uspešen (vsi API route-ji vključeni, vključno z /api/print in /api/ws-broadcast)
 - Lint: 7 pre-existing napak (page.tsx, GlobalNotifications, ReportsView, SettingsManager) — nobena iz novih datotek
+
+---
+Task ID: 6
+Agent: Main
+Task: Apply critical security and data integrity fixes (C-01, C-02, C-03, H-01, H-08, H-12, H-13, C-05+C-06, C-07, M-11)
+
+Work Log:
+
+## FIX 1: C-01 — Remove /api/seed from PUBLIC_ROUTES
+- Removed '/api/seed' from PUBLIC_ROUTES array in auth-middleware.ts
+- Added requireAuth with 'admin' permission to POST handler in seed/route.ts
+- Changed function signature from `POST()` to `POST(req: Request)`
+
+## FIX 2: C-02 — Use server-side price instead of client price
+- Changed `const price = item.price` to `const price = mi.price` in orders/route.ts
+- Server DB price is now the sole source of truth
+
+## FIX 3: C-03 — Fix gift card race condition with atomic decrement
+- Replaced read-then-write pattern with atomic `updateMany` + `decrement` in payments/route.ts
+- Added balance check in WHERE clause to prevent over-deduction
+- Added depleted status check after atomic decrement
+- Throws error if balance insufficient or changed during transaction
+
+## FIX 4: H-01 — Timing-safe PIN comparison
+- Added `import crypto from 'crypto'` to auth/route.ts
+- Replaced plaintext `emp.pin === data.pin` with `crypto.timingSafeEqual()`
+- Maintains constant-time comparison even on length mismatch
+
+## FIX 5: H-13 — Fix hasPermission from some() to every()
+- Changed `requiredPerms.some()` to `requiredPerms.every()` in auth-middleware.ts
+- Now requires ALL listed permissions, not just one
+
+## FIX 6: C-05+C-06 — Add auth to discounts PUT/DELETE
+- Added requireAuth with 'apply_discounts' permission to PUT handler
+- Added requireAuth with 'admin' permission to DELETE handler
+- Added check to reject client-settable `currentUses` field (returns 400)
+- Changed hard delete to soft delete (set isActive: false)
+
+## FIX 7: H-08 — Remove status from createPaymentSchema
+- Removed `status: z.enum(['completed', 'refunded', 'voided']).default('completed')` from validations.ts
+- In payments/route.ts, replaced `status: data.status` with `status: 'completed'` (server-side default)
+- Prevents clients from creating 'refunded' or 'voided' payments
+
+## FIX 8: M-11 — Fix receipt counter yearly reset
+- Changed counter name from 'receiptNumber' to `receiptNumber-${year}` in counters.ts
+- Receipt numbers now reset yearly (e.g., R-2026-000001, R-2027-000001)
+
+## FIX 9: C-07 — Add auth to dashboard and cash-register
+- Added requireAuth with 'view_reports' to dashboard GET
+- Added requireAuth with 'manage_cash' to cash-register GET and POST
+- Added proper try/catch blocks
+
+## FIX 10: Add auth to additional routes
+- gift-cards/route.ts: GET and POST need 'take_orders'
+- loyalty/route.ts: GET and POST need 'take_orders'
+- delivery/route.ts: GET and POST need 'take_orders'
+- delivery/[id]/route.ts: PUT needs 'take_orders'
+- print/route.ts: POST needs 'take_orders'
+- furs/route.ts: GET, POST, PUT all need 'admin'
+- receipts/[id]/route.ts: GET needs 'take_orders'
+- employees/route.ts: GET needs 'manage_employees'
+
+## FIX 11: H-12 — Fix receipt totalWithTip double-counting tip
+- Changed `(order.totalWithTip || order.total) + (order.tip || 0)` to `order.totalWithTip || (order.total + (order.tip || 0))`
+- Prevents double-counting tip when totalWithTip already includes it
+
+## FIX 12: Add absolute session timeout
+- Added `absoluteExpiry: number` to Session interface
+- Set to 24 hours in createSession
+- Added absoluteExpiry check in verifyToken
+- Session refresh capped at absoluteExpiry (can't extend past 24h)
+- Cleanup interval also checks absoluteExpiry
+
+## Lint Status
+- No new lint errors introduced
+- Pre-existing errors remain in page.tsx, GlobalNotifications, ReportsView, SettingsManager

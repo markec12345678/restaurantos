@@ -15,6 +15,7 @@ interface Session {
   permissions: string[]
   createdAt: number
   expiresAt: number
+  absoluteExpiry: number  // Absolute max lifetime (24h)
 }
 
 const sessions = new Map<string, Session>()
@@ -24,7 +25,7 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000 // 8 ur
 setInterval(() => {
   const now = Date.now()
   for (const [token, session] of sessions) {
-    if (session.expiresAt < now) {
+    if (session.expiresAt < now || session.absoluteExpiry < now) {
       sessions.delete(token)
     }
   }
@@ -48,6 +49,7 @@ export function createSession(employee: {
     permissions: employee.permissions,
     createdAt: now,
     expiresAt: now + SESSION_TTL_MS,
+    absoluteExpiry: now + 24 * 60 * 60 * 1000, // 24 hours absolute max
   })
 
   return token
@@ -60,6 +62,10 @@ export function verifyToken(token: string): Session | null {
   const session = sessions.get(token)
   if (!session) return null
   if (session.expiresAt < Date.now()) {
+    sessions.delete(token)
+    return null
+  }
+  if (session.absoluteExpiry < Date.now()) {
     sessions.delete(token)
     return null
   }
@@ -100,7 +106,6 @@ type Permission =
 // Rute, ki ne zahtevajo avtentikacije
 const PUBLIC_ROUTES = [
   '/api/auth',
-  '/api/seed',
   '/api/configuration',
   '/api/menus',
   '/api/categories',
@@ -159,7 +164,7 @@ function getRequiredPermissions(pathname: string): Permission[] {
 function hasPermission(session: Session, requiredPerms: Permission[]): boolean {
   if (session.role === 'admin' || session.role === 'manager') return true
   if (requiredPerms.length === 0) return true
-  return requiredPerms.some(perm => session.permissions.includes(perm))
+  return requiredPerms.every(perm => session.permissions.includes(perm))
 }
 
 /**
@@ -220,8 +225,8 @@ export async function requireAuth(
     }
   }
 
-  // Podaljšaj sejo ob aktivnosti
-  session.expiresAt = Date.now() + SESSION_TTL_MS
+  // Podaljšaj sejo ob aktivnosti (ne preseži absoluteExpiry)
+  session.expiresAt = Math.min(Date.now() + SESSION_TTL_MS, session.absoluteExpiry)
 
   return { session, error: null }
 }

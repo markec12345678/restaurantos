@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { format } from 'date-fns'
+import { authFetch } from '@/components/pos/PinLogin'
 
 export function CashRegister() {
   const queryClient = useQueryClient()
@@ -29,7 +30,7 @@ export function CashRegister() {
   const { data, isLoading } = useQuery({
     queryKey: ['cash-register'],
     queryFn: async () => {
-      const res = await fetch('/api/cash-register')
+      const res = await authFetch('/api/cash-register')
       return res.json()
     },
     refetchInterval: 15000,
@@ -38,7 +39,7 @@ export function CashRegister() {
   const { data: employees } = useQuery({
     queryKey: ['employees'],
     queryFn: async () => {
-      const res = await fetch('/api/employees')
+      const res = await authFetch('/api/employees')
       return res.json()
     },
   })
@@ -50,9 +51,8 @@ export function CashRegister() {
   // Open shift mutation
   const openShiftMutation = useMutation({
     mutationFn: async (form: typeof openForm) => {
-      const res = await fetch('/api/cash-register', {
+      const res = await authFetch('/api/cash-register', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           startingCash: parseFloat(form.startingCash) || 0,
           employeeId: form.employeeId || null,
@@ -77,9 +77,8 @@ export function CashRegister() {
   const closeShiftMutation = useMutation({
     mutationFn: async ({ id, form }: { id: string; form: typeof closeForm }) => {
       const closingCash = parseFloat(form.closingCash)
-      const res = await fetch(`/api/cash-register/${id}`, {
+      const res = await authFetch(`/api/cash-register/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           closingCash: isNaN(closingCash) ? 0 : closingCash,
           notes: form.notes,

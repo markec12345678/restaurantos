@@ -198,25 +198,29 @@ export function ReceiptDialog({
     mobile: 'Mobilno',
   }
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     // Najprej shrani račun
-    saveReceipt.mutate()
+    try {
+      await saveReceipt.mutateAsync()
+    } catch {
+      // Already handled by mutation
+    }
     setIsPreview(false)
-    setTimeout(() => {
-      window.print()
-      markPrinted.mutate()
-    }, 300)
+    window.print()
+    markPrinted.mutate()
   }
 
-  const handleConfirmAndPrint = () => {
+  const handleConfirmAndPrint = async () => {
     setIsPreview(false)
-    saveReceipt.mutate()
-    // Avtomatsko zaženi FURS overitev
-    fiscalVerify.mutate()
-    setTimeout(() => {
+    try {
+      await saveReceipt.mutateAsync()
+      // Avtomatsko zaženi FURS overitev
+      await fiscalVerify.mutateAsync()
       window.print()
       markPrinted.mutate()
-    }, 500)
+    } catch {
+      // Napaka pri overjanju ali shranjevanju — ne tiskaj
+    }
   }
 
   return (

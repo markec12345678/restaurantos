@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 import crypto from 'crypto'
 
 // ============================================
@@ -25,8 +26,12 @@ function generateZOI(data: {
 }
 
 // GET /api/furs — Preveri status FURS povezave
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    // FIX C-07: Zahtevaj admin avtentikacijo za FURS
+    const authResult = await requireAuth(req, { permission: 'admin' })
+    if (authResult.error) return authResult.error
+
     const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
 
     if (!settings) {
@@ -66,6 +71,10 @@ export async function GET() {
 // POST /api/furs — Davčno overi račun pri FURS
 export async function POST(req: Request) {
   try {
+    // FIX C-07: Zahtevaj admin avtentikacijo za FURS overjanje
+    const authResult = await requireAuth(req, { permission: 'admin' })
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
     const { orderId } = body
 
@@ -218,6 +227,10 @@ export async function POST(req: Request) {
 // PUT /api/furs — Storno račun
 export async function PUT(req: Request) {
   try {
+    // FIX C-07: Zahtevaj admin avtentikacijo za FURS storno
+    const authResult = await requireAuth(req, { permission: 'admin' })
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
     const { orderId, reason, reasonCode } = body
 

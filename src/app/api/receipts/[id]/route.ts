@@ -7,6 +7,9 @@ import { validateBody, createReceiptSchema } from '@/lib/validations'
 // GET /api/receipts/[id] — Generiraj račun s predogledom (ZDDV-1 skladen)
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    // FIX C-07: Zahtevaj avtentikacijo za ogled računa
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
     const { id } = await params
 
     const order = await db.order.findUnique({
@@ -210,7 +213,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         discount: order.discount,
         total: order.total,
         tip: order.tip || 0,
-        totalWithTip: (order.totalWithTip || order.total) + (order.tip || 0),
+        totalWithTip: order.totalWithTip || (order.total + (order.tip || 0)),
         paymentMethod: data.paymentMethod,
         isCopy: false,
         isStorno: data.isStorno,

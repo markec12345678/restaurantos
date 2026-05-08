@@ -136,19 +136,42 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   cartTotal: () => {
     const { cart, discount } = get()
     const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
-    const tax = cart.reduce((sum, item) => sum + item.price * item.quantity * (item.vatRate / 100), 0)
-    const effectiveDiscount = Math.min(discount, subtotal) // FIX: popust ne more preseči osnove
-    return Math.max(0, subtotal + tax - effectiveDiscount)
-  },
-  cartVatBreakdown: () => {
-    const { cart } = get()
-    const breakdown: Record<string, { base: number; vat: number }> = {}
+    const effectiveDiscount = Math.min(discount, subtotal)
+    // Recalculate tax on discounted bases (proportional discount distribution)
+    const rateBases: Record<string, number> = {}
     for (const item of cart) {
       const rate = String(item.vatRate)
-      if (!breakdown[rate]) breakdown[rate] = { base: 0, vat: 0 }
       const itemBase = item.price * item.quantity
-      breakdown[rate].base += itemBase
-      breakdown[rate].vat += itemBase * (item.vatRate / 100)
+      rateBases[rate] = (rateBases[rate] || 0) + itemBase
+    }
+    let recalculatedTax = 0
+    for (const rate of Object.keys(rateBases)) {
+      const proportion = subtotal > 0 ? rateBases[rate] / subtotal : 0
+      const discountedBase = Math.max(0, rateBases[rate] - effectiveDiscount * proportion)
+      recalculatedTax += discountedBase * (parseFloat(rate) / 100)
+    }
+    return Math.max(0, (subtotal - effectiveDiscount) + recalculatedTax)
+  },
+  cartVatBreakdown: () => {
+    const { cart, discount } = get()
+    const breakdown: Record<string, { base: number; vat: number }> = {}
+    // 1. Calculate total taxable base per VAT rate (before discount)
+    const rateBases: Record<string, number> = {}
+    const totalBase = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
+    for (const item of cart) {
+      const rate = String(item.vatRate)
+      const itemBase = item.price * item.quantity
+      rateBases[rate] = (rateBases[rate] || 0) + itemBase
+    }
+    // 2. If discount > 0, distribute discount proportionally across VAT rate bases
+    const effectiveDiscount = Math.min(discount, totalBase)
+    for (const rate of Object.keys(rateBases)) {
+      const proportion = totalBase > 0 ? rateBases[rate] / totalBase : 0
+      const discountedBase = rateBases[rate] - effectiveDiscount * proportion
+      breakdown[rate] = {
+        base: Math.max(0, discountedBase),
+        vat: Math.max(0, discountedBase) * (parseFloat(rate) / 100),
+      }
     }
     return breakdown
   },

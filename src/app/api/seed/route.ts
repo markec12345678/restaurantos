@@ -1,8 +1,12 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
+    // FIX C-01: Zahtevaj admin avtentikacijo za seed
+    const authResult = await requireAuth(req, { permission: 'admin' })
+    if (authResult.error) return authResult.error
     // Clean up existing data (respecting foreign keys)
     await db.orderItem.deleteMany()
     await db.order.deleteMany()

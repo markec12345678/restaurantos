@@ -22,6 +22,7 @@ import {
   Coins, CircleDollarSign,
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
+import { authFetch } from '@/components/pos/PinLogin'
 
 // ============================================
 // TIPI
@@ -183,7 +184,7 @@ export function LoyaltyManager() {
   const { data: accounts, isLoading } = useQuery<LoyaltyAccount[]>({
     queryKey: ['loyalty', tierFilter, showInactive],
     queryFn: async () => {
-      const res = await fetch(`/api/loyalty?${queryParams}`)
+      const res = await authFetch(`/api/loyalty?${queryParams}`)
       if (!res.ok) throw new Error('Napaka pri pridobivanju podatkov')
       return res.json()
     },
@@ -194,7 +195,7 @@ export function LoyaltyManager() {
     queryKey: ['loyalty', historyAccount?.id],
     queryFn: async () => {
       if (!historyAccount) return null
-      const res = await fetch(`/api/loyalty/${historyAccount.id}`)
+      const res = await authFetch(`/api/loyalty/${historyAccount.id}`)
       if (!res.ok) throw new Error('Napaka pri pridobivanju podatkov')
       return res.json()
     },
@@ -231,9 +232,8 @@ export function LoyaltyManager() {
 
   const createMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const res = await fetch('/api/loyalty', {
+      const res = await authFetch('/api/loyalty', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
       if (!res.ok) throw new Error('Napaka pri ustvarjanju računa')
@@ -251,9 +251,8 @@ export function LoyaltyManager() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await fetch(`/api/loyalty/${id}`, {
+      const res = await authFetch(`/api/loyalty/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
       if (!res.ok) throw new Error('Napaka pri posodabljanju računa')
@@ -272,9 +271,8 @@ export function LoyaltyManager() {
 
   const adjustMutation = useMutation({
     mutationFn: async ({ id, transaction, ...data }: { id: string; transaction: Record<string, unknown> } & Record<string, unknown>) => {
-      const res = await fetch(`/api/loyalty/${id}`, {
+      const res = await authFetch(`/api/loyalty/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...data, transaction }),
       })
       if (!res.ok) throw new Error('Napaka pri prilagajanju točk')
@@ -294,7 +292,7 @@ export function LoyaltyManager() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/loyalty/${id}`, { method: 'DELETE' })
+      const res = await authFetch(`/api/loyalty/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Napaka pri brisanju računa')
       return res.json()
     },

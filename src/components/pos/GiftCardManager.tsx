@@ -27,6 +27,7 @@ import {
   Clock, ArrowUpDown, History, Ban, RefreshCw, Gift,
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
+import { authFetch } from '@/components/pos/PinLogin'
 
 // ============================================
 // TIPI
@@ -207,7 +208,7 @@ export function GiftCardManager() {
     queryFn: async () => {
       const params = new URLSearchParams()
       if (statusFilter !== 'all') params.set('status', statusFilter)
-      const res = await fetch(`/api/gift-cards?${params}`)
+      const res = await authFetch(`/api/gift-cards?${params}`)
       if (!res.ok) throw new Error('Napaka pri pridobivanju darilnih kartic')
       return res.json()
     },
@@ -272,9 +273,8 @@ export function GiftCardManager() {
       initialBalance: number
       expiresAt: string | null
     }) => {
-      const res = await fetch('/api/gift-cards', {
+      const res = await authFetch('/api/gift-cards', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
       if (!res.ok) throw new Error('Napaka pri ustvarjanju kartice')
@@ -292,9 +292,8 @@ export function GiftCardManager() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await fetch(`/api/gift-cards/${id}`, {
+      const res = await authFetch(`/api/gift-cards/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
       if (!res.ok) throw new Error('Napaka pri posodabljanju kartice')
@@ -315,9 +314,8 @@ export function GiftCardManager() {
     mutationFn: async ({ id, amount, note }: { id: string; amount: number; note: string }) => {
       const card = allCards.find((c) => c.id === id)
       const newBalance = (card?.balance || 0) + amount
-      const res = await fetch(`/api/gift-cards/${id}`, {
+      const res = await authFetch(`/api/gift-cards/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           balance: newBalance,
           status: newBalance > 0 && card?.status === 'depleted' ? 'active' : undefined,
@@ -345,7 +343,7 @@ export function GiftCardManager() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/gift-cards/${id}`, { method: 'DELETE' })
+      const res = await authFetch(`/api/gift-cards/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Napaka pri brisanju kartice')
       return res.json()
     },

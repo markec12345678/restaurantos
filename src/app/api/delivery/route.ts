@@ -1,8 +1,12 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 
 export async function GET(req: Request) {
   try {
+    // FIX C-07: Zahtevaj avtentikacijo za dostave
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
 
@@ -26,6 +30,10 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    // FIX C-07: Zahtevaj avtentikacijo za ustvarjanje dostave
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
 
     const delivery = await db.deliveryInfo.create({

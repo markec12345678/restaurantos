@@ -17,6 +17,7 @@ import {
   FileText, Phone, Mail, MapPin, Hash, CreditCard, Wifi
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { authFetch } from '@/components/pos/PinLogin'
 
 // ============================================
 // TIPI
@@ -56,7 +57,7 @@ export function SettingsManager() {
   const { data: settings, isLoading } = useQuery<SettingsData>({
     queryKey: ['settings'],
     queryFn: async () => {
-      const res = await fetch('/api/settings')
+      const res = await authFetch('/api/settings')
       return res.json()
     },
   })
@@ -71,9 +72,8 @@ export function SettingsManager() {
 
   const saveMutation = useMutation({
     mutationFn: async (data: Partial<SettingsData>) => {
-      const res = await fetch('/api/settings', {
+      const res = await authFetch('/api/settings', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
       if (!res.ok) throw new Error('Napaka pri shranjevanju')

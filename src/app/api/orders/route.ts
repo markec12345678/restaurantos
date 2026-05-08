@@ -97,7 +97,7 @@ export async function POST(req: Request) {
     const orderItemsData = data.orderItems.map(item => {
       const mi = vatMap.get(item.menuItemId)!
       const vatRate = mi.vatRate
-      const price = item.price // Klient pošlje ceno, a lahko preverimo z bazo
+      const price = mi.price // FIX C-02: Strežniška cena iz baze — edini vir resnice
       const itemBase = price * item.quantity
       const vatAmount = itemBase * (vatRate / 100)
       subtotal += itemBase

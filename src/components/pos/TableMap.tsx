@@ -14,6 +14,7 @@ import { Plus, Pencil, Trash2, Users, ShoppingBag, CreditCard, Clock, ChevronRig
 import { usePOSStore } from '@/lib/store'
 import { useState } from 'react'
 import { format } from 'date-fns'
+import { authFetch } from '@/components/pos/PinLogin'
 
 const statusColors: Record<string, string> = {
   available: 'bg-emerald-100 border-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-800',
@@ -68,7 +69,7 @@ export function TableMap() {
   const { data: tables, isLoading } = useQuery({
     queryKey: ['tables'],
     queryFn: async () => {
-      const res = await fetch('/api/tables')
+      const res = await authFetch('/api/tables')
       return res.json()
     },
   })
@@ -78,7 +79,7 @@ export function TableMap() {
     queryKey: ['table-orders', selectedTableForOrders?.id],
     queryFn: async () => {
       if (!selectedTableForOrders) return []
-      const res = await fetch('/api/orders')
+      const res = await authFetch('/api/orders')
       const allOrders = await res.json()
       return allOrders.filter((o: { tableId: string; status: string }) =>
         o.tableId === selectedTableForOrders.id && o.status !== 'cancelled'
@@ -89,9 +90,8 @@ export function TableMap() {
 
   const createMutation = useMutation({
     mutationFn: async (data: { number: number; capacity: number; area: string; status: string }) => {
-      const res = await fetch('/api/tables', {
+      const res = await authFetch('/api/tables', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
       if (!res.ok) throw new Error('Failed')
@@ -106,9 +106,8 @@ export function TableMap() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...data }: { id: string; number: number; capacity: number; area: string; status: string }) => {
-      const res = await fetch(`/api/tables/${id}`, {
+      const res = await authFetch(`/api/tables/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
       if (!res.ok) throw new Error('Failed')
@@ -124,7 +123,7 @@ export function TableMap() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/tables/${id}`, { method: 'DELETE' })
+      const res = await authFetch(`/api/tables/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed')
       return res.json()
     },

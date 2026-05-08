@@ -4,8 +4,11 @@ import bcrypt from 'bcryptjs'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, createEmployeeSchema } from '@/lib/validations'
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    // FIX C-07: Zahtevaj avtentikacijo za seznam zaposlenih
+    const authResult = await requireAuth(req, { permission: 'manage_employees' })
+    if (authResult.error) return authResult.error
     const employees = await db.employee.findMany({
       orderBy: { name: 'asc' },
       include: { shifts: true, jobs: { include: { job: true } } },

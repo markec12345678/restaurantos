@@ -84,12 +84,12 @@ export async function POST(req: Request) {
           giftCardId: data.giftCardId || null,
           loyaltyAccountId: data.loyaltyAccountId || null,
           loyaltyPointsUsed: data.loyaltyPointsUsed,
-          status: data.status,
+          status: 'completed', // FIX H-08: Server-side default — client cannot set status
           employeeId: data.employeeId || authResult.session?.employeeId || null,
         },
       })
 
-      // Gift card balance deduction — ATOMNO znotraj transakcije
+      // Gift card balance deduction — ATOMNO znotraj transakcije (FIX C-03: atomic decrement)
       if (data.type === 'giftcard' && data.giftCardId) {
         const giftCard = await tx.giftCard.findUnique({ where: { id: data.giftCardId } })
         if (!giftCard) {
@@ -102,11 +102,12 @@ export async function POST(req: Request) {
 
         if (giftCard.balance < data.amount) {
           // Zmanjšaj plačilo na razpoložljivo stanje
+          const partialAmount = giftCard.balance
           await tx.payment.update({
             where: { id: payment.id },
-            data: { amount: giftCard.balance },
+            data: { amount: partialAmount },
           })
-          // Posodobi stanje na 0
+          // Atomic decrement: set balance to 0
           await tx.giftCard.update({
             where: { id: data.giftCardId },
             data: { balance: 0, status: 'depleted' },
@@ -115,7 +116,7 @@ export async function POST(req: Request) {
             data: {
               giftCardId: data.giftCardId,
               type: 'redeem',
-              amount: -giftCard.balance,
+              amount: -partialAmount,
               balanceAfter: 0,
               orderId: check.orderId || null,
               checkId: data.checkId,
@@ -123,11 +124,20 @@ export async function POST(req: Request) {
             },
           })
         } else {
-          const newBalance = Math.round((giftCard.balance - data.amount) * 100) / 100
-          await tx.giftCard.update({
-            where: { id: data.giftCardId },
-            data: { balance: newBalance, status: newBalance <= 0 ? 'depleted' : 'active' },
+          // Atomic decrement with balance check to prevent race conditions
+          const updateResult = await tx.giftCard.updateMany({
+            where: { id: data.giftCardId, balance: { gte: data.amount } },
+            data: { balance: { decrement: data.amount } },
           })
+          if (updateResult.count === 0) {
+            throw new Error('Stanje darilne kartice ni zadostno ali je bilo spremenjeno')
+          }
+          // Check if card is now depleted
+          const updatedCard = await tx.giftCard.findUnique({ where: { id: data.giftCardId } })
+          if (updatedCard && updatedCard.balance <= 0) {
+            await tx.giftCard.update({ where: { id: data.giftCardId }, data: { status: 'depleted' } })
+          }
+          const newBalance = updatedCard?.balance ?? 0
           await tx.giftCardTransaction.create({
             data: {
               giftCardId: data.giftCardId,

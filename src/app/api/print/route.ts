@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 import { createESCPOSBuilder, generateKitchenOrder, generateReceipt, generateTestPrint, type KitchenOrderPrintData, type ReceiptPrintData, type PrinterModel } from '@/lib/escpos'
 import * as net from 'net'
 
@@ -131,6 +132,10 @@ async function findPrinter(type: 'order' | 'receipt', printerId?: string): Promi
 }
 
 export async function POST(req: Request) {
+  // FIX C-07: Zahtevaj avtentikacijo za tiskanje
+  const authResult = await requireAuth(req, { permission: 'take_orders' })
+  if (authResult.error) return authResult.error
+
   const body: PrintRequest = await req.json()
   const { type, orderId, printerId } = body
 

@@ -115,17 +115,17 @@ export function OrderPanel() {
   // ============================================
   const { data: menus, isLoading: menusLoading } = useQuery({
     queryKey: ['menus'],
-    queryFn: async () => { const res = await fetch('/api/menus'); return res.json() },
+    queryFn: async () => { const res = await authFetch('/api/menus'); return res.json() },
   })
 
   const { data: menuItems, isLoading: menuLoading } = useQuery({
     queryKey: ['menu-items'],
-    queryFn: async () => { const res = await fetch('/api/menu-items'); return res.json() },
+    queryFn: async () => { const res = await authFetch('/api/menu-items'); return res.json() },
   })
 
   const { data: tables } = useQuery({
     queryKey: ['tables'],
-    queryFn: async () => { const res = await fetch('/api/tables'); return res.json() },
+    queryFn: async () => { const res = await authFetch('/api/tables'); return res.json() },
   })
 
   const { data: orders, isLoading: ordersLoading } = useQuery({
@@ -142,7 +142,7 @@ export function OrderPanel() {
   const { data: discounts } = useQuery({
     queryKey: ['discounts-active'],
     queryFn: async () => {
-      const res = await fetch('/api/discounts')
+      const res = await authFetch('/api/discounts')
       if (!res.ok) return []
       const all = await res.json()
       return all.filter((d: { isActive: boolean }) => d.isActive)
@@ -152,7 +152,7 @@ export function OrderPanel() {
   const { data: diningOptions } = useQuery({
     queryKey: ['dining-options'],
     queryFn: async () => {
-      const res = await fetch('/api/configuration/dining-options')
+      const res = await authFetch('/api/configuration/dining-options')
       if (!res.ok) return []
       return res.json()
     },
@@ -191,7 +191,7 @@ export function OrderPanel() {
           diningOptionId: diningOptionId || undefined,
           customerName,
           customerPhone,
-          discount,
+          discount: cappedDiscount,
           appliedDiscountId: appliedDiscountId || undefined,
           taxRate,
           notes: orderNotes,
@@ -292,7 +292,8 @@ export function OrderPanel() {
   const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const vatBreakdown = cartVatBreakdown()
   const totalTax = cartTaxTotal()
-  const total = subtotal + totalTax - discount
+  const cappedDiscount = Math.min(discount, subtotal)
+  const total = subtotal + totalTax - cappedDiscount
   const cartItemCount = cart.reduce((s, i) => s + i.quantity, 0)
 
   // ============================================

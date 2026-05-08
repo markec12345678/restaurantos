@@ -90,7 +90,6 @@ export const createPaymentSchema = z.object({
   giftCardId: z.string().nullable().optional(),
   loyaltyAccountId: z.string().nullable().optional(),
   loyaltyPointsUsed: z.number().int().min(0).default(0),
-  status: z.enum(['completed', 'refunded', 'voided']).default('completed'),
   employeeId: z.string().nullable().optional(),
 })
 

@@ -19,6 +19,7 @@ import {
   RotateCcw, SlidersHorizontal, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { useState } from 'react'
+import { authFetch } from '@/components/pos/PinLogin'
 
 // ============================================
 // KONSTANTE
@@ -167,7 +168,7 @@ export function InventoryManager() {
     queryFn: async () => {
       const params = new URLSearchParams()
       if (filterCategory !== 'all') params.set('category', filterCategory)
-      const res = await fetch(`/api/inventory?${params}`)
+      const res = await authFetch(`/api/inventory?${params}`)
       return res.json()
     },
   })
@@ -175,7 +176,7 @@ export function InventoryManager() {
   const { data: menuItems } = useQuery({
     queryKey: ['menu-items'],
     queryFn: async () => {
-      const res = await fetch('/api/menu-items')
+      const res = await authFetch('/api/menu-items')
       return res.json()
     },
   })
@@ -192,7 +193,7 @@ export function InventoryManager() {
       if (txDateFrom) params.set('from', txDateFrom)
       if (txDateTo) params.set('to', txDateTo)
       params.set('limit', '200')
-      const res = await fetch(`/api/inventory/transactions?${params}`)
+      const res = await authFetch(`/api/inventory/transactions?${params}`)
       return res.json()
     },
     enabled: activeTab === 'history',
@@ -210,7 +211,7 @@ export function InventoryManager() {
 
   const createMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const res = await fetch('/api/inventory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      const res = await authFetch('/api/inventory', { method: 'POST', body: JSON.stringify(data) })
       if (!res.ok) throw new Error('Napaka pri ustvarjanju')
       return res.json()
     },
@@ -219,7 +220,7 @@ export function InventoryManager() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await fetch(`/api/inventory/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      const res = await authFetch(`/api/inventory/${id}`, { method: 'PUT', body: JSON.stringify(data) })
       if (!res.ok) throw new Error('Napaka pri posodobitvi')
       return res.json()
     },
@@ -228,7 +229,7 @@ export function InventoryManager() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/inventory/${id}`, { method: 'DELETE' })
+      const res = await authFetch(`/api/inventory/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Napaka pri brisanju')
       return res.json()
     },
@@ -237,7 +238,7 @@ export function InventoryManager() {
 
   const restockMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const res = await fetch('/api/inventory/restock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      const res = await authFetch('/api/inventory/restock', { method: 'POST', body: JSON.stringify(data) })
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Napaka') }
       return res.json()
     },
@@ -247,7 +248,7 @@ export function InventoryManager() {
 
   const writeOffMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const res = await fetch('/api/inventory/adjust', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      const res = await authFetch('/api/inventory/adjust', { method: 'POST', body: JSON.stringify(data) })
       if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Napaka') }
       return res.json()
     },

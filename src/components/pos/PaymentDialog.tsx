@@ -56,10 +56,12 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
   const [selectedAltPayment, setSelectedAltPayment] = useState('')
   const [selectedGiftCardId, setSelectedGiftCardId] = useState<string | null>(null)
   const [selectedLoyaltyId, setSelectedLoyaltyId] = useState<string | null>(null)
+  const [cashReceived, setCashReceived] = useState(0)
 
   const orderTotal = order?.total || 0
   const totalWithTip = orderTotal + tipAmount
-  const splitAmount = splitCount > 0 ? totalWithTip / splitCount : totalWithTip
+  const splitAmount = Math.floor((totalWithTip / splitCount) * 100) / 100
+  const cashChange = Math.max(0, cashReceived - totalWithTip)
 
   const tipPresets = [0, 5, 10, 15, 20]
 
@@ -184,6 +186,7 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
     setSelectedAltPayment('')
     setSelectedGiftCardId(null)
     setSelectedLoyaltyId(null)
+    setCashReceived(0)
     onClose()
   }
 
@@ -218,14 +221,24 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
       if (!checkRes.ok) throw new Error('Napaka pri ustvarjanju čeka')
       const check = await checkRes.json()
 
-      // 2. Ustvari N ločenih plačil
+      // 2. Ustvari N ločenih plačil (zadnje absorbira razliko za zaokroževanje)
+      const payments = []
       for (let i = 0; i < splitCount; i++) {
+        const amount = i === splitCount - 1
+          ? Math.round((totalWithTip - splitAmount * (splitCount - 1)) * 100) / 100
+          : splitAmount
+        const tipPortion = i === splitCount - 1
+          ? Math.round((tipAmount - Math.round((tipAmount / splitCount) * 100) / 100 * (splitCount - 1)) * 100) / 100
+          : Math.round((tipAmount / splitCount) * 100) / 100
+        payments.push({ amount, tipPortion })
+      }
+      for (let i = 0; i < payments.length; i++) {
         const paymentRes = await authFetch('/api/payments', {
           method: 'POST',
           body: JSON.stringify({
             checkId: check.id,
-            amount: Math.round(splitAmount * 100) / 100,
-            tipAmount: Math.round((tipAmount / splitCount) * 100) / 100,
+            amount: payments[i].amount,
+            tipAmount: payments[i].tipPortion,
             type: 'cash',
             status: 'completed',
           }),
@@ -426,12 +439,6 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
                       )
                     })}
                   </div>
-                  {/* Vračilo */}
-                  {(() => {
-                    // Izračunaj vračilo za gotovino
-                    const cashGiven = totalWithTip // privzeto: točno znesek
-                    return null // Placeholder — vračilo se izračuna dinamično
-                  })()}
                   <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2 text-xs space-y-1">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Znesek za plačilo:</span>
@@ -443,23 +450,16 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
                         type="number"
                         step="0.01"
                         min="0"
-                        defaultValue={totalWithTip.toFixed(2)}
+                        value={cashReceived || ''}
+                        onChange={(e) => setCashReceived(parseFloat(e.target.value) || 0)}
                         className="h-7 text-xs w-24"
-                        onChange={(e) => {
-                          const received = parseFloat(e.target.value) || 0
-                          const change = received - totalWithTip
-                          const changeEl = document.getElementById('cash-change-display')
-                          if (changeEl) {
-                            changeEl.textContent = change >= 0 ? `€${change.toFixed(2)}` : '€0.00'
-                            changeEl.className = change >= 0 ? 'font-bold text-emerald-700 dark:text-emerald-400' : 'font-bold text-red-600'
-                          }
-                        }}
+                        placeholder={totalWithTip.toFixed(2)}
                       />
                       <span className="text-xs">€</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="font-semibold">Vračilo:</span>
-                      <span id="cash-change-display" className="font-bold text-emerald-700 dark:text-emerald-400">€0.00</span>
+                      <span className={`font-bold ${cashChange > 0 ? 'text-emerald-700 dark:text-emerald-400' : cashReceived > 0 ? 'text-red-600' : 'text-emerald-700 dark:text-emerald-400'}`}>€{cashChange.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>

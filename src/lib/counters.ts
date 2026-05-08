@@ -19,7 +19,8 @@ export async function getNextCounter(name: string): Promise<number> {
  * Get the next receipt number in format R-YYYY-NNNNNN
  */
 export async function getNextReceiptNumber(): Promise<string> {
-  const seq = await getNextCounter('receiptNumber')
   const year = new Date().getFullYear()
+  const counterName = `receiptNumber-${year}`
+  const seq = await getNextCounter(counterName)
   return `R-${year}-${String(seq).padStart(6, '0')}`
 }

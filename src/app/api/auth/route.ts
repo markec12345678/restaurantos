@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 import { createSession, destroySession, verifyToken } from '@/lib/auth-middleware'
 import { validateBody, loginSchema } from '@/lib/validations'
 
@@ -83,8 +84,16 @@ export async function POST(req: Request) {
       if (isHashed) {
         pinMatches = await bcrypt.compare(data.pin, emp.pin)
       } else {
-        // Fallback za stare plaintext PIN-e (migracija)
-        pinMatches = emp.pin === data.pin
+        // Fallback za stare plaintext PIN-e (migracija) — timing-safe comparison (FIX H-01)
+        const pinBuffer = Buffer.from(String(emp.pin))
+        const inputBuffer = Buffer.from(String(data.pin))
+        if (pinBuffer.length !== inputBuffer.length) {
+          // Still do a comparison to maintain constant time
+          crypto.timingSafeEqual(pinBuffer, pinBuffer)
+          pinMatches = false
+        } else {
+          pinMatches = crypto.timingSafeEqual(pinBuffer, inputBuffer)
+        }
         if (pinMatches) {
           const hashedPin = await bcrypt.hash(emp.pin, 10)
           await db.employee.update({

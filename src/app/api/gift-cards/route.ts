@@ -1,9 +1,13 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, createGiftCardSchema } from '@/lib/validations'
 
 export async function GET(req: Request) {
   try {
+    // FIX C-07: Zahtevaj avtentikacijo za darilne kartice
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
     const cardNumber = searchParams.get('cardNumber')
@@ -29,6 +33,10 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    // FIX C-07: Zahtevaj avtentikacijo za ustvarjanje darilne kartice
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
 
     // FIX H-01: Validiraj vnos z Zod

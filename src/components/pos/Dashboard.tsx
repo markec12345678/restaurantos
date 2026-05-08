@@ -10,6 +10,7 @@ import { DollarSign, ShoppingBag, Calculator, BarChartBig, Clock, ArrowRight, Ch
 import { usePOSStore } from '@/lib/store'
 import { format } from 'date-fns'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts'
+import { authFetch } from '@/components/pos/PinLogin'
 
 const PIE_COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16']
 
@@ -19,7 +20,7 @@ export function Dashboard() {
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard'],
     queryFn: async () => {
-      const res = await fetch('/api/dashboard')
+      const res = await authFetch('/api/dashboard')
       return res.json()
     },
   })

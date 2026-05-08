@@ -35,7 +35,7 @@ import { useTheme } from 'next-themes'
 import { useSyncExternalStore, useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { useQuery } from '@tanstack/react-query'
-import { UserIndicator } from '@/components/pos/PinLogin'
+import { UserIndicator, getCurrentUser, hasPermission } from '@/components/pos/PinLogin'
 
 const emptySubscribe = () => () => {}
 function useMounted() {
@@ -47,25 +47,25 @@ function useMounted() {
 }
 
 const navItems = [
-  { id: 'orders', label: 'Prodaja', icon: ShoppingCart, highlight: true },
-  { id: 'kitchen', label: 'Kuhinja', icon: ChefHat },
-  { id: 'tables', label: 'Mize', icon: BarChartBig },
-  { id: 'cash-register', label: 'Blagajna', icon: Wallet },
-  { id: 'shifts', label: 'Izmene', icon: CalendarDays },
-  { id: 'dashboard', label: 'Nadzorna plošča', icon: LayoutDashboard },
-  { id: 'menu', label: 'Jedilnik', icon: UtensilsCrossed },
-  { id: 'inventory', label: 'Zaloga', icon: Package },
-  { id: 'recipes', label: 'Recepti', icon: BookOpen },
-  { id: 'haccp', label: 'HACCP', icon: ShieldCheck },
-  { id: 'employees', label: 'Zaposleni', icon: Users },
-  { id: 'reports', label: 'Poročila', icon: BarChart3 },
-  { id: 'configuration', label: 'Konfiguracija', icon: SlidersHorizontal },
-  { id: 'delivery', label: 'Dostava', icon: Truck },
-  { id: 'gift-cards', label: 'Darilne kartice', icon: CreditCard },
-  { id: 'loyalty', label: 'Zvestoba', icon: Award },
-  { id: 'printers', label: 'Tiskalniki', icon: Printer },
-  { id: 'webhooks', label: 'Webhooks', icon: Webhook },
-  { id: 'settings', label: 'Nastavitve', icon: Settings },
+  { id: 'orders', label: 'Prodaja', icon: ShoppingCart, highlight: true, permission: 'take_orders' },
+  { id: 'kitchen', label: 'Kuhinja', icon: ChefHat, permission: 'take_orders' },
+  { id: 'tables', label: 'Mize', icon: BarChartBig, permission: 'take_orders' },
+  { id: 'cash-register', label: 'Blagajna', icon: Wallet, permission: 'manage_cash' },
+  { id: 'shifts', label: 'Izmene', icon: CalendarDays, permission: 'manage_cash' },
+  { id: 'dashboard', label: 'Nadzorna plošča', icon: LayoutDashboard, permission: 'view_reports' },
+  { id: 'menu', label: 'Jedilnik', icon: UtensilsCrossed, adminOnly: true },
+  { id: 'inventory', label: 'Zaloga', icon: Package, adminOnly: true },
+  { id: 'recipes', label: 'Recepti', icon: BookOpen, adminOnly: true },
+  { id: 'haccp', label: 'HACCP', icon: ShieldCheck, adminOnly: true },
+  { id: 'employees', label: 'Zaposleni', icon: Users, permission: 'manage_employees' },
+  { id: 'reports', label: 'Poročila', icon: BarChart3, permission: 'view_reports' },
+  { id: 'configuration', label: 'Konfiguracija', icon: SlidersHorizontal, adminOnly: true },
+  { id: 'delivery', label: 'Dostava', icon: Truck, permission: 'take_orders' },
+  { id: 'gift-cards', label: 'Darilne kartice', icon: CreditCard, permission: 'take_orders' },
+  { id: 'loyalty', label: 'Zvestoba', icon: Award, permission: 'take_orders' },
+  { id: 'printers', label: 'Tiskalniki', icon: Printer, adminOnly: true },
+  { id: 'webhooks', label: 'Webhooks', icon: Webhook, adminOnly: true },
+  { id: 'settings', label: 'Nastavitve', icon: Settings, adminOnly: true },
 ]
 
 export function Sidebar() {
@@ -144,7 +144,13 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto custom-scrollbar">
-          {navItems.map((item) => {
+          {navItems.filter(item => {
+            const user = getCurrentUser()
+            if (!user) return false
+            if ((item as { adminOnly?: boolean }).adminOnly && user.role !== 'admin' && user.role !== 'manager') return false
+            if ((item as { permission?: string }).permission && !hasPermission((item as { permission: string }).permission)) return false
+            return true
+          }).map((item) => {
             const Icon = item.icon
             const isActive = activeModule === item.id
             return (

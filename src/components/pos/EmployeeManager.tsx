@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { Plus, Pencil, Trash2, Search, Calendar } from 'lucide-react'
 import { useState } from 'react'
 import { format } from 'date-fns'
+import { authFetch } from '@/components/pos/PinLogin'
 
 const roleColors: Record<string, string> = {
   admin: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
@@ -42,7 +43,7 @@ export function EmployeeManager() {
   const { data: employees, isLoading } = useQuery({
     queryKey: ['employees'],
     queryFn: async () => {
-      const res = await fetch('/api/employees')
+      const res = await authFetch('/api/employees')
       return res.json()
     },
   })
@@ -50,7 +51,7 @@ export function EmployeeManager() {
   const { data: shifts } = useQuery({
     queryKey: ['shifts'],
     queryFn: async () => {
-      const res = await fetch('/api/shifts')
+      const res = await authFetch('/api/shifts')
       return res.json()
     },
   })
@@ -63,7 +64,7 @@ export function EmployeeManager() {
 
   const createMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const res = await fetch('/api/employees', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      const res = await authFetch('/api/employees', { method: 'POST', body: JSON.stringify(data) })
       if (!res.ok) throw new Error('Failed')
       return res.json()
     },
@@ -72,7 +73,7 @@ export function EmployeeManager() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await fetch(`/api/employees/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      const res = await authFetch(`/api/employees/${id}`, { method: 'PUT', body: JSON.stringify(data) })
       if (!res.ok) throw new Error('Failed')
       return res.json()
     },
@@ -81,7 +82,7 @@ export function EmployeeManager() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/employees/${id}`, { method: 'DELETE' })
+      const res = await authFetch(`/api/employees/${id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed')
       return res.json()
     },
@@ -90,7 +91,7 @@ export function EmployeeManager() {
 
   const createShiftMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const res = await fetch('/api/shifts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      const res = await authFetch('/api/shifts', { method: 'POST', body: JSON.stringify(data) })
       if (!res.ok) throw new Error('Failed')
       return res.json()
     },

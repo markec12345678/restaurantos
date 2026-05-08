@@ -1,8 +1,14 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 
-export async function GET() {
-  const today = new Date()
+export async function GET(req: Request) {
+  try {
+    // FIX C-07: Zahtevaj avtentikacijo za dashboard
+    const authResult = await requireAuth(req, { permission: 'view_reports' })
+    if (authResult.error) return authResult.error
+
+    const today = new Date()
   today.setHours(0, 0, 0, 0)
   const tomorrow = new Date(today)
   tomorrow.setDate(tomorrow.getDate() + 1)
@@ -176,4 +182,8 @@ export async function GET() {
     employeePerformance,
     avgWaitMinutes: Math.round(avgWaitMinutes),
   })
+  } catch (error) {
+    console.error('Napaka pri pridobivanju dashboard podatkov:', error)
+    return NextResponse.json({ error: 'Napaka pri pridobivanju dashboard podatkov' }, { status: 500 })
+  }
 }
