@@ -1,12 +1,13 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
+import { createSession, destroySession, verifyToken } from '@/lib/auth-middleware'
+import { validateBody, loginSchema } from '@/lib/validations'
 
 // ============================================
 // PIN AVTENTIKACIJA ZA POS SISTEM
-// Hitra prijava zaposlenih s 4-mestnim PIN-om
-// FIX: PIN hasing z bcrypt + rate limiting
+// Profesionalna prijava s session managementom
+// bcrypt hash + rate limiting + session tokens
 // ============================================
 
 // Enostaven rate limiter v pomnilniku
@@ -23,7 +24,6 @@ function checkRateLimit(ip: string): { allowed: boolean; message?: string } {
     return { allowed: false, message: `Preveč neuspešnih poskusov. Poskusite znova čez ${remainingMin} min.` }
   }
 
-  // Počisti potekle zapise
   if (record && record.lockedUntil <= now) {
     loginAttempts.delete(ip)
   }
@@ -52,17 +52,16 @@ function clearFailedAttempts(ip: string) {
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const { pin } = body
+
+    // Validiraj vnos z Zod
+    const { data, error: validationError } = validateBody(loginSchema, body)
+    if (validationError) return validationError
 
     // Rate limiting
     const clientIp = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown'
     const rateCheck = checkRateLimit(clientIp)
     if (!rateCheck.allowed) {
       return NextResponse.json({ error: rateCheck.message }, { status: 429 })
-    }
-
-    if (!pin || pin.length < 4) {
-      return NextResponse.json({ error: 'PIN mora imeti vsaj 4 števke' }, { status: 400 })
     }
 
     // Pridobi vse aktivne zaposlene s PIN-om
@@ -82,12 +81,11 @@ export async function POST(req: Request) {
       let pinMatches = false
 
       if (isHashed) {
-        pinMatches = await bcrypt.compare(pin, emp.pin)
+        pinMatches = await bcrypt.compare(data.pin, emp.pin)
       } else {
         // Fallback za stare plaintext PIN-e (migracija)
-        pinMatches = emp.pin === pin
+        pinMatches = emp.pin === data.pin
         if (pinMatches) {
-          // Migriraj na bcrypt hash
           const hashedPin = await bcrypt.hash(emp.pin, 10)
           await db.employee.update({
             where: { id: emp.id },
@@ -123,8 +121,12 @@ export async function POST(req: Request) {
 
     const permissions = [...new Set(allPermissions)]
 
-    // Generiraj session token
-    const token = crypto.randomBytes(32).toString('hex')
+    // Ustvari sejo z session managementom
+    const token = createSession({
+      id: matchedEmployee.id,
+      role: matchedEmployee.role,
+      permissions,
+    })
 
     return NextResponse.json({
       success: true,
@@ -149,22 +151,54 @@ export async function POST(req: Request) {
   }
 }
 
-// GET /api/auth — Preveri stanje avtentikacije
-export async function GET() {
+// GET /api/auth — Preveri stanje avtentikacije (BREZ PIN podatkov!)
+export async function GET(req: Request) {
   try {
+    // Preveri če je uporabnik avtenticiran
+    const authHeader = req.headers.get('authorization')
+    let session = null
+    if (authHeader?.startsWith('Bearer ')) {
+      session = verifyToken(authHeader.substring(7).trim())
+    }
+
+    // Vrni samo osnovne informacije o zaposlenih — NIKOLI PIN-ov
     const employees = await db.employee.findMany({
-      where: { status: 'active', pin: { not: '' } },
+      where: { status: 'active' },
       select: { id: true, name: true, role: true },
       orderBy: { name: 'asc' },
     })
 
     return NextResponse.json({
+      authenticated: !!session,
       authEnabled: employees.length > 0,
       employeesWithPin: employees.length,
-      employees,
+      employees: employees.map(e => ({
+        id: e.id,
+        name: e.name,
+        role: e.role,
+      })),
+      session: session ? {
+        employeeId: session.employeeId,
+        role: session.role,
+        permissions: session.permissions,
+      } : null,
     })
   } catch (error) {
     console.error('Auth status error:', error)
-    return NextResponse.json({ authEnabled: false }, { status: 500 })
+    return NextResponse.json({ authEnabled: false, authenticated: false }, { status: 500 })
+  }
+}
+
+// DELETE /api/auth — Odjava (uniči sejo)
+export async function DELETE(req: Request) {
+  try {
+    const authHeader = req.headers.get('authorization')
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.substring(7).trim()
+      destroySession(token)
+    }
+    return NextResponse.json({ success: true, message: 'Uspešno odjavljeni' })
+  } catch (error) {
+    return NextResponse.json({ success: true })
   }
 }

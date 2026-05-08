@@ -1,5 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, updateGiftCardSchema } from '@/lib/validations'
 
 export async function PUT(
   req: Request,
@@ -9,34 +11,75 @@ export async function PUT(
     const { id } = await params
     const body = await req.json()
 
-    const updateData: Record<string, unknown> = {}
-    if (body.balance !== undefined) updateData.balance = body.balance
-    if (body.status !== undefined) updateData.status = body.status
-    if (body.ownerName !== undefined) updateData.ownerName = body.ownerName
-    if (body.expiresAt !== undefined) updateData.expiresAt = body.expiresAt ? new Date(body.expiresAt) : null
+    // FIX C-05: Zahtevaj avtentikacijo za spreminjanje kartice
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
 
-    // If a gift card transaction is included, create it
-    if (body.transaction) {
-      const tx = body.transaction
-      await db.giftCardTransaction.create({
-        data: {
-          giftCardId: id,
-          type: tx.type,
-          amount: tx.amount,
-          balanceAfter: tx.balanceAfter || body.balance || 0,
-          orderId: tx.orderId || null,
-          checkId: tx.checkId || null,
-          note: tx.note || '',
-        },
-      })
+    // FIX H-01: Validiraj vnos z Zod
+    const { data, error: validationError } = validateBody(updateGiftCardSchema, body)
+    if (validationError) return validationError
+
+    const existing = await db.giftCard.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Darilna kartica ni najdena' }, { status: 404 })
     }
 
-    const giftCard = await db.giftCard.update({
+    // FIX H-05: Atomna transakcija za posodobitev stanja + transakcijski zapis
+    const result = await db.$transaction(async (tx) => {
+      const updateData: Record<string, unknown> = {}
+      if (data.status !== undefined) updateData.status = data.status
+      if (data.ownerName !== undefined) updateData.ownerName = data.ownerName
+      if (data.expiresAt !== undefined) updateData.expiresAt = data.expiresAt ? new Date(data.expiresAt) : null
+
+      // Če se stanje spreminja, uporabi varno posodobitev
+      if (data.balance !== undefined) {
+        const newBalance = Math.max(0, data.balance)
+        updateData.balance = newBalance
+        if (newBalance <= 0) {
+          updateData.status = 'depleted'
+        }
+      }
+
+      const giftCard = await tx.giftCard.update({
+        where: { id },
+        data: updateData,
+      })
+
+      // Ustvari transakcijski zapis, če je podan
+      if (data.transaction) {
+        const txData = data.transaction
+        await tx.giftCardTransaction.create({
+          data: {
+            giftCardId: id,
+            type: txData.type,
+            amount: txData.amount,
+            balanceAfter: txData.balanceAfter || giftCard.balance,
+            orderId: txData.orderId || null,
+            checkId: txData.checkId || null,
+            note: txData.note || '',
+          },
+        })
+      } else if (data.balance !== undefined && data.balance !== existing.balance) {
+        // Avtomatsko ustvari transakcijski zapis za spremembo stanja
+        const diff = data.balance - existing.balance
+        await tx.giftCardTransaction.create({
+          data: {
+            giftCardId: id,
+            type: diff > 0 ? 'load' : 'redeem',
+            amount: diff,
+            balanceAfter: giftCard.balance,
+            note: diff > 0 ? 'Nalaganje sredstev' : 'Razveljavitev',
+          },
+        })
+      }
+
+      return giftCard
+    })
+
+    // Re-fetch z transakcijami
+    const giftCard = await db.giftCard.findUnique({
       where: { id },
-      data: updateData,
-      include: {
-        transactions: { orderBy: { createdAt: 'desc' }, take: 10 },
-      },
+      include: { transactions: { orderBy: { createdAt: 'desc' }, take: 10 } },
     })
 
     return NextResponse.json(giftCard)

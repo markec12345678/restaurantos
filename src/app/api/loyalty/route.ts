@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { validateBody, createLoyaltySchema } from '@/lib/validations'
 
 export async function GET(req: Request) {
   try {
@@ -32,15 +33,19 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
 
+    // FIX H-01: Validiraj vnos z Zod
+    const { data, error: validationError } = validateBody(createLoyaltySchema, body)
+    if (validationError) return validationError
+
     const account = await db.loyaltyAccount.create({
       data: {
-        customerName: body.customerName || '',
-        customerPhone: body.customerPhone || '',
-        customerEmail: body.customerEmail || '',
-        pointsBalance: body.pointsBalance || 0,
-        lifetimePoints: body.lifetimePoints || 0,
-        tier: body.tier || 'bronze',
-        isActive: body.isActive !== undefined ? body.isActive : true,
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        customerEmail: data.customerEmail || '',
+        pointsBalance: data.pointsBalance,
+        lifetimePoints: data.lifetimePoints,
+        tier: data.tier,
+        isActive: data.isActive,
       },
       include: {
         transactions: true,

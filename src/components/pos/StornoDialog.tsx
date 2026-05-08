@@ -8,6 +8,7 @@ import { Separator } from '@/components/ui/separator'
 import { AlertTriangle, ShieldOff, FileWarning, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { authFetch } from '@/components/pos/PinLogin'
 
 // ============================================
 // TIPI
@@ -74,9 +75,8 @@ export function StornoDialog({ order, open, onClose, onStornoComplete }: StornoD
         : STORNO_REASONS.find(r => r.id === selectedReason)?.name
 
       // 1. Storno pri FURS — ustvari storno račun
-      const fursRes = await fetch('/api/furs', {
+      const fursRes = await authFetch('/api/furs', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId: order.id,
           reason: reasonText,
@@ -87,13 +87,11 @@ export function StornoDialog({ order, open, onClose, onStornoComplete }: StornoD
       if (!fursRes.ok) throw new Error(fursResult.error || 'Napaka pri storniranju')
 
       // 2. Posodobi naročilo — označi kot preklicano z razlogom
-      const orderRes = await fetch(`/api/orders/${order.id}`, {
+      const orderRes = await authFetch(`/api/orders/${order.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: 'cancelled',
           cancelReason: `STORNO: ${reasonText}`,
-          cancelledBy: 'Natakar', // TODO: poveži z auth ko bo implementiran
         }),
       })
       if (!orderRes.ok) throw new Error('Napaka pri posodobitvi naročila')
@@ -123,13 +121,11 @@ export function StornoDialog({ order, open, onClose, onStornoComplete }: StornoD
         ? customReason
         : CANCEL_REASONS.find(r => r.id === selectedReason)?.name || customReason
 
-      const res = await fetch(`/api/orders/${order.id}`, {
+      const res = await authFetch(`/api/orders/${order.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: 'cancelled',
           cancelReason: reasonText || 'Preklicano',
-          cancelledBy: 'Natakar', // TODO: poveži z auth
         }),
       })
       if (!res.ok) throw new Error('Napaka pri preklicu naročila')

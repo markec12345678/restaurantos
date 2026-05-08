@@ -1,6 +1,8 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
+import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, createEmployeeSchema } from '@/lib/validations'
 
 export async function GET() {
   try {
@@ -8,10 +10,10 @@ export async function GET() {
       orderBy: { name: 'asc' },
       include: { shifts: true, jobs: { include: { job: true } } },
     })
-    // FIX: Ne vračaj PIN-ov v odgovoru
+    // FIX C-06: Nikoli ne vračaj PIN-ov v odgovoru
     const safeEmployees = employees.map(emp => ({
       ...emp,
-      pin: emp.pin ? '****' : '', // Maskiraj PIN
+      pin: emp.pin ? '****' : '',
     }))
     return NextResponse.json(safeEmployees)
   } catch (error) {
@@ -22,45 +24,55 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    // FIX C-05: Zahtevaj avtentikacijo
+    const authResult = await requireAuth(req, { permission: 'manage_employees' })
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
 
-    if (!body.name || !body.email) {
-      return NextResponse.json({ error: 'Ime in email sta obvezna' }, { status: 400 })
-    }
+    // FIX H-01: Validiraj vnos z Zod
+    const { data, error: validationError } = validateBody(createEmployeeSchema, body)
+    if (validationError) return validationError
 
     // FIX C-04: Hash PIN z bcrypt pred shranjevanjem
     let hashedPin = ''
-    if (body.pin && body.pin.length >= 4) {
-      hashedPin = await bcrypt.hash(body.pin, 10)
+    if (data.pin && data.pin.length >= 4) {
+      hashedPin = await bcrypt.hash(data.pin, 10)
     }
 
     const employee = await db.employee.create({
       data: {
-        name: body.name,
-        email: body.email,
-        phone: body.phone || '',
-        role: body.role || 'staff',
-        status: body.status || 'active',
-        hireDate: body.hireDate ? new Date(body.hireDate) : new Date(),
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        role: data.role,
+        status: data.status,
+        hireDate: data.hireDate ? new Date(data.hireDate) : new Date(),
         pin: hashedPin,
       },
     })
 
-    // FIX L-07: Ustvari EmployeeJob, če je podan jobId
-    if (body.jobId) {
+    // Ustvari EmployeeJob, če je podan jobId
+    if (data.jobId) {
       await db.employeeJob.create({
         data: {
           employeeId: employee.id,
-          jobId: body.jobId,
-          payRate: body.payRate || 0,
+          jobId: data.jobId,
+          payRate: data.payRate || 0,
           isPrimary: true,
         },
       })
     }
 
     // Vrni brez PIN-a
-    return NextResponse.json({ ...employee, pin: hashedPin ? '****' : '' })
-  } catch (error) {
+    return NextResponse.json({ ...employee, pin: hashedPin ? '****' : '' }, { status: 201 })
+  } catch (error: any) {
+    if (error?.code === 'P2002') {
+      return NextResponse.json(
+        { error: `Zaposleni z emailom ${body.email} že obstaja` },
+        { status: 409 }
+      )
+    }
     console.error('Napaka pri ustvarjanju zaposlenega:', error)
     return NextResponse.json({ error: 'Napaka pri ustvarjanju zaposlenega' }, { status: 500 })
   }

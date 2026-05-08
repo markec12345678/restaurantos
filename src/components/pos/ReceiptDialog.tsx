@@ -9,6 +9,7 @@ import { Printer, Copy, CheckCircle2, AlertTriangle, CreditCard, Banknote, Smart
 import { format } from 'date-fns'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { authFetch } from '@/components/pos/PinLogin'
 import { StornoDialog } from '@/components/pos/StornoDialog'
 
 // ============================================
@@ -97,7 +98,7 @@ export function ReceiptDialog({
     queryKey: ['receipt', orderId],
     queryFn: async () => {
       if (!orderId) return null
-      const res = await fetch(`/api/receipts/${orderId}`)
+      const res = await authFetch(`/api/receipts/${orderId}`)
       return res.json() as Promise<ReceiptData>
     },
     enabled: !!orderId && open,
@@ -107,7 +108,7 @@ export function ReceiptDialog({
   const saveReceipt = useMutation({
     mutationFn: async () => {
       if (!orderId) return null
-      const res = await fetch(`/api/receipts/${orderId}`, { method: 'POST' })
+      const res = await authFetch(`/api/receipts/${orderId}`, { method: 'POST' })
       return res.json()
     },
     onSuccess: () => {
@@ -119,9 +120,8 @@ export function ReceiptDialog({
   const markPrinted = useMutation({
     mutationFn: async () => {
       if (!orderId) return null
-      const res = await fetch(`/api/receipts/${orderId}`, {
+      const res = await authFetch(`/api/receipts/${orderId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ printed: true }),
       })
       return res.json()
@@ -132,9 +132,8 @@ export function ReceiptDialog({
   const markCopy = useMutation({
     mutationFn: async () => {
       if (!orderId) return null
-      const res = await fetch(`/api/receipts/${orderId}`, {
+      const res = await authFetch(`/api/receipts/${orderId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isCopy: true }),
       })
       return res.json()
@@ -149,9 +148,8 @@ export function ReceiptDialog({
     mutationFn: async () => {
       if (!orderId) return null
       setVerifying(true)
-      const res = await fetch('/api/furs', {
+      const res = await authFetch('/api/furs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderId }),
       })
       const result = await res.json()

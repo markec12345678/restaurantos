@@ -1,5 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, updateOrderSchema } from '@/lib/validations'
 
 // Helper za WebSocket broadcast
 async function broadcastWS(type: string, payload: unknown) {
@@ -17,32 +19,49 @@ async function broadcastWS(type: string, payload: unknown) {
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+
+    // FIX C-05: Zahtevaj avtentikacijo
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
 
-    // Build update data — only include fields that are present
-    // FIX 4: total, subtotal, tax so izključno strežniško izračunani — klient jih ne sme prepisati
-    const updateData: Record<string, unknown> = {}
-    if (body.status !== undefined) updateData.status = body.status
-    if (body.paymentStatus !== undefined) updateData.paymentStatus = body.paymentStatus
-    if (body.paymentMethod !== undefined) updateData.paymentMethod = body.paymentMethod
-    if (body.notes !== undefined) updateData.notes = body.notes
-    if (body.customerName !== undefined) updateData.customerName = body.customerName
-    if (body.customerPhone !== undefined) updateData.customerPhone = body.customerPhone
-    if (body.discount !== undefined) updateData.discount = body.discount
-    if (body.tip !== undefined) updateData.tip = body.tip
-    if (body.totalWithTip !== undefined) updateData.totalWithTip = body.totalWithTip
-    if (body.splitCount !== undefined) updateData.splitCount = body.splitCount
-    // Preklic/storno metapodatki
-    if (body.cancelReason !== undefined) updateData.cancelReason = body.cancelReason
-    if (body.cancelledBy !== undefined) updateData.cancelledBy = body.cancelledBy
+    // FIX H-01: Validiraj vnos z Zod
+    const { data, error: validationError } = validateBody(updateOrderSchema, body)
+    if (validationError) return validationError
 
-    // Ko se naročilo prekliče/stornira, zabeleži čas
-    if (body.status === 'cancelled') {
-      updateData.cancelledAt = new Date()
+    // Pridobi trenutno stanje naročila
+    const existingOrder = await db.order.findUnique({
+      where: { id },
+      include: { orderItems: true },
+    })
+
+    if (!existingOrder) {
+      return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
     }
 
-    // FIX 9: Ko je plačilo status 'paid', zabeleži paidAt
-    if (body.paymentStatus === 'paid') {
+    // FIX H-08: Zneski se izračunajo strežniško — klient NE sme nastavljati discount/tip/total
+    const updateData: Record<string, unknown> = {}
+    if (data.status !== undefined) updateData.status = data.status
+    if (data.paymentStatus !== undefined) updateData.paymentStatus = data.paymentStatus
+    if (data.paymentMethod !== undefined) updateData.paymentMethod = data.paymentMethod
+    if (data.notes !== undefined) updateData.notes = data.notes
+    if (data.customerName !== undefined) updateData.customerName = data.customerName
+    if (data.customerPhone !== undefined) updateData.customerPhone = data.customerPhone
+    if (data.cancelReason !== undefined) updateData.cancelReason = data.cancelReason
+    if (data.cancelledBy !== undefined) updateData.cancelledBy = data.cancelledBy
+
+    // Preklic/storno metapodatki
+    if (data.status === 'cancelled') {
+      updateData.cancelledAt = new Date()
+      // Avtomatsko zabeleži kdo je preklical
+      if (!data.cancelledBy && authResult.session) {
+        updateData.cancelledBy = authResult.session.employeeId
+      }
+    }
+
+    // Ko je plačilo status 'paid', zabeleži paidAt
+    if (data.paymentStatus === 'paid') {
       updateData.paidAt = new Date()
     }
 
@@ -56,7 +75,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     })
 
     // When order moves to in-progress, also mark pending items as preparing
-    if (body.status === 'in-progress') {
+    if (data.status === 'in-progress') {
       await db.orderItem.updateMany({
         where: { orderId: id, status: 'pending' },
         data: { status: 'preparing' },
@@ -64,7 +83,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     // When order is completed, free the table & auto-deduct inventory
-    if (body.status === 'completed') {
+    if (data.status === 'completed') {
       if (order.tableId) {
         await db.table.update({ where: { id: order.tableId }, data: { status: 'available' } })
       }
@@ -74,18 +93,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         data: { status: 'served' },
       })
 
-      // FIX 2: Preveri inventoryDeducted flag — prepreči dvojno razknjiževanje
+      // FIX C-03: Preveri inventoryDeducted flag — prepreči dvojno razknjiževanje
       const freshOrder = await db.order.findUnique({ where: { id } })
       if (freshOrder && !freshOrder.inventoryDeducted) {
         // Avtomatsko razknjiževanje zalog glede na normative
         const orderItems = await db.orderItem.findMany({ where: { orderId: id } })
         for (const oi of orderItems) {
-          // Poišči inventorizacijski artikel povezan s tem menijem
           const invItem = await db.inventoryItem.findFirst({
             where: { menuItemId: oi.menuItemId },
           })
           if (invItem && invItem.servingsPerUnit > 0) {
-            // Izračunaj porabo: količina naročenih × (1 / servingsPerUnit) enot zaloge
             const unitsPerServing = 1 / invItem.servingsPerUnit
             const totalUnitsToDeduct = Math.round(oi.quantity * unitsPerServing * 10000) / 10000
             const previousQty = invItem.quantity
@@ -113,7 +130,6 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           }
         }
 
-        // Označi, da je bila zaloga razknjižena
         await db.order.update({
           where: { id },
           data: { inventoryDeducted: true },
@@ -121,9 +137,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       }
     }
 
-    // When order is cancelled, free the table if no other active orders
-    // Označi tudi vse artikle kot cancelled
-    if (body.status === 'cancelled') {
+    // When order is cancelled
+    if (data.status === 'cancelled') {
       if (order.tableId) {
         const activeOrders = await db.order.count({
           where: { tableId: order.tableId, status: { in: ['pending', 'in-progress', 'ready'] } },
@@ -132,24 +147,21 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           await db.table.update({ where: { id: order.tableId }, data: { status: 'available' } })
         }
       }
-      // Označi vse artikle kot cancelled
       await db.orderItem.updateMany({
         where: { orderId: id, status: { in: ['pending', 'preparing', 'ready'] } },
         data: { status: 'cancelled' },
       })
 
-      // WebSocket: obvesti KDS o preklicu naročila
       broadcastWS('ORDER_CANCELLED', {
         orderId: id,
         orderNumber: order.orderNumber,
-        cancelReason: body.cancelReason || '',
+        cancelReason: data.cancelReason || '',
       })
-    } else if (body.status) {
-      // WebSocket: obvesti KDS o spremembi statusa naročila
+    } else if (data.status) {
       broadcastWS('ORDER_UPDATED', {
         orderId: id,
         orderNumber: order.orderNumber,
-        newStatus: body.status,
+        newStatus: data.status,
       })
     }
 
@@ -170,11 +182,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 // DELETE — Soft delete: označi naročilo kot preklicano (ne izbriše iz baze!)
-// Hard delete je prepovedan za audit sled (FURS zahteva).
-// Če naročilo ni bilo plačano in nima računa, ga lahko izbrišemo.
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+
+    // FIX C-05: Zahtevaj avtentikacijo
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
 
     const order = await db.order.findUnique({
       where: { id },
@@ -187,16 +201,15 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     // Če ima naročilo račun (FURS obveznost), NE smemo izbrisati — samo prekličemo
     if (order.receipt.length > 0) {
-      // Označi kot preklicano (soft delete)
       await db.order.update({
         where: { id },
         data: {
           status: 'cancelled',
           cancelReason: 'Izbrisano iz seznama',
           cancelledAt: new Date(),
+          cancelledBy: authResult.session?.employeeId || '',
         },
       })
-      // Sprosti mizo
       if (order.tableId) {
         const activeOrders = await db.order.count({
           where: { tableId: order.tableId, status: { in: ['pending', 'in-progress', 'ready'] } },
@@ -205,22 +218,20 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
           await db.table.update({ where: { id: order.tableId }, data: { status: 'available' } })
         }
       }
-      // WebSocket: obvesti KDS o preklicu
       broadcastWS('ORDER_CANCELLED', { orderId: id, orderNumber: order.orderNumber, cancelReason: 'Izbrisano iz seznama' })
       return NextResponse.json({ success: true, action: 'soft-delete', message: 'Naročilo označeno kot preklicano (ima račun)' })
     }
 
-    // Če naročilo nima računa in ni plačano, lahko naredimo hard delete
-    // ampak vseeno raje naredimo soft delete za audit sled
+    // Soft delete za audit sled
     await db.order.update({
       where: { id },
       data: {
         status: 'cancelled',
         cancelReason: 'Izbrisano iz seznama (brez računa)',
         cancelledAt: new Date(),
+        cancelledBy: authResult.session?.employeeId || '',
       },
     })
-    // Sprosti mizo
     if (order.tableId) {
       const activeOrders = await db.order.count({
         where: { tableId: order.tableId, status: { in: ['pending', 'in-progress', 'ready'] } },
@@ -229,7 +240,6 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         await db.table.update({ where: { id: order.tableId }, data: { status: 'available' } })
       }
     }
-    // WebSocket: obvesti KDS o preklicu
     broadcastWS('ORDER_CANCELLED', { orderId: id, orderNumber: order.orderNumber, cancelReason: 'Izbrisano iz seznama (brez računa)' })
 
     return NextResponse.json({ success: true, action: 'soft-delete', message: 'Naročilo preklicano' })

@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CreditCard, Banknote, Smartphone, Split, Heart, CheckCircle2, Gift, Star, Ticket } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { authFetch } from '@/components/pos/PinLogin'
 
 // ============================================
 // TIPI
@@ -115,18 +116,10 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
       if (!order) return null
 
       // 1. Ustvari Check za naročilo
-      const checkRes = await fetch('/api/checks', {
+      const checkRes = await authFetch('/api/checks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId: order.id,
-          subtotal: order.subtotal,
-          tax: order.tax,
-          discount: order.discount,
-          total: orderTotal,
-          tip: tipAmount,
-          totalWithTip: totalWithTip,
-          paymentMethod,
           orderItemIds: order.orderItems.map(oi => oi.id),
         }),
       })
@@ -134,9 +127,8 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
       const check = await checkRes.json()
 
       // 2. Ustvari Payment za Check
-      const paymentRes = await fetch('/api/payments', {
+      const paymentRes = await authFetch('/api/payments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           checkId: check.id,
           amount: totalWithTip,
@@ -151,15 +143,11 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
       if (!paymentRes.ok) throw new Error('Napaka pri ustvarjanju plačila')
 
       // 3. Posodobi naročilo
-      const orderRes = await fetch(`/api/orders/${order.id}`, {
+      const orderRes = await authFetch(`/api/orders/${order.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           paymentStatus: 'paid',
           paymentMethod: paymentMethod === 'split' ? 'split' : paymentMethod,
-          tip: tipAmount,
-          totalWithTip,
-          splitCount,
           status: 'completed',
         }),
       })
@@ -220,18 +208,10 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
     if (!order) return
     try {
       // 1. Ustvari en Check za celotno naročilo
-      const checkRes = await fetch('/api/checks', {
+      const checkRes = await authFetch('/api/checks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           orderId: order.id,
-          subtotal: order.subtotal,
-          tax: order.tax,
-          discount: order.discount,
-          total: orderTotal,
-          tip: tipAmount,
-          totalWithTip: totalWithTip,
-          paymentMethod: 'split',
           orderItemIds: order.orderItems.map(oi => oi.id),
         }),
       })
@@ -240,9 +220,8 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
 
       // 2. Ustvari N ločenih plačil
       for (let i = 0; i < splitCount; i++) {
-        const paymentRes = await fetch('/api/payments', {
+        const paymentRes = await authFetch('/api/payments', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             checkId: check.id,
             amount: Math.round(splitAmount * 100) / 100,
@@ -255,15 +234,11 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
       }
 
       // 3. Posodobi naročilo
-      const orderRes = await fetch(`/api/orders/${order.id}`, {
+      const orderRes = await authFetch(`/api/orders/${order.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           paymentStatus: 'paid',
           paymentMethod: 'split',
-          tip: tipAmount,
-          totalWithTip,
-          splitCount,
           status: 'completed',
         }),
       })

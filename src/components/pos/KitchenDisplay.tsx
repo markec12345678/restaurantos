@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
+import { authFetch } from '@/components/pos/PinLogin'
 import {
   ChefHat, Clock, AlertTriangle, CheckCircle2, Flame,
   UtensilsCrossed, ArrowRight, Volume2, VolumeX, RefreshCw,
@@ -660,9 +661,8 @@ export function KitchenDisplay() {
   // Item status mutation
   const itemStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const res = await fetch(`/api/order-items/${id}`, {
+      const res = await authFetch(`/api/order-items/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       })
       if (!res.ok) throw new Error('Failed to update item')
@@ -684,9 +684,8 @@ export function KitchenDisplay() {
   // Order status mutation
   const orderStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const res = await fetch(`/api/orders/${id}`, {
+      const res = await authFetch(`/api/orders/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       })
       if (!res.ok) throw new Error('Failed to update order')

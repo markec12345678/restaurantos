@@ -20,6 +20,7 @@ import { ReceiptDialog } from '@/components/pos/ReceiptDialog'
 import { PaymentDialog } from '@/components/pos/PaymentDialog'
 import { VoidItemDialog } from '@/components/pos/VoidItemDialog'
 import { StornoDialog } from '@/components/pos/StornoDialog'
+import { authFetch } from '@/components/pos/PinLogin'
 
 // ============================================
 // TIPI
@@ -132,7 +133,7 @@ export function OrderPanel() {
     queryFn: async () => {
       const params = new URLSearchParams()
       if (orderListTab !== 'all') params.set('status', orderListTab)
-      const res = await fetch(`/api/orders?${params}`)
+      const res = await authFetch(`/api/orders?${params}`)
       return res.json()
     },
   })
@@ -164,11 +165,10 @@ export function OrderPanel() {
     mutationFn: async () => {
       // Če urejamo obstoječe naročilo, dodaj artikle
       if (editingOrderId) {
-        const res = await fetch(`/api/orders/${editingOrderId}/add-items`, {
+        const res = await authFetch(`/api/orders/${editingOrderId}/add-items`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            items: cart.map(item => ({
+            orderItems: cart.map(item => ({
               menuItemId: item.id,
               quantity: item.quantity,
               price: item.price,
@@ -183,9 +183,8 @@ export function OrderPanel() {
 
       // Novo naročilo
       const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
-      const res = await fetch('/api/orders', {
+      const res = await authFetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: orderType,
           tableId: orderType === 'dine-in' ? selectedTable : null,
@@ -233,9 +232,8 @@ export function OrderPanel() {
 
   const updateOrderStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const res = await fetch(`/api/orders/${id}`, {
+      const res = await authFetch(`/api/orders/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       })
       if (!res.ok) throw new Error('Failed to update order')

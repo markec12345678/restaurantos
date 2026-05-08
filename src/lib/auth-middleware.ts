@@ -1,0 +1,240 @@
+// ============================================
+// AVTENTIKACIJSKI MIDDLEWARE ZA POS API
+// Profesionalna zaščita vseh API rut
+// Bearer token verifikacija + role-based dostop
+// ============================================
+
+import { NextResponse } from 'next/server'
+import crypto from 'crypto'
+
+// Aktivne seje (v produkciji bi bile v Redis/DB)
+interface Session {
+  token: string
+  employeeId: string
+  role: string
+  permissions: string[]
+  createdAt: number
+  expiresAt: number
+}
+
+const sessions = new Map<string, Session>()
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000 // 8 ur
+
+// Čiščenje poteklih sej vsakih 30 minut
+setInterval(() => {
+  const now = Date.now()
+  for (const [token, session] of sessions) {
+    if (session.expiresAt < now) {
+      sessions.delete(token)
+    }
+  }
+}, 30 * 60 * 1000)
+
+/**
+ * Ustvari novo sejo po uspešni prijavi
+ */
+export function createSession(employee: {
+  id: string
+  role: string
+  permissions: string[]
+}): string {
+  const token = crypto.randomBytes(32).toString('hex')
+  const now = Date.now()
+
+  sessions.set(token, {
+    token,
+    employeeId: employee.id,
+    role: employee.role,
+    permissions: employee.permissions,
+    createdAt: now,
+    expiresAt: now + SESSION_TTL_MS,
+  })
+
+  return token
+}
+
+/**
+ * Preveri veljavnost tokena in vrne sejo
+ */
+export function verifyToken(token: string): Session | null {
+  const session = sessions.get(token)
+  if (!session) return null
+  if (session.expiresAt < Date.now()) {
+    sessions.delete(token)
+    return null
+  }
+  return session
+}
+
+/**
+ * Uniči sejo (odjava)
+ */
+export function destroySession(token: string): void {
+  sessions.delete(token)
+}
+
+/**
+ * Pridobi Bearer token iz Authorization glave
+ */
+function extractBearerToken(req: Request): string | null {
+  const authHeader = req.headers.get('authorization')
+  if (!authHeader) return null
+  if (!authHeader.startsWith('Bearer ')) return null
+  return authHeader.substring(7).trim()
+}
+
+// ============================================
+// MIDDLEWARE FUNKCIJE
+// ============================================
+
+type Permission = 
+  | 'take_orders' 
+  | 'void_items' 
+  | 'apply_discounts' 
+  | 'manage_cash' 
+  | 'manage_inventory' 
+  | 'manage_employees' 
+  | 'view_reports' 
+  | 'admin'
+
+// Rute, ki ne zahtevajo avtentikacije
+const PUBLIC_ROUTES = [
+  '/api/auth',
+  '/api/seed',
+  '/api/configuration',
+  '/api/menus',
+  '/api/categories',
+  '/api/menu-items',
+  '/api/modifier-groups',
+]
+
+// Zahtevana dovoljenja za posamezne rute
+const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
+  '/api/orders': ['take_orders'],
+  '/api/payments': ['take_orders', 'manage_cash'],
+  '/api/receipts': ['take_orders', 'manage_cash'],
+  '/api/checks': ['take_orders'],
+  '/api/tables': ['take_orders'],
+  '/api/discounts': ['apply_discounts'],
+  '/api/inventory': ['manage_inventory'],
+  '/api/employees': ['manage_employees'],
+  '/api/loyalty': ['take_orders'],
+  '/api/gift-cards': ['take_orders'],
+  '/api/dashboard': ['view_reports'],
+  '/api/reports': ['view_reports'],
+  '/api/cash-register': ['manage_cash'],
+  '/api/shifts': ['manage_employees'],
+  '/api/time-entries': ['manage_employees'],
+  '/api/haccp': ['admin'],
+  '/api/webhooks': ['admin'],
+  '/api/settings': ['admin'],
+  '/api/print': ['take_orders'],
+  '/api/kitchen': ['take_orders'],
+  '/api/delivery': ['take_orders'],
+  '/api/furs': ['admin'],
+}
+
+/**
+ * Preveri ali ruta zahteva avtentikacijo
+ */
+function isPublicRoute(pathname: string): boolean {
+  return PUBLIC_ROUTES.some(route => pathname.startsWith(route))
+}
+
+/**
+ * Pridobi zahtevana dovoljenja za route
+ */
+function getRequiredPermissions(pathname: string): Permission[] {
+  for (const [route, perms] of Object.entries(ROUTE_PERMISSIONS)) {
+    if (pathname.startsWith(route)) {
+      return perms
+    }
+  }
+  return [] // Brez specifičnih zahtev = vsak avtenticiran uporabnik
+}
+
+/**
+ * Preveri ali ima uporabnik potrebna dovoljenja
+ */
+function hasPermission(session: Session, requiredPerms: Permission[]): boolean {
+  if (session.role === 'admin' || session.role === 'manager') return true
+  if (requiredPerms.length === 0) return true
+  return requiredPerms.some(perm => session.permissions.includes(perm))
+}
+
+/**
+ * GLAVNA MIDDLEWARE FUNKCIJA
+ * Uporaba v API rutah:
+ * 
+ *   const authResult = await requireAuth(req)
+ *   if (authResult.error) return authResult.error
+ *   const session = authResult.session!
+ */
+export async function requireAuth(
+  req: Request,
+  options?: { permission?: Permission | Permission[] }
+): Promise<{ session: Session | null; error: NextResponse | null }> {
+  const { pathname } = new URL(req.url)
+
+  // GET zahteve na javnih rutah so dovoljene brez avtentikacije
+  if (req.method === 'GET' && isPublicRoute(pathname)) {
+    return { session: null, error: null }
+  }
+
+  const token = extractBearerToken(req)
+
+  if (!token) {
+    return {
+      session: null,
+      error: NextResponse.json(
+        { error: 'Avtentikacija je obvezna. Pošljite Authorization: Bearer <token>' },
+        { status: 401 }
+      ),
+    }
+  }
+
+  const session = verifyToken(token)
+
+  if (!session) {
+    return {
+      session: null,
+      error: NextResponse.json(
+        { error: 'Neveljaven ali potekel žeton. Prosimo, prijavite se ponovno.' },
+        { status: 401 }
+      ),
+    }
+  }
+
+  // Preveri dovoljenja
+  const requiredPerms = options?.permission
+    ? Array.isArray(options.permission) ? options.permission : [options.permission]
+    : getRequiredPermissions(pathname)
+
+  if (!hasPermission(session, requiredPerms)) {
+    return {
+      session: null,
+      error: NextResponse.json(
+        { error: 'Nimate dovoljenja za to operacijo.' },
+        { status: 403 }
+      ),
+    }
+  }
+
+  // Podaljšaj sejo ob aktivnosti
+  session.expiresAt = Date.now() + SESSION_TTL_MS
+
+  return { session, error: null }
+}
+
+/**
+ * Izbirna avtentikacija — ne vrne napake, če ni tokena
+ * Uporabno za rute, ki delujejo drugače za avtenticirane uporabnike
+ */
+export async function optionalAuth(
+  req: Request
+): Promise<{ session: Session | null }> {
+  const token = extractBearerToken(req)
+  if (!token) return { session: null }
+  const session = verifyToken(token)
+  return { session }
+}

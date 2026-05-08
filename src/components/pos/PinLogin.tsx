@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { Store, LogIn, LogOut, Shield, User, KeyRound } from 'lucide-react'
@@ -22,8 +21,9 @@ interface AuthUser {
   permissions: string[]
 }
 
-// Globalno stanje za prijavljenega uporabnika
+// Globalno stanje za prijavljenega uporabnika in token
 let currentUser: AuthUser | null = null
+let authToken: string | null = null
 
 export function getCurrentUser(): AuthUser | null {
   if (typeof window === 'undefined') return null
@@ -46,6 +46,63 @@ export function setCurrentUser(user: AuthUser | null) {
       sessionStorage.removeItem('pos_auth_user')
     }
   }
+}
+
+export function getAuthToken(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const stored = sessionStorage.getItem('pos_auth_token')
+    if (stored) {
+      authToken = stored
+      return authToken
+    }
+  } catch {}
+  return authToken
+}
+
+export function setAuthToken(token: string | null) {
+  authToken = token
+  if (typeof window !== 'undefined') {
+    if (token) {
+      sessionStorage.setItem('pos_auth_token', token)
+    } else {
+      sessionStorage.removeItem('pos_auth_token')
+    }
+  }
+}
+
+/**
+ * Profesionalna fetch wrapper, ki samodejno doda Authorization header
+ * Uporaba: authFetch('/api/orders', { method: 'POST', body: ... })
+ */
+export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  const token = getAuthToken()
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string> || {}),
+  }
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
+  })
+
+  // Avtomatska odjava ob poteklem token-u
+  if (response.status === 401) {
+    const data = await response.json().catch(() => ({}))
+    if (data.error?.includes('žeton') || data.error?.includes('token') || data.error?.includes('potekel')) {
+      setAuthToken(null)
+      setCurrentUser(null)
+      // Sproži globalni dogodek za odjavo
+      window.dispatchEvent(new CustomEvent('pos:auth-expired'))
+    }
+  }
+
+  return response
 }
 
 export function hasPermission(permission: string): boolean {
@@ -87,7 +144,9 @@ export function PinLogin({ onLogin, onSkip }: { onLogin: (user: AuthUser) => voi
       return res.json()
     },
     onSuccess: (data) => {
+      // Shrani uporabnika in token
       setCurrentUser(data.employee)
+      setAuthToken(data.token)
       setPin('')
       setError('')
       toast.success(data.message)
@@ -112,7 +171,6 @@ export function PinLogin({ onLogin, onSkip }: { onLogin: (user: AuthUser) => voi
     if (e.key === 'Enter') handlePinSubmit()
   }
 
-  // Hitri gumbi za števke
   const handleDigit = (digit: string) => {
     if (pin.length < 6) {
       setPin(prev => prev + digit)
@@ -194,7 +252,7 @@ export function PinLogin({ onLogin, onSkip }: { onLogin: (user: AuthUser) => voi
             </Button>
           </div>
 
-          {/* Preskoči gumb — za brez PIN-a */}
+          {/* Preskoči gumb */}
           {onSkip && (
             <div className="text-center pt-2">
               <Button variant="ghost" className="text-xs text-muted-foreground" onClick={onSkip}>
@@ -221,8 +279,22 @@ export function UserIndicator() {
 
   if (!user) return null
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Pokliči DELETE /api/auth za uničenje seje
+    try {
+      const token = getAuthToken()
+      await fetch('/api/auth', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+    } catch {
+      // Ignoriraj napake pri odjavi
+    }
+
     setCurrentUser(null)
+    setAuthToken(null)
     queryClient.invalidateQueries()
     toast.success('Uspešno odjavljen')
   }

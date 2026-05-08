@@ -1,25 +1,36 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
+import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, updateEmployeeSchema } from '@/lib/validations'
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+
+    // FIX C-05: Zahtevaj avtentikacijo
+    const authResult = await requireAuth(req, { permission: 'manage_employees' })
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
 
+    // FIX H-01: Validiraj vnos z Zod
+    const { data, error: validationError } = validateBody(updateEmployeeSchema, body)
+    if (validationError) return validationError
+
     const updateData: Record<string, unknown> = {}
-    if (body.name !== undefined) updateData.name = body.name
-    if (body.email !== undefined) updateData.email = body.email
-    if (body.phone !== undefined) updateData.phone = body.phone
-    if (body.role !== undefined) updateData.role = body.role
-    if (body.status !== undefined) updateData.status = body.status
-    if (body.hireDate !== undefined) updateData.hireDate = new Date(body.hireDate)
+    if (data.name !== undefined) updateData.name = data.name
+    if (data.email !== undefined) updateData.email = data.email
+    if (data.phone !== undefined) updateData.phone = data.phone
+    if (data.role !== undefined) updateData.role = data.role
+    if (data.status !== undefined) updateData.status = data.status
+    if (data.hireDate !== undefined) updateData.hireDate = new Date(data.hireDate)
 
     // FIX C-04: Hash PIN pred shranjevanjem
-    if (body.pin !== undefined) {
-      if (body.pin && body.pin.length >= 4 && !body.pin.startsWith('$2')) {
-        updateData.pin = await bcrypt.hash(body.pin, 10)
-      } else if (body.pin === '') {
+    if (data.pin !== undefined) {
+      if (data.pin && data.pin.length >= 4 && !data.pin.startsWith('$2')) {
+        updateData.pin = await bcrypt.hash(data.pin, 10)
+      } else if (data.pin === '') {
         updateData.pin = ''
       }
     }
@@ -42,7 +53,11 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   try {
     const { id } = await params
 
-    // Preveri, če ima zaposleni aktivne izmene ali časovne vnose
+    // FIX C-05: Zahtevaj avtentikacijo
+    const authResult = await requireAuth(req, { permission: 'manage_employees' })
+    if (authResult.error) return authResult.error
+
+    // Preveri, če ima zaposleni aktivne časovne vnose
     const activeTimeEntries = await db.timeEntry.count({
       where: { employeeId: id, clockOut: null },
     })

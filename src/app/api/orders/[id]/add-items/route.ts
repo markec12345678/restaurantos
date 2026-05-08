@@ -1,16 +1,22 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, addOrderItemsSchema } from '@/lib/validations'
 
 // POST /api/orders/[id]/add-items — Dodaj artikle k obstoječemu naročilu
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    const body = await req.json()
-    const { items } = body
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: 'Potreben je seznam artiklov' }, { status: 400 })
-    }
+    // FIX C-05: Zahtevaj avtentikacijo
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
+
+    const body = await req.json()
+
+    // FIX H-01: Validiraj vnos z Zod
+    const { data, error: validationError } = validateBody(addOrderItemsSchema, body)
+    if (validationError) return validationError
 
     // Pridobi obstoječe naročilo
     const order = await db.order.findUnique({
@@ -26,42 +32,57 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: 'Naročilo je že zaključeno ali preklicano' }, { status: 400 })
     }
 
-    // Dodaj nove artikle
+    // Dodaj nove artikle — vse v eni transakciji
     const newItems = await db.$transaction(async (tx) => {
       const created = []
-      for (const item of items) {
-        // Pridobi artikel za DDV stopnjo
+
+      // Preveri, da vsi artikli obstajajo
+      for (const item of data.orderItems) {
         const menuItem = await tx.menuItem.findUnique({ where: { id: item.menuItemId } })
-        const vatRate = menuItem?.vatRate ?? 22.0
-        
+        if (!menuItem) {
+          throw new Error(`Artikel ${item.menuItemId} ni najden`)
+        }
+      }
+
+      for (const item of data.orderItems) {
+        // Pridobi artikel za DDV stopnjo (strežniško — edini vir resnice)
+        const menuItem = (await tx.menuItem.findUnique({ where: { id: item.menuItemId } }))!
+        const vatRate = menuItem.vatRate
+        const itemBase = item.price * item.quantity
+        const vatAmount = itemBase * (vatRate / 100)
+
         const orderItem = await tx.orderItem.create({
           data: {
             orderId: id,
             menuItemId: item.menuItemId,
-            quantity: item.quantity || 1,
+            quantity: item.quantity,
             price: item.price,
-            notes: item.notes || '',
-            modifiersJson: item.modifiersJson || '[]',
+            notes: item.notes,
+            modifiersJson: item.modifiersJson,
             status: 'pending',
             vatRate,
+            vatAmount,
           },
           include: { menuItem: true },
         })
         created.push(orderItem)
       }
 
-      // Preračunaj skupne zneske s per-item DDV
+      // Preračunaj skupne zneske s per-item DDV (strežniško)
       const allItems = [...order.orderItems, ...created]
       const subtotal = allItems.reduce((sum, oi) => sum + oi.price * oi.quantity, 0)
       const tax = allItems.reduce((sum, oi) => {
         const rate = oi.vatRate ?? 22.0
         return sum + oi.price * oi.quantity * (rate / 100)
       }, 0)
-      const total = subtotal + tax - order.discount
+      // FIX H-03: Popust ostaja nespremenjen, ponovno preveri cap
+      const discount = Math.min(order.discount, subtotal)
+      const total = subtotal + tax - discount
+      const totalWithTip = total + (order.tip || 0)
 
       await tx.order.update({
         where: { id },
-        data: { subtotal, tax, total },
+        data: { subtotal, tax, discount, total, totalWithTip },
       })
 
       return created
@@ -79,6 +100,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ order: updatedOrder, addedItems: newItems.length })
   } catch (error) {
     console.error('Add items error:', error)
-    return NextResponse.json({ error: 'Napaka pri dodajanju artiklov' }, { status: 500 })
+    const message = error instanceof Error ? error.message : 'Napaka pri dodajanju artiklov'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

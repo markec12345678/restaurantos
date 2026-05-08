@@ -1,6 +1,8 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { getNextReceiptNumber } from '@/lib/counters'
+import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, createReceiptSchema } from '@/lib/validations'
 
 // GET /api/receipts/[id] — Generiraj račun s predogledom (ZDDV-1 skladen)
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -55,11 +57,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         id: oi.id,
         name: oi.menuItem.name,
         quantity: oi.quantity,
-        unitPrice: oi.price,          // Cena brez DDV
-        vatRate,                       // DDV stopnja
-        basePrice,                     // Osnova (skupaj brez DDV)
-        vatAmount,                     // Znesek DDV
-        totalWithVat,                  // Skupaj z DDV
+        unitPrice: oi.price,
+        vatRate,
+        basePrice,
+        vatAmount,
+        totalWithVat,
         modifiers,
         notes: oi.notes,
         category: oi.menuItem.category?.name || '',
@@ -85,32 +87,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     // Preveri če že obstaja račun
     const existingReceipt = await db.receipt.findFirst({ where: { orderId: id } })
-
-    // Generiraj številko računa — če že obstaja, uporabi obstoječo
     const receiptNumber = existingReceipt?.receiptNumber || ''
-
-    // FURS ZOI generiranje (placeholder - pravi ZOI potrebuje digitalni podpis)
     const zoi = existingReceipt?.zoi || generateZOIPlaceholder(order.orderNumber, receiptNumber || 'pending')
 
     const receipt = {
-      // === GLAVA RAČUNA ===
       receiptNumber,
       receiptDate: existingReceipt?.createdAt?.toISOString() || new Date().toISOString(),
       registerId: settings.registerNumber || 'BLG-001',
-      
-      // === PODATKI IZDAJATELJA ===
       businessName: settings.name,
       businessAddress: `${settings.address}, ${settings.postCode} ${settings.city}`,
       businessId: settings.businessId,
       taxId: settings.taxId,
       phone: settings.phone,
-      
-      // === DAVČNO POTRJEVANJE ===
       zoi,
       eor: existingReceipt?.eor || '',
       fiscalVerified: existingReceipt?.fiscalVerified || false,
-      
-      // === NAROČILO ===
       orderNumber: order.orderNumber,
       type: order.type,
       status: order.status,
@@ -120,20 +111,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       table: order.table ? { number: order.table.number, area: order.table.area } : null,
       notes: order.notes,
       createdAt: order.createdAt,
-      
-      // === POSTAVKE ===
       items: receiptItems,
-      
-      // === ZNESEKI ===
       subtotal: Math.round(subtotal * 100) / 100,
       vatBreakdown: Object.fromEntries(
         Object.entries(vatBreakdown).map(([rate, data]) => [
-          rate, 
-          { 
-            base: Math.round(data.base * 100) / 100, 
+          rate,
+          {
+            base: Math.round(data.base * 100) / 100,
             vat: Math.round(data.vat * 100) / 100,
-            total: Math.round(data.total * 100) / 100 
-          }
+            total: Math.round(data.total * 100) / 100,
+          },
         ])
       ),
       totalVat: Math.round(totalVat * 100) / 100,
@@ -141,8 +128,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       total: Math.round(total * 100) / 100,
       tip: Math.round(tip * 100) / 100,
       totalWithTip: Math.round(totalWithTip * 100) / 100,
-      
-      // === NOGA ===
       receiptFooter: settings.receiptFooter || '',
       isCopy: existingReceipt?.isCopy || false,
       isStorno: existingReceipt?.isStorno || false,
@@ -160,7 +145,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+
+    // FIX C-05: Zahtevaj avtentikacijo
+    const authResult = await requireAuth(req, { permission: 'manage_cash' })
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
+
+    // FIX H-01: Validiraj vnos z Zod
+    const { data, error: validationError } = validateBody(createReceiptSchema, body)
+    if (validationError) return validationError
 
     const order = await db.order.findUnique({
       where: { id },
@@ -180,7 +174,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // Pridobi nastavitve
     const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
 
-    // Izračunaj DDV razdelitev
+    // Izračunaj DDV razdelitev (strežniško — edini vir resnice)
     const vatBreakdown: Record<string, { base: number; vat: number }> = {}
     for (const oi of order.orderItems) {
       const vatRate = oi.vatRate || oi.menuItem?.vatRate || 22.0
@@ -192,7 +186,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       vatBreakdown[rate].vat += vat
     }
 
-    // FIX 1: Atomna sekvenčna številka računa
+    // Atomna sekvenčna številka računa
     const receiptNumber = await getNextReceiptNumber()
 
     // ZOI placeholder
@@ -217,14 +211,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         total: order.total,
         tip: order.tip || 0,
         totalWithTip: (order.totalWithTip || order.total) + (order.tip || 0),
-        paymentMethod: order.paymentMethod || body.paymentMethod || 'gotovina',
+        paymentMethod: data.paymentMethod,
         isCopy: false,
-        isStorno: body.isStorno || false,
-        stornoOf: body.stornoOf || '',
+        isStorno: data.isStorno,
+        stornoOf: data.stornoOf,
       },
     })
 
-    return NextResponse.json(receipt)
+    return NextResponse.json(receipt, { status: 201 })
   } catch (error) {
     console.error('Napaka pri ustvarjanju računa:', error)
     return NextResponse.json({ error: 'Napaka pri ustvarjanju računa' }, { status: 500 })
@@ -235,8 +229,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    const body = await req.json()
 
+    // FIX C-05: Zahtevaj avtentikacijo
+    const authResult = await requireAuth(req, { permission: 'manage_cash' })
+    if (authResult.error) return authResult.error
+
+    const body = await req.json()
     const receipt = await db.receipt.findFirst({ where: { orderId: id } })
     if (!receipt) {
       return NextResponse.json({ error: 'Račun ni najden' }, { status: 404 })
@@ -261,8 +259,6 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
 // Placeholder ZOI generator (pravi ZOI potrebuje FURS certifikat in digitalni podpis)
 function generateZOIPlaceholder(orderNumber: number, receiptNumber: string): string {
-  // ZOI mora biti 32-mestna hex številka, generirana iz certifikata
-  // To je placeholder dokler ne integriramo FURS povezave
   const timestamp = Date.now().toString(16).padStart(12, '0')
   const orderHex = orderNumber.toString(16).padStart(8, '0')
   const random = Math.random().toString(16).substring(2, 14)

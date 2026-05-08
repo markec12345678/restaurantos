@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { validateBody, createGiftCardSchema } from '@/lib/validations'
 
 export async function GET(req: Request) {
   try {
@@ -30,36 +31,54 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
 
-    const giftCard = await db.giftCard.create({
-      data: {
-        cardNumber: body.cardNumber,
-        balance: body.balance || 0,
-        initialBalance: body.initialBalance || body.balance || 0,
-        status: body.status || 'active',
-        ownerName: body.ownerName || '',
-        purchasedAt: body.purchasedAt ? new Date(body.purchasedAt) : new Date(),
-        expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
-      },
-      include: {
-        transactions: true,
-      },
-    })
+    // FIX H-01: Validiraj vnos z Zod
+    const { data, error: validationError } = validateBody(createGiftCardSchema, body)
+    if (validationError) return validationError
 
-    // Create initial load transaction if balance > 0
-    if (giftCard.balance > 0) {
-      await db.giftCardTransaction.create({
+    // Atomna transakcija: ustvari kartico + začetno transakcijo
+    const giftCard = await db.$transaction(async (tx) => {
+      const card = await tx.giftCard.create({
         data: {
-          giftCardId: giftCard.id,
-          type: 'load',
-          amount: giftCard.balance,
-          balanceAfter: giftCard.balance,
-          note: 'Initial load',
+          cardNumber: data.cardNumber,
+          balance: data.balance,
+          initialBalance: data.initialBalance || data.balance,
+          status: data.status,
+          ownerName: data.ownerName,
+          purchasedAt: new Date(),
+          expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
         },
       })
-    }
 
-    return NextResponse.json(giftCard, { status: 201 })
-  } catch (error) {
+      // Ustvari začetno transakcijo nalaganja
+      if (card.balance > 0) {
+        await tx.giftCardTransaction.create({
+          data: {
+            giftCardId: card.id,
+            type: 'load',
+            amount: card.balance,
+            balanceAfter: card.balance,
+            note: 'Začetno nalaganje',
+          },
+        })
+      }
+
+      return card
+    })
+
+    // Re-fetch z transakcijami
+    const result = await db.giftCard.findUnique({
+      where: { id: giftCard.id },
+      include: { transactions: true },
+    })
+
+    return NextResponse.json(result, { status: 201 })
+  } catch (error: any) {
+    if (error?.code === 'P2002') {
+      return NextResponse.json(
+        { error: `Darilna kartica s številko ${body.cardNumber} že obstaja` },
+        { status: 409 }
+      )
+    }
     console.error('Failed to create gift card:', error)
     return NextResponse.json({ error: 'Failed to create gift card' }, { status: 500 })
   }
