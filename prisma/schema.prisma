@@ -45,10 +45,13 @@ model MenuItem {
   image           String           @default("")
   isAvailable     Boolean          @default(true)
   sortOrder       Int              @default(0)
+  vatRate         Float            @default(22.0)     // DDV stopnja: 22.0, 9.5, 0 (%)
+  allergens       String           @default("")       // Alergeni: "1,3,7,12" (EU številke)
   categoryId      String
   category        Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   orderItems      OrderItem[]
   inventory       InventoryItem?
+  recipeItems     RecipeItem[]
   modifierGroups  MenuItemModifierGroup[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
@@ -126,6 +129,7 @@ model Order {
   notes         String     @default("")
   employeeId    String?
   orderItems    OrderItem[]
+  receipt       Receipt?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 }
@@ -137,7 +141,9 @@ model OrderItem {
   menuItemId     String
   menuItem       MenuItem @relation(fields: [menuItemId], references: [id])
   quantity       Int      @default(1)
-  price          Float
+  price          Float                         // Cena brez DDV
+  vatRate        Float    @default(22.0)       // DDV stopnja tega artikla
+  vatAmount      Float    @default(0)          // Znesek DDV za ta artikel
   notes          String   @default("")
   modifiersJson  String   @default("[]") // JSON array of selected modifiers [{name, price}]
   status         String   @default("pending")
@@ -222,6 +228,7 @@ model InventoryItem {
   lastRestocked   DateTime  @default(now())
   // --- Transakcije ---
   transactions    StockTransaction[]
+  recipeItems     RecipeItem[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }
@@ -246,4 +253,110 @@ model StockTransaction {
   employeeName    String        @default("")   // Kdo je izvedel transakcijo
   orderId         String?                      // Povezava z naročilom (pri avtomatski razknjžbi)
   createdAt       DateTime      @default(now())
+}
+
+// ============================================
+// RECEPTI / NORMATIVI (sestavine na jed)
+// ============================================
+
+model RecipeItem {
+  id              String        @id @default(cuid())
+  menuItemId      String
+  menuItem        MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  quantityPerServing Float     @default(0)       // Količina na porcijo v enoti zaloge (npr. 0.25kg)
+  unit            String        @default("")       // Enota (kg, L, kos, šen)
+  notes           String        @default("")       // Opombe za pripravo
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([menuItemId, inventoryItemId])
+}
+
+// ============================================
+// RAČUNI (Fiscal compliance - ZDDV-1)
+// ============================================
+
+model Receipt {
+  id                String   @id @default(cuid())
+  receiptNumber     String   @unique               // Sekvenčna številka: R-2026-000001
+  orderId           String   @unique
+  order             Order    @relation(fields: [orderId], references: [id])
+  // --- Podatki izdajatelja ---
+  businessName      String                          // Naziv podjetja
+  businessAddress   String                          // Naslov
+  businessId        String                          // Matična številka
+  taxId             String                          // ID za DDV (SIxxxxxxxxx)
+  registerId        String   @default("BLG-001")   // Številka blagajne
+  // --- Davčno potrjevanje (FURS) ---
+  zoi               String   @default("")          // Zaščitni označitelj izdajanja
+  eor               String   @default("")          // Elektronski zapis o računu
+  fiscalVerified    Boolean  @default(false)        // Ali je račun davčno overjen
+  verificationDate  DateTime?                      // Datum in ura overitve
+  // --- Vsebina računa ---
+  subtotal          Float                          // Vmesna vsota brez DDV
+  vatBreakdown      String   @default("{}")        // JSON: {"22": {base:100, vat:22}, "9.5": {base:50, vat:4.75}}
+  totalVat          Float                          // Skupni DDV
+  discount          Float    @default(0)
+  total             Float                          // Skupaj z DDV
+  tip               Float    @default(0)
+  totalWithTip      Float    @default(0)
+  paymentMethod     String                          // gotovina, kartica, mobilno
+  // --- Meta ---
+  isCopy            Boolean  @default(false)        // Prirejena kopija
+  isStorno          Boolean  @default(false)        // Storno račun
+  stornoOf          String   @default("")          // ID originalnega računa
+  printedAt         DateTime?                      // Kdaj natisnjen
+  createdAt         DateTime @default(now())
+}
+
+// ============================================
+// NASTAVITVE RESTAVRACIJE
+// ============================================
+
+model RestaurantSettings {
+  id                String   @id @default(cuid())
+  name              String   @default("RestaurantOS")
+  address           String   @default("")
+  city              String   @default("")
+  postCode          String   @default("")
+  phone             String   @default("")
+  email             String   @default("")
+  web               String   @default("")
+  businessId        String   @default("")           // Matična številka podjetja
+  taxId             String   @default("")           // ID za DDV (SIxxxxxxxxx)
+  registerNumber    String   @default("BLG-001")    // Številka blagajne
+  // --- FURS certifikat ---
+  fursCertPath      String   @default("")           // Pot do FURS digitalnega certifikata
+  fursCertPassword  String   @default("")           // Geslo certifikata
+  fursEnvironment   String   @default("test")       // test | production
+  // --- DDV nastavitve ---
+  defaultVatRate    Float    @default(22.0)          // Privzeta DDV stopnja
+  reducedVatRate    Float    @default(9.5)           // Znižana DDV stopnja
+  // --- Ostalo ---
+  receiptFooter     String   @default("")           // Noga računa (sporočilo)
+  currency          String   @default("EUR")
+  locale            String   @default("sl-SI")
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// ============================================
+// HACCP DNEVNIKI
+// ============================================
+
+model HaccpEntry {
+  id              String   @id @default(cuid())
+  date            DateTime @default(now())
+  category        String                        // temperature, cleaning, delivery, cooling, training
+  title           String                        // Naslov vnosa
+  description     String   @default("")         // Opis
+  value           String   @default("")         // Meritev (npr. "4.2°C")
+  status          String   @default("ok")        // ok, warning, critical
+  correctiveAction String  @default("")         // Korektivni ukrep
+  employeeName    String   @default("")         // Kdo je zabeležil
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

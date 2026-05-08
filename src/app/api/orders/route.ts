@@ -29,11 +29,37 @@ export async function POST(req: Request) {
   const maxOrder = await db.order.findFirst({ orderBy: { orderNumber: 'desc' }, select: { orderNumber: true } })
   const orderNumber = (maxOrder?.orderNumber || 0) + 1
 
-  const subtotal = body.orderItems.reduce((sum: number, item: { price: number; quantity: number }) => sum + item.price * item.quantity, 0)
-  const taxRate = body.taxRate || 0.22
-  const tax = subtotal * taxRate
+  // Multi-DDV: pridobi vatRate za vsak artiklov iz baze
+  const menuItemIds = body.orderItems.map((item: { menuItemId: string }) => item.menuItemId)
+  const menuItems = await db.menuItem.findMany({
+    where: { id: { in: menuItemIds } },
+    select: { id: true, vatRate: true },
+  })
+  const vatMap = new Map(menuItems.map(mi => [mi.id, mi.vatRate]))
+
+  // Izračun z multi-DDV po stopnjah
+  let subtotal = 0
+  let totalTax = 0
+  const orderItemsData = body.orderItems.map((item: { menuItemId: string; quantity: number; price: number; notes?: string; modifiersJson?: string }) => {
+    const vatRate = vatMap.get(item.menuItemId) ?? 22.0
+    const itemBase = item.price * item.quantity
+    const vatAmount = itemBase * (vatRate / 100)
+    subtotal += itemBase
+    totalTax += vatAmount
+    return {
+      menuItemId: item.menuItemId,
+      quantity: item.quantity,
+      price: item.price,
+      vatRate,
+      vatAmount,
+      notes: item.notes || '',
+      modifiersJson: item.modifiersJson || '[]',
+      status: 'pending' as const,
+    }
+  })
+
   const discount = body.discount || 0
-  const total = subtotal + tax - discount
+  const total = subtotal + totalTax - discount
 
   const order = await db.order.create({
     data: {
@@ -44,7 +70,7 @@ export async function POST(req: Request) {
       customerName: body.customerName || '',
       customerPhone: body.customerPhone || '',
       subtotal,
-      tax,
+      tax: totalTax,
       discount,
       total,
       paymentStatus: 'unpaid',
@@ -52,14 +78,7 @@ export async function POST(req: Request) {
       notes: body.notes || '',
       employeeId: body.employeeId || null,
       orderItems: {
-        create: body.orderItems.map((item: { menuItemId: string; quantity: number; price: number; notes?: string; modifiersJson?: string }) => ({
-          menuItemId: item.menuItemId,
-          quantity: item.quantity,
-          price: item.price,
-          notes: item.notes || '',
-          modifiersJson: item.modifiersJson || '[]',
-          status: 'pending',
-        })),
+        create: orderItemsData,
       },
     },
     include: {

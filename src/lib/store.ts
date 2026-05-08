@@ -11,7 +11,8 @@ export interface SelectedModifier {
 export interface CartItemType {
   id: string
   name: string
-  price: number
+  price: number       // Cena brez DDV (osnova)
+  vatRate: number      // DDV stopnja artikla (22, 9.5, 0)
   quantity: number
   categoryId: string
   notes: string
@@ -25,19 +26,21 @@ interface POSStore {
   activeModule: string
   setActiveModule: (module: string) => void
   cart: CartItemType[]
-  addToCart: (item: { id: string; name: string; price: number; categoryId: string; image: string; modifiers?: SelectedModifier[] }) => void
+  addToCart: (item: { id: string; name: string; price: number; vatRate?: number; categoryId: string; image: string; modifiers?: SelectedModifier[] }) => void
   removeFromCart: (cartKey: string) => void
   updateCartQuantity: (cartKey: string, quantity: number) => void
   updateCartNotes: (cartKey: string, notes: string) => void
   clearCart: () => void
-  cartTotal: () => number
+  cartTotal: () => number       // Skupaj z DDV
+  cartSubtotal: () => number    // Osnova brez DDV
+  cartTaxTotal: () => number    // Skupni DDV
+  cartVatBreakdown: () => Record<string, { base: number; vat: number }>  // DDV po stopnjah
   orderType: string
   setOrderType: (type: string) => void
   selectedTable: string | null
   setSelectedTable: (tableId: string | null) => void
   discount: number
   setDiscount: (discount: number) => void
-  taxRate: number
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
   activeMenuId: string | null
@@ -69,6 +72,7 @@ export const usePOSStore = create<POSStore>((set, get) => ({
       const modifiers = item.modifiers || []
       const cartKey = generateCartKey(item.id, modifiers)
       const effectivePrice = getItemEffectivePrice(item.price, modifiers)
+      const vatRate = item.vatRate ?? 22.0
       const existing = state.cart.find((c) => c.cartKey === cartKey)
       if (existing) {
         return {
@@ -82,6 +86,7 @@ export const usePOSStore = create<POSStore>((set, get) => ({
           id: item.id,
           name: item.name,
           price: effectivePrice,
+          vatRate,
           quantity: 1,
           categoryId: item.categoryId,
           notes: '',
@@ -106,11 +111,31 @@ export const usePOSStore = create<POSStore>((set, get) => ({
     })),
   clearCart: () =>
     set({ cart: [], discount: 0, selectedTable: null, editingOrderId: null, editingOrderNumber: null }),
+  cartSubtotal: () => {
+    const { cart, discount } = get()
+    return cart.reduce((sum, item) => sum + item.price * item.quantity, 0) - discount
+  },
+  cartTaxTotal: () => {
+    const { cart } = get()
+    return cart.reduce((sum, item) => sum + item.price * item.quantity * (item.vatRate / 100), 0)
+  },
   cartTotal: () => {
-    const { cart, taxRate, discount } = get()
+    const { cart, discount } = get()
     const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
-    const tax = subtotal * taxRate
+    const tax = cart.reduce((sum, item) => sum + item.price * item.quantity * (item.vatRate / 100), 0)
     return subtotal + tax - discount
+  },
+  cartVatBreakdown: () => {
+    const { cart } = get()
+    const breakdown: Record<string, { base: number; vat: number }> = {}
+    for (const item of cart) {
+      const rate = String(item.vatRate)
+      if (!breakdown[rate]) breakdown[rate] = { base: 0, vat: 0 }
+      const itemBase = item.price * item.quantity
+      breakdown[rate].base += itemBase
+      breakdown[rate].vat += itemBase * (item.vatRate / 100)
+    }
+    return breakdown
   },
   orderType: 'dine-in',
   setOrderType: (type) => set({ orderType: type }),
@@ -118,7 +143,6 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   setSelectedTable: (tableId) => set({ selectedTable: tableId }),
   discount: 0,
   setDiscount: (discount) => set({ discount }),
-  taxRate: 0.22,
   sidebarOpen: false,
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   activeMenuId: null,
