@@ -28,20 +28,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     // Pridobi nastavitve restavracije
-    let settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
-    if (!settings) {
-      settings = {
-        name: 'RestaurantOS',
-        address: 'Podčetrtk 97',
-        city: 'Podčetrtk',
-        postCode: '3254',
-        phone: '+386 3 818 30 00',
-        email: '',
-        taxId: 'SI12345678',
-        businessId: '12345678',
-        registerNumber: 'BLG-001',
-        receiptFooter: 'Hvala za obisk!',
-      } as any
+    const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
+    const s = settings || {
+      name: 'RestaurantOS',
+      address: 'Podčetrtk 97',
+      city: 'Podčetrtk',
+      postCode: '3254',
+      phone: '+386 3 818 30 00',
+      email: '',
+      taxId: 'SI12345678',
+      businessId: '12345678',
+      registerNumber: 'BLG-001',
+      receiptFooter: 'Hvala za obisk!',
     }
 
     // Parse modifiers from JSON
@@ -96,12 +94,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const receipt = {
       receiptNumber,
       receiptDate: existingReceipt?.createdAt?.toISOString() || new Date().toISOString(),
-      registerId: settings.registerNumber || 'BLG-001',
-      businessName: settings.name,
-      businessAddress: `${settings.address}, ${settings.postCode} ${settings.city}`,
-      businessId: settings.businessId,
-      taxId: settings.taxId,
-      phone: settings.phone,
+      registerId: s.registerNumber || 'BLG-001',
+      businessName: s.name,
+      businessAddress: `${s.address}, ${s.postCode} ${s.city}`,
+      businessId: s.businessId,
+      taxId: s.taxId,
+      phone: s.phone,
       zoi,
       eor: existingReceipt?.eor || '',
       fiscalVerified: existingReceipt?.fiscalVerified || false,
@@ -131,7 +129,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       total: Math.round(total * 100) / 100,
       tip: Math.round(tip * 100) / 100,
       totalWithTip: Math.round(totalWithTip * 100) / 100,
-      receiptFooter: settings.receiptFooter || '',
+      receiptFooter: s.receiptFooter || '',
       isCopy: existingReceipt?.isCopy || false,
       isStorno: existingReceipt?.isStorno || false,
       stornoOf: existingReceipt?.stornoOf || '',
@@ -176,6 +174,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // Pridobi nastavitve
     const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
+    const s2 = settings || {
+      name: 'RestaurantOS',
+      address: '',
+      postCode: '',
+      city: '',
+      businessId: '',
+      taxId: '',
+      registerNumber: 'BLG-001',
+    }
 
     // Izračunaj DDV razdelitev (strežniško — edini vir resnice)
     const vatBreakdown: Record<string, { base: number; vat: number }> = {}
@@ -199,11 +206,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       data: {
         receiptNumber,
         orderId: id,
-        businessName: settings?.name || 'RestaurantOS',
-        businessAddress: settings ? `${settings.address}, ${settings.postCode} ${settings.city}` : '',
-        businessId: settings?.businessId || '',
-        taxId: settings?.taxId || '',
-        registerId: settings?.registerNumber || 'BLG-001',
+        businessName: s2.name,
+        businessAddress: `${s2.address}, ${s2.postCode} ${s2.city}`,
+        businessId: s2.businessId,
+        taxId: s2.taxId,
+        registerId: s2.registerNumber,
         zoi,
         eor: '',
         fiscalVerified: false,

@@ -1,17 +1,21 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, createDiscountSchema } from '@/lib/validations'
 
 export async function GET(req: Request) {
   try {
+    // GET je javno dostopen za prikaz popustov na POS
     const { searchParams } = new URL(req.url)
     const appliesTo = searchParams.get('appliesTo')
     const triggerType = searchParams.get('triggerType')
-    const isActive = searchParams.get('isActive')
+    // FIX BUG 16: Pravilna preverjava isActive parametra
+    const isActiveParam = searchParams.get('isActive')
 
     const where: Record<string, unknown> = {}
     if (appliesTo) where.appliesTo = appliesTo
     if (triggerType) where.triggerType = triggerType
-    if (isActive !== null) where.isActive = isActive === 'true'
+    if (isActiveParam !== null) where.isActive = isActiveParam === 'true'
 
     const discounts = await db.discount.findMany({
       where,
@@ -21,34 +25,42 @@ export async function GET(req: Request) {
     return NextResponse.json(discounts)
   } catch (error) {
     console.error('Failed to fetch discounts:', error)
-    return NextResponse.json({ error: 'Failed to fetch discounts' }, { status: 500 })
+    return NextResponse.json({ error: 'Napaka pri pridobivanju popustov' }, { status: 500 })
   }
 }
 
 export async function POST(req: Request) {
   try {
+    // FIX BUG 14: Zahtevaj avtentikacijo za ustvarjanje popustov
+    const authResult = await requireAuth(req, { permission: 'apply_discounts' })
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
+
+    // FIX BUG 14: Zod validacija
+    const { data, error: validationError } = validateBody(createDiscountSchema, body)
+    if (validationError) return validationError
 
     const discount = await db.discount.create({
       data: {
-        name: body.name,
-        type: body.type,
-        amount: body.amount,
-        appliesTo: body.appliesTo || 'check',
-        triggerType: body.triggerType || 'manual',
-        promoCode: body.promoCode || '',
-        maxUses: body.maxUses || null,
-        currentUses: body.currentUses || 0,
-        validFrom: body.validFrom ? new Date(body.validFrom) : null,
-        validTo: body.validTo ? new Date(body.validTo) : null,
-        isActive: body.isActive !== undefined ? body.isActive : true,
-        sortOrder: body.sortOrder || 0,
+        name: data.name,
+        type: data.type,
+        amount: data.amount,
+        appliesTo: data.appliesTo,
+        triggerType: data.triggerType,
+        promoCode: data.promoCode,
+        maxUses: data.maxUses ?? null,
+        currentUses: 0, // Vedno začni z 0
+        validFrom: data.validFrom ? new Date(data.validFrom) : null,
+        validTo: data.validTo ? new Date(data.validTo) : null,
+        isActive: data.isActive,
+        sortOrder: 0,
       },
     })
 
     return NextResponse.json(discount, { status: 201 })
   } catch (error) {
     console.error('Failed to create discount:', error)
-    return NextResponse.json({ error: 'Failed to create discount' }, { status: 500 })
+    return NextResponse.json({ error: 'Napaka pri ustvarjanju popusta' }, { status: 500 })
   }
 }

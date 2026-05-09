@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     })
 
     // If there's an active shift, calculate live stats
-    let liveStats = null
+    let liveStats: Record<string, number> | null = null
     if (activeShift) {
       const paidOrders = await db.order.findMany({
         where: {

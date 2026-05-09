@@ -1,6 +1,8 @@
-import { db } from '@/lib/db'
+import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { getNextReceiptNumber } from '@/lib/counters'
+import { validateBody, fursVerifySchema, fursStornoSchema } from '@/lib/validations'
 import crypto from 'crypto'
 
 // ============================================
@@ -76,11 +78,12 @@ export async function POST(req: Request) {
     if (authResult.error) return authResult.error
 
     const body = await req.json()
-    const { orderId } = body
 
-    if (!orderId) {
-      return NextResponse.json({ error: 'Potreben je orderId' }, { status: 400 })
-    }
+    // Zod validacija
+    const { data, error: validationError } = validateBody(fursVerifySchema, body)
+    if (validationError) return validationError
+
+    const orderId = data.orderId
 
     const order = await db.order.findUnique({
       where: { id: orderId },
@@ -139,73 +142,87 @@ export async function POST(req: Request) {
       data: { zoi, eor, fiscalVerified: true, verificationDate },
     })
 
-    // Razknjiževanje zaloge
-    for (const oi of order.orderItems) {
-      const inventoryItem = await db.inventoryItem.findFirst({
-        where: { menuItemId: oi.menuItemId },
-      })
+    // FIX BUG 1: Razknjiževanje zaloge samo če še NI bilo razknjiženo
+    // Preveri inventoryDeducted flag — prepreči dvojno razknjiževanje (order complete + FURS)
+    const freshOrder = await db.order.findUnique({ where: { id: order.id } })
+    if (freshOrder && !freshOrder.inventoryDeducted) {
+      for (const oi of order.orderItems) {
+        if (oi.voided) continue // Preskoči voidane artikle
 
-      if (inventoryItem && inventoryItem.servingsPerUnit > 0) {
-        const qtyToDeduct = oi.quantity / inventoryItem.servingsPerUnit
-        const previousQty = inventoryItem.quantity
-        const newQty = Math.round((previousQty - qtyToDeduct) * 10000) / 10000
-
-        await db.inventoryItem.update({
-          where: { id: inventoryItem.id },
-          data: { quantity: Math.max(0, newQty) },
+        const inventoryItem = await db.inventoryItem.findFirst({
+          where: { menuItemId: oi.menuItemId },
         })
 
-        await db.stockTransaction.create({
-          data: {
-            inventoryItemId: inventoryItem.id,
-            type: 'sale',
-            quantity: -qtyToDeduct,
-            previousQty,
-            newQty: Math.max(0, newQty),
-            costPerUnit: inventoryItem.costPerUnit,
-            totalCost: qtyToDeduct * inventoryItem.costPerUnit,
-            reason: `Prodaja - naročilo #${order.orderNumber}`,
-            orderId: order.id,
-            employeeName: '',
-          },
-        })
-      }
-
-      // Večslojni normativi prek RecipeItem
-      const recipeItems = await db.recipeItem.findMany({
-        where: { menuItemId: oi.menuItemId },
-      })
-
-      for (const recipe of recipeItems) {
-        const qtyToDeduct = recipe.quantityPerServing * oi.quantity
-        const invItem = await db.inventoryItem.findUnique({
-          where: { id: recipe.inventoryItemId },
-        })
-
-        if (invItem) {
-          const previousQty = invItem.quantity
+        if (inventoryItem && inventoryItem.servingsPerUnit > 0) {
+          const qtyToDeduct = oi.quantity / inventoryItem.servingsPerUnit
+          const previousQty = inventoryItem.quantity
           const newQty = Math.round((previousQty - qtyToDeduct) * 10000) / 10000
 
-          await db.inventoryItem.update({
-            where: { id: invItem.id },
-            data: { quantity: Math.max(0, newQty) },
-          })
-
-          await db.stockTransaction.create({
-            data: {
-              inventoryItemId: invItem.id,
-              type: 'sale',
-              quantity: -qtyToDeduct,
-              previousQty,
-              newQty: Math.max(0, newQty),
-              costPerUnit: invItem.costPerUnit,
-              totalCost: qtyToDeduct * invItem.costPerUnit,
-              reason: `Prodaja - naročilo #${order.orderNumber}`,
-              orderId: order.id,
-            },
+          await db.$transaction(async (tx) => {
+            await tx.inventoryItem.update({
+              where: { id: inventoryItem.id },
+              data: { quantity: Math.max(0, newQty) },
+            })
+            await tx.stockTransaction.create({
+              data: {
+                inventoryItemId: inventoryItem.id,
+                type: 'sale',
+                quantity: -qtyToDeduct,
+                previousQty,
+                newQty: Math.max(0, newQty),
+                costPerUnit: inventoryItem.costPerUnit,
+                totalCost: qtyToDeduct * inventoryItem.costPerUnit,
+                reason: `Prodaja (FURS) - naročilo #${order.orderNumber}`,
+                orderId: order.id,
+                employeeName: '',
+              },
+            })
           })
         }
+
+        // Večslojni normativi prek RecipeItem
+        const recipeItems = await db.recipeItem.findMany({
+          where: { menuItemId: oi.menuItemId },
+        })
+
+        for (const recipe of recipeItems) {
+          const qtyToDeduct = recipe.quantityPerServing * oi.quantity
+          const invItem = await db.inventoryItem.findUnique({
+            where: { id: recipe.inventoryItemId },
+          })
+
+          if (invItem) {
+            const previousQty = invItem.quantity
+            const newQty = Math.round((previousQty - qtyToDeduct) * 10000) / 10000
+
+            await db.$transaction(async (tx) => {
+              await tx.inventoryItem.update({
+                where: { id: invItem.id },
+                data: { quantity: Math.max(0, newQty) },
+              })
+              await tx.stockTransaction.create({
+                data: {
+                  inventoryItemId: invItem.id,
+                  type: 'sale',
+                  quantity: -qtyToDeduct,
+                  previousQty,
+                  newQty: Math.max(0, newQty),
+                  costPerUnit: invItem.costPerUnit,
+                  totalCost: qtyToDeduct * invItem.costPerUnit,
+                  reason: `Prodaja (FURS) - naročilo #${order.orderNumber}`,
+                  orderId: order.id,
+                },
+              })
+            })
+          }
+        }
       }
+
+      // Označi, da je bila zaloga razknjižena
+      await db.order.update({
+        where: { id: order.id },
+        data: { inventoryDeducted: true },
+      })
     }
 
     return NextResponse.json({
@@ -220,6 +237,15 @@ export async function POST(req: Request) {
     })
   } catch (error) {
     console.error('FURS verification error:', error)
+
+    // Revizijski dnevnik: napaka pri overjanju
+    await createAuditLog({
+      userId: undefined,
+      action: 'FURS_VERIFY_ERROR',
+      entityType: 'Receipt',
+      details: { error: String(error) },
+    })
+
     return NextResponse.json({ error: 'Napaka pri davčnem overjanju računa' }, { status: 500 })
   }
 }
@@ -232,15 +258,12 @@ export async function PUT(req: Request) {
     if (authResult.error) return authResult.error
 
     const body = await req.json()
-    const { orderId, reason, reasonCode } = body
 
-    if (!orderId) {
-      return NextResponse.json({ error: 'Potreben je orderId' }, { status: 400 })
-    }
+    // Zod validacija
+    const { data, error: validationError } = validateBody(fursStornoSchema, body)
+    if (validationError) return validationError
 
-    if (!reason && !reasonCode) {
-      return NextResponse.json({ error: 'Razlog za storno je obvezen (FURS zahteva)' }, { status: 400 })
-    }
+    const { orderId, reason, reasonCode } = data
 
     const receipt = await db.receipt.findFirst({ where: { orderId } })
     if (!receipt) {
@@ -253,17 +276,8 @@ export async function PUT(req: Request) {
 
     const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
 
-    // Ustvari storno račun
-    const lastReceipt = await db.receipt.findFirst({ orderBy: { createdAt: 'desc' }, select: { receiptNumber: true } })
-    const year = new Date().getFullYear()
-    let seq = 1
-    if (lastReceipt?.receiptNumber) {
-      const match = lastReceipt.receiptNumber.match(/R-(\d+)-(\d+)/)
-      if (match && match[1] === String(year)) {
-        seq = parseInt(match[2]) + 1
-      }
-    }
-    const stornoNumber = `R-${year}-${String(seq).padStart(6, '0')}`
+    // FIX BUG 5: Uporabi atomni števec za storno številko računa (prepreči race condition)
+    const stornoNumber = await getNextReceiptNumber()
 
     const zoi = generateZOI({
       businessId: settings?.businessId || '',
@@ -324,6 +338,7 @@ export async function PUT(req: Request) {
         status: 'cancelled',
         cancelReason: `STORNO: ${reason || reasonCode}`,
         cancelledAt: new Date(),
+        cancelledBy: authResult.session?.employeeId || '',
       },
     })
 

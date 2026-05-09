@@ -42,7 +42,7 @@ export const createOrderSchema = z.object({
 
 export const updateOrderSchema = z.object({
   status: z.enum(['pending', 'in-progress', 'ready', 'completed', 'cancelled']).optional(),
-  paymentStatus: z.enum(['unpaid', 'partial', 'paid']).optional(),
+  paymentStatus: z.enum(['unpaid', 'partial', 'paid', 'storno']).optional(), // FIX BUG 17: Dodan 'storno'
   paymentMethod: z.string().max(50).optional(),
   notes: z.string().max(1000).optional(),
   customerName: z.string().max(100).optional(),
@@ -68,7 +68,7 @@ export const createCheckSchema = z.object({
 })
 
 export const updateCheckSchema = z.object({
-  paymentStatus: z.enum(['unpaid', 'partial', 'paid']).optional(),
+  paymentStatus: z.enum(['unpaid', 'partial', 'paid', 'storno']).optional(), // FIX BUG 17: Dodan 'storno'
   paymentMethod: z.string().max(50).optional(),
   appliedDiscountId: z.string().nullable().optional(),
   // Ostali zneski se izračunajo strežniško
@@ -296,6 +296,135 @@ export const loginSchema = z.object({
 })
 
 // ============================================
+// INVENTURA — DOSTAVA (Restock)
+// ============================================
+
+export const inventoryRestockSchema = z.object({
+  inventoryItemId: cuid,
+  quantity: z.number().positive('Količina mora biti pozitivna'),
+  reason: z.string().max(500).default('Dostava'),
+  note: z.string().max(500).default(''),
+  employeeName: z.string().max(100).default(''),
+  supplierDoc: z.string().max(100).default(''),
+})
+
+// ============================================
+// NASTAVITVE (Settings)
+// ============================================
+
+export const updateSettingsSchema = z.object({
+  name: z.string().max(200).optional(),
+  address: z.string().max(200).optional(),
+  city: z.string().max(100).optional(),
+  postCode: z.string().max(20).optional(),
+  phone: z.string().max(50).optional(),
+  email: z.string().max(200).optional(),
+  web: z.string().max(200).optional(),
+  businessId: z.string().max(50).optional(),
+  taxId: z.string().max(50).optional(),
+  registerNumber: z.string().max(50).optional(),
+  fursCertPath: z.string().max(500).optional(),
+  fursCertPassword: z.string().max(200).optional(),
+  fursEnvironment: z.enum(['test', 'production']).optional(),
+  defaultVatRate: z.number().min(0).max(100).optional(),
+  reducedVatRate: z.number().min(0).max(100).optional(),
+  loyaltyEnabled: z.boolean().optional(),
+  loyaltyPointsPerEuro: z.number().int().min(0).optional(),
+  loyaltyPointsValue: z.number().min(0).optional(),
+  receiptFooter: z.string().max(1000).optional(),
+  currency: z.string().max(10).optional(),
+  locale: z.string().max(10).optional(),
+})
+
+// ============================================
+// HACCP
+// ============================================
+
+export const createHaccpSchema = z.object({
+  date: z.string().optional(),
+  category: z.enum(['temperature', 'cleaning', 'delivery', 'cooling', 'training']),
+  title: z.string().min(1, 'Naslov je obvezen').max(200),
+  description: z.string().max(1000).default(''),
+  value: z.string().max(200).default(''),
+  status: z.enum(['ok', 'warning', 'critical']).default('ok'),
+  correctiveAction: z.string().max(1000).default(''),
+  employeeName: z.string().max(100).default(''),
+})
+
+// ============================================
+// POPUSTI (Discounts)
+// ============================================
+
+export const createDiscountSchema = z.object({
+  name: z.string().min(1, 'Ime je obvezno').max(200),
+  type: z.enum(['percentage', 'fixed_amount', 'buy_x_get_y']),
+  amount: z.number().min(0, 'Znesek mora biti pozitiven'),
+  appliesTo: z.enum(['check', 'item', 'category']).default('check'),
+  triggerType: z.enum(['manual', 'auto', 'promo_code']).default('manual'),
+  promoCode: z.string().max(50).default(''),
+  maxUses: z.number().int().min(0).nullable().optional(),
+  validFrom: z.string().nullable().optional(),
+  validTo: z.string().nullable().optional(),
+  isActive: z.boolean().default(true),
+})
+
+// ============================================
+// IZMENE IN ČASOVNI VNOSI (Shifts, Time Entries)
+// ============================================
+
+export const createShiftSchema = z.object({
+  employeeId: cuid,
+  jobId: z.string().nullable().optional(),
+  date: z.string(),
+  startTime: z.string().max(10).default('09:00'),
+  endTime: z.string().max(10).default('17:00'),
+  status: z.enum(['scheduled', 'in_progress', 'completed', 'absent']).default('scheduled'),
+  breakMinutes: z.number().int().min(0).default(30),
+  notes: z.string().max(500).default(''),
+})
+
+export const createTimeEntrySchema = z.object({
+  employeeId: cuid,
+  jobId: z.string().nullable().optional(),
+  clockIn: z.string(),
+  clockOut: z.string().nullable().optional(),
+  breakStart: z.string().nullable().optional(),
+  breakEnd: z.string().nullable().optional(),
+  breakMinutes: z.number().int().min(0).default(0),
+  type: z.enum(['regular', 'overtime', 'holiday', 'sick', 'vacation']).default('regular'),
+  status: z.enum(['active', 'approved', 'disputed']).default('active'),
+  notes: z.string().max(500).default(''),
+})
+
+// ============================================
+// FURS
+// ============================================
+
+export const fursVerifySchema = z.object({
+  orderId: cuid,
+})
+
+export const fursStornoSchema = z.object({
+  orderId: cuid,
+  reason: z.string().max(500).optional(),
+  reasonCode: z.string().max(50).optional(),
+}).refine(data => data.reason || data.reasonCode, {
+  message: 'Razlog za storno je obvezen (FURS zahteva)',
+})
+
+// ============================================
+// ORDER ITEM UPDATE
+// ============================================
+
+export const updateOrderItemSchema = z.object({
+  status: z.enum(['pending', 'preparing', 'ready', 'served', 'voided', 'cancelled']).optional(),
+  notes: z.string().max(500).optional(),
+  voided: z.boolean().optional(),
+  voidReasonId: z.string().nullable().optional(),
+  voidReasonText: z.string().max(200).optional(),
+})
+
+// ============================================
 // HELPER: Varno parsnje z Zod
 // ============================================
 
@@ -307,7 +436,7 @@ export function validateBody<T>(
 ): { data: T; error: NextResponse | null } {
   const result = schema.safeParse(body)
   if (!result.success) {
-    const errors = result.error.errors.map(e => ({
+    const errors = result.error.issues.map(e => ({
       field: e.path.join('.'),
       message: e.message,
     }))

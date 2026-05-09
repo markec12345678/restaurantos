@@ -45,10 +45,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
 
       for (const item of data.orderItems) {
-        // Pridobi artikel za DDV stopnjo (strežniško — edini vir resnice)
+        // Pridobi artikel za DDV stopnjo in CENO (strežniško — edini vir resnice)
+        // FIX BUG 6: Uporabimo menuItem.price iz baze, NE client-sent item.price
+        // To prepreči manipulacijo cen s strani klienta
         const menuItem = (await tx.menuItem.findUnique({ where: { id: item.menuItemId } }))!
         const vatRate = menuItem.vatRate
-        const itemBase = item.price * item.quantity
+        const serverPrice = menuItem.price // Strežniška cena — edini vir resnice
+        const itemBase = serverPrice * item.quantity
         const vatAmount = itemBase * (vatRate / 100)
 
         const orderItem = await tx.orderItem.create({
@@ -56,7 +59,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             orderId: id,
             menuItemId: item.menuItemId,
             quantity: item.quantity,
-            price: item.price,
+            price: serverPrice, // FIX: Strežniška cena, ne client-sent
             notes: item.notes,
             modifiersJson: item.modifiersJson,
             status: 'pending',

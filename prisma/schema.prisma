@@ -885,3 +885,26 @@ model Counter {
   name  String @unique  // "orderNumber", "receiptNumber", "checkNumber"
   value Int    @default(0)
 }
+
+// ============================================
+// REVIZIJSKI DNEVNIK (Audit Log)
+// PCI DSS + FURS skladnost — sledenje vseh operacij
+// ============================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  timestamp  DateTime @default(now())
+  userId     String?  // ID zaposlenega, ki je izvedel operacijo
+  action     String   // CREATE_ORDER, VOID_ITEM, PAYMENT, REFUND, LOGIN, STORNO, itd.
+  entityType String   // Order, Payment, Receipt, StockItem, Employee, itd.
+  entityId   String?  // ID entitete
+  details    String   @default("{}") // JSON kontekst (kaj se je spremenilo)
+  ipAddress  String   @default("")
+  terminalId String?  // ID POS terminala
+  chainHash  String   @default("") // SHA-256 hash za zaščito pred poseganjem
+
+  @@index([entityType, entityId])
+  @@index([timestamp])
+  @@index([userId])
+  @@index([action])
+}

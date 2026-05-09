@@ -137,6 +137,8 @@ const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/api/kitchen': ['take_orders'],
   '/api/delivery': ['take_orders'],
   '/api/furs': ['admin'],
+  '/api/audit': ['admin'],
+  '/api/ws-broadcast': ['take_orders'], // Samo avtenticirani uporabniki lahko broadcastajo
 }
 
 /**

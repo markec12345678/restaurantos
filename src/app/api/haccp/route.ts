@@ -1,9 +1,15 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, createHaccpSchema } from '@/lib/validations'
 
 // GET /api/haccp — Pridobi HACCP vnose
 export async function GET(req: Request) {
   try {
+    // FIX BUG 12: Zahtevaj avtentikacijo za HACCP
+    const authResult = await requireAuth(req)
+    if (authResult.error) return authResult.error
+
     const { searchParams } = new URL(req.url)
     const category = searchParams.get('category')
     const dateFrom = searchParams.get('dateFrom')
@@ -33,22 +39,30 @@ export async function GET(req: Request) {
 // POST /api/haccp — Dodaj HACCP vnos
 export async function POST(req: Request) {
   try {
+    // FIX BUG 12: Zahtevaj avtentikacijo za HACCP (admin)
+    const authResult = await requireAuth(req, { permission: 'admin' })
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
+
+    // FIX BUG 12: Zod validacija
+    const { data, error: validationError } = validateBody(createHaccpSchema, body)
+    if (validationError) return validationError
 
     const entry = await db.haccpEntry.create({
       data: {
-        date: body.date ? new Date(body.date) : new Date(),
-        category: body.category,       // temperature, cleaning, delivery, cooling, training
-        title: body.title,
-        description: body.description || '',
-        value: body.value || '',        // Meritev (npr. "4.2°C", "Čiščenje opravljeno")
-        status: body.status || 'ok',    // ok, warning, critical
-        correctiveAction: body.correctiveAction || '',
-        employeeName: body.employeeName || '',
+        date: data.date ? new Date(data.date) : new Date(),
+        category: data.category,
+        title: data.title,
+        description: data.description,
+        value: data.value,
+        status: data.status,
+        correctiveAction: data.correctiveAction,
+        employeeName: data.employeeName || authResult.session?.employeeId || '',
       },
     })
 
-    return NextResponse.json(entry)
+    return NextResponse.json(entry, { status: 201 })
   } catch (error) {
     console.error('HACCP POST error:', error)
     return NextResponse.json({ error: 'Napaka pri dodajanju HACCP vnosa' }, { status: 500 })
@@ -58,7 +72,15 @@ export async function POST(req: Request) {
 // PUT /api/haccp — Posodobi HACCP vnos
 export async function PUT(req: Request) {
   try {
+    // FIX BUG 12: Zahtevaj avtentikacijo za HACCP (admin)
+    const authResult = await requireAuth(req, { permission: 'admin' })
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
+
+    if (!body.id) {
+      return NextResponse.json({ error: 'Potreben je ID vnosa' }, { status: 400 })
+    }
 
     const entry = await db.haccpEntry.update({
       where: { id: body.id },
@@ -82,6 +104,10 @@ export async function PUT(req: Request) {
 // DELETE /api/haccp — Izbriši HACCP vnos
 export async function DELETE(req: Request) {
   try {
+    // FIX BUG 12: Zahtevaj avtentikacijo za HACCP (admin)
+    const authResult = await requireAuth(req, { permission: 'admin' })
+    if (authResult.error) return authResult.error
+
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
 

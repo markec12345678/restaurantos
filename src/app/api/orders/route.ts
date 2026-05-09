@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { getNextCounter } from '@/lib/counters'
 import { requireAuth } from '@/lib/auth-middleware'
@@ -164,6 +164,15 @@ export async function POST(req: Request) {
 
     // Samodejni tisk kuhinjskega naročila (v ozadju)
     autoPrintKitchenOrder(order as unknown as Record<string, unknown>)
+
+    // Revizijski dnevnik: novo naročilo
+    await createAuditLog({
+      userId: authResult.session?.employeeId,
+      action: 'CREATE_ORDER',
+      entityType: 'Order',
+      entityId: order.id,
+      details: { orderNumber: order.orderNumber, total: order.total, type: order.type, tableId: order.tableId },
+    })
 
     return NextResponse.json(order, { status: 201 })
   } catch (error) {

@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 
 // Helper za WebSocket broadcast
 async function broadcastWS(type: string, payload: unknown) {
@@ -16,108 +17,150 @@ async function broadcastWS(type: string, payload: unknown) {
 
 // PUT /api/order-items/[id] — Update individual order item (status, void, etc.)
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const body = await req.json()
+  try {
+    const { id } = await params
 
-  const updateData: Record<string, unknown> = {}
-  if (body.status) updateData.status = body.status
-  if (body.notes !== undefined) updateData.notes = body.notes
+    // FIX BUG 8: Zahtevaj avtentikacijo za posodobitev order item-ov
+    const authResult = await requireAuth(req, { permission: 'void_items' })
+    if (authResult.error) return authResult.error
 
-  // === VOID OPERACIJA ===
-  // Void pomeni, da se artikel poniči (ne zaračuna stranki)
-  // Zahteva razlog (voidReasonId ali voidReasonText)
-  if (body.voided === true) {
-    updateData.voided = true
-    if (body.voidReasonId) updateData.voidReasonId = body.voidReasonId
-    updateData.status = 'voided'
-  }
+    const body = await req.json()
 
-  const orderItem = await db.orderItem.update({
-    where: { id },
-    data: updateData,
-    include: { menuItem: true, order: { include: { table: true } } },
-  })
+    // Validiraj osnovna polja
+    const allowedStatuses = ['pending', 'preparing', 'ready', 'served', 'voided', 'cancelled']
+    if (body.status && !allowedStatuses.includes(body.status)) {
+      return NextResponse.json({ error: `Neveljaven status: ${body.status}` }, { status: 400 })
+    }
 
-  // Če je void, preračunaj zneske naročila
-  if (body.voided === true) {
-    const allItems = await db.orderItem.findMany({
-      where: { orderId: orderItem.orderId },
+    const updateData: Record<string, unknown> = {}
+    if (body.status) updateData.status = body.status
+    if (body.notes !== undefined) updateData.notes = body.notes
+
+    // === VOID OPERACIJA ===
+    // Void pomeni, da se artikel poniči (ne zaračuna stranki)
+    // Zahteva razlog (voidReasonId ali voidReasonText)
+    if (body.voided === true) {
+      updateData.voided = true
+      if (body.voidReasonId) updateData.voidReasonId = body.voidReasonId
+      updateData.status = 'voided'
+    }
+
+    const orderItem = await db.orderItem.update({
+      where: { id },
+      data: updateData,
+      include: { menuItem: true, order: { include: { table: true } } },
     })
 
-    // Preračun brez voidanih artiklov
-    let newSubtotal = 0
-    let newTax = 0
-    for (const item of allItems) {
-      if (!item.voided) {
-        const itemBase = item.price * item.quantity
-        const itemVat = itemBase * (item.vatRate / 100)
-        newSubtotal += itemBase
-        newTax += itemVat
+    // Če je void, preračunaj zneske naročila
+    if (body.voided === true) {
+      const allItems = await db.orderItem.findMany({
+        where: { orderId: orderItem.orderId },
+      })
+
+      // Preračun brez voidanih artiklov
+      let newSubtotal = 0
+      let newTax = 0
+      for (const item of allItems) {
+        if (!item.voided) {
+          const itemBase = item.price * item.quantity
+          const itemVat = itemBase * (item.vatRate / 100)
+          newSubtotal += itemBase
+          newTax += itemVat
+        }
+      }
+
+      const order = await db.order.findUnique({ where: { id: orderItem.orderId } })
+      const discount = order?.discount || 0
+      // FIX H-03: Popust ne more preseči vmesne vsote
+      const cappedDiscount = Math.min(discount, newSubtotal)
+      const newTotal = newSubtotal + newTax - cappedDiscount
+
+      await db.order.update({
+        where: { id: orderItem.orderId },
+        data: {
+          subtotal: Math.round(newSubtotal * 100) / 100,
+          tax: Math.round(newTax * 100) / 100,
+          discount: cappedDiscount,
+          total: Math.max(0, Math.round(newTotal * 100) / 100),
+          totalWithTip: Math.max(0, Math.round(newTotal * 100) / 100) + (order?.tip || 0),
+        },
+      })
+
+      // FIX BUG 2: Ne ustvarjaj StockTransaction s fiksnim ID 'void-log'
+      // Namesto tega iščemo pravi InventoryItem povezan s tem MenuItem-om
+      const inventoryItem = await db.inventoryItem.findFirst({
+        where: { menuItemId: orderItem.menuItemId },
+      })
+
+      if (inventoryItem) {
+        // Vrni zalogo za voidan artikel
+        const previousQty = inventoryItem.quantity
+        const unitsPerServing = inventoryItem.servingsPerUnit > 0 ? 1 / inventoryItem.servingsPerUnit : 1
+        const qtyToReturn = Math.round(orderItem.quantity * unitsPerServing * 10000) / 10000
+        const newQty = Math.round((previousQty + qtyToReturn) * 10000) / 10000
+
+        await db.$transaction(async (tx) => {
+          await tx.inventoryItem.update({
+            where: { id: inventoryItem.id },
+            data: { quantity: newQty },
+          })
+          await tx.stockTransaction.create({
+            data: {
+              inventoryItemId: inventoryItem.id,
+              type: 'return',
+              quantity: qtyToReturn,
+              previousQty,
+              newQty,
+              costPerUnit: inventoryItem.costPerUnit,
+              totalCost: -(qtyToReturn * inventoryItem.costPerUnit),
+              reason: `VOID: ${orderItem.menuItem.name} - ${body.voidReasonText || body.voidReasonId || 'Razlog ni naveden'}`,
+              orderId: orderItem.orderId,
+              employeeName: authResult.session?.employeeId || '',
+            },
+          })
+        })
+      }
+      // Če ni InventoryItem, samo zabeleži v dnevnik (ne ustvarjaj FK kršitve)
+    }
+
+    // Check if all items in the order are ready — auto-update order status
+    if (body.status === 'ready' || body.status === 'served') {
+      const allItems = await db.orderItem.findMany({
+        where: { orderId: orderItem.orderId },
+        select: { status: true },
+      })
+
+      const allReady = allItems.every(item =>
+        item.status === 'ready' || item.status === 'served'
+      )
+
+      if (allReady && orderItem.order.status !== 'ready') {
+        await db.order.update({
+          where: { id: orderItem.orderId },
+          data: { status: 'ready' },
+        })
       }
     }
 
-    const order = await db.order.findUnique({ where: { id: orderItem.orderId } })
-    const discount = order?.discount || 0
-    const newTotal = newSubtotal + newTax - discount
-
-    await db.order.update({
-      where: { id: orderItem.orderId },
-      data: {
-        subtotal: Math.round(newSubtotal * 100) / 100,
-        tax: Math.round(newTax * 100) / 100,
-        total: Math.max(0, Math.round(newTotal * 100) / 100),
-      },
-    })
-
-    // Zabeleži void transakcijo v dnevnik
-    try {
-      await db.stockTransaction.create({
-        data: {
-          inventoryItemId: 'void-log',
-          type: 'void',
-          quantity: -orderItem.quantity,
-          previousQty: 0,
-          newQty: 0,
-          costPerUnit: orderItem.price,
-          totalCost: -(orderItem.price * orderItem.quantity),
-          reason: `VOID: ${orderItem.menuItem.name} - ${body.voidReasonText || 'Razlog ni naveden'}`,
-          orderId: orderItem.orderId,
-          employeeName: '',
-        },
-      })
-    } catch {
-      // Void log ni kritičen, če ne uspe
-    }
-  }
-
-  // Check if all items in the order are ready — auto-update order status
-  if (body.status === 'ready' || body.status === 'served') {
-    const allItems = await db.orderItem.findMany({
-      where: { orderId: orderItem.orderId },
-      select: { status: true },
-    })
-
-    const allReady = allItems.every(item =>
-      item.status === 'ready' || item.status === 'served'
-    )
-
-    if (allReady && orderItem.order.status !== 'ready') {
-      await db.order.update({
-        where: { id: orderItem.orderId },
-        data: { status: 'ready' },
+    // WebSocket: obvesti KDS o spremembi statusa artikla
+    if (body.status) {
+      broadcastWS('ITEM_STATUS_CHANGED', {
+        orderItemId: orderItem.id,
+        orderId: orderItem.orderId,
+        newStatus: body.status,
+        menuItemName: orderItem.menuItem.name,
       })
     }
-  }
 
-  // WebSocket: obvesti KDS o spremembi statusa artikla
-  if (body.status) {
-    broadcastWS('ITEM_STATUS_CHANGED', {
-      orderItemId: orderItem.id,
-      orderId: orderItem.orderId,
-      newStatus: body.status,
-      menuItemName: orderItem.menuItem.name,
+    // Re-fetch za posodobljene podatke
+    const updatedItem = await db.orderItem.findUnique({
+      where: { id },
+      include: { menuItem: true, order: { include: { table: true } } },
     })
-  }
 
-  return NextResponse.json(orderItem)
+    return NextResponse.json(updatedItem || orderItem)
+  } catch (error) {
+    console.error('Napaka pri posodobitvi artikla naročila:', error)
+    return NextResponse.json({ error: 'Napaka pri posodobitvi artikla naročila' }, { status: 500 })
+  }
 }

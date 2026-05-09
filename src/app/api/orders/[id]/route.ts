@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, updateOrderSchema } from '@/lib/validations'
@@ -152,12 +152,30 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         data: { status: 'cancelled' },
       })
 
+      // Revizijski dnevnik: preklic naročila
+      await createAuditLog({
+        userId: authResult.session?.employeeId,
+        action: 'CANCEL_ORDER',
+        entityType: 'Order',
+        entityId: id,
+        details: { orderNumber: order.orderNumber, cancelReason: data.cancelReason },
+      })
+
       broadcastWS('ORDER_CANCELLED', {
         orderId: id,
         orderNumber: order.orderNumber,
         cancelReason: data.cancelReason || '',
       })
     } else if (data.status) {
+      // Revizijski dnevnik: sprememba statusa
+      await createAuditLog({
+        userId: authResult.session?.employeeId,
+        action: 'UPDATE_ORDER_STATUS',
+        entityType: 'Order',
+        entityId: id,
+        details: { orderNumber: order.orderNumber, newStatus: data.status },
+      })
+
       broadcastWS('ORDER_UPDATED', {
         orderId: id,
         orderNumber: order.orderNumber,
