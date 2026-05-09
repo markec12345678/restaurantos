@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { usePOSStore } from '@/lib/store'
 import { Bell, ShoppingCart, ChefHat, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
+import { authFetch } from '@/components/pos/PinLogin'
 
 // ============================================
 // ZVOČNI UPRAVLJATELJ
@@ -98,35 +99,58 @@ interface Notification {
 export function GlobalNotifications() {
   const { activeModule } = usePOSStore()
   const [notifications, setNotifications] = useState<Notification[]>([])
-  const [soundEnabled, setSoundEnabled] = useState(true)
+  // Persistirana nastavitev zvoka v localStorage
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('pos-sound-enabled')
+      return saved !== null ? saved === 'true' : true
+    }
+    return true
+  })
   const [lastOrderCount, setLastOrderCount] = useState<number>(0)
   const [lastReadyCount, setLastReadyCount] = useState<number>(0)
 
-  // Poll for active orders
+  // Poll za aktivna naročila (z authFetch za pravilno avtentikacijo)
   const { data: orderStats } = useQuery({
     queryKey: ['notification-orders'],
     queryFn: async () => {
-      const pending = await fetch('/api/orders?status=pending').then(r => r.json())
-      const inProgress = await fetch('/api/orders?status=in-progress').then(r => r.json())
-      const ready = await fetch('/api/orders?status=ready').then(r => r.json())
-      return {
-        pendingCount: pending.length,
-        inProgressCount: inProgress.length,
-        readyCount: ready.length,
-        totalActive: pending.length + inProgress.length + ready.length,
+      try {
+        const [pendingRes, inProgressRes, readyRes] = await Promise.all([
+          authFetch('/api/orders?status=pending'),
+          authFetch('/api/orders?status=in-progress'),
+          authFetch('/api/orders?status=ready'),
+        ])
+        const [pending, inProgress, ready] = await Promise.all([
+          pendingRes.ok ? pendingRes.json() : [],
+          inProgressRes.ok ? inProgressRes.json() : [],
+          readyRes.ok ? readyRes.json() : [],
+        ])
+        return {
+          pendingCount: pending.length,
+          inProgressCount: inProgress.length,
+          readyCount: ready.length,
+          totalActive: pending.length + inProgress.length + ready.length,
+        }
+      } catch {
+        return { pendingCount: 0, inProgressCount: 0, readyCount: 0, totalActive: 0 }
       }
     },
     refetchInterval: 5000,
   })
 
-  // Poll za opozorila nizke zaloge
+  // Poll za opozorila nizke zaloge (z authFetch)
   const { data: lowStockData } = useQuery({
     queryKey: ['notification-low-stock'],
     queryFn: async () => {
-      const res = await fetch('/api/inventory')
-      const items = await res.json()
-      const lowItems = items.filter((i: { quantity: number; minQuantity: number }) => i.quantity <= i.minQuantity)
-      return { count: lowItems.length, items: lowItems.slice(0, 3) }
+      try {
+        const res = await authFetch('/api/inventory')
+        if (!res.ok) return { count: 0, items: [] }
+        const items = await res.json()
+        const lowItems = items.filter((i: { quantity: number; minQuantity: number }) => i.quantity <= i.minQuantity)
+        return { count: lowItems.length, items: lowItems.slice(0, 3) }
+      } catch {
+        return { count: 0, items: [] }
+      }
     },
     refetchInterval: 60000, // vsako minuto
   })
@@ -177,6 +201,8 @@ export function GlobalNotifications() {
   const toggleSound = useCallback(() => {
     const enabled = soundManager.toggle()
     setSoundEnabled(enabled)
+    // Persistiraj v localStorage
+    localStorage.setItem('pos-sound-enabled', String(enabled))
   }, [])
 
   const typeConfig: Record<string, { icon: React.ReactNode; color: string; bg: string }> = {

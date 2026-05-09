@@ -34,7 +34,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // Dodaj nove artikle — vse v eni transakciji
     const newItems = await db.$transaction(async (tx) => {
-      const created = []
+      const created: any[] = []
 
       // Preveri, da vsi artikli obstajajo
       for (const item of data.orderItems) {

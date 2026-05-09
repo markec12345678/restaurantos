@@ -76,7 +76,7 @@ export async function POST(req: Request) {
     })
 
     // Preveri PIN z bcrypt compare (ali fallback na plaintext za stare PIN-e)
-    let matchedEmployee = null
+    let matchedEmployee: typeof employees[number] | null = null
     for (const emp of employees) {
       const isHashed = emp.pin.startsWith('$2')
       let pinMatches = false
@@ -165,7 +165,7 @@ export async function GET(req: Request) {
   try {
     // Preveri če je uporabnik avtenticiran
     const authHeader = req.headers.get('authorization')
-    let session = null
+    let session: Awaited<ReturnType<typeof verifyToken>> | null = null
     if (authHeader?.startsWith('Bearer ')) {
       session = verifyToken(authHeader.substring(7).trim())
     }

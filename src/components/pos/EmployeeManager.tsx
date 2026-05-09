@@ -188,7 +188,7 @@ export function EmployeeManager() {
                 </div>
 
                 <div className="text-sm space-y-1">
-                  {emp.phone && <p className="text-muted-foreground">📞 {String(emp.phone)}</p>}
+                  {Boolean(emp.phone) && <p className="text-muted-foreground">📞 {String(emp.phone)}</p>}
                   <p className="text-muted-foreground">📅 Zaposlen: {emp.hireDate ? format(new Date(emp.hireDate as string), 'MMM dd, yyyy') : 'N/A'}</p>
                 </div>
 

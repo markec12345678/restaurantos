@@ -86,7 +86,7 @@ export async function PUT(req: Request) {
 
     // FIX: Batch operacije v ENI transakciji
     const results = await db.$transaction(async (tx) => {
-      const processed = []
+      const processed: { updated: any; transaction: any }[] = []
 
       for (const entry of data.items) {
         const item = await tx.inventoryItem.findUnique({ where: { id: entry.inventoryItemId } })

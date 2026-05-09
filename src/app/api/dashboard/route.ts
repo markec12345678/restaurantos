@@ -15,7 +15,7 @@ export async function GET(req: Request) {
 
   const todayOrders = await db.order.findMany({
     where: { createdAt: { gte: today, lt: tomorrow } },
-    include: { orderItems: { include: { menuItem: { include: { category: true } } } }, table: true, employee: true },
+    include: { orderItems: { include: { menuItem: { include: { category: true } } } }, table: true },
     orderBy: { createdAt: 'desc' },
   })
 
@@ -144,7 +144,7 @@ export async function GET(req: Request) {
   const empMap: Record<string, { name: string; orders: number; revenue: number }> = {}
   for (const order of todayOrders.filter(o => o.paymentStatus === 'paid')) {
     const empId = order.employeeId || 'none'
-    const empName = order.employee ? order.employee.name : 'Nedodeljeno'
+    const empName = 'Nedodeljeno' // Order nima employee relacije
     if (!empMap[empId]) empMap[empId] = { name: empName, orders: 0, revenue: 0 }
     empMap[empId].orders += 1
     empMap[empId].revenue += order.total

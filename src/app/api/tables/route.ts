@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     // SQLite unique constraint violation
     if (error?.code === 'P2002') {
       return NextResponse.json(
-        { error: `Miza s številko ${body.number} že obstaja` },
+        { error: `Miza s to številko že obstaja` },
         { status: 409 }
       )
     }

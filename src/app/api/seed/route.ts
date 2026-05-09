@@ -454,7 +454,7 @@ export async function POST(req: Request) {
       { name: 'Red Bull (0.20L)', description: '0.20L', price: 4.00, image: '/menu-images/gazirane-pijace/red-bull.png', categoryId: gaziranePijace.id, sortOrder: 10, modifierGroupIds: [iceChoice.id] },
     ]
 
-    const menuItems = []
+    const menuItems: any[] = []
     for (const itemData of menuItemsData) {
       const { modifierGroupIds, ...itemFields } = itemData
       const item = await db.menuItem.create({ data: itemFields })

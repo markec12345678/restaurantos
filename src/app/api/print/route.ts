@@ -152,7 +152,7 @@ export async function POST(req: Request) {
           include: {
             table: true,
             orderItems: {
-              include: { menuItem: true },
+              include: { menuItem: { include: { category: true } } },
               orderBy: { createdAt: 'asc' },
             },
           },

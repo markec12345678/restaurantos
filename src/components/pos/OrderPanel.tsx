@@ -13,8 +13,10 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Plus, Minus, Trash2, ShoppingBag, CreditCard, X, Printer, Eye, ImageIcon, ChevronRight, Check, ArrowLeft, UtensilsCrossed, GlassWater, Users, Clock, Search, XCircle, FileWarning } from 'lucide-react'
-import { useState, useMemo, useEffect } from 'react'
+import { Plus, Minus, Trash2, ShoppingBag, CreditCard, X, Printer, Eye, ImageIcon, ChevronRight, Check, ArrowLeft, UtensilsCrossed, GlassWater, Users, Clock, Search, XCircle, FileWarning, Keyboard } from 'lucide-react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { usePOSShortcuts } from '@/lib/use-pos-shortcuts'
 import { format } from 'date-fns'
 import { ReceiptDialog } from '@/components/pos/ReceiptDialog'
 import { PaymentDialog } from '@/components/pos/PaymentDialog'
@@ -66,7 +68,7 @@ interface MenuType {
 export function OrderPanel() {
   const {
     cart, addToCart, removeFromCart, updateCartQuantity, updateCartNotes, clearCart,
-    cartTotal, cartTaxTotal, cartVatBreakdown,
+    cartTotal, cartSubtotal, cartTaxTotal, cartVatBreakdown,
     orderType, setOrderType, selectedTable, setSelectedTable,
     discount, setDiscount, taxRate,
     activeMenuId, setActiveMenuId,
@@ -95,20 +97,24 @@ export function OrderPanel() {
   const [modifierDialogItem, setModifierDialogItem] = useState<MenuItemType | null>(null)
   const [selectedModifiers, setSelectedModifiers] = useState<Map<string, SelectedModifier>>(new Map())
 
-  // Ctrl+K za hitro iskanje
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault()
-        setItemSearch(prev => prev ? '' : ' ')
-      }
-      if (e.key === 'Escape' && itemSearch) {
-        setItemSearch('')
-      }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [itemSearch])
+  // Clear cart confirmation
+  const [clearCartConfirm, setClearCartConfirm] = useState(false)
+
+  // Menu item add animation
+  const [lastAddedId, setLastAddedId] = useState<string | null>(null)
+
+  // Keyboard shortcuts dialog
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+
+  // Keyboard shortcuts
+  usePOSShortcuts({
+    onNewOrder: () => { clearCart(); setCustomerName(''); setCustomerPhone(''); setOrderNotes(''); setDiscount(0); setEditingOrderId(null); setEditingOrderNumber(null); setMainTab('new-order') },
+    onPay: () => { if (cart.length > 0) placeOrderMutation.mutate() },
+    onSearch: () => setItemSearch(prev => prev ? '' : ' '),
+    onClearCart: () => { if (cart.length > 0) setClearCartConfirm(true) },
+    onOrderList: () => setMainTab('order-list'),
+    onEscape: () => { if (itemSearch) setItemSearch(''); if (modifierDialogItem) { setModifierDialogItem(null); setSelectedModifiers(new Map()) } },
+  })
 
   // ============================================
   // PODATKI
@@ -289,11 +295,13 @@ export function OrderPanel() {
     ) || []
   }, [menuItems, resolvedMenuId, activeCategory, activeSuperGroup, superGroups, itemSearch])
 
-  const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  // Uporabimo store funkcije za konsistenten izračun (cartTotal() pravilno
+  // porazdeli popust po DDV stopnjah, lokalni izračun tega ni delal)
+  const subtotal = cartSubtotal()
   const vatBreakdown = cartVatBreakdown()
   const totalTax = cartTaxTotal()
   const cappedDiscount = Math.min(discount, subtotal)
-  const total = subtotal + totalTax - cappedDiscount
+  const total = cartTotal()
   const cartItemCount = cart.reduce((s, i) => s + i.quantity, 0)
 
   // ============================================
@@ -325,6 +333,9 @@ export function OrderPanel() {
       setSelectedModifiers(new Map())
     } else {
       addToCart({ id: item.id, name: item.name, price: item.price, categoryId: item.categoryId, image: item.image })
+      // Flash animacija ob dodajanju
+      setLastAddedId(item.id)
+      setTimeout(() => setLastAddedId(null), 500)
     }
   }
 
@@ -349,8 +360,22 @@ export function OrderPanel() {
 
   const handleModifierConfirm = () => {
     if (!modifierDialogItem) return
+    // Validacija obveznih skupin modifikatorjev
+    const unmetRequired = modifierDialogItem.modifierGroups
+      .filter(mg => mg.modifierGroup.required)
+      .filter(mg => {
+        const selected = Array.from(selectedModifiers.values()).filter(m => m.modifierGroupId === mg.modifierGroup.id)
+        return selected.length < (mg.modifierGroup.minSelect || 1)
+      })
+    if (unmetRequired.length > 0) {
+      toast.error(`Obvezna izbira: ${unmetRequired.map(mg => mg.modifierGroup.name).join(', ')}`)
+      return
+    }
     const modifiers = Array.from(selectedModifiers.values())
     addToCart({ id: modifierDialogItem.id, name: modifierDialogItem.name, price: modifierDialogItem.price, categoryId: modifierDialogItem.categoryId, image: modifierDialogItem.image, modifiers })
+    // Flash animacija ob dodajanju
+    setLastAddedId(modifierDialogItem.id)
+    setTimeout(() => setLastAddedId(null), 500)
     setModifierDialogItem(null)
     setSelectedModifiers(new Map())
   }
@@ -375,6 +400,9 @@ export function OrderPanel() {
               Seznam naročil
             </TabsTrigger>
           </TabsList>
+          <Button variant="ghost" size="icon" className="h-7 w-7 ml-auto" onClick={() => setShortcutsOpen(true)} title="Tipkovne bližnjice">
+            <Keyboard className="h-3.5 w-3.5 text-muted-foreground" />
+          </Button>
         </Tabs>
       </div>
 
@@ -587,7 +615,7 @@ export function OrderPanel() {
                     Ni artiklov v tej kategoriji
                   </div>
                 ) : (
-                  <div className="grid grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
                     {filteredMenuItems.map((item: MenuItemType) => {
                       const inCart = cart.filter(c => c.id === item.id)
                       const totalQty = inCart.reduce((sum, c) => sum + c.quantity, 0)
@@ -596,7 +624,7 @@ export function OrderPanel() {
                         <button
                           key={item.id}
                           onClick={() => handleItemClick(item)}
-                          className="relative flex flex-col rounded-xl border border-border bg-card hover:bg-accent/50 active:scale-[0.97] transition-all text-left overflow-hidden group"
+                          className={`relative flex flex-col rounded-xl border border-border bg-card hover:bg-accent/50 active:scale-[0.97] transition-all text-left overflow-hidden group ${lastAddedId === item.id ? 'ring-2 ring-primary ring-offset-1' : ''}`}
                         >
                           {/* Quantity badge */}
                           {totalQty > 0 && (
@@ -645,7 +673,7 @@ export function OrderPanel() {
             </div>
 
             {/* RIGHT: Cart Panel (35%) */}
-            <div className="w-[340px] xl:w-[380px] border-l border-border bg-card flex flex-col flex-shrink-0">
+            <div className="w-[280px] sm:w-[320px] md:w-[340px] xl:w-[380px] border-l border-border bg-card flex flex-col flex-shrink-0">
               {/* Cart Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
                 <div className="flex items-center gap-2">
@@ -672,7 +700,7 @@ export function OrderPanel() {
                     </Button>
                   )}
                   {cart.length > 0 && (
-                    <Button variant="ghost" size="sm" onClick={clearCart} className="h-7 text-xs text-destructive hover:text-destructive">
+                    <Button variant="ghost" size="sm" onClick={() => setClearCartConfirm(true)} className="h-7 text-xs text-destructive hover:text-destructive">
                       <Trash2 className="h-3 w-3 mr-1" />
                       Zbriši
                     </Button>
@@ -690,8 +718,16 @@ export function OrderPanel() {
                   </div>
                 ) : (
                   <div className="p-2 space-y-1">
+                    <AnimatePresence mode="popLayout">
                     {cart.map((item) => (
-                      <div key={item.cartKey} className="flex items-start gap-2 p-2 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors">
+                      <motion.div
+                        key={item.cartKey}
+                        initial={{ opacity: 0, x: 20, scale: 0.95 }}
+                        animate={{ opacity: 1, x: 0, scale: 1 }}
+                        exit={{ opacity: 0, x: -20, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="flex items-start gap-2 p-2 rounded-lg bg-muted/40 hover:bg-muted/60 transition-colors"
+                      >
                         {/* Thumbnail */}
                         {item.image ? (
                           <div className="w-10 h-10 rounded-md overflow-hidden flex-shrink-0">
@@ -733,8 +769,9 @@ export function OrderPanel() {
                           </div>
                           <p className="text-xs font-bold">€{(item.price * item.quantity).toFixed(2)}</p>
                         </div>
-                      </div>
+                      </motion.div>
                     ))}
+                    </AnimatePresence>
                   </div>
                 )}
               </div>
@@ -1017,7 +1054,7 @@ export function OrderPanel() {
 
       {/* Payment Dialog */}
       <PaymentDialog
-        order={(autoPayOrder || selectedOrder) as { id: string; orderNumber: number; total: number; subtotal: number; tax: number; discount: number; orderItems: { id: string; menuItem: { name: string }; quantity: number; price: number; vatRate: number }[]; tip?: number } | null}
+        order={(autoPayOrder || selectedOrder) as Parameters<typeof PaymentDialog>[0]['order']}
         open={paymentDialogOpen}
         onClose={() => { setPaymentDialogOpen(false); setSelectedOrder(null); setAutoPayOrder(null) }}
         onPaymentSuccess={(orderId: string) => {
@@ -1054,19 +1091,19 @@ export function OrderPanel() {
                 <p className="text-sm font-semibold text-red-700 dark:text-red-300">
                   {detailOrder?.paymentStatus === 'storno' ? 'Stornirano naročilo' : 'Preklicano naročilo'}
                 </p>
-                {detailOrder?.cancelReason && (
+                {Boolean(detailOrder?.cancelReason) && (
                   <p className="text-xs text-red-600 dark:text-red-400">
-                    Razlog: {String(detailOrder.cancelReason)}
+                    Razlog: {String(detailOrder?.cancelReason)}
                   </p>
                 )}
-                {detailOrder?.cancelledAt && (
+                {Boolean(detailOrder?.cancelledAt) && (
                   <p className="text-xs text-red-600/70 dark:text-red-400/70">
-                    Preklicano: {format(new Date(detailOrder.cancelledAt as string), 'dd.MM.yyyy HH:mm')}
+                    Preklicano: {format(new Date(detailOrder?.cancelledAt as string), 'dd.MM.yyyy HH:mm')}
                   </p>
                 )}
-                {detailOrder?.cancelledBy && (
+                {Boolean(detailOrder?.cancelledBy) && (
                   <p className="text-xs text-red-600/70 dark:text-red-400/70">
-                    Preklical/a: {String(detailOrder.cancelledBy)}
+                    Preklical/a: {String(detailOrder?.cancelledBy)}
                   </p>
                 )}
               </div>
@@ -1081,7 +1118,7 @@ export function OrderPanel() {
                   <Badge variant="outline" className={paymentStatusColors[(detailOrder?.paymentStatus as string)] || 'bg-yellow-100 text-yellow-800'}>
                     {paymentStatusLabels[(detailOrder?.paymentStatus as string)] || 'Neplačano'}
                   </Badge>
-                  {detailOrder?.paymentMethod && <span className="text-xs text-muted-foreground uppercase">{String(detailOrder.paymentMethod)}</span>}
+                  {Boolean(detailOrder?.paymentMethod) && <span className="text-xs text-muted-foreground uppercase">{String(detailOrder?.paymentMethod)}</span>}
                 </div>
               </div>
               <div><p className="text-muted-foreground">Čas</p><p className="font-medium">{detailOrder?.createdAt ? format(new Date(detailOrder.createdAt as string), 'MMM dd, yyyy HH:mm') : 'Brez'}</p></div>
@@ -1186,6 +1223,52 @@ export function OrderPanel() {
           queryClient.invalidateQueries({ queryKey: ['dashboard'] })
         }}
       />
+
+      {/* Clear Cart Confirmation Dialog */}
+      <Dialog open={clearCartConfirm} onOpenChange={setClearCartConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Počisti košarico?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Ali ste prepričani, da želite izbrisati vse artikle iz košarice? Tega dejanja ni mogoče razveljaviti.
+          </p>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setClearCartConfirm(false)}>Prekliči</Button>
+            <Button variant="destructive" onClick={() => { clearCart(); setClearCartConfirm(false) }}>
+              <Trash2 className="h-4 w-4 mr-1" />
+              Počisti
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Keyboard Shortcuts Dialog */}
+      <Dialog open={shortcutsOpen} onOpenChange={setShortcutsOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Keyboard className="h-5 w-5" />
+              Tipkovne bližnjice
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            {[
+              { key: 'F2', desc: 'Novo naročilo' },
+              { key: 'F4', desc: 'Plačaj / Oddaj' },
+              { key: 'F5', desc: 'Seznam naročil' },
+              { key: 'F8', desc: 'Počisti košarico' },
+              { key: 'Ctrl+K', desc: 'Išči artikel' },
+              { key: 'Esc', desc: 'Zapri / Prekliči' },
+            ].map(s => (
+              <div key={s.key} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
+                <span className="text-muted-foreground">{s.desc}</span>
+                <kbd className="px-2 py-0.5 rounded bg-muted border border-border text-xs font-mono font-semibold">{s.key}</kbd>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

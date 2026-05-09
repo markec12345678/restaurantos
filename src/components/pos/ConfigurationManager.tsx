@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -263,7 +264,7 @@ export function ConfigurationManager() {
               </div>
             ) : filteredItems.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
-                <tab.icon.type className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                {tab.icon && typeof tab.icon === 'object' && React.isValidElement(tab.icon) && React.cloneElement(tab.icon as React.ReactElement<any>, { className: "h-12 w-12 mx-auto mb-3 opacity-30" })}
                 <p className="text-lg font-medium">Ni najdenih zapisov</p>
                 <p className="text-sm">Kliknite &quot;Dodaj&quot; za ustvarjanje novega vnosa</p>
               </div>

@@ -283,7 +283,7 @@ export function MenuManager() {
                         <p className="font-medium text-sm">{String(item.name)}</p>
                         <p className="text-primary font-bold text-sm">€{Number(item.price).toFixed(2)}</p>
                       </div>
-                      {item.description && <p className="text-xs text-muted-foreground line-clamp-2">{String(item.description)}</p>}
+                      {Boolean(item.description) && <p className="text-xs text-muted-foreground line-clamp-2">{String(item.description)}</p>}
                       <div className="flex items-center justify-between flex-wrap gap-1">
                         {cat && <Badge variant="outline" className="text-xs">{String(cat.icon)} {String(cat.name)}</Badge>}
                         {itemModGroups.length > 0 && (

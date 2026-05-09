@@ -72,7 +72,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     if (error?.code === 'P2002') {
       return NextResponse.json(
-        { error: `Zaposleni z emailom ${body.email} že obstaja` },
+        { error: `Zaposleni s tem emailom že obstaja` },
         { status: 409 }
       )
     }

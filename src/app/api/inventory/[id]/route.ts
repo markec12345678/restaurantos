@@ -104,7 +104,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     const item = await db.inventoryItem.findUnique({
       where: { id },
-      include: { stockTransactions: true },
+      include: { transactions: true },
     })
 
     if (!item) {

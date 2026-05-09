@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CreditCard, Banknote, Smartphone, Split, Heart, CheckCircle2, Gift, Star, Ticket } from 'lucide-react'
 import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 
@@ -168,12 +169,17 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
       if (onPaymentSuccess && data?.id) {
         onPaymentSuccess(data.id)
       }
-      resetAndClose()
+      setPaymentSuccess(true)
+      setTimeout(() => {
+        resetAndClose()
+      }, 1500)
     },
     onError: () => {
       toast.error('Napaka pri obdelavi plačila')
     },
   })
+
+  const [paymentSuccess, setPaymentSuccess] = useState(false)
 
   const resetAndClose = () => {
     setPaymentMethod('')
@@ -187,6 +193,7 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
     setSelectedGiftCardId(null)
     setSelectedLoyaltyId(null)
     setCashReceived(0)
+    setPaymentSuccess(false)
     onClose()
   }
 
@@ -222,7 +229,7 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
       const check = await checkRes.json()
 
       // 2. Ustvari N ločenih plačil (zadnje absorbira razliko za zaokroževanje)
-      const payments = []
+      const payments: { amount: number; tipPortion: number }[] = []
       for (let i = 0; i < splitCount; i++) {
         const amount = i === splitCount - 1
           ? Math.round((totalWithTip - splitAmount * (splitCount - 1)) * 100) / 100
@@ -285,8 +292,51 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
   if (!order) return null
 
   return (
-    <Dialog open={open} onOpenChange={() => resetAndClose()}>
+    <Dialog open={open} onOpenChange={() => { if (!paymentSuccess) resetAndClose() }}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        <AnimatePresence mode="wait">
+          {paymentSuccess ? (
+            <motion.div
+              key="success"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.3, type: 'spring' }}
+              className="flex flex-col items-center justify-center py-12 gap-4"
+            >
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.1, type: 'spring', stiffness: 200 }}
+                className="h-20 w-20 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center"
+              >
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.3, type: 'spring', stiffness: 300 }}
+                >
+                  <CheckCircle2 className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
+                </motion.div>
+              </motion.div>
+              <motion.p
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="text-lg font-bold text-emerald-700 dark:text-emerald-400"
+              >
+                Plačilo uspešno!
+              </motion.p>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.6 }}
+                className="text-sm text-muted-foreground"
+              >
+                €{totalWithTip.toFixed(2)}
+              </motion.p>
+            </motion.div>
+          ) : (
+            <motion.div key="payment" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Plačilo #{order.orderNumber}</span>
@@ -422,8 +472,8 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
                         <button
                           key={amount}
                           onClick={() => {
-                            if (change > 0) {
-                              // Prikaži vračilo — ne nastavi kot napitnino samodejno
+                            setCashReceived(amount)
+                            if (amount > totalWithTip) {
                               setTipAmount(0)
                               setTipPercent(0)
                             }
@@ -649,6 +699,9 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
             </TabsContent>
           </Tabs>
         </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </DialogContent>
     </Dialog>
   )

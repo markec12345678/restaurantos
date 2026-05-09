@@ -83,7 +83,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     if (error?.code === 'P2002') {
       return NextResponse.json(
-        { error: `Darilna kartica s številko ${body.cardNumber} že obstaja` },
+        { error: `Darilna kartica s to številko že obstaja` },
         { status: 409 }
       )
     }

@@ -195,6 +195,11 @@ const soundManager = new KitchenSoundManager()
 function WaitTimer({ minutes, urgency }: { minutes: number; urgency: string }) {
   const [elapsed, setElapsed] = useState(minutes)
 
+  // Sinhroniziraj s server podatki, ko se prop spremeni
+  useEffect(() => {
+    setElapsed(minutes)
+  }, [minutes])
+
   useEffect(() => {
     const interval = setInterval(() => {
       setElapsed(prev => prev + 1)

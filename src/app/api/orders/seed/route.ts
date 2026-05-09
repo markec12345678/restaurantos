@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     }
 
     const now = new Date()
-    const ordersCreated = []
+    const ordersCreated: any[] = []
 
     for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
       const ordersPerDay = Math.floor(Math.random() * 8) + 5
