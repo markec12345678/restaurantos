@@ -13,7 +13,47 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Plus, Minus, Trash2, ShoppingBag, CreditCard, X, Printer, Eye, ImageIcon, ChevronRight, Check, ArrowLeft, UtensilsCrossed, GlassWater, Users, Clock, Search, XCircle, FileWarning, Keyboard } from 'lucide-react'
+import { Plus, Minus, Trash2, ShoppingBag, CreditCard, X, Printer, Eye, ChevronRight, Check, ArrowLeft, UtensilsCrossed, GlassWater, Users, Clock, Search, XCircle, FileWarning, Keyboard } from 'lucide-react'
+
+// ============================================
+// FALLBACK ZA JEDI BREZ SLIKE (Square/Toast POS stil)
+// ============================================
+const categoryEmojiMap: Record<string, { emoji: string; bg: string; text: string }> = {
+  'Predjedi': { emoji: '🥗', bg: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300' },
+  'Juhe': { emoji: '🍲', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300' },
+  'Glavne jedi': { emoji: '🍽️', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300' },
+  'Testenine': { emoji: '🍝', bg: 'bg-yellow-100 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300' },
+  'Pica': { emoji: '🍕', bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300' },
+  'Burgerji': { emoji: '🍔', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300' },
+  'Sladice': { emoji: '🍰', bg: 'bg-pink-100 dark:bg-pink-900/40', text: 'text-pink-700 dark:text-pink-300' },
+  'Priloge': { emoji: '🍟', bg: 'bg-lime-100 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300' },
+  'Penine in Šampanjci': { emoji: '🥂', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300' },
+  'Bela Vina': { emoji: '🍷', bg: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300' },
+  'Rosé Vino': { emoji: '🌹', bg: 'bg-pink-100 dark:bg-pink-900/40', text: 'text-pink-700 dark:text-pink-300' },
+  'Rdeča Vina': { emoji: '🍷', bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300' },
+  'Tuja Vina': { emoji: '🌍', bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300' },
+  'Likersko Vino': { emoji: '🍯', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300' },
+  'Točeno Pivo': { emoji: '🍺', bg: 'bg-yellow-100 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300' },
+  'Pivo': { emoji: '🍻', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300' },
+  'Craft Piva': { emoji: ' IPA', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300' },
+  'Brezalkoholno Pivo': { emoji: '🧃', bg: 'bg-sky-100 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300' },
+  'Viski': { emoji: '🥃', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300' },
+  'Gin': { emoji: '🍸', bg: 'bg-cyan-100 dark:bg-cyan-900/40', text: 'text-cyan-700 dark:text-cyan-300' },
+  'Likerji': { emoji: '🍹', bg: 'bg-fuchsia-100 dark:bg-fuchsia-900/40', text: 'text-fuchsia-700 dark:text-fuchsia-300' },
+  'Grenčice': { emoji: '🫒', bg: 'bg-lime-100 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300' },
+  'Destilati, Konjak in Rum': { emoji: '🥃', bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300' },
+  'Topli Napitki': { emoji: '☕', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300' },
+  'Mešane Pijače': { emoji: '🍹', bg: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300' },
+  'Vode': { emoji: '💧', bg: 'bg-sky-100 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300' },
+  'Naravni Sokovi': { emoji: '🧃', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300' },
+  'Sokovi': { emoji: '🧃', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300' },
+  'Gazirane Pijače': { emoji: '🥤', bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300' },
+}
+const defaultCategoryStyle = { emoji: '🍽️', bg: 'bg-muted', text: 'text-muted-foreground' }
+
+function getCategoryStyle(categoryName: string) {
+  return categoryEmojiMap[categoryName] || defaultCategoryStyle
+}
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { usePOSShortcuts } from '@/lib/use-pos-shortcuts'
@@ -640,8 +680,8 @@ export function OrderPanel() {
                               </span>
                             </div>
                           )}
-                          {/* Image */}
-                          <div className="w-full aspect-square bg-muted/40 relative overflow-hidden">
+                          {/* Image / Fallback ikona */}
+                          <div className="w-full aspect-square relative overflow-hidden">
                             {item.image ? (
                               <img
                                 src={item.image}
@@ -650,12 +690,16 @@ export function OrderPanel() {
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement
                                   target.style.display = 'none'
-                                  target.nextElementSibling?.classList.remove('hidden')
+                                  const fallback = target.nextElementSibling as HTMLElement
+                                  if (fallback) fallback.classList.remove('hidden')
                                 }}
                               />
                             ) : null}
-                            <div className={`absolute inset-0 flex items-center justify-center ${item.image ? 'hidden' : ''}`}>
-                              <ImageIcon className="h-8 w-8 text-muted-foreground/30" />
+                            <div className={`absolute inset-0 flex flex-col items-center justify-center gap-0.5 ${item.image ? 'hidden' : ''} ${getCategoryStyle(item.category?.name).bg}`}>
+                              <span className="text-2xl leading-none">{getCategoryStyle(item.category?.name).emoji}</span>
+                              <span className={`text-lg font-bold leading-none ${getCategoryStyle(item.category?.name).text}`}>
+                                {item.name.charAt(0).toUpperCase()}
+                              </span>
                             </div>
                           </div>
                           {/* Info */}
@@ -733,8 +777,8 @@ export function OrderPanel() {
                             <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                           </div>
                         ) : (
-                          <div className="w-10 h-10 rounded-md bg-muted flex-shrink-0 flex items-center justify-center">
-                            <ImageIcon className="h-4 w-4 text-muted-foreground/40" />
+                          <div className="w-10 h-10 rounded-md bg-muted flex-shrink-0 flex items-center justify-center text-sm font-bold text-muted-foreground">
+                            {item.name.charAt(0).toUpperCase()}
                           </div>
                         )}
                         {/* Info */}
@@ -1133,8 +1177,8 @@ export function OrderPanel() {
                         <img src={oi.menuItem.image} alt={oi.menuItem.name} className="w-full h-full object-cover" />
                       </div>
                     ) : (
-                      <div className="w-9 h-9 rounded-md bg-muted flex-shrink-0 flex items-center justify-center">
-                        <ImageIcon className="h-3.5 w-3.5 text-muted-foreground/50" />
+                      <div className={`w-9 h-9 rounded-md flex-shrink-0 flex items-center justify-center text-xs ${defaultCategoryStyle.bg}`}>
+                        {defaultCategoryStyle.emoji}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
