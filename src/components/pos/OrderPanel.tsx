@@ -16,40 +16,70 @@ import { toast } from 'sonner'
 import { Plus, Minus, Trash2, ShoppingBag, CreditCard, X, Printer, Eye, ChevronRight, Check, ArrowLeft, UtensilsCrossed, GlassWater, Users, Clock, Search, XCircle, FileWarning, Keyboard } from 'lucide-react'
 
 // ============================================
-// FALLBACK ZA JEDI BREZ SLIKE (Square/Toast POS stil)
+// FALLBACK ZA JEDI BREZ SLIKE + BARVNI AKCENTI (Square/Toast POS stil)
+// Profesionalni POS sistemi uporabljajo barvno kodiranje po kategorijah
+// za hitro vizualno prepoznavo artiklov brez iskanja po imenu.
 // ============================================
-const categoryEmojiMap: Record<string, { emoji: string; bg: string; text: string }> = {
-  'Predjedi': { emoji: '🥗', bg: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300' },
-  'Juhe': { emoji: '🍲', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300' },
-  'Glavne jedi': { emoji: '🍽️', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300' },
-  'Testenine': { emoji: '🍝', bg: 'bg-yellow-100 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300' },
-  'Pica': { emoji: '🍕', bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300' },
-  'Burgerji': { emoji: '🍔', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300' },
-  'Sladice': { emoji: '🍰', bg: 'bg-pink-100 dark:bg-pink-900/40', text: 'text-pink-700 dark:text-pink-300' },
-  'Priloge': { emoji: '🍟', bg: 'bg-lime-100 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300' },
-  'Penine in Šampanjci': { emoji: '🥂', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300' },
-  'Bela Vina': { emoji: '🍷', bg: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300' },
-  'Rosé Vino': { emoji: '🌹', bg: 'bg-pink-100 dark:bg-pink-900/40', text: 'text-pink-700 dark:text-pink-300' },
-  'Rdeča Vina': { emoji: '🍷', bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300' },
-  'Tuja Vina': { emoji: '🌍', bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300' },
-  'Likersko Vino': { emoji: '🍯', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300' },
-  'Točeno Pivo': { emoji: '🍺', bg: 'bg-yellow-100 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300' },
-  'Pivo': { emoji: '🍻', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300' },
-  'Craft Piva': { emoji: ' IPA', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300' },
-  'Brezalkoholno Pivo': { emoji: '🧃', bg: 'bg-sky-100 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300' },
-  'Viski': { emoji: '🥃', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300' },
-  'Gin': { emoji: '🍸', bg: 'bg-cyan-100 dark:bg-cyan-900/40', text: 'text-cyan-700 dark:text-cyan-300' },
-  'Likerji': { emoji: '🍹', bg: 'bg-fuchsia-100 dark:bg-fuchsia-900/40', text: 'text-fuchsia-700 dark:text-fuchsia-300' },
-  'Grenčice': { emoji: '🫒', bg: 'bg-lime-100 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300' },
-  'Destilati, Konjak in Rum': { emoji: '🥃', bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300' },
-  'Topli Napitki': { emoji: '☕', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300' },
-  'Mešane Pijače': { emoji: '🍹', bg: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300' },
-  'Vode': { emoji: '💧', bg: 'bg-sky-100 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300' },
-  'Naravni Sokovi': { emoji: '🧃', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300' },
-  'Sokovi': { emoji: '🧃', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300' },
-  'Gazirane Pijače': { emoji: '🥤', bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300' },
+const categoryEmojiMap: Record<string, { emoji: string; bg: string; text: string; accent: string }> = {
+  'Predjedi': { emoji: '🥗', bg: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', accent: '#10b981' },
+  'Juhe': { emoji: '🍲', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', accent: '#f59e0b' },
+  'Glavne jedi': { emoji: '🍽️', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', accent: '#f97316' },
+  'Testenine': { emoji: '🍝', bg: 'bg-yellow-100 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', accent: '#eab308' },
+  'Pica': { emoji: '🍕', bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', accent: '#ef4444' },
+  'Burgerji': { emoji: '🍔', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', accent: '#f97316' },
+  'Sladice': { emoji: '🍰', bg: 'bg-pink-100 dark:bg-pink-900/40', text: 'text-pink-700 dark:text-pink-300', accent: '#ec4899' },
+  'Priloge': { emoji: '🍟', bg: 'bg-lime-100 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300', accent: '#84cc16' },
+  'Penine in Šampanjci': { emoji: '🥂', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', accent: '#d4a017' },
+  'Bela Vina': { emoji: '🍷', bg: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', accent: '#059669' },
+  'Rosé Vino': { emoji: '🌹', bg: 'bg-pink-100 dark:bg-pink-900/40', text: 'text-pink-700 dark:text-pink-300', accent: '#e11d48' },
+  'Rdeča Vina': { emoji: '🍷', bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', accent: '#b91c1c' },
+  'Tuja Vina': { emoji: '🌍', bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', accent: '#7c3aed' },
+  'Likersko Vino': { emoji: '🍯', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', accent: '#92400e' },
+  'Točeno Pivo': { emoji: '🍺', bg: 'bg-yellow-100 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', accent: '#ca8a04' },
+  'Pivo': { emoji: '🍻', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', accent: '#d97706' },
+  'Craft Piva': { emoji: ' IPA', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', accent: '#ea580c' },
+  'Brezalkoholno Pivo': { emoji: '🧃', bg: 'bg-sky-100 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300', accent: '#0284c7' },
+  'Viski': { emoji: '🥃', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', accent: '#92400e' },
+  'Gin': { emoji: '🍸', bg: 'bg-cyan-100 dark:bg-cyan-900/40', text: 'text-cyan-700 dark:text-cyan-300', accent: '#0891b2' },
+  'Likerji': { emoji: '🍹', bg: 'bg-fuchsia-100 dark:bg-fuchsia-900/40', text: 'text-fuchsia-700 dark:text-fuchsia-300', accent: '#a21caf' },
+  'Grenčice': { emoji: '🫒', bg: 'bg-lime-100 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300', accent: '#4d7c0f' },
+  'Destilati, Konjak in Rum': { emoji: '🥃', bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', accent: '#6b21a8' },
+  'Topli Napitki': { emoji: '☕', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', accent: '#78350f' },
+  'Mešane Pijače': { emoji: '🍹', bg: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', accent: '#e11d48' },
+  'Vode': { emoji: '💧', bg: 'bg-sky-100 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300', accent: '#0ea5e9' },
+  'Naravni Sokovi': { emoji: '🧃', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', accent: '#ea580c' },
+  'Sokovi': { emoji: '🧃', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', accent: '#c2410c' },
+  'Gazirane Pijače': { emoji: '🥤', bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', accent: '#dc2626' },
 }
-const defaultCategoryStyle = { emoji: '🍽️', bg: 'bg-muted', text: 'text-muted-foreground' }
+const defaultCategoryStyle = { emoji: '🍽️', bg: 'bg-muted', text: 'text-muted-foreground', accent: '#6b7280' }
+
+// ============================================
+// EKSTRAKCIJA VELIKOSTI IZ IMENA ARTIKLA
+// Profesionalni POS (Square, Toast, Aloha) prikazujejo
+// velikost kot vidno oznako na gumbu/kartici, da natakar
+// takoj ve, ali je kozarec ali steklenica, 0.3L ali 0.5L.
+// ============================================
+function extractSizeLabel(name: string): { label: string; shortLabel: string } | null {
+  // Vzorci za velikosti: (0.30L), (0.50L), (kozarec), (steklenica), itd.
+  const patterns = [
+    // Količina v oklepaju: (0.05L), (0.50L), (1.00L)
+    { regex: /\(([0-9]+\.?[0-9]*)\s*L\)/i, format: (m: RegExpMatchArray) => ({ label: m[1] + ' L', shortLabel: m[1].replace(/\.0+$/, '') + 'L' }) },
+    // Kozarec / steklenica
+    { regex: /\(kozarec\)/i, format: () => ({ label: 'Kozarec', shortLabel: 'Koz.' }) },
+    { regex: /\(steklenica\)/i, format: () => ({ label: 'Steklenica', shortLabel: 'Stek.' }) },
+    // Velikost brez oklepaja
+    { regex: /([0-9]+\.?[0-9]*)\s*L(?!i)/i, format: (m: RegExpMatchArray) => ({ label: m[1] + ' L', shortLabel: m[1].replace(/\.0+$/, '') + 'L' }) },
+    // Mala / velika
+    { regex: /\bmala\b/i, format: () => ({ label: 'Mala', shortLabel: 'M' }) },
+    { regex: /\bvelika\b/i, format: () => ({ label: 'Velika', shortLabel: 'V' }) },
+  ]
+  
+  for (const { regex, format } of patterns) {
+    const match = name.match(regex)
+    if (match) return format(match as RegExpMatchArray)
+  }
+  return null
+}
 
 function getCategoryStyle(categoryName: string) {
   return categoryEmojiMap[categoryName] || defaultCategoryStyle
@@ -659,11 +689,21 @@ export function OrderPanel() {
                       const inCart = cart.filter(c => c.id === item.id)
                       const totalQty = inCart.reduce((sum, c) => sum + c.quantity, 0)
                       const hasMods = item.modifierGroups?.length > 0
+                      const catStyle = getCategoryStyle(item.category?.name)
+                      const sizeInfo = extractSizeLabel(item.name)
+                      // Pobriši velikost iz prikazanega imena za čistejši prikaz
+                      const displayName = item.name
+                        .replace(/\s*\([0-9]+\.?[0-9]*\s*L\)/gi, '')
+                        .replace(/\s*\(kozarec\)/gi, '')
+                        .replace(/\s*\(steklenica\)/gi, '')
+                        .replace(/\s*[0-9]+\.?[0-9]*\s*L(?!i)/gi, '')
+                        .trim()
                       return (
                         <button
                           key={item.id}
                           onClick={() => handleItemClick(item)}
-                          className={`relative flex flex-col rounded-xl border border-border bg-card hover:bg-accent/50 active:scale-[0.97] transition-all text-left overflow-hidden group ${lastAddedId === item.id ? 'ring-2 ring-primary ring-offset-1' : ''}`}
+                          className={`relative flex flex-col rounded-xl bg-card hover:bg-accent/50 active:scale-[0.97] transition-all text-left overflow-hidden group ${lastAddedId === item.id ? 'ring-2 ring-primary ring-offset-1' : ''}`}
+                          style={{ borderLeft: `4px solid ${catStyle.accent}` }}
                         >
                           {/* Quantity badge */}
                           {totalQty > 0 && (
@@ -695,17 +735,38 @@ export function OrderPanel() {
                                 }}
                               />
                             ) : null}
-                            <div className={`absolute inset-0 flex flex-col items-center justify-center gap-0.5 ${item.image ? 'hidden' : ''} ${getCategoryStyle(item.category?.name).bg}`}>
-                              <span className="text-2xl leading-none">{getCategoryStyle(item.category?.name).emoji}</span>
-                              <span className={`text-lg font-bold leading-none ${getCategoryStyle(item.category?.name).text}`}>
+                            <div className={`absolute inset-0 flex flex-col items-center justify-center gap-0.5 ${item.image ? 'hidden' : ''} ${catStyle.bg}`}>
+                              <span className="text-2xl leading-none">{catStyle.emoji}</span>
+                              <span className={`text-lg font-bold leading-none ${catStyle.text}`}>
                                 {item.name.charAt(0).toUpperCase()}
                               </span>
                             </div>
+                            {/* Oznaka velikosti na sliki - Toast/Square POS stil */}
+                            {sizeInfo && (
+                              <div 
+                                className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center py-1 px-2"
+                                style={{ backgroundColor: catStyle.accent + 'E6' }}
+                              >
+                                <span className="text-white text-[11px] font-bold tracking-wide drop-shadow-sm">
+                                  {sizeInfo.shortLabel}
+                                </span>
+                              </div>
+                            )}
                           </div>
                           {/* Info */}
-                          <div className="p-2 flex-1 flex flex-col justify-between">
-                            <p className="font-semibold text-xs leading-tight line-clamp-2">{item.name}</p>
-                            <p className="text-primary font-bold text-sm mt-1">€{item.price.toFixed(2)}</p>
+                          <div className="p-2 flex-1 flex flex-col justify-between min-h-0">
+                            <p className="font-semibold text-xs leading-tight line-clamp-2" title={item.name}>{displayName}</p>
+                            <div className="flex items-center justify-between mt-1 gap-1">
+                              <p className="text-primary font-bold text-sm">€{item.price.toFixed(2)}</p>
+                              {sizeInfo && (
+                                <span 
+                                  className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
+                                  style={{ backgroundColor: catStyle.accent }}
+                                >
+                                  {sizeInfo.shortLabel}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </button>
                       )

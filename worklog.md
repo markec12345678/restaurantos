@@ -20,3 +20,26 @@ Stage Summary:
 - 164 menu drink images upgraded from SVG placeholders to real Pexels stock photos
 - Food images at root level remain AI-generated from previous session (67-216KB, look good)
 - No API key or quota needed for Pexels CDN downloads
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Implement POS-style visual improvements for menu items - size badges, color accents, better card layout
+
+Work Log:
+- Analyzed database: 227 items total, 16 groups sharing images (34 items), mainly wines (kozarec/steklenica), beers (0.3L/0.5L), waters (0.25L/0.5L/1.0L)
+- Researched professional POS system UI patterns (Square, Toast, Lightspeed, Aloha)
+- Added `accent` color property to all 29 categories in categoryEmojiMap for color-coded borders
+- Created `extractSizeLabel()` function that parses item names to extract size indicators: (0.30L), (kozarec), (steklenica), etc.
+- Modified menu item card: added left border accent color per category (`borderLeft: 4px solid ${catStyle.accent}`)
+- Added size badge overlay on images (colored bar at bottom of image showing "Koz.", "Stek.", "0.3L", "0.5L", etc.)
+- Added size badge next to price in text area (rounded pill with category accent color)
+- Cleaned up display names by removing size info from the name text (shown as badge instead)
+- Updated Service Worker cache version to v4
+- Built production version and restarted server
+
+Stage Summary:
+- All 227 menu items now have distinct visual representation
+- 34 items that shared images now have clear size badges (Koz./Stek./0.3L/0.5L/1L)
+- Each category has a unique accent color on the left border for instant visual grouping
+- Production build successful, server running on port 3000
