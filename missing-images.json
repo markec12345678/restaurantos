@@ -1,0 +1,212 @@
+[
+  {
+    "name": "Črni riž s kozicami",
+    "file": "morski-sadezi/crni-riz-kozicami.png",
+    "prompt": "Black risotto with shrimp, Italian seafood dish, dark squid ink risotto plate, professional food photography, restaurant style"
+  },
+  {
+    "name": "Svinjski vrat na žaru",
+    "file": "zara/svinjski-vrat.png",
+    "prompt": "Grilled pork neck steak with grill marks, Serbian Balkan barbecue, professional food photography, restaurant style"
+  },
+  {
+    "name": "Ćevapčiči s pleskavice",
+    "file": "zara/cevapcici-pleskavica.png",
+    "prompt": "Cevapi grilled minced meat sausages with pita bread and onions, Balkan cuisine, professional food photography, restaurant style"
+  },
+  {
+    "name": "Piščančji ražnjiči",
+    "file": "zara/piscancji-raznjici.png",
+    "prompt": "Chicken skewers kebab grilled on sticks with vegetables, professional food photography, restaurant style"
+  },
+  {
+    "name": "Teletina na žaru",
+    "file": "zara/teletina-zaru.png",
+    "prompt": "Grilled veal cutlet steak with herbs, professional food photography, restaurant style"
+  },
+  {
+    "name": "Žganci s skuto in ocvirki",
+    "file": "slovenske/zganci-skuta-ocvirki.png",
+    "prompt": "Slovenian zganci cornmeal porridge with cottage cheese and pork cracklings, traditional Slovenian food, professional food photography"
+  },
+  {
+    "name": "Kranjska klobasa s kislim zeljem",
+    "file": "slovenske/kranjska-klobasa.png",
+    "prompt": "Kranjska klobasa Carniolan sausage with sauerkraut, traditional Slovenian food, professional food photography, restaurant style"
+  },
+  {
+    "name": "Jota",
+    "file": "slovenske/jota.png",
+    "prompt": "Jota traditional Slovenian Istrian stew with beans sauerkraut and potatoes, professional food photography, restaurant style"
+  },
+  {
+    "name": "Ajdovi žganci z gobicami",
+    "file": "slovenske/ajdovi-zganci-gobicami.png",
+    "prompt": "Buckwheat zganci with mushrooms, traditional Slovenian food, professional food photography, restaurant style"
+  },
+  {
+    "name": "Štruklji v maslu",
+    "file": "slovenske/struklji-maslu.png",
+    "prompt": "Slovenian struklji dumplings with butter, traditional Slovenian food, professional food photography, restaurant style"
+  },
+  {
+    "name": "Ocvrti sir s prilogo",
+    "file": "slovenske/ocvrti-sir.png",
+    "prompt": "Fried breaded cheese with tartar sauce and fries, Slovenian style, professional food photography, restaurant style"
+  },
+  {
+    "name": "Piščančji nageljni",
+    "file": "djecji/piscancji-nageljni.png",
+    "prompt": "Chicken nuggets with french fries and ketchup, kids meal, professional food photography, restaurant style"
+  },
+  {
+    "name": "Mini pica",
+    "file": "djecji/mini-pica.png",
+    "prompt": "Mini pizza margherita for kids, professional food photography, restaurant style"
+  },
+  {
+    "name": "Špageti s paradižnikovo omako",
+    "file": "djecji/spageti-paradiznik.png",
+    "prompt": "Kids spaghetti with tomato sauce, simple children meal, professional food photography, restaurant style"
+  },
+  {
+    "name": "Palačinke s sladkim nadevom",
+    "file": "djecji/palacinke-sladko.png",
+    "prompt": "Sweet crepes pancakes with chocolate and jam filling for kids, professional food photography, restaurant style"
+  },
+  {
+    "name": "Angleški zajtrk",
+    "file": "zajtrk/angleski-zajtrk.png",
+    "prompt": "Full English breakfast with eggs bacon sausage beans toast tomato mushrooms, professional food photography, restaurant style"
+  },
+  {
+    "name": "Jajca na oko s slanino",
+    "file": "zajtrk/jajca-oko-slanino.png",
+    "prompt": "Fried eggs with crispy bacon, breakfast plate, professional food photography, restaurant style"
+  },
+  {
+    "name": "Omleta s sirom in šunko",
+    "file": "zajtrk/omleta-sirom-sumko.png",
+    "prompt": "Cheese and ham omelette breakfast, professional food photography, restaurant style"
+  },
+  {
+    "name": "Ameriške palačinke",
+    "file": "zajtrk/ameriske-palacinke.png",
+    "prompt": "American pancakes stack with maple syrup and berries, breakfast, professional food photography, restaurant style"
+  },
+  {
+    "name": "Avokado toast",
+    "file": "zajtrk/avokado-toast.png",
+    "prompt": "Avocado toast with poached egg on sourdough bread, brunch breakfast, professional food photography, restaurant style"
+  },
+  {
+    "name": "Zdrav zajtrk",
+    "file": "zajtrk/zdrav-zajtrk.png",
+    "prompt": "Healthy breakfast bowl with yogurt granola fruits and nuts, professional food photography, restaurant style"
+  },
+  {
+    "name": "Kozice v testeninskem listu",
+    "file": "predjedi/kozice-testeninski-list.png",
+    "prompt": "Shrimp in phyllo pastry, appetizer, professional food photography, restaurant style"
+  },
+  {
+    "name": "Carpaccio iz govejega mesa",
+    "file": "predjedi/carpaccio-govedo.png",
+    "prompt": "Beef carpaccio thin sliced with arugula and parmesan, appetizer, professional food photography, restaurant style"
+  },
+  {
+    "name": "Pršut z melono",
+    "file": "predjedi/prsut-melona.png",
+    "prompt": "Prosciutto ham with melon, appetizer, professional food photography, restaurant style"
+  },
+  {
+    "name": "Čebulna juha",
+    "file": "juhe/cebulna-juha.png",
+    "prompt": "French onion soup with cheese crouton, professional food photography, restaurant style"
+  },
+  {
+    "name": "Morska juha",
+    "file": "juhe/morska-juha.png",
+    "prompt": "Seafood soup with shrimp mussels in broth, professional food photography, restaurant style"
+  },
+  {
+    "name": "Palačinka s čokolado",
+    "file": "sladice/palacinka-cokolada.png",
+    "prompt": "Chocolate crepe pancake with chocolate sauce, dessert, professional food photography, restaurant style"
+  },
+  {
+    "name": "Štrudel z jabolki",
+    "file": "sladice/strudel-jabolka.png",
+    "prompt": "Apple strudel with vanilla sauce, Austrian dessert, professional food photography, restaurant style"
+  },
+  {
+    "name": "Sorbet iz limone",
+    "file": "sladice/sorbet-limona.png",
+    "prompt": "Lemon sorbet in a glass, refreshing dessert, professional food photography, restaurant style"
+  },
+  {
+    "name": "Riž",
+    "file": "priloge/riz.png",
+    "prompt": "Steamed white rice side dish in bowl, professional food photography, restaurant style"
+  },
+  {
+    "name": "Pečen krompir",
+    "file": "priloge/pecen-krompir.png",
+    "prompt": "Roasted potatoes with herbs, side dish, professional food photography, restaurant style"
+  },
+  {
+    "name": "Špinača",
+    "file": "priloge/spinaca.png",
+    "prompt": "Sauteed spinach side dish, professional food photography, restaurant style"
+  },
+  {
+    "name": "Mešana solata kot priloga",
+    "file": "priloge/mesana-solata-priloga.png",
+    "prompt": "Mixed green salad side dish with vinaigrette, professional food photography, restaurant style"
+  },
+  {
+    "name": "Smoothie jagoda-banana",
+    "file": "smoothie/smoothie-jagoda-banana.png",
+    "prompt": "Strawberry banana smoothie in glass, professional food photography, restaurant style"
+  },
+  {
+    "name": "Smoothie mango-pasiona",
+    "file": "smoothie/smoothie-mango-pasiona.png",
+    "prompt": "Mango passion fruit smoothie in glass, professional food photography, restaurant style"
+  },
+  {
+    "name": "Zeleni smoothie",
+    "file": "smoothie/zeleni-smoothie.png",
+    "prompt": "Green smoothie with spinach and fruits in glass, professional food photography, restaurant style"
+  },
+  {
+    "name": "Čokoladni shake",
+    "file": "smoothie/cokoladni-shake.png",
+    "prompt": "Chocolate milkshake with whipped cream in glass, professional food photography, restaurant style"
+  },
+  {
+    "name": "Vaniljev shake",
+    "file": "smoothie/vaniljev-shake.png",
+    "prompt": "Vanilla milkshake with whipped cream in glass, professional food photography, restaurant style"
+  },
+  {
+    "name": "Vroča medica",
+    "file": "vroca-alkohol/vroca-medica.png",
+    "prompt": "Hot honey mead drink in mug with spices, professional food photography, restaurant style"
+  },
+  {
+    "name": "Kava z žganjem",
+    "file": "vroca-alkohol/kava-zganjem.png",
+    "prompt": "Coffee with brandy shot, spiked coffee, professional food photography, restaurant style"
+  },
+  {
+    "name": "Vroči rum",
+    "file": "vroca-alkohol/vroci-rum.png",
+    "prompt": "Hot rum drink with lemon and spices, professional food photography, restaurant style"
+  },
+  {
+    "name": "Vroča čokolada z rumom",
+    "file": "vroca-alkohol/vroca-cokolada-rum.png",
+    "prompt": "Hot chocolate with rum, spiked hot chocolate with whipped cream, professional food photography, restaurant style"
+  }
+]
