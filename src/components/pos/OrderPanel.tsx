@@ -429,12 +429,11 @@ export function OrderPanel() {
                 </Select>
                 {/* Dining option iz konfiguracije */}
                 {diningOptions?.length > 0 && (
-                  <Select value={diningOptionId || ''} onValueChange={setDiningOptionId}>
+                  <Select value={diningOptionId || undefined} onValueChange={(val) => setDiningOptionId(val || null)}>
                     <SelectTrigger className="w-40 h-8 text-xs">
                       <SelectValue placeholder="Način postrežbe" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Privzeto</SelectItem>
                       {diningOptions.map((opt: { id: string; name: string; type: string }) => (
                         <SelectItem key={opt.id} value={opt.id}>
                           {opt.type === 'dine-in' ? '🍽️' : opt.type === 'takeout' ? '📦' : '🚚'} {opt.name}
