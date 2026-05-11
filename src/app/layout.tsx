@@ -63,25 +63,14 @@ export default function RootLayout({
         <meta name="installable" content="yes" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground select-none overscroll-none`}
-        style={{ overscrollBehavior: 'none', touchAction: 'manipulation' }}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground overscroll-none`}
+        style={{ overscrollBehavior: 'none' }}
       >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <QueryProvider>
             {children}
             <Toaster position="top-right" richColors />
-            {/* Service Worker Registration */}
-            <script
-              dangerouslySetInnerHTML={{
-                __html: `
-                  if ('serviceWorker' in navigator) {
-                    window.addEventListener('load', function() {
-                      navigator.serviceWorker.register('/sw.js').catch(function() {});
-                    });
-                  }
-                `,
-              }}
-            />
+
           </QueryProvider>
         </ThemeProvider>
       </body>
