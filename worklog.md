@@ -47,3 +47,26 @@ Stage Summary:
 - No more duplicates or placeholders
 - AI upgrade script ready: `node scripts/upgrade-images-ai.mjs`
 - The AI API needs time to reset rate limit before upgrade script can work
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Create and run scripts/upgrade-images-ai.mjs to upgrade SVG placeholder images to AI-generated professional photos
+
+Work Log:
+- Analyzed project structure and identified 164 SVG placeholder images (<30KB) vs 89 AI-generated images (>30KB)
+- Found existing scripts/upgrade-images-ai.mjs with 164 items defined with professional prompts
+- Script uses z-ai-web-dev-sdk for AI image generation with rate limiting and retry logic
+- Reduced delay between requests from 5s to 2s, then rewrote with batch mode and exponential backoff
+- Attempted multiple runs but consistently hit API rate limits (429 errors)
+- Created background daemon script (scripts/ai-upgrade-daemon.sh) that waits for rate limit to reset
+- Daemon is currently running and will automatically process images once rate limit clears
+
+Stage Summary:
+- 89 of 253 menu images already have AI-generated professional photos
+- 164 images still use SVG placeholders that need upgrading
+- All 164 items have detailed prompts defined in scripts/upgrade-images-ai.mjs
+- API rate limit is preventing immediate processing
+- Background daemon is running and will process 3 images per batch once rate limit resets
+- Script supports --batch N and --start N flags for incremental processing
+- Run command: node scripts/upgrade-images-ai.mjs --batch 3 --start 0
