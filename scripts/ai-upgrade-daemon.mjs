@@ -1,29 +1,34 @@
 #!/usr/bin/env node
 /**
- * UPGRADE menu images from SVG to AI-generated professional photos.
- * Uses z-ai-web-dev-sdk with exponential backoff for rate limiting.
+ * AI UPGRADE DAEMON - Runs persistently in background with aggressive rate-limit handling.
+ * Starts with an initial delay, then processes images one-by-one with long waits.
  * 
- * Usage: node scripts/upgrade-images-ai.mjs [--batch N] [--start N]
- *   --batch N  : Process N images per run (default: 5)
- *   --start N  : Start from item index N (default: 0)
- * 
- * Already-generated AI images (files > 30KB) are skipped.
- * On 429 rate limit: waits with exponential backoff up to 5 minutes.
- * Run multiple times to process all images in batches.
+ * Usage: nohup node scripts/ai-upgrade-daemon.mjs [--wait N] [--delay N] > /tmp/ai-upgrade.log 2>&1 &
+ *   --wait N  : Initial wait before starting in seconds (default: 300 = 5 min)
+ *   --delay N : Delay between each image in seconds (default: 45)
  */
 
-import { existsSync, statSync } from 'fs';
+import { existsSync, statSync, writeFileSync, appendFileSync } from 'fs';
 import { join } from 'path';
 import ZAI from 'z-ai-web-dev-sdk';
 
 const MIN_AI_SIZE = 30000;
 
 const args = process.argv.slice(2);
-let BATCH_SIZE = 5;
-let START_IDX = 0;
+let INITIAL_WAIT = 300; // 5 minutes
+let DELAY_SEC = 45;
 for (let i = 0; i < args.length; i++) {
-  if (args[i] === '--batch' && args[i+1]) { BATCH_SIZE = parseInt(args[i+1]); i++; }
-  if (args[i] === '--start' && args[i+1]) { START_IDX = parseInt(args[i+1]); i++; }
+  if (args[i] === '--wait' && args[i+1]) { INITIAL_WAIT = parseInt(args[i+1]); i++; }
+  if (args[i] === '--delay' && args[i+1]) { DELAY_SEC = parseInt(args[i+1]); i++; }
+}
+
+const LOG_FILE = '/tmp/ai-upgrade.log';
+
+function log(msg) {
+  const ts = new Date().toISOString().slice(11, 19);
+  const line = `[${ts}] ${msg}`;
+  console.log(line);
+  try { appendFileSync(LOG_FILE, line + '\n'); } catch {}
 }
 
 const ITEMS = [
@@ -193,9 +198,6 @@ const ITEMS = [
   { path: '/menu-images/vode/voda-z-okusom.png', prompt: 'Bottle of flavored water with fruit essence, water bottle with subtle fruit infusion, professional beverage photography, dark background, refreshing lighting' },
 ];
 
-const DELAY_MS = 30000; // 30s between requests to avoid rate limiting
-const MAX_RETRIES = 10; // More retries for persistent rate limits
-
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 async function generateImage(zai, item, retryCount = 0) {
@@ -207,14 +209,13 @@ async function generateImage(zai, item, retryCount = 0) {
     const base64 = response.data[0].base64;
     const buffer = Buffer.from(base64, 'base64');
     const fullPath = join(process.cwd(), 'public', item.path);
-    const { writeFileSync } = await import('fs');
     writeFileSync(fullPath, buffer);
     return { success: true, size: buffer.length };
   } catch (err) {
     const msg = err.message || '';
-    if ((msg.includes('429') || msg.includes('Too many') || msg.includes('rate')) && retryCount < MAX_RETRIES) {
-      const waitSec = Math.min(120 * Math.pow(1.5, retryCount), 600); // exponential: 120s, 180s, 270s, 405s, 600s max
-      console.log(`\n    ⏳ Rate limited, waiting ${waitSec}s (retry ${retryCount + 1}/${MAX_RETRIES})...`);
+    if ((msg.includes('429') || msg.includes('Too many') || msg.includes('rate')) && retryCount < 10) {
+      const waitSec = Math.min(120 * Math.pow(1.5, retryCount), 600);
+      log(`  Rate limited, waiting ${waitSec}s (retry ${retryCount + 1}/10)...`);
       await sleep(waitSec * 1000);
       return generateImage(zai, item, retryCount + 1);
     }
@@ -223,17 +224,25 @@ async function generateImage(zai, item, retryCount = 0) {
 }
 
 async function main() {
-  console.log(`\n🎨 Upgrading ${ITEMS.length} menu images to AI-generated photos...`);
-  console.log(`   Batch: ${BATCH_SIZE} images | Start: ${START_IDX}`);
-  console.log(`   Skipping images already > ${MIN_AI_SIZE/1000}KB (already AI-generated)\n`);
+  log(`=== AI Upgrade Daemon Started ===`);
+  log(`Initial wait: ${INITIAL_WAIT}s | Delay between images: ${DELAY_SEC}s`);
+  log(`Total items: ${ITEMS.length}`);
+  
+  // Initial wait to let rate limits clear
+  if (INITIAL_WAIT > 0) {
+    log(`Waiting ${INITIAL_WAIT}s for rate limits to clear...`);
+    await sleep(INITIAL_WAIT * 1000);
+    log(`Initial wait complete, starting processing...`);
+  }
 
   const zai = await ZAI.create();
-  let upgraded = 0, skipped = 0, failed = 0, processed = 0;
+  let upgraded = 0, skipped = 0, failed = 0;
 
-  for (let i = START_IDX; i < ITEMS.length && processed < BATCH_SIZE; i++) {
+  for (let i = 0; i < ITEMS.length; i++) {
     const item = ITEMS[i];
     const fullPath = join(process.cwd(), 'public', item.path);
 
+    // Skip already-upgraded images
     if (existsSync(fullPath)) {
       const stat = statSync(fullPath);
       if (stat.size > MIN_AI_SIZE) {
@@ -243,53 +252,41 @@ async function main() {
     }
 
     const label = item.path.split('/').pop().replace('.png', '');
-    process.stdout.write(`  [${i+1}/${ITEMS.length}] ${label}... `);
+    log(`[${i+1}/${ITEMS.length}] Generating: ${label}...`);
 
     const result = await generateImage(zai, item);
 
     if (result.success) {
-      console.log(`✅ (${(result.size/1024).toFixed(0)}KB)`);
+      log(`  OK: ${(result.size/1024).toFixed(0)}KB (total: ${upgraded+1} upgraded, ${skipped} skipped, ${failed} failed)`);
       upgraded++;
     } else {
-      console.log(`❌ ${result.error}`);
+      log(`  FAIL: ${result.error}`);
       failed++;
     }
-    processed++;
 
-    if (processed < BATCH_SIZE) {
-      await sleep(DELAY_MS);
+    // Wait between images
+    if (i < ITEMS.length - 1) {
+      await sleep(DELAY_SEC * 1000);
     }
   }
 
-  console.log(`\n📊 Batch complete! Upgraded: ${upgraded}, Skipped: ${skipped}, Failed: ${failed}, Processed: ${processed}`);
+  log(`=== Done! Upgraded: ${upgraded}, Skipped: ${skipped}, Failed: ${failed} ===`);
   
-  // Find next non-AI item for next batch
-  let nextStart = START_IDX;
-  let foundNext = false;
-  for (let i = START_IDX; i < ITEMS.length; i++) {
-    const fullPath = join(process.cwd(), 'public', ITEMS[i].path);
-    if (existsSync(fullPath)) {
-      const stat = statSync(fullPath);
-      if (stat.size <= MIN_AI_SIZE) {
-        if (!foundNext) { nextStart = i; foundNext = true; }
-      }
-    } else {
-      if (!foundNext) { nextStart = i; foundNext = true; }
-    }
-  }
-
-  const remaining = ITEMS.slice(nextStart).filter(item => {
+  // Check if any remain
+  const remaining = ITEMS.filter(item => {
     const fp = join(process.cwd(), 'public', item.path);
     if (existsSync(fp)) return statSync(fp).size <= MIN_AI_SIZE;
     return true;
-  }).length;
-
-  if (remaining > 0) {
-    console.log(`\n🔄 Run next batch: node scripts/upgrade-images-ai.mjs --batch ${BATCH_SIZE} --start ${nextStart}`);
-    console.log(`   Remaining items to upgrade: ${remaining}`);
+  });
+  
+  if (remaining.length > 0) {
+    log(`Still ${remaining.length} items remaining. Re-run the daemon to process them.`);
   } else {
-    console.log('\n🎉 All items processed! All images are AI-generated!');
+    log(`ALL ${ITEMS.length} images upgraded successfully!`);
   }
 }
 
-main().catch(console.error);
+main().catch(err => {
+  log(`Fatal error: ${err.message}`);
+  process.exit(1);
+});

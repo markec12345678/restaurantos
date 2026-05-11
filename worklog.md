@@ -70,3 +70,31 @@ Stage Summary:
 - Background daemon is running and will process 3 images per batch once rate limit resets
 - Script supports --batch N and --start N flags for incremental processing
 - Run command: node scripts/upgrade-images-ai.mjs --batch 3 --start 0
+
+---
+Task ID: ai-upgrade-images
+Agent: main
+Task: Run node scripts/upgrade-images-ai.mjs to upgrade SVG menu images to AI-generated professional photos
+
+Work Log:
+- Checked current state: 119 SVG images (<30KB) need upgrading to AI-generated photos
+- Existing script scripts/upgrade-images-ai.mjs already exists with 164 items and prompts
+- Updated script: increased DELAY_MS from 5s to 30s between requests, MAX_RETRIES from 5 to 10
+- Updated backoff: from 60*2^retry to 120*1.5^retry (max 600s)
+- API is currently rate-limited (429 Too Many Requests) from previous session usage
+- Created new scripts/ai-upgrade-daemon.mjs with persistent background processing:
+  - 5-minute initial wait for rate limits to clear
+  - 45s delay between each image generation
+  - 10 retries with exponential backoff up to 600s
+  - Logging to /tmp/ai-upgrade.log
+- Started daemon in background (PID varies)
+- All food images (top-level) already have AI-generated photos
+- All drink subcategory images still have SVG placeholders
+
+Stage Summary:
+- Script scripts/upgrade-images-ai.mjs updated with better rate limit handling
+- Script scripts/ai-upgrade-daemon.mjs created as persistent background daemon
+- Daemon started: nohup node scripts/ai-upgrade-daemon.mjs --wait 300 --delay 45
+- Monitor progress: tail -f /tmp/ai-upgrade.log
+- 164 items total, ~119 still need AI upgrade (rest are already done or icon files)
+- API rate limit currently active - daemon will wait and retry automatically
