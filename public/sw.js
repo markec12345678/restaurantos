@@ -2,7 +2,7 @@
 // Omogoča namestitev na tablico (PWA), delno offline delovanje
 // in sinhronizacijo naročil, ko je povezava spet na voljo
 
-const CACHE_NAME = 'restaurantos-v7'
+const CACHE_NAME = 'restaurantos-v8'
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -77,7 +77,27 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Static assets - Cache first, then network (aggressive caching za hitrejši zagon)
+  // Menu images - Network first (vedno sveže slike iz strežnika)
+  if (url.pathname.startsWith('/menu-images/')) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone()
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, clone)
+            })
+          }
+          return response
+        })
+        .catch(() => {
+          return caches.match(request)
+        })
+    )
+    return
+  }
+
+  // Other static assets - Cache first, then network
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached
