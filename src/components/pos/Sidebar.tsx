@@ -2,6 +2,7 @@
 
 import { usePOSStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
+import { useI18n, localeLabels, type AppLocale } from '@/i18n/provider'
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -30,6 +31,8 @@ import {
   Maximize,
   Minimize,
   Monitor,
+  Globe,
+  Check,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore, useState, useEffect } from 'react'
@@ -71,8 +74,10 @@ const navItems = [
 export function Sidebar() {
   const { activeModule, setActiveModule, sidebarOpen, setSidebarOpen, setKioskMode } = usePOSStore()
   const { theme, setTheme } = useTheme()
+  const { locale, setLocale, t } = useI18n()
   const mounted = useMounted()
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [langOpen, setLangOpen] = useState(false)
 
   // Fullscreen toggle
   const toggleFullscreen = () => {
@@ -196,7 +201,7 @@ export function Sidebar() {
             onClick={toggleFullscreen}
           >
             {isFullscreen ? <Minimize className="h-3.5 w-3.5" /> : <Maximize className="h-3.5 w-3.5" />}
-            {isFullscreen ? 'Izhod iz cel. zaslona' : 'Celozaslonski način'}
+            {isFullscreen ? t('common.close') : 'Celozaslonski način'}
           </Button>
           {/* Kiosk način */}
           <Button
@@ -207,6 +212,36 @@ export function Sidebar() {
             <Monitor className="h-3.5 w-3.5" />
             Kiosk način
           </Button>
+          {/* Language switcher */}
+          <div className="relative">
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-2 text-xs h-8"
+              onClick={() => setLangOpen(!langOpen)}
+            >
+              <Globe className="h-3.5 w-3.5" />
+              <span>{localeLabels[locale].flag}</span>
+              <span className="truncate">{localeLabels[locale].label}</span>
+            </Button>
+            {langOpen && (
+              <div className="absolute bottom-full left-0 mb-1 w-full bg-popover border border-border rounded-lg shadow-lg overflow-hidden z-50">
+                {(Object.entries(localeLabels) as [AppLocale, { flag: string; label: string }][]).map(([code, info]) => (
+                  <button
+                    key={code}
+                    onClick={() => { setLocale(code); setLangOpen(false) }}
+                    className={cn(
+                      'w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-accent transition-colors',
+                      locale === code && 'bg-accent font-semibold'
+                    )}
+                  >
+                    <span>{info.flag}</span>
+                    <span className="truncate">{info.label}</span>
+                    {locale === code && <Check className="h-3 w-3 ml-auto text-primary" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {/* Tema */}
           {mounted && (
             <Button
@@ -215,7 +250,7 @@ export function Sidebar() {
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             >
               {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-              {theme === 'dark' ? 'Svetli način' : 'Temni način'}
+              {theme === 'dark' ? t('settings.light') : t('settings.dark')}
             </Button>
           )}
         </div>

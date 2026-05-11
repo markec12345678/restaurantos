@@ -1,99 +1,31 @@
 ---
 Task ID: 1
-Agent: Main Agent
-Task: Find alternative solution for menu item images after AI image quota was exhausted
+Agent: main
+Task: Implement next-intl multilingualism, enhance QR ordering, generate missing images
 
 Work Log:
-- Analyzed existing scripts: generate-missing-images.mjs (SVG silhouettes) and upgrade-images-ai.mjs (AI image generation)
-- Attempted web search via z-ai-web-dev-sdk but it was rate limited (429)
-- Discovered Pexels CDN direct download works without API key (HTTP 200, returns JPEG)
-- Created scripts/generate-premium-images.mjs - improved SVG generation with richer illustrations, category palettes, decorative elements (164 images generated as fallback)
-- Tested Pexels CDN with known photo IDs - confirmed downloads work (11-136KB images)
-- Discovered 370 working Pexels photo IDs by testing sequential ranges around known IDs
-- Created scripts/upgrade-images-pexels.mjs - downloads real stock photos from Pexels CDN
-- Curated photo IDs per drink category (wine, beer, cocktail, coffee, spirit, gin, bitter, liqueur, water, juice, softDrink)
-- Executed Pexels download script in 5 batches - all 164 drink images successfully upgraded
-- All images now real stock photos (avg 73-119KB per category) instead of SVG silhouettes
+- Created next-intl infrastructure: src/i18n/request.ts, src/i18n/provider.tsx, src/middleware.ts
+- Updated next.config.ts with next-intl plugin
+- Created translation files for 5 languages: messages/sl.json, en.json, it.json, de.json, hr.json
+- Updated layout.tsx with NextIntlClientProvider and I18nProvider
+- Added language switcher to Sidebar.tsx with Globe icon and locale selection dropdown
+- Enhanced QR ordering page with:
+  - Search bar (filters across all categories)
+  - Item detail modal (click to see full details + add note)
+  - Call waiter button (with 30s cooldown, POST to /api/public/call-waiter)
+  - Super-groups for drinks (Vina, Piva, Žgane pijače, Napitki, Brezalkoholne)
+  - Locale-aware placeholders (t.optional, t.notePlaceholder, t.statusAutoUpdates)
+  - New translation keys: search, searchResults, callWaiter, waiterCalled, itemDetail, addItemNote, statusAutoUpdates, optional, notePlaceholder, wines, beers, spirits, beverages, nonAlcoholic
+- Created /api/public/call-waiter API endpoint (WebSocket broadcast + audit log)
+- Updated Service Worker cache to v10
+- Analyzed missing images: 54 items have image paths pointing to non-existent files
+- Created gen_missing_images.sh script for later batch generation (API rate-limited)
 
 Stage Summary:
-- Created 3 new scripts: generate-premium-images.mjs, upgrade-images-stock.mjs (web search, didn't work), upgrade-images-pexels.mjs (Pexels CDN, works)
-- 164 menu drink images upgraded from SVG placeholders to real Pexels stock photos
-- Food images at root level remain AI-generated from previous session (67-216KB, look good)
-- No API key or quota needed for Pexels CDN downloads
-
----
-Task ID: 3
-Agent: Main Agent
-Task: Implement POS-style visual improvements for menu items - size badges, color accents, better card layout
-
-Work Log:
-- Analyzed database: 227 items total, 16 groups sharing images (34 items), mainly wines (kozarec/steklenica), beers (0.3L/0.5L), waters (0.25L/0.5L/1.0L)
-- Researched professional POS system UI patterns (Square, Toast, Lightspeed, Aloha)
-- Added `accent` color property to all 29 categories in categoryEmojiMap for color-coded borders
-- Created `extractSizeLabel()` function that parses item names to extract size indicators: (0.30L), (kozarec), (steklenica), etc.
-- Modified menu item card: added left border accent color per category (`borderLeft: 4px solid ${catStyle.accent}`)
-- Added size badge overlay on images (colored bar at bottom of image showing "Koz.", "Stek.", "0.3L", "0.5L", etc.)
-- Added size badge next to price in text area (rounded pill with category accent color)
-- Cleaned up display names by removing size info from the name text (shown as badge instead)
-- Updated Service Worker cache version to v4
-- Built production version and restarted server
-
-Stage Summary:
-- All 227 menu items now have distinct visual representation
-- 34 items that shared images now have clear size badges (Koz./Stek./0.3L/0.5L/1L)
-- Each category has a unique accent color on the left border for instant visual grouping
-- Production build successful, server running on port 3000
-
----
-Task ID: 5
-Agent: Main Agent
-Task: Fix application crash - server dying after ~30 seconds
-
-Work Log:
-- Identified that Node.js server was crashing silently after ~30 seconds when started with `nohup`, `setsid`, or background `&`
-- Root cause: Shell-based background processes were being killed when parent shell terminated
-- Tested multiple startup methods: nohup, setsid, disown, node -e wrapper
-- Discovered that `start-stop-daemon` with proper bash script wrapper keeps the process alive
-- Also discovered that Caddy proxy sends continuous API polling requests from active browser tabs
-- Removed `output: "standalone"` from next.config.ts (caused issues with custom server.js)
-- Created `/home/z/my-project/start-prod.sh` for reliable production startup
-- Added global error handlers to server.js (uncaughtException, unhandledRejection)
-- Server now runs stably on port 3000 via start-stop-daemon
-
-Stage Summary:
-- Production server running stably via `start-stop-daemon --start --background --make-pidfile --pidfile /tmp/restaurantos.pid --startas /bin/bash -- /home/z/my-project/start-prod.sh`
-- All HTTP/CSS/JS chunks returning 200 OK
-- Caddy proxy on port 81 forwarding correctly to Node on port 3000
----
-Task ID: 2
-Agent: Main Agent
-Task: Implement QR Ordering System and Multilingual Support
-
-Work Log:
-- Created public menu API at /api/public/menu (no auth required)
-- Created public order API at /api/public/order (no auth required, QR orders)
-- Built customer-facing QR ordering page at /qr/[tableId] with:
-  - Mobile-first responsive design
-  - 5-language support (SL, EN, IT, DE, HR) with inline translations
-  - Menu browsing by category with images
-  - Shopping cart with quantity controls
-  - Customer info (name, phone, notes)
-  - Order submission and real-time status tracking
-  - Beautiful amber/orange restaurant theme
-  - Framer Motion animations
-- Added QR code generation to TableMap component:
-  - QR button per table (generates QR code for table ordering URL)
-  - Bulk QR generation for all tables
-  - Print and download QR codes
-  - Uses 'qrcode' npm package
-- Added /api/public to PUBLIC_ROUTES in auth-middleware.ts
-- Updated Service Worker to v9 for cache invalidation
-- Fixed double image path bug in public menu API
-- Generated remaining food item images in background
-
-Stage Summary:
-- QR ordering fully functional: scan QR → view menu → add to cart → order → track status
-- 5-language support integrated in QR ordering page
-- FURS integration confirmed working (simulation mode)
-- Database: 457 items (190 Hrana + 267 Pijača) across 2 menus
-- Server running on port 3000
+- next-intl configured and working (build passes)
+- 5-language translations for all POS modules
+- QR ordering page significantly enhanced (1520 lines, was 1103)
+- Language switcher in admin Sidebar
+- Call waiter API and UI button
+- 54 images still need generation (API 429 rate limit)
+- Build: SUCCESS
