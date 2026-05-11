@@ -28,6 +28,13 @@ export const metadata: Metadata = {
   title: "RestaurantOS - Prodajna točka",
   description: "Celovit POS sistem za restavracije - naročila, mize, jedilnik, zaloga, HACCP, FURS",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/favicon.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: "/icons/icon-192.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -46,6 +53,8 @@ export default function RootLayout({
   return (
     <html lang="sl" suppressHydrationWarning>
       <head>
+        <link rel="icon" href="/favicon.png" sizes="32x32" type="image/png" />
+        <link rel="icon" href="/favicon-16x16.png" sizes="16x16" type="image/png" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
