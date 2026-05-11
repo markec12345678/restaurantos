@@ -106,6 +106,7 @@ type Permission =
 // Rute, ki ne zahtevajo avtentikacije
 const PUBLIC_ROUTES = [
   '/api/auth',
+  '/api/public',       // QR naročanje (javni meni in naročila)
   '/api/configuration',
   '/api/menus',
   '/api/categories',

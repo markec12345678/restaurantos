@@ -64,3 +64,36 @@ Stage Summary:
 - Production server running stably via `start-stop-daemon --start --background --make-pidfile --pidfile /tmp/restaurantos.pid --startas /bin/bash -- /home/z/my-project/start-prod.sh`
 - All HTTP/CSS/JS chunks returning 200 OK
 - Caddy proxy on port 81 forwarding correctly to Node on port 3000
+---
+Task ID: 2
+Agent: Main Agent
+Task: Implement QR Ordering System and Multilingual Support
+
+Work Log:
+- Created public menu API at /api/public/menu (no auth required)
+- Created public order API at /api/public/order (no auth required, QR orders)
+- Built customer-facing QR ordering page at /qr/[tableId] with:
+  - Mobile-first responsive design
+  - 5-language support (SL, EN, IT, DE, HR) with inline translations
+  - Menu browsing by category with images
+  - Shopping cart with quantity controls
+  - Customer info (name, phone, notes)
+  - Order submission and real-time status tracking
+  - Beautiful amber/orange restaurant theme
+  - Framer Motion animations
+- Added QR code generation to TableMap component:
+  - QR button per table (generates QR code for table ordering URL)
+  - Bulk QR generation for all tables
+  - Print and download QR codes
+  - Uses 'qrcode' npm package
+- Added /api/public to PUBLIC_ROUTES in auth-middleware.ts
+- Updated Service Worker to v9 for cache invalidation
+- Fixed double image path bug in public menu API
+- Generated remaining food item images in background
+
+Stage Summary:
+- QR ordering fully functional: scan QR → view menu → add to cart → order → track status
+- 5-language support integrated in QR ordering page
+- FURS integration confirmed working (simulation mode)
+- Database: 457 items (190 Hrana + 267 Pijača) across 2 menus
+- Server running on port 3000
