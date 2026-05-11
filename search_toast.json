@@ -1,0 +1,65 @@
+[
+  {
+    "url": "https://support.toasttab.com/en/article/Creating-Menus-Groups-and-Items-in-the-Menu-Builder",
+    "name": "Create Menus, Groups, Subgroups, and Items in the Menu Builder",
+    "snippet": "In this article, learn how to use the menu builder to create menus, groups, subgroups, and items for your menu.",
+    "host_name": "support.toasttab.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://getanewpos.com/blog/toasttabpos/toast-tab-capabilities/how-to-use-menu-hierarchy-with-toast-pos-build-better-restaurant-menus",
+    "name": "How to Use Menu Hierarchy with Toast POS: Build Better",
+    "snippet": "Learn how to use Toast POS’s menu hierarchy to organize your restaurant menus efficiently. Discover best practices for building menus, using modifiers, and optimizing the order process across in-house and online platforms.",
+    "host_name": "getanewpos.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.clevergoatmedia.com/blogs/the-toast-chronicles/your-toast-pos-menu-structure-is-your-operational-foundation-nbsp-%F0%9F%98%A4",
+    "name": "Your Toast POS menu structure IS your operational foundation",
+    "snippet": "Your Menu is the top level. Think \"Lunch Menu\" or \"Dinner Menu\" or \"Weekend Brunch.\" Your Groups live inside menus. These are your categories — Appetizers, Salads, Entrees, Desserts, Beverages. Your Items live inside groups. These are the actual dishes — Caesar Salad, Margherita Pizza, Tiramisu.",
+    "host_name": "www.clevergoatmedia.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=qwUvZfZK8Wk",
+    "name": "Toast Restaurant Pos System Setup - Menu (Step-by-Step for",
+    "snippet": "In this video, I show exactly how to set up a menu in Toast POS, step by step, inside the dashboard. This tutorial is designed for restaurant owners, managers, and staff, even if you’ve never...",
+    "host_name": "www.youtube.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://getanewpos.com/from-a-tech/mastering-menu-development-with-toast-pos-a-comprehensive-guide-for-restaurateurs",
+    "name": "Mastering Menu Development with Toast POS: A Comprehensive",
+    "snippet": "Toast POS organizes menus into a hierarchical structure: Menus: The top-level categories, such as Breakfast, Lunch, or Dinner. Groups: Subcategories within menus, like Appetizers, Main Courses, or Desserts. Items: Individual dishes or drinks listed under groups.",
+    "host_name": "getanewpos.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://doc.toasttab.com/doc/platformguide/adminUnderstandingTheMenuHierarchy.html",
+    "name": "Understanding the menu hierarchy - - Platform guide - Toast Tab",
+    "snippet": "Toast products use a hierarchical structure to organize your menu offerings: Menus are the highest level of the hierarchy and represent top-level categories for the offerings your restaurant serves, for example, Food, Drinks, Lunch, Dinner, Happy Hour, or Bar.",
+    "host_name": "doc.toasttab.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://doc.toasttab.com/doc/platformguide/adminCreatingYourMenuHierarchy.html",
+    "name": "Creating your menu hierarchy - - Platform guide - Toast Tab",
+    "snippet": "This section provides procedures and information about creating your menu hierarchy.",
+    "host_name": "doc.toasttab.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  }
+]
