@@ -2,7 +2,7 @@
 // Omogoča namestitev na tablico (PWA), delno offline delovanje
 // in sinhronizacijo naročil, ko je povezava spet na voljo
 
-const CACHE_NAME = 'restaurantos-v4'
+const CACHE_NAME = 'restaurantos-v5'
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',

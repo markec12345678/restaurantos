@@ -44,7 +44,7 @@ const categoryEmojiMap: Record<string, { emoji: string; bg: string; text: string
   'Likerji': { emoji: '🍹', bg: 'bg-fuchsia-100 dark:bg-fuchsia-900/40', text: 'text-fuchsia-700 dark:text-fuchsia-300', accent: '#a21caf' },
   'Grenčice': { emoji: '🫒', bg: 'bg-lime-100 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300', accent: '#4d7c0f' },
   'Destilati, Konjak in Rum': { emoji: '🥃', bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', accent: '#6b21a8' },
-  'Topli Napitki': { emoji: '☕', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', accent: '#78350f' },
+  'Topli Napitki': { emoji: '☕🍵', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', accent: '#78350f' },
   'Mešane Pijače': { emoji: '🍹', bg: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', accent: '#e11d48' },
   'Vode': { emoji: '💧', bg: 'bg-sky-100 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300', accent: '#0ea5e9' },
   'Naravni Sokovi': { emoji: '🧃', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', accent: '#ea580c' },
@@ -77,6 +77,52 @@ function extractSizeLabel(name: string): { label: string; shortLabel: string } |
   for (const { regex, format } of patterns) {
     const match = name.match(regex)
     if (match) return format(match as RegExpMatchArray)
+  }
+  return null
+}
+
+// ============================================
+// EKSTRAKCIJA TIPA ARTIKLA ZA OZNAKO NA SLIKI
+// Ko AI-generirane slike niso dovolj razločljive
+// (npr. čaj izgleda kot kava), ta funkcija doda
+// izrazito oznako tipa na sliko artikla.
+// ============================================
+function extractTypeLabel(name: string): { label: string; emoji: string; color: string } | null {
+  const typePatterns: { regex: RegExp; label: string; emoji: string; color: string }[] = [
+    // Čaj
+    { regex: /\bčaj\b|\bcaj\b/i, label: 'ČAJ', emoji: '🍵', color: '#22c55e' },
+    // Kakav
+    { regex: /\bkakav\b/i, label: 'KAKAV', emoji: '🍫', color: '#92400e' },
+    // Vroča čokolada
+    { regex: /\bvroča\s*čokolada|\bvroca\s*cokolada/i, label: 'ČOKOLADA', emoji: '🍫', color: '#78350f' },
+    // Ledena kava
+    { regex: /\bledena\b/i, label: 'LEDENA', emoji: '🧊', color: '#0ea5e9' },
+    // Espresso
+    { regex: /\bespresso\b/i, label: 'ESPRESSO', emoji: '☕', color: '#78350f' },
+    // Cappuccino
+    { regex: /\bcappuccino\b/i, label: 'CAPPUCCINO', emoji: '☕', color: '#a16207' },
+    // Macchiato
+    { regex: /\bmacchiato\b/i, label: 'MACCHIATO', emoji: '☕', color: '#92400e' },
+    // Bela kava
+    { regex: /\bbela\s*kava\b/i, label: 'BELA KAVA', emoji: '🥛', color: '#f5f5f4' },
+    // Kava s smetano
+    { regex: /\bkava\s*s\s*smetano/i, label: 'SMETANA', emoji: '🍦', color: '#fef3c7' },
+    // Kava z mlekom
+    { regex: /\bkava\s*z\s*mlekom/i, label: 'Z MLEKOM', emoji: '🥛', color: '#fef9c3' },
+    // Riževo mleko
+    { regex: /\briževim?\s*mlekom/i, label: 'RIŽEVO', emoji: '🌾', color: '#fef3c7' },
+    // Brez kofeina
+    { regex: /\bbrez\s*kofeina/i, label: 'BREZ KOF.', emoji: '🚫☕', color: '#6b7280' },
+    // Babyccino
+    { regex: /\bbabyccino\b/i, label: 'BABY', emoji: '👶', color: '#fda4af' },
+    // Pivo
+    { regex: /\bpivo\b/i, label: 'PIVO', emoji: '🍺', color: '#d97706' },
+    // Vino
+    { regex: /\bvino\b|\bvina\b/i, label: 'VINO', emoji: '🍷', color: '#991b1b' },
+  ]
+  
+  for (const { regex, label, emoji, color } of typePatterns) {
+    if (regex.test(name)) return { label, emoji, color }
   }
   return null
 }
@@ -691,6 +737,7 @@ export function OrderPanel() {
                       const hasMods = item.modifierGroups?.length > 0
                       const catStyle = getCategoryStyle(item.category?.name)
                       const sizeInfo = extractSizeLabel(item.name)
+                      const typeInfo = extractTypeLabel(item.name)
                       // Pobriši velikost iz prikazanega imena za čistejši prikaz
                       const displayName = item.name
                         .replace(/\s*\([0-9]+\.?[0-9]*\s*L\)/gi, '')
@@ -752,20 +799,53 @@ export function OrderPanel() {
                                 </span>
                               </div>
                             )}
+                            {/* Oznaka tipa pijače na sliki - izrazita za hitro prepoznavo */}
+                            {typeInfo && !sizeInfo && (
+                              <div 
+                                className="absolute top-0 left-0 right-0 z-10 flex items-center justify-center py-1 px-2"
+                                style={{ backgroundColor: typeInfo.color + 'E6' }}
+                              >
+                                <span className="text-white text-[11px] font-bold tracking-wide drop-shadow-sm flex items-center gap-1">
+                                  <span>{typeInfo.emoji}</span>
+                                  {typeInfo.label}
+                                </span>
+                              </div>
+                            )}
+                            {typeInfo && sizeInfo && (
+                              <div 
+                                className="absolute top-0 left-0 right-0 z-10 flex items-center justify-center py-1 px-2"
+                                style={{ backgroundColor: typeInfo.color + 'CC' }}
+                              >
+                                <span className="text-white text-[9px] font-bold tracking-wide drop-shadow-sm flex items-center gap-0.5">
+                                  <span>{typeInfo.emoji}</span>
+                                  {typeInfo.label}
+                                </span>
+                              </div>
+                            )}
                           </div>
                           {/* Info */}
                           <div className="p-2 flex-1 flex flex-col justify-between min-h-0">
                             <p className="font-semibold text-xs leading-tight line-clamp-2" title={item.name}>{displayName}</p>
                             <div className="flex items-center justify-between mt-1 gap-1">
                               <p className="text-primary font-bold text-sm">€{item.price.toFixed(2)}</p>
-                              {sizeInfo && (
-                                <span 
-                                  className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white flex-shrink-0"
-                                  style={{ backgroundColor: catStyle.accent }}
-                                >
-                                  {sizeInfo.shortLabel}
-                                </span>
-                              )}
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                {typeInfo && (
+                                  <span 
+                                    className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"
+                                    style={{ backgroundColor: typeInfo.color }}
+                                  >
+                                    {typeInfo.emoji} {typeInfo.label}
+                                  </span>
+                                )}
+                                {sizeInfo && (
+                                  <span 
+                                    className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"
+                                    style={{ backgroundColor: catStyle.accent }}
+                                  >
+                                    {sizeInfo.shortLabel}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </button>
