@@ -184,15 +184,8 @@ export function PinLogin({ onLogin, onSkip }: { onLogin: (user: AuthUser) => voi
     setError('')
   }
 
-  // Robust handler za touch in click
-  const handleButtonAction = (action: () => void, e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    action()
-  }
-
   return (
-    <div className="flex items-center justify-center h-full bg-background" style={{ touchAction: 'auto' }}>
+    <div className="flex items-center justify-center h-full bg-background">
       <Card className="w-full max-w-sm mx-4">
         <CardContent className="p-6 space-y-6">
           {/* Logo */}
@@ -230,15 +223,13 @@ export function PinLogin({ onLogin, onSkip }: { onLogin: (user: AuthUser) => voi
           )}
 
           {/* Števčna tipkovnica */}
-          <div className="grid grid-cols-3 gap-2" style={{ touchAction: 'auto' }}>
+          <div className="grid grid-cols-3 gap-2">
             {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(digit => (
               <Button
                 key={digit}
                 variant="outline"
                 className="h-14 text-xl font-bold cursor-pointer select-none"
-                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-                onClick={(e) => handleButtonAction(() => handleDigit(digit), e)}
-                onTouchEnd={(e) => handleButtonAction(() => handleDigit(digit), e)}
+                onClick={() => handleDigit(digit)}
               >
                 {digit}
               </Button>
@@ -246,26 +237,20 @@ export function PinLogin({ onLogin, onSkip }: { onLogin: (user: AuthUser) => voi
             <Button
               variant="ghost"
               className="h-14 cursor-pointer select-none"
-              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-              onClick={(e) => handleButtonAction(handleBackspace, e)}
-              onTouchEnd={(e) => handleButtonAction(handleBackspace, e)}
+              onClick={handleBackspace}
             >
               <KeyRound className="h-5 w-5" />
             </Button>
             <Button
               variant="outline"
               className="h-14 text-xl font-bold cursor-pointer select-none"
-              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-              onClick={(e) => handleButtonAction(() => handleDigit('0'), e)}
-              onTouchEnd={(e) => handleButtonAction(() => handleDigit('0'), e)}
+              onClick={() => handleDigit('0')}
             >
               0
             </Button>
             <Button
               className="h-14 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer select-none"
-              style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
-              onClick={(e) => handleButtonAction(handlePinSubmit, e)}
-              onTouchEnd={(e) => handleButtonAction(handlePinSubmit, e)}
+              onClick={handlePinSubmit}
               disabled={loginMutation.isPending || pin.length < 4}
             >
               <LogIn className="h-5 w-5" />
@@ -278,9 +263,7 @@ export function PinLogin({ onLogin, onSkip }: { onLogin: (user: AuthUser) => voi
               <Button
                 variant="ghost"
                 className="text-xs text-muted-foreground cursor-pointer"
-                style={{ touchAction: 'manipulation' }}
-                onClick={(e) => handleButtonAction(onSkip, e)}
-                onTouchEnd={(e) => handleButtonAction(onSkip, e)}
+                onClick={onSkip}
               >
                 Preskoči prijavo
               </Button>
