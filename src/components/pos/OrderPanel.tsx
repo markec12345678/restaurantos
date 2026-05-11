@@ -408,16 +408,31 @@ export function OrderPanel() {
   // ============================================
   const superGroups = useMemo(() => {
     const catNames = categoriesForMenu.map((c: { name: string }) => c.name)
-    // Only define super-groups for the drinks menu (Pijača)
-    if (!catNames.includes('Penine in Šampanjci')) return []
 
-    return [
-      { id: 'vina', name: 'Vina', icon: '🍷', color: '#7c2d12', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Penine in Šampanjci', 'Bela Vina', 'Rosé Vino', 'Rdeča Vina', 'Tuja Vina', 'Likersko Vino'].includes(c.name)).map((c: { id: string }) => c.id) },
-      { id: 'piva', name: 'Piva', icon: '🍺', color: '#d97706', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Točeno Pivo', 'Pivo', 'Craft Piva', 'Brezalkoholno Pivo'].includes(c.name)).map((c: { id: string }) => c.id) },
-      { id: 'zganepijace', name: 'Žgane pijače', icon: '🥃', color: '#6b21a8', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Viski', 'Gin', 'Likerji', 'Grenčice', 'Destilati, Konjak in Rum'].includes(c.name)).map((c: { id: string }) => c.id) },
-      { id: 'napitki', name: 'Napitki', icon: '☕', color: '#92400e', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Topli Napitki', 'Mešane Pijače'].includes(c.name)).map((c: { id: string }) => c.id) },
-      { id: 'brezalkoholne', name: 'Brezalkoholne', icon: '🥤', color: '#0ea5e9', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Vode', 'Naravni Sokovi', 'Sokovi', 'Gazirane Pijače'].includes(c.name)).map((c: { id: string }) => c.id) },
-    ]
+    // Super-groups for the drinks menu (Pijača)
+    if (catNames.includes('Penine in Šampanjci')) {
+      return [
+        { id: 'vina', name: 'Vina', icon: '🍷', color: '#7c2d12', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Penine in Šampanjci', 'Bela Vina', 'Rosé Vino', 'Rdeča Vina', 'Tuja Vina', 'Likersko Vino'].includes(c.name)).map((c: { id: string }) => c.id) },
+        { id: 'piva', name: 'Piva', icon: '🍺', color: '#d97706', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Točeno Pivo', 'Pivo', 'Craft Piva', 'Brezalkoholno Pivo'].includes(c.name)).map((c: { id: string }) => c.id) },
+        { id: 'zganepijace', name: 'Žgane pijače', icon: '🥃', color: '#6b21a8', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Viski', 'Gin', 'Likerji', 'Grenčice', 'Destilati, Konjak in Rum'].includes(c.name)).map((c: { id: string }) => c.id) },
+        { id: 'napitki', name: 'Napitki', icon: '☕', color: '#92400e', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Topli Napitki', 'Mešane Pijače', 'Smoothie in Shake', 'Vroča Pijača z Alkoholom'].includes(c.name)).map((c: { id: string }) => c.id) },
+        { id: 'brezalkoholne', name: 'Brezalkoholne', icon: '🥤', color: '#0ea5e9', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Vode', 'Naravni Sokovi', 'Sokovi', 'Gazirane Pijače'].includes(c.name)).map((c: { id: string }) => c.id) },
+      ]
+    }
+
+    // Super-groups for the food menu (Hrana)
+    if (catNames.includes('Predjedi') && catNames.includes('Glavne jedi')) {
+      return [
+        { id: 'predjedijuhe', name: 'Predjedi & Juhe', icon: '🥗', color: '#16a34a', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Predjedi', 'Juhe'].includes(c.name)).map((c: { id: string }) => c.id) },
+        { id: 'glavne', name: 'Glavne jedi', icon: '🍽️', color: '#dc2626', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Glavne jedi', 'Testenine', 'Pica', 'Burgerji'].includes(c.name)).map((c: { id: string }) => c.id) },
+        { id: 'specialnosti', name: 'Specialnosti', icon: '⭐', color: '#7c3aed', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Rižote', 'Morski Sadeži', 'Žara in Grill', 'Slovenske Jedi'].includes(c.name)).map((c: { id: string }) => c.id) },
+        { id: 'priloge solate', name: 'Priloge & Solate', icon: '🥬', color: '#84cc16', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Priloge', 'Solate'].includes(c.name)).map((c: { id: string }) => c.id) },
+        { id: 'sladice', name: 'Sladice', icon: '🍰', color: '#ec4899', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Sladice'].includes(c.name)).map((c: { id: string }) => c.id) },
+        { id: 'sendvicizajtrk', name: 'Sendviči & Zajtrk', icon: '🥪', color: '#f59e0b', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Sendviči in Tost', 'Dječji Meni', 'Zajtrk in Brunch'].includes(c.name)).map((c: { id: string }) => c.id) },
+      ]
+    }
+
+    return []
   }, [categoriesForMenu])
 
   const filteredMenuItems = useMemo(() => {
