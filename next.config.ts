@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   reactStrictMode: true, // FIX: Omogoči strict mode za boljšo kakovost kode
+  devIndicators: false,
 };
 
 export default nextConfig;
