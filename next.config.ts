@@ -1,13 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // NOTE: "standalone" removed - causes crashes with custom server.js in production
+  // Custom server.js with WebSocket support needs standard Next.js build
   /* config options here */
-  // FIX BUG 25: Onemogoči ignoreBuildErrors — skriva prave TS napake
   typescript: {
     ignoreBuildErrors: false,
   },
-  reactStrictMode: true, // FIX: Omogoči strict mode za boljšo kakovost kode
+  reactStrictMode: true,
   devIndicators: false,
 };
 

@@ -43,3 +43,24 @@ Stage Summary:
 - 34 items that shared images now have clear size badges (Koz./Stek./0.3L/0.5L/1L)
 - Each category has a unique accent color on the left border for instant visual grouping
 - Production build successful, server running on port 3000
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Fix application crash - server dying after ~30 seconds
+
+Work Log:
+- Identified that Node.js server was crashing silently after ~30 seconds when started with `nohup`, `setsid`, or background `&`
+- Root cause: Shell-based background processes were being killed when parent shell terminated
+- Tested multiple startup methods: nohup, setsid, disown, node -e wrapper
+- Discovered that `start-stop-daemon` with proper bash script wrapper keeps the process alive
+- Also discovered that Caddy proxy sends continuous API polling requests from active browser tabs
+- Removed `output: "standalone"` from next.config.ts (caused issues with custom server.js)
+- Created `/home/z/my-project/start-prod.sh` for reliable production startup
+- Added global error handlers to server.js (uncaughtException, unhandledRejection)
+- Server now runs stably on port 3000 via start-stop-daemon
+
+Stage Summary:
+- Production server running stably via `start-stop-daemon --start --background --make-pidfile --pidfile /tmp/restaurantos.pid --startas /bin/bash -- /home/z/my-project/start-prod.sh`
+- All HTTP/CSS/JS chunks returning 200 OK
+- Caddy proxy on port 81 forwarding correctly to Node on port 3000
