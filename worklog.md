@@ -19,3 +19,31 @@ Stage Summary:
 - Script: scripts/generate-missing-images.mjs
 - Technology: SVG generation + Sharp PNG conversion
 - Categories covered: bela-vina, rdeca-vina, rose-vino, penine, tuja-vina, likersko-vino, toceno-pivo, pivo, craft-piva, brezalk-pivo, viski, gin, likerji, grencice, destilati, topli-napitki, mesane-pijace, vode, naravni-sokovi, sokovi, gazirane-pijace
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Make menu images professional quality
+
+Work Log:
+- First attempted AI image generation via z-ai-generate CLI - all 164 requests hit 429 rate limit
+- Tried SDK directly - also 429 rate limited (from previous batch of 164 failed CLI calls)
+- Waited 30s, 60s, 120s - still rate limited
+- Created professional SVG-based images as immediate solution:
+  - Realistic product silhouettes (wine bottles, beer glasses, spirit bottles, coffee cups, cocktail glasses, soft drink bottles)
+  - Each has unique: gradient backgrounds, glass reflections, shadows, carbonation bubbles, steam effects, foam heads, labels with item names
+  - Category-specific designs: wine bottles with cork/label, beer with foam/bubbles, spirits with slim bottles, coffee with steam, cocktails with garnish
+  - 6 distinct silhouette types mapped to categories
+  - All 164 images generated successfully with 0 failures
+- Created scripts/upgrade-images-ai.mjs for future AI photo upgrade:
+  - Processes one image at a time with 5-second delays
+  - Auto-retries on 429 with 60-second wait
+  - Skips already-AI-generated images (>50KB)
+  - 164 items with detailed professional prompts
+- Final verification: 253/253 unique images, 0 duplicates
+
+Stage Summary:
+- All menu items now have unique, professional SVG-based images
+- No more duplicates or placeholders
+- AI upgrade script ready: `node scripts/upgrade-images-ai.mjs`
+- The AI API needs time to reset rate limit before upgrade script can work
