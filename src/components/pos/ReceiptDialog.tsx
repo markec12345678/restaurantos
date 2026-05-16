@@ -5,12 +5,13 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { Printer, Copy, CheckCircle2, AlertTriangle, CreditCard, Banknote, Smartphone, Eye, Shield, FileWarning } from 'lucide-react'
+import { Printer, Copy, CheckCircle2, AlertTriangle, CreditCard, Banknote, Smartphone, Eye, Shield, FileWarning, Mail, MessageSquare } from 'lucide-react'
 import { format } from 'date-fns'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { StornoDialog } from '@/components/pos/StornoDialog'
+import QRCode from 'qrcode'
 
 // ============================================
 // TIPI (ZDDV-1 skladen račun)
@@ -92,6 +93,7 @@ export function ReceiptDialog({
   const [isPreview, setIsPreview] = useState(true)
   const [verifying, setVerifying] = useState(false)
   const [stornoDialogOpen, setStornoDialogOpen] = useState(false)
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('')
   const queryClient = useQueryClient()
 
   const { data: receipt, isLoading } = useQuery({
@@ -103,6 +105,51 @@ export function ReceiptDialog({
     },
     enabled: !!orderId && open,
   })
+
+  // Generiraj QR kodo ko je račun davčno overjen
+  useEffect(() => {
+    if (!receipt?.fiscalVerified || !receipt.zoi) {
+      setQrCodeDataUrl('')
+      return
+    }
+
+    const generateQR = async () => {
+      try {
+        // FURS QR vsebina: ZOI | datum | znesek | davčna št. | prostor | blagajna
+        const dt = new Date(receipt.receiptDate)
+        const day = String(dt.getDate()).padStart(2, '0')
+        const month = String(dt.getMonth() + 1).padStart(2, '0')
+        const year = dt.getFullYear()
+        const hours = String(dt.getHours()).padStart(2, '0')
+        const minutes = String(dt.getMinutes()).padStart(2, '0')
+        const seconds = String(dt.getSeconds()).padStart(2, '0')
+        const formattedDate = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`
+
+        const taxNumber = receipt.taxId.replace('SI', '')
+        const qrContent = [
+          receipt.zoi,
+          formattedDate,
+          receipt.total.toFixed(2),
+          taxNumber,
+          receipt.businessId,
+          receipt.registerId,
+        ].join('|')
+
+        const dataUrl = await QRCode.toDataURL(qrContent, {
+          width: 120,
+          margin: 1,
+          color: { dark: '#000000', light: '#ffffff' },
+          errorCorrectionLevel: 'M',
+        })
+        setQrCodeDataUrl(dataUrl)
+      } catch (err) {
+        console.error('QR generation error:', err)
+        setQrCodeDataUrl('')
+      }
+    }
+
+    generateQR()
+  }, [receipt?.fiscalVerified, receipt?.zoi, receipt?.receiptDate, receipt?.total, receipt?.taxId, receipt?.businessId, receipt?.registerId])
 
   // Shrani račun v bazo
   const saveReceipt = useMutation({
@@ -251,6 +298,46 @@ export function ReceiptDialog({
                   <Button variant="outline" size="sm" className="h-7 text-xs" onClick={handlePrint}>
                     <Printer className="h-3 w-3 mr-1" />
                     Natisni
+                  </Button>
+                  {/* Digitalni račun — pošlji po e-pošti */}
+                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={async () => {
+                    if (!orderId) return
+                    try {
+                      const res = await authFetch('/api/digital-receipt', {
+                        method: 'POST',
+                        body: JSON.stringify({ orderId, method: 'email' }),
+                      })
+                      if (res.ok) {
+                        toast.success('Digitalni račun poslan po e-pošti!')
+                      } else {
+                        toast.error('Napaka pri pošiljanju')
+                      }
+                    } catch {
+                      toast.error('Napaka pri pošiljanju')
+                    }
+                  }}>
+                    <Mail className="h-3 w-3 mr-1" />
+                    E-pošta
+                  </Button>
+                  {/* Digitalni račun — pošlji po SMS */}
+                  <Button variant="outline" size="sm" className="h-7 text-xs" onClick={async () => {
+                    if (!orderId) return
+                    try {
+                      const res = await authFetch('/api/digital-receipt', {
+                        method: 'POST',
+                        body: JSON.stringify({ orderId, method: 'sms' }),
+                      })
+                      if (res.ok) {
+                        toast.success('Digitalni račun poslan po SMS!')
+                      } else {
+                        toast.error('Napaka pri pošiljanju')
+                      }
+                    } catch {
+                      toast.error('Napaka pri pošiljanju')
+                    }
+                  }}>
+                    <MessageSquare className="h-3 w-3 mr-1" />
+                    SMS
                   </Button>
                 </>
               )}
@@ -492,14 +579,32 @@ export function ReceiptDialog({
                   </div>
                 </div>
 
-                {/* QR koda placeholder */}
+                {/* FURS QR koda */}
                 <div className="flex justify-center">
-                  <div className="h-20 w-20 border-2 border-current rounded flex items-center justify-center">
-                    <div className="text-center text-[8px] text-muted-foreground">
-                      <Shield className="h-4 w-4 mx-auto mb-0.5" />
-                      FURS QR
+                  {receipt.fiscalVerified && qrCodeDataUrl ? (
+                    <div className="space-y-1 text-center">
+                      <img 
+                        src={qrCodeDataUrl} 
+                        alt="FURS QR koda" 
+                        className="h-24 w-24 mx-auto"
+                      />
+                      <p className="text-[8px] text-muted-foreground">FURS preverjanje</p>
                     </div>
-                  </div>
+                  ) : receipt.fiscalVerified ? (
+                    <div className="h-24 w-24 border-2 border-current rounded flex items-center justify-center">
+                      <div className="text-center text-[8px] text-muted-foreground">
+                        <Shield className="h-4 w-4 mx-auto mb-0.5" />
+                        FURS QR
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-24 w-24 border-2 border-dashed border-muted-foreground/30 rounded flex items-center justify-center">
+                      <div className="text-center text-[8px] text-muted-foreground/50">
+                        <Shield className="h-4 w-4 mx-auto mb-0.5" />
+                        QR po overitvi
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Noga računa */}

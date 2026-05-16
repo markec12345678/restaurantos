@@ -1,28 +1,19 @@
 // RestaurantOS POS - Custom Server z WebSocket podporo
 // Omogoča real-time komunikacijo s KDS zasloni
 
-// Globalni error handlerji - preprečujejo crash procesa
-process.on('uncaughtException', (err) => {
-  console.error('[UNCAUGHT] ', err.message, err.stack || '')
-})
-process.on('unhandledRejection', (err) => {
-  console.error('[UNHANDLED] ', err)
-})
-
 const { createServer } = require('http')
-const { parse } = require('url')
 const next = require('next')
 const { WebSocketServer } = require('ws')
 
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = '0.0.0.0'
-const port = parseInt(process.env.PORT || '3000', 10)
+const port = 3000
 
 const app = next({ dev, hostname, port })
 const handle = app.getRequestHandler()
 
 // ============================================
-// WEBSOCKET UPRAVLJANJE
+// WEBSOCKET UPRavljanje
 // ============================================
 
 /** @type {Set<import('ws').WebSocket>} */
@@ -72,6 +63,7 @@ globalThis.__wsBroadcast = broadcastEvent
  */
 function heartbeatCheck() {
   for (const client of connectedClients) {
+    // Če klient ni odgovoril na prejšnji ping, zapri povezavo
     if (!client.__isAlive) {
       client.terminate()
       connectedClients.delete(client)
@@ -88,7 +80,12 @@ function heartbeatCheck() {
 
 app.prepare().then(() => {
   const server = createServer((req, res) => {
-    const parsedUrl = parse(req.url, true)
+    // Next.js handle needs pathname + query (like url.parse returns)
+    const u = new URL(req.url, `http://${hostname}:${port}`)
+    const parsedUrl = {
+      pathname: u.pathname,
+      query: Object.fromEntries(u.searchParams),
+    }
     handle(req, res, parsedUrl)
   })
 
@@ -103,24 +100,29 @@ app.prepare().then(() => {
     const clientIp = req.socket.remoteAddress
     console.log(`[WS] Nova povezava: ${clientIp} (skupaj: ${connectedClients.size + 1})`)
 
+    // Dodaj klienta
     connectedClients.add(ws)
     ws.__isAlive = true
     ws.__connectedAt = new Date()
 
+    // Odgovori na pong (heartbeat potrditev)
     ws.on('pong', () => {
       ws.__isAlive = true
     })
 
+    // Obdelaj vhodna sporočila
     ws.on('message', (data) => {
       try {
         const msg = JSON.parse(data.toString())
 
+        // Klient lahko pošlje identifikacijo
         if (msg.type === 'IDENTIFY') {
           ws.__clientType = msg.payload?.clientType || 'unknown'
           ws.__clientName = msg.payload?.clientName || ''
           console.log(`[WS] Klient identificiran: ${ws.__clientType} (${ws.__clientName})`)
         }
 
+        // Klient lahko tudi oddaja dogodke (npr. POS terminal pošlje NEW_ORDER)
         if (msg.type && msg.payload) {
           broadcastEvent(msg.type, msg.payload)
         }
@@ -129,6 +131,7 @@ app.prepare().then(() => {
       }
     })
 
+    // Ob zaprtju povezave
     ws.on('close', (code, reason) => {
       connectedClients.delete(ws)
       console.log(`[WS] Povezava zaprta: ${clientIp} (koda: ${code}, skupaj: ${connectedClients.size})`)
@@ -139,6 +142,7 @@ app.prepare().then(() => {
       connectedClients.delete(ws)
     })
 
+    // Pošlji pozdravno sporočilo
     ws.send(JSON.stringify({
       type: 'CONNECTED',
       payload: {
@@ -149,12 +153,14 @@ app.prepare().then(() => {
     }))
   })
 
+  // Zaženi heartbeat preverjanje
   const heartbeatTimer = setInterval(heartbeatCheck, HEARTBEAT_INTERVAL)
 
   wss.on('close', () => {
     clearInterval(heartbeatTimer)
   })
 
+  // Zaženi HTTP strežnik
   server.listen(port, hostname, () => {
     console.log(`
 ╔══════════════════════════════════════════════╗
@@ -171,6 +177,7 @@ app.prepare().then(() => {
   const shutdown = () => {
     console.log('\n[Server] Ustavljanje strežnika...')
 
+    // Zapri vse WebSocket povezave
     for (const client of connectedClients) {
       client.send(JSON.stringify({
         type: 'SERVER_SHUTDOWN',
@@ -181,13 +188,16 @@ app.prepare().then(() => {
     }
     connectedClients.clear()
 
+    // Zapri WebSocket strežnik
     if (wss) wss.close()
 
+    // Zapri HTTP strežnik
     server.close(() => {
       console.log('[Server] Strežnik ustavljen')
       process.exit(0)
     })
 
+    // Force exit po 5 sekundah
     setTimeout(() => {
       console.error('[Server] Force exit')
       process.exit(1)

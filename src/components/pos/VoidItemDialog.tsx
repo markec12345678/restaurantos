@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { AlertTriangle, XCircle, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { authFetch } from '@/components/pos/PinLogin'
 
 // ============================================
 // TIPI
@@ -39,7 +40,7 @@ export function VoidItemDialog({ orderItem, orderId, open, onClose, onVoided }: 
   const { data: voidReasons } = useQuery({
     queryKey: ['void-reasons'],
     queryFn: async () => {
-      const res = await fetch('/api/configuration/void-reasons')
+      const res = await authFetch('/api/configuration/void-reasons')
       if (!res.ok) return []
       return res.json() as Promise<{ id: string; name: string; isActive: boolean }[]>
     },
@@ -50,16 +51,14 @@ export function VoidItemDialog({ orderItem, orderId, open, onClose, onVoided }: 
   const voidMutation = useMutation({
     mutationFn: async () => {
       if (!orderItem) return null
-      const res = await fetch(`/api/order-items/${orderItem.id}`, {
+      const res = await authFetch(`/api/order-items/${orderItem.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           voided: true,
           voidReasonId: selectedReasonId,
           voidReasonText: customReason || voidReasons?.find(r => r.id === selectedReasonId)?.name || '',
         }),
       })
-      if (!res.ok) throw new Error('Napaka pri void operaciji')
       return res.json()
     },
     onSuccess: () => {

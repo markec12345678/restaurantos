@@ -18,6 +18,7 @@ import {
   Search, ChevronRight, MinusCircle
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
+import { authFetch } from '@/components/pos/PinLogin'
 
 // ============================================
 // TIPI
@@ -79,7 +80,7 @@ export function RecipeManager() {
   const { data: recipes, isLoading: recipesLoading } = useQuery<RecipeItemData[]>({
     queryKey: ['recipes'],
     queryFn: async () => {
-      const res = await fetch('/api/recipes')
+      const res = await authFetch('/api/recipes')
       return res.json()
     },
   })
@@ -87,7 +88,7 @@ export function RecipeManager() {
   const { data: menuItems } = useQuery<MenuItemData[]>({
     queryKey: ['menu-items'],
     queryFn: async () => {
-      const res = await fetch('/api/menu-items')
+      const res = await authFetch('/api/menu-items')
       return res.json()
     },
   })
@@ -95,7 +96,7 @@ export function RecipeManager() {
   const { data: inventoryItems } = useQuery<InventoryData[]>({
     queryKey: ['inventory'],
     queryFn: async () => {
-      const res = await fetch('/api/inventory')
+      const res = await authFetch('/api/inventory')
       return res.json()
     },
   })
@@ -105,9 +106,8 @@ export function RecipeManager() {
   // ============================================
   const addMutation = useMutation({
     mutationFn: async (data: typeof addForm) => {
-      const res = await fetch('/api/recipes', {
+      const res = await authFetch('/api/recipes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           menuItemId: data.menuItemId,
           inventoryItemId: data.inventoryItemId,
@@ -116,7 +116,6 @@ export function RecipeManager() {
           notes: data.notes,
         }),
       })
-      if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Napaka') }
       return res.json()
     },
     onSuccess: () => { toast.success('Sestavina dodana'); queryClient.invalidateQueries({ queryKey: ['recipes'] }); setAddDialogOpen(false) },
@@ -125,9 +124,8 @@ export function RecipeManager() {
 
   const editMutation = useMutation({
     mutationFn: async (data: { id: string } & typeof editForm) => {
-      const res = await fetch('/api/recipes', {
+      const res = await authFetch('/api/recipes', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: data.id,
           quantityPerServing: parseFloat(data.quantityPerServing) || 0,
@@ -135,7 +133,6 @@ export function RecipeManager() {
           notes: data.notes,
         }),
       })
-      if (!res.ok) throw new Error('Napaka pri urejanju')
       return res.json()
     },
     onSuccess: () => { toast.success('Sestavina posodobljena'); queryClient.invalidateQueries({ queryKey: ['recipes'] }); setEditDialogOpen(false); setEditItem(null) },
@@ -143,8 +140,7 @@ export function RecipeManager() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/recipes?id=${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Napaka pri brisanju')
+      const res = await authFetch(`/api/recipes?id=${id}`, { method: 'DELETE' })
       return res.json()
     },
     onSuccess: () => { toast.success('Sestavina odstranjena'); queryClient.invalidateQueries({ queryKey: ['recipes'] }) },

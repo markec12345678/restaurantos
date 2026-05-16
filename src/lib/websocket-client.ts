@@ -18,6 +18,10 @@ export type WSEventType =
   | 'ORDER_UPDATED'
   | 'ITEM_STATUS_CHANGED'
   | 'ORDER_CANCELLED'
+  | 'ORDER_FIRED'
+  | 'ORDER_READY'
+  | 'STOCK_LOW'
+  | 'STOCK_OUT'
   | 'CONNECTED'
   | 'SERVER_SHUTDOWN'
 
@@ -94,6 +98,19 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
       case 'ITEM_STATUS_CHANGED':
         queryClient.invalidateQueries({ queryKey: ['kitchen'] })
         queryClient.invalidateQueries({ queryKey: ['orders'] })
+        break
+      case 'STOCK_LOW':
+      case 'STOCK_OUT':
+        queryClient.invalidateQueries({ queryKey: ['inventory'] })
+        queryClient.invalidateQueries({ queryKey: ['menu-stock'] })
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+        queryClient.invalidateQueries({ queryKey: ['notification-low-stock'] })
+        break
+      case 'ORDER_FIRED':
+      case 'ORDER_READY':
+        queryClient.invalidateQueries({ queryKey: ['orders'] })
+        queryClient.invalidateQueries({ queryKey: ['kitchen'] })
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] })
         break
     }
   }, [queryClient])

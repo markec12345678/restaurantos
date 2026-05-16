@@ -17,16 +17,17 @@ import {
   Plus, Pencil, Trash2, Search, AlertTriangle, Package,
   Truck, FileMinus, History, ArrowDownCircle, ArrowUpCircle,
   RotateCcw, SlidersHorizontal, ChevronDown, ChevronUp,
+  BarChart3,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { authFetch } from '@/components/pos/PinLogin'
+import { StockDashboard } from '@/components/pos/StockDashboard'
 
 // ============================================
 // KONSTANTE
 // ============================================
 
-const invCategories = ['all', 'general', 'produce', 'meat', 'dairy', 'beverages', 'dry-goods']
-
+// Slovenski prevodi znanih kategorij
 const categoryLabels: Record<string, string> = {
   all: 'Vse kategorije',
   general: 'Splošno',
@@ -35,6 +36,20 @@ const categoryLabels: Record<string, string> = {
   dairy: 'Mlečno',
   beverages: 'Pijače',
   'dry-goods': 'Suho blago',
+  'suho blago': 'Suho blago',
+  zivila: 'Živila',
+  pijace: 'Pijače',
+  meso: 'Meso',
+  'sveze zelenjave': 'Sveža zelenjava',
+  mlencni: 'Mlečni',
+  zmrznjeno: 'Zmrznjeno',
+  zacimbe: 'Začimbe',
+  pijače: 'Pijače',
+  alkohol: 'Alkohol',
+  kava: 'Kava',
+  condiments: 'Pripravki',
+  packaging: 'Embalaža',
+  cleaning: 'Čistilna sredstva',
 }
 
 const transactionTypeLabels: Record<string, string> = {
@@ -162,6 +177,20 @@ export function InventoryManager() {
   // ============================================
   // QUERIES
   // ============================================
+
+  // Dinamične kategorije iz baze
+  const { data: dbCategories } = useQuery<string[]>({
+    queryKey: ['inventory-categories'],
+    queryFn: async () => {
+      const res = await authFetch('/api/inventory?distinctCategories=true')
+      if (!res.ok) return ['general']
+      return res.json()
+    },
+    staleTime: 60000,
+  })
+
+  // Zgradi seznam kategorij: 'all' + dinamične iz baze
+  const invCategories = useMemo(() => ['all', ...(dbCategories || ['general'])], [dbCategories])
 
   const { data: items, isLoading } = useQuery<InventoryItemData[]>({
     queryKey: ['inventory', filterCategory],
@@ -401,9 +430,12 @@ export function InventoryManager() {
 
       {/* GLAVNI ZAVIHKI */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="stock" className="gap-1.5">
             <Package className="h-3.5 w-3.5" /> Zaloge
+          </TabsTrigger>
+          <TabsTrigger value="dashboard" className="gap-1.5">
+            <BarChart3 className="h-3.5 w-3.5" /> Pregled
           </TabsTrigger>
           <TabsTrigger value="procurement" className="gap-1.5">
             <Truck className="h-3.5 w-3.5" /> Nabava
@@ -415,6 +447,11 @@ export function InventoryManager() {
             <History className="h-3.5 w-3.5" /> Zgodovina
           </TabsTrigger>
         </TabsList>
+
+        {/* ===================== TAB: PREGLED ZALOGE (Dashboard) ===================== */}
+        <TabsContent value="dashboard" className="mt-4">
+          <StockDashboard />
+        </TabsContent>
 
         {/* ===================== TAB: ZALOGE ===================== */}
         <TabsContent value="stock" className="space-y-4 mt-4">
@@ -799,7 +836,7 @@ export function InventoryManager() {
               <div className="bg-muted/50 rounded-lg p-4 space-y-2">
                 <p className="text-sm font-medium">Kako se razknjižuje zaloga:</p>
                 <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                  <li><strong>Avtomatsko ob prodaji</strong> — ko je naročilo označeno kot zaključeno, se zaloga samodejno zmanjša glede na normative (servisi na enoto)</li>
+                  <li><strong>Avtomatsko ob prodaji</strong> — ko je naročilo ustvarjeno (oddano), se zaloga samodejno zmanjša glede na receptne normative ali servise na enoto; ob preklicu/stornu naročila se zaloga samodejno vrne</li>
                   <li><strong>Ročni odpis</strong> — za kvar, razbitje, izgubo ali popravek inventorja (ta obrazec zgoraj)</li>
                   <li><strong>Vrnitev dobavitelju</strong> — ko vračate blago dobavitelju</li>
                   <li><strong>Popravek inventorja</strong> — ob fizičnem štetju zaloge, ko dejansko stanje ne ustreza sistemu</li>

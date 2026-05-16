@@ -618,7 +618,7 @@ export function KitchenDisplay() {
   const { data, isLoading } = useQuery({
     queryKey: ['kitchen'],
     queryFn: async () => {
-      const res = await fetch('/api/kitchen')
+      const res = await authFetch('/api/kitchen')
       return res.json() as Promise<KDSData>
     },
     // Ko je WS povezan, ne potrebujemo pogostega pollinga (samo vsakih 30s za zagotovitev)

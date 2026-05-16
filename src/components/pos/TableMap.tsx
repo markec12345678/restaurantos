@@ -10,12 +10,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
-import { Plus, Pencil, Trash2, Users, ShoppingBag, CreditCard, Clock, ChevronRight, X, UtensilsCrossed, QrCode, Download, Printer } from 'lucide-react'
+import { Plus, Pencil, Trash2, Users, ShoppingBag, CreditCard, Clock, ChevronRight, X, UtensilsCrossed } from 'lucide-react'
 import { usePOSStore } from '@/lib/store'
-import { useState, useCallback, useEffect } from 'react'
+import { useState } from 'react'
 import { format } from 'date-fns'
 import { authFetch } from '@/components/pos/PinLogin'
-import QRCode from 'qrcode'
 
 const statusColors: Record<string, string> = {
   available: 'bg-emerald-100 border-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-800',
@@ -66,11 +65,6 @@ export function TableMap() {
   const [editingTable, setEditingTable] = useState<Record<string, unknown> | null>(null)
   const [formData, setFormData] = useState({ number: '', capacity: '4', area: 'main', status: 'available' })
   const [selectedTableForOrders, setSelectedTableForOrders] = useState<Record<string, unknown> | null>(null)
-  const [qrDialogOpen, setQrDialogOpen] = useState(false)
-  const [qrTable, setQrTable] = useState<Record<string, unknown> | null>(null)
-  const [qrDataUrl, setQrDataUrl] = useState<string>('')
-  const [bulkQrOpen, setBulkQrOpen] = useState(false)
-  const [bulkQrImages, setBulkQrImages] = useState<{ tableNumber: number; dataUrl: string }[]>([])
 
   const { data: tables, isLoading } = useQuery({
     queryKey: ['tables'],
@@ -156,84 +150,6 @@ export function TableMap() {
     setDialogOpen(true)
   }
 
-  // QR Code generation for single table
-  const openQrForTable = useCallback(async (table: Record<string, unknown>) => {
-    setQrTable(table)
-    setQrDialogOpen(true)
-    try {
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
-      const qrUrl = `${baseUrl}/qr/${table.id}`
-      const dataUrl = await QRCode.toDataURL(qrUrl, {
-        width: 300,
-        margin: 2,
-        color: { dark: '#000000', light: '#ffffff' },
-        errorCorrectionLevel: 'M',
-      })
-      setQrDataUrl(dataUrl)
-    } catch (err) {
-      console.error('QR generation error:', err)
-      toast.error('Napaka pri generiranju QR kode')
-    }
-  }, [])
-
-  // Bulk QR code generation
-  const generateBulkQrCodes = useCallback(async () => {
-    if (!tables || tables.length === 0) return
-    setBulkQrOpen(true)
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
-
-    try {
-      const images = await Promise.all(
-        (tables as Record<string, unknown>[]).map(async (table) => {
-          const qrUrl = `${baseUrl}/qr/${table.id}`
-          const dataUrl = await QRCode.toDataURL(qrUrl, {
-            width: 200,
-            margin: 1,
-            color: { dark: '#000000', light: '#ffffff' },
-            errorCorrectionLevel: 'M',
-          })
-          return { tableNumber: table.number as number, dataUrl }
-        })
-      )
-      setBulkQrImages(images)
-    } catch (err) {
-      console.error('Bulk QR error:', err)
-      toast.error('Napaka pri generiranju QR kod')
-    }
-  }, [tables])
-
-  // Download QR code
-  const downloadQr = (dataUrl: string, filename: string) => {
-    const a = document.createElement('a')
-    a.href = dataUrl
-    a.download = filename
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-  }
-
-  // Print QR code
-  const printQr = (dataUrl: string, tableNumber: number) => {
-    const w = window.open('', '_blank')
-    if (!w) return
-    w.document.write(`
-      <html><head><title>QR - Miza ${tableNumber}</title>
-      <style>
-        body { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; margin: 0; }
-        img { max-width: 300px; }
-        h2 { margin: 16px 0 4px; font-size: 24px; }
-        p { color: #666; margin: 4px 0 24px; font-size: 14px; }
-        @media print { body { min-height: auto; } }
-      </style></head><body>
-      <img src="${dataUrl}" alt="QR Miza ${tableNumber}" />
-      <h2>Miza ${tableNumber}</h2>
-      <p>Skenirajte QR kodo za naročilo</p>
-      <script>window.onload=()=>{window.print();}</script>
-      </body></html>
-    `)
-    w.document.close()
-  }
-
   const handleSubmit = () => {
     const payload = {
       number: parseInt(formData.number),
@@ -250,8 +166,10 @@ export function TableMap() {
 
   const handleTableClick = (table: Record<string, unknown>) => {
     if (table.status === 'occupied') {
+      // Show orders for this table
       setSelectedTableForOrders(table)
     } else if (table.status === 'available') {
+      // Start new order for this table
       setSelectedTable(table.id as string)
       setOrderType('dine-in')
       setActiveModule('orders')
@@ -298,16 +216,10 @@ export function TableMap() {
           <h2 className="text-2xl font-bold">Mize</h2>
           <p className="text-muted-foreground">Upravljajte mize in sedežni red</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={generateBulkQrCodes}>
-            <QrCode className="h-4 w-4 mr-2" />
-            QR kode
-          </Button>
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            Dodaj mizo
-          </Button>
-        </div>
+        <Button onClick={openCreate}>
+          <Plus className="h-4 w-4 mr-2" />
+          Dodaj mizo
+        </Button>
       </div>
 
       {/* Summary Stats */}
@@ -363,15 +275,6 @@ export function TableMap() {
                     <div className="flex items-center justify-between">
                       <div className={`h-3 w-3 rounded-full ${statusDot[table.status as string] || ''}`} />
                       <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          title="QR koda za mizo"
-                          onClick={() => openQrForTable(table)}
-                        >
-                          <QrCode className="h-3 w-3" />
-                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -478,6 +381,7 @@ export function TableMap() {
                           </div>
                         ))}
                       </div>
+                      {/* Gumb za dodajanje artiklov k naročilu */}
                       {order.status !== 'completed' && order.status !== 'cancelled' && (
                         <Button
                           size="sm"
@@ -512,123 +416,6 @@ export function TableMap() {
               Dodaj novo naročilo za mizo {selectedTableForOrders?.number as number}
             </Button>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* QR Code Dialog for Single Table */}
-      <Dialog open={qrDialogOpen} onOpenChange={setQrDialogOpen}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <QrCode className="h-5 w-5" />
-              QR koda — Miza {qrTable?.number as number}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col items-center py-4">
-            {qrDataUrl ? (
-              <>
-                <img src={qrDataUrl} alt={`QR Miza ${qrTable?.number as number}`} className="w-64 h-64 rounded-xl" />
-                <p className="mt-3 text-sm text-muted-foreground text-center">
-                  Skenirajte kodo za naročilo iz mize {qrTable?.number as number}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {typeof window !== 'undefined' ? `${window.location.origin}/qr/${qrTable?.id as string}` : ''}
-                </p>
-              </>
-            ) : (
-              <div className="w-64 h-64 flex items-center justify-center">
-                <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
-              </div>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              className="flex-1"
-              onClick={() => printQr(qrDataUrl, qrTable?.number as number)}
-              disabled={!qrDataUrl}
-            >
-              <Printer className="h-4 w-4 mr-2" />
-              Tiskaj
-            </Button>
-            <Button
-              className="flex-1"
-              onClick={() => downloadQr(qrDataUrl, `qr-miza-${qrTable?.number as number}.png`)}
-              disabled={!qrDataUrl}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              Prenesi
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Bulk QR Codes Dialog */}
-      <Dialog open={bulkQrOpen} onOpenChange={setBulkQrOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <QrCode className="h-5 w-5" />
-              QR kode za vse mize
-            </DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 py-4">
-            {bulkQrImages.length === 0 ? (
-              <div className="col-span-full flex items-center justify-center py-12">
-                <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
-              </div>
-            ) : (
-              bulkQrImages.map(({ tableNumber, dataUrl }) => (
-                <div
-                  key={tableNumber}
-                  className="flex flex-col items-center bg-white dark:bg-gray-900 rounded-xl border p-4 hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => downloadQr(dataUrl, `qr-miza-${tableNumber}.png`)}
-                >
-                  <img src={dataUrl} alt={`QR Miza ${tableNumber}`} className="w-32 h-32" />
-                  <p className="mt-2 font-bold text-sm">Miza {tableNumber}</p>
-                  <p className="text-[10px] text-muted-foreground">Klikni za prenos</p>
-                </div>
-              ))
-            )}
-          </div>
-          {bulkQrImages.length > 0 && (
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => {
-                  bulkQrImages.forEach(({ tableNumber, dataUrl }) => {
-                    setTimeout(() => downloadQr(dataUrl, `qr-miza-${tableNumber}.png`), tableNumber * 200)
-                  })
-                }}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Prenesi vse
-              </Button>
-              <Button
-                className="flex-1"
-                onClick={() => {
-                  // Print all QR codes
-                  const w = window.open('', '_blank')
-                  if (!w) return
-                  const images = bulkQrImages.map(({ tableNumber, dataUrl }) => `
-                    <div style="display:inline-block;text-align:center;margin:16px;padding:16px;border:1px solid #ddd;border-radius:8px;page-break-inside:avoid;">
-                      <img src="${dataUrl}" alt="QR Miza ${tableNumber}" style="width:200px;height:200px;" />
-                      <h3 style="margin:8px 0 4px;font-size:20px;">Miza ${tableNumber}</h3>
-                      <p style="color:#888;font-size:12px;">Skenirajte QR kodo za naročilo</p>
-                    </div>
-                  `).join('')
-                  w.document.write(`<html><head><title>QR kode - Vse mize</title>
-                    <style>body{display:flex;flex-wrap:wrap;justify-content:center;font-family:sans-serif;padding:20px;}</style></head>
-                    <body>${images}<script>window.onload=()=>{window.print();}</script></body></html>`)
-                  w.document.close()
-                }}
-              >
-                <Printer className="h-4 w-4 mr-2" />
-                Tiskaj vse
-              </Button>
-            </div>
-          )}
         </DialogContent>
       </Dialog>
 

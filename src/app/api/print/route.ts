@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createESCPOSBuilder, generateKitchenOrder, generateReceipt, generateTestPrint, type KitchenOrderPrintData, type ReceiptPrintData, type PrinterModel } from '@/lib/escpos'
+import { generateFursQRContent } from '@/lib/furs'
 import * as net from 'net'
 
 // ============================================
@@ -251,20 +252,29 @@ export async function POST(req: Request) {
 
         const receiptPrintData: ReceiptPrintData = {
           orderNumber: order.orderNumber,
+          receiptNumber: receipt.receiptNumber,
           businessName: settings?.name || 'RestaurantOS',
           businessAddress: settings?.address || '',
+          businessCity: settings?.city || '',
+          businessPostCode: settings?.postCode || '',
+          businessPhone: settings?.phone || '',
           businessId: settings?.businessId || '',
           taxId: settings?.taxId || '',
           registerId: settings?.registerNumber || 'BLG-001',
+          premisesId: settings?.businessId || '',
           zoi: receipt.zoi,
           eor: receipt.eor,
+          isSimulation: !receipt.fiscalVerified,
           items: order.orderItems
-            .filter(oi => !oi.voided)
             .map(oi => ({
               quantity: oi.quantity,
               name: oi.menuItem.name,
               price: oi.price,
               vatRate: oi.vatRate,
+              isVoided: oi.voided,
+              modifiers: (() => {
+                try { return JSON.parse(oi.modifiersJson || '[]') } catch { return [] }
+              })(),
             })),
           subtotal: receipt.subtotal,
           vatBreakdown: vatEntries,
@@ -272,9 +282,23 @@ export async function POST(req: Request) {
           discount: receipt.discount,
           total: receipt.total,
           tip: receipt.tip,
+          totalWithTip: receipt.totalWithTip,
           paymentMethod: receipt.paymentMethod,
           timestamp: receipt.createdAt.toISOString(),
+          qrContent: receipt.zoi ? generateFursQRContent({
+            zoi: receipt.zoi,
+            totalAmount: receipt.total,
+            issueDateTime: receipt.createdAt,
+            taxId: settings?.taxId || '',
+            businessId: settings?.businessId || '',
+            registerId: settings?.registerNumber || 'BLG-001',
+            premisesId: settings?.businessId || '',
+          }) : undefined,
           receiptFooter: settings?.receiptFooter || undefined,
+          operatorName: authResult.session?.employeeId || undefined,
+          tableNumber: order.table?.number ?? null,
+          orderType: order.type,
+          customerName: order.customerName || undefined,
         }
 
         const printerModel = getPrinterModel(printer.type, printer.name)

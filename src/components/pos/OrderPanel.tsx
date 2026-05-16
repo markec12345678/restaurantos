@@ -13,145 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Plus, Minus, Trash2, ShoppingBag, CreditCard, X, Printer, Eye, ChevronRight, Check, ArrowLeft, UtensilsCrossed, GlassWater, Users, Clock, Search, XCircle, FileWarning, Keyboard } from 'lucide-react'
-
-// ============================================
-// FALLBACK ZA JEDI BREZ SLIKE + BARVNI AKCENTI (Square/Toast POS stil)
-// Profesionalni POS sistemi uporabljajo barvno kodiranje po kategorijah
-// za hitro vizualno prepoznavo artiklov brez iskanja po imenu.
-// ============================================
-const categoryEmojiMap: Record<string, { emoji: string; bg: string; text: string; accent: string }> = {
-  'Predjedi': { emoji: '🥗', bg: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', accent: '#10b981' },
-  'Juhe': { emoji: '🍲', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', accent: '#f59e0b' },
-  'Glavne jedi': { emoji: '🍽️', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', accent: '#f97316' },
-  'Testenine': { emoji: '🍝', bg: 'bg-yellow-100 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', accent: '#eab308' },
-  'Pica': { emoji: '🍕', bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', accent: '#ef4444' },
-  'Burgerji': { emoji: '🍔', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', accent: '#f97316' },
-  'Sladice': { emoji: '🍰', bg: 'bg-pink-100 dark:bg-pink-900/40', text: 'text-pink-700 dark:text-pink-300', accent: '#ec4899' },
-  'Priloge': { emoji: '🍟', bg: 'bg-lime-100 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300', accent: '#84cc16' },
-  'Penine in Šampanjci': { emoji: '🥂', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', accent: '#d4a017' },
-  'Bela Vina': { emoji: '🍷', bg: 'bg-emerald-100 dark:bg-emerald-900/40', text: 'text-emerald-700 dark:text-emerald-300', accent: '#059669' },
-  'Rosé Vino': { emoji: '🌹', bg: 'bg-pink-100 dark:bg-pink-900/40', text: 'text-pink-700 dark:text-pink-300', accent: '#e11d48' },
-  'Rdeča Vina': { emoji: '🍷', bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', accent: '#b91c1c' },
-  'Tuja Vina': { emoji: '🌍', bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', accent: '#7c3aed' },
-  'Likersko Vino': { emoji: '🍯', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', accent: '#92400e' },
-  'Točeno Pivo': { emoji: '🍺', bg: 'bg-yellow-100 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', accent: '#ca8a04' },
-  'Pivo': { emoji: '🍻', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', accent: '#d97706' },
-  'Craft Piva': { emoji: ' IPA', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', accent: '#ea580c' },
-  'Brezalkoholno Pivo': { emoji: '🧃', bg: 'bg-sky-100 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300', accent: '#0284c7' },
-  'Viski': { emoji: '🥃', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', accent: '#92400e' },
-  'Gin': { emoji: '🍸', bg: 'bg-cyan-100 dark:bg-cyan-900/40', text: 'text-cyan-700 dark:text-cyan-300', accent: '#0891b2' },
-  'Likerji': { emoji: '🍹', bg: 'bg-fuchsia-100 dark:bg-fuchsia-900/40', text: 'text-fuchsia-700 dark:text-fuchsia-300', accent: '#a21caf' },
-  'Grenčice': { emoji: '🫒', bg: 'bg-lime-100 dark:bg-lime-900/40', text: 'text-lime-700 dark:text-lime-300', accent: '#4d7c0f' },
-  'Destilati, Konjak in Rum': { emoji: '🥃', bg: 'bg-purple-100 dark:bg-purple-900/40', text: 'text-purple-700 dark:text-purple-300', accent: '#6b21a8' },
-  'Topli Napitki': { emoji: '☕🍵', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', accent: '#78350f' },
-  'Mešane Pijače': { emoji: '🍹', bg: 'bg-rose-100 dark:bg-rose-900/40', text: 'text-rose-700 dark:text-rose-300', accent: '#e11d48' },
-  'Vode': { emoji: '💧', bg: 'bg-sky-100 dark:bg-sky-900/40', text: 'text-sky-700 dark:text-sky-300', accent: '#0ea5e9' },
-  'Naravni Sokovi': { emoji: '🧃', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', accent: '#ea580c' },
-  'Sokovi': { emoji: '🧃', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', accent: '#c2410c' },
-  'Gazirane Pijače': { emoji: '🥤', bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', accent: '#dc2626' },
-  // === NOVE KATEGORIJE HRANA ===
-  'Solate': { emoji: '🥗', bg: 'bg-green-100 dark:bg-green-900/40', text: 'text-green-700 dark:text-green-300', accent: '#22c55e' },
-  'Sendviči in Tost': { emoji: '🥪', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', accent: '#d97706' },
-  'Rižote': { emoji: '🍚', bg: 'bg-yellow-100 dark:bg-yellow-900/40', text: 'text-yellow-700 dark:text-yellow-300', accent: '#eab308' },
-  'Morski Sadeži': { emoji: '🦐', bg: 'bg-cyan-100 dark:bg-cyan-900/40', text: 'text-cyan-700 dark:text-cyan-300', accent: '#06b6d4' },
-  'Žara in Grill': { emoji: '🔥', bg: 'bg-red-100 dark:bg-red-900/40', text: 'text-red-700 dark:text-red-300', accent: '#dc2626' },
-  'Slovenske Jedi': { emoji: '🇸🇮', bg: 'bg-blue-100 dark:bg-blue-900/40', text: 'text-blue-700 dark:text-blue-300', accent: '#2563eb' },
-  'Dječji Meni': { emoji: '👶', bg: 'bg-pink-100 dark:bg-pink-900/40', text: 'text-pink-700 dark:text-pink-300', accent: '#ec4899' },
-  'Zajtrk in Brunch': { emoji: '🍳', bg: 'bg-orange-100 dark:bg-orange-900/40', text: 'text-orange-700 dark:text-orange-300', accent: '#f97316' },
-  // === NOVE KATEGORIJE PIJAČA ===
-  'Smoothie in Shake': { emoji: '🥤', bg: 'bg-violet-100 dark:bg-violet-900/40', text: 'text-violet-700 dark:text-violet-300', accent: '#7c3aed' },
-  'Vroča Pijača z Alkoholom': { emoji: '🫖', bg: 'bg-amber-100 dark:bg-amber-900/40', text: 'text-amber-700 dark:text-amber-300', accent: '#92400e' },
-}
-const defaultCategoryStyle = { emoji: '🍽️', bg: 'bg-muted', text: 'text-muted-foreground', accent: '#6b7280' }
-
-// ============================================
-// EKSTRAKCIJA VELIKOSTI IZ IMENA ARTIKLA
-// Profesionalni POS (Square, Toast, Aloha) prikazujejo
-// velikost kot vidno oznako na gumbu/kartici, da natakar
-// takoj ve, ali je kozarec ali steklenica, 0.3L ali 0.5L.
-// ============================================
-function extractSizeLabel(name: string): { label: string; shortLabel: string } | null {
-  // Vzorci za velikosti: (0.30L), (0.50L), (kozarec), (steklenica), itd.
-  const patterns = [
-    // Količina v oklepaju: (0.05L), (0.50L), (1.00L)
-    { regex: /\(([0-9]+\.?[0-9]*)\s*L\)/i, format: (m: RegExpMatchArray) => ({ label: m[1] + ' L', shortLabel: m[1].replace(/\.0+$/, '') + 'L' }) },
-    // Kozarec / steklenica
-    { regex: /\(kozarec\)/i, format: () => ({ label: 'Kozarec', shortLabel: 'Koz.' }) },
-    { regex: /\(steklenica\)/i, format: () => ({ label: 'Steklenica', shortLabel: 'Stek.' }) },
-    // Velikost brez oklepaja
-    { regex: /([0-9]+\.?[0-9]*)\s*L(?!i)/i, format: (m: RegExpMatchArray) => ({ label: m[1] + ' L', shortLabel: m[1].replace(/\.0+$/, '') + 'L' }) },
-    // Mala / velika
-    { regex: /\bmala\b/i, format: () => ({ label: 'Mala', shortLabel: 'M' }) },
-    { regex: /\bvelika\b/i, format: () => ({ label: 'Velika', shortLabel: 'V' }) },
-  ]
-  
-  for (const { regex, format } of patterns) {
-    const match = name.match(regex)
-    if (match) return format(match as RegExpMatchArray)
-  }
-  return null
-}
-
-// ============================================
-// EKSTRAKCIJA TIPA ARTIKLA ZA OZNAKO NA SLIKI
-// Ko AI-generirane slike niso dovolj razločljive
-// (npr. čaj izgleda kot kava), ta funkcija doda
-// izrazito oznako tipa na sliko artikla.
-// ============================================
-function extractTypeLabel(name: string): { label: string; emoji: string; color: string } | null {
-  const typePatterns: { regex: RegExp; label: string; emoji: string; color: string }[] = [
-    // Čaj
-    { regex: /\bčaj\b|\bcaj\b/i, label: 'ČAJ', emoji: '🍵', color: '#22c55e' },
-    // Kakav
-    { regex: /\bkakav\b/i, label: 'KAKAV', emoji: '🍫', color: '#92400e' },
-    // Vroča čokolada
-    { regex: /\bvroča\s*čokolada|\bvroca\s*cokolada/i, label: 'ČOKOLADA', emoji: '🍫', color: '#78350f' },
-    // Ledena kava
-    { regex: /\bledena\b/i, label: 'LEDENA', emoji: '🧊', color: '#0ea5e9' },
-    // Espresso
-    { regex: /\bespresso\b/i, label: 'ESPRESSO', emoji: '☕', color: '#78350f' },
-    // Cappuccino
-    { regex: /\bcappuccino\b/i, label: 'CAPPUCCINO', emoji: '☕', color: '#a16207' },
-    // Macchiato
-    { regex: /\bmacchiato\b/i, label: 'MACCHIATO', emoji: '☕', color: '#92400e' },
-    // Bela kava
-    { regex: /\bbela\s*kava\b/i, label: 'BELA KAVA', emoji: '🥛', color: '#f5f5f4' },
-    // Kava s smetano
-    { regex: /\bkava\s*s\s*smetano/i, label: 'SMETANA', emoji: '🍦', color: '#fef3c7' },
-    // Kava z mlekom
-    { regex: /\bkava\s*z\s*mlekom/i, label: 'Z MLEKOM', emoji: '🥛', color: '#fef9c3' },
-    // Riževo mleko
-    { regex: /\briževim?\s*mlekom/i, label: 'RIŽEVO', emoji: '🌾', color: '#fef3c7' },
-    // Brez kofeina
-    { regex: /\bbrez\s*kofeina/i, label: 'BREZ KOF.', emoji: '🚫☕', color: '#6b7280' },
-    // Babyccino
-    { regex: /\bbabyccino\b/i, label: 'BABY', emoji: '👶', color: '#fda4af' },
-    // Pivo
-    { regex: /\bpivo\b/i, label: 'PIVO', emoji: '🍺', color: '#d97706' },
-    // Vino
-    { regex: /\bvino\b|\bvina\b/i, label: 'VINO', emoji: '🍷', color: '#991b1b' },
-    // Smoothie
-    { regex: /\bsmoothie\b/i, label: 'SMOOTHIE', emoji: '🥤', color: '#7c3aed' },
-    // Shake
-    { regex: /\bshake\b/i, label: 'SHAKE', emoji: '🥛', color: '#f5f5f4' },
-    // Žganje
-    { regex: /\bžganjem\b|\bzganje\b/i, label: 'ŽGANJE', emoji: '🥃', color: '#92400e' },
-    // Medica
-    { regex: /\bmedica\b/i, label: 'MEDICA', emoji: '🍯', color: '#d97706' },
-    // Rum
-    { regex: /\brum\b/i, label: 'RUM', emoji: '🥃', color: '#78350f' },
-  ]
-  
-  for (const { regex, label, emoji, color } of typePatterns) {
-    if (regex.test(name)) return { label, emoji, color }
-  }
-  return null
-}
-
-function getCategoryStyle(categoryName: string) {
-  return categoryEmojiMap[categoryName] || defaultCategoryStyle
-}
+import { Plus, Minus, Trash2, ShoppingBag, CreditCard, X, Printer, Eye, ImageIcon, ChevronRight, Check, ArrowLeft, UtensilsCrossed, GlassWater, Users, Clock, Search, XCircle, FileWarning, Keyboard, AlertTriangle } from 'lucide-react'
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { usePOSShortcuts } from '@/lib/use-pos-shortcuts'
@@ -302,6 +164,22 @@ export function OrderPanel() {
     },
   })
 
+  // ─── STOCK PODATKI za indikatorje na meniju ───
+  const { data: menuStockMap } = useQuery<Record<string, { status: 'ok' | 'low' | 'out'; available: number; unit: string }>>({
+    queryKey: ['menu-stock'],
+    queryFn: async () => {
+      try {
+        const res = await authFetch('/api/inventory/menu-stock')
+        if (!res.ok) return {}
+        return res.json()
+      } catch {
+        return {}
+      }
+    },
+    refetchInterval: 30000, // Osveži vsakih 30 sekund
+    staleTime: 20000,
+  })
+
   // ============================================
   // MUTACIJE
   // ============================================
@@ -408,31 +286,16 @@ export function OrderPanel() {
   // ============================================
   const superGroups = useMemo(() => {
     const catNames = categoriesForMenu.map((c: { name: string }) => c.name)
+    // Only define super-groups for the drinks menu (Pijača)
+    if (!catNames.includes('Penine in Šampanjci')) return []
 
-    // Super-groups for the drinks menu (Pijača)
-    if (catNames.includes('Penine in Šampanjci')) {
-      return [
-        { id: 'vina', name: 'Vina', icon: '🍷', color: '#7c2d12', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Penine in Šampanjci', 'Bela Vina', 'Rosé Vino', 'Rdeča Vina', 'Tuja Vina', 'Likersko Vino'].includes(c.name)).map((c: { id: string }) => c.id) },
-        { id: 'piva', name: 'Piva', icon: '🍺', color: '#d97706', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Točeno Pivo', 'Pivo', 'Craft Piva', 'Brezalkoholno Pivo'].includes(c.name)).map((c: { id: string }) => c.id) },
-        { id: 'zganepijace', name: 'Žgane pijače', icon: '🥃', color: '#6b21a8', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Viski', 'Gin', 'Likerji', 'Grenčice', 'Destilati, Konjak in Rum'].includes(c.name)).map((c: { id: string }) => c.id) },
-        { id: 'napitki', name: 'Napitki', icon: '☕', color: '#92400e', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Topli Napitki', 'Mešane Pijače', 'Smoothie in Shake', 'Vroča Pijača z Alkoholom'].includes(c.name)).map((c: { id: string }) => c.id) },
-        { id: 'brezalkoholne', name: 'Brezalkoholne', icon: '🥤', color: '#0ea5e9', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Vode', 'Naravni Sokovi', 'Sokovi', 'Gazirane Pijače'].includes(c.name)).map((c: { id: string }) => c.id) },
-      ]
-    }
-
-    // Super-groups for the food menu (Hrana)
-    if (catNames.includes('Predjedi') && catNames.includes('Glavne jedi')) {
-      return [
-        { id: 'predjedijuhe', name: 'Predjedi & Juhe', icon: '🥗', color: '#16a34a', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Predjedi', 'Juhe'].includes(c.name)).map((c: { id: string }) => c.id) },
-        { id: 'glavne', name: 'Glavne jedi', icon: '🍽️', color: '#dc2626', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Glavne jedi', 'Testenine', 'Pica', 'Burgerji'].includes(c.name)).map((c: { id: string }) => c.id) },
-        { id: 'specialnosti', name: 'Specialnosti', icon: '⭐', color: '#7c3aed', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Rižote', 'Morski Sadeži', 'Žara in Grill', 'Slovenske Jedi'].includes(c.name)).map((c: { id: string }) => c.id) },
-        { id: 'priloge solate', name: 'Priloge & Solate', icon: '🥬', color: '#84cc16', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Priloge', 'Solate'].includes(c.name)).map((c: { id: string }) => c.id) },
-        { id: 'sladice', name: 'Sladice', icon: '🍰', color: '#ec4899', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Sladice'].includes(c.name)).map((c: { id: string }) => c.id) },
-        { id: 'sendvicizajtrk', name: 'Sendviči & Zajtrk', icon: '🥪', color: '#f59e0b', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Sendviči in Tost', 'Dječji Meni', 'Zajtrk in Brunch'].includes(c.name)).map((c: { id: string }) => c.id) },
-      ]
-    }
-
-    return []
+    return [
+      { id: 'vina', name: 'Vina', icon: '🍷', color: '#7c2d12', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Penine in Šampanjci', 'Bela Vina', 'Rosé Vino', 'Rdeča Vina', 'Tuja Vina', 'Likersko Vino'].includes(c.name)).map((c: { id: string }) => c.id) },
+      { id: 'piva', name: 'Piva', icon: '🍺', color: '#d97706', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Točeno Pivo', 'Pivo', 'Craft Piva', 'Brezalkoholno Pivo'].includes(c.name)).map((c: { id: string }) => c.id) },
+      { id: 'zganepijace', name: 'Žgane pijače', icon: '🥃', color: '#6b21a8', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Viski', 'Gin', 'Likerji', 'Grenčice', 'Destilati, Konjak in Rum'].includes(c.name)).map((c: { id: string }) => c.id) },
+      { id: 'napitki', name: 'Napitki', icon: '☕', color: '#92400e', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Topli Napitki', 'Mešane Pijače'].includes(c.name)).map((c: { id: string }) => c.id) },
+      { id: 'brezalkoholne', name: 'Brezalkoholne', icon: '🥤', color: '#0ea5e9', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Vode', 'Naravni Sokovi', 'Sokovi', 'Gazirane Pijače'].includes(c.name)).map((c: { id: string }) => c.id) },
+    ]
   }, [categoriesForMenu])
 
   const filteredMenuItems = useMemo(() => {
@@ -481,6 +344,16 @@ export function OrderPanel() {
   // HANDLERJI
   // ============================================
   const handleItemClick = (item: MenuItemType) => {
+    // Preveri zalogo — opozori če je nizka, blokiraj če ni na zalogi
+    const stockInfo = menuStockMap?.[item.id]
+    if (stockInfo?.status === 'out') {
+      toast.error(`"${item.name}" ni na zalogi!`, { description: 'Artikla ni mogoče naročiti.' })
+      return
+    }
+    if (stockInfo?.status === 'low') {
+      toast.warning(`Nizka zaloga: "${item.name}"`, { description: `Na voljo samo ${stockInfo.available} servisov.` })
+    }
+
     if (item.modifierGroups?.length > 0) {
       setModifierDialogItem(item)
       setSelectedModifiers(new Map())
@@ -582,11 +455,12 @@ export function OrderPanel() {
                 </Select>
                 {/* Dining option iz konfiguracije */}
                 {diningOptions?.length > 0 && (
-                  <Select value={diningOptionId || undefined} onValueChange={(val) => setDiningOptionId(val || null)}>
+                  <Select value={diningOptionId || 'none'} onValueChange={(v) => setDiningOptionId(v === 'none' ? '' : v)}>
                     <SelectTrigger className="w-40 h-8 text-xs">
                       <SelectValue placeholder="Način postrežbe" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="none">Privzeto</SelectItem>
                       {diningOptions.map((opt: { id: string; name: string; type: string }) => (
                         <SelectItem key={opt.id} value={opt.id}>
                           {opt.type === 'dine-in' ? '🍽️' : opt.type === 'takeout' ? '📦' : '🚚'} {opt.name}
@@ -772,23 +646,35 @@ export function OrderPanel() {
                       const inCart = cart.filter(c => c.id === item.id)
                       const totalQty = inCart.reduce((sum, c) => sum + c.quantity, 0)
                       const hasMods = item.modifierGroups?.length > 0
-                      const catStyle = getCategoryStyle(item.category?.name)
-                      const sizeInfo = extractSizeLabel(item.name)
-                      const typeInfo = extractTypeLabel(item.name)
-                      // Pobriši velikost iz prikazanega imena za čistejši prikaz
-                      const displayName = item.name
-                        .replace(/\s*\([0-9]+\.?[0-9]*\s*L\)/gi, '')
-                        .replace(/\s*\(kozarec\)/gi, '')
-                        .replace(/\s*\(steklenica\)/gi, '')
-                        .replace(/\s*[0-9]+\.?[0-9]*\s*L(?!i)/gi, '')
-                        .trim()
+                      const stockInfo = menuStockMap?.[item.id]
+                      const isOutOfStock = stockInfo?.status === 'out'
+                      const isLowStock = stockInfo?.status === 'low'
                       return (
                         <button
                           key={item.id}
-                          onClick={() => handleItemClick(item)}
-                          className={`relative flex flex-col rounded-xl bg-card hover:bg-accent/50 active:scale-[0.97] transition-all text-left overflow-hidden group ${lastAddedId === item.id ? 'ring-2 ring-primary ring-offset-1' : ''}`}
-                          style={{ borderLeft: `4px solid ${catStyle.accent}` }}
+                          onClick={() => !isOutOfStock && handleItemClick(item)}
+                          className={`relative flex flex-col rounded-xl border bg-card hover:bg-accent/50 active:scale-[0.97] transition-all text-left overflow-hidden group ${
+                            isOutOfStock
+                              ? 'border-red-300 dark:border-red-900/50 opacity-60 cursor-not-allowed'
+                              : isLowStock
+                                ? 'border-amber-300 dark:border-amber-900/50'
+                                : 'border-border'
+                          } ${lastAddedId === item.id ? 'ring-2 ring-primary ring-offset-1' : ''}`}
                         >
+                          {/* Stock indicator - OUT OF STOCK overlay */}
+                          {isOutOfStock && (
+                            <div className="absolute inset-0 z-20 flex items-center justify-center bg-red-500/10 dark:bg-red-900/20">
+                              <span className="rounded-md bg-red-600 px-2 py-0.5 text-white text-[10px] font-bold shadow">NI ZALOGE</span>
+                            </div>
+                          )}
+                          {/* Low stock badge */}
+                          {isLowStock && !isOutOfStock && (
+                            <div className="absolute top-1 left-1/2 -translate-x-1/2 z-10">
+                              <span className="flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 text-[8px] font-bold px-1.5 py-0.5 shadow-sm whitespace-nowrap">
+                                Nizka zal. {stockInfo.available > 0 ? `(${stockInfo.available})` : ''}
+                              </span>
+                            </div>
+                          )}
                           {/* Quantity badge */}
                           {totalQty > 0 && (
                             <div className="absolute top-1.5 right-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold shadow-sm">
@@ -796,7 +682,7 @@ export function OrderPanel() {
                             </div>
                           )}
                           {/* Modifier indicator */}
-                          {hasMods && (
+                          {hasMods && !isLowStock && (
                             <div className="absolute top-1.5 left-1.5 z-10">
                               <span className="flex items-center gap-0.5 rounded-full bg-secondary/80 text-secondary-foreground text-[9px] font-medium px-1.5 py-0.5">
                                 <ChevronRight className="h-2.5 w-2.5" />
@@ -804,86 +690,28 @@ export function OrderPanel() {
                               </span>
                             </div>
                           )}
-                          {/* Image / Fallback ikona */}
-                          <div className="w-full aspect-square relative overflow-hidden">
+                          {/* Image */}
+                          <div className="w-full aspect-square bg-muted/40 relative overflow-hidden">
                             {item.image ? (
                               <img
                                 src={item.image}
                                 alt={item.name}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-200 ${isOutOfStock ? 'grayscale' : ''}`}
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement
                                   target.style.display = 'none'
-                                  const fallback = target.nextElementSibling as HTMLElement
-                                  if (fallback) fallback.classList.remove('hidden')
+                                  target.nextElementSibling?.classList.remove('hidden')
                                 }}
                               />
                             ) : null}
-                            <div className={`absolute inset-0 flex flex-col items-center justify-center gap-0.5 ${item.image ? 'hidden' : ''} ${catStyle.bg}`}>
-                              <span className="text-2xl leading-none">{catStyle.emoji}</span>
-                              <span className={`text-lg font-bold leading-none ${catStyle.text}`}>
-                                {item.name.charAt(0).toUpperCase()}
-                              </span>
+                            <div className={`absolute inset-0 flex items-center justify-center ${item.image ? 'hidden' : ''}`}>
+                              <ImageIcon className={`h-8 w-8 ${isOutOfStock ? 'text-red-300' : 'text-muted-foreground/30'}`} />
                             </div>
-                            {/* Oznaka velikosti na sliki - Toast/Square POS stil */}
-                            {sizeInfo && (
-                              <div 
-                                className="absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center py-1 px-2"
-                                style={{ backgroundColor: catStyle.accent + 'E6' }}
-                              >
-                                <span className="text-white text-[11px] font-bold tracking-wide drop-shadow-sm">
-                                  {sizeInfo.shortLabel}
-                                </span>
-                              </div>
-                            )}
-                            {/* Oznaka tipa pijače na sliki - izrazita za hitro prepoznavo */}
-                            {typeInfo && !sizeInfo && (
-                              <div 
-                                className="absolute top-0 left-0 right-0 z-10 flex items-center justify-center py-1 px-2"
-                                style={{ backgroundColor: typeInfo.color + 'E6' }}
-                              >
-                                <span className="text-white text-[11px] font-bold tracking-wide drop-shadow-sm flex items-center gap-1">
-                                  <span>{typeInfo.emoji}</span>
-                                  {typeInfo.label}
-                                </span>
-                              </div>
-                            )}
-                            {typeInfo && sizeInfo && (
-                              <div 
-                                className="absolute top-0 left-0 right-0 z-10 flex items-center justify-center py-1 px-2"
-                                style={{ backgroundColor: typeInfo.color + 'CC' }}
-                              >
-                                <span className="text-white text-[9px] font-bold tracking-wide drop-shadow-sm flex items-center gap-0.5">
-                                  <span>{typeInfo.emoji}</span>
-                                  {typeInfo.label}
-                                </span>
-                              </div>
-                            )}
                           </div>
                           {/* Info */}
-                          <div className="p-2 flex-1 flex flex-col justify-between min-h-0">
-                            <p className="font-semibold text-xs leading-tight line-clamp-2" title={item.name}>{displayName}</p>
-                            <div className="flex items-center justify-between mt-1 gap-1">
-                              <p className="text-primary font-bold text-sm">€{item.price.toFixed(2)}</p>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                {typeInfo && (
-                                  <span 
-                                    className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"
-                                    style={{ backgroundColor: typeInfo.color }}
-                                  >
-                                    {typeInfo.emoji} {typeInfo.label}
-                                  </span>
-                                )}
-                                {sizeInfo && (
-                                  <span 
-                                    className="text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"
-                                    style={{ backgroundColor: catStyle.accent }}
-                                  >
-                                    {sizeInfo.shortLabel}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
+                          <div className="p-2 flex-1 flex flex-col justify-between">
+                            <p className={`font-semibold text-xs leading-tight line-clamp-2 ${isOutOfStock ? 'text-muted-foreground line-through' : ''}`}>{item.name}</p>
+                            <p className={`font-bold text-sm mt-1 ${isOutOfStock ? 'text-muted-foreground' : 'text-primary'}`}>€{item.price.toFixed(2)}</p>
                           </div>
                         </button>
                       )
@@ -955,8 +783,8 @@ export function OrderPanel() {
                             <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
                           </div>
                         ) : (
-                          <div className="w-10 h-10 rounded-md bg-muted flex-shrink-0 flex items-center justify-center text-sm font-bold text-muted-foreground">
-                            {item.name.charAt(0).toUpperCase()}
+                          <div className="w-10 h-10 rounded-md bg-muted flex-shrink-0 flex items-center justify-center">
+                            <ImageIcon className="h-4 w-4 text-muted-foreground/40" />
                           </div>
                         )}
                         {/* Info */}
@@ -1355,8 +1183,8 @@ export function OrderPanel() {
                         <img src={oi.menuItem.image} alt={oi.menuItem.name} className="w-full h-full object-cover" />
                       </div>
                     ) : (
-                      <div className={`w-9 h-9 rounded-md flex-shrink-0 flex items-center justify-center text-xs ${defaultCategoryStyle.bg}`}>
-                        {defaultCategoryStyle.emoji}
+                      <div className="w-9 h-9 rounded-md bg-muted flex-shrink-0 flex items-center justify-center">
+                        <ImageIcon className="h-3.5 w-3.5 text-muted-foreground/50" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">

@@ -72,6 +72,7 @@ export async function GET(req: Request) {
     // Prejšnje obdobje za primerjavo
     const prevOrders = await db.order.findMany({
       where: { createdAt: { gte: prevStartDate, lte: prevEndDate } },
+      include: { orderItems: { include: { menuItem: { include: { category: true } } } }, table: true },
     })
 
     // === OSNOVNI KAZALCI ===
@@ -89,7 +90,12 @@ export async function GET(req: Request) {
     // Prejšnje obdobje primerjava
     const prevCompletedOrders = prevOrders.filter(o => o.status === 'completed')
     const prevRevenue = prevCompletedOrders.reduce((sum, o) => sum + o.total, 0)
+    const prevSubtotal = prevCompletedOrders.reduce((sum, o) => sum + o.subtotal, 0)
+    const prevTax = prevCompletedOrders.reduce((sum, o) => sum + o.tax, 0)
+    const prevDiscount = prevCompletedOrders.reduce((sum, o) => sum + o.discount, 0)
     const prevCount = prevCompletedOrders.length
+    const prevAvgOrderValue = prevCount > 0 ? prevRevenue / prevCount : 0
+    const prevTips = prevOrders.filter(o => o.paymentStatus === 'paid').reduce((sum, o) => sum + (o.tip || 0), 0)
     const revenueChange = prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0
     const orderChange = prevCount > 0 ? ((completedCount - prevCount) / prevCount) * 100 : 0
 
@@ -98,44 +104,52 @@ export async function GET(req: Request) {
       const map: Record<string, string> = { cash: 'gotovina', card: 'kartica', mobile: 'mobilno', valuto: 'kartica' }
       return map[m] || m || 'gotovina'
     }
-    const paymentMethods: Record<string, { method: string; count: number; revenue: number; tax: number }> = {}
+    const paymentMethods: Record<string, { method: string; count: number; revenue: number; tax: number; tips: number }> = {}
     paidOrders.forEach(order => {
       const method = normalizeMethod(order.paymentMethod)
       if (!paymentMethods[method]) {
-        paymentMethods[method] = { method, count: 0, revenue: 0, tax: 0 }
+        paymentMethods[method] = { method, count: 0, revenue: 0, tax: 0, tips: 0 }
       }
       paymentMethods[method].count += 1
       paymentMethods[method].revenue += order.total
       paymentMethods[method].tax += order.tax
+      paymentMethods[method].tips += (order.tip || 0)
     })
 
     // === VRSTE NAROČIL ===
-    const orderTypes: Record<string, { type: string; count: number; revenue: number }> = {}
+    const orderTypes: Record<string, { type: string; count: number; revenue: number; avgValue: number }> = {}
     completedOrders.forEach(order => {
       const type = order.type || 'dine-in'
       if (!orderTypes[type]) {
-        orderTypes[type] = { type, count: 0, revenue: 0 }
+        orderTypes[type] = { type, count: 0, revenue: 0, avgValue: 0 }
       }
       orderTypes[type].count += 1
       orderTypes[type].revenue += order.total
     })
+    Object.values(orderTypes).forEach(ot => {
+      ot.avgValue = ot.count > 0 ? Math.round((ot.revenue / ot.count) * 100) / 100 : 0
+    })
 
-    // === PO KATEGORIJAH ===
-    const categoryBreakdown: Record<string, { category: string; revenue: number; quantity: number; items: number }> = {}
+    // === PO KATEGORIJAH z DDV razčlenitvijo ===
+    const categoryBreakdown: Record<string, { category: string; revenue: number; quantity: number; items: number; vat22: number; vat95: number; vat0: number }> = {}
     completedOrders.forEach(order => {
       order.orderItems.forEach(oi => {
         const cat = oi.menuItem?.category?.name || 'Ostalo'
         if (!categoryBreakdown[cat]) {
-          categoryBreakdown[cat] = { category: cat, revenue: 0, quantity: 0, items: 0 }
+          categoryBreakdown[cat] = { category: cat, revenue: 0, quantity: 0, items: 0, vat22: 0, vat95: 0, vat0: 0 }
         }
         categoryBreakdown[cat].revenue += oi.price * oi.quantity
         categoryBreakdown[cat].quantity += oi.quantity
         categoryBreakdown[cat].items += 1
+        // DDV po stopnjah znotraj kategorije
+        if (oi.vatRate >= 20) categoryBreakdown[cat].vat22 += oi.price * oi.quantity
+        else if (oi.vatRate > 0) categoryBreakdown[cat].vat95 += oi.price * oi.quantity
+        else categoryBreakdown[cat].vat0 += oi.price * oi.quantity
       })
     })
 
     // === PO ARTIKLIH (ZA IZPISKE) ===
-    const itemBreakdown: Record<string, { name: string; category: string; quantity: number; revenue: number; avgPrice: number }> = {}
+    const itemBreakdown: Record<string, { name: string; category: string; quantity: number; revenue: number; avgPrice: number; vatRate: number }> = {}
     completedOrders.forEach(order => {
       order.orderItems.forEach(oi => {
         if (!itemBreakdown[oi.menuItemId]) {
@@ -145,26 +159,25 @@ export async function GET(req: Request) {
             quantity: 0,
             revenue: 0,
             avgPrice: oi.price,
+            vatRate: oi.vatRate,
           }
         }
         itemBreakdown[oi.menuItemId].quantity += oi.quantity
         itemBreakdown[oi.menuItemId].revenue += oi.price * oi.quantity
       })
     })
-    // Izračunaj povprečno ceno
     Object.values(itemBreakdown).forEach(item => {
       if (item.quantity > 0) item.avgPrice = item.revenue / item.quantity
     })
 
     // === ČASOVNA RAZDELITEV (za grafikon) ===
-    const timeDistribution: Record<string, { period: string; revenue: number; orders: number }> = {}
+    const timeDistribution: Record<string, { period: string; revenue: number; orders: number; prevRevenue: number; prevOrders: number }> = {}
 
     if (period === 'daily') {
-      // Po urah
       for (let h = 0; h < 24; h++) {
         timeDistribution[String(h).padStart(2, '0')] = {
           period: `${String(h).padStart(2, '0')}:00`,
-          revenue: 0, orders: 0,
+          revenue: 0, orders: 0, prevRevenue: 0, prevOrders: 0,
         }
       }
       completedOrders.forEach(order => {
@@ -175,24 +188,39 @@ export async function GET(req: Request) {
           timeDistribution[key].orders += 1
         }
       })
+      // Prejšnje obdobje na časovno razdelitev
+      prevCompletedOrders.forEach(order => {
+        const hour = new Date(order.createdAt).getHours()
+        const key = String(hour).padStart(2, '0')
+        if (timeDistribution[key]) {
+          timeDistribution[key].prevRevenue += order.total
+          timeDistribution[key].prevOrders += 1
+        }
+      })
     } else if (period === 'weekly') {
-      // Po dneh v tednu
       const dayNames = ['Pon', 'Tor', 'Sre', 'Čet', 'Pet', 'Sob', 'Ned']
-      dayNames.forEach(d => { timeDistribution[d] = { period: d, revenue: 0, orders: 0 } })
+      dayNames.forEach(d => { timeDistribution[d] = { period: d, revenue: 0, orders: 0, prevRevenue: 0, prevOrders: 0 } })
       completedOrders.forEach(order => {
-        const dayIdx = (new Date(order.createdAt).getDay() + 6) % 7 // 0=Pon
+        const dayIdx = (new Date(order.createdAt).getDay() + 6) % 7
         const key = dayNames[dayIdx]
         if (timeDistribution[key]) {
           timeDistribution[key].revenue += order.total
           timeDistribution[key].orders += 1
         }
       })
+      prevCompletedOrders.forEach(order => {
+        const dayIdx = (new Date(order.createdAt).getDay() + 6) % 7
+        const key = dayNames[dayIdx]
+        if (timeDistribution[key]) {
+          timeDistribution[key].prevRevenue += order.total
+          timeDistribution[key].prevOrders += 1
+        }
+      })
     } else if (period === 'monthly') {
-      // Po dnevih v mesecu
       const daysInMonth = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 0).getDate()
       for (let d = 1; d <= daysInMonth; d++) {
         const key = String(d).padStart(2, '0')
-        timeDistribution[key] = { period: String(d), revenue: 0, orders: 0 }
+        timeDistribution[key] = { period: String(d), revenue: 0, orders: 0, prevRevenue: 0, prevOrders: 0 }
       }
       completedOrders.forEach(order => {
         const day = new Date(order.createdAt).getDate()
@@ -202,16 +230,31 @@ export async function GET(req: Request) {
           timeDistribution[key].orders += 1
         }
       })
+      prevCompletedOrders.forEach(order => {
+        const day = new Date(order.createdAt).getDate()
+        const key = String(day).padStart(2, '0')
+        if (timeDistribution[key]) {
+          timeDistribution[key].prevRevenue += order.total
+          timeDistribution[key].prevOrders += 1
+        }
+      })
     } else {
-      // Po mesecih v letu
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Avg', 'Sep', 'Okt', 'Nov', 'Dec']
-      monthNames.forEach(m => { timeDistribution[m] = { period: m, revenue: 0, orders: 0 } })
+      monthNames.forEach(m => { timeDistribution[m] = { period: m, revenue: 0, orders: 0, prevRevenue: 0, prevOrders: 0 } })
       completedOrders.forEach(order => {
         const monthIdx = new Date(order.createdAt).getMonth()
         const key = monthNames[monthIdx]
         if (timeDistribution[key]) {
           timeDistribution[key].revenue += order.total
           timeDistribution[key].orders += 1
+        }
+      })
+      prevCompletedOrders.forEach(order => {
+        const monthIdx = new Date(order.createdAt).getMonth()
+        const key = monthNames[monthIdx]
+        if (timeDistribution[key]) {
+          timeDistribution[key].prevRevenue += order.total
+          timeDistribution[key].prevOrders += 1
         }
       })
     }
@@ -237,10 +280,113 @@ export async function GET(req: Request) {
     const grossProfit = totalRevenue - cogs
     const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
 
-    // === NAPITNINE ===
-    const totalTips = paidOrders.reduce((sum, o) => {
-      return sum + (o.tip || 0)
-    }, 0)
+    // === NAPITNINE z razčlenitvijo ===
+    const totalTips = paidOrders.reduce((sum, o) => sum + (o.tip || 0), 0)
+    const avgTipPerOrder = paidOrders.length > 0 ? totalTips / paidOrders.length : 0
+    const tipPercentage = totalRevenue > 0 ? (totalTips / totalRevenue) * 100 : 0
+
+    // Napitnine po zaposlenih
+    const tipsByEmployee: Record<string, { employeeId: string; employeeName: string; tips: number; orderCount: number; avgTip: number }> = {}
+    paidOrders.forEach(order => {
+      const empId = order.employeeId || 'unknown'
+      if (!tipsByEmployee[empId]) {
+        tipsByEmployee[empId] = { employeeId: empId, employeeName: '', tips: 0, orderCount: 0, avgTip: 0 }
+      }
+      tipsByEmployee[empId].tips += (order.tip || 0)
+      tipsByEmployee[empId].orderCount += 1
+    })
+    // Pridobi imena zaposlenih
+    const empIds = Object.keys(tipsByEmployee).filter(id => id !== 'unknown')
+    if (empIds.length > 0) {
+      const employees = await db.employee.findMany({ where: { id: { in: empIds } }, select: { id: true, name: true } })
+      employees.forEach(emp => {
+        if (tipsByEmployee[emp.id]) tipsByEmployee[emp.id].employeeName = emp.name
+      })
+    }
+    if (tipsByEmployee['unknown']) tipsByEmployee['unknown'].employeeName = 'Nedoločen'
+    Object.values(tipsByEmployee).forEach(t => {
+      t.avgTip = t.orderCount > 0 ? Math.round((t.tips / t.orderCount) * 100) / 100 : 0
+      t.tips = Math.round(t.tips * 100) / 100
+    })
+
+    // === PRIHODEK PO MIZAH ===
+    const tableRevenue: Record<string, { tableNumber: number; area: string; revenue: number; orderCount: number; avgOrder: number; tips: number; guests: number }> = {}
+    completedOrders.forEach(order => {
+      if (order.type === 'dine-in' && order.tableId) {
+        const tableId = order.tableId
+        if (!tableRevenue[tableId]) {
+          tableRevenue[tableId] = {
+            tableNumber: order.table?.number || 0,
+            area: order.table?.area || 'main',
+            revenue: 0,
+            orderCount: 0,
+            avgOrder: 0,
+            tips: 0,
+            guests: 0,
+          }
+        }
+        tableRevenue[tableId].revenue += order.total
+        tableRevenue[tableId].orderCount += 1
+        tableRevenue[tableId].tips += (order.tip || 0)
+      }
+    })
+    Object.values(tableRevenue).forEach(t => {
+      t.avgOrder = t.orderCount > 0 ? Math.round((t.revenue / t.orderCount) * 100) / 100 : 0
+      t.revenue = Math.round(t.revenue * 100) / 100
+      t.tips = Math.round(t.tips * 100) / 100
+    })
+
+    // === URNA TOPLOTNA KARTA (dopoldne/popoldan/večer razdelitev) ===
+    const hourlyHeatmap: Array<{ hour: number; label: string; revenue: number; orders: number; intensity: number }> = []
+    let maxHourlyRevenue = 0
+    const hourlyBuckets: Record<number, { revenue: number; orders: number }> = {}
+    for (let h = 0; h < 24; h++) {
+      hourlyBuckets[h] = { revenue: 0, orders: 0 }
+    }
+    completedOrders.forEach(order => {
+      const hour = new Date(order.createdAt).getHours()
+      hourlyBuckets[hour].revenue += order.total
+      hourlyBuckets[hour].orders += 1
+      if (hourlyBuckets[hour].revenue > maxHourlyRevenue) maxHourlyRevenue = hourlyBuckets[hour].revenue
+    })
+    for (let h = 0; h < 24; h++) {
+      const label = h < 6 ? 'Noč' : h < 10 ? 'Jutro' : h < 14 ? 'Kosilo' : h < 17 ? 'Popoldne' : h < 21 ? 'Večerja' : 'Po večerji'
+      hourlyHeatmap.push({
+        hour: h,
+        label,
+        revenue: Math.round(hourlyBuckets[h].revenue * 100) / 100,
+        orders: hourlyBuckets[h].orders,
+        intensity: maxHourlyRevenue > 0 ? Math.round((hourlyBuckets[h].revenue / maxHourlyRevenue) * 100) : 0,
+      })
+    }
+
+    // === DDV RAZČLENITEV (podrobna) ===
+    const vatBreakdown: Record<string, { rate: number; label: string; code: string; baseAmount: number; vatAmount: number; totalAmount: number }> = {}
+    completedOrders.forEach(order => {
+      order.orderItems.forEach(oi => {
+        const rateKey = String(oi.vatRate)
+        if (!vatBreakdown[rateKey]) {
+          vatBreakdown[rateKey] = {
+            rate: oi.vatRate,
+            label: oi.vatRate >= 20 ? 'DDV 22% (Standardna)' : oi.vatRate > 0 ? 'DDV 9.5% (Znižana)' : 'DDV 0% (Oproščeno)',
+            code: oi.vatRate >= 20 ? 'S' : oi.vatRate > 0 ? 'R' : 'Z',
+            baseAmount: 0,
+            vatAmount: 0,
+            totalAmount: 0,
+          }
+        }
+        const base = oi.price * oi.quantity
+        const vat = oi.vatAmount || 0
+        vatBreakdown[rateKey].baseAmount += base
+        vatBreakdown[rateKey].vatAmount += vat
+        vatBreakdown[rateKey].totalAmount += base + vat
+      })
+    })
+    Object.values(vatBreakdown).forEach(vr => {
+      vr.baseAmount = Math.round(vr.baseAmount * 100) / 100
+      vr.vatAmount = Math.round(vr.vatAmount * 100) / 100
+      vr.totalAmount = Math.round(vr.totalAmount * 100) / 100
+    })
 
     // === BLAGAJNA IZPISKI ===
     const cashRegisterShifts = await db.cashRegisterShift.findMany({
@@ -250,7 +396,6 @@ export async function GET(req: Request) {
     const totalCardSales = cashRegisterShifts.reduce((sum, s) => sum + s.cardSales, 0)
     const totalMobileSales = cashRegisterShifts.reduce((sum, s) => sum + s.mobileSales, 0)
 
-    // Če blagajna nima podatkov, uporabi plačilne metode iz naročil
     const effectiveCashSales = totalCashSales > 0 ? totalCashSales : (paymentMethods['gotovina']?.revenue || 0)
     const effectiveCardSales = totalCardSales > 0 ? totalCardSales : (paymentMethods['kartica']?.revenue || 0)
     const effectiveMobileSales = totalMobileSales > 0 ? totalMobileSales : (paymentMethods['mobilno']?.revenue || 0)
@@ -272,6 +417,34 @@ export async function GET(req: Request) {
       totalCredit: Math.round((totalSubtotal + totalTax) * 100) / 100,
     }
 
+    // === PRIMERJAVA OBDOBIJ (podrobna) ===
+    const periodComparison = {
+      current: {
+        revenue: Math.round(totalRevenue * 100) / 100,
+        subtotal: Math.round(totalSubtotal * 100) / 100,
+        tax: Math.round(totalTax * 100) / 100,
+        discount: Math.round(totalDiscount * 100) / 100,
+        tips: Math.round(totalTips * 100) / 100,
+        orders: completedCount,
+        avgOrderValue: Math.round(avgOrderValue * 100) / 100,
+      },
+      previous: {
+        revenue: Math.round(prevRevenue * 100) / 100,
+        subtotal: Math.round(prevSubtotal * 100) / 100,
+        tax: Math.round(prevTax * 100) / 100,
+        discount: Math.round(prevDiscount * 100) / 100,
+        tips: Math.round(prevTips * 100) / 100,
+        orders: prevCount,
+        avgOrderValue: Math.round(prevAvgOrderValue * 100) / 100,
+      },
+      changes: {
+        revenue: Math.round(revenueChange * 100) / 100,
+        orders: Math.round(orderChange * 100) / 100,
+        avgOrderValue: prevAvgOrderValue > 0 ? Math.round((((avgOrderValue - prevAvgOrderValue) / prevAvgOrderValue) * 100) * 100) / 100 : 0,
+        tips: prevTips > 0 ? Math.round((((totalTips - prevTips) / prevTips) * 100) * 100) / 100 : 0,
+      },
+    }
+
     return NextResponse.json({
       period,
       periodLabel,
@@ -287,7 +460,6 @@ export async function GET(req: Request) {
         completedCount,
         cancelledCount,
         avgOrderValue: Math.round(avgOrderValue * 100) / 100,
-        // Primerjava s prejšnjim obdobjem
         prevRevenue: Math.round(prevRevenue * 100) / 100,
         revenueChange: Math.round(revenueChange * 100) / 100,
         orderChange: Math.round(orderChange * 100) / 100,
@@ -296,11 +468,11 @@ export async function GET(req: Request) {
       paymentMethods: Object.values(paymentMethods),
       // Vrste naročil
       orderTypes: Object.values(orderTypes),
-      // Kategorije
+      // Kategorije z DDV
       categoryBreakdown: Object.values(categoryBreakdown).sort((a, b) => b.revenue - a.revenue),
-      // Artikli
+      // Artikli z DDV
       itemBreakdown: Object.values(itemBreakdown).sort((a, b) => b.revenue - a.revenue),
-      // Časovna porazdelitev
+      // Časovna porazdelitev s primerjavo
       timeDistribution: Object.values(timeDistribution),
       // Stroški in dobiček
       costs: {
@@ -311,7 +483,16 @@ export async function GET(req: Request) {
         grossMargin: Math.round(grossMargin * 100) / 100,
       },
       // Napitnine
-      totalTips,
+      totalTips: Math.round(totalTips * 100) / 100,
+      avgTipPerOrder: Math.round(avgTipPerOrder * 100) / 100,
+      tipPercentage: Math.round(tipPercentage * 100) / 100,
+      tipsByEmployee: Object.values(tipsByEmployee).sort((a, b) => b.tips - a.tips),
+      // Prihodek po mizah
+      tableRevenue: Object.values(tableRevenue).sort((a, b) => b.revenue - a.revenue),
+      // Urna toplotna karta
+      hourlyHeatmap,
+      // DDV razčlenitev
+      vatBreakdown: Object.values(vatBreakdown).sort((a, b) => b.rate - a.rate),
       // Blagajna
       cashRegister: {
         totalCashSales: Math.round(effectiveCashSales * 100) / 100,
@@ -321,6 +502,8 @@ export async function GET(req: Request) {
       },
       // Knjižbeni izpisek
       bookingEntry,
+      // Primerjava obdobij
+      periodComparison,
     })
   } catch (error) {
     console.error('Financial report error:', error)

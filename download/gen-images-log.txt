@@ -1,0 +1,27 @@
+=== START: Sun May 10 19:38:54 UTC 2026 ===
+SKIP: cheese-please.png
+SKIP: crispy-chicken.png
+SKIP: fit-burger.png
+SKIP: green-garden.png
+SKIP: hisni-burger.png
+SKIP: jamies-italian.png
+SKIP: the-classic.png
+GEN: goveji-golaz.png - 19:38:54
+🚀 Initializing Z-AI SDK...
+🎨 Generating image: "Professional food photography of beef goulash in pot"
+📐 Size: 864x1152
+=== START: Sun May 10 19:41:44 UTC 2026 ===
+SKIP: cheese-please.png
+SKIP: crispy-chicken.png
+SKIP: fit-burger.png
+SKIP: green-garden.png
+SKIP: hisni-burger.png
+SKIP: jamies-italian.png
+SKIP: the-classic.png
+GEN: goveji-golaz.png - 19:41:44
+🚀 Initializing Z-AI SDK...
+🎨 Generating image: "Professional food photography of beef goulash in pot"
+📐 Size: 864x1152
+✅ File saved to: /home/z/my-project/public/menu-images/glavne-jedi/goveji-golaz.png
+🎉 Image generation completed!
+OK: goveji-golaz.png - 19:42:14

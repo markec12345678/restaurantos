@@ -19,6 +19,7 @@ import {
   Activity, Webhook,
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
+import { authFetch } from '@/components/pos/PinLogin'
 
 // ============================================
 // TIPI
@@ -96,8 +97,7 @@ export function WebhookManager() {
   const { data: webhooks, isLoading } = useQuery<WebhookItem[]>({
     queryKey: ['webhooks'],
     queryFn: async () => {
-      const res = await fetch('/api/webhooks')
-      if (!res.ok) throw new Error('Napaka pri pridobivanju spletnih kljuk')
+      const res = await authFetch('/api/webhooks')
       return res.json()
     },
   })
@@ -106,7 +106,7 @@ export function WebhookManager() {
   // IZRAČUNI
   // ============================================
 
-  const allWebhooks = webhooks || []
+  const allWebhooks = Array.isArray(webhooks) ? webhooks : []
 
   const filteredWebhooks = useMemo(() => {
     let items = allWebhooks
@@ -133,12 +133,10 @@ export function WebhookManager() {
 
   const createMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const res = await fetch('/api/webhooks', {
+      const res = await authFetch('/api/webhooks', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-      if (!res.ok) throw new Error('Napaka pri ustvarjanju')
       return res.json()
     },
     onSuccess: () => {
@@ -151,12 +149,10 @@ export function WebhookManager() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await fetch(`/api/webhooks/${id}`, {
+      const res = await authFetch(`/api/webhooks/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-      if (!res.ok) throw new Error('Napaka pri posodabljanju')
       return res.json()
     },
     onSuccess: () => {
@@ -170,8 +166,7 @@ export function WebhookManager() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/webhooks/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Napaka pri brisanju')
+      const res = await authFetch(`/api/webhooks/${id}`, { method: 'DELETE' })
       return res.json()
     },
     onSuccess: () => {

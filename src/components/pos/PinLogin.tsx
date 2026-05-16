@@ -28,9 +28,17 @@ let authToken: string | null = null
 export function getCurrentUser(): AuthUser | null {
   if (typeof window === 'undefined') return null
   try {
+    // Poskusi sessionStorage (obnova znotraj seje)
     const stored = sessionStorage.getItem('pos_auth_user')
     if (stored) {
       currentUser = JSON.parse(stored)
+      return currentUser
+    }
+    // Fallback na localStorage (persist med sejami)
+    const localStored = localStorage.getItem('pos_auth_user')
+    if (localStored) {
+      currentUser = JSON.parse(localStored)
+      sessionStorage.setItem('pos_auth_user', localStored)
       return currentUser
     }
   } catch {}
@@ -41,9 +49,14 @@ export function setCurrentUser(user: AuthUser | null) {
   currentUser = user
   if (typeof window !== 'undefined') {
     if (user) {
-      sessionStorage.setItem('pos_auth_user', JSON.stringify(user))
+      const json = JSON.stringify(user)
+      sessionStorage.setItem('pos_auth_user', json)
+      localStorage.setItem('pos_auth_user', json)
     } else {
       sessionStorage.removeItem('pos_auth_user')
+      localStorage.removeItem('pos_auth_user')
+      sessionStorage.removeItem('pos_auth_token')
+      localStorage.removeItem('pos_auth_token')
     }
   }
 }
@@ -56,6 +69,13 @@ export function getAuthToken(): string | null {
       authToken = stored
       return authToken
     }
+    // Fallback na localStorage
+    const localStored = localStorage.getItem('pos_auth_token')
+    if (localStored) {
+      authToken = localStored
+      sessionStorage.setItem('pos_auth_token', localStored)
+      return authToken
+    }
   } catch {}
   return authToken
 }
@@ -65,8 +85,10 @@ export function setAuthToken(token: string | null) {
   if (typeof window !== 'undefined') {
     if (token) {
       sessionStorage.setItem('pos_auth_token', token)
+      localStorage.setItem('pos_auth_token', token)
     } else {
       sessionStorage.removeItem('pos_auth_token')
+      localStorage.removeItem('pos_auth_token')
     }
   }
 }
@@ -74,6 +96,10 @@ export function setAuthToken(token: string | null) {
 /**
  * Profesionalna fetch wrapper, ki samodejno doda Authorization header
  * Uporaba: authFetch('/api/orders', { method: 'POST', body: ... })
+ *
+ * IMPORTANT: Vrne Response SAMO če je res.ok. Če ni ok, vrže Error z
+ * sporočilom iz strežnika. Tako React Query pravilno obravnava napake
+ * in komponente ne dobijo error objektov namesto pravih podatkov.
  */
 export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const token = getAuthToken()
@@ -91,15 +117,27 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
     headers,
   })
 
-  // Avtomatska odjava ob poteklem token-u
+  // Avtomatska odjava ob poteklem/neveljavnem token-u
   if (response.status === 401) {
-    const data = await response.json().catch(() => ({}))
-    if (data.error?.includes('žeton') || data.error?.includes('token') || data.error?.includes('potekel')) {
-      setAuthToken(null)
-      setCurrentUser(null)
-      // Sproži globalni dogodek za odjavo
-      window.dispatchEvent(new CustomEvent('pos:auth-expired'))
+    // Vedno počisti avtentikacijo ob 401 — token je neveljaven ali potekel
+    setAuthToken(null)
+    setCurrentUser(null)
+    // Sproži globalni dogodek za odjavo
+    window.dispatchEvent(new CustomEvent('pos:auth-expired'))
+  }
+
+  // Vrži napako za vse ne-uspešne odgovore, da React Query pravilno
+  // obravnava napake in komponente ne poizkušajo klicati .filter() na
+  // error objektih (npr. {error: "..."} namesto array-ja)
+  if (!response.ok) {
+    let errorMessage = `Napaka ${response.status}`
+    try {
+      const errorData = await response.json()
+      errorMessage = errorData.error || errorMessage
+    } catch {
+      // Če JSON parsanje ne uspe, uporabi privzeto sporočilo
     }
+    throw new Error(errorMessage)
   }
 
   return response
@@ -172,11 +210,10 @@ export function PinLogin({ onLogin, onSkip }: { onLogin: (user: AuthUser) => voi
   }
 
   const handleDigit = (digit: string) => {
-    setPin(prev => {
-      if (prev.length >= 6) return prev
-      return prev + digit
-    })
-    setError('')
+    if (pin.length < 6) {
+      setPin(prev => prev + digit)
+      setError('')
+    }
   }
 
   const handleBackspace = () => {
@@ -228,28 +265,24 @@ export function PinLogin({ onLogin, onSkip }: { onLogin: (user: AuthUser) => voi
               <Button
                 key={digit}
                 variant="outline"
-                className="h-14 text-xl font-bold cursor-pointer select-none"
+                className="h-14 text-xl font-bold"
                 onClick={() => handleDigit(digit)}
               >
                 {digit}
               </Button>
             ))}
-            <Button
-              variant="ghost"
-              className="h-14 cursor-pointer select-none"
-              onClick={handleBackspace}
-            >
+            <Button variant="ghost" className="h-14" onClick={handleBackspace}>
               <KeyRound className="h-5 w-5" />
             </Button>
             <Button
               variant="outline"
-              className="h-14 text-xl font-bold cursor-pointer select-none"
+              className="h-14 text-xl font-bold"
               onClick={() => handleDigit('0')}
             >
               0
             </Button>
             <Button
-              className="h-14 bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer select-none"
+              className="h-14 bg-emerald-600 hover:bg-emerald-700 text-white"
               onClick={handlePinSubmit}
               disabled={loginMutation.isPending || pin.length < 4}
             >
@@ -260,11 +293,7 @@ export function PinLogin({ onLogin, onSkip }: { onLogin: (user: AuthUser) => voi
           {/* Preskoči gumb */}
           {onSkip && (
             <div className="text-center pt-2">
-              <Button
-                variant="ghost"
-                className="text-xs text-muted-foreground cursor-pointer"
-                onClick={onSkip}
-              >
+              <Button variant="ghost" className="text-xs text-muted-foreground" onClick={onSkip}>
                 Preskoči prijavo
               </Button>
               {authStatus && !authStatus.authEnabled && (

@@ -206,37 +206,3 @@ html {
     padding-right: env(safe-area-inset-right);
   }
 }
-
-/* ============================================
-   IFRAME / EMBED KOMPATIBNOST
-   Zagiče dogodke v iframe okolju (z.ai preview)
-   ============================================ */
-
-/* Zagotovi, da so vsi interaktivni elementi klikljivi */
-html, body {
-  pointer-events: auto !important;
-}
-
-button, a, [role="button"], input, select, textarea, [tabindex] {
-  pointer-events: auto !important;
-  cursor: pointer;
-  position: relative;
-  z-index: 1;
-}
-
-/* Skrij Next.js dev overlay, ki lahko blokira klike v iframe-u */
-[nextjs-toast],
-[data-nextjs-toast],
-[data-nextjs-dialog-overlay],
-.nextjs-toast,
-.nextjs-dev-overlay,
-button[aria-label="Open Next.js Dev Tools"],
-button[aria-label="Open issues overlay"],
-button[aria-label="Collapse issues badge"] {
-  display: none !important;
-  pointer-events: none !important;
-  visibility: hidden !important;
-  height: 0 !important;
-  width: 0 !important;
-  overflow: hidden !important;
-}

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { DollarSign, ShoppingBag, Calculator, BarChartBig, Clock, ArrowRight, ChefHat, Users, TrendingUp, Receipt, Truck } from 'lucide-react'
+import { DollarSign, ShoppingBag, Calculator, BarChartBig, Clock, ArrowRight, ChefHat, Users, TrendingUp, Receipt, Truck, Package, AlertTriangle, XCircle, Shield, Wallet, CreditCard, Banknote, PiggyBank } from 'lucide-react'
 import { usePOSStore } from '@/lib/store'
 import { format } from 'date-fns'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts'
@@ -57,11 +57,84 @@ export function Dashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard title="Današnji prihodek" value={`€${(data?.todayRevenue || 0).toFixed(2)}`} subtitle={data?.pendingOrders > 0 ? `${data.pendingOrders} čakajočih naročil` : undefined} icon={DollarSign} trend="up" />
-        <StatsCard title="Skupno naročil" value={data?.totalOrders || 0} subtitle={data?.inProgressOrders > 0 ? `${data.inProgressOrders} v obdelavi` : undefined} icon={ShoppingBag} />
-        <StatsCard title="Povpr. vrednost naročila" value={`€${(data?.avgOrderValue || 0).toFixed(2)}`} icon={Calculator} />
-        <StatsCard title="Zasedene mize" value={`${data?.activeTables || 0}/${data?.totalTables || 0}`} icon={BarChartBig} />
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        <StatsCard title="Današnji prihodek" value={`€${(data?.todayRevenue || 0).toFixed(2)}`} subtitle={data?.pendingOrders > 0 ? `${data.pendingOrders} čakajočih` : undefined} icon={DollarSign} trend="up" />
+        <StatsCard title="Skupno naročil" value={data?.totalOrders || 0} subtitle={`${data?.completedOrders || 0} končanih · ${data?.cancelledOrders || 0} preklicanih`} icon={ShoppingBag} />
+        <StatsCard title="Povpr. naročilo" value={`€${(data?.avgOrderValue || 0).toFixed(2)}`} subtitle={data?.todayTips > 0 ? `Napitnine: €${(data?.todayTips || 0).toFixed(2)}` : undefined} icon={Calculator} />
+        <StatsCard title="Zasedene mize" value={`${data?.activeTables || 0}/${data?.totalTables || 0}`} subtitle={data?.readyOrders > 0 ? `${data.readyOrders} pripravljenih` : undefined} icon={BarChartBig} />
+        <StatsCard title="Bruto dobiček" value={`€${(data?.grossProfit || 0).toFixed(2)}`} subtitle={data?.grossMargin > 0 ? `Marža: ${data.grossMargin}%` : undefined} icon={PiggyBank} trend={data?.grossMargin > 50 ? 'up' : 'down'} />
+        <StatsCard title="FURS overjeno" value={data?.fursStatus?.todayVerified || 0} subtitle={data?.fursStatus?.todayUnverified > 0 ? `${data.fursStatus.todayUnverified} brez overjanja` : 'Vse overjeno'} icon={Shield} trend={data?.fursStatus?.todayUnverified === 0 ? 'up' : 'down'} />
+      </div>
+
+      {/* Aktivna izmena + FURS status */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className={`${data?.activeShift ? 'border-emerald-200 dark:border-emerald-900/50' : 'border-amber-200 dark:border-amber-900/50'}`}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`h-10 w-10 rounded-full flex items-center justify-center ${data?.activeShift ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-amber-100 dark:bg-amber-900/30'}`}>
+                  <Wallet className={`h-5 w-5 ${data?.activeShift ? 'text-emerald-600' : 'text-amber-600'}`} />
+                </div>
+                <div>
+                  <p className="font-bold text-sm">{data?.activeShift ? 'Izmena odprta' : 'Ni odprte izmene'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {data?.activeShift
+                      ? `Od: ${format(new Date(data.activeShift.openedAt), 'HH:mm')} · Začetna blagajna: €${data.activeShift.startingCash.toFixed(2)}`
+                      : 'Odprite izmeno za sledenje prodaje'}
+                  </p>
+                </div>
+              </div>
+              {data?.activeShift && (
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">Gotovina</p>
+                    <p className="font-bold text-sm flex items-center justify-center gap-1"><Banknote className="h-3 w-3" />€{(data.activeShift.cashSales || 0).toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">Kartice</p>
+                    <p className="font-bold text-sm flex items-center justify-center gap-1"><CreditCard className="h-3 w-3" />€{(data.activeShift.cardSales || 0).toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">Skupaj</p>
+                    <p className="font-bold text-sm text-primary">€{(data.activeShift.totalSales || 0).toFixed(2)}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className={`${data?.fursStatus?.todayUnverified > 0 ? 'border-amber-200 dark:border-amber-900/50' : 'border-blue-200 dark:border-blue-900/50'}`}>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`h-10 w-10 rounded-full flex items-center justify-center ${data?.fursStatus?.configured ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-red-100 dark:bg-red-900/30'}`}>
+                  <Shield className={`h-5 w-5 ${data?.fursStatus?.configured ? 'text-blue-600' : 'text-red-600'}`} />
+                </div>
+                <div>
+                  <p className="font-bold text-sm">FURS davčno potrjevanje</p>
+                  <p className="text-xs text-muted-foreground">
+                    {data?.fursStatus?.configured
+                      ? `Okolje: ${data.fursStatus.environment === 'production' ? 'PRODUKCIJA' : 'TEST'} · Certifikat nameščen`
+                      : 'Certifikat ni nastavljen — overjanje v simulaciji'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="text-center">
+                  <p className="text-xl font-bold text-emerald-600">{data?.fursStatus?.todayVerified || 0}</p>
+                  <p className="text-[10px] text-muted-foreground">Overjenih</p>
+                </div>
+                {(data?.fursStatus?.todayUnverified || 0) > 0 && (
+                  <div className="text-center">
+                    <p className="text-xl font-bold text-amber-600">{data?.fursStatus?.todayUnverified}</p>
+                    <p className="text-[10px] text-muted-foreground">Brez overjanja</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Revenue Chart + Category Pie */}
@@ -278,23 +351,72 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Low Stock Alerts */}
-      {data?.lowStockItems?.length > 0 && (
-        <Card className="border-red-200 dark:border-red-900/50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg text-red-600">Opozorila nizke zaloge</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {data.lowStockItems.map((item: { id: string; name: string; quantity: number; minQuantity: number }) => (
-                <Badge key={item.id} variant="destructive" className="text-xs">
-                  {item.name}: {item.quantity}/{item.minQuantity}
-                </Badge>
-              ))}
+      {/* Low Stock Alerts — Izboljšan Stock Health */}
+      <Card className={`${(data?.lowStockItems?.length || 0) > 0 ? 'border-red-200 dark:border-red-900/50' : 'border-emerald-200 dark:border-emerald-900/50'}`}>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Package className="h-4 w-4" />
+              Stanje zaloge
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={() => setActiveModule('inventory')} className="text-xs gap-1">
+              Upravljaj <ArrowRight className="h-3 w-3" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {(data?.lowStockItems?.length || 0) > 0 ? (
+            <div className="space-y-2">
+              {/* Kritično — brez zaloge */}
+              {data.lowStockItems.filter((i: { quantity: number }) => i.quantity <= 0).length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-red-600 flex items-center gap-1"><XCircle className="h-3 w-3" /> Ni na zalogi</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {data.lowStockItems.filter((i: { quantity: number }) => i.quantity <= 0).map((item: { id: string; name: string; quantity: number; minQuantity: number }) => (
+                      <Badge key={item.id} variant="destructive" className="text-xs cursor-pointer" onClick={() => setActiveModule('inventory')}>
+                        {item.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Nizka zaloga */}
+              {data.lowStockItems.filter((i: { quantity: number }) => i.quantity > 0).length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-amber-600 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Nizka zaloga</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {data.lowStockItems.filter((i: { quantity: number }) => i.quantity > 0).map((item: { id: string; name: string; quantity: number; minQuantity: number; unit?: string }) => {
+                      const pct = item.minQuantity > 0 ? Math.min((item.quantity / item.minQuantity) * 100, 100) : 100
+                      return (
+                        <div key={item.id} className="flex items-center gap-2 p-2 rounded-lg bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-900/30">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium truncate">{item.name}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full ${pct <= 25 ? 'bg-red-500' : pct <= 50 ? 'bg-amber-500' : 'bg-amber-400'}`} style={{ width: `${pct}%` }} />
+                              </div>
+                              <span className="text-[10px] text-muted-foreground whitespace-nowrap">{item.quantity}/{item.minQuantity} {item.unit || ''}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+              <p className="text-[10px] text-muted-foreground text-center mt-2">Kliknite na artikel za hitro vnašanje nabave</p>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <div className="flex items-center justify-center gap-3 py-6 text-emerald-600">
+              <Package className="h-8 w-8 opacity-30" />
+              <div>
+                <p className="font-semibold">Vse zaloge so v redu</p>
+                <p className="text-xs text-muted-foreground">Ni artiklov pod minimalno količino</p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Kitchen Display */}
       <Card>

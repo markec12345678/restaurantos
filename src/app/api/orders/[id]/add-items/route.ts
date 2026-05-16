@@ -1,7 +1,8 @@
-import { db } from '@/lib/db'
+import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, addOrderItemsSchema } from '@/lib/validations'
+import { deductStockForAddedItems, broadcastLowStockAlert } from '@/lib/stock-deduction'
 
 // POST /api/orders/[id]/add-items — Dodaj artikle k obstoječemu naročilu
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -91,6 +92,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return created
     })
 
+    // ─── RAZKNJIŽI ZALOGO ZA NOVO DODANE ARTIKLE ───
+    // Ker je naročilo že obstojalo (inventoryDeducted je morda že true),
+    // razknjižimo SAMO nove artikle — ne celotnega naročila znova!
+    const stockResult = await deductStockForAddedItems(
+      id,
+      order.orderNumber,
+      data.orderItems.map(item => ({
+        menuItemId: item.menuItemId,
+        quantity: item.quantity,
+      }))
+    )
+
+    // Pošlji low-stock opozorila če so
+    if (stockResult.lowStockAlerts.length > 0) {
+      broadcastLowStockAlert(stockResult.lowStockAlerts)
+    }
+
     // Pridobi posodobljeno naročilo
     const updatedOrder = await db.order.findUnique({
       where: { id },
@@ -100,7 +118,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       },
     })
 
-    return NextResponse.json({ order: updatedOrder, addedItems: newItems.length })
+    // Revizijski dnevnik
+    await createAuditLog({
+      userId: authResult.session?.employeeId,
+      action: 'ADD_ITEMS_TO_ORDER',
+      entityType: 'Order',
+      entityId: id,
+      details: { orderNumber: order.orderNumber, addedCount: newItems.length, stockDeducted: stockResult.deducted.length },
+    })
+
+    return NextResponse.json({ order: updatedOrder, addedItems: newItems.length, _stockInfo: { deducted: stockResult.deducted.length, lowStockWarnings: stockResult.lowStockAlerts } })
   } catch (error) {
     console.error('Add items error:', error)
     const message = error instanceof Error ? error.message : 'Napaka pri dodajanju artiklov'

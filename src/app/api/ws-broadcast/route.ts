@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     }
 
     // Dovoljeni tipi WebSocket dogodkov (prepreči poljubne dogodke)
-    const ALLOWED_TYPES = ['NEW_ORDER', 'ORDER_UPDATED', 'ITEM_STATUS_CHANGED', 'ORDER_CANCELLED']
+    const ALLOWED_TYPES = ['NEW_ORDER', 'ORDER_UPDATED', 'ITEM_STATUS_CHANGED', 'ORDER_CANCELLED', 'ORDER_FIRED', 'ITEM_STATUS_UPDATE', 'STOCK_LOW']
     if (!ALLOWED_TYPES.includes(type)) {
       return NextResponse.json({ error: `Nedovoljen tip dogodka: ${type}` }, { status: 400 })
     }

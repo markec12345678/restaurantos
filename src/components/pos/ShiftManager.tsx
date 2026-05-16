@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { toast } from 'sonner'
+import { authFetch } from '@/components/pos/PinLogin'
 import {
   Plus, Pencil, Trash2, Clock, CalendarDays, Play, CheckCircle2,
   UserX, LogIn, LogOut, Coffee, Timer, Users,
@@ -141,28 +142,29 @@ export function ShiftManager() {
 
   const { data: employees } = useQuery<Employee[]>({
     queryKey: ['employees'],
-    queryFn: async () => { const res = await fetch('/api/employees'); if (!res.ok) return []; return res.json() },
+    queryFn: async () => { const res = await authFetch('/api/employees'); return res.json() },
   })
 
   const { data: jobs } = useQuery<Job[]>({
     queryKey: ['jobs'],
-    queryFn: async () => { const res = await fetch('/api/jobs'); if (!res.ok) return []; return res.json() },
+    queryFn: async () => { const res = await authFetch('/api/jobs'); return res.json() },
   })
 
   const { data: shifts, isLoading: shiftsLoading } = useQuery<ShiftItem[]>({
     queryKey: ['shifts'],
-    queryFn: async () => { const res = await fetch('/api/shifts'); if (!res.ok) return []; return res.json() },
+    queryFn: async () => { const res = await authFetch('/api/shifts'); return res.json() },
   })
 
   const { data: timeEntries, isLoading: entriesLoading } = useQuery<TimeEntryItem[]>({
     queryKey: ['time-entries'],
-    queryFn: async () => { const res = await fetch('/api/time-entries'); if (!res.ok) return []; return res.json() },
+    queryFn: async () => { const res = await authFetch('/api/time-entries'); return res.json() },
   })
 
   // ============================================
   // IZRAČUNI
   // ============================================
 
+  const employeesList = Array.isArray(employees) ? employees : []
   const allShifts = shifts || []
   const allEntries = timeEntries || []
 
@@ -182,8 +184,7 @@ export function ShiftManager() {
 
   const createShiftMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const res = await fetch('/api/shifts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (!res.ok) throw new Error('Napaka')
+      const res = await authFetch('/api/shifts', { method: 'POST', body: JSON.stringify(data) })
       return res.json()
     },
     onSuccess: () => { toast.success('Izmena uspešno ustvarjena'); queryClient.invalidateQueries({ queryKey: ['shifts'] }); setShiftDialogOpen(false) },
@@ -192,8 +193,7 @@ export function ShiftManager() {
 
   const updateShiftMutation = useMutation({
     mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await fetch(`/api/shifts/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (!res.ok) throw new Error('Napaka')
+      const res = await authFetch(`/api/shifts/${id}`, { method: 'PUT', body: JSON.stringify(data) })
       return res.json()
     },
     onSuccess: () => { toast.success('Izmena uspešno posodobljena'); queryClient.invalidateQueries({ queryKey: ['shifts'] }); setShiftDialogOpen(false); setEditingShift(null) },
@@ -202,8 +202,7 @@ export function ShiftManager() {
 
   const deleteShiftMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/shifts/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Napaka')
+      const res = await authFetch(`/api/shifts/${id}`, { method: 'DELETE' })
       return res.json()
     },
     onSuccess: () => { toast.success('Izmena uspešno izbrisana'); queryClient.invalidateQueries({ queryKey: ['shifts'] }); setDeleteShiftDialogOpen(false) },
@@ -212,8 +211,7 @@ export function ShiftManager() {
 
   const clockInMutation = useMutation({
     mutationFn: async (data: { employeeId: string; jobId?: string; type?: string }) => {
-      const res = await fetch('/api/time-entries', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...data, clockIn: new Date().toISOString() }) })
-      if (!res.ok) throw new Error('Napaka')
+      const res = await authFetch('/api/time-entries', { method: 'POST', body: JSON.stringify({ ...data, clockIn: new Date().toISOString() }) })
       return res.json()
     },
     onSuccess: () => { toast.success('Uspešno prijavljen'); queryClient.invalidateQueries({ queryKey: ['time-entries'] }); setClockInEmployeeId(''); setClockInJobId('') },
@@ -222,8 +220,7 @@ export function ShiftManager() {
 
   const clockOutMutation = useMutation({
     mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await fetch(`/api/time-entries/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (!res.ok) throw new Error('Napaka')
+      const res = await authFetch(`/api/time-entries/${id}`, { method: 'PUT', body: JSON.stringify(data) })
       return res.json()
     },
     onSuccess: () => { toast.success('Uspešno odjavljen'); queryClient.invalidateQueries({ queryKey: ['time-entries'] }); setClockOutEntryId('') },
@@ -457,7 +454,7 @@ export function ShiftManager() {
                   <Select value={clockInEmployeeId} onValueChange={setClockInEmployeeId}>
                     <SelectTrigger className="w-48 h-9 text-sm"><SelectValue placeholder="Izberi..." /></SelectTrigger>
                     <SelectContent>
-                      {employees?.filter(e => e.status === 'active').map(emp => (
+                      {employeesList.filter(e => e.status === 'active').map(emp => (
                         <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
                       ))}
                     </SelectContent>
@@ -589,7 +586,7 @@ export function ShiftManager() {
               <Select value={shiftForm.employeeId} onValueChange={v => setShiftForm({ ...shiftForm, employeeId: v })}>
                 <SelectTrigger><SelectValue placeholder="Izberi zaposlenega" /></SelectTrigger>
                 <SelectContent>
-                  {employees?.filter(e => e.status === 'active').map(emp => (
+                  {employeesList.filter(e => e.status === 'active').map(emp => (
                     <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
                   ))}
                 </SelectContent>

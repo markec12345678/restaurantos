@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
+import { authFetch } from '@/components/pos/PinLogin'
 import { Plus, Pencil, Trash2, Search, LayoutGrid, List, UtensilsCrossed, Tag, ImageIcon, BookOpen, Settings2 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -34,7 +35,7 @@ export function MenuManager() {
   const { data: menus } = useQuery({
     queryKey: ['menus'],
     queryFn: async () => {
-      const res = await fetch('/api/menus')
+      const res = await authFetch('/api/menus')
       return res.json()
     },
   })
@@ -42,7 +43,7 @@ export function MenuManager() {
   const { data: categories } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
-      const res = await fetch('/api/categories')
+      const res = await authFetch('/api/categories')
       return res.json()
     },
   })
@@ -50,7 +51,7 @@ export function MenuManager() {
   const { data: modifierGroups } = useQuery({
     queryKey: ['modifier-groups'],
     queryFn: async () => {
-      const res = await fetch('/api/modifier-groups')
+      const res = await authFetch('/api/modifier-groups')
       return res.json()
     },
   })
@@ -58,12 +59,12 @@ export function MenuManager() {
   const { data: menuItems, isLoading } = useQuery({
     queryKey: ['menu-items'],
     queryFn: async () => {
-      const res = await fetch('/api/menu-items')
+      const res = await authFetch('/api/menu-items')
       return res.json()
     },
   })
 
-  const filteredItems = (menuItems || []).filter((item: { name: string; categoryId: string; category?: { menu?: { id: string } } }) => {
+  const filteredItems = (Array.isArray(menuItems) ? menuItems : []).filter((item: { name: string; categoryId: string; category?: { menu?: { id: string } } }) => {
     const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase())
     const matchesCat = filterCategory === 'all' || item.categoryId === filterCategory
     const matchesMenu = filterMenu === 'all' || item.category?.menu?.id === filterMenu
@@ -73,8 +74,7 @@ export function MenuManager() {
   // Menu mutations
   const createMenuMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const res = await fetch('/api/menus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (!res.ok) throw new Error('Failed')
+      const res = await authFetch('/api/menus', { method: 'POST', body: JSON.stringify(data) })
       return res.json()
     },
     onSuccess: () => { toast.success('Meni ustvarjen'); queryClient.invalidateQueries({ queryKey: ['menus'] }); setMenuDialogOpen(false) },
@@ -83,8 +83,7 @@ export function MenuManager() {
   // Menu item mutations
   const createItemMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const res = await fetch('/api/menu-items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (!res.ok) throw new Error('Failed')
+      const res = await authFetch('/api/menu-items', { method: 'POST', body: JSON.stringify(data) })
       return res.json()
     },
     onSuccess: () => { toast.success('Artikel ustvarjen'); queryClient.invalidateQueries({ queryKey: ['menu-items'] }); setDialogOpen(false) },
@@ -92,8 +91,7 @@ export function MenuManager() {
 
   const updateItemMutation = useMutation({
     mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await fetch(`/api/menu-items/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (!res.ok) throw new Error('Failed')
+      const res = await authFetch(`/api/menu-items/${id}`, { method: 'PUT', body: JSON.stringify(data) })
       return res.json()
     },
     onSuccess: () => { toast.success('Artikel posodobljen'); queryClient.invalidateQueries({ queryKey: ['menu-items'] }); setDialogOpen(false); setEditingItem(null) },
@@ -101,8 +99,7 @@ export function MenuManager() {
 
   const deleteItemMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/menu-items/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Failed')
+      const res = await authFetch(`/api/menu-items/${id}`, { method: 'DELETE' })
       return res.json()
     },
     onSuccess: () => { toast.success('Artikel izbrisan'); queryClient.invalidateQueries({ queryKey: ['menu-items'] }) },
@@ -110,8 +107,7 @@ export function MenuManager() {
 
   const toggleAvailabilityMutation = useMutation({
     mutationFn: async ({ id, isAvailable }: { id: string; isAvailable: boolean }) => {
-      const res = await fetch(`/api/menu-items/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isAvailable }) })
-      if (!res.ok) throw new Error('Failed')
+      const res = await authFetch(`/api/menu-items/${id}`, { method: 'PUT', body: JSON.stringify({ isAvailable }) })
       return res.json()
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['menu-items'] }) },
@@ -120,8 +116,7 @@ export function MenuManager() {
   // Category mutations
   const createCatMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const res = await fetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (!res.ok) throw new Error('Failed')
+      const res = await authFetch('/api/categories', { method: 'POST', body: JSON.stringify(data) })
       return res.json()
     },
     onSuccess: () => { toast.success('Kategorija ustvarjena'); queryClient.invalidateQueries({ queryKey: ['categories'] }); setCatDialogOpen(false) },

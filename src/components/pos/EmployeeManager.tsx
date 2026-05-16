@@ -56,7 +56,8 @@ export function EmployeeManager() {
     },
   })
 
-  const filteredEmployees = (employees || []).filter((emp: { name: string; role: string }) => {
+  const employeesList = Array.isArray(employees) ? employees : []
+  const filteredEmployees = employeesList.filter((emp: { name: string; role: string }) => {
     const matchesSearch = emp.name.toLowerCase().includes(search.toLowerCase())
     const matchesRole = filterRole === 'all' || emp.role === filterRole
     return matchesSearch && matchesRole
@@ -280,7 +281,7 @@ export function EmployeeManager() {
               <Select value={shiftForm.employeeId} onValueChange={(v) => setShiftForm({ ...shiftForm, employeeId: v })}>
                 <SelectTrigger><SelectValue placeholder="Izberi zaposlenega" /></SelectTrigger>
                 <SelectContent>
-                  {employees?.filter((e: { status: string }) => e.status === 'active').map((emp: { id: string; name: string }) => (
+                  {employeesList.filter((e: { status: string }) => e.status === 'active').map((emp: { id: string; name: string }) => (
                     <SelectItem key={emp.id} value={emp.id}>{emp.name}</SelectItem>
                   ))}
                 </SelectContent>

@@ -3,34 +3,62 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { getNextReceiptNumber } from '@/lib/counters'
 import { validateBody, fursVerifySchema, fursStornoSchema } from '@/lib/validations'
-import crypto from 'crypto'
+import { deductStockForOrder, returnStockForOrder, broadcastLowStockAlert } from '@/lib/stock-deduction'
+import {
+  generateZOI,
+  verifyInvoiceWithFURS,
+  checkFursConnectivity,
+  validateFursConfig,
+  generateFursQRContent,
+  loadCertificatePrivateKey,
+  type FursConfig,
+  type FursInvoiceData,
+} from '@/lib/furs'
 
 // ============================================
 // FURS DAVČNO POTRJEVANJE (Fiscal Verification)
-// Slovenski zakon ZDDV-1 - davčno overjanje računov
+// Slovenski zakon ZDDV-1 — davčno overjanje računov
+// Uporablja lib/furs.ts za ZOI, EOR, QR in certifikate
 // ============================================
 
-const FURS_URLS = {
-  test: 'https://blagajne-test.fu.gov.si:9002/v1/cash_payments',
-  production: 'https://blagajne.fu.gov.si/v1/cash_payments',
+// Helper: pridobi FURS konfiguracijo iz nastavitev restavracije
+function buildFursConfig(settings: {
+  businessId: string
+  taxId: string
+  registerNumber: string
+  fursCertPath: string
+  fursCertPassword: string
+  fursEnvironment: string
+}): FursConfig {
+  return {
+    businessId: settings.businessId || '',
+    taxId: settings.taxId || '',
+    registerId: settings.registerNumber || 'BLG-001',
+    premisesId: settings.businessId || '', // Privzeto: matična št. = poslovni prostor
+    deviceIp: '',
+    environment: (settings.fursEnvironment === 'production' ? 'production' : 'test') as FursConfig['environment'],
+    certPath: settings.fursCertPath || undefined,
+    certPassword: settings.fursCertPassword || undefined,
+  }
 }
 
-function generateZOI(data: {
-  businessId: string
-  registerId: string
-  receiptNumber: string
-  date: Date
-  total: number
-}): string {
-  const zoiString = `${data.businessId}${data.registerId}${data.receiptNumber}${data.date.toISOString()}${data.total}`
-  const hash = crypto.createHash('sha256').update(zoiString).digest('hex').toUpperCase()
-  return hash.substring(0, 32)
+// Helper: pridobi DDV razdelitev iz računa
+function parseVatBreakdown(vatBreakdownStr: string): Array<{ rate: number; baseAmount: number; vatAmount: number }> {
+  try {
+    const parsed = JSON.parse(vatBreakdownStr || '{}')
+    return Object.entries(parsed).map(([rate, amounts]) => ({
+      rate: parseFloat(rate),
+      baseAmount: (amounts as { base: number; vat: number }).base || 0,
+      vatAmount: (amounts as { base: number; vat: number }).vat || 0,
+    }))
+  } catch {
+    return []
+  }
 }
 
 // GET /api/furs — Preveri status FURS povezave
 export async function GET(req: Request) {
   try {
-    // FIX C-07: Zahtevaj admin avtentikacijo za FURS
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
@@ -41,27 +69,32 @@ export async function GET(req: Request) {
         connected: false,
         environment: 'test',
         message: 'Ni nastavljenih podatkov za FURS povezavo',
+        configValid: false,
       })
     }
 
+    const config = buildFursConfig(settings)
+    const validation = validateFursConfig(config)
     const hasCert = !!(settings.fursCertPath && settings.fursCertPassword)
     const environment = settings.fursEnvironment || 'test'
 
-    if (!hasCert) {
-      return NextResponse.json({
-        connected: false,
-        environment,
-        message: 'Manjka pot do certifikata ali geslo',
-        certConfigured: false,
-      })
-    }
+    // Preveri povezljivost s FURS strežnikom
+    const connectivity = await checkFursConnectivity(environment as 'test' | 'production')
 
     return NextResponse.json({
-      connected: true,
+      connected: connectivity.reachable,
       environment,
-      message: environment === 'test' ? 'FURS testno okolje je na voljo' : 'FURS produkcijsko okolje je na voljo',
-      certConfigured: true,
-      fursUrl: FURS_URLS[environment as keyof typeof FURS_URLS],
+      message: connectivity.reachable
+        ? (environment === 'test' ? 'FURS testno okolje je dosegljivo' : 'FURS produkcijsko okolje je dosegljivo')
+        : `FURS strežnik ni dosegljiv: ${connectivity.error || 'Timeout'}`,
+      certConfigured: hasCert,
+      configValid: validation.valid,
+      configErrors: validation.errors,
+      configWarnings: validation.warnings,
+      responseTime: connectivity.responseTime,
+      fursUrl: environment === 'test'
+        ? 'https://blagajne-test.fu.gov.si:9002/v1/cash_payments'
+        : 'https://blagajne.fu.gov.si/v1/cash_payments',
       lastCheck: new Date().toISOString(),
     })
   } catch (error) {
@@ -73,13 +106,11 @@ export async function GET(req: Request) {
 // POST /api/furs — Davčno overi račun pri FURS
 export async function POST(req: Request) {
   try {
-    // FIX C-07: Zahtevaj admin avtentikacijo za FURS overjanje
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
     const body = await req.json()
 
-    // Zod validacija
     const { data, error: validationError } = validateBody(fursVerifySchema, body)
     if (validationError) return validationError
 
@@ -107,138 +138,151 @@ export async function POST(req: Request) {
     }
 
     if (receipt.fiscalVerified) {
+      // Vrni QR kodo tudi za že overjene račune
+      const qrContent = generateFursQRContent({
+        zoi: receipt.zoi,
+        totalAmount: receipt.total,
+        issueDateTime: receipt.createdAt,
+        taxId: settings.taxId,
+        businessId: settings.businessId,
+        registerId: settings.registerNumber,
+        premisesId: settings.businessId,
+      })
+
       return NextResponse.json({
         success: true,
         zoi: receipt.zoi,
         eor: receipt.eor,
         fiscalVerified: true,
-        verificationDate: receipt.verificationDate,
+        verificationDate: receipt.verificationDate?.toISOString(),
+        qrContent,
         message: 'Račun je že davčno overjen',
       })
     }
 
-    // Generiranje ZOI
+    // ─── GENERIRAJ ZOI po FURS specifikaciji ───
+    const config = buildFursConfig(settings)
+    
+    // Naloži privatni ključ iz certifikata za RSA-SHA256 podpis
+    const privateKey = (settings.fursCertPath && settings.fursCertPassword)
+      ? loadCertificatePrivateKey(settings.fursCertPath, settings.fursCertPassword)
+      : undefined
+
     const zoi = generateZOI({
-      businessId: settings.businessId,
+      taxId: settings.taxId,
+      invoiceNumber: receipt.receiptNumber,
+      issueDateTime: receipt.createdAt,
+      totalAmount: receipt.total,
+      premisesId: settings.businessId,
       registerId: settings.registerNumber,
-      receiptNumber: receipt.receiptNumber,
-      date: receipt.createdAt,
-      total: receipt.total,
-    })
+    }, privateKey || undefined)
 
-    const environment = settings.fursEnvironment || 'test'
-    const isTest = environment === 'test'
+    // ─── PRIPRAVI PODATKE ZA FURS OVERITEV ───
+    const vatBreakdown = parseVatBreakdown(receipt.vatBreakdown as string)
 
-    // Simulacija FURS overitve (v produkcijski različici bi bila prava HTTP zahteva)
-    const eor = isTest
-      ? `EOR-TEST-${Date.now()}-${Math.random().toString(36).substring(2, 10).toUpperCase()}`
-      : `EOR-${Date.now()}-${Math.random().toString(36).substring(2, 10).toUpperCase()}`
+    const invoiceData: FursInvoiceData = {
+      invoiceNumber: receipt.receiptNumber,
+      issueDateTime: receipt.createdAt,
+      totalAmount: receipt.total,
+      paymentMethod: (receipt.paymentMethod === 'cash' ? 'cash' :
+                      receipt.paymentMethod === 'card' ? 'card' :
+                      receipt.paymentMethod === 'mobile' ? 'mobile' : 'other') as FursInvoiceData['paymentMethod'],
+      vatBreakdown,
+    }
 
-    const verificationDate = new Date()
+    // ─── POŠLJI NA FURS (ali simuliraj) ───
+    const result = await verifyInvoiceWithFURS(config, invoiceData, zoi)
 
-    // Shrani overitev
+    if (!result.success) {
+      // Overitev ni uspela — ne shrani
+      await createAuditLog({
+        userId: authResult.session?.employeeId,
+        action: 'FURS_VERIFY_FAILED',
+        entityType: 'Receipt',
+        entityId: receipt.id,
+        details: { zoi, error: result.error, isSimulation: result.isSimulation },
+      })
+
+      return NextResponse.json({
+        success: false,
+        zoi,
+        eor: '',
+        fiscalVerified: false,
+        isSimulation: result.isSimulation,
+        error: result.error || 'Napaka pri FURS overjanju',
+      }, { status: 400 })
+    }
+
+    // ─── SHRANI OVERITEV ───
     await db.receipt.update({
       where: { id: receipt.id },
-      data: { zoi, eor, fiscalVerified: true, verificationDate },
+      data: {
+        zoi: result.zoi,
+        eor: result.eor,
+        fiscalVerified: true,
+        verificationDate: result.verifiedAt,
+      },
     })
 
-    // FIX BUG 1: Razknjiževanje zaloge samo če še NI bilo razknjiženo
-    // Preveri inventoryDeducted flag — prepreči dvojno razknjiževanje (order complete + FURS)
+    // ─── RAZKNJIŽEVANJE ZALOGE (fallback) ───
     const freshOrder = await db.order.findUnique({ where: { id: order.id } })
     if (freshOrder && !freshOrder.inventoryDeducted) {
-      for (const oi of order.orderItems) {
-        if (oi.voided) continue // Preskoči voidane artikle
-
-        const inventoryItem = await db.inventoryItem.findFirst({
-          where: { menuItemId: oi.menuItemId },
-        })
-
-        if (inventoryItem && inventoryItem.servingsPerUnit > 0) {
-          const qtyToDeduct = oi.quantity / inventoryItem.servingsPerUnit
-          const previousQty = inventoryItem.quantity
-          const newQty = Math.round((previousQty - qtyToDeduct) * 10000) / 10000
-
-          await db.$transaction(async (tx) => {
-            await tx.inventoryItem.update({
-              where: { id: inventoryItem.id },
-              data: { quantity: Math.max(0, newQty) },
-            })
-            await tx.stockTransaction.create({
-              data: {
-                inventoryItemId: inventoryItem.id,
-                type: 'sale',
-                quantity: -qtyToDeduct,
-                previousQty,
-                newQty: Math.max(0, newQty),
-                costPerUnit: inventoryItem.costPerUnit,
-                totalCost: qtyToDeduct * inventoryItem.costPerUnit,
-                reason: `Prodaja (FURS) - naročilo #${order.orderNumber}`,
-                orderId: order.id,
-                employeeName: '',
-              },
-            })
-          })
-        }
-
-        // Večslojni normativi prek RecipeItem
-        const recipeItems = await db.recipeItem.findMany({
-          where: { menuItemId: oi.menuItemId },
-        })
-
-        for (const recipe of recipeItems) {
-          const qtyToDeduct = recipe.quantityPerServing * oi.quantity
-          const invItem = await db.inventoryItem.findUnique({
-            where: { id: recipe.inventoryItemId },
-          })
-
-          if (invItem) {
-            const previousQty = invItem.quantity
-            const newQty = Math.round((previousQty - qtyToDeduct) * 10000) / 10000
-
-            await db.$transaction(async (tx) => {
-              await tx.inventoryItem.update({
-                where: { id: invItem.id },
-                data: { quantity: Math.max(0, newQty) },
-              })
-              await tx.stockTransaction.create({
-                data: {
-                  inventoryItemId: invItem.id,
-                  type: 'sale',
-                  quantity: -qtyToDeduct,
-                  previousQty,
-                  newQty: Math.max(0, newQty),
-                  costPerUnit: invItem.costPerUnit,
-                  totalCost: qtyToDeduct * invItem.costPerUnit,
-                  reason: `Prodaja (FURS) - naročilo #${order.orderNumber}`,
-                  orderId: order.id,
-                },
-              })
-            })
-          }
-        }
+      const stockResult = await deductStockForOrder(
+        order.id,
+        order.orderNumber,
+        order.orderItems.map(oi => ({
+          menuItemId: oi.menuItemId,
+          quantity: oi.quantity,
+          voided: oi.voided,
+        }))
+      )
+      if (stockResult.lowStockAlerts.length > 0) {
+        broadcastLowStockAlert(stockResult.lowStockAlerts)
       }
-
-      // Označi, da je bila zaloga razknjižena
-      await db.order.update({
-        where: { id: order.id },
-        data: { inventoryDeducted: true },
-      })
     }
+
+    // ─── QR KODA ───
+    const qrContent = generateFursQRContent({
+      zoi: result.zoi,
+      totalAmount: receipt.total,
+      issueDateTime: receipt.createdAt,
+      taxId: settings.taxId,
+      businessId: settings.businessId,
+      registerId: settings.registerNumber,
+      premisesId: settings.businessId,
+    })
+
+    // ─── REVIZIJSKI DNEVNIK ───
+    await createAuditLog({
+      userId: authResult.session?.employeeId,
+      action: 'FURS_VERIFY_SUCCESS',
+      entityType: 'Receipt',
+      entityId: receipt.id,
+      details: {
+        zoi: result.zoi,
+        eor: result.eor,
+        isSimulation: result.isSimulation,
+        environment: result.environment,
+      },
+    })
 
     return NextResponse.json({
       success: true,
-      zoi,
-      eor,
+      zoi: result.zoi,
+      eor: result.eor,
       fiscalVerified: true,
-      verificationDate: verificationDate.toISOString(),
+      verificationDate: result.verifiedAt.toISOString(),
       receiptNumber: receipt.receiptNumber,
-      message: isTest ? 'Račun davčno overjen v TESTNEM okolju' : 'Račun davčno overjen v PRODUKCIJSKEM okolju',
-      environment,
+      isSimulation: result.isSimulation,
+      environment: result.environment,
+      qrContent,
+      message: result.isSimulation
+        ? `Račun davčno overjen (SIMULACIJA) v ${result.environment === 'test' ? 'TESTNEM' : 'PRODUKCIJSKEM'} okolju`
+        : `Račun davčno overjen v ${result.environment === 'test' ? 'TESTNEM' : 'PRODUKCIJSKEM'} okolju`,
     })
   } catch (error) {
     console.error('FURS verification error:', error)
 
-    // Revizijski dnevnik: napaka pri overjanju
     await createAuditLog({
       userId: undefined,
       action: 'FURS_VERIFY_ERROR',
@@ -253,13 +297,11 @@ export async function POST(req: Request) {
 // PUT /api/furs — Storno račun
 export async function PUT(req: Request) {
   try {
-    // FIX C-07: Zahtevaj admin avtentikacijo za FURS storno
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
     const body = await req.json()
 
-    // Zod validacija
     const { data, error: validationError } = validateBody(fursStornoSchema, body)
     if (validationError) return validationError
 
@@ -275,27 +317,46 @@ export async function PUT(req: Request) {
     }
 
     const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
-
-    // FIX BUG 5: Uporabi atomni števec za storno številko računa (prepreči race condition)
-    const stornoNumber = await getNextReceiptNumber()
-
-    const zoi = generateZOI({
-      businessId: settings?.businessId || '',
-      registerId: settings?.registerNumber || 'BLG-001',
-      receiptNumber: stornoNumber,
-      date: new Date(),
-      total: -receipt.total,
+    const config = buildFursConfig(settings || {
+      businessId: '', taxId: '', registerNumber: 'BLG-001',
+      fursCertPath: '', fursCertPassword: '', fursEnvironment: 'test',
     })
 
-    const environment = settings?.fursEnvironment || 'test'
-    const isTest = environment === 'test'
+    // Atomna številka storno računa
+    const stornoNumber = await getNextReceiptNumber()
 
-    // Simulirana FURS overitev storno računa
-    // V produkcijski različici bi bila prava HTTP zahteva na FURS server
-    const eor = isTest
-      ? `EOR-TEST-STORNO-${Date.now()}-${Math.random().toString(36).substring(2, 10).toUpperCase()}`
-      : `EOR-STORNO-${Date.now()}-${Math.random().toString(36).substring(2, 10).toUpperCase()}`
-    const verificationDate = new Date()
+    // Naloži privatni ključ za podpisovanje storno računa
+    const privateKey = (settings?.fursCertPath && settings?.fursCertPassword)
+      ? loadCertificatePrivateKey(settings.fursCertPath, settings.fursCertPassword)
+      : undefined
+
+    // Generiraj ZOI za storno račun
+    const zoi = generateZOI({
+      taxId: config.taxId,
+      invoiceNumber: stornoNumber,
+      issueDateTime: new Date(),
+      totalAmount: -receipt.total,
+      premisesId: config.businessId,
+      registerId: config.registerId,
+    }, privateKey || undefined)
+
+    // FURS overitev storno računa
+    const vatBreakdown = parseVatBreakdown(receipt.vatBreakdown as string)
+
+    const stornoInvoiceData: FursInvoiceData = {
+      invoiceNumber: stornoNumber,
+      issueDateTime: new Date(),
+      totalAmount: -receipt.total,
+      paymentMethod: (receipt.paymentMethod === 'cash' ? 'cash' :
+                      receipt.paymentMethod === 'card' ? 'card' : 'other') as FursInvoiceData['paymentMethod'],
+      vatBreakdown: vatBreakdown.map(vb => ({
+        rate: vb.rate,
+        baseAmount: -vb.baseAmount,
+        vatAmount: -vb.vatAmount,
+      })),
+    }
+
+    const fursResult = await verifyInvoiceWithFURS(config, stornoInvoiceData, zoi)
 
     const stornoReceipt = await db.receipt.create({
       data: {
@@ -306,10 +367,10 @@ export async function PUT(req: Request) {
         businessId: receipt.businessId,
         taxId: receipt.taxId,
         registerId: receipt.registerId,
-        zoi,
-        eor,
-        fiscalVerified: true, // Storno račun je takoj overjen (simulacija)
-        verificationDate,
+        zoi: fursResult.zoi || zoi,
+        eor: fursResult.eor || '',
+        fiscalVerified: fursResult.success,
+        verificationDate: fursResult.verifiedAt,
         subtotal: -receipt.subtotal,
         vatBreakdown: receipt.vatBreakdown,
         totalVat: -receipt.totalVat,
@@ -330,7 +391,7 @@ export async function PUT(req: Request) {
       data: { isStorno: true },
     })
 
-    // Posodobi naročilo - označi kot stornirano + status cancelled
+    // Posodobi naročilo
     await db.order.update({
       where: { id: receipt.orderId },
       data: {
@@ -342,7 +403,7 @@ export async function PUT(req: Request) {
       },
     })
 
-    // Označi vsa plačila kot refunded
+    // Označi plačila kot refunded
     const checks = await db.check.findMany({ where: { orderId: receipt.orderId } })
     for (const check of checks) {
       await db.payment.updateMany({
@@ -351,60 +412,52 @@ export async function PUT(req: Request) {
       })
     }
 
-    // Vrni zalogo (povratna transakcija za vse artikle naročila)
-    const order = await db.order.findUnique({
-      where: { id: receipt.orderId },
-      include: { orderItems: { include: { menuItem: true } } },
-    })
-
-    if (order) {
-      for (const oi of order.orderItems) {
-        if (oi.voided) continue // Preskoči že voidane
-
-        // Večslojni normativi prek RecipeItem
-        const recipeItems = await db.recipeItem.findMany({
-          where: { menuItemId: oi.menuItemId },
-        })
-
-        for (const recipe of recipeItems) {
-          const qtyToReturn = recipe.quantityPerServing * oi.quantity
-          const invItem = await db.inventoryItem.findUnique({
-            where: { id: recipe.inventoryItemId },
-          })
-
-          if (invItem) {
-            const previousQty = invItem.quantity
-            const newQty = Math.round((previousQty + qtyToReturn) * 10000) / 10000
-
-            await db.inventoryItem.update({
-              where: { id: invItem.id },
-              data: { quantity: newQty },
-            })
-
-            await db.stockTransaction.create({
-              data: {
-                inventoryItemId: invItem.id,
-                type: 'return',
-                quantity: qtyToReturn,
-                previousQty,
-                newQty,
-                costPerUnit: invItem.costPerUnit,
-                totalCost: -(qtyToReturn * invItem.costPerUnit),
-                reason: `STORNO vračilo - naročilo #${order.orderNumber} - ${reason || reasonCode}`,
-                orderId: order.id,
-              },
-            })
-          }
-        }
+    // Vrni zalogo
+    const stornoOrder = await db.order.findUnique({ where: { id: receipt.orderId } })
+    if (stornoOrder && stornoOrder.inventoryDeducted) {
+      const returnResult = await returnStockForOrder(
+        receipt.orderId,
+        stornoOrder.orderNumber,
+        `STORNO: ${reason || reasonCode}`
+      )
+      if (returnResult.lowStockAlerts.length > 0) {
+        broadcastLowStockAlert(returnResult.lowStockAlerts)
       }
     }
+
+    // Revizijski dnevnik
+    await createAuditLog({
+      userId: authResult.session?.employeeId,
+      action: 'FURS_STORNO',
+      entityType: 'Receipt',
+      entityId: stornoReceipt.id,
+      details: {
+        stornoNumber,
+        originalReceiptNumber: receipt.receiptNumber,
+        reason: reason || reasonCode,
+        isSimulation: fursResult.isSimulation,
+      },
+    })
+
+    // QR koda za storno
+    const qrContent = generateFursQRContent({
+      zoi: fursResult.zoi || zoi,
+      totalAmount: -receipt.total,
+      issueDateTime: stornoReceipt.createdAt,
+      taxId: config.taxId,
+      businessId: config.businessId,
+      registerId: config.registerId,
+      premisesId: config.businessId,
+    })
 
     return NextResponse.json({
       success: true,
       stornoReceipt,
       originalReceiptNumber: receipt.receiptNumber,
       stornoReason: reason || reasonCode,
-      message: `Storno račun ${stornoNumber} ustvarjen za račun ${receipt.receiptNumber}`,
+      isSimulation: fursResult.isSimulation,
+      qrContent,
+      message: `Storno račun ${stornoNumber} ustvarjen za račun ${receipt.receiptNumber}${fursResult.isSimulation ? ' (SIMULACIJA)' : ''}`,
     })
   } catch (error) {
     console.error('FURS storno error:', error)

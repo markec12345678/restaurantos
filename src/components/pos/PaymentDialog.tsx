@@ -7,8 +7,9 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { CreditCard, Banknote, Smartphone, Split, Heart, CheckCircle2, Gift, Star, Ticket } from 'lucide-react'
+import { CreditCard, Banknote, Smartphone, Split, Heart, CheckCircle2, Gift, Star, Ticket, Users, UserPlus } from 'lucide-react'
 import { useState } from 'react'
+import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
@@ -50,6 +51,8 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
   const [tipPercent, setTipPercent] = useState(0)
   const [splitCount, setSplitCount] = useState(1)
   const [activeTab, setActiveTab] = useState('single')
+  // Split by items state
+  const [guestAssignments, setGuestAssignments] = useState<Record<string, number>>({}) // orderItemId -> guestNumber
 
   // Alternate payment, gift card, loyalty
   const [giftCardNumber, setGiftCardNumber] = useState('')
@@ -70,7 +73,7 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
   const { data: altPayments } = useQuery({
     queryKey: ['alt-payment-types'],
     queryFn: async () => {
-      const res = await fetch('/api/configuration/alt-payment-types')
+      const res = await authFetch('/api/configuration/alt-payment-types')
       if (!res.ok) return []
       return res.json()
     },
@@ -81,7 +84,7 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
   const { data: giftCards } = useQuery({
     queryKey: ['gift-cards'],
     queryFn: async () => {
-      const res = await fetch('/api/gift-cards')
+      const res = await authFetch('/api/gift-cards')
       if (!res.ok) return []
       return res.json()
     },
@@ -93,7 +96,7 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
     queryKey: ['loyalty-search', loyaltySearch],
     queryFn: async () => {
       if (!loyaltySearch || loyaltySearch.length < 2) return []
-      const res = await fetch(`/api/loyalty?search=${encodeURIComponent(loyaltySearch)}`)
+      const res = await authFetch(`/api/loyalty?search=${encodeURIComponent(loyaltySearch)}`)
       if (!res.ok) return []
       return res.json()
     },
@@ -113,6 +116,7 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
 
   // ============================================
   // CHECK-BASED PLAČILO (Toast POS standard)
+  // Avtomatski tok: Check → Payment → Order → Receipt → FURS → Print
   // ============================================
   const processPaymentMutation = useMutation({
     mutationFn: async () => {
@@ -155,17 +159,69 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
         }),
       })
       if (!orderRes.ok) throw new Error('Napaka pri posodobitvi naročila')
-      return orderRes.json()
+      const updatedOrder = await orderRes.json()
+
+      // ─── AUTO-RECEIPT: Avtomatsko ustvari račun v bazi ───
+      try {
+        const receiptRes = await authFetch(`/api/receipts/${order.id}`, {
+          method: 'POST',
+          body: JSON.stringify({
+            paymentMethod: paymentMethod === 'split' ? 'split' : paymentMethod,
+            isStorno: false,
+          }),
+        })
+        if (receiptRes.ok) {
+          const receipt = await receiptRes.json()
+          
+          // ─── AUTO-FURS: Avtomatsko davčno overi račun ───
+          try {
+            const fursRes = await authFetch('/api/furs', {
+              method: 'POST',
+              body: JSON.stringify({ orderId: order.id }),
+            })
+            const fursResult = fursRes.ok ? await fursRes.json() : null
+            
+            if (fursResult?.success && !fursResult.isSimulation) {
+              toast.success('Račun davčno overjen (FURS)', { duration: 3000 })
+            } else if (fursResult?.success && fursResult.isSimulation) {
+              toast.info('Račun overjen (FURS simulacija)', { duration: 3000 })
+            }
+          } catch {
+            // FURS overitev ni uspela — račun je še vedno veljaven, samo ni davčno overjen
+            console.warn('[Auto-FURS] Overitev ni uspela, račun je brez davčnega overjanja')
+          }
+
+          // ─── AUTO-PRINT: Avtomatsko tiskaj na termični tiskalnik ───
+          try {
+            await authFetch('/api/print', {
+              method: 'POST',
+              body: JSON.stringify({ type: 'receipt', orderId: order.id }),
+            })
+            toast.info('Račun poslan na tiskalnik', { duration: 2000 })
+          } catch {
+            // Tiskanje ni uspelo — račun je ustvarjen, lahko se natisne kasneje
+            console.warn('[Auto-Print] Tiskanje ni uspelo')
+          }
+        }
+      } catch (receiptErr) {
+        // Račun ni bil ustvarjen — plačilo je še vedno veljavno, račun se lahko ustvari ročno
+        console.warn('[Auto-Receipt] Napaka pri ustvarjanju računa:', receiptErr)
+        toast.warning('Plačilo uspešno, vendar račun ni bil samodejno ustvarjen. Ustvarite ga ročno.')
+      }
+
+      return updatedOrder
     },
     onSuccess: (data) => {
-      toast.success('Plačilo uspešno obdelano! Ček ustvarjen.')
+      toast.success('Plačilo uspešno obdelano!')
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['tables'] })
       queryClient.invalidateQueries({ queryKey: ['kitchen'] })
       queryClient.invalidateQueries({ queryKey: ['cash-register'] })
       queryClient.invalidateQueries({ queryKey: ['checks'] })
-      // Obvesti nadrejeno komponento o uspelem plačilu (za samodejni račun)
+      queryClient.invalidateQueries({ queryKey: ['inventory'] })
+      queryClient.invalidateQueries({ queryKey: ['menu-stock'] })
+      // Obvesti nadrejeno komponento o uspelem plačilu (za prikaz računa)
       if (onPaymentSuccess && data?.id) {
         onPaymentSuccess(data.id)
       }
@@ -187,6 +243,7 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
     setTipPercent(0)
     setSplitCount(1)
     setActiveTab('single')
+    setGuestAssignments({})
     setGiftCardNumber('')
     setLoyaltySearch('')
     setSelectedAltPayment('')
@@ -432,6 +489,10 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
               <TabsTrigger value="split" className="flex-1 text-xs">
                 <Split className="h-3 w-3 mr-1" />
                 Deljeno
+              </TabsTrigger>
+              <TabsTrigger value="byitems" className="flex-1 text-xs">
+                <Users className="h-3 w-3 mr-1" />
+                Po artiklih
               </TabsTrigger>
             </TabsList>
 
@@ -694,6 +755,174 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
                     <Split className="h-4 w-4 mr-2" />
                     Plačaj deljeno ({splitCount}x €{splitAmount.toFixed(2)})
                   </>
+                )}
+              </Button>
+            </TabsContent>
+
+            {/* ─── Deli po artiklih ─── */}
+            <TabsContent value="byitems" className="space-y-3">
+              <div>
+                <p className="text-xs font-semibold mb-2">Dodeli artikle gostom</p>
+                <p className="text-[10px] text-muted-foreground mb-2">Klikni na gostovo številko ob artiklu, da ga dodeliš</p>
+                {/* Guest colors */}
+                <div className="flex gap-1.5 mb-2">
+                  {Array.from({ length: Math.max(splitCount, 2) }).map((_, i) => {
+                    const guestNum = i + 1
+                    const guestTotal = order.orderItems
+                      .filter(oi => guestAssignments[oi.id] === guestNum)
+                      .reduce((sum, oi) => sum + oi.price * oi.quantity, 0)
+                    const colors = ['bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-violet-500', 'bg-rose-500', 'bg-cyan-500']
+                    return (
+                      <div key={guestNum} className="flex items-center gap-1 text-xs">
+                        <div className={cn('w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold', colors[i % colors.length])}>
+                          {guestNum}
+                        </div>
+                        <span className="font-medium">€{guestTotal.toFixed(2)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+                {/* Items list with guest assignment */}
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {order.orderItems.map(oi => {
+                    const assignedGuest = guestAssignments[oi.id] || 0
+                    const colors = ['bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-violet-500', 'bg-rose-500', 'bg-cyan-500']
+                    return (
+                      <div key={oi.id} className="flex items-center justify-between py-1.5 px-2.5 rounded-lg bg-muted/50 text-sm">
+                        <span className="flex-1 truncate">{oi.quantity}x {oi.menuItem.name}</span>
+                        <span className="text-xs text-muted-foreground mr-2">€{(oi.price * oi.quantity).toFixed(2)}</span>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => {
+                              setGuestAssignments(prev => {
+                                const next = { ...prev }
+                                if (next[oi.id] === 1) delete next[oi.id]
+                                else next[oi.id] = 1
+                                return next
+                              })
+                            }}
+                            className={cn('w-6 h-6 rounded-full text-[9px] font-bold flex items-center justify-center transition-all touch-manipulation',
+                              assignedGuest === 1 ? cn(colors[0], 'text-white scale-110') : 'bg-muted text-muted-foreground hover:bg-blue-200'
+                            )}
+                          >1</button>
+                          <button
+                            onClick={() => {
+                              setGuestAssignments(prev => {
+                                const next = { ...prev }
+                                if (next[oi.id] === 2) delete next[oi.id]
+                                else next[oi.id] = 2
+                                return next
+                              })
+                            }}
+                            className={cn('w-6 h-6 rounded-full text-[9px] font-bold flex items-center justify-center transition-all touch-manipulation',
+                              assignedGuest === 2 ? cn(colors[1], 'text-white scale-110') : 'bg-muted text-muted-foreground hover:bg-emerald-200'
+                            )}
+                          >2</button>
+                          <button
+                            onClick={() => {
+                              setGuestAssignments(prev => {
+                                const next = { ...prev }
+                                if (next[oi.id] === 3) delete next[oi.id]
+                                else next[oi.id] = 3
+                                return next
+                              })
+                            }}
+                            className={cn('w-6 h-6 rounded-full text-[9px] font-bold flex items-center justify-center transition-all touch-manipulation',
+                              assignedGuest === 3 ? cn(colors[2], 'text-white scale-110') : 'bg-muted text-muted-foreground hover:bg-amber-200'
+                            )}
+                          >3</button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+              {/* Summary */}
+              <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-xs">
+                {Array.from({ length: Math.max(splitCount, 2) }).map((_, i) => {
+                  const guestNum = i + 1
+                  const guestItems = order.orderItems.filter(oi => guestAssignments[oi.id] === guestNum)
+                  const guestTotal = guestItems.reduce((sum, oi) => sum + oi.price * oi.quantity, 0)
+                  const colors = ['text-blue-600', 'text-emerald-600', 'text-amber-600', 'text-violet-600', 'text-rose-600', 'text-cyan-600']
+                  return (
+                    <div key={guestNum} className="flex justify-between">
+                      <span className={cn('font-semibold', colors[i % colors.length])}>Gost {guestNum}</span>
+                      <span className="font-bold">€{guestTotal.toFixed(2)}</span>
+                    </div>
+                  )
+                })}
+                <Separator />
+                <div className="flex justify-between font-bold">
+                  <span>Skupaj</span>
+                  <span>€{orderTotal.toFixed(2)}</span>
+                </div>
+                {(() => {
+                  const assigned = Object.keys(guestAssignments).length
+                  const total = order.orderItems.length
+                  return assigned < total ? (
+                    <p className="text-amber-600 font-medium">Dodeli še {total - assigned} od {total} artiklov</p>
+                  ) : null
+                })()}
+              </div>
+              <Button
+                className="w-full h-12 text-base font-bold"
+                disabled={processPaymentMutation.isPending || Object.keys(guestAssignments).length < order.orderItems.length}
+                onClick={async () => {
+                  if (!order) return
+                  try {
+                    // Ustvari ločen check za vsakega gosta
+                    const guestCount = Math.max(splitCount, 2)
+                    for (let g = 1; g <= guestCount; g++) {
+                      const guestItemIds = order.orderItems
+                        .filter(oi => guestAssignments[oi.id] === g)
+                        .map(oi => oi.id)
+                      if (guestItemIds.length === 0) continue
+
+                      const checkRes = await authFetch('/api/checks', {
+                        method: 'POST',
+                        body: JSON.stringify({ orderId: order.id, orderItemIds: guestItemIds }),
+                      })
+                      if (!checkRes.ok) throw new Error('Napaka pri ustvarjanju čeka')
+                      const check = await checkRes.json()
+
+                      const guestTotal = order.orderItems
+                        .filter(oi => guestAssignments[oi.id] === g)
+                        .reduce((sum, oi) => sum + oi.price * oi.quantity, 0)
+
+                      await authFetch('/api/payments', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                          checkId: check.id,
+                          amount: guestTotal,
+                          tipAmount: 0,
+                          type: 'cash',
+                          status: 'completed',
+                        }),
+                      })
+                    }
+
+                    await authFetch(`/api/orders/${order.id}`, {
+                      method: 'PUT',
+                      body: JSON.stringify({
+                        paymentStatus: 'paid',
+                        paymentMethod: 'split',
+                        status: 'completed',
+                      }),
+                    })
+
+                    toast.success('Plačilo po artiklih uspešno!')
+                    queryClient.invalidateQueries({ queryKey: ['orders'] })
+                    queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+                    queryClient.invalidateQueries({ queryKey: ['tables'] })
+                    if (onPaymentSuccess && order.id) onPaymentSuccess(order.id)
+                    resetAndClose()
+                  } catch {
+                    toast.error('Napaka pri obdelavi plačila po artiklih')
+                  }
+                }}
+              >
+                {processPaymentMutation.isPending ? 'Obdelujem...' : (
+                  <><Users className="h-4 w-4 mr-2" />Plačaj po artiklih</>
                 )}
               </Button>
             </TabsContent>

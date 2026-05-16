@@ -334,6 +334,7 @@ export const updateSettingsSchema = z.object({
   receiptFooter: z.string().max(1000).optional(),
   currency: z.string().max(10).optional(),
   locale: z.string().max(10).optional(),
+  country: z.enum(['SI', 'HR', 'IT', 'AT', 'DE']).optional(),
 })
 
 // ============================================

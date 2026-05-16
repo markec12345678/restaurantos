@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { broadcastLowStockAlert } from '@/lib/stock-deduction'
 
 // Helper za WebSocket broadcast
 async function broadcastWS(type: string, payload: unknown) {
@@ -86,41 +87,99 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         },
       })
 
-      // FIX BUG 2: Ne ustvarjaj StockTransaction s fiksnim ID 'void-log'
-      // Namesto tega iščemo pravi InventoryItem povezan s tem MenuItem-om
-      const inventoryItem = await db.inventoryItem.findFirst({
+      // ─── VRNI ZALOGO ZA VOIDAN ARTIKEL ───
+      const voidReason = body.voidReasonText || body.voidReasonId || 'Razlog ni naveden'
+
+      // 1. Preveri RecipeItem (večsastavni recepti) — PREDNOST
+      const recipeItems = await db.recipeItem.findMany({
         where: { menuItemId: orderItem.menuItemId },
       })
 
-      if (inventoryItem) {
-        // Vrni zalogo za voidan artikel
-        const previousQty = inventoryItem.quantity
-        const unitsPerServing = inventoryItem.servingsPerUnit > 0 ? 1 / inventoryItem.servingsPerUnit : 1
-        const qtyToReturn = Math.round(orderItem.quantity * unitsPerServing * 10000) / 10000
-        const newQty = Math.round((previousQty + qtyToReturn) * 10000) / 10000
+      if (recipeItems.length > 0) {
+        // Vrni zalogo za vsako sestavino v receptu
+        for (const recipe of recipeItems) {
+          const invItem = await db.inventoryItem.findUnique({ where: { id: recipe.inventoryItemId } })
+          if (!invItem) continue
 
-        await db.$transaction(async (tx) => {
-          await tx.inventoryItem.update({
-            where: { id: inventoryItem.id },
-            data: { quantity: newQty },
+          const qtyToReturn = recipe.quantityPerServing * orderItem.quantity
+          const previousQty = invItem.quantity
+          const newQty = Math.round((previousQty + qtyToReturn) * 10000) / 10000
+
+          await db.$transaction(async (tx) => {
+            await tx.inventoryItem.update({
+              where: { id: invItem.id },
+              data: { quantity: newQty },
+            })
+            await tx.stockTransaction.create({
+              data: {
+                inventoryItemId: invItem.id,
+                type: 'return',
+                quantity: qtyToReturn,
+                previousQty,
+                newQty,
+                costPerUnit: invItem.costPerUnit,
+                totalCost: -(qtyToReturn * invItem.costPerUnit),
+                reason: `VOID: ${orderItem.menuItem.name} - ${voidReason}`,
+                orderId: orderItem.orderId,
+                employeeName: authResult.session?.employeeId || '',
+              },
+            })
           })
-          await tx.stockTransaction.create({
-            data: {
-              inventoryItemId: inventoryItem.id,
-              type: 'return',
-              quantity: qtyToReturn,
-              previousQty,
-              newQty,
-              costPerUnit: inventoryItem.costPerUnit,
-              totalCost: -(qtyToReturn * inventoryItem.costPerUnit),
-              reason: `VOID: ${orderItem.menuItem.name} - ${body.voidReasonText || body.voidReasonId || 'Razlog ni naveden'}`,
-              orderId: orderItem.orderId,
-              employeeName: authResult.session?.employeeId || '',
-            },
-          })
+
+          // Preveri če je zaloga še vedno nizka
+          if (newQty <= invItem.minQuantity) {
+            broadcastLowStockAlert([{
+              inventoryItemId: invItem.id,
+              name: invItem.name,
+              currentQty: newQty,
+              minQty: invItem.minQuantity,
+            }])
+          }
+        }
+      } else {
+        // 2. Fallback: direktna 1:1 povezava InventoryItem ↔ MenuItem
+        const inventoryItem = await db.inventoryItem.findFirst({
+          where: { menuItemId: orderItem.menuItemId },
         })
+
+        if (inventoryItem) {
+          const previousQty = inventoryItem.quantity
+          const unitsPerServing = inventoryItem.servingsPerUnit > 0 ? 1 / inventoryItem.servingsPerUnit : 1
+          const qtyToReturn = Math.round(orderItem.quantity * unitsPerServing * 10000) / 10000
+          const newQty = Math.round((previousQty + qtyToReturn) * 10000) / 10000
+
+          await db.$transaction(async (tx) => {
+            await tx.inventoryItem.update({
+              where: { id: inventoryItem.id },
+              data: { quantity: newQty },
+            })
+            await tx.stockTransaction.create({
+              data: {
+                inventoryItemId: inventoryItem.id,
+                type: 'return',
+                quantity: qtyToReturn,
+                previousQty,
+                newQty,
+                costPerUnit: inventoryItem.costPerUnit,
+                totalCost: -(qtyToReturn * inventoryItem.costPerUnit),
+                reason: `VOID: ${orderItem.menuItem.name} - ${voidReason}`,
+                orderId: orderItem.orderId,
+                employeeName: authResult.session?.employeeId || '',
+              },
+            })
+          })
+
+          // Preveri če je zaloga še vedno nizka
+          if (newQty <= inventoryItem.minQuantity) {
+            broadcastLowStockAlert([{
+              inventoryItemId: inventoryItem.id,
+              name: inventoryItem.name,
+              currentQty: newQty,
+              minQty: inventoryItem.minQuantity,
+            }])
+          }
+        }
       }
-      // Če ni InventoryItem, samo zabeleži v dnevnik (ne ustvarjaj FK kršitve)
     }
 
     // Check if all items in the order are ready — auto-update order status

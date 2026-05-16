@@ -14,10 +14,15 @@ import { toast } from 'sonner'
 import {
   Settings, Building2, Shield, Receipt, Percent, Globe,
   Save, AlertTriangle, CheckCircle2, TestTube2, Monitor,
-  FileText, Phone, Mail, MapPin, Hash, CreditCard, Wifi
+  FileText, Phone, Mail, MapPin, Hash, CreditCard, Wifi,
+  Loader2, RefreshCw, ListChecks, MapPinned, Landmark,
+  FileCheck, Info
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { authFetch } from '@/components/pos/PinLogin'
+import { usePOSStore } from '@/lib/store'
+import { countryList, getCountryConfig, getTaxRateOptions, type CountryCode } from '@/lib/country-config'
+import { setLocale } from '@/lib/i18n'
 
 // ============================================
 // TIPI
@@ -42,6 +47,7 @@ interface SettingsData {
   receiptFooter: string
   currency: string
   locale: string
+  country: string
   isActive: boolean
 }
 
@@ -50,9 +56,11 @@ interface SettingsData {
 // ============================================
 export function SettingsManager() {
   const queryClient = useQueryClient()
-  const [activeTab, setActiveTab] = useState('company')
+  const { country: storeCountry, setCountry: setStoreCountry, setLocale: setStoreLocale } = usePOSStore()
+  const [activeTab, setActiveTab] = useState('country')
   const [fursStatus, setFursStatus] = useState<'disconnected' | 'testing' | 'connected' | 'error'>('disconnected')
   const [lastSaved, setLastSaved] = useState<string>('')
+  const [selectedCountry, setSelectedCountry] = useState<CountryCode>((storeCountry as CountryCode) || 'SI')
 
   const { data: settings, isLoading } = useQuery<SettingsData>({
     queryKey: ['settings'],
@@ -67,8 +75,31 @@ export function SettingsManager() {
   useEffect(() => {
     if (settings) {
       setForm({ ...settings })
+      // Sync country from settings to local state
+      if (settings.country) {
+        setSelectedCountry(settings.country as CountryCode)
+      }
     }
   }, [settings])
+
+  // Ko se spremeni država, samodejno posodobi nastavitve
+  const handleCountryChange = (code: CountryCode) => {
+    setSelectedCountry(code)
+    setStoreCountry(code)
+    const config = getCountryConfig(code)
+    setForm(prev => ({
+      ...prev,
+      country: code,
+      currency: config.currency,
+      locale: config.locale,
+      defaultVatRate: config.taxRates.standard,
+      reducedVatRate: config.taxRates.reduced,
+    }))
+    setStoreLocale(config.primaryLanguage as 'sl' | 'en' | 'it' | 'hr' | 'de')
+    setLocale(config.primaryLanguage as 'sl' | 'en' | 'it' | 'hr' | 'de')
+  }
+
+  const currentCountryConfig = getCountryConfig(selectedCountry)
 
   const saveMutation = useMutation({
     mutationFn: async (data: Partial<SettingsData>) => {
@@ -93,16 +124,30 @@ export function SettingsManager() {
 
   const testFursConnection = async () => {
     setFursStatus('testing')
-    // Simulacija FURS povezave - v produkcijski različici bi to poklicalo pravi FURS API
-    setTimeout(() => {
-      if (form.fursCertPath && form.fursCertPassword) {
+    try {
+      // Uporabimo pravi FURS status API (lib/furs.ts checkFursConnectivity)
+      const res = await authFetch('/api/furs')
+      const data = await res.json()
+      
+      if (data.connected) {
         setFursStatus('connected')
-        toast.success('FURS povezava uspešna (testno okolje)')
+        toast.success(data.message || `FURS povezava uspešna (${data.environment === 'production' ? 'PRODUKCIJA' : 'TESTNO'})`)
+      } else if (data.configValid) {
+        // Konfiguracija veljavna, ampak strežnik ni dosegljiv
+        setFursStatus('error')
+        toast.warning(`Konfiguracija veljavna, ampak FURS strežnik ni dosegljiv: ${data.message}`)
       } else {
         setFursStatus('error')
-        toast.error('FURS povezava neuspešna - manjkajo podatki certifikata')
+        const issues = [
+          ...(data.configErrors || []),
+          ...(data.configWarnings || []),
+        ].join('; ')
+        toast.error(`FURS povezava neuspešna${issues ? ': ' + issues : ''}`)
       }
-    }, 1500)
+    } catch {
+      setFursStatus('error')
+      toast.error('FURS povezava neuspešna - napaka pri preverjanju')
+    }
   }
 
   const updateField = (field: string, value: unknown) => {
@@ -137,7 +182,10 @@ export function SettingsManager() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="country" className="gap-1.5">
+            <MapPinned className="h-3.5 w-3.5" /> Država
+          </TabsTrigger>
           <TabsTrigger value="company" className="gap-1.5">
             <Building2 className="h-3.5 w-3.5" /> Podjetje
           </TabsTrigger>
@@ -145,12 +193,216 @@ export function SettingsManager() {
             <Percent className="h-3.5 w-3.5" /> Davki
           </TabsTrigger>
           <TabsTrigger value="furs" className="gap-1.5">
-            <Shield className="h-3.5 w-3.5" /> FURS
+            <Shield className="h-3.5 w-3.5" /> {currentCountryConfig.fiscalization.authorityShort}
           </TabsTrigger>
           <TabsTrigger value="receipt" className="gap-1.5">
             <Receipt className="h-3.5 w-3.5" /> Račun
           </TabsTrigger>
         </TabsList>
+
+        {/* ===================== TAB: DRŽAVA / REGIJA ===================== */}
+        <TabsContent value="country" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <MapPinned className="h-5 w-5 text-primary" />
+                Izberite državo poslovanja
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Izbira države samodejno nastavi davčne stopnje, valuto, fiskalizacijski sistem in privzeti jezik.
+                To je prva nastavitev, ki jo morate opraviti pred uporabo sistema.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {countryList.map((c) => (
+                  <button
+                    key={c.code}
+                    onClick={() => handleCountryChange(c.code)}
+                    className={`flex flex-col items-start p-4 rounded-xl border-2 transition-all text-left hover:shadow-md ${
+                      selectedCountry === c.code
+                        ? 'border-primary bg-primary/5 shadow-md'
+                        : 'border-border hover:border-primary/30'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 w-full">
+                      <span className="text-3xl">{c.flag}</span>
+                      <div className="flex-1">
+                        <p className="font-bold text-sm">{c.nameLocal}</p>
+                        <p className="text-xs text-muted-foreground">{c.name}</p>
+                      </div>
+                      {selectedCountry === c.code && (
+                        <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
+                      )}
+                    </div>
+                    <div className="mt-3 w-full space-y-1.5">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Valuta:</span>
+                        <span className="font-medium">{c.currencySymbol} ({c.currency})</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Splošni davek:</span>
+                        <span className="font-medium">{c.taxRates.standard}%</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Znižani davek:</span>
+                        <span className="font-medium">{c.taxRates.reduced}%</span>
+                      </div>
+                      {c.taxRates.superReduced !== undefined && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Še nižji davek:</span>
+                          <span className="font-medium">{c.taxRates.superReduced}%</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Fiskalizacija:</span>
+                        <span className="font-medium text-[10px]">{c.fiscalization.system}</span>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Povzetek izbrane države */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Info className="h-5 w-5 text-blue-500" />
+                Povzetek za {currentCountryConfig.flag} {currentCountryConfig.nameLocal}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Davčne stopnje */}
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <Percent className="h-4 w-4 text-primary" />
+                    Davčne stopnje
+                  </h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between p-2.5 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
+                      <span className="text-sm font-medium">Splošna stopnja</span>
+                      <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">{currentCountryConfig.taxRates.standard}%</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground pl-1">{currentCountryConfig.taxRateDescriptions.standard}</p>
+                    <div className="flex items-center justify-between p-2.5 bg-green-50 dark:bg-green-950/30 rounded-lg">
+                      <span className="text-sm font-medium">Znižana stopnja</span>
+                      <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">{currentCountryConfig.taxRates.reduced}%</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground pl-1">{currentCountryConfig.taxRateDescriptions.reduced}</p>
+                    {currentCountryConfig.taxRates.superReduced !== undefined && (
+                      <>
+                        <div className="flex items-center justify-between p-2.5 bg-amber-50 dark:bg-amber-950/30 rounded-lg">
+                          <span className="text-sm font-medium">Še nižja stopnja</span>
+                          <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">{currentCountryConfig.taxRates.superReduced}%</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground pl-1">{currentCountryConfig.taxRateDescriptions.superReduced}</p>
+                      </>
+                    )}
+                    <div className="flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-950/30 rounded-lg">
+                      <span className="text-sm font-medium">Ničelna stopnja</span>
+                      <Badge variant="outline">0%</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground pl-1">{currentCountryConfig.taxRateDescriptions.zero}</p>
+                  </div>
+                </div>
+
+                {/* Fiskalizacija */}
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <Landmark className="h-4 w-4 text-primary" />
+                    Fiskalizacija
+                  </h4>
+                  <div className="space-y-2.5">
+                    <div className="p-3 bg-muted/50 rounded-lg space-y-1.5">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Sistem:</span>
+                        <span className="font-medium">{currentCountryConfig.fiscalization.system}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Lokalno:</span>
+                        <span className="font-medium">{currentCountryConfig.fiscalization.systemLocal}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Organ:</span>
+                        <span className="font-medium text-xs">{currentCountryConfig.fiscalization.authority}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Certifikat:</span>
+                        <span className="font-medium text-xs">{currentCountryConfig.fiscalization.certificateFormat}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Obvezna:</span>
+                        <Badge variant={currentCountryConfig.fiscalization.required ? 'destructive' : 'secondary'} className="text-[10px]">
+                          {currentCountryConfig.fiscalization.required ? 'DA' : 'NE'}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="p-3 bg-muted/50 rounded-lg space-y-1.5">
+                      <p className="text-xs font-semibold text-muted-foreground">Kode na računu:</p>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Zaščitna koda:</span>
+                        <Badge variant="outline" className="text-xs">{currentCountryConfig.fiscalization.receiptCodes.protectionCode}</Badge>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Verifikacija:</span>
+                        <Badge variant="outline" className="text-xs">{currentCountryConfig.fiscalization.receiptCodes.verificationCode}</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Format davčne številke */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-3 bg-muted/50 rounded-lg space-y-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Hash className="h-3.5 w-3.5" /> Format davčne številke
+                  </p>
+                  <p className="text-sm font-medium">{currentCountryConfig.taxIdFormat.description}</p>
+                  <p className="text-xs text-muted-foreground">Primer: <code className="bg-muted px-1.5 py-0.5 rounded">{currentCountryConfig.taxIdFormat.example}</code></p>
+                </div>
+                <div className="p-3 bg-muted/50 rounded-lg space-y-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Hash className="h-3.5 w-3.5" /> Format poslovne številke
+                  </p>
+                  <p className="text-sm font-medium">{currentCountryConfig.businessIdFormat.description}</p>
+                  <p className="text-xs text-muted-foreground">Primer: <code className="bg-muted px-1.5 py-0.5 rounded">{currentCountryConfig.businessIdFormat.example}</code></p>
+                </div>
+              </div>
+
+              {/* Zahteve za račune */}
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg space-y-2">
+                <p className="text-xs font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
+                  <FileCheck className="h-3.5 w-3.5" /> Obvezni podatki na računu ({currentCountryConfig.nameLocal})
+                </p>
+                <ul className="text-xs text-blue-700 dark:text-blue-400 space-y-0.5 list-disc list-inside">
+                  {currentCountryConfig.receiptRequirements.map((req, i) => (
+                    <li key={i}>{req}</li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Povezava do organa */}
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Globe className="h-3.5 w-3.5" />
+                <span>Več informacij:</span>
+                <a
+                  href={currentCountryConfig.fiscalization.infoUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  {currentCountryConfig.fiscalization.infoUrl}
+                </a>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* ===================== TAB: PODATKI PODJETJA ===================== */}
         <TabsContent value="company" className="space-y-4 mt-4">
@@ -252,8 +504,8 @@ export function SettingsManager() {
                 DDV stopnje
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Po zakonu o davku na dodano vrednost (ZDDV-1) ima Slovenija dve DDV stopnji: splošno (22%) in znižano (9.5%).
-                Znižana stopnja velja za določena živila, knjige, zdravila, stanovanjske storitve itd.
+                {currentCountryConfig.flag} {currentCountryConfig.nameLocal} ima naslednje davčne stopnje.
+                Izbira države na zavihku "Država" samodejno nastavi te vrednosti.
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -310,18 +562,21 @@ export function SettingsManager() {
 
               <Separator />
 
-              {/* DDV informacije */}
+              {/* Davek informacije */}
               <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 space-y-2">
                 <h4 className="font-semibold text-blue-800 dark:text-blue-300 flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4" />
-                  Pomembno o DDV v Sloveniji
+                  Pomembno o davkih v {currentCountryConfig.nameLocal}
                 </h4>
                 <ul className="text-sm text-blue-700 dark:text-blue-400 space-y-1 list-disc list-inside">
-                  <li>Splošna DDV stopnja: <strong>22%</strong> - velja za večino blaga in storitev</li>
-                  <li>Znižana DDV stopnja: <strong>9.5%</strong> - živila (razen alkohola), knjige, zdravila, sanitarni material</li>
-                  <li>Ničelna stopnja: <strong>0%</strong> - izvoz blaga, storitve tretjim državam</li>
-                  <li>Ob spremembi DDV stopnje morate posodobiti vse artikle v jedilniku!</li>
-                  <li>Na računu mora biti DDV izpisan po stopnjah z osnovo in zneskom davka</li>
+                  <li>Splošna stopnja: <strong>{currentCountryConfig.taxRates.standard}%</strong> — {currentCountryConfig.taxRateDescriptions.standard.split('—')[0]}</li>
+                  <li>Znižana stopnja: <strong>{currentCountryConfig.taxRates.reduced}%</strong> — {currentCountryConfig.taxRateDescriptions.reduced.split('—')[0]}</li>
+                  {currentCountryConfig.taxRates.superReduced !== undefined && (
+                    <li>Še nižja stopnja: <strong>{currentCountryConfig.taxRates.superReduced}%</strong> — {currentCountryConfig.taxRateDescriptions.superReduced?.split('—')[0]}</li>
+                  )}
+                  <li>Ničelna stopnja: <strong>0%</strong> — izvoz, mednarodne storitve</li>
+                  <li>Ob spremembi davčne stopnje morate posodobiti vse artikle v jedilniku!</li>
+                  <li>Na računu mora biti davek izpisan po stopnjah z osnovo in zneskom</li>
                 </ul>
               </div>
 
@@ -378,6 +633,9 @@ export function SettingsManager() {
                 <Globe className="h-5 w-5 text-primary" />
                 Valuta in jezik
               </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Samodejno nastavljeno glede na izbrano državo. Ročno lahko prilagodite po potrebi.
+              </p>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -387,20 +645,24 @@ export function SettingsManager() {
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="EUR">EUR (€)</SelectItem>
-                      <SelectItem value="HRK">HRK (kn)</SelectItem>
                       <SelectItem value="USD">USD ($)</SelectItem>
+                      <SelectItem value="GBP">GBP (£)</SelectItem>
+                      <SelectItem value="CHF">CHF (Fr.)</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground">Vse podprte države uporabljajo EUR</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Jezik</Label>
                   <Select value={form.locale || 'sl-SI'} onValueChange={v => updateField('locale', v)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="sl-SI">Slovenščina</SelectItem>
-                      <SelectItem value="en-US">English</SelectItem>
-                      <SelectItem value="hr-HR">Hrvatski</SelectItem>
-                      <SelectItem value="it-IT">Italiano</SelectItem>
+                      <SelectItem value="sl-SI">🇸🇮 Slovenščina</SelectItem>
+                      <SelectItem value="hr-HR">🇭🇷 Hrvatski</SelectItem>
+                      <SelectItem value="it-IT">🇮🇹 Italiano</SelectItem>
+                      <SelectItem value="de-AT">🇦🇹 Deutsch (Österreich)</SelectItem>
+                      <SelectItem value="de-DE">🇩🇪 Deutsch (Deutschland)</SelectItem>
+                      <SelectItem value="en-US">🇬🇧 English</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -409,17 +671,17 @@ export function SettingsManager() {
           </Card>
         </TabsContent>
 
-        {/* ===================== TAB: FURS DAVČNO POTRJEVANJE ===================== */}
+        {/* ===================== TAB: FISKALIZACIJA (državno-specifično) ===================== */}
         <TabsContent value="furs" className="space-y-4 mt-4">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <Shield className="h-5 w-5 text-blue-600" />
-                FURS davčno potrjevanje računov
+                {currentCountryConfig.fiscalization.systemLocal}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Po zakonu o davku na dodano vrednost (ZDDV-1) morajo vsi davčni zavezanci, ki izdajajo račune,
-                te račune davčno overiti pri FURS (Finančna uprava Republike Slovenije).
+                {currentCountryConfig.flag} {currentCountryConfig.fiscalization.authority} ({currentCountryConfig.fiscalization.authorityShort}) —
+                {currentCountryConfig.fiscalization.required ? ' Fiskalizacija je obvezna.' : ' Fiskalizacija ni obvezna.'}
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -467,13 +729,13 @@ export function SettingsManager() {
               {/* FURS Certifikat */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Pot do FURS certifikata (.p12)</Label>
+                  <Label>Pot do certifikata ({currentCountryConfig.fiscalization.certificateFormat})</Label>
                   <Input
                     value={form.fursCertPath || ''}
                     onChange={e => updateField('fursCertPath', e.target.value)}
                     placeholder="/pot/do/certifikata.p12"
                   />
-                  <p className="text-xs text-muted-foreground">Digitalni certifikat za podpisovanje računov (PKCS#12)</p>
+                  <p className="text-xs text-muted-foreground">Digitalni certifikat za podpisovanje računov ({currentCountryConfig.fiscalization.certificateFormat})</p>
                 </div>
                 <div className="space-y-2">
                   <Label>Geslo certifikata</Label>
@@ -488,7 +750,7 @@ export function SettingsManager() {
               </div>
 
               <div className="space-y-2">
-                <Label>Okolje FURS</Label>
+                <Label>Okolje {currentCountryConfig.fiscalization.authorityShort}</Label>
                 <Select value={form.fursEnvironment || 'test'} onValueChange={v => updateField('fursEnvironment', v)}>
                   <SelectTrigger className="w-64">
                     <SelectValue />
@@ -512,17 +774,57 @@ export function SettingsManager() {
 
               <Separator />
 
-              {/* Informacije o FURS */}
+              {/* Množična overitev neoverjenih računov */}
+              <FursBatchVerification />
+
+              <Separator />
+
+              {/* Informacije o fiskalizaciji */}
               <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 space-y-3">
                 <h4 className="font-semibold text-blue-800 dark:text-blue-300">
-                  Kaj morate vedeti o davčnem potrjevanju v Sloveniji
+                  {currentCountryConfig.flag} Kaj morate vedeti o fiskalizaciji v {currentCountryConfig.nameLocal}
                 </h4>
                 <div className="text-sm text-blue-700 dark:text-blue-400 space-y-2">
-                  <p><strong>ZDDV-1 (Zakon o DDV)</strong> določa, da morajo vsi zavezanci za DDV račune davčno overjevati pri FURS.</p>
-                  <p><strong>ZOI (Zaščitni označitelj izdajanja)</strong> — 32-mestna številka, generirana iz digitalnega certifikata, ki se izpiše na računu.</p>
-                  <p><strong>EOR (Elektronski zapis o računu)</strong> — potrditev FURS, da je račun bil sprejet. Vrne se v 3 sekundah.</p>
-                  <p><strong>Rok za overitev:</strong> Račun mora biti overjen v 3 sekundah po izdaji. Brez overitve je račun neveljaven.</p>
-                  <p><strong>Kazen:</strong> Za neoverjene račune grozi globo od 500 do 125.000 EUR (ZDDV-1, 85. člen).</p>
+                  <p><strong>{currentCountryConfig.fiscalization.system}</strong> ({currentCountryConfig.fiscalization.systemLocal}) —
+                    fiskalizacijski sistem v {currentCountryConfig.nameLocal}. Organ: {currentCountryConfig.fiscalization.authority}.</p>
+                  <p><strong>{currentCountryConfig.fiscalization.receiptCodes.protectionCode}</strong> —
+                    zaščitna koda na računu, generirana iz digitalnega podpisa s certifikatom ({currentCountryConfig.fiscalization.certificateFormat}).</p>
+                  <p><strong>{currentCountryConfig.fiscalization.receiptCodes.verificationCode}</strong> —
+                    verifikacijska koda, ki jo vrne strežnik {currentCountryConfig.fiscalization.authorityShort} kot potrditev sprejema računa.</p>
+                  {selectedCountry === 'SI' && (
+                    <>
+                      <p><strong>ZOI</strong> (Zaščitni označitelj izdajanja) — Base64 kodiran podpis, generiran iz RSA-SHA256 z uporabo FURS certifikata.</p>
+                      <p><strong>EOR</strong> (Elektronski zapis o računu) — UUID, ki ga vrne FURS strežnik kot potrditev. Vrne se v 3 sekundah.</p>
+                      <p><strong>Kazen:</strong> Za neoverjene račune grozi globo od 500 do 125.000 EUR (ZDDV-1, 85. člen).</p>
+                    </>
+                  )}
+                  {selectedCountry === 'HR' && (
+                    <>
+                      <p><strong>JIR</strong> (Jedinstveni identifikator računa) — UUID generiran od strane Porezne uprave.</p>
+                      <p><strong>ZKI</strong> (Zaštitni kod izdavatelja) — digitalni potpis računa, obavezno prikazan na računu.</p>
+                      <p><strong>Kazna:</strong> Za neizdane ili nefiskalizirane račune kazna od 5.000 do 500.000 HRK.</p>
+                    </>
+                  )}
+                  {selectedCountry === 'IT' && (
+                    <>
+                      <p><strong>Sistema TS</strong> — Tehničko rješenje za fiskalizaciju u Italiji.</p>
+                      <p><strong>SDI</strong> (Sistema di Interscambio) — elektronska razmjena dokumenata.</p>
+                    </>
+                  )}
+                  {selectedCountry === 'AT' && (
+                    <>
+                      <p><strong>RKSV</strong> — Registrierkassensicherungsverordnung, obavezna za sve austrijske poslovne subjekte.</p>
+                      <p><strong>DEP</strong> (Digitales Exportprotokoll) — digitalni zapis svih transakcija.</p>
+                    </>
+                  )}
+                  {selectedCountry === 'DE' && (
+                    <>
+                      <p><strong>KassensichV</strong> — Kassensicherungsverordnung, savezni propis o sigurnosti blagajni.</p>
+                      <p><strong>TSE</strong> (Technische Sicherheitseinrichtung) — sigurnosni modul (SD kartica, USB ili Cloud).</p>
+                      <p><strong>DSFinV-K</strong> — Digitalna sučelje za izvoz podataka s blagajne.</p>
+                    </>
+                  )}
+                  <p><strong>Produkcijski način:</strong> Za prehod v produkcijo morate imeti veljaven certifikat in pravilno konfigurirane podatke podjetja.</p>
                 </div>
               </div>
 
@@ -531,35 +833,25 @@ export function SettingsManager() {
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <FileText className="h-5 w-5 text-primary" />
-                    Kaj mora pisati na računu (ZDDV-1)
+                    Obvezni podatki na računu ({currentCountryConfig.flag} {currentCountryConfig.nameLocal})
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <p className="font-semibold text-sm">Obvezni podatki izdajatelja:</p>
+                      <p className="font-semibold text-sm">Podatki izdajatelja:</p>
                       <ul className="text-sm space-y-1 list-disc list-inside text-muted-foreground">
-                        <li>Naziv podjetja</li>
-                        <li>Naslov poslovnega prostora</li>
-                        <li>Matična številka</li>
-                        <li>ID za DDV (SIxxxxxxxxx)</li>
-                        <li>Oznaka poslovnega prostora</li>
-                        <li>Oznaka blagajne/naprave</li>
+                        {currentCountryConfig.receiptRequirements.slice(0, Math.ceil(currentCountryConfig.receiptRequirements.length / 2)).map((req, i) => (
+                          <li key={i}>{req}</li>
+                        ))}
                       </ul>
                     </div>
                     <div className="space-y-2">
-                      <p className="font-semibold text-sm">Obvezni podatki računa:</p>
+                      <p className="font-semibold text-sm">Podatki računa:</p>
                       <ul className="text-sm space-y-1 list-disc list-inside text-muted-foreground">
-                        <li>Številka računa (zaporedna)</li>
-                        <li>Datum in ura izdaje</li>
-                        <li>Naziv in količina artikla</li>
-                        <li>Cena brez DDV</li>
-                        <li>DDV stopnja po artiklih</li>
-                        <li>Znesek DDV po stopnjah</li>
-                        <li>Osnova za DDV po stopnjah</li>
-                        <li>Skupni znesek z DDV</li>
-                        <li>ZOI (zaščitni označitelj)</li>
-                        <li>EOR (če je overjen)</li>
+                        {currentCountryConfig.receiptRequirements.slice(Math.ceil(currentCountryConfig.receiptRequirements.length / 2)).map((req, i) => (
+                          <li key={i}>{req}</li>
+                        ))}
                       </ul>
                     </div>
                   </div>
@@ -674,22 +966,175 @@ export function SettingsManager() {
       <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-4">
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5">
+            <MapPinned className="h-3.5 w-3.5" />
+            {currentCountryConfig.flag} {currentCountryConfig.nameLocal}
+          </span>
+          <span className="flex items-center gap-1.5">
             <Monitor className="h-3.5 w-3.5" />
             Okolje: <Badge variant={form.fursEnvironment === 'production' ? 'destructive' : 'outline'} className="text-[9px] h-4">
               {form.fursEnvironment === 'production' ? 'PRODUKCIJA' : 'TEST'}
             </Badge>
           </span>
           <span>Blagajna: {form.registerNumber || 'BLG-001'}</span>
-          <span>DDV: {form.defaultVatRate}% / {form.reducedVatRate}%</span>
+          <span>Davek: {form.defaultVatRate}% / {form.reducedVatRate}%</span>
         </div>
         <div className="flex items-center gap-4">
           {lastSaved && <span>Zadnje shranjevanje: {lastSaved}</span>}
           <span className="flex items-center gap-1">
             <div className={`h-2 w-2 rounded-full ${fursStatus === 'connected' ? 'bg-emerald-500' : fursStatus === 'error' ? 'bg-red-500' : 'bg-gray-400'}`} />
-            {fursStatus === 'connected' ? 'FURS povezan' : fursStatus === 'error' ? 'FURS napaka' : 'FURS nepovezan'}
+            {fursStatus === 'connected' ? `${currentCountryConfig.fiscalization.authorityShort} povezan` : fursStatus === 'error' ? `${currentCountryConfig.fiscalization.authorityShort} napaka` : `${currentCountryConfig.fiscalization.authorityShort} nepovezan`}
           </span>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ============================================
+// FURS BATCH VERIFICATION — Množična overitev neoverjenih računov
+// ============================================
+
+function FursBatchVerification() {
+  const [batchRunning, setBatchRunning] = useState(false)
+  const [batchResults, setBatchResults] = useState<{
+    processed: number
+    successful: number
+    failed: number
+    results: Array<{
+      receiptId: string
+      receiptNumber: string
+      success: boolean
+      error?: string
+      isSimulation?: boolean
+    }>
+  } | null>(null)
+
+  const { data: batchStatus, isLoading: batchLoading, refetch } = useQuery<{
+    unverifiedCount: number
+    oldestUnverified: { receiptNumber: string; createdAt: string } | null
+  }>({
+    queryKey: ['furs-batch-status'],
+    queryFn: async () => {
+      const res = await authFetch('/api/furs/batch')
+      if (!res.ok) return { unverifiedCount: 0, oldestUnverified: null }
+      return res.json()
+    },
+    refetchInterval: batchRunning ? 5000 : 60000,
+  })
+
+  const runBatch = async () => {
+    setBatchRunning(true)
+    setBatchResults(null)
+    try {
+      const res = await authFetch('/api/furs/batch', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error || 'Napaka pri množičnem overjanju')
+        return
+      }
+      setBatchResults(data)
+      refetch()
+      if (data.failed === 0) {
+        toast.success(data.message || `Uspešno overjenih ${data.successful} računov!`)
+      } else {
+        toast.warning(`Overjenih ${data.successful}/${data.processed}, ${data.failed} neuspešnih`)
+      }
+    } catch {
+      toast.error('Napaka pri povezavi s strežnikom')
+    } finally {
+      setBatchRunning(false)
+    }
+  }
+
+  const unverifiedCount = batchStatus?.unverifiedCount || 0
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h4 className="font-semibold flex items-center gap-2">
+            <ListChecks className="h-4 w-4 text-blue-600" />
+            Množična overitev računov
+          </h4>
+          <p className="text-sm text-muted-foreground mt-1">
+            Poišče in overi vse neoverjene račune pri FURS (max 50 naenkrat)
+          </p>
+        </div>
+        <Button
+          onClick={runBatch}
+          disabled={batchRunning || unverifiedCount === 0}
+          className="min-w-36"
+        >
+          {batchRunning ? (
+            <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Overjam...</>
+          ) : (
+            <><RefreshCw className="h-4 w-4 mr-2" /> Overi vse ({unverifiedCount})</>
+          )}
+        </Button>
+      </div>
+
+      {/* Status neoverjenih */}
+      {batchLoading ? (
+        <div className="h-10 bg-muted animate-pulse rounded" />
+      ) : unverifiedCount > 0 ? (
+        <div className="rounded-lg p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+            <span className="text-sm text-amber-800 dark:text-amber-300">
+              <strong>{unverifiedCount}</strong> {unverifiedCount === 1 ? 'račun' : unverifiedCount === 2 ? 'računa' : unverifiedCount < 5 ? 'računi' : 'računov'} čaka na davčno overitev
+              {batchStatus?.oldestUnverified && (
+                <span className="text-xs ml-2 text-amber-600">
+                  (najstarejši: {batchStatus.oldestUnverified.receiptNumber} od {new Date(batchStatus.oldestUnverified.createdAt).toLocaleDateString('sl-SI')})
+                </span>
+              )}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-lg p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span className="text-sm text-emerald-800 dark:text-emerald-300">
+              Vsi računi so davčno overjeni
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Rezultati batch overitve */}
+      {batchResults && (
+        <div className="border rounded-lg overflow-hidden">
+          <div className="p-3 bg-muted/50 border-b font-medium text-sm flex items-center justify-between">
+            <span>Rezultati overjanja</span>
+            <div className="flex items-center gap-2">
+              <Badge variant="default" className="bg-emerald-600">{batchResults.successful} uspešnih</Badge>
+              {batchResults.failed > 0 && (
+                <Badge variant="destructive">{batchResults.failed} neuspešnih</Badge>
+              )}
+            </div>
+          </div>
+          <div className="max-h-60 overflow-y-auto">
+            {batchResults.results.map((result, idx) => (
+              <div key={result.receiptId} className={`flex items-center justify-between p-2 text-sm border-b ${idx % 2 === 0 ? '' : 'bg-muted/20'}`}>
+                <div className="flex items-center gap-2">
+                  {result.success ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                  ) : (
+                    <AlertTriangle className="h-3.5 w-3.5 text-red-500" />
+                  )}
+                  <span className="font-mono text-xs">{result.receiptNumber}</span>
+                  {result.isSimulation && (
+                    <Badge variant="outline" className="text-[9px] h-4 text-amber-600">SIM</Badge>
+                  )}
+                </div>
+                <span className={`text-xs ${result.success ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {result.success ? 'Overjen' : result.error || 'Napaka'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

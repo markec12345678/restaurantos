@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner'
 import { Truck, Plus, MapPin, Clock, Phone, Navigation, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
+import { authFetch } from '@/components/pos/PinLogin'
 
 interface DeliveryInfoData {
   id: string
@@ -69,15 +70,14 @@ export function DeliveryManager() {
     queryFn: async () => {
       const params = new URLSearchParams()
       if (statusFilter !== 'all') params.set('status', statusFilter)
-      const res = await fetch(`/api/delivery?${params}`)
+      const res = await authFetch(`/api/delivery?${params}`)
       return res.json()
     },
   })
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await fetch(`/api/delivery/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
-      if (!res.ok) throw new Error('Napaka pri posodobitvi')
+      const res = await authFetch(`/api/delivery/${id}`, { method: 'PUT', body: JSON.stringify(data) })
       return res.json()
     },
     onSuccess: () => { toast.success('Dostava posodobljena'); queryClient.invalidateQueries({ queryKey: ['delivery'] }); setDialogOpen(false) },
@@ -117,9 +117,9 @@ export function DeliveryManager() {
     }
   }
 
-  const filtered = deliveries || []
-  const activeDeliveries = filtered.filter(d => !['delivered', 'failed'].includes(d.status))
-  const completedDeliveries = filtered.filter(d => ['delivered', 'failed'].includes(d.status))
+  const safeDeliveries = Array.isArray(deliveries) ? deliveries : []
+  const activeDeliveries = safeDeliveries.filter(d => !['delivered', 'failed'].includes(d.status))
+  const completedDeliveries = safeDeliveries.filter(d => ['delivered', 'failed'].includes(d.status))
 
   return (
     <div className="space-y-6">
@@ -196,7 +196,7 @@ export function DeliveryManager() {
                       )}
 
                       <div className="flex items-center justify-between text-xs">
-                        <span>Dostava: €{delivery.deliveryFee.toFixed(2)} | Embalaža: €{delivery.packagingFee.toFixed(2)}</span>
+                        <span>Dostava: €{(delivery.deliveryFee ?? 0).toFixed(2)} | Embalaža: €{(delivery.packagingFee ?? 0).toFixed(2)}</span>
                       </div>
 
                       <div className="flex gap-2">
@@ -225,7 +225,7 @@ export function DeliveryManager() {
                         <p className="font-medium text-sm">{delivery.address}, {delivery.city}</p>
                         <Badge className={statusColors[delivery.status] || ''}>{statusLabels[delivery.status]}</Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground">{delivery.recipientName} | €{delivery.deliveryFee.toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">{delivery.recipientName} | €{(delivery.deliveryFee ?? 0).toFixed(2)}</p>
                     </CardContent>
                   </Card>
                 ))}
@@ -233,7 +233,7 @@ export function DeliveryManager() {
             </div>
           )}
 
-          {filtered.length === 0 && (
+          {safeDeliveries.length === 0 && (
             <div className="text-center py-12 text-muted-foreground">
               <Truck className="h-12 w-12 mx-auto mb-3 opacity-30" />
               <p>Ni dostavnih naročil</p>

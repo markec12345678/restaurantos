@@ -15,9 +15,10 @@ import { StatsCard } from '@/components/pos/StatsCard'
 import { toast } from 'sonner'
 import {
   Printer, Plus, Pencil, Trash2, Search, Wifi, WifiOff,
-  ChefHat, Receipt, ScrollText, FileText,
+  ChefHat, Receipt, ScrollText, FileText, CheckCircle2, XCircle, Loader2,
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
+import { authFetch } from '@/components/pos/PinLogin'
 
 // ============================================
 // TIPI
@@ -100,6 +101,30 @@ export function PrinterManager() {
     printRulesPrepStationOrder: false,
   })
 
+  // ─── PRINTER CONNECTIVITY TEST ───
+  const [printerStatus, setPrinterStatus] = useState<Record<string, 'idle' | 'checking' | 'online' | 'offline'>>({})
+
+  const testConnectivity = async (printer: PrinterItem) => {
+    setPrinterStatus(prev => ({ ...prev, [printer.id]: 'checking' }))
+    try {
+      // Preizkusi povezavo s tiskalnikom s TCP pingom preko print API-ja
+      const res = await authFetch('/api/print', {
+        method: 'POST',
+        body: JSON.stringify({ type: 'test', printerId: printer.id }),
+      })
+      const data = await res.json()
+      setPrinterStatus(prev => ({ ...prev, [printer.id]: data.printed ? 'online' : 'offline' }))
+      if (data.printed) {
+        toast.success(`Tiskalnik ${printer.name} je povezan — testni tisk poslan`)
+      } else {
+        toast.error(`Tiskalnik ${printer.name} ni dosegljiv: ${data.error || 'Neznana napaka'}`)
+      }
+    } catch {
+      setPrinterStatus(prev => ({ ...prev, [printer.id]: 'offline' }))
+      toast.error('Napaka pri povezavi')
+    }
+  }
+
   // ============================================
   // QUERY
   // ============================================
@@ -107,8 +132,7 @@ export function PrinterManager() {
   const { data: printers, isLoading } = useQuery<PrinterItem[]>({
     queryKey: ['configuration', 'printers'],
     queryFn: async () => {
-      const res = await fetch(API_BASE)
-      if (!res.ok) return []
+      const res = await authFetch(API_BASE)
       return res.json()
     },
   })
@@ -137,12 +161,10 @@ export function PrinterManager() {
 
   const createMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const res = await fetch(API_BASE, {
+      const res = await authFetch(API_BASE, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-      if (!res.ok) throw new Error('Napaka pri ustvarjanju')
       return res.json()
     },
     onSuccess: () => {
@@ -155,12 +177,10 @@ export function PrinterManager() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await fetch(`${API_BASE}/${id}`, {
+      const res = await authFetch(`${API_BASE}/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-      if (!res.ok) throw new Error('Napaka pri posodobitvi')
       return res.json()
     },
     onSuccess: () => {
@@ -174,8 +194,7 @@ export function PrinterManager() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Napaka pri brisanju')
+      const res = await authFetch(`${API_BASE}/${id}`, { method: 'DELETE' })
       return res.json()
     },
     onSuccess: () => {
@@ -247,8 +266,21 @@ export function PrinterManager() {
     }
   }
 
-  const handleTestPrint = (printer: PrinterItem) => {
-    toast.success(`Testni tisk poslan na ${printer.name}`)
+  const handleTestPrint = async (printer: PrinterItem) => {
+    try {
+      const res = await authFetch('/api/print', {
+        method: 'POST',
+        body: JSON.stringify({ type: 'test', printerId: printer.id }),
+      })
+      const data = await res.json()
+      if (data.printed) {
+        toast.success(`Testni tisk poslan na ${printer.name} (${printer.ipAddress})`)
+      } else {
+        toast.error(`Tiskanje ni uspelo: ${data.error || 'Neznana napaka'}`)
+      }
+    } catch {
+      toast.error('Napaka pri povezavi s tiskalnikom')
+    }
   }
 
   const toggleActive = (printer: PrinterItem) => {
@@ -372,12 +404,20 @@ export function PrinterManager() {
                   </Badge>
                 </div>
 
-                {/* IP naslov */}
+                {/* IP naslov in status povezave */}
                 <div className="flex items-center gap-2 text-sm">
                   {printer.ipAddress ? (
                     <>
-                      <Wifi className="h-3.5 w-3.5 text-emerald-500" />
-                      <span className="font-mono text-xs text-muted-foreground">{printer.ipAddress}</span>
+                      {printerStatus[printer.id] === 'online' ? (
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                      ) : printerStatus[printer.id] === 'offline' ? (
+                        <XCircle className="h-3.5 w-3.5 text-red-500" />
+                      ) : printerStatus[printer.id] === 'checking' ? (
+                        <Loader2 className="h-3.5 w-3.5 text-muted-foreground animate-spin" />
+                      ) : (
+                        <Wifi className="h-3.5 w-3.5 text-emerald-500" />
+                      )}
+                      <span className="font-mono text-xs text-muted-foreground">{printer.ipAddress}:9100</span>
                     </>
                   ) : (
                     <>
@@ -412,11 +452,15 @@ export function PrinterManager() {
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7"
-                      title="Testni tisk"
-                      onClick={() => handleTestPrint(printer)}
-                      disabled={!printer.isActive}
+                      title="Test povezljivosti in tisk"
+                      onClick={() => testConnectivity(printer)}
+                      disabled={!printer.isActive || !printer.ipAddress || printerStatus[printer.id] === 'checking'}
                     >
-                      <FileText className="h-3 w-3" />
+                      {printerStatus[printer.id] === 'checking' ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <FileText className="h-3 w-3" />
+                      )}
                     </Button>
                     <Button
                       variant="ghost"

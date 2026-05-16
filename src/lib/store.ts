@@ -1,4 +1,8 @@
 import { create } from 'zustand'
+import type { Locale } from './i18n'
+import { setLocale, getLocale } from './i18n'
+import type { CountryCode } from './country-config'
+import { getCountryConfig, getCountryByLocale } from './country-config'
 
 export interface SelectedModifier {
   id: string
@@ -64,6 +68,17 @@ interface POSStore {
   setKioskMode: (mode: boolean) => void
   kioskAllowedModules: string[]
   setKioskAllowedModules: (modules: string[]) => void
+  // Večjezičnost
+  locale: Locale
+  setLocale: (locale: Locale) => void
+  // Država / Regija
+  country: CountryCode
+  setCountry: (country: CountryCode) => void
+  // Happy Hour
+  activePriceGroupId: string | null
+  setActivePriceGroupId: (id: string | null) => void
+  happyHourActive: boolean
+  setHappyHourActive: (active: boolean) => void
 }
 
 function generateCartKey(itemId: string, modifiers: SelectedModifier[]): string {
@@ -199,4 +214,25 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   setKioskMode: (mode) => set({ kioskMode: mode }),
   kioskAllowedModules: ['orders', 'kitchen', 'tables'],
   setKioskAllowedModules: (modules) => set({ kioskAllowedModules: modules }),
+  // Večjezičnost
+  locale: (typeof window !== 'undefined' ? getLocale() : 'sl'),
+  setLocale: (locale) => {
+    setLocale(locale)
+    set({ locale })
+  },
+  // Država / Regija
+  country: (typeof window !== 'undefined' ? (localStorage.getItem('pos_country') as CountryCode || getCountryByLocale(getLocale())) : 'SI'),
+  setCountry: (country) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pos_country', country)
+    }
+    // Samodejno posodobi davčno stopnjo glede na državo
+    const config = getCountryConfig(country)
+    set({ country, taxRate: config.taxRates.standard })
+  },
+  // Happy Hour
+  activePriceGroupId: null,
+  setActivePriceGroupId: (id) => set({ activePriceGroupId: id }),
+  happyHourActive: false,
+  setHappyHourActive: (active) => set({ happyHourActive: active }),
 }))

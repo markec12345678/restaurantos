@@ -1,13 +1,7 @@
 /**
- * Background daemon that auto-replaces placeholder images with AI photos.
- * Runs continuously, checks every 5 minutes if API is available,
- * and generates images one at a time when possible.
- * 
- * Usage:
- *   node ai-image-daemon.mjs           # Run in foreground
- *   nohup node ai-image-daemon.mjs &   # Run in background
- * 
- * Stops automatically when all 54 images are replaced.
+ * Background daemon - auto-replaces placeholder images when API becomes available.
+ * Checks every 5 minutes. Exits when all 54 replaced.
+ * Usage: node ai-image-daemon.mjs
  */
 
 import ZAI from 'z-ai-web-dev-sdk';
@@ -15,8 +9,7 @@ import fs from 'fs';
 import path from 'path';
 
 const OUTPUT_DIR = '/home/z/my-project/public/menu-images';
-const CHECK_INTERVAL = 5 * 60 * 1000; // Check every 5 minutes
-const DELAY_BETWEEN = 8000; // 8s between successful generations
+const CHECK_INTERVAL = 5 * 60 * 1000;
 
 const ITEMS = [
   { name: 'Ajdova kaša', file: 'ajdova-kasa.png', prompt: 'bowl of buckwheat porridge, Slovenian traditional dish' },
@@ -34,19 +27,19 @@ const ITEMS = [
   { name: 'Granola z jogurtom', file: 'granola-z-jogurtom.png', prompt: 'granola bowl with yogurt, fresh berries, honey drizzle' },
   { name: 'Havajska pica', file: 'havajska-pica.png', prompt: 'Hawaiian pizza with ham and pineapple, melted cheese' },
   { name: 'Hrenovke na žaru', file: 'hrenovke-na-zaru.png', prompt: 'grilled hot dogs with mustard, traditional Slovenian style' },
-  { name: 'Idrijski žlikrofi', file: 'idrijski-zlikrofi.png', prompt: 'Idrijski žlikrofi, Slovenian filled dumplings, traditional dish' },
+  { name: 'Idrijski žlikrofi', file: 'idrijski-zlikrofi.png', prompt: 'Idrijski zlikrofi, Slovenian filled dumplings, traditional dish' },
   { name: 'Jajčni benedikt', file: 'jajcni-benedikt.png', prompt: 'Eggs Benedict with hollandaise sauce, ham, English muffin' },
   { name: 'Kava in krof', file: 'kava-in-krof.png', prompt: 'coffee and donut, espresso with glazed doughnut, breakfast' },
   { name: 'Klobase na žaru', file: 'klobase-na-zaru.png', prompt: 'grilled sausages with mustard and horseradish, BBQ style' },
   { name: 'Kmečka pica', file: 'kmecka-pica.png', prompt: 'rustic farmhouse pizza with various toppings, traditional style' },
   { name: 'Kmečki krožnik', file: 'kmecki-kroznik.png', prompt: 'farmhouse platter with meats, cheese, pickles, bread, Slovenian' },
-  { name: 'Krofi s pomarančno marmelado', file: 'krofi-s-pomarancno-marmelado.png', prompt: 'doughnuts filled with orange marmalade, powdered sugar, Slovenian' },
+  { name: 'Krofi s pomarančno marmelado', file: 'krofi-s-pomarancno-marmelado.png', prompt: 'doughnuts filled with orange marmalade, powdered sugar' },
   { name: 'Krompirjevi kroketi', file: 'krompirjevi-kroketi.png', prompt: 'golden potato croquettes, crispy fried, side dish' },
   { name: 'Krvavica s kislim zeljem', file: 'krvavica-s-kislim-zeljem.png', prompt: 'blood sausage with sauerkraut, Slovenian traditional dish' },
   { name: 'Ledeni desert', file: 'ledeni-desert.png', prompt: 'frozen dessert, ice cream sundae with chocolate sauce, berries' },
   { name: 'Medaljoni iz govedine', file: 'medaljoni-iz-govedine.png', prompt: 'beef medallions, tenderloin steak, gourmet restaurant presentation' },
   { name: 'Mini burger s pomfri', file: 'mini-burger-s-pomfri.png', prompt: 'mini burger sliders with french fries, casual dining' },
-  { name: 'Mlinci', file: 'mlinci.png', prompt: 'mlinci, traditional Slovenian flatbread torn pasta with poultry fat' },
+  { name: 'Mlinci', file: 'mlinci.png', prompt: 'mlinci, traditional Slovenian flatbread torn pasta' },
   { name: 'Njoki', file: 'njoki.png', prompt: 'potato gnocchi with sauce, Italian-Slovenian dish, white plate' },
   { name: 'Obara z ajdovo kašo', file: 'obara-z-ajdovo-kaso.png', prompt: 'Slovenian stew with buckwheat porridge, hearty traditional dish' },
   { name: 'Ocvrti lignji s tartarsko omako', file: 'ocvrti-lignji-s-tartarsko-omako.png', prompt: 'fried calamari with tartar sauce, lemon wedge, seafood' },
@@ -62,7 +55,7 @@ const ITEMS = [
   { name: 'Rižota s tartufi', file: 'rizota-s-tartufi.png', prompt: 'truffle risotto, black truffle shavings, creamy Italian style' },
   { name: 'Rižota s šparglji', file: 'rizota-s-sparglji.png', prompt: 'asparagus risotto, green asparagus tips, parmesan, creamy' },
   { name: 'Rižota z bučkami in feto', file: 'rizota-z-buckami-in-feto.png', prompt: 'zucchini and feta risotto, Mediterranean style, fresh herbs' },
-  { name: 'Sladoled tri okuse', file: 'sladoled-tri-okuse.png', prompt: 'three scoops of ice cream, vanilla chocolate strawberry, waffle cone' },
+  { name: 'Sladoled tri okuse', file: 'sladoled-tri-okuse.png', prompt: 'three scoops of ice cream, vanilla chocolate strawberry' },
   { name: 'Sladoled za otroke', file: 'sladoled-za-otroke.png', prompt: 'kids ice cream sundae, colorful sprinkles, fun presentation' },
   { name: 'Solata z avokadom in kozicami', file: 'solata-z-avokadom-in-kozicami.png', prompt: 'avocado and shrimp salad, fresh greens, citrus dressing' },
   { name: 'Solata z grilanim sirom', file: 'solata-z-grilanim-sirom.png', prompt: 'grilled cheese salad, warm halloumi on mixed greens, balsamic' },
@@ -70,113 +63,53 @@ const ITEMS = [
   { name: 'Tagliatelle s tartufi', file: 'tagliatelle-s-tartufi.png', prompt: 'tagliatelle pasta with truffles, black truffle shavings, creamy' },
   { name: 'Tunina pica', file: 'tunina-pica.png', prompt: 'tuna pizza with onions, capers, olive oil, Mediterranean style' },
   { name: 'Šopska solata', file: 'sopska-solata.png', prompt: 'Shopska salad with tomatoes, cucumbers, peppers, feta cheese' },
-  { name: 'Štirje siri', file: 'stirje-siri.png', prompt: 'four cheese pizza, melted mozzarella, gorgonzola, parmesan, ricotta' },
+  { name: 'Štirje siri', file: 'stirje-siri.png', prompt: 'four cheese pizza, melted mozzarella, gorgonzola, parmesan' },
   { name: 'Žar deska za dve', file: 'zar-deska-za-dve.png', prompt: 'grilled meat platter for two, various grilled meats, vegetables' },
   { name: 'Žar zelenjava', file: 'zar-zelenjava.png', prompt: 'grilled vegetables, zucchini, peppers, eggplant, asparagus' },
 ];
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function isPlaceholder(filePath) {
-  try {
-    const stats = fs.statSync(filePath);
-    return stats.size < 50000;
-  } catch {
-    return true;
-  }
-}
-
-function getRemaining() {
-  return ITEMS.filter(item => isPlaceholder(path.join(OUTPUT_DIR, item.file)));
-}
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function isPlaceholder(p) { try { return fs.statSync(p).size < 50000; } catch { return true; } }
+function getRemaining() { return ITEMS.filter(i => isPlaceholder(path.join(OUTPUT_DIR, i.file))); }
+const log = m => console.log(`[${new Date().toISOString()}] ${m}`);
 
 async function main() {
-  const log = (msg) => console.log(`[${new Date().toISOString()}] ${msg}`);
-  
   log('🤖 AI Image Daemon started');
-  log(`   Total items: ${ITEMS.length}`);
-  log(`   Remaining placeholders: ${getRemaining().length}`);
-  log(`   Check interval: ${CHECK_INTERVAL/1000}s`);
-  
+  log(`   Remaining: ${getRemaining().length}/54`);
+
   while (true) {
     const remaining = getRemaining();
-    
-    if (remaining.length === 0) {
-      log('🎉 All images replaced! Daemon exiting.');
-      break;
-    }
-    
-    log(`📊 ${remaining.length} placeholders remaining. Testing API...`);
-    
+    if (remaining.length === 0) { log('🎉 All done!'); break; }
+
+    log(`📊 ${remaining.length} placeholders. Trying API...`);
     try {
       const zai = await ZAI.create();
-      
-      // Try to generate the next placeholder
-      const item = remaining[0];
-      const outputPath = path.join(OUTPUT_DIR, item.file);
-      
-      log(`🎨 Generating: ${item.name}`);
-      
-      const response = await zai.images.generations.create({
-        prompt: `Professional food photography of ${item.prompt}, restaurant dish, warm lighting, white plate, elegant presentation, high quality, 4k`,
-        size: '864x1152'
-      });
-      
-      fs.writeFileSync(outputPath, Buffer.from(response.data[0].base64, 'base64'));
-      const newSize = fs.statSync(outputPath).size;
-      log(`✅ Saved: ${item.file} (${(newSize/1024).toFixed(0)}KB)`);
-      
-      // Wait between successful generations
-      await sleep(DELAY_BETWEEN);
-      
-      // Try more while API is available
-      let consecutiveSuccess = 1;
-      const moreRemaining = getRemaining();
-      
-      for (let i = 0; i < Math.min(moreRemaining.length, 10); i++) {
-        const nextItem = moreRemaining[i];
-        const nextPath = path.join(OUTPUT_DIR, nextItem.file);
-        
-        if (!isPlaceholder(nextPath)) continue;
-        
+      let count = 0;
+      for (const item of remaining) {
+        const p = path.join(OUTPUT_DIR, item.file);
+        if (!isPlaceholder(p)) continue;
         try {
-          log(`🎨 Generating: ${nextItem.name}`);
-          const resp = await zai.images.generations.create({
-            prompt: `Professional food photography of ${nextItem.prompt}, restaurant dish, warm lighting, white plate, elegant presentation, high quality, 4k`,
+          log(`🎨 ${item.name}`);
+          const r = await zai.images.generations.create({
+            prompt: `Professional food photography of ${item.prompt}, restaurant dish, warm lighting, white plate, 4k`,
             size: '864x1152'
           });
-          fs.writeFileSync(nextPath, Buffer.from(resp.data[0].base64, 'base64'));
-          const sz = fs.statSync(nextPath).size;
-          log(`✅ Saved: ${nextItem.file} (${(sz/1024).toFixed(0)}KB)`);
-          consecutiveSuccess++;
-          await sleep(DELAY_BETWEEN);
-        } catch (err) {
-          if (err.message?.includes('429')) {
-            log('⏳ Rate limited again. Waiting for next cycle.');
-            break;
-          }
-          log(`❌ Error: ${err.message}`);
-          break;
+          fs.writeFileSync(p, Buffer.from(r.data[0].base64, 'base64'));
+          log(`✅ ${item.file} (${(fs.statSync(p).size/1024).toFixed(0)}KB)`);
+          count++;
+          await sleep(8000);
+        } catch (e) {
+          if (e.message?.includes('429')) { log('⏳ Rate limited'); break; }
+          log(`❌ ${e.message?.substring(0,60)}`); break;
         }
       }
-      
-      log(`📈 Generated ${consecutiveSuccess} images this cycle`);
-      
-    } catch (error) {
-      if (error.message?.includes('429')) {
-        log('⏳ API rate limited. Waiting for next check cycle.');
-      } else {
-        log(`❌ API error: ${error.message}`);
-      }
+      log(`📈 ${count} images this cycle`);
+    } catch (e) {
+      log(e.message?.includes('429') ? '⏳ Rate limited' : `❌ ${e.message?.substring(0,60)}`);
     }
-    
-    log(`💤 Sleeping ${CHECK_INTERVAL/1000}s until next check...`);
+    log(`💤 Sleeping ${CHECK_INTERVAL/1000}s...`);
     await sleep(CHECK_INTERVAL);
   }
-  
-  log('👋 Daemon finished.');
 }
 
 main().catch(console.error);

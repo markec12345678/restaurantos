@@ -20,10 +20,16 @@ export async function GET(req: Request) {
   })
 
   const todayRevenue = todayOrders.filter(o => o.paymentStatus === 'paid').reduce((sum, o) => sum + o.total, 0)
+  const todayTips = todayOrders.filter(o => o.paymentStatus === 'paid').reduce((sum, o) => sum + o.tip, 0)
+  const todayTax = todayOrders.filter(o => o.paymentStatus === 'paid').reduce((sum, o) => sum + o.tax, 0)
+  const todayDiscount = todayOrders.filter(o => o.paymentStatus === 'paid').reduce((sum, o) => sum + o.discount, 0)
   const totalOrders = todayOrders.length
+  const completedOrders = todayOrders.filter(o => o.status === 'completed').length
+  const cancelledOrders = todayOrders.filter(o => o.status === 'cancelled').length
   const avgOrderValue = totalOrders > 0 ? todayRevenue / totalOrders : 0
   const pendingOrders = todayOrders.filter(o => o.status === 'pending').length
   const inProgressOrders = todayOrders.filter(o => o.status === 'in-progress').length
+  const readyOrders = todayOrders.filter(o => o.status === 'ready').length
 
   const activeTables = await db.table.count({ where: { status: 'occupied' } })
   const totalTables = await db.table.count()
@@ -152,18 +158,51 @@ export async function GET(req: Request) {
   const employeePerformance = Object.values(empMap).sort((a, b) => b.revenue - a.revenue)
 
   // 8. Average wait time (updatedAt - createdAt za completed orders)
-  const completedOrders = todayOrders.filter(o => o.status === 'completed')
-  const avgWaitMinutes = completedOrders.length > 0
-    ? completedOrders.reduce((sum, o) => {
+  const completedOrdersList = todayOrders.filter(o => o.status === 'completed')
+  const avgWaitMinutes = completedOrdersList.length > 0
+    ? completedOrdersList.reduce((sum, o) => {
         const created = new Date(o.createdAt).getTime()
         const completed = new Date(o.updatedAt).getTime()
         return sum + (completed - created) / 60000
-      }, 0) / completedOrders.length
+      }, 0) / completedOrdersList.length
     : 0
+
+  // ─── FURS status ───
+  const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
+  const todayVerifiedReceipts = await db.receipt.count({
+    where: {
+      createdAt: { gte: today, lt: tomorrow },
+      fiscalVerified: true,
+    },
+  })
+  const todayUnverifiedReceipts = await db.receipt.count({
+    where: {
+      createdAt: { gte: today, lt: tomorrow },
+      fiscalVerified: false,
+    },
+  })
+
+  // ─── Aktivna blagajniška izmena ───
+  const activeShift = await db.cashRegisterShift.findFirst({
+    where: { status: 'open' },
+    orderBy: { openedAt: 'desc' },
+  })
+
+  // ─── Stroški zaloge (COGS) ───
+  const stockMovements = await db.stockTransaction.findMany({
+    where: { createdAt: { gte: today, lt: tomorrow }, type: 'sale' },
+  })
+  const todayCogs = stockMovements.reduce((sum, t) => sum + Math.abs(t.totalCost), 0)
+  const grossProfit = todayRevenue - todayCogs
 
   return NextResponse.json({
     todayRevenue,
+    todayTips,
+    todayTax,
+    todayDiscount,
     totalOrders,
+    completedOrders,
+    cancelledOrders,
     avgOrderValue,
     activeTables,
     totalTables,
@@ -172,6 +211,7 @@ export async function GET(req: Request) {
     dailyRevenue,
     pendingOrders,
     inProgressOrders,
+    readyOrders,
     // Nova analitika
     categoryBreakdown,
     hourlyRevenue,
@@ -181,6 +221,26 @@ export async function GET(req: Request) {
     topSellingItems,
     employeePerformance,
     avgWaitMinutes: Math.round(avgWaitMinutes),
+    // FURS & Blagajna
+    fursStatus: {
+      configured: !!(settings?.fursCertPath),
+      environment: settings?.fursEnvironment || 'test',
+      todayVerified: todayVerifiedReceipts,
+      todayUnverified: todayUnverifiedReceipts,
+    },
+    activeShift: activeShift ? {
+      id: activeShift.id,
+      openedAt: activeShift.openedAt,
+      startingCash: activeShift.startingCash,
+      cashSales: activeShift.cashSales,
+      cardSales: activeShift.cardSales,
+      totalSales: activeShift.totalSales,
+      totalOrders: activeShift.totalOrders,
+    } : null,
+    // Stroški
+    todayCogs: Math.round(todayCogs * 100) / 100,
+    grossProfit: Math.round(grossProfit * 100) / 100,
+    grossMargin: todayRevenue > 0 ? Math.round((grossProfit / todayRevenue) * 100 * 100) / 100 : 0,
   })
   } catch (error) {
     console.error('Napaka pri pridobivanju dashboard podatkov:', error)

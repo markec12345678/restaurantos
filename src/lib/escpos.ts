@@ -304,28 +304,43 @@ export interface KitchenOrderPrintData {
 
 export interface ReceiptPrintData {
   orderNumber: number
+  receiptNumber?: string      // R-YYYY-NNNNNN format
   businessName: string
   businessAddress: string
+  businessCity?: string
+  businessPostCode?: string
+  businessPhone?: string
   businessId: string
   taxId: string
   registerId: string
+  premisesId?: string
   zoi: string
   eor: string
+  isSimulation?: boolean     // FURS simulacija opozorilo
   items: Array<{
     quantity: number
     name: string
-    price: number
+    price: number             // Cena brez DDV na enoto
     vatRate: number
+    isVoided?: boolean
+    modifiers?: Array<{ name: string; price: number }>
   }>
   subtotal: number
   vatBreakdown: Array<{ rate: number; base: number; vat: number }>
   totalVat: number
   discount: number
+  discountName?: string
   total: number
   tip: number
+  totalWithTip: number
   paymentMethod: string
   timestamp: string
+  qrContent?: string         // FURS QR koda vsebina
   receiptFooter?: string
+  operatorName?: string      // Ime blagajnika
+  tableNumber?: number | null
+  orderType?: string         // dine-in, takeout, delivery
+  customerName?: string
 }
 
 /**
@@ -414,11 +429,14 @@ export function generateKitchenOrder(data: KitchenOrderPrintData, model: Printer
 }
 
 /**
- * Generiraj ESC/POS podatke za FURS račun
+ * Generiraj ESC/POS podatke za FURS račun (World-class format)
+ * ZDDV-1 skladno — DDV po stopnjah, ZOI, EOR, QR koda
  */
 export function generateReceipt(data: ReceiptPrintData, model: PrinterModel = 'epson'): Buffer {
   const b = createESCPOSBuilder(model)
+  const LINE_W = 48 // Širina vrstice na 80mm termičnem papirju (Font A)
 
+  // ─── GLAVA RAČUNA ───
   b.init()
     .center()
     .bold(true)
@@ -429,56 +447,137 @@ export function generateReceipt(data: ReceiptPrintData, model: PrinterModel = 'e
     .lineFeed()
 
   b.smallText()
-    .text(data.businessAddress)
-    .lineFeed()
+  if (data.businessAddress) b.text(data.businessAddress).lineFeed()
+  if (data.businessPostCode || data.businessCity) {
+    b.text(`${data.businessPostCode || ''} ${data.businessCity || ''}`).lineFeed()
+  }
+  if (data.businessPhone) b.text(`Tel: ${data.businessPhone}`).lineFeed()
+  b.lineFeed()
     .text(`Maticna st.: ${data.businessId}`)
     .lineFeed()
     .text(`ID za DDV: ${data.taxId}`)
     .lineFeed()
     .text(`Blagajna: ${data.registerId}`)
     .lineFeed()
+  if (data.premisesId) {
+    b.text(`Poslovni prostor: ${data.premisesId}`).lineFeed()
+  }
 
   b.separator('=')
     .left()
     .normalText()
 
-  // Čas in številka
-  b.text(`Racun #${data.orderNumber}`)
-    .tab()
-    .text(new Date(data.timestamp).toLocaleString('sl-SI'))
+  // ─── ŠTEVILKA RAČUNA IN DATUM ───
+  const receiptLabel = data.receiptNumber || `R-${data.orderNumber}`
+  b.bold(true)
+    .text(`Racun: ${receiptLabel}`)
+    .bold(false)
     .lineFeed()
 
+  b.smallText()
+    .text(new Date(data.timestamp).toLocaleString('sl-SI', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    }))
+    .lineFeed()
+
+  // Vrsta naročila in miza
+  const typeLabels: Record<string, string> = {
+    'dine-in': 'Na mestu',
+    'takeout': 'Za seboj',
+    'delivery': 'Dostava',
+  }
+  if (data.orderType) {
+    b.text(`Vrsta: ${typeLabels[data.orderType] || data.orderType}`)
+    if (data.tableNumber) b.text(` | Miza ${data.tableNumber}`)
+    b.lineFeed()
+  }
+  if (data.customerName) {
+    b.text(`Stranka: ${data.customerName}`).lineFeed()
+  }
+  if (data.operatorName) {
+    b.text(`Blagajnik: ${data.operatorName}`).lineFeed()
+  }
+  b.normalText()
+
   b.separator('-')
 
-  // Artikli
+  // ─── ARTIKLI ───
   for (const item of data.items) {
+    if (item.isVoided) {
+      // Poničani artikel — prikažemo prečrtan
+      b.smallText()
+        .text(`  ${item.quantity}x ${item.name} [PONICANO]`)
+        .lineFeed()
+        .normalText()
+      continue
+    }
+
+    const itemTotal = item.price * item.quantity
+    const vatSuffix = item.vatRate > 0 ? ` (${item.vatRate}%)` : ' (0%)'
     const nameStr = `${item.quantity}x ${item.name}`
-    const priceStr = `${(item.price * item.quantity).toFixed(2)} EUR`
-    const padding = Math.max(1, 48 - nameStr.length - priceStr.length)
-    b.text(nameStr + ' '.repeat(padding) + priceStr).lineFeed()
+    const priceStr = `${itemTotal.toFixed(2)}`
+    const nameLen = nameStr.length
+    const priceLen = priceStr.length + 4 // EUR + space
+    const padding = Math.max(1, LINE_W - nameLen - priceLen - vatSuffix.length)
+
+    b.text(nameStr + vatSuffix + ' '.repeat(padding) + priceStr + ' B')
+    .lineFeed()
+
+    // Modifikatorji
+    if (item.modifiers && item.modifiers.length > 0) {
+      for (const mod of item.modifiers) {
+        const modName = `  + ${mod.name}`
+        const modPrice = mod.price > 0 ? `${mod.price.toFixed(2)}` : ''
+        const modPad = Math.max(1, LINE_W - modName.length - modPrice.length - 2)
+        b.smallText().text(modName + ' '.repeat(modPad) + modPrice).normalText().lineFeed()
+      }
+    }
   }
 
   b.separator('-')
 
-  // Vmesna vsota
-  b.text('Vmesna vsota:').tab().text(`${data.subtotal.toFixed(2)} EUR`).lineFeed()
+  // ─── VMESNA VSOTA ───
+  const subtotalLabel = 'Vmesna vsota:'
+  const subtotalVal = `${data.subtotal.toFixed(2)} EUR`
+  const subPad = Math.max(1, LINE_W - subtotalLabel.length - subtotalVal.length)
+  b.text(subtotalLabel + ' '.repeat(subPad) + subtotalVal).lineFeed()
 
-  // DDV po stopnjah
+  // ─── DDV PO STOPNVAH (ZDDV-1 format) ───
+  b.separator('.')
+  b.bold(true).text('DDV razclenitev:').bold(false).lineFeed()
+  b.smallText()
+
+  // Glava tabele
+  const ddvHeader = '  Stopnja    Osnova        DDV      Skupaj'
+  b.text(ddvHeader).lineFeed()
+  b.separator('.')
+
   for (const vb of data.vatBreakdown) {
-    b.smallText()
-      .text(`  DDV ${vb.rate}%: osnova ${vb.base.toFixed(2)}, DDV ${vb.vat.toFixed(2)}`)
-      .normalText()
-      .lineFeed()
+    const rateStr = `${vb.rate}%`.padStart(7)
+    const baseStr = vb.base.toFixed(2).padStart(10)
+    const vatStr = vb.vat.toFixed(2).padStart(10)
+    const totalStr = (vb.base + vb.vat).toFixed(2).padStart(10)
+    b.text(`  ${rateStr}  ${baseStr}  ${vatStr}  ${totalStr}`).lineFeed()
   }
 
-  // Popust
+  // Skupaj DDV
+  const ddvTotalLabel = '  SKUPAJ DDV:'
+  const ddvTotalVal = data.totalVat.toFixed(2).padStart(10)
+  b.bold(true).text(`${ddvTotalLabel}${' '.repeat(Math.max(1, LINE_W - ddvTotalLabel.length - ddvTotalVal.length - 4))}${ddvTotalVal}`).bold(false).lineFeed()
+  b.normalText()
+
+  // ─── POPUST ───
   if (data.discount > 0) {
-    b.text(`Popust: -${data.discount.toFixed(2)} EUR`).lineFeed()
+    const discLabel = data.discountName ? `Popust (${data.discountName}):` : 'Popust:'
+    const discVal = `-${data.discount.toFixed(2)} EUR`
+    const discPad = Math.max(1, LINE_W - discLabel.length - discVal.length)
+    b.text(discLabel + ' '.repeat(discPad) + discVal).lineFeed()
   }
 
   b.separator('=')
 
-  // Skupaj
+  // ─── SKUPAJ ───
   b.bold(true)
     .largeText()
     .text(`SKUPAJ: ${data.total.toFixed(2)} EUR`)
@@ -486,41 +585,84 @@ export function generateReceipt(data: ReceiptPrintData, model: PrinterModel = 'e
     .bold(false)
     .lineFeed()
 
-  // Napitnina
+  // ─── NAPITNINA ───
   if (data.tip > 0) {
-    b.text(`Napitnina: ${data.tip.toFixed(2)} EUR`).lineFeed()
-    b.bold(true).text(`SKUPAJ Z NAPITNINO: ${(data.total + data.tip).toFixed(2)} EUR`).bold(false).lineFeed()
+    const tipLabel = 'Napitnina:'
+    const tipVal = `${data.tip.toFixed(2)} EUR`
+    const tipPad = Math.max(1, LINE_W - tipLabel.length - tipVal.length)
+    b.text(tipLabel + ' '.repeat(tipPad) + tipVal).lineFeed()
+
+    b.bold(true)
+      .text(`SKUPAJ Z NAPITNINO: ${data.totalWithTip.toFixed(2)} EUR`)
+      .bold(false)
+      .lineFeed()
   }
 
-  // Način plačila
+  // ─── NAČIN PLAČILA ───
   const paymentLabels: Record<string, string> = {
     cash: 'Gotovina',
     card: 'Kartica',
     mobile: 'Mobilno',
+    voucher: 'Bon',
+    alternate: 'Drugo',
   }
   b.text(`Nacin placila: ${paymentLabels[data.paymentMethod] || data.paymentMethod}`).lineFeed()
 
-  b.separator('-')
+  b.separator('=')
 
-  // FURS podatki
-  b.smallText()
-  .lineFeed()
+  // ─── FURS PODATKI (ZDDV-1 obvezni) ───
+  b.smallText().lineFeed()
 
   if (data.zoi) {
-    b.text(`ZOI: ${data.zoi}`).lineFeed()
+    // ZOI razdeljen na 2 vrstici zaradi dolžine
+    const zoiStr = data.zoi
+    b.text(`ZOI: ${zoiStr.substring(0, 24)}`).lineFeed()
+    if (zoiStr.length > 24) {
+      b.text(`     ${zoiStr.substring(24)}`).lineFeed()
+    }
   }
+
   if (data.eor) {
     b.text(`EOR: ${data.eor}`).lineFeed()
   }
 
-  b.normalText()
-
-  // Noga računa
-  if (data.receiptFooter) {
-    b.lineFeed().center().smallText().text(data.receiptFooter).normalText()
+  // FURS simulacija opozorilo
+  if (data.isSimulation) {
+    b.inverted(true)
+      .text('*** FURS SIMULACIJA - Ni produkcijsko overjeno ***')
+      .inverted(false)
+      .lineFeed()
   }
 
-  b.lineFeed(3).cut()
+  // QR koda vsebina (besedilno — tiskalnik podpira QR z GS k 3)
+  if (data.qrContent) {
+    b.lineFeed()
+      .text('Preveri racun:').lineFeed()
+    // Prikaži FURS URL skrajšan
+    const qrLines = data.qrContent.match(/.{1,46}/g) || [data.qrContent]
+    for (const line of qrLines) {
+      b.text(line).lineFeed()
+    }
+  }
+
+  b.normalText()
+
+  // ─── NOGA RAČUNA ───
+  if (data.receiptFooter) {
+    b.lineFeed()
+      .center()
+      .smallText()
+      .text(data.receiptFooter)
+      .normalText()
+      .lineFeed()
+  }
+
+  // Hvala in rez
+  b.lineFeed()
+    .center()
+    .text('Hvala za obisk!')
+    .lineFeed(3)
+    .cut()
 
   return b.build()
 }

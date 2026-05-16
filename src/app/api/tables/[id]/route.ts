@@ -25,6 +25,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         ...(data.capacity !== undefined && { capacity: data.capacity }),
         ...(data.status !== undefined && { status: data.status }),
         ...(data.area !== undefined && { area: data.area }),
+        // Vizualni tloris — nove polja
+        ...(body.posX !== undefined && { posX: body.posX }),
+        ...(body.posY !== undefined && { posY: body.posY }),
+        ...(body.width !== undefined && { width: body.width }),
+        ...(body.height !== undefined && { height: body.height }),
+        ...(body.shape !== undefined && { shape: body.shape }),
+        ...(body.rotation !== undefined && { rotation: body.rotation }),
       },
     })
     return NextResponse.json(table)

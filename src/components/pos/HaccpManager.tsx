@@ -21,6 +21,7 @@ import {
   ChevronUp, FileText, Activity,
 } from 'lucide-react'
 import { useState, useMemo } from 'react'
+import { authFetch } from '@/components/pos/PinLogin'
 
 // ============================================
 // TIPI
@@ -195,8 +196,7 @@ export function HaccpManager() {
   const { data: entries, isLoading } = useQuery<HaccpEntry[]>({
     queryKey: ['haccp', activeTab, dateFrom, dateTo],
     queryFn: async () => {
-      const res = await fetch(`/api/haccp?${queryParams}`)
-      if (!res.ok) throw new Error('Napaka pri pridobivanju podatkov')
+      const res = await authFetch(`/api/haccp?${queryParams}`)
       return res.json()
     },
   })
@@ -205,7 +205,7 @@ export function HaccpManager() {
   // IZRAČUNI ZA Povzetek
   // ============================================
 
-  const allEntries = entries || []
+  const allEntries = Array.isArray(entries) ? entries : []
 
   const filteredEntries = allEntries.filter((entry) =>
     entry.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -226,12 +226,10 @@ export function HaccpManager() {
 
   const createMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const res = await fetch('/api/haccp', {
+      const res = await authFetch('/api/haccp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-      if (!res.ok) throw new Error('Napaka pri ustvarjanju vnosa')
       return res.json()
     },
     onSuccess: () => {
@@ -246,12 +244,10 @@ export function HaccpManager() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await fetch('/api/haccp', {
+      const res = await authFetch('/api/haccp', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, ...data }),
       })
-      if (!res.ok) throw new Error('Napaka pri posodabljanju vnosa')
       return res.json()
     },
     onSuccess: () => {
@@ -267,8 +263,7 @@ export function HaccpManager() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/haccp?id=${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Napaka pri brisanju vnosa')
+      const res = await authFetch(`/api/haccp?id=${id}`, { method: 'DELETE' })
       return res.json()
     },
     onSuccess: () => {

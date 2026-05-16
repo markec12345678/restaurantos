@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { getNextCounter } from '@/lib/counters'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, createOrderSchema } from '@/lib/validations'
+import { checkStockAvailability, deductStockForOrder, broadcastLowStockAlert } from '@/lib/stock-deduction'
 
 // Helper za WebSocket broadcast (varen klic — deluje tudi brez WS strežnika)
 async function broadcastWS(type: string, payload: unknown) {
@@ -91,6 +92,14 @@ export async function POST(req: Request) {
       }
     }
 
+    // ─── PREVERI RAZPOLŽLJIVOST ZALOGE (opozorilo, ne blokada) ───
+    const stockCheck = await checkStockAvailability(
+      data.orderItems.map(item => ({
+        menuItemId: item.menuItemId,
+        quantity: item.quantity,
+      }))
+    )
+
     // Izračun z multi-DDV po stopnjah (strežniška stran — edini vir resnice)
     let subtotal = 0
     let totalTax = 0
@@ -153,6 +162,23 @@ export async function POST(req: Request) {
       await db.table.update({ where: { id: data.tableId }, data: { status: 'occupied' } })
     }
 
+    // ─── SAMODEJNO RAZKNJIŽEVANJE ZALOGE OB ODDAJI NAROČILA ───
+    // Zaloga se odbije TAKOJ ko se naročilo ustvari (ne šele ob zaključku!)
+    // To je pravilnejše za real-time sledenje zaloge
+    const stockResult = await deductStockForOrder(
+      order.id,
+      order.orderNumber,
+      data.orderItems.map(item => ({
+        menuItemId: item.menuItemId,
+        quantity: item.quantity,
+      }))
+    )
+
+    // Pošlji low-stock opozorila če so
+    if (stockResult.lowStockAlerts.length > 0) {
+      broadcastLowStockAlert(stockResult.lowStockAlerts)
+    }
+
     // WebSocket: obvesti KDS o novem naročilu
     broadcastWS('NEW_ORDER', {
       orderId: order.id,
@@ -171,10 +197,18 @@ export async function POST(req: Request) {
       action: 'CREATE_ORDER',
       entityType: 'Order',
       entityId: order.id,
-      details: { orderNumber: order.orderNumber, total: order.total, type: order.type, tableId: order.tableId },
+      details: { orderNumber: order.orderNumber, total: order.total, type: order.type, tableId: order.tableId, stockDeducted: stockResult.deducted.length, lowStockWarnings: stockResult.lowStockAlerts.length },
     })
 
-    return NextResponse.json(order, { status: 201 })
+    // Vrni naročilo z informacijami o zalogi
+    return NextResponse.json({
+      ...order,
+      _stockInfo: {
+        deducted: stockResult.deducted.length,
+        lowStockWarnings: stockResult.lowStockAlerts,
+        stockUnavailable: stockCheck.warnings,
+      },
+    }, { status: 201 })
   } catch (error) {
     console.error('Napaka pri ustvarjanju naročila:', error)
     return NextResponse.json({ error: 'Napaka pri ustvarjanju naročila' }, { status: 500 })
