@@ -29,9 +29,14 @@ export async function GET(req: Request) {
       })
     }
 
-    // FIX BUG 11: Ne izpostavi fursCertPassword v GET odgovoru
-    const { fursCertPassword, ...safeSettings } = settings
-    return NextResponse.json({ ...safeSettings, fursCertPassword: fursCertPassword ? '••••••' : '' })
+    // FIX BUG 11: Ne izpostavi občutljivih podatkov v GET odgovoru
+    const { fursCertPassword, fursCertPath, ...safeSettings } = settings
+    return NextResponse.json({
+      ...safeSettings,
+      fursCertPassword: fursCertPassword ? '••••••' : '',
+      fursCertPath: fursCertPath ? '••••••' : '', // Skrij pot do certifikata
+      hasFursCert: !!(fursCertPath && fursCertPassword), // Povej samo ali obstaja
+    })
   } catch (error) {
     console.error('Settings GET error:', error)
     return NextResponse.json({ error: 'Napaka pri pridobivanju nastavitev' }, { status: 500 })

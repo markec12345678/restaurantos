@@ -1,11 +1,9 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { db } from '@/lib/db';
 
 // Public QR Menu - no auth required
 export async function GET() {
   try {
-    const menus = await prisma.menu.findMany({
+    const menus = await db.menu.findMany({
       where: { isActive: true },
       include: {
         categories: {
@@ -27,7 +25,7 @@ export async function GET() {
       orderBy: { sortOrder: 'asc' },
     });
 
-    const settings = await prisma.restaurantSettings.findFirst();
+    const settings = await db.restaurantSettings.findFirst();
 
     return Response.json({ menus, settings });
   } catch (error) {

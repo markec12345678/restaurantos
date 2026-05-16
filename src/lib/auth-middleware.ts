@@ -106,11 +106,12 @@ type Permission =
 // Rute, ki ne zahtevajo avtentikacije
 const PUBLIC_ROUTES = [
   '/api/auth',
-  '/api/configuration',
-  '/api/menus',
-  '/api/categories',
-  '/api/menu-items',
-  '/api/modifier-groups',
+  '/api/public',      // Javne rute za QR naročanje
+  '/api/qr-menu',     // Javni meni za QR
+  '/api/menus',       // Meni podatki (samo GET)
+  '/api/categories',  // Kategorije (samo GET)
+  '/api/menu-items',  // Menu artikli (samo GET)
+  '/api/modifier-groups', // Modifikatorji (samo GET)
 ]
 
 // Zahtevana dovoljenja za posamezne rute

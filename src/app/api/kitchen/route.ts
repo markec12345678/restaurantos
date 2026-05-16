@@ -1,8 +1,12 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 
 // GET /api/kitchen — Active orders for kitchen display
-export async function GET() {
+export async function GET(req: Request) {
+  // AVTENTIKACIJA: Kuhinja mora biti zaščitena
+  const authResult = await requireAuth(req, { permission: 'take_orders' })
+  if (authResult.error) return authResult.error
   const orders = await db.order.findMany({
     where: {
       status: { in: ['pending', 'in-progress'] },

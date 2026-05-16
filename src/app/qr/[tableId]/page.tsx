@@ -507,14 +507,13 @@ export default function QROrderingPage({ params }: { params: Promise<{ tableId: 
       }
     }
 
-    // Verify table exists
+    // Verify table exists (uporabi public verify-table endpoint)
     const verifyTable = async () => {
       try {
-        const res = await fetch('/api/tables')
+        const res = await fetch(`/api/public/verify-table?tableId=${encodeURIComponent(tableId)}`)
         if (res.ok) {
-          const tables = await res.json()
-          const found = tables.find((tb: { id: string }) => tb.id === tableId)
-          if (!found) setTableNotFound(true)
+          const data = await res.json()
+          if (!data.exists) setTableNotFound(true)
         }
       } catch {
         // Can't verify - let user proceed

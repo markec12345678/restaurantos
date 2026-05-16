@@ -1,7 +1,22 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
+import { z } from 'zod'
+
+// Validacijska shema za kreiranje webhooka
+const createWebhookSchema = z.object({
+  name: z.string().min(1, 'Ime je obvezno').max(200),
+  url: z.string().url('URL mora biti veljaven').max(500),
+  events: z.string().max(2000).default('[]'),
+  isActive: z.boolean().default(true),
+  secret: z.string().max(200).default(''),
+})
 
 export async function GET(req: Request) {
+  // AVTENTIKACIJA: Webhooki so občutljivi - samo admin
+  const authResult = await requireAuth(req, { permission: 'admin' })
+  if (authResult.error) return authResult.error
+
   try {
     const { searchParams } = new URL(req.url)
     const isActive = searchParams.get('isActive')
@@ -22,18 +37,33 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  // AVTENTIKACIJA: Ustvarjanje webhookov - samo admin
+  const authResult = await requireAuth(req, { permission: 'admin' })
+  if (authResult.error) return authResult.error
+
   try {
     const body = await req.json()
 
+    // VALIDACIJA: Preveri vnose
+    const parsed = createWebhookSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({
+        error: 'Neveljavni podatki',
+        validationErrors: parsed.error.issues.map(e => ({
+          field: e.path.join('.'),
+          message: e.message,
+        })),
+      }, { status: 400 })
+    }
+    const data = parsed.data
+
     const webhook = await db.webhook.create({
       data: {
-        name: body.name,
-        url: body.url,
-        events: body.events || '[]',
-        isActive: body.isActive !== undefined ? body.isActive : true,
-        secret: body.secret || '',
-        lastTriggered: body.lastTriggered ? new Date(body.lastTriggered) : null,
-        failureCount: body.failureCount || 0,
+        name: data.name,
+        url: data.url,
+        events: data.events,
+        isActive: data.isActive,
+        secret: data.secret,
       },
     })
 

@@ -1,22 +1,31 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // AVTENTIKACIJA: Urejanje webhookov - samo admin
+  const authResult = await requireAuth(req, { permission: 'admin' })
+  if (authResult.error) return authResult.error
+
   try {
     const { id } = await params
     const body = await req.json()
 
+    // Omeji dovoljena polja (prepreči injection polj kot id, createdAt)
+    const allowedFields = ['name', 'url', 'events', 'isActive', 'secret', 'lastTriggered', 'failureCount']
     const updateData: Record<string, unknown> = {}
-    if (body.name !== undefined) updateData.name = body.name
-    if (body.url !== undefined) updateData.url = body.url
-    if (body.events !== undefined) updateData.events = body.events
-    if (body.isActive !== undefined) updateData.isActive = body.isActive
-    if (body.secret !== undefined) updateData.secret = body.secret
-    if (body.lastTriggered !== undefined) updateData.lastTriggered = body.lastTriggered ? new Date(body.lastTriggered) : null
-    if (body.failureCount !== undefined) updateData.failureCount = body.failureCount
+    for (const field of allowedFields) {
+      if (body[field] !== undefined) {
+        if (field === 'lastTriggered') {
+          updateData[field] = body[field] ? new Date(body[field]) : null
+        } else {
+          updateData[field] = body[field]
+        }
+      }
+    }
 
     const webhook = await db.webhook.update({
       where: { id },
@@ -34,6 +43,10 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // AVTENTIKACIJA: Brisanje webhookov - samo admin
+  const authResult = await requireAuth(req, { permission: 'admin' })
+  if (authResult.error) return authResult.error
+
   try {
     const { id } = await params
 

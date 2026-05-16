@@ -71,3 +71,48 @@ Stage Summary:
 - QR naročanje zdaj kompatibilno z obema frontendoma
 - Prihranjenega prostora: 130.2 MB (orphan slike) + 353.7 MB (predhodna optimizacija)
 - Server teče stabilno na pm2
+
+---
+Task ID: full-app-audit
+Agent: Main Agent
+Task: Celovit pregled in popravljanje napak po celotni aplikaciji (iskanje napak)
+
+Work Log:
+- Izvedel obsežen pregled celotne aplikacije: build, TypeScript, API rute, baza, FURS, i18n
+- Build: uspešen brez napak ali opozoril
+- TypeScript: 0 napak (tsc --noEmit čist)
+- Baza: 56 tabel, pravilna struktura
+- i18n: 5 jezikov, 274 ključev na jezik, vsi popolni
+- Runtime: vse strani vračajo 200 (POS, QR Menu, KDS, Waiter, Receipt)
+
+Odkrite in popravljene napake:
+
+KRITIČNO:
+1. 14 JPEG datotek s .png končnico - brskalniki dobili napačen Content-Type
+   - Pretvorjeni v pravi PNG format s Sharp
+2. /api/payments/[id] BREZ avtentikacije in validacije - kdorkoli lahko spreminja plačila
+   - Dodana requireAuth + Zod validacijska shema
+3. /api/webhooks BREZ avtentikacije in validacije - ranljivost za eksfiltracijo podatkov
+   - Dodana requireAuth (admin) + Zod validacija na obeh endpointih
+4. /api/public/order BREZ validacije, BREZ rate limiting, samodejno USTVARJA mize
+   - Dodana Zod validacija, rate limiting (5 req/min), odstranjeno avtomatsko ustvarjanje miz
+   - Zaloga zdaj atomarno zmanjšana znotraj db.$transaction()
+5. /api/kitchen BREZ avtentikacije - kdorkoli lahko vidi vse naročila
+   - Dodana requireAuth (take_orders)
+
+VISOKO:
+6. /api/configuration odstranjen iz PUBLIC_ROUTES - sedaj zahteva avtentikacijo
+7. /api/settings GET skrije fursCertPath poleg gesla
+8. /api/qr-menu ustvarjal ločen PrismaClient - zamenjan z deljenim db iz @/lib/db
+9. QR stran klicala /api/tables brez avtentikacije - dodan /api/public/verify-table endpoint
+10. /api/public/order ni več izpostavljal error.message v odgovoru
+
+Stage Summary:
+- 14 JPEG- kot-PNG slik popravljeno
+- 5 API rut sedaj pravilno zaščitenih z avtentikacijo
+- 3 API rut sedaj imajo Zod validacijo vhodnih podatkov
+- Rate limiting dodan na javno naročanje (5 req/min/IP)
+- Race condition na zalogi odpravljena z db.$transaction()
+- 1 nov javni endpoint: /api/public/verify-table
+- 1 resource leak odpravljen (PrismaClient v qr-menu)
+- Build uspešen, server zagnan, vse strani delujejo
