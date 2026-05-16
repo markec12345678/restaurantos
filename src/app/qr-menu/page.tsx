@@ -247,7 +247,7 @@ export default function QRMenuPage() {
         ));
       }
     } catch (e) {
-      console.log('Upsell suggestions not available');
+      console.warn('Upsell suggestions not available');
     } finally {
       setUpsellLoading(false);
     }

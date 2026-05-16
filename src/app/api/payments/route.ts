@@ -5,6 +5,10 @@ import { validateBody, createPaymentSchema } from '@/lib/validations'
 
 export async function GET(req: Request) {
   try {
+    // Auth check — requires manage_cash permission
+    const authResult = await requireAuth(req, { permission: 'manage_cash' })
+    if (authResult.error) return authResult.error
+
     const { searchParams } = new URL(req.url)
     const checkId = searchParams.get('checkId')
     const type = searchParams.get('type')

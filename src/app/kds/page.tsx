@@ -535,7 +535,7 @@ export default function KDSPage() {
           </div>
         ) : viewMode === 'grid' ? (
           <div className="p-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 overflow-y-auto h-full custom-scrollbar">
-            {filteredOrders.sort((a, b) => {
+            {[...filteredOrders].sort((a, b) => {
               // Priority orders first, then by firedAt
               if (a.priority && !b.priority) return -1
               if (!a.priority && b.priority) return 1
@@ -546,7 +546,7 @@ export default function KDSPage() {
           </div>
         ) : (
           <div className="p-3 space-y-2 overflow-y-auto h-full custom-scrollbar">
-            {filteredOrders.sort((a, b) => {
+            {[...filteredOrders].sort((a, b) => {
               if (a.priority && !b.priority) return -1
               if (!a.priority && b.priority) return 1
               return (a.firedAt || a.createdAt).localeCompare(b.firedAt || b.createdAt)

@@ -6,6 +6,11 @@ import { validateBody, updateTableSchema } from '@/lib/validations'
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+
+    // Auth check
+    const authResult = await requireAuth(req)
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
 
     // FIX H-01: Validiraj vnos z Zod

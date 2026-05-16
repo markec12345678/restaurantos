@@ -84,6 +84,10 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
   const [connected, setConnected] = useState(false)
   const [lastEvent, setLastEvent] = useState<WSMessage | null>(null)
 
+  // Heartbeat refs
+  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const missedPingsRef = useRef(0)
+
   // Invalidacija React Query po dogodkih
   const invalidateRelevantQueries = useCallback((eventType: string) => {
     switch (eventType) {
@@ -124,6 +128,10 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
       clearTimeout(reconnectTimerRef.current)
       reconnectTimerRef.current = null
     }
+    if (pingIntervalRef.current) {
+      clearInterval(pingIntervalRef.current)
+      pingIntervalRef.current = null
+    }
     if (wsRef.current) {
       wsRef.current.onclose = null // Prepreči avtomatsko ponovno povezovanje
       wsRef.current.close(1000, 'Client disconnect')
@@ -155,6 +163,7 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
       ws.onopen = () => {
         setConnected(true)
         reconnectAttemptsRef.current = 0
+        missedPingsRef.current = 0
         console.log('[WS] Povezan na strežnik')
 
         // Identificiraj se
@@ -165,6 +174,19 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
             clientName: typeof window !== 'undefined' ? window.location.hostname : 'unknown',
           },
         }))
+
+        // Start heartbeat ping interval
+        pingIntervalRef.current = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            missedPingsRef.current++
+            if (missedPingsRef.current > 2) {
+              console.warn('[WS] Preveč zamujenih pingov, zapiram povezavo')
+              ws.close()
+              return
+            }
+            ws.send(JSON.stringify({ type: 'ping' }))
+          }
+        }, 30000)
       }
 
       ws.onmessage = (event) => {
@@ -173,6 +195,12 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
 
           // Preskoči interne dogodke
           if (message.type === 'CONNECTED') return
+
+          // Handle pong response for heartbeat
+          if (message.type === 'pong') {
+            missedPingsRef.current = 0
+            return
+          }
 
           setLastEvent(message)
 
@@ -189,6 +217,10 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
       ws.onclose = (event) => {
         setConnected(false)
         wsRef.current = null
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current)
+          pingIntervalRef.current = null
+        }
         console.log(`[WS] Povezava zaprta (koda: ${event.code})`)
 
         // Samodejno ponovno poveži z eksponentnim zakasnitvijo
@@ -208,6 +240,10 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
 
       ws.onerror = (err) => {
         console.error('[WS] Napaka na povezavi:', err)
+        if (pingIntervalRef.current) {
+          clearInterval(pingIntervalRef.current)
+          pingIntervalRef.current = null
+        }
       }
     } catch (err) {
       console.error('[WS] Napaka pri vzpostavljanju povezave:', err)

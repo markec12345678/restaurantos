@@ -159,6 +159,16 @@ export default function WaiterPage() {
   const [wsConnected, setWsConnected] = useState(false)
   const playSound = useWaiterSound()
 
+  // Refs for setTimeout cleanup on unmount
+  const timeoutRefs = useRef<NodeJS.Timeout[]>([])
+
+  // Cleanup all timeouts on unmount
+  useEffect(() => {
+    return () => {
+      timeoutRefs.current.forEach(clearTimeout)
+    }
+  }, [])
+
   // Obnovi sejo
   useEffect(() => {
     try {
@@ -281,7 +291,8 @@ export default function WaiterPage() {
 
   const acknowledge = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, acknowledged: true } : n))
-    setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 2000)
+    const timeout = setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 2000)
+    timeoutRefs.current.push(timeout)
   }
 
   const getElapsed = (dateStr: string | null) => {

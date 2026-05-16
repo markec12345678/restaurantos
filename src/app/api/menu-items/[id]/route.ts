@@ -1,47 +1,68 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, updateMenuItemSchema } from '@/lib/validations'
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    const body = await req.json()
 
-    // Update modifier group associations if provided
-    if (body.modifierGroupIds !== undefined) {
-      await db.menuItemModifierGroup.deleteMany({ where: { menuItemId: id } })
-      if (body.modifierGroupIds.length > 0) {
-        await db.menuItemModifierGroup.createMany({
-          data: body.modifierGroupIds.map((groupId: string, i: number) => ({
-            menuItemId: id,
-            modifierGroupId: groupId,
-            sortOrder: i,
-          })),
-        })
-      }
+    // Auth check
+    const authResult = await requireAuth(req)
+    if (authResult.error) return authResult.error
+
+    // 404 check before update
+    const existing = await db.menuItem.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Menu item not found' }, { status: 404 })
     }
 
-    const updateData: Record<string, unknown> = {}
-    if (body.name !== undefined) updateData.name = body.name
-    if (body.description !== undefined) updateData.description = body.description
-    if (body.price !== undefined) updateData.price = body.price
-    if (body.image !== undefined) updateData.image = body.image
-    if (body.isAvailable !== undefined) updateData.isAvailable = body.isAvailable
-    if (body.sortOrder !== undefined) updateData.sortOrder = body.sortOrder
-    if (body.categoryId !== undefined) updateData.categoryId = body.categoryId
+    const body = await req.json()
 
-    const item = await db.menuItem.update({
-      where: { id },
-      data: updateData,
-      include: {
-        category: { include: { menu: { select: { id: true, name: true } } } },
-        modifierGroups: {
-          orderBy: { sortOrder: 'asc' },
-          include: {
-            modifierGroup: { include: { modifiers: { orderBy: { sortOrder: 'asc' } } } },
+    // Zod validation
+    const { data, error: validationError } = validateBody(updateMenuItemSchema, body)
+    if (validationError) return validationError
+
+    // Update modifier group associations and menu item in a transaction
+    const item = await db.$transaction(async (tx) => {
+      // Update modifier group associations if provided
+      if (body.modifierGroupIds !== undefined) {
+        await tx.menuItemModifierGroup.deleteMany({ where: { menuItemId: id } })
+        if (body.modifierGroupIds.length > 0) {
+          await tx.menuItemModifierGroup.createMany({
+            data: body.modifierGroupIds.map((groupId: string, i: number) => ({
+              menuItemId: id,
+              modifierGroupId: groupId,
+              sortOrder: i,
+            })),
+          })
+        }
+      }
+
+      const updateData: Record<string, unknown> = {}
+      if (data.name !== undefined) updateData.name = data.name
+      if (data.description !== undefined) updateData.description = data.description
+      if (data.price !== undefined) updateData.price = data.price
+      if (data.image !== undefined) updateData.image = data.image
+      if (data.isAvailable !== undefined) updateData.isAvailable = data.isAvailable
+      if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder
+      if (data.categoryId !== undefined) updateData.categoryId = data.categoryId
+
+      return tx.menuItem.update({
+        where: { id },
+        data: updateData,
+        include: {
+          category: { include: { menu: { select: { id: true, name: true } } } },
+          modifierGroups: {
+            orderBy: { sortOrder: 'asc' },
+            include: {
+              modifierGroup: { include: { modifiers: { orderBy: { sortOrder: 'asc' } } } },
+            },
           },
         },
-      },
+      })
     })
+
     return NextResponse.json(item)
   } catch (error) {
     console.error('Error updating menu item:', error)
@@ -52,6 +73,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+
+    // Auth check
+    const authResult = await requireAuth(req)
+    if (authResult.error) return authResult.error
+
+    // 404 check before delete
+    const existing = await db.menuItem.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Menu item not found' }, { status: 404 })
+    }
+
     await db.menuItem.delete({ where: { id } })
     return NextResponse.json({ success: true })
   } catch (error) {

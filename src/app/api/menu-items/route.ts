@@ -1,5 +1,13 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, createMenuItemSchema } from '@/lib/validations'
+import { z } from 'zod'
+
+// Extend schema with modifierGroupIds (not part of base MenuItem schema)
+const createMenuItemWithModifiersSchema = createMenuItemSchema.extend({
+  modifierGroupIds: z.array(z.string().min(1)).default([]),
+})
 
 export async function GET(request: Request) {
   try {
@@ -45,17 +53,26 @@ export async function GET(request: Request) {
 
 export async function POST(req: Request) {
   try {
+    // Auth check
+    const authResult = await requireAuth(req)
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
-    const { modifierGroupIds, ...itemData } = body
+
+    // Zod validation (includes modifierGroupIds)
+    const { data, error: validationError } = validateBody(createMenuItemWithModifiersSchema, body)
+    if (validationError) return validationError
+
+    const { modifierGroupIds, ...itemData } = data
 
     const item = await db.menuItem.create({
       data: {
         name: itemData.name,
-        description: itemData.description || '',
+        description: itemData.description,
         price: itemData.price,
-        image: itemData.image || '',
-        isAvailable: itemData.isAvailable ?? true,
-        sortOrder: itemData.sortOrder || 0,
+        image: itemData.image,
+        isAvailable: itemData.isAvailable,
+        sortOrder: 0,
         categoryId: itemData.categoryId,
         ...(modifierGroupIds?.length ? {
           modifierGroups: {

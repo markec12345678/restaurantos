@@ -3,11 +3,12 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, updateOrderSchema } from '@/lib/validations'
 import { returnStockForOrder, broadcastLowStockAlert, deductStockForOrder } from '@/lib/stock-deduction'
+import { getAppUrl } from '@/lib/utils'
 
 // Helper za WebSocket broadcast
 async function broadcastWS(type: string, payload: unknown) {
   try {
-    await fetch('http://localhost:3000/api/ws-broadcast', {
+    await fetch(`${getAppUrl()}/api/ws-broadcast`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type, payload }),
@@ -241,7 +242,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           const readyCount = allItems.filter(i => ['ready', 'served'].includes(i.status)).length
 
           // Pošlji na POS WebSocket kanal
-          await fetch(`http://localhost:${process.env.PORT || 3000}/api/ws-broadcast`, {
+          await fetch(`${getAppUrl()}/api/ws-broadcast`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

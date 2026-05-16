@@ -13,6 +13,16 @@ const orderRateLimit = new Map<string, { count: number; resetAt: number }>()
 const RATE_LIMIT_MAX = 5       // Maksimalno 5 naročil
 const RATE_LIMIT_WINDOW = 60000 // V 1 minuti
 
+// Cleanup: odstrani stare vnose, ki so izven okna — prepreči memory leak
+function cleanupRateLimitEntries() {
+  const now = Date.now()
+  for (const [ip, entry] of orderRateLimit.entries()) {
+    if (entry.resetAt <= now) {
+      orderRateLimit.delete(ip)
+    }
+  }
+}
+
 // Validacijska shema za QR naročilo
 const publicOrderItemSchema = z.object({
   menuItemId: z.string().min(1, 'ID artikla je obvezen'),
@@ -36,6 +46,10 @@ const publicOrderSchema = z.object({
 export async function POST(req: Request) {
   // RATE LIMITING: Prepreči zlorabo
   const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown'
+
+  // Počisti stare vnose pred preverjanjem — prepreči memory leak
+  cleanupRateLimitEntries()
+
   const rateEntry = orderRateLimit.get(clientIp)
   const now = Date.now()
   if (rateEntry && rateEntry.resetAt > now && rateEntry.count >= RATE_LIMIT_MAX) {

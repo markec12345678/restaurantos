@@ -6,7 +6,7 @@
 // Osvežuje se vsakih 30s + WebSocket LOW_STOCK obvestila
 // ============================================
 
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -17,7 +17,7 @@ import {
   Package, AlertTriangle, XCircle, TrendingDown,
   ArrowDownCircle, ArrowUpCircle, RefreshCw, BarChart3,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { authFetch } from '@/components/pos/PinLogin'
 
 // ============================================
@@ -51,7 +51,6 @@ interface StockAlert {
 // ============================================
 
 export function StockDashboard() {
-  const queryClient = useQueryClient()
   const [filter, setFilter] = useState<'all' | 'critical' | 'low' | 'ok'>('all')
 
   // ─── PODATKI O ZALOGI ───
@@ -81,15 +80,6 @@ export function StockDashboard() {
     refetchInterval: 30000,
     staleTime: 20000,
   })
-
-  // ─── WebSocket za LOW_STOCK obvestila ───
-  useEffect(() => {
-    const interval = setInterval(() => {
-      queryClient.invalidateQueries({ queryKey: ['inventory', 'stock-dashboard'] })
-      queryClient.invalidateQueries({ queryKey: ['menu-stock'] })
-    }, 30000)
-    return () => clearInterval(interval)
-  }, [queryClient])
 
   // ─── IZRAČUNI ───
   const stats = useMemo(() => {

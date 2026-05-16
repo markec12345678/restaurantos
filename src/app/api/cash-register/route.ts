@@ -21,13 +21,13 @@ export async function GET(req: Request) {
       const paidOrders = await db.order.findMany({
         where: {
           paymentStatus: 'paid',
-          createdAt: { gte: activeShift.openedAt },
+          paidAt: { gte: activeShift.openedAt },
         },
         select: {
           total: true,
           discount: true,
           paymentMethod: true,
-          createdAt: true,
+          paidAt: true,
         },
       })
 

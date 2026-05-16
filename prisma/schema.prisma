@@ -527,6 +527,8 @@ model Employee {
   timeEntries TimeEntry[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([pin])
 }
 
 model Job {
@@ -684,6 +686,8 @@ model StockTransaction {
   employeeName    String        @default("")
   orderId         String?
   createdAt       DateTime      @default(now())
+
+  @@index([inventoryItemId])
 }
 
 // ============================================
@@ -783,6 +787,8 @@ model LoyaltyTransaction {
   // --- Vrednost ---
   monetaryValue   Float          @default(0) // Vrednost v EUR, če se točke unovčijo
   createdAt       DateTime       @default(now())
+
+  @@index([loyaltyAccountId])
 }
 
 // ============================================
@@ -822,6 +828,8 @@ model GiftCardTransaction {
   checkId         String?
   note            String    @default("")
   createdAt       DateTime  @default(now())
+
+  @@index([giftCardId])
 }
 
 // ============================================

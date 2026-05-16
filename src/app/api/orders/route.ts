@@ -4,11 +4,12 @@ import { getNextCounter } from '@/lib/counters'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, createOrderSchema } from '@/lib/validations'
 import { checkStockAvailability, deductStockForOrder, broadcastLowStockAlert } from '@/lib/stock-deduction'
+import { getAppUrl } from '@/lib/utils'
 
 // Helper za WebSocket broadcast (varen klic — deluje tudi brez WS strežnika)
 async function broadcastWS(type: string, payload: unknown) {
   try {
-    await fetch('http://localhost:3000/api/ws-broadcast', {
+    await fetch(`${getAppUrl()}/api/ws-broadcast`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type, payload }),
@@ -21,7 +22,7 @@ async function broadcastWS(type: string, payload: unknown) {
 // Helper za samodejni tisk kuhinjskega naročila
 async function autoPrintKitchenOrder(order: Record<string, unknown>) {
   try {
-    await fetch('http://localhost:3000/api/print', {
+    await fetch(`${getAppUrl()}/api/print`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'order', orderId: order.id }),

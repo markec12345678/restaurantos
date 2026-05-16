@@ -144,26 +144,36 @@ export async function deductStockForAddedItems(
     if (recipeItems.length > 0) {
       for (const recipe of recipeItems) {
         const qtyToDeduct = recipe.quantityPerServing * item.quantity
-        const invItem = await db.inventoryItem.findUnique({
-          where: { id: recipe.inventoryItemId },
-        })
 
-        if (!invItem) {
-          result.errors.push({
-            inventoryItemId: recipe.inventoryItemId,
-            error: `Sestavina ${recipe.inventoryItemId} ni najdena`,
-          })
-          continue
-        }
-
-        const previousQty = invItem.quantity
-        const newQty = Math.max(0, Math.round((previousQty - qtyToDeduct) * 10000) / 10000)
-
+        // Use atomic decrement inside transaction — read is also inside
         await db.$transaction(async (tx) => {
-          await tx.inventoryItem.update({
-            where: { id: invItem.id },
-            data: { quantity: newQty },
+          // Read inside transaction to get current value
+          const invItem = await tx.inventoryItem.findUnique({
+            where: { id: recipe.inventoryItemId },
           })
+
+          if (!invItem) {
+            result.errors.push({
+              inventoryItemId: recipe.inventoryItemId,
+              error: `Sestavina ${recipe.inventoryItemId} ni najdena`,
+            })
+            return
+          }
+
+          // Atomic decrement
+          const updatedItem = await tx.inventoryItem.update({
+            where: { id: invItem.id },
+            data: { quantity: { decrement: qtyToDeduct } },
+          })
+          const previousQty = updatedItem.quantity + qtyToDeduct
+          let newQty = updatedItem.quantity
+
+          // Clamp to 0 if negative
+          if (newQty < 0) {
+            await tx.inventoryItem.update({ where: { id: invItem.id }, data: { quantity: 0 } })
+            newQty = 0
+          }
+
           await tx.stockTransaction.create({
             data: {
               inventoryItemId: invItem.id,
@@ -177,56 +187,64 @@ export async function deductStockForAddedItems(
               orderId,
             },
           })
-        })
 
-        result.deducted.push({
-          inventoryItemId: invItem.id,
-          name: invItem.name,
-          quantityDeducted: qtyToDeduct,
-          previousQty,
-          newQty,
-          method: 'recipe',
-        })
-
-        if (newQty <= invItem.minQuantity) {
-          result.lowStockAlerts.push({
+          result.deducted.push({
             inventoryItemId: invItem.id,
             name: invItem.name,
-            currentQty: newQty,
-            minQty: invItem.minQuantity,
+            quantityDeducted: qtyToDeduct,
+            previousQty,
+            newQty,
+            method: 'recipe',
           })
-        }
+
+          if (newQty <= invItem.minQuantity) {
+            result.lowStockAlerts.push({
+              inventoryItemId: invItem.id,
+              name: invItem.name,
+              currentQty: newQty,
+              minQty: invItem.minQuantity,
+            })
+          }
+        })
       }
     } else {
       // 2. Fallback: direktna 1:1 povezava InventoryItem↔MenuItem
-      const invItem = await db.inventoryItem.findFirst({
-        where: { menuItemId: item.menuItemId },
-      })
+      await db.$transaction(async (tx) => {
+        const invItem = await tx.inventoryItem.findFirst({
+          where: { menuItemId: item.menuItemId },
+        })
 
-      if (invItem && invItem.servingsPerUnit > 0) {
+        if (!invItem || invItem.servingsPerUnit <= 0) return
+
         const unitsPerServing = 1 / invItem.servingsPerUnit
         const totalUnitsToDeduct = Math.round(item.quantity * unitsPerServing * 10000) / 10000
-        const previousQty = invItem.quantity
-        const newQty = Math.max(0, Math.round((previousQty - totalUnitsToDeduct) * 10000) / 10000)
 
-        await db.$transaction(async (tx) => {
-          await tx.inventoryItem.update({
-            where: { id: invItem.id },
-            data: { quantity: newQty },
-          })
-          await tx.stockTransaction.create({
-            data: {
-              inventoryItemId: invItem.id,
-              type: 'sale',
-              quantity: -totalUnitsToDeduct,
-              previousQty,
-              newQty,
-              costPerUnit: invItem.costPerUnit,
-              totalCost: totalUnitsToDeduct * invItem.costPerUnit,
-              reason: `Dodano k naročilu #${orderNumber}`,
-              orderId,
-            },
-          })
+        // Atomic decrement
+        const updatedItem = await tx.inventoryItem.update({
+          where: { id: invItem.id },
+          data: { quantity: { decrement: totalUnitsToDeduct } },
+        })
+        const previousQty = updatedItem.quantity + totalUnitsToDeduct
+        let newQty = updatedItem.quantity
+
+        // Clamp to 0 if negative
+        if (newQty < 0) {
+          await tx.inventoryItem.update({ where: { id: invItem.id }, data: { quantity: 0 } })
+          newQty = 0
+        }
+
+        await tx.stockTransaction.create({
+          data: {
+            inventoryItemId: invItem.id,
+            type: 'sale',
+            quantity: -totalUnitsToDeduct,
+            previousQty,
+            newQty,
+            costPerUnit: invItem.costPerUnit,
+            totalCost: totalUnitsToDeduct * invItem.costPerUnit,
+            reason: `Dodano k naročilu #${orderNumber}`,
+            orderId,
+          },
         })
 
         result.deducted.push({
@@ -246,7 +264,7 @@ export async function deductStockForAddedItems(
             minQty: invItem.minQuantity,
           })
         }
-      }
+      })
     }
   }
 
@@ -295,26 +313,35 @@ export async function deductStockForOrder(
       // Uporabi receptne sestavine
       for (const recipe of recipeItems) {
         const qtyToDeduct = recipe.quantityPerServing * item.quantity
-        const invItem = await db.inventoryItem.findUnique({
-          where: { id: recipe.inventoryItemId },
-        })
 
-        if (!invItem) {
-          result.errors.push({
-            inventoryItemId: recipe.inventoryItemId,
-            error: `Sestavina ${recipe.inventoryItemId} ni najdena`,
-          })
-          continue
-        }
-
-        const previousQty = invItem.quantity
-        const newQty = Math.max(0, Math.round((previousQty - qtyToDeduct) * 10000) / 10000)
-
+        // Use atomic decrement inside transaction — read is also inside
         await db.$transaction(async (tx) => {
-          await tx.inventoryItem.update({
-            where: { id: invItem.id },
-            data: { quantity: newQty },
+          const invItem = await tx.inventoryItem.findUnique({
+            where: { id: recipe.inventoryItemId },
           })
+
+          if (!invItem) {
+            result.errors.push({
+              inventoryItemId: recipe.inventoryItemId,
+              error: `Sestavina ${recipe.inventoryItemId} ni najdena`,
+            })
+            return
+          }
+
+          // Atomic decrement
+          const updatedItem = await tx.inventoryItem.update({
+            where: { id: invItem.id },
+            data: { quantity: { decrement: qtyToDeduct } },
+          })
+          const previousQty = updatedItem.quantity + qtyToDeduct
+          let newQty = updatedItem.quantity
+
+          // Clamp to 0 if negative
+          if (newQty < 0) {
+            await tx.inventoryItem.update({ where: { id: invItem.id }, data: { quantity: 0 } })
+            newQty = 0
+          }
+
           await tx.stockTransaction.create({
             data: {
               inventoryItemId: invItem.id,
@@ -328,57 +355,65 @@ export async function deductStockForOrder(
               orderId,
             },
           })
-        })
 
-        result.deducted.push({
-          inventoryItemId: invItem.id,
-          name: invItem.name,
-          quantityDeducted: qtyToDeduct,
-          previousQty,
-          newQty,
-          method: 'recipe',
-        })
-
-        // Preveri low stock
-        if (newQty <= invItem.minQuantity) {
-          result.lowStockAlerts.push({
+          result.deducted.push({
             inventoryItemId: invItem.id,
             name: invItem.name,
-            currentQty: newQty,
-            minQty: invItem.minQuantity,
+            quantityDeducted: qtyToDeduct,
+            previousQty,
+            newQty,
+            method: 'recipe',
           })
-        }
+
+          // Preveri low stock
+          if (newQty <= invItem.minQuantity) {
+            result.lowStockAlerts.push({
+              inventoryItemId: invItem.id,
+              name: invItem.name,
+              currentQty: newQty,
+              minQty: invItem.minQuantity,
+            })
+          }
+        })
       }
     } else {
       // 2. Fallback: direktna 1:1 povezava InventoryItem↔MenuItem
-      const invItem = await db.inventoryItem.findFirst({
-        where: { menuItemId: item.menuItemId },
-      })
+      await db.$transaction(async (tx) => {
+        const invItem = await tx.inventoryItem.findFirst({
+          where: { menuItemId: item.menuItemId },
+        })
 
-      if (invItem && invItem.servingsPerUnit > 0) {
+        if (!invItem || invItem.servingsPerUnit <= 0) return
+
         const unitsPerServing = 1 / invItem.servingsPerUnit
         const totalUnitsToDeduct = Math.round(item.quantity * unitsPerServing * 10000) / 10000
-        const previousQty = invItem.quantity
-        const newQty = Math.max(0, Math.round((previousQty - totalUnitsToDeduct) * 10000) / 10000)
 
-        await db.$transaction(async (tx) => {
-          await tx.inventoryItem.update({
-            where: { id: invItem.id },
-            data: { quantity: newQty },
-          })
-          await tx.stockTransaction.create({
-            data: {
-              inventoryItemId: invItem.id,
-              type: 'sale',
-              quantity: -totalUnitsToDeduct,
-              previousQty,
-              newQty,
-              costPerUnit: invItem.costPerUnit,
-              totalCost: totalUnitsToDeduct * invItem.costPerUnit,
-              reason: `Prodaja - naročilo #${orderNumber}`,
-              orderId,
-            },
-          })
+        // Atomic decrement
+        const updatedItem = await tx.inventoryItem.update({
+          where: { id: invItem.id },
+          data: { quantity: { decrement: totalUnitsToDeduct } },
+        })
+        const previousQty = updatedItem.quantity + totalUnitsToDeduct
+        let newQty = updatedItem.quantity
+
+        // Clamp to 0 if negative
+        if (newQty < 0) {
+          await tx.inventoryItem.update({ where: { id: invItem.id }, data: { quantity: 0 } })
+          newQty = 0
+        }
+
+        await tx.stockTransaction.create({
+          data: {
+            inventoryItemId: invItem.id,
+            type: 'sale',
+            quantity: -totalUnitsToDeduct,
+            previousQty,
+            newQty,
+            costPerUnit: invItem.costPerUnit,
+            totalCost: totalUnitsToDeduct * invItem.costPerUnit,
+            reason: `Prodaja - naročilo #${orderNumber}`,
+            orderId,
+          },
         })
 
         result.deducted.push({
@@ -399,7 +434,7 @@ export async function deductStockForOrder(
             minQty: invItem.minQuantity,
           })
         }
-      }
+      })
       // Če ni ne recepta ne direktne povezave — artikel nima zaloge (npr. storitev)
     }
   }
@@ -429,6 +464,14 @@ export async function returnStockForOrder(
     errors: [],
   }
 
+  // Preveri, da je zaloga RAZKNJIŽENA pred vračanjem — prepreči double-return
+  const order = await db.order.findUnique({ where: { id: orderId } })
+  if (!order || !order.inventoryDeducted) {
+    result.success = false
+    result.errors.push({ error: 'Zaloga ni bila razknjižena za to naročilo' })
+    return result
+  }
+
   // Pridobi artikle naročila
   const orderItems = await db.orderItem.findMany({
     where: { orderId, voided: false },
@@ -443,20 +486,23 @@ export async function returnStockForOrder(
     if (recipeItems.length > 0) {
       for (const recipe of recipeItems) {
         const qtyToReturn = recipe.quantityPerServing * oi.quantity
-        const invItem = await db.inventoryItem.findUnique({
-          where: { id: recipe.inventoryItemId },
-        })
 
-        if (!invItem) continue
-
-        const previousQty = invItem.quantity
-        const newQty = Math.round((previousQty + qtyToReturn) * 10000) / 10000
-
+        // Use atomic increment inside transaction — read is also inside
         await db.$transaction(async (tx) => {
-          await tx.inventoryItem.update({
-            where: { id: invItem.id },
-            data: { quantity: newQty },
+          const invItem = await tx.inventoryItem.findUnique({
+            where: { id: recipe.inventoryItemId },
           })
+
+          if (!invItem) return
+
+          // Atomic increment
+          const updatedItem = await tx.inventoryItem.update({
+            where: { id: invItem.id },
+            data: { quantity: { increment: qtyToReturn } },
+          })
+          const previousQty = updatedItem.quantity - qtyToReturn
+          const newQty = updatedItem.quantity
+
           await tx.stockTransaction.create({
             data: {
               inventoryItemId: invItem.id,
@@ -470,47 +516,49 @@ export async function returnStockForOrder(
               orderId,
             },
           })
-        })
 
-        result.deducted.push({
-          inventoryItemId: invItem.id,
-          name: invItem.name,
-          quantityDeducted: qtyToReturn,
-          previousQty,
-          newQty,
-          method: 'recipe',
+          result.deducted.push({
+            inventoryItemId: invItem.id,
+            name: invItem.name,
+            quantityDeducted: qtyToReturn,
+            previousQty,
+            newQty,
+            method: 'recipe',
+          })
         })
       }
     } else {
       // 2. Direktna 1:1 povezava
-      const invItem = await db.inventoryItem.findFirst({
-        where: { menuItemId: oi.menuItemId },
-      })
+      await db.$transaction(async (tx) => {
+        const invItem = await tx.inventoryItem.findFirst({
+          where: { menuItemId: oi.menuItemId },
+        })
 
-      if (invItem && invItem.servingsPerUnit > 0) {
+        if (!invItem || invItem.servingsPerUnit <= 0) return
+
         const unitsPerServing = 1 / invItem.servingsPerUnit
         const totalUnitsToReturn = Math.round(oi.quantity * unitsPerServing * 10000) / 10000
-        const previousQty = invItem.quantity
-        const newQty = Math.round((previousQty + totalUnitsToReturn) * 10000) / 10000
 
-        await db.$transaction(async (tx) => {
-          await tx.inventoryItem.update({
-            where: { id: invItem.id },
-            data: { quantity: newQty },
-          })
-          await tx.stockTransaction.create({
-            data: {
-              inventoryItemId: invItem.id,
-              type: 'return',
-              quantity: totalUnitsToReturn,
-              previousQty,
-              newQty,
-              costPerUnit: invItem.costPerUnit,
-              totalCost: -(totalUnitsToReturn * invItem.costPerUnit),
-              reason: `${reason} - naročilo #${orderNumber}`,
-              orderId,
-            },
-          })
+        // Atomic increment
+        const updatedItem = await tx.inventoryItem.update({
+          where: { id: invItem.id },
+          data: { quantity: { increment: totalUnitsToReturn } },
+        })
+        const previousQty = updatedItem.quantity - totalUnitsToReturn
+        const newQty = updatedItem.quantity
+
+        await tx.stockTransaction.create({
+          data: {
+            inventoryItemId: invItem.id,
+            type: 'return',
+            quantity: totalUnitsToReturn,
+            previousQty,
+            newQty,
+            costPerUnit: invItem.costPerUnit,
+            totalCost: -(totalUnitsToReturn * invItem.costPerUnit),
+            reason: `${reason} - naročilo #${orderNumber}`,
+            orderId,
+          },
         })
 
         result.deducted.push({
@@ -521,7 +569,7 @@ export async function returnStockForOrder(
           newQty,
           method: 'direct',
         })
-      }
+      })
     }
   }
 

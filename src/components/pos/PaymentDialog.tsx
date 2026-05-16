@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CreditCard, Banknote, Smartphone, Split, Heart, CheckCircle2, Gift, Star, Ticket, Users, UserPlus } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
@@ -226,7 +226,7 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
         onPaymentSuccess(data.id)
       }
       setPaymentSuccess(true)
-      setTimeout(() => {
+      closeTimeoutRef.current = setTimeout(() => {
         resetAndClose()
       }, 1500)
     },
@@ -236,8 +236,22 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
   })
 
   const [paymentSuccess, setPaymentSuccess] = useState(false)
+  const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const resetAndClose = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current)
+      closeTimeoutRef.current = null
+    }
     setPaymentMethod('')
     setTipAmount(0)
     setTipPercent(0)

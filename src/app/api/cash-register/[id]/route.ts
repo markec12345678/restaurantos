@@ -25,7 +25,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const paidOrders = await db.order.findMany({
       where: {
         paymentStatus: { in: ['paid', 'storno'] },
-        createdAt: { gte: shift.openedAt },
+        paidAt: { gte: shift.openedAt },
       },
       select: {
         total: true,

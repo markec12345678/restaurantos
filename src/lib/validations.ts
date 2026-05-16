@@ -9,7 +9,7 @@ import { z } from 'zod'
 // SKUPNI TIPI
 // ============================================
 
-const positiveNumber = z.number().min(0, 'Vrednost mora biti pozitivna')
+const positiveNumber = z.number().min(0.01, 'Vrednost mora biti pozitivna')
 const nonEmptyString = z.string().min(1, 'Polje je obvezno')
 const optionalString = z.string().default('')
 const cuid = z.string().min(1, 'ID je obvezen')
@@ -144,7 +144,7 @@ export const updateEmployeeSchema = z.object({
 export const createMenuItemSchema = z.object({
   name: z.string().min(1, 'Ime je obvezno').max(200),
   description: z.string().max(1000).default(''),
-  price: z.number().min(0, 'Cena mora biti pozitivna'),
+  price: z.number().min(0.01, 'Cena mora biti pozitivna'),
   image: z.string().default(''),
   isAvailable: z.boolean().default(true),
   vatRate: z.number().min(0).max(100).default(22.0),
@@ -359,7 +359,7 @@ export const createHaccpSchema = z.object({
 export const createDiscountSchema = z.object({
   name: z.string().min(1, 'Ime je obvezno').max(200),
   type: z.enum(['percentage', 'fixed_amount', 'buy_x_get_y']),
-  amount: z.number().min(0, 'Znesek mora biti pozitiven'),
+  amount: z.number().min(0.01, 'Znesek mora biti pozitiven'),
   appliesTo: z.enum(['check', 'item', 'category']).default('check'),
   triggerType: z.enum(['manual', 'auto', 'promo_code']).default('manual'),
   promoCode: z.string().max(50).default(''),

@@ -173,24 +173,10 @@ export async function verifyInvoiceWithFURS(
   const now = new Date()
   const isTest = config.environment === 'test'
 
-  // Če ni certifikata, simuliraj overitev
+  // Če ni certifikata, dovoli simulacijo SAMO če je FURS_ALLOW_SIMULATION=true
   if (!config.certPath || !config.certPassword) {
-    console.log('[FURS] Brez certifikata — uporabljam simulirano overitev')
-    return {
-      success: true,
-      zoi,
-      eor: generateSimulatedEOR(zoi, now),
-      environment: config.environment,
-      verifiedAt: now,
-      isSimulation: true,
-    }
-  }
-
-  try {
-    // Korak 1: Naloži certifikat in pridobi OAuth token
-    const token = await getFursToken(config)
-    if (!token) {
-      console.warn('[FURS] Ne morem pridobiti OAuth tokena — uporabljam simulacijo')
+    if (process.env.FURS_ALLOW_SIMULATION === 'true') {
+      console.log('[FURS] Brez certifikata — uporabljam simulirano overitev (FURS_ALLOW_SIMULATION=true)')
       return {
         success: true,
         zoi,
@@ -198,6 +184,33 @@ export async function verifyInvoiceWithFURS(
         environment: config.environment,
         verifiedAt: now,
         isSimulation: true,
+      }
+    }
+    console.error('[FURS] Brez certifikata in FURS_ALLOW_SIMULATION ni omogočen — overitev ni uspela')
+    return {
+      success: false,
+      zoi,
+      eor: '',
+      environment: config.environment,
+      verifiedAt: now,
+      isSimulation: true,
+      error: 'Manjka certifikat za FURS overitev. Nastavite FURS_ALLOW_SIMULATION=true za testni način.',
+    }
+  }
+
+  try {
+    // Korak 1: Naloži certifikat in pridobi OAuth token
+    const token = await getFursToken(config)
+    if (!token) {
+      console.warn('[FURS] Ne morem pridobiti OAuth tokena — overitev ni uspela')
+      return {
+        success: false,
+        zoi,
+        eor: '',
+        environment: config.environment,
+        verifiedAt: now,
+        isSimulation: true,
+        error: 'FURS OAuth token ni na voljo — strežnik je morda nedosegljiv',
       }
     }
 
@@ -256,11 +269,11 @@ export async function verifyInvoiceWithFURS(
     }
   } catch (err) {
     console.error('[FURS] Napaka pri overjanju:', err)
-    // Fallback na simulacijo če FURS strežnik ni dosegljiv
+    // FURS strežnik ni dosegljiv — vrni napako (ne tihe simulacije!)
     return {
-      success: true,
+      success: false,
       zoi,
-      eor: generateSimulatedEOR(zoi, now),
+      eor: '',
       environment: config.environment,
       verifiedAt: now,
       isSimulation: true,

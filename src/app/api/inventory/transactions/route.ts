@@ -1,9 +1,14 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 
 // GET /api/inventory/transactions — Zgodovina založnih transakcij
 export async function GET(req: Request) {
   try {
+    // Auth check
+    const authResult = await requireAuth(req)
+    if (authResult.error) return authResult.error
+
     const { searchParams } = new URL(req.url)
     const inventoryItemId = searchParams.get('inventoryItemId')
     const type = searchParams.get('type')

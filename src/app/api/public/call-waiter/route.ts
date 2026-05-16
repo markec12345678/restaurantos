@@ -1,6 +1,7 @@
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import { getAppUrl } from '@/lib/utils'
 
 // Javni API za klic natakarja - BREZ avtentikacije
 // Stranka skenira QR kodo na mizi in pokliče natakarja
@@ -23,7 +24,7 @@ export async function POST(req: Request) {
 
     // Broadcast WebSocket obvestilo
     try {
-      await fetch('http://localhost:3000/api/ws-broadcast', {
+      await fetch(`${getAppUrl()}/api/ws-broadcast`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, createTableSchema } from '@/lib/validations'
 
 export async function GET() {
@@ -12,6 +13,10 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    // Auth check
+    const authResult = await requireAuth(req)
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
 
     // FIX H-01: Validiraj vnos z Zod

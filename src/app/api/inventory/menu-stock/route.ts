@@ -1,10 +1,15 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 
 // GET /api/inventory/menu-stock — Hitri pregled zaloge za meni artikle (za POS indikatorje)
 // Vrne mapo menuItemId → { status, available, unit } za prikaz na POS zaslonu
 export async function GET(req: Request) {
   try {
+    // Auth check — requires manage_inventory permission
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
+    if (authResult.error) return authResult.error
+
     // Pridobi vse inventarne artikle s povezavo na meni
     const inventoryItems = await db.inventoryItem.findMany({
       where: { menuItemId: { not: null } },
