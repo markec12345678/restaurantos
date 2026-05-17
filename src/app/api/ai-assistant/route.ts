@@ -1,7 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { db } from '@/lib/db'
+import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 
 const SYSTEM_PROMPT = `Si AI asistent za slovenski restavracijski POS sistem "RestaurantOS". 
 Govoriš slovensko in pomagaš lastnikom restavracij z:
@@ -16,8 +15,12 @@ Govoriš slovensko in pomagaš lastnikom restavracij z:
 Znaš Slovenijo-specifične stvari: DDV stopnje (22%, 9.5%, 0%), FURS predpise, HACCP, slovenske praznike, turistične sezone.
 Odgovarjaj strukturirano, s konkretnimi številkami in predlogi. Uporabljaj EUR za valuto.`;
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
+    // FIX: Zahtevaj avtentikacijo za AI asistenta
+    const authResult = await requireAuth(req)
+    if (authResult.error) return authResult.error
+
     const body = await req.json();
     const { message, type = 'general', context = {} } = body;
 
@@ -69,7 +72,7 @@ export async function POST(req: NextRequest) {
     const tokensUsed = data.usageMetadata?.totalTokenCount || 0;
 
     // Log the conversation
-    await prisma.aIConversation.create({
+    await db.aIConversation.create({
       data: {
         type,
         userMessage: message,
@@ -91,7 +94,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('AI Assistant error:', error);
     return NextResponse.json(
-      { error: 'Napaka pri AI asistentu', details: error.message },
+      { error: 'Napaka pri AI asistentu' },
       { status: 500 }
     );
   }
@@ -105,7 +108,7 @@ async function gatherDataContext(context: any): Promise<string> {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    const recentOrders = await prisma.order.findMany({
+    const recentOrders = await db.order.findMany({
       where: { createdAt: { gte: thirtyDaysAgo }, status: { not: 'cancelled' } },
       include: { orderItems: { include: { menuItem: true } } },
       orderBy: { createdAt: 'desc' },
@@ -141,8 +144,8 @@ async function gatherDataContext(context: any): Promise<string> {
     }
 
     // Inventory status
-    const lowStock = await prisma.inventoryItem.findMany({
-      where: { quantity: { lte: prisma.inventoryItem.fields.minQuantity } },
+    const lowStock = await db.inventoryItem.findMany({
+      where: { quantity: { lte: db.inventoryItem.fields.minQuantity } },
       take: 10,
     });
 
@@ -151,13 +154,13 @@ async function gatherDataContext(context: any): Promise<string> {
     }
 
     // Menu items count
-    const menuItemCount = await prisma.menuItem.count({ where: { isAvailable: true } });
+    const menuItemCount = await db.menuItem.count({ where: { isAvailable: true } });
     parts.push(`MENI: ${menuItemCount} aktivnih artiklov`);
 
     // Employees on shift today
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const activeTimeEntries = await prisma.timeEntry.findMany({
+    const activeTimeEntries = await db.timeEntry.findMany({
       where: { clockIn: { gte: today }, clockOut: null },
       include: { employee: true },
     });
@@ -169,7 +172,7 @@ async function gatherDataContext(context: any): Promise<string> {
     // Reservations today
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
-    const reservations = await prisma.reservation.findMany({
+    const reservations = await db.reservation.findMany({
       where: { dateTime: { gte: today, lt: tomorrow }, status: 'confirmed' },
     });
 
@@ -205,7 +208,7 @@ function generateFallbackResponse(message: string, type: string, dataContext: st
 
 export async function GET() {
   try {
-    const conversations = await prisma.aIConversation.findMany({
+    const conversations = await db.aIConversation.findMany({
       orderBy: { createdAt: 'desc' },
       take: 50,
     });

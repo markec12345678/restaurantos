@@ -9,7 +9,7 @@ import type {
 } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 1000000
+const TOAST_REMOVE_DELAY = 5000 // FIX: 5 sekund namesto 16.67 minut (1000000ms)
 
 type ToasterToast = ToastProps & {
   id: string
@@ -182,7 +182,7 @@ function useToast() {
         listeners.splice(index, 1)
       }
     }
-  }, [state])
+  }, []) // FIX: Odstranjen [state] dependency — povzroča ponovne prijave ob vsaki spremembi stanja
 
   return {
     ...state,
