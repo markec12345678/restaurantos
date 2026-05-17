@@ -30,7 +30,7 @@ const CACHEABLE_API_PATTERNS = [
   /\/api\/menu-items/,
   /\/api\/categories/,
   /\/api\/tables/,
-  /\/api\/settings/,
+  // FIX: /api/settings now requires auth — removed from cacheable patterns
   /\/api\/employees/,
   /\/api\/inventory(\?|$)/,
   /\/api\/dashboard/,
