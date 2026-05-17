@@ -33,6 +33,7 @@ export const createOrderSchema = z.object({
   revenueCenterId: z.string().nullable().optional(),
   customerName: z.string().max(100).default(''),
   customerPhone: z.string().max(30).default(''),
+  customerEmail: z.string().max(200).default(''), // FIX MEDIUM: Manjkajoče polje za e-pošto stranke
   notes: z.string().max(1000).default(''),
   employeeId: z.string().nullable().optional(),
   discount: z.number().min(0).default(0),

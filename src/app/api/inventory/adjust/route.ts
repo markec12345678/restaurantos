@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, inventoryAdjustSchema, batchAdjustSchema } from '@/lib/validations'
@@ -80,6 +80,15 @@ export async function POST(req: Request) {
       })
 
       return { updated, transaction }
+    })
+
+    // FIX MEDIUM: Audit log za razknjižbo zaloge
+    await createAuditLog({
+      userId: authResult.session?.employeeId,
+      action: 'INVENTORY_ADJUST',
+      entityType: 'InventoryItem',
+      entityId: data.inventoryItemId,
+      details: { type: data.type, quantity: txQuantity, previousQty, newQty, reason: data.reason, itemName: item.name },
     })
 
     return NextResponse.json(result)

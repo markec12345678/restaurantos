@@ -5,7 +5,7 @@
 // FIX MEDIUM: Cache version auto-incremented — change version when deploying
 // ============================================
 
-const CACHE_VERSION = 'v4' // Increment this when deploying new code
+const CACHE_VERSION = 'v5' // Increment this when deploying new code
 const CACHE_NAME = `restos-pos-${CACHE_VERSION}`
 const STATIC_CACHE = `restos-static-${CACHE_VERSION}`
 const API_CACHE = `restos-api-${CACHE_VERSION}`
@@ -39,6 +39,12 @@ const CACHEABLE_API_PATTERNS = [
   /\/api\/modifier-groups/,
   /\/api\/discounts/,
   /\/api\/happy-hour/,
+  /\/api\/suppliers/,         // FIX HIGH: Dobavitelji za offline naročanje
+  /\/api\/reservations/,      // FIX HIGH: Rezervacije za offline ogled
+  /\/api\/guests/,            // FIX HIGH: Gosti CRM za offline dostop
+  /\/api\/dining-options/,    // FIX MEDIUM: Jedilne opcije za offline
+  /\/api\/revenue-centers/,   // FIX MEDIUM: Poslovni prostori za offline
+  /\/api\/tax-rates/,         // FIX MEDIUM: Davčne stopnje za offline
 ]
 
 // API poti, ki jih NIKOLI ne predpomnimo
@@ -53,6 +59,10 @@ const NO_CACHE_API_PATTERNS = [
   /\/api\/inventory\/adjust/,
   /\/api\/auth/,
   /\/api\/seed/,
+  /\/api\/reports/,          // FIX LOW: Poročila so vedno sveža — ne predpomni
+  /\/api\/ai/,               // FIX LOW: AI končne točke ne predpomni
+  /\/api\/audit/,            // FIX LOW: Revizijski dnevnik ne sme biti predpomnjen
+  /\/api\/ws-broadcast/,     // FIX LOW: WebSocket broadcast ni cache-predmet
 ]
 
 // ============================================

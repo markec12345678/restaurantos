@@ -96,7 +96,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const totalWithTip = total + tip
 
     // Preveri če že obstaja račun
-    const existingReceipt = await db.receipt.findFirst({ where: { orderId: id } })
+    const existingReceipt = await db.receipt.findFirst({ where: { orderId: id, isStorno: false } })
     const receiptNumber = existingReceipt?.receiptNumber || ''
     const zoi = existingReceipt?.zoi || generateZOIPlaceholder(order.orderNumber, receiptNumber || 'pending')
 
@@ -181,7 +181,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     // Preveri če že obstaja
-    const existing = await db.receipt.findFirst({ where: { orderId: id } })
+    const existing = await db.receipt.findFirst({ where: { orderId: id, isStorno: false } })
     if (existing) {
       return NextResponse.json(existing)
     }
@@ -260,7 +260,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (authResult.error) return authResult.error
 
     const body = await req.json()
-    const receipt = await db.receipt.findFirst({ where: { orderId: id } })
+    const receipt = await db.receipt.findFirst({ where: { orderId: id, isStorno: false } })
     if (!receipt) {
       return NextResponse.json({ error: 'Račun ni najden' }, { status: 404 })
     }

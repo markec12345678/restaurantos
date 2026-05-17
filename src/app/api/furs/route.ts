@@ -136,7 +136,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Ni nastavitev restavracije' }, { status: 400 })
     }
 
-    let receipt = await db.receipt.findFirst({ where: { orderId } })
+    let receipt = await db.receipt.findFirst({ where: { orderId, isStorno: false } })
 
     if (!receipt) {
       return NextResponse.json({ error: 'Račun ni najden - najprej ustvarite račun' }, { status: 400 })
@@ -319,7 +319,8 @@ export async function PUT(req: Request) {
 
     const { orderId, reason, reasonCode } = data
 
-    const receipt = await db.receipt.findFirst({ where: { orderId } })
+    // FIX HIGH: Poišči ORIGINALNI račun (ne storno) — findFirst brez filtra bi lahko našel storno
+    const receipt = await db.receipt.findFirst({ where: { orderId, isStorno: false } })
     if (!receipt) {
       return NextResponse.json({ error: 'Račun ni najden' }, { status: 404 })
     }

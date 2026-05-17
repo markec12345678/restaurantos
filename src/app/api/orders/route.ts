@@ -178,6 +178,7 @@ export async function POST(req: Request) {
         revenueCenterId: data.revenueCenterId || null,
         customerName: data.customerName,
         customerPhone: data.customerPhone,
+        customerEmail: data.customerEmail || '', // FIX MEDIUM: Shrani e-pošto stranke
         subtotal,
         tax: totalTax,
         discount: totalDiscountAmount,
