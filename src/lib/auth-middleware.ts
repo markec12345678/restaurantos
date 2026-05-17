@@ -118,10 +118,7 @@ const PUBLIC_GET_ROUTES = [
   '/api/auth',            // Login — avtentikacija sama po sebi
   '/api/public',          // Javne rute za QR naročanje
   '/api/qr-menu',         // Javni meni za QR
-  '/api/menus',           // Meni podatki (samo GET)
-  '/api/categories',      // Kategorije (samo GET)
-  '/api/menu-items',      // Menu artikli (samo GET)
-  '/api/modifier-groups', // Modifikatorji (samo GET)
+  '/api/digital-receipt', // Javni digitalni račun za goste (QR link)
 ]
 
 // Zahtevana dovoljenja za posamezne rute
@@ -155,6 +152,24 @@ const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/api/furs': ['admin'],
   '/api/audit': ['admin'],
   '/api/ws-broadcast': ['take_orders'],
+  '/api/packaging': ['manage_inventory'],
+  '/api/courses': ['take_orders'],
+  '/api/jobs': ['manage_employees'],
+  '/api/ai-assistant': ['admin'],
+  '/api/ai': ['admin'],
+  '/api/card-terminal': ['manage_cash'],
+  '/api/food-cost': ['manage_inventory'],
+  '/api/happy-hour': ['apply_discounts'],
+  '/api/recipes': ['manage_inventory'],
+  '/api/seed': ['admin'],
+  '/api/seed-food-norms': ['admin'],
+  '/api/seed-norms': ['admin'],
+  '/api/stock': ['manage_inventory'],
+  '/api/menus': ['take_orders'],
+  '/api/categories': ['take_orders'],
+  '/api/menu-items': ['take_orders'],
+  '/api/modifier-groups': ['take_orders'],
+  '/api/configuration': ['admin'],
 }
 
 /**
