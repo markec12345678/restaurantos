@@ -87,10 +87,14 @@ export async function PUT(req: Request) {
         }
       })
     } else {
-      // Ne shrani praznega gesla — ohrani staro
+      // FIX MEDIUM: Ne shrani praznega/maskiranega gesla ali poti — ohrani staro
       const updateData = { ...data }
       if (updateData.fursCertPassword === '••••••' || updateData.fursCertPassword === '') {
         delete updateData.fursCertPassword
+      }
+      // FIX MEDIUM: Enako za fursCertPath — maskirana vrednost ne sme prepisati prave poti
+      if (updateData.fursCertPath === '••••••' || updateData.fursCertPath === '') {
+        delete updateData.fursCertPath
       }
 
       settings = await db.restaurantSettings.update({

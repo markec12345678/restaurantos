@@ -17,12 +17,13 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const search = searchParams.get('search') || ''
     const vipOnly = searchParams.get('vip') === 'true'
-    const limit = parseInt(searchParams.get('limit') || '50')
-    const offset = parseInt(searchParams.get('offset') || '0')
+    // FIX HIGH: Varno parsanje limit/offset z NaN zaščito
+    const rawLimit = parseInt(searchParams.get('limit') || '50')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
 
-    // FIX C-02: Omeji limit za preprečevanje DoS
-    const safeLimit = Math.min(Math.max(limit, 1), 200)
-    const safeOffset = Math.max(offset, 0)
+    // FIX C-02: Omeji limit za preprečevanje DoS + NaN varnost
+    const safeLimit = Math.min(Math.max(Number.isNaN(rawLimit) ? 50 : rawLimit, 1), 200)
+    const safeOffset = Math.max(Number.isNaN(rawOffset) ? 0 : rawOffset, 0)
 
     const where: Record<string, unknown> = {}
 

@@ -39,13 +39,13 @@ export async function POST(req: Request) {
         capacity: data.capacity,
         status: data.status,
         area: data.area,
-        // Vizualni tloris — nove polja
-        posX: body.posX ?? Math.random() * 70 + 5,
-        posY: body.posY ?? Math.random() * 70 + 5,
-        width: body.width ?? 8,
-        height: body.height ?? 10,
-        shape: body.shape ?? 'round',
-        rotation: body.rotation ?? 0,
+        // FIX HIGH: Vizualni tloris — uporabi Zod-validirane vrednosti namesto direktnega body-ja
+        posX: data.posX ?? Math.random() * 70 + 5,
+        posY: data.posY ?? Math.random() * 70 + 5,
+        width: data.width ?? 8,
+        height: data.height ?? 10,
+        shape: data.shape ?? 'round',
+        rotation: data.rotation ?? 0,
       },
     })
     return NextResponse.json(table, { status: 201 })

@@ -99,6 +99,8 @@ export async function POST(req: Request) {
       }
       tableId = table.id
       resolvedTableNumber = table.number
+      // FIX CRITICAL: Označi mizo kot zasedeno — enako kot tableNumber pot
+      await db.table.update({ where: { id: table.id }, data: { status: 'occupied' } })
     } else if (data.tableNumber) {
       // QR /qr-menu pošilja tableNumber (int ali string)
       const tableNum = parseInt(String(data.tableNumber), 10)
@@ -222,6 +224,9 @@ export async function POST(req: Request) {
         for (const recipe of menuItem.recipeItems) {
           if (!recipe.inventoryItem) continue
           const deductQty = recipe.quantityPerServing * qty
+          // FIX MEDIUM: Preberi trenutno količino ZNOTRAJ transakcije — prepreči stale previousQty
+          const currentInvItem = await tx.inventoryItem.findUnique({ where: { id: recipe.inventoryItem.id } })
+          if (!currentInvItem) continue
           // Atomarna preverba in decrement
           const updated = await tx.inventoryItem.updateMany({
             where: {
@@ -231,7 +236,7 @@ export async function POST(req: Request) {
             data: { quantity: { decrement: deductQty } }
           })
           if (updated.count > 0) {
-            const prevQty = recipe.inventoryItem.quantity
+            const prevQty = currentInvItem.quantity
             await tx.stockTransaction.create({
               data: {
                 inventoryItemId: recipe.inventoryItem.id,
@@ -239,8 +244,8 @@ export async function POST(req: Request) {
                 quantity: -deductQty,
                 previousQty: prevQty,
                 newQty: prevQty - deductQty,
-                costPerUnit: recipe.inventoryItem.costPerUnit,
-                totalCost: deductQty * recipe.inventoryItem.costPerUnit,
+                costPerUnit: currentInvItem.costPerUnit,
+                totalCost: deductQty * currentInvItem.costPerUnit,
                 reason: `QR naročilo #${nextOrderNumber}`,
               }
             })

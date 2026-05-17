@@ -724,7 +724,7 @@ export function validateFursConfig(config: Partial<FursConfig>): {
   if (!config.businessId) {
     errors.push('Manjka matična številka podjetja')
   } else if (!/^\d{8}$/.test(config.businessId)) {
-    errors.push('Matčna številka mora imeti 8 številk')
+    errors.push('Matična številka mora imeti 8 številk')
   }
 
   if (!config.taxId) {

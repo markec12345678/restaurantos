@@ -18,9 +18,11 @@ export async function GET(req: Request) {
     if (isActive !== null) where.isActive = isActive === 'true'
     if (customerPhone) where.customerPhone = customerPhone
 
-    // FIX: Paginacija — prepreči nalaganje preveč zapisov
-    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500)
-    const offset = parseInt(searchParams.get('offset') || '0')
+    // FIX HIGH: Paginacija z NaN varnostjo — prepreči nalaganje preveč zapisov
+    const rawLimit = parseInt(searchParams.get('limit') || '100')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
+    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
+    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
 
     const [accounts, total] = await Promise.all([
       db.loyaltyAccount.findMany({

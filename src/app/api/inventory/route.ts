@@ -15,6 +15,11 @@ export async function GET(req: Request) {
     const lowStock = searchParams.get('lowStock')
     const distinctCategories = searchParams.get('distinctCategories')
     const distinctLocations = searchParams.get('distinctLocations')
+    // FIX LOW: Paginacija za zalogo — prepreči nalaganje tisočih zapisov
+    const rawLimit = parseInt(searchParams.get('limit') || '500')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
+    const limit = Math.min(Number.isNaN(rawLimit) ? 500 : rawLimit, 2000)
+    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
 
     // ─── Poseben endpoint: vrni vse distinktne kategorije ───
     if (distinctCategories === 'true') {
@@ -85,6 +90,8 @@ export async function GET(req: Request) {
     const items = await db.inventoryItem.findMany({
       where,
       orderBy: { name: 'asc' },
+      take: limit,
+      skip: offset,
       include: {
         menuItem: { select: { id: true, name: true, price: true } },
       },

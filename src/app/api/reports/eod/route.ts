@@ -133,9 +133,10 @@ export async function GET(req: Request) {
     }
 
     // ─── PO URAH ───
+    // FIX MEDIUM: Uporabi UTC ure za dosledno razčlenitev — prepreči odstopanja zaradi časovnega pasu strežnika
     const hourlyBreakdown: Array<{ hour: number; revenue: number; orders: number }> = []
     for (let h = 0; h < 24; h++) {
-      const hourOrders = completedOrders.filter(o => new Date(o.createdAt).getHours() === h)
+      const hourOrders = completedOrders.filter(o => new Date(o.createdAt).getUTCHours() === h)
       hourlyBreakdown.push({
         hour: h,
         revenue: hourOrders.reduce((s, o) => s + o.total, 0),

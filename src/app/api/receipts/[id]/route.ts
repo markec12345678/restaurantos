@@ -259,14 +259,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: 'Račun ni najden' }, { status: 404 })
     }
 
+    // FIX HIGH: EOR se lahko nastavi SAMO prek FURS API-ja — ne direktno od klienta
+    // Odstranjena možnost nastavitve eor, fiscalVerified iz klienta — varnostna zahteva
     const updated = await db.receipt.update({
       where: { id: receipt.id },
       data: {
         ...(body.printed !== undefined && { printedAt: body.printed ? new Date() : null }),
         ...(body.isCopy !== undefined && { isCopy: body.isCopy }),
-        // FIX: fiscalVerified se lahko nastavi SAMO prek FURS API-ja — ne direktno od klienta
-        // ...(body.fiscalVerified !== undefined && { fiscalVerified: body.fiscalVerified, verificationDate: body.fiscalVerified ? new Date() : null }),
-        ...(body.eor !== undefined && { eor: body.eor }),
       },
     })
 
