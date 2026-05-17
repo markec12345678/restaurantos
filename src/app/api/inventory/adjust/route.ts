@@ -45,9 +45,16 @@ export async function POST(req: Request) {
 
     const totalCost = Math.abs(txQuantity) * item.costPerUnit
 
-    // FIX HIGH: Uporabi atomic operacijo namesto direktnega set — prepreči race condition
+    // FIX HIGH: Re-read quantity INSIDE transaction to prevent stale read race condition
     const result = await db.$transaction(async (tx) => {
-      const delta = newQty - previousQty
+      const currentItem = await tx.inventoryItem.findUnique({ where: { id: data.inventoryItemId } })
+      if (!currentItem) {
+        throw new Error('Artikel ni najden')
+      }
+      const currentQty = currentItem.quantity
+      const delta = data.type === 'adjustment' && data.newQuantity !== undefined
+        ? Math.max(0, data.newQuantity) - currentQty
+        : -Math.min(data.quantity || 0, currentQty) // FIX: Cap deduction at current quantity
       const updated = await tx.inventoryItem.update({
         where: { id: data.inventoryItemId },
         data: delta >= 0
@@ -61,8 +68,8 @@ export async function POST(req: Request) {
           inventoryItemId: data.inventoryItemId,
           type: data.type,
           quantity: txQuantity,
-          previousQty,
-          newQty,
+          previousQty: currentQty,
+          newQty: currentQty + delta,
           costPerUnit: item.costPerUnit,
           totalCost,
           reason: data.reason,
@@ -119,11 +126,21 @@ export async function PUT(req: Request) {
         const txQuantity = -deductQty
         const totalCost = deductQty * item.costPerUnit
 
+        // FIX CRITICAL: Use atomic decrement instead of direct set — prevents race condition
         const updated = await tx.inventoryItem.update({
           where: { id: entry.inventoryItemId },
-          data: { quantity: newQty },
+          data: { quantity: { decrement: deductQty } },
           include: { menuItem: true },
         })
+
+        // Clamp to 0 if quantity went negative
+        const actualNewQty = Math.max(0, updated.quantity)
+        if (updated.quantity < 0) {
+          await tx.inventoryItem.update({
+            where: { id: entry.inventoryItemId },
+            data: { quantity: 0 },
+          })
+        }
 
         const transaction = await tx.stockTransaction.create({
           data: {
@@ -131,7 +148,7 @@ export async function PUT(req: Request) {
             type: data.type,
             quantity: txQuantity,
             previousQty,
-            newQty,
+            newQty: actualNewQty,
             costPerUnit: item.costPerUnit,
             totalCost,
             reason: data.reason || entry.reason || '',

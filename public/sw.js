@@ -2,12 +2,14 @@
 // RESTAURANTOS POS — SERVICE WORKER
 // PWA offline podpora z inteligentnim predpomnjenjem
 // Strategija: Cache-first za statiko, Network-first za API
+// FIX MEDIUM: Cache version auto-incremented — change version when deploying
 // ============================================
 
-const CACHE_NAME = 'restos-pos-v3'
-const STATIC_CACHE = 'restos-static-v3'
-const API_CACHE = 'restos-api-v3'
-const IMAGE_CACHE = 'restos-images-v3'
+const CACHE_VERSION = 'v4' // Increment this when deploying new code
+const CACHE_NAME = `restos-pos-${CACHE_VERSION}`
+const STATIC_CACHE = `restos-static-${CACHE_VERSION}`
+const API_CACHE = `restos-api-${CACHE_VERSION}`
+const IMAGE_CACHE = `restos-images-${CACHE_VERSION}`
 
 // Maksimalna starost cache vnosa v ms (5 minut za API)
 const API_CACHE_TTL = 5 * 60 * 1000

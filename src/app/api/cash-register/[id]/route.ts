@@ -45,7 +45,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       const paidOrders = await tx.order.findMany({
         where: {
           paymentStatus: { in: ['paid', 'storno'] },
-          paidAt: { gte: shift.openedAt },
+          // FIX MEDIUM: Include orders without paidAt if they are storno —
+          // storno orders may not have paidAt set (it's only set on 'paid')
+          OR: [
+            { paidAt: { gte: shift.openedAt } },
+            { paymentStatus: 'storno', updatedAt: { gte: shift.openedAt } },
+          ],
         },
         select: {
           id: true,

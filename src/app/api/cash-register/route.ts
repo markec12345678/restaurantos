@@ -24,41 +24,59 @@ export async function GET(req: Request) {
     })
 
     // If there's an active shift, calculate live stats
+    // FIX CRITICAL: Use ACTUAL Payment records from checks (not order.paymentMethod)
+    // order.paymentMethod is a single string — doesn't account for split payments
+    // Must match the same logic as close-shift for consistency
     let liveStats: Record<string, number> | null = null
     if (activeShift) {
       const paidOrders = await db.order.findMany({
         where: {
-          paymentStatus: 'paid',
+          paymentStatus: { in: ['paid', 'storno'] },
           paidAt: { gte: activeShift.openedAt },
         },
         select: {
+          id: true,
           total: true,
           discount: true,
-          paymentMethod: true,
-          paidAt: true,
           tip: true,
+          paymentStatus: true,
+          checks: {
+            select: {
+              payments: {
+                where: { status: 'completed' },
+                select: { type: true, amount: true, tipAmount: true },
+              },
+            },
+          },
         },
       })
 
-      const cashSales = paidOrders.filter(o => o.paymentMethod === 'cash').reduce((sum, o) => sum + o.total, 0)
-      const cardSales = paidOrders.filter(o => o.paymentMethod === 'card').reduce((sum, o) => sum + o.total, 0)
-      const mobileSales = paidOrders.filter(o => o.paymentMethod === 'mobile').reduce((sum, o) => sum + o.total, 0)
-      const splitPayments = paidOrders.filter(o => o.paymentMethod === 'split').reduce((sum, o) => sum + o.total, 0)
-      const totalSales = paidOrders.reduce((sum, o) => sum + o.total, 0)
-      const totalDiscounts = paidOrders.reduce((sum, o) => sum + o.discount, 0)
-      const totalOrders = paidOrders.length
-      // FIX MEDIUM: Pričakovana gotovina vključuje tip (napitnina) v gotovinskih plačilih
-      const cashTips = paidOrders.filter(o => o.paymentMethod === 'cash').reduce((sum, o) => sum + (o.tip || 0), 0)
+      // FIX CRITICAL: Use actual payments from checks (same as close-shift logic)
+      const paid = paidOrders.filter(o => o.paymentStatus === 'paid')
+      const storno = paidOrders.filter(o => o.paymentStatus === 'storno')
+
+      const allPayments = paid.flatMap(o => o.checks.flatMap(c => c.payments))
+      const cashSales = allPayments.filter(p => p.type === 'cash').reduce((sum, p) => sum + p.amount, 0)
+      const cardSales = allPayments.filter(p => p.type === 'card').reduce((sum, p) => sum + p.amount, 0)
+      const mobileSales = allPayments.filter(p => p.type === 'mobile').reduce((sum, p) => sum + p.amount, 0)
+      const alternateSales = allPayments.filter(p => ['voucher', 'loyalty', 'giftcard', 'alternate'].includes(p.type)).reduce((sum, p) => sum + p.amount, 0)
+      const totalSales = allPayments.reduce((sum, p) => sum + p.amount, 0)
+      const totalDiscounts = paid.reduce((sum, o) => sum + o.discount, 0)
+      const totalOrders = paid.length
+      const totalVoided = storno.reduce((sum, o) => sum + Math.abs(o.total), 0)
+      // FIX: Cash tips included in expected cash calculation
+      const cashTips = allPayments.filter(p => p.type === 'cash').reduce((sum, p) => sum + (p.tipAmount || 0), 0)
       const expectedCash = activeShift.startingCash + cashSales + cashTips
 
       liveStats = {
         cashSales,
         cardSales,
         mobileSales,
-        splitPayments,
+        alternateSales,
         totalSales,
         totalOrders,
         totalDiscounts,
+        totalVoided,
         expectedCash,
       }
     }

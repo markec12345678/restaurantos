@@ -723,6 +723,8 @@ model StockTransaction {
   @@index([inventoryItemId])
   @@index([type])
   @@index([createdAt])
+  @@index([inventoryItemId, type]) // FIX: Compound index for common queries (e.g., find sales per item)
+  @@index([orderId])              // FIX: Index for stock transactions linked to orders
 }
 
 model RecipeItem {

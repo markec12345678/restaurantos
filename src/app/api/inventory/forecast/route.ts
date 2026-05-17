@@ -196,7 +196,8 @@ function assessRisk(
 
 export async function GET(req: Request) {
   try {
-    const authResult = await requireAuth(req)
+    // FIX HIGH: Require manage_inventory permission for forecast data
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)

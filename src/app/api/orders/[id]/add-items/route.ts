@@ -75,7 +75,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       // Preračunaj skupne zneske s per-item DDV (strežniško)
       const allItems = [...order.orderItems, ...created]
       const subtotal = allItems.reduce((sum, oi) => sum + oi.price * oi.quantity, 0)
+      // FIX HIGH: Use existing vatAmount for old items instead of recalculating — 
+      // old items may have discount-adjusted VAT amounts
       const tax = allItems.reduce((sum, oi) => {
+        if ('vatAmount' in oi && oi.vatAmount > 0) {
+          // Existing item — use pre-calculated VAT (may include discount adjustments)
+          return sum + oi.vatAmount
+        }
+        // New item — calculate VAT
         const rate = oi.vatRate ?? 22.0
         return sum + oi.price * oi.quantity * (rate / 100)
       }, 0)

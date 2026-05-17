@@ -84,6 +84,7 @@ export async function GET(req: Request) {
     // FIX HIGH: Low stock filter - Prisma/SQLite ne podpira cross-field comparison
     // Ko je lowStock=true, pridobi vse artikle brez paginacije, filtriraj v pomnilniku
     // in nato uporabi offset/limit na filtriranih rezultatih
+    // FIX MEDIUM: Add hard cap for lowStock fetch to prevent memory pressure
     const fetchAll = lowStock === 'true'
 
     const where: Record<string, unknown> = andConditions.length > 1
@@ -95,7 +96,7 @@ export async function GET(req: Request) {
     const items = await db.inventoryItem.findMany({
       where,
       orderBy: { name: 'asc' },
-      take: fetchAll ? undefined : limit,
+      take: fetchAll ? 5000 : limit, // FIX MEDIUM: Hard cap at 5000 for lowStock fetch
       skip: fetchAll ? undefined : offset,
       include: {
         menuItem: { select: { id: true, name: true, price: true } },

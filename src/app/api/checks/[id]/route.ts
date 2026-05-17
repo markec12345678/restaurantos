@@ -65,9 +65,40 @@ export async function PUT(
           updateData.discount = discount
           updateData.total = existingCheck.subtotal + existingCheck.tax - discount
           updateData.totalWithTip = existingCheck.subtotal + existingCheck.tax - discount + existingCheck.tip
+
+          // FIX CRITICAL: Increment discount currentUses when applying to existing check
+          // Same atomic logic as POST route — prevents maxUses race condition
+          if (discountObj.maxUses !== null) {
+            const updated = await db.discount.updateMany({
+              where: { id: discountObj.id, currentUses: { lt: discountObj.maxUses } },
+              data: { currentUses: { increment: 1 } },
+            })
+            if (updated.count === 0) {
+              return NextResponse.json({ error: 'Popust je že bil uporabljen največkrat' }, { status: 400 })
+            }
+          } else {
+            await db.discount.update({
+              where: { id: discountObj.id },
+              data: { currentUses: { increment: 1 } },
+            })
+          }
+
+          // FIX: If check had a previous discount, decrement its usage counter
+          if (existingCheck.appliedDiscountId && existingCheck.appliedDiscountId !== data.appliedDiscountId) {
+            await db.discount.update({
+              where: { id: existingCheck.appliedDiscountId },
+              data: { currentUses: { decrement: 1 } },
+            })
+          }
         }
       } else {
-        // Odstrani popust
+        // Odstrani popust — FIX: decrement previous discount usage
+        if (existingCheck.appliedDiscountId) {
+          await db.discount.update({
+            where: { id: existingCheck.appliedDiscountId },
+            data: { currentUses: { decrement: 1 } },
+          })
+        }
         updateData.discount = 0
         updateData.total = existingCheck.subtotal + existingCheck.tax
         updateData.totalWithTip = existingCheck.subtotal + existingCheck.tax + existingCheck.tip

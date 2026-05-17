@@ -27,7 +27,7 @@ interface ReorderSuggestion {
 
 export async function GET(req: Request) {
   try {
-    const authResult = await requireAuth(req)
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
@@ -188,6 +188,7 @@ export async function POST(req: Request) {
     }
 
     const results: Array<{ inventoryItemId: string; itemName: string; quantity: number; totalCost: number }> = []
+    const errors: Array<{ inventoryItemId: string; error: string }> = []
 
     // FIX MEDIUM: Batch query namesto N+1 — pridobi vse artikle naenkrat
     const itemIds = items.map(item => item.inventoryItemId)
@@ -198,7 +199,11 @@ export async function POST(req: Request) {
 
     for (const item of items) {
       const invItem = invItemMap.get(item.inventoryItemId)
-      if (!invItem) continue
+      if (!invItem) {
+        // FIX: Report error for non-existent items instead of silently skipping
+        errors.push({ inventoryItemId: item.inventoryItemId, error: 'Artikel ni najden' })
+        continue
+      }
 
       const previousQty = invItem.quantity
       const newQty = Math.round((previousQty + item.quantity) * 10000) / 10000
@@ -243,6 +248,7 @@ export async function POST(req: Request) {
       createdOrders: results.length,
       totalCost: Math.round(results.reduce((s, r) => s + r.totalCost, 0) * 100) / 100,
       items: results,
+      errors: errors.length > 0 ? errors : undefined,
     }, { status: 201 })
   } catch (error) {
     console.error('Napaka pri ustvarjanju naročila:', error)

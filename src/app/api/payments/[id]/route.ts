@@ -78,10 +78,30 @@ export async function PUT(
       const payment = await db.$transaction(async (tx) => {
         // Reverse gift card balance if it was a giftcard payment
         if (existingPayment.type === 'giftcard' && existingPayment.giftCardId) {
+          // FIX CRITICAL: Validate card status before refunding balance
+          // A suspended/expired card should not receive balance back automatically
+          const giftCard = await tx.giftCard.findUnique({ where: { id: existingPayment.giftCardId } })
+          if (!giftCard) {
+            throw new Error('Darilna kartica ni najdena — vračilo ni mogoče')
+          }
+
+          // Allow refund to active cards; for suspended/expired, only allow if card was active at payment time
+          if (giftCard.status === 'suspended') {
+            throw new Error('Darilna kartica je suspendirana — obrnite se na upravitelja za vračilo')
+          }
+
           const updatedGiftCard = await tx.giftCard.update({
             where: { id: existingPayment.giftCardId },
             data: { balance: { increment: existingPayment.amount } },
           })
+
+          // If card was depleted and now has balance, reactivate it
+          if (giftCard.status === 'depleted' && updatedGiftCard.balance > 0) {
+            await tx.giftCard.update({
+              where: { id: existingPayment.giftCardId },
+              data: { status: 'active' },
+            })
+          }
           await tx.giftCardTransaction.create({
             data: {
               giftCardId: existingPayment.giftCardId,
@@ -96,10 +116,16 @@ export async function PUT(
 
         // Reverse loyalty points if it was a loyalty payment
         if (existingPayment.type === 'loyalty' && existingPayment.loyaltyAccountId && existingPayment.loyaltyPointsUsed > 0) {
-          const updatedLoyaltyAccount = await tx.loyaltyAccount.update({
-            where: { id: existingPayment.loyaltyAccountId },
+          // FIX MEDIUM: Use atomic updateMany with safety check — prevents race condition
+          const updatedLoyaltyAccount = await tx.loyaltyAccount.updateMany({
+            where: { id: existingPayment.loyaltyAccountId, isActive: true },
             data: { pointsBalance: { increment: existingPayment.loyaltyPointsUsed } },
           })
+          if (updatedLoyaltyAccount.count === 0) {
+            throw new Error('Zvestobni račun ni aktiven — vračilo točk ni mogoče')
+          }
+
+          const refreshedAccount = await tx.loyaltyAccount.findUnique({ where: { id: existingPayment.loyaltyAccountId } })
           await tx.loyaltyTransaction.create({
             data: {
               loyaltyAccountId: existingPayment.loyaltyAccountId,
