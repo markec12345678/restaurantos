@@ -14,6 +14,9 @@ const createCategorySchema = z.object({
 
 export async function GET(request: Request) {
   try {
+    const authResult = await requireAuth(request)
+    if (authResult.error) return authResult.error
+
     const { searchParams } = new URL(request.url)
     const menuId = searchParams.get('menuId')
 

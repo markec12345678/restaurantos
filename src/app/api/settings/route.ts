@@ -6,7 +6,10 @@ import { validateBody, updateSettingsSchema } from '@/lib/validations'
 // GET /api/settings — Pridobi nastavitve restavracije
 export async function GET(req: Request) {
   try {
-    // GET je javno dostopen za prikaz na blagajni (npr. ime restavracije na računu)
+    // FIX AUTH: Zahtevaj avtentikacijo tudi za GET — poslovni podatki niso javni
+    const authResult = await requireAuth(req)
+    if (authResult.error) return authResult.error
+
     let settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
 
     // Če ni nastavitev, ustvari privzete

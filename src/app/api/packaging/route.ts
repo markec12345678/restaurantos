@@ -4,6 +4,9 @@ import { NextResponse } from 'next/server'
 
 export async function GET(req: Request) {
   try {
+    const authResult = await requireAuth(req)
+    if (authResult.error) return authResult.error
+
     const { searchParams } = new URL(req.url)
     const isActive = searchParams.get('isActive')
 

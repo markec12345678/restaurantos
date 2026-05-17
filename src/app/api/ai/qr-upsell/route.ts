@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 import ZAI from 'z-ai-web-dev-sdk'
 
 // =====================================================================
@@ -79,6 +80,10 @@ function getCategoryType(catName: string): string {
 
 export async function POST(req: Request) {
   try {
+    // FIX AUTH: AI endpoint zahteva avtentikacijo — prepreči zlorabo in stroške
+    const authResult = await requireAuth(req)
+    if (authResult.error) return authResult.error
+
     // FIX: Omejitev velikosti body-ja — prepreči zlorabo z ogromnimi payloadi
     const bodyText = await req.text()
     if (bodyText.length > 10000) {

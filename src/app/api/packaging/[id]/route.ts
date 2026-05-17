@@ -7,6 +7,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireAuth(req)
+    if (authResult.error) return authResult.error
+
     const { id } = await params
 
     const packagingConfig = await db.packagingConfig.findUnique({

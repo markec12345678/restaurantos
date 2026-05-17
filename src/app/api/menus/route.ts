@@ -2,8 +2,11 @@ import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-middleware'
 import { NextResponse } from 'next/server'
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const authResult = await requireAuth(req)
+    if (authResult.error) return authResult.error
+
     const menus = await db.menu.findMany({
       orderBy: { sortOrder: 'asc' },
       include: {
