@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 
@@ -74,6 +74,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           notes: body.notes || '',
         },
       })
+    })
+
+    // FIX MEDIUM: Audit log za zaprtje izmene
+    await createAuditLog({
+      userId: authResult.session?.employeeId,
+      action: 'CLOSE_REGISTER_SHIFT',
+      entityType: 'CashRegisterShift',
+      entityId: id,
+      details: {
+        totalSales: closedShift.totalSales,
+        cashSales: closedShift.cashSales,
+        cardSales: closedShift.cardSales,
+        cashDifference: closedShift.cashDifference,
+      },
     })
 
     return NextResponse.json(closedShift)

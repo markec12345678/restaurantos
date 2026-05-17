@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 
 // ============================================
 // GET /api/reports/export — Izvoz poročil v CSV
@@ -21,6 +22,10 @@ function toCsvRow(fields: unknown[]): string {
 
 export async function GET(req: Request) {
   try {
+    // FIX CRITICAL: Zahtevaj avtentikacijo za izvoz poslovnih podatkov
+    const authResult = await requireAuth(req, { permission: 'view_reports' })
+    if (authResult.error) return authResult.error
+
     const { searchParams } = new URL(req.url)
     const type = searchParams.get('type') || 'orders'
     const startDate = searchParams.get('startDate')

@@ -625,6 +625,40 @@ export const eodCloseSchema = z.object({
 })
 
 // ============================================
+// HAPPY HOUR SCHEDULE
+// ============================================
+
+export const createHappyHourSchema = z.object({
+  name: z.string().min(1, 'Ime je obvezno').max(200),
+  description: z.string().max(1000).default(''),
+  priceGroupId: z.string().min(1, 'Cenik je obvezen'),
+  discountType: z.enum(['none', 'percentage', 'fixed_amount']).default('none'),
+  discountAmount: z.number().min(0).default(0),
+  daysOfWeek: z.array(z.number().int().min(1).max(7)).min(1, 'Vsaj en dan je obvezen').default([1, 2, 3, 4, 5]),
+  startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Format HH:MM je obvezen'),
+  endTime: z.string().regex(/^\d{2}:\d{2}$/, 'Format HH:MM je obvezen'),
+  validFrom: z.string().nullable().optional(),
+  validTo: z.string().nullable().optional(),
+  appliesTo: z.enum(['all', 'category', 'item']).default('all'),
+  appliesToIds: z.array(z.string()).default([]),
+  isActive: z.boolean().default(true),
+  autoActivate: z.boolean().default(true),
+})
+
+// ============================================
+// REORDER (Smart Reorder)
+// ============================================
+
+export const createReorderSchema = z.object({
+  items: z.array(z.object({
+    inventoryItemId: z.string().min(1, 'ID artikla je obvezen'),
+    quantity: z.number().positive('Količina mora biti pozitivna'),
+    costPerUnit: z.number().min(0, 'Cena na enoto mora biti nenegativna'),
+  })).min(1, 'Seznam artiklov ne sme biti prazen'),
+  employeeName: z.string().max(100).default(''),
+})
+
+// ============================================
 // SHIFT UPDATE
 // ============================================
 

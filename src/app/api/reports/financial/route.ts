@@ -1,10 +1,15 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 
 // GET /api/reports/financial — Celovito poslovno poročanje z izpiski za knjiženje
 // Parametri: period=daily|weekly|monthly|yearly, date=YYYY-MM-DD (referenčni datum)
 export async function GET(req: Request) {
   try {
+    // FIX CRITICAL: Zahtevaj avtentikacijo za dostop do finančnih podatkov
+    const authResult = await requireAuth(req, { permission: 'view_reports' })
+    if (authResult.error) return authResult.error
+
     const { searchParams } = new URL(req.url)
     const period = searchParams.get('period') || 'daily'
     const refDateStr = searchParams.get('date') || new Date().toISOString().split('T')[0]

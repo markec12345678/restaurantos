@@ -1,10 +1,15 @@
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, createHappyHourSchema } from '@/lib/validations'
 import { NextResponse } from 'next/server'
 
 // GET /api/happy-hour — pridobi vse urnike + trenutno aktivni
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    // FIX CRITICAL: Zahtevaj avtentikacijo za dostop do Happy Hour podatkov
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
+
     const schedules = await db.happyHourSchedule.findMany({
       where: { isActive: true },
       include: { priceGroup: true },
@@ -45,22 +50,42 @@ export async function POST(req: Request) {
 
     const body = await req.json()
 
+    // FIX CRITICAL: Zod validacija za Happy Hour urnik
+    const { data, error: validationError } = validateBody(createHappyHourSchema, body)
+    if (validationError) return validationError
+
+    // FIX HIGH: Preveri, da startTime < endTime
+    if (data.startTime >= data.endTime) {
+      return NextResponse.json(
+        { error: 'Začetni čas mora biti pred končnim časom' },
+        { status: 400 }
+      )
+    }
+
+    // FIX HIGH: Preveri, da priceGroupId obstaja
+    if (data.priceGroupId) {
+      const priceGroup = await db.priceGroup.findUnique({ where: { id: data.priceGroupId } })
+      if (!priceGroup) {
+        return NextResponse.json({ error: 'Cenik ni najden' }, { status: 404 })
+      }
+    }
+
     const schedule = await db.happyHourSchedule.create({
       data: {
-        name: body.name,
-        description: body.description || '',
-        priceGroupId: body.priceGroupId,
-        discountType: body.discountType || 'none',
-        discountAmount: body.discountAmount || 0,
-        daysOfWeek: JSON.stringify(body.daysOfWeek || [1, 2, 3, 4, 5]),
-        startTime: body.startTime,
-        endTime: body.endTime,
-        validFrom: body.validFrom ? new Date(body.validFrom) : null,
-        validTo: body.validTo ? new Date(body.validTo) : null,
-        appliesTo: body.appliesTo || 'all',
-        appliesToIds: JSON.stringify(body.appliesToIds || []),
-        isActive: body.isActive ?? true,
-        autoActivate: body.autoActivate ?? true,
+        name: data.name,
+        description: data.description || '',
+        priceGroupId: data.priceGroupId,
+        discountType: data.discountType || 'none',
+        discountAmount: data.discountAmount || 0,
+        daysOfWeek: JSON.stringify(data.daysOfWeek || [1, 2, 3, 4, 5]),
+        startTime: data.startTime,
+        endTime: data.endTime,
+        validFrom: data.validFrom ? new Date(data.validFrom) : null,
+        validTo: data.validTo ? new Date(data.validTo) : null,
+        appliesTo: data.appliesTo || 'all',
+        appliesToIds: JSON.stringify(data.appliesToIds || []),
+        isActive: data.isActive ?? true,
+        autoActivate: data.autoActivate ?? true,
       },
       include: { priceGroup: true },
     })

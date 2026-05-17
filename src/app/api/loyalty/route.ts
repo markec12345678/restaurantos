@@ -54,14 +54,15 @@ export async function POST(req: Request) {
     const { data, error: validationError } = validateBody(createLoyaltySchema, body)
     if (validationError) return validationError
 
+    // FIX HIGH: Server nadzoruje začetne točke — klient NE more nastaviti pointsBalance/lifetimePoints
     const account = await db.loyaltyAccount.create({
       data: {
         customerName: data.customerName,
         customerPhone: data.customerPhone,
         customerEmail: data.customerEmail || '',
-        pointsBalance: data.pointsBalance,
-        lifetimePoints: data.lifetimePoints,
-        tier: data.tier,
+        pointsBalance: 0, // FIX: Vedno začni z 0 — pridobivanje točk gre skozi loyalty earn API
+        lifetimePoints: 0, // FIX: Vedno začni z 0
+        tier: 'bronze', // FIX: Nov račun vedno začne kot bronze
         isActive: data.isActive,
       },
       include: {

@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 
 // ============================================
 // GET /api/reports/vat — DDV razčlenitev za FURS
@@ -9,6 +10,10 @@ import { NextResponse } from 'next/server'
 
 export async function GET(req: Request) {
   try {
+    // FIX CRITICAL: Zahtevaj avtentikacijo za dostop do DDV podatkov (FURS relevantno)
+    const authResult = await requireAuth(req, { permission: 'view_reports' })
+    if (authResult.error) return authResult.error
+
     const { searchParams } = new URL(req.url)
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')

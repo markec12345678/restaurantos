@@ -104,6 +104,16 @@ export async function POST(req: Request) {
           throw new Error('Darilna kartica ni aktivna')
         }
 
+        // FIX HIGH: Preveri, da kartica ni potekla
+        if (giftCard.expiresAt && giftCard.expiresAt < new Date()) {
+          // Označi kot poteklo
+          await tx.giftCard.update({
+            where: { id: data.giftCardId },
+            data: { status: 'expired' },
+          })
+          throw new Error('Darilna kartica je potekla')
+        }
+
         if (giftCard.balance < data.amount) {
           // Zmanjšaj plačilo na razpoložljivo stanje
           const partialAmount = giftCard.balance
@@ -161,6 +171,11 @@ export async function POST(req: Request) {
         const loyaltyAccount = await tx.loyaltyAccount.findUnique({ where: { id: data.loyaltyAccountId } })
         if (!loyaltyAccount) {
           throw new Error('Zvestobni račun ni najden')
+        }
+
+        // FIX HIGH: Preveri, da je račun aktiven
+        if (!loyaltyAccount.isActive) {
+          throw new Error('Zvestobni račun ni aktiven')
         }
 
         if (loyaltyAccount.pointsBalance < data.loyaltyPointsUsed) {

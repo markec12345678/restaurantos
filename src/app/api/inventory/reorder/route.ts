@@ -7,6 +7,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, createReorderSchema } from '@/lib/validations'
 
 interface ReorderSuggestion {
   inventoryItemId: string
@@ -110,14 +111,17 @@ export async function GET(req: Request) {
  */
 export async function POST(req: Request) {
   try {
-    const authResult = await requireAuth(req)
+    // FIX HIGH: Zahtevaj manage_inventory dovoljenje za naročanje zaloge
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
     if (authResult.error) return authResult.error
 
     const body = await req.json()
-    const { items, employeeName } = body as {
-      items: Array<{ inventoryItemId: string; quantity: number; costPerUnit: number }>
-      employeeName: string
-    }
+
+    // FIX CRITICAL: Zod validacija za naročilo zaloge
+    const { data, error: validationError } = validateBody(createReorderSchema, body)
+    if (validationError) return validationError
+
+    const { items, employeeName } = data
 
     if (!items || items.length === 0) {
       return NextResponse.json({ error: 'Ni artiklov za naročilo' }, { status: 400 })
@@ -125,11 +129,15 @@ export async function POST(req: Request) {
 
     const results: Array<{ inventoryItemId: string; itemName: string; quantity: number; totalCost: number }> = []
 
-    for (const item of items) {
-      const invItem = await db.inventoryItem.findUnique({
-        where: { id: item.inventoryItemId },
-      })
+    // FIX MEDIUM: Batch query namesto N+1 — pridobi vse artikle naenkrat
+    const itemIds = items.map(item => item.inventoryItemId)
+    const invItems = await db.inventoryItem.findMany({
+      where: { id: { in: itemIds } },
+    })
+    const invItemMap = new Map(invItems.map(i => [i.id, i]))
 
+    for (const item of items) {
+      const invItem = invItemMap.get(item.inventoryItemId)
       if (!invItem) continue
 
       const previousQty = invItem.quantity
