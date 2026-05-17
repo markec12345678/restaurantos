@@ -355,6 +355,7 @@ model Order {
   @@index([paymentStatus])
   @@index([tableId])
   @@index([createdAt])
+  @@index([paidAt]) // FIX: Index for financial/paidAt queries (EOD, VAT, financial reports)
 }
 
 model OrderItem {

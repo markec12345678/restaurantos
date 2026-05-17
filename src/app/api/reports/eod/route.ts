@@ -281,11 +281,10 @@ export async function POST(req: Request) {
     }
 
     // Izračunaj zaključne podatke
-    // FIX CRITICAL: Uporabi ACTUAL payments iz checkov namesto order.paymentMethod
+    // FIX CRITICAL: Uporabi ACTUAL payments iz checkov + paidAt za zaključek dneva
     const completedOrders = await db.order.findMany({
       where: {
-        createdAt: { gte: dayStart, lte: dayEnd },
-        status: 'completed',
+        paidAt: { gte: dayStart, lte: dayEnd },
         paymentStatus: 'paid',
       },
       select: {

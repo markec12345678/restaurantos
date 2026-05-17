@@ -67,63 +67,119 @@ export async function GET(req: Request) {
 
     // === POIZVEDBE ===
 
-    // Trenutno obdobje - vsa naročila
+    // FIX CRITICAL: Za finančna poročila uporabimo paidAt (datum plačila) namesto createdAt.
+    // Naročilo, ustvarjeno včeraj a plačano danes, sodi v današnji dan.
+    // Trenutno obdobje - vsa naročila (za status poročila uporabimo createdAt)
     const orders = await db.order.findMany({
       where: { createdAt: { gte: startDate, lte: endDate } },
       include: { orderItems: { include: { menuItem: { include: { category: true } } } }, table: true },
       orderBy: { createdAt: 'asc' },
     })
 
-    // Prejšnje obdobje za primerjavo
+    // FIX CRITICAL: Za finančne podatke uporabimo paidAt — naročila plačana v tem obdobju
+    const paidOrdersForPeriod = await db.order.findMany({
+      where: {
+        paidAt: { gte: startDate, lte: endDate },
+        paymentStatus: 'paid',
+      },
+      include: {
+        orderItems: { include: { menuItem: { include: { category: true } } } },
+        table: true,
+        checks: {
+          select: {
+            payments: {
+              where: { status: 'completed' },
+              select: { type: true, amount: true, tipAmount: true },
+            },
+          },
+        },
+      },
+      orderBy: { paidAt: 'asc' },
+    })
+
+    // Prejšnje obdobje za primerjavo (status poročilo)
     const prevOrders = await db.order.findMany({
       where: { createdAt: { gte: prevStartDate, lte: prevEndDate } },
       include: { orderItems: { include: { menuItem: { include: { category: true } } } }, table: true },
     })
 
+    // FIX CRITICAL: Prejšnje obdobje za finančno primerjavo — uporabi paidAt
+    const prevPaidOrders = await db.order.findMany({
+      where: {
+        paidAt: { gte: prevStartDate, lte: prevEndDate },
+        paymentStatus: 'paid',
+      },
+      include: {
+        orderItems: { include: { menuItem: { include: { category: true } } } },
+        table: true,
+        checks: {
+          select: {
+            payments: {
+              where: { status: 'completed' },
+              select: { type: true, amount: true, tipAmount: true },
+            },
+          },
+        },
+      },
+    })
+
     // === OSNOVNI KAZALCI ===
-    const completedOrders = orders.filter(o => o.status === 'completed')
-    const paidOrders = orders.filter(o => o.paymentStatus === 'paid')
-    const totalRevenue = completedOrders.reduce((sum, o) => sum + o.total, 0)
-    const totalSubtotal = completedOrders.reduce((sum, o) => sum + o.subtotal, 0)
-    const totalTax = completedOrders.reduce((sum, o) => sum + o.tax, 0)
-    const totalDiscount = completedOrders.reduce((sum, o) => sum + o.discount, 0)
-    const totalOrdersCount = orders.length
-    const completedCount = completedOrders.length
+    // FIX CRITICAL: Za finančne podatke uporabimo paidOrdersForPeriod (plačana naročila v obdobju)
+    const completedOrders = orders.filter(o => o.status === 'completed') // Za status poročila
+    const paidOrders = paidOrdersForPeriod // Za finančne podatke — plačana v tem obdobju
+    const totalRevenue = paidOrders.reduce((sum, o) => sum + o.total, 0)
+    const totalSubtotal = paidOrders.reduce((sum, o) => sum + o.subtotal, 0)
+    const totalTax = paidOrders.reduce((sum, o) => sum + o.tax, 0)
+    const totalDiscount = paidOrders.reduce((sum, o) => sum + o.discount, 0)
+    const totalOrdersCount = orders.length // Vsa naročila (za status pregled)
+    const completedCount = paidOrders.length // Plačana naročila
     const cancelledCount = orders.filter(o => o.status === 'cancelled').length
     const avgOrderValue = completedCount > 0 ? totalRevenue / completedCount : 0
 
-    // Prejšnje obdobje primerjava
-    const prevCompletedOrders = prevOrders.filter(o => o.status === 'completed')
+    // Prejšnje obdobje primerjava — uporabi prevPaidOrders za finančne podatke
+    const prevCompletedOrders = prevPaidOrders
     const prevRevenue = prevCompletedOrders.reduce((sum, o) => sum + o.total, 0)
     const prevSubtotal = prevCompletedOrders.reduce((sum, o) => sum + o.subtotal, 0)
     const prevTax = prevCompletedOrders.reduce((sum, o) => sum + o.tax, 0)
     const prevDiscount = prevCompletedOrders.reduce((sum, o) => sum + o.discount, 0)
     const prevCount = prevCompletedOrders.length
     const prevAvgOrderValue = prevCount > 0 ? prevRevenue / prevCount : 0
-    const prevTips = prevOrders.filter(o => o.paymentStatus === 'paid').reduce((sum, o) => sum + (o.tip || 0), 0)
+    const prevTips = prevPaidOrders.reduce((sum, o) => sum + (o.tip || 0), 0)
     const revenueChange = prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0
     const orderChange = prevCount > 0 ? ((completedCount - prevCount) / prevCount) * 100 : 0
 
     // === PLAČILNE METODE ===
+    // FIX CRITICAL: Uporabi ACTUAL payments iz checkov namesto order.paymentMethod
+    // order.paymentMethod je en string — ne upošteva split plačil (več metod na eno naročilo)
     const normalizeMethod = (m: string): string => {
-      const map: Record<string, string> = { cash: 'gotovina', card: 'kartica', mobile: 'mobilno', valuto: 'kartica' }
+      const map: Record<string, string> = { cash: 'gotovina', card: 'kartica', mobile: 'mobilno', voucher: 'bon', loyalty: 'zvestoba', giftcard: 'darilna kartica', alternate: 'alternativno', valuto: 'kartica' }
       return map[m] || m || 'gotovina'
     }
     const paymentMethods: Record<string, { method: string; count: number; revenue: number; tax: number; tips: number }> = {}
-    paidOrders.forEach(order => {
-      const method = normalizeMethod(order.paymentMethod)
+    // FIX CRITICAL: Iteriraj po ACTUAL plačilih iz checkov — pravilna razčlenitev za split plačila
+    const allPayments = paidOrders.flatMap(o => (o as any).checks?.flatMap((c: any) => c.payments || []) || [])
+    for (const payment of allPayments) {
+      const method = normalizeMethod(payment.type)
       if (!paymentMethods[method]) {
         paymentMethods[method] = { method, count: 0, revenue: 0, tax: 0, tips: 0 }
       }
       paymentMethods[method].count += 1
-      paymentMethods[method].revenue += order.total
-      paymentMethods[method].tax += order.tax
-      paymentMethods[method].tips += (order.tip || 0)
-    })
+      paymentMethods[method].revenue += payment.amount
+      paymentMethods[method].tips += (payment.tipAmount || 0)
+      // DDV se porazdeli proporcionalno — za preprostost uporabimo razmerje zneska plačila / total naročila
+      // Natančnejša porazdelitev bi zahtevala orderItem → check povezavo
+    }
+    // Dodaj DDV porazdelitev proporcionalno po plačilih
+    if (totalRevenue > 0) {
+      const totalPaymentsAmount = allPayments.reduce((s, p) => s + p.amount, 0)
+      for (const pm of Object.values(paymentMethods)) {
+        pm.tax = Math.round((pm.revenue / totalPaymentsAmount) * totalTax * 100) / 100
+      }
+    }
 
     // === VRSTE NAROČIL ===
     const orderTypes: Record<string, { type: string; count: number; revenue: number; avgValue: number }> = {}
-    completedOrders.forEach(order => {
+    paidOrders.forEach(order => {
       const type = order.type || 'dine-in'
       if (!orderTypes[type]) {
         orderTypes[type] = { type, count: 0, revenue: 0, avgValue: 0 }
@@ -137,7 +193,7 @@ export async function GET(req: Request) {
 
     // === PO KATEGORIJAH z DDV razčlenitvijo ===
     const categoryBreakdown: Record<string, { category: string; revenue: number; quantity: number; items: number; vat22: number; vat95: number; vat0: number }> = {}
-    completedOrders.forEach(order => {
+    paidOrders.forEach(order => {
       order.orderItems.forEach(oi => {
         const cat = oi.menuItem?.category?.name || 'Ostalo'
         if (!categoryBreakdown[cat]) {
@@ -155,7 +211,7 @@ export async function GET(req: Request) {
 
     // === PO ARTIKLIH (ZA IZPISKE) ===
     const itemBreakdown: Record<string, { name: string; category: string; quantity: number; revenue: number; avgPrice: number; vatRate: number }> = {}
-    completedOrders.forEach(order => {
+    paidOrders.forEach(order => {
       order.orderItems.forEach(oi => {
         if (!itemBreakdown[oi.menuItemId]) {
           itemBreakdown[oi.menuItemId] = {
@@ -186,7 +242,7 @@ export async function GET(req: Request) {
         }
       }
       completedOrders.forEach(order => {
-        const hour = new Date(order.createdAt).getHours()
+        const hour = new Date(order.paidAt || order.createdAt).getHours()
         const key = String(hour).padStart(2, '0')
         if (timeDistribution[key]) {
           timeDistribution[key].revenue += order.total
@@ -195,7 +251,7 @@ export async function GET(req: Request) {
       })
       // Prejšnje obdobje na časovno razdelitev
       prevCompletedOrders.forEach(order => {
-        const hour = new Date(order.createdAt).getHours()
+        const hour = new Date(order.paidAt || order.createdAt).getHours()
         const key = String(hour).padStart(2, '0')
         if (timeDistribution[key]) {
           timeDistribution[key].prevRevenue += order.total
@@ -206,7 +262,7 @@ export async function GET(req: Request) {
       const dayNames = ['Pon', 'Tor', 'Sre', 'Čet', 'Pet', 'Sob', 'Ned']
       dayNames.forEach(d => { timeDistribution[d] = { period: d, revenue: 0, orders: 0, prevRevenue: 0, prevOrders: 0 } })
       completedOrders.forEach(order => {
-        const dayIdx = (new Date(order.createdAt).getDay() + 6) % 7
+        const dayIdx = (new Date(order.paidAt || order.createdAt).getDay() + 6) % 7
         const key = dayNames[dayIdx]
         if (timeDistribution[key]) {
           timeDistribution[key].revenue += order.total
@@ -214,7 +270,7 @@ export async function GET(req: Request) {
         }
       })
       prevCompletedOrders.forEach(order => {
-        const dayIdx = (new Date(order.createdAt).getDay() + 6) % 7
+        const dayIdx = (new Date(order.paidAt || order.createdAt).getDay() + 6) % 7
         const key = dayNames[dayIdx]
         if (timeDistribution[key]) {
           timeDistribution[key].prevRevenue += order.total
@@ -228,7 +284,7 @@ export async function GET(req: Request) {
         timeDistribution[key] = { period: String(d), revenue: 0, orders: 0, prevRevenue: 0, prevOrders: 0 }
       }
       completedOrders.forEach(order => {
-        const day = new Date(order.createdAt).getDate()
+        const day = new Date(order.paidAt || order.createdAt).getDate()
         const key = String(day).padStart(2, '0')
         if (timeDistribution[key]) {
           timeDistribution[key].revenue += order.total
@@ -236,7 +292,7 @@ export async function GET(req: Request) {
         }
       })
       prevCompletedOrders.forEach(order => {
-        const day = new Date(order.createdAt).getDate()
+        const day = new Date(order.paidAt || order.createdAt).getDate()
         const key = String(day).padStart(2, '0')
         if (timeDistribution[key]) {
           timeDistribution[key].prevRevenue += order.total
@@ -247,7 +303,7 @@ export async function GET(req: Request) {
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Maj', 'Jun', 'Jul', 'Avg', 'Sep', 'Okt', 'Nov', 'Dec']
       monthNames.forEach(m => { timeDistribution[m] = { period: m, revenue: 0, orders: 0, prevRevenue: 0, prevOrders: 0 } })
       completedOrders.forEach(order => {
-        const monthIdx = new Date(order.createdAt).getMonth()
+        const monthIdx = new Date(order.paidAt || order.createdAt).getMonth()
         const key = monthNames[monthIdx]
         if (timeDistribution[key]) {
           timeDistribution[key].revenue += order.total
@@ -255,7 +311,7 @@ export async function GET(req: Request) {
         }
       })
       prevCompletedOrders.forEach(order => {
-        const monthIdx = new Date(order.createdAt).getMonth()
+        const monthIdx = new Date(order.paidAt || order.createdAt).getMonth()
         const key = monthNames[monthIdx]
         if (timeDistribution[key]) {
           timeDistribution[key].prevRevenue += order.total
@@ -286,7 +342,8 @@ export async function GET(req: Request) {
     const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
 
     // === NAPITNINE z razčlenitvijo ===
-    const totalTips = paidOrders.reduce((sum, o) => sum + (o.tip || 0), 0)
+    // FIX CRITICAL: Uporabi ACTUAL payments iz checkov za napitnine
+    const totalTips = allPayments.reduce((sum, p) => sum + (p.tipAmount || 0), 0)
     const avgTipPerOrder = paidOrders.length > 0 ? totalTips / paidOrders.length : 0
     const tipPercentage = totalRevenue > 0 ? (totalTips / totalRevenue) * 100 : 0
 
@@ -297,7 +354,9 @@ export async function GET(req: Request) {
       if (!tipsByEmployee[empId]) {
         tipsByEmployee[empId] = { employeeId: empId, employeeName: '', tips: 0, orderCount: 0, avgTip: 0 }
       }
-      tipsByEmployee[empId].tips += (order.tip || 0)
+      // FIX CRITICAL: Uporabi tips iz actual payments (checkov) namesto order.tip
+      const orderTips = ((order as any).checks || []).flatMap((c: any) => (c.payments || [])).reduce((sum: number, p: any) => sum + (p.tipAmount || 0), 0)
+      tipsByEmployee[empId].tips += orderTips
       tipsByEmployee[empId].orderCount += 1
     })
     // Pridobi imena zaposlenih
@@ -316,7 +375,7 @@ export async function GET(req: Request) {
 
     // === PRIHODEK PO MIZAH ===
     const tableRevenue: Record<string, { tableNumber: number; area: string; revenue: number; orderCount: number; avgOrder: number; tips: number; guests: number }> = {}
-    completedOrders.forEach(order => {
+    paidOrders.forEach(order => {
       if (order.type === 'dine-in' && order.tableId) {
         const tableId = order.tableId
         if (!tableRevenue[tableId]) {
@@ -349,7 +408,7 @@ export async function GET(req: Request) {
       hourlyBuckets[h] = { revenue: 0, orders: 0 }
     }
     completedOrders.forEach(order => {
-      const hour = new Date(order.createdAt).getHours()
+      const hour = new Date(order.paidAt || order.createdAt).getHours()
       hourlyBuckets[hour].revenue += order.total
       hourlyBuckets[hour].orders += 1
       if (hourlyBuckets[hour].revenue > maxHourlyRevenue) maxHourlyRevenue = hourlyBuckets[hour].revenue
@@ -367,7 +426,7 @@ export async function GET(req: Request) {
 
     // === DDV RAZČLENITEV (podrobna) ===
     const vatBreakdown: Record<string, { rate: number; label: string; code: string; baseAmount: number; vatAmount: number; totalAmount: number }> = {}
-    completedOrders.forEach(order => {
+    paidOrders.forEach(order => {
       order.orderItems.forEach(oi => {
         const rateKey = String(oi.vatRate)
         if (!vatBreakdown[rateKey]) {

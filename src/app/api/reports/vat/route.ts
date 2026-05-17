@@ -20,12 +20,14 @@ export async function GET(req: Request) {
     const period = searchParams.get('period') || 'monthly'
 
     // Obdobje
-    const where: Record<string, unknown> = { status: 'completed' }
+    // FIX CRITICAL: Za DDV poročilo uporabimo paymentStatus='paid' — neplačana naročila NE sodijo v DDV poročilo
+    const where: Record<string, unknown> = { paymentStatus: 'paid' }
     if (startDate || endDate) {
-      const createdAt: Record<string, Date> = {}
-      if (startDate) createdAt.gte = new Date(startDate)
-      if (endDate) createdAt.lte = new Date(endDate)
-      where.createdAt = createdAt
+      const paidAt: Record<string, Date> = {}
+      if (startDate) paidAt.gte = new Date(startDate)
+      if (endDate) paidAt.lte = new Date(endDate)
+      // FIX CRITICAL: Uporabi paidAt za finančno/DDV poročilo namesto createdAt
+      where.paidAt = paidAt
     }
 
     const orders = await db.order.findMany({

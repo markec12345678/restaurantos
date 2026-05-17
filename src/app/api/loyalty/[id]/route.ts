@@ -41,7 +41,10 @@ export async function PUT(
           // FIX HIGH: Atomic increment za pridobivanje točk — prepreči race condition
           updateData.pointsBalance = { increment: diff }
           // Posodobi tudi lifetimePoints — atomsko
-          updateData.lifetimePoints = { increment: diff }
+          // FIX BUG: Ne prepiši lifetimePoints, če je tudi data.lifetimePoints podan
+          if (data.lifetimePoints === undefined) {
+            updateData.lifetimePoints = { increment: diff }
+          }
         } else if (diff < 0) {
           // FIX HIGH: Atomic decrement za unovčevanje — prepreči race condition
           updateData.pointsBalance = { decrement: Math.abs(diff) }
@@ -50,7 +53,8 @@ export async function PUT(
         // diff === 0: ni spremembe, ne nastavljaj
       }
 
-      if (data.lifetimePoints !== undefined) {
+      // FIX BUG: lifetimePoints naj se nastavi SAMO če ni že nastavljen preko pointsBalance logike
+      if (data.lifetimePoints !== undefined && !updateData.lifetimePoints) {
         updateData.lifetimePoints = Math.max(0, data.lifetimePoints)
       }
 
