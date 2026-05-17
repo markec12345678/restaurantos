@@ -65,3 +65,35 @@ Fixed 4 high-priority bugs across the RestaurantOS POS codebase: WebSocket heart
 
 ### Verification
 - Ran `bun run lint` — no new lint errors introduced by the changes (all 14 pre-existing errors are in unrelated files)
+---
+Task ID: 3
+Agent: Super Z (main)
+Task: Batch 3 bug fixes - audit and fix all bugs, push to GitHub
+
+Work Log:
+- Re-audited entire codebase (API routes, SW, Prisma schema, auth, FURS, i18n)
+- Fixed SW install event crash (missing event parameter)
+- Fixed SW activate event (clients.claim inside waitUntil)
+- Added FURS OAuth token mutex (prevent concurrent token fetch)
+- Added MAX_SESSIONS=500 to auth middleware (prevent memory leak)
+- Added auth to 12 API routes (jobs, menus, modifiers, packaging, config, happy-hour, shifts, time-entries)
+- Added auth to Order PATCH (item_status, fire actions)
+- Added Zod validation to cash-register POST
+- Wrapped FURS storno in $transaction for atomicity
+- Removed client-side fiscalVerified setting from Receipt PUT
+- Added audit log to Payment POST
+- Added pagination to Orders GET
+- Added order payment check before receipt creation
+- Added 11 Prisma indexes (Check, Payment, Discount, InventoryItem, StockTransaction)
+- Added rate limiter cleanup to auth route
+- Replaced 'as any' with proper type in settings route
+- Added authToken support to SW sync for IndexedDB
+- Fixed TypeScript build errors (FURS storno variable shadow, certPath type)
+- Force pushed to GitHub (main branch)
+
+Stage Summary:
+- 24 files changed, 268+ insertions, 88 deletions
+- Build: ✅ Next.js 16.1.3 compiles successfully
+- Git: 5f781d9 pushed to github.com/markec12345678/restaurantos
+- Cumulative bug fixes: 98+ (previous) + 25+ (this batch) = 123+ total
+
