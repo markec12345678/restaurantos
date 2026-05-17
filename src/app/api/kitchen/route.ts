@@ -11,7 +11,8 @@ export async function GET(req: Request) {
 
     // FIX MEDIUM: Paginacija za KDS — prepreči nalaganje preveč naročil
     const { searchParams } = new URL(req.url)
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200)
+    const rawLimit = parseInt(searchParams.get('limit') || '50')
+    const limit = Math.min(Number.isNaN(rawLimit) ? 50 : rawLimit, 200)
 
     const orders = await db.order.findMany({
       where: {

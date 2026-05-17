@@ -16,8 +16,11 @@ export async function GET(req: Request) {
     const userId = searchParams.get('userId')
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
-    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 1000)
-    const offset = parseInt(searchParams.get('offset') || '0')
+    // FIX: Varno parsanje z NaN fallback
+    const rawLimit = parseInt(searchParams.get('limit') || '100')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
+    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 1000)
+    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
 
     const where: Record<string, unknown> = {}
     if (action) where.action = action

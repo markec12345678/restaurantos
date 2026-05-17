@@ -146,7 +146,8 @@ export async function POST(req: Request) {
       }
 
       const adjustedBase = item.itemBase - itemDiscount
-      const adjustedVat = adjustedBase * (item.vatRate / 100)
+      // FIX BUG: Zaokroži vatAmount na 2 decimalni mesti — prepreči float napake v valuti
+      const adjustedVat = Math.round(adjustedBase * (item.vatRate / 100) * 100) / 100
 
       return {
         menuItemId: item.menuItemId,

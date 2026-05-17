@@ -96,7 +96,10 @@ export async function POST(req: Request) {
     }
 
     // FIX H-03: Popust ne more preseči vmesne vsote
+    // FIX BUG: Preveri veljavnost popusta OUTSIDE tx (za hitro zavrnitev),
+    // vendar NE povečuj currentUses tukaj — to naredi SAMO znotraj $transaction!
     let discount = 0
+    let discountIdForTx: string | null = null
     if (data.appliedDiscountId) {
       const discountObj = await db.discount.findUnique({ where: { id: data.appliedDiscountId } })
       if (discountObj) {
@@ -121,8 +124,9 @@ export async function POST(req: Request) {
           discount = discountObj.amount
         }
         discount = Math.min(discount, subtotal)
+        discountIdForTx = discountObj.id
 
-        // Popust posodobljen atomarno znotraj $transaction spodaj
+        // Popust currentUses se posodobi SAMO znotraj $transaction spodaj — prepreči double increment
       }
     }
 
@@ -131,8 +135,10 @@ export async function POST(req: Request) {
     // FIX: Ustvari ček IN poveži OrderItem-e v eni transakciji — prepreči delno stanje
     const check = await db.$transaction(async (tx) => {
       // Atomarna posodobitev popusta: prepreči race condition na maxUses
-      if (data.appliedDiscountId) {
-        const discountObj = await tx.discount.findUnique({ where: { id: data.appliedDiscountId } })
+      // FIX BUG: Uporabi discountIdForTx (nastavljen zunaj tx) namesto data.appliedDiscountId
+      // da se izognemo double increment — preverjanje je bilo že narejeno zunaj tx
+      if (discountIdForTx) {
+        const discountObj = await tx.discount.findUnique({ where: { id: discountIdForTx } })
         if (discountObj) {
           if (discountObj.maxUses !== null) {
             const updated = await tx.discount.updateMany({

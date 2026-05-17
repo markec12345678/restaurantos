@@ -199,16 +199,40 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     // Izračunaj DDV razdelitev (strežniško — edini vir resnice)
-    // FIX MEDIUM: Izključi voidane artikle iz DDV razdelitve
-    const vatBreakdown: Record<string, { base: number; vat: number }> = {}
+    // FIX BUG: Porazdeli popust proporcionalno po DDV stopnjah — FURS skladno
+    // Brez tega je total narobe (subtotal + totalVat - discount ni enak vsoti itemov)
+    const totalDiscount = order.discount || 0
+    const vatBreakdownForReceipt: Record<string, { base: number; vat: number }> = {}
     for (const oi of order.orderItems.filter(item => !item.voided)) {
       const vatRate = oi.vatRate || oi.menuItem?.vatRate || 22.0
       const rate = String(vatRate)
+      // Uporabi že izračunani vatAmount (ki upošteva popust) če obstaja, sicer izračunaj
       const base = oi.price * oi.quantity
-      const vat = base * (vatRate / 100)
-      if (!vatBreakdown[rate]) vatBreakdown[rate] = { base: 0, vat: 0 }
-      vatBreakdown[rate].base += base
-      vatBreakdown[rate].vat += vat
+      const vat = oi.vatAmount || (base * (vatRate / 100))
+      if (!vatBreakdownForReceipt[rate]) vatBreakdownForReceipt[rate] = { base: 0, vat: 0 }
+      vatBreakdownForReceipt[rate].base += base
+      vatBreakdownForReceipt[rate].vat += vat
+    }
+
+    // Porazdeli popust po DDV stopnjah (proporcionalno)
+    if (totalDiscount > 0) {
+      const totalBase = Object.values(vatBreakdownForReceipt).reduce((s, d) => s + d.base, 0)
+      let discountDistributed = 0
+      for (const [rate, data] of Object.entries(vatBreakdownForReceipt)) {
+        const isLast = rate === Object.keys(vatBreakdownForReceipt).at(-1)
+        let rateDiscount: number
+        if (isLast) {
+          rateDiscount = Math.round((totalDiscount - discountDistributed) * 100) / 100
+        } else if (totalBase > 0) {
+          rateDiscount = Math.round((data.base / totalBase) * totalDiscount * 100) / 100
+        } else {
+          rateDiscount = 0
+        }
+        discountDistributed += rateDiscount
+        data.base -= rateDiscount
+        // Preračunaj DDV na novi osnovi
+        data.vat = Math.round(data.base * (parseFloat(rate) / 100) * 100) / 100
+      }
     }
 
     // Atomna sekvenčna številka računa
@@ -230,7 +254,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         eor: '',
         fiscalVerified: false,
         subtotal: order.subtotal,
-        vatBreakdown: JSON.stringify(vatBreakdown),
+        vatBreakdown: JSON.stringify(vatBreakdownForReceipt),
         totalVat: order.tax,
         discount: order.discount,
         total: order.total,

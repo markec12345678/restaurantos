@@ -86,15 +86,10 @@ export function StornoDialog({ order, open, onClose, onStornoComplete }: StornoD
       const fursResult = await fursRes.json()
       if (!fursRes.ok) throw new Error(fursResult.error || 'Napaka pri storniranju')
 
-      // 2. Posodobi naročilo — označi kot preklicano z razlogom
-      const orderRes = await authFetch(`/api/orders/${order.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          status: 'cancelled',
-          cancelReason: `STORNO: ${reasonText}`,
-        }),
-      })
-      if (!orderRes.ok) throw new Error('Napaka pri posodobitvi naročila')
+      // FIX: FURS PUT /api/furs že posodobi naročilo (status:cancelled, stock:returned)
+      // znotraj transakcije — NE pošiljaj še enega PUT na /api/orders, ker bi to
+      // povzročilo double stock return in double table release!
+      // Če FURS storno ni uspel (npr. brez certifikata), posodobi naročilo ročno
 
       return fursResult
     },

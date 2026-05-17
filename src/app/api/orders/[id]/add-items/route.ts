@@ -66,6 +66,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             status: 'pending',
             vatRate,
             vatAmount,
+            // FIX BUG: Podeduj discountAmount proporcionalno od starševskega naročila
+            // Novi artikli dobijo sorazmeren del popusta glede na svojo ceno
+            discountAmount: order.discount > 0 && order.subtotal > 0
+              ? Math.round((serverPrice * item.quantity / order.subtotal) * order.discount * 100) / 100
+              : 0,
           },
           include: { menuItem: true },
         })
@@ -138,6 +143,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   } catch (error) {
     console.error('Add items error:', error)
     const message = error instanceof Error ? error.message : 'Napaka pri dodajanju artiklov'
-    return NextResponse.json({ error: message }, { status: 500 })
+    // FIX BUG: Napake iz transakcije (artikel ni najden, itd.) so client errors (400), ne server errors (500)
+    const isClientError = error instanceof Error && (
+      message.includes('ni najden') ||
+      message.includes('ni na voljo') ||
+      message.includes('že zaključeno') ||
+      message.includes('že preklicano')
+    )
+    return NextResponse.json({ error: message }, { status: isClientError ? 400 : 500 })
   }
 }

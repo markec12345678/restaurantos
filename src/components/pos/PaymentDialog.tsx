@@ -144,7 +144,7 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
           alternatePaymentTypeId: paymentMethod === 'alternate' ? selectedAltPayment : null,
           giftCardId: paymentMethod === 'giftcard' ? selectedGiftCardId : null,
           loyaltyAccountId: paymentMethod === 'loyalty' ? selectedLoyaltyId : null,
-          status: 'completed',
+          // FIX: status se nastavi strežniško — client ne sme pošiljati statusa
         }),
       })
       if (!paymentRes.ok) throw new Error('Napaka pri ustvarjanju plačila')
@@ -318,7 +318,7 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
             amount: payments[i].amount,
             tipAmount: payments[i].tipPortion,
             type: 'cash',
-            status: 'completed',
+            // FIX: status se nastavi strežniško — client ne sme pošiljati statusa
           }),
         })
         if (!paymentRes.ok) throw new Error(`Napaka pri ustvarjanju plačila ${i + 1}`)

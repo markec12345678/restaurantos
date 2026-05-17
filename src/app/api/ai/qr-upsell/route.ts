@@ -79,7 +79,12 @@ function getCategoryType(catName: string): string {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json()
+    // FIX: Omejitev velikosti body-ja — prepreči zlorabo z ogromnimi payloadi
+    const bodyText = await req.text()
+    if (bodyText.length > 10000) {
+      return NextResponse.json({ suggestions: [], error: 'Payload prevelik' }, { status: 400 })
+    }
+    const body = JSON.parse(bodyText)
     const { cartItems, hour }: { cartItems: CartItem[]; hour?: number } = body
 
     const currentHour = hour ?? new Date().getHours()

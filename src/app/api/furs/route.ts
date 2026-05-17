@@ -329,6 +329,15 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: 'Račun je že storniran' }, { status: 400 })
     }
 
+    // FIX BUG: Preveri, da naročilo NI že preklicano — prepreči double-storno
+    const existingOrder = await db.order.findUnique({ where: { id: orderId } })
+    if (existingOrder?.status === 'cancelled') {
+      return NextResponse.json({ error: 'Naročilo je že preklicano — storno ni mogoč' }, { status: 400 })
+    }
+    if (existingOrder?.paymentStatus === 'storno') {
+      return NextResponse.json({ error: 'Naročilo je že stornirano — storno ni mogoč' }, { status: 400 })
+    }
+
     const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
     // FIX: Preveri da so nastavitve na voljo PREDEN nadaljuješ s stornom
     if (!settings) {
