@@ -24,9 +24,11 @@ export async function GET(req: Request) {
     const date = searchParams.get('date') || ''
     const status = searchParams.get('status') || ''
     const upcoming = searchParams.get('upcoming') === 'true'
-    // FIX MEDIUM: Paginacija za rezervacije
-    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500)
-    const offset = parseInt(searchParams.get('offset') || '0')
+    // FIX MEDIUM: Paginacija za rezervacije z NaN varnostjo
+    const rawLimit = parseInt(searchParams.get('limit') || '100')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
+    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
+    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
 
     const where: Record<string, unknown> = {}
 
@@ -48,19 +50,22 @@ export async function GET(req: Request) {
       where.status = { in: ['confirmed', 'seated'] }
     }
 
-    const reservations = await db.reservation.findMany({
-      where,
-      include: {
-        table: { select: { id: true, number: true, capacity: true, area: true } },
-      },
-      orderBy: { dateTime: 'asc' },
-      take: limit,
-      skip: offset,
-    })
+    const [reservations, totalCount] = await Promise.all([
+      db.reservation.findMany({
+        where,
+        include: {
+          table: { select: { id: true, number: true, capacity: true, area: true } },
+        },
+        orderBy: { dateTime: 'asc' },
+        take: limit,
+        skip: offset,
+      }),
+      db.reservation.count({ where }),
+    ])
 
-    // Povzetek
+    // FIX MEDIUM: Uporabi totalCount iz query-ja namesto reservations.length
     const summary = {
-      total: reservations.length,
+      total: totalCount,
       confirmed: reservations.filter(r => r.status === 'confirmed').length,
       seated: reservations.filter(r => r.status === 'seated').length,
       cancelled: reservations.filter(r => r.status === 'cancelled').length,

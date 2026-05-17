@@ -32,6 +32,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (data.minQuantity !== undefined) updateData.minQuantity = data.minQuantity
     if (data.supplier !== undefined) updateData.supplier = data.supplier
     if (data.category !== undefined) updateData.category = data.category
+    if (data.location !== undefined) updateData.location = data.location // FIX MEDIUM: Podpora za lokacijo
     if (data.expiryDate !== undefined) updateData.expiryDate = data.expiryDate ? new Date(data.expiryDate) : null
     if (data.menuItemId !== undefined) updateData.menuItemId = data.menuItemId || null
     if (data.servingSize !== undefined) updateData.servingSize = data.servingSize

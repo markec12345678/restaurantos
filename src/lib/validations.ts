@@ -247,6 +247,7 @@ export const createInventorySchema = z.object({
   costPerUnit: z.number().min(0).default(0),
   supplier: z.string().max(200).default(''),
   category: z.string().max(100).default('general'),
+  location: z.string().max(100).default('main'), // FIX MEDIUM: Dodana validacija za lokacijo
   servingsPerUnit: z.number().min(0).default(1),
   servingSize: z.string().max(50).default(''),
   menuItemId: z.string().nullable().optional(),
@@ -261,6 +262,7 @@ export const updateInventorySchema = z.object({
   costPerUnit: z.number().min(0).optional(),
   supplier: z.string().max(200).optional(),
   category: z.string().max(100).optional(),
+  location: z.string().max(100).optional(), // FIX MEDIUM: Dodana validacija za lokacijo
   servingsPerUnit: z.number().min(0).optional(),
   servingSize: z.string().max(50).optional(),
   menuItemId: z.string().nullable().optional(),

@@ -45,10 +45,14 @@ export async function POST(req: Request) {
 
     const totalCost = Math.abs(txQuantity) * item.costPerUnit
 
+    // FIX HIGH: Uporabi atomic operacijo namesto direktnega set — prepreči race condition
     const result = await db.$transaction(async (tx) => {
+      const delta = newQty - previousQty
       const updated = await tx.inventoryItem.update({
         where: { id: data.inventoryItemId },
-        data: { quantity: newQty },
+        data: delta >= 0
+          ? { quantity: { increment: delta } }
+          : { quantity: { decrement: Math.abs(delta) } },
         include: { menuItem: true },
       })
 
@@ -94,14 +98,22 @@ export async function PUT(req: Request) {
     // FIX: Batch operacije v ENI transakciji
     const results = await db.$transaction(async (tx) => {
       const processed: { updated: any; transaction: any }[] = []
+      const skipped: { inventoryItemId: string; reason: string }[] = []
 
       for (const entry of data.items) {
         const item = await tx.inventoryItem.findUnique({ where: { id: entry.inventoryItemId } })
-        if (!item) continue
+        if (!item) {
+          // FIX MEDIUM: Namesto tihega preskoka — zabeleži kateri artikli manjkajo
+          skipped.push({ inventoryItemId: entry.inventoryItemId, reason: 'Artikel ni najden' })
+          continue
+        }
 
         const previousQty = item.quantity
         const deductQty = entry.quantity
-        if (deductQty <= 0) continue
+        if (deductQty <= 0) {
+          skipped.push({ inventoryItemId: entry.inventoryItemId, reason: 'Količina mora biti pozitivna' })
+          continue
+        }
 
         const newQty = Math.max(0, previousQty - deductQty)
         const txQuantity = -deductQty
@@ -131,10 +143,10 @@ export async function PUT(req: Request) {
         processed.push({ updated, transaction })
       }
 
-      return processed
+      return { processed, skipped }
     })
 
-    return NextResponse.json({ processed: results.length, results })
+    return NextResponse.json({ processed: results.processed.length, results: results.processed, skipped: results.skipped })
   } catch (error) {
     console.error('Batch adjust error:', error)
     return NextResponse.json({ error: 'Napaka pri batch razknjižbi' }, { status: 500 })

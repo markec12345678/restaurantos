@@ -234,6 +234,38 @@ export async function POST(req: Request) {
         })
       }
 
+      // FIX HIGH: Samodejno pridobi zvestobne točke ob plačilu — loyalty earn
+      if (data.loyaltyAccountId && data.type !== 'loyalty') {
+        const settings = await tx.restaurantSettings.findFirst({ where: { isActive: true } })
+        if (settings?.loyaltyEnabled) {
+          const pointsPerEuro = settings.loyaltyPointsPerEuro || 1
+          // Točke se računajo po znesku plačila (brez napitnine)
+          const earnBase = data.amount - (data.tipAmount || 0)
+          const pointsToEarn = Math.max(0, Math.floor(earnBase * pointsPerEuro))
+          if (pointsToEarn > 0) {
+            // Atomic increment — prepreči race condition
+            await tx.loyaltyAccount.updateMany({
+              where: { id: data.loyaltyAccountId, isActive: true },
+              data: {
+                pointsBalance: { increment: pointsToEarn },
+                lifetimePoints: { increment: pointsToEarn },
+              },
+            })
+            await tx.loyaltyTransaction.create({
+              data: {
+                loyaltyAccountId: data.loyaltyAccountId,
+                type: 'earn',
+                points: pointsToEarn,
+                reason: `Točke za plačilo ${data.amount.toFixed(2)} EUR`,
+                orderId: check.orderId || null,
+                checkId: data.checkId,
+                monetaryValue: earnBase,
+              },
+            })
+          }
+        }
+      }
+
       return payment
     })
 

@@ -18,18 +18,29 @@ export async function GET(req: Request) {
     if (orderId) where.orderId = orderId
     if (paymentStatus) where.paymentStatus = paymentStatus
 
-    const checks = await db.check.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        order: { select: { id: true, orderNumber: true, customerName: true } },
-        orderItems: { include: { menuItem: { select: { id: true, name: true } } } },
-        payments: true,
-        appliedDiscount: true,
-      },
-    })
+    // FIX HIGH: Paginacija za čeke — prepreči nalaganje tisočih zapisov
+    const rawLimit = parseInt(searchParams.get('limit') || '100')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
+    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
+    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
 
-    return NextResponse.json(checks)
+    const [checks, total] = await Promise.all([
+      db.check.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        include: {
+          order: { select: { id: true, orderNumber: true, customerName: true } },
+          orderItems: { include: { menuItem: { select: { id: true, name: true } } } },
+          payments: true,
+          appliedDiscount: true,
+        },
+      }),
+      db.check.count({ where }),
+    ])
+
+    return NextResponse.json({ checks, total, limit, offset })
   } catch (error) {
     console.error('Napaka pri pridobivanju čekov:', error)
     return NextResponse.json({ error: 'Napaka pri pridobivanju čekov' }, { status: 500 })

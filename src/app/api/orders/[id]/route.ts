@@ -203,6 +203,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       if (!order) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
       if (order.status === 'cancelled') return NextResponse.json({ error: 'Preklicano naročilo ni mogoče spreminjati' }, { status: 400 })
 
+      // FIX HIGH: Preveri, da OrderItem pripada temu naročilu — prepreči cross-order manipulacijo
+      const orderItem = await db.orderItem.findUnique({ where: { id: itemId } })
+      if (!orderItem || orderItem.orderId !== id) {
+        return NextResponse.json({ error: 'Artikel ne pripada temu naročilu' }, { status: 400 })
+      }
+
       await db.orderItem.update({ where: { id: itemId }, data: { status } })
 
       const updatedItem = await db.orderItem.findUnique({ where: { id: itemId }, include: { menuItem: { select: { name: true } } } })

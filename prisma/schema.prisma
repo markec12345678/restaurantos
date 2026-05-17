@@ -853,6 +853,7 @@ model GiftCard {
   updatedAt       DateTime @updatedAt
 
   @@index([expiresAt])
+  @@index([status])
 }
 
 model GiftCardTransaction {
@@ -1143,7 +1144,7 @@ model PurchaseOrder {
   id              String   @id @default(cuid())
   poNumber        String   @unique              // "ND-2026-000001"
   supplierId      String
-  supplier        Supplier @relation(fields: [supplierId], references: [id])
+  supplier        Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   // --- Status ---
   status          String   @default("draft")    // draft, sent, confirmed, partial, received, cancelled
   // --- Datumi ---
@@ -1298,7 +1299,7 @@ model HappyHourSchedule {
   description     String   @default("")
   // --- Povezava s cenikom ---
   priceGroupId    String   // Kateri cenik se aktivira
-  priceGroup      PriceGroup @relation(fields: [priceGroupId], references: [id])
+  priceGroup      PriceGroup @relation(fields: [priceGroupId], references: [id], onDelete: Cascade)
   // --- Popust (alternativno — brez menjave cenika) ---
   discountType    String   @default("none") // none, percentage, fixed_amount
   discountAmount  Float    @default(0)      // Odstotek ali znesek
@@ -1317,4 +1318,7 @@ model HappyHourSchedule {
   autoActivate    Boolean  @default(true)  // Samodejno aktiviraj ob času
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([priceGroupId])
 }

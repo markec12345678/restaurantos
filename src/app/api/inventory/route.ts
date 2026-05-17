@@ -180,6 +180,7 @@ export async function POST(req: Request) {
         costPerUnit: data.costPerUnit,
         supplier: data.supplier,
         category: data.category,
+        location: data.location, // FIX MEDIUM: Podpora za lokacijo/skladišče
         expiryDate: null,
         servingsPerUnit: data.servingsPerUnit,
         servingSize: data.servingSize,
