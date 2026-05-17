@@ -36,6 +36,13 @@ export async function PUT(
       if (data.pointsBalance !== undefined) {
         const newPoints = Math.max(0, data.pointsBalance)
         updateData.pointsBalance = newPoints
+        // FIX MEDIUM: Ko se točke povečajo, posodobi tudi lifetimePoints
+        if (newPoints > existing.pointsBalance) {
+          const earnedPoints = newPoints - existing.pointsBalance
+          updateData.lifetimePoints = (data.lifetimePoints !== undefined 
+            ? Math.max(0, data.lifetimePoints) 
+            : existing.lifetimePoints) + earnedPoints
+        }
       }
 
       if (data.lifetimePoints !== undefined) {

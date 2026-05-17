@@ -126,28 +126,10 @@ export async function POST(req: Request) {
         }
 
         if (giftCard.balance < data.amount) {
-          // Zmanjšaj plačilo na razpoložljivo stanje
-          const partialAmount = giftCard.balance
-          await tx.payment.update({
-            where: { id: payment.id },
-            data: { amount: partialAmount },
-          })
-          // Atomic decrement: set balance to 0
-          await tx.giftCard.update({
-            where: { id: data.giftCardId },
-            data: { balance: 0, status: 'depleted' },
-          })
-          await tx.giftCardTransaction.create({
-            data: {
-              giftCardId: data.giftCardId,
-              type: 'redeem',
-              amount: -partialAmount,
-              balanceAfter: 0,
-              orderId: check.orderId || null,
-              checkId: data.checkId,
-              note: `Plačilo - celotno stanje kartice`,
-            },
-          })
+          // FIX CRITICAL: Kartica nima dovolj sredstev za celoten znesek plačila.
+          // Zavrnemo plačilo — klient mora poslati pravilen znesek (<= balance).
+          // Delno plačilo z darilno kartico zahteva ločen POST z zneskom <= balance.
+          throw new Error(`Stanje darilne kartice (${giftCard.balance.toFixed(2)} EUR) ni zadostno za plačilo ${data.amount.toFixed(2)} EUR. Posljite plačilo z zneskom ${giftCard.balance.toFixed(2)} EUR ali manj.`)
         } else {
           // Atomic decrement with balance check to prevent race conditions
           const updateResult = await tx.giftCard.updateMany({
@@ -231,6 +213,14 @@ export async function POST(req: Request) {
         await tx.check.update({
           where: { id: data.checkId },
           data: { paymentStatus: 'partial' },
+        })
+      }
+
+      // FIX MEDIUM: Povečaj currentUses counter za popust, če je uporabljen na čeku
+      if (check.appliedDiscountId) {
+        await tx.discount.update({
+          where: { id: check.appliedDiscountId },
+          data: { currentUses: { increment: 1 } },
         })
       }
 

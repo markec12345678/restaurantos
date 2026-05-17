@@ -81,7 +81,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       const totalTips = allPayments.reduce((sum, p) => sum + (p.tipAmount || 0), 0)
       const totalVoided = storno.reduce((sum, o) => sum + Math.abs(o.total), 0)
       const totalOrders = paid.length
-      const expectedCash = shift.startingCash + cashSales
+      // FIX MEDIUM: Gotovinske napitnine se prištejejo k pričakovani gotovini
+      const cashTips = allPayments.filter(p => p.type === 'cash').reduce((sum, p) => sum + (p.tipAmount || 0), 0)
+      const expectedCash = shift.startingCash + cashSales + cashTips
       const closingCash = data.closingCash ?? expectedCash
       const cashDifference = closingCash - expectedCash
 

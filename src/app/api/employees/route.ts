@@ -9,16 +9,37 @@ export async function GET(req: Request) {
     // FIX C-07: Zahtevaj avtentikacijo za seznam zaposlenih
     const authResult = await requireAuth(req, { permission: 'manage_employees' })
     if (authResult.error) return authResult.error
-    const employees = await db.employee.findMany({
-      orderBy: { name: 'asc' },
-      include: { shifts: true, jobs: { include: { job: true } } },
-    })
+
+    const { searchParams } = new URL(req.url)
+    const role = searchParams.get('role')
+    const status = searchParams.get('status')
+
+    // FIX HIGH: Paginacija za zaposlene — prepreči nalaganje vseh zaposlenih z relacijami
+    const rawLimit = parseInt(searchParams.get('limit') || '100')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
+    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
+    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
+
+    const where: Record<string, unknown> = {}
+    if (role) where.role = role
+    if (status) where.status = status
+
+    const [employees, total] = await Promise.all([
+      db.employee.findMany({
+        where,
+        orderBy: { name: 'asc' },
+        take: limit,
+        skip: offset,
+        include: { shifts: true, jobs: { include: { job: true } } },
+      }),
+      db.employee.count({ where }),
+    ])
     // FIX C-06: Nikoli ne vračaj PIN-ov v odgovoru
     const safeEmployees = employees.map(emp => ({
       ...emp,
       pin: emp.pin ? '****' : '',
     }))
-    return NextResponse.json(safeEmployees)
+    return NextResponse.json({ employees: safeEmployees, total, limit, offset })
   } catch (error) {
     console.error('Napaka pri pridobivanju zaposlenih:', error)
     return NextResponse.json({ error: 'Napaka pri pridobivanju zaposlenih' }, { status: 500 })

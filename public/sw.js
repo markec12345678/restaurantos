@@ -45,9 +45,12 @@ const NO_CACHE_API_PATTERNS = [
   /\/api\/furs/,
   /\/api\/print/,
   /\/api\/payments/,
-  /\/api\/cash-register\/(open|close)/,
+  /\/api\/cash-register/,  // FIX HIGH: Ujame POST /api/cash-register (odpiranje) in PUT /api/cash-register/[id] (zapiranje)
   /\/api\/inventory\/restock/,
   /\/api\/inventory\/transactions/,
+  /\/api\/inventory\/adjust/,
+  /\/api\/auth/,
+  /\/api\/seed/,
 ]
 
 // ============================================
@@ -381,33 +384,37 @@ function idbRequestToPromise(request) {
 
 /**
  * Osveži API cache v ozadju
- * FIX: Omejitev na največ 50 vnosov in timeout 30s — prepreči timeout sinhronizacije
+ * FIX LOW: Paralelno osveževanje z omejitvijo konkurenčnosti — prepreči timeout
  */
 async function refreshApiCache() {
   const cache = await caches.open(API_CACHE)
   const keys = await cache.keys()
 
-  // FIX: Omeji na prvih 50 vnosov — prepreči timeout pri velikem številu cache vnosov
+  // Omeji na prvih 50 vnosov
   const keysToRefresh = keys.slice(0, 50)
 
-  for (const request of keysToRefresh) {
-    try {
-      const response = await fetch(request)
-      if (response.ok) {
-        const headers = new Headers(response.headers)
-        headers.set('sw-cache-timestamp', Date.now().toString())
-        // FIX: Ni potrebe po clone() — response se ne porabi več
-        const body = await response.blob()
-        const cachedResponse = new Response(body, {
-          status: response.status,
-          statusText: response.statusText,
-          headers,
-        })
-        await cache.put(request, cachedResponse)
+  // FIX LOW: Paralelno osveževanje z batchi po 5 — prepreči timeout in preobremenitev
+  const BATCH_SIZE = 5
+  for (let i = 0; i < keysToRefresh.length; i += BATCH_SIZE) {
+    const batch = keysToRefresh.slice(i, i + BATCH_SIZE)
+    await Promise.allSettled(batch.map(async (request) => {
+      try {
+        const response = await fetch(request)
+        if (response.ok) {
+          const headers = new Headers(response.headers)
+          headers.set('sw-cache-timestamp', Date.now().toString())
+          const body = await response.blob()
+          const cachedResponse = new Response(body, {
+            status: response.status,
+            statusText: response.statusText,
+            headers,
+          })
+          await cache.put(request, cachedResponse)
+        }
+      } catch {
+        // Napaka pri osveževanju — ohrani star cache
       }
-    } catch {
-      // Napaka pri osveževanju — ohrani star cache
-    }
+    }))
   }
 }
 

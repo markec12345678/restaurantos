@@ -87,14 +87,25 @@ export async function PUT(req: Request) {
         }
       })
     } else {
-      // FIX MEDIUM: Ne shrani praznega/maskiranega gesla ali poti — ohrani staro
+      // FIX MEDIUM: Ne shrani maskirane vrednosti — ohrani staro (razen če je _clear poslan)
       const updateData = { ...data }
-      if (updateData.fursCertPassword === '••••••' || updateData.fursCertPassword === '') {
+      if (updateData.fursCertPassword === '••••••') {
         delete updateData.fursCertPassword
       }
-      // FIX MEDIUM: Enako za fursCertPath — maskirana vrednost ne sme prepisati prave poti
-      if (updateData.fursCertPath === '••••••' || updateData.fursCertPath === '') {
+      // FIX HIGH: Omogoči počiščenje cert polj — prazen string z _clear flagom
+      if (updateData.fursCertPassword === '' && body._clearCertPassword === true) {
+        updateData.fursCertPassword = ''
+      } else if (updateData.fursCertPassword === '') {
+        delete updateData.fursCertPassword // Ohrani staro če ni ekspliciten _clear
+      }
+      if (updateData.fursCertPath === '••••••') {
         delete updateData.fursCertPath
+      }
+      // FIX HIGH: Omogoči počiščenje cert poti — prazen string z _clear flagom
+      if (updateData.fursCertPath === '' && body._clearCertPath === true) {
+        updateData.fursCertPath = ''
+      } else if (updateData.fursCertPath === '') {
+        delete updateData.fursCertPath // Ohrani staro če ni ekspliciten _clear
       }
 
       settings = await db.restaurantSettings.update({

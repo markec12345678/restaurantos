@@ -285,14 +285,18 @@ export async function POST(req: Request) {
     const alternateSales = allPayments.filter(p => ['voucher', 'loyalty', 'giftcard', 'alternate'].includes(p.type)).reduce((s, p) => s + p.amount, 0)
     const totalSales = allPayments.reduce((s, p) => s + p.amount, 0)
     const totalTips = allPayments.reduce((s, p) => s + (p.tipAmount || 0), 0)
+    // FIX MEDIUM: Gotovinske napitnine se prištejejo k pričakovani gotovini
+    const cashTips = allPayments.filter(p => p.type === 'cash').reduce((s, p) => s + (p.tipAmount || 0), 0)
     const totalDiscounts = completedOrders.reduce((s, o) => s + o.discount, 0)
     const voidedItems = await db.orderItem.aggregate({
       where: { voided: true, order: { createdAt: { gte: dayStart, lte: dayEnd } } },
       _sum: { price: true },
     })
 
-    const expectedCash = activeShift.startingCash + cashSales
+    const expectedCash = activeShift.startingCash + cashSales + cashTips
     const actualClosingCash = closingCash || expectedCash
+    // FIX MEDIUM: cashDifference mora upoštevati tip v gotovinskih plačilih
+    // cashTips se pravilno prištejejo k expectedCash zgoraj
     const cashDifference = actualClosingCash - expectedCash
 
     // Zapri izmeno

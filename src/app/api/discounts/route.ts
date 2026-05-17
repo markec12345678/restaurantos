@@ -74,6 +74,22 @@ export async function POST(req: Request) {
       )
     }
 
+    // FIX MEDIUM: Preveri veljavnost datumskega obdobja
+    if (data.validFrom && data.validTo && new Date(data.validFrom) >= new Date(data.validTo)) {
+      return NextResponse.json(
+        { error: 'Datum začetka mora biti pred datumom konca' },
+        { status: 400 }
+      )
+    }
+
+    // FIX MEDIUM: Preveri maxUses > 0
+    if (data.maxUses !== null && data.maxUses !== undefined && data.maxUses <= 0) {
+      return NextResponse.json(
+        { error: 'Največje število uporab mora biti pozitivno ali null' },
+        { status: 400 }
+      )
+    }
+
     const discount = await db.discount.create({
       data: {
         name: data.name,

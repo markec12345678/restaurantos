@@ -433,9 +433,10 @@ function buildFursRequest(
 
 function generateSimulatedEOR(zoi: string, date: Date): string {
   // FURS EOR je 36-mesten niz (UUID format)
-  // V testnem načinu generiramo determinističen EOR iz ZOI + timestamp
+  // FIX MEDIUM: Determinističen EOR — uporabi sekundno natančnost (ne ms) za konsistentnost
+  const dateStr = date.toISOString().replace(/\.\d{3}Z$/, 'Z') // Odstrani milisekunde
   const hash = crypto.createHash('sha256')
-    .update(zoi + date.toISOString())
+    .update(zoi + dateStr)
     .digest('hex')
   
   // Formatiraj kot UUID

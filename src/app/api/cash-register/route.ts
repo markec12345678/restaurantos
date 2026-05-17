@@ -36,6 +36,7 @@ export async function GET(req: Request) {
           discount: true,
           paymentMethod: true,
           paidAt: true,
+          tip: true,
         },
       })
 
@@ -46,7 +47,9 @@ export async function GET(req: Request) {
       const totalSales = paidOrders.reduce((sum, o) => sum + o.total, 0)
       const totalDiscounts = paidOrders.reduce((sum, o) => sum + o.discount, 0)
       const totalOrders = paidOrders.length
-      const expectedCash = activeShift.startingCash + cashSales
+      // FIX MEDIUM: Pričakovana gotovina vključuje tip (napitnina) v gotovinskih plačilih
+      const cashTips = paidOrders.filter(o => o.paymentMethod === 'cash').reduce((sum, o) => sum + (o.tip || 0), 0)
+      const expectedCash = activeShift.startingCash + cashSales + cashTips
 
       liveStats = {
         cashSales,

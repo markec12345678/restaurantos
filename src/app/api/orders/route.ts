@@ -117,31 +117,55 @@ export async function POST(req: Request) {
     )
 
     // Izračun z multi-DDV po stopnjah (strežniška stran — edini vir resnice)
+    // FIX MEDIUM: Popust proporcionalno zmanjša DDV baze po stopnjah (FURS skladno)
     let subtotal = 0
-    let totalTax = 0
-    const orderItemsData = data.orderItems.map(item => {
+    const rawItemsData = data.orderItems.map(item => {
       const mi = vatMap.get(item.menuItemId)!
       const vatRate = mi.vatRate
       const price = mi.price // FIX C-02: Strežniška cena iz baze — edini vir resnice
       const itemBase = price * item.quantity
-      const vatAmount = itemBase * (vatRate / 100)
       subtotal += itemBase
-      totalTax += vatAmount
-      return {
-        menuItemId: item.menuItemId,
-        quantity: item.quantity,
-        price,
-        vatRate,
-        vatAmount,
-        notes: item.notes,
-        modifiersJson: item.modifiersJson,
-        status: 'pending' as const,
-      }
+      return { menuItemId: item.menuItemId, quantity: item.quantity, price, vatRate, itemBase }
     })
 
     // FIX H-03: Popust ne more preseči vmesne vsote
     const discount = Math.min(data.discount || 0, subtotal)
-    const total = subtotal + totalTax - discount
+
+    // Porazdeli popust proporcionalno po artiklih
+    let discountDistributed = 0
+    const orderItemsData = rawItemsData.map((item, idx) => {
+      let itemDiscount = 0
+      if (discount > 0 && subtotal > 0) {
+        const remainingDiscount = discount - discountDistributed
+        if (idx === rawItemsData.length - 1) {
+          itemDiscount = remainingDiscount
+        } else {
+          itemDiscount = Math.round((item.itemBase / subtotal) * discount * 100) / 100
+        }
+        discountDistributed += itemDiscount
+      }
+
+      const adjustedBase = item.itemBase - itemDiscount
+      const adjustedVat = adjustedBase * (item.vatRate / 100)
+
+      return {
+        menuItemId: item.menuItemId,
+        quantity: item.quantity,
+        price: item.price,
+        vatRate: item.vatRate,
+        vatAmount: adjustedVat,
+        discountAmount: itemDiscount,
+        notes: data.orderItems[idx].notes,
+        modifiersJson: data.orderItems[idx].modifiersJson,
+        status: 'pending' as const,
+      }
+    })
+
+    // Ponovno izračunaj subtotale in davke z upoštevanjem popustov
+    subtotal = orderItemsData.reduce((sum, item) => sum + (item.price * item.quantity), 0)
+    const totalTax = orderItemsData.reduce((sum, item) => sum + item.vatAmount, 0)
+    const totalDiscountAmount = orderItemsData.reduce((sum, item) => sum + item.discountAmount, 0)
+    const total = subtotal + totalTax - totalDiscountAmount
 
     const order = await db.order.create({
       data: {
@@ -155,7 +179,7 @@ export async function POST(req: Request) {
         customerPhone: data.customerPhone,
         subtotal,
         tax: totalTax,
-        discount,
+        discount: totalDiscountAmount,
         total,
         tip: data.tip || 0,
         totalWithTip: total + (data.tip || 0),

@@ -34,9 +34,15 @@ export async function PUT(
       // Če se stanje spreminja, uporabi varno posodobitev
       if (data.balance !== undefined) {
         const newBalance = Math.max(0, data.balance)
-        updateData.balance = newBalance
-        if (newBalance <= 0) {
+        // FIX MEDIUM: Stanje ne sme preseči začetne vrednosti kartice
+        const maxBalance = existing.initialBalance || existing.balance
+        const safeBalance = Math.min(newBalance, maxBalance)
+        updateData.balance = safeBalance
+        if (safeBalance <= 0) {
           updateData.status = 'depleted'
+        } else if (existing.status === 'depleted' && safeBalance > 0) {
+          // Če se kartica ponovno naloži, spremeni status nazaj na active
+          updateData.status = 'active'
         }
       }
 

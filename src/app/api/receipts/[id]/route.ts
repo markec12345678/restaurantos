@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { getNextReceiptNumber } from '@/lib/counters'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, createReceiptSchema } from '@/lib/validations'
+import crypto from 'crypto'
 
 // GET /api/receipts/[id] — Generiraj račun s predogledom (ZDDV-1 skladen)
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -277,10 +278,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 // Placeholder ZOI generator (pravi ZOI potrebuje FURS certifikat in digitalni podpis)
-// FIX CRITICAL: Determinističen ZOI placeholder — Math.random() je generiral različne vrednosti
-// ob vsakem klicu GET, kar je napačno (isti račun mora imeti isti ZOI)
+// FIX CRITICAL: Determinističen ZOI placeholder — ESM import namesto require('crypto')
 function generateZOIPlaceholder(orderNumber: number, receiptNumber: string): string {
-  const crypto = require('crypto')
   // Deterministični hash iz številke naročila + številke računa — vedno enak za isti račun
   const hash = crypto.createHash('sha256')
     .update(`ZOI-PLACEHOLDER-${orderNumber}-${receiptNumber}`)
