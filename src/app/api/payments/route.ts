@@ -19,18 +19,29 @@ export async function GET(req: Request) {
     if (type) where.type = type
     if (status) where.status = status
 
-    const payments = await db.payment.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        check: { select: { id: true, checkNumber: true, orderId: true } },
-        alternatePaymentType: true,
-        giftCard: true,
-        loyaltyAccount: true,
-      },
-    })
+    // FIX HIGH: Paginacija — prepreči nalaganje vseh plačil
+    const rawLimit = parseInt(searchParams.get('limit') || '100')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
+    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
+    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
 
-    return NextResponse.json(payments)
+    const [payments, total] = await Promise.all([
+      db.payment.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        include: {
+          check: { select: { id: true, checkNumber: true, orderId: true } },
+          alternatePaymentType: true,
+          giftCard: true,
+          loyaltyAccount: true,
+        },
+      }),
+      db.payment.count({ where }),
+    ])
+
+    return NextResponse.json({ payments, total, limit, offset })
   } catch (error) {
     console.error('Failed to fetch payments:', error)
     return NextResponse.json({ error: 'Napaka pri pridobivanju plačil' }, { status: 500 })

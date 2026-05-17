@@ -25,15 +25,27 @@ export async function GET(req: Request) {
       where.date = dateFilter
     }
 
-    const shifts = await db.shift.findMany({
-      where,
-      orderBy: { date: 'asc' },
-      include: {
-        employee: { select: { id: true, name: true, role: true } },
-        job: { select: { id: true, name: true, basePayRate: true } },
-      },
-    })
-    return NextResponse.json(shifts)
+    // FIX HIGH: Paginacija za izmene
+    const rawLimit = parseInt(searchParams.get('limit') || '100')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
+    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
+    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
+
+    const [shifts, total] = await Promise.all([
+      db.shift.findMany({
+        where,
+        orderBy: { date: 'asc' },
+        take: limit,
+        skip: offset,
+        include: {
+          employee: { select: { id: true, name: true, role: true } },
+          job: { select: { id: true, name: true, basePayRate: true } },
+        },
+      }),
+      db.shift.count({ where }),
+    ])
+
+    return NextResponse.json({ shifts, total, limit, offset })
   } catch (error) {
     console.error('Napaka pri pridobivanju izmen:', error)
     return NextResponse.json({ error: 'Napaka pri pridobivanju izmen' }, { status: 500 })

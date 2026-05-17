@@ -218,27 +218,45 @@ export async function GET(req: Request) {
     const since = new Date()
     since.setDate(since.getDate() - days)
 
-    const results: ForecastResult[] = []
+    // FIX MEDIUM: Batch query namesto N+1 — pridobi vse transakcije naenkrat
+    const allItemIds = inventoryItems.map(item => item.id)
 
-    for (const item of inventoryItems) {
-      // Pridobi dnevno porabo
-      const transactions = await db.stockTransaction.findMany({
+    const [allTransactions, allProcurements] = await Promise.all([
+      db.stockTransaction.findMany({
         where: {
-          inventoryItemId: item.id,
+          inventoryItemId: { in: allItemIds },
           type: 'sale',
           createdAt: { gte: since },
         },
         orderBy: { createdAt: 'asc' },
-      })
-
-      // Pridobi zadnjo dobavo
-      const lastProcurement = await db.stockTransaction.findFirst({
+      }),
+      db.stockTransaction.findMany({
         where: {
-          inventoryItemId: item.id,
+          inventoryItemId: { in: allItemIds },
           type: 'procurement',
         },
         orderBy: { createdAt: 'desc' },
-      })
+        distinct: ['inventoryItemId'],
+        select: { inventoryItemId: true, quantity: true, createdAt: true },
+      }),
+    ])
+
+    // Zgradi lookup mapi
+    const txByItem = new Map<string, typeof allTransactions>()
+    for (const tx of allTransactions) {
+      if (!txByItem.has(tx.inventoryItemId)) txByItem.set(tx.inventoryItemId, [])
+      txByItem.get(tx.inventoryItemId)!.push(tx)
+    }
+    const procByItem = new Map(allProcurements.map(p => [p.inventoryItemId, p]))
+
+    const results: ForecastResult[] = []
+
+    for (const item of inventoryItems) {
+      // Pridobi transakcije iz batch lookupa
+      const transactions = txByItem.get(item.id) || []
+
+      // Pridobi zadnjo dobavo iz batch lookupa
+      const lastProcurement = procByItem.get(item.id)
 
       // Združi po dnevih
       const dailyMap = new Map<string, number>()

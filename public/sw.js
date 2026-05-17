@@ -32,6 +32,11 @@ const CACHEABLE_API_PATTERNS = [
   /\/api\/employees/,
   /\/api\/inventory(\?|$)/,
   /\/api\/dashboard/,
+  // FIX MEDIUM: Dodaj manjkajoče API vzorce za offline podporo
+  /\/api\/qr-menu/,
+  /\/api\/modifier-groups/,
+  /\/api\/discounts/,
+  /\/api\/happy-hour/,
 ]
 
 // API poti, ki jih NIKOLI ne predpomnimo

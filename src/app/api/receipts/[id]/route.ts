@@ -278,9 +278,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 // Placeholder ZOI generator (pravi ZOI potrebuje FURS certifikat in digitalni podpis)
+// FIX CRITICAL: Determinističen ZOI placeholder — Math.random() je generiral različne vrednosti
+// ob vsakem klicu GET, kar je napačno (isti račun mora imeti isti ZOI)
 function generateZOIPlaceholder(orderNumber: number, receiptNumber: string): string {
-  const timestamp = Date.now().toString(16).padStart(12, '0')
-  const orderHex = orderNumber.toString(16).padStart(8, '0')
-  const random = Math.random().toString(16).substring(2, 14)
-  return `${timestamp}-${orderHex}-${random}`.toUpperCase()
+  const crypto = require('crypto')
+  // Deterministični hash iz številke naročila + številke računa — vedno enak za isti račun
+  const hash = crypto.createHash('sha256')
+    .update(`ZOI-PLACEHOLDER-${orderNumber}-${receiptNumber}`)
+    .digest('hex')
+  // Vzamemo prvih 32 hex znakov (16 bajtov) in formatiramo
+  return hash.substring(0, 32).toUpperCase()
 }

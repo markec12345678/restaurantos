@@ -134,7 +134,7 @@ export async function PUT(
 
         let paymentStatus = 'unpaid'
         if (check) {
-          if (totalPaid >= check.total) {
+          if (totalPaid >= check.total - 0.01) {
             paymentStatus = 'paid'
           } else if (totalPaid > 0) {
             paymentStatus = 'partial'

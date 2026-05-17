@@ -225,8 +225,18 @@ export async function POST(req: Request) {
     })
 
     // ─── RAZKNJIŽEVANJE ZALOGE (fallback) ───
-    const freshOrder = await db.order.findUnique({ where: { id: order.id } })
+    // FIX MEDIUM: Preveri inventoryDeducted znotraj transakcije — prepreči race condition
+    const freshOrder = await db.$transaction(async (tx) => {
+      const o = await tx.order.findUnique({ where: { id: order.id } })
+      if (!o || o.inventoryDeducted) return o
+      // Označi kot razknjiženo znotraj transakcije
+      await tx.order.update({ where: { id: order.id }, data: { inventoryDeducted: true } })
+      return o
+    })
     if (freshOrder && !freshOrder.inventoryDeducted) {
+      // Zaloga še ni bila razknjižena — razknjiži sedaj
+      // Opomba: inventoryDeducted je bil nastavljen na true znotraj zgornje transakcije,
+      // zato deducStockForOrder ne bo ponovno odbijal (preveri svoj interni guard)
       const stockResult = await deductStockForOrder(
         order.id,
         order.orderNumber,

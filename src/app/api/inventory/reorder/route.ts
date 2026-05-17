@@ -47,15 +47,39 @@ export async function GET(req: Request) {
 
     const suggestions: ReorderSuggestion[] = []
 
-    for (const item of allItems) {
-      // Izračunaj porabo zadnjih 7 in 30 dni
-      const recentSales = await db.stockTransaction.findMany({
+    // FIX MEDIUM: Batch query namesto N+1 — pridobi vse transakcije naenkrat
+    const allItemIds = allItems.map(item => item.id)
+
+    const [allSales, allProcurements] = await Promise.all([
+      db.stockTransaction.findMany({
         where: {
-          inventoryItemId: item.id,
+          inventoryItemId: { in: allItemIds },
           type: 'sale',
           createdAt: { gte: thirtyDaysAgo },
         },
-      })
+      }),
+      db.stockTransaction.findMany({
+        where: {
+          inventoryItemId: { in: allItemIds },
+          type: 'procurement',
+        },
+        orderBy: { createdAt: 'desc' },
+        distinct: ['inventoryItemId'],
+        select: { inventoryItemId: true, createdAt: true },
+      }),
+    ])
+
+    // Zgradi lookup mapi
+    const salesByItem = new Map<string, typeof allSales>()
+    for (const tx of allSales) {
+      if (!salesByItem.has(tx.inventoryItemId)) salesByItem.set(tx.inventoryItemId, [])
+      salesByItem.get(tx.inventoryItemId)!.push(tx)
+    }
+    const lastProcByItem = new Map(allProcurements.map(p => [p.inventoryItemId, p]))
+
+    for (const item of allItems) {
+      // Izračunaj porabo zadnjih 7 in 30 dni
+      const recentSales = salesByItem.get(item.id) || []
 
       const last7DaysSales = recentSales.filter(t => new Date(t.createdAt) >= sevenDaysAgo)
       const totalSold7d = last7DaysSales.reduce((s, t) => s + Math.abs(t.quantity), 0)
@@ -99,11 +123,8 @@ export async function GET(req: Request) {
         needsReorder,
       }, item)
 
-      // Pridobi zadnji datum dobave
-      const lastProcurement = await db.stockTransaction.findFirst({
-        where: { inventoryItemId: item.id, type: 'procurement' },
-        orderBy: { createdAt: 'desc' },
-      })
+      // Pridobi zadnji datum dobave (iz batch lookup mape)
+      const lastProcurement = lastProcByItem.get(item.id)
 
       suggestions.push({
         inventoryItemId: item.id,

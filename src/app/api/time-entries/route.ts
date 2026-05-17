@@ -21,16 +21,27 @@ export async function GET(req: Request) {
     if (status) where.status = status
     if (type) where.type = type
 
-    const timeEntries = await db.timeEntry.findMany({
-      where,
-      orderBy: { clockIn: 'desc' },
-      include: {
-        employee: { select: { id: true, name: true, role: true } },
-        job: { select: { id: true, name: true, basePayRate: true } },
-      },
-    })
+    // FIX HIGH: Paginacija za časovne vnose
+    const rawLimit = parseInt(searchParams.get('limit') || '100')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
+    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
+    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
 
-    return NextResponse.json(timeEntries)
+    const [timeEntries, total] = await Promise.all([
+      db.timeEntry.findMany({
+        where,
+        orderBy: { clockIn: 'desc' },
+        take: limit,
+        skip: offset,
+        include: {
+          employee: { select: { id: true, name: true, role: true } },
+          job: { select: { id: true, name: true, basePayRate: true } },
+        },
+      }),
+      db.timeEntry.count({ where }),
+    ])
+
+    return NextResponse.json({ timeEntries, total, limit, offset })
   } catch (error) {
     console.error('Failed to fetch time entries:', error)
     return NextResponse.json({ error: 'Napaka pri pridobivanju časovnih vnosov' }, { status: 500 })

@@ -40,6 +40,21 @@ export async function PUT(
       if (data.appliedDiscountId) {
         const discountObj = await db.discount.findUnique({ where: { id: data.appliedDiscountId } })
         if (discountObj) {
+          // FIX CRITICAL: Validiraj popust enako kot pri POST — preveri isActive, veljavnost, maxUses
+          if (!discountObj.isActive) {
+            return NextResponse.json({ error: 'Popust ni aktiven' }, { status: 400 })
+          }
+          const now = new Date()
+          if (discountObj.validFrom && now < discountObj.validFrom) {
+            return NextResponse.json({ error: 'Popust še ni veljaven' }, { status: 400 })
+          }
+          if (discountObj.validTo && now > discountObj.validTo) {
+            return NextResponse.json({ error: 'Popust je potekel' }, { status: 400 })
+          }
+          if (discountObj.maxUses !== null && discountObj.currentUses >= discountObj.maxUses) {
+            return NextResponse.json({ error: 'Popust je že bil uporabljen največkrat' }, { status: 400 })
+          }
+
           let discount = 0
           if (discountObj.type === 'percentage') {
             discount = existingCheck.subtotal * (discountObj.amount / 100)

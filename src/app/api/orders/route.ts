@@ -40,8 +40,11 @@ export async function GET(req: Request) {
     const type = searchParams.get('type')
     const paymentStatus = searchParams.get('paymentStatus')
     // FIX: Paginacija — prepreči nalaganje 100.000+ zapisov
-    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500)
-    const offset = parseInt(searchParams.get('offset') || '0')
+    // FIX HIGH: parseInt lahko vrne NaN — uporabi varno parsanje z fallbackom
+    const rawLimit = parseInt(searchParams.get('limit') || '100')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
+    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
+    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
 
     const where: Record<string, unknown> = {}
     if (status) where.status = status

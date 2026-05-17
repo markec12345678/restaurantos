@@ -102,13 +102,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     // When order is cancelled — VRNI ZALOGO
     if (data.status === 'cancelled') {
+      // FIX HIGH: Race condition — sprosti mizo in vrni zalogo v eni transakciji
       if (order.tableId) {
-        const activeOrders = await db.order.count({
-          where: { tableId: order.tableId, status: { in: ['pending', 'in-progress', 'ready'] } },
+        const activeOrders = await db.$transaction(async (tx) => {
+          const count = await tx.order.count({
+            where: { tableId: order.tableId, status: { in: ['pending', 'in-progress', 'ready'] } },
+          })
+          if (count <= 1) {
+            await tx.table.update({ where: { id: order.tableId! }, data: { status: 'available' } })
+          }
+          return count
         })
-        if (activeOrders <= 1) {
-          await db.table.update({ where: { id: order.tableId }, data: { status: 'available' } })
-        }
       }
       await db.orderItem.updateMany({
         where: { orderId: id, status: { in: ['pending', 'preparing', 'ready'] } },
@@ -326,13 +330,16 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
           cancelledBy: authResult.session?.employeeId || '',
         },
       })
+      // FIX HIGH: Race condition — sprosti mizo atomarno
       if (order.tableId) {
-        const activeOrders = await db.order.count({
-          where: { tableId: order.tableId, status: { in: ['pending', 'in-progress', 'ready'] } },
+        await db.$transaction(async (tx) => {
+          const activeOrders = await tx.order.count({
+            where: { tableId: order.tableId, status: { in: ['pending', 'in-progress', 'ready'] } },
+          })
+          if (activeOrders <= 1) {
+            await tx.table.update({ where: { id: order.tableId! }, data: { status: 'available' } })
+          }
         })
-        if (activeOrders <= 1) {
-          await db.table.update({ where: { id: order.tableId }, data: { status: 'available' } })
-        }
       }
 
       // VRNI ZALOGO
@@ -354,13 +361,16 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         cancelledBy: authResult.session?.employeeId || '',
       },
     })
+    // FIX HIGH: Race condition — sprosti mizo atomarno
     if (order.tableId) {
-      const activeOrders = await db.order.count({
-        where: { tableId: order.tableId, status: { in: ['pending', 'in-progress', 'ready'] } },
+      await db.$transaction(async (tx) => {
+        const activeOrders = await tx.order.count({
+          where: { tableId: order.tableId, status: { in: ['pending', 'in-progress', 'ready'] } },
+        })
+        if (activeOrders <= 1) {
+          await tx.table.update({ where: { id: order.tableId! }, data: { status: 'available' } })
+        }
       })
-      if (activeOrders <= 1) {
-        await db.table.update({ where: { id: order.tableId }, data: { status: 'available' } })
-      }
     }
 
     // VRNI ZALOGO
