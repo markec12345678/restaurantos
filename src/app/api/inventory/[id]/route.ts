@@ -51,7 +51,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       const diff = newQty - previousQty
 
       updateData.quantity = newQty
-      updateData.lastRestocked = new Date()
+      // FIX MEDIUM: lastRestocked nastavi SAMO ko se količina poveča (dostava/restock)
+      // Ne nastavljaj pri zmanjšanju (write-off) — datum zadnje dobave mora ostati pravilen
+      if (diff > 0) {
+        updateData.lastRestocked = new Date()
+      }
 
       // Atomna transakcija: posodobi količino + zabeleži transakcijo
       const result = await db.$transaction(async (tx) => {

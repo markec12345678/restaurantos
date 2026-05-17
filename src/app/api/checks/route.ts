@@ -130,7 +130,8 @@ export async function POST(req: Request) {
       }
     }
 
-    const total = subtotal + tax - discount
+    // FIX HIGH: Popust se odšteje od subtotale, serviceCharge se prišteje k totalu
+    const total = subtotal + tax - discount + 0 // serviceCharge = 0 za nov ček
 
     // FIX: Ustvari ček IN poveži OrderItem-e v eni transakciji — prepreči delno stanje
     const check = await db.$transaction(async (tx) => {

@@ -135,7 +135,9 @@ export async function GET(req: Request) {
 
     for (const order of orders) {
       let periodKey: string
-      const d = new Date(order.createdAt)
+      // FIX MEDIUM: Uporabi paidAt (datum plačila) namesto createdAt za časovno razdelitev
+      // Poročilo temelji na plačilih — naročilo plačano v torku sodi v torek, ne v ponedeljek (ko je bilo ustvarjeno)
+      const d = new Date(order.paidAt || order.createdAt)
 
       if (period === 'daily') {
         periodKey = `${String(d.getHours()).padStart(2, '0')}:00`

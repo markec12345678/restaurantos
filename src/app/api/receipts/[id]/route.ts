@@ -267,6 +267,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       },
     })
 
+    // FIX MEDIUM: Posodobi order paymentMethod če še ni nastavljen —
+    // zagotovi konsistentnost med order in receipt
+    if (!order.paymentMethod && data.paymentMethod) {
+      await db.order.update({
+        where: { id },
+        data: { paymentMethod: data.paymentMethod },
+      })
+    }
+
     return NextResponse.json(receipt, { status: 201 })
   } catch (error) {
     console.error('Napaka pri ustvarjanju računa:', error)

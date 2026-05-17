@@ -63,8 +63,9 @@ export async function PUT(
           }
           discount = Math.min(discount, existingCheck.subtotal)
           updateData.discount = discount
-          updateData.total = existingCheck.subtotal + existingCheck.tax - discount
-          updateData.totalWithTip = existingCheck.subtotal + existingCheck.tax - discount + existingCheck.tip
+          // FIX HIGH: Upoštevaj serviceCharge v total izračunu — serviceCharge se prišteje k znesku
+          updateData.total = existingCheck.subtotal + existingCheck.tax + existingCheck.serviceCharge - discount
+          updateData.totalWithTip = existingCheck.subtotal + existingCheck.tax + existingCheck.serviceCharge - discount + existingCheck.tip
 
           // FIX CRITICAL: Increment discount currentUses when applying to existing check
           // Same atomic logic as POST route — prevents maxUses race condition
@@ -100,8 +101,9 @@ export async function PUT(
           })
         }
         updateData.discount = 0
-        updateData.total = existingCheck.subtotal + existingCheck.tax
-        updateData.totalWithTip = existingCheck.subtotal + existingCheck.tax + existingCheck.tip
+        // FIX HIGH: Upoštevaj serviceCharge v total izračunu
+        updateData.total = existingCheck.subtotal + existingCheck.tax + existingCheck.serviceCharge
+        updateData.totalWithTip = existingCheck.subtotal + existingCheck.tax + existingCheck.serviceCharge + existingCheck.tip
       }
     }
 
@@ -153,7 +155,19 @@ export async function DELETE(
       )
     }
 
-    // Soft-delete: označi kot voided (ne izbriši)
+    // FIX HIGH: Zmanjšaj discount.currentUses če je imel ček apliciran popust
+    // Brez tega se currentUses nikoli ne zmanjša ob brisanju — popust se "potroši" neupravičeno
+    if (check.appliedDiscountId) {
+      try {
+        await db.discount.update({
+          where: { id: check.appliedDiscountId },
+          data: { currentUses: { decrement: 1 } },
+        })
+      } catch {
+        // Discount morda že izbrisan — tiho prezri
+      }
+    }
+
     // Najprej odstrani povezavo z OrderItem-i
     await db.orderItem.updateMany({
       where: { checkId: id },

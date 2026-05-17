@@ -251,6 +251,49 @@ export async function POST(req: Request) {
         }
       }
 
+      // FIX CRITICAL: Posodobi ORDER paymentStatus, paymentMethod, paidAt ko je check plačan
+      // Brez tega ORDER ostane "unpaid" tudi ko so vsi čeki plačani!
+      const updatedCheck = await tx.check.findUnique({ where: { id: data.checkId } })
+      if (updatedCheck?.paymentStatus === 'paid') {
+        // Pridobi vse čeke za ta naročilo
+        const allChecks = await tx.check.findMany({ where: { orderId: check.orderId } })
+        const allPaid = allChecks.every(c => c.paymentStatus === 'paid')
+        const anyPartial = allChecks.some(c => c.paymentStatus === 'partial')
+
+        const orderPaymentStatus = allPaid ? 'paid' : anyPartial ? 'partial' : 'unpaid'
+        const orderUpdateData: Record<string, unknown> = { paymentStatus: orderPaymentStatus }
+
+        if (allPaid) {
+          orderUpdateData.paidAt = new Date()
+          // Določi paymentMethod — če je samo en tip, uporabi njega; sicer "split"
+          // Poizvedi plačila za vse čeke
+          const allPayments = await tx.payment.findMany({
+            where: { checkId: { in: allChecks.map(c => c.id) }, status: 'completed' },
+            select: { type: true },
+          })
+          const allPaymentTypes = new Set(allPayments.map(p => p.type))
+          if (allPaymentTypes.size === 1) {
+            orderUpdateData.paymentMethod = [...allPaymentTypes][0]
+          } else if (allPaymentTypes.size > 1) {
+            orderUpdateData.paymentMethod = 'split'
+          }
+        }
+
+        await tx.order.update({
+          where: { id: check.orderId },
+          data: orderUpdateData,
+        })
+      } else if (updatedCheck?.paymentStatus === 'partial') {
+        // Partial plačilo — posodobi order status na partial če ni že
+        const order = await tx.order.findUnique({ where: { id: check.orderId } })
+        if (order?.paymentStatus === 'unpaid') {
+          await tx.order.update({
+            where: { id: check.orderId },
+            data: { paymentStatus: 'partial' },
+          })
+        }
+      }
+
       // FIX HIGH: Samodejno pridobi zvestobne točke ob plačilu — loyalty earn
       if (data.loyaltyAccountId && data.type !== 'loyalty') {
         const settings = await tx.restaurantSettings.findFirst({ where: { isActive: true } })

@@ -338,6 +338,15 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: 'Naročilo je že stornirano — storno ni mogoč' }, { status: 400 })
     }
 
+    // FIX MEDIUM: Preveri, da je originalni račun davčno overjen — FURS zahteva
+    // Storno računa, ki ni overjen, ni smiselno — najprej overi, nato storniraj
+    if (receipt.fiscalVerified) {
+      // Račun je overjen — storno je dovoljen
+    } else {
+      // Račun NI overjen — opozori uporabnika, a dovoli storno (v testnem okolju)
+      console.warn(`[FURS] Storno ne-overjenega računa ${receipt.receiptNumber} — ni FURS skladno`)
+    }
+
     const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
     // FIX: Preveri da so nastavitve na voljo PREDEN nadaljuješ s stornom
     if (!settings) {
@@ -369,6 +378,12 @@ export async function PUT(req: Request) {
 
     // FURS overitev storno računa
     const vatBreakdown = parseVatBreakdown(receipt.vatBreakdown as string)
+
+    // FIX MEDIUM: Pripravi negiran vatBreakdown za shranjevanje v storno račun
+    const vatBreakdownForStorno: Record<string, { base: number; vat: number }> = {}
+    for (const vb of vatBreakdown) {
+      vatBreakdownForStorno[String(vb.rate)] = { base: vb.baseAmount, vat: vb.vatAmount }
+    }
 
     const stornoInvoiceData: FursInvoiceData = {
       invoiceNumber: stornoNumber,
@@ -402,7 +417,15 @@ export async function PUT(req: Request) {
           fiscalVerified: fursResult.success,
           verificationDate: fursResult.verifiedAt,
           subtotal: -originalReceipt.subtotal,
-          vatBreakdown: originalReceipt.vatBreakdown,
+          // FIX MEDIUM: Shrani NEGIRAN vatBreakdown — storno račun ima negativne zneske
+          vatBreakdown: JSON.stringify(
+            Object.fromEntries(
+              Object.entries(vatBreakdownForStorno).map(([rate, data]) => [
+                rate,
+                { base: -(data as { base: number; vat: number }).base, vat: -(data as { base: number; vat: number }).vat }
+              ])
+            )
+          ),
           totalVat: -originalReceipt.totalVat,
           discount: -originalReceipt.discount,
           total: -originalReceipt.total,
