@@ -542,9 +542,9 @@ model Employee {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([pin])
   @@index([status])
   @@index([role])
+  @@index([pin])
 }
 
 model Job {

@@ -104,22 +104,26 @@ export async function POST(req: Request) {
       }
 
       // Preveri konflikte — ali je miza že rezervirana v tem času?
+      // FIX: Two reservations conflict if: newStart < existingEnd AND newEnd > existingStart
       const reservationStart = new Date(data.dateTime)
       const reservationEnd = new Date(reservationStart.getTime() + data.duration * 60000)
 
-      const conflicting = await db.reservation.findFirst({
+      // Pridobi VSE aktivne rezervacije za to mizo in preveri prekrivanje v pomnilniku
+      // SQLite ne podpira kompleksnih datumskih poizvedb z izračuni
+      const existingReservations = await db.reservation.findMany({
         where: {
           tableId: data.tableId,
           status: { in: ['confirmed', 'seated'] },
-          dateTime: { lt: reservationEnd },
         },
       })
 
-      if (conflicting) {
-        const conflictEnd = new Date(new Date(conflicting.dateTime).getTime() + (conflicting.duration || 120) * 60000)
-        if (reservationStart < conflictEnd && reservationEnd > new Date(conflicting.dateTime)) {
+      for (const existing of existingReservations) {
+        const existingStart = new Date(existing.dateTime)
+        const existingEnd = new Date(existingStart.getTime() + (existing.duration || 120) * 60000)
+        // Prekrivanje: newStart < existingEnd AND newEnd > existingStart
+        if (reservationStart < existingEnd && reservationEnd > existingStart) {
           return NextResponse.json(
-            { error: `Miza ${table.number} je že rezervirana ob ${new Date(conflicting.dateTime).toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })}` },
+            { error: `Miza ${table.number} je že rezervirana ob ${existingStart.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })}` },
             { status: 409 }
           )
         }

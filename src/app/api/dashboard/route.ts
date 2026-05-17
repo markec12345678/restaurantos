@@ -24,9 +24,10 @@ export async function GET(req: Request) {
   const todayTax = todayOrders.filter(o => o.paymentStatus === 'paid').reduce((sum, o) => sum + o.tax, 0)
   const todayDiscount = todayOrders.filter(o => o.paymentStatus === 'paid').reduce((sum, o) => sum + o.discount, 0)
   const totalOrders = todayOrders.length
+  const paidOrderCount = todayOrders.filter(o => o.paymentStatus === 'paid').length
   const completedOrders = todayOrders.filter(o => o.status === 'completed').length
   const cancelledOrders = todayOrders.filter(o => o.status === 'cancelled').length
-  const avgOrderValue = totalOrders > 0 ? todayRevenue / totalOrders : 0
+  const avgOrderValue = paidOrderCount > 0 ? todayRevenue / paidOrderCount : 0
   const pendingOrders = todayOrders.filter(o => o.status === 'pending').length
   const inProgressOrders = todayOrders.filter(o => o.status === 'in-progress').length
   const readyOrders = todayOrders.filter(o => o.status === 'ready').length

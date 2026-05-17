@@ -27,12 +27,13 @@ export async function POST(req: Request) {
     const unitCost = item.costPerUnit
     const totalCost = data.quantity * unitCost
 
-    // Posodobi zalogo in ustvari transakcijo v eni transakciji
+    // FIX: Posodobi zalogo in ustvari transakcijo v eni transakciji — atomic increment
     const result = await db.$transaction(async (tx) => {
+      // Atomic increment — prepreči race condition z več terminali
       const updated = await tx.inventoryItem.update({
         where: { id: data.inventoryItemId },
         data: {
-          quantity: newQty,
+          quantity: { increment: data.quantity },
           lastRestocked: new Date(),
           ...(item.servingsPerUnit > 0 ? {
             costPerServing: Math.round((unitCost / item.servingsPerUnit) * 100) / 100,
@@ -41,13 +42,15 @@ export async function POST(req: Request) {
         include: { menuItem: true },
       })
 
+      const actualNewQty = updated.quantity
+
       const transaction = await tx.stockTransaction.create({
         data: {
           inventoryItemId: data.inventoryItemId,
           type: 'procurement',
           quantity: data.quantity,
-          previousQty,
-          newQty,
+          previousQty: actualNewQty - data.quantity,
+          newQty: actualNewQty,
           costPerUnit: unitCost,
           totalCost,
           reason: data.reason,

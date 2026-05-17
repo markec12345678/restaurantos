@@ -98,42 +98,42 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
       if (recipeItems.length > 0) {
         // FIX: Vrni zalogo za VSE sestavine v eni transakciji — prepreči delno vračanje
+        // FIX: Uporabi atomic increment namesto read-then-write — prepreči race condition
         const lowStockAlerts: Array<{ inventoryItemId: string; name: string; currentQty: number; minQty: number }> = []
 
         await db.$transaction(async (tx) => {
           for (const recipe of recipeItems) {
-            const invItem = await tx.inventoryItem.findUnique({ where: { id: recipe.inventoryItemId } })
-            if (!invItem) continue
-
             const qtyToReturn = recipe.quantityPerServing * orderItem.quantity
-            const previousQty = invItem.quantity
-            const newQty = Math.round((previousQty + qtyToReturn) * 10000) / 10000
 
-            await tx.inventoryItem.update({
-              where: { id: invItem.id },
-              data: { quantity: newQty },
+            // Atomic increment — prepreči race condition
+            const updated = await tx.inventoryItem.update({
+              where: { id: recipe.inventoryItemId },
+              data: { quantity: { increment: qtyToReturn } },
             })
+            const previousQty = updated.quantity - qtyToReturn
+            const newQty = updated.quantity
+
             await tx.stockTransaction.create({
               data: {
-                inventoryItemId: invItem.id,
+                inventoryItemId: updated.id,
                 type: 'return',
                 quantity: qtyToReturn,
                 previousQty,
                 newQty,
-                costPerUnit: invItem.costPerUnit,
-                totalCost: -(qtyToReturn * invItem.costPerUnit),
+                costPerUnit: updated.costPerUnit,
+                totalCost: -(qtyToReturn * updated.costPerUnit),
                 reason: `VOID: ${orderItem.menuItem.name} - ${voidReason}`,
                 orderId: orderItem.orderId,
                 employeeName: authResult.session?.employeeId || '',
               },
             })
 
-            if (newQty <= invItem.minQuantity) {
+            if (newQty <= updated.minQuantity) {
               lowStockAlerts.push({
-                inventoryItemId: invItem.id,
-                name: invItem.name,
+                inventoryItemId: updated.id,
+                name: updated.name,
                 currentQty: newQty,
-                minQty: invItem.minQuantity,
+                minQty: updated.minQuantity,
               })
             }
           }
@@ -145,21 +145,23 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         }
       } else {
         // 2. Fallback: direktna 1:1 povezava InventoryItem ↔ MenuItem
+        // FIX: Uporabi atomic increment namesto read-then-write — prepreči race condition
         const inventoryItem = await db.inventoryItem.findFirst({
           where: { menuItemId: orderItem.menuItemId },
         })
 
         if (inventoryItem) {
-          const previousQty = inventoryItem.quantity
           const unitsPerServing = inventoryItem.servingsPerUnit > 0 ? 1 / inventoryItem.servingsPerUnit : 1
           const qtyToReturn = Math.round(orderItem.quantity * unitsPerServing * 10000) / 10000
-          const newQty = Math.round((previousQty + qtyToReturn) * 10000) / 10000
 
           await db.$transaction(async (tx) => {
-            await tx.inventoryItem.update({
+            const updated = await tx.inventoryItem.update({
               where: { id: inventoryItem.id },
-              data: { quantity: newQty },
+              data: { quantity: { increment: qtyToReturn } },
             })
+            const previousQty = updated.quantity - qtyToReturn
+            const newQty = updated.quantity
+
             await tx.stockTransaction.create({
               data: {
                 inventoryItemId: inventoryItem.id,
@@ -174,17 +176,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                 employeeName: authResult.session?.employeeId || '',
               },
             })
-          })
 
-          // Preveri če je zaloga še vedno nizka
-          if (newQty <= inventoryItem.minQuantity) {
-            broadcastLowStockAlert([{
-              inventoryItemId: inventoryItem.id,
-              name: inventoryItem.name,
-              currentQty: newQty,
-              minQty: inventoryItem.minQuantity,
-            }])
-          }
+            // Preveri če je zaloga še vedno nizka
+            if (newQty <= inventoryItem.minQuantity) {
+              broadcastLowStockAlert([{
+                inventoryItemId: inventoryItem.id,
+                name: inventoryItem.name,
+                currentQty: newQty,
+                minQty: inventoryItem.minQuantity,
+              }])
+            }
+          })
         }
       }
     }

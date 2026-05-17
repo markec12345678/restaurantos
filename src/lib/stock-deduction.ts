@@ -5,6 +5,7 @@
 // ============================================
 
 import { db } from './db'
+import { getAppUrl } from './utils'
 
 // ============================================
 // TIPI
@@ -592,7 +593,7 @@ export async function broadcastLowStockAlert(
   if (alerts.length === 0) return
 
   try {
-    await fetch('http://localhost:3000/api/ws-broadcast', {
+    await fetch(`${getAppUrl()}/api/ws-broadcast`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

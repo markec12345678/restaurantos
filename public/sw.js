@@ -219,14 +219,14 @@ async function cacheFirstWithNetwork(request, cacheName, maxAge = 0) {
       // Dodaj timestamp za TTL
       const headers = new Headers(networkResponse.headers)
       headers.set('sw-cache-timestamp', Date.now().toString())
-      // FIX: Ni potrebe po clone() — networkResponse se ne porabi več
-      const body = await networkResponse.blob()
+      // FIX: Clone before consuming — networkResponse.body can only be read once
+      const responseForCache = networkResponse.clone()
+      const body = await responseForCache.blob()
       const cachedResponse = new Response(body, {
-        status: networkResponse.status,
-        statusText: networkResponse.statusText,
+        status: responseForCache.status,
+        statusText: responseForCache.statusText,
         headers,
       })
-      // FIX: Počakaj na cache.put
       await cache.put(request, cachedResponse)
     }
 
