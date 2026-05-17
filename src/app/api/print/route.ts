@@ -137,10 +137,10 @@ export async function POST(req: Request) {
   const authResult = await requireAuth(req, { permission: 'take_orders' })
   if (authResult.error) return authResult.error
 
-  const body: PrintRequest = await req.json()
-  const { type, orderId, printerId } = body
-
   try {
+    const body: PrintRequest = await req.json()
+    const { type, orderId, printerId } = body
+
     switch (type) {
       case 'order': {
         if (!orderId) {
