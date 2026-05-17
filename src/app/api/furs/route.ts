@@ -125,6 +125,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
     }
 
+    // FIX HIGH: Preveri, da naročilo NI preklicano/stornirano — FURS overitev ni mogoča za preklicana naročila
+    if (order.status === 'cancelled') {
+      return NextResponse.json({ error: 'Preklicano naročilo ne more biti davčno overjeno' }, { status: 400 })
+    }
+
     const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
 
     if (!settings) {

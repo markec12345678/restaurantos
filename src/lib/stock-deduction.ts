@@ -305,22 +305,23 @@ export async function deductStockForOrder(
     return result
   }
 
-  // Obdelaj vsak artikel
-  for (const item of items) {
-    if (item.voided) continue
+  // FIX HIGH: Celotno razknjiževanje v eni transakciji — prepreči parcialno stanje
+  // inventoryDeducted flag se nastavi ZNOTRAJ transakcije, kar zagotavlja atomarnost
+  await db.$transaction(async (tx) => {
+    // Obdelaj vsak artikel
+    for (const item of items) {
+      if (item.voided) continue
 
-    // 1. Preveri RecipeItem (večsastavni recepti) — PREDNOST
-    const recipeItems = await db.recipeItem.findMany({
-      where: { menuItemId: item.menuItemId },
-    })
+      // 1. Preveri RecipeItem (večsastavni recepti) — PREDNOST
+      const recipeItems = await tx.recipeItem.findMany({
+        where: { menuItemId: item.menuItemId },
+      })
 
-    if (recipeItems.length > 0) {
-      // Uporabi receptne sestavine
-      for (const recipe of recipeItems) {
-        const qtyToDeduct = recipe.quantityPerServing * item.quantity
+      if (recipeItems.length > 0) {
+        // Uporabi receptne sestavine
+        for (const recipe of recipeItems) {
+          const qtyToDeduct = recipe.quantityPerServing * item.quantity
 
-        // Use atomic decrement inside transaction — read is also inside
-        await db.$transaction(async (tx) => {
           const invItem = await tx.inventoryItem.findUnique({
             where: { id: recipe.inventoryItemId },
           })
@@ -330,7 +331,7 @@ export async function deductStockForOrder(
               inventoryItemId: recipe.inventoryItemId,
               error: `Sestavina ${recipe.inventoryItemId} ni najdena`,
             })
-            return
+            continue
           }
 
           // Atomic decrement
@@ -341,10 +342,10 @@ export async function deductStockForOrder(
           const previousQty = updatedItem.quantity + qtyToDeduct
           let newQty = updatedItem.quantity
 
-          // FIX MEDIUM: Clamp to 0 if negative — pravilno zabeleži dejansko odbito količino
+          // Clamp to 0 if negative
           let actualDeducted = qtyToDeduct
           if (newQty < 0) {
-            actualDeducted = qtyToDeduct + newQty // newQty je negativno
+            actualDeducted = qtyToDeduct + newQty
             await tx.inventoryItem.update({ where: { id: invItem.id }, data: { quantity: 0 } })
             newQty = 0
           }
@@ -372,7 +373,6 @@ export async function deductStockForOrder(
             method: 'recipe',
           })
 
-          // Preveri low stock
           if (newQty <= invItem.minQuantity) {
             result.lowStockAlerts.push({
               inventoryItemId: invItem.id,
@@ -381,16 +381,14 @@ export async function deductStockForOrder(
               minQty: invItem.minQuantity,
             })
           }
-        })
-      }
-    } else {
-      // 2. Fallback: direktna 1:1 povezava InventoryItem↔MenuItem
-      await db.$transaction(async (tx) => {
+        }
+      } else {
+        // 2. Fallback: direktna 1:1 povezava InventoryItem↔MenuItem
         const invItem = await tx.inventoryItem.findFirst({
           where: { menuItemId: item.menuItemId },
         })
 
-        if (!invItem || invItem.servingsPerUnit <= 0) return
+        if (!invItem || invItem.servingsPerUnit <= 0) continue
 
         const unitsPerServing = 1 / invItem.servingsPerUnit
         const totalUnitsToDeduct = Math.round(item.quantity * unitsPerServing * 10000) / 10000
@@ -403,10 +401,10 @@ export async function deductStockForOrder(
         const previousQty = updatedItem.quantity + totalUnitsToDeduct
         let newQty = updatedItem.quantity
 
-        // FIX MEDIUM: Clamp to 0 if negative — pravilno zabeleži dejansko odbito količino
+        // Clamp to 0 if negative
         let actualDeducted = totalUnitsToDeduct
         if (newQty < 0) {
-          actualDeducted = totalUnitsToDeduct + newQty // newQty je negativno
+          actualDeducted = totalUnitsToDeduct + newQty
           await tx.inventoryItem.update({ where: { id: invItem.id }, data: { quantity: 0 } })
           newQty = 0
         }
@@ -434,7 +432,6 @@ export async function deductStockForOrder(
           method: 'direct',
         })
 
-        // Preveri low stock
         if (newQty <= invItem.minQuantity) {
           result.lowStockAlerts.push({
             inventoryItemId: invItem.id,
@@ -443,15 +440,14 @@ export async function deductStockForOrder(
             minQty: invItem.minQuantity,
           })
         }
-      })
-      // Če ni ne recepta ne direktne povezave — artikel nima zaloge (npr. storitev)
+      }
     }
-  }
 
-  // Označi naročilo kot razknjiženo
-  await db.order.update({
-    where: { id: orderId },
-    data: { inventoryDeducted: true },
+    // Označi naročilo kot razknjiženo ZNOTRAJ transakcije — atomarno
+    await tx.order.update({
+      where: { id: orderId },
+      data: { inventoryDeducted: true },
+    })
   })
 
   return result
@@ -478,6 +474,17 @@ export async function returnStockForOrder(
   if (!order || !order.inventoryDeducted) {
     result.success = false
     result.errors.push({ error: 'Zaloga ni bila razknjižena za to naročilo' })
+    return result
+  }
+
+  // FIX CRITICAL: Preveri, če že obstajajo 'return' transakcije za to naročilo
+  // Prepreči double-return (npr. dva sočasna klica za preklic)
+  const existingReturns = await db.stockTransaction.findFirst({
+    where: { orderId, type: 'return' },
+  })
+  if (existingReturns) {
+    result.success = false
+    result.errors.push({ error: 'Zaloga za to naročilo je že bila vračena' })
     return result
   }
 
@@ -582,11 +589,13 @@ export async function returnStockForOrder(
     }
   }
 
-  // Označi, da zaloga NI več razknjižena
-  await db.order.update({
-    where: { id: orderId },
-    data: { inventoryDeducted: false },
-  })
+  // FIX CRITICAL: NE ponastavi inventoryDeducted na false!
+  // Če ga ponastavimo, lahko FURS fallback (ki preverja !inventoryDeducted)
+  // znova odbije zalogo za že preklicano naročilo — double deduction!
+  // Pravilna semantika: inventoryDeducted=true pomeni "zaloga je bila obdelana"
+  // (bilo deduct ALI deduct+return). Obdelava je končana.
+  // Za zaščito pred double-return: preveri, če že obstajajo 'return' transakcije
+  // za to naročilo — če da, ne dovoli ponovnega vračanja.
 
   return result
 }

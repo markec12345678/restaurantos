@@ -210,9 +210,8 @@ export const createLoyaltySchema = z.object({
   customerName: z.string().max(100).default(''),
   customerPhone: z.string().max(30).default(''),
   customerEmail: z.string().email().optional().or(z.literal('')),
-  pointsBalance: z.number().int().min(0).default(0),
-  lifetimePoints: z.number().int().min(0).default(0),
-  tier: z.enum(['bronze', 'silver', 'gold', 'platinum']).default('bronze'),
+  // FIX MEDIUM: pointsBalance in lifetimePoints se nastavijo strežniško na 0
+  // Klient NE sme nastavljati začetnih točk — točke se pridobijo samo skozi loyalty earn API
   isActive: z.boolean().default(true),
 })
 

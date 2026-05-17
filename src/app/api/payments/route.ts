@@ -216,12 +216,19 @@ export async function POST(req: Request) {
         })
       }
 
-      // FIX MEDIUM: Povečaj currentUses counter za popust, če je uporabljen na čeku
+      // FIX HIGH: Povečaj currentUses counter za popust SAMO ob prvem plačilu na tem čeku
+      // Preveri, če je to že drugo (ali nadaljnje) plačilo na istem čeku — ne povečuj counterja
       if (check.appliedDiscountId) {
-        await tx.discount.update({
-          where: { id: check.appliedDiscountId },
-          data: { currentUses: { increment: 1 } },
+        const previousPayments = await tx.payment.count({
+          where: { checkId: data.checkId, status: 'completed' },
         })
+        // Samo ob prvem plačilu na čeku povečaj currentUses
+        if (previousPayments <= 1) { // 1 ker je trenutno plačilo že ustvarjeno zgoraj
+          await tx.discount.update({
+            where: { id: check.appliedDiscountId },
+            data: { currentUses: { increment: 1 } },
+          })
+        }
       }
 
       // FIX HIGH: Samodejno pridobi zvestobne točke ob plačilu — loyalty earn

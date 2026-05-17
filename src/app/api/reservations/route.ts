@@ -63,14 +63,26 @@ export async function GET(req: Request) {
       db.reservation.count({ where }),
     ])
 
-    // FIX MEDIUM: Uporabi totalCount iz query-ja namesto reservations.length
+    // FIX MEDIUM: Summary mora odražati VSE rezervacije, ne samo trenutno stran
+    // Pridobi števila statusov za celoten dan (brez paginacije)
+    const statusCounts = await db.reservation.groupBy({
+      by: ['status'],
+      where,
+      _count: true,
+    })
+    const statusMap = Object.fromEntries(statusCounts.map(s => [s.status, s._count]))
+    const allGuestsResult = await db.reservation.aggregate({
+      where: { ...where, status: { notIn: ['cancelled'] } },
+      _sum: { partySize: true },
+    })
+
     const summary = {
       total: totalCount,
-      confirmed: reservations.filter(r => r.status === 'confirmed').length,
-      seated: reservations.filter(r => r.status === 'seated').length,
-      cancelled: reservations.filter(r => r.status === 'cancelled').length,
-      noShow: reservations.filter(r => r.status === 'no_show').length,
-      totalGuests: reservations.filter(r => r.status !== 'cancelled').reduce((sum, r) => sum + r.partySize, 0),
+      confirmed: statusMap['confirmed'] || 0,
+      seated: statusMap['seated'] || 0,
+      cancelled: statusMap['cancelled'] || 0,
+      noShow: statusMap['no_show'] || 0,
+      totalGuests: allGuestsResult._sum.partySize || 0,
     }
 
     return NextResponse.json({

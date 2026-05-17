@@ -54,7 +54,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       } catch { /* empty */ }
 
       const vatRate = oi.vatRate || oi.menuItem?.vatRate || 22.0
-      const basePrice = oi.price * oi.quantity
+      // FIX MEDIUM: Vključi ceno modifikatorjev v skupno ceno artikla
+      let modifiersTotal = 0
+      for (const mod of modifiers) {
+        modifiersTotal += mod.price || 0
+      }
+      const basePrice = (oi.price + modifiersTotal) * oi.quantity
       const vatAmount = basePrice * (vatRate / 100)
       const totalWithVat = basePrice + vatAmount
 

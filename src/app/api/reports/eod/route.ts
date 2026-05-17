@@ -21,9 +21,35 @@ export async function GET(req: Request) {
     const dayEnd = new Date(date + 'T23:59:59.999Z')
 
     // ─── VSA NAROČILA TEGA DNE ───
-    const orders = await db.order.findMany({
+    // FIX HIGH: Uporabi PAIDAT za finančna poročila — naročilo, ustvarjeno včeraj
+    // a plačano danes, sodi v danesnji dan. Za statusna poročila uporabimo createdAt.
+    const ordersByStatus = await db.order.findMany({
       where: {
         createdAt: { gte: dayStart, lte: dayEnd },
+      },
+      include: {
+        orderItems: {
+          include: {
+            menuItem: {
+              include: {
+                category: {
+                  include: {
+                    menu: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    })
+
+    // Za finančne podatke uporabimo paidAt — naročila plačana ta dan
+    const paidOrdersForDate = await db.order.findMany({
+      where: {
+        paidAt: { gte: dayStart, lte: dayEnd },
+        paymentStatus: 'paid',
       },
       include: {
         orderItems: {
@@ -45,16 +71,17 @@ export async function GET(req: Request) {
           },
         },
       },
-      orderBy: { createdAt: 'asc' },
+      orderBy: { paidAt: 'asc' },
     })
 
     // ─── OSNOVNE STATISTIKE ───
-    const completedOrders = orders.filter(o => o.status === 'completed')
-    const cancelledOrders = orders.filter(o => o.status === 'cancelled')
-    const pendingOrders = orders.filter(o => ['pending', 'in-progress', 'ready'].includes(o.status))
-    const paidOrders = orders.filter(o => o.paymentStatus === 'paid')
+    const orders = ordersByStatus // Za status poročila uporabimo createdAt
+    const completedOrders = paidOrdersForDate // Za finančne podatke uporabimo paidAt
+    const cancelledOrders = ordersByStatus.filter(o => o.status === 'cancelled')
+    const pendingOrders = ordersByStatus.filter(o => ['pending', 'in-progress', 'ready'].includes(o.status))
+    const paidOrders = paidOrdersForDate
 
-    // ─── PRIHODEK ───
+    // ─── PRIHODEK (na podlagi paidAt — plačana naročila) ───
     const totalRevenue = completedOrders.reduce((s, o) => s + o.total, 0)
     const totalSubtotal = completedOrders.reduce((s, o) => s + o.subtotal, 0)
     const totalTax = completedOrders.reduce((s, o) => s + o.tax, 0)
@@ -62,7 +89,7 @@ export async function GET(req: Request) {
     const totalTips = completedOrders.reduce((s, o) => s + o.tip, 0)
     const totalWithTips = completedOrders.reduce((s, o) => s + o.totalWithTip, 0)
 
-    // ─── DDV RAZČLENITEV ───
+    // ─── DDV RAZČLENITEV (na podlagi paidOrders) ───
     const vatBreakdown: Record<string, { base: number; vat: number; rate: number }> = {}
     for (const order of completedOrders) {
       for (const item of order.orderItems) {
@@ -78,7 +105,7 @@ export async function GET(req: Request) {
       }
     }
 
-    // ─── PLAČILNE METODE ───
+    // ─── PLAČILNE METODE (na podlagi paidOrders) ───
     const paymentMethods: Record<string, { count: number; revenue: number; tips: number }> = {}
     for (const order of paidOrders) {
       const checks = (order as any).checks || []
@@ -95,7 +122,7 @@ export async function GET(req: Request) {
       }
     }
 
-    // ─── PO KATEGORIJAH ───
+    // ─── PO KATEGORIJAH (na podlagi paidOrders) ───
     const categoryBreakdown: Record<string, { category: string; quantity: number; revenue: number; menu: string }> = {}
     for (const order of completedOrders) {
       for (const item of order.orderItems) {
@@ -111,7 +138,7 @@ export async function GET(req: Request) {
       }
     }
 
-    // ─── PO ZAPOSLENIH ───
+    // ─── PO ZAPOSLENIH (na podlagi paidOrders) ───
     const employeeBreakdown: Record<string, { employeeId: string; orderCount: number; revenue: number; tips: number }> = {}
     for (const order of completedOrders) {
       const empId = order.employeeId || 'unknown'
@@ -178,7 +205,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       date,
       summary: {
-        totalOrders: orders.length,
+        totalOrders: ordersByStatus.length,
         completedOrders: completedOrders.length,
         cancelledOrders: cancelledOrders.length,
         pendingOrders: pendingOrders.length,
@@ -311,6 +338,7 @@ export async function POST(req: Request) {
         cashSales,
         cardSales,
         mobileSales,
+        alternateSales, // FIX MEDIUM: Shrani alternateSales na izmeno
         totalSales,
         totalOrders: completedOrders.length,
         totalDiscounts,

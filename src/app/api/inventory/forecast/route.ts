@@ -280,13 +280,16 @@ export async function GET(req: Request) {
       const avgDailyUsage = daysWithData > 0 ? totalUsage / daysWithData : 0
 
       // Porazdelitev po dnevih v tednu
-      const weekdayNames = ['Ned', 'Pon', 'Tor', 'Sre', 'Čet', 'Pet', 'Sob']
+      // FIX LOW: Uporabi ISO dneve (1-7) namesto hardcoded imen — frontend naj lokalizira
+      const weekdayIsoNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
       const weekdayUsage: number[][] = [[], [], [], [], [], [], []]
       for (const du of dailyUsage) {
-        const dayOfWeek = new Date(du.date).getDay()
-        weekdayUsage[dayOfWeek].push(du.quantity)
+        const jsDay = new Date(du.date).getDay() // 0=Sun, 1=Mon, ..., 6=Sat
+        // Pretvori v ISO: 0=Mon, 1=Tue, ..., 6=Sun
+        const isoDay = jsDay === 0 ? 6 : jsDay - 1
+        weekdayUsage[isoDay].push(du.quantity)
       }
-      const weekdayBreakdown = weekdayNames.map((day, i) => ({
+      const weekdayBreakdown = weekdayIsoNames.map((day, i) => ({
         day,
         avgUsage: weekdayUsage[i].length > 0
           ? weekdayUsage[i].reduce((s, v) => s + v, 0) / weekdayUsage[i].length
@@ -294,10 +297,11 @@ export async function GET(req: Request) {
       }))
 
       // Sezonski faktor: vikend (petek, sobota) vs delavni dnevi
-      const weekendAvg = [5, 6].flatMap(i => weekdayUsage[i]).reduce((s, v) => s + v, 0)
-        / Math.max(1, [5, 6].flatMap(i => weekdayUsage[i]).length)
-      const weekdayAvg = [1, 2, 3, 4].flatMap(i => weekdayUsage[i]).reduce((s, v) => s + v, 0)
-        / Math.max(1, [1, 2, 3, 4].flatMap(i => weekdayUsage[i]).length)
+      // FIX: ISO dnevi — 4=Fri, 5=Sat
+      const weekendAvg = [4, 5].flatMap(i => weekdayUsage[i]).reduce((s, v) => s + v, 0)
+        / Math.max(1, [4, 5].flatMap(i => weekdayUsage[i]).length)
+      const weekdayAvg = [0, 1, 2, 3].flatMap(i => weekdayUsage[i]).reduce((s, v) => s + v, 0)
+        / Math.max(1, [0, 1, 2, 3].flatMap(i => weekdayUsage[i]).length)
       const seasonalityFactor = weekdayAvg > 0 ? weekendAvg / weekdayAvg : 1
 
       // Napoved s Holt-Winters

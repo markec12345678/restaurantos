@@ -31,15 +31,26 @@ export async function GET(req: Request) {
       ]
     }
 
-    const suppliers = await db.supplier.findMany({
-      where,
-      include: {
-        _count: { select: { purchaseOrders: true } },
-      },
-      orderBy: { name: 'asc' },
-    })
+    // FIX MEDIUM: Paginacija za dobavitelje — prepreči nalaganje vseh zapisov
+    const rawLimit = parseInt(searchParams.get('limit') || '100')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
+    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
+    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
 
-    return NextResponse.json(suppliers)
+    const [suppliers, total] = await Promise.all([
+      db.supplier.findMany({
+        where,
+        include: {
+          _count: { select: { purchaseOrders: true } },
+        },
+        orderBy: { name: 'asc' },
+        take: limit,
+        skip: offset,
+      }),
+      db.supplier.count({ where }),
+    ])
+
+    return NextResponse.json({ suppliers, total, limit, offset })
   } catch (error) {
     console.error('Napaka pri pridobivanju dobaviteljev:', error)
     return NextResponse.json({ error: 'Napaka pri pridobivanju dobaviteljev' }, { status: 500 })
