@@ -8,6 +8,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, createPurchaseOrderSchema } from '@/lib/validations'
+import { getNextCounter } from '@/lib/counters'
 
 // GET - Pridobi nabavna naročila
 export async function GET(req: Request) {
@@ -24,17 +25,27 @@ export async function GET(req: Request) {
     if (status) where.status = status
     if (supplierId) where.supplierId = supplierId
 
-    const orders = await db.purchaseOrder.findMany({
-      where,
-      include: {
-        supplier: true,
-        items: { include: { inventoryItem: true } },
-      },
-      orderBy: { orderDate: 'desc' },
-      take: 50,
-    })
+    // FIX MEDIUM: Paginacija z NaN varnostjo
+    const rawLimit = parseInt(searchParams.get('limit') || '50')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
+    const limit = Math.min(Number.isNaN(rawLimit) ? 50 : rawLimit, 500)
+    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
 
-    return NextResponse.json(orders)
+    const [orders, total] = await Promise.all([
+      db.purchaseOrder.findMany({
+        where,
+        include: {
+          supplier: true,
+          items: { include: { inventoryItem: true } },
+        },
+        orderBy: { orderDate: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      db.purchaseOrder.count({ where }),
+    ])
+
+    return NextResponse.json({ orders, total, limit, offset })
   } catch (error) {
     console.error('Napaka pri pridobivanju nabavnih naročil:', error)
     return NextResponse.json({ error: 'Napaka pri pridobivanju nabavnih naročil' }, { status: 500 })
@@ -54,12 +65,11 @@ export async function POST(req: Request) {
     const { data, error: validationError } = validateBody(createPurchaseOrderSchema, body)
     if (validationError) return validationError
 
-    // Generiraj številko naročila
+    // FIX HIGH: Atomna številka naročila — prepreči race condition (kot orderNumber/receiptNumber)
     const year = new Date().getFullYear()
-    const count = await db.purchaseOrder.count({
-      where: { poNumber: { startsWith: `ND-${year}-` } },
-    })
-    const poNumber = `ND-${year}-${String(count + 1).padStart(6, '0')}`
+    const counterName = `purchaseOrderNumber-${year}`
+    const seq = await getNextCounter(counterName)
+    const poNumber = `ND-${year}-${String(seq).padStart(6, '0')}`
 
     // Izračunaj zneske iz postavk
     let subtotal = 0

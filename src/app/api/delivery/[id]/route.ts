@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, updateDeliverySchema } from '@/lib/validations'
 
 export async function PUT(
   req: Request,
@@ -13,23 +14,33 @@ export async function PUT(
     const { id } = await params
     const body = await req.json()
 
+    // FIX HIGH: Zod validacija namesto direktnega branja body-ja — prepreči injection
+    const { data, error: validationError } = validateBody(updateDeliverySchema, body)
+    if (validationError) return validationError
+
+    // Preveri, da dostava obstaja
+    const existing = await db.deliveryInfo.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Dostava ni najdena' }, { status: 404 })
+    }
+
     const updateData: Record<string, unknown> = {}
-    if (body.address !== undefined) updateData.address = body.address
-    if (body.city !== undefined) updateData.city = body.city
-    if (body.postCode !== undefined) updateData.postCode = body.postCode
-    if (body.recipientName !== undefined) updateData.recipientName = body.recipientName
-    if (body.recipientPhone !== undefined) updateData.recipientPhone = body.recipientPhone
-    if (body.deliveryInstructions !== undefined) updateData.deliveryInstructions = body.deliveryInstructions
-    if (body.promisedTime !== undefined) updateData.promisedTime = body.promisedTime ? new Date(body.promisedTime) : null
-    if (body.estimatedTime !== undefined) updateData.estimatedTime = body.estimatedTime ? new Date(body.estimatedTime) : null
-    if (body.actualTime !== undefined) updateData.actualTime = body.actualTime ? new Date(body.actualTime) : null
-    if (body.courierName !== undefined) updateData.courierName = body.courierName
-    if (body.courierPhone !== undefined) updateData.courierPhone = body.courierPhone
-    if (body.status !== undefined) updateData.status = body.status
-    if (body.packagingFee !== undefined) updateData.packagingFee = body.packagingFee
-    if (body.deliveryFee !== undefined) updateData.deliveryFee = body.deliveryFee
-    if (body.latitude !== undefined) updateData.latitude = body.latitude
-    if (body.longitude !== undefined) updateData.longitude = body.longitude
+    if (data.address !== undefined) updateData.address = data.address
+    if (data.city !== undefined) updateData.city = data.city
+    if (data.postCode !== undefined) updateData.postCode = data.postCode
+    if (data.recipientName !== undefined) updateData.recipientName = data.recipientName
+    if (data.recipientPhone !== undefined) updateData.recipientPhone = data.recipientPhone
+    if (data.deliveryInstructions !== undefined) updateData.deliveryInstructions = data.deliveryInstructions
+    if (data.promisedTime !== undefined) updateData.promisedTime = data.promisedTime ? new Date(data.promisedTime) : null
+    if (data.estimatedTime !== undefined) updateData.estimatedTime = data.estimatedTime ? new Date(data.estimatedTime) : null
+    if (data.actualTime !== undefined) updateData.actualTime = data.actualTime ? new Date(data.actualTime) : null
+    if (data.courierName !== undefined) updateData.courierName = data.courierName
+    if (data.courierPhone !== undefined) updateData.courierPhone = data.courierPhone
+    if (data.status !== undefined) updateData.status = data.status
+    if (data.packagingFee !== undefined) updateData.packagingFee = data.packagingFee
+    if (data.deliveryFee !== undefined) updateData.deliveryFee = data.deliveryFee
+    if (data.latitude !== undefined) updateData.latitude = data.latitude
+    if (data.longitude !== undefined) updateData.longitude = data.longitude
 
     const delivery = await db.deliveryInfo.update({
       where: { id },
@@ -42,6 +53,6 @@ export async function PUT(
     return NextResponse.json(delivery)
   } catch (error) {
     console.error('Failed to update delivery info:', error)
-    return NextResponse.json({ error: 'Failed to update delivery info' }, { status: 500 })
+    return NextResponse.json({ error: 'Napaka pri posodobitvi dostave' }, { status: 500 })
   }
 }

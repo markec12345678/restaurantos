@@ -8,10 +8,11 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, createWaitlistSchema } from '@/lib/validations'
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    // FIX C-07: Zahtevaj avtentikacijo za čakalno vrsto
-    // GET je javno dostopen za prikaz na POS
+    // FIX C-07: Zahtevaj avtentikacijo za čakalno vrsto — vsebovana imena gostov, telefoni
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
     const entries = await db.waitlistEntry.findMany({
       where: { status: { in: ['waiting', 'notified'] } },
       orderBy: { checkedInAt: 'asc' },

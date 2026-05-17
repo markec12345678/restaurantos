@@ -10,9 +10,11 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
-    // FIX: Paginacija za dostave
-    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500)
-    const offset = parseInt(searchParams.get('offset') || '0')
+    // FIX: Paginacija za dostave z NaN varnostjo
+    const rawLimit = parseInt(searchParams.get('limit') || '100')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
+    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
+    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
 
     const where: Record<string, unknown> = {}
     if (status) where.status = status

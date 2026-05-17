@@ -22,7 +22,16 @@ export async function POST(req: Request) {
     if (authResult.error) return authResult.error
 
     const body = await req.json();
-    const { message, type = 'general', context = {} } = body;
+    // FIX HIGH: Validiraj message — prepreči prazno ali predolgo sporočilo
+    const message = typeof body.message === 'string' ? body.message.trim() : ''
+    if (!message || message.length === 0) {
+      return NextResponse.json({ error: 'Sporočilo je obvezno' }, { status: 400 })
+    }
+    if (message.length > 5000) {
+      return NextResponse.json({ error: 'Sporočilo je predolgo (max 5000 znakov)' }, { status: 400 })
+    }
+    const type = typeof body.type === 'string' ? body.type : 'general'
+    const context = typeof body.context === 'object' && body.context !== null ? body.context : {}
 
     // Gather real data for context
     const dataContext = await gatherDataContext(context);
@@ -206,8 +215,12 @@ function generateFallbackResponse(message: string, type: string, dataContext: st
   return `🤖 **RestaurantOS AI Asistent**\n\nPozdravljeni! Sem vaš AI asistent za optimizacijo restavracije. Lahko vam pomagam z:\n\n- 📊 **Optimizacija menija** — "Kako optimiziram meni?"\n- 📦 **Upravljanje zaloge** — "Kaj moram naročiti?"\n- 👥 **Kadrovska optimizacija** — "Koliko osebja potrebujem?"\n- 💰 **Stroški hrane** — "Kakšen je moj food cost?"\n- 📈 **Napoved prodaje** — "Kakšna bo prodaja naslednji teden?"\n- 🎯 **Marketinški nasveti** — "Kako pritegnem več gostov?"\n\nPostavite mi vprašanje in vam bom pomagal z analizo vaših podatkov!`;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    // FIX HIGH: Zahtevaj avtentikacijo za branje AI pogovorov — vsebuje poslovne podatke
+    const authResult = await requireAuth(req, { permission: 'admin' })
+    if (authResult.error) return authResult.error
+
     const conversations = await db.aIConversation.findMany({
       orderBy: { createdAt: 'desc' },
       take: 50,

@@ -1,6 +1,16 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { z } from 'zod'
+
+// FIX HIGH: Zod validacija za posodobitev webhooka — prepreči injection
+const updateWebhookSchema = z.object({
+  name: z.string().min(1, 'Ime je obvezno').max(200).optional(),
+  url: z.string().url('URL mora biti veljaven').max(500).optional(),
+  events: z.string().max(2000).optional(),
+  isActive: z.boolean().optional(),
+  secret: z.string().max(200).optional(),
+})
 
 export async function PUT(
   req: Request,
@@ -14,18 +24,31 @@ export async function PUT(
     const { id } = await params
     const body = await req.json()
 
-    // Omeji dovoljena polja (prepreči injection polj kot id, createdAt)
-    const allowedFields = ['name', 'url', 'events', 'isActive', 'secret', 'lastTriggered', 'failureCount']
-    const updateData: Record<string, unknown> = {}
-    for (const field of allowedFields) {
-      if (body[field] !== undefined) {
-        if (field === 'lastTriggered') {
-          updateData[field] = body[field] ? new Date(body[field]) : null
-        } else {
-          updateData[field] = body[field]
-        }
-      }
+    // FIX HIGH: Zod validacija namesto allowedFields pristopa
+    const parsed = updateWebhookSchema.safeParse(body)
+    if (!parsed.success) {
+      return NextResponse.json({
+        error: 'Neveljavni podatki',
+        validationErrors: parsed.error.issues.map(e => ({
+          field: e.path.join('.'),
+          message: e.message,
+        })),
+      }, { status: 400 })
     }
+    const data = parsed.data
+
+    // Preveri, da webhook obstaja
+    const existing = await db.webhook.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Webhook ni najden' }, { status: 404 })
+    }
+
+    const updateData: Record<string, unknown> = {}
+    if (data.name !== undefined) updateData.name = data.name
+    if (data.url !== undefined) updateData.url = data.url
+    if (data.events !== undefined) updateData.events = data.events
+    if (data.isActive !== undefined) updateData.isActive = data.isActive
+    if (data.secret !== undefined) updateData.secret = data.secret
 
     const webhook = await db.webhook.update({
       where: { id },
@@ -35,7 +58,7 @@ export async function PUT(
     return NextResponse.json(webhook)
   } catch (error) {
     console.error('Failed to update webhook:', error)
-    return NextResponse.json({ error: 'Failed to update webhook' }, { status: 500 })
+    return NextResponse.json({ error: 'Napaka pri posodobitvi webhooka' }, { status: 500 })
   }
 }
 

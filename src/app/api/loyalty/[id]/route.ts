@@ -35,14 +35,19 @@ export async function PUT(
 
       if (data.pointsBalance !== undefined) {
         const newPoints = Math.max(0, data.pointsBalance)
-        updateData.pointsBalance = newPoints
-        // FIX MEDIUM: Ko se točke povečajo, posodobi tudi lifetimePoints
-        if (newPoints > existing.pointsBalance) {
-          const earnedPoints = newPoints - existing.pointsBalance
-          updateData.lifetimePoints = (data.lifetimePoints !== undefined 
-            ? Math.max(0, data.lifetimePoints) 
-            : existing.lifetimePoints) + earnedPoints
+        const diff = newPoints - existing.pointsBalance
+
+        if (diff > 0) {
+          // FIX HIGH: Atomic increment za pridobivanje točk — prepreči race condition
+          updateData.pointsBalance = { increment: diff }
+          // Posodobi tudi lifetimePoints — atomsko
+          updateData.lifetimePoints = { increment: diff }
+        } else if (diff < 0) {
+          // FIX HIGH: Atomic decrement za unovčevanje — prepreči race condition
+          updateData.pointsBalance = { decrement: Math.abs(diff) }
+          // lifetimePoints se ne zmanjša ob unovčenju
         }
+        // diff === 0: ni spremembe, ne nastavljaj
       }
 
       if (data.lifetimePoints !== undefined) {
