@@ -105,7 +105,8 @@ export async function POST(req: Request) {
     let failed = 0
 
     // Obdelaj račune zaporedno (FURS ima omejitev na hitrost zahtevkov)
-    for (const receipt of unverifiedReceipts) {
+    for (let i = 0; i < unverifiedReceipts.length; i++) {
+      const receipt = unverifiedReceipts[i]
       try {
         // Generiraj ZOI
         const zoi = generateZOI({
@@ -164,8 +165,8 @@ export async function POST(req: Request) {
           })
         }
 
-        // Premor 200ms med zahtevki (FURS rate limiting)
-        if (unverifiedReceipts.indexOf(receipt) < unverifiedReceipts.length - 1) {
+        // Premor 200ms med zahtevki (FURS rate limiting) — samo če ni zadnji
+        if (i < unverifiedReceipts.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 200))
         }
       } catch (err) {

@@ -162,10 +162,11 @@ export async function POST(req: Request) {
     })
 
     // Ponovno izračunaj subtotale in davke z upoštevanjem popustov
+    // FIX MEDIUM: Zaokroži vse zneske na 2 decimalni mesti — prepreči floating-point napake pri valuti
     subtotal = orderItemsData.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-    const totalTax = orderItemsData.reduce((sum, item) => sum + item.vatAmount, 0)
-    const totalDiscountAmount = orderItemsData.reduce((sum, item) => sum + item.discountAmount, 0)
-    const total = subtotal + totalTax - totalDiscountAmount
+    const totalTax = Math.round(orderItemsData.reduce((sum, item) => sum + item.vatAmount, 0) * 100) / 100
+    const totalDiscountAmount = Math.round(orderItemsData.reduce((sum, item) => sum + item.discountAmount, 0) * 100) / 100
+    const total = Math.round((subtotal + totalTax - totalDiscountAmount) * 100) / 100
 
     const order = await db.order.create({
       data: {

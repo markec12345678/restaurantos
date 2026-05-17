@@ -138,6 +138,15 @@ export async function PUT(
           })
         }
 
+        // FIX HIGH: Zmanjšaj discount.currentUses ob povračilu/poničitvi plačila
+        const checkForDiscount = await tx.check.findUnique({ where: { id: existingPayment.checkId } })
+        if (checkForDiscount?.appliedDiscountId) {
+          await tx.discount.update({
+            where: { id: checkForDiscount.appliedDiscountId },
+            data: { currentUses: { decrement: 1 } },
+          })
+        }
+
         // Update the payment itself
         const updatedPayment = await tx.payment.update({
           where: { id },

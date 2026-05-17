@@ -24,6 +24,16 @@ export async function PUT(
       return NextResponse.json({ error: 'Darilna kartica ni najdena' }, { status: 404 })
     }
 
+    // FIX MEDIUM: Preveri, da kartica ni potekla ali suspendirana — ne dovoli sprememb
+    if (existing.status === 'suspended') {
+      return NextResponse.json({ error: 'Suspendirane kartice ni mogoče spreminjati' }, { status: 400 })
+    }
+    if (existing.expiresAt && existing.expiresAt < new Date() && existing.status !== 'expired') {
+      // Avtomatsko označi kot poteklo
+      await db.giftCard.update({ where: { id }, data: { status: 'expired' } })
+      return NextResponse.json({ error: 'Darilna kartica je potekla' }, { status: 400 })
+    }
+
     // FIX H-05: Atomna transakcija za posodobitev stanja + transakcijski zapis
     const result = await db.$transaction(async (tx) => {
       const updateData: Record<string, unknown> = {}

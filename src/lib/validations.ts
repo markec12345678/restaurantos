@@ -433,7 +433,7 @@ export const fursStornoSchema = z.object({
 // ============================================
 
 export const updateOrderItemSchema = z.object({
-  status: z.enum(['pending', 'preparing', 'ready', 'served', 'voided', 'cancelled']).optional(),
+  status: z.enum(['pending', 'fired', 'preparing', 'ready', 'served', 'voided', 'cancelled']).optional(),
   notes: z.string().max(500).optional(),
   voided: z.boolean().optional(),
   voidReasonId: z.string().nullable().optional(),

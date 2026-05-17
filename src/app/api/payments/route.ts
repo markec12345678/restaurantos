@@ -216,18 +216,38 @@ export async function POST(req: Request) {
         })
       }
 
-      // FIX HIGH: Povečaj currentUses counter za popust SAMO ob prvem plačilu na tem čeku
-      // Preveri, če je to že drugo (ali nadaljnje) plačilo na istem čeku — ne povečuj counterja
+      // FIX CRITICAL: Validiraj popust PREDEN povečaš currentUses — prepreči uporabo neveljavnega/expired popusta
       if (check.appliedDiscountId) {
-        const previousPayments = await tx.payment.count({
-          where: { checkId: data.checkId, status: 'completed' },
-        })
-        // Samo ob prvem plačilu na čeku povečaj currentUses
-        if (previousPayments <= 1) { // 1 ker je trenutno plačilo že ustvarjeno zgoraj
-          await tx.discount.update({
-            where: { id: check.appliedDiscountId },
-            data: { currentUses: { increment: 1 } },
-          })
+        const discountObj = await tx.discount.findUnique({ where: { id: check.appliedDiscountId } })
+        if (discountObj) {
+          // Preveri, da je popust aktiven
+          if (!discountObj.isActive) {
+            throw new Error('Popust ni aktiven — plačilo ni mogoče')
+          }
+          // Preveri veljavno obdobje
+          const now = new Date()
+          if (discountObj.validFrom && now < discountObj.validFrom) {
+            throw new Error('Popust še ni veljaven — plačilo ni mogoče')
+          }
+          if (discountObj.validTo && now > discountObj.validTo) {
+            throw new Error('Popust je potekel — plačilo ni mogoče')
+          }
+          // Preveri maxUses z atomarnim incrementom (prepreči race condition)
+          if (discountObj.maxUses !== null) {
+            const updated = await tx.discount.updateMany({
+              where: { id: discountObj.id, currentUses: { lt: discountObj.maxUses } },
+              data: { currentUses: { increment: 1 } },
+            })
+            if (updated.count === 0) {
+              throw new Error('Popust je že bil uporabljen največkrat')
+            }
+          } else {
+            // Brez omejitve — samo povečaj counter
+            await tx.discount.update({
+              where: { id: discountObj.id },
+              data: { currentUses: { increment: 1 } },
+            })
+          }
         }
       }
 
@@ -297,6 +317,17 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('Failed to create payment:', error)
     const message = error instanceof Error ? error.message : 'Napaka pri ustvarjanju plačila'
-    return NextResponse.json({ error: message }, { status: 500 })
+    // FIX HIGH: Napake iz transakcije (neveljaven popust, ni zaloge, itd.) so 400, ne 500
+    const isClientError = error instanceof Error && (
+      message.includes('ni aktiven') ||
+      message.includes('ni najden') ||
+      message.includes('ni zadostno') ||
+      message.includes('potekel') ||
+      message.includes('še ni veljaven') ||
+      message.includes('največkrat') ||
+      message.includes('ni na voljo') ||
+      message.includes('suspendirana')
+    )
+    return NextResponse.json({ error: message }, { status: isClientError ? 400 : 500 })
   }
 }
