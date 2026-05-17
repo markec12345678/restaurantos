@@ -359,43 +359,44 @@ export async function PUT(req: Request) {
     const fursResult = await verifyInvoiceWithFURS(config, stornoInvoiceData, zoi)
 
     // FIX: Vse operacije v eni transakciji — prepreči parcialno stanje
+    const originalReceipt = receipt // Shrani referenco na originalni račun
     const stornoReceipt = await db.$transaction(async (tx) => {
-      const receipt = await tx.receipt.create({
+      const newStornoReceipt = await tx.receipt.create({
         data: {
           receiptNumber: stornoNumber,
-          orderId: receipt.orderId,
-          businessName: receipt.businessName,
-          businessAddress: receipt.businessAddress,
-          businessId: receipt.businessId,
-          taxId: receipt.taxId,
-          registerId: receipt.registerId,
+          orderId: originalReceipt.orderId,
+          businessName: originalReceipt.businessName,
+          businessAddress: originalReceipt.businessAddress,
+          businessId: originalReceipt.businessId,
+          taxId: originalReceipt.taxId,
+          registerId: originalReceipt.registerId,
           zoi: fursResult.zoi || zoi,
           eor: fursResult.eor || '',
           fiscalVerified: fursResult.success,
           verificationDate: fursResult.verifiedAt,
-          subtotal: -receipt.subtotal,
-          vatBreakdown: receipt.vatBreakdown,
-          totalVat: -receipt.totalVat,
-          discount: -receipt.discount,
-          total: -receipt.total,
-          tip: -receipt.tip,
-          totalWithTip: -receipt.totalWithTip,
-          paymentMethod: receipt.paymentMethod,
+          subtotal: -originalReceipt.subtotal,
+          vatBreakdown: originalReceipt.vatBreakdown,
+          totalVat: -originalReceipt.totalVat,
+          discount: -originalReceipt.discount,
+          total: -originalReceipt.total,
+          tip: -originalReceipt.tip,
+          totalWithTip: -originalReceipt.totalWithTip,
+          paymentMethod: originalReceipt.paymentMethod,
           isCopy: false,
           isStorno: true,
-          stornoOf: receipt.receiptNumber,
+          stornoOf: originalReceipt.receiptNumber,
         },
       })
 
       // Označi original kot storniran
       await tx.receipt.update({
-        where: { id: receipt.id },
+        where: { id: originalReceipt.id },
         data: { isStorno: true },
       })
 
       // Posodobi naročilo
       await tx.order.update({
-        where: { id: receipt.orderId },
+        where: { id: originalReceipt.orderId },
         data: {
           paymentStatus: 'storno',
           status: 'cancelled',
@@ -406,7 +407,7 @@ export async function PUT(req: Request) {
       })
 
       // Označi plačila kot refunded
-      const checks = await tx.check.findMany({ where: { orderId: receipt.orderId } })
+      const checks = await tx.check.findMany({ where: { orderId: originalReceipt.orderId } })
       for (const check of checks) {
         await tx.payment.updateMany({
           where: { checkId: check.id },
@@ -414,7 +415,7 @@ export async function PUT(req: Request) {
         })
       }
 
-      return receipt
+      return newStornoReceipt
     })
 
     // Vrni zalogo

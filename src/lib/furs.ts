@@ -309,7 +309,7 @@ async function getFursToken(config: FursConfig): Promise<string | null> {
   tokenFetchPromise = (async () => {
     try {
     // Naloži privatni ključ za JWT podpisovanje
-    const privateKey = loadCertificatePrivateKey(config.certPath, config.certPassword)
+    const privateKey = loadCertificatePrivateKey(config.certPath!, config.certPassword!)
     if (!privateKey) {
       console.warn('[FURS] Ne morem naložiti privatnega ključa za JWT')
       return null
