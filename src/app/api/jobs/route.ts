@@ -1,9 +1,26 @@
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody } from '@/lib/validations'
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
+
+// Zod validacija za kreiranje delovnega mesta
+const createJobSchema = z.object({
+  name: z.string().min(1, 'Ime je obvezno').max(200),
+  code: z.string().max(50).default(''),
+  basePayRate: z.number().min(0).default(0),
+  overtimeRate: z.number().min(0).default(0),
+  permissions: z.string().max(5000).default('[]'),
+  isActive: z.boolean().default(true),
+  sortOrder: z.number().int().min(0).default(0),
+})
 
 export async function GET(req: Request) {
   try {
+    // FIX CRITICAL: Zahtevaj avtentikacijo za branje delovnih mest — izpostavlja dovoljenja in plačne podatke
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
+
     const { searchParams } = new URL(req.url)
     const isActive = searchParams.get('isActive')
 
@@ -21,7 +38,7 @@ export async function GET(req: Request) {
     return NextResponse.json(jobs)
   } catch (error) {
     console.error('Failed to fetch jobs:', error)
-    return NextResponse.json({ error: 'Failed to fetch jobs' }, { status: 500 })
+    return NextResponse.json({ error: 'Napaka pri pridobivanju delovnih mest' }, { status: 500 })
   }
 }
 
@@ -32,15 +49,19 @@ export async function POST(req: Request) {
 
     const body = await req.json()
 
+    // FIX HIGH: Zod validacija za kreiranje delovnega mesta — prepreči neveljavne vnose
+    const { data, error: validationError } = validateBody(createJobSchema, body)
+    if (validationError) return validationError
+
     const job = await db.job.create({
       data: {
-        name: body.name,
-        code: body.code || '',
-        basePayRate: body.basePayRate || 0,
-        overtimeRate: body.overtimeRate || 0,
-        permissions: body.permissions || '[]',
-        isActive: body.isActive !== undefined ? body.isActive : true,
-        sortOrder: body.sortOrder || 0,
+        name: data.name,
+        code: data.code,
+        basePayRate: data.basePayRate,
+        overtimeRate: data.overtimeRate,
+        permissions: data.permissions,
+        isActive: data.isActive,
+        sortOrder: data.sortOrder,
       },
       include: {
         employees: true,
@@ -50,6 +71,6 @@ export async function POST(req: Request) {
     return NextResponse.json(job, { status: 201 })
   } catch (error) {
     console.error('Failed to create job:', error)
-    return NextResponse.json({ error: 'Failed to create job' }, { status: 500 })
+    return NextResponse.json({ error: 'Napaka pri ustvarjanju delovnega mesta' }, { status: 500 })
   }
 }
