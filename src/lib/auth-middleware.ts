@@ -112,14 +112,15 @@ type Permission =
   | 'view_reports' 
   | 'admin'
 
-// Rute, ki ne zahtevajo avtentikacije
-const PUBLIC_ROUTES = [
-  '/api/auth',
-  '/api/public',      // Javne rute za QR naročanje
-  '/api/qr-menu',     // Javni meni za QR
-  '/api/menus',       // Meni podatki (samo GET)
-  '/api/categories',  // Kategorije (samo GET)
-  '/api/menu-items',  // Menu artikli (samo GET)
+// Rute, ki ne zahtevajo avtentikacijo (SAMO za GET zahtevke!)
+// FIX HIGH: POST/PUT/DELETE na teh rutah ZAHTEVAJO avtentikacijo
+const PUBLIC_GET_ROUTES = [
+  '/api/auth',            // Login — avtentikacija sama po sebi
+  '/api/public',          // Javne rute za QR naročanje
+  '/api/qr-menu',         // Javni meni za QR
+  '/api/menus',           // Meni podatki (samo GET)
+  '/api/categories',      // Kategorije (samo GET)
+  '/api/menu-items',      // Menu artikli (samo GET)
   '/api/modifier-groups', // Modifikatorji (samo GET)
 ]
 
@@ -160,7 +161,11 @@ const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
  * Preveri ali ruta zahteva avtentikacijo
  */
 function isPublicRoute(pathname: string): boolean {
-  return PUBLIC_ROUTES.some(route => pathname.startsWith(route))
+  // FIX HIGH: Javne rute so javne SAMO za GET — POST/PUT/DELETE zahtevajo avtentikacijo
+  // /api/auth je izjema — login POST je dovoljen brez tokena
+  if (pathname.startsWith('/api/auth')) return true
+  if (pathname.startsWith('/api/public')) return true
+  return PUBLIC_GET_ROUTES.some(route => pathname.startsWith(route))
 }
 
 /**

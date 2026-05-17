@@ -160,12 +160,15 @@ export async function GET(req: Request) {
     }
 
     // ─── PO URAH ───
-    // FIX HIGH: Uporabi lokalne ure (CET/CEST) namesto UTC — poslovno poročanje mora odražati lokalni čas
+    // FIX HIGH: Uporabi paidAt za finančno urno razdelitev (ne createdAt!)
+    // Naročilo, ustvarjeno ob 23:30 a plačano ob 00:15, sodi v uro 00 za finančna poročila
     const localOffset = new Date().getTimezoneOffset() // v minutah, negativno za CET
     const hourlyBreakdown: Array<{ hour: number; revenue: number; orders: number }> = []
     for (let h = 0; h < 24; h++) {
       const hourOrders = completedOrders.filter(o => {
-        const localDate = new Date(o.createdAt.getTime() - localOffset * 60000)
+        // Uporabi paidAt za finančno razdelitev, fallback na createdAt
+        const refDate = o.paidAt || o.createdAt
+        const localDate = new Date(refDate.getTime() - localOffset * 60000)
         return localDate.getUTCHours() === h
       })
       hourlyBreakdown.push({
