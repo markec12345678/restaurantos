@@ -50,10 +50,15 @@ const NO_CACHE_API_PATTERNS = [
 // ============================================
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => {
-      return cache.addAll(STATIC_ASSETS).catch(() => {
-        // Nekateri viri morda niso na voljo — tiho nadaljuj
-      })
+    caches.open(STATIC_CACHE).then(async (cache) => {
+      // FIX: Predpomni vsak vir posebej — če eden odpove, ostali še vedno delujejo
+      for (const asset of STATIC_ASSETS) {
+        try {
+          await cache.add(asset)
+        } catch (err) {
+          console.warn('[SW] Napaka pri predpomnjenju:', asset, err)
+        }
+      }
     })
   )
   // Aktiviraj takoj, ne čakaj na zaprtje starega SW
@@ -89,9 +94,6 @@ self.addEventListener('fetch', (event) => {
 
   // Ignoriraj chrome-extension in druge non-http zahtevke
   if (!url.protocol.startsWith('http')) return
-
-  // WebSocket — ne predpomni
-  if (url.protocol === 'ws:' || url.protocol === 'wss:') return
 
   // ROUTING:
   if (url.pathname.startsWith('/api/')) {
@@ -145,7 +147,7 @@ async function networkFirstWithCache(request, cacheName, maxAge = API_CACHE_TTL)
       // Shrani v cache z timestampom za offline uporabo
       const cache = await caches.open(cacheName)
       const responseToCache = networkResponse.clone()
-      // FIX C-SW1: Dodaj timestamp header za TTL preverjanje
+      // Dodaj timestamp header za TTL preverjanje
       const headers = new Headers(responseToCache.headers)
       headers.set('sw-cache-timestamp', Date.now().toString())
       const body = await responseToCache.blob()
@@ -154,15 +156,17 @@ async function networkFirstWithCache(request, cacheName, maxAge = API_CACHE_TTL)
         statusText: responseToCache.statusText,
         headers,
       })
-      cache.put(request, cachedResponse)
+      // FIX: Počakaj na cache.put — prepreči unhandled rejection
+      await cache.put(request, cachedResponse)
     }
 
     return networkResponse
   } catch {
     // Omrežje ni na voljo — poskusi cache
-    const cachedResponse = await caches.match(request)
+    // FIX: Uporabi { cacheName } namesto iskanja po vseh cache-jih
+    const cachedResponse = await caches.match(request, { cacheName })
     if (cachedResponse) {
-      // FIX C-SW2: Preveri TTL — ne vrni odcelega cache-ja
+      // Preveri TTL — ne vrni odcelega cache-ja
       const cacheTimestamp = parseInt(cachedResponse.headers.get('sw-cache-timestamp') || '0')
       if (maxAge > 0 && cacheTimestamp && (Date.now() - cacheTimestamp) > maxAge * 2) {
         // Cache je potekel več kot 2x TTL — vrni offline odgovor
@@ -172,6 +176,12 @@ async function networkFirstWithCache(request, cacheName, maxAge = API_CACHE_TTL)
         )
       }
       return cachedResponse
+    }
+
+    // Poskusi še v vseh cache-jih (fallback za HTML itd.)
+    const fallbackResponse = await caches.match(request)
+    if (fallbackResponse) {
+      return fallbackResponse
     }
 
     // Ni cache-ja — vrni offline odgovor
@@ -187,9 +197,10 @@ async function networkFirstWithCache(request, cacheName, maxAge = API_CACHE_TTL)
  * @param maxAge Maksimalna starost v ms (privzeto brez omejitve za statiko)
  */
 async function cacheFirstWithNetwork(request, cacheName, maxAge = 0) {
-  const cachedResponse = await caches.match(request)
+  // FIX: Uporabi { cacheName } namesto iskanja po vseh cache-jih
+  const cachedResponse = await caches.match(request, { cacheName })
   if (cachedResponse) {
-    // FIX C-SW3: Preveri TTL za slike
+    // Preveri TTL za slike
     if (maxAge > 0) {
       const cacheTimestamp = parseInt(cachedResponse.headers.get('sw-cache-timestamp') || '0')
       if (cacheTimestamp && (Date.now() - cacheTimestamp) > maxAge) {
@@ -208,13 +219,15 @@ async function cacheFirstWithNetwork(request, cacheName, maxAge = 0) {
       // Dodaj timestamp za TTL
       const headers = new Headers(networkResponse.headers)
       headers.set('sw-cache-timestamp', Date.now().toString())
-      const body = await networkResponse.clone().blob()
+      // FIX: Ni potrebe po clone() — networkResponse se ne porabi več
+      const body = await networkResponse.blob()
       const cachedResponse = new Response(body, {
         status: networkResponse.status,
         statusText: networkResponse.statusText,
         headers,
       })
-      cache.put(request, cachedResponse)
+      // FIX: Počakaj na cache.put
+      await cache.put(request, cachedResponse)
     }
 
     return networkResponse
@@ -242,13 +255,15 @@ async function refreshCacheEntry(request, cacheName) {
       const cache = await caches.open(cacheName)
       const headers = new Headers(networkResponse.headers)
       headers.set('sw-cache-timestamp', Date.now().toString())
-      const body = await networkResponse.clone().blob()
+      // FIX: Ni potrebe po clone() — networkResponse se ne porabi več
+      const body = await networkResponse.blob()
       const cachedResponse = new Response(body, {
         status: networkResponse.status,
         statusText: networkResponse.statusText,
         headers,
       })
-      cache.put(request, cachedResponse)
+      // FIX: Počakaj na cache.put
+      await cache.put(request, cachedResponse)
     }
   } catch {
     // Osveževanje ni uspelo — ohrani stari cache
@@ -260,7 +275,6 @@ async function refreshCacheEntry(request, cacheName) {
 // ============================================
 self.addEventListener('sync', (event) => {
   if (event.tag === 'sync-pending-orders') {
-    // FIX C-SW4: Implementiraj sync za čakajoča naročila
     event.waitUntil(syncPendingOrders())
   }
 
@@ -283,19 +297,6 @@ async function syncPendingOrders() {
     const store = tx.objectStore('pendingOrders')
     const orders = await idbRequestToPromise(store.getAll())
 
-    // Pridobi auth token iz localStorage (če je na voljo v SW kontekstu)
-    let authToken = ''
-    try {
-      const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-      for (const client of allClients) {
-        // Pošlji sporočilo clientu, da mora poslati token
-        // Zaenkrat pošiljamo brez tokena — API bo vrnil 401 in client bo ponovno poslal
-        break
-      }
-    } catch {
-      // Ni klientov — nadaljuj brez tokena
-    }
-
     for (const order of orders) {
       try {
         const headers = { 'Content-Type': 'application/json' }
@@ -315,11 +316,15 @@ async function syncPendingOrders() {
           const deleteTx = db.transaction('pendingOrders', 'readwrite')
           const deleteStore = deleteTx.objectStore('pendingOrders')
           deleteStore.delete(order.id)
-          await idbRequestToPromise(deleteTx.done)
+          // FIX: deleteTx.done ne obstaja v nativnem IndexedDB — uporabi oncomplete
+          await new Promise((resolve, reject) => {
+            deleteTx.oncomplete = resolve
+            deleteTx.onerror = () => reject(deleteTx.error)
+          })
         }
       } catch {
-        // Poskus znova naslednjič
-        break
+        // FIX: Nadaljuj z naslednjim naročilom namesto break — eno neuspelo ne sme blokirati ostalih
+        continue
       }
     }
   } catch {
@@ -378,7 +383,8 @@ async function refreshApiCache() {
       if (response.ok) {
         const headers = new Headers(response.headers)
         headers.set('sw-cache-timestamp', Date.now().toString())
-        const body = await response.clone().blob()
+        // FIX: Ni potrebe po clone() — response se ne porabi več
+        const body = await response.blob()
         const cachedResponse = new Response(body, {
           status: response.status,
           statusText: response.statusText,
@@ -428,11 +434,11 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Če je okno že odprto, fokusiraj
+      // Če je okno že odprto, navigiraj in fokusiraj
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
-          client.navigate(url)
-          return client.focus()
+          // FIX: Počakaj na navigate pred focus — prepreči race condition
+          return client.navigate(url).then(() => client.focus())
         }
       }
       // Drugače odpri novo okno

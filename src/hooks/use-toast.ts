@@ -135,8 +135,13 @@ let memoryState: State = { toasts: [] }
 
 function dispatch(action: Action) {
   memoryState = reducer(memoryState, action)
+  // FIX: try/catch za vsak listener — en napaken listener ne sme ustaviti ostalih
   listeners.forEach((listener) => {
-    listener(memoryState)
+    try {
+      listener(memoryState)
+    } catch (err) {
+      console.error('[Toast] Listener error:', err)
+    }
   })
 }
 

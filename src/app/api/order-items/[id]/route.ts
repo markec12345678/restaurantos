@@ -97,16 +97,18 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       })
 
       if (recipeItems.length > 0) {
-        // Vrni zalogo za vsako sestavino v receptu
-        for (const recipe of recipeItems) {
-          const invItem = await db.inventoryItem.findUnique({ where: { id: recipe.inventoryItemId } })
-          if (!invItem) continue
+        // FIX: Vrni zalogo za VSE sestavine v eni transakciji — prepreči delno vračanje
+        const lowStockAlerts: Array<{ inventoryItemId: string; name: string; currentQty: number; minQty: number }> = []
 
-          const qtyToReturn = recipe.quantityPerServing * orderItem.quantity
-          const previousQty = invItem.quantity
-          const newQty = Math.round((previousQty + qtyToReturn) * 10000) / 10000
+        await db.$transaction(async (tx) => {
+          for (const recipe of recipeItems) {
+            const invItem = await tx.inventoryItem.findUnique({ where: { id: recipe.inventoryItemId } })
+            if (!invItem) continue
 
-          await db.$transaction(async (tx) => {
+            const qtyToReturn = recipe.quantityPerServing * orderItem.quantity
+            const previousQty = invItem.quantity
+            const newQty = Math.round((previousQty + qtyToReturn) * 10000) / 10000
+
             await tx.inventoryItem.update({
               where: { id: invItem.id },
               data: { quantity: newQty },
@@ -125,17 +127,21 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                 employeeName: authResult.session?.employeeId || '',
               },
             })
-          })
 
-          // Preveri če je zaloga še vedno nizka
-          if (newQty <= invItem.minQuantity) {
-            broadcastLowStockAlert([{
-              inventoryItemId: invItem.id,
-              name: invItem.name,
-              currentQty: newQty,
-              minQty: invItem.minQuantity,
-            }])
+            if (newQty <= invItem.minQuantity) {
+              lowStockAlerts.push({
+                inventoryItemId: invItem.id,
+                name: invItem.name,
+                currentQty: newQty,
+                minQty: invItem.minQuantity,
+              })
+            }
           }
+        })
+
+        // Pošlji low-stock opozorila po transakciji
+        if (lowStockAlerts.length > 0) {
+          broadcastLowStockAlert(lowStockAlerts)
         }
       } else {
         // 2. Fallback: direktna 1:1 povezava InventoryItem ↔ MenuItem

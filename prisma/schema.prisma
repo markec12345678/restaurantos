@@ -51,16 +51,16 @@ model MenuItem {
   category        Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   // --- Toast: Sales Category (za poročila, ločeno od meni kategorije) ---
   salesCategoryId String?
-  salesCategory   SalesCategory?   @relation(fields: [salesCategoryId], references: [id])
+  salesCategory   SalesCategory?   @relation(fields: [salesCategoryId], references: [id], onDelete: SetNull)
   // --- Toast: Price Group (različni ceniki) ---
   priceGroupId    String?
-  priceGroup      PriceGroup?      @relation(fields: [priceGroupId], references: [id])
+  priceGroup      PriceGroup?      @relation(fields: [priceGroupId], references: [id], onDelete: SetNull)
   // --- Toast: Revenue Center (bar, terasa, dostava) ---
   revenueCenterId String?
-  revenueCenter   RevenueCenter?   @relation(fields: [revenueCenterId], references: [id])
+  revenueCenter   RevenueCenter?   @relation(fields: [revenueCenterId], references: [id], onDelete: SetNull)
   // --- Toast: Prep Station (kuhinja, bar) ---
   prepStationId   String?
-  prepStation     PrepStation?     @relation(fields: [prepStationId], references: [id])
+  prepStation     PrepStation?     @relation(fields: [prepStationId], references: [id], onDelete: SetNull)
   // --- Relations ---
   orderItems      OrderItem[]
   inventory       InventoryItem?
@@ -68,6 +68,13 @@ model MenuItem {
   modifierGroups  MenuItemModifierGroup[]
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
+
+  @@index([categoryId])
+  @@index([salesCategoryId])
+  @@index([priceGroupId])
+  @@index([revenueCenterId])
+  @@index([prepStationId])
+  @@index([isAvailable])
 }
 
 model ModifierGroup {
@@ -93,6 +100,8 @@ model Modifier {
   modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+
+  @@index([modifierGroupId])
 }
 
 model MenuItemModifierGroup {
@@ -126,7 +135,7 @@ model DiningOption {
   name              String   // "Na mestu", "Vzemi s seboj", "Dostava"
   type              String   // dine-in, takeout, delivery
   serviceChargeId   String?  // Povezana servisna postavka
-  serviceCharge     ServiceCharge? @relation(fields: [serviceChargeId], references: [id])
+  serviceCharge     ServiceCharge? @relation(fields: [serviceChargeId], references: [id], onDelete: SetNull)
   prepTimeMinutes   Int      @default(15) // Čas priprave v minutah
   isActive          Boolean  @default(true)
   sortOrder         Int      @default(0)
@@ -281,11 +290,14 @@ model Table {
   rotation        Float    @default(0)     // Rotacija v stopinjah
   // --- Povezave ---
   revenueCenterId String?
-  revenueCenter   RevenueCenter? @relation(fields: [revenueCenterId], references: [id])
+  revenueCenter   RevenueCenter? @relation(fields: [revenueCenterId], references: [id], onDelete: SetNull)
   orders          Order[]
   reservations    Reservation[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([revenueCenterId])
+  @@index([status])
 }
 
 model Order {
@@ -293,17 +305,17 @@ model Order {
   orderNumber     Int        @unique
   // --- Toast: Dining Option ---
   diningOptionId  String?
-  diningOption    DiningOption? @relation(fields: [diningOptionId], references: [id])
+  diningOption    DiningOption? @relation(fields: [diningOptionId], references: [id], onDelete: SetNull)
   type            String     @default("dine-in") // dine-in, takeout, delivery
   status          String     @default("pending")
   tableId         String?
-  table           Table?     @relation(fields: [tableId], references: [id])
+  table           Table?     @relation(fields: [tableId], references: [id], onDelete: SetNull)
   // --- Toast: Revenue Center ---
   revenueCenterId String?
-  revenueCenter   RevenueCenter? @relation(fields: [revenueCenterId], references: [id])
+  revenueCenter   RevenueCenter? @relation(fields: [revenueCenterId], references: [id], onDelete: SetNull)
   // --- Stranka / Gost CRM ---
   guestId         String?
-  guest           Guest?      @relation(fields: [guestId], references: [id])
+  guest           Guest?      @relation(fields: [guestId], references: [id], onDelete: SetNull)
   customerName    String     @default("")
   customerPhone   String     @default("")
   customerEmail   String     @default("")
@@ -330,7 +342,7 @@ model Order {
   paidAt          DateTime?                  // Kdaj je bilo plačano
   // --- Toast: Delivery Info ---
   deliveryInfoId  String?   @unique
-  deliveryInfo    DeliveryInfo? @relation(fields: [deliveryInfoId], references: [id])
+  deliveryInfo    DeliveryInfo? @relation(fields: [deliveryInfoId], references: [id], onDelete: Cascade)
   // --- Relations ---
   orderItems      OrderItem[]
   courses         Course[]
@@ -351,10 +363,10 @@ model OrderItem {
   order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   // --- Toast: Check povezava ---
   checkId        String?
-  check          Check?   @relation(fields: [checkId], references: [id])
+  check          Check?   @relation(fields: [checkId], references: [id], onDelete: SetNull)
   // --- Artikel ---
   menuItemId     String
-  menuItem       MenuItem @relation(fields: [menuItemId], references: [id])
+  menuItem       MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
   quantity       Int      @default(1)
   price          Float                         // Cena brez DDV
   vatRate        Float    @default(22.0)       // DDV stopnja tega artikla
@@ -364,14 +376,14 @@ model OrderItem {
   // --- Toast: Void/Poničitev ---
   voided         Boolean  @default(false)
   voidReasonId   String?
-  voidReason     VoidReason? @relation(fields: [voidReasonId], references: [id])
+  voidReason     VoidReason? @relation(fields: [voidReasonId], references: [id], onDelete: SetNull)
   // --- Toast: Discounts na artikel ---
   discountAmount Float    @default(0)
   appliedDiscountId String?
-  appliedDiscount Discount? @relation(fields: [appliedDiscountId], references: [id])
+  appliedDiscount Discount? @relation(fields: [appliedDiscountId], references: [id], onDelete: SetNull)
   // --- Course (fine dining) ---
   courseId        String?
-  course          Course?   @relation(fields: [courseId], references: [id])
+  course          Course?   @relation(fields: [courseId], references: [id], onDelete: SetNull)
   // --- Status ---
   status         String   @default("pending")
   createdAt      DateTime @default(now())
@@ -405,13 +417,14 @@ model Check {
   paymentMethod   String     @default("")
   // --- Popusti na ček ---
   appliedDiscountId String?
-  appliedDiscount  Discount?  @relation(fields: [appliedDiscountId], references: [id])
+  appliedDiscount  Discount?  @relation(fields: [appliedDiscountId], references: [id], onDelete: SetNull)
   // --- Relations ---
   orderItems      OrderItem[]
   payments        Payment[]
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
+  @@unique([orderId, checkNumber])
   @@index([orderId])
   @@index([paymentStatus])
 }
@@ -427,17 +440,17 @@ model Payment {
   type                  String                // cash, card, mobile, voucher, loyalty, giftcard, alternate
   // --- Toast: Alternate Payment Type ---
   alternatePaymentTypeId String?
-  alternatePaymentType  AlternatePaymentType? @relation(fields: [alternatePaymentTypeId], references: [id])
+  alternatePaymentType  AlternatePaymentType? @relation(fields: [alternatePaymentTypeId], references: [id], onDelete: SetNull)
   // --- Kartica ---
   cardType              String   @default("") // visa, mastercard, maestro, diners, amex
   cardLast4             String   @default("") // Zadnje 4 številke
   authorizationCode     String   @default("") // Koda avtorizacije
   // --- Toast: Gift Card ---
   giftCardId            String?
-  giftCard              GiftCard?             @relation(fields: [giftCardId], references: [id])
+  giftCard              GiftCard?             @relation(fields: [giftCardId], references: [id], onDelete: SetNull)
   // --- Toast: Loyalty ---
   loyaltyAccountId      String?
-  loyaltyAccount        LoyaltyAccount?       @relation(fields: [loyaltyAccountId], references: [id])
+  loyaltyAccount        LoyaltyAccount?       @relation(fields: [loyaltyAccountId], references: [id], onDelete: SetNull)
   loyaltyPointsUsed     Int      @default(0)
   // --- Status ---
   status                String   @default("completed") // completed, refunded, voided
@@ -472,6 +485,7 @@ model Discount {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@index([promoCode])
   @@index([isActive])
   @@index([triggerType])
 }
@@ -528,7 +542,9 @@ model Employee {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([pin])
+  @@unique([pin])
+  @@index([status])
+  @@index([role])
 }
 
 model Job {
@@ -568,7 +584,7 @@ model Shift {
   employeeId String
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   jobId      String?
-  job        Job?     @relation(fields: [jobId], references: [id])
+  job        Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
   date       DateTime
   startTime  String   @default("09:00")
   endTime    String   @default("17:00")
@@ -578,6 +594,10 @@ model Shift {
   notes      String   @default("")
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([date])
+  @@index([status])
 }
 
 model TimeEntry {
@@ -585,7 +605,7 @@ model TimeEntry {
   employeeId  String
   employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   jobId       String?
-  job         Job?     @relation(fields: [jobId], references: [id])
+  job         Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
   // --- Clock In/Out ---
   clockIn     DateTime
   clockOut    DateTime?
@@ -603,6 +623,11 @@ model TimeEntry {
   notes       String   @default("")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([clockIn])
+  @@index([type])
+  @@index([status])
 }
 
 // ============================================
@@ -657,7 +682,7 @@ model InventoryItem {
   costPerServing  Float     @default(0)            // Strošek na servis
   // --- Povezava z menijem ---
   menuItemId      String?   @unique
-  menuItem        MenuItem? @relation(fields: [menuItemId], references: [id])
+  menuItem        MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
   lastRestocked   DateTime  @default(now())
   // --- Transakcije ---
   transactions    StockTransaction[]
@@ -666,6 +691,8 @@ model InventoryItem {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  @@index([expiryDate])
+  @@index([name])
   @@index([category])
   @@index([supplier])
   @@index([location])
@@ -721,7 +748,7 @@ model Receipt {
   id                String   @id @default(cuid())
   receiptNumber     String   @unique               // Sekvenčna številka: R-2026-000001
   orderId           String                         // Omogoča več računov na naročilo (split payments)
-  order             Order    @relation(fields: [orderId], references: [id])
+  order             Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
   // --- Podatki izdajatelja ---
   businessName      String
   businessAddress   String
@@ -750,6 +777,8 @@ model Receipt {
   createdAt         DateTime @default(now())
 
   @@index([orderId])
+  @@index([fiscalVerified])
+  @@index([createdAt])
 }
 
 // ============================================
@@ -775,6 +804,9 @@ model LoyaltyAccount {
   guest           Guest?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([customerPhone])
+  @@index([customerEmail])
 }
 
 model LoyaltyTransaction {
@@ -819,6 +851,8 @@ model GiftCard {
   payments        Payment[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([expiresAt])
 }
 
 model GiftCardTransaction {
@@ -893,6 +927,9 @@ model HaccpEntry {
   employeeName    String   @default("")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([category])
+  @@index([date])
 }
 
 // ============================================
@@ -1140,7 +1177,7 @@ model PurchaseOrderItem {
   purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   // --- Artikel ---
   inventoryItemId String?
-  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id])
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
   description     String                           // Opis artikla
   // --- Količine ---
   quantityOrdered Float         @default(0)
@@ -1157,6 +1194,8 @@ model PurchaseOrderItem {
   updatedAt       DateTime      @updatedAt
 
   @@index([purchaseOrderId])
+  @@index([inventoryItemId])
+  @@index([status])
 }
 
 // ============================================
@@ -1190,6 +1229,7 @@ model WaitlistEntry {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
+  @@index([partySize])
   @@index([status])
   @@index([checkedInAt])
 }

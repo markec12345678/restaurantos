@@ -70,12 +70,6 @@ export async function broadcastWSEvent(type: WSEventType, payload: unknown): Pro
 // ============================================
 
 export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): UseKitchenWebSocketReturn {
-  const {
-    autoReconnect = true,
-    maxReconnectAttempts = 10,
-    onEvent,
-  } = options
-
   const queryClient = useQueryClient()
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectAttemptsRef = useRef(0)
@@ -83,6 +77,12 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
   const connectFnRef = useRef<() => void>(() => {})
   const [connected, setConnected] = useState(false)
   const [lastEvent, setLastEvent] = useState<WSMessage | null>(null)
+
+  // FIX: Shranimo options v ref — prepreči ponovno povezovanje ob vsakem renderu
+  const autoReconnectRef = useRef(options.autoReconnect ?? true)
+  const maxReconnectAttemptsRef = useRef(options.maxReconnectAttempts ?? 10)
+  autoReconnectRef.current = options.autoReconnect ?? true
+  maxReconnectAttemptsRef.current = options.maxReconnectAttempts ?? 10
 
   // Heartbeat refs
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null)
@@ -120,8 +120,8 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
   }, [queryClient])
 
   // Shranimo onEvent v ref, da se izognemo ponovnemu povezovanju ob spremembi
-  const onEventRef = useRef(onEvent)
-  useEffect(() => { onEventRef.current = onEvent })
+  const onEventRef = useRef(options.onEvent)
+  useEffect(() => { onEventRef.current = options.onEvent })
 
   const disconnect = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -224,11 +224,11 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
         console.log(`[WS] Povezava zaprta (koda: ${event.code})`)
 
         // Samodejno ponovno poveži z eksponentnim zakasnitvijo
-        if (autoReconnect && event.code !== 1000) {
+        if (autoReconnectRef.current && event.code !== 1000) {
           const attempts = reconnectAttemptsRef.current
-          if (attempts < maxReconnectAttempts) {
+          if (attempts < maxReconnectAttemptsRef.current) {
             const delay = Math.min(1000 * Math.pow(2, attempts), 30000) // Max 30s
-            console.log(`[WS] Ponovno povezovanje čez ${delay}ms (poskus ${attempts + 1}/${maxReconnectAttempts})`)
+            console.log(`[WS] Ponovno povezovanje čez ${delay}ms (poskus ${attempts + 1}/${maxReconnectAttemptsRef.current})`)
             reconnectTimerRef.current = setTimeout(() => {
               reconnectAttemptsRef.current++
               // Uporabi ref za povezavo, da se izognemo cirkularni odvisnosti
@@ -249,7 +249,7 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
       console.error('[WS] Napaka pri vzpostavljanju povezave:', err)
       setConnected(false)
     }
-  }, [autoReconnect, maxReconnectAttempts, invalidateRelevantQueries])
+  }, [invalidateRelevantQueries])
 
   // Posodobi ref, da onclose lahko kliče connect
   useEffect(() => { connectFnRef.current = connect })

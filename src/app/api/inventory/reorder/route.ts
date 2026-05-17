@@ -136,27 +136,29 @@ export async function POST(req: Request) {
       const newQty = Math.round((previousQty + item.quantity) * 10000) / 10000
 
       // Ustvari transakcijo tipa "procurement" (naročilo dobavitelja)
-      const tx = await db.stockTransaction.create({
-        data: {
-          inventoryItemId: item.inventoryItemId,
-          type: 'procurement',
-          quantity: item.quantity,
-          previousQty,
-          newQty,
-          costPerUnit: item.costPerUnit,
-          totalCost: item.quantity * item.costPerUnit,
-          reason: `Samodejno naročilo (${employeeName || 'sistem'})`,
-          employeeName: employeeName || '',
-        },
-      })
+      // FIX: Ustvari transakcijo IN posodobi zalogo atomarno — prepreči delno stanje
+      await db.$transaction(async (tx) => {
+        await tx.stockTransaction.create({
+          data: {
+            inventoryItemId: item.inventoryItemId,
+            type: 'procurement',
+            quantity: item.quantity,
+            previousQty,
+            newQty,
+            costPerUnit: item.costPerUnit,
+            totalCost: item.quantity * item.costPerUnit,
+            reason: `Samodejno naročilo (${employeeName || 'sistem'})`,
+            employeeName: employeeName || '',
+          },
+        })
 
-      // Posodobi zalogo
-      await db.inventoryItem.update({
-        where: { id: item.inventoryItemId },
-        data: {
-          quantity: newQty,
-          lastRestocked: new Date(),
-        },
+        await tx.inventoryItem.update({
+          where: { id: item.inventoryItemId },
+          data: {
+            quantity: newQty,
+            lastRestocked: new Date(),
+          },
+        })
       })
 
       results.push({
@@ -170,7 +172,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       createdOrders: results.length,
-      totalCost: Math.round(results.reduce((s, r) => s + r.totalCost, 2) * 100) / 100,
+      totalCost: Math.round(results.reduce((s, r) => s + r.totalCost, 0) * 100) / 100,
       items: results,
     }, { status: 201 })
   } catch (error) {

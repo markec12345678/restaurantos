@@ -156,7 +156,7 @@ export async function POST(req: Request) {
         }
       }
 
-      // Loyalty points deduction — ATOMNO znotraj transakcije
+      // Loyalty points deduction — ATOMNO znotraj transakcije (FIX: atomic decrement)
       if (data.type === 'loyalty' && data.loyaltyAccountId && data.loyaltyPointsUsed > 0) {
         const loyaltyAccount = await tx.loyaltyAccount.findUnique({ where: { id: data.loyaltyAccountId } })
         if (!loyaltyAccount) {
@@ -167,11 +167,16 @@ export async function POST(req: Request) {
           throw new Error('Ni dovolj točk na zvestobnem računu')
         }
 
-        const newPointsBalance = loyaltyAccount.pointsBalance - data.loyaltyPointsUsed
-        await tx.loyaltyAccount.update({
-          where: { id: data.loyaltyAccountId },
-          data: { pointsBalance: newPointsBalance },
+        // FIX: Uporabi atomic decrement namesto read-then-write — prepreči race condition
+        const updateResult = await tx.loyaltyAccount.updateMany({
+          where: { id: data.loyaltyAccountId, pointsBalance: { gte: data.loyaltyPointsUsed } },
+          data: { pointsBalance: { decrement: data.loyaltyPointsUsed } },
         })
+        if (updateResult.count === 0) {
+          throw new Error('Ni dovolj točk na zvestobnem računu (concurrent modification)')
+        }
+
+        const updatedAccount = await tx.loyaltyAccount.findUnique({ where: { id: data.loyaltyAccountId } })
         await tx.loyaltyTransaction.create({
           data: {
             loyaltyAccountId: data.loyaltyAccountId,

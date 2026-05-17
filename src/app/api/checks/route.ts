@@ -89,57 +89,71 @@ export async function POST(req: Request) {
         }
         discount = Math.min(discount, subtotal)
 
-        // Posodobi uporabo popusta
-        if (discountObj.maxUses !== null && discountObj.currentUses >= discountObj.maxUses) {
-          return NextResponse.json({ error: 'Popust je že bil uporabljen največkrat' }, { status: 400 })
-        }
-        await db.discount.update({
-          where: { id: discountObj.id },
-          data: { currentUses: { increment: 1 } },
-        })
+        // Popust posodobljen atomarno znotraj $transaction spodaj
       }
     }
 
     const total = subtotal + tax - discount
 
-    const check = await db.check.create({
-      data: {
-        checkNumber,
-        orderId: data.orderId,
-        subtotal,
-        tax,
-        discount,
-        serviceCharge: 0,
-        total,
-        tip: 0,
-        totalWithTip: total,
-        paymentStatus: 'unpaid',
-        paymentMethod: '',
-        appliedDiscountId: data.appliedDiscountId || null,
-      },
-      include: {
-        order: true,
-        orderItems: true,
-        payments: true,
-      },
-    })
-
-    // FIX H-02: Poveži OrderItem-e s tem Check-om
-    if (data.orderItemIds && data.orderItemIds.length > 0) {
-      await db.orderItem.updateMany({
-        where: { id: { in: data.orderItemIds } },
-        data: { checkId: check.id },
-      })
-    } else {
-      // Poveži vse nepovezane OrderItem-e tega naročila
-      const unassignedItems = order.orderItems.filter(oi => !oi.checkId)
-      if (unassignedItems.length > 0) {
-        await db.orderItem.updateMany({
-          where: { id: { in: unassignedItems.map(oi => oi.id) } },
-          data: { checkId: check.id },
-        })
+    // FIX: Ustvari ček IN poveži OrderItem-e v eni transakciji — prepreči delno stanje
+    const check = await db.$transaction(async (tx) => {
+      // Atomarna posodobitev popusta: prepreči race condition na maxUses
+      if (data.appliedDiscountId) {
+        const discountObj = await tx.discount.findUnique({ where: { id: data.appliedDiscountId } })
+        if (discountObj) {
+          if (discountObj.maxUses !== null) {
+            const updated = await tx.discount.updateMany({
+              where: { id: discountObj.id, currentUses: { lt: discountObj.maxUses } },
+              data: { currentUses: { increment: 1 } },
+            })
+            if (updated.count === 0) {
+              throw new Error('Popust je že bil uporabljen največkrat')
+            }
+          } else {
+            await tx.discount.update({
+              where: { id: discountObj.id },
+              data: { currentUses: { increment: 1 } },
+            })
+          }
+        }
       }
-    }
+
+      const newCheck = await tx.check.create({
+        data: {
+          checkNumber,
+          orderId: data.orderId,
+          subtotal,
+          tax,
+          discount,
+          serviceCharge: 0,
+          total,
+          tip: 0,
+          totalWithTip: total,
+          paymentStatus: 'unpaid',
+          paymentMethod: '',
+          appliedDiscountId: data.appliedDiscountId || null,
+        },
+      })
+
+      // Poveži OrderItem-e s tem Check-om
+      if (data.orderItemIds && data.orderItemIds.length > 0) {
+        await tx.orderItem.updateMany({
+          where: { id: { in: data.orderItemIds } },
+          data: { checkId: newCheck.id },
+        })
+      } else {
+        // Poveži vse nepovezane OrderItem-e tega naročila
+        const unassignedItems = order.orderItems.filter(oi => !oi.checkId)
+        if (unassignedItems.length > 0) {
+          await tx.orderItem.updateMany({
+            where: { id: { in: unassignedItems.map(oi => oi.id) } },
+            data: { checkId: newCheck.id },
+          })
+        }
+      }
+
+      return newCheck
+    })
 
     // Re-fetch z posodobljenimi relacijami
     const checkWithItems = await db.check.findUnique({

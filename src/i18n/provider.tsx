@@ -67,15 +67,22 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Load messages when locale changes
+  // FIX: Dodan stale-check — prepreči race condition pri hitri zamenjavi jezika
   useEffect(() => {
-    loadMessages(locale).then(msgs => setMessages(msgs))
+    let stale = false
+    loadMessages(locale).then(msgs => {
+      if (!stale) setMessages(msgs)
+    })
+    return () => { stale = true }
   }, [locale])
 
   const setLocale = useCallback((newLocale: AppLocale) => {
     setLocaleState(newLocale)
     localStorage.setItem('pos-locale', newLocale)
-    // Update HTML lang attribute
-    document.documentElement.lang = newLocale
+    // Update HTML lang attribute — FIX: SSR guard za document
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = newLocale
+    }
   }, [])
 
   const t = useCallback((key: string): string => {
@@ -99,5 +106,7 @@ export function useI18n() {
 
 export function useLocale() {
   const { locale, setLocale } = useI18n()
-  return { locale, setLocale, localeInfo: localeLabels[locale] }
+  // FIX: Guard proti neveljavnemu locale-ju
+  const localeInfo = localeLabels[locale] || localeLabels.sl
+  return { locale, setLocale, localeInfo }
 }
