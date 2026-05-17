@@ -1,7 +1,11 @@
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth-middleware'
 import { NextResponse } from 'next/server'
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const authResult = await requireAuth(req, { permission: 'manage_employees' })
+  if (authResult.error) return authResult.error
+
   const { id } = await params
   const body = await req.json()
 
@@ -26,6 +30,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const authResult = await requireAuth(req, { permission: 'manage_employees' })
+  if (authResult.error) return authResult.error
+
   const { id } = await params
   await db.shift.delete({ where: { id } })
   return NextResponse.json({ success: true })

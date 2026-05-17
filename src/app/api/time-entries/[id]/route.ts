@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth-middleware'
 import { NextResponse } from 'next/server'
 
 export async function PUT(
@@ -6,6 +7,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireAuth(req, { permission: 'manage_employees' })
+    if (authResult.error) return authResult.error
+
     const { id } = await params
     const body = await req.json()
 

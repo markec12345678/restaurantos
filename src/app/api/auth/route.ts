@@ -16,6 +16,16 @@ const loginAttempts = new Map<string, { count: number; lockedUntil: number }>()
 const MAX_ATTEMPTS = 5
 const LOCKOUT_MINUTES = 15
 
+// Periodično čiščenje poteklih rate limit vnosov (vsakih 10 minut)
+setInterval(() => {
+  const now = Date.now()
+  for (const [ip, record] of loginAttempts) {
+    if (record.lockedUntil <= now) {
+      loginAttempts.delete(ip)
+    }
+  }
+}, 10 * 60 * 1000)
+
 function checkRateLimit(ip: string): { allowed: boolean; message?: string } {
   const now = Date.now()
   const record = loginAttempts.get(ip)

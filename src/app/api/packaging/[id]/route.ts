@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth-middleware'
 import { NextResponse } from 'next/server'
 
 export async function GET(
@@ -39,6 +40,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireAuth(req, { permission: 'admin' })
+    if (authResult.error) return authResult.error
+
     const { id } = await params
     const body = await req.json()
 
@@ -100,6 +104,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authResult = await requireAuth(req, { permission: 'admin' })
+    if (authResult.error) return authResult.error
+
     const { id } = await params
 
     const existing = await db.packagingConfig.findUnique({ where: { id } })

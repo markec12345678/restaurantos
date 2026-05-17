@@ -59,7 +59,7 @@ export async function PUT(req: Request) {
     let settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
 
     if (!settings) {
-      settings = await db.restaurantSettings.create({ data: data as any })
+      settings = await db.restaurantSettings.create({ data: data as Record<string, unknown> })
     } else {
       // Ne shrani praznega gesla — ohrani staro
       const updateData = { ...data }

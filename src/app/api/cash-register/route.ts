@@ -1,6 +1,14 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { z } from 'zod'
+
+// Validacija za odpiranje izmene
+const openShiftSchema = z.object({
+  employeeId: z.string().optional(),
+  employeeName: z.string().max(100).default(''),
+  startingCash: z.number().min(0, 'Začetna gotovina ne more biti negativna').default(0),
+})
 
 // GET /api/cash-register — Get current and recent shifts
 export async function GET(req: Request) {
@@ -75,6 +83,15 @@ export async function POST(req: Request) {
 
     const body = await req.json()
 
+    // FIX: Validiraj vnos — prepreči negativno začetno gotovino
+    const { data, error: validationError } = openShiftSchema.safeParse(body)
+    if (validationError) {
+      return NextResponse.json(
+        { error: 'Neveljavni podatki', validationErrors: validationError.issues.map(e => ({ field: e.path.join('.'), message: e.message })) },
+        { status: 400 }
+      )
+    }
+
     // Check if there's already an open shift
     const existingShift = await db.cashRegisterShift.findFirst({
       where: { status: 'open' },
@@ -89,9 +106,9 @@ export async function POST(req: Request) {
 
     const shift = await db.cashRegisterShift.create({
       data: {
-        employeeId: body.employeeId || null,
-        employeeName: body.employeeName || '',
-        startingCash: body.startingCash || 0,
+        employeeId: data.employeeId || null,
+        employeeName: data.employeeName,
+        startingCash: data.startingCash,
         status: 'open',
       },
     })

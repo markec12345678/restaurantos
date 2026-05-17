@@ -39,21 +39,29 @@ export async function GET(req: Request) {
     const status = searchParams.get('status')
     const type = searchParams.get('type')
     const paymentStatus = searchParams.get('paymentStatus')
+    // FIX: Paginacija — prepreči nalaganje 100.000+ zapisov
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500)
+    const offset = parseInt(searchParams.get('offset') || '0')
 
     const where: Record<string, unknown> = {}
     if (status) where.status = status
     if (type) where.type = type
     if (paymentStatus) where.paymentStatus = paymentStatus
 
-    const orders = await db.order.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        table: true,
-        orderItems: { include: { menuItem: true } },
-      },
-    })
-    return NextResponse.json(orders)
+    const [orders, total] = await Promise.all([
+      db.order.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        include: {
+          table: true,
+          orderItems: { include: { menuItem: true } },
+        },
+      }),
+      db.order.count({ where }),
+    ])
+    return NextResponse.json({ orders, total, limit, offset })
   } catch (error) {
     console.error('Napaka pri pridobivanju naročil:', error)
     return NextResponse.json({ error: 'Napaka pri pridobivanju naročil' }, { status: 500 })

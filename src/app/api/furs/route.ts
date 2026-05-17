@@ -358,59 +358,64 @@ export async function PUT(req: Request) {
 
     const fursResult = await verifyInvoiceWithFURS(config, stornoInvoiceData, zoi)
 
-    const stornoReceipt = await db.receipt.create({
-      data: {
-        receiptNumber: stornoNumber,
-        orderId: receipt.orderId,
-        businessName: receipt.businessName,
-        businessAddress: receipt.businessAddress,
-        businessId: receipt.businessId,
-        taxId: receipt.taxId,
-        registerId: receipt.registerId,
-        zoi: fursResult.zoi || zoi,
-        eor: fursResult.eor || '',
-        fiscalVerified: fursResult.success,
-        verificationDate: fursResult.verifiedAt,
-        subtotal: -receipt.subtotal,
-        vatBreakdown: receipt.vatBreakdown,
-        totalVat: -receipt.totalVat,
-        discount: -receipt.discount,
-        total: -receipt.total,
-        tip: -receipt.tip,
-        totalWithTip: -receipt.totalWithTip,
-        paymentMethod: receipt.paymentMethod,
-        isCopy: false,
-        isStorno: true,
-        stornoOf: receipt.receiptNumber,
-      },
-    })
-
-    // Označi original kot storniran
-    await db.receipt.update({
-      where: { id: receipt.id },
-      data: { isStorno: true },
-    })
-
-    // Posodobi naročilo
-    await db.order.update({
-      where: { id: receipt.orderId },
-      data: {
-        paymentStatus: 'storno',
-        status: 'cancelled',
-        cancelReason: `STORNO: ${reason || reasonCode}`,
-        cancelledAt: new Date(),
-        cancelledBy: authResult.session?.employeeId || '',
-      },
-    })
-
-    // Označi plačila kot refunded
-    const checks = await db.check.findMany({ where: { orderId: receipt.orderId } })
-    for (const check of checks) {
-      await db.payment.updateMany({
-        where: { checkId: check.id },
-        data: { status: 'refunded' },
+    // FIX: Vse operacije v eni transakciji — prepreči parcialno stanje
+    const stornoReceipt = await db.$transaction(async (tx) => {
+      const receipt = await tx.receipt.create({
+        data: {
+          receiptNumber: stornoNumber,
+          orderId: receipt.orderId,
+          businessName: receipt.businessName,
+          businessAddress: receipt.businessAddress,
+          businessId: receipt.businessId,
+          taxId: receipt.taxId,
+          registerId: receipt.registerId,
+          zoi: fursResult.zoi || zoi,
+          eor: fursResult.eor || '',
+          fiscalVerified: fursResult.success,
+          verificationDate: fursResult.verifiedAt,
+          subtotal: -receipt.subtotal,
+          vatBreakdown: receipt.vatBreakdown,
+          totalVat: -receipt.totalVat,
+          discount: -receipt.discount,
+          total: -receipt.total,
+          tip: -receipt.tip,
+          totalWithTip: -receipt.totalWithTip,
+          paymentMethod: receipt.paymentMethod,
+          isCopy: false,
+          isStorno: true,
+          stornoOf: receipt.receiptNumber,
+        },
       })
-    }
+
+      // Označi original kot storniran
+      await tx.receipt.update({
+        where: { id: receipt.id },
+        data: { isStorno: true },
+      })
+
+      // Posodobi naročilo
+      await tx.order.update({
+        where: { id: receipt.orderId },
+        data: {
+          paymentStatus: 'storno',
+          status: 'cancelled',
+          cancelReason: `STORNO: ${reason || reasonCode}`,
+          cancelledAt: new Date(),
+          cancelledBy: authResult.session?.employeeId || '',
+        },
+      })
+
+      // Označi plačila kot refunded
+      const checks = await tx.check.findMany({ where: { orderId: receipt.orderId } })
+      for (const check of checks) {
+        await tx.payment.updateMany({
+          where: { checkId: check.id },
+          data: { status: 'refunded' },
+        })
+      }
+
+      return receipt
+    })
 
     // Vrni zalogo
     const stornoOrder = await db.order.findUnique({ where: { id: receipt.orderId } })

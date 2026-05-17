@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth-middleware'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
@@ -41,6 +42,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const authResult = await requireAuth(request, { permission: 'admin' })
+    if (authResult.error) return authResult.error
+
     const body = await request.json()
     const menu = await db.menu.create({
       data: {

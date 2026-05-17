@@ -411,11 +411,10 @@ model Check {
   payments        Payment[]
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
-}
 
-// ============================================
-// PLAČILA (Toast Payments/Tender)
-// ============================================
+  @@index([orderId])
+  @@index([paymentStatus])
+}
 
 model Payment {
   id                    String                @id @default(cuid())
@@ -445,11 +444,11 @@ model Payment {
   employeeId            String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
-}
 
-// ============================================
-// POPUSTI (Toast Discounts)
-// ============================================
+  @@index([checkId])
+  @@index([type])
+  @@index([status])
+}
 
 model Discount {
   id          String   @id @default(cuid())
@@ -472,11 +471,10 @@ model Discount {
   checks      Check[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-}
 
-// ============================================
-// DOSTAVA (Toast Delivery)
-// ============================================
+  @@index([isActive])
+  @@index([triggerType])
+}
 
 model DeliveryInfo {
   id              String   @id @default(cuid())
@@ -667,6 +665,11 @@ model InventoryItem {
   purchaseOrderItems PurchaseOrderItem[]
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+
+  @@index([category])
+  @@index([supplier])
+  @@index([location])
+  @@index([quantity])
 }
 
 // ============================================
@@ -691,11 +694,9 @@ model StockTransaction {
   createdAt       DateTime      @default(now())
 
   @@index([inventoryItemId])
+  @@index([type])
+  @@index([createdAt])
 }
-
-// ============================================
-// RECEPTI / NORMATIVI (sestavine na jed)
-// ============================================
 
 model RecipeItem {
   id              String        @id @default(cuid())

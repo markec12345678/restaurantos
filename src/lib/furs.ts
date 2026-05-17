@@ -288,6 +288,8 @@ export async function verifyInvoiceWithFURS(
 
 // Cache tokena (veljaven 1 uro)
 let cachedToken: { token: string; expiresAt: number } | null = null
+// Mutex: prepreči concurrent token fetch (več zahtevkov hkrati)
+let tokenFetchPromise: Promise<string | null> | null = null
 
 async function getFursToken(config: FursConfig): Promise<string | null> {
   // Preveri cache
@@ -299,7 +301,13 @@ async function getFursToken(config: FursConfig): Promise<string | null> {
     return null
   }
 
-  try {
+  // Mutex: če že teče fetch, počakaj nanj — ne pošiljaj novega zahtevka
+  if (tokenFetchPromise) {
+    return tokenFetchPromise
+  }
+
+  tokenFetchPromise = (async () => {
+    try {
     // Naloži privatni ključ za JWT podpisovanje
     const privateKey = loadCertificatePrivateKey(config.certPath, config.certPassword)
     if (!privateKey) {
@@ -369,7 +377,12 @@ async function getFursToken(config: FursConfig): Promise<string | null> {
   } catch (err) {
     console.error('[FURS] Napaka pri pridobivanju tokena:', err)
     return null
+  } finally {
+    tokenFetchPromise = null // Sprosti mutex
   }
+  })()
+
+  return tokenFetchPromise
 }
 
 // ============================================

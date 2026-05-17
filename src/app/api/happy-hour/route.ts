@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth-middleware'
 import { NextResponse } from 'next/server'
 
 // GET /api/happy-hour — pridobi vse urnike + trenutno aktivni
@@ -39,6 +40,9 @@ export async function GET() {
 // POST /api/happy-hour — ustvari nov urnik
 export async function POST(req: Request) {
   try {
+    const authResult = await requireAuth(req, { permission: 'admin' })
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
 
     const schedule = await db.happyHourSchedule.create({

@@ -20,12 +20,21 @@ interface Session {
 
 const sessions = new Map<string, Session>()
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000 // 8 ur
+const MAX_SESSIONS = 500 // Prepreči pomnilniško puščanje — omejitev sej
 
 // Čiščenje poteklih sej vsakih 30 minut
 setInterval(() => {
   const now = Date.now()
   for (const [token, session] of sessions) {
     if (session.expiresAt < now || session.absoluteExpiry < now) {
+      sessions.delete(token)
+    }
+  }
+  // Če je še vedno preveč sej, odstrani najstarejše
+  if (sessions.size > MAX_SESSIONS) {
+    const entries = [...sessions.entries()].sort((a, b) => a[1].createdAt - b[1].createdAt)
+    const toRemove = entries.slice(0, sessions.size - MAX_SESSIONS)
+    for (const [token] of toRemove) {
       sessions.delete(token)
     }
   }

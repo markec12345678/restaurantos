@@ -48,7 +48,7 @@ const NO_CACHE_API_PATTERNS = [
 // ============================================
 // INSTALL — Predpomni statiko
 // ============================================
-self.addEventListener('install', () => {
+self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => {
       return cache.addAll(STATIC_ASSETS).catch(() => {
@@ -74,7 +74,7 @@ self.addEventListener('activate', (event) => {
     })
   )
   // Prevzemi nadzor nad vsemi odjemalci takoj
-  self.clients.claim()
+  event.waitUntil(self.clients.claim())
 })
 
 // ============================================
@@ -271,6 +271,7 @@ self.addEventListener('sync', (event) => {
 
 /**
  * Pošlji čakajoča naročila, ko je spet online
+ * FIX: Podpora za auth token — preberi iz IndexedDB če je na voljo
  */
 async function syncPendingOrders() {
   try {
@@ -282,11 +283,30 @@ async function syncPendingOrders() {
     const store = tx.objectStore('pendingOrders')
     const orders = await idbRequestToPromise(store.getAll())
 
+    // Pridobi auth token iz localStorage (če je na voljo v SW kontekstu)
+    let authToken = ''
+    try {
+      const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      for (const client of allClients) {
+        // Pošlji sporočilo clientu, da mora poslati token
+        // Zaenkrat pošiljamo brez tokena — API bo vrnil 401 in client bo ponovno poslal
+        break
+      }
+    } catch {
+      // Ni klientov — nadaljuj brez tokena
+    }
+
     for (const order of orders) {
       try {
+        const headers = { 'Content-Type': 'application/json' }
+        // Če ima order shranjen token, ga uporabi
+        if (order.authToken) {
+          headers['Authorization'] = `Bearer ${order.authToken}`
+        }
+
         const response = await fetch('/api/orders', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(order.data),
         })
 
@@ -313,11 +333,18 @@ async function syncPendingOrders() {
 function openOfflineDB() {
   return new Promise((resolve) => {
     try {
-      const request = indexedDB.open('restaurantos-offline', 1)
-      request.onupgradeneeded = () => {
+      const request = indexedDB.open('restaurantos-offline', 2)
+      request.onupgradeneeded = (event) => {
         const db = request.result
         if (!db.objectStoreNames.contains('pendingOrders')) {
-          db.createObjectStore('pendingOrders', { keyPath: 'id' })
+          const store = db.createObjectStore('pendingOrders', { keyPath: 'id' })
+          store.createIndex('authToken', 'authToken', { unique: false })
+        } else {
+          // Upgrade existing store — dodaj authToken index če še ne obstaja
+          const store = event.target.transaction.objectStore('pendingOrders')
+          if (!store.indexNames.contains('authToken')) {
+            store.createIndex('authToken', 'authToken', { unique: false })
+          }
         }
       }
       request.onsuccess = () => resolve(request.result)

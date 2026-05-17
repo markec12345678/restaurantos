@@ -180,6 +180,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
+
+    // FIX: Zahtevaj avtentikacijo tudi za PATCH akcije
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
 
     // Item status posodobitev — iz KDS zaslona ali natakarjeve tablice

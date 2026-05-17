@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, createPaymentSchema } from '@/lib/validations'
@@ -214,6 +214,22 @@ export async function POST(req: Request) {
         alternatePaymentType: true,
         giftCard: true,
         loyaltyAccount: true,
+      },
+    })
+
+    // FIX: Audit log za plačilo
+    await createAuditLog({
+      userId: authResult.session?.employeeId,
+      action: 'CREATE_PAYMENT',
+      entityType: 'Payment',
+      entityId: result.id,
+      details: {
+        checkId: data.checkId,
+        amount: data.amount,
+        type: data.type,
+        tipAmount: data.tipAmount,
+        giftCardUsed: !!data.giftCardId,
+        loyaltyUsed: data.loyaltyPointsUsed > 0,
       },
     })
 

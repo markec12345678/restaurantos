@@ -166,6 +166,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
     }
 
+    // FIX: Preveri, da je naročilo plačano preden se ustvari račun
+    if (order.paymentStatus !== 'paid' && order.paymentStatus !== 'partial') {
+      return NextResponse.json({ error: 'Naročilo mora biti plačano preden se ustvari račun' }, { status: 400 })
+    }
+
     // Preveri če že obstaja
     const existing = await db.receipt.findFirst({ where: { orderId: id } })
     if (existing) {
@@ -255,7 +260,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       data: {
         ...(body.printed !== undefined && { printedAt: body.printed ? new Date() : null }),
         ...(body.isCopy !== undefined && { isCopy: body.isCopy }),
-        ...(body.fiscalVerified !== undefined && { fiscalVerified: body.fiscalVerified, verificationDate: body.fiscalVerified ? new Date() : null }),
+        // FIX: fiscalVerified se lahko nastavi SAMO prek FURS API-ja — ne direktno od klienta
+        // ...(body.fiscalVerified !== undefined && { fiscalVerified: body.fiscalVerified, verificationDate: body.fiscalVerified ? new Date() : null }),
         ...(body.eor !== undefined && { eor: body.eor }),
       },
     })
