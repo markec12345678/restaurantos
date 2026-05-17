@@ -59,3 +59,28 @@ Stage Summary:
 - 1 SW cache fix
 - 0 TypeScript errors in src/
 - All public routes properly identified (digital-receipt, qr-menu, /api/public/*)
+---
+Task ID: 1
+Agent: Main Agent
+Task: Full application bug audit - auth middleware, routes, TypeScript
+
+Work Log:
+- Verified updateDiscountSchema exists in validations.ts (was already fixed)
+- Audited auth-middleware.ts ROUTE_PERMISSIONS — found CRITICAL bug: getRequiredPermissions used first-match instead of longest-match, causing /api/orders/seed to get ['take_orders'] instead of ['admin']
+- Fixed getRequiredPermissions to find LONGEST matching prefix
+- Added missing ROUTE_PERMISSIONS entries: categories, menu-items, menus, modifier-groups, order-items, orders/seed
+- Fixed /api/configuration permission from ['take_orders'] to ['admin']
+- Re-applied requireAuth() to GET /api/settings (was lost during merge)
+- Fixed 6 TypeScript errors in GlobalNotifications.tsx (Record<string, unknown> type for API responses)
+- Audited ALL 87+ API routes: all have requireAuth(), Zod validation, NaN protection, pagination
+- Audited critical routes: payments, orders, checks, FURS, cash-register, gift-cards, loyalty, employees — all solid
+- Audited public routes: digital-receipt, QR order — properly rate-limited and validated
+- Audited utility files: counters.ts, stock-deduction.ts — atomic operations, race condition protection
+- Resolved git rebase conflicts (4 files) and pushed to GitHub
+
+Stage Summary:
+- CRITICAL fix: getRequiredPermissions longest-match prefix (prevents privilege escalation)
+- Added 6 missing ROUTE_PERMISSIONS entries
+- Settings GET auth restored (was security hole)
+- TypeScript build clean (0 errors)
+- All commits pushed to GitHub: 8307a09
