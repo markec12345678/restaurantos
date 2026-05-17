@@ -23,12 +23,23 @@ export async function GET(req: Request) {
     if (isActiveParam !== null) where.isActive = isActiveParam === 'true'
     if (promoCode) where.promoCode = promoCode
 
-    const discounts = await db.discount.findMany({
-      where,
-      orderBy: { sortOrder: 'asc' },
-    })
+    // FIX MEDIUM: Paginacija za popuste — prepreči nalaganje vseh zapisov
+    const rawLimit = parseInt(searchParams.get('limit') || '100')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
+    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
+    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
 
-    return NextResponse.json(discounts)
+    const [discounts, total] = await Promise.all([
+      db.discount.findMany({
+        where,
+        orderBy: { sortOrder: 'asc' },
+        take: limit,
+        skip: offset,
+      }),
+      db.discount.count({ where }),
+    ])
+
+    return NextResponse.json({ discounts, total, limit, offset })
   } catch (error) {
     console.error('Failed to fetch discounts:', error)
     return NextResponse.json({ error: 'Napaka pri pridobivanju popustov' }, { status: 500 })

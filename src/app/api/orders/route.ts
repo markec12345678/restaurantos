@@ -34,7 +34,11 @@ async function autoPrintKitchenOrder(order: Record<string, unknown>) {
 
 export async function GET(req: Request) {
   try {
-    // Avtentikacija za GET ni obvezna (KDS rabi dostop)
+    // FIX HIGH: Zahtevaj avtentikacijo — tudi KDS mora imeti veljaven token
+    // Za javne podatke (QR naročanje) uporabljajte /api/public/* rute
+    const authResult = await requireAuth(req)
+    if (authResult.error) return authResult.error
+
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
     const type = searchParams.get('type')

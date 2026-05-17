@@ -39,6 +39,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     // FIX: Izračun prihodkov in zaprtje izmene v transakciji — prepreči race condition
+    // FIX CRITICAL: Uporabi ACTUAL payments iz checkov namesto order.paymentMethod
+    // order.paymentMethod je samo en string — ne upošteva split plačil (več metod na eno naročilo)
     const closedShift = await db.$transaction(async (tx) => {
       const paidOrders = await tx.order.findMany({
         where: {
@@ -46,10 +48,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           paidAt: { gte: shift.openedAt },
         },
         select: {
+          id: true,
           total: true,
           discount: true,
-          paymentMethod: true,
+          tip: true,
           paymentStatus: true,
+          checks: {
+            select: {
+              payments: {
+                where: { status: 'completed' },
+                select: { type: true, amount: true, tipAmount: true },
+              },
+            },
+          },
         },
       })
 
@@ -57,13 +68,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       const paid = paidOrders.filter(o => o.paymentStatus === 'paid')
       const storno = paidOrders.filter(o => o.paymentStatus === 'storno')
 
-      const cashSales = paid.filter(o => o.paymentMethod === 'cash').reduce((sum, o) => sum + o.total, 0)
-      const cardSales = paid.filter(o => o.paymentMethod === 'card').reduce((sum, o) => sum + o.total, 0)
-      const mobileSales = paid.filter(o => o.paymentMethod === 'mobile').reduce((sum, o) => sum + o.total, 0)
-      const alternateSales = paid.filter(o => ['voucher', 'loyalty', 'giftcard', 'alternate'].includes(o.paymentMethod)).reduce((sum, o) => sum + o.total, 0)
-      const splitPayments = paid.filter(o => o.paymentMethod === 'split').reduce((sum, o) => sum + o.total, 0)
-      const totalSales = paid.reduce((sum, o) => sum + o.total, 0)
+      // FIX CRITICAL: Izračunaj po ACTUAL plačilih (uporabi payments iz checkov)
+      const allPayments = paid.flatMap(o => o.checks.flatMap(c => c.payments))
+      const cashSales = allPayments.filter(p => p.type === 'cash').reduce((sum, p) => sum + p.amount, 0)
+      const cardSales = allPayments.filter(p => p.type === 'card').reduce((sum, p) => sum + p.amount, 0)
+      const mobileSales = allPayments.filter(p => p.type === 'mobile').reduce((sum, p) => sum + p.amount, 0)
+      const alternateSales = allPayments.filter(p => ['voucher', 'loyalty', 'giftcard', 'alternate'].includes(p.type)).reduce((sum, p) => sum + p.amount, 0)
+      // Split plačila so že porazdeljena v zgornje kategorije — ne dodajaj še enkrat
+      const splitPayments = 0 // TODO: implementiraj split payment tracking
+      const totalSales = allPayments.reduce((sum, p) => sum + p.amount, 0)
       const totalDiscounts = paid.reduce((sum, o) => sum + o.discount, 0)
+      const totalTips = allPayments.reduce((sum, p) => sum + (p.tipAmount || 0), 0)
       const totalVoided = storno.reduce((sum, o) => sum + Math.abs(o.total), 0)
       const totalOrders = paid.length
       const expectedCash = shift.startingCash + cashSales
@@ -85,7 +100,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           totalSales,
           totalOrders,
           totalDiscounts,
-          totalTips: data.totalTips || 0,
+          totalTips: data.totalTips > 0 ? data.totalTips : totalTips,
           totalVoided,
           cashDifference,
           notes: data.notes || '',

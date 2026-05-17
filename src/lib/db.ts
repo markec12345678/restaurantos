@@ -66,10 +66,19 @@ export async function createAuditLog(entry: AuditLogEntry): Promise<void> {
 
     const detailsStr = JSON.stringify(entry.details || {})
 
+    // FIX HIGH: Vključi VSE pomembne podatke v hash — prepreči skrivanje manipulacije
+    // Prej je hash vseboval samo details, zdaj vključuje tudi action, entityType, entityId, userId
+    const hashPayload = [
+      lastLog?.chainHash || '',
+      entry.action,
+      entry.entityType,
+      entry.entityId || '',
+      entry.userId || '',
+      detailsStr,
+    ].join('|')
+
     // Izračunaj hash verigo: SHA-256(prejsnji_hash + podatki_tega_vnosa)
-    const chainHash = lastLog?.chainHash
-      ? crypto.createHash('sha256').update(lastLog.chainHash + detailsStr).digest('hex')
-      : crypto.createHash('sha256').update(detailsStr).digest('hex')
+    const chainHash = crypto.createHash('sha256').update(hashPayload).digest('hex')
 
     await db.auditLog.create({
       data: {

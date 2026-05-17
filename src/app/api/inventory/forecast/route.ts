@@ -200,7 +200,9 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
-    const days = parseInt(searchParams.get('days') || '90')
+    // FIX MEDIUM: Validiraj days parameter — prepreči nesmiselne vrednosti
+    const rawDays = parseInt(searchParams.get('days') || '90')
+    const days = Math.min(Math.max(Number.isNaN(rawDays) ? 90 : rawDays, 7), 365)
     const category = searchParams.get('category') || ''
 
     // Pridobi vse artikle zaloge

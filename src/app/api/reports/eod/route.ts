@@ -133,10 +133,14 @@ export async function GET(req: Request) {
     }
 
     // ─── PO URAH ───
-    // FIX MEDIUM: Uporabi UTC ure za dosledno razčlenitev — prepreči odstopanja zaradi časovnega pasu strežnika
+    // FIX HIGH: Uporabi lokalne ure (CET/CEST) namesto UTC — poslovno poročanje mora odražati lokalni čas
+    const localOffset = new Date().getTimezoneOffset() // v minutah, negativno za CET
     const hourlyBreakdown: Array<{ hour: number; revenue: number; orders: number }> = []
     for (let h = 0; h < 24; h++) {
-      const hourOrders = completedOrders.filter(o => new Date(o.createdAt).getUTCHours() === h)
+      const hourOrders = completedOrders.filter(o => {
+        const localDate = new Date(o.createdAt.getTime() - localOffset * 60000)
+        return localDate.getUTCHours() === h
+      })
       hourlyBreakdown.push({
         hour: h,
         revenue: hourOrders.reduce((s, o) => s + o.total, 0),
@@ -250,19 +254,37 @@ export async function POST(req: Request) {
     }
 
     // Izračunaj zaključne podatke
+    // FIX CRITICAL: Uporabi ACTUAL payments iz checkov namesto order.paymentMethod
     const completedOrders = await db.order.findMany({
       where: {
         createdAt: { gte: dayStart, lte: dayEnd },
         status: 'completed',
         paymentStatus: 'paid',
       },
+      select: {
+        id: true,
+        total: true,
+        discount: true,
+        tip: true,
+        checks: {
+          select: {
+            payments: {
+              where: { status: 'completed' },
+              select: { type: true, amount: true, tipAmount: true },
+            },
+          },
+        },
+      },
     })
 
-    const cashSales = completedOrders.filter(o => o.paymentMethod === 'cash').reduce((s, o) => s + o.total, 0)
-    const cardSales = completedOrders.filter(o => o.paymentMethod === 'card').reduce((s, o) => s + o.total, 0)
-    const mobileSales = completedOrders.filter(o => o.paymentMethod === 'mobile').reduce((s, o) => s + o.total, 0)
-    const totalSales = completedOrders.reduce((s, o) => s + o.total, 0)
-    const totalTips = completedOrders.reduce((s, o) => s + o.tip, 0)
+    // FIX CRITICAL: Izračunaj po ACTUAL plačilih (uporabi payments iz checkov)
+    const allPayments = completedOrders.flatMap(o => o.checks.flatMap(c => c.payments))
+    const cashSales = allPayments.filter(p => p.type === 'cash').reduce((s, p) => s + p.amount, 0)
+    const cardSales = allPayments.filter(p => p.type === 'card').reduce((s, p) => s + p.amount, 0)
+    const mobileSales = allPayments.filter(p => p.type === 'mobile').reduce((s, p) => s + p.amount, 0)
+    const alternateSales = allPayments.filter(p => ['voucher', 'loyalty', 'giftcard', 'alternate'].includes(p.type)).reduce((s, p) => s + p.amount, 0)
+    const totalSales = allPayments.reduce((s, p) => s + p.amount, 0)
+    const totalTips = allPayments.reduce((s, p) => s + (p.tipAmount || 0), 0)
     const totalDiscounts = completedOrders.reduce((s, o) => s + o.discount, 0)
     const voidedItems = await db.orderItem.aggregate({
       where: { voided: true, order: { createdAt: { gte: dayStart, lte: dayEnd } } },

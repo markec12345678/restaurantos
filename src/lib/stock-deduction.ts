@@ -169,8 +169,10 @@ export async function deductStockForAddedItems(
           const previousQty = updatedItem.quantity + qtyToDeduct
           let newQty = updatedItem.quantity
 
-          // Clamp to 0 if negative
+          // FIX MEDIUM: Clamp to 0 if negative — pravilno zabeleži dejansko odbito količino
+          let actualDeducted = qtyToDeduct
           if (newQty < 0) {
+            actualDeducted = qtyToDeduct + newQty // newQty je negativno
             await tx.inventoryItem.update({ where: { id: invItem.id }, data: { quantity: 0 } })
             newQty = 0
           }
@@ -179,11 +181,11 @@ export async function deductStockForAddedItems(
             data: {
               inventoryItemId: invItem.id,
               type: 'sale',
-              quantity: -qtyToDeduct,
+              quantity: -actualDeducted,
               previousQty,
               newQty,
               costPerUnit: invItem.costPerUnit,
-              totalCost: qtyToDeduct * invItem.costPerUnit,
+              totalCost: actualDeducted * invItem.costPerUnit,
               reason: `Dodano k naročilu #${orderNumber}`,
               orderId,
             },
@@ -228,8 +230,10 @@ export async function deductStockForAddedItems(
         const previousQty = updatedItem.quantity + totalUnitsToDeduct
         let newQty = updatedItem.quantity
 
-        // Clamp to 0 if negative
+        // FIX MEDIUM: Clamp to 0 if negative — pravilno zabeleži dejansko odbito količino
+        let actualDeducted = totalUnitsToDeduct
         if (newQty < 0) {
+          actualDeducted = totalUnitsToDeduct + newQty // newQty je negativno
           await tx.inventoryItem.update({ where: { id: invItem.id }, data: { quantity: 0 } })
           newQty = 0
         }
@@ -238,11 +242,11 @@ export async function deductStockForAddedItems(
           data: {
             inventoryItemId: invItem.id,
             type: 'sale',
-            quantity: -totalUnitsToDeduct,
+            quantity: -actualDeducted,
             previousQty,
             newQty,
             costPerUnit: invItem.costPerUnit,
-            totalCost: totalUnitsToDeduct * invItem.costPerUnit,
+            totalCost: actualDeducted * invItem.costPerUnit,
             reason: `Dodano k naročilu #${orderNumber}`,
             orderId,
           },
@@ -337,8 +341,10 @@ export async function deductStockForOrder(
           const previousQty = updatedItem.quantity + qtyToDeduct
           let newQty = updatedItem.quantity
 
-          // Clamp to 0 if negative
+          // FIX MEDIUM: Clamp to 0 if negative — pravilno zabeleži dejansko odbito količino
+          let actualDeducted = qtyToDeduct
           if (newQty < 0) {
+            actualDeducted = qtyToDeduct + newQty // newQty je negativno
             await tx.inventoryItem.update({ where: { id: invItem.id }, data: { quantity: 0 } })
             newQty = 0
           }
@@ -347,11 +353,11 @@ export async function deductStockForOrder(
             data: {
               inventoryItemId: invItem.id,
               type: 'sale',
-              quantity: -qtyToDeduct,
+              quantity: -actualDeducted,
               previousQty,
               newQty,
               costPerUnit: invItem.costPerUnit,
-              totalCost: qtyToDeduct * invItem.costPerUnit,
+              totalCost: actualDeducted * invItem.costPerUnit,
               reason: `Prodaja - naročilo #${orderNumber}`,
               orderId,
             },
@@ -397,8 +403,10 @@ export async function deductStockForOrder(
         const previousQty = updatedItem.quantity + totalUnitsToDeduct
         let newQty = updatedItem.quantity
 
-        // Clamp to 0 if negative
+        // FIX MEDIUM: Clamp to 0 if negative — pravilno zabeleži dejansko odbito količino
+        let actualDeducted = totalUnitsToDeduct
         if (newQty < 0) {
+          actualDeducted = totalUnitsToDeduct + newQty // newQty je negativno
           await tx.inventoryItem.update({ where: { id: invItem.id }, data: { quantity: 0 } })
           newQty = 0
         }
@@ -407,11 +415,11 @@ export async function deductStockForOrder(
           data: {
             inventoryItemId: invItem.id,
             type: 'sale',
-            quantity: -totalUnitsToDeduct,
+            quantity: -actualDeducted,
             previousQty,
             newQty,
             costPerUnit: invItem.costPerUnit,
-            totalCost: totalUnitsToDeduct * invItem.costPerUnit,
+            totalCost: actualDeducted * invItem.costPerUnit,
             reason: `Prodaja - naročilo #${orderNumber}`,
             orderId,
           },

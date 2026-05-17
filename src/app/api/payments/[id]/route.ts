@@ -29,13 +29,13 @@ export async function PUT(
     // BLOCK: Prevent changes to amount and type after creation
     if (data.amount !== undefined) {
       return NextResponse.json(
-        { error: 'Cannot change payment amount after creation' },
+        { error: 'Zneska plačila ni mogoče spremeniti po ustvarjanju' },
         { status: 400 }
       )
     }
     if (data.type !== undefined) {
       return NextResponse.json(
-        { error: 'Cannot change payment type after creation' },
+        { error: 'Vrste plačila ni mogoče spremeniti po ustvarjanju' },
         { status: 400 }
       )
     }
@@ -51,7 +51,7 @@ export async function PUT(
     })
 
     if (!existingPayment) {
-      return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
+      return NextResponse.json({ error: 'Plačilo ni najdeno' }, { status: 404 })
     }
 
     // Determine if status is changing to refunded/voided
@@ -89,7 +89,7 @@ export async function PUT(
               amount: existingPayment.amount,
               balanceAfter: updatedGiftCard.balance,
               checkId: existingPayment.checkId,
-              note: `Refund/void of payment ${id}`,
+              note: `Vračilo/poničitev plačila ${id}`,
             },
           })
         }
@@ -105,7 +105,7 @@ export async function PUT(
               loyaltyAccountId: existingPayment.loyaltyAccountId,
               type: 'adjust',
               points: existingPayment.loyaltyPointsUsed,
-              reason: `Refund/void of payment ${id}`,
+              reason: `Vračilo/poničitev plačila ${id}`,
               checkId: existingPayment.checkId,
               monetaryValue: existingPayment.amount,
             },
@@ -167,6 +167,6 @@ export async function PUT(
     }
   } catch (error) {
     console.error('Failed to update payment:', error)
-    return NextResponse.json({ error: 'Failed to update payment' }, { status: 500 })
+    return NextResponse.json({ error: 'Napaka pri posodobitvi plačila' }, { status: 500 })
   }
 }

@@ -138,7 +138,10 @@ export async function GET(req: Request) {
         urgency: riskLevel as ReorderSuggestion['urgency'],
         reason,
         lastOrderDate: lastProcurement?.createdAt?.toISOString() || null,
-        avgDeliveryDays: 3,
+        // FIX MEDIUM: Izračunaj povprečne dni dobave iz zgodovine namesto hardcoded 3
+        avgDeliveryDays: lastProcurement
+          ? Math.max(1, Math.round((Date.now() - new Date(lastProcurement.createdAt).getTime()) / (24 * 60 * 60 * 1000)))
+          : 3,
         category: item.category,
       })
     }

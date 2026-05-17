@@ -81,6 +81,11 @@ export async function GET(req: Request) {
       })
     }
 
+    // FIX HIGH: Low stock filter - Prisma/SQLite ne podpira cross-field comparison
+    // Ko je lowStock=true, pridobi vse artikle brez paginacije, filtriraj v pomnilniku
+    // in nato uporabi offset/limit na filtriranih rezultatih
+    const fetchAll = lowStock === 'true'
+
     const where: Record<string, unknown> = andConditions.length > 1
       ? { AND: andConditions }
       : andConditions.length === 1
@@ -90,17 +95,21 @@ export async function GET(req: Request) {
     const items = await db.inventoryItem.findMany({
       where,
       orderBy: { name: 'asc' },
-      take: limit,
-      skip: offset,
+      take: fetchAll ? undefined : limit,
+      skip: fetchAll ? undefined : offset,
       include: {
         menuItem: { select: { id: true, name: true, price: true } },
       },
     })
 
-    // Filter low stock items in memory (avoids complex SQL comparison)
+    // Filter low stock items in memory (cross-field comparison ni podprto v Prisma/SQLite)
     let result = items
+    let totalForPagination: number | undefined = undefined
     if (lowStock === 'true') {
-      result = items.filter((item) => item.quantity <= item.minQuantity)
+      const filtered = items.filter((item) => item.quantity <= item.minQuantity)
+      totalForPagination = filtered.length
+      // Uporabi offset/limit na že filtriranih rezultatih
+      result = filtered.slice(offset, offset + limit)
     }
 
     // Pridobi zadnje transakcije za vse artikle naenkrat (brez N+1)
@@ -129,7 +138,15 @@ export async function GET(req: Request) {
       _lastTransaction: lastTxMap.get(item.id) || null,
     }))
 
-    return NextResponse.json(itemsWithMeta)
+    // Vključi total za paginacijo (lowStock filter potrebuje pravilen total)
+    const response: Record<string, unknown> = { items: itemsWithMeta }
+    if (totalForPagination !== undefined) {
+      response.total = totalForPagination
+      response.limit = limit
+      response.offset = offset
+    }
+
+    return NextResponse.json(response)
   } catch (error) {
     console.error('Napaka pri pridobivanju zaloge:', error)
     return NextResponse.json({ error: 'Napaka pri pridobivanju zaloge' }, { status: 500 })
