@@ -1,14 +1,20 @@
 // ============================================
 // NABAVNO NAROČILO — Posodobi / Pridobi
 // Vključuje prevzem blaga z avtomatsko posodobitvijo zaloge
+// Avtentikacija za vse operacije
 // ============================================
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 
 // GET - Pridobi posamezno naročilo
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    // FIX C-09: Zahtevaj avtentikacijo
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
+    if (authResult.error) return authResult.error
+
     const { id } = await params
     const po = await db.purchaseOrder.findUnique({
       where: { id },
@@ -25,6 +31,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 // PUT - Posodobi naročilo / Prevzemi blago
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    // FIX C-09: Zahtevaj avtentikacijo
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
+    if (authResult.error) return authResult.error
+
     const { id } = await params
     const body = await req.json()
 
@@ -40,12 +50,21 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         const poItem = po.items.find(i => i.id === receivedItem.itemId)
         if (!poItem) continue
 
+        // FIX H-03: Preveri, da količina ne presega naročene
+        const totalReceived = poItem.quantityReceived + receivedItem.quantityReceived
+        if (totalReceived > poItem.quantityOrdered) {
+          return NextResponse.json(
+            { error: `Postavka "${poItem.description}": prevzeta količina presega naročeno` },
+            { status: 400 }
+          )
+        }
+
         // Posodobi postavko naročila
         await db.purchaseOrderItem.update({
           where: { id: poItem.id },
           data: {
-            quantityReceived: poItem.quantityReceived + receivedItem.quantityReceived,
-            status: receivedItem.quantityReceived >= poItem.quantityOrdered ? 'received' : 'partial',
+            quantityReceived: totalReceived,
+            status: totalReceived >= poItem.quantityOrdered ? 'received' : 'partial',
           },
         })
 
@@ -73,7 +92,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
                 totalCost: receivedItem.quantityReceived * poItem.unitPrice,
                 reason: `Naročilo ${po.poNumber}`,
                 supplierDoc: po.poNumber,
-                employeeName: body.employeeName || '',
+                employeeName: authResult.session?.employeeId || '',
               },
             })
           }

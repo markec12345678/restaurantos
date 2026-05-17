@@ -4,11 +4,17 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, createTableSchema } from '@/lib/validations'
 
 export async function GET() {
-  const tables = await db.table.findMany({
-    orderBy: { number: 'asc' },
-    include: { orders: { where: { status: { in: ['pending', 'in-progress', 'ready'] } }, take: 1 } },
-  })
-  return NextResponse.json(tables)
+  try {
+    const tables = await db.table.findMany({
+      orderBy: { number: 'asc' },
+      include: { orders: { where: { status: { in: ['pending', 'in-progress', 'ready'] } }, take: 1 } },
+    })
+    return NextResponse.json(tables)
+  } catch (error) {
+    // FIX H-02: Dodan try/catch za GET — prej je bil brez obravnave napak
+    console.error('Napaka pri pridobivanju miz:', error)
+    return NextResponse.json({ error: 'Napaka pri pridobivanju miz' }, { status: 500 })
+  }
 }
 
 export async function POST(req: Request) {

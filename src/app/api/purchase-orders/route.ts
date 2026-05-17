@@ -1,14 +1,21 @@
 // ============================================
 // NABAVNA NAROČILA — Profesionalna implementacija
 // Toast POS standard — ND-YYYY-NNNNNN format
+// Avtentikacija + Zod validacija
 // ============================================
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, createPurchaseOrderSchema } from '@/lib/validations'
 
 // GET - Pridobi nabavna naročila
 export async function GET(req: Request) {
   try {
+    // FIX C-09: Zahtevaj avtentikacijo za vpogled v nabavna naročila
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
+    if (authResult.error) return authResult.error
+
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status') || ''
     const supplierId = searchParams.get('supplierId') || ''
@@ -37,12 +44,15 @@ export async function GET(req: Request) {
 // POST - Ustvari nabavno naročilo
 export async function POST(req: Request) {
   try {
+    // FIX C-09: Zahtevaj avtentikacijo za ustvarjanje nabavnega naročila
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
 
-    // Validacija
-    if (!body.supplierId) {
-      return NextResponse.json({ error: 'Dobavitelj je obvezen' }, { status: 400 })
-    }
+    // FIX H-01: Zod validacija
+    const { data, error: validationError } = validateBody(createPurchaseOrderSchema, body)
+    if (validationError) return validationError
 
     // Generiraj številko naročila
     const year = new Date().getFullYear()
@@ -51,12 +61,9 @@ export async function POST(req: Request) {
     })
     const poNumber = `ND-${year}-${String(count + 1).padStart(6, '0')}`
 
-    // Izračunaj zneske
+    // Izračunaj zneske iz postavk
     let subtotal = 0
-    const items = (body.items || []).map((item: {
-      description: string; inventoryItemId?: string; quantityOrdered: number;
-      unit?: string; unitPrice: number; vatRate?: number; notes?: string
-    }) => {
+    const items = data.items.map((item) => {
       const totalPrice = item.quantityOrdered * item.unitPrice
       subtotal += totalPrice
       return {
@@ -80,18 +87,18 @@ export async function POST(req: Request) {
     const po = await db.purchaseOrder.create({
       data: {
         poNumber,
-        supplierId: body.supplierId,
-        status: body.status || 'draft',
+        supplierId: data.supplierId,
+        status: 'draft',
         orderDate: new Date(),
-        expectedDate: body.expectedDate ? new Date(body.expectedDate) : null,
+        expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
         subtotal,
         vatAmount,
         totalAmount,
-        deliveryAddress: body.deliveryAddress || '',
-        deliveryNotes: body.deliveryNotes || '',
-        requestedBy: body.requestedBy || '',
-        approvedBy: body.approvedBy || '',
-        notes: body.notes || '',
+        deliveryAddress: data.deliveryAddress || '',
+        deliveryNotes: data.deliveryNotes || '',
+        requestedBy: authResult.session?.employeeId || '',
+        approvedBy: '',
+        notes: data.notes || '',
         items: { create: items },
       },
       include: { supplier: true, items: { include: { inventoryItem: true } } },

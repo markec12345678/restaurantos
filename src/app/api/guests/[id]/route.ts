@@ -1,15 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+// ============================================
+// GOST CRM — Posodobi / Izbriši / Pridobi
+// Toast POS standard — Avtentikacija + Zod validacija
+// ============================================
 
-const prisma = new PrismaClient();
+import { db } from '@/lib/db'
+import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, updateGuestSchema } from '@/lib/validations'
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = await params;
-    const guest = await prisma.guest.findUnique({
+    // FIX C-01: Zahtevaj avtentikacijo za dostop do gosta
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
+
+    const { id } = await params
+    const guest = await db.guest.findUnique({
       where: { id },
       include: {
-        visits: { orderBy: { arrivedAt: 'desc' }, take: 20 },
         loyaltyAccount: { include: { transactions: { orderBy: { createdAt: 'desc' }, take: 10 } } },
         orders: {
           orderBy: { createdAt: 'desc' },
@@ -17,60 +25,88 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           include: { orderItems: { include: { menuItem: true } } },
         },
       },
-    });
+    })
 
     if (!guest) {
-      return NextResponse.json({ error: 'Gost ni najden' }, { status: 404 });
+      return NextResponse.json({ error: 'Gost ni najden' }, { status: 404 })
     }
 
-    return NextResponse.json(guest);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(guest)
+  } catch (error) {
+    console.error('Napaka pri pridobivanju gosta:', error)
+    // FIX C-03: Ne razkrivaj error.message
+    return NextResponse.json({ error: 'Napaka pri pridobivanju gosta' }, { status: 500 })
   }
 }
 
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = await params;
-    const body = await req.json();
+    // FIX C-01: Zahtevaj avtentikacijo za posodabljanje gosta
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
 
-    const updateData: any = {};
-    
-    if (body.firstName !== undefined) updateData.firstName = body.firstName;
-    if (body.lastName !== undefined) updateData.lastName = body.lastName;
-    if (body.email !== undefined) updateData.email = body.email;
-    if (body.phone !== undefined) updateData.phone = body.phone;
-    if (body.isVip !== undefined) {
-      updateData.isVip = body.isVip;
-      if (body.isVip && !updateData.vipSince) updateData.vipSince = new Date();
+    const { id } = await params
+    const body = await req.json()
+
+    // FIX C-04: Zod validacija namesto ročnega beleženja polj
+    const { data, error: validationError } = validateBody(updateGuestSchema, body)
+    if (validationError) return validationError
+
+    // Preveri, da gost obstaja
+    const existing = await db.guest.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Gost ni najden' }, { status: 404 })
     }
-    if (body.allergens !== undefined) updateData.allergens = JSON.stringify(body.allergens);
-    if (body.dietaryPrefs !== undefined) updateData.dietaryPrefs = JSON.stringify(body.dietaryPrefs);
-    if (body.dislikes !== undefined) updateData.dislikes = JSON.stringify(body.dislikes);
-    if (body.favoriteItems !== undefined) updateData.favoriteItems = JSON.stringify(body.favoriteItems);
-    if (body.birthday !== undefined) updateData.birthday = body.birthday ? new Date(body.birthday) : null;
-    if (body.anniversary !== undefined) updateData.anniversary = body.anniversary ? new Date(body.anniversary) : null;
-    if (body.company !== undefined) updateData.company = body.company;
-    if (body.notes !== undefined) updateData.notes = body.notes;
 
-    const guest = await prisma.guest.update({
+    const updateData: Record<string, unknown> = {}
+
+    if (data.firstName !== undefined) updateData.firstName = data.firstName
+    if (data.lastName !== undefined) updateData.lastName = data.lastName
+    if (data.email !== undefined) updateData.email = data.email
+    if (data.phone !== undefined) updateData.phone = data.phone
+    if (data.isVip !== undefined) {
+      updateData.isVip = data.isVip
+      if (data.isVip && !existing.isVip) updateData.vipSince = new Date()
+    }
+    if (data.allergens !== undefined) updateData.allergens = JSON.stringify(data.allergens)
+    if (data.dietaryPrefs !== undefined) updateData.dietaryPrefs = JSON.stringify(data.dietaryPrefs)
+    if (data.dislikes !== undefined) updateData.dislikes = JSON.stringify(data.dislikes)
+    if (data.favoriteItems !== undefined) updateData.favoriteItems = JSON.stringify(data.favoriteItems)
+    if (data.birthday !== undefined) updateData.birthday = data.birthday ? new Date(data.birthday) : null
+    if (data.anniversary !== undefined) updateData.anniversary = data.anniversary ? new Date(data.anniversary) : null
+    if (data.company !== undefined) updateData.company = data.company
+    if (data.notes !== undefined) updateData.notes = data.notes
+
+    const guest = await db.guest.update({
       where: { id },
       data: updateData,
-      include: { loyaltyAccount: true, visits: { take: 5, orderBy: { arrivedAt: 'desc' } } },
-    });
+      include: { loyaltyAccount: true },
+    })
 
-    return NextResponse.json(guest);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(guest)
+  } catch (error) {
+    console.error('Napaka pri posodabljanju gosta:', error)
+    return NextResponse.json({ error: 'Napaka pri posodabljanju gosta' }, { status: 500 })
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = await params;
-    await prisma.guest.delete({ where: { id } });
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // FIX C-01: Zahtevaj avtentikacijo za brisanje gosta
+    const authResult = await requireAuth(req, { permission: 'admin' })
+    if (authResult.error) return authResult.error
+
+    const { id } = await params
+
+    const existing = await db.guest.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Gost ni najden' }, { status: 404 })
+    }
+
+    await db.guest.delete({ where: { id } })
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error('Napaka pri brisanju gosta:', error)
+    return NextResponse.json({ error: 'Napaka pri brisanju gosta' }, { status: 500 })
   }
 }

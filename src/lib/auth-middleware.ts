@@ -126,6 +126,11 @@ const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/api/employees': ['manage_employees'],
   '/api/loyalty': ['take_orders'],
   '/api/gift-cards': ['take_orders'],
+  '/api/guests': ['take_orders'],           // FIX: Dodana pot za goste CRM
+  '/api/reservations': ['take_orders'],     // FIX: Dodana pot za rezervacije
+  '/api/waitlist': ['take_orders'],         // FIX: Dodana pot za čakalno vrsto
+  '/api/suppliers': ['manage_inventory'],   // FIX: Dodana pot za dobavitelje
+  '/api/purchase-orders': ['manage_inventory'], // FIX: Dodana pot za nabavna naročila
   '/api/dashboard': ['view_reports'],
   '/api/reports': ['view_reports'],
   '/api/cash-register': ['manage_cash'],
@@ -139,7 +144,7 @@ const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/api/delivery': ['take_orders'],
   '/api/furs': ['admin'],
   '/api/audit': ['admin'],
-  '/api/ws-broadcast': ['take_orders'], // Samo avtenticirani uporabniki lahko broadcastajo
+  '/api/ws-broadcast': ['take_orders'],
 }
 
 /**

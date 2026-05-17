@@ -1,36 +1,48 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { PrismaClient } from '@prisma/client';
+// ============================================
+// GOST CRM — Profesionalna implementacija
+// Toast POS standard — Avtentikacija + Zod validacija
+// ============================================
 
-const prisma = new PrismaClient();
+import { db } from '@/lib/db'
+import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, createGuestSchema } from '@/lib/validations'
 
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const search = searchParams.get('search') || '';
-    const vipOnly = searchParams.get('vip') === 'true';
-    const limit = parseInt(searchParams.get('limit') || '50');
-    const offset = parseInt(searchParams.get('offset') || '0');
+    // FIX C-01: Zahtevaj avtentikacijo za dostop do gostov
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
 
-    const where: any = {};
-    
+    const { searchParams } = new URL(req.url)
+    const search = searchParams.get('search') || ''
+    const vipOnly = searchParams.get('vip') === 'true'
+    const limit = parseInt(searchParams.get('limit') || '50')
+    const offset = parseInt(searchParams.get('offset') || '0')
+
+    // FIX C-02: Omeji limit za preprečevanje DoS
+    const safeLimit = Math.min(Math.max(limit, 1), 200)
+    const safeOffset = Math.max(offset, 0)
+
+    const where: Record<string, unknown> = {}
+
     if (search) {
       where.OR = [
         { firstName: { contains: search } },
         { lastName: { contains: search } },
         { phone: { contains: search } },
         { email: { contains: search } },
-      ];
+      ]
     }
-    
+
     if (vipOnly) {
-      where.isVip = true;
+      where.isVip = true
     }
 
     const [guests, total] = await Promise.all([
-      prisma.guest.findMany({
+      db.guest.findMany({
         where,
         include: {
-          visits: { orderBy: { arrivedAt: 'desc' }, take: 5 },
           loyaltyAccount: true,
           orders: {
             orderBy: { createdAt: 'desc' },
@@ -39,44 +51,55 @@ export async function GET(req: NextRequest) {
           },
         },
         orderBy: { lastVisitAt: 'desc' },
-        take: limit,
-        skip: offset,
+        take: safeLimit,
+        skip: safeOffset,
       }),
-      prisma.guest.count({ where }),
-    ]);
+      db.guest.count({ where }),
+    ])
 
-    return NextResponse.json({ guests, total });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ guests, total })
+  } catch (error) {
+    console.error('Napaka pri pridobivanju gostov:', error)
+    // FIX C-03: Ne razkrivaj error.message — varnostna tveganja
+    return NextResponse.json({ error: 'Napaka pri pridobivanju gostov' }, { status: 500 })
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    
-    const guest = await prisma.guest.create({
+    // FIX C-01: Zahtevaj avtentikacijo za ustvarjanje gosta
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
+
+    const body = await req.json()
+
+    // FIX C-04: Zod validacija namesto ročne
+    const { data, error: validationError } = validateBody(createGuestSchema, body)
+    if (validationError) return validationError
+
+    const guest = await db.guest.create({
       data: {
-        firstName: body.firstName || '',
-        lastName: body.lastName,
-        email: body.email || '',
-        phone: body.phone || '',
-        isVip: body.isVip || false,
-        vipSince: body.isVip ? new Date() : null,
-        allergens: JSON.stringify(body.allergens || []),
-        dietaryPrefs: JSON.stringify(body.dietaryPrefs || []),
-        dislikes: JSON.stringify(body.dislikes || []),
-        favoriteItems: JSON.stringify(body.favoriteItems || []),
-        birthday: body.birthday ? new Date(body.birthday) : null,
-        anniversary: body.anniversary ? new Date(body.anniversary) : null,
-        company: body.company || '',
-        notes: body.notes || '',
+        firstName: data.firstName || '',
+        lastName: data.lastName,
+        email: data.email || '',
+        phone: data.phone || '',
+        isVip: data.isVip || false,
+        vipSince: data.isVip ? new Date() : null,
+        allergens: JSON.stringify(data.allergens || []),
+        dietaryPrefs: JSON.stringify(data.dietaryPrefs || []),
+        dislikes: JSON.stringify(data.dislikes || []),
+        favoriteItems: JSON.stringify(data.favoriteItems || []),
+        birthday: data.birthday ? new Date(data.birthday) : null,
+        anniversary: data.anniversary ? new Date(data.anniversary) : null,
+        company: data.company || '',
+        notes: data.notes || '',
       },
       include: { loyaltyAccount: true },
-    });
+    })
 
-    return NextResponse.json(guest, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(guest, { status: 201 })
+  } catch (error) {
+    console.error('Napaka pri ustvarjanju gosta:', error)
+    return NextResponse.json({ error: 'Napaka pri ustvarjanju gosta' }, { status: 500 })
   }
 }

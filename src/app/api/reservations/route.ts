@@ -2,10 +2,13 @@
 // REZERVACIJSKI SISTEM — Profesionalna implementacija
 // Uporablja Reservation model iz Prisma sheme
 // Toast POS + TouchBistro standard
+// Avtentikacija + Zod validacija
 // ============================================
 
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, createReservationSchema } from '@/lib/validations'
 
 // ============================================
 // GET - Pridobi rezervacije
@@ -13,6 +16,10 @@ import { NextResponse } from 'next/server'
 
 export async function GET(req: Request) {
   try {
+    // FIX C-05: Zahtevaj avtentikacijo za vpogled v rezervacije
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
+
     const { searchParams } = new URL(req.url)
     const date = searchParams.get('date') || ''
     const status = searchParams.get('status') || ''
@@ -73,56 +80,41 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json()
-    const {
-      customerName,
-      customerPhone,
-      customerEmail,
-      tableId,
-      dateTime,
-      partySize,
-      duration,
-      notes,
-      specialRequests,
-      source,
-    } = body
+    // FIX C-05: Zahtevaj avtentikacijo za ustvarjanje rezervacije
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
 
-    // Validacija
-    if (!customerName || !dateTime || !partySize) {
-      return NextResponse.json(
-        { error: 'Ime stranke, datum/čas in število oseb so obvezni' },
-        { status: 400 }
-      )
-    }
+    const body = await req.json()
+
+    // FIX H-01: Zod validacija namesto ročne
+    const { data, error: validationError } = validateBody(createReservationSchema, body)
+    if (validationError) return validationError
 
     // Preveri, da miza obstaja in je primerne velikosti
-    if (tableId) {
-      const table = await db.table.findUnique({ where: { id: tableId } })
+    if (data.tableId) {
+      const table = await db.table.findUnique({ where: { id: data.tableId } })
       if (!table) {
         return NextResponse.json({ error: 'Miza ne obstaja' }, { status: 404 })
       }
-      if (table.capacity < partySize) {
+      if (table.capacity < data.partySize) {
         return NextResponse.json(
-          { error: `Miza ${table.number} ima kapaciteto ${table.capacity}, premajhna za ${partySize} oseb` },
+          { error: `Miza ${table.number} ima kapaciteto ${table.capacity}, premajhna za ${data.partySize} oseb` },
           { status: 400 }
         )
       }
 
       // Preveri konflikte — ali je miza že rezervirana v tem času?
-      const reservationStart = new Date(dateTime)
-      const reservationEnd = new Date(reservationStart.getTime() + (duration || 120) * 60000)
+      const reservationStart = new Date(data.dateTime)
+      const reservationEnd = new Date(reservationStart.getTime() + data.duration * 60000)
 
       const conflicting = await db.reservation.findFirst({
         where: {
-          tableId,
+          tableId: data.tableId,
           status: { in: ['confirmed', 'seated'] },
           dateTime: { lt: reservationEnd },
-          // Konec rezervacije = dateTime + duration
-          // Konflikt če: novi_start < obstoječi_konec AND novi_konec > obstoječi_start
         },
       })
 
-      // Preprosta preveritev — za natančno bi morali računati konec obstoječe rezervacije
       if (conflicting) {
         const conflictEnd = new Date(new Date(conflicting.dateTime).getTime() + (conflicting.duration || 120) * 60000)
         if (reservationStart < conflictEnd && reservationEnd > new Date(conflicting.dateTime)) {
@@ -137,18 +129,19 @@ export async function POST(req: Request) {
     // Ustvari rezervacijo
     const reservation = await db.reservation.create({
       data: {
-        customerName,
-        customerPhone: customerPhone || '',
-        customerEmail: customerEmail || '',
-        tableId: tableId || null,
-        dateTime: new Date(dateTime),
-        partySize,
-        duration: duration || 120,
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        customerEmail: data.customerEmail,
+        tableId: data.tableId || null,
+        dateTime: new Date(data.dateTime),
+        partySize: data.partySize,
+        duration: data.duration,
         status: 'confirmed',
-        notes: notes || '',
-        specialRequests: specialRequests || '',
-        source: source || 'walk_in',
+        notes: data.notes,
+        specialRequests: data.specialRequests,
+        source: data.source,
         confirmedAt: new Date(),
+        employeeId: authResult.session?.employeeId || null,
       },
       include: {
         table: { select: { id: true, number: true, capacity: true, area: true } },
@@ -157,16 +150,16 @@ export async function POST(req: Request) {
 
     // Audit log
     await createAuditLog({
+      userId: authResult.session?.employeeId,
       action: 'CREATE_RESERVATION',
       entityType: 'Reservation',
       entityId: reservation.id,
       details: {
-        customerName,
-        customerPhone,
-        tableId,
-        dateTime,
-        partySize,
-        notes,
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        tableId: data.tableId,
+        dateTime: data.dateTime,
+        partySize: data.partySize,
       },
     })
 

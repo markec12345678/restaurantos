@@ -4,10 +4,15 @@
 // Strategija: Cache-first za statiko, Network-first za API
 // ============================================
 
-const CACHE_NAME = 'restos-pos-v2'
-const STATIC_CACHE = 'restos-static-v2'
-const API_CACHE = 'restos-api-v2'
-const IMAGE_CACHE = 'restos-images-v2'
+const CACHE_NAME = 'restos-pos-v3'
+const STATIC_CACHE = 'restos-static-v3'
+const API_CACHE = 'restos-api-v3'
+const IMAGE_CACHE = 'restos-images-v3'
+
+// Maksimalna starost cache vnosa v ms (5 minut za API)
+const API_CACHE_TTL = 5 * 60 * 1000
+// Maksimalna starost slik (24 ur)
+const IMAGE_CACHE_TTL = 24 * 60 * 60 * 1000
 
 // Statični viri za cache-first strategijo
 const STATIC_ASSETS = [
@@ -43,12 +48,11 @@ const NO_CACHE_API_PATTERNS = [
 // ============================================
 // INSTALL — Predpomni statiko
 // ============================================
-self.addEventListener('install', (event) => {
-  console.log('[SW] Install')
+self.addEventListener('install', () => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => {
-      return cache.addAll(STATIC_ASSETS).catch((err) => {
-        console.warn('[SW] Nekateri viri niso bili predpomnjeni:', err)
+      return cache.addAll(STATIC_ASSETS).catch(() => {
+        // Nekateri viri morda niso na voljo — tiho nadaljuj
       })
     })
   )
@@ -60,7 +64,6 @@ self.addEventListener('install', (event) => {
 // ACTIVATE — Počisti stare cache
 // ============================================
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activate')
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
@@ -91,11 +94,6 @@ self.addEventListener('fetch', (event) => {
   if (url.protocol === 'ws:' || url.protocol === 'wss:') return
 
   // ROUTING:
-  // 1. API zahtevki → Network-first z offline fallbackom
-  // 2. Slike → Cache-first z network fallbackom
-  // 3. Statični viri (JS, CSS) → Cache-first (Next.js ima že hashe)
-  // 4. Ostalo → Network-first
-
   if (url.pathname.startsWith('/api/')) {
     // Preveri, ali je ta API na črnem seznamu
     if (NO_CACHE_API_PATTERNS.some((pattern) => pattern.test(url.pathname))) {
@@ -104,7 +102,7 @@ self.addEventListener('fetch', (event) => {
 
     // Preveri, ali je ta API predpomnljiv
     if (CACHEABLE_API_PATTERNS.some((pattern) => pattern.test(url.pathname))) {
-      event.respondWith(networkFirstWithCache(request, API_CACHE, 300)) // 5 min cache
+      event.respondWith(networkFirstWithCache(request, API_CACHE, API_CACHE_TTL))
       return
     }
 
@@ -114,7 +112,7 @@ self.addEventListener('fetch', (event) => {
 
   // Slike
   if (request.destination === 'image') {
-    event.respondWith(cacheFirstWithNetwork(request, IMAGE_CACHE))
+    event.respondWith(cacheFirstWithNetwork(request, IMAGE_CACHE, IMAGE_CACHE_TTL))
     return
   }
 
@@ -137,43 +135,68 @@ self.addEventListener('fetch', (event) => {
 
 /**
  * Network-first: Poskusi omrežje, fallback na cache
- * @param maxAge Maksimalna starost cache vnosa v sekundah (0 = ne predpomni)
+ * @param maxAge Maksimalna starost cache vnosa v ms (0 = ne predpomni)
  */
-async function networkFirstWithCache(request, cacheName, maxAge = 300) {
+async function networkFirstWithCache(request, cacheName, maxAge = API_CACHE_TTL) {
   try {
     const networkResponse = await fetch(request)
 
     if (networkResponse.ok && maxAge > 0) {
-      // Shrani v cache za offline uporabo
+      // Shrani v cache z timestampom za offline uporabo
       const cache = await caches.open(cacheName)
-      cache.put(request, networkResponse.clone())
+      const responseToCache = networkResponse.clone()
+      // FIX C-SW1: Dodaj timestamp header za TTL preverjanje
+      const headers = new Headers(responseToCache.headers)
+      headers.set('sw-cache-timestamp', Date.now().toString())
+      const body = await responseToCache.blob()
+      const cachedResponse = new Response(body, {
+        status: responseToCache.status,
+        statusText: responseToCache.statusText,
+        headers,
+      })
+      cache.put(request, cachedResponse)
     }
 
     return networkResponse
-  } catch (error) {
+  } catch {
     // Omrežje ni na voljo — poskusi cache
     const cachedResponse = await caches.match(request)
     if (cachedResponse) {
+      // FIX C-SW2: Preveri TTL — ne vrni odcelega cache-ja
+      const cacheTimestamp = parseInt(cachedResponse.headers.get('sw-cache-timestamp') || '0')
+      if (maxAge > 0 && cacheTimestamp && (Date.now() - cacheTimestamp) > maxAge * 2) {
+        // Cache je potekel več kot 2x TTL — vrni offline odgovor
+        return new Response(
+          JSON.stringify({ error: 'Brez povezave — podatki so potekli', offline: true }),
+          { status: 503, headers: { 'Content-Type': 'application/json' } }
+        )
+      }
       return cachedResponse
     }
 
     // Ni cache-ja — vrni offline odgovor
     return new Response(
       JSON.stringify({ error: 'Brez povezave — podatki niso na voljo', offline: true }),
-      {
-        status: 503,
-        headers: { 'Content-Type': 'application/json' },
-      }
+      { status: 503, headers: { 'Content-Type': 'application/json' } }
     )
   }
 }
 
 /**
  * Cache-first: Poskusi cache, fallback na omrežje
+ * @param maxAge Maksimalna starost v ms (privzeto brez omejitve za statiko)
  */
-async function cacheFirstWithNetwork(request, cacheName) {
+async function cacheFirstWithNetwork(request, cacheName, maxAge = 0) {
   const cachedResponse = await caches.match(request)
   if (cachedResponse) {
+    // FIX C-SW3: Preveri TTL za slike
+    if (maxAge > 0) {
+      const cacheTimestamp = parseInt(cachedResponse.headers.get('sw-cache-timestamp') || '0')
+      if (cacheTimestamp && (Date.now() - cacheTimestamp) > maxAge) {
+        // Poteklo — poskusi osvežiti v ozadju
+        refreshCacheEntry(request, cacheName)
+      }
+    }
     return cachedResponse
   }
 
@@ -182,11 +205,20 @@ async function cacheFirstWithNetwork(request, cacheName) {
 
     if (networkResponse.ok) {
       const cache = await caches.open(cacheName)
-      cache.put(request, networkResponse.clone())
+      // Dodaj timestamp za TTL
+      const headers = new Headers(networkResponse.headers)
+      headers.set('sw-cache-timestamp', Date.now().toString())
+      const body = await networkResponse.clone().blob()
+      const cachedResponse = new Response(body, {
+        status: networkResponse.status,
+        statusText: networkResponse.statusText,
+        headers,
+      })
+      cache.put(request, cachedResponse)
     }
 
     return networkResponse
-  } catch (error) {
+  } catch {
     // Ni na voljo niti cache niti omrežje
     if (request.destination === 'image') {
       // Vrni placeholder za slike
@@ -200,23 +232,114 @@ async function cacheFirstWithNetwork(request, cacheName) {
   }
 }
 
+/**
+ * Osveži posamezen cache vnos v ozadju (stale-while-revalidate)
+ */
+async function refreshCacheEntry(request, cacheName) {
+  try {
+    const networkResponse = await fetch(request)
+    if (networkResponse.ok) {
+      const cache = await caches.open(cacheName)
+      const headers = new Headers(networkResponse.headers)
+      headers.set('sw-cache-timestamp', Date.now().toString())
+      const body = await networkResponse.clone().blob()
+      const cachedResponse = new Response(body, {
+        status: networkResponse.status,
+        statusText: networkResponse.statusText,
+        headers,
+      })
+      cache.put(request, cachedResponse)
+    }
+  } catch {
+    // Osveževanje ni uspelo — ohrani stari cache
+  }
+}
+
 // ============================================
 // BACKGROUND SYNC — Posodobi cache ko je spet online
 // ============================================
 self.addEventListener('sync', (event) => {
   if (event.tag === 'sync-pending-orders') {
-    console.log('[SW] Sync: pending orders')
-    // TODO: Pošlji čakajoča naročila, ko je spet online
+    // FIX C-SW4: Implementiraj sync za čakajoča naročila
+    event.waitUntil(syncPendingOrders())
   }
 
   if (event.tag === 'sync-cache-refresh') {
-    console.log('[SW] Sync: cache refresh')
     event.waitUntil(refreshApiCache())
   }
 })
 
 /**
- // Osveži API cache v ozadju
+ * Pošlji čakajoča naročila, ko je spet online
+ */
+async function syncPendingOrders() {
+  try {
+    // Poizvedi IndexedDB za čakajoča naročila (če je offlineDB na voljo)
+    const db = await openOfflineDB()
+    if (!db) return
+
+    const tx = db.transaction('pendingOrders', 'readonly')
+    const store = tx.objectStore('pendingOrders')
+    const orders = await idbRequestToPromise(store.getAll())
+
+    for (const order of orders) {
+      try {
+        const response = await fetch('/api/orders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(order.data),
+        })
+
+        if (response.ok) {
+          // Uspešno poslano — izbriši iz čakalne vrste
+          const deleteTx = db.transaction('pendingOrders', 'readwrite')
+          const deleteStore = deleteTx.objectStore('pendingOrders')
+          deleteStore.delete(order.id)
+          await idbRequestToPromise(deleteTx.done)
+        }
+      } catch {
+        // Poskus znova naslednjič
+        break
+      }
+    }
+  } catch {
+    // IndexedDB ni na voljo — tiho prezri
+  }
+}
+
+/**
+ * Odpri IndexedDB za offline podatke
+ */
+function openOfflineDB() {
+  return new Promise((resolve) => {
+    try {
+      const request = indexedDB.open('restaurantos-offline', 1)
+      request.onupgradeneeded = () => {
+        const db = request.result
+        if (!db.objectStoreNames.contains('pendingOrders')) {
+          db.createObjectStore('pendingOrders', { keyPath: 'id' })
+        }
+      }
+      request.onsuccess = () => resolve(request.result)
+      request.onerror = () => resolve(null)
+    } catch {
+      resolve(null)
+    }
+  })
+}
+
+/**
+ * Helper: Pretvori IDBRequest v Promise
+ */
+function idbRequestToPromise(request) {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error)
+  })
+}
+
+/**
+ * Osveži API cache v ozadju
  */
 async function refreshApiCache() {
   const cache = await caches.open(API_CACHE)
@@ -226,7 +349,15 @@ async function refreshApiCache() {
     try {
       const response = await fetch(request)
       if (response.ok) {
-        await cache.put(request, response)
+        const headers = new Headers(response.headers)
+        headers.set('sw-cache-timestamp', Date.now().toString())
+        const body = await response.clone().blob()
+        const cachedResponse = new Response(body, {
+          status: response.status,
+          statusText: response.statusText,
+          headers,
+        })
+        await cache.put(request, cachedResponse)
       }
     } catch {
       // Napaka pri osveževanju — ohrani star cache
@@ -256,8 +387,8 @@ self.addEventListener('push', (event) => {
     }
 
     event.waitUntil(self.registration.showNotification(title, options))
-  } catch (err) {
-    console.error('[SW] Push notification error:', err)
+  } catch {
+    // Napaka pri parsanju push podatkov — tiho prezri
   }
 })
 

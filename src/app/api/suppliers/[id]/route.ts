@@ -1,13 +1,20 @@
 // ============================================
 // DOBAVITELJ — Posodobi / Izbriši / Pridobi
+// Avtentikacija + Zod validacija
 // ============================================
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, updateSupplierSchema } from '@/lib/validations'
 
 // GET - Pridobi posameznega dobavitelja
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    // FIX C-06: Zahtevaj avtentikacijo
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
+    if (authResult.error) return authResult.error
+
     const { id } = await params
     const supplier = await db.supplier.findUnique({
       where: { id },
@@ -30,31 +37,25 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 // PUT - Posodobi dobavitelja
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    // FIX C-06: Zahtevaj avtentikacijo
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
+    if (authResult.error) return authResult.error
+
     const { id } = await params
     const body = await req.json()
+
+    // FIX H-01: Zod validacija namesto ročnega filtriranja polj
+    const { data, error: validationError } = validateBody(updateSupplierSchema, body)
+    if (validationError) return validationError
 
     const existing = await db.supplier.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ error: 'Dobavitelj ni najden' }, { status: 404 })
     }
 
-    // Filtriramo samo dovoljena polja
-    const allowedFields = [
-      'name', 'code', 'contactPerson', 'email', 'phone',
-      'address', 'city', 'postCode', 'country',
-      'businessId', 'taxId', 'iban', 'bank',
-      'paymentTerms', 'deliveryDays', 'minOrderAmount', 'rating', 'isActive',
-    ]
-    const updateData: Record<string, unknown> = {}
-    for (const field of allowedFields) {
-      if (body[field] !== undefined) {
-        updateData[field] = body[field]
-      }
-    }
-
     const supplier = await db.supplier.update({
       where: { id },
-      data: updateData,
+      data,
     })
 
     return NextResponse.json(supplier)
@@ -67,6 +68,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 // DELETE - Deaktiviraj dobavitelja (ne izbriši)
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    // FIX C-06: Zahtevaj avtentikacijo
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
+    if (authResult.error) return authResult.error
+
     const { id } = await params
 
     const existing = await db.supplier.findUnique({ where: { id } })

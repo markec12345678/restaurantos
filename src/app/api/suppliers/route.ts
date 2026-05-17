@@ -1,14 +1,21 @@
 // ============================================
 // DOBAVITELJI — Profesionalna implementacija
 // Toast POS standard — CRUD + iskanje + filtriranje
+// Avtentikacija + Zod validacija
 // ============================================
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, createSupplierSchema } from '@/lib/validations'
 
 // GET - Pridobi dobavitelje
 export async function GET(req: Request) {
   try {
+    // FIX C-06: Zahtevaj avtentikacijo za vpogled v dobavitelje
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
+    if (authResult.error) return authResult.error
+
     const { searchParams } = new URL(req.url)
     const search = searchParams.get('search') || ''
     const activeOnly = searchParams.get('active') !== 'false'
@@ -42,33 +49,36 @@ export async function GET(req: Request) {
 // POST - Ustvari dobavitelja
 export async function POST(req: Request) {
   try {
+    // FIX C-06: Zahtevaj avtentikacijo za ustvarjanje dobavitelja
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
+    if (authResult.error) return authResult.error
+
     const body = await req.json()
 
-    // Validacija
-    if (!body.name) {
-      return NextResponse.json({ error: 'Ime dobavitelja je obvezno' }, { status: 400 })
-    }
+    // FIX H-01: Zod validacija namesto ročne
+    const { data, error: validationError } = validateBody(createSupplierSchema, body)
+    if (validationError) return validationError
 
     const supplier = await db.supplier.create({
       data: {
-        name: body.name,
-        code: body.code || '',
-        contactPerson: body.contactPerson || '',
-        email: body.email || '',
-        phone: body.phone || '',
-        address: body.address || '',
-        city: body.city || '',
-        postCode: body.postCode || '',
-        country: body.country || 'Slovenija',
-        businessId: body.businessId || '',
-        taxId: body.taxId || '',
-        iban: body.iban || '',
-        bank: body.bank || '',
-        paymentTerms: body.paymentTerms || '30 dni',
-        deliveryDays: body.deliveryDays || '[]',
-        minOrderAmount: body.minOrderAmount || 0,
-        rating: body.rating || 0,
-        isActive: body.isActive !== undefined ? body.isActive : true,
+        name: data.name,
+        code: data.code,
+        contactPerson: data.contactPerson,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        city: data.city,
+        postCode: data.postCode,
+        country: data.country,
+        businessId: data.businessId,
+        taxId: data.taxId,
+        iban: data.iban,
+        bank: data.bank,
+        paymentTerms: data.paymentTerms,
+        deliveryDays: data.deliveryDays,
+        minOrderAmount: data.minOrderAmount,
+        rating: data.rating,
+        isActive: data.isActive,
       },
     })
 
