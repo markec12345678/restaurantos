@@ -39,6 +39,15 @@ export async function GET(req: Request) {
     const orders = await db.order.findMany({
       where,
       orderBy: { createdAt: 'asc' },
+      include: {
+        checks: {
+          include: {
+            payments: {
+              where: { status: 'completed' },
+            },
+          },
+        },
+      },
     })
 
     const totalRevenue = orders.reduce((sum, o) => sum + o.total, 0)
@@ -64,12 +73,41 @@ export async function GET(req: Request) {
       typeBreakdown[order.type].count += 1
     })
 
+    // FIX HIGH: Payment method breakdown iz Check/Payment podatkov (ne order.paymentMethod, ki je lahko prazen)
+    const paymentMethodBreakdown: Record<string, { method: string; revenue: number; tips: number; count: number }> = {}
+    for (const order of orders) {
+      const checks = (order as any).checks || []
+      if (checks.length > 0) {
+        for (const check of checks) {
+          for (const payment of (check.payments || [])) {
+            const method = payment.type || 'unknown'
+            if (!paymentMethodBreakdown[method]) {
+              paymentMethodBreakdown[method] = { method, revenue: 0, tips: 0, count: 0 }
+            }
+            paymentMethodBreakdown[method].revenue += payment.amount
+            paymentMethodBreakdown[method].tips += payment.tipAmount || 0
+            paymentMethodBreakdown[method].count += 1
+          }
+        }
+      } else if (order.paymentMethod) {
+        // Fallback za stare naročila brez checks
+        const method = order.paymentMethod
+        if (!paymentMethodBreakdown[method]) {
+          paymentMethodBreakdown[method] = { method, revenue: 0, tips: 0, count: 0 }
+        }
+        paymentMethodBreakdown[method].revenue += order.total
+        paymentMethodBreakdown[method].tips += order.tip
+        paymentMethodBreakdown[method].count += 1
+      }
+    }
+
     return NextResponse.json({
       totalRevenue: Math.round(totalRevenue * 100) / 100,
       totalOrders,
       avgOrderValue: Math.round(avgOrderValue * 100) / 100,
       dailyRevenue: Object.values(dailyRevenue),
       typeBreakdown: Object.values(typeBreakdown),
+      paymentMethodBreakdown: Object.values(paymentMethodBreakdown),
     })
   } catch (error) {
     console.error('Napaka pri pridobivanju prodajnega poročila:', error)

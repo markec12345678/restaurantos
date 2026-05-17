@@ -14,11 +14,14 @@ export async function GET(req: Request) {
     const triggerType = searchParams.get('triggerType')
     // FIX BUG 16: Pravilna preverjava isActive parametra
     const isActiveParam = searchParams.get('isActive')
+    // FIX HIGH: Iskanje po promoCode za validacijo
+    const promoCode = searchParams.get('promoCode')
 
     const where: Record<string, unknown> = {}
     if (appliesTo) where.appliesTo = appliesTo
     if (triggerType) where.triggerType = triggerType
     if (isActiveParam !== null) where.isActive = isActiveParam === 'true'
+    if (promoCode) where.promoCode = promoCode
 
     const discounts = await db.discount.findMany({
       where,
@@ -43,6 +46,22 @@ export async function POST(req: Request) {
     // FIX BUG 14: Zod validacija
     const { data, error: validationError } = validateBody(createDiscountSchema, body)
     if (validationError) return validationError
+
+    // FIX HIGH: Odstotkovni popust ne more preseči 100%
+    if (data.type === 'percentage' && data.amount > 100) {
+      return NextResponse.json(
+        { error: 'Odstotkovni popust ne more preseči 100%' },
+        { status: 400 }
+      )
+    }
+
+    // FIX HIGH: Fiksni popust mora biti smiseln
+    if (data.type === 'fixed_amount' && data.amount <= 0) {
+      return NextResponse.json(
+        { error: 'Fiksni popust mora biti pozitiven' },
+        { status: 400 }
+      )
+    }
 
     const discount = await db.discount.create({
       data: {

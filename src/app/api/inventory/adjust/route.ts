@@ -32,6 +32,13 @@ export async function POST(req: Request) {
       if (!data.quantity || data.quantity <= 0) {
         return NextResponse.json({ error: 'Količina mora biti pozitivna' }, { status: 400 })
       }
+      // FIX MEDIUM: Opozori, če odpis presega razpoložljivo zalogo — ne odpisi več kot je na zalogi
+      if (data.quantity > previousQty) {
+        return NextResponse.json(
+          { error: `Odpis (${data.quantity}) presega razpoložljivo zalogo (${previousQty})` },
+          { status: 400 }
+        )
+      }
       newQty = Math.max(0, previousQty - data.quantity)
       txQuantity = -data.quantity
     }

@@ -24,6 +24,9 @@ export async function GET(req: Request) {
     const date = searchParams.get('date') || ''
     const status = searchParams.get('status') || ''
     const upcoming = searchParams.get('upcoming') === 'true'
+    // FIX MEDIUM: Paginacija za rezervacije
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500)
+    const offset = parseInt(searchParams.get('offset') || '0')
 
     const where: Record<string, unknown> = {}
 
@@ -51,6 +54,8 @@ export async function GET(req: Request) {
         table: { select: { id: true, number: true, capacity: true, area: true } },
       },
       orderBy: { dateTime: 'asc' },
+      take: limit,
+      skip: offset,
     })
 
     // Povzetek

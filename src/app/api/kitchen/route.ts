@@ -9,6 +9,10 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // FIX MEDIUM: Paginacija za KDS — prepreči nalaganje preveč naročil
+    const { searchParams } = new URL(req.url)
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200)
+
     const orders = await db.order.findMany({
       where: {
         status: { in: ['pending', 'in-progress'] },
@@ -17,6 +21,7 @@ export async function GET(req: Request) {
         { status: 'asc' },  // pending first
         { createdAt: 'asc' },  // oldest first
       ],
+      take: limit,
       include: {
         table: true,
         orderItems: {

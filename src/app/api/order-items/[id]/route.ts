@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, updateOrderItemSchema } from '@/lib/validations'
 import { broadcastLowStockAlert } from '@/lib/stock-deduction'
 import { getAppUrl } from '@/lib/utils'
 
@@ -28,22 +29,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     const body = await req.json()
 
-    // Validiraj osnovna polja
-    const allowedStatuses = ['pending', 'preparing', 'ready', 'served', 'voided', 'cancelled']
-    if (body.status && !allowedStatuses.includes(body.status)) {
-      return NextResponse.json({ error: `Neveljaven status: ${body.status}` }, { status: 400 })
-    }
+    // FIX CRITICAL: Uporabi Zod validacijo namesto ročnega preverjanja
+    const { data, error: validationError } = validateBody(updateOrderItemSchema, body)
+    if (validationError) return validationError
 
     const updateData: Record<string, unknown> = {}
-    if (body.status) updateData.status = body.status
-    if (body.notes !== undefined) updateData.notes = body.notes
+    if (data.status) updateData.status = data.status
+    if (data.notes !== undefined) updateData.notes = data.notes
 
     // === VOID OPERACIJA ===
     // Void pomeni, da se artikel poniči (ne zaračuna stranki)
     // Zahteva razlog (voidReasonId ali voidReasonText)
-    if (body.voided === true) {
+    if (data.voided === true) {
       updateData.voided = true
-      if (body.voidReasonId) updateData.voidReasonId = body.voidReasonId
+      if (data.voidReasonId) updateData.voidReasonId = data.voidReasonId
       updateData.status = 'voided'
     }
 
@@ -54,7 +53,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     })
 
     // Če je void, preračunaj zneske naročila
-    if (body.voided === true) {
+    if (data.voided === true) {
       const allItems = await db.orderItem.findMany({
         where: { orderId: orderItem.orderId },
       })
@@ -89,7 +88,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       })
 
       // ─── VRNI ZALOGO ZA VOIDAN ARTIKEL ───
-      const voidReason = body.voidReasonText || body.voidReasonId || 'Razlog ni naveden'
+      const voidReason = data.voidReasonText || data.voidReasonId || 'Razlog ni naveden'
 
       // 1. Preveri RecipeItem (večsastavni recepti) — PREDNOST
       const recipeItems = await db.recipeItem.findMany({
@@ -192,7 +191,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     // Check if all items in the order are ready — auto-update order status
-    if (body.status === 'ready' || body.status === 'served') {
+    if (data.status === 'ready' || data.status === 'served') {
       const allItems = await db.orderItem.findMany({
         where: { orderId: orderItem.orderId },
         select: { status: true },
@@ -211,11 +210,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     // WebSocket: obvesti KDS o spremembi statusa artikla
-    if (body.status) {
+    if (data.status) {
       broadcastWS('ITEM_STATUS_CHANGED', {
         orderItemId: orderItem.id,
         orderId: orderItem.orderId,
-        newStatus: body.status,
+        newStatus: data.status,
         menuItemName: orderItem.menuItem.name,
       })
     }

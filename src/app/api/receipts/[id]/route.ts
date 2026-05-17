@@ -43,7 +43,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     // Parse modifiers from JSON
-    const receiptItems = order.orderItems.map(oi => {
+    // FIX MEDIUM: Izključi voidane artikle iz računa
+    const receiptItems = order.orderItems
+      .filter(oi => !oi.voided)
+      .map(oi => {
       let modifiers: { name: string; price?: number }[] = []
       try {
         modifiers = JSON.parse(oi.modifiersJson || '[]')
@@ -190,8 +193,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     // Izračunaj DDV razdelitev (strežniško — edini vir resnice)
+    // FIX MEDIUM: Izključi voidane artikle iz DDV razdelitve
     const vatBreakdown: Record<string, { base: number; vat: number }> = {}
-    for (const oi of order.orderItems) {
+    for (const oi of order.orderItems.filter(item => !item.voided)) {
       const vatRate = oi.vatRate || oi.menuItem?.vatRate || 22.0
       const rate = String(vatRate)
       const base = oi.price * oi.quantity

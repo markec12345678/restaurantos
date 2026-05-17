@@ -1,6 +1,14 @@
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { z } from 'zod'
+
+// FIX CRITICAL: Zod validacija za zaprtje izmene
+const closeShiftSchema = z.object({
+  closingCash: z.number().min(0, 'Končna gotovina ne more biti negativna').optional(),
+  totalTips: z.number().min(0, 'Napitnine ne morejo biti negativne').default(0),
+  notes: z.string().max(1000).default(''),
+})
 
 // PUT /api/cash-register/[id] — Close a shift
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -12,6 +20,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (authResult.error) return authResult.error
 
     const body = await req.json()
+
+    // FIX CRITICAL: Zod validacija za zaprtje izmene
+    const { data, error: validationError } = closeShiftSchema.safeParse(body)
+    if (validationError) {
+      return NextResponse.json(
+        { error: 'Neveljavni podatki', validationErrors: validationError.issues.map(e => ({ field: e.path.join('.'), message: e.message })) },
+        { status: 400 }
+      )
+    }
 
     const shift = await db.cashRegisterShift.findUnique({ where: { id } })
     if (!shift) {
@@ -50,7 +67,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       const totalVoided = storno.reduce((sum, o) => sum + Math.abs(o.total), 0)
       const totalOrders = paid.length
       const expectedCash = shift.startingCash + cashSales
-      const closingCash = body.closingCash ?? expectedCash
+      const closingCash = data.closingCash ?? expectedCash
       const cashDifference = closingCash - expectedCash
 
       return await tx.cashRegisterShift.update({
@@ -68,10 +85,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           totalSales,
           totalOrders,
           totalDiscounts,
-          totalTips: body.totalTips || 0,
+          totalTips: data.totalTips || 0,
           totalVoided,
           cashDifference,
-          notes: body.notes || '',
+          notes: data.notes || '',
         },
       })
     })

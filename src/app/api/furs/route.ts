@@ -330,7 +330,8 @@ export async function PUT(req: Request) {
     const stornoNumber = await getNextReceiptNumber()
 
     // Naloži privatni ključ za podpisovanje storno računa
-    const privateKey = (settings?.fursCertPath && settings?.fursCertPassword)
+    // FIX MEDIUM: settings je že validiran kot non-null zgoraj (vrne 400 če ni)
+    const privateKey = (settings.fursCertPath && settings.fursCertPassword)
       ? loadCertificatePrivateKey(settings.fursCertPath, settings.fursCertPassword)
       : undefined
 

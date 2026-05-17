@@ -33,54 +33,91 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const urgency = searchParams.get('urgency') || '' // filter by urgency
 
-    // Pridobi napovedi
-    const forecastRes = await fetch(new URL('/api/inventory/forecast', req.url))
-    const forecastData = await forecastRes.json()
+    // FIX CRITICAL: Pridobi napovedi DIREKTNO iz baze namesto internal fetch-ja
+    // Internal fetch bi potreboval auth token, ki ga ni — uporabimo direktno poizvedbo
 
-    if (!forecastData.forecasts) {
-      return NextResponse.json({ error: 'Napovedi niso na voljo' }, { status: 500 })
-    }
+    // Pridobi vse artikle za analizo
+    const allItems = await db.inventoryItem.findMany({
+      orderBy: { quantity: 'asc' },
+    })
+
+    // Pridobi zadnje transakcije za izračun povprečne porabe
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 
     const suggestions: ReorderSuggestion[] = []
 
-    for (const f of forecastData.forecasts) {
-      if (!f.needsReorder && f.riskLevel === 'low') continue
-      if (urgency && f.riskLevel !== urgency) continue
-
-      // Pridobi dodaten info o artiklu
-      const item = await db.inventoryItem.findUnique({
-        where: { id: f.inventoryItemId },
-      })
-
-      if (!item) continue
-
-      // Izračunaj povprečen čas dobave iz zgodovine
-      const procurements = await db.stockTransaction.findMany({
+    for (const item of allItems) {
+      // Izračunaj porabo zadnjih 7 in 30 dni
+      const recentSales = await db.stockTransaction.findMany({
         where: {
           inventoryItemId: item.id,
-          type: 'procurement',
+          type: 'sale',
+          createdAt: { gte: thirtyDaysAgo },
         },
-        orderBy: { createdAt: 'desc' },
-        take: 10,
       })
 
-      const avgDeliveryDays = 3 // Privzeto — bi izračunali iz razlike med naročilom in dobavo
+      const last7DaysSales = recentSales.filter(t => new Date(t.createdAt) >= sevenDaysAgo)
+      const totalSold7d = last7DaysSales.reduce((s, t) => s + Math.abs(t.quantity), 0)
+      const totalSold30d = recentSales.reduce((s, t) => s + Math.abs(t.quantity), 0)
 
-      const reason = generateReorderReason(f, item)
+      const avgDailyConsumption = totalSold30d > 0 ? totalSold30d / 30 : 0
+      const recentDailyConsumption = totalSold7d > 0 ? totalSold7d / 7 : 0
+
+      // Trend: ali poraba narašča?
+      const trend = recentDailyConsumption > avgDailyConsumption * 1.2 ? 'increasing' :
+                    recentDailyConsumption < avgDailyConsumption * 0.5 ? 'decreasing' : 'stable'
+
+      const isLowStock = item.quantity <= item.minQuantity
+      const daysUntilEmpty = avgDailyConsumption > 0 ? Math.floor(item.quantity / avgDailyConsumption) : 999
+
+      // Določi nujnost
+      let riskLevel: 'critical' | 'high' | 'medium' | 'low' = 'low'
+      if (item.quantity <= 0 || daysUntilEmpty <= 1) riskLevel = 'critical'
+      else if (isLowStock || daysUntilEmpty <= 3) riskLevel = 'high'
+      else if (daysUntilEmpty <= 7 || trend === 'increasing') riskLevel = 'medium'
+
+      const needsReorder = isLowStock || daysUntilEmpty <= 7 || riskLevel !== 'low'
+
+      if (!needsReorder && riskLevel === 'low') continue
+      if (urgency && riskLevel !== urgency) continue
+
+      // Predlagana količina: pokrij 14 dni porabe ali dopolni do 2x minimalne zaloge
+      const suggestedOrderQty = Math.max(
+        Math.ceil(avgDailyConsumption * 14),
+        Math.max(item.minQuantity * 2 - item.quantity, 0),
+        1
+      )
+
+      const reason = generateReorderReason({
+        daysUntilEmpty,
+        currentStock: item.quantity,
+        minStock: item.minQuantity,
+        trend,
+        seasonalityFactor: 1,
+        riskLevel,
+        needsReorder,
+      }, item)
+
+      // Pridobi zadnji datum dobave
+      const lastProcurement = await db.stockTransaction.findFirst({
+        where: { inventoryItemId: item.id, type: 'procurement' },
+        orderBy: { createdAt: 'desc' },
+      })
 
       suggestions.push({
-        inventoryItemId: f.inventoryItemId,
-        itemName: f.itemName,
-        unit: f.unit,
+        inventoryItemId: item.id,
+        itemName: item.name,
+        unit: item.unit,
         supplier: item.supplier,
-        currentStock: f.currentStock,
-        suggestedQty: f.suggestedOrderQty,
+        currentStock: item.quantity,
+        suggestedQty: suggestedOrderQty,
         costPerUnit: item.costPerUnit,
-        totalCost: Math.round(f.suggestedOrderQty * item.costPerUnit * 100) / 100,
-        urgency: f.riskLevel as ReorderSuggestion['urgency'],
+        totalCost: Math.round(suggestedOrderQty * item.costPerUnit * 100) / 100,
+        urgency: riskLevel as ReorderSuggestion['urgency'],
         reason,
-        lastOrderDate: f.lastRestockDate,
-        avgDeliveryDays,
+        lastOrderDate: lastProcurement?.createdAt?.toISOString() || null,
+        avgDeliveryDays: 3,
         category: item.category,
       })
     }
@@ -144,27 +181,28 @@ export async function POST(req: Request) {
       const newQty = Math.round((previousQty + item.quantity) * 10000) / 10000
 
       // Ustvari transakcijo tipa "procurement" (naročilo dobavitelja)
-      // FIX: Ustvari transakcijo IN posodobi zalogo atomarno — prepreči delno stanje
+      // FIX: Ustvari transakcijo IN posodobi zalogo atomarno — uporabi atomic increment
       await db.$transaction(async (tx) => {
+        // FIX MEDIUM: Atomic increment — prepreči race condition
+        const updated = await tx.inventoryItem.update({
+          where: { id: item.inventoryItemId },
+          data: {
+            quantity: { increment: item.quantity },
+            lastRestocked: new Date(),
+          },
+        })
+
         await tx.stockTransaction.create({
           data: {
             inventoryItemId: item.inventoryItemId,
             type: 'procurement',
             quantity: item.quantity,
-            previousQty,
-            newQty,
+            previousQty: updated.quantity - item.quantity,
+            newQty: updated.quantity,
             costPerUnit: item.costPerUnit,
             totalCost: item.quantity * item.costPerUnit,
             reason: `Samodejno naročilo (${employeeName || 'sistem'})`,
             employeeName: employeeName || '',
-          },
-        })
-
-        await tx.inventoryItem.update({
-          where: { id: item.inventoryItemId },
-          data: {
-            quantity: newQty,
-            lastRestocked: new Date(),
           },
         })
       })

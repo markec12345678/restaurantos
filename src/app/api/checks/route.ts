@@ -67,6 +67,9 @@ export async function POST(req: Request) {
       checkOrderItems = order.orderItems.filter(oi => data.orderItemIds!.includes(oi.id))
     }
 
+    // FIX MEDIUM: Izključi voidane artikle iz izračuna čeka
+    checkOrderItems = checkOrderItems.filter(oi => !oi.voided)
+
     if (checkOrderItems.length === 0) {
       return NextResponse.json({ error: 'Ček mora vsebovati vsaj en artikel' }, { status: 400 })
     }

@@ -21,7 +21,7 @@ const cuid = z.string().min(1, 'ID je obvezen')
 export const createOrderItemSchema = z.object({
   menuItemId: cuid,
   quantity: z.number().int().min(1, 'Količina mora biti vsaj 1').max(99, 'Količina ne more preseči 99'),
-  price: positiveNumber,
+  price: positiveNumber.optional(), // FIX HIGH: Price je opcijski — strežnik uporabi ceno iz baze (edini vir resnice)
   notes: z.string().max(500, 'Opombe ne smejo preseči 500 znakov').default(''),
   modifiersJson: z.string().default('[]'),
 })

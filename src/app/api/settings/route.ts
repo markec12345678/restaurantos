@@ -59,7 +59,33 @@ export async function PUT(req: Request) {
     let settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
 
     if (!settings) {
-      settings = await db.restaurantSettings.create({ data: data as Record<string, unknown> })
+      // FIX HIGH: Ustvari z varnimi privzetimi vrednostmi — ne podaj undefined za obvezna polja
+      settings = await db.restaurantSettings.create({
+        data: {
+          name: data.name || 'RestaurantOS',
+          address: data.address || '',
+          city: data.city || '',
+          postCode: data.postCode || '',
+          phone: data.phone || '',
+          email: data.email || '',
+          web: data.web || '',
+          businessId: data.businessId || '',
+          taxId: data.taxId || '',
+          registerNumber: data.registerNumber || 'BLG-001',
+          fursCertPath: data.fursCertPath || '',
+          fursCertPassword: data.fursCertPassword || '',
+          fursEnvironment: data.fursEnvironment || 'test',
+          defaultVatRate: data.defaultVatRate ?? 22.0,
+          reducedVatRate: data.reducedVatRate ?? 9.5,
+          loyaltyEnabled: data.loyaltyEnabled ?? false,
+          loyaltyPointsPerEuro: data.loyaltyPointsPerEuro ?? 1,
+          loyaltyPointsValue: data.loyaltyPointsValue ?? 0.01,
+          receiptFooter: data.receiptFooter || '',
+          currency: data.currency || 'EUR',
+          locale: data.locale || 'sl-SI',
+          country: data.country || 'SI',
+        }
+      })
     } else {
       // Ne shrani praznega gesla — ohrani staro
       const updateData = { ...data }
