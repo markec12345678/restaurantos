@@ -1,6 +1,7 @@
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { validateBody, eodCloseSchema } from '@/lib/validations'
 
 // ============================================
 // END-OF-DAY (ZOD - Zaključek obratovalnega dneva)
@@ -211,7 +212,12 @@ export async function POST(req: Request) {
     if (authResult.error) return authResult.error
 
     const body = await req.json()
-    const { date, closingCash, notes } = body
+
+    // FIX: Zod validacija za zaključek dneva
+    const { data, error: validationError } = validateBody(eodCloseSchema, body)
+    if (validationError) return validationError
+
+    const { date, closingCash, notes } = data
 
     const targetDate = date || new Date().toISOString().split('T')[0]
     const dayStart = new Date(targetDate + 'T00:00:00.000Z')

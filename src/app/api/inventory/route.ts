@@ -5,7 +5,10 @@ import { validateBody, createInventorySchema } from '@/lib/validations'
 
 export async function GET(req: Request) {
   try {
-    // GET je javno dostopen za prikaz na blagajni
+    // FIX: Zahtevaj avtentikacijo za branje zaloge
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
+    if (authResult.error) return authResult.error
+
     const { searchParams } = new URL(req.url)
     const category = searchParams.get('category')
     const location = searchParams.get('location')

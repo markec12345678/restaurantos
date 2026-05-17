@@ -573,6 +573,87 @@ export const updateSupplierSchema = z.object({
 })
 
 // ============================================
+// DOBAVA (Delivery)
+// ============================================
+
+export const createDeliverySchema = z.object({
+  address: z.string().min(1, 'Naslov je obvezen').max(300),
+  city: z.string().max(100).default(''),
+  postCode: z.string().max(20).default(''),
+  recipientName: z.string().max(100).default(''),
+  recipientPhone: z.string().max(30).default(''),
+  deliveryInstructions: z.string().max(500).default(''),
+  promisedTime: z.string().nullable().optional(),
+  estimatedTime: z.string().nullable().optional(),
+  courierName: z.string().max(100).default(''),
+  courierPhone: z.string().max(30).default(''),
+  status: z.enum(['pending', 'preparing', 'ready', 'picked_up', 'delivered', 'failed']).default('pending'),
+  packagingFee: z.number().min(0).default(0),
+  deliveryFee: z.number().min(0).default(0),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
+})
+
+export const updateDeliverySchema = z.object({
+  address: z.string().max(300).optional(),
+  city: z.string().max(100).optional(),
+  postCode: z.string().max(20).optional(),
+  recipientName: z.string().max(100).optional(),
+  recipientPhone: z.string().max(30).optional(),
+  deliveryInstructions: z.string().max(500).optional(),
+  promisedTime: z.string().nullable().optional(),
+  estimatedTime: z.string().nullable().optional(),
+  actualTime: z.string().nullable().optional(),
+  courierName: z.string().max(100).optional(),
+  courierPhone: z.string().max(30).optional(),
+  status: z.enum(['pending', 'preparing', 'ready', 'picked_up', 'delivered', 'failed']).optional(),
+  packagingFee: z.number().min(0).optional(),
+  deliveryFee: z.number().min(0).optional(),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
+})
+
+// ============================================
+// EOD (End of Day)
+// ============================================
+
+export const eodCloseSchema = z.object({
+  date: z.string().max(10).optional(),
+  closingCash: z.number().min(0).optional(),
+  totalTips: z.number().min(0).optional(),
+  notes: z.string().max(1000).optional(),
+})
+
+// ============================================
+// SHIFT UPDATE
+// ============================================
+
+export const updateShiftSchema = z.object({
+  date: z.string().optional(),
+  startTime: z.string().max(10).optional(),
+  endTime: z.string().max(10).optional(),
+  status: z.enum(['scheduled', 'in_progress', 'completed', 'absent']).optional(),
+  jobId: z.string().nullable().optional(),
+  breakMinutes: z.number().int().min(0).max(480).optional(),
+  notes: z.string().max(500).optional(),
+})
+
+// ============================================
+// ORDER PATCH ACTIONS (KDS)
+// ============================================
+
+export const orderPatchActionSchema = z.discriminatedUnion('action', [
+  z.object({
+    action: z.literal('item_status'),
+    itemId: z.string().min(1, 'ID artikla je obvezen'),
+    status: z.enum(['pending', 'fired', 'preparing', 'ready', 'served', 'cancelled']),
+  }),
+  z.object({
+    action: z.literal('fire'),
+  }),
+])
+
+// ============================================
 // HELPER: Varno parsnje z Zod
 // ============================================
 

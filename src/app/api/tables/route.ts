@@ -3,8 +3,12 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, createTableSchema } from '@/lib/validations'
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    // FIX: Zahtevaj avtentikacijo za branje miz
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
+
     const tables = await db.table.findMany({
       orderBy: { number: 'asc' },
       include: { orders: { where: { status: { in: ['pending', 'in-progress', 'ready'] } }, take: 1 } },

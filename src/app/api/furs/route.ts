@@ -317,10 +317,14 @@ export async function PUT(req: Request) {
     }
 
     const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
-    const config = buildFursConfig(settings || {
-      businessId: '', taxId: '', registerNumber: 'BLG-001',
-      fursCertPath: '', fursCertPassword: '', fursEnvironment: 'test',
-    })
+    // FIX: Preveri da so nastavitve na voljo PREDEN nadaljuješ s stornom
+    if (!settings) {
+      return NextResponse.json({ error: 'Ni nastavitev restavracije — storno ni mogoč' }, { status: 400 })
+    }
+    if (!settings.businessId || !settings.taxId) {
+      return NextResponse.json({ error: 'Manjkajo poslovni podatki (matična št., DDV ID) — storno ni mogoč' }, { status: 400 })
+    }
+    const config = buildFursConfig(settings)
 
     // Atomna številka storno računa
     const stornoNumber = await getNextReceiptNumber()

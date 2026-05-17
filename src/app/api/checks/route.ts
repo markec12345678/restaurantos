@@ -6,6 +6,10 @@ import { validateBody, createCheckSchema } from '@/lib/validations'
 
 export async function GET(req: Request) {
   try {
+    // FIX: Zahtevaj avtentikacijo za branje čekov
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
+
     const { searchParams } = new URL(req.url)
     const orderId = searchParams.get('orderId')
     const paymentStatus = searchParams.get('paymentStatus')

@@ -18,15 +18,24 @@ export async function GET(req: Request) {
     if (isActive !== null) where.isActive = isActive === 'true'
     if (customerPhone) where.customerPhone = customerPhone
 
-    const accounts = await db.loyaltyAccount.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        transactions: { orderBy: { createdAt: 'desc' }, take: 10 },
-      },
-    })
+    // FIX: Paginacija — prepreči nalaganje preveč zapisov
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 500)
+    const offset = parseInt(searchParams.get('offset') || '0')
 
-    return NextResponse.json(accounts)
+    const [accounts, total] = await Promise.all([
+      db.loyaltyAccount.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        include: {
+          transactions: { orderBy: { createdAt: 'desc' }, take: 10 },
+        },
+      }),
+      db.loyaltyAccount.count({ where }),
+    ])
+
+    return NextResponse.json({ accounts, total, limit, offset })
   } catch (error) {
     console.error('Failed to fetch loyalty accounts:', error)
     return NextResponse.json({ error: 'Failed to fetch loyalty accounts' }, { status: 500 })

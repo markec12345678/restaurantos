@@ -286,6 +286,7 @@ self.addEventListener('sync', (event) => {
 /**
  * Pošlji čakajoča naročila, ko je spet online
  * FIX: Podpora za auth token — preberi iz IndexedDB če je na voljo
+ * FIX: Omejitev na 20 naročil na poskus — prepreči preobremenitev strežnika
  */
 async function syncPendingOrders() {
   try {
@@ -297,7 +298,10 @@ async function syncPendingOrders() {
     const store = tx.objectStore('pendingOrders')
     const orders = await idbRequestToPromise(store.getAll())
 
-    for (const order of orders) {
+    // FIX: Omejitev na 20 naročil na poskus — prepreči preobremenitev strežnika
+    const ordersToSync = orders.slice(0, 20)
+
+    for (const order of ordersToSync) {
       try {
         const headers = { 'Content-Type': 'application/json' }
         // Če ima order shranjen token, ga uporabi
@@ -372,12 +376,16 @@ function idbRequestToPromise(request) {
 
 /**
  * Osveži API cache v ozadju
+ * FIX: Omejitev na največ 50 vnosov in timeout 30s — prepreči timeout sinhronizacije
  */
 async function refreshApiCache() {
   const cache = await caches.open(API_CACHE)
   const keys = await cache.keys()
 
-  for (const request of keys) {
+  // FIX: Omeji na prvih 50 vnosov — prepreči timeout pri velikem številu cache vnosov
+  const keysToRefresh = keys.slice(0, 50)
+
+  for (const request of keysToRefresh) {
     try {
       const response = await fetch(request)
       if (response.ok) {
@@ -434,10 +442,15 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Če je okno že odprto, navigiraj in fokusiraj
+      // FIX: Najprej poišči okno, ki že prikazuje ta URL — prioritiziraj že navigirana okna
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && client.url.endsWith(url) && 'focus' in client) {
+          return client.focus()
+        }
+      }
+      // Nato poskusi poljubno okno istega izvora in navigiraj
       for (const client of clientList) {
         if (client.url.includes(self.location.origin) && 'focus' in client) {
-          // FIX: Počakaj na navigate pred focus — prepreči race condition
           return client.navigate(url).then(() => client.focus())
         }
       }

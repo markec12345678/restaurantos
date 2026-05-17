@@ -998,7 +998,7 @@ model Reservation {
   duration        Int      @default(120)        // Trajanje v minutah (privzeto 2h)
   // --- Miza ---
   tableId         String?
-  table           Table?   @relation(fields: [tableId], references: [id])
+  table           Table?   @relation(fields: [tableId], references: [id], onDelete: SetNull)
   // --- Status ---
   status          String   @default("confirmed") // confirmed, seated, completed, cancelled, no_show
   // --- Opombe ---

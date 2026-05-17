@@ -1,7 +1,7 @@
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
-import { validateBody, updateOrderSchema } from '@/lib/validations'
+import { validateBody, updateOrderSchema, orderPatchActionSchema } from '@/lib/validations'
 import { returnStockForOrder, broadcastLowStockAlert, deductStockForOrder } from '@/lib/stock-deduction'
 import { getAppUrl } from '@/lib/utils'
 
@@ -187,20 +187,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const body = await req.json()
 
+    // FIX: Zod validacija za PATCH akcije
+    const { data: patchData, error: patchError } = validateBody(orderPatchActionSchema, body)
+    if (patchError) return patchError
+
     // Item status posodobitev — iz KDS zaslona ali natakarjeve tablice
-    if (body.action === 'item_status') {
-      const { itemId, status } = body
-      if (!itemId || !status) return NextResponse.json({ error: 'Manjkajo podatki' }, { status: 400 })
+    if (patchData.action === 'item_status') {
+      const { itemId, status } = patchData
 
       const order = await db.order.findUnique({ where: { id } })
       if (!order) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
       if (order.status === 'cancelled') return NextResponse.json({ error: 'Preklicano naročilo ni mogoče spreminjati' }, { status: 400 })
-
-      // Veljavni statusi za item
-      const validStatuses = ['pending', 'fired', 'preparing', 'ready', 'served', 'cancelled']
-      if (!validStatuses.includes(status)) {
-        return NextResponse.json({ error: `Neveljaven status: ${status}` }, { status: 400 })
-      }
 
       await db.orderItem.update({ where: { id: itemId }, data: { status } })
 
@@ -276,7 +273,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     // Fire action — pošlji naročilo v kuhinjo
-    if (body.action === 'fire') {
+    if (patchData.action === 'fire') {
       await db.order.update({ where: { id }, data: { status: 'in-progress' } })
       await db.orderItem.updateMany({ where: { orderId: id, status: 'pending' }, data: { status: 'fired' } })
 
@@ -292,6 +289,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json(updated)
     }
 
+    // Should not reach here — discriminatedUnion handles all cases
     return NextResponse.json({ error: 'Neznana akcija' }, { status: 400 })
   } catch (error) {
     console.error('PATCH order error:', error)

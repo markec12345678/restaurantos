@@ -5,7 +5,10 @@ import { validateBody, createDiscountSchema } from '@/lib/validations'
 
 export async function GET(req: Request) {
   try {
-    // GET je javno dostopen za prikaz popustov na POS
+    // FIX: Zahtevaj avtentikacijo za branje popustov — izpostavlja promoCode, maxUses, itd.
+    const authResult = await requireAuth(req, { permission: 'apply_discounts' })
+    if (authResult.error) return authResult.error
+
     const { searchParams } = new URL(req.url)
     const appliesTo = searchParams.get('appliesTo')
     const triggerType = searchParams.get('triggerType')
