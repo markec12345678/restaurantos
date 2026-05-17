@@ -52,14 +52,33 @@ export async function checkStockAvailability(
 }> {
   const warnings: Array<{ menuItemId: string; itemName: string; ingredientName: string; needed: number; available: number; unit: string }> = []
 
+  // FIX MEDIUM: Batch query — pridobi vse recepte in inventar naenkrat namesto N+1
+  const menuItemIds = items.filter(i => !i.voided).map(i => i.menuItemId)
+  if (menuItemIds.length === 0) return { available: true, warnings: [] }
+
+  const [allRecipes, allInvItems] = await Promise.all([
+    db.recipeItem.findMany({
+      where: { menuItemId: { in: menuItemIds } },
+      include: { inventoryItem: true, menuItem: { select: { name: true } } },
+    }),
+    db.inventoryItem.findMany({
+      where: { menuItemId: { in: menuItemIds } },
+      include: { menuItem: { select: { name: true } } },
+    }),
+  ])
+
+  // Zgradi lookup mape
+  const recipesByMenuItem = new Map<string, typeof allRecipes>()
+  for (const r of allRecipes) {
+    if (!recipesByMenuItem.has(r.menuItemId)) recipesByMenuItem.set(r.menuItemId, [])
+    recipesByMenuItem.get(r.menuItemId)!.push(r)
+  }
+  const invByMenuItem = new Map(allInvItems.map(i => [i.menuItemId!, i]))
+
   for (const item of items) {
     if (item.voided) continue
 
-    // Preveri prek RecipeItem (večsastavni recepti)
-    const recipeItems = await db.recipeItem.findMany({
-      where: { menuItemId: item.menuItemId },
-      include: { inventoryItem: true, menuItem: { select: { name: true } } },
-    })
+    const recipeItems = recipesByMenuItem.get(item.menuItemId) || []
 
     if (recipeItems.length > 0) {
       for (const recipe of recipeItems) {
@@ -77,10 +96,7 @@ export async function checkStockAvailability(
       }
     } else {
       // Preveri prek direktnega 1:1 linka
-      const invItem = await db.inventoryItem.findFirst({
-        where: { menuItemId: item.menuItemId },
-        include: { menuItem: { select: { name: true } } },
-      })
+      const invItem = invByMenuItem.get(item.menuItemId)
 
       if (invItem && invItem.servingsPerUnit > 0) {
         const servingsNeeded = item.quantity

@@ -84,12 +84,31 @@ export function StornoDialog({ order, open, onClose, onStornoComplete }: StornoD
         }),
       })
       const fursResult = await fursRes.json()
-      if (!fursRes.ok) throw new Error(fursResult.error || 'Napaka pri storniranju')
+
+      // FIX HIGH: Če FURS ni na voljo (brez certifikata, timeout, itd.), 
+      // dovoli storno z ročnim posodabljanjem naročila — POS MORA omogočiti storno
+      // tudi ko FURS strežnik ni dosegljiv (FURS zahteva poskus, ne blokado)
+      if (!fursRes.ok) {
+        console.warn('[Storno] FURS storno ni uspel, posodabljam naročilo ročno:', fursResult.error)
+        
+        // Ročno posodobi naročilo na storno (brez FURS overjanja)
+        const orderRes = await authFetch(`/api/orders/${order.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            paymentStatus: 'storno',
+            status: 'cancelled',
+            cancelReason: `STORNO (brez FURS): ${reasonText}`,
+          }),
+        })
+        if (!orderRes.ok) throw new Error('Napaka pri ročnem storniranju naročila')
+        
+        toast.warning('Storno izveden brez FURS overjanja — račun mora biti overjen kasneje', { duration: 5000 })
+        return { success: true, message: 'Storno izveden brez FURS overjanja', isSimulation: true }
+      }
 
       // FIX: FURS PUT /api/furs že posodobi naročilo (status:cancelled, stock:returned)
       // znotraj transakcije — NE pošiljaj še enega PUT na /api/orders, ker bi to
       // povzročilo double stock return in double table release!
-      // Če FURS storno ni uspel (npr. brez certifikata), posodobi naročilo ročno
 
       return fursResult
     },

@@ -138,13 +138,14 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
         method: 'POST',
         body: JSON.stringify({
           checkId: check.id,
-          amount: totalWithTip,
+          amount: orderTotal, // FIX CRITICAL: amount = check total (brez napitnine), tipAmount je ločeno
           tipAmount: tipAmount,
           type: paymentMethod === 'cash' ? 'cash' : paymentMethod === 'card' ? 'card' : paymentMethod === 'mobile' ? 'mobile' : paymentMethod === 'giftcard' ? 'giftcard' : paymentMethod === 'loyalty' ? 'loyalty' : paymentMethod === 'alternate' ? 'alternate' : paymentMethod === 'split' ? 'split' : 'cash',
           alternatePaymentTypeId: paymentMethod === 'alternate' ? selectedAltPayment : null,
           giftCardId: paymentMethod === 'giftcard' ? selectedGiftCardId : null,
           loyaltyAccountId: paymentMethod === 'loyalty' ? selectedLoyaltyId : null,
-          // FIX: status se nastavi strežniško — client ne sme pošiljati statusa
+          // FIX HIGH: loyaltyPointsUsed — server potrebuje to vrednost za atomic decrement
+          loyaltyPointsUsed: paymentMethod === 'loyalty' && selectedLoyaltyId ? Math.round(orderTotal * 100) : 0,
         }),
       })
       if (!paymentRes.ok) throw new Error('Napaka pri ustvarjanju plačila')
@@ -300,11 +301,14 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
       const check = await checkRes.json()
 
       // 2. Ustvari N ločenih plačil (zadnje absorbira razliko za zaokroževanje)
+      // FIX MEDIUM: Split payment amount = orderTotal brez napitnine (tipAmount je ločeno)
+      // Če se napitnina porazdeli, se prišteje k vsakem paymentu
       const payments: { amount: number; tipPortion: number }[] = []
+      const splitBase = Math.floor((orderTotal / splitCount) * 100) / 100
       for (let i = 0; i < splitCount; i++) {
         const amount = i === splitCount - 1
-          ? Math.round((totalWithTip - splitAmount * (splitCount - 1)) * 100) / 100
-          : splitAmount
+          ? Math.round((orderTotal - splitBase * (splitCount - 1)) * 100) / 100
+          : splitBase
         const tipPortion = i === splitCount - 1
           ? Math.round((tipAmount - Math.round((tipAmount / splitCount) * 100) / 100 * (splitCount - 1)) * 100) / 100
           : Math.round((tipAmount / splitCount) * 100) / 100
@@ -334,6 +338,22 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
         }),
       })
       if (!orderRes.ok) throw new Error('Napaka pri posodobitvi naročila')
+
+      // FIX MEDIUM: Split payment — ustvari račun in FURS overitev
+      try {
+        const receiptRes = await authFetch(`/api/receipts/${order.id}`, {
+          method: 'POST',
+          body: JSON.stringify({ paymentMethod: 'split', isStorno: false }),
+        })
+        if (receiptRes.ok) {
+          try {
+            await authFetch('/api/furs', {
+              method: 'POST',
+              body: JSON.stringify({ orderId: order.id }),
+            })
+          } catch { /* FURS overitev ni kritična za split payment */ }
+        }
+      } catch { /* Račun ni bil ustvarjen — plačilo je še vedno veljavno */ }
 
       toast.success(`Plačilo uspešno! ${splitCount}x €${splitAmount.toFixed(2)}`)
       queryClient.invalidateQueries({ queryKey: ['orders'] })
@@ -806,45 +826,26 @@ export function PaymentDialog({ order, open, onClose, onPaymentSuccess }: Paymen
                         <span className="flex-1 truncate">{oi.quantity}x {oi.menuItem.name}</span>
                         <span className="text-xs text-muted-foreground mr-2">€{(oi.price * oi.quantity).toFixed(2)}</span>
                         <div className="flex gap-1">
-                          <button
-                            onClick={() => {
-                              setGuestAssignments(prev => {
-                                const next = { ...prev }
-                                if (next[oi.id] === 1) delete next[oi.id]
-                                else next[oi.id] = 1
-                                return next
-                              })
-                            }}
-                            className={cn('w-6 h-6 rounded-full text-[9px] font-bold flex items-center justify-center transition-all touch-manipulation',
-                              assignedGuest === 1 ? cn(colors[0], 'text-white scale-110') : 'bg-muted text-muted-foreground hover:bg-blue-200'
-                            )}
-                          >1</button>
-                          <button
-                            onClick={() => {
-                              setGuestAssignments(prev => {
-                                const next = { ...prev }
-                                if (next[oi.id] === 2) delete next[oi.id]
-                                else next[oi.id] = 2
-                                return next
-                              })
-                            }}
-                            className={cn('w-6 h-6 rounded-full text-[9px] font-bold flex items-center justify-center transition-all touch-manipulation',
-                              assignedGuest === 2 ? cn(colors[1], 'text-white scale-110') : 'bg-muted text-muted-foreground hover:bg-emerald-200'
-                            )}
-                          >2</button>
-                          <button
-                            onClick={() => {
-                              setGuestAssignments(prev => {
-                                const next = { ...prev }
-                                if (next[oi.id] === 3) delete next[oi.id]
-                                else next[oi.id] = 3
-                                return next
-                              })
-                            }}
-                            className={cn('w-6 h-6 rounded-full text-[9px] font-bold flex items-center justify-center transition-all touch-manipulation',
-                              assignedGuest === 3 ? cn(colors[2], 'text-white scale-110') : 'bg-muted text-muted-foreground hover:bg-amber-200'
-                            )}
-                          >3</button>
+                          {/* FIX MEDIUM: Dinamični gumbi za goste glede na splitCount */}
+                          {Array.from({ length: Math.max(splitCount, 2) }).map((_, gi) => {
+                            const guestNum = gi + 1
+                            return (
+                              <button
+                                key={guestNum}
+                                onClick={() => {
+                                  setGuestAssignments(prev => {
+                                    const next = { ...prev }
+                                    if (next[oi.id] === guestNum) delete next[oi.id]
+                                    else next[oi.id] = guestNum
+                                    return next
+                                  })
+                                }}
+                                className={cn('w-6 h-6 rounded-full text-[9px] font-bold flex items-center justify-center transition-all touch-manipulation',
+                                  assignedGuest === guestNum ? cn(colors[gi % colors.length], 'text-white scale-110') : 'bg-muted text-muted-foreground hover:bg-accent'
+                                )}
+                              >{guestNum}</button>
+                            )
+                          })}
                         </div>
                       </div>
                     )
