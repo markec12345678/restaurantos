@@ -58,6 +58,10 @@ import { TableReservationSync } from '@/components/pos/TableReservationSync'
 import { KitchenStationManager } from '@/components/pos/KitchenStationManager'
 import { TaxReport } from '@/components/pos/TaxReport'
 import { VendorScorecard } from '@/components/pos/VendorScorecard'
+import { OrderBump } from '@/components/pos/OrderBump'
+import { WasteTracker } from '@/components/pos/WasteTracker'
+import { RecipeScaling } from '@/components/pos/RecipeScaling'
+import { ComplianceDashboard } from '@/components/pos/ComplianceDashboard'
 import GuestManager from '@/components/pos/GuestManager'
 import FoodCostCalculator from '@/components/pos/FoodCostCalculator'
 import WaitlistManager from '@/components/pos/WaitlistManager'
@@ -125,6 +129,10 @@ const moduleComponents: Record<string, React.ComponentType> = {
   'kitchen-stations': KitchenStationManager,
   'tax-report': TaxReport,
   'vendor-scorecard': VendorScorecard,
+  'order-bump': OrderBump,
+  'waste-tracker': WasteTracker,
+  'recipe-scaling': RecipeScaling,
+  'compliance': ComplianceDashboard,
   settings: SettingsManager,
 }
 

@@ -66,6 +66,8 @@ import {
   CookingPot,
   Scale,
   Star,
+  Trash2,
+  Scale3d,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore, useState, useEffect } from 'react'
@@ -141,6 +143,10 @@ const navItems = [
   { id: 'kitchen-stations', labelKey: 'nav.kitchenStations', icon: CookingPot, permission: 'take_orders' },
   { id: 'tax-report', labelKey: 'nav.taxReport', icon: Scale, permission: 'view_reports' },
   { id: 'vendor-scorecard', labelKey: 'nav.vendorScorecard', icon: Star, adminOnly: true },
+  { id: 'order-bump', labelKey: 'nav.orderBump', icon: Sparkles, permission: 'take_orders' },
+  { id: 'waste-tracker', labelKey: 'nav.wasteTracker', icon: Trash2, adminOnly: true },
+  { id: 'recipe-scaling', labelKey: 'nav.recipeScaling', icon: Scale3d, adminOnly: true },
+  { id: 'compliance', labelKey: 'nav.compliance', icon: ShieldCheck, adminOnly: true },
   { id: 'settings', labelKey: 'nav.settings', icon: Settings, adminOnly: true },
 ]
 

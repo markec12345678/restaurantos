@@ -693,5 +693,9 @@
   "nav.tableReservationSync": "Tische ↔ Reservierungen",
   "nav.kitchenStations": "Küchenstationen",
   "nav.taxReport": "Steuerbericht",
-  "nav.vendorScorecard": "Lieferantenbewertung"
+  "nav.vendorScorecard": "Lieferantenbewertung",
+  "nav.orderBump": "Upsell & Order Bump",
+  "nav.wasteTracker": "Verschwendungstracker",
+  "nav.recipeScaling": "Rezept-Skalierung",
+  "nav.compliance": "Compliance-Dashboard"
 }

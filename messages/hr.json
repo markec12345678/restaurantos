@@ -693,5 +693,9 @@
   "nav.tableReservationSync": "Stolovi ↔ Rezervacije",
   "nav.kitchenStations": "Kuhinjske postaje",
   "nav.taxReport": "Porezno izvješće",
-  "nav.vendorScorecard": "Ocjene dobavljača"
+  "nav.vendorScorecard": "Ocjene dobavljača",
+  "nav.orderBump": "Upsell i Order Bump",
+  "nav.wasteTracker": "Praćenje otpada",
+  "nav.recipeScaling": "Skaliranje recepata",
+  "nav.compliance": "Usklađenost s propisima"
 }
