@@ -2,7 +2,7 @@
 
 import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -18,7 +18,7 @@ import { toast } from 'sonner'
 import {
   Plus, Pencil, Trash2, Search, Percent, UtensilsCrossed, Building2,
   FolderTree, Tags, Wrench, ChefHat, XCircle, Ban, CreditCard,
-  Printer, Gift, Heart, Webhook, Settings2,
+  Printer, Gift, Heart, Webhook, Settings2, Clock, Sparkles,
 } from 'lucide-react'
 import { useState, useCallback } from 'react'
 
@@ -75,6 +75,8 @@ const TABS: TabDef[] = [
   { key: 'gift-cards', label: 'Darilne kartice', icon: <Gift className="h-4 w-4" />, model: 'gift-cards', apiBase: '/api/gift-cards' },
   { key: 'loyalty', label: 'Zvestoba', icon: <Heart className="h-4 w-4" />, model: 'loyalty', apiBase: '/api/loyalty' },
   { key: 'webhooks', label: 'Webhook-i', icon: <Webhook className="h-4 w-4" />, model: 'webhooks', apiBase: '/api/webhooks' },
+  { key: 'opening-hours', label: 'Delovni čas', icon: <Clock className="h-4 w-4" />, model: 'opening-hours', apiBase: '/api/opening-hours' },
+  { key: 'happy-hour', label: 'Happy Hour', icon: <Sparkles className="h-4 w-4" />, model: 'happy-hour', apiBase: '/api/happy-hour' },
 ]
 
 // ============================================
@@ -255,8 +257,18 @@ export function ConfigurationManager() {
           </Badge>
         </div>
 
-        {/* Vsebina zavihkov */}
-        {TABS.map(tab => (
+        {/* Custom zavihek: Delovni čas */}
+        <TabsContent value="opening-hours" className="mt-4">
+          <OpeningHoursTab />
+        </TabsContent>
+
+        {/* Custom zavihek: Happy Hour */}
+        <TabsContent value="happy-hour" className="mt-4">
+          <HappyHourTab />
+        </TabsContent>
+
+        {/* Vsebina zavihkov - generični */}
+        {TABS.filter(t => t.key !== 'opening-hours' && t.key !== 'happy-hour').map(tab => (
           <TabsContent key={tab.key} value={tab.key} className="mt-4">
             {isLoading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -1179,4 +1191,445 @@ function formToPayload(tabKey: string, formData: Record<string, unknown>): Recor
   }
 
   return base
+}
+
+// ============================================
+// CUSTOM TAB: DELOVNI ČAS (OpeningHours)
+// Urejanje urnika za vse dni v tednu
+// ============================================
+
+const DAY_NAMES = ['Nedelja', 'Ponedeljek', 'Torek', 'Sreda', 'Četrtek', 'Petek', 'Sobota']
+const DAY_SHORT = ['Ned', 'Pon', 'Tor', 'Sre', 'Čet', 'Pet', 'Sob']
+
+interface OpeningHour {
+  id?: string
+  dayOfWeek: number
+  openTime: string
+  closeTime: string
+  breakStart: string
+  breakEnd: string
+  isClosed: boolean
+}
+
+function OpeningHoursTab() {
+  const queryClient = useQueryClient()
+  const { data, isLoading } = useQuery<{ hours: OpeningHour[] }>({
+    queryKey: ['opening-hours'],
+    queryFn: async () => {
+      const res = await fetch('/api/opening-hours')
+      if (!res.ok) return { hours: [] }
+      return res.json()
+    },
+  })
+
+  const [editHours, setEditHours] = useState<OpeningHour[]>([])
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const hours = data?.hours || []
+
+  const startEdit = () => {
+    // Pripravi 7 dni, zapolni manjkajoče s privzetki
+    const existing = new Map(hours.map(h => [h.dayOfWeek, h]))
+    const all7: OpeningHour[] = Array.from({ length: 7 }, (_, i) => {
+      const ex = existing.get(i)
+      return ex || { dayOfWeek: i, openTime: '08:00', closeTime: '22:00', breakStart: '', breakEnd: '', isClosed: i === 0 }
+    })
+    setEditHours(all7)
+    setEditing(true)
+  }
+
+  const updateDay = (idx: number, field: keyof OpeningHour, value: string | boolean) => {
+    setEditHours(prev => {
+      const updated = [...prev]
+      updated[idx] = { ...updated[idx], [field]: value }
+      return updated
+    })
+  }
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/opening-hours', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hours: editHours.map(({ id, ...rest }) => rest) }),
+      })
+      if (!res.ok) throw new Error('Napaka')
+      toast.success('Delovni čas shranjen')
+      queryClient.invalidateQueries({ queryKey: ['opening-hours'] })
+      setEditing(false)
+    } catch {
+      toast.error('Napaka pri shranjevanju')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (isLoading) return <div className="space-y-3">{[...Array(7)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
+
+  // Prikaz trenutnega urnika
+  const now = new Date()
+  const todayIdx = now.getDay()
+  const todayHours = hours.find(h => h.dayOfWeek === todayIdx)
+  const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+  const isOpenNow = todayHours && !todayHours.isClosed && currentTime >= todayHours.openTime && currentTime <= todayHours.closeTime
+
+  return (
+    <div className="space-y-4">
+      {/* Status indikator */}
+      <div className={`flex items-center gap-3 p-4 rounded-xl ${isOpenNow ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+        <div className={`w-3 h-3 rounded-full ${isOpenNow ? 'bg-green-500' : 'bg-red-500'}`} />
+        <span className={`font-semibold ${isOpenNow ? 'text-green-700' : 'text-red-700'}`}>
+          {isOpenNow ? 'Trenutno odprto' : 'Trenutno zaprto'}
+        </span>
+        {todayHours && !todayHours.isClosed && (
+          <span className="text-sm text-muted-foreground">
+            ({todayHours.openTime} - {todayHours.closeTime})
+          </span>
+        )}
+      </div>
+
+      {!editing ? (
+        <>
+          {/* Tabelarični pregled */}
+          <div className="border rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted/50 border-b">
+                  <th className="text-left p-3 font-medium">Dan</th>
+                  <th className="text-center p-3 font-medium">Odprtje</th>
+                  <th className="text-center p-3 font-medium">Zaprtje</th>
+                  <th className="text-center p-3 font-medium">Odmor</th>
+                  <th className="text-center p-3 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Array.from({ length: 7 }, (_, i) => {
+                  const h = hours.find(x => x.dayOfWeek === i)
+                  const isToday = i === todayIdx
+                  return (
+                    <tr key={i} className={`border-b last:border-0 ${isToday ? 'bg-blue-50/50' : ''}`}>
+                      <td className={`p-3 font-medium ${isToday ? 'text-blue-700' : ''}`}>
+                        {DAY_NAMES[i]} {isToday && <Badge className="ml-1 text-[10px] bg-blue-600">Danes</Badge>}
+                      </td>
+                      <td className="p-3 text-center">{h?.isClosed ? '—' : h?.openTime || '—'}</td>
+                      <td className="p-3 text-center">{h?.isClosed ? '—' : h?.closeTime || '—'}</td>
+                      <td className="p-3 text-center text-xs text-muted-foreground">
+                        {h?.breakStart && h?.breakEnd ? `${h.breakStart} - ${h.breakEnd}` : '—'}
+                      </td>
+                      <td className="p-3 text-center">
+                        <Badge variant={h?.isClosed ? 'destructive' : 'default'} className={h?.isClosed ? '' : 'bg-green-600'}>
+                          {h?.isClosed ? 'Zaprto' : 'Odprto'}
+                        </Badge>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <Button onClick={startEdit} className="gap-2">
+            <Pencil className="h-4 w-4" /> Uredi delovni čas
+          </Button>
+        </>
+      ) : (
+        <>
+          <div className="space-y-3">
+            {editHours.map((h, idx) => (
+              <div key={idx} className={`flex items-center gap-3 p-3 rounded-xl border ${h.isClosed ? 'bg-gray-50/50 opacity-70' : 'bg-background'}`}>
+                <span className="w-12 font-semibold text-sm">{DAY_SHORT[idx]}</span>
+                <Switch checked={!h.isClosed} onCheckedChange={v => updateDay(idx, 'isClosed', !v)} />
+                {!h.isClosed ? (
+                  <>
+                    <Input type="time" value={h.openTime} onChange={e => updateDay(idx, 'openTime', e.target.value)} className="w-32" />
+                    <span className="text-muted-foreground">—</span>
+                    <Input type="time" value={h.closeTime} onChange={e => updateDay(idx, 'closeTime', e.target.value)} className="w-32" />
+                    <div className="flex items-center gap-1 ml-2">
+                      <span className="text-xs text-muted-foreground">Odmor:</span>
+                      <Input type="time" value={h.breakStart} onChange={e => updateDay(idx, 'breakStart', e.target.value)} className="w-28" placeholder="Od" />
+                      <Input type="time" value={h.breakEnd} onChange={e => updateDay(idx, 'breakEnd', e.target.value)} className="w-28" placeholder="Do" />
+                    </div>
+                  </>
+                ) : (
+                  <span className="text-sm text-red-500 font-medium">Zaprto</span>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={save} disabled={saving} className="flex-1">
+              {saving ? 'Shranjujem...' : 'Shrani delovni čas'}
+            </Button>
+            <Button variant="outline" onClick={() => setEditing(false)}>Prekliči</Button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ============================================
+// CUSTOM TAB: HAPPY HOUR
+// Upravljanje urnikov Happy Hour s ceniki
+// ============================================
+
+interface HappyHourSchedule {
+  id: string
+  name: string
+  description: string
+  priceGroupId: string
+  priceGroup?: { id: string; name: string }
+  discountType: string
+  discountAmount: number
+  daysOfWeek: string
+  startTime: string
+  endTime: string
+  validFrom: string | null
+  validTo: string | null
+  isActive: boolean
+  autoActivate: boolean
+}
+
+function HappyHourTab() {
+  const queryClient = useQueryClient()
+  const { data, isLoading } = useQuery({
+    queryKey: ['happy-hour-config'],
+    queryFn: async () => {
+      const res = await fetch('/api/happy-hour')
+      if (!res.ok) return { schedules: [], activeSchedules: [], currentlyActive: false }
+      return res.json()
+    },
+  })
+
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({
+    name: '', description: '', priceGroupId: '', discountType: 'percentage', discountAmount: 0,
+    daysOfWeek: [1, 2, 3, 4, 5] as number[], startTime: '14:00', endTime: '17:00',
+    validFrom: '', validTo: '', isActive: true, autoActivate: true,
+  })
+  const [saving, setSaving] = useState(false)
+
+  const schedules: HappyHourSchedule[] = data?.schedules || []
+  const currentlyActive = data?.currentlyActive || false
+
+  const { data: priceGroups } = useQuery({
+    queryKey: ['price-groups-hh'],
+    queryFn: async () => {
+      const res = await fetch('/api/configuration/price-groups')
+      if (!res.ok) return []
+      return res.json()
+    },
+  })
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/happy-hour', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Napaka')
+      }
+      toast.success('Happy Hour urnik ustvarjen')
+      queryClient.invalidateQueries({ queryKey: ['happy-hour-config'] })
+      setShowForm(false)
+      setForm({ name: '', description: '', priceGroupId: '', discountType: 'percentage', discountAmount: 0, daysOfWeek: [1, 2, 3, 4, 5], startTime: '14:00', endTime: '17:00', validFrom: '', validTo: '', isActive: true, autoActivate: true })
+    } catch (e: any) {
+      toast.error(e.message || 'Napaka pri shranjevanju')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const toggleDay = (day: number) => {
+    setForm(prev => ({
+      ...prev,
+      daysOfWeek: prev.daysOfWeek.includes(day) ? prev.daysOfWeek.filter(d => d !== day) : [...prev.daysOfWeek, day].sort(),
+    }))
+  }
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/happy-hour/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Napaka')
+    },
+    onSuccess: () => {
+      toast.success('Izbrisano')
+      queryClient.invalidateQueries({ queryKey: ['happy-hour-config'] })
+    },
+    onError: () => toast.error('Napaka pri brisanju'),
+  })
+
+  const toggleMutation = useMutation({
+    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
+      const res = await fetch(`/api/happy-hour/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive }),
+      })
+      if (!res.ok) throw new Error('Napaka')
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['happy-hour-config'] }),
+  })
+
+  if (isLoading) return <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28" />)}</div>
+
+  const dayLabels = ['', 'Pon', 'Tor', 'Sre', 'Čet', 'Pet', 'Sob', 'Ned']
+
+  return (
+    <div className="space-y-4">
+      {/* Trenutno aktivni banner */}
+      <div className={`flex items-center gap-3 p-4 rounded-xl ${currentlyActive ? 'bg-amber-50 border border-amber-200' : 'bg-gray-50 border border-gray-200'}`}>
+        <Sparkles className={`h-5 w-5 ${currentlyActive ? 'text-amber-500' : 'text-gray-400'}`} />
+        <span className={`font-semibold ${currentlyActive ? 'text-amber-700' : 'text-gray-500'}`}>
+          {currentlyActive ? 'Happy Hour je trenutno AKTIVEN!' : 'Happy Hour trenutno ni aktiven'}
+        </span>
+      </div>
+
+      {/* Seznam urnikov */}
+      {schedules.length === 0 ? (
+        <div className="text-center py-12">
+          <Sparkles className="h-12 w-12 mx-auto text-muted-foreground mb-3 opacity-30" />
+          <p className="text-lg font-medium text-muted-foreground">Ni še definiranih Happy Hour urnikov</p>
+          <p className="text-sm text-muted-foreground">Ustvarite prvi urnik za samodejne popuste</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {schedules.map(s => (
+            <Card key={s.id} className={`${!s.isActive ? 'opacity-60' : ''} ${currentlyActive && s.isActive ? 'border-amber-300 shadow-amber-100' : ''}`}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold">{s.name}</h3>
+                      <Badge variant={s.isActive ? 'default' : 'secondary'} className={s.isActive ? 'bg-green-600' : ''}>
+                        {s.isActive ? 'Aktiven' : 'Neaktiven'}
+                      </Badge>
+                    </div>
+                    {s.description && <p className="text-sm text-muted-foreground mt-0.5">{s.description}</p>}
+                    <div className="flex items-center gap-3 mt-2 text-sm">
+                      <Badge variant="outline">{s.startTime} - {s.endTime}</Badge>
+                      {s.discountType !== 'none' && (
+                        <Badge variant="default">
+                          {s.discountType === 'percentage' ? `-${s.discountAmount}%` : `-€${s.discountAmount.toFixed(2)}`}
+                        </Badge>
+                      )}
+                      {s.priceGroup && <Badge variant="secondary">{s.priceGroup.name}</Badge>}
+                    </div>
+                    <div className="flex gap-1 mt-2">
+                      {(() => {
+                        try {
+                          const days: number[] = JSON.parse(s.daysOfWeek || '[]')
+                          return days.map(d => (
+                            <span key={d} className="text-[10px] px-1.5 py-0.5 rounded bg-muted font-medium">{dayLabels[d] || d}</span>
+                          ))
+                        } catch { return null }
+                      })()}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Switch checked={s.isActive} onCheckedChange={v => toggleMutation.mutate({ id: s.id, isActive: v })} />
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteMutation.mutate(s.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Obrazec za nov urnik */}
+      {showForm ? (
+        <Card className="border-amber-500/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Sparkles className="h-4 w-4" /> Nov Happy Hour urnik
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Input placeholder="Ime (npr. Popoldanski popust) *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} />
+            <Textarea placeholder="Opis (opcijsko)" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} rows={2} />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Vrsta popusta</Label>
+                <Select value={form.discountType} onValueChange={v => setForm(p => ({ ...p, discountType: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="percentage">Odstotek</SelectItem>
+                    <SelectItem value="fixed">Fiksni znesek</SelectItem>
+                    <SelectItem value="none">Brez popusta</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Znesek {form.discountType === 'percentage' ? '(%)' : '(€)'}</Label>
+                <Input type="number" step="0.5" value={form.discountAmount} onChange={e => setForm(p => ({ ...p, discountAmount: parseFloat(e.target.value) || 0 }))} />
+              </div>
+            </div>
+            <div>
+              <Label>Cenik (Price Group)</Label>
+              <Select value={form.priceGroupId} onValueChange={v => setForm(p => ({ ...p, priceGroupId: v }))}>
+                <SelectTrigger><SelectValue placeholder="Izberi cenik..." /></SelectTrigger>
+                <SelectContent>
+                  {(priceGroups || []).map((pg: any) => (
+                    <SelectItem key={pg.id} value={pg.id}>{pg.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Od (ura)</Label>
+                <Input type="time" value={form.startTime} onChange={e => setForm(p => ({ ...p, startTime: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Do (ura)</Label>
+                <Input type="time" value={form.endTime} onChange={e => setForm(p => ({ ...p, endTime: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <Label>Dnevi v tednu</Label>
+              <div className="flex gap-1 mt-1">
+                {[1, 2, 3, 4, 5, 6, 7].map(d => (
+                  <button
+                    key={d}
+                    onClick={() => toggleDay(d)}
+                    className={`px-2 py-1.5 rounded-lg text-xs font-bold transition ${form.daysOfWeek.includes(d) ? 'bg-blue-600 text-white' : 'bg-muted text-muted-foreground'}`}
+                  >
+                    {dayLabels[d]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Veljavno od</Label>
+                <Input type="date" value={form.validFrom} onChange={e => setForm(p => ({ ...p, validFrom: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Veljavno do</Label>
+                <Input type="date" value={form.validTo} onChange={e => setForm(p => ({ ...p, validTo: e.target.value }))} />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={save} disabled={!form.name || saving} className="flex-1">
+                {saving ? 'Ustvarjam...' : 'Ustvari Happy Hour'}
+              </Button>
+              <Button variant="outline" onClick={() => setShowForm(false)}>Prekliči</Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Button variant="outline" onClick={() => setShowForm(true)} className="gap-2">
+          <Plus className="h-4 w-4" /> Dodaj Happy Hour urnik
+        </Button>
+      )}
+    </div>
+  )
 }

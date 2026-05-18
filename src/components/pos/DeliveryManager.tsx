@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { Truck, Plus, MapPin, Clock, Phone, Navigation, RefreshCw } from 'lucide-react'
+import { Truck, Plus, MapPin, Clock, Phone, Navigation, RefreshCw, Globe, ShoppingCart } from 'lucide-react'
 import { useState } from 'react'
 import { authFetch } from '@/components/pos/PinLogin'
 
@@ -153,6 +153,9 @@ export function DeliveryManager() {
         </div>
       ) : (
         <>
+          {/* Online naročila */}
+          <OnlineOrdersSection />
+
           {/* Aktivne dostave */}
           {activeDeliveries.length > 0 && (
             <div>
@@ -283,6 +286,160 @@ export function DeliveryManager() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+// ============================================
+// ONLINE NAROČILA — Seznam naročil iz /order
+// ============================================
+
+interface OnlineOrder {
+  id: string
+  orderNumber: number
+  type: string
+  status: string
+  customerName: string
+  customerPhone: string
+  customerEmail: string
+  subtotal: number
+  tax: number
+  discount: number
+  total: number
+  paymentMethod: string
+  paymentStatus: string
+  notes: string
+  createdAt: string
+  orderItems: Array<{ id: string; menuItemId: string; quantity: number; price: number; notes: string }>
+}
+
+const onlineStatusLabels: Record<string, string> = {
+  pending: 'Čaka', confirmed: 'Potrjeno', 'in-progress': 'V pripravi',
+  ready: 'Pripravljeno', completed: 'Zaključeno', cancelled: 'Preklicano',
+}
+
+const onlineStatusColors: Record<string, string> = {
+  pending: 'bg-yellow-100 text-yellow-800', confirmed: 'bg-blue-100 text-blue-800',
+  'in-progress': 'bg-orange-100 text-orange-800', ready: 'bg-green-100 text-green-800',
+  completed: 'bg-gray-100 text-gray-600', cancelled: 'bg-red-100 text-red-800',
+}
+
+function OnlineOrdersSection() {
+  const queryClient = useQueryClient()
+  const [filter, setFilter] = useState('pending,in-progress,ready')
+
+  const { data: ordersData, isLoading } = useQuery<{ orders: OnlineOrder[] }>({
+    queryKey: ['online-orders-admin', filter],
+    queryFn: async () => {
+      const res = await authFetch(`/api/orders?status=${filter}&type=delivery,takeout&limit=20&source=online`)
+      if (!res.ok) return { orders: [] }
+      const data = await res.json()
+      return { orders: Array.isArray(data) ? data : data.orders || [] }
+    },
+    refetchInterval: 15000, // Auto-refresh vsakih 15s
+  })
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const res = await authFetch(`/api/orders/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      if (!res.ok) throw new Error('Napaka')
+      return res.json()
+    },
+    onSuccess: () => {
+      toast.success('Status posodobljen')
+      queryClient.invalidateQueries({ queryKey: ['online-orders-admin'] })
+    },
+    onError: () => toast.error('Napaka pri posodobitvi'),
+  })
+
+  const orders = ordersData?.orders || []
+  const onlineOrders = orders.filter(o => o.notes?.includes('ONLINE'))
+
+  if (isLoading) return <div className="space-y-2">{[...Array(3)].map((_, i) => <div key={i} className="h-20 bg-muted animate-pulse rounded-lg" />)}</div>
+
+  if (onlineOrders.length === 0) {
+    return (
+      <div className="p-6 text-center text-muted-foreground bg-muted/30 rounded-xl border border-dashed">
+        <Globe className="h-8 w-8 mx-auto mb-2 opacity-30" />
+        <p className="text-sm font-medium">Ni novih online naročil</p>
+        <p className="text-xs">Naročila iz /order bodo prikazana tukaj</p>
+      </div>
+    )
+  }
+
+  const getNextStatus = (current: string) => {
+    const flow: Record<string, string> = { pending: 'confirmed', confirmed: 'in-progress', 'in-progress': 'ready', ready: 'completed' }
+    return flow[current]
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          <Globe className="h-5 w-5 text-blue-500" />
+          Online naročila ({onlineOrders.length})
+        </h3>
+        <Select value={filter} onValueChange={setFilter}>
+          <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pending,in-progress,ready">Aktivna</SelectItem>
+            <SelectItem value="pending">Čakajoča</SelectItem>
+            <SelectItem value="in-progress">V pripravi</SelectItem>
+            <SelectItem value="completed">Zaključena</SelectItem>
+            <SelectItem value="cancelled">Preklicana</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        {onlineOrders.map(order => (
+          <Card key={order.id} className="hover:shadow-md transition-shadow">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-100 text-blue-700 font-bold text-sm">
+                    #{order.orderNumber}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm">{order.customerName || 'Gost'}</span>
+                      <Badge variant="outline" className="text-[10px]">
+                        {order.type === 'delivery' ? '🚗 Dostava' : '🛍 Prevzem'}
+                      </Badge>
+                      <Badge className={onlineStatusColors[order.status] || ''}>
+                        {onlineStatusLabels[order.status] || order.status}
+                      </Badge>
+                      <Badge variant={order.paymentStatus === 'paid' ? 'default' : 'secondary'} className={order.paymentStatus === 'paid' ? 'bg-green-600' : ''}>
+                        {order.paymentStatus === 'paid' ? 'Plačano' : 'Čaka plačilo'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{order.customerPhone}</span>
+                      <span>{order.orderItems?.length || 0} artiklov</span>
+                      <span className="font-semibold text-blue-700">€{order.total.toFixed(2)}</span>
+                      <span>{new Date(order.createdAt).toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {getNextStatus(order.status) && (
+                    <Button size="sm" onClick={() => updateStatusMutation.mutate({ id: order.id, status: getNextStatus(order.status) })}>
+                      {order.status === 'pending' ? 'Potrdi' : order.status === 'confirmed' ? 'Začni pripravo' : order.status === 'in-progress' ? 'Pripravljeno' : 'Zaključi'}
+                    </Button>
+                  )}
+                  <Button variant="outline" size="sm" onClick={() => {/* TODO: open detail */}}>
+                    <ShoppingCart className="h-3.5 w-3.5 mr-1" /> Podrobnosti
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   )
 }
