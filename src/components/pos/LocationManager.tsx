@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   MapPin, Plus, Building2, Truck, Coffee, UtensilsCrossed, Wine,
   Phone, Mail, Clock, ToggleLeft, ToggleRight, Trash2, Edit2, Check, X,
-  ShoppingBag, Users, Package, Globe, ChevronDown, ChevronUp,
+  ShoppingBag, Users, Package, Globe, ChevronDown, ChevronUp, Navigation,
 } from 'lucide-react'
 import { authFetch } from '@/components/pos/PinLogin'
 
@@ -76,6 +76,48 @@ export function LocationManager() {
     country: 'SI', phone: '', email: '', businessId: '', taxId: '', registerNumber: '',
     premisesId: '', timezone: 'Europe/Ljubljana', currency: 'EUR', locale: 'sl-SI',
     latitude: '', longitude: '',
+  })
+
+  // Cone dostave
+  const [showZones, setShowZones] = useState(false)
+  const [showZoneForm, setShowZoneForm] = useState(false)
+  const [zoneForm, setZoneForm] = useState({
+    name: '', postCodes: '', cities: '', deliveryFee: '2.50', minOrderAmount: '10.00',
+    freeDeliveryAbove: '0', estimatedMinutes: '30', locationId: '',
+  })
+
+  const { data: zonesData, isLoading: zonesLoading } = useQuery({
+    queryKey: ['delivery-zones'],
+    queryFn: async () => {
+      const res = await authFetch('/api/delivery-zones')
+      return res.json()
+    },
+    enabled: showZones,
+  })
+
+  const createZoneMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await authFetch('/api/delivery-zones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) throw new Error('Napaka')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['delivery-zones'] })
+      setShowZoneForm(false)
+      setZoneForm({ name: '', postCodes: '', cities: '', deliveryFee: '2.50', minOrderAmount: '10.00', freeDeliveryAbove: '0', estimatedMinutes: '30', locationId: '' })
+    },
+  })
+
+  const deleteZoneMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await authFetch(`/api/delivery-zones/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Napaka')
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['delivery-zones'] }),
   })
 
   const { data, isLoading } = useQuery({
@@ -168,6 +210,9 @@ export function LocationManager() {
             🔄 Sinhroniziraj meni
           </Button>
         )}
+        <Button variant="outline" onClick={() => setShowZones(!showZones)} className="gap-2">
+          <Navigation className="h-4 w-4" /> Cone dostave
+        </Button>
       </div>
 
       {/* Stats */}
@@ -270,6 +315,102 @@ export function LocationManager() {
                   <p className="text-red-700">{syncResult.error || 'Napaka'}</p>
                 )}
               </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Delivery Zones */}
+      {showZones && (
+        <Card className="border-emerald-500/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Navigation className="h-4 w-4" /> Cone dostave
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Določite cone dostave s cenami, minimalnimi naročili in predvidenim časom za vsako cono.
+            </p>
+
+            {/* Zone list */}
+            {zonesLoading ? (
+              <div className="space-y-2">{[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20" />)}</div>
+            ) : (
+              <div className="space-y-2">
+                {(zonesData?.deliveryZones || zonesData || []).map((zone: any) => (
+                  <div key={zone.id} className="flex items-center justify-between p-3 rounded-xl border bg-muted/30">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-semibold text-sm">{zone.name}</h4>
+                        {zone.locationId && <Badge variant="outline" className="text-[10px]">Lokacija</Badge>}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        <span>Dostava: €{(zone.deliveryFee || 0).toFixed(2)}</span>
+                        <span>Min: €{(zone.minOrderAmount || 0).toFixed(2)}</span>
+                        {zone.freeDeliveryAbove > 0 && <span className="text-green-600">Brezplačno nad €{zone.freeDeliveryAbove.toFixed(2)}</span>}
+                        <span>{zone.estimatedMinutes || 30} min</span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">
+                        {(() => { try { const pc = JSON.parse(zone.postCodes || '[]'); return pc.length > 0 ? `PT: ${pc.join(', ')}` : '' } catch { return '' } })()}
+                        {(() => { try { const c = JSON.parse(zone.cities || '[]'); return c.length > 0 ? ` | Mesta: ${c.join(', ')}` : '' } catch { return '' } })()}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={zone.isActive ? 'default' : 'secondary'} className={zone.isActive ? 'bg-green-600' : ''}>
+                        {zone.isActive ? 'Aktivna' : 'Neaktivna'}
+                      </Badge>
+                      <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 h-7 w-7 p-0" onClick={() => { if (confirm(`Izbriši cono "${zone.name}"?`)) deleteZoneMutation.mutate(zone.id) }}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                {(!zonesData?.deliveryZones && !zonesData?.length) && (
+                  <p className="text-sm text-muted-foreground text-center py-4">Ni dodanih con dostave</p>
+                )}
+              </div>
+            )}
+
+            {/* Add zone form */}
+            {showZoneForm ? (
+              <div className="space-y-3 p-4 rounded-xl border border-emerald-200 bg-emerald-50/50">
+                <h4 className="font-semibold text-sm">Nova cona dostave</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  <Input placeholder="Ime cone (npr. Center LJU) *" value={zoneForm.name} onChange={e => setZoneForm(p => ({ ...p, name: e.target.value }))} className="col-span-2" />
+                  <Input placeholder="Poštne št. (1000,1001,1000)" value={zoneForm.postCodes} onChange={e => setZoneForm(p => ({ ...p, postCodes: e.target.value }))} className="col-span-2" />
+                  <Input placeholder="Mesta (Ljubljana,Domžale)" value={zoneForm.cities} onChange={e => setZoneForm(p => ({ ...p, cities: e.target.value }))} className="col-span-2" />
+                  <Input placeholder="Cena dostave (€)" type="number" step="0.50" value={zoneForm.deliveryFee} onChange={e => setZoneForm(p => ({ ...p, deliveryFee: e.target.value }))} />
+                  <Input placeholder="Min. naročilo (€)" type="number" step="1" value={zoneForm.minOrderAmount} onChange={e => setZoneForm(p => ({ ...p, minOrderAmount: e.target.value }))} />
+                  <Input placeholder="Brezpl. dostava nad (€)" type="number" step="1" value={zoneForm.freeDeliveryAbove} onChange={e => setZoneForm(p => ({ ...p, freeDeliveryAbove: e.target.value }))} />
+                  <Input placeholder="Predviden čas (min)" type="number" value={zoneForm.estimatedMinutes} onChange={e => setZoneForm(p => ({ ...p, estimatedMinutes: e.target.value }))} />
+                  <select value={zoneForm.locationId} onChange={e => setZoneForm(p => ({ ...p, locationId: e.target.value }))} className="col-span-2 px-3 py-2 rounded-lg border bg-background text-sm">
+                    <option value="">Vse lokacije</option>
+                    {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name} ({loc.code})</option>)}
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={() => {
+                    createZoneMutation.mutate({
+                      name: zoneForm.name,
+                      postCodes: JSON.stringify(zoneForm.postCodes.split(',').map(s => s.trim()).filter(Boolean)),
+                      cities: JSON.stringify(zoneForm.cities.split(',').map(s => s.trim()).filter(Boolean)),
+                      deliveryFee: parseFloat(zoneForm.deliveryFee) || 2.50,
+                      minOrderAmount: parseFloat(zoneForm.minOrderAmount) || 10.00,
+                      freeDeliveryAbove: parseFloat(zoneForm.freeDeliveryAbove) || 0,
+                      estimatedMinutes: parseInt(zoneForm.estimatedMinutes) || 30,
+                      locationId: zoneForm.locationId || null,
+                    })
+                  }} disabled={!zoneForm.name || createZoneMutation.isPending} className="flex-1">
+                    {createZoneMutation.isPending ? 'Ustvarjam...' : 'Dodaj cono'}
+                  </Button>
+                  <Button variant="outline" onClick={() => setShowZoneForm(false)}>Prekliči</Button>
+                </div>
+              </div>
+            ) : (
+              <Button variant="outline" onClick={() => setShowZoneForm(true)} className="gap-2 w-full">
+                <Plus className="h-4 w-4" /> Dodaj cono dostave
+              </Button>
             )}
           </CardContent>
         </Card>

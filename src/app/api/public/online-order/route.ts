@@ -113,6 +113,42 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Nekateri artikli niso na voljo', unavailableItems: missing }, { status: 400 })
     }
 
+    // Preveri cone dostave za delivery
+    if (orderType === 'delivery' && 'postCode' in customer) {
+      const zones = await db.deliveryZone.findMany({ where: { isActive: true } })
+      const matchingZone = zones.find(zone => {
+        try {
+          const postCodes: string[] = JSON.parse(zone.postCodes)
+          const cities: string[] = JSON.parse(zone.cities)
+          const postCodeMatch = postCodes.includes(customer.postCode)
+          const cityMatch = cities.some(c => customer.city.toLowerCase().includes(c.toLowerCase()))
+          return postCodeMatch || cityMatch
+        } catch { return false }
+      })
+
+      if (!matchingZone && zones.length > 0) {
+        // Ima cone dostave, ta naslov pa ni v nobeni
+        return NextResponse.json({
+          error: 'Na ta naslov ne dostavljamo. Izberite prevzem na lokaciji.',
+          deliverable: false,
+        }, { status: 400 })
+      }
+
+      if (matchingZone && itemsSubtotal < matchingZone.minOrderAmount) {
+        return NextResponse.json({
+          error: `Minimalno naročilo za cono "${matchingZone.name}" je €${matchingZone.minOrderAmount.toFixed(2)}`,
+        }, { status: 400 })
+      }
+    }
+
+    // Preveri lokacijo
+    if (locationId) {
+      const location = await db.location.findUnique({ where: { id: locationId } })
+      if (!location || !location.isActive) {
+        return NextResponse.json({ error: 'Izbrana lokacija ni na voljo' }, { status: 400 })
+      }
+    }
+
     // Generiraj številko naročila
     let nextOrderNumber: number
     try {
@@ -125,6 +161,19 @@ export async function POST(req: Request) {
     } catch {
       const maxOrder = await db.order.findFirst({ orderBy: { orderNumber: 'desc' }, select: { orderNumber: true } })
       nextOrderNumber = (maxOrder?.orderNumber || 0) + 1
+    }
+
+    // Generiraj številko čeka
+    let nextCheckNumber: number
+    try {
+      const counter = await db.counter.upsert({
+        where: { name: 'checkNumber' },
+        update: { value: { increment: 1 } },
+        create: { name: 'checkNumber', value: 1 },
+      })
+      nextCheckNumber = counter.value
+    } catch {
+      nextCheckNumber = 1
     }
 
     // Izračunaj zneske iz strežniških podatkov
@@ -192,8 +241,27 @@ export async function POST(req: Request) {
       promoCode ? `PROMO: ${promoCode} (-€${discount.toFixed(2)})` : '',
     ].filter(Boolean).join(' | ')
 
-    // Ustvari naročilo + zaloga v transakciji
+    // Ustvari naročilo + zaloga + ček + dostava v transakciji
     const order = await db.$transaction(async (tx) => {
+      // Ustvari DeliveryInfo za dostavo
+      let deliveryInfoId: string | undefined
+      if (orderType === 'delivery' && 'address' in customer) {
+        const deliveryInfo = await tx.deliveryInfo.create({
+          data: {
+            address: customer.address,
+            city: customer.city,
+            postCode: customer.postCode,
+            recipientName: customer.fullName,
+            recipientPhone: customer.phone,
+            deliveryInstructions: customer.notes || '',
+            status: 'pending',
+            deliveryFee: actualDeliveryFee,
+            estimatedTime: new Date(Date.now() + 30 * 60 * 1000), // 30 min od zdaj
+          },
+        })
+        deliveryInfoId = deliveryInfo.id
+      }
+
       const newOrder = await tx.order.create({
         data: {
           orderNumber: nextOrderNumber,
@@ -210,12 +278,57 @@ export async function POST(req: Request) {
           notes: orderNotes,
           paymentMethod: paymentMethod === 'cash' ? 'gotovina' : paymentMethod === 'card' ? 'kartica' : 'mobilno',
           paymentStatus: paymentMethod === 'cash' ? 'unpaid' : 'paid',
+          paidAt: paymentMethod !== 'cash' ? new Date() : null,
           diningOptionId: diningOption!.id,
+          deliveryInfoId,
           inventoryDeducted: false,
           locationId: locationId || null,
           orderItems: { create: orderItemsData },
         },
         include: { orderItems: true },
+      })
+
+      // Ustvari Check za plačilo
+      const check = await tx.check.create({
+        data: {
+          checkNumber: nextCheckNumber,
+          orderId: newOrder.id,
+          subtotal,
+          tax: totalVat,
+          discount,
+          serviceCharge: actualDeliveryFee,
+          total: subtotal + totalVat + actualDeliveryFee - discount,
+          tip: 0,
+          totalWithTip: subtotal + totalVat + actualDeliveryFee - discount,
+          paymentStatus: paymentMethod === 'cash' ? 'unpaid' : 'paid',
+          paymentMethod: paymentMethod === 'cash' ? 'cash' : paymentMethod === 'card' ? 'card' : 'mobile',
+          orderItems: { connect: newOrder.orderItems.map(oi => ({ id: oi.id })) },
+        },
+      })
+
+      // Ustvari Payment zapis za kartico/mobilno
+      if (paymentMethod !== 'cash') {
+        await tx.payment.create({
+          data: {
+            checkId: check.id,
+            amount: total,
+            tipAmount: 0,
+            type: paymentMethod === 'card' ? 'card' : 'mobile',
+            status: 'completed',
+          },
+        })
+
+        // Označi ček kot plačan
+        await tx.check.update({
+          where: { id: check.id },
+          data: { paymentStatus: 'paid' },
+        })
+      }
+
+      // Poveži order items s checkom
+      await tx.orderItem.updateMany({
+        where: { orderId: newOrder.id },
+        data: { checkId: check.id },
       })
 
       // Zmanjšaj zalogo
@@ -242,6 +355,7 @@ export async function POST(req: Request) {
                 costPerUnit: currentInvItem.costPerUnit,
                 totalCost: deductQty * currentInvItem.costPerUnit,
                 reason: `Online naročilo #${nextOrderNumber}`,
+                orderId: newOrder.id,
               },
             })
           }
@@ -281,8 +395,28 @@ export async function POST(req: Request) {
         }
       }
 
+      // Uporabi popust če je promo koda
+      if (discountId && promoCode) {
+        await tx.discount.update({
+          where: { id: discountId },
+          data: { currentUses: { increment: 1 } },
+        }).catch(() => {}) // Ne blokiraj če ne najde
+      }
+
       return newOrder
     })
+
+    // Sproži webhook za novo online naročilo (ne blokiraj odziva)
+    triggerWebhookAsync('order.created', {
+      orderId: order.id,
+      orderNumber: String(order.orderNumber),
+      type: orderType,
+      total,
+      customerName,
+      customerPhone,
+      paymentMethod,
+      source: 'online',
+    }).catch(() => {})
 
     return NextResponse.json({
       success: true,
@@ -301,5 +435,38 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Online order error:', error)
     return NextResponse.json({ error: 'Napaka pri ustvarjanju naročila' }, { status: 500 })
+  }
+}
+
+// Async webhook trigger — ne blokiraj odziva
+async function triggerWebhookAsync(event: string, payload: any) {
+  try {
+    const webhooks = await db.webhook.findMany({
+      where: { isActive: true },
+    })
+    const matchingWebhooks = webhooks.filter(wh => {
+      try {
+        const events: string[] = JSON.parse(wh.events)
+        return events.includes(event)
+      } catch { return false }
+    })
+
+    for (const webhook of matchingWebhooks) {
+      // Ustvari webhook delivery zapis
+      await db.webhookDelivery.create({
+        data: {
+          webhookId: webhook.id,
+          event,
+          payload: JSON.stringify(payload),
+          statusCode: 0,
+          success: false,
+          attemptCount: 0,
+          maxAttempts: 5,
+          nextRetryAt: new Date(),
+        },
+      })
+    }
+  } catch (e) {
+    console.error('Webhook trigger error:', e)
   }
 }
