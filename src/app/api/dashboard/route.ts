@@ -196,6 +196,85 @@ export async function GET(req: Request) {
   const todayCogs = stockMovements.reduce((sum, t) => sum + Math.abs(t.totalCost), 0)
   const grossProfit = todayRevenue - todayCogs
 
+  // ============================================
+  // NAPREDNA ANALITIKA (WoW, Heatmap, Trends)
+  // ============================================
+
+  // 9. Week-over-Week comparison (ta teden vs prejšnji teden)
+  const thisWeekStart = new Date(today)
+  thisWeekStart.setDate(today.getDate() - today.getDay() + 1) // Ponedeljek
+  thisWeekStart.setHours(0, 0, 0, 0)
+  const lastWeekStart = new Date(thisWeekStart)
+  lastWeekStart.setDate(lastWeekStart.getDate() - 7)
+  const lastWeekEnd = new Date(thisWeekStart)
+
+  const thisWeekOrders = await db.order.findMany({
+    where: { createdAt: { gte: thisWeekStart }, paymentStatus: 'paid' },
+  })
+  const lastWeekOrders = await db.order.findMany({
+    where: { createdAt: { gte: lastWeekStart, lt: lastWeekEnd }, paymentStatus: 'paid' },
+  })
+
+  const thisWeekRevenue = thisWeekOrders.reduce((sum, o) => sum + o.total, 0)
+  const lastWeekRevenue = lastWeekOrders.reduce((sum, o) => sum + o.total, 0)
+  const thisWeekOrderCount = thisWeekOrders.length
+  const lastWeekOrderCount = lastWeekOrders.length
+  const thisWeekAvg = thisWeekOrderCount > 0 ? thisWeekRevenue / thisWeekOrderCount : 0
+  const lastWeekAvg = lastWeekOrderCount > 0 ? lastWeekRevenue / lastWeekOrderCount : 0
+
+  const wowRevenueChange = lastWeekRevenue > 0 ? ((thisWeekRevenue - lastWeekRevenue) / lastWeekRevenue) * 100 : 0
+  const wowOrderChange = lastWeekOrderCount > 0 ? ((thisWeekOrderCount - lastWeekOrderCount) / lastWeekOrderCount) * 100 : 0
+  const wowAvgChange = lastWeekAvg > 0 ? ((thisWeekAvg - lastWeekAvg) / lastWeekAvg) * 100 : 0
+
+  // Daily breakdown for this week and last week
+  const thisWeekDaily: { date: string; revenue: number; orders: number }[] = []
+  const lastWeekDaily: { date: string; revenue: number; orders: number }[] = []
+  for (let i = 0; i < 7; i++) {
+    const dayStart = new Date(thisWeekStart)
+    dayStart.setDate(dayStart.getDate() + i)
+    const dayEnd = new Date(dayStart)
+    dayEnd.setDate(dayEnd.getDate() + 1)
+
+    const thisDayRev = thisWeekOrders.filter(o => new Date(o.createdAt) >= dayStart && new Date(o.createdAt) < dayEnd).reduce((s, o) => s + o.total, 0)
+    const thisDayCount = thisWeekOrders.filter(o => new Date(o.createdAt) >= dayStart && new Date(o.createdAt) < dayEnd).length
+    thisWeekDaily.push({ date: dayStart.toISOString().split('T')[0], revenue: Math.round(thisDayRev * 100) / 100, orders: thisDayCount })
+
+    const lastDayStart = new Date(lastWeekStart)
+    lastDayStart.setDate(lastDayStart.getDate() + i)
+    const lastDayEnd = new Date(lastDayStart)
+    lastDayEnd.setDate(lastDayEnd.getDate() + 1)
+
+    const lastDayRev = lastWeekOrders.filter(o => new Date(o.createdAt) >= lastDayStart && new Date(o.createdAt) < lastDayEnd).reduce((s, o) => s + o.total, 0)
+    const lastDayCount = lastWeekOrders.filter(o => new Date(o.createdAt) >= lastDayStart && new Date(o.createdAt) < lastDayEnd).length
+    lastWeekDaily.push({ date: lastDayStart.toISOString().split('T')[0], revenue: Math.round(lastDayRev * 100) / 100, orders: lastDayCount })
+  }
+
+  // 10. Revenue Heatmap (zadnjih 4 tedne po urah in dnevih)
+  const fourWeeksAgo = new Date()
+  fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28)
+  const heatmapOrders = await db.order.findMany({
+    where: { createdAt: { gte: fourWeeksAgo }, paymentStatus: 'paid' },
+  })
+  const heatmapData: { day: number; hour: number; revenue: number; orders: number }[] = []
+  for (let d = 0; d < 7; d++) {
+    for (let h = 6; h <= 23; h++) {
+      const matching = heatmapOrders.filter(o => {
+        const date = new Date(o.createdAt)
+        const dayOfWeek = (date.getDay() + 6) % 7 // Pon=0, Ned=6
+        return dayOfWeek === d && date.getHours() === h
+      })
+      const rev = matching.reduce((s, o) => s + o.total, 0)
+      heatmapData.push({ day: d, hour: h, revenue: Math.round(rev * 100) / 100, orders: matching.length })
+    }
+  }
+
+  // 11. Guest frequency (povratni gostje)
+  const repeatGuests = await db.guest.count({
+    where: { visitCount: { gt: 1 } },
+  })
+  const totalGuests = await db.guest.count()
+  const guestReturnRate = totalGuests > 0 ? (repeatGuests / totalGuests) * 100 : 0
+
   return NextResponse.json({
     todayRevenue,
     todayTips,
@@ -242,6 +321,20 @@ export async function GET(req: Request) {
     todayCogs: Math.round(todayCogs * 100) / 100,
     grossProfit: Math.round(grossProfit * 100) / 100,
     grossMargin: todayRevenue > 0 ? Math.round((grossProfit / todayRevenue) * 100 * 100) / 100 : 0,
+    // Napredna analitika
+    wowComparison: {
+      thisWeek: { revenue: Math.round(thisWeekRevenue * 100) / 100, orders: thisWeekOrderCount, avgOrder: Math.round(thisWeekAvg * 100) / 100 },
+      lastWeek: { revenue: Math.round(lastWeekRevenue * 100) / 100, orders: lastWeekOrderCount, avgOrder: Math.round(lastWeekAvg * 100) / 100 },
+      changes: { revenue: Math.round(wowRevenueChange * 100) / 100, orders: Math.round(wowOrderChange * 100) / 100, avgOrder: Math.round(wowAvgChange * 100) / 100 },
+      thisWeekDaily,
+      lastWeekDaily,
+    },
+    heatmapData,
+    guestAnalytics: {
+      totalGuests,
+      repeatGuests,
+      guestReturnRate: Math.round(guestReturnRate * 100) / 100,
+    },
   })
   } catch (error) {
     console.error('Napaka pri pridobivanju dashboard podatkov:', error)

@@ -93,6 +93,7 @@ const sl: Record<string, string> = {
   'nav.subscription': 'Naročnina',
   'nav.furs': 'FURS',
   'nav.shifts': 'Izmene',
+  'nav.staffSchedule': 'Razpored zaposlenih',
   'nav.settings': 'Nastavitve',
 
   // Naročila
@@ -341,6 +342,7 @@ const en: Record<string, string> = {
   'nav.subscription': 'Subscription',
   'nav.furs': 'FURS',
   'nav.shifts': 'Shifts',
+  'nav.staffSchedule': 'Staff Schedule',
   'nav.settings': 'Settings',
 
   'orders.new': 'New Order',
@@ -575,6 +577,7 @@ const it: Record<string, string> = {
   'nav.subscription': 'Abbonamento',
   'nav.furs': 'FURS',
   'nav.shifts': 'Turni',
+  'nav.staffSchedule': 'Programma turni',
   'nav.settings': 'Impostazioni',
 
   'orders.new': 'Nuovo ordine',
@@ -809,6 +812,7 @@ const hr: Record<string, string> = {
   'nav.subscription': 'Pretplata',
   'nav.furs': 'FURS',
   'nav.shifts': 'Smjene',
+  'nav.staffSchedule': 'Raspored zaposlenika',
   'nav.settings': 'Postavke',
 
   'orders.new': 'Nova narudžba',
@@ -1043,6 +1047,7 @@ const de: Record<string, string> = {
   'nav.subscription': 'Abonnement',
   'nav.furs': 'FURS',
   'nav.shifts': 'Schichten',
+  'nav.staffSchedule': 'Dienstplan',
   'nav.settings': 'Einstellungen',
 
   'orders.new': 'Neue Bestellung',

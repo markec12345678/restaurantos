@@ -45,6 +45,7 @@ import {
   Factory,
   Plug,
   MapPin,
+  CalendarClock,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore, useState, useEffect } from 'react'
@@ -70,6 +71,7 @@ const navItems = [
   { id: 'waitlist', labelKey: 'nav.waitlistFull', icon: ClipboardList, permission: 'take_orders' },
   { id: 'cash-register', labelKey: 'nav.cash-register', icon: Wallet, permission: 'manage_cash' },
   { id: 'shifts', labelKey: 'nav.shifts', icon: CalendarDays, permission: 'manage_cash' },
+  { id: 'staff-schedule', labelKey: 'nav.staffSchedule', icon: CalendarClock, permission: 'manage_employees' },
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard, permission: 'view_reports' },
   { id: 'guests', labelKey: 'nav.guestCRM', icon: UserCircle, permission: 'take_orders' },
   { id: 'menu', labelKey: 'nav.menu', icon: UtensilsCrossed, adminOnly: true },

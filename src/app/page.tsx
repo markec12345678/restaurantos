@@ -27,6 +27,7 @@ import { IntegrationManager } from '@/components/pos/IntegrationManager'
 import { ShiftManager } from '@/components/pos/ShiftManager'
 import { LocationManager } from '@/components/pos/LocationManager'
 import { SubscriptionManager } from '@/components/pos/SubscriptionManager'
+import { StaffScheduler } from '@/components/pos/StaffScheduler'
 import { FursManager } from '@/components/pos/FursManager'
 import { VisualFloorPlan } from '@/components/pos/VisualFloorPlan'
 import { AIForecastDashboard } from '@/components/pos/AIForecastDashboard'
@@ -68,6 +69,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
   webhooks: WebhookManager,
   integrations: IntegrationManager,
   shifts: ShiftManager,
+  'staff-schedule': StaffScheduler,
   locations: LocationManager,
   subscription: SubscriptionManager,
   furs: FursManager,
