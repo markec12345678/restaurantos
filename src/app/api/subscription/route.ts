@@ -139,6 +139,33 @@ export async function POST(req: Request) {
       },
     })
 
+    // Samodejno generiraj prvi račun za trial obdobje (0€)
+    try {
+      const year = now.getFullYear()
+      const month = String(now.getMonth() + 1).padStart(2, '0')
+      const count = await db.subscriptionInvoice.count()
+      const invoiceNumber = `NAR-${year}${month}-${String(count + 1).padStart(4, '0')}`
+
+      await db.subscriptionInvoice.create({
+        data: {
+          subscriptionId: subscription.id,
+          invoiceNumber,
+          amount: 0, // Trial brezplačen
+          vatRate: 22,
+          vatAmount: 0,
+          totalAmount: 0,
+          currency: 'EUR',
+          periodStart: now,
+          periodEnd: trialEnd,
+          dueDate: trialEnd,
+          status: 'paid',
+          paidAt: now,
+        },
+      })
+    } catch (e) {
+      console.error('Auto-invoice creation error:', e)
+    }
+
     return NextResponse.json(subscription, { status: 201 })
   } catch (error) {
     console.error('Subscription POST error:', error)
@@ -190,6 +217,42 @@ export async function PATCH(req: Request) {
       const periodEnd = new Date(now)
       periodEnd.setMonth(periodEnd.getMonth() + 1)
       updateData.currentPeriodEnd = periodEnd
+
+      // Samodejno generiraj prvi mesečni račun ob aktivaciji
+      try {
+        const sub = await db.subscription.findUnique({ where: { id: data.id } })
+        if (sub) {
+          const year = now.getFullYear()
+          const month = String(now.getMonth() + 1).padStart(2, '0')
+          const count = await db.subscriptionInvoice.count()
+          const invoiceNumber = `NAR-${year}${month}-${String(count + 1).padStart(4, '0')}`
+
+          const amount = sub.monthlyPrice
+          const vatRate = 22
+          const vatAmount = Math.round(amount * vatRate / 100 * 100) / 100
+          const totalAmount = Math.round((amount + vatAmount) * 100) / 100
+          const dueDate = new Date(now)
+          dueDate.setDate(dueDate.getDate() + 15)
+
+          await db.subscriptionInvoice.create({
+            data: {
+              subscriptionId: sub.id,
+              invoiceNumber,
+              amount,
+              vatRate,
+              vatAmount,
+              totalAmount,
+              currency: sub.currency || 'EUR',
+              periodStart: now,
+              periodEnd,
+              dueDate,
+              status: 'pending',
+            },
+          })
+        }
+      } catch (e) {
+        console.error('Auto-invoice on activation error:', e)
+      }
     }
 
     if (data.status === 'cancelled') {
