@@ -48,3 +48,24 @@ Stage Summary:
 - SaaS Subscription: 3 pricing tiers, 14-day trial, invoice system, Stripe-ready
 - 12 files changed, 2056 insertions
 - RestaurantOS competitive score improved from 145/200 to estimated 160/200
+---
+Task ID: competitive-features-round3
+Agent: Main Agent
+Task: FURS cert manager, pricing page, multi-location menu sync
+
+Work Log:
+- Created FursManager component — PKCS12 cert upload, test connection/invoice, status dashboard
+- Created /pricing public page — 3-tier SaaS pricing (29/49/99€), annual toggle, testimonials, features
+- Created /api/locations/sync — menu sync API between locations, dry-run, centralized reports
+- Updated LocationManager with sync panel (source/target location picker, sync results)
+- Added nav.furs i18n in 5 languages (SL, EN, IT, HR, DE)
+- Added FursManager to Sidebar (ShieldCheck icon) and POS page
+- Fixed ModifierGroup include relation (pivot table MenuItemModifierGroup)
+- Build: 0 TypeScript errors
+- Pushed 2 commits: bdca953, 1de9fd9
+
+Stage Summary:
+- FURS Certificate Manager: full UI for p12 cert management and testing
+- Public Pricing Page: professional SaaS marketing at /pricing
+- Multi-location Menu Sync: API + UI for syncing menus across locations
+- Competitive score: 145/200 → estimated 165/200
