@@ -685,5 +685,9 @@
     "stockLow": "Niska zaliha",
     "shiftStarted": "Smjena započeta",
     "shiftClosed": "Smjena zatvorena"
-  }
+  },
+  "nav.inventoryAlerts": "Alarmi zaliha",
+  "nav.customerTimeline": "CRM vremenska crta",
+  "nav.shiftOverview": "Pregled smjena",
+  "nav.profitLoss": "P&L Izvještaj"
 }

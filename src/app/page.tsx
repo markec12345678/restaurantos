@@ -50,6 +50,10 @@ import { WaitTimeEstimator } from '@/components/pos/WaitTimeEstimator'
 import { AIRecommendations } from '@/components/pos/AIRecommendations'
 import { NutritionalCalculator } from '@/components/pos/NutritionalCalculator'
 import { GlobalNotifications } from '@/components/pos/GlobalNotifications'
+import { InventoryAlerts } from '@/components/pos/InventoryAlerts'
+import { CustomerTimeline } from '@/components/pos/CustomerTimeline'
+import { ShiftOverview } from '@/components/pos/ShiftOverview'
+import { ProfitLossReport } from '@/components/pos/ProfitLossReport'
 import GuestManager from '@/components/pos/GuestManager'
 import FoodCostCalculator from '@/components/pos/FoodCostCalculator'
 import WaitlistManager from '@/components/pos/WaitlistManager'
@@ -109,6 +113,10 @@ const moduleComponents: Record<string, React.ComponentType> = {
   'multi-location': MultiLocationDashboard,
   'ai-recommendations': AIRecommendations,
   'nutrition': NutritionalCalculator,
+  'inventory-alerts': InventoryAlerts,
+  'customer-timeline': CustomerTimeline,
+  'shift-overview': ShiftOverview,
+  'profit-loss': ProfitLossReport,
   settings: SettingsManager,
 }
 

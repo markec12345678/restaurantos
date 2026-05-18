@@ -59,6 +59,9 @@ import {
   ShieldAlert,
   Receipt,
   ClipboardCheck,
+  BellRing,
+  PieChart,
+  Activity,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore, useState, useEffect } from 'react'
@@ -126,6 +129,10 @@ const navItems = [
   { id: 'furs', labelKey: 'nav.furs', icon: ShieldCheck, adminOnly: true },
   { id: 'locations', labelKey: 'nav.locations', icon: MapPin, adminOnly: true },
   { id: 'subscription', labelKey: 'nav.subscription', icon: CreditCard, adminOnly: true },
+  { id: 'inventory-alerts', labelKey: 'nav.inventoryAlerts', icon: BellRing, adminOnly: true },
+  { id: 'customer-timeline', labelKey: 'nav.customerTimeline', icon: UserCircle, permission: 'take_orders' },
+  { id: 'shift-overview', labelKey: 'nav.shiftOverview', icon: Activity, permission: 'manage_employees' },
+  { id: 'profit-loss', labelKey: 'nav.profitLoss', icon: PieChart, permission: 'view_reports' },
   { id: 'settings', labelKey: 'nav.settings', icon: Settings, adminOnly: true },
 ]
 

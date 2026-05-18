@@ -685,5 +685,9 @@
     "stockLow": "Scorta bassa",
     "shiftStarted": "Turno iniziato",
     "shiftClosed": "Turno chiuso"
-  }
+  },
+  "nav.inventoryAlerts": "Allerte Inventario",
+  "nav.customerTimeline": "CRM Timeline",
+  "nav.shiftOverview": "Panoramica Turni",
+  "nav.profitLoss": "Report P&L"
 }

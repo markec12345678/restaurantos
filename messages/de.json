@@ -685,5 +685,9 @@
     "stockLow": "Niedriger Bestand",
     "shiftStarted": "Schicht gestartet",
     "shiftClosed": "Schicht beendet"
-  }
+  },
+  "nav.inventoryAlerts": "Bestandswarnungen",
+  "nav.customerTimeline": "CRM-Zeitleiste",
+  "nav.shiftOverview": "Schichtübersicht",
+  "nav.profitLoss": "G&V-Bericht"
 }

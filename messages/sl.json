@@ -685,5 +685,9 @@
     "stockLow": "Nizka zaloga",
     "shiftStarted": "Izmena začeta",
     "shiftClosed": "Izmena zaprta"
-  }
+  },
+  "nav.inventoryAlerts": "Alarmi zalog",
+  "nav.customerTimeline": "CRM časovnica",
+  "nav.shiftOverview": "Pregled izmen",
+  "nav.profitLoss": "P&L Poročilo"
 }
