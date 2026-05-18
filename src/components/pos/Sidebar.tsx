@@ -57,6 +57,8 @@ import {
   Trophy,
   Bell,
   ShieldAlert,
+  Receipt,
+  ClipboardCheck,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore, useState, useEffect } from 'react'
@@ -99,6 +101,8 @@ const navItems = [
   { id: 'notifications', labelKey: 'nav.notifications', icon: Bell, permission: 'manage_cash' },
   { id: 'allergen-matrix', labelKey: 'nav.allergenMatrix', icon: ShieldAlert, adminOnly: true },
   { id: 'table-turnover', labelKey: 'nav.tableTurnover', icon: LayoutGrid, permission: 'view_reports' },
+  { id: 'expenses', labelKey: 'nav.expenses', icon: Receipt, permission: 'view_reports' },
+  { id: 'daily-checklist', labelKey: 'nav.dailyChecklist', icon: ClipboardCheck, permission: 'take_orders' },
   { id: 'haccp', labelKey: 'nav.haccp', icon: ShieldCheck, adminOnly: true },
   { id: 'employees', labelKey: 'nav.employees', icon: Users, permission: 'manage_employees' },
   { id: 'menu-engineering', labelKey: 'nav.menuEngineering', icon: Target, adminOnly: true },
