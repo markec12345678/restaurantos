@@ -29,6 +29,8 @@ import { LocationManager } from '@/components/pos/LocationManager'
 import { SubscriptionManager } from '@/components/pos/SubscriptionManager'
 import { StaffScheduler } from '@/components/pos/StaffScheduler'
 import { StaffPerformance } from '@/components/pos/StaffPerformance'
+import { KitchenPrepQueue } from '@/components/pos/KitchenPrepQueue'
+import { NotificationManager } from '@/components/pos/NotificationManager'
 import { CoursePacing } from '@/components/pos/CoursePacing'
 import { MenuEngineeringMatrix } from '@/components/pos/MenuEngineeringMatrix'
 import { CustomerFeedback } from '@/components/pos/CustomerFeedback'
@@ -82,6 +84,8 @@ const moduleComponents: Record<string, React.ComponentType> = {
   shifts: ShiftManager,
   'staff-schedule': StaffScheduler,
   'staff-performance': StaffPerformance,
+  'kitchen-prep': KitchenPrepQueue,
+  'notifications': NotificationManager,
   'course-pacing': CoursePacing,
   'menu-engineering': MenuEngineeringMatrix,
   feedback: CustomerFeedback,

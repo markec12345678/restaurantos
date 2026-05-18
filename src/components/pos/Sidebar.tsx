@@ -55,6 +55,7 @@ import {
   Navigation,
   Timer,
   Trophy,
+  Bell,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore, useState, useEffect } from 'react'
@@ -93,6 +94,8 @@ const navItems = [
   { id: 'reservations', labelKey: 'nav.reservations', icon: Calendar, permission: 'take_orders' },
   { id: 'staff-schedule', labelKey: 'nav.staffSchedule', icon: CalendarDays, permission: 'manage_employees' },
   { id: 'staff-performance', labelKey: 'nav.staffPerformance', icon: Trophy, permission: 'view_reports' },
+  { id: 'kitchen-prep', labelKey: 'nav.kitchenPrep', icon: ChefHat, permission: 'take_orders' },
+  { id: 'notifications', labelKey: 'nav.notifications', icon: Bell, permission: 'manage_cash' },
   { id: 'haccp', labelKey: 'nav.haccp', icon: ShieldCheck, adminOnly: true },
   { id: 'employees', labelKey: 'nav.employees', icon: Users, permission: 'manage_employees' },
   { id: 'menu-engineering', labelKey: 'nav.menuEngineering', icon: Target, adminOnly: true },
