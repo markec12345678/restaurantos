@@ -91,6 +91,7 @@ const sl: Record<string, string> = {
   'nav.integrations': 'Integracije',
   'nav.locations': 'Lokacije',
   'nav.subscription': 'Naročnina',
+  'nav.furs': 'FURS',
   'nav.shifts': 'Izmene',
   'nav.settings': 'Nastavitve',
 
@@ -338,6 +339,7 @@ const en: Record<string, string> = {
   'nav.integrations': 'Integrations',
   'nav.locations': 'Locations',
   'nav.subscription': 'Subscription',
+  'nav.furs': 'FURS',
   'nav.shifts': 'Shifts',
   'nav.settings': 'Settings',
 
@@ -571,6 +573,7 @@ const it: Record<string, string> = {
   'nav.integrations': 'Integrazioni',
   'nav.locations': 'Sedi',
   'nav.subscription': 'Abbonamento',
+  'nav.furs': 'FURS',
   'nav.shifts': 'Turni',
   'nav.settings': 'Impostazioni',
 
@@ -804,6 +807,7 @@ const hr: Record<string, string> = {
   'nav.integrations': 'Integracije',
   'nav.locations': 'Lokacije',
   'nav.subscription': 'Pretplata',
+  'nav.furs': 'FURS',
   'nav.shifts': 'Smjene',
   'nav.settings': 'Postavke',
 
@@ -1037,6 +1041,7 @@ const de: Record<string, string> = {
   'nav.integrations': 'Integrationen',
   'nav.locations': 'Standorte',
   'nav.subscription': 'Abonnement',
+  'nav.furs': 'FURS',
   'nav.shifts': 'Schichten',
   'nav.settings': 'Einstellungen',
 

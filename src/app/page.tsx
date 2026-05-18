@@ -27,6 +27,7 @@ import { IntegrationManager } from '@/components/pos/IntegrationManager'
 import { ShiftManager } from '@/components/pos/ShiftManager'
 import { LocationManager } from '@/components/pos/LocationManager'
 import { SubscriptionManager } from '@/components/pos/SubscriptionManager'
+import { FursManager } from '@/components/pos/FursManager'
 import { VisualFloorPlan } from '@/components/pos/VisualFloorPlan'
 import { AIForecastDashboard } from '@/components/pos/AIForecastDashboard'
 import { GlobalNotifications } from '@/components/pos/GlobalNotifications'
@@ -69,6 +70,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
   shifts: ShiftManager,
   locations: LocationManager,
   subscription: SubscriptionManager,
+  furs: FursManager,
   settings: SettingsManager,
 }
 
