@@ -56,6 +56,7 @@ import {
   Timer,
   Trophy,
   Bell,
+  ShieldAlert,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore, useState, useEffect } from 'react'
@@ -96,6 +97,8 @@ const navItems = [
   { id: 'staff-performance', labelKey: 'nav.staffPerformance', icon: Trophy, permission: 'view_reports' },
   { id: 'kitchen-prep', labelKey: 'nav.kitchenPrep', icon: ChefHat, permission: 'take_orders' },
   { id: 'notifications', labelKey: 'nav.notifications', icon: Bell, permission: 'manage_cash' },
+  { id: 'allergen-matrix', labelKey: 'nav.allergenMatrix', icon: ShieldAlert, adminOnly: true },
+  { id: 'table-turnover', labelKey: 'nav.tableTurnover', icon: LayoutGrid, permission: 'view_reports' },
   { id: 'haccp', labelKey: 'nav.haccp', icon: ShieldCheck, adminOnly: true },
   { id: 'employees', labelKey: 'nav.employees', icon: Users, permission: 'manage_employees' },
   { id: 'menu-engineering', labelKey: 'nav.menuEngineering', icon: Target, adminOnly: true },

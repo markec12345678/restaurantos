@@ -31,6 +31,8 @@ import { StaffScheduler } from '@/components/pos/StaffScheduler'
 import { StaffPerformance } from '@/components/pos/StaffPerformance'
 import { KitchenPrepQueue } from '@/components/pos/KitchenPrepQueue'
 import { NotificationManager } from '@/components/pos/NotificationManager'
+import { AllergenMatrix } from '@/components/pos/AllergenMatrix'
+import { TableTurnoverAnalytics } from '@/components/pos/TableTurnoverAnalytics'
 import { CoursePacing } from '@/components/pos/CoursePacing'
 import { MenuEngineeringMatrix } from '@/components/pos/MenuEngineeringMatrix'
 import { CustomerFeedback } from '@/components/pos/CustomerFeedback'
@@ -86,6 +88,8 @@ const moduleComponents: Record<string, React.ComponentType> = {
   'staff-performance': StaffPerformance,
   'kitchen-prep': KitchenPrepQueue,
   'notifications': NotificationManager,
+  'allergen-matrix': AllergenMatrix,
+  'table-turnover': TableTurnoverAnalytics,
   'course-pacing': CoursePacing,
   'menu-engineering': MenuEngineeringMatrix,
   feedback: CustomerFeedback,
