@@ -109,3 +109,40 @@ Stage Summary:
 - Build passes, Prisma schema synced, all routes visible in build output
 - 9 connectors for Slovenian (e-Računi, Datalab) and international services
 - 22+ webhook event types covering orders, payments, receipts, stock, shifts, cash register, reservations, guests, loyalty, reports
+
+---
+Task ID: online-ordering-v2
+Agent: main
+Task: Enhanced Online Ordering — Delivery Zones, Order Tracking, Promo Codes, Opening Hours
+
+Work Log:
+- Verified existing features: Online Ordering (/order), SaaS Subscription (/pricing, /api/subscription), Multi-location (LocationManager.tsx, /api/locations) — ALL ALREADY EXIST
+- Added 2 new Prisma models: DeliveryZone, OpeningHours
+- Added deliveryZones + openingHours relations to Location model
+- Created /api/delivery-zones (CRUD) and /api/delivery-zones/[id] (PATCH/DELETE)
+- Created /api/opening-hours (CRUD with batch 7-day support) and /api/opening-hours/[id]
+- Created /api/public/delivery-check (zone lookup by postCode + city)
+- Created /api/public/promo-check (discount code validation using existing Discount model)
+- Created /api/public/order-config (locations, zones, hours, open status for frontend)
+- Created /api/public/order-track (public order status tracking with phone verification)
+- Created /order/[orderId]/page.tsx (Order Tracking page with auto-refresh, timeline)
+- Enhanced /order/page.tsx with:
+  - Delivery zone validation (check if address is deliverable before proceeding)
+  - Zone-based pricing (different delivery fees, min orders, free delivery thresholds per zone)
+  - Promo code input at checkout step (validates against Discount model)
+  - Opening hours indicator + weekly schedule popup
+  - Location selector for multi-location restaurants
+  - Closed banner when restaurant is closed
+  - Link to order tracking from confirmation page
+- Updated /api/public/online-order to accept promoCode, discountId, discountAmount, locationId
+- Added ROUTE_PERMISSIONS for delivery-zones, opening-hours, locations
+- TypeScript build: 0 errors
+- Commit: 41dbad5, pushed to GitHub
+
+Stage Summary:
+- DeliveryZone model with postCode/city/radius matching, zone-based fees, free delivery thresholds
+- OpeningHours model with weekly schedule, break periods, isClosed flag
+- Order Tracking page with real-time status updates and auto-refresh
+- 4 new public APIs (delivery-check, promo-check, order-config, order-track)
+- Online ordering now at Toast-level feature parity for delivery management
+- Promo codes integrated into online checkout flow
