@@ -90,6 +90,7 @@ const navItems = [
   { id: 'webhooks', labelKey: 'nav.webhooks', icon: Webhook, adminOnly: true },
   { id: 'integrations', labelKey: 'nav.integrations', icon: Plug, adminOnly: true },
   { id: 'locations', labelKey: 'nav.locations', icon: MapPin, adminOnly: true },
+  { id: 'subscription', labelKey: 'nav.subscription', icon: CreditCard, adminOnly: true },
   { id: 'settings', labelKey: 'nav.settings', icon: Settings, adminOnly: true },
 ]
 

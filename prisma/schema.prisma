@@ -1486,3 +1486,70 @@ model IntegrationLog {
   @@index([status])
   @@index([createdAt])
 }
+
+// ============================================
+// SAAS NAROČNINA — Multi-tenant subscription system
+// ============================================
+
+model Subscription {
+  id                String   @id @default(cuid())
+  // --- Naročnik ---
+  companyName       String                              // Ime podjetja
+  email             String   @unique                    // Kontakt email
+  phone             String   @default("")
+  taxId             String   @default("")               // DDV ID
+  businessId        String   @default("")               // Matična št.
+  // --- Paket ---
+  plan              String   @default("starter")        // starter, professional, enterprise
+  status            String   @default("trial")          // trial, active, past_due, cancelled, expired
+  // --- Cenitev ---
+  monthlyPrice      Float    @default(0)                // EUR/mesec
+  locationCount     Int      @default(1)                // Št. lokacij
+  currency          String   @default("EUR")
+  // --- Obdobje ---
+  trialStartsAt     DateTime?
+  trialEndsAt       DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd  DateTime?
+  cancelledAt       DateTime?
+  // --- Način plačila ---
+  paymentMethod     String   @default("")               // card, bank_transfer, invoice
+  stripeCustomerId  String?                              // Stripe customer ID (za prihodnost)
+  // --- Metapodatki ---
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relacije
+  invoices          SubscriptionInvoice[]
+
+  @@index([email])
+  @@index([status])
+  @@index([plan])
+}
+
+model SubscriptionInvoice {
+  id              String   @id @default(cuid())
+  subscriptionId  String
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  // --- Račun ---
+  invoiceNumber   String   @unique
+  amount          Float                                 // Znesek brez DDV
+  vatRate         Float    @default(22)                  // DDV stopnja
+  vatAmount       Float    @default(0)                   // DDV znesek
+  totalAmount     Float    @default(0)                   // Skupaj z DDV
+  currency        String   @default("EUR")
+  // --- Obdobje ---
+  periodStart     DateTime
+  periodEnd       DateTime
+  dueDate         DateTime
+  paidAt          DateTime?
+  status          String   @default("pending")           // pending, paid, overdue, cancelled
+  // --- PDF ---
+  pdfUrl          String   @default("")
+  // --- Metapodatki ---
+  createdAt       DateTime @default(now())
+
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([dueDate])
+}

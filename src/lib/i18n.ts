@@ -89,6 +89,8 @@ const sl: Record<string, string> = {
   'nav.printers': 'Tiskalniki',
   'nav.webhooks': 'Webhooki',
   'nav.integrations': 'Integracije',
+  'nav.locations': 'Lokacije',
+  'nav.subscription': 'Naročnina',
   'nav.shifts': 'Izmene',
   'nav.settings': 'Nastavitve',
 
@@ -334,6 +336,8 @@ const en: Record<string, string> = {
   'nav.printers': 'Printers',
   'nav.webhooks': 'Webhooks',
   'nav.integrations': 'Integrations',
+  'nav.locations': 'Locations',
+  'nav.subscription': 'Subscription',
   'nav.shifts': 'Shifts',
   'nav.settings': 'Settings',
 
@@ -565,6 +569,8 @@ const it: Record<string, string> = {
   'nav.printers': 'Stampanti',
   'nav.webhooks': 'Webhook',
   'nav.integrations': 'Integrazioni',
+  'nav.locations': 'Sedi',
+  'nav.subscription': 'Abbonamento',
   'nav.shifts': 'Turni',
   'nav.settings': 'Impostazioni',
 
@@ -796,6 +802,8 @@ const hr: Record<string, string> = {
   'nav.printers': 'Pisači',
   'nav.webhooks': 'Webhookovi',
   'nav.integrations': 'Integracije',
+  'nav.locations': 'Lokacije',
+  'nav.subscription': 'Pretplata',
   'nav.shifts': 'Smjene',
   'nav.settings': 'Postavke',
 
@@ -1027,6 +1035,8 @@ const de: Record<string, string> = {
   'nav.printers': 'Drucker',
   'nav.webhooks': 'Webhooks',
   'nav.integrations': 'Integrationen',
+  'nav.locations': 'Standorte',
+  'nav.subscription': 'Abonnement',
   'nav.shifts': 'Schichten',
   'nav.settings': 'Einstellungen',
 
