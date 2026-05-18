@@ -14,6 +14,7 @@ import {
   type FursConfig,
   type FursInvoiceData,
 } from '@/lib/furs'
+import { emitReceiptCreated, emitReceiptFiscalVerified } from '@/lib/event-emitter'
 
 // ============================================
 // FURS DAVČNO POTRJEVANJE (Fiscal Verification)
@@ -277,6 +278,21 @@ export async function POST(req: Request) {
         environment: result.environment,
       },
     })
+
+    // Webhook: receipt.fiscal_verified
+    emitReceiptFiscalVerified({
+      receiptId: receipt.id,
+      zoi: result.zoi,
+      eor: result.eor,
+    }).catch(err => console.error('[Webhook] receipt.fiscal_verified napaka:', err))
+
+    // Webhook: receipt.created (ob FURS overitvi je račun dokončen)
+    emitReceiptCreated({
+      receiptId: receipt.id,
+      receiptNumber: receipt.receiptNumber,
+      orderId: receipt.orderId,
+      total: receipt.total,
+    }).catch(err => console.error('[Webhook] receipt.created napaka:', err))
 
     return NextResponse.json({
       success: true,

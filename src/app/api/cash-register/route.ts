@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
+import { emitEvent } from '@/lib/event-emitter'
 
 // Validacija za odpiranje izmene
 const openShiftSchema = z.object({
@@ -133,6 +134,13 @@ export async function POST(req: Request) {
         status: 'open',
       },
     })
+
+    // Webhook: cash_register.opened
+    emitEvent('cash_register.opened', {
+      shiftId: shift.id,
+      employeeName: data.employeeName || '',
+      startingCash: data.startingCash,
+    }).catch(err => console.error('[Webhook] cash_register.opened napaka:', err))
 
     return NextResponse.json(shift)
   } catch (error) {

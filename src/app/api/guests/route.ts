@@ -7,6 +7,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, createGuestSchema } from '@/lib/validations'
+import { emitEvent } from '@/lib/event-emitter'
 
 export async function GET(req: Request) {
   try {
@@ -97,6 +98,13 @@ export async function POST(req: Request) {
       },
       include: { loyaltyAccount: true },
     })
+
+    // Webhook: guest.created
+    emitEvent('guest.created', {
+      guestId: guest.id,
+      name: `${guest.firstName} ${guest.lastName}`.trim(),
+      email: guest.email,
+    }).catch(err => console.error('[Webhook] guest.created napaka:', err))
 
     return NextResponse.json(guest, { status: 201 })
   } catch (error) {

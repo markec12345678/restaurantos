@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
+import crypto from 'crypto'
 
 // Validacijska shema za kreiranje webhooka
 const createWebhookSchema = z.object({
@@ -57,13 +58,16 @@ export async function POST(req: Request) {
     }
     const data = parsed.data
 
+    // Samodejno generiraj secret če ni podan
+    const secret = data.secret || `whsec_${crypto.randomBytes(32).toString('hex')}`
+
     const webhook = await db.webhook.create({
       data: {
         name: data.name,
         url: data.url,
         events: data.events,
         isActive: data.isActive,
-        secret: data.secret,
+        secret,
       },
     })
 

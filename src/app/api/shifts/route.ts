@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, createShiftSchema } from '@/lib/validations'
+import { emitEvent } from '@/lib/event-emitter'
 
 export async function GET(req: Request) {
   try {
@@ -80,6 +81,17 @@ export async function POST(req: Request) {
         job: { select: { id: true, name: true, basePayRate: true } },
       },
     })
+
+    // Webhook: shift.started
+    if (data.status === 'in_progress') {
+      const employee = shift.employee
+      emitEvent('shift.started', {
+        shiftId: shift.id,
+        employeeName: employee?.name || '',
+        jobName: shift.job?.name || '',
+      }).catch(err => console.error('[Webhook] shift.started napaka:', err))
+    }
+
     return NextResponse.json(shift, { status: 201 })
   } catch (error) {
     console.error('Napaka pri ustvarjanju izmene:', error)

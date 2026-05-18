@@ -6,6 +6,7 @@
 
 import { db } from './db'
 import { getAppUrl } from './utils'
+import { emitStockLow } from './event-emitter'
 
 // ============================================
 // TIPI
@@ -624,6 +625,16 @@ export async function broadcastLowStockAlert(
   alerts: Array<{ inventoryItemId: string; name: string; currentQty: number; minQty: number }>
 ) {
   if (alerts.length === 0) return
+
+  // Webhook: stock.low / stock.critical
+  for (const alert of alerts) {
+    emitStockLow({
+      inventoryItemId: alert.inventoryItemId,
+      itemName: alert.name,
+      currentQty: alert.currentQty,
+      minQty: alert.minQty,
+    }).catch(err => console.error('[Webhook] stock.low napaka:', err))
+  }
 
   try {
     await fetch(`${getAppUrl()}/api/ws-broadcast`, {

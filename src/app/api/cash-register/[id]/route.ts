@@ -2,6 +2,7 @@ import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
+import { emitEvent } from '@/lib/event-emitter'
 
 // FIX CRITICAL: Zod validacija za zaprtje izmene
 const closeShiftSchema = z.object({
@@ -128,6 +129,21 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         cashDifference: closedShift.cashDifference,
       },
     })
+
+    // Webhook: cash_register.closed
+    emitEvent('cash_register.closed', {
+      shiftId: id,
+      employeeName: closedShift.employeeName || '',
+      totalSales: closedShift.totalSales,
+      cashDifference: closedShift.cashDifference,
+    }).catch(err => console.error('[Webhook] cash_register.closed napaka:', err))
+
+    // Webhook: daily_report.ready
+    emitEvent('daily_report.ready', {
+      date: new Date().toISOString().split('T')[0],
+      totalSales: closedShift.totalSales,
+      totalOrders: closedShift.totalOrders,
+    }).catch(err => console.error('[Webhook] daily_report.ready napaka:', err))
 
     return NextResponse.json(closedShift)
   } catch (error) {

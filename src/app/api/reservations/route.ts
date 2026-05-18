@@ -9,6 +9,7 @@ import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, createReservationSchema } from '@/lib/validations'
+import { emitEvent } from '@/lib/event-emitter'
 
 // ============================================
 // GET - Pridobi rezervacije
@@ -188,6 +189,14 @@ export async function POST(req: Request) {
         partySize: data.partySize,
       },
     })
+
+    // Webhook: reservation.created
+    emitEvent('reservation.created', {
+      reservationId: reservation.id,
+      customerName: data.customerName,
+      dateTime: data.dateTime,
+      partySize: data.partySize,
+    }).catch(err => console.error('[Webhook] reservation.created napaka:', err))
 
     return NextResponse.json({ success: true, reservation }, { status: 201 })
   } catch (error) {

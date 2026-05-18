@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, updateOrderSchema, orderPatchActionSchema } from '@/lib/validations'
 import { returnStockForOrder, broadcastLowStockAlert, deductStockForOrder } from '@/lib/stock-deduction'
 import { getAppUrl } from '@/lib/utils'
+import { emitEvent } from '@/lib/event-emitter'
 
 // Helper za WebSocket broadcast
 async function broadcastWS(type: string, payload: unknown) {
@@ -67,6 +68,43 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       updateData.paidAt = new Date()
     }
 
+    // Webhook: order.paid — ko postane plačano
+    if (data.paymentStatus === 'paid' && existingOrder.paymentStatus !== 'paid') {
+      emitEvent('order.paid', {
+        orderId: id,
+        orderNumber: existingOrder.orderNumber,
+        total: existingOrder.total,
+        paymentMethod: data.paymentMethod || existingOrder.paymentMethod,
+        tip: existingOrder.tip,
+      }).catch(err => console.error('[Webhook] order.paid napaka:', err))
+    }
+
+    // Webhook: order.ready — ko postane pripravljeno
+    if (data.status === 'ready' && existingOrder.status !== 'ready') {
+      emitEvent('order.ready', {
+        orderId: id,
+        orderNumber: existingOrder.orderNumber,
+      }).catch(err => console.error('[Webhook] order.ready napaka:', err))
+    }
+
+    // Webhook: order.delivered — ko je dostavljeno
+    if (data.status === 'completed' && existingOrder.type === 'delivery') {
+      emitEvent('order.delivered', {
+        orderId: id,
+        orderNumber: existingOrder.orderNumber,
+        deliveryAddress: existingOrder.customerPhone || '',
+      }).catch(err => console.error('[Webhook] order.delivered napaka:', err))
+    }
+
+    // Webhook: order.updated — splošna posodobitev
+    if (data.status && data.status !== 'cancelled') {
+      emitEvent('order.updated', {
+        orderId: id,
+        changes: Object.keys(data),
+        status: data.status,
+      }).catch(err => console.error('[Webhook] order.updated napaka:', err))
+    }
+
     const order = await db.order.update({
       where: { id },
       data: updateData,
@@ -102,6 +140,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     // When order is cancelled — VRNI ZALOGO
     if (data.status === 'cancelled') {
+      // Webhook: order.cancelled
+      emitEvent('order.cancelled', {
+        orderId: id,
+        orderNumber: order.orderNumber,
+        reason: data.cancelReason || 'Ni razloga',
+      }).catch(err => console.error('[Webhook] order.cancelled napaka:', err))
       // FIX HIGH: Race condition — sprosti mizo in vrni zalogo v eni transakciji
       if (order.tableId) {
         const activeOrders = await db.$transaction(async (tx) => {

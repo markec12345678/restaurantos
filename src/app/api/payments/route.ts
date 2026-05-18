@@ -2,6 +2,7 @@ import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, createPaymentSchema } from '@/lib/validations'
+import { emitEvent } from '@/lib/event-emitter'
 
 export async function GET(req: Request) {
   try {
@@ -355,6 +356,28 @@ export async function POST(req: Request) {
         loyaltyUsed: data.loyaltyPointsUsed > 0,
       },
     })
+
+    // Webhook: payment.received
+    emitEvent('payment.received', {
+      paymentId: result.id,
+      orderId: check.orderId || '',
+      amount: data.amount,
+      type: data.type,
+    }).catch(err => console.error('[Webhook] payment.received napaka:', err))
+
+    // Webhook: order.paid — če je celoten order zdaj plačan
+    if (check.orderId) {
+      const updatedOrder = await db.order.findUnique({ where: { id: check.orderId } })
+      if (updatedOrder?.paymentStatus === 'paid') {
+        emitEvent('order.paid', {
+          orderId: updatedOrder.id,
+          orderNumber: updatedOrder.orderNumber,
+          total: updatedOrder.total,
+          paymentMethod: updatedOrder.paymentMethod,
+          tip: updatedOrder.tip,
+        }).catch(err => console.error('[Webhook] order.paid napaka:', err))
+      }
+    }
 
     return NextResponse.json(paymentWithRelations, { status: 201 })
   } catch (error) {

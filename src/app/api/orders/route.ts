@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { validateBody, createOrderSchema } from '@/lib/validations'
 import { checkStockAvailability, deductStockForOrder, broadcastLowStockAlert } from '@/lib/stock-deduction'
 import { getAppUrl } from '@/lib/utils'
+import { emitOrderCreated } from '@/lib/event-emitter'
 
 // Helper za WebSocket broadcast (varen klic — deluje tudi brez WS strežnika)
 async function broadcastWS(type: string, payload: unknown) {
@@ -233,6 +234,15 @@ export async function POST(req: Request) {
 
     // Samodejni tisk kuhinjskega naročila (v ozadju)
     autoPrintKitchenOrder(order as unknown as Record<string, unknown>)
+
+    // Webhook/integracija: sproži order.created dogodek
+    emitOrderCreated({
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      type: order.type,
+      tableId: order.tableId || undefined,
+      total: order.total,
+    }).catch(err => console.error('[Webhook] order.created napaka:', err))
 
     // Revizijski dnevnik: novo naročilo
     await createAuditLog({
