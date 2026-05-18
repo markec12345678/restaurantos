@@ -48,6 +48,10 @@ const onlineOrderSchema = z.object({
   paymentMethod: z.enum(['card', 'cash', 'mobile']).default('card'),
   customer: z.union([deliveryDetailsSchema, takeoutDetailsSchema]),
   deliveryFee: z.number().min(0).default(0),
+  promoCode: z.string().max(50).optional(),
+  discountId: z.string().optional(),
+  discountAmount: z.number().min(0).default(0),
+  locationId: z.string().optional(),
 })
 
 const DELIVERY_FEE = 2.50
@@ -87,7 +91,7 @@ export async function POST(req: Request) {
     }
 
     const data = parsed.data
-    const { orderType, items, paymentMethod, customer, deliveryFee } = data
+    const { orderType, items, paymentMethod, customer, deliveryFee, promoCode, discountId, discountAmount, locationId } = data
 
     // Preveri minimum za dostavo
     const itemsSubtotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0)
@@ -151,8 +155,9 @@ export async function POST(req: Request) {
       })
     }
 
-    const actualDeliveryFee = orderType === 'delivery' ? DELIVERY_FEE : 0
-    const total = subtotal + totalVat + actualDeliveryFee
+    const actualDeliveryFee = orderType === 'delivery' ? deliveryFee || DELIVERY_FEE : 0
+    const discount = discountAmount || 0
+    const total = Math.max(0, subtotal + totalVat + actualDeliveryFee - discount)
 
     // Poišči ali ustvari dining option
     let diningOption = await db.diningOption.findFirst({ where: { type: orderType } })
@@ -184,6 +189,7 @@ export async function POST(req: Request) {
       customerNotes ? `Opombe: ${customerNotes}` : '',
       paymentMethod === 'cash' ? 'PLAČILO: Gotovina ob prevzemu' : `PLAČILO: ${paymentMethod === 'card' ? 'Kartica' : 'Mobilno'}`,
       'preferredTime' in customer && customer.preferredTime ? `Želen čas: ${customer.preferredTime}` : '',
+      promoCode ? `PROMO: ${promoCode} (-€${discount.toFixed(2)})` : '',
     ].filter(Boolean).join(' | ')
 
     // Ustvari naročilo + zaloga v transakciji
@@ -195,7 +201,7 @@ export async function POST(req: Request) {
           status: 'pending',
           subtotal,
           tax: totalVat,
-          discount: 0,
+          discount,
           total,
           totalWithTip: total,
           customerName,
@@ -206,6 +212,7 @@ export async function POST(req: Request) {
           paymentStatus: paymentMethod === 'cash' ? 'unpaid' : 'paid',
           diningOptionId: diningOption!.id,
           inventoryDeducted: false,
+          locationId: locationId || null,
           orderItems: { create: orderItemsData },
         },
         include: { orderItems: true },

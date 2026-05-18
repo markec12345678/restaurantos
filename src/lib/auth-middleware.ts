@@ -172,6 +172,9 @@ const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/api/configuration': ['admin'],
   '/api/integrations': ['admin'],            // Integration API — povezave z zunanjimi sistemi
   '/api/subscription': ['admin'],            // SaaS naročnina — upravljanje paketov
+  '/api/delivery-zones': ['take_orders'],    // Cone dostave — upravljanje con
+  '/api/opening-hours': ['take_orders'],     // Delovni čas — urniki lokacij
+  '/api/locations': ['take_orders'],         // Lokacije — multi-location podpora
 }
 
 /**

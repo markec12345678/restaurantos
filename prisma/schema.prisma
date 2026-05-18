@@ -977,10 +977,75 @@ model Location {
   employees       Employee[]
   cashShifts      CashRegisterShift[]
   reservations    Reservation[]
+  deliveryZones   DeliveryZone[]
+  openingHours    OpeningHours[]
 
   @@index([code])
   @@index([isActive])
   @@index([type])
+}
+
+// ============================================
+// CONE DOSTAVE (Delivery Zones)
+// Toast-style zone-based delivery pricing
+// ============================================
+
+model DeliveryZone {
+  id              String   @id @default(cuid())
+  name            String                             // "Center Ljubljana", "Rožna dolina", "Šiška"
+  // --- Območje ---
+  postCodes       String   @default("[]")            // JSON: ["1000","1001"] — poštne številke v coni
+  cities          String   @default("[]")            // JSON: ["Ljubljana"] — mesta v coni
+  // --- Radij (alternativa poštnim številkam) ---
+  radiusKm        Float?                             // Radij v km od lokacije (null = uporabi postCodes)
+  centerLat       Float?
+  centerLng       Float?
+  // --- Cenitev ---
+  deliveryFee     Float    @default(2.50)            // Cena dostave za to cono
+  minOrderAmount  Float    @default(10.00)           // Minimalno naročilo za to cono
+  freeDeliveryAbove Float  @default(0)               // Brezplačna dostava nad ta znesek (0 = nikoli)
+  // --- Čas ---
+  estimatedMinutes Int     @default(30)              // Predviden čas dostave v minutah
+  // --- Status ---
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  // --- Lokacija ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  // --- Metapodatki ---
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([locationId])
+  @@index([isActive])
+}
+
+// ============================================
+// DELOVNI ČAS (Opening Hours)
+// Podpora za urnike po dnevih s prekinitvami
+// ============================================
+
+model OpeningHours {
+  id              String   @id @default(cuid())
+  // --- Dan v tednu ---
+  dayOfWeek       Int                                // 0=nedelja, 1=ponedeljek, ..., 6=sobota
+  // --- Čas odprtja/zaprtja ---
+  openTime        String   @default("08:00")         // "08:00"
+  closeTime       String   @default("22:00")         // "22:00"
+  // --- Premor (opcijsko) ---
+  breakStart      String   @default("")              // "14:00" (prazno = brez premora)
+  breakEnd        String   @default("")              // "16:00"
+  // --- Status ---
+  isClosed        Boolean  @default(false)            // true = ta dan je zaprto
+  // --- Lokacija ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  // --- Metapodatki ---
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([locationId])
+  @@index([dayOfWeek])
 }
 
 // ============================================

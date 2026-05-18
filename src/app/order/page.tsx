@@ -98,10 +98,42 @@ const ALLERGEN_DATA: Record<string, { label: string; icon: string }> = {
   '14': { label: 'Mehkužci', icon: '🐚' },
 }
 
-const DELIVERY_FEE = 2.50
-const MIN_ORDER_AMOUNT = 10.00
+const DEFAULT_DELIVERY_FEE = 2.50
+const DEFAULT_MIN_ORDER = 10.00
 const ESTIMATED_DELIVERY_MIN = 30
 const ESTIMATED_TAKEOUT_MIN = 15
+
+interface DeliveryZoneInfo {
+  id: string
+  name: string
+  deliveryFee: number
+  minOrderAmount: number
+  freeDeliveryAbove: number
+  estimatedMinutes: number
+}
+
+interface LocationInfo {
+  id: string
+  name: string
+  code: string
+  address: string
+  city: string
+  phone: string
+  isOpen: boolean
+}
+
+interface PromoResult {
+  valid: boolean
+  discount?: {
+    id: string
+    name: string
+    type: string
+    amount: number
+    discountAmount: number
+    description: string
+  }
+  message?: string
+}
 
 export default function OnlineOrderPage() {
   const [menus, setMenus] = useState<Menu[]>([])
@@ -114,6 +146,17 @@ export default function OnlineOrderPage() {
   const [step, setStep] = useState<CheckoutStep>('menu')
   const [searchQuery, setSearchQuery] = useState('')
   const [isDark, setIsDark] = useState(false)
+  // --- Nova polja ---
+  const [isOpenNow, setIsOpenNow] = useState(true)
+  const [weeklyHours, setWeeklyHours] = useState<any[]>([])
+  const [locations, setLocations] = useState<LocationInfo[]>([])
+  const [selectedLocation, setSelectedLocation] = useState<string>('')
+  const [deliveryZone, setDeliveryZone] = useState<DeliveryZoneInfo | null>(null)
+  const [deliveryZoneChecked, setDeliveryZoneChecked] = useState(false)
+  const [promoCode, setPromoCode] = useState('')
+  const [promoResult, setPromoResult] = useState<PromoResult | null>(null)
+  const [promoLoading, setPromoLoading] = useState(false)
+  const [showHours, setShowHours] = useState(false)
 
   // Checkout podatki
   const [deliveryDetails, setDeliveryDetails] = useState<DeliveryDetails>({
@@ -133,6 +176,7 @@ export default function OnlineOrderPage() {
 
   useEffect(() => {
     fetchMenu()
+    fetchOrderConfig()
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
     setIsDark(prefersDark)
   }, [])
@@ -151,6 +195,54 @@ export default function OnlineOrderPage() {
       console.error('Error loading menu:', e)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function fetchOrderConfig() {
+    try {
+      const res = await fetch('/api/public/order-config')
+      const data = await res.json()
+      setIsOpenNow(data.isOpenNow)
+      setWeeklyHours(data.weeklyHours || [])
+      setLocations(data.locations || [])
+      if (data.locations?.length > 0 && !selectedLocation) {
+        setSelectedLocation(data.locations[0].id)
+      }
+    } catch (e) {
+      console.error('Error loading config:', e)
+    }
+  }
+
+  // Preveri cono dostave ko se spremeni naslov
+  async function checkDeliveryZone(postCode: string, city: string) {
+    if (!postCode) return
+    try {
+      const res = await fetch(`/api/public/delivery-check?postCode=${encodeURIComponent(postCode)}&city=${encodeURIComponent(city)}`)
+      const data = await res.json()
+      setDeliveryZoneChecked(true)
+      if (data.deliverable && data.zone) {
+        setDeliveryZone(data.zone)
+      } else {
+        setDeliveryZone(null)
+      }
+    } catch {
+      setDeliveryZoneChecked(false)
+    }
+  }
+
+  // Preveri promo kodo
+  async function checkPromoCode() {
+    if (!promoCode.trim()) return
+    setPromoLoading(true)
+    try {
+      const sub = getSubtotal()
+      const res = await fetch(`/api/public/promo-check?code=${encodeURIComponent(promoCode.trim())}&subtotal=${sub}`)
+      const data = await res.json()
+      setPromoResult(data)
+    } catch {
+      setPromoResult({ valid: false, message: 'Napaka pri preverjanju' })
+    } finally {
+      setPromoLoading(false)
     }
   }
 
@@ -192,6 +284,27 @@ export default function OnlineOrderPage() {
     }, 0)
   }
 
+  function getDeliveryFee() {
+    if (orderType !== 'delivery') return 0
+    const sub = getSubtotal()
+    const zone = deliveryZone
+    if (zone) {
+      // Brezplačna dostava nad določen znesek
+      if (zone.freeDeliveryAbove > 0 && sub >= zone.freeDeliveryAbove) return 0
+      return zone.deliveryFee
+    }
+    return DEFAULT_DELIVERY_FEE
+  }
+
+  function getMinOrderAmount() {
+    return deliveryZone?.minOrderAmount || DEFAULT_MIN_ORDER
+  }
+
+  function getEstimatedMinutes() {
+    if (orderType === 'takeout') return ESTIMATED_TAKEOUT_MIN
+    return deliveryZone?.estimatedMinutes || ESTIMATED_DELIVERY_MIN
+  }
+
   function getTotal() {
     const sub = getSubtotal()
     const vat = cart.reduce((sum, item) => {
@@ -199,8 +312,9 @@ export default function OnlineOrderPage() {
       const basePrice = item.menuItem.price + modPrice
       return sum + basePrice * (item.menuItem.vatRate / 100) * item.quantity
     }, 0)
-    const deliveryFee = orderType === 'delivery' && sub > 0 ? DELIVERY_FEE : 0
-    return sub + vat + deliveryFee
+    const deliveryFee = getDeliveryFee()
+    const promoDiscount = promoResult?.valid && promoResult.discount ? promoResult.discount.discountAmount : 0
+    return Math.max(0, sub + vat + deliveryFee - promoDiscount)
   }
 
   function toggleModifier(mod: Modifier, group: ModifierGroup) {
@@ -242,7 +356,11 @@ export default function OnlineOrderPage() {
           items: orderItems,
           paymentMethod,
           customer: details,
-          deliveryFee: orderType === 'delivery' ? DELIVERY_FEE : 0,
+          deliveryFee: getDeliveryFee(),
+          promoCode: promoResult?.valid ? promoCode : undefined,
+          discountId: promoResult?.valid ? promoResult.discount?.id : undefined,
+          discountAmount: promoResult?.valid ? promoResult.discount?.discountAmount : 0,
+          locationId: selectedLocation || undefined,
         }),
       })
 
@@ -313,9 +431,15 @@ export default function OnlineOrderPage() {
             {paymentMethod === 'cash' && 'Plačilo ob prevzemu (gotovina)'}
             {paymentMethod === 'mobile' && 'Plačilo z mobilno napravo ✓'}
           </div>
+          <a
+            href={`/order/${orderResult.order?.id}`}
+            className="mt-4 block bg-indigo-600 text-white px-8 py-3 rounded-2xl font-semibold hover:bg-indigo-700 transition text-center"
+          >
+            📍 Sledi naročilu
+          </a>
           <button
-            onClick={() => { setStep('menu'); setOrderResult(null); }}
-            className="mt-6 bg-blue-600 text-white px-8 py-3 rounded-2xl font-semibold hover:bg-blue-700 transition"
+            onClick={() => { setStep('menu'); setOrderResult(null); setPromoCode(''); setPromoResult(null); setDeliveryZone(null); setDeliveryZoneChecked(false); }}
+            className="mt-3 bg-blue-600 text-white px-8 py-3 rounded-2xl font-semibold hover:bg-blue-700 transition"
           >
             Naroči še
           </button>
@@ -388,6 +512,53 @@ export default function OnlineOrderPage() {
             </div>
           )}
 
+          {/* Location selector */}
+          {step === 'menu' && locations.length > 1 && (
+            <div className="mt-2">
+              <select
+                value={selectedLocation}
+                onChange={e => setSelectedLocation(e.target.value)}
+                className={`w-full px-4 py-2 rounded-xl text-sm ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-blue-200'} border`}
+              >
+                {locations.map(loc => (
+                  <option key={loc.id} value={loc.id}>
+                    📍 {loc.name} — {loc.address}, {loc.city} {loc.isOpen ? '(Odprto)' : '(Zaprto)'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Opening hours indicator */}
+          {step === 'menu' && (
+            <div className="mt-2 flex items-center gap-2">
+              <span className={`w-2.5 h-2.5 rounded-full ${isOpenNow ? 'bg-green-500' : 'bg-red-500'}`} />
+              <span className={`text-xs font-medium ${isOpenNow ? 'text-green-700' : 'text-red-600'}`}>
+                {isOpenNow ? 'Trenutno odprto' : 'Trenutno zaprto'}
+              </span>
+              <button
+                onClick={() => setShowHours(!showHours)}
+                className="text-xs text-blue-600 underline ml-1"
+              >
+                Delovni čas
+              </button>
+            </div>
+          )}
+
+          {/* Weekly hours popup */}
+          {showHours && (
+            <div className={`mt-2 p-3 rounded-xl text-xs ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border`}>
+              {weeklyHours.map((h, idx) => (
+                <div key={idx} className="flex justify-between py-1">
+                  <span className={h.isClosed ? 'text-gray-400' : 'font-medium'}>{h.day}</span>
+                  <span className={h.isClosed ? 'text-red-400' : 'text-gray-600'}>
+                    {h.isClosed ? 'Zaprto' : `${h.openTime} - ${h.closeTime}`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Search */}
           {step === 'menu' && (
             <div className="mt-3 relative">
@@ -425,13 +596,25 @@ export default function OnlineOrderPage() {
       {/* ===== MENU STEP ===== */}
       {step === 'menu' && (
         <main className="max-w-4xl mx-auto px-4 pb-28">
+          {/* Closed banner */}
+          {!isOpenNow && (
+            <div className={`mt-4 p-3 rounded-xl ${isDark ? 'bg-red-900/30 border border-red-800' : 'bg-red-50 border border-red-200'} text-sm`}>
+              <div className="flex items-center gap-2">
+                <span>🔴</span>
+                <span className="font-bold text-red-700">Trenutno smo zaprti. Naročila bodo sprejeta ko odpremo.</span>
+              </div>
+            </div>
+          )}
+
           {/* Info banner */}
           <div className={`mt-4 p-3 rounded-xl ${isDark ? 'bg-blue-900/30 border border-blue-800' : 'bg-blue-50 border border-blue-200'} text-sm`}>
             <div className="flex items-center gap-2">
               <span>{orderType === 'delivery' ? '🚗' : '🛍'}</span>
               <span className={isDark ? 'text-blue-300' : 'text-blue-700'}>
                 {orderType === 'delivery'
-                  ? `Dostava ${DELIVERY_FEE.toFixed(2)} € • Min. naročilo ${MIN_ORDER_AMOUNT.toFixed(2)} € • ${ESTIMATED_DELIVERY_MIN}-${ESTIMATED_DELIVERY_MIN + 15} min`
+                  ? deliveryZone
+                    ? `Dostava (${deliveryZone.name}) ${getDeliveryFee().toFixed(2)} € • Min. ${getMinOrderAmount().toFixed(2)} € • ${getEstimatedMinutes()}-${getEstimatedMinutes() + 15} min${deliveryZone.freeDeliveryAbove > 0 ? ` • Brezplačno nad €${deliveryZone.freeDeliveryAbove.toFixed(2)}` : ''}`
+                    : `Dostava ${DEFAULT_DELIVERY_FEE.toFixed(2)} € • Min. naročilo ${DEFAULT_MIN_ORDER.toFixed(2)} € • ${ESTIMATED_DELIVERY_MIN}-${ESTIMATED_DELIVERY_MIN + 15} min`
                   : `Prevzem na lokaciji • ${ESTIMATED_TAKEOUT_MIN}-${ESTIMATED_TAKEOUT_MIN + 10} min`}
               </span>
             </div>
@@ -585,16 +768,22 @@ export default function OnlineOrderPage() {
                 </div>
                 {orderType === 'delivery' && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Dostava</span>
-                    <span>€{DELIVERY_FEE.toFixed(2)}</span>
+                    <span className="text-gray-500">Dostava{deliveryZone ? ` (${deliveryZone.name})` : ''}</span>
+                    <span>{getDeliveryFee() === 0 ? <span className="text-green-600">Brezplačno</span> : `€${getDeliveryFee().toFixed(2)}`}</span>
+                  </div>
+                )}
+                {promoResult?.valid && promoResult.discount && (
+                  <div className="flex justify-between text-sm text-green-600">
+                    <span>🏷 {promoResult.discount.description}</span>
+                    <span>-€{promoResult.discount.discountAmount.toFixed(2)}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-bold text-lg pt-2 border-t">
                   <span>Skupaj</span>
                   <span className="text-blue-600">€{total.toFixed(2)}</span>
                 </div>
-                {orderType === 'delivery' && subtotal < MIN_ORDER_AMOUNT && (
-                  <p className="text-xs text-amber-600">Min. naročilo za dostavo: €{MIN_ORDER_AMOUNT.toFixed(2)}</p>
+                {orderType === 'delivery' && subtotal < getMinOrderAmount() && (
+                  <p className="text-xs text-amber-600">Min. naročilo za dostavo: €{getMinOrderAmount().toFixed(2)}</p>
                 )}
               </div>
 
@@ -604,7 +793,7 @@ export default function OnlineOrderPage() {
                 </button>
                 <button
                   onClick={() => setStep('details')}
-                  disabled={orderType === 'delivery' && subtotal < MIN_ORDER_AMOUNT}
+                  disabled={orderType === 'delivery' && subtotal < getMinOrderAmount()}
                   className="flex-1 py-3 rounded-xl font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Nadaljuj →
@@ -627,8 +816,18 @@ export default function OnlineOrderPage() {
                 <input type="tel" placeholder="Telefon *" value={deliveryDetails.phone} onChange={e => setDeliveryDetails(p => ({ ...p, phone: e.target.value }))} className={`px-4 py-3 rounded-xl text-sm ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200'} border focus:ring-2 focus:ring-blue-500/50 focus:outline-none`} />
                 <input type="email" placeholder="E-pošta" value={deliveryDetails.email} onChange={e => setDeliveryDetails(p => ({ ...p, email: e.target.value }))} className={`px-4 py-3 rounded-xl text-sm ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200'} border focus:ring-2 focus:ring-blue-500/50 focus:outline-none`} />
                 <input type="text" placeholder="Naslov *" value={deliveryDetails.address} onChange={e => setDeliveryDetails(p => ({ ...p, address: e.target.value }))} className={`col-span-2 px-4 py-3 rounded-xl text-sm ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200'} border focus:ring-2 focus:ring-blue-500/50 focus:outline-none`} />
-                <input type="text" placeholder="Mesto *" value={deliveryDetails.city} onChange={e => setDeliveryDetails(p => ({ ...p, city: e.target.value }))} className={`px-4 py-3 rounded-xl text-sm ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200'} border focus:ring-2 focus:ring-blue-500/50 focus:outline-none`} />
-                <input type="text" placeholder="Poštna št. *" value={deliveryDetails.postCode} onChange={e => setDeliveryDetails(p => ({ ...p, postCode: e.target.value }))} className={`px-4 py-3 rounded-xl text-sm ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200'} border focus:ring-2 focus:ring-blue-500/50 focus:outline-none`} />
+                <input type="text" placeholder="Mesto *" value={deliveryDetails.city} onChange={e => { setDeliveryDetails(p => ({ ...p, city: e.target.value })); if (deliveryDetails.postCode) checkDeliveryZone(deliveryDetails.postCode, e.target.value) }} className={`px-4 py-3 rounded-xl text-sm ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200'} border focus:ring-2 focus:ring-blue-500/50 focus:outline-none`} />
+                <input type="text" placeholder="Poštna št. *" value={deliveryDetails.postCode} onChange={e => { setDeliveryDetails(p => ({ ...p, postCode: e.target.value })); if (e.target.value.length >= 4) checkDeliveryZone(e.target.value, deliveryDetails.city) }} className={`px-4 py-3 rounded-xl text-sm ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200'} border focus:ring-2 focus:ring-blue-500/50 focus:outline-none`} />
+                {deliveryZoneChecked && !deliveryZone && deliveryDetails.postCode.length >= 4 && (
+                  <div className="col-span-2 p-2 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700">
+                    ⚠️ Na ta naslov ne dostavljamo. Izberite prevzem na lokaciji.
+                  </div>
+                )}
+                {deliveryZone && (
+                  <div className="col-span-2 p-2 rounded-xl bg-green-50 border border-green-200 text-xs text-green-700">
+                    ✓ Cona dostave: {deliveryZone.name} — dostava €{deliveryZone.deliveryFee.toFixed(2)} • {deliveryZone.estimatedMinutes} min
+                  </div>
+                )}
               </div>
               <textarea placeholder="Opombe za dostavo (zvonec, nadstropje...)" value={deliveryDetails.notes} onChange={e => setDeliveryDetails(p => ({ ...p, notes: e.target.value }))} rows={2} className={`w-full px-4 py-3 rounded-xl text-sm ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200'} border focus:ring-2 focus:ring-blue-500/50 focus:outline-none`} />
             </div>
@@ -650,7 +849,7 @@ export default function OnlineOrderPage() {
             </button>
             <button
               onClick={() => setStep('payment')}
-              disabled={orderType === 'delivery' ? !deliveryDetails.fullName || !deliveryDetails.phone || !deliveryDetails.address || !deliveryDetails.city : !takeoutDetails.fullName || !takeoutDetails.phone}
+              disabled={orderType === 'delivery' ? !deliveryDetails.fullName || !deliveryDetails.phone || !deliveryDetails.address || !deliveryDetails.city || (deliveryZoneChecked && !deliveryZone) : !takeoutDetails.fullName || !takeoutDetails.phone}
               className="flex-1 py-3 rounded-xl font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
             >
               Plačilo →
@@ -679,14 +878,46 @@ export default function OnlineOrderPage() {
             })}
             {orderType === 'delivery' && (
               <div className="flex justify-between text-sm py-1 text-gray-500">
-                <span>Dostava</span>
-                <span>€{DELIVERY_FEE.toFixed(2)}</span>
+                <span>Dostava{deliveryZone ? ` (${deliveryZone.name})` : ''}</span>
+                <span>{getDeliveryFee() === 0 ? <span className="text-green-600">Brezplačno</span> : `€${getDeliveryFee().toFixed(2)}`}</span>
+              </div>
+            )}
+            {promoResult?.valid && promoResult.discount && (
+              <div className="flex justify-between text-sm py-1 text-green-600">
+                <span>🏷 {promoResult.discount.description}</span>
+                <span>-€{promoResult.discount.discountAmount.toFixed(2)}</span>
               </div>
             )}
             <div className="flex justify-between font-bold text-lg pt-2 mt-2 border-t">
               <span>Skupaj</span>
               <span className="text-blue-600">€{total.toFixed(2)}</span>
             </div>
+          </div>
+
+          {/* Promo code */}
+          <div className="space-y-2">
+            <h3 className="font-semibold text-sm">Promo koda</h3>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Vnesi kodo..."
+                value={promoCode}
+                onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoResult(null) }}
+                className={`flex-1 px-4 py-3 rounded-xl text-sm ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-gray-200'} border focus:ring-2 focus:ring-blue-500/50 focus:outline-none`}
+              />
+              <button
+                onClick={checkPromoCode}
+                disabled={!promoCode.trim() || promoLoading}
+                className="px-4 py-3 rounded-xl font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 disabled:opacity-50 text-sm"
+              >
+                {promoLoading ? '...' : 'Uporabi'}
+              </button>
+            </div>
+            {promoResult && (
+              <p className={`text-xs ${promoResult.valid ? 'text-green-600' : 'text-red-500'}`}>
+                {promoResult.valid ? `✓ ${promoResult.discount?.description} (-€${promoResult.discount?.discountAmount.toFixed(2)})` : `✕ ${promoResult.message}`}
+              </p>
+            )}
           </div>
 
           {/* Payment method */}
