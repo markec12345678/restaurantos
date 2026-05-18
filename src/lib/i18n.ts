@@ -100,6 +100,8 @@ const sl: Record<string, string> = {
   'nav.deliveryTracking': 'Sledenje dostav',
   'nav.zReport': 'Z-Poročilo',
   'nav.tipManager': 'Napitnine',
+  'nav.waitTime': 'Čakalna doba',
+  'nav.multiLocation': 'Več lokacij',
   'nav.settings': 'Nastavitve',
 
   // Naročila
@@ -355,6 +357,8 @@ const en: Record<string, string> = {
   'nav.deliveryTracking': 'Delivery Tracking',
   'nav.zReport': 'Z-Report',
   'nav.tipManager': 'Tip Manager',
+  'nav.waitTime': 'Wait Time',
+  'nav.multiLocation': 'Multi-Location',
   'nav.settings': 'Settings',
 
   'orders.new': 'New Order',
@@ -596,6 +600,8 @@ const it: Record<string, string> = {
   'nav.deliveryTracking': 'Tracciamento consegne',
   'nav.zReport': 'Report Z',
   'nav.tipManager': 'Mance',
+  'nav.waitTime': 'Tempo di attesa',
+  'nav.multiLocation': 'Multi-Sede',
   'nav.settings': 'Impostazioni',
 
   'orders.new': 'Nuovo ordine',
@@ -837,6 +843,8 @@ const hr: Record<string, string> = {
   'nav.deliveryTracking': 'Praćenje dostave',
   'nav.zReport': 'Z-Izvještaj',
   'nav.tipManager': 'Napojnice',
+  'nav.waitTime': 'Vrijeme čekanja',
+  'nav.multiLocation': 'Više lokacija',
   'nav.settings': 'Postavke',
 
   'orders.new': 'Nova narudžba',
@@ -1078,6 +1086,8 @@ const de: Record<string, string> = {
   'nav.deliveryTracking': 'Lieferverfolgung',
   'nav.zReport': 'Z-Report',
   'nav.tipManager': 'Trinkgelder',
+  'nav.waitTime': 'Wartezeit',
+  'nav.multiLocation': 'Mehrere Standorte',
   'nav.settings': 'Einstellungen',
 
   'orders.new': 'Neue Bestellung',

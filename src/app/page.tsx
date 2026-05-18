@@ -37,6 +37,8 @@ import { AIForecastDashboard } from '@/components/pos/AIForecastDashboard'
 import { ZReportManager } from '@/components/pos/ZReportManager'
 import { TipManager } from '@/components/pos/TipManager'
 import { DeliveryTracker } from '@/components/pos/DeliveryTracker'
+import { MultiLocationDashboard } from '@/components/pos/MultiLocationDashboard'
+import { WaitTimeEstimator } from '@/components/pos/WaitTimeEstimator'
 import { GlobalNotifications } from '@/components/pos/GlobalNotifications'
 import GuestManager from '@/components/pos/GuestManager'
 import FoodCostCalculator from '@/components/pos/FoodCostCalculator'
@@ -85,6 +87,8 @@ const moduleComponents: Record<string, React.ComponentType> = {
   'delivery-tracking': DeliveryTracker,
   'z-report': ZReportManager,
   'tip-manager': TipManager,
+  'wait-time': WaitTimeEstimator,
+  'multi-location': MultiLocationDashboard,
   settings: SettingsManager,
 }
 
