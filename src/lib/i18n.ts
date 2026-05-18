@@ -102,6 +102,8 @@ const sl: Record<string, string> = {
   'nav.tipManager': 'Napitnine',
   'nav.waitTime': 'Čakalna doba',
   'nav.multiLocation': 'Več lokacij',
+  'nav.aiRecommendations': 'AI Priporočila',
+  'nav.nutrition': 'Nutritivni podatki',
   'nav.settings': 'Nastavitve',
 
   // Naročila
@@ -359,6 +361,8 @@ const en: Record<string, string> = {
   'nav.tipManager': 'Tip Manager',
   'nav.waitTime': 'Wait Time',
   'nav.multiLocation': 'Multi-Location',
+  'nav.aiRecommendations': 'AI Recommendations',
+  'nav.nutrition': 'Nutritional Info',
   'nav.settings': 'Settings',
 
   'orders.new': 'New Order',
@@ -602,6 +606,8 @@ const it: Record<string, string> = {
   'nav.tipManager': 'Mance',
   'nav.waitTime': 'Tempo di attesa',
   'nav.multiLocation': 'Multi-Sede',
+  'nav.aiRecommendations': 'Raccomandazioni AI',
+  'nav.nutrition': 'Info nutrizionali',
   'nav.settings': 'Impostazioni',
 
   'orders.new': 'Nuovo ordine',
@@ -845,6 +851,8 @@ const hr: Record<string, string> = {
   'nav.tipManager': 'Napojnice',
   'nav.waitTime': 'Vrijeme čekanja',
   'nav.multiLocation': 'Više lokacija',
+  'nav.aiRecommendations': 'AI Preporuke',
+  'nav.nutrition': 'Nutritivne informacije',
   'nav.settings': 'Postavke',
 
   'orders.new': 'Nova narudžba',
@@ -1088,6 +1096,8 @@ const de: Record<string, string> = {
   'nav.tipManager': 'Trinkgelder',
   'nav.waitTime': 'Wartezeit',
   'nav.multiLocation': 'Mehrere Standorte',
+  'nav.aiRecommendations': 'AI-Empfehlungen',
+  'nav.nutrition': 'Nährwertinfos',
   'nav.settings': 'Einstellungen',
 
   'orders.new': 'Neue Bestellung',

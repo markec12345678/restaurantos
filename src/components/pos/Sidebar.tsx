@@ -102,6 +102,8 @@ const navItems = [
   { id: 'tip-manager', labelKey: 'nav.tipManager', icon: HandCoins, permission: 'manage_employees' },
   { id: 'wait-time', labelKey: 'nav.waitTime', icon: Timer, permission: 'take_orders' },
   { id: 'multi-location', labelKey: 'nav.multiLocation', icon: Store, adminOnly: true },
+  { id: 'ai-recommendations', labelKey: 'nav.aiRecommendations', icon: Brain, adminOnly: true },
+  { id: 'nutrition', labelKey: 'nav.nutrition', icon: ShieldCheck, adminOnly: true },
   { id: 'gift-cards', labelKey: 'nav.gift-cards', icon: CreditCard, permission: 'take_orders' },
   { id: 'loyalty', labelKey: 'nav.loyalty', icon: Award, permission: 'take_orders' },
   { id: 'printers', labelKey: 'nav.printers', icon: Printer, adminOnly: true },

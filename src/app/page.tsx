@@ -39,6 +39,8 @@ import { TipManager } from '@/components/pos/TipManager'
 import { DeliveryTracker } from '@/components/pos/DeliveryTracker'
 import { MultiLocationDashboard } from '@/components/pos/MultiLocationDashboard'
 import { WaitTimeEstimator } from '@/components/pos/WaitTimeEstimator'
+import { AIRecommendations } from '@/components/pos/AIRecommendations'
+import { NutritionalCalculator } from '@/components/pos/NutritionalCalculator'
 import { GlobalNotifications } from '@/components/pos/GlobalNotifications'
 import GuestManager from '@/components/pos/GuestManager'
 import FoodCostCalculator from '@/components/pos/FoodCostCalculator'
@@ -89,6 +91,8 @@ const moduleComponents: Record<string, React.ComponentType> = {
   'tip-manager': TipManager,
   'wait-time': WaitTimeEstimator,
   'multi-location': MultiLocationDashboard,
+  'ai-recommendations': AIRecommendations,
+  'nutrition': NutritionalCalculator,
   settings: SettingsManager,
 }
 
