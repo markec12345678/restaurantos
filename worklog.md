@@ -84,3 +84,28 @@ Stage Summary:
 - Settings GET auth restored (was security hole)
 - TypeScript build clean (0 errors)
 - All commits pushed to GitHub: 8307a09
+---
+Task ID: integration-api-webhooks
+Agent: main
+Task: Implement Integration API + Webhooks system (#1 competitive priority)
+
+Work Log:
+- Analyzed existing webhook infrastructure (basic CRUD existed, no delivery engine)
+- Added 3 new Prisma models: WebhookDelivery, Integration, IntegrationLog
+- Created webhook-engine.ts: HMAC-SHA256 signing, exponential backoff retry (1min→3h), payload delivery, retry queue processor
+- Created event-emitter.ts: 22+ event types with typed payloads, helper functions for common events
+- Created Integration API routes: CRUD, test connection, sync, logs
+- Created 9 pre-built integration connectors: e-Računi, Datalab Pantheon, Spire ERP, Wolt, Glovo, Shopify, Mailchimp, Google Analytics, Slack
+- Created IntegrationManager.tsx: full UI with connector picker, test/sync buttons, status tracking
+- Extended WebhookManager event options from 6 to 22 types
+- Fixed testWebhook to actually send HTTP request (was just showing toast)
+- Added /api/integrations to auth-middleware ROUTE_PERMISSIONS
+- Added "Integrations" to Sidebar with Plug icon
+- Added i18n translations for all 5 languages (SL, EN, IT, HR, DE)
+- Pushed to GitHub successfully
+
+Stage Summary:
+- Integration API + Webhooks system fully implemented
+- Build passes, Prisma schema synced, all routes visible in build output
+- 9 connectors for Slovenian (e-Računi, Datalab) and international services
+- 22+ webhook event types covering orders, payments, receipts, stock, shifts, cash register, reservations, guests, loyalty, reports
