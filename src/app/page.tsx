@@ -28,6 +28,7 @@ import { ShiftManager } from '@/components/pos/ShiftManager'
 import { LocationManager } from '@/components/pos/LocationManager'
 import { SubscriptionManager } from '@/components/pos/SubscriptionManager'
 import { StaffScheduler } from '@/components/pos/StaffScheduler'
+import { StaffPerformance } from '@/components/pos/StaffPerformance'
 import { CoursePacing } from '@/components/pos/CoursePacing'
 import { MenuEngineeringMatrix } from '@/components/pos/MenuEngineeringMatrix'
 import { CustomerFeedback } from '@/components/pos/CustomerFeedback'
@@ -80,6 +81,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
   integrations: IntegrationManager,
   shifts: ShiftManager,
   'staff-schedule': StaffScheduler,
+  'staff-performance': StaffPerformance,
   'course-pacing': CoursePacing,
   'menu-engineering': MenuEngineeringMatrix,
   feedback: CustomerFeedback,

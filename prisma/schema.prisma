@@ -543,9 +543,10 @@ model Employee {
   // --- Toast: PIN za prijavo v POS ---
   pin       String   @default("") // 4-mestni PIN za hitro prijavo
   // --- Relations ---
-  shifts    Shift[]
-  jobs      EmployeeJob[]
-  timeEntries TimeEntry[]
+  shifts       Shift[]
+  staffShifts  StaffShift[]
+  jobs         EmployeeJob[]
+  timeEntries  TimeEntry[]
   // --- Multi-location ---
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
@@ -988,6 +989,7 @@ model Location {
   zReports        ZReport[]
   tipPools        TipPool[]
   deliveryTrackings DeliveryTracking[]
+  staffShifts      StaffShift[]
 
   @@index([code])
   @@index([isActive])
@@ -1126,6 +1128,47 @@ model AuditLog {
   @@index([timestamp])
   @@index([userId])
   @@index([action])
+}
+
+// ============================================
+// RAZPORED ZAPOLENIH / STAFF SHIFTS (7shifts + Toast standard)
+// Tedenski razpored z izmenami, pokritost, ure
+// ============================================
+
+model StaffShift {
+  id              String   @id @default(cuid())
+  // --- Zaposleni ---
+  employeeId      String
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  // --- Izmena ---
+  shiftDate       DateTime                     // Datum izmene
+  shiftType       String   @default("morning") // morning, afternoon, evening, night, split, custom
+  startTime       String                       // HH:mm format
+  endTime         String                       // HH:mm format
+  // --- Lokacija ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  // --- Vloga ---
+  role            String   @default("server")  // server, chef, bartender, host, manager, prep, dishwasher
+  // --- Opombe ---
+  notes           String   @default("")
+  // --- Status ---
+  status          String   @default("scheduled") // scheduled, confirmed, in_progress, completed, cancelled, no_show
+  confirmedAt     DateTime?
+  // --- Ure ---
+  actualStart     DateTime?
+  actualEnd       DateTime?
+  breakMinutes    Int      @default(0)
+  // --- Avtor ---
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([shiftDate])
+  @@index([locationId])
+  @@index([status])
+  @@index([shiftType])
 }
 
 // ============================================

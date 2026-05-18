@@ -54,6 +54,7 @@ import {
   HandCoins,
   Navigation,
   Timer,
+  Trophy,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore, useState, useEffect } from 'react'
@@ -90,6 +91,8 @@ const navItems = [
   { id: 'ai-forecast', labelKey: 'nav.ai-forecast', icon: Brain, adminOnly: true },
   { id: 'recipes', labelKey: 'nav.recipes', icon: BookOpen, adminOnly: true },
   { id: 'reservations', labelKey: 'nav.reservations', icon: Calendar, permission: 'take_orders' },
+  { id: 'staff-schedule', labelKey: 'nav.staffSchedule', icon: CalendarDays, permission: 'manage_employees' },
+  { id: 'staff-performance', labelKey: 'nav.staffPerformance', icon: Trophy, permission: 'view_reports' },
   { id: 'haccp', labelKey: 'nav.haccp', icon: ShieldCheck, adminOnly: true },
   { id: 'employees', labelKey: 'nav.employees', icon: Users, permission: 'manage_employees' },
   { id: 'menu-engineering', labelKey: 'nav.menuEngineering', icon: Target, adminOnly: true },
