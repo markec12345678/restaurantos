@@ -62,6 +62,8 @@
     "printers": "Tiskalniki",
     "webhooks": "Webhooks",
     "shifts": "Izmene",
+    "integrations": "Integracije",
+    "locations": "Lokacije",
     "settings": "Sistemske nastavitve"
   },
   "auth": {

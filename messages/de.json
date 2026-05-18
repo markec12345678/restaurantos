@@ -62,6 +62,8 @@
     "printers": "Drucker",
     "webhooks": "Webhooks",
     "shifts": "Schichten",
+    "integrations": "Integrationen",
+    "locations": "Standorte",
     "settings": "Systemeinstellungen"
   },
   "auth": {

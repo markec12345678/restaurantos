@@ -62,6 +62,8 @@
     "printers": "Pisači",
     "webhooks": "Webhooks",
     "shifts": "Smjene",
+    "integrations": "Integracije",
+    "locations": "Lokacije",
     "settings": "Sistemske postavke"
   },
   "auth": {

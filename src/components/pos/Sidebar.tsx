@@ -44,6 +44,7 @@ import {
   QrCode,
   Factory,
   Plug,
+  MapPin,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore, useState, useEffect } from 'react'
@@ -88,6 +89,7 @@ const navItems = [
   { id: 'printers', labelKey: 'nav.printers', icon: Printer, adminOnly: true },
   { id: 'webhooks', labelKey: 'nav.webhooks', icon: Webhook, adminOnly: true },
   { id: 'integrations', labelKey: 'nav.integrations', icon: Plug, adminOnly: true },
+  { id: 'locations', labelKey: 'nav.locations', icon: MapPin, adminOnly: true },
   { id: 'settings', labelKey: 'nav.settings', icon: Settings, adminOnly: true },
 ]
 

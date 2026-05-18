@@ -291,6 +291,8 @@ model Table {
   // --- Povezave ---
   revenueCenterId String?
   revenueCenter   RevenueCenter? @relation(fields: [revenueCenterId], references: [id], onDelete: SetNull)
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
   orders          Order[]
   reservations    Reservation[]
   createdAt       DateTime @default(now())
@@ -348,6 +350,9 @@ model Order {
   courses         Course[]
   checks          Check[]
   receipt         Receipt[]
+  // --- Multi-location ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
@@ -356,6 +361,7 @@ model Order {
   @@index([tableId])
   @@index([createdAt])
   @@index([paidAt]) // FIX: Index for financial/paidAt queries (EOD, VAT, financial reports)
+  @@index([locationId])
 }
 
 model OrderItem {
@@ -540,12 +546,16 @@ model Employee {
   shifts    Shift[]
   jobs      EmployeeJob[]
   timeEntries TimeEntry[]
+  // --- Multi-location ---
+  locationId String?
+  location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([role])
   @@index([pin])
+  @@index([locationId])
 }
 
 model Job {
@@ -657,6 +667,9 @@ model CashRegisterShift {
   totalVoided       Float    @default(0)       // Skupaj poničenih zneskov
   cashDifference    Float    @default(0)       // Razlika (dejansko - pričakovano)
   notes             String   @default("")      // Opombe ob zaključku
+  // --- Multi-location ---
+  locationId        String?
+  location          Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -689,12 +702,16 @@ model InventoryItem {
   transactions    StockTransaction[]
   recipeItems     RecipeItem[]
   purchaseOrderItems PurchaseOrderItem[]
+  // --- Multi-location ---
+  locationId      String?
+  locationRel     Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   @@index([expiryDate])
   @@index([name])
   @@index([category])
+  @@index([locationId])
   @@index([supplier])
   @@index([location])
   @@index([quantity])
@@ -916,6 +933,57 @@ model RestaurantSettings {
 }
 
 // ============================================
+// LOKACIJE (Multi-location podpora)
+// Omogoča upravljanje več restavracij/poslovnih enot
+// ============================================
+
+model Location {
+  id              String   @id @default(cuid())
+  name            String                             // "Glavna restavracija", "Filiala Ljubljana", "Pop-up Maribor"
+  code            String   @unique                    // Kratka koda: "HQ", "LJU", "MB"
+  type            String   @default("restaurant")     // restaurant, food_truck, pop_up, cloud_kitchen, bar
+  address         String   @default("")
+  city            String   @default("")
+  postCode        String   @default("")
+  country         String   @default("SI")
+  phone           String   @default("")
+  email           String   @default("")
+  // --- Poslovni podatki (lahko se razlikujejo od matične družbe) ---
+  businessId      String   @default("")               // Matična št. za to lokacijo (lahko enaka kot matična)
+  taxId           String   @default("")               // DDV ID za to lokacijo
+  registerNumber  String   @default("")               // Blagajna za to lokacijo
+  premisesId      String   @default("")               // ID poslovnega prostora za FURS
+  // --- FURS certifikat (lokalen za lokacijo) ---
+  fursCertPath    String   @default("")
+  fursCertPassword String  @default("")
+  fursEnvironment String   @default("test")
+  // --- Nastavitve ---
+  timezone        String   @default("Europe/Ljubljana")
+  currency        String   @default("EUR")
+  locale          String   @default("sl-SI")
+  isOpen          Boolean  @default(false)            // Ali je lokacija trenutno odprta
+  isActive        Boolean  @default(true)
+  // --- Koordinate ---
+  latitude        Float?
+  longitude       Float?
+  // --- Metapodatki ---
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relacije
+  tables          Table[]
+  orders          Order[]
+  inventoryItems  InventoryItem[]
+  employees       Employee[]
+  cashShifts      CashRegisterShift[]
+  reservations    Reservation[]
+
+  @@index([code])
+  @@index([isActive])
+  @@index([type])
+}
+
+// ============================================
 // HACCP DNEVNIKI
 // ============================================
 
@@ -1017,6 +1085,9 @@ model Reservation {
   // --- Obisk ---
   actualArrival   DateTime?
   actualDeparture DateTime?
+  // --- Multi-location ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

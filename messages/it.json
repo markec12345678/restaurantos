@@ -62,6 +62,8 @@
     "printers": "Stampanti",
     "webhooks": "Webhooks",
     "shifts": "Turni",
+    "integrations": "Integrazioni",
+    "locations": "Sedi",
     "settings": "Impostazioni di sistema"
   },
   "auth": {

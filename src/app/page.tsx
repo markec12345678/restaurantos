@@ -25,6 +25,7 @@ import { PrinterManager } from '@/components/pos/PrinterManager'
 import { WebhookManager } from '@/components/pos/WebhookManager'
 import { IntegrationManager } from '@/components/pos/IntegrationManager'
 import { ShiftManager } from '@/components/pos/ShiftManager'
+import { LocationManager } from '@/components/pos/LocationManager'
 import { VisualFloorPlan } from '@/components/pos/VisualFloorPlan'
 import { AIForecastDashboard } from '@/components/pos/AIForecastDashboard'
 import { GlobalNotifications } from '@/components/pos/GlobalNotifications'
@@ -65,6 +66,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
   webhooks: WebhookManager,
   integrations: IntegrationManager,
   shifts: ShiftManager,
+  locations: LocationManager,
   settings: SettingsManager,
 }
 
