@@ -62,6 +62,10 @@ import {
   BellRing,
   PieChart,
   Activity,
+  Table2,
+  CookingPot,
+  Scale,
+  Star,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore, useState, useEffect } from 'react'
@@ -133,6 +137,10 @@ const navItems = [
   { id: 'customer-timeline', labelKey: 'nav.customerTimeline', icon: UserCircle, permission: 'take_orders' },
   { id: 'shift-overview', labelKey: 'nav.shiftOverview', icon: Activity, permission: 'manage_employees' },
   { id: 'profit-loss', labelKey: 'nav.profitLoss', icon: PieChart, permission: 'view_reports' },
+  { id: 'table-reservation-sync', labelKey: 'nav.tableReservationSync', icon: Table2, permission: 'take_orders' },
+  { id: 'kitchen-stations', labelKey: 'nav.kitchenStations', icon: CookingPot, permission: 'take_orders' },
+  { id: 'tax-report', labelKey: 'nav.taxReport', icon: Scale, permission: 'view_reports' },
+  { id: 'vendor-scorecard', labelKey: 'nav.vendorScorecard', icon: Star, adminOnly: true },
   { id: 'settings', labelKey: 'nav.settings', icon: Settings, adminOnly: true },
 ]
 

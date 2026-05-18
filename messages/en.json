@@ -689,5 +689,9 @@
   "nav.inventoryAlerts": "Inventory Alerts",
   "nav.customerTimeline": "CRM Timeline",
   "nav.shiftOverview": "Shift Overview",
-  "nav.profitLoss": "P&L Report"
+  "nav.profitLoss": "P&L Report",
+  "nav.tableReservationSync": "Tables ↔ Reservations",
+  "nav.kitchenStations": "Kitchen Stations",
+  "nav.taxReport": "Tax Report",
+  "nav.vendorScorecard": "Vendor Scorecards"
 }

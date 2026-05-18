@@ -689,5 +689,9 @@
   "nav.inventoryAlerts": "Alarmi zaliha",
   "nav.customerTimeline": "CRM vremenska crta",
   "nav.shiftOverview": "Pregled smjena",
-  "nav.profitLoss": "P&L Izvještaj"
+  "nav.profitLoss": "P&L Izvještaj",
+  "nav.tableReservationSync": "Stolovi ↔ Rezervacije",
+  "nav.kitchenStations": "Kuhinjske postaje",
+  "nav.taxReport": "Porezno izvješće",
+  "nav.vendorScorecard": "Ocjene dobavljača"
 }

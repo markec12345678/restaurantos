@@ -689,5 +689,9 @@
   "nav.inventoryAlerts": "Bestandswarnungen",
   "nav.customerTimeline": "CRM-Zeitleiste",
   "nav.shiftOverview": "Schichtübersicht",
-  "nav.profitLoss": "G&V-Bericht"
+  "nav.profitLoss": "G&V-Bericht",
+  "nav.tableReservationSync": "Tische ↔ Reservierungen",
+  "nav.kitchenStations": "Küchenstationen",
+  "nav.taxReport": "Steuerbericht",
+  "nav.vendorScorecard": "Lieferantenbewertung"
 }

@@ -54,6 +54,10 @@ import { InventoryAlerts } from '@/components/pos/InventoryAlerts'
 import { CustomerTimeline } from '@/components/pos/CustomerTimeline'
 import { ShiftOverview } from '@/components/pos/ShiftOverview'
 import { ProfitLossReport } from '@/components/pos/ProfitLossReport'
+import { TableReservationSync } from '@/components/pos/TableReservationSync'
+import { KitchenStationManager } from '@/components/pos/KitchenStationManager'
+import { TaxReport } from '@/components/pos/TaxReport'
+import { VendorScorecard } from '@/components/pos/VendorScorecard'
 import GuestManager from '@/components/pos/GuestManager'
 import FoodCostCalculator from '@/components/pos/FoodCostCalculator'
 import WaitlistManager from '@/components/pos/WaitlistManager'
@@ -117,6 +121,10 @@ const moduleComponents: Record<string, React.ComponentType> = {
   'customer-timeline': CustomerTimeline,
   'shift-overview': ShiftOverview,
   'profit-loss': ProfitLossReport,
+  'table-reservation-sync': TableReservationSync,
+  'kitchen-stations': KitchenStationManager,
+  'tax-report': TaxReport,
+  'vendor-scorecard': VendorScorecard,
   settings: SettingsManager,
 }
 
