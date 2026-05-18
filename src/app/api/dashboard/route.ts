@@ -270,7 +270,7 @@ export async function GET(req: Request) {
 
   // 11. Guest frequency (povratni gostje)
   const repeatGuests = await db.guest.count({
-    where: { visitCount: { gt: 1 } },
+    where: { totalVisits: { gt: 1 } },
   })
   const totalGuests = await db.guest.count()
   const guestReturnRate = totalGuests > 0 ? (repeatGuests / totalGuests) * 100 : 0

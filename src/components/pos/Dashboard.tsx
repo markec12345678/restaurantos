@@ -6,13 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { DollarSign, ShoppingBag, Calculator, BarChartBig, Clock, ArrowRight, ChefHat, Users, TrendingUp, Receipt, Truck, Package, AlertTriangle, XCircle, Shield, Wallet, CreditCard, Banknote, PiggyBank } from 'lucide-react'
+import { DollarSign, ShoppingBag, Calculator, BarChartBig, Clock, ArrowRight, ChefHat, Users, TrendingUp, Receipt, Truck, Package, AlertTriangle, XCircle, Shield, Wallet, CreditCard, Banknote, PiggyBank, TrendingDown, ArrowUpRight, ArrowDownRight, Flame, UserCheck, CalendarDays } from 'lucide-react'
 import { usePOSStore } from '@/lib/store'
 import { format } from 'date-fns'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts'
+import { sl } from 'date-fns/locale'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts'
 import { authFetch } from '@/components/pos/PinLogin'
 
 const PIE_COLORS = ['#f59e0b', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16']
+const DAY_NAMES = ['Pon', 'Tor', 'Sre', 'Čet', 'Pet', 'Sob', 'Ned']
 
 export function Dashboard() {
   const { setActiveModule } = usePOSStore()
@@ -49,6 +51,24 @@ export function Dashboard() {
   }
   const typeLabels: Record<string, string> = { 'dine-in': 'Na mestu', takeout: 'Za s seboj', delivery: 'Dostava' }
 
+  // WoW comparison data
+  const wow = data?.wowComparison
+  const heatmapData = data?.heatmapData || []
+  const guestAnalytics = data?.guestAnalytics
+
+  // Compute heatmap max for color scaling
+  const heatmapMax = Math.max(...heatmapData.map((h: { revenue: number }) => h.revenue), 1)
+
+  // Build WoW chart data
+  const wowChartData = (wow?.thisWeekDaily || []).map((d: { date: string; revenue: number; orders: number }, idx: number) => {
+    const lastWeekDay = wow?.lastWeekDaily?.[idx]
+    return {
+      day: DAY_NAMES[idx] || format(new Date(d.date), 'EEE'),
+      'Ta teden': d.revenue,
+      'Prejšnji teden': lastWeekDay?.revenue || 0,
+    }
+  })
+
   return (
     <div className="space-y-6 overflow-y-auto h-full p-1 custom-scrollbar">
       <div>
@@ -65,6 +85,89 @@ export function Dashboard() {
         <StatsCard title="Bruto dobiček" value={`€${(data?.grossProfit || 0).toFixed(2)}`} subtitle={data?.grossMargin > 0 ? `Marža: ${data.grossMargin}%` : undefined} icon={PiggyBank} trend={data?.grossMargin > 50 ? 'up' : 'down'} />
         <StatsCard title="FURS overjeno" value={data?.fursStatus?.todayVerified || 0} subtitle={data?.fursStatus?.todayUnverified > 0 ? `${data.fursStatus.todayUnverified} brez overjanja` : 'Vse overjeno'} icon={Shield} trend={data?.fursStatus?.todayUnverified === 0 ? 'up' : 'down'} />
       </div>
+
+      {/* ═══════════════════════════════════════════════════════════
+          WEEK-OVER-WEEK COMPARISON — Nova napredna analitika
+          ═══════════════════════════════════════════════════════════ */}
+      <Card className="border-primary/20">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <CalendarDays className="h-4 w-4 text-primary" />
+            Primerjava s prejšnjim tednom (WoW)
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            {/* Revenue WoW */}
+            <div className="p-3 rounded-lg bg-muted/50">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted-foreground font-medium">Prihodek</span>
+                {(wow?.changes?.revenue || 0) >= 0 ? (
+                  <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 text-[10px]">
+                    <ArrowUpRight className="h-3 w-3 mr-0.5" />+{(wow?.changes?.revenue || 0).toFixed(1)}%
+                  </Badge>
+                ) : (
+                  <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 text-[10px]">
+                    <ArrowDownRight className="h-3 w-3 mr-0.5" />{(wow?.changes?.revenue || 0).toFixed(1)}%
+                  </Badge>
+                )}
+              </div>
+              <p className="text-lg font-bold">€{(wow?.thisWeek?.revenue || 0).toFixed(2)}</p>
+              <p className="text-[10px] text-muted-foreground">Prejšnji teden: €{(wow?.lastWeek?.revenue || 0).toFixed(2)}</p>
+            </div>
+            {/* Orders WoW */}
+            <div className="p-3 rounded-lg bg-muted/50">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted-foreground font-medium">Naročila</span>
+                {(wow?.changes?.orders || 0) >= 0 ? (
+                  <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 text-[10px]">
+                    <ArrowUpRight className="h-3 w-3 mr-0.5" />+{(wow?.changes?.orders || 0).toFixed(1)}%
+                  </Badge>
+                ) : (
+                  <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 text-[10px]">
+                    <ArrowDownRight className="h-3 w-3 mr-0.5" />{(wow?.changes?.orders || 0).toFixed(1)}%
+                  </Badge>
+                )}
+              </div>
+              <p className="text-lg font-bold">{wow?.thisWeek?.orders || 0}</p>
+              <p className="text-[10px] text-muted-foreground">Prejšnji teden: {wow?.lastWeek?.orders || 0}</p>
+            </div>
+            {/* Avg Order WoW */}
+            <div className="p-3 rounded-lg bg-muted/50">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted-foreground font-medium">Povpr. naročilo</span>
+                {(wow?.changes?.avgOrder || 0) >= 0 ? (
+                  <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 text-[10px]">
+                    <ArrowUpRight className="h-3 w-3 mr-0.5" />+{(wow?.changes?.avgOrder || 0).toFixed(1)}%
+                  </Badge>
+                ) : (
+                  <Badge className="bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 text-[10px]">
+                    <ArrowDownRight className="h-3 w-3 mr-0.5" />{(wow?.changes?.avgOrder || 0).toFixed(1)}%
+                  </Badge>
+                )}
+              </div>
+              <p className="text-lg font-bold">€{(wow?.thisWeek?.avgOrder || 0).toFixed(2)}</p>
+              <p className="text-[10px] text-muted-foreground">Prejšnji teden: €{(wow?.lastWeek?.avgOrder || 0).toFixed(2)}</p>
+            </div>
+          </div>
+          {/* WoW daily chart */}
+          {wowChartData.length > 0 && (
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={wowChartData} barGap={4}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="day" tick={{ fontSize: 12 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
+                  <Tooltip formatter={(value: number, name: string) => [`€${value.toFixed(2)}`, name]} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="Ta teden" fill="oklch(0.7 0.15 55)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Prejšnji teden" fill="oklch(0.6 0.1 250)" radius={[4, 4, 0, 0]} opacity={0.6} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Aktivna izmena + FURS status */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -181,6 +284,82 @@ export function Dashboard() {
         </Card>
       </div>
 
+      {/* ═══════════════════════════════════════════════════════════
+          REVENUE HEATMAP — Toplotna karta prometa
+          ═══════════════════════════════════════════════════════════ */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Flame className="h-4 w-4 text-orange-500" />
+            Toplotna karta prometa (zadnje 4 tedne)
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">Temnejša barva = večji prihodek. Pomaga pri razporedu osebja za vršne ure.</p>
+        </CardHeader>
+        <CardContent>
+          {heatmapData.length > 0 ? (
+            <div className="overflow-x-auto">
+              <div className="min-w-[640px]">
+                {/* Header row - hours */}
+                <div className="flex items-center mb-1">
+                  <div className="w-12 flex-shrink-0" />
+                  {Array.from({ length: 18 }, (_, h) => h + 6).map(hour => (
+                    <div key={hour} className="flex-1 text-center text-[9px] text-muted-foreground font-mono">
+                      {hour}
+                    </div>
+                  ))}
+                </div>
+                {/* Data rows - days */}
+                {DAY_NAMES.map((dayName, dayIdx) => (
+                  <div key={dayIdx} className="flex items-center mb-0.5">
+                    <div className="w-12 flex-shrink-0 text-[10px] font-medium text-muted-foreground pr-2">{dayName}</div>
+                    {Array.from({ length: 18 }, (_, h) => h + 6).map(hour => {
+                      const cell = heatmapData.find((c: { day: number; hour: number }) => c.day === dayIdx && c.hour === hour)
+                      const rev = cell?.revenue || 0
+                      const intensity = Math.min(rev / heatmapMax, 1)
+                      const bgColor = intensity === 0
+                        ? 'bg-muted/30'
+                        : intensity < 0.25
+                          ? 'bg-orange-200 dark:bg-orange-900/30'
+                          : intensity < 0.5
+                            ? 'bg-orange-400 dark:bg-orange-800/50'
+                            : intensity < 0.75
+                              ? 'bg-orange-500 dark:bg-orange-700/60'
+                              : 'bg-orange-700 dark:bg-orange-600/80'
+                      return (
+                        <div key={hour} className="flex-1 px-0.5">
+                          <div
+                            className={`h-6 rounded-sm ${bgColor} flex items-center justify-center text-[8px] font-bold ${intensity > 0.5 ? 'text-white' : 'text-foreground'}`}
+                            title={`${dayName} ${hour}:00 — €${rev.toFixed(2)} (${cell?.orders || 0} naročil)`}
+                          >
+                            {rev > 0 ? `€${Math.round(rev)}` : ''}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))}
+                {/* Legend */}
+                <div className="flex items-center justify-end gap-2 mt-2 text-[9px] text-muted-foreground">
+                  <span>Nizko</span>
+                  <div className="flex gap-0.5">
+                    <div className="w-4 h-3 rounded-sm bg-muted/30" />
+                    <div className="w-4 h-3 rounded-sm bg-orange-200 dark:bg-orange-900/30" />
+                    <div className="w-4 h-3 rounded-sm bg-orange-400 dark:bg-orange-800/50" />
+                    <div className="w-4 h-3 rounded-sm bg-orange-500 dark:bg-orange-700/60" />
+                    <div className="w-4 h-3 rounded-sm bg-orange-700 dark:bg-orange-600/80" />
+                  </div>
+                  <span>Visoko</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-32 text-muted-foreground text-sm">
+              Za toplotno karto potrebujemo vsaj 1 teden podatkov
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Hourly Revenue + Order Type + DDV */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Hourly Revenue */}
@@ -261,7 +440,7 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Recent Orders + Quick Actions + Top Items */}
+      {/* Recent Orders + Top Items + Guest Analytics */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-1">
           <CardHeader className="pb-2">
@@ -326,32 +505,57 @@ export function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Quick Actions */}
+        {/* ═══ Guest Analytics ═══ */}
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Hitri dostop</CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <UserCheck className="h-4 w-4 text-primary" />
+              Analitika gostov
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <Button className="w-full justify-start gap-2" onClick={() => setActiveModule('orders')}>
-              <ShoppingBag className="h-4 w-4" /> Novo naročilo <ArrowRight className="h-3 w-3 ml-auto" />
-            </Button>
-            <Button variant="outline" className="w-full justify-start gap-2" onClick={() => setActiveModule('kitchen')}>
-              <ChefHat className="h-4 w-4" /> Kuhinjski zaslon <ArrowRight className="h-3 w-3 ml-auto" />
-            </Button>
-            <Button variant="outline" className="w-full justify-start gap-2" onClick={() => setActiveModule('tables')}>
-              <BarChartBig className="h-4 w-4" /> Pregled miz <ArrowRight className="h-3 w-3 ml-auto" />
-            </Button>
-            <Button variant="outline" className="w-full justify-start gap-2" onClick={() => setActiveModule('delivery')}>
-              <Truck className="h-4 w-4" /> Dostava <ArrowRight className="h-3 w-3 ml-auto" />
-            </Button>
-            <Button variant="outline" className="w-full justify-start gap-2" onClick={() => setActiveModule('employees')}>
-              <Users className="h-4 w-4" /> Zaposleni <ArrowRight className="h-3 w-3 ml-auto" />
-            </Button>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                <div>
+                  <p className="text-xs text-muted-foreground">Skupno gostov</p>
+                  <p className="text-lg font-bold">{guestAnalytics?.totalGuests || 0}</p>
+                </div>
+                <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <Users className="h-5 w-5 text-blue-600" />
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                <div>
+                  <p className="text-xs text-muted-foreground">Povratni gostje</p>
+                  <p className="text-lg font-bold">{guestAnalytics?.repeatGuests || 0}</p>
+                </div>
+                <div className="h-10 w-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                  <TrendingUp className="h-5 w-5 text-emerald-600" />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium">Stopnja povratka</span>
+                  <span className={`font-bold ${(guestAnalytics?.guestReturnRate || 0) >= 30 ? 'text-emerald-600' : (guestAnalytics?.guestReturnRate || 0) >= 15 ? 'text-amber-600' : 'text-red-600'}`}>
+                    {(guestAnalytics?.guestReturnRate || 0).toFixed(1)}%
+                  </span>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${(guestAnalytics?.guestReturnRate || 0) >= 30 ? 'bg-emerald-500' : (guestAnalytics?.guestReturnRate || 0) >= 15 ? 'bg-amber-500' : 'bg-red-500'}`}
+                    style={{ width: `${Math.min(100, guestAnalytics?.guestReturnRate || 0)}%` }}
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  {(guestAnalytics?.guestReturnRate || 0) >= 30 ? 'Odlična zvestoba gostov!' : (guestAnalytics?.guestReturnRate || 0) >= 15 ? 'Solidna stopnja povratka' : 'Priložnost za izboljšavo zvestobe'}
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Low Stock Alerts — Izboljšan Stock Health */}
+      {/* Low Stock Alerts + Kitchen Display */}
       <Card className={`${(data?.lowStockItems?.length || 0) > 0 ? 'border-red-200 dark:border-red-900/50' : 'border-emerald-200 dark:border-emerald-900/50'}`}>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
@@ -367,7 +571,6 @@ export function Dashboard() {
         <CardContent>
           {(data?.lowStockItems?.length || 0) > 0 ? (
             <div className="space-y-2">
-              {/* Kritično — brez zaloge */}
               {data.lowStockItems.filter((i: { quantity: number }) => i.quantity <= 0).length > 0 && (
                 <div className="space-y-1.5">
                   <p className="text-xs font-semibold text-red-600 flex items-center gap-1"><XCircle className="h-3 w-3" /> Ni na zalogi</p>
@@ -380,7 +583,6 @@ export function Dashboard() {
                   </div>
                 </div>
               )}
-              {/* Nizka zaloga */}
               {data.lowStockItems.filter((i: { quantity: number }) => i.quantity > 0).length > 0 && (
                 <div className="space-y-1.5">
                   <p className="text-xs font-semibold text-amber-600 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Nizka zaloga</p>
