@@ -35,6 +35,7 @@ import { AllergenMatrix } from '@/components/pos/AllergenMatrix'
 import { TableTurnoverAnalytics } from '@/components/pos/TableTurnoverAnalytics'
 import { ExpenseTracker } from '@/components/pos/ExpenseTracker'
 import { DailyChecklist } from '@/components/pos/DailyChecklist'
+import { EndOfDayManager } from '@/components/pos/EndOfDayManager'
 import { CoursePacing } from '@/components/pos/CoursePacing'
 import { MenuEngineeringMatrix } from '@/components/pos/MenuEngineeringMatrix'
 import { CustomerFeedback } from '@/components/pos/CustomerFeedback'
@@ -94,6 +95,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
   'table-turnover': TableTurnoverAnalytics,
   'expenses': ExpenseTracker,
   'daily-checklist': DailyChecklist,
+  'end-of-day': EndOfDayManager,
   'course-pacing': CoursePacing,
   'menu-engineering': MenuEngineeringMatrix,
   feedback: CustomerFeedback,

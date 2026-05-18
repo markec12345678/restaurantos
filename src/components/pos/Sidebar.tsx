@@ -103,6 +103,7 @@ const navItems = [
   { id: 'table-turnover', labelKey: 'nav.tableTurnover', icon: LayoutGrid, permission: 'view_reports' },
   { id: 'expenses', labelKey: 'nav.expenses', icon: Receipt, permission: 'view_reports' },
   { id: 'daily-checklist', labelKey: 'nav.dailyChecklist', icon: ClipboardCheck, permission: 'take_orders' },
+  { id: 'end-of-day', labelKey: 'nav.endOfDay', icon: FileText, permission: 'manage_cash' },
   { id: 'haccp', labelKey: 'nav.haccp', icon: ShieldCheck, adminOnly: true },
   { id: 'employees', labelKey: 'nav.employees', icon: Users, permission: 'manage_employees' },
   { id: 'menu-engineering', labelKey: 'nav.menuEngineering', icon: Target, adminOnly: true },

@@ -119,6 +119,7 @@ const PUBLIC_GET_ROUTES = [
   '/api/public',          // Javne rute za QR naročanje
   '/api/qr-menu',         // Javni meni za QR
   '/api/digital-receipt', // Javni digitalni račun za goste (QR link)
+  '/api/feedback-public', // Javni API za mnenja gostov (QR kiosk)
 ]
 
 // Zahtevana dovoljenja za posamezne rute
@@ -185,6 +186,7 @@ function isPublicRoute(pathname: string): boolean {
   // /api/auth je izjema — login POST je dovoljen brez tokena
   if (pathname.startsWith('/api/auth')) return true
   if (pathname.startsWith('/api/public')) return true
+  if (pathname.startsWith('/api/feedback-public')) return true // Javni QR kiosk za mnenja
   return PUBLIC_GET_ROUTES.some(route => pathname.startsWith(route))
 }
 
