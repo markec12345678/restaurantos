@@ -23,6 +23,7 @@ import { GiftCardManager } from '@/components/pos/GiftCardManager'
 import { LoyaltyManager } from '@/components/pos/LoyaltyManager'
 import { PrinterManager } from '@/components/pos/PrinterManager'
 import { WebhookManager } from '@/components/pos/WebhookManager'
+import { IntegrationManager } from '@/components/pos/IntegrationManager'
 import { ShiftManager } from '@/components/pos/ShiftManager'
 import { VisualFloorPlan } from '@/components/pos/VisualFloorPlan'
 import { AIForecastDashboard } from '@/components/pos/AIForecastDashboard'
@@ -62,6 +63,7 @@ const moduleComponents: Record<string, React.ComponentType> = {
   loyalty: LoyaltyManager,
   printers: PrinterManager,
   webhooks: WebhookManager,
+  integrations: IntegrationManager,
   shifts: ShiftManager,
   settings: SettingsManager,
 }

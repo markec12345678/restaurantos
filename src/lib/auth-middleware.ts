@@ -170,6 +170,7 @@ const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/api/menu-items': ['take_orders'],
   '/api/modifier-groups': ['take_orders'],
   '/api/configuration': ['admin'],
+  '/api/integrations': ['admin'],            // Integration API — povezave z zunanjimi sistemi
 }
 
 /**

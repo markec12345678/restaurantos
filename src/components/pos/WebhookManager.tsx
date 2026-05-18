@@ -43,12 +43,38 @@ interface WebhookItem {
 // ============================================
 
 const eventOptions = [
+  // Naročila
   { value: 'order.created', label: 'Naročilo ustvarjeno', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
+  { value: 'order.updated', label: 'Naročilo posodobljeno', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
   { value: 'order.paid', label: 'Naročilo plačano', color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' },
   { value: 'order.ready', label: 'Naročilo pripravljeno', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' },
-  { value: 'stock.low', label: 'Zaloga nizka', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
-  { value: 'shift.started', label: 'Izmena začeta', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' },
+  { value: 'order.cancelled', label: 'Naročilo preklicano', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
+  { value: 'order.delivered', label: 'Naročilo dostavljeno', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
+  // Plačila
   { value: 'payment.received', label: 'Plačilo prejeto', color: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400' },
+  { value: 'payment.refunded', label: 'Plačilo vračano', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' },
+  // Računi
+  { value: 'receipt.created', label: 'Račun ustvarjen', color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400' },
+  { value: 'receipt.fiscal_verified', label: 'Račun davčno potrjen', color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400' },
+  // Zaloga
+  { value: 'stock.low', label: 'Zaloga nizka', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
+  { value: 'stock.critical', label: 'Zaloga kritična', color: 'bg-red-200 text-red-900 dark:bg-red-900/50 dark:text-red-300' },
+  { value: 'stock.restocked', label: 'Zaloga dopolnjena', color: 'bg-lime-100 text-lime-800 dark:bg-lime-900/30 dark:text-lime-400' },
+  // Izrene
+  { value: 'shift.started', label: 'Izmena začeta', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' },
+  { value: 'shift.ended', label: 'Izmena končana', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' },
+  // Blagajna
+  { value: 'cash_register.opened', label: 'Blagajna odprta', color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400' },
+  { value: 'cash_register.closed', label: 'Blagajna zaprta', color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400' },
+  // Rezervacije
+  { value: 'reservation.created', label: 'Rezervacija ustvarjena', color: 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400' },
+  { value: 'reservation.cancelled', label: 'Rezervacija preklicana', color: 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-400' },
+  // Gosti
+  { value: 'guest.created', label: 'Gost ustvarjen', color: 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400' },
+  { value: 'loyalty.tier_upgraded', label: 'Zvestobni nivo nadgrajen', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' },
+  // Poročila
+  { value: 'daily_report.ready', label: 'Dnevno poročilo pripravljeno', color: 'bg-slate-100 text-slate-800 dark:bg-slate-900/30 dark:text-slate-400' },
+  { value: 'integration.sync_failed', label: 'Sinhronizacija neuspešna', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
 ]
 
 function getEventConfig(value: string) {
@@ -231,8 +257,21 @@ export function WebhookManager() {
     }))
   }
 
-  const testWebhook = (item: WebhookItem) => {
-    toast.success(`Testni webhook poslan na ${item.url}`, { description: 'Preverite dnevnik strežnika za odziv' })
+  const testWebhook = async (item: WebhookItem) => {
+    try {
+      const res = await authFetch('/api/webhooks/test', {
+        method: 'POST',
+        body: JSON.stringify({ url: item.url, secret: item.secret }),
+      })
+      const result = await res.json()
+      if (result.success) {
+        toast.success(`Testni webhook uspešno dostavljen`, { description: `HTTP ${result.statusCode} — ${result.durationMs}ms` })
+      } else {
+        toast.error(`Testni webhook ni uspel`, { description: `HTTP ${result.statusCode || 'timeout'} — ${result.responseBody || 'Ni odziva'}` })
+      }
+    } catch {
+      toast.error('Napaka pri pošiljanju testnega webhooka')
+    }
   }
 
   // ============================================

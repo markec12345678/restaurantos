@@ -1325,3 +1325,93 @@ model HappyHourSchedule {
   @@index([isActive])
   @@index([priceGroupId])
 }
+
+// ============================================
+// WEBHOOK DOBAVOSLOV (sledenje dostav in ponovnih poskusov)
+// ============================================
+
+model WebhookDelivery {
+  id              String   @id @default(cuid())
+  webhookId       String   // Povezava na webhook
+  event           String   // "order.created", "payment.received", itd.
+  payload         String   @default("{}") // JSON payload poslan na endpoint
+  // --- Odziv ---
+  statusCode      Int      @default(0) // HTTP status code (200 = uspeh)
+  responseBody    String   @default("") // Prvih 1000 znakov odziva
+  success         Boolean  @default(false)
+  // --- Ponovni poskusi ---
+  attemptCount    Int      @default(1) // Trenutno število poskusov
+  maxAttempts     Int      @default(5) // Maksimalno poskusov (1, 2, 5, 10, 30 min)
+  nextRetryAt     DateTime? // Kdaj poskusiti znova
+  // --- Podpisovanje ---
+  signature       String   @default("") // HMAC-SHA256 podpis payloada
+  // --- Časovni žig ---
+  deliveredAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([webhookId])
+  @@index([event])
+  @@index([success])
+  @@index([createdAt])
+  @@index([nextRetryAt])
+}
+
+// ============================================
+// INTEGRACIJE (povezave z zunanjimi sistemi)
+// e-Računi, računovodstvo, dostava, CRM, itd.
+// ============================================
+
+model Integration {
+  id              String   @id @default(cuid())
+  name            String   // "e-Računi", "Spire ERP", "Wolt Dostava"
+  type            String   // eracuni, accounting, delivery, crm, ecommerce, analytics, custom
+  provider        String   // "eracuni", "spire", "datalab", "wolt", "glovo", "custom"
+  // --- Povezava ---
+  baseUrl         String   @default("") // API URL ponudnika
+  apiKey          String   @default("") // Šifriran API ključ
+  apiSecret       String   @default("") // Šifriran API skrivnost
+  config          String   @default("{}") // JSON: dodatne nastavitve (podjetje_id, mapa_id, itd.)
+  // --- Sinhronizacija ---
+  syncEnabled     Boolean  @default(true)
+  syncInterval    Int      @default(300) // Sekunde med sinhronizacijami (5 min privzeto)
+  lastSyncAt      DateTime?
+  lastSyncStatus  String   @default("") // success, error, partial
+  lastSyncError   String   @default("")
+  // --- Dogodki, ki sprožijo sinhronizacijo ---
+  events          String   @default("[]") // JSON: ["order.paid", "receipt.created", "daily.close"]
+  // --- Status ---
+  isActive        Boolean  @default(true)
+  connectionStatus String  @default("disconnected") // connected, disconnected, error
+  // --- Dnevnik ---
+  logs            IntegrationLog[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([type])
+  @@index([provider])
+  @@index([isActive])
+  @@index([connectionStatus])
+}
+
+model IntegrationLog {
+  id              String     @id @default(cuid())
+  integrationId   String
+  integration     Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  // --- Podatki ---
+  action          String     // "sync_invoice", "push_order", "fetch_delivery_status"
+  direction       String     @default("outbound") // outbound (pošiljamo), inbound (prejemamo)
+  // --- Status ---
+  status          String     @default("pending") // pending, success, error, timeout
+  statusCode      Int        @default(0) // HTTP status code
+  requestData     String     @default("{}") // JSON: poslani podatki
+  responseData    String     @default("{}") // JSON: prejeti odziv
+  errorMessage    String     @default("")
+  // --- Čas ---
+  durationMs      Int        @default(0) // Trajanje v ms
+  createdAt       DateTime   @default(now())
+
+  @@index([integrationId])
+  @@index([action])
+  @@index([status])
+  @@index([createdAt])
+}

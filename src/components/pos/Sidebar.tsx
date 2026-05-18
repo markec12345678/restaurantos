@@ -43,6 +43,7 @@ import {
   ClipboardList,
   QrCode,
   Factory,
+  Plug,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore, useState, useEffect } from 'react'
@@ -86,6 +87,7 @@ const navItems = [
   { id: 'loyalty', labelKey: 'nav.loyalty', icon: Award, permission: 'take_orders' },
   { id: 'printers', labelKey: 'nav.printers', icon: Printer, adminOnly: true },
   { id: 'webhooks', labelKey: 'nav.webhooks', icon: Webhook, adminOnly: true },
+  { id: 'integrations', labelKey: 'nav.integrations', icon: Plug, adminOnly: true },
   { id: 'settings', labelKey: 'nav.settings', icon: Settings, adminOnly: true },
 ]
 

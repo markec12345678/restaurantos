@@ -88,6 +88,7 @@ const sl: Record<string, string> = {
   'nav.loyalty': 'Zvestoba',
   'nav.printers': 'Tiskalniki',
   'nav.webhooks': 'Webhooki',
+  'nav.integrations': 'Integracije',
   'nav.shifts': 'Izmene',
   'nav.settings': 'Nastavitve',
 
@@ -332,6 +333,7 @@ const en: Record<string, string> = {
   'nav.loyalty': 'Loyalty',
   'nav.printers': 'Printers',
   'nav.webhooks': 'Webhooks',
+  'nav.integrations': 'Integrations',
   'nav.shifts': 'Shifts',
   'nav.settings': 'Settings',
 
@@ -562,6 +564,7 @@ const it: Record<string, string> = {
   'nav.loyalty': 'Fedeltà',
   'nav.printers': 'Stampanti',
   'nav.webhooks': 'Webhook',
+  'nav.integrations': 'Integrazioni',
   'nav.shifts': 'Turni',
   'nav.settings': 'Impostazioni',
 
@@ -792,6 +795,7 @@ const hr: Record<string, string> = {
   'nav.loyalty': 'Vjernost',
   'nav.printers': 'Pisači',
   'nav.webhooks': 'Webhookovi',
+  'nav.integrations': 'Integracije',
   'nav.shifts': 'Smjene',
   'nav.settings': 'Postavke',
 
@@ -1022,6 +1026,7 @@ const de: Record<string, string> = {
   'nav.loyalty': 'Treue',
   'nav.printers': 'Drucker',
   'nav.webhooks': 'Webhooks',
+  'nav.integrations': 'Integrationen',
   'nav.shifts': 'Schichten',
   'nav.settings': 'Einstellungen',
 
