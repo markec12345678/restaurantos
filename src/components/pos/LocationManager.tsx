@@ -66,6 +66,10 @@ export function LocationManager() {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [showSync, setShowSync] = useState(false)
+  const [syncSource, setSyncSource] = useState<string>('')
+  const [syncResult, setSyncResult] = useState<any>(null)
+  const [syncing, setSyncing] = useState(false)
 
   const [form, setForm] = useState({
     name: '', code: '', type: 'restaurant', address: '', city: '', postCode: '',
@@ -159,6 +163,11 @@ export function LocationManager() {
         <Button onClick={() => { setShowForm(!showForm); resetForm() }} className="gap-2">
           <Plus className="h-4 w-4" /> Nova lokacija
         </Button>
+        {locations.length > 1 && (
+          <Button variant="outline" onClick={() => setShowSync(!showSync)} className="gap-2">
+            🔄 Sinhroniziraj meni
+          </Button>
+        )}
       </div>
 
       {/* Stats */}
@@ -176,6 +185,95 @@ export function LocationManager() {
           <p className="text-2xl font-bold text-blue-600">{stats.open}</p>
         </CardContent></Card>
       </div>
+
+      {/* Menu sync */}
+      {showSync && (
+        <Card className="border-purple-500/30">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">🔄 Sinhronizacija menijev</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Sinhroniziraj menije, kategorije in artikle iz izvorne lokacije na ciljne lokacije.
+              Cene se privzeto NE prenašajo (lahko se razlikujejo med lokacijami).
+            </p>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Izvorna lokacija (master)</label>
+              <select
+                value={syncSource}
+                onChange={e => setSyncSource(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border bg-background text-sm"
+              >
+                <option value="">Izberi izvorno lokacijo...</option>
+                {locations.map(loc => (
+                  <option key={loc.id} value={loc.id}>{loc.name} ({loc.code})</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Ciljne lokacije</label>
+              <div className="text-xs text-muted-foreground">
+                Vse ostale aktivne lokacije bodo prejele meni iz izvorne lokacije
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={async () => {
+                  if (!syncSource) return
+                  setSyncing(true)
+                  setSyncResult(null)
+                  try {
+                    const targetIds = locations.filter(l => l.id !== syncSource).map(l => l.id)
+                    const res = await authFetch('/api/locations/sync', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        sourceLocationId: syncSource,
+                        targetLocationIds: targetIds,
+                        syncMenuStructure: true,
+                        syncItems: true,
+                        syncPricing: false,
+                        syncModifiers: true,
+                        dryRun: false,
+                      }),
+                    })
+                    const data = await res.json()
+                    setSyncResult(data)
+                  } catch (err) {
+                    setSyncResult({ success: false, error: 'Napaka pri sinhronizaciji' })
+                  } finally {
+                    setSyncing(false)
+                  }
+                }}
+                disabled={!syncSource || syncing}
+                className="flex-1"
+              >
+                {syncing ? 'Sinhroniziram...' : 'Sinhroniziraj'}
+              </Button>
+              <Button variant="outline" onClick={() => { setShowSync(false); setSyncResult(null) }}>Zapri</Button>
+            </div>
+            {syncResult && (
+              <div className={`p-4 rounded-xl border ${syncResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                {syncResult.success ? (
+                  <div className="space-y-2">
+                    <p className="font-bold text-green-700">Sinhronizacija uspešna!</p>
+                    {syncResult.results?.map((r: any, i: number) => (
+                      <div key={i} className="text-sm">
+                        <p className="font-medium">{r.targetLocationName}:</p>
+                        <p className="text-xs text-muted-foreground">
+                          Meniji: +{r.menusCreated} | Kategorije: +{r.categoriesCreated} | Artikli: +{r.itemsCreated} posodobljeni: {r.itemsUpdated}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-red-700">{syncResult.error || 'Napaka'}</p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Create form */}
       {showForm && (
