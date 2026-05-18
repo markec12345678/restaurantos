@@ -34,6 +34,9 @@ import { CustomerFeedback } from '@/components/pos/CustomerFeedback'
 import { FursManager } from '@/components/pos/FursManager'
 import { VisualFloorPlan } from '@/components/pos/VisualFloorPlan'
 import { AIForecastDashboard } from '@/components/pos/AIForecastDashboard'
+import { ZReportManager } from '@/components/pos/ZReportManager'
+import { TipManager } from '@/components/pos/TipManager'
+import { DeliveryTracker } from '@/components/pos/DeliveryTracker'
 import { GlobalNotifications } from '@/components/pos/GlobalNotifications'
 import GuestManager from '@/components/pos/GuestManager'
 import FoodCostCalculator from '@/components/pos/FoodCostCalculator'
@@ -79,6 +82,9 @@ const moduleComponents: Record<string, React.ComponentType> = {
   locations: LocationManager,
   subscription: SubscriptionManager,
   furs: FursManager,
+  'delivery-tracking': DeliveryTracker,
+  'z-report': ZReportManager,
+  'tip-manager': TipManager,
   settings: SettingsManager,
 }
 

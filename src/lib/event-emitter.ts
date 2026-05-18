@@ -33,6 +33,11 @@ interface EventPayloadMap {
   'guest.created': { guestId: string; name: string; email: string }
   'loyalty.tier_upgraded': { loyaltyAccountId: string; customerName: string; oldTier: string; newTier: string }
   'daily_report.ready': { date: string; totalSales: number; totalOrders: number }
+  'delivery.status_changed': { orderId: string; orderNumber: string; status: string; driverName: string; estimatedArrival: string | null }
+  'delivery.driver_assigned': { deliveryInfoId: string; driverName: string; driverPhone: string }
+  'tip_pool.distributed': { tipPoolId: string; totalTips: number; employeeCount: number }
+  'z_report.generated': { reportId: string; date: string; totalSales: number }
+  'z_report.finalized': { reportId: string; date: string; totalSales: number; finalizedBy: string }
   'integration.sync_failed': { integrationId: string; integrationName: string; error: string }
 }
 

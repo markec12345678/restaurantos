@@ -34,6 +34,11 @@ export type WebhookEventType =
   | 'guest.created'
   | 'loyalty.tier_upgraded'
   | 'daily_report.ready'
+  | 'delivery.status_changed'
+  | 'delivery.driver_assigned'
+  | 'tip_pool.distributed'
+  | 'z_report.generated'
+  | 'z_report.finalized'
   | 'integration.sync_failed'
 
 export interface WebhookPayload {

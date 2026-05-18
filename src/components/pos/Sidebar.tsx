@@ -50,6 +50,9 @@ import {
   MessageSquare,
   Target,
   Split,
+  FileText,
+  HandCoins,
+  Navigation,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore, useState, useEffect } from 'react'
@@ -93,6 +96,9 @@ const navItems = [
   { id: 'reports', labelKey: 'nav.reports', icon: BarChart3, permission: 'view_reports' },
   { id: 'configuration', labelKey: 'nav.configuration', icon: SlidersHorizontal, adminOnly: true },
   { id: 'delivery', labelKey: 'nav.delivery', icon: Truck, permission: 'take_orders' },
+  { id: 'delivery-tracking', labelKey: 'nav.deliveryTracking', icon: Navigation, permission: 'take_orders' },
+  { id: 'z-report', labelKey: 'nav.zReport', icon: FileText, permission: 'manage_cash' },
+  { id: 'tip-manager', labelKey: 'nav.tipManager', icon: HandCoins, permission: 'manage_employees' },
   { id: 'gift-cards', labelKey: 'nav.gift-cards', icon: CreditCard, permission: 'take_orders' },
   { id: 'loyalty', labelKey: 'nav.loyalty', icon: Award, permission: 'take_orders' },
   { id: 'printers', labelKey: 'nav.printers', icon: Printer, adminOnly: true },

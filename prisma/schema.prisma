@@ -985,6 +985,9 @@ model Location {
   reservations    Reservation[]
   deliveryZones   DeliveryZone[]
   openingHours    OpeningHours[]
+  zReports        ZReport[]
+  tipPools        TipPool[]
+  deliveryTrackings DeliveryTracking[]
 
   @@index([code])
   @@index([isActive])
@@ -1662,4 +1665,161 @@ model GuestFeedback {
   @@index([orderId])
   @@index([overallRating])
   @@index([createdAt])
+}
+
+// ============================================
+// Z-REPORT / DNEVNI ZAKLJUČEK (End of Day)
+// Toast POS standard — Z-report z vsemi statistikami
+// ============================================
+
+model ZReport {
+  id                String   @id @default(cuid())
+  // --- Obdobje ---
+  reportDate        DateTime @unique                   // Datum poročila
+  openedAt          DateTime                           // Čas odprtja prve izmene
+  closedAt          DateTime?                          // Čas zaključka zadnje izmene
+  // --- Prodaja ---
+  totalSales        Float    @default(0)               // Skupna prodaja (z DDV)
+  totalNetSales     Float    @default(0)               // Čista prodaja (brez DDV)
+  totalTax          Float    @default(0)               // Skupni DDV
+  // --- Po načinu plačila ---
+  cashSales         Float    @default(0)
+  cardSales         Float    @default(0)
+  mobileSales       Float    @default(0)
+  alternateSales    Float    @default(0)
+  // --- Po vrsti naročila ---
+  dineInSales       Float    @default(0)
+  takeoutSales      Float    @default(0)
+  deliverySales     Float    @default(0)
+  // --- DDV razčlenitev ---
+  vatStandard       Float    @default(0)               // DDV 22% osnova
+  vatStandardAmount Float    @default(0)               // DDV 22% znesek
+  vatReduced        Float    @default(0)               // DDV 9.5% osnova
+  vatReducedAmount  Float    @default(0)               // DDV 9.5% znesek
+  vatZero           Float    @default(0)               // DDV 0% osnova
+  // --- Statistika ---
+  totalOrders       Int      @default(0)
+  totalGuests       Int      @default(0)
+  avgOrderValue     Float    @default(0)
+  // --- Popusti in napitnine ---
+  totalDiscounts    Float    @default(0)
+  totalTips         Float    @default(0)
+  totalVoided       Float    @default(0)
+  totalStorno       Float    @default(0)
+  // --- Gotovina ---
+  startingCash      Float    @default(0)
+  expectedCash      Float    @default(0)
+  actualCash        Float    @default(0)
+  cashDifference    Float    @default(0)
+  cashDrops         Float    @default(0)
+  // --- Stroški ---
+  totalCost         Float    @default(0)               // Skupni stroški (food cost)
+  grossProfit       Float    @default(0)               // Bruto dobiček
+  grossMargin       Float    @default(0)               // Bruto marža (%)
+  // --- Status ---
+  status            String   @default("draft")          // draft, finalized, approved
+  finalizedBy       String   @default("")               // Kdo je zaključil
+  // --- Opombe ---
+  notes             String   @default("")
+  // --- Multi-location ---
+  locationId        String?
+  location          Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([reportDate])
+  @@index([status])
+  @@index([locationId])
+}
+
+// ============================================
+// TIP POOL — Razdelitev napitnin (Toast standard)
+// Samodejna ali ročna distribucija napitnin med zaposlene
+// ============================================
+
+model TipPool {
+  id              String   @id @default(cuid())
+  // --- Obdobje ---
+  date            DateTime                           // Datum
+  shiftId         String?                            // Povezava z izmeno (opcija)
+  // --- Zneski ---
+  totalTips       Float    @default(0)               // Skupne napitnine
+  cashTips        Float    @default(0)
+  cardTips        Float    @default(0)
+  // --- Metoda distribucije ---
+  distributionMethod String  @default("equal")       // equal, hours, points, manual
+  // --- Status ---
+  status          String   @default("pending")       // pending, distributed, approved, paid
+  // --- Dodelitve ---
+  distributions   TipDistribution[]
+  // --- Multi-location ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([date])
+  @@index([status])
+}
+
+model TipDistribution {
+  id              String   @id @default(cuid())
+  tipPoolId       String
+  tipPool         TipPool  @relation(fields: [tipPoolId], references: [id], onDelete: Cascade)
+  // --- Zaposleni ---
+  employeeId      String
+  employeeName    String   @default("")
+  // --- Ure ---
+  hoursWorked     Float    @default(0)               // Ure v izmeni
+  // --- Točke (za points metodo) ---
+  points          Float    @default(0)
+  // --- Znesek ---
+  amount          Float    @default(0)               // Dodeljen znesek napitnine
+  // --- Status ---
+  status          String   @default("pending")       // pending, paid
+  paidAt          DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([tipPoolId])
+  @@index([employeeId])
+  @@index([status])
+}
+
+// ============================================
+// DELIVERY TRACKING — GPS sledenje voznikom
+// Toast + DoorDash standard
+// ============================================
+
+model DeliveryTracking {
+  id              String   @id @default(cuid())
+  deliveryInfoId  String   @unique                   // Povezava z dostavo
+  // --- Voznik ---
+  driverName      String   @default("")
+  driverPhone     String   @default("")
+  vehicleInfo     String   @default("")              // Npr. "Rdeč Fiat 500, LJ-123-AB"
+  // --- GPS koordinate ---
+  currentLat      Float?
+  currentLng      Float?
+  lastUpdateAt    DateTime?
+  // --- Status ---
+  status          String   @default("assigned")      // assigned, picked_up, on_the_way, arriving, delivered, failed
+  // --- ETA ---
+  estimatedArrival DateTime?
+  // --- Časovnica ---
+  assignedAt      DateTime?
+  pickedUpAt      DateTime?
+  onTheWayAt      DateTime?
+  deliveredAt     DateTime?
+  // --- Ocena ---
+  customerRating  Int?
+  customerFeedback String  @default("")
+  // --- Multi-location ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([deliveryInfoId])
+  @@index([status])
+  @@index([driverName])
 }

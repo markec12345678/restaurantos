@@ -97,6 +97,9 @@ const sl: Record<string, string> = {
   'nav.coursePacing': 'Tempo jedi',
   'nav.menuEngineering': 'Menu Engineering',
   'nav.feedback': 'Mnenja gostov',
+  'nav.deliveryTracking': 'Sledenje dostav',
+  'nav.zReport': 'Z-Poročilo',
+  'nav.tipManager': 'Napitnine',
   'nav.settings': 'Nastavitve',
 
   // Naročila
@@ -349,6 +352,9 @@ const en: Record<string, string> = {
   'nav.coursePacing': 'Course Pacing',
   'nav.menuEngineering': 'Menu Engineering',
   'nav.feedback': 'Guest Feedback',
+  'nav.deliveryTracking': 'Delivery Tracking',
+  'nav.zReport': 'Z-Report',
+  'nav.tipManager': 'Tip Manager',
   'nav.settings': 'Settings',
 
   'orders.new': 'New Order',
@@ -587,6 +593,9 @@ const it: Record<string, string> = {
   'nav.furs': 'FURS',
   'nav.shifts': 'Turni',
   'nav.staffSchedule': 'Programma turni',
+  'nav.deliveryTracking': 'Tracciamento consegne',
+  'nav.zReport': 'Report Z',
+  'nav.tipManager': 'Mance',
   'nav.settings': 'Impostazioni',
 
   'orders.new': 'Nuovo ordine',
@@ -825,6 +834,9 @@ const hr: Record<string, string> = {
   'nav.furs': 'FURS',
   'nav.shifts': 'Smjene',
   'nav.staffSchedule': 'Raspored zaposlenika',
+  'nav.deliveryTracking': 'Praćenje dostave',
+  'nav.zReport': 'Z-Izvještaj',
+  'nav.tipManager': 'Napojnice',
   'nav.settings': 'Postavke',
 
   'orders.new': 'Nova narudžba',
@@ -1063,6 +1075,9 @@ const de: Record<string, string> = {
   'nav.furs': 'FURS',
   'nav.shifts': 'Schichten',
   'nav.staffSchedule': 'Dienstplan',
+  'nav.deliveryTracking': 'Lieferverfolgung',
+  'nav.zReport': 'Z-Report',
+  'nav.tipManager': 'Trinkgelder',
   'nav.settings': 'Einstellungen',
 
   'orders.new': 'Neue Bestellung',
