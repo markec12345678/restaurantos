@@ -1618,3 +1618,42 @@ model SubscriptionInvoice {
   @@index([status])
   @@index([dueDate])
 }
+
+// ============================================
+// GOSTOVO POVPRATNA INFORMACIJA (Guest Feedback)
+// Toast POS + OpenTable standard za ocene in mnenja
+// ============================================
+
+model GuestFeedback {
+  id              String   @id @default(cuid())
+  // --- Gost ---
+  guestId         String?
+  guestName       String   @default("")
+  // --- Naročilo ---
+  orderId         String?
+  // --- Ocene (1-5) ---
+  overallRating   Int      @default(0)   // Skupna ocena
+  foodRating      Int      @default(0)   // Kakovost hrane
+  serviceRating   Int      @default(0)   // Kakovost postrežbe
+  atmosphereRating Int     @default(0)   // Atmosfera
+  // --- Komentarji ---
+  comment         String   @default("")
+  tags            String   @default("[]") // JSON: ["Odlična hrana", "Hitra postrežba"]
+  // --- Ali bi se vrnil / priporočil ---
+  wouldReturn     Boolean  @default(true)
+  wouldRecommend  Boolean  @default(true)
+  // --- Odgovor restavracije ---
+  responded       Boolean  @default(false)
+  response        String   @default("")
+  respondedAt     DateTime?
+  // --- Vir ---
+  source          String   @default("pos")  // pos, website, email, sms
+  // --- Čas ---
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([guestId])
+  @@index([orderId])
+  @@index([overallRating])
+  @@index([createdAt])
+}

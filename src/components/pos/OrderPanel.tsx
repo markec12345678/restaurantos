@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Plus, Minus, Trash2, ShoppingBag, CreditCard, X, Printer, Eye, ImageIcon, ChevronRight, Check, ArrowLeft, UtensilsCrossed, GlassWater, Users, Clock, Search, XCircle, FileWarning, Keyboard, AlertTriangle } from 'lucide-react'
+import { Plus, Minus, Trash2, ShoppingBag, CreditCard, X, Printer, Eye, ImageIcon, ChevronRight, Check, ArrowLeft, UtensilsCrossed, GlassWater, Users, Clock, Search, XCircle, FileWarning, Keyboard, AlertTriangle, ShieldAlert } from 'lucide-react'
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { usePOSShortcuts } from '@/lib/use-pos-shortcuts'
@@ -49,6 +49,7 @@ interface MenuItemType {
   isAvailable: boolean
   sortOrder: number
   categoryId: string
+  allergens?: string
   category: { id: string; name: string; menu: { id: string; name: string } }
   modifierGroups: ModifierGroupType[]
 }
@@ -710,7 +711,15 @@ export function OrderPanel() {
                           </div>
                           {/* Info */}
                           <div className="p-2 flex-1 flex flex-col justify-between">
-                            <p className={`font-semibold text-xs leading-tight line-clamp-2 ${isOutOfStock ? 'text-muted-foreground line-through' : ''}`}>{item.name}</p>
+                            <div className="flex items-start justify-between gap-1">
+                              <p className={`font-semibold text-xs leading-tight line-clamp-2 ${isOutOfStock ? 'text-muted-foreground line-through' : ''}`}>{item.name}</p>
+                              {item.allergens && (
+                                <span className="flex-shrink-0 flex items-center gap-0.5 rounded-full bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 text-[8px] font-bold px-1 py-0.5 border border-red-200 dark:border-red-800" title={`Alergeni: ${item.allergens}`}>
+                                  <ShieldAlert className="h-2.5 w-2.5" />
+                                  {item.allergens.split(',').length}
+                                </span>
+                              )}
+                            </div>
                             <p className={`font-bold text-sm mt-1 ${isOutOfStock ? 'text-muted-foreground' : 'text-primary'}`}>€{item.price.toFixed(2)}</p>
                           </div>
                         </button>

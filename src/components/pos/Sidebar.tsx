@@ -46,6 +46,10 @@ import {
   Plug,
   MapPin,
   CalendarClock,
+  Layers,
+  MessageSquare,
+  Target,
+  Split,
 } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useSyncExternalStore, useState, useEffect } from 'react'
@@ -72,6 +76,7 @@ const navItems = [
   { id: 'cash-register', labelKey: 'nav.cash-register', icon: Wallet, permission: 'manage_cash' },
   { id: 'shifts', labelKey: 'nav.shifts', icon: CalendarDays, permission: 'manage_cash' },
   { id: 'staff-schedule', labelKey: 'nav.staffSchedule', icon: CalendarClock, permission: 'manage_employees' },
+  { id: 'course-pacing', labelKey: 'nav.coursePacing', icon: Layers, permission: 'take_orders' },
   { id: 'dashboard', labelKey: 'nav.dashboard', icon: LayoutDashboard, permission: 'view_reports' },
   { id: 'guests', labelKey: 'nav.guestCRM', icon: UserCircle, permission: 'take_orders' },
   { id: 'menu', labelKey: 'nav.menu', icon: UtensilsCrossed, adminOnly: true },
@@ -83,6 +88,8 @@ const navItems = [
   { id: 'reservations', labelKey: 'nav.reservations', icon: Calendar, permission: 'take_orders' },
   { id: 'haccp', labelKey: 'nav.haccp', icon: ShieldCheck, adminOnly: true },
   { id: 'employees', labelKey: 'nav.employees', icon: Users, permission: 'manage_employees' },
+  { id: 'menu-engineering', labelKey: 'nav.menuEngineering', icon: Target, adminOnly: true },
+  { id: 'feedback', labelKey: 'nav.feedback', icon: MessageSquare, permission: 'take_orders' },
   { id: 'reports', labelKey: 'nav.reports', icon: BarChart3, permission: 'view_reports' },
   { id: 'configuration', labelKey: 'nav.configuration', icon: SlidersHorizontal, adminOnly: true },
   { id: 'delivery', labelKey: 'nav.delivery', icon: Truck, permission: 'take_orders' },
