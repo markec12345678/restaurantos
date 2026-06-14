@@ -2610,3 +2610,225 @@ Stage Summary:
 - All htmlFor+id pairs and aria-label attributes preserved
 - TypeScript: 0 new errors
 - ESLint: 0 errors, 0 warnings
+
+---
+Task ID: 25a
+Agent: Sub Agent
+Task: Split order-status/[orderId]/page.tsx into sub-components
+
+Work Log:
+- Read existing patterns from receipt/ and reserve/ pages to follow established conventions
+- Analyzed the 319-line page.tsx and identified logical sections for extraction
+- Created types.ts with OrderItem and OrderData interfaces
+- Created constants.ts with STEP_COLORS, STATUS_STEPS, STATUS_TO_STEP, and utility functions (getStepIndex, getElapsedTime, getEstimatedTime)
+- Created use-order-status.ts custom hook encapsulating state management, data fetching, polling, and tick refresh
+- Created 6 sub-components under components/ directory:
+  - LoadingState.tsx (19 lines) - loading spinner state
+  - ErrorState.tsx (24 lines) - error/not-found state
+  - OrderHeader.tsx (29 lines) - sticky header with refresh button
+  - OrderInfoCard.tsx (67 lines) - order info, customer/location, estimated time
+  - ProgressTracker.tsx (99 lines) - Domino's style progress tracker with cancelled state
+  - OrderItemsList.tsx (36 lines) - order items list with status indicators
+- Rewrote page.tsx (74 lines) to use lazy-loaded sub-components via next/dynamic + ssr: false
+- All sub-components wrapped with memo() and use named exports
+- All Slovenian language comments preserved
+- Verified TypeScript: 0 new errors (pre-existing errors in furs/helpers.ts and stock-deduction.ts unrelated)
+- Verified ESLint: 0 errors, 0 warnings
+
+Stage Summary:
+- Successfully split 319-line page.tsx into 9 files totaling 490 lines
+- Parent page.tsx: 319 → 74 lines (well under 200 line target)
+- Largest sub-component: ProgressTracker.tsx at 99 lines (under 200 line target)
+- TypeScript: 0 new errors
+- ESLint: 0 errors, 0 warnings
+
+---
+Task ID: 25f
+Agent: Sub Agent
+Task: Split lib/stock-deduction.ts into sub-modules
+
+Work Log:
+- Read original `src/lib/stock-deduction.ts` (658 lines) and identified logical groupings: types, check-availability, deduct-added, deduct-order, return-stock, broadcast
+- Checked all imports of `@/lib/stock-deduction` across codebase: 6 files importing various functions
+- Created `src/lib/stock-deduction/` directory with 7 files:
+  - `types.ts` (32 lines) — StockDeductionItem, StockDeductionResult interfaces
+  - `check-availability.ts` (84 lines) — checkStockAvailability function
+  - `deduct-added.ts` (167 lines) — deductStockForAddedItems function
+  - `deduct-order.ts` (180 lines) — deductStockForOrder function
+  - `return-stock.ts` (149 lines) — returnStockForOrder function
+  - `broadcast.ts` (45 lines) — broadcastLowStockAlert function
+  - `index.ts` (21 lines) — barrel re-export for backward compatibility
+- Deleted original `src/lib/stock-deduction.ts` (the file-based re-export caused circular imports; directory-based index.ts resolves correctly)
+- Verified all existing imports of `@/lib/stock-deduction` still resolve through the directory index
+- All Slovenian comments preserved in each module
+- TypeScript: 0 new errors (only pre-existing FURS_TOKEN_URLS error remains)
+- ESLint: 0 errors, 0 warnings
+
+Stage Summary:
+- Successfully split 658-line monolith into 6 focused modules + 1 barrel (678 total lines)
+- Each module well under 350-line limit; barrel at 21 lines (under 80)
+- All existing imports backward-compatible (no import changes needed in consumer files)
+- TypeScript: 0 new errors
+- ESLint: 0 errors, 0 warnings
+
+---
+Task ID: 25g
+Agent: Sub Agent
+Task: Split lib/types.ts into domain modules
+
+Work Log:
+- Read worklog.md to understand prior context
+- Analyzed src/lib/types.ts (582 lines) and identified 9 logical domain groupings
+- Checked all 34 import sites across the codebase using `rg "from.*@/lib/types" src/`
+- Created src/lib/types/ directory with 9 domain modules + 1 barrel index:
+  - orders.ts (101 lines): OrderRow, OrderItemRow, ModifierRow, CheckRow, PaymentRow, TableRow, OrderResultRow
+  - employees.ts (72 lines): EmployeeRow, EmployeeJobRow, JobRow, ShiftRow, TimeEntryRow
+  - menu.ts (62 lines): MenuItemRow, CategoryRow, RecipeIngredientRow, RecipeRow
+  - inventory.ts (66 lines): InventoryItemRow, SupplierRow, PurchaseOrderRow, PurchaseOrderItemRow, SupplierScoreRow
+  - guests.ts (83 lines): ReservationRow, GuestRow, GuestVisitRow, LoyaltyAccountRow, WaitlistFormRow, GuestFormRow
+  - financial.ts (46 lines): ExpenseRow, ZReportRow, PriceGroupRow, InvoiceRow
+  - settings.ts (80 lines): RestaurantSettingsRow, WeeklyHoursRow, DeliveryZoneRow, LocationRow, SubscriptionFormRow, LocationFormRow, DeliveryZoneFormRow
+  - sync.ts (30 lines): SyncResultRow, SyncResultItem, ValidationErrorRow
+  - ui.ts (43 lines): IconConfig, StatCardProps, PaymentRowProps, BeforeInstallPromptEvent, Window augmentation
+  - index.ts (14 lines): barrel re-export of all modules
+- Deleted original src/lib/types.ts (conflicts with directory resolution)
+- Verified TypeScript: 0 new errors (8 pre-existing errors in furs/helpers.ts and stock-deduction.ts unrelated to this change)
+- Verified ESLint: 0 errors, 0 warnings on src/lib/types/ and full src/ scan
+- All 34 existing import sites continue to work via barrel re-export
+
+Stage Summary:
+- Split 1 monolithic file (582 lines) into 10 domain-focused files (largest: 101 lines, index: 14 lines)
+- Line counts: orders=101, employees=72, menu=62, inventory=66, guests=83, financial=46, settings=80, sync=30, ui=43, index=14
+- All files under 200-line limit; index well under 80-line limit
+- Backward compatibility: all existing `from '@/lib/types'` imports work unchanged
+- Slovenian comments preserved in all files
+- TypeScript: 0 new errors (8 pre-existing unrelated)
+- ESLint: 0 errors, 0 warnings
+
+---
+Task ID: 25d
+Agent: Sub Agent
+Task: Split lib/furs.ts into sub-modules
+
+Work Log:
+- Read /home/z/my-project/worklog.md to understand prior work
+- Analyzed furs.ts (921 lines) and identified logical groupings
+- Identified all 4 consumer files importing from @/lib/furs via rg
+- Created src/lib/furs/ directory with 5 sub-modules:
+  - types.ts (78 lines): FursEnvironment, FURS_URLS, FURS_TOKEN_URLS, all interfaces
+  - helpers.ts (248 lines): toSlovenianDate, getLastSunday, toSlovenianISO, generateSimulatedEOR, generateFursQRContent, generateFursVerificationUrl, validateFursConfig, checkFursConnectivity
+  - crypto.ts (294 lines): generateZOI, loadCertificatePrivateKey, loadFromPKCS12, tryNodeCryptoPKCS12, loadFromPEM, clearCertificateCache, extractCertificateFromPKCS12
+  - api.ts (327 lines): verifyInvoiceWithFURS, getFursToken (private), buildFursRequest (private)
+  - index.ts (17 lines): barrel re-exports all public symbols
+- Replaced src/lib/furs.ts with re-export barrel (10 lines)
+- Fixed missing FURS_TOKEN_URLS import in helpers.ts
+- Verified TypeScript: 0 errors (npx tsc --noEmit)
+- Verified ESLint: 0 errors, 0 warnings on furs/ and furs.ts
+- Verified ESLint: 0 errors on all 4 consumer files
+- All existing @/lib/furs imports continue to work unchanged
+
+Stage Summary:
+- Original: 1 file (921 lines) → 6 files (10+17+78+248+294+327 = 974 lines total, including headers/comments)
+- Largest sub-module: api.ts (327 lines) — under 350 line target
+- Barrel index.ts: 17 lines — well under 80 line target
+- All Slovenian comments preserved
+- Backward compatibility maintained: `from '@/lib/furs'` imports work unchanged
+- TypeScript: 0 errors
+- ESLint: 0 errors, 0 warnings
+
+---
+Task ID: 25e
+Agent: Sub Agent
+Task: Split lib/escpos.ts into sub-modules
+
+Work Log:
+- Read original src/lib/escpos.ts (767 lines) and analyzed structure
+- Identified logical groupings: constants/encoding, types, builders, generators
+- Checked all imports: only src/app/api/print/route.ts imports from @/lib/escpos
+- Created src/lib/escpos/ directory with 6 files:
+  - constants.ts (54 lines) — ESC/GS constants, CODE_PAGE_852, MAX_PRINT_BUFFER, SLOVENIAN_CHAR_MAP, encodeSlovenian
+  - types.ts (88 lines) — ESCPOSBuilder interface, PrinterModel type, KitchenOrderPrintData, ReceiptPrintData interfaces
+  - builders.ts (258 lines) — createEpsonBuilder, createStarBuilder, createESCPOSBuilder factory
+  - generators.ts (126 lines) — generateKitchenOrder, generateTestPrint
+  - receipt.ts (264 lines) — generateReceipt (split from generators to stay under 350 line limit)
+  - index.ts (10 lines) — barrel re-export for backward compatibility
+- Deleted original src/lib/escpos.ts (directory module replaces it)
+- All existing imports from @/lib/escpos continue to work via barrel re-export
+- Slovenian comments preserved throughout
+- TypeScript: 0 errors (npx tsc --noEmit passes)
+- ESLint: 0 errors, 0 warnings (npx eslint src/lib/escpos/ --max-warnings 0)
+
+Stage Summary:
+- Split 767-line monolith into 6 well-organized modules (max 264 lines each)
+- Before: 1 file (767 lines) → After: 6 files (800 total lines, largest 264 lines)
+- Barrel index.ts: 10 lines (well under 80 line limit)
+- All module files under 350 line limit
+- TypeScript: 0 errors | ESLint: 0 errors, 0 warnings
+- All imports of @/lib/escpos remain backward compatible
+
+---
+Task ID: 25b
+Agent: Sub Agent
+Task: Split lib/i18n.ts into domain modules
+
+Work Log:
+- Read /home/z/my-project/src/lib/i18n.ts (1354 lines) and identified structure: 5 locale dictionaries (sl, en, it, hr, de) each with ~214 keys grouped by domain
+- Identified 7 logical domain groupings: common, navigation, orders, restaurant, reports, operations, settings
+- Created /home/z/my-project/src/lib/i18n/ directory with 7 domain module files + 1 barrel index.ts
+- Removed original i18n.ts (replaced by i18n/ directory — Next.js/TypeScript resolves @/lib/i18n to i18n/index.ts)
+- Moved sidebar-specific keys (nav.sales, nav.waitlistFull, nav.guestCRM, nav.kiosk, nav.fullscreen, nav.exitFullscreen, nav.posSystem, sidebar.waiter, sidebar.lightTheme, sidebar.darkTheme) from navigation.ts to common.ts to keep navigation.ts under 300 lines
+- Verified all 4 existing import sites still resolve correctly (Sidebar.tsx, LanguageSwitcher.tsx, useSettingsManager.ts, store.ts)
+- TypeScript: 0 errors (npx tsc --noEmit)
+- ESLint: 0 errors, 0 warnings (npx eslint src/lib/i18n/ --max-warnings 0)
+- Slovenian comments preserved throughout all modules
+
+Stage Summary:
+- Before: 1 file (1354 lines) → After: 8 files (1413 total lines)
+- Module line counts: common.ts (281), navigation.ts (271), orders.ts (227), reports.ts (180), operations.ts (158), restaurant.ts (114), settings.ts (95), index.ts (87)
+- All module files under 300 lines ✓
+- Barrel index.ts under 100 lines ✓
+- TypeScript: 0 errors | ESLint: 0 errors, 0 warnings
+- All imports of @/lib/i18n remain backward compatible
+
+---
+Task ID: 25c
+Agent: Sub Agent
+Task: Split lib/validations.ts into domain modules
+
+Work Log:
+- Read worklog.md to understand project context
+- Analyzed the 1218-line validations.ts file structure, identifying 17+ domain sections
+- Checked all 64 existing imports of @/lib/validations across the codebase (all from API routes)
+- Planned domain groupings to keep each file under 300 lines and barrel under 100 lines
+- Created src/lib/validations/ directory with 17 domain-specific modules:
+  - shared.ts (9 lines) — common Zod helpers (positiveNumber, cuid)
+  - orders.ts (98 lines) — orders, checks, order items, KDS patch actions
+  - payments.ts (78 lines) — payments, card terminal, payment response schemas
+  - tables.ts (33 lines) — table CRUD schemas
+  - employees.ts (81 lines) — employees, shifts, time entries
+  - menu.ts (151 lines) — menu items, categories, menus, modifier groups, packaging, happy hour
+  - loyalty.ts (87 lines) — loyalty, gift cards, discounts
+  - inventory.ts (91 lines) — inventory, restock, reorder
+  - fiscal.ts (46 lines) — receipts, FURS, EOD close
+  - auth.ts (50 lines) — login, auth response schemas
+  - settings.ts (30 lines) — settings update schema
+  - haccp.ts (28 lines) — HACCP create and update schemas
+  - guests.ts (104 lines) — guests, feedback, reservations, waitlist
+  - suppliers.ts (113 lines) — suppliers, purchase orders, delivery
+  - dashboard.ts (137 lines) — dashboard response schema
+  - receipts.ts (66 lines) — receipt response schemas
+  - helpers.ts (83 lines) — validateBody, validateReportDateRange, re-exports from api-utils
+  - index.ts (22 lines) — barrel re-export file
+- Removed original validations.ts (replaced by validations/index.ts for backward compatibility)
+- Fixed ESLint warning: removed unused cuid import from loyalty.ts
+- Verified TypeScript: 0 errors
+- Verified ESLint: 0 errors, 0 warnings
+
+Stage Summary:
+- Original: 1 file, 1218 lines
+- Split into: 18 files, 1307 lines total (max single file: 151 lines, well under 300-line limit)
+- Barrel index.ts: 22 lines (well under 100-line limit)
+- All 64 existing @/lib/validations imports continue to work (backward compatible)
+- Slovenian comments preserved throughout
+- TypeScript: 0 errors
+- ESLint: 0 errors, 0 warnings
