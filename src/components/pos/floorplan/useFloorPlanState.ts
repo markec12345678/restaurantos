@@ -5,15 +5,15 @@
 // ============================================
 
 import { useState, useCallback, useMemo } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import { type FloorTable, type TableFormState, defaultTableForm } from './constants'
 import { useFloorPlanDrag } from './useFloorPlanDrag'
+import { useFloorPlanMutations } from './useFloorPlanMutations'
 
 export function useFloorPlanState() {
-  const queryClient = useQueryClient()
   const [editingTable, setEditingTable] = useState<FloorTable | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [formData, setFormData] = useState<TableFormState>({ ...defaultTableForm })
@@ -49,37 +49,15 @@ export function useFloorPlanState() {
   } = useFloorPlanDrag(allTables)
 
   // ============================================
-  // DODATNE MUTACIJE
+  // MUTACIJE (iz pod-hooka)
   // ============================================
 
-  // Ustvari mizo
-  const createMutation = useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      const res = await authFetch('/api/tables', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error('Failed')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Miza ustvarjena')
-      queryClient.invalidateQueries({ queryKey: queryKeys.tables.all })
-      setDialogOpen(false)
-    },
-  })
-
-  // Izbriši mizo
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await authFetch(`/api/tables/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Failed')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Miza izbrisana')
-      queryClient.invalidateQueries({ queryKey: queryKeys.tables.all })
-    },
+  const {
+    createMutation,
+    handleDeleteTable,
+  } = useFloorPlanMutations({
+    onDialogClose: () => setDialogOpen(false),
+    onClearSelectedTableId: () => setSelectedTableId(null),
   })
 
   // ============================================
@@ -171,11 +149,6 @@ export function useFloorPlanState() {
       rotation: (table.rotation + 45) % 360,
     })
   }, [updateMutation])
-
-  const handleDeleteTable = useCallback((id: string) => {
-    deleteMutation.mutate(id)
-    setSelectedTableId(null)
-  }, [deleteMutation, setSelectedTableId])
 
   const handleDeselect = useCallback(() => {
     setSelectedTableId(null)

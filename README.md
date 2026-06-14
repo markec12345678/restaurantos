@@ -580,7 +580,7 @@ RestaurantOS vključuje več AI funkcij, ki jih poganja Google Gemini:
 | Meni postavk (seed) | 438 |
 | Odvisnosti | 70+ |
 
-### 🔄 Refaktoriranje komponent (20 krogov)
+### 🔄 Refaktoriranje komponent (23 krogov)
 
 Projekt je bil deležen obsežnega refaktoriranja, pri katerem so bile velike monolitne komponente razdeljene v manjše, bolj obvladljive pod-komponente, namenske hooke in tipne datoteke.
 
@@ -597,8 +597,9 @@ Projekt je bil deležen obsežnega refaktoriranja, pri katerem so bile velike mo
 | 20 | DeliveryManager, DailyChecklist, useGiftCardManager, TableMap, ExtendedForms | 12 novih | 283 vrstic | <224 vrstic |
 | 21 | SettingsManager, HappyHourTab, ShiftManager, ConfigCard, RecipeManager | 7 novih | 272 vrstic | <206 vrstic |
 | 22 | PrinterManager, useOrderPanel, PinLogin, KitchenPrepQueue, StaffScheduler | 5 novih | 268 vrstic | <218 vrstic |
+| 23 | WebhookManager, MultiLocationDashboard, KitchenOrderCard, ReceiptContent, useFloorPlanState | 9 novih | 261 vrstic | <223 vrstic |
 
-**Rezultat:** Vse POS datoteke so zdaj pod 250 vrstic. Vsaka komponenta sledi vzorcu:
+**Rezultat:** Vse POS datoteke so zdaj pod 225 vrstic. Vsaka komponenta sledi vzorcu:
 
 - Pod-komponente ovite z `memo()` in z poimenovanimi izvozi
 - Starševske komponente uporabljajo `next/dynamic` za leno nalaganje
