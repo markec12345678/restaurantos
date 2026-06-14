@@ -3,16 +3,15 @@
 // ============================================
 
 import { useState, useMemo, useCallback } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import type { IntegrationConnector } from '@/lib/integrations/connectors'
 import { queryKeys } from '@/lib/query-keys'
 import type { IntegrationItem, FormData } from './constants'
+import { useIntegrationMutations } from './useIntegrationMutations'
 
 export function useIntegrationManager() {
-  const queryClient = useQueryClient()
-
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState<string>('all')
 
@@ -75,91 +74,20 @@ export function useIntegrationManager() {
   const errorCount = allIntegrations.filter(i => i.connectionStatus === 'error').length
 
   // ============================================
-  // MUTATIONS
+  // MUTATIONS (podedovane iz pod-hooka)
   // ============================================
 
-  const createMutation = useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      const res = await authFetch('/api/integrations', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error('Napaka')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Integracija uspešno ustvarjena')
-      queryClient.invalidateQueries({ queryKey: queryKeys.integrations.all })
-      setDialogOpen(false)
-    },
-    onError: () => toast.error('Napaka pri ustvarjanju integracije'),
-  })
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await authFetch(`/api/integrations/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error('Napaka')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Integracija uspešno posodobljena')
-      queryClient.invalidateQueries({ queryKey: queryKeys.integrations.all })
-      setDialogOpen(false)
-      setEditingItem(null)
-    },
-    onError: () => toast.error('Napaka pri posodabljanju integracije'),
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await authFetch(`/api/integrations/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Napaka')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Integracija uspešno izbrisana')
-      queryClient.invalidateQueries({ queryKey: queryKeys.integrations.all })
-      setDeleteDialogOpen(false)
-      setDeleteTarget(null)
-    },
-    onError: () => toast.error('Napaka pri brisanju integracije'),
-  })
-
-  const testMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await authFetch(`/api/integrations/${id}/test`, { method: 'POST' })
-      if (!res.ok) throw new Error('Napaka')
-      return res.json()
-    },
-    onSuccess: (data) => {
-      if (data.status === 'connected') {
-        toast.success('Povezava uspešna', { description: `Odziv v ${data.durationMs}ms` })
-      } else {
-        toast.error('Povezava ni uspela', { description: data.error || `HTTP ${data.statusCode}` })
-      }
-      queryClient.invalidateQueries({ queryKey: queryKeys.integrations.all })
-    },
-    onError: () => toast.error('Napaka pri testiranju povezave'),
-  })
-
-  const syncMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await authFetch(`/api/integrations/${id}/sync`, { method: 'POST' })
-      if (!res.ok) throw new Error('Napaka')
-      return res.json()
-    },
-    onSuccess: (data) => {
-      if (data.status === 'success') {
-        toast.success('Sinhronizacija uspešna', { description: `Trajanje: ${data.durationMs}ms` })
-      } else {
-        toast.error('Sinhronizacija ni uspela', { description: data.error })
-      }
-      queryClient.invalidateQueries({ queryKey: queryKeys.integrations.all })
-    },
-    onError: () => toast.error('Napaka pri sinhronizaciji'),
+  const {
+    createMutation,
+    updateMutation,
+    deleteMutation,
+    testMutation: testMut,
+    syncMutation: syncMut,
+  } = useIntegrationMutations({
+    onCloseDialog: () => setDialogOpen(false),
+    onClearEdit: () => setEditingItem(null),
+    onCloseDelete: () => setDeleteDialogOpen(false),
+    onClearDeleteTarget: () => setDeleteTarget(null),
   })
 
   // ============================================
@@ -283,8 +211,8 @@ export function useIntegrationManager() {
     // Mutations status
     isCreating: createMutation.isPending,
     isUpdating: updateMutation.isPending,
-    testPending: testMutation.isPending,
-    syncPending: syncMutation.isPending,
+    testPending: testMut.isPending,
+    syncPending: syncMut.isPending,
 
     // Handlerji
     setSearch,
@@ -297,8 +225,8 @@ export function useIntegrationManager() {
     handleDialogOpenChange,
     handleDeleteTarget,
     handleDeleteConfirm,
-    testMutation: (id: string) => testMutation.mutate(id),
-    syncMutation: (id: string) => syncMutation.mutate(id),
+    testMutation: (id: string) => testMut.mutate(id),
+    syncMutation: (id: string) => syncMut.mutate(id),
     cancelDialog: () => { setDialogOpen(false); setEditingItem(null); setSelectedConnector(null) },
     setDeleteDialogOpen,
   }
