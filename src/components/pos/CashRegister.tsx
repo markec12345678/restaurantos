@@ -6,11 +6,10 @@
 // podkomponente so lazy-loaded iz cash-register/
 // ============================================
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { toast } from 'sonner'
 import { Lock, Unlock, CalendarCheck } from 'lucide-react'
 import { useState, memo, useCallback } from 'react'
 import { format } from 'date-fns'
@@ -18,6 +17,7 @@ import dynamic from 'next/dynamic'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import type { OpenShiftFormType, CloseShiftFormType, EodFormType } from './cash-register/constants'
+import { useCashRegisterMutations } from './cash-register/useCashRegisterMutations'
 
 // Lazy-loaded podkomponente
 const ActiveShiftView = dynamic(() => import('./cash-register/ActiveShiftView').then(m => ({ default: m.ActiveShiftView })), { ssr: false })
@@ -27,7 +27,6 @@ const CloseShiftDialog = dynamic(() => import('./cash-register/CloseShiftDialog'
 const EodDialog = dynamic(() => import('./cash-register/EodDialog').then(m => ({ default: m.EodDialog })), { ssr: false })
 
 export const CashRegister = memo(function CashRegister() {
-  const queryClient = useQueryClient()
   const [openDialog, setOpenDialog] = useState(false)
   const [closeDialog, setCloseDialog] = useState(false)
   const [eodDialog, setEodDialog] = useState(false)
@@ -71,91 +70,18 @@ export const CashRegister = memo(function CashRegister() {
     enabled: eodDialog,
   })
 
-  const eodCloseMutation = useMutation({
-    mutationFn: async ({ closingCash, notes }: { closingCash: number; notes: string }) => {
-      const res = await authFetch('/api/reports/eod', {
-        method: 'POST',
-        body: JSON.stringify({ date: eodDate, closingCash, notes }),
-      })
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: 'Napaka' }))
-        throw new Error(errorData.error || `Napaka (${res.status})`)
-      }
-      return res.json()
-    },
-    onSuccess: (result) => {
-      const diff = result.summary?.cashDifference
-      if (diff && Math.abs(diff) > 0.01) {
-        toast.warning(`Obratovalni dan zaključen! Razlika v gotovini: €${diff.toFixed(2)}`)
-      } else {
-        toast.success('Obratovalni dan uspešno zaključen!')
-      }
-      setEodDialog(false)
-      setEodForm({ closingCash: '', notes: '' })
-      queryClient.invalidateQueries({ queryKey: queryKeys.cashRegister.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
-    },
-    onError: (err: Error) => toast.error(err.message),
-  })
-
   const activeShift = data?.activeShift
   const liveStats = data?.liveStats
   const recentShifts = data?.recentShifts || []
 
-  // Open shift mutation
-  const openShiftMutation = useMutation({
-    mutationFn: async (form: OpenShiftFormType) => {
-      const res = await authFetch('/api/cash-register', {
-        method: 'POST',
-        body: JSON.stringify({
-          startingCash: parseFloat(form.startingCash) || 0,
-          employeeId: form.employeeId || null,
-          employeeName: form.employeeName || '',
-        }),
-      })
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: 'Napaka' }))
-        throw new Error(errorData.error || `Napaka (${res.status})`)
-      }
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Izmena odprta! Blagajna je aktivna.')
-      setOpenDialog(false)
-      queryClient.invalidateQueries({ queryKey: queryKeys.cashRegister.all })
-    },
-    onError: (err: Error) => toast.error(err.message),
-  })
-
-  // Close shift mutation
-  const closeShiftMutation = useMutation({
-    mutationFn: async ({ id, form }: { id: string; form: CloseShiftFormType }) => {
-      const closingCash = parseFloat(form.closingCash)
-      const res = await authFetch(`/api/cash-register/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          closingCash: isNaN(closingCash) ? 0 : closingCash,
-          notes: form.notes,
-        }),
-      })
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: 'Napaka' }))
-        throw new Error(errorData.error || `Napaka (${res.status})`)
-      }
-      return res.json()
-    },
-    onSuccess: (result) => {
-      const diff = result.cashDifference
-      if (Math.abs(diff) > 0.01) {
-        toast.warning(`Izmena zaprta. Razlika v gotovini: €${diff.toFixed(2)}`)
-      } else {
-        toast.success('Izmena uspešno zaprta! Gotovina se ujema.')
-      }
-      setCloseDialog(false)
-      queryClient.invalidateQueries({ queryKey: queryKeys.cashRegister.all })
-    },
-    onError: () => toast.error('Napaka pri zapiranju izmene'),
+  // ============================================
+  // MUTATIONS (podedovane iz pod-hooka)
+  // ============================================
+  const { openShiftMutation, closeShiftMutation, eodCloseMutation } = useCashRegisterMutations({
+    onCloseOpenDialog: () => setOpenDialog(false),
+    onCloseCloseDialog: () => setCloseDialog(false),
+    onCloseEodDialog: () => setEodDialog(false),
+    onResetEodForm: () => setEodForm({ closingCash: '', notes: '' }),
   })
 
   // --- Callbacks za podkomponente ---
@@ -173,8 +99,8 @@ export const CashRegister = memo(function CashRegister() {
     const totalRevenue = eodData?.summary?.totalRevenue ?? 0
     const closingCash = eodForm.closingCash ? parseFloat(eodForm.closingCash) : startingCash + totalRevenue
     const notes = eodForm.notes
-    eodCloseMutation.mutate({ closingCash: isNaN(closingCash) ? 0 : closingCash, notes })
-  }, [eodData, eodForm, eodCloseMutation])
+    eodCloseMutation.mutate({ closingCash: isNaN(closingCash) ? 0 : closingCash, notes, eodDate })
+  }, [eodData, eodForm, eodCloseMutation, eodDate])
 
   if (isLoading) {
     return (

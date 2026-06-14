@@ -14,37 +14,11 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import { AlertTriangle, Leaf, ShieldCheck, Search, Wheat, Egg, Fish, Milk, Info, UtensilsCrossed, X, CircleDot, Siren, Soup, Salad, Apple } from 'lucide-react'
+import { AlertTriangle, ShieldCheck, Search, X, Info } from 'lucide-react'
 import { useState, useMemo, memo } from 'react'
-import type { LucideIcon } from 'lucide-react'
-
-// EU alergeni (Regulation 1169/2011 Annex II)
-const ALLERGEN_MAP: Record<string, { label: string; icon: LucideIcon; color: string }> = {
-  '1': { label: 'Žita (gluten)', icon: Wheat, color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' },
-  '2': { label: 'Raki', icon: Fish, color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' },
-  '3': { label: 'Jajca', icon: Egg, color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' },
-  '4': { label: 'Ribe', icon: Fish, color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
-  '5': { label: 'Arašidi', icon: CircleDot, color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' },
-  '6': { label: 'Soja', icon: Salad, color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
-  '7': { label: 'Mleko', icon: Milk, color: 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400' },
-  '8': { label: 'Oreški', icon: Apple, color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' },
-  '9': { label: 'Celer', icon: Salad, color: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400' },
-  '10': { label: 'Gorčica', icon: Siren, color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' },
-  '11': { label: 'Sezam', icon: CircleDot, color: 'bg-stone-100 text-stone-800 dark:bg-stone-900/30 dark:text-stone-400' },
-  '12': { label: 'Žveplov dioksid', icon: Siren, color: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400' },
-  '13': { label: 'Volčji bob', icon: Soup, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' },
-  '14': { label: 'Mehkužci', icon: Fish, color: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400' },
-}
-
-interface MenuItemData {
-  id: string
-  name: string
-  price: number
-  image: string
-  allergens: string
-  category: { name: string }
-  orderItems: { id: string }[]
-}
+import { ALLERGEN_MAP, type MenuItemData } from './nutrition/constants'
+import { NutritionalStatsCards } from './nutrition/NutritionalStatsCards'
+import { NutritionalItemCard } from './nutrition/NutritionalItemCard'
 
 export const NutritionalCalculator = memo(function NutritionalCalculator() {
   const [search, setSearch] = useState('')
@@ -113,44 +87,7 @@ export const NutritionalCalculator = memo(function NutritionalCalculator() {
       </div>
 
       {/* Povzetek */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <UtensilsCrossed className="h-4 w-4 text-blue-600" />
-              <span className="text-xs text-muted-foreground">Skupaj jedi</span>
-            </div>
-            <div className="text-2xl font-bold">{stats.total}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <span className="text-xs text-muted-foreground">Z alergeni</span>
-            </div>
-            <div className="text-2xl font-bold text-amber-600">{stats.withAllergens}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Leaf className="h-4 w-4 text-green-600" />
-              <span className="text-xs text-muted-foreground">Brez alergenov</span>
-            </div>
-            <div className="text-2xl font-bold text-green-600">{stats.total - stats.withAllergens}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <ShieldCheck className="h-4 w-4 text-purple-600" />
-              <span className="text-xs text-muted-foreground">EU skladnost</span>
-            </div>
-            <div className="text-2xl font-bold text-purple-600">{stats.withAllergens > 0 ? `${Math.round((stats.withAllergens / Math.max(stats.total, 1)) * 100)}%` : 'N/A'}</div>
-          </CardContent>
-        </Card>
-      </div>
+      <NutritionalStatsCards total={stats.total} withAllergens={stats.withAllergens} />
 
       {/* Iskanje */}
       <div className="flex items-center gap-3">
@@ -204,56 +141,9 @@ export const NutritionalCalculator = memo(function NutritionalCalculator() {
 
       {/* Jedilnik z alergeni */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.slice(0, 30).map((item) => {
-          const allergens = item.allergens ? item.allergens.split(',').map(a => a.trim()).filter(Boolean) : []
-          return (
-            <Card key={item.id} className="overflow-hidden">
-              <CardContent className="p-4 space-y-3">
-                {/* Ime + cena */}
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="font-semibold text-sm">{item.name}</div>
-                    <div className="text-xs text-muted-foreground">{item.category?.name}</div>
-                  </div>
-                  <span className="font-bold text-green-600">€{item.price.toFixed(2)}</span>
-                </div>
-
-                {/* Alergeni */}
-                {allergens.length > 0 ? (
-                  <div className="space-y-2">
-                    <div className="text-xs font-medium text-amber-600 flex items-center gap-1">
-                      <AlertTriangle className="h-3 w-3" />
-                      Vsebuje alergene:
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {allergens.map(a => {
-                        const cfg = ALLERGEN_MAP[a]
-                        const Icon = cfg?.icon || Info
-                        return (
-                          <Badge key={a} variant="outline" className="text-xs gap-1" title={cfg?.label || `Alergen ${a}`}>
-                            <Icon className="h-3 w-3" />
-                            {a}
-                          </Badge>
-                        )
-                      })}
-                    </div>
-                    <div className="text-xs text-muted-foreground space-y-0.5">
-                      {allergens.map(a => {
-                        const cfg = ALLERGEN_MAP[a]
-                        return cfg ? <div key={a}>{a}. {cfg.label}</div> : null
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1 text-xs text-green-600">
-                    <Leaf className="h-3 w-3" />
-                    Brez znanih alergenov
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )
-        })}
+        {filtered.slice(0, 30).map((item) => (
+          <NutritionalItemCard key={item.id} item={item} />
+        ))}
       </div>
 
       {filtered.length === 0 && (

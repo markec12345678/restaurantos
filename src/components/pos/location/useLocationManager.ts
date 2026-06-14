@@ -6,14 +6,14 @@
 // ============================================
 
 import { useState, useCallback } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { authFetch } from '@/components/pos/PinLogin'
-import type { SyncResultRow, DeliveryZoneFormRow, LocationFormRow, DeliveryZoneRow } from '@/lib/types'
+import type { SyncResultRow, DeliveryZoneRow } from '@/lib/types'
 import { queryKeys } from '@/lib/query-keys'
 import { type LocationData, type DeleteConfirmState, type ZoneFormState, type LocationFormState, defaultLocationForm, defaultZoneForm } from './constants'
+import { useLocationMutations } from './useLocationMutations'
 
 export function useLocationManager() {
-  const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [_editingId, setEditingId] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -57,80 +57,28 @@ export function useLocationManager() {
   const stats = data?.stats || { total: 0, active: 0, open: 0 }
 
   // ============================================
-  // MUTATIONS
-  // ============================================
-
-  const createMutation = useMutation({
-    mutationFn: async (data: LocationFormRow) => {
-      const res = await authFetch('/api/locations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error('Napaka pri ustvarjanju')
-      return res.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.locations.all })
-      setShowForm(false)
-      resetForm()
-    },
-  })
-
-  const toggleActiveMutation = useMutation({
-    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      const res = await authFetch(`/api/locations/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isActive }),
-      })
-      if (!res.ok) throw new Error('Napaka')
-      return res.json()
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.locations.all }),
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await authFetch(`/api/locations/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Napaka pri brisanju')
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.locations.all }),
-  })
-
-  const createZoneMutation = useMutation({
-    mutationFn: async (data: DeliveryZoneFormRow) => {
-      const res = await authFetch('/api/delivery-zones', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error('Napaka')
-      return res.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.delivery.zones })
-      setShowZoneForm(false)
-      setZoneForm({ ...defaultZoneForm })
-    },
-  })
-
-  const deleteZoneMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await authFetch(`/api/delivery-zones/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Napaka')
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.delivery.zones }),
-  })
-
-  // ============================================
-  // HANDLERJI
+  // MUTATIONS (podedovane iz pod-hooka)
   // ============================================
 
   const resetForm = useCallback(() => {
     setForm({ ...defaultLocationForm })
     setEditingId(null)
   }, [])
+
+  const resetZoneForm = useCallback(() => {
+    setZoneForm({ ...defaultZoneForm })
+  }, [])
+
+  const { createMutation, toggleActiveMutation, deleteMutation, createZoneMutation, deleteZoneMutation } = useLocationMutations({
+    onHideForm: () => setShowForm(false),
+    onResetForm: resetForm,
+    onHideZoneForm: () => setShowZoneForm(false),
+    onResetZoneForm: resetZoneForm,
+  })
+
+  // ============================================
+  // HANDLERJI
+  // ============================================
 
   const handleSubmit = useCallback(() => {
     const payload = {
