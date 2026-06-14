@@ -4,22 +4,20 @@
 // Izvleče poslovno logiko iz glavne komponente
 // ============================================
 
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import { type FloorTable, type DragState, type TableFormState, defaultTableForm } from './constants'
+import { type FloorTable, type TableFormState, defaultTableForm } from './constants'
+import { useFloorPlanDrag } from './useFloorPlanDrag'
 
 export function useFloorPlanState() {
   const queryClient = useQueryClient()
   const [editingTable, setEditingTable] = useState<FloorTable | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [formData, setFormData] = useState<TableFormState>({ ...defaultTableForm })
-  const [dragState, setDragState] = useState<DragState | null>(null)
-  const [selectedTableId, setSelectedTableId] = useState<string | null>(null)
   const [zoom, _setZoom] = useState(1)
-  const containerRef = useRef<HTMLDivElement>(null)
 
   // ============================================
   // QUERIES
@@ -33,24 +31,26 @@ export function useFloorPlanState() {
     },
   })
 
+  const allTables = tables || []
+
   // ============================================
-  // MUTATIONS
+  // DRAG HOOK (iz useFloorPlanDrag)
   // ============================================
 
-  // Posodobitev mize (za drag-drop pozicije)
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, ...data }: Record<string, unknown>) => {
-      const res = await authFetch(`/api/tables/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error('Failed')
-      return res.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.tables.all })
-    },
-  })
+  const {
+    dragState,
+    selectedTableId,
+    setSelectedTableId,
+    containerRef,
+    handleDragStart,
+    handleDragEnd,
+    handleDrag,
+    updateMutation,
+  } = useFloorPlanDrag(allTables)
+
+  // ============================================
+  // DODATNE MUTACIJE
+  // ============================================
 
   // Ustvari mizo
   const createMutation = useMutation({
@@ -81,80 +81,6 @@ export function useFloorPlanState() {
       queryClient.invalidateQueries({ queryKey: queryKeys.tables.all })
     },
   })
-
-  // ============================================
-  // DRAG HANDLERJI
-  // ============================================
-
-  const handleDragStart = useCallback((id: string, e: React.MouseEvent) => {
-    const table = (tables || []).find(t => t.id === id)
-    if (!table) return
-    setDragState({
-      id,
-      startX: e.clientX,
-      startY: e.clientY,
-      origX: table.posX,
-      origY: table.posY,
-    })
-    setSelectedTableId(id)
-  }, [tables])
-
-  const handleDrag = useCallback((id: string, deltaX: number, deltaY: number) => {
-    if (!containerRef.current) return
-    const rect = containerRef.current.getBoundingClientRect()
-    const deltaXPercent = (deltaX / rect.width) * 100
-    const deltaYPercent = (deltaY / rect.height) * 100
-    const table = (tables || []).find(t => t.id === id)
-    if (!table || !dragState) return
-    const newX = Math.max(0, Math.min(92, dragState.origX + deltaXPercent))
-    const newY = Math.max(0, Math.min(90, dragState.origY + deltaYPercent))
-    // Optimistic update
-    queryClient.setQueryData<FloorTable[]>(queryKeys.tables.all, old => {
-      if (!old) return old
-      return old.map(t => t.id === id ? { ...t, posX: newX, posY: newY } : t)
-    })
-  }, [tables, dragState, queryClient])
-
-  const handleDragEnd = useCallback(() => {
-    if (!dragState) return
-    const table = (tables || []).find(t => t.id === dragState.id)
-    if (table) {
-      // Shrani novo pozicijo
-      updateMutation.mutate({
-        id: table.id,
-        number: table.number,
-        capacity: table.capacity,
-        area: table.area,
-        status: table.status,
-        posX: table.posX,
-        posY: table.posY,
-        width: table.width,
-        height: table.height,
-        shape: table.shape,
-        rotation: table.rotation,
-      })
-    }
-    setDragState(null)
-  }, [dragState, tables, updateMutation])
-
-  // Globalni mouse move/up za vlečenje
-  useEffect(() => {
-    if (!dragState) return
-    const handleMouseMove = (e: MouseEvent) => {
-      const deltaX = e.clientX - dragState.startX
-      const deltaY = e.clientY - dragState.startY
-      handleDrag(dragState.id, deltaX, deltaY)
-    }
-    const handleMouseUp = () => {
-      handleDragEnd()
-    }
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [dragState, handleDrag, handleDragEnd])
 
   // ============================================
   // OBRAZEC IN DEJANJA
@@ -203,11 +129,10 @@ export function useFloorPlanState() {
 
   const handleTableClick = useCallback((table: FloorTable) => {
     setSelectedTableId(table.id)
-  }, [])
+  }, [setSelectedTableId])
 
   // Samodejna razporeditev miz v mrežo
   const autoArrange = useCallback(() => {
-    const allTables = tables || []
     const cols = Math.ceil(Math.sqrt(allTables.length))
     allTables.forEach((table, i) => {
       const row = Math.floor(i / cols)
@@ -229,7 +154,7 @@ export function useFloorPlanState() {
       })
     })
     toast.success('Mize samodejno razporejene')
-  }, [tables, updateMutation])
+  }, [allTables, updateMutation])
 
   const handleRotateTable = useCallback((table: FloorTable) => {
     updateMutation.mutate({
@@ -250,11 +175,11 @@ export function useFloorPlanState() {
   const handleDeleteTable = useCallback((id: string) => {
     deleteMutation.mutate(id)
     setSelectedTableId(null)
-  }, [deleteMutation])
+  }, [deleteMutation, setSelectedTableId])
 
   const handleDeselect = useCallback(() => {
     setSelectedTableId(null)
-  }, [])
+  }, [setSelectedTableId])
 
   const handleDialogOpenChange = useCallback((open: boolean) => {
     if (!open) setEditingTable(null)
@@ -277,24 +202,19 @@ export function useFloorPlanState() {
   // IZRAČUNI
   // ============================================
 
-  // Memoizirano grupiranje po območjih
-  const groupedByArea = useMemo(() => (tables || []).reduce((acc: Record<string, FloorTable[]>, table) => {
+  const groupedByArea = useMemo(() => allTables.reduce((acc: Record<string, FloorTable[]>, table) => {
     const area = table.area || 'main'
     if (!acc[area]) acc[area] = []
     acc[area].push(table)
     return acc
-  }, {}), [tables])
+  }, {}), [allTables])
 
-  // Memoizirani števci
-  const tableCounts = useMemo(() => {
-    const all = tables || []
-    return {
-      total: all.length,
-      occupied: all.filter(t => t.status === 'occupied').length,
-      available: all.filter(t => t.status === 'available').length,
-      reserved: all.filter(t => t.status === 'reserved').length,
-    }
-  }, [tables])
+  const tableCounts = useMemo(() => ({
+    total: allTables.length,
+    occupied: allTables.filter(t => t.status === 'occupied').length,
+    available: allTables.filter(t => t.status === 'available').length,
+    reserved: allTables.filter(t => t.status === 'reserved').length,
+  }), [allTables])
 
   return {
     // Stanja
@@ -305,7 +225,7 @@ export function useFloorPlanState() {
     selectedTableId,
     zoom,
     containerRef,
-    tables: tables || [],
+    tables: allTables,
     isLoading,
     groupedByArea,
     tableCounts,

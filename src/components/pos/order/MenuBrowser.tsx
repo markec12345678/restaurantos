@@ -13,55 +13,13 @@ import { MenuCategoryNav } from './MenuCategoryNav'
 import { MenuItemCard } from './MenuItemCard'
 import { ModifierDialog } from './ModifierDialog'
 import type { SelectedModifier } from '@/lib/store'
+import type {
+  ModifierGroupType, MenuItemType, MenuType,
+  SuperGroupType, StockInfoType,
+} from './types'
 
-// ============================================
-// TIPI
-// ============================================
-export interface ModifierGroupType {
-  id: string
-  sortOrder: number
-  modifierGroup: {
-    id: string
-    name: string
-    required: boolean
-    minSelect: number
-    maxSelect: number | null
-    modifiers: { id: string; name: string; price: number; sortOrder: number }[]
-  }
-}
-export interface MenuItemType {
-  id: string
-  name: string
-  description: string
-  price: number
-  image: string
-  isAvailable: boolean
-  sortOrder: number
-  categoryId: string
-  allergens?: string
-  category: { id: string; name: string; menu: { id: string; name: string } }
-  modifierGroups: ModifierGroupType[]
-}
-export interface MenuType {
-  id: string
-  name: string
-  icon: string
-  color: string
-  isActive: boolean
-  categories: { id: string; name: string; icon: string; color: string; menuItems: MenuItemType[] }[]
-}
-export interface SuperGroupType {
-  id: string
-  name: string
-  icon: string
-  color: string
-  categoryIds: string[]
-}
-export interface StockInfoType {
-  status: 'ok' | 'low' | 'out'
-  available: number
-  unit: string
-}
+// Re-izvoz tipov za združljivost z obstoječimi uvozi
+export type { ModifierGroupType, MenuItemType, MenuType, SuperGroupType, StockInfoType } from './types'
 
 export interface MenuBrowserProps {
   // Podatki

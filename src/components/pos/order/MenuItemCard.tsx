@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { ChevronRight, ImageIcon, ShieldAlert } from 'lucide-react'
-import type { MenuItemType, StockInfoType } from './MenuBrowser'
+import type { MenuItemType, StockInfoType } from './types'
 
 // ============================================
 // TIPI

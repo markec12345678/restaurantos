@@ -2268,3 +2268,28 @@ Stage Summary:
 - ESLint: 0 errors, 0 warnings
 - All component files under 400 lines
 - Remaining large files: API routes, QR pages, reserve page, KDS page
+
+---
+Task ID: round-15
+Agent: Main Agent
+Task: Round 15 refactoring — split 5 large files into sub-components and sub-hooks
+
+Work Log:
+- Moved FoodCostCalculator.tsx to food-cost/ subdirectory with 3 sub-components
+- Created food-cost/types.ts (62 lines), FoodCostSummaryCards.tsx (39 lines), FoodCostFilterBar.tsx (61 lines), FoodCostItemRow.tsx (160 lines)
+- Reduced FoodCostCalculator.tsx from 319 to 110 lines
+- Created floorplan/useFloorPlanDrag.ts (126 lines) — extracted drag & drop logic
+- Reduced useFloorPlanState.ts from 330 to 250 lines
+- Created gift-cards/useGiftCardDialogs.ts (160 lines) — extracted dialog state management
+- Reduced useGiftCardManager.ts from 371 to 276 lines
+- Created order/types.ts (138 lines) — centralized MenuBrowser and OrderPanel types
+- Reduced MenuBrowser.tsx from 342 to 300 lines, useOrderPanel.ts from 354 to 267 lines
+- Updated all imports from './MenuBrowser' to './types' in ModifierDialog, MenuCategoryNav, MenuItemCard, useOrderPanel
+- Updated page.tsx import path for FoodCostCalculator
+- TypeScript: 0 errors, ESLint: 0 errors/warnings
+
+Stage Summary:
+- 5 parent files split into 14 total files
+- 8 new files created (types.ts x2, 3 sub-components, 2 sub-hooks, 1 filter bar)
+- All files well under 400 lines (max: 300 lines)
+- Largest POS file now useOrderPanel.ts at 267 lines (was 371 before this session's earlier work)

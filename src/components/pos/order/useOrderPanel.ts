@@ -7,98 +7,11 @@ import { toast } from 'sonner'
 import { usePOSShortcuts } from '@/lib/use-pos-shortcuts'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import type { StockInfoType } from './MenuBrowser'
+import type { StockInfoType } from './types'
 import type { OrderType } from './OrderList'
 
-// ============================================
-// TIPI
-// ============================================
-export interface OrderPanelState {
-  // Lokalno stanje
-  customerName: string
-  setCustomerName: (_name: string) => void
-  customerPhone: string
-  setCustomerPhone: (_phone: string) => void
-  orderNotes: string
-  setOrderNotes: (_notes: string) => void
-  mainTab: string
-  setMainTab: (_tab: string) => void
-  orderListTab: string
-  setOrderListTab: (_tab: string) => void
-  selectedOrder: OrderType | Record<string, unknown> | null
-  setSelectedOrder: (_order: OrderType | Record<string, unknown> | null) => void
-  paymentDialogOpen: boolean
-  setPaymentDialogOpen: (_open: boolean) => void
-  detailOrder: OrderType | null
-  setDetailOrder: (_order: OrderType | null) => void
-  receiptOrder: OrderType | Record<string, unknown> | null
-  setReceiptOrder: (_order: OrderType | Record<string, unknown> | null) => void
-  autoPayOrder: Record<string, unknown> | null
-  setAutoPayOrder: (_order: Record<string, unknown> | null) => void
-  autoReceiptOrderId: string | null
-  setAutoReceiptOrderId: (_id: string | null) => void
-  voidItem: { id: string; name: string; quantity: number; price: number; vatRate: number; voided: boolean; orderId: string } | null
-  setVoidItem: (_item: { id: string; name: string; quantity: number; price: number; vatRate: number; voided: boolean; orderId: string } | null) => void
-  stornoOrder: OrderType | Record<string, unknown> | null
-  setStornoOrder: (_order: OrderType | Record<string, unknown> | null) => void
-  clearCartConfirm: boolean
-  setClearCartConfirm: (_open: boolean) => void
-  lastAddedId: string | null
-  setLastAddedId: (_id: string | null) => void
-  shortcutsOpen: boolean
-  setShortcutsOpen: (_open: boolean) => void
-}
-
-export interface OrderPanelData {
-  menus: MenuType[] | undefined
-  menusLoading: boolean
-  menuItems: MenuItemType[] | undefined
-  menuLoading: boolean
-  tables: TableType[] | undefined
-  orders: OrderType[] | undefined
-  ordersLoading: boolean
-  discounts: DiscountType[] | undefined
-  diningOptions: DiningOptionType[] | undefined
-  menuStockMap: Record<string, StockInfoType> | undefined
-}
-
-export interface OrderPanelCalculations {
-  subtotal: number
-  vatBreakdown: Array<{ vatRate: number; taxableAmount: number; taxAmount: number }>
-  totalTax: number
-  total: number
-  _cappedDiscount: number
-}
-
-// Pomožni tipi za podatke
-interface MenuType {
-  id: string
-  name: string
-  [key: string]: unknown
-}
-interface MenuItemType {
-  id: string
-  name: string
-  [key: string]: unknown
-}
-interface TableType {
-  id: string
-  number: number
-  capacity: number
-  status: string
-}
-interface DiscountType {
-  id: string
-  name: string
-  type: string
-  amount: number
-  isActive: boolean
-}
-interface DiningOptionType {
-  id: string
-  name: string
-  type: string
-}
+// Zunanji tipi, ki jih uporabljajo druge komponente
+export type { OrderPanelState, OrderPanelData, OrderPanelCalculations } from './types'
 
 // ============================================
 // USE ORDER PANEL - Hook za stanje in logiko
@@ -193,7 +106,7 @@ export function useOrderPanel() {
         return {}
       }
     },
-    refetchInterval: 30000, // Osveži vsakih 30 sekund
+    refetchInterval: 30000,
     staleTime: 20000,
   })
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import type { MenuType, SuperGroupType } from './MenuBrowser'
+import type { MenuType, SuperGroupType } from './types'
 
 // ============================================
 // TIPI

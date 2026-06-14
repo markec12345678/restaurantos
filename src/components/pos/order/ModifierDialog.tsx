@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Check } from 'lucide-react'
-import type { ModifierGroupType, MenuItemType } from './MenuBrowser'
+import type { ModifierGroupType, MenuItemType } from './types'
 import type { SelectedModifier } from '@/lib/store'
 
 // ============================================

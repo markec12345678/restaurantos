@@ -89,7 +89,7 @@ const RecipeScaling = dynamic(() => import('@/components/pos/RecipeScaling').the
 const ComplianceDashboard = dynamic(() => import('@/components/pos/ComplianceDashboard').then(m => ({ default: m.ComplianceDashboard })), { ssr: false, loading: () => loadingFallback })
 // Default exports
 const GuestManager = dynamic(() => import('@/components/pos/GuestManager').then(m => ({ default: m.GuestManager })), { ssr: false, loading: () => loadingFallback })
-const FoodCostCalculator = dynamic(() => import('@/components/pos/FoodCostCalculator'), { ssr: false, loading: () => loadingFallback })
+const FoodCostCalculator = dynamic(() => import('@/components/pos/food-cost/FoodCostCalculator'), { ssr: false, loading: () => loadingFallback })
 const WaitlistManager = dynamic(() => import('@/components/pos/WaitlistManager'), { ssr: false, loading: () => loadingFallback })
 const AIAssistant = dynamic(() => import('@/components/pos/AIAssistant'), { ssr: false, loading: () => null })
 

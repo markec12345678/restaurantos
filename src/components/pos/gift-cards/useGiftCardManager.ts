@@ -1,73 +1,32 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { toast } from 'sonner'
 import { useState, useMemo, useCallback } from 'react'
+import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import { type GiftCard, generateCardNumber } from './constants'
 import { useGiftCardMutations } from './useGiftCardMutations'
+import { useGiftCardDialogs } from './useGiftCardDialogs'
 
-// --- Tipi obrazcev ---
-
-interface NewCardForm {
-  cardNumber: string
-  ownerName: string
-  initialBalance: string
-  expiresAt: string
-}
-
-interface EditCardForm {
-  status: string
-  expiresAt: string
-}
-
-interface LoadFundsForm {
-  amount: string
-  note: string
-}
-
-// --- Hook ---
+// ============================================
+// HOOK: Upravljanje darilnih kartic
+// Združuje poizvedbe, filtre, mutacije in dialog handlerje
+// ============================================
 
 export function useGiftCardManager() {
-  // --- Stanja ---
+  // --- Filtri ---
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [sortField, setSortField] = useState<'purchasedAt' | 'balance' | 'cardNumber'>('purchasedAt')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
 
-  // --- Dijalog za novo kartico ---
-  const [newCardDialogOpen, setNewCardDialogOpen] = useState(false)
-  const [newCardForm, setNewCardForm] = useState<NewCardForm>({
-    cardNumber: '',
-    ownerName: '',
-    initialBalance: '',
-    expiresAt: '',
-  })
+  // ============================================
+  // DIALOG STATE (iz useGiftCardDialogs)
+  // Ustvarimo najprej, da dobimo setterje za mutacije
+  // ============================================
 
-  // --- Dijalog za urejanje kartice ---
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
-  const [editTarget, setEditTarget] = useState<GiftCard | null>(null)
-  const [editForm, setEditForm] = useState<EditCardForm>({
-    status: 'active',
-    expiresAt: '',
-  })
-
-  // --- Dijalog za nalaganje sredstev ---
-  const [loadDialogOpen, setLoadDialogOpen] = useState(false)
-  const [loadTarget, setLoadTarget] = useState<GiftCard | null>(null)
-  const [loadForm, setLoadForm] = useState<LoadFundsForm>({
-    amount: '',
-    note: '',
-  })
-
-  // --- Dijalog za zgodovino transakcij ---
-  const [historyDialogOpen, setHistoryDialogOpen] = useState(false)
-  const [historyTarget, setHistoryTarget] = useState<GiftCard | null>(null)
-
-  // --- Dijalog za brisanje ---
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<GiftCard | null>(null)
+  const dlg = useGiftCardDialogs()
 
   // ============================================
   // QUERIES
@@ -141,99 +100,61 @@ export function useGiftCardManager() {
 
   const { createMutation, updateMutation, loadMutation, deleteMutation } = useGiftCardMutations({
     allCards,
-    setNewCardDialogOpen,
-    setEditDialogOpen,
-    setEditTarget,
-    setLoadDialogOpen,
-    setLoadTarget,
-    setDeleteDialogOpen,
-    setDeleteTarget,
+    setNewCardDialogOpen: dlg.setNewCardDialogOpen,
+    setEditDialogOpen: dlg.setEditDialogOpen,
+    setEditTarget: dlg.setEditTarget,
+    setLoadDialogOpen: dlg.setLoadDialogOpen,
+    setLoadTarget: dlg.setLoadTarget,
+    setDeleteDialogOpen: dlg.setDeleteDialogOpen,
+    setDeleteTarget: dlg.setDeleteTarget,
   })
 
   // ============================================
-  // HANDLERJI
+  // MUTATION HANDLERJI
   // ============================================
 
-  const handleSort = useCallback((field: 'purchasedAt' | 'balance' | 'cardNumber') => {
-    if (sortField === field) {
-      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortField(field)
-      setSortDir('desc')
-    }
-  }, [sortField, sortDir])
-
-  const openNewCard = useCallback(() => {
-    setNewCardForm({
-      cardNumber: generateCardNumber(),
-      ownerName: '',
-      initialBalance: '',
-      expiresAt: '',
-    })
-    setNewCardDialogOpen(true)
-  }, [])
-
   const handleCreateCard = useCallback(() => {
-    if (!newCardForm.initialBalance || parseFloat(newCardForm.initialBalance) <= 0) {
+    if (!dlg.newCardForm.initialBalance || parseFloat(dlg.newCardForm.initialBalance) <= 0) {
       toast.error('Začetni znesek mora biti večji od 0')
       return
     }
     createMutation.mutate({
-      cardNumber: newCardForm.cardNumber || generateCardNumber(),
-      ownerName: newCardForm.ownerName,
-      balance: parseFloat(newCardForm.initialBalance),
-      initialBalance: parseFloat(newCardForm.initialBalance),
-      expiresAt: newCardForm.expiresAt || null,
+      cardNumber: dlg.newCardForm.cardNumber || generateCardNumber(),
+      ownerName: dlg.newCardForm.ownerName,
+      balance: parseFloat(dlg.newCardForm.initialBalance),
+      initialBalance: parseFloat(dlg.newCardForm.initialBalance),
+      expiresAt: dlg.newCardForm.expiresAt || null,
     })
-  }, [newCardForm, createMutation])
-
-  const openEdit = useCallback((card: GiftCard) => {
-    setEditTarget(card)
-    setEditForm({
-      status: card.status,
-      expiresAt: card.expiresAt ? new Date(card.expiresAt).toISOString().split('T')[0] : '',
-    })
-    setEditDialogOpen(true)
-  }, [])
+  }, [dlg.newCardForm, createMutation])
 
   const handleEditSave = useCallback(() => {
-    if (!editTarget) return
+    if (!dlg.editTarget) return
     updateMutation.mutate({
-      id: editTarget.id,
-      status: editForm.status,
-      expiresAt: editForm.expiresAt || null,
+      id: dlg.editTarget.id,
+      status: dlg.editForm.status,
+      expiresAt: dlg.editForm.expiresAt || null,
     })
-  }, [editTarget, editForm, updateMutation])
-
-  const openLoad = useCallback((card: GiftCard) => {
-    setLoadTarget(card)
-    setLoadForm({ amount: '', note: '' })
-    setLoadDialogOpen(true)
-  }, [])
+  }, [dlg.editTarget, dlg.editForm, updateMutation])
 
   const handleLoad = useCallback(() => {
-    if (!loadTarget) return
-    const amount = parseFloat(loadForm.amount)
+    if (!dlg.loadTarget) return
+    const amount = parseFloat(dlg.loadForm.amount)
     if (!amount || amount <= 0) {
       toast.error('Znesek mora biti večji od 0')
       return
     }
     loadMutation.mutate({
-      id: loadTarget.id,
+      id: dlg.loadTarget.id,
       amount,
-      note: loadForm.note,
+      note: dlg.loadForm.note,
     })
-  }, [loadTarget, loadForm, loadMutation])
+  }, [dlg.loadTarget, dlg.loadForm, loadMutation])
 
-  const openHistory = useCallback((card: GiftCard) => {
-    setHistoryTarget(card)
-    setHistoryDialogOpen(true)
-  }, [])
-
-  const confirmDelete = useCallback((card: GiftCard) => {
-    setDeleteTarget(card)
-    setDeleteDialogOpen(true)
-  }, [])
+  const handleDeleteConfirm = useCallback(() => {
+    if (dlg.deleteTarget) {
+      deleteMutation.mutate(dlg.deleteTarget.id)
+    }
+  }, [dlg.deleteTarget, deleteMutation])
 
   const suspendCard = useCallback((card: GiftCard) => {
     updateMutation.mutate({
@@ -274,34 +195,18 @@ export function useGiftCardManager() {
     }
   }, [updateMutation])
 
-  // --- Pomožni handlerji za dijaloge ---
+  // ============================================
+  // SORTIRANJE
+  // ============================================
 
-  const handleEditDialogOpenChange = useCallback((open: boolean) => {
-    if (!open) {
-      setEditTarget(null)
+  const handleSort = useCallback((field: 'purchasedAt' | 'balance' | 'cardNumber') => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDir('desc')
     }
-    setEditDialogOpen(open)
-  }, [])
-
-  const handleLoadDialogOpenChange = useCallback((open: boolean) => {
-    if (!open) {
-      setLoadTarget(null)
-    }
-    setLoadDialogOpen(open)
-  }, [])
-
-  const handleHistoryDialogOpenChange = useCallback((open: boolean) => {
-    if (!open) {
-      setHistoryTarget(null)
-    }
-    setHistoryDialogOpen(open)
-  }, [])
-
-  const handleDeleteConfirm = useCallback(() => {
-    if (deleteTarget) {
-      deleteMutation.mutate(deleteTarget.id)
-    }
-  }, [deleteTarget, deleteMutation])
+  }, [sortField, sortDir])
 
   return {
     // Nalaganje
@@ -321,50 +226,50 @@ export function useGiftCardManager() {
     summaryStats,
 
     // Dijalog za novo kartico
-    newCardDialogOpen,
-    setNewCardDialogOpen,
-    newCardForm,
-    setNewCardForm,
+    newCardDialogOpen: dlg.newCardDialogOpen,
+    setNewCardDialogOpen: dlg.setNewCardDialogOpen,
+    newCardForm: dlg.newCardForm,
+    setNewCardForm: dlg.setNewCardForm,
     handleCreateCard,
     isCreatePending: createMutation.isPending,
 
     // Dijalog za urejanje
-    editDialogOpen,
-    handleEditDialogOpenChange,
-    editTarget,
-    editForm,
-    setEditForm,
+    editDialogOpen: dlg.editDialogOpen,
+    handleEditDialogOpenChange: dlg.handleEditDialogOpenChange,
+    editTarget: dlg.editTarget,
+    editForm: dlg.editForm,
+    setEditForm: dlg.setEditForm,
+    openEdit: dlg.openEdit,
     handleEditSave,
     isUpdatePending: updateMutation.isPending,
 
     // Dijalog za nalaganje
-    loadDialogOpen,
-    handleLoadDialogOpenChange,
-    loadTarget,
-    loadForm,
-    setLoadForm,
+    loadDialogOpen: dlg.loadDialogOpen,
+    handleLoadDialogOpenChange: dlg.handleLoadDialogOpenChange,
+    loadTarget: dlg.loadTarget,
+    loadForm: dlg.loadForm,
+    setLoadForm: dlg.setLoadForm,
+    openLoad: dlg.openLoad,
     handleLoad,
     isLoadPending: loadMutation.isPending,
 
     // Dijalog za zgodovino
-    historyDialogOpen,
-    handleHistoryDialogOpenChange,
-    historyTarget,
+    historyDialogOpen: dlg.historyDialogOpen,
+    handleHistoryDialogOpenChange: dlg.handleHistoryDialogOpenChange,
+    historyTarget: dlg.historyTarget,
+    openHistory: dlg.openHistory,
 
     // Dijalog za brisanje
-    deleteDialogOpen,
-    setDeleteDialogOpen,
-    deleteTarget,
+    deleteDialogOpen: dlg.deleteDialogOpen,
+    setDeleteDialogOpen: dlg.setDeleteDialogOpen,
+    deleteTarget: dlg.deleteTarget,
+    confirmDelete: dlg.confirmDelete,
     handleDeleteConfirm,
     isDeletePending: deleteMutation.isPending,
 
     // Handlerji za tabelo
     handleSort,
-    openNewCard,
-    openEdit,
-    openLoad,
-    openHistory,
-    confirmDelete,
+    openNewCard: dlg.openNewCard,
     suspendCard,
     reactivateCard,
   }
