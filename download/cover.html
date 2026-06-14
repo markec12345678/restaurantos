@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+@page { size: 794px 1123px; margin: 0; }
+html, body { margin: 0; padding: 0; width: 794px; height: 1123px; overflow: hidden; font-family: 'Carlito', sans-serif; }
+.cover { width: 794px; height: 1123px; position: relative; background: #f2f1ef; }
+
+/* Geometric accents */
+.accent-line-top {
+  position: absolute; top: 60px; left: 60px; right: 60px; height: 3px;
+  background: #1b7796;
+}
+.accent-line-bottom {
+  position: absolute; bottom: 60px; left: 60px; right: 60px; height: 3px;
+  background: #1b7796;
+}
+.accent-block {
+  position: absolute; top: 180px; right: 60px; width: 120px; height: 120px;
+  background: rgba(27,119,150,0.08); border: 2px solid rgba(27,119,150,0.2);
+}
+
+/* Content */
+.kicker {
+  position: absolute; top: 100px; left: 60px;
+  font-size: 14px; letter-spacing: 3px; text-transform: uppercase;
+  color: #827f76; font-weight: 400;
+}
+.hero {
+  position: absolute; top: 140px; left: 60px; right: 200px;
+  font-size: 52px; font-weight: 700; line-height: 1.15;
+  color: #1b7796;
+}
+.subtitle {
+  position: absolute; top: 350px; left: 60px; right: 60px;
+  font-size: 20px; font-weight: 400; line-height: 1.6;
+  color: #21201e;
+}
+.summary {
+  position: absolute; top: 470px; left: 60px; right: 60px;
+  font-size: 14px; line-height: 1.8; color: #827f76;
+  border-top: 1px solid rgba(27,119,150,0.2); padding-top: 20px;
+}
+
+/* Stats row */
+.stats {
+  position: absolute; bottom: 140px; left: 60px; right: 60px;
+  display: flex; justify-content: space-between;
+}
+.stat { text-align: left; }
+.stat-value { font-size: 28px; font-weight: 700; color: #1b7796; }
+.stat-label { font-size: 11px; color: #827f76; margin-top: 4px; text-transform: uppercase; letter-spacing: 1px; }
+
+.meta {
+  position: absolute; bottom: 80px; left: 60px;
+  font-size: 12px; color: #827f76;
+}
+</style>
+</head>
+<body>
+<div class="cover">
+  <div class="accent-line-top"></div>
+  <div class="accent-block"></div>
+
+  <div class="kicker">Celotna analiza repozitorija</div>
+  <div class="hero">RestaurantOS<br>Analiza in<br>Indeks</div>
+  <div class="subtitle">Next.js 16 + React 19 + Prisma + SQLite<br>Restavratorski POS sistem s FURS fiskalizacijo</div>
+
+  <div class="summary">
+    Avtomatizirana globoka analiza celotnega repozitorija RestaurantOS z indeksom arhitekture,
+    Prisma sheme (45 modelov), API rut (150+ koncnih tock), komponent (110+), avtentikacije,
+    poslovne logike in pregledom popravljenih slik artiklov (43 regeneriranih).
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value">45</div>
+      <div class="stat-label">Prisma modelov</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">150+</div>
+      <div class="stat-label">API koncnih tock</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">110+</div>
+      <div class="stat-label">Komponent</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">12</div>
+      <div class="stat-label">Strani</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">43</div>
+      <div class="stat-label">Popravljenih slik</div>
+    </div>
+  </div>
+
+  <div class="meta">Generirano: 10. junij 2026 | Avtor: Z.ai analiza</div>
+  <div class="accent-line-bottom"></div>
+</div>
+</body>
+</html>

@@ -1,0 +1,382 @@
+[
+  {
+    "path": "/menu-images/gazirane-pijace/coca-cola-zero.png",
+    "category": "gazirane-pijace",
+    "filename": "coca-cola-zero",
+    "variance": 263,
+    "size_kb": 76,
+    "unique_colors": 95,
+    "itemName": "Coca Cola Zero (0.25L)",
+    "dbCategory": "Gazirane Pijače"
+  },
+  {
+    "path": "/menu-images/gazirane-pijace/cockta.png",
+    "category": "gazirane-pijace",
+    "filename": "cockta",
+    "variance": 304,
+    "size_kb": 76,
+    "unique_colors": 94,
+    "itemName": "Cockta (0.275L)",
+    "dbCategory": "Gazirane Pijače"
+  },
+  {
+    "path": "/menu-images/viski/lagavulin-16.png",
+    "category": "viski",
+    "filename": "lagavulin-16",
+    "variance": 455,
+    "size_kb": 79,
+    "unique_colors": 116,
+    "itemName": "Lagavulin 16yo",
+    "dbCategory": "Viski"
+  },
+  {
+    "path": "/menu-images/viski/laphroaig-10.png",
+    "category": "viski",
+    "filename": "laphroaig-10",
+    "variance": 406,
+    "size_kb": 79,
+    "unique_colors": 118,
+    "itemName": "Laphroaig 10yo",
+    "dbCategory": "Viski"
+  },
+  {
+    "path": "/menu-images/sladice/palacinke-orehi.png",
+    "category": "sladice",
+    "filename": "palacinke-orehi",
+    "variance": 498,
+    "size_kb": 81,
+    "unique_colors": 108,
+    "itemName": "Palačinke z orehi",
+    "dbCategory": "Sladice"
+  },
+  {
+    "path": "/menu-images/sladice/palacinke-nutella.png",
+    "category": "sladice",
+    "filename": "palacinke-nutella",
+    "variance": 317,
+    "size_kb": 78,
+    "unique_colors": 110,
+    "itemName": "Palačinke z Nutello",
+    "dbCategory": "Sladice"
+  },
+  {
+    "path": "/menu-images/sladice/tiramisu.png",
+    "category": "sladice",
+    "filename": "tiramisu",
+    "variance": 405,
+    "size_kb": 78,
+    "unique_colors": 97,
+    "itemName": "Tiramisu",
+    "dbCategory": "Sladice"
+  },
+  {
+    "path": "/menu-images/sladice/vroce-visnje.png",
+    "category": "sladice",
+    "filename": "vroce-visnje",
+    "variance": 351,
+    "size_kb": 79,
+    "unique_colors": 103,
+    "itemName": "Vroče višnje s sladoledom",
+    "dbCategory": "Sladice"
+  },
+  {
+    "path": "/menu-images/sladice/vroci-gozdni-sadezi.png",
+    "category": "sladice",
+    "filename": "vroci-gozdni-sadezi",
+    "variance": 326,
+    "size_kb": 80,
+    "unique_colors": 107,
+    "itemName": "Vroči gozdni sadeži s sladoledom",
+    "dbCategory": "Sladice"
+  },
+  {
+    "path": "/menu-images/sladice/palacinke-nutella-banana.png",
+    "category": "sladice",
+    "filename": "palacinke-nutella-banana",
+    "variance": 466,
+    "size_kb": 82,
+    "unique_colors": 119,
+    "itemName": "Palačinke z Nutello in banano",
+    "dbCategory": "Sladice"
+  },
+  {
+    "path": "/menu-images/sladice/nutelina-torta.png",
+    "category": "sladice",
+    "filename": "nutelina-torta",
+    "variance": 243,
+    "size_kb": 76,
+    "unique_colors": 101,
+    "itemName": "Nutelina torta z banano",
+    "dbCategory": "Sladice"
+  },
+  {
+    "path": "/menu-images/sladice/palacinke-nutella-orehi.png",
+    "category": "sladice",
+    "filename": "palacinke-nutella-orehi",
+    "variance": 409,
+    "size_kb": 80,
+    "unique_colors": 107,
+    "itemName": "Palačinke z Nutello in orehi",
+    "dbCategory": "Sladice"
+  },
+  {
+    "path": "/menu-images/sladice/palacinke-cokolada.png",
+    "category": "sladice",
+    "filename": "palacinke-cokolada",
+    "variance": 360,
+    "size_kb": 81,
+    "unique_colors": 111,
+    "itemName": "Palačinke s čokolado",
+    "dbCategory": "Sladice"
+  },
+  {
+    "path": "/menu-images/sladice/cokoladni-souffle.png",
+    "category": "sladice",
+    "filename": "cokoladni-souffle",
+    "variance": 285,
+    "size_kb": 76,
+    "unique_colors": 102,
+    "itemName": "Čokoladni souffle",
+    "dbCategory": "Sladice"
+  },
+  {
+    "path": "/menu-images/grencice/amaro.png",
+    "category": "grencice",
+    "filename": "amaro",
+    "variance": 228,
+    "size_kb": 77,
+    "unique_colors": 104,
+    "itemName": "Amaro",
+    "dbCategory": "Grenčice"
+  },
+  {
+    "path": "/menu-images/grencice/jagermeister.png",
+    "category": "grencice",
+    "filename": "jagermeister",
+    "variance": 310,
+    "size_kb": 78,
+    "unique_colors": 111,
+    "itemName": "Jägermeister",
+    "dbCategory": "Grenčice"
+  },
+  {
+    "path": "/menu-images/grencice/cynar.png",
+    "category": "grencice",
+    "filename": "cynar",
+    "variance": 248,
+    "size_kb": 77,
+    "unique_colors": 103,
+    "itemName": "Cynar",
+    "dbCategory": "Grenčice"
+  },
+  {
+    "path": "/menu-images/destilati/ararat-20.png",
+    "category": "destilati",
+    "filename": "ararat-20",
+    "variance": 452,
+    "size_kb": 80,
+    "unique_colors": 115,
+    "itemName": "Ararat 20yo",
+    "dbCategory": "Destilati, Konjak in Rum"
+  },
+  {
+    "path": "/menu-images/destilati/delamaine-xo.png",
+    "category": "destilati",
+    "filename": "delamaine-xo",
+    "variance": 419,
+    "size_kb": 80,
+    "unique_colors": 120,
+    "itemName": "Cognac Delamaine X.O.",
+    "dbCategory": "Destilati, Konjak in Rum"
+  },
+  {
+    "path": "/menu-images/destilati/hennessy-xo.png",
+    "category": "destilati",
+    "filename": "hennessy-xo",
+    "variance": 449,
+    "size_kb": 80,
+    "unique_colors": 118,
+    "itemName": "Hennessy X.O.",
+    "dbCategory": "Destilati, Konjak in Rum"
+  },
+  {
+    "path": "/menu-images/otroske-jedi/pizza-jurcek.png",
+    "category": "otroske-jedi",
+    "filename": "pizza-jurcek",
+    "variance": 413,
+    "size_kb": 79,
+    "unique_colors": 100,
+    "itemName": "Pizza Jurček",
+    "dbCategory": "Otroške jedi"
+  },
+  {
+    "path": "/menu-images/vegetarijanske-jedi/sojini-polpeti.png",
+    "category": "vegetarijanske-jedi",
+    "filename": "sojini-polpeti",
+    "variance": 430,
+    "size_kb": 80,
+    "unique_colors": 102,
+    "itemName": "Sojini polpeti",
+    "dbCategory": "Vegetarijanske jedi"
+  },
+  {
+    "path": "/menu-images/vegetarijanske-jedi/zelenjavni-zrezki.png",
+    "category": "vegetarijanske-jedi",
+    "filename": "zelenjavni-zrezki",
+    "variance": 466,
+    "size_kb": 81,
+    "unique_colors": 106,
+    "itemName": "Zelenjavni zrezki",
+    "dbCategory": "Vegetarijanske jedi"
+  },
+  {
+    "path": "/menu-images/vegetarijanske-jedi/ocvrti-melancani.png",
+    "category": "vegetarijanske-jedi",
+    "filename": "ocvrti-melancani",
+    "variance": 312,
+    "size_kb": 80,
+    "unique_colors": 102,
+    "itemName": "Ocvrti melancani",
+    "dbCategory": "Vegetarijanske jedi"
+  },
+  {
+    "path": "/menu-images/vegetarijanske-jedi/vegetarijanska-plosca.png",
+    "category": "vegetarijanske-jedi",
+    "filename": "vegetarijanska-plosca",
+    "variance": 462,
+    "size_kb": 83,
+    "unique_colors": 114,
+    "itemName": "Vegetarijanska plošča",
+    "dbCategory": "Vegetarijanske jedi"
+  },
+  {
+    "path": "/menu-images/vegetarijanske-jedi/bucke-na-zaru.png",
+    "category": "vegetarijanske-jedi",
+    "filename": "bucke-na-zaru",
+    "variance": 460,
+    "size_kb": 81,
+    "unique_colors": 104,
+    "itemName": "Bučke na žaru",
+    "dbCategory": "Vegetarijanske jedi"
+  },
+  {
+    "path": "/menu-images/omake/gobova-omaka.png",
+    "category": "omake",
+    "filename": "gobova-omaka",
+    "variance": 320,
+    "size_kb": 70,
+    "unique_colors": 76,
+    "itemName": "Gobova omaka",
+    "dbCategory": "Omake"
+  },
+  {
+    "path": "/menu-images/omake/orehova-omaka.png",
+    "category": "omake",
+    "filename": "orehova-omaka",
+    "variance": 377,
+    "size_kb": 71,
+    "unique_colors": 82,
+    "itemName": "Orehova omaka",
+    "dbCategory": "Omake"
+  },
+  {
+    "path": "/menu-images/omake/poprova-omaka.png",
+    "category": "omake",
+    "filename": "poprova-omaka",
+    "variance": 249,
+    "size_kb": 67,
+    "unique_colors": 73,
+    "itemName": "Poprova omaka",
+    "dbCategory": "Omake"
+  },
+  {
+    "path": "/menu-images/omake/gozdarska-omaka.png",
+    "category": "omake",
+    "filename": "gozdarska-omaka",
+    "variance": 315,
+    "size_kb": 71,
+    "unique_colors": 80,
+    "itemName": "Gozdarska omaka",
+    "dbCategory": "Omake"
+  },
+  {
+    "path": "/menu-images/palacinke/kinder-bueno.png",
+    "category": "palacinke",
+    "filename": "kinder-bueno",
+    "variance": 440,
+    "size_kb": 80,
+    "unique_colors": 100,
+    "itemName": "Kinder Bueno",
+    "dbCategory": "Palačinke"
+  },
+  {
+    "path": "/menu-images/palacinke/ferrero-rocher.png",
+    "category": "palacinke",
+    "filename": "ferrero-rocher",
+    "variance": 323,
+    "size_kb": 80,
+    "unique_colors": 104,
+    "itemName": "Ferrero Rocher",
+    "dbCategory": "Palačinke"
+  },
+  {
+    "path": "/menu-images/palacinke/snickers.png",
+    "category": "palacinke",
+    "filename": "snickers",
+    "variance": 314,
+    "size_kb": 79,
+    "unique_colors": 101,
+    "itemName": "Snickers",
+    "dbCategory": "Palačinke"
+  },
+  {
+    "path": "/menu-images/likerji/borovnica-kejzar.png",
+    "category": "likerji",
+    "filename": "borovnica-kejzar",
+    "variance": 464,
+    "size_kb": 81,
+    "unique_colors": 114,
+    "itemName": "Liker Borovnica Kejžar",
+    "dbCategory": "Likerji"
+  },
+  {
+    "path": "/menu-images/mesane-pijace/cuba-libre.png",
+    "category": "mesane-pijace",
+    "filename": "cuba-libre",
+    "variance": 323,
+    "size_kb": 78,
+    "unique_colors": 115,
+    "itemName": "Cuba Libre",
+    "dbCategory": "Mešane Pijače"
+  },
+  {
+    "path": "/menu-images/malice/malica-bograc.png",
+    "category": "malice",
+    "filename": "malica-bograc",
+    "variance": 360,
+    "size_kb": 80,
+    "unique_colors": 108,
+    "itemName": "Malica - Bograč",
+    "dbCategory": "Malice"
+  },
+  {
+    "path": "/menu-images/malice/malica-goveji-golaz.png",
+    "category": "malice",
+    "filename": "malica-goveji-golaz",
+    "variance": 364,
+    "size_kb": 81,
+    "unique_colors": 114,
+    "itemName": "Malica - Goveji golaž",
+    "dbCategory": "Malice"
+  },
+  {
+    "path": "/menu-images/malice/malica-pecena-rebra.png",
+    "category": "malice",
+    "filename": "malica-pecena-rebra",
+    "variance": 490,
+    "size_kb": 82,
+    "unique_colors": 113,
+    "itemName": "Malica - Pečena rebra",
+    "dbCategory": "Malice"
+  }
+]

@@ -1,0 +1,2300 @@
+{
+  "menu": [
+    {
+      "name": "Alter 2021",
+      "image": "/menu-images/bela-vina/alter.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Angel Belo Grande Cuvee 2019",
+      "image": "/menu-images/bela-vina/angel-belo-2019.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Angel Belo Grande Cuvee 2021",
+      "image": "/menu-images/bela-vina/angel-belo-2021.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Bela Frankinja 2023 (kozarec)",
+      "image": "/menu-images/bela-vina/bela-frankinja-kozarec.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Bela Frankinja 2023 (steklenica)",
+      "image": "/menu-images/bela-vina/bela-frankinja-steklenica.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Burja Bela 2022",
+      "image": "/menu-images/bela-vina/burja-bela.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Chardonnay Domaine Vicomte de Noue 2020",
+      "image": "/menu-images/bela-vina/chardonnay-vicomte.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Chardonnay Dular 2022",
+      "image": "/menu-images/bela-vina/chardonnay-dular.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Chardonnay Verus 2023",
+      "image": "/menu-images/bela-vina/chardonnay-verus.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Cuvee Emino 2022 (kozarec)",
+      "image": "/menu-images/bela-vina/cuvee-emino-kozarec.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Cuvee Emino 2022 (steklenica)",
+      "image": "/menu-images/bela-vina/cuvee-emino-steklenica.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Laški Rizling 2021",
+      "image": "/menu-images/bela-vina/laski-rizling.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Malvazija Malval Movia 2023",
+      "image": "/menu-images/bela-vina/malvazija-movia.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Rebula 2022",
+      "image": "/menu-images/bela-vina/rebula.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Rebula Cru Selection 2021",
+      "image": "/menu-images/bela-vina/rebula-cru.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Renski Rizling Keltis 2021",
+      "image": "/menu-images/bela-vina/renski-rizling-keltis.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Renski Rizling Stare Trte 2015",
+      "image": "/menu-images/bela-vina/renski-rizling-stare.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Rumeni Muškat 2023 (kozarec)",
+      "image": "/menu-images/bela-vina/rumeni-muskat-kozarec.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Rumeni Muškat 2023 (steklenica)",
+      "image": "/menu-images/bela-vina/rumeni-muskat-steklenica.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Rumeni Muškat Pozna Trgatev 2019 (kozarec)",
+      "image": "/menu-images/bela-vina/rumeni-muskat-pozna-kozarec.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Rumeni Muškat Pozna Trgatev 2019 (steklenica)",
+      "image": "/menu-images/bela-vina/rumeni-muskat-pozna-steklenica.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Sauvignon Blanc Cru Veliki Vrh 2023",
+      "image": "/menu-images/bela-vina/sauvignon-blanc-cru.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Sivi Pinot Jamertal 2021",
+      "image": "/menu-images/bela-vina/sivi-pinot-jamertal.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Traminec 2023",
+      "image": "/menu-images/bela-vina/traminec.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Šipon Verus 2022",
+      "image": "/menu-images/bela-vina/sipon-verus.png",
+      "category": "Bela Vina"
+    },
+    {
+      "name": "Daura Lager (0.33L)",
+      "image": "/menu-images/brezalk-pivo/daura.png",
+      "category": "Brezalkoholno Pivo"
+    },
+    {
+      "name": "Heineken 0.0 (0.33L)",
+      "image": "/menu-images/brezalk-pivo/heineken-00.png",
+      "category": "Brezalkoholno Pivo"
+    },
+    {
+      "name": "Big BOSS",
+      "image": "/menu-images/burgerji/big-boss.png",
+      "category": "Burgerji"
+    },
+    {
+      "name": "Big smash burger",
+      "image": "/menu-images/burgerji/big-smash.png",
+      "category": "Burgerji"
+    },
+    {
+      "name": "Cheese please",
+      "image": "/menu-images/burgerji/cheese-please.png",
+      "category": "Burgerji"
+    },
+    {
+      "name": "Crispy chicken burger",
+      "image": "/menu-images/burgerji/crispy-chicken.png",
+      "category": "Burgerji"
+    },
+    {
+      "name": "Fit burger",
+      "image": "/menu-images/burgerji/fit-burger.png",
+      "category": "Burgerji"
+    },
+    {
+      "name": "Green garden",
+      "image": "/menu-images/burgerji/green-garden.png",
+      "category": "Burgerji"
+    },
+    {
+      "name": "Hišni burger",
+      "image": "/menu-images/burgerji/hisni-burger.png",
+      "category": "Burgerji"
+    },
+    {
+      "name": "Jamie's italian burger",
+      "image": "/menu-images/burgerji/jamies-italian.png",
+      "category": "Burgerji"
+    },
+    {
+      "name": "The classic",
+      "image": "/menu-images/burgerji/the-classic.png",
+      "category": "Burgerji"
+    },
+    {
+      "name": "Bevog Tak Pale Ale (0.33L)",
+      "image": "/menu-images/craft-piva/bevog-tak.png",
+      "category": "Craft Piva"
+    },
+    {
+      "name": "Pelicon Winter (0.75L)",
+      "image": "/menu-images/craft-piva/pelicon-winter.png",
+      "category": "Craft Piva"
+    },
+    {
+      "name": "Zeleni Haler Lager s Konopljo (0.50L)",
+      "image": "/menu-images/craft-piva/zeleni-haler.png",
+      "category": "Craft Piva"
+    },
+    {
+      "name": "Ararat 15yo",
+      "image": "/menu-images/destilati/ararat-15.png",
+      "category": "Destilati, Konjak in Rum"
+    },
+    {
+      "name": "Ararat 20yo",
+      "image": "/menu-images/destilati/ararat-20.png",
+      "category": "Destilati, Konjak in Rum"
+    },
+    {
+      "name": "Ararat 6yo",
+      "image": "/menu-images/destilati/ararat-6.png",
+      "category": "Destilati, Konjak in Rum"
+    },
+    {
+      "name": "Brinjevec",
+      "image": "/menu-images/destilati/brinjevec.png",
+      "category": "Destilati, Konjak in Rum"
+    },
+    {
+      "name": "Cognac Delamaine X.O.",
+      "image": "/menu-images/destilati/delamaine-xo.png",
+      "category": "Destilati, Konjak in Rum"
+    },
+    {
+      "name": "Grappa Sofija Rebula",
+      "image": "/menu-images/destilati/grappa-sofija.png",
+      "category": "Destilati, Konjak in Rum"
+    },
+    {
+      "name": "Hennessy V.S.",
+      "image": "/menu-images/destilati/hennessy-vs.png",
+      "category": "Destilati, Konjak in Rum"
+    },
+    {
+      "name": "Hennessy X.O.",
+      "image": "/menu-images/destilati/hennessy-xo.png",
+      "category": "Destilati, Konjak in Rum"
+    },
+    {
+      "name": "Rum Bumbu Original",
+      "image": "/menu-images/destilati/rum-bumbu.png",
+      "category": "Destilati, Konjak in Rum"
+    },
+    {
+      "name": "Rum Diplomatico Reserva Exclusiva",
+      "image": "/menu-images/destilati/rum-diplomatico.png",
+      "category": "Destilati, Konjak in Rum"
+    },
+    {
+      "name": "Rum La Hechicera Reserva Familiar 21yo",
+      "image": "/menu-images/destilati/rum-hechicera.png",
+      "category": "Destilati, Konjak in Rum"
+    },
+    {
+      "name": "Rum Zacapa Solera 23yo",
+      "image": "/menu-images/destilati/rum-zacapa.png",
+      "category": "Destilati, Konjak in Rum"
+    },
+    {
+      "name": "Slivovka",
+      "image": "/menu-images/destilati/slivovka.png",
+      "category": "Destilati, Konjak in Rum"
+    },
+    {
+      "name": "Travarica Rossi",
+      "image": "/menu-images/destilati/travarica-rossi.png",
+      "category": "Destilati, Konjak in Rum"
+    },
+    {
+      "name": "Viljamovka",
+      "image": "/menu-images/destilati/viljamovka.png",
+      "category": "Destilati, Konjak in Rum"
+    },
+    {
+      "name": "Coca Cola (0.25L)",
+      "image": "/menu-images/gazirane-pijace/coca-cola.png",
+      "category": "Gazirane Pijače"
+    },
+    {
+      "name": "Coca Cola Zero (0.25L)",
+      "image": "/menu-images/gazirane-pijace/coca-cola-zero.png",
+      "category": "Gazirane Pijače"
+    },
+    {
+      "name": "Cockta (0.275L)",
+      "image": "/menu-images/gazirane-pijace/cockta.png",
+      "category": "Gazirane Pijače"
+    },
+    {
+      "name": "Fanta (0.25L)",
+      "image": "/menu-images/gazirane-pijace/fanta.png",
+      "category": "Gazirane Pijače"
+    },
+    {
+      "name": "Fever Tree Mediterranean Tonic (0.20L)",
+      "image": "/menu-images/gazirane-pijace/fever-tree-med.png",
+      "category": "Gazirane Pijače"
+    },
+    {
+      "name": "Fever Tree Rhubarb & Raspberry Tonic (0.20L)",
+      "image": "/menu-images/gazirane-pijace/fever-tree-rhubarb.png",
+      "category": "Gazirane Pijače"
+    },
+    {
+      "name": "Fever Tree Tonic Water (0.20L)",
+      "image": "/menu-images/gazirane-pijace/fever-tree-tonic.png",
+      "category": "Gazirane Pijače"
+    },
+    {
+      "name": "Red Bull (0.20L)",
+      "image": "/menu-images/gazirane-pijace/red-bull.png",
+      "category": "Gazirane Pijače"
+    },
+    {
+      "name": "Schweppes Bitter Lemon (0.25L)",
+      "image": "/menu-images/gazirane-pijace/schweppes-bitter.png",
+      "category": "Gazirane Pijače"
+    },
+    {
+      "name": "Schweppes Tonic Water (0.25L)",
+      "image": "/menu-images/gazirane-pijace/schweppes-tonic.png",
+      "category": "Gazirane Pijače"
+    },
+    {
+      "name": "Sprite (0.25L)",
+      "image": "/menu-images/gazirane-pijace/sprite.png",
+      "category": "Gazirane Pijače"
+    },
+    {
+      "name": "Gin Hendrick's",
+      "image": "/menu-images/gin/gin-hendricks.png",
+      "category": "Gin"
+    },
+    {
+      "name": "Gin Kristal London Dry",
+      "image": "/menu-images/gin/gin-kristal.png",
+      "category": "Gin"
+    },
+    {
+      "name": "Gin Mare",
+      "image": "/menu-images/gin/gin-mare.png",
+      "category": "Gin"
+    },
+    {
+      "name": "Gin Monkey 47",
+      "image": "/menu-images/gin/gin-monkey47.png",
+      "category": "Gin"
+    },
+    {
+      "name": "Gin Monolog",
+      "image": "/menu-images/gin/gin-monolog.png",
+      "category": "Gin"
+    },
+    {
+      "name": "Gin Tanqueray",
+      "image": "/menu-images/gin/gin-tanqueray.png",
+      "category": "Gin"
+    },
+    {
+      "name": "BBQ rebrca",
+      "image": "/menu-images/glavne-jedi/bbq-rebrca.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Beefsteak v poprovi omaki",
+      "image": "/menu-images/glavne-jedi/beefsteak-poprova.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Beefsteak žar na rukoli",
+      "image": "/menu-images/glavne-jedi/beefsteak-zar-rukoli.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Bograč v kotličku",
+      "image": "/menu-images/glavne-jedi/bograc.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Dunajski zrezek",
+      "image": "/menu-images/glavne-jedi/dunajski-zrezek.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Goveji golaž v kotličku",
+      "image": "/menu-images/glavne-jedi/goveji-golaz.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Hawaii zrezek",
+      "image": "/menu-images/glavne-jedi/hawaii-zrezek.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Hišna plošča",
+      "image": "/menu-images/glavne-jedi/hisna-plosca.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Hišni zrezek",
+      "image": "/menu-images/glavne-jedi/hisni-zrezek.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Kmečka plošča",
+      "image": "/menu-images/glavne-jedi/kmecka-plosca.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Kmečka plošča - zimska",
+      "image": "/menu-images/glavne-jedi/kmecka-zimska.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Kmečki krožnik",
+      "image": "/menu-images/glavne-jedi/kmecki-kroznik.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Kmečki krožnik - zimski",
+      "image": "/menu-images/glavne-jedi/kmecki-zimski.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Kraški beefsteak",
+      "image": "/menu-images/glavne-jedi/kraski-beefsteak.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Kraški zrezek",
+      "image": "/menu-images/glavne-jedi/kraski-zrezek.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Krvavica s prilogo",
+      "image": "/menu-images/glavne-jedi/krvavica.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Ljubljanski zrezek",
+      "image": "/menu-images/glavne-jedi/ljubljanski-zrezek.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Naravni zrezek",
+      "image": "/menu-images/glavne-jedi/naravni-zrezek.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Ocvrt pišanec",
+      "image": "/menu-images/glavne-jedi/ocvrt-pisanec.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Pariški zrezek",
+      "image": "/menu-images/glavne-jedi/pariski-zrezek.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Pečena svinjska krača",
+      "image": "/menu-images/glavne-jedi/pecena-svinjska-kraca.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Pečenica s prilogo",
+      "image": "/menu-images/glavne-jedi/pecenica.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Pohančki",
+      "image": "/menu-images/glavne-jedi/pohancki.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Polnjena telečja prsa",
+      "image": "/menu-images/glavne-jedi/polnjena-telecja-prsa.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Rostbeef",
+      "image": "/menu-images/glavne-jedi/rostbeef.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Rumpsteak",
+      "image": "/menu-images/glavne-jedi/rumpsteak.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Sirov zrezek",
+      "image": "/menu-images/glavne-jedi/sirov-zrezek.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Svinjska pečenka",
+      "image": "/menu-images/glavne-jedi/svinjska-pecenka.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Tagliata na rukoli",
+      "image": "/menu-images/glavne-jedi/tagliata.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Telečja pečenka",
+      "image": "/menu-images/glavne-jedi/telecja-pecenka.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Zrezek v curry omaki",
+      "image": "/menu-images/glavne-jedi/zrezek-curry.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Zrezek v gorgonzolni omaki z gobami",
+      "image": "/menu-images/glavne-jedi/zrezek-gorgonzola.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Zrezek v smetanovi omaki",
+      "image": "/menu-images/glavne-jedi/zrezek-smetanova.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Zrezek v smetanovi omaki s pehtranom",
+      "image": "/menu-images/glavne-jedi/zrezek-pehtran.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Zrezek z gobami",
+      "image": "/menu-images/glavne-jedi/zrezek-gobe.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Zrezek žar na rukoli",
+      "image": "/menu-images/glavne-jedi/zrezek-zar-rukoli.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Žar tris",
+      "image": "/menu-images/glavne-jedi/zar-tris.png",
+      "category": "Glavne jedi"
+    },
+    {
+      "name": "Amaro",
+      "image": "/menu-images/grencice/amaro.png",
+      "category": "Grenčice"
+    },
+    {
+      "name": "Aperol",
+      "image": "/menu-images/grencice/aperol.png",
+      "category": "Grenčice"
+    },
+    {
+      "name": "Campari Bitter",
+      "image": "/menu-images/grencice/campari.png",
+      "category": "Grenčice"
+    },
+    {
+      "name": "Cynar",
+      "image": "/menu-images/grencice/cynar.png",
+      "category": "Grenčice"
+    },
+    {
+      "name": "Jägermeister",
+      "image": "/menu-images/grencice/jagermeister.png",
+      "category": "Grenčice"
+    },
+    {
+      "name": "Pelinkovec Badel Antique",
+      "image": "/menu-images/grencice/pelinkovec.png",
+      "category": "Grenčice"
+    },
+    {
+      "name": "Domači narezek",
+      "image": "/menu-images/hladne-predjedi/domaci-narezek.png",
+      "category": "Hladne predjedi"
+    },
+    {
+      "name": "Pršut z olivami",
+      "image": "/menu-images/hladne-predjedi/prsut-olive.png",
+      "category": "Hladne predjedi"
+    },
+    {
+      "name": "Sirova plošča",
+      "image": "/menu-images/hladne-predjedi/sirova-plosca.png",
+      "category": "Hladne predjedi"
+    },
+    {
+      "name": "Dnevna kremna gobova juha",
+      "image": "/menu-images/juhe/kremna-gobova.png",
+      "category": "Juhe"
+    },
+    {
+      "name": "Dnevna kremna zelenjavna juha",
+      "image": "/menu-images/juhe/kremna-zelenjavna.png",
+      "category": "Juhe"
+    },
+    {
+      "name": "Goveja juha",
+      "image": "/menu-images/juhe/goveja-klasicna.png",
+      "category": "Juhe"
+    },
+    {
+      "name": "Kalamari na žaru",
+      "image": "/menu-images/kalamari/na-zaru.png",
+      "category": "Kalamari"
+    },
+    {
+      "name": "Kalamari po mornarsko",
+      "image": "/menu-images/kalamari/mornarsko.png",
+      "category": "Kalamari"
+    },
+    {
+      "name": "Kalamari žar na rukoli",
+      "image": "/menu-images/kalamari/zar-rukoli.png",
+      "category": "Kalamari"
+    },
+    {
+      "name": "Mešani kalamari",
+      "image": "/menu-images/kalamari/mesani.png",
+      "category": "Kalamari"
+    },
+    {
+      "name": "Ocvrti kalamari",
+      "image": "/menu-images/kalamari/ocvrti.png",
+      "category": "Kalamari"
+    },
+    {
+      "name": "Polnjeni kalamari na žaru",
+      "image": "/menu-images/kalamari/polnjeni-zar.png",
+      "category": "Kalamari"
+    },
+    {
+      "name": "Polnjeni kalamari po dunajsko",
+      "image": "/menu-images/kalamari/polnjeni-dunajsko.png",
+      "category": "Kalamari"
+    },
+    {
+      "name": "Liker Borovnica Kejžar",
+      "image": "/menu-images/likerji/borovnica-kejzar.png",
+      "category": "Likerji"
+    },
+    {
+      "name": "Liker Canella",
+      "image": "/menu-images/likerji/canella.png",
+      "category": "Likerji"
+    },
+    {
+      "name": "Liker Carolans",
+      "image": "/menu-images/likerji/carolans.png",
+      "category": "Likerji"
+    },
+    {
+      "name": "Liker Malibu Rum",
+      "image": "/menu-images/likerji/malibu.png",
+      "category": "Likerji"
+    },
+    {
+      "name": "Liker Medica Kejžar",
+      "image": "/menu-images/likerji/medica-kejzar.png",
+      "category": "Likerji"
+    },
+    {
+      "name": "Liker Rum Bumbu Cream",
+      "image": "/menu-images/likerji/bumbu-cream.png",
+      "category": "Likerji"
+    },
+    {
+      "name": "Keros Belo 2020 (0.05L)",
+      "image": "/menu-images/likersko-vino/keros-belo-005.png",
+      "category": "Likersko Vino"
+    },
+    {
+      "name": "Keros Belo 2020 (0.50L)",
+      "image": "/menu-images/likersko-vino/keros-belo-050.png",
+      "category": "Likersko Vino"
+    },
+    {
+      "name": "Keros Rdeče 2018 (0.05L)",
+      "image": "/menu-images/likersko-vino/keros-rdece-005.png",
+      "category": "Likersko Vino"
+    },
+    {
+      "name": "Keros Rdeče 2018 (0.50L)",
+      "image": "/menu-images/likersko-vino/keros-rdece-050.png",
+      "category": "Likersko Vino"
+    },
+    {
+      "name": "Sladki Refošk (0.50L)",
+      "image": "/menu-images/likersko-vino/sladki-refosk-050.png",
+      "category": "Likersko Vino"
+    },
+    {
+      "name": "Sladki Refošk (kozarec)",
+      "image": "/menu-images/likersko-vino/sladki-refosk-kozarec.png",
+      "category": "Likersko Vino"
+    },
+    {
+      "name": "Veliko Rdeče Movia 2012",
+      "image": "/menu-images/likersko-vino/veliko-rdece-2012.png",
+      "category": "Likersko Vino"
+    },
+    {
+      "name": "Malica - BBQ perutničke",
+      "image": "/menu-images/malice/malica-bbq-perutnicke.png",
+      "category": "Malice"
+    },
+    {
+      "name": "Malica - Bograč",
+      "image": "/menu-images/malice/malica-bograc.png",
+      "category": "Malice"
+    },
+    {
+      "name": "Malica - Dunajski zrezek",
+      "image": "/menu-images/malice/malica-dunajski.png",
+      "category": "Malice"
+    },
+    {
+      "name": "Malica - Goveji golaž",
+      "image": "/menu-images/malice/malica-goveji-golaz.png",
+      "category": "Malice"
+    },
+    {
+      "name": "Malica - Mesni sir",
+      "image": "/menu-images/malice/malica-mesni-sir.png",
+      "category": "Malice"
+    },
+    {
+      "name": "Malica - Ocvrti oslič",
+      "image": "/menu-images/malice/malica-ocvrti-oslic.png",
+      "category": "Malice"
+    },
+    {
+      "name": "Malica - Ocvrti oslič s pomfrijem",
+      "image": "/menu-images/malice/malica-oslic-pomfri.png",
+      "category": "Malice"
+    },
+    {
+      "name": "Malica - Ocvrti sir",
+      "image": "/menu-images/malice/malica-ocvrti-sir.png",
+      "category": "Malice"
+    },
+    {
+      "name": "Malica - Pariški zrezek",
+      "image": "/menu-images/malice/malica-pariski.png",
+      "category": "Malice"
+    },
+    {
+      "name": "Malica - Pečena rebra",
+      "image": "/menu-images/malice/malica-pecena-rebra.png",
+      "category": "Malice"
+    },
+    {
+      "name": "Malica - Svinjska pečenka",
+      "image": "/menu-images/malice/malica-svinjska-pecenka.png",
+      "category": "Malice"
+    },
+    {
+      "name": "Malica - Špageti bolognese",
+      "image": "/menu-images/malice/malica-spageti-bolognese.png",
+      "category": "Malice"
+    },
+    {
+      "name": "Aperol Spritz",
+      "image": "/menu-images/mesane-pijace/aperol-spritz.png",
+      "category": "Mešane Pijače"
+    },
+    {
+      "name": "Cuba Libre",
+      "image": "/menu-images/mesane-pijace/cuba-libre.png",
+      "category": "Mešane Pijače"
+    },
+    {
+      "name": "Gin Mare Tonic",
+      "image": "/menu-images/mesane-pijace/gin-mare-tonic.png",
+      "category": "Mešane Pijače"
+    },
+    {
+      "name": "Hendrick's Gin Tonic",
+      "image": "/menu-images/mesane-pijace/hendricks-gin-tonic.png",
+      "category": "Mešane Pijače"
+    },
+    {
+      "name": "London Dry Gin Tonic",
+      "image": "/menu-images/mesane-pijace/london-dry-gin-tonic.png",
+      "category": "Mešane Pijače"
+    },
+    {
+      "name": "Mango Mojito",
+      "image": "/menu-images/mesane-pijace/mango-mojito.png",
+      "category": "Mešane Pijače"
+    },
+    {
+      "name": "Martini Spritz",
+      "image": "/menu-images/mesane-pijace/martini-spritz.png",
+      "category": "Mešane Pijače"
+    },
+    {
+      "name": "Mojito",
+      "image": "/menu-images/mesane-pijace/mojito.png",
+      "category": "Mešane Pijače"
+    },
+    {
+      "name": "Monkey 47 Gin Tonic",
+      "image": "/menu-images/mesane-pijace/monkey47-gin-tonic.png",
+      "category": "Mešane Pijače"
+    },
+    {
+      "name": "Monologue Gin Tonic",
+      "image": "/menu-images/mesane-pijace/monolog-gin-tonic.png",
+      "category": "Mešane Pijače"
+    },
+    {
+      "name": "Negroni",
+      "image": "/menu-images/mesane-pijace/negroni.png",
+      "category": "Mešane Pijače"
+    },
+    {
+      "name": "Orange & Ginger Gin Tonic",
+      "image": "/menu-images/mesane-pijace/orange-ginger-gin-tonic.png",
+      "category": "Mešane Pijače"
+    },
+    {
+      "name": "Raspberry Pink Gin Tonic",
+      "image": "/menu-images/mesane-pijace/raspberry-pink-gin-tonic.png",
+      "category": "Mešane Pijače"
+    },
+    {
+      "name": "Strawberry Mojito",
+      "image": "/menu-images/mesane-pijace/strawberry-mojito.png",
+      "category": "Mešane Pijače"
+    },
+    {
+      "name": "Hišni Ledeni Čaj (0.35L)",
+      "image": "/menu-images/naravni-sokovi/hisni-ledeni-caj.png",
+      "category": "Naravni Sokovi"
+    },
+    {
+      "name": "Hišni Sok Meta (0.35L)",
+      "image": "/menu-images/naravni-sokovi/hisni-sok-meta.png",
+      "category": "Naravni Sokovi"
+    },
+    {
+      "name": "Limonada (0.35L)",
+      "image": "/menu-images/naravni-sokovi/limonada.png",
+      "category": "Naravni Sokovi"
+    },
+    {
+      "name": "Limonada z Okusom (0.35L)",
+      "image": "/menu-images/naravni-sokovi/limonada-okus.png",
+      "category": "Naravni Sokovi"
+    },
+    {
+      "name": "Naravni Pomarančni Sok (0.10L)",
+      "image": "/menu-images/naravni-sokovi/pomarancni-sok.png",
+      "category": "Naravni Sokovi"
+    },
+    {
+      "name": "Curry omaka",
+      "image": "/menu-images/omake/curry-omaka.png",
+      "category": "Omake"
+    },
+    {
+      "name": "Gobova omaka",
+      "image": "/menu-images/omake/gobova-omaka.png",
+      "category": "Omake"
+    },
+    {
+      "name": "Gorgonzolna omaka",
+      "image": "/menu-images/omake/gorgonzolna-omaka.png",
+      "category": "Omake"
+    },
+    {
+      "name": "Gorčična omaka",
+      "image": "/menu-images/omake/gorcicna-omaka.png",
+      "category": "Omake"
+    },
+    {
+      "name": "Gozdarska omaka",
+      "image": "/menu-images/omake/gozdarska-omaka.png",
+      "category": "Omake"
+    },
+    {
+      "name": "Orehova omaka",
+      "image": "/menu-images/omake/orehova-omaka.png",
+      "category": "Omake"
+    },
+    {
+      "name": "Poprova omaka",
+      "image": "/menu-images/omake/poprova-omaka.png",
+      "category": "Omake"
+    },
+    {
+      "name": "Sirova omaka",
+      "image": "/menu-images/omake/sirova-omaka.png",
+      "category": "Omake"
+    },
+    {
+      "name": "Smetanova omaka",
+      "image": "/menu-images/omake/smetanova-omaka.png",
+      "category": "Omake"
+    },
+    {
+      "name": "Juha s palačinkami",
+      "image": "/menu-images/otroske-jedi/juha-palacinke.png",
+      "category": "Otroške jedi"
+    },
+    {
+      "name": "Kepica sladoleda",
+      "image": "/menu-images/otroske-jedi/sladoled-otroski.png",
+      "category": "Otroške jedi"
+    },
+    {
+      "name": "Krožnik Gusar Berto",
+      "image": "/menu-images/otroske-jedi/gusar-berto.png",
+      "category": "Otroške jedi"
+    },
+    {
+      "name": "Krožnik Korenjak",
+      "image": "/menu-images/otroske-jedi/korenjak.png",
+      "category": "Otroške jedi"
+    },
+    {
+      "name": "Krožnik Miškolin",
+      "image": "/menu-images/otroske-jedi/miskolin.png",
+      "category": "Otroške jedi"
+    },
+    {
+      "name": "Krožnik Pingvinček",
+      "image": "/menu-images/otroske-jedi/pingvincek.png",
+      "category": "Otroške jedi"
+    },
+    {
+      "name": "Krožnik Špagetek",
+      "image": "/menu-images/otroske-jedi/spagetek.png",
+      "category": "Otroške jedi"
+    },
+    {
+      "name": "Otroški pohančki",
+      "image": "/menu-images/otroske-jedi/otroski-pohancki.png",
+      "category": "Otroške jedi"
+    },
+    {
+      "name": "Palačinke Metuljček",
+      "image": "/menu-images/otroske-jedi/metuljcek.png",
+      "category": "Otroške jedi"
+    },
+    {
+      "name": "Pizza Jurček",
+      "image": "/menu-images/otroske-jedi/pizza-jurcek.png",
+      "category": "Otroške jedi"
+    },
+    {
+      "name": "Pizza Malček",
+      "image": "/menu-images/otroske-jedi/pizza-malcek.png",
+      "category": "Otroške jedi"
+    },
+    {
+      "name": "Sadna kupa s smetano",
+      "image": "/menu-images/otroske-jedi/sadna-kupa-otroski.png",
+      "category": "Otroške jedi"
+    },
+    {
+      "name": "Babičina poslastica",
+      "image": "/menu-images/palacinke/babicina-poslastica.png",
+      "category": "Palačinke"
+    },
+    {
+      "name": "Cheesecake masleni piškot z banano",
+      "image": "/menu-images/palacinke/cheesecake-masleni-banana.png",
+      "category": "Palačinke"
+    },
+    {
+      "name": "Cheesecake oreo z jagodo",
+      "image": "/menu-images/palacinke/cheesecake-oreo-jagoda.png",
+      "category": "Palačinke"
+    },
+    {
+      "name": "Ferrero Rocher",
+      "image": "/menu-images/palacinke/ferrero-rocher.png",
+      "category": "Palačinke"
+    },
+    {
+      "name": "Fruty njam",
+      "image": "/menu-images/palacinke/fruty-njam.png",
+      "category": "Palačinke"
+    },
+    {
+      "name": "Jurmačinka",
+      "image": "/menu-images/palacinke/jurmacinka.png",
+      "category": "Palačinke"
+    },
+    {
+      "name": "Kinder Bueno",
+      "image": "/menu-images/palacinke/kinder-bueno.png",
+      "category": "Palačinke"
+    },
+    {
+      "name": "M&M's",
+      "image": "/menu-images/palacinke/mms.png",
+      "category": "Palačinke"
+    },
+    {
+      "name": "Pink dreams",
+      "image": "/menu-images/palacinke/pink-dreams.png",
+      "category": "Palačinke"
+    },
+    {
+      "name": "Raffaello",
+      "image": "/menu-images/palacinke/raffaello.png",
+      "category": "Palačinke"
+    },
+    {
+      "name": "Snickers",
+      "image": "/menu-images/palacinke/snickers.png",
+      "category": "Palačinke"
+    },
+    {
+      "name": "Sweet strawberry",
+      "image": "/menu-images/palacinke/sweet-strawberry.png",
+      "category": "Palačinke"
+    },
+    {
+      "name": "White pistachio",
+      "image": "/menu-images/palacinke/white-pistachio.png",
+      "category": "Palačinke"
+    },
+    {
+      "name": "Bjana Brut",
+      "image": "/menu-images/penine/bjana-brut.png",
+      "category": "Penine in Šampanjci"
+    },
+    {
+      "name": "Champagne Louis Roederer Collection 244 Brut",
+      "image": "/menu-images/penine/louis-roederer.png",
+      "category": "Penine in Šampanjci"
+    },
+    {
+      "name": "Champagne Pol Roger Brut Reserve",
+      "image": "/menu-images/penine/pol-roger.png",
+      "category": "Penine in Šampanjci"
+    },
+    {
+      "name": "Dom Pérignon Brut 2013",
+      "image": "/menu-images/penine/dom-perignon.png",
+      "category": "Penine in Šampanjci"
+    },
+    {
+      "name": "Domaine Slapšak Brut Reserve",
+      "image": "/menu-images/penine/slapsak-brut-reserve.png",
+      "category": "Penine in Šampanjci"
+    },
+    {
+      "name": "Domaine Slapšak Brut Rosé",
+      "image": "/menu-images/penine/slapsak-brut-rose.png",
+      "category": "Penine in Šampanjci"
+    },
+    {
+      "name": "Maria Brut 2020",
+      "image": "/menu-images/penine/maria-brut.png",
+      "category": "Penine in Šampanjci"
+    },
+    {
+      "name": "Moët & Chandon Imperial Brut",
+      "image": "/menu-images/penine/moet-chandon.png",
+      "category": "Penine in Šampanjci"
+    },
+    {
+      "name": "Mufi Pet Nat Brut Nature 2023",
+      "image": "/menu-images/penine/mufi-pet-nat.png",
+      "category": "Penine in Šampanjci"
+    },
+    {
+      "name": "No.1 Brut",
+      "image": "/menu-images/penine/no1-brut.png",
+      "category": "Penine in Šampanjci"
+    },
+    {
+      "name": "Penina Boemme Rumeni Muškat",
+      "image": "/menu-images/penine/boemme-rumeni-muskat.png",
+      "category": "Penine in Šampanjci"
+    },
+    {
+      "name": "Penina Gourmet Rosé",
+      "image": "/menu-images/penine/gourmet-rose.png",
+      "category": "Penine in Šampanjci"
+    },
+    {
+      "name": "Zlata Radgonska Penina Brut Selection",
+      "image": "/menu-images/penine/zlata-radgonska.png",
+      "category": "Penine in Šampanjci"
+    },
+    {
+      "name": "Reset Froggy IPA (0.50L)",
+      "image": "/menu-images/pivo/reset-froggy.png",
+      "category": "Pivo"
+    },
+    {
+      "name": "Reset Irish Extra Stout (0.50L)",
+      "image": "/menu-images/pivo/reset-stout.png",
+      "category": "Pivo"
+    },
+    {
+      "name": "Reset Lagerish Cream Ale (0.50L)",
+      "image": "/menu-images/pivo/reset-lagerish.png",
+      "category": "Pivo"
+    },
+    {
+      "name": "4. Letni časi",
+      "image": "/menu-images/pizze/4-letni-casi.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Bolognese",
+      "image": "/menu-images/pizze/bolognese.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Hišna pica",
+      "image": "/menu-images/pizze/hisna.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Kebab",
+      "image": "/menu-images/pizze/kebab.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Kmečka",
+      "image": "/menu-images/pizze/kmecka.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Kraljica",
+      "image": "/menu-images/pizze/kraljica.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Kraška",
+      "image": "/menu-images/pizze/kraska.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Lovska",
+      "image": "/menu-images/pizze/lovska.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Margerita",
+      "image": "/menu-images/pizze/margerita.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Mehiška",
+      "image": "/menu-images/pizze/mehiska.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Morska",
+      "image": "/menu-images/pizze/morska.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Mortadela",
+      "image": "/menu-images/pizze/mortadela.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Napoli",
+      "image": "/menu-images/pizze/napoli.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Pikant",
+      "image": "/menu-images/pizze/pikant.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Ribiška",
+      "image": "/menu-images/pizze/ribiska.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Romana",
+      "image": "/menu-images/pizze/romana.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "S slanino",
+      "image": "/menu-images/pizze/s-slanino.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "S suho salamo",
+      "image": "/menu-images/pizze/suha-salama.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "S svežimi šampinjoni",
+      "image": "/menu-images/pizze/sampinjoni.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "S svežo zelenjavo",
+      "image": "/menu-images/pizze/svezja-zelenjava.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "S tuno",
+      "image": "/menu-images/pizze/s-tuno.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Vegetarijanska",
+      "image": "/menu-images/pizze/vegetarijanska.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Z gamberi",
+      "image": "/menu-images/pizze/z-gamberi.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Z melancani",
+      "image": "/menu-images/pizze/melancani.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Z rukolo",
+      "image": "/menu-images/pizze/z-rukolo.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Štirje siri",
+      "image": "/menu-images/pizze/4-siri.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Študentska",
+      "image": "/menu-images/pizze/studentska.png",
+      "category": "Pizze"
+    },
+    {
+      "name": "Bučke na žaru s česnom",
+      "image": "/menu-images/priloge/bucke-zar-cesen.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Krompirjev čips",
+      "image": "/menu-images/priloge/krompirjev-cips.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Krompirjevi ocvrtki",
+      "image": "/menu-images/priloge/krompirjevi-ocvrtki.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Kuhan popečen krompir",
+      "image": "/menu-images/priloge/kuhan-popecen-krompir.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Kuhana zelenjava",
+      "image": "/menu-images/priloge/kuhana-zelenjava.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Kuhani njoki",
+      "image": "/menu-images/priloge/kuhani-njoki.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Ocvrte bučke",
+      "image": "/menu-images/priloge/ocvrte-bucke.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Ocvrti njoki",
+      "image": "/menu-images/priloge/ocvrti-njoki.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Pečen krompir",
+      "image": "/menu-images/priloge/pecen-krompir.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Pečena sveža zelenjava",
+      "image": "/menu-images/priloge/pecena-zelenjava.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Pommes frites",
+      "image": "/menu-images/priloge/pommes-frites.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Pražen krompir",
+      "image": "/menu-images/priloge/prazen-krompir.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Riž",
+      "image": "/menu-images/priloge/riz.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Sirov štrukelj",
+      "image": "/menu-images/priloge/sirov-strukelj.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Slan krompir",
+      "image": "/menu-images/priloge/slan-krompir.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Trdi sir Grana Padano",
+      "image": "/menu-images/priloge/grana-padano.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Široki rezanci",
+      "image": "/menu-images/priloge/siroki-rezanci.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Žlebasti krompirček",
+      "image": "/menu-images/priloge/zlebasti-krompircek.png",
+      "category": "Priloge"
+    },
+    {
+      "name": "Cabernet Sauvignon Keltis 2018",
+      "image": "/menu-images/rdeca-vina/cabernet-keltis.png",
+      "category": "Rdeča Vina"
+    },
+    {
+      "name": "Cabernet Sauvignon Pavo Limited Edition 2021",
+      "image": "/menu-images/rdeca-vina/cabernet-pavo.png",
+      "category": "Rdeča Vina"
+    },
+    {
+      "name": "Carolina Rdeča 2018",
+      "image": "/menu-images/rdeca-vina/carolina-rdeca.png",
+      "category": "Rdeča Vina"
+    },
+    {
+      "name": "Duet Edi Simčič 2021",
+      "image": "/menu-images/rdeca-vina/duet-edi-simcic.png",
+      "category": "Rdeča Vina"
+    },
+    {
+      "name": "Duet Lex Edi Simčič 2018",
+      "image": "/menu-images/rdeca-vina/duet-lex-2018.png",
+      "category": "Rdeča Vina"
+    },
+    {
+      "name": "Duet Lex Edi Simčič 2020",
+      "image": "/menu-images/rdeca-vina/duet-lex-2020.png",
+      "category": "Rdeča Vina"
+    },
+    {
+      "name": "Guerila Retro Selection 2020",
+      "image": "/menu-images/rdeca-vina/guerila-retro.png",
+      "category": "Rdeča Vina"
+    },
+    {
+      "name": "Merlot Keltis 2018",
+      "image": "/menu-images/rdeca-vina/merlot-keltis.png",
+      "category": "Rdeča Vina"
+    },
+    {
+      "name": "Merlot Opoka 2019",
+      "image": "/menu-images/rdeca-vina/merlot-opoka.png",
+      "category": "Rdeča Vina"
+    },
+    {
+      "name": "Modra Frankinja Dular 2023",
+      "image": "/menu-images/rdeca-vina/modra-frankinja-dular.png",
+      "category": "Rdeča Vina"
+    },
+    {
+      "name": "Modra Frankinja Emino 2023 (kozarec)",
+      "image": "/menu-images/rdeca-vina/modra-frankinja-emino-kozarec.png",
+      "category": "Rdeča Vina"
+    },
+    {
+      "name": "Modra Frankinja Emino 2023 (steklenica)",
+      "image": "/menu-images/rdeca-vina/modra-frankinja-emino-steklenica.png",
+      "category": "Rdeča Vina"
+    },
+    {
+      "name": "Modra Frankinja Luna 2021",
+      "image": "/menu-images/rdeca-vina/modra-frankinja-luna.png",
+      "category": "Rdeča Vina"
+    },
+    {
+      "name": "Modri Pinot Opoka 2020",
+      "image": "/menu-images/rdeca-vina/modri-pinot-opoka.png",
+      "category": "Rdeča Vina"
+    },
+    {
+      "name": "Modri Pinot Verus 2019",
+      "image": "/menu-images/rdeca-vina/modri-pinot-verus.png",
+      "category": "Rdeča Vina"
+    },
+    {
+      "name": "Veliko Rdeče Movia 2015",
+      "image": "/menu-images/rdeca-vina/veliko-rdece-movia.png",
+      "category": "Rdeča Vina"
+    },
+    {
+      "name": "File brancina na žaru",
+      "image": "/menu-images/ribje-jedi/file-brancina.png",
+      "category": "Ribje jedi"
+    },
+    {
+      "name": "File orade",
+      "image": "/menu-images/ribje-jedi/file-orade.png",
+      "category": "Ribje jedi"
+    },
+    {
+      "name": "File postrvi",
+      "image": "/menu-images/ribje-jedi/file-postrvi.png",
+      "category": "Ribje jedi"
+    },
+    {
+      "name": "Gamberi po pariško",
+      "image": "/menu-images/ribje-jedi/gamberi-parisko.png",
+      "category": "Ribje jedi"
+    },
+    {
+      "name": "Losos",
+      "image": "/menu-images/ribje-jedi/losos.png",
+      "category": "Ribje jedi"
+    },
+    {
+      "name": "Ocvrt oslič s prilogo",
+      "image": "/menu-images/ribje-jedi/ocvrt-oslic.png",
+      "category": "Ribje jedi"
+    },
+    {
+      "name": "Ribja plošča",
+      "image": "/menu-images/ribje-jedi/ribja-plosca.png",
+      "category": "Ribje jedi"
+    },
+    {
+      "name": "Morska rižota",
+      "image": "/menu-images/rizote/morska.png",
+      "category": "Rižote"
+    },
+    {
+      "name": "Rižota s puranom in papriko",
+      "image": "/menu-images/rizote/puran-paprika.png",
+      "category": "Rižote"
+    },
+    {
+      "name": "Rižota z gamberi in mešanimi gobami",
+      "image": "/menu-images/rizote/gamberi-gobe.png",
+      "category": "Rižote"
+    },
+    {
+      "name": "Rižota z gobami",
+      "image": "/menu-images/rizote/gobe.png",
+      "category": "Rižote"
+    },
+    {
+      "name": "Zelenjavna rižota",
+      "image": "/menu-images/rizote/zelenjavna.png",
+      "category": "Rižote"
+    },
+    {
+      "name": "Rosé Batič 2024",
+      "image": "/menu-images/rose-vino/rose-batic.png",
+      "category": "Rosé Vino"
+    },
+    {
+      "name": "Rosé Verstovšek Estate 2024 (kozarec)",
+      "image": "/menu-images/rose-vino/rose-verstovsek-kozarec.png",
+      "category": "Rosé Vino"
+    },
+    {
+      "name": "Rosé Verstovšek Estate 2024 (steklenica)",
+      "image": "/menu-images/rose-vino/rose-verstovsek-steklenica.png",
+      "category": "Rosé Vino"
+    },
+    {
+      "name": "Banana split",
+      "image": "/menu-images/sladice/banana-split.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Hišna grmada",
+      "image": "/menu-images/sladice/hisna-grmada.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Hišna sladica",
+      "image": "/menu-images/sladice/hisna-sladica.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Linolada torta z banano",
+      "image": "/menu-images/sladice/linolada-torta.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Nutelina torta z banano",
+      "image": "/menu-images/sladice/nutelina-torta.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Palačinke s čokolado",
+      "image": "/menu-images/sladice/palacinke-cokolada.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Palačinke z Nutello",
+      "image": "/menu-images/sladice/palacinke-nutella.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Palačinke z Nutello in banano",
+      "image": "/menu-images/sladice/palacinke-nutella-banana.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Palačinke z Nutello in orehi",
+      "image": "/menu-images/sladice/palacinke-nutella-orehi.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Palačinke z brusnicami",
+      "image": "/menu-images/sladice/palacinke-brusnice.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Palačinke z marmelado",
+      "image": "/menu-images/sladice/palacinke-marmelada.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Palačinke z orehi",
+      "image": "/menu-images/sladice/palacinke-orehi.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Panna cotta z jagodnim prelivom",
+      "image": "/menu-images/sladice/panna-cotta.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Pehtranove palačinke",
+      "image": "/menu-images/sladice/palacinke-pehtran.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Sadna kupa",
+      "image": "/menu-images/sladice/sadna-kupa.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Sirovi štrukelj",
+      "image": "/menu-images/sladice/sirovi-strukelj.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Skutine palačinke",
+      "image": "/menu-images/sladice/palacinke-skuta.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Sladoled kepica",
+      "image": "/menu-images/sladice/sladoled-kepica.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Sladoled porcija",
+      "image": "/menu-images/sladice/sladoled-porcija.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Tiramisu",
+      "image": "/menu-images/sladice/tiramisu.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Torte Hana",
+      "image": "/menu-images/sladice/torte-hana.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Vroče višnje s sladoledom",
+      "image": "/menu-images/sladice/vroce-visnje.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Vroči gozdni sadeži s sladoledom",
+      "image": "/menu-images/sladice/vroci-gozdni-sadezi.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Čokoladni souffle",
+      "image": "/menu-images/sladice/cokoladni-souffle.png",
+      "category": "Sladice"
+    },
+    {
+      "name": "Ananasov Sok (0.20L)",
+      "image": "/menu-images/sokovi/ananasov-sok.png",
+      "category": "Sokovi"
+    },
+    {
+      "name": "Bubble Tea (0.36L)",
+      "image": "/menu-images/sokovi/bubble-tea.png",
+      "category": "Sokovi"
+    },
+    {
+      "name": "Cedevita (0.30L)",
+      "image": "/menu-images/sokovi/cedevita.png",
+      "category": "Sokovi"
+    },
+    {
+      "name": "Jagodni Sok (0.20L)",
+      "image": "/menu-images/sokovi/jagodni-sok.png",
+      "category": "Sokovi"
+    },
+    {
+      "name": "Ledeni Čaj (0.25L)",
+      "image": "/menu-images/sokovi/ledeni-caj.png",
+      "category": "Sokovi"
+    },
+    {
+      "name": "Marelični Sok (0.20L)",
+      "image": "/menu-images/sokovi/marelicni-sok.png",
+      "category": "Sokovi"
+    },
+    {
+      "name": "Naravni Jabolčni Sok 100% (0.20L)",
+      "image": "/menu-images/sokovi/jabolcni-sok.png",
+      "category": "Sokovi"
+    },
+    {
+      "name": "Pomarančni Sok (0.20L)",
+      "image": "/menu-images/sokovi/pomarancni-sok.png",
+      "category": "Sokovi"
+    },
+    {
+      "name": "Ribezov Sok (0.20L)",
+      "image": "/menu-images/sokovi/ribezov-sok.png",
+      "category": "Sokovi"
+    },
+    {
+      "name": "Cezarjeva solata",
+      "image": "/menu-images/solate/cezarjeva.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Fižolova solata",
+      "image": "/menu-images/solate/fizolova.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Grška solata",
+      "image": "/menu-images/solate/grska.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Koruzna solata",
+      "image": "/menu-images/solate/koruzna.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Kumare",
+      "image": "/menu-images/solate/kumare.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Mešana solata",
+      "image": "/menu-images/solate/mesana-solata-2.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Mešana solata s tuno",
+      "image": "/menu-images/solate/mesana-tuna.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Motovilec",
+      "image": "/menu-images/solate/motovilec.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Paradižnikova solata",
+      "image": "/menu-images/solate/paradiznikova.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Pečena paprika",
+      "image": "/menu-images/solate/pecena-paprika.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Rukola",
+      "image": "/menu-images/solate/rukola.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Solata Kraljica",
+      "image": "/menu-images/solate/kraljica.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Solata Kraljica s puranom",
+      "image": "/menu-images/solate/kraljica-puran.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Solata Kraljica s tuno",
+      "image": "/menu-images/solate/kraljica-tuna.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Solata Kraljica s šunko",
+      "image": "/menu-images/solate/kraljica-sunka.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Solata Kraljica z jajci",
+      "image": "/menu-images/solate/kraljica-jajca.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Solata rukola s parmezanom",
+      "image": "/menu-images/solate/rukola-parmezan.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Solatni krožnik s feta sirom",
+      "image": "/menu-images/solate/kroznik-feta.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Solatni krožnik s popečeno slanino",
+      "image": "/menu-images/solate/kroznik-slanina.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Solatni krožnik s puranom",
+      "image": "/menu-images/solate/kroznik-puran.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Solatni krožnik s tuno",
+      "image": "/menu-images/solate/kroznik-tuna.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Zelena solata",
+      "image": "/menu-images/solate/zelena.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Zeljnata solata",
+      "image": "/menu-images/solate/zeljnata.png",
+      "category": "Solate"
+    },
+    {
+      "name": "Bolognese",
+      "image": "/menu-images/testenine-njoki/bolognese.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "Carbonara",
+      "image": "/menu-images/testenine-njoki/carbonara.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "Milanese",
+      "image": "/menu-images/testenine-njoki/milanese.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "Napoli",
+      "image": "/menu-images/testenine-njoki/napoli.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "Pad Thai s piščancem",
+      "image": "/menu-images/testenine-njoki/padthai-piscanec.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "Pad Thai z zelenjavo",
+      "image": "/menu-images/testenine-njoki/padthai-zelenjava.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "S piščancem",
+      "image": "/menu-images/testenine-njoki/piscanec.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "S pljučno pečenko in zelenjavo",
+      "image": "/menu-images/testenine-njoki/pljucna-pecenka.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "S puranom v curry omaki",
+      "image": "/menu-images/testenine-njoki/puran-curry.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "S puranom v smetanovi omaki",
+      "image": "/menu-images/testenine-njoki/puran-smetanova.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "S tartufi",
+      "image": "/menu-images/testenine-njoki/tartufi.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "Sicilijana",
+      "image": "/menu-images/testenine-njoki/sicilijana.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "V gorgonzolini omaki",
+      "image": "/menu-images/testenine-njoki/gorgonzola.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "V smetanovi omaki",
+      "image": "/menu-images/testenine-njoki/smetanova.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "Z gamberi na rdeče ali belo",
+      "image": "/menu-images/testenine-njoki/gamberi.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "Z gobami",
+      "image": "/menu-images/testenine-njoki/gobe.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "Z morskimi sadeži",
+      "image": "/menu-images/testenine-njoki/morski-sadezi.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "Z morskimi sadeži v smetanovi omaki",
+      "image": "/menu-images/testenine-njoki/morski-smetanova.png",
+      "category": "Testenine, njoki"
+    },
+    {
+      "name": "Ocvrti sir s tatarsko omako",
+      "image": "/menu-images/tople-predjedi/ocvrti-sir.png",
+      "category": "Tople predjedi"
+    },
+    {
+      "name": "Ocvrti šampinjoni",
+      "image": "/menu-images/tople-predjedi/ocvrti-sampinjoni.png",
+      "category": "Tople predjedi"
+    },
+    {
+      "name": "Popečena slanina na rukoli",
+      "image": "/menu-images/tople-predjedi/slanina-rukola.png",
+      "category": "Tople predjedi"
+    },
+    {
+      "name": "Sirovi štruklji",
+      "image": "/menu-images/tople-predjedi/sirovi-struklji.png",
+      "category": "Tople predjedi"
+    },
+    {
+      "name": "Šampinjoni na žaru tržaška omaka",
+      "image": "/menu-images/tople-predjedi/sampinjoni-zar-trzaska.png",
+      "category": "Tople predjedi"
+    },
+    {
+      "name": "Šampinjoni na žaru z gorgonzolo",
+      "image": "/menu-images/tople-predjedi/sampinjoni-zar-gorgonzola.png",
+      "category": "Tople predjedi"
+    },
+    {
+      "name": "Šampinjoni v gorgonzolni omaki",
+      "image": "/menu-images/tople-predjedi/sampinjoni-gorgonzolna-omaka.png",
+      "category": "Tople predjedi"
+    },
+    {
+      "name": "Babyccino",
+      "image": "/menu-images/topli-napitki/babyccino.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Bela Kava",
+      "image": "/menu-images/topli-napitki/bela-kava.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Bela Kava Brez Kofeina",
+      "image": "/menu-images/topli-napitki/bela-kava-brez-kofeina.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Cappuccino",
+      "image": "/menu-images/topli-napitki/cappuccino.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Cappuccino Brez Kofeina",
+      "image": "/menu-images/topli-napitki/cappuccino-brez-kofeina.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Kakav",
+      "image": "/menu-images/topli-napitki/kakav.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Kakav s Smetano",
+      "image": "/menu-images/topli-napitki/kakav-smetana.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Kava Espresso",
+      "image": "/menu-images/topli-napitki/kava-espresso.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Kava Espresso Brez Kofeina",
+      "image": "/menu-images/topli-napitki/kava-brez-kofeina.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Kava Macchiato",
+      "image": "/menu-images/topli-napitki/kava-macchiato.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Kava Macchiato Brez Kofeina",
+      "image": "/menu-images/topli-napitki/macchiato-brez-kofeina.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Kava s Smetano",
+      "image": "/menu-images/topli-napitki/kava-s-smetano.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Kava z Mlekom",
+      "image": "/menu-images/topli-napitki/kava-z-mlekom.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Kava z Mlekom Brez Kofeina",
+      "image": "/menu-images/topli-napitki/kava-mleko-brez-kofeina.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Kava z Riževim Mlekom",
+      "image": "/menu-images/topli-napitki/kava-rizevo-mleko.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Ledena Kava Olimia",
+      "image": "/menu-images/topli-napitki/ledena-kava-olimia.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Vroča Čokolada",
+      "image": "/menu-images/topli-napitki/vroca-cokolada.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Čaj z Limono in Medom",
+      "image": "/menu-images/topli-napitki/caj-skodelica.png",
+      "category": "Topli Napitki"
+    },
+    {
+      "name": "Pelicon 3rd Pill IPA (0.30L)",
+      "image": "/menu-images/toceno-pivo/pelicon-ipa-03.png",
+      "category": "Točeno Pivo"
+    },
+    {
+      "name": "Pelicon 3rd Pill IPA (0.50L)",
+      "image": "/menu-images/toceno-pivo/pelicon-ipa-05.png",
+      "category": "Točeno Pivo"
+    },
+    {
+      "name": "Pivo Haler Lager Nefiltriran (0.30L)",
+      "image": "/menu-images/toceno-pivo/haler-nefiltriran-03.png",
+      "category": "Točeno Pivo"
+    },
+    {
+      "name": "Pivo Haler Lager Nefiltriran (0.50L)",
+      "image": "/menu-images/toceno-pivo/haler-nefiltriran-05.png",
+      "category": "Točeno Pivo"
+    },
+    {
+      "name": "Pivo Laško Lager (0.30L)",
+      "image": "/menu-images/toceno-pivo/lasko-lager-03.png",
+      "category": "Točeno Pivo"
+    },
+    {
+      "name": "Pivo Laško Lager (0.50L)",
+      "image": "/menu-images/toceno-pivo/lasko-lager-05.png",
+      "category": "Točeno Pivo"
+    },
+    {
+      "name": "Pivo Union Lager (0.30L)",
+      "image": "/menu-images/toceno-pivo/union-lager-03.png",
+      "category": "Točeno Pivo"
+    },
+    {
+      "name": "Pivo Union Lager (0.50L)",
+      "image": "/menu-images/toceno-pivo/union-lager-05.png",
+      "category": "Točeno Pivo"
+    },
+    {
+      "name": "Radler Grenivka (0.30L)",
+      "image": "/menu-images/toceno-pivo/radler-03.png",
+      "category": "Točeno Pivo"
+    },
+    {
+      "name": "Radler Grenivka (0.50L)",
+      "image": "/menu-images/toceno-pivo/radler-05.png",
+      "category": "Točeno Pivo"
+    },
+    {
+      "name": "Andreis Vinasmora 2020",
+      "image": "/menu-images/tuja-vina/andreis-vinasmora.png",
+      "category": "Tuja Vina"
+    },
+    {
+      "name": "Chardonnay Where Dreams Have No End 2021",
+      "image": "/menu-images/tuja-vina/jermann-dreams.png",
+      "category": "Tuja Vina"
+    },
+    {
+      "name": "Plavac Mali Premium Terra Madre 2017",
+      "image": "/menu-images/tuja-vina/plavac-mali-terra-madre.png",
+      "category": "Tuja Vina"
+    },
+    {
+      "name": "Pošip Premium Terra Madre 2021",
+      "image": "/menu-images/tuja-vina/posip-terra-madre.png",
+      "category": "Tuja Vina"
+    },
+    {
+      "name": "Vintage Tunina 2022",
+      "image": "/menu-images/tuja-vina/vintage-tunina.png",
+      "category": "Tuja Vina"
+    },
+    {
+      "name": "Vranec Instinct 2019",
+      "image": "/menu-images/tuja-vina/vranec-instinct.png",
+      "category": "Tuja Vina"
+    },
+    {
+      "name": "Bučke na žaru",
+      "image": "/menu-images/vegetarijanske-jedi/bucke-na-zaru.png",
+      "category": "Vegetarijanske jedi"
+    },
+    {
+      "name": "Ocvrte bučke",
+      "image": "/menu-images/vegetarijanske-jedi/ocvrte-bucke.png",
+      "category": "Vegetarijanske jedi"
+    },
+    {
+      "name": "Ocvrti melancani",
+      "image": "/menu-images/vegetarijanske-jedi/ocvrti-melancani.png",
+      "category": "Vegetarijanske jedi"
+    },
+    {
+      "name": "Pečena sveža zelenjava na rukoli",
+      "image": "/menu-images/vegetarijanske-jedi/pecena-zelenjava-rukola.png",
+      "category": "Vegetarijanske jedi"
+    },
+    {
+      "name": "Sojini polpeti",
+      "image": "/menu-images/vegetarijanske-jedi/sojini-polpeti.png",
+      "category": "Vegetarijanske jedi"
+    },
+    {
+      "name": "Vegetarijanska plošča",
+      "image": "/menu-images/vegetarijanske-jedi/vegetarijanska-plosca.png",
+      "category": "Vegetarijanske jedi"
+    },
+    {
+      "name": "Zelenjavni krožnik",
+      "image": "/menu-images/vegetarijanske-jedi/zelenjavni-kroznik.png",
+      "category": "Vegetarijanske jedi"
+    },
+    {
+      "name": "Zelenjavni zrezki",
+      "image": "/menu-images/vegetarijanske-jedi/zelenjavni-zrezki.png",
+      "category": "Vegetarijanske jedi"
+    },
+    {
+      "name": "Chivas 12yo",
+      "image": "/menu-images/viski/chivas-12.png",
+      "category": "Viski"
+    },
+    {
+      "name": "Glenmorangie 18yo",
+      "image": "/menu-images/viski/glenmorangie-18.png",
+      "category": "Viski"
+    },
+    {
+      "name": "Glenmorangie Lasanta 12yo",
+      "image": "/menu-images/viski/glenmorangie-lasanta.png",
+      "category": "Viski"
+    },
+    {
+      "name": "Jack Daniels",
+      "image": "/menu-images/viski/jack-daniels.png",
+      "category": "Viski"
+    },
+    {
+      "name": "Jameson",
+      "image": "/menu-images/viski/jameson.png",
+      "category": "Viski"
+    },
+    {
+      "name": "Johnnie Walker Black",
+      "image": "/menu-images/viski/johnnie-walker-black.png",
+      "category": "Viski"
+    },
+    {
+      "name": "Lagavulin 16yo",
+      "image": "/menu-images/viski/lagavulin-16.png",
+      "category": "Viski"
+    },
+    {
+      "name": "Laphroaig 10yo",
+      "image": "/menu-images/viski/laphroaig-10.png",
+      "category": "Viski"
+    },
+    {
+      "name": "Whisky Nikka From the Barrel",
+      "image": "/menu-images/viski/nikka-barrel.png",
+      "category": "Viski"
+    },
+    {
+      "name": "Whisky Nikka Miyagikyo",
+      "image": "/menu-images/viski/nikka-miyagikyo.png",
+      "category": "Viski"
+    },
+    {
+      "name": "Mineralna Voda (0.25L)",
+      "image": "/menu-images/vode/mineralna-voda-025.png",
+      "category": "Vode"
+    },
+    {
+      "name": "Mineralna Voda (0.50L)",
+      "image": "/menu-images/vode/mineralna-voda-050.png",
+      "category": "Vode"
+    },
+    {
+      "name": "Mineralna Voda (1.00L)",
+      "image": "/menu-images/vode/mineralna-voda-100.png",
+      "category": "Vode"
+    },
+    {
+      "name": "Naravna Voda (0.25L)",
+      "image": "/menu-images/vode/naravna-voda-025.png",
+      "category": "Vode"
+    },
+    {
+      "name": "Naravna Voda (0.50L)",
+      "image": "/menu-images/vode/naravna-voda-050.png",
+      "category": "Vode"
+    },
+    {
+      "name": "Naravna Voda (1.00L)",
+      "image": "/menu-images/vode/naravna-voda-100.png",
+      "category": "Vode"
+    },
+    {
+      "name": "Naravna Voda z Okusom (0.50L)",
+      "image": "/menu-images/vode/voda-z-okusom.png",
+      "category": "Vode"
+    },
+    {
+      "name": "Voda Radenska FunctionALL (0.50L)",
+      "image": "/menu-images/vode/radenska-functionall.png",
+      "category": "Vode"
+    }
+  ],
+  "inventory": [
+    {
+      "name": "File lososa",
+      "image": "/inventory-images/file-lososa.png"
+    },
+    {
+      "name": "Piščančji file",
+      "image": "/inventory-images/piscancji-file.png"
+    },
+    {
+      "name": "Špageti",
+      "image": "/inventory-images/spageti.png"
+    },
+    {
+      "name": "Penne testenine",
+      "image": "/inventory-images/penne-testenine.png"
+    },
+    {
+      "name": "Mocarela",
+      "image": "/inventory-images/mocarela.png"
+    },
+    {
+      "name": "Burger žemlje",
+      "image": "/inventory-images/burger-zemlje.png"
+    },
+    {
+      "name": "Kavna zrna",
+      "image": "/inventory-images/kavna-zrna.png"
+    },
+    {
+      "name": "Limone",
+      "image": "/inventory-images/limone.png"
+    },
+    {
+      "name": "Parmezan",
+      "image": "/inventory-images/parmezan.png"
+    },
+    {
+      "name": "Testo za pico",
+      "image": "/inventory-images/testo-za-pico.png"
+    },
+    {
+      "name": "Belo vino",
+      "image": "/inventory-images/belo-vino.png"
+    },
+    {
+      "name": "Laško pivo keg",
+      "image": "/inventory-images/lasko-pivo-keg.png"
+    },
+    {
+      "name": "Coca-Cola",
+      "image": "/inventory-images/coca-cola.png"
+    },
+    {
+      "name": "Union pivo keg",
+      "image": "/inventory-images/union-pivo-keg.png"
+    },
+    {
+      "name": "Radenska",
+      "image": "/inventory-images/radenska.png"
+    },
+    {
+      "name": "Rdeče vino",
+      "image": "/inventory-images/rdece-vino.png"
+    },
+    {
+      "name": "Rimski ohrovt",
+      "image": "/inventory-images/rimski-ohrovt.png"
+    },
+    {
+      "name": "Čebula",
+      "image": "/inventory-images/cebula.png"
+    },
+    {
+      "name": "Oljčno olje",
+      "image": "/inventory-images/oljcno-olje.png"
+    },
+    {
+      "name": "Moka",
+      "image": "/inventory-images/moka.png"
+    },
+    {
+      "name": "Sladkor",
+      "image": "/inventory-images/sladkor.png"
+    },
+    {
+      "name": "Paradižnik",
+      "image": "/inventory-images/paradiznik.png"
+    },
+    {
+      "name": "Goveji patty",
+      "image": "/inventory-images/govy-patty.png"
+    },
+    {
+      "name": "Sveža bazilika",
+      "image": "/inventory-images/sveza-bazilika.png"
+    },
+    {
+      "name": "Krompir",
+      "image": "/inventory-images/krompir.png"
+    },
+    {
+      "name": "Ribeye zrezek",
+      "image": "/inventory-images/ribeye-zrezek.png"
+    }
+  ]
+}
