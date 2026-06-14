@@ -1,6 +1,6 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { useState, useMemo, useCallback } from 'react'
 import { authFetch } from '@/components/pos/PinLogin'
@@ -14,6 +14,7 @@ import {
   emptyRestockForm,
   emptyWriteOffForm,
 } from './constants'
+import { useInventoryMutations } from './useInventoryMutations'
 
 // ============================================
 // HOOK: Stanje, poizvedbe, mutacije in handlerji
@@ -21,8 +22,6 @@ import {
 // ============================================
 
 export function useInventoryState() {
-  const queryClient = useQueryClient()
-
   // --- Stanja ---
   const [activeTab, setActiveTab] = useState('stock')
   const [search, setSearch] = useState('')
@@ -118,76 +117,20 @@ export function useInventoryState() {
   )
 
   // ============================================
-  // MUTATIONS
+  // MUTATIONS (podedovane iz pod-hooka)
   // ============================================
 
-  const createMutation = useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      const res = await authFetch('/api/inventory', { method: 'POST', body: JSON.stringify(data) })
-      if (!res.ok) throw new Error('Napaka pri ustvarjanju')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Artikel zaloge ustvarjen')
-      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all })
-      setDialogOpen(false)
-    },
-  })
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await authFetch(`/api/inventory/${id}`, { method: 'PUT', body: JSON.stringify(data) })
-      if (!res.ok) throw new Error('Napaka pri posodobitvi')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Artikel zaloge posodobljen')
-      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all })
-      setDialogOpen(false)
-      setEditingItem(null)
-    },
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await authFetch(`/api/inventory/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Napaka pri brisanju')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Artikel zaloge izbrisan')
-      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all })
-    },
-  })
-
-  const restockMutation = useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      const res = await authFetch('/api/inventory/restock', { method: 'POST', body: JSON.stringify(data) })
-      if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Napaka') }
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Nabava uspešno vnešena')
-      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.transactions })
-      setRestockDialogOpen(false)
-    },
-    onError: (err) => toast.error(err.message),
-  })
-
-  const writeOffMutation = useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      const res = await authFetch('/api/inventory/adjust', { method: 'POST', body: JSON.stringify(data) })
-      if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Napaka') }
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Razknjižba uspešno izvedena')
-      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.transactions })
-      setWriteOffDialogOpen(false)
-    },
-    onError: (err) => toast.error(err.message),
+  const {
+    createMutation,
+    updateMutation,
+    deleteMutation,
+    restockMutation,
+    writeOffMutation,
+  } = useInventoryMutations({
+    onCloseDialog: () => setDialogOpen(false),
+    onClearEditingItem: () => setEditingItem(null),
+    onCloseRestockDialog: () => setRestockDialogOpen(false),
+    onCloseWriteOffDialog: () => setWriteOffDialogOpen(false),
   })
 
   // ============================================

@@ -1,15 +1,15 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { toast } from 'sonner'
 import { BookOpen, Plus, ChefHat, TrendingUp } from 'lucide-react'
 import { useState, useMemo, memo } from 'react'
 import dynamic from 'next/dynamic'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import type { RecipeItemData, AddFormState, EditFormState } from './recipe/constants'
+import { useRecipeMutations } from './recipe/useRecipeMutations'
 
 // Lazy-loaded podkomponente
 const RecipeTab = dynamic(() => import('./recipe/RecipeTab').then(m => ({ default: m.RecipeTab })), { ssr: false })
@@ -21,7 +21,6 @@ const EditRecipeDialog = dynamic(() => import('./recipe/EditRecipeDialog').then(
 // KOMPONENTA
 // ============================================
 export const RecipeManager = memo(function RecipeManager() {
-  const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState('recipes')
   const [selectedMenuItemId, setSelectedMenuItemId] = useState<string>('')
   const [search, setSearch] = useState('')
@@ -68,48 +67,12 @@ export const RecipeManager = memo(function RecipeManager() {
   const sortedInventoryItems = useMemo(() => inventoryItems ? [...inventoryItems].sort((a, b) => a.name.localeCompare(b.name)) : [], [inventoryItems])
 
   // ============================================
-  // MUTATIONS
+  // MUTATIONS (podedovane iz pod-hooka)
   // ============================================
-  const addMutation = useMutation({
-    mutationFn: async (data: AddFormState) => {
-      const res = await authFetch('/api/recipes', {
-        method: 'POST',
-        body: JSON.stringify({
-          menuItemId: data.menuItemId,
-          inventoryItemId: data.inventoryItemId,
-          quantityPerServing: parseFloat(data.quantityPerServing) || 0,
-          unit: data.unit,
-          notes: data.notes,
-        }),
-      })
-      return res.json()
-    },
-    onSuccess: () => { toast.success('Sestavina dodana'); queryClient.invalidateQueries({ queryKey: queryKeys.recipes.all }); setAddDialogOpen(false) },
-    onError: (err: Error) => toast.error(err.message),
-  })
-
-  const editMutation = useMutation({
-    mutationFn: async (data: { id: string } & EditFormState) => {
-      const res = await authFetch('/api/recipes', {
-        method: 'PUT',
-        body: JSON.stringify({
-          id: data.id,
-          quantityPerServing: parseFloat(data.quantityPerServing) || 0,
-          unit: data.unit,
-          notes: data.notes,
-        }),
-      })
-      return res.json()
-    },
-    onSuccess: () => { toast.success('Sestavina posodobljena'); queryClient.invalidateQueries({ queryKey: queryKeys.recipes.all }); setEditDialogOpen(false); setEditItem(null) },
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await authFetch(`/api/recipes?id=${id}`, { method: 'DELETE' })
-      return res.json()
-    },
-    onSuccess: () => { toast.success('Sestavina odstranjena'); queryClient.invalidateQueries({ queryKey: queryKeys.recipes.all }) },
+  const { addMutation, editMutation, deleteMutation } = useRecipeMutations({
+    onCloseAddDialog: () => setAddDialogOpen(false),
+    onCloseEditDialog: () => setEditDialogOpen(false),
+    onClearEditItem: () => setEditItem(null),
   })
 
   // ============================================

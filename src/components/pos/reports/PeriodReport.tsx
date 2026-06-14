@@ -6,15 +6,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { StatsCard } from '../StatsCard'
-import { DollarSign, ShoppingBag, TrendingUp, CreditCard, Wallet, Smartphone, Receipt, Clock, Package, AlertTriangle, ChevronLeft, ChevronRight, BarChart3 } from 'lucide-react'
+import { DollarSign, ShoppingBag, TrendingUp, Receipt, Wallet, Package, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import { PeriodType, PIE_COLORS, paymentMethodLabels } from './constants'
-import {
-  BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-} from 'recharts'
+import { PeriodType } from './constants'
+import { TimeDistributionChart } from './period/TimeDistributionChart'
+import { PaymentMethodChart } from './period/PaymentMethodChart'
+import { CostAnalysisCard } from './period/CostAnalysisCard'
 
 // ============================================
 // POROČILO PO OBDOBJU — Dnevno/Tedensko/Mesečno/Letno
@@ -52,6 +51,9 @@ export function PeriodReport({ initialPeriod }: { initialPeriod: PeriodType }) {
     if (change === 0) return 'enako'
     return `${change > 0 ? '+' : ''}${change.toFixed(1)}%`
   }
+
+  // Period description for chart title
+  const chartPeriodLabel = period === 'daily' ? 'Promet po urah' : period === 'weekly' ? 'Promet po dnevih' : period === 'monthly' ? 'Promet po dnevih v mesecu' : 'Promet po mesecih'
 
   if (finLoading) {
     return (
@@ -136,78 +138,16 @@ export function PeriodReport({ initialPeriod }: { initialPeriod: PeriodType }) {
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Časovna porazdelitev */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              {period === 'daily' ? 'Promet po urah' : period === 'weekly' ? 'Promet po dnevih' : period === 'monthly' ? 'Promet po dnevih v mesecu' : 'Promet po mesecih'}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={fin.timeDistribution}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis dataKey="period" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
-                  <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
-                  <Legend />
-                  <Bar dataKey="revenue" name="Trenutno" fill="oklch(0.7 0.15 55)" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="prevRevenue" name="Prejšnje" fill="oklch(0.5 0.1 55)" radius={[4, 4, 0, 0]} opacity={0.5} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+        <TimeDistributionChart
+          data={fin.timeDistribution}
+          periodLabel={chartPeriodLabel}
+        />
         {/* Plačilne metode */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <CreditCard className="h-4 w-4" />
-              Plačilne metode
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={fin.paymentMethods}
-                    dataKey="revenue"
-                    nameKey="method"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    label={({ method, percent }: { method: string; percent: number }) => `${paymentMethodLabels[method] || method} ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {fin.paymentMethods.map((_: unknown, index: number) => (
-                      <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => [`€${value.toFixed(2)}`, 'Prihodek']} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            {/* Podatki o plačilih */}
-            <div className="grid grid-cols-3 gap-3 mt-4">
-              <div className="text-center p-2 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <Wallet className="h-4 w-4 mx-auto text-green-600 mb-1" />
-                <p className="text-xs text-muted-foreground">Gotovina</p>
-                <p className="font-bold text-sm">{fmt(fin.cashRegister.totalCashSales)}</p>
-              </div>
-              <div className="text-center p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <CreditCard className="h-4 w-4 mx-auto text-blue-600 mb-1" />
-                <p className="text-xs text-muted-foreground">Kartice</p>
-                <p className="font-bold text-sm">{fmt(fin.cashRegister.totalCardSales)}</p>
-              </div>
-              <div className="text-center p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                <Smartphone className="h-4 w-4 mx-auto text-purple-600 mb-1" />
-                <p className="text-xs text-muted-foreground">Mobilno</p>
-                <p className="font-bold text-sm">{fmt(fin.cashRegister.totalMobileSales)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <PaymentMethodChart
+          paymentMethods={fin.paymentMethods}
+          cashRegister={fin.cashRegister}
+          fmt={fmt}
+        />
       </div>
       {/* Kategorije in Artikli */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -218,15 +158,7 @@ export function PeriodReport({ initialPeriod }: { initialPeriod: PeriodType }) {
           </CardHeader>
           <CardContent>
             <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={fin.categoryBreakdown.slice(0, 10)} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
-                  <YAxis type="category" dataKey="category" width={100} tick={{ fontSize: 11 }} />
-                  <Tooltip formatter={(value: number) => [`€${value.toFixed(2)}`, 'Prihodek']} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
-                  <Bar dataKey="revenue" fill="oklch(0.7 0.15 55)" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              <TimeDistributionChart data={fin.categoryBreakdown.slice(0, 10)} periodLabel="Prihodek po kategorijah" />
             </div>
           </CardContent>
         </Card>
@@ -260,39 +192,16 @@ export function PeriodReport({ initialPeriod }: { initialPeriod: PeriodType }) {
         </Card>
       </div>
       {/* Stroškovna analiza */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            Stroškovna analiza
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <div className="text-center p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-              <p className="text-xs text-muted-foreground mb-1">Prihodek</p>
-              <p className="text-lg font-bold text-blue-600">{fmt(fin.summary.totalRevenue)}</p>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-orange-50 dark:bg-orange-900/20">
-              <p className="text-xs text-muted-foreground mb-1">Nabavni stroški</p>
-              <p className="text-lg font-bold text-orange-600">{fmt(fin.costs.procurementCost)}</p>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-red-50 dark:bg-red-900/20">
-              <p className="text-xs text-muted-foreground mb-1">Stroški prodanih (COGS)</p>
-              <p className="text-lg font-bold text-red-600">{fmt(fin.costs.cogs)}</p>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
-              <p className="text-xs text-muted-foreground mb-1">Odpisi</p>
-              <p className="text-lg font-bold text-yellow-600">{fmt(fin.costs.writeOffCost)}</p>
-            </div>
-            <div className="text-center p-4 rounded-lg bg-green-50 dark:bg-green-900/20">
-              <p className="text-xs text-muted-foreground mb-1">Bruto dobiček</p>
-              <p className="text-lg font-bold text-green-600">{fmt(fin.costs.grossProfit)}</p>
-              <p className="text-xs text-green-600">Marža: {fmtPct(fin.costs.grossMargin)}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <CostAnalysisCard
+        totalRevenue={fin.summary.totalRevenue}
+        procurementCost={fin.costs.procurementCost}
+        cogs={fin.costs.cogs}
+        writeOffCost={fin.costs.writeOffCost}
+        grossProfit={fin.costs.grossProfit}
+        grossMargin={fin.costs.grossMargin}
+        fmt={fmt}
+        fmtPct={fmtPct}
+      />
     </div>
   )
 }
