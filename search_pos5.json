@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://doc.toasttab.com/doc/platformguide/adminMenuHierarchy.html",
+    "name": "Menu hierarchy - - Platform guide",
+    "snippet": "Modifier groups can be applied to menu groups or menu items. The following diagram shows the menu hierarchy structure described above along with examples of ... Missing: super professional\nMenu groups and menu items can be assigned modifier groups that are used to further customize the items. For example, a Turkey Sandwich menu item could be ...",
+    "host_name": "doc.toasttab.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://doc.toasttab.com/doc/platformguide/adminUnderstandingTheMenuHierarchy.html",
+    "name": "Understanding the menu hierarchy - - Platform guide",
+    "snippet": "Menus are the highest level of the hierarchy and represent top-level categories for the offerings your restaurant serves, for example, Food, Drinks, Lunch, ... Missing: super professional diagram\nModifier groups contain modifiers that represent the specific changes you can make to the menu item. For example, a Cheese modifier group could contain Cheddar ...",
+    "host_name": "doc.toasttab.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://study.com/academy/lesson/restaurant-organizational-structure.html",
+    "name": "Restaurant Hierarchy | Roles & Organizational Chart - Lesson",
+    "snippet": "Explore the restaurant hierarchy and roles within an organizational chart in this informative video lesson. Learn about the different positions, ... Missing: POS category subcategory modifiers",
+    "host_name": "study.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.quora.com/How-do-I-model-a-restaurant-menu-in-the-database-considering-categories-appetizers-main-course-etc-cuisine-Chinese-Indian-Mexican-etc-sides-extras-etc-Are-there-any-ready-made-data-models",
+    "name": "How to model a restaurant menu in the database, considering",
+    "snippet": "Model a restaurant menu in the database, considering categories (appetizers, main course, etc.), cuisine (Chinese, Indian, Mexican, etc.), sides, extras, etc.",
+    "host_name": "www.quora.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://uou.ac.in/sites/default/files/slm/BHM-402T.pdf",
+    "name": "[PDF] UNIT: 01 RESTAURANT PLANNING - Uttarakhand Open University",
+    "snippet": "Lunch Menu: Lunch menus can vary from elaborate meals to light meals depending on the purpose and culture of the guests. Business delegates prefer sandwiches, ...",
+    "host_name": "uou.ac.in",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.youtube.com/watch?v=ztQ0uIJuUhY",
+    "name": "Menu Groups, Categories, Items, and Modifiers - YouTube",
+    "snippet": "Creating menus is designed to be as easy and as quick as possible. This first video will simply cover creating menu groups, categories, ... Missing: structure super variants professional hierarchy diagram",
+    "host_name": "www.youtube.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.getknowapp.com/blog/restaurant-hierarchy-chart",
+    "name": "What is a Restaurant Hierarchy Chart? Examples & Best Practices",
+    "snippet": "A restaurant hierarchy chart is a vital visual tool that delineates the organizational framework within a restaurant. Missing: super subcategory modifiers",
+    "host_name": "www.getknowapp.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://fsm.how/catering-facility/restaurant-menu-structure-categories-flow",
+    "name": "How to Structure Your Restaurant Menu: Categories and Flow",
+    "snippet": "Master your restaurant's menu structure: Appetizers, entrees, sides, desserts & drinks guide for optimal customer experience and profits. Missing: super professional hierarchy diagram\nMaster your restaurant's menu structure: Appetizers, entrees, sides, desserts & drinks guide for optimal customer experience and profits. Missing: super | Show results with: super",
+    "host_name": "fsm.how",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "http://zoetey.com/restaurant-menu-taxonomy",
+    "name": "Restaurant menu taxonomy — Zoe Tey",
+    "snippet": "Products · Categories · Subcategories · Variations, modifier groups and modifiers. Missing: POS super professional",
+    "host_name": "zoetey.com",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://developers.deliverect.com/docs/understanding-sub-categories-via-menu-grouping",
+    "name": "Sub-Categories via Menu Grouping - Deliverect",
+    "snippet": "Example. Below is the desired category structure of a customer: Category. Subcategories. Snacks. • Nuts • Sandwiches. Beverages. • Soft drinks • Fruit smoothies Missing: restaurant POS",
+    "host_name": "developers.deliverect.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

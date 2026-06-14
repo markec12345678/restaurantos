@@ -1,0 +1,341 @@
+// ============================================
+// PAMETNO NAROČANJE ZALOGE (Smart Reorder)
+// Samodejno predlaga naročila glede na napovedi,
+// dobavitelje in zgodovino dobav
+// ============================================
+
+import { db } from '@/lib/db'
+import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
+import { createReorderSchema } from '@/lib/validations'
+import { toNum, round2, greaterThan, multiply, abs } from '@/lib/decimal'
+import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
+interface ReorderSuggestion {
+  inventoryItemId: string
+  itemName: string
+  unit: string
+  supplier: string
+  currentStock: number
+  suggestedQty: number
+  costPerUnit: number
+  totalCost: number
+  urgency: 'critical' | 'high' | 'medium' | 'low'
+  reason: string
+  lastOrderDate: string | null
+  avgDeliveryDays: number
+  category: string
+}
+
+export async function GET(req: Request) {
+  try {
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
+    if (authResult.error) return authResult.error
+
+    const { searchParams } = new URL(req.url)
+    const urgency = searchParams.get('urgency') || '' // filter by urgency
+
+    // FIX CRITICAL: Pridobi napovedi DIREKTNO iz baze namesto internal fetch-ja
+    // Internal fetch bi potreboval auth token, ki ga ni — uporabimo direktno poizvedbo
+
+    // Pridobi vse artikle za analizo
+    const allItems = await db.inventoryItem.findMany({
+      orderBy: { quantity: 'asc' },
+    })
+
+    // Pridobi zadnje transakcije za izračun povprečne porabe
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+
+    const suggestions: ReorderSuggestion[] = []
+
+    // FIX MEDIUM: Batch query namesto N+1 — pridobi vse transakcije naenkrat
+    const allItemIds = allItems.map(item => item.id)
+
+    const [allSales, allProcurements, allDeliveryHistory] = await Promise.all([
+      db.stockTransaction.findMany({
+        where: {
+          inventoryItemId: { in: allItemIds },
+          type: 'sale',
+          createdAt: { gte: thirtyDaysAgo },
+        },
+      }),
+      db.stockTransaction.findMany({
+        where: {
+          inventoryItemId: { in: allItemIds },
+          type: 'procurement',
+        },
+        orderBy: { createdAt: 'desc' },
+        distinct: ['inventoryItemId'],
+        select: { inventoryItemId: true, createdAt: true },
+      }),
+      // Vsi procuremente za izračun povprečnega časa dobave
+      db.stockTransaction.findMany({
+        where: {
+          inventoryItemId: { in: allItemIds },
+          type: 'procurement',
+          createdAt: { gte: ninetyDaysAgo },
+        },
+        orderBy: { createdAt: 'asc' },
+        select: { inventoryItemId: true, createdAt: true },
+      }),
+    ])
+
+    // Zgradi lookup mapi
+    const salesByItem = new Map<string, typeof allSales>()
+    for (const tx of allSales) {
+      if (!salesByItem.has(tx.inventoryItemId)) salesByItem.set(tx.inventoryItemId, [])
+      salesByItem.get(tx.inventoryItemId)!.push(tx)
+    }
+    const lastProcByItem = new Map(allProcurements.map(p => [p.inventoryItemId, p]))
+
+    // Izračunaj povprečni čas dobave iz zgodovine procurementov
+    // Če ima artikel več procurementov, izračunaj razliko med naročilom in dobavo
+    const avgDeliveryDaysByItem = new Map<string, number>()
+    const procsByItem = new Map<string, typeof allDeliveryHistory>()
+    for (const proc of allDeliveryHistory) {
+      if (!procsByItem.has(proc.inventoryItemId)) procsByItem.set(proc.inventoryItemId, [])
+      procsByItem.get(proc.inventoryItemId)!.push(proc)
+    }
+    for (const [itemId, procs] of procsByItem) {
+      if (procs.length >= 2) {
+        // Izračunaj povprečen čas med zaporednimi dobavami
+        let totalDays = 0
+        let intervals = 0
+        for (let i = 1; i < procs.length; i++) {
+          const diff = (new Date(procs[i].createdAt).getTime() - new Date(procs[i - 1].createdAt).getTime()) / (1000 * 60 * 60 * 24)
+          if (diff > 0 && diff < 90) { // Ignoriraj anomalije
+            totalDays += diff
+            intervals++
+          }
+        }
+        if (intervals > 0) avgDeliveryDaysByItem.set(itemId, Math.round(totalDays / intervals))
+      }
+    }
+
+    for (const item of allItems) {
+      // Izračunaj porabo zadnjih 7 in 30 dni
+      const recentSales = salesByItem.get(item.id) || []
+
+      const last7DaysSales = recentSales.filter(t => new Date(t.createdAt) >= sevenDaysAgo)
+      const totalSold7d = last7DaysSales.reduce((s, t) => s + toNum(abs(t.quantity)), 0)
+      const totalSold30d = recentSales.reduce((s, t) => s + toNum(abs(t.quantity)), 0)
+
+      const avgDailyConsumption = totalSold30d > 0 ? totalSold30d / 30 : 0
+      const recentDailyConsumption = totalSold7d > 0 ? totalSold7d / 7 : 0
+
+      // Trend: ali poraba narašča?
+      const trend = recentDailyConsumption > avgDailyConsumption * 1.2 ? 'increasing' :
+                    recentDailyConsumption < avgDailyConsumption * 0.5 ? 'decreasing' : 'stable'
+
+      const isLowStock = !greaterThan(item.quantity, item.minQuantity)
+      const daysUntilEmpty = avgDailyConsumption > 0 ? Math.floor(toNum(item.quantity) / avgDailyConsumption) : 999
+
+      // Določi nujnost
+      let riskLevel: 'critical' | 'high' | 'medium' | 'low' = 'low'
+      if (toNum(item.quantity) <= 0 || daysUntilEmpty <= 1) riskLevel = 'critical'
+      else if (isLowStock || daysUntilEmpty <= 3) riskLevel = 'high'
+      else if (daysUntilEmpty <= 7 || trend === 'increasing') riskLevel = 'medium'
+
+      const needsReorder = isLowStock || daysUntilEmpty <= 7 || riskLevel !== 'low'
+
+      if (!needsReorder && riskLevel === 'low') continue
+      if (urgency && riskLevel !== urgency) continue
+
+      // Predlagana količina: pokrij 14 dni porabe ali dopolni do 2x minimalne zaloge
+      const suggestedOrderQty = Math.max(
+        Math.ceil(avgDailyConsumption * 14),
+        Math.max(toNum(item.minQuantity) * 2 - toNum(item.quantity), 0),
+        1
+      )
+
+      const reason = generateReorderReason({
+        daysUntilEmpty,
+        currentStock: toNum(item.quantity),
+        minStock: toNum(item.minQuantity),
+        trend,
+        seasonalityFactor: 1,
+        riskLevel,
+        needsReorder,
+      }, item)
+
+      // Pridobi zadnji datum dobave (iz batch lookup mape)
+      const lastProcurement = lastProcByItem.get(item.id)
+
+      suggestions.push({
+        inventoryItemId: item.id,
+        itemName: item.name,
+        unit: item.unit,
+        supplier: item.supplier,
+        currentStock: toNum(item.quantity),
+        suggestedQty: suggestedOrderQty,
+        costPerUnit: toNum(item.costPerUnit),
+        totalCost: round2(multiply(suggestedOrderQty, item.costPerUnit)),
+        urgency: riskLevel as ReorderSuggestion['urgency'],
+        reason,
+        lastOrderDate: lastProcurement?.createdAt?.toISOString() || null,
+        avgDeliveryDays: avgDeliveryDaysByItem.get(item.id) || 3,
+        category: item.category,
+      })
+    }
+
+    // Razvrsti po nujnosti
+    const urgencyOrder = { critical: 0, high: 1, medium: 2, low: 3 }
+    suggestions.sort((a, b) => (urgencyOrder[a.urgency] || 3) - (urgencyOrder[b.urgency] || 3))
+
+    // Povzetek
+    const summary = {
+      totalSuggestions: suggestions.length,
+      totalEstimatedCost: Math.round(suggestions.reduce((s, r) => s + r.totalCost, 0) * 100) / 100,
+      criticalCount: suggestions.filter(s => s.urgency === 'critical').length,
+      highCount: suggestions.filter(s => s.urgency === 'high').length,
+      bySupplier: groupBy(suggestions, 'supplier'),
+      byCategory: groupBy(suggestions, 'category'),
+    }
+
+    return NextResponse.json({ summary, suggestions })
+  } catch (error: unknown) {
+    return handleApiError(error, 'GET /api/inventory/reorder', 'Napaka pri predlaganju naročil')
+  }
+}
+
+/**
+ * Ustvari naročilnico iz predlogov
+ */
+export async function POST(req: Request) {
+  try {
+    // FIX HIGH: Zahtevaj manage_inventory dovoljenje za naročanje zaloge
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
+    if (authResult.error) return authResult.error
+
+    const bodyResult = await parseJsonBody(req)
+    if (bodyResult.error) return bodyResult.error
+
+    // FIX CRITICAL: Zod validacija za naročilo zaloge
+    const { data, error: validationError } = validateBody(createReorderSchema, bodyResult.data)
+    if (validationError) return validationError
+
+    const { items, employeeName } = data
+
+    if (!items || items.length === 0) {
+      return NextResponse.json({ error: 'Ni artiklov za naročilo' }, { status: 400 })
+    }
+
+    // FIX HIGH: Ovij VSE postavke v eno transakcijo — prej je vsaka postavka bila v svoji
+    // transakciji, kar je pustilo delne posodobitve ob napaki na 3. postavki
+    const results: Array<{ inventoryItemId: string; itemName: string; quantity: number; totalCost: number }> = []
+    const errors: Array<{ inventoryItemId: string; error: string }> = []
+
+    // FIX MEDIUM: Batch query namesto N+1 — pridobi vse artikle naenkrat
+    const itemIds = items.map(item => item.inventoryItemId)
+    const invItems = await db.inventoryItem.findMany({
+      where: { id: { in: itemIds } },
+    })
+    const invItemMap = new Map(invItems.map(i => [i.id, i]))
+
+    // Preveri vse artikle pred transakcijo
+    for (const item of items) {
+      const invItem = invItemMap.get(item.inventoryItemId)
+      if (!invItem) {
+        errors.push({ inventoryItemId: item.inventoryItemId, error: 'Artikel ni najden' })
+      }
+    }
+
+    // Če so napake, jih vrni preden začnemo transakcijo
+    if (errors.length > 0 && errors.length === items.length) {
+      return NextResponse.json({ error: ' Noben artikel ni najden', errors }, { status: 400 })
+    }
+
+    const validItems = items.filter(item => invItemMap.has(item.inventoryItemId))
+
+    await db.$transaction(async (tx) => {
+      for (const item of validItems) {
+        const invItem = invItemMap.get(item.inventoryItemId)!
+
+        // FIX: Ustvari transakcijo IN posodobi zalogo atomarno — uporabi atomic increment
+        const updated = await tx.inventoryItem.update({
+          where: { id: item.inventoryItemId },
+          data: {
+            quantity: { increment: item.quantity },
+            lastRestocked: new Date(),
+          },
+        })
+
+        await tx.stockTransaction.create({
+          data: {
+            inventoryItemId: item.inventoryItemId,
+            type: 'procurement',
+            quantity: item.quantity,
+            previousQty: toNum(updated.quantity) - item.quantity,
+            newQty: toNum(updated.quantity),
+            costPerUnit: item.costPerUnit,
+            totalCost: round2(multiply(item.quantity, item.costPerUnit)),
+            reason: `Samodejno naročilo (${employeeName || 'sistem'})`,
+            employeeName: employeeName || '',
+          },
+        })
+
+        results.push({
+          inventoryItemId: item.inventoryItemId,
+          itemName: invItem.name,
+          quantity: item.quantity,
+          totalCost: round2(multiply(item.quantity, item.costPerUnit)),
+        })
+      }
+    })
+
+    return NextResponse.json({
+      success: true,
+      createdOrders: results.length,
+      totalCost: Math.round(results.reduce((s, r) => s + r.totalCost, 0) * 100) / 100,
+      items: results,
+      errors: errors.length > 0 ? errors : undefined,
+    }, { status: 201 })
+  } catch (error: unknown) {
+    return handleApiError(error, 'POST /api/inventory/reorder', 'Napaka pri ustvarjanju naročila')
+  }
+}
+
+// ============================================
+// HELPERJI
+// ============================================
+
+function generateReorderReason(
+  f: Record<string, unknown>,
+  _item: Record<string, unknown>
+): string {
+  const reasons: string[] = []
+
+  if (f.daysUntilEmpty !== null && (f.daysUntilEmpty as number) <= 2) {
+    reasons.push(`Zaloga zmanjka čez ${f.daysUntilEmpty} dni!`)
+  } else if (f.daysUntilEmpty !== null && (f.daysUntilEmpty as number) <= 7) {
+    reasons.push(`Zaloga zmanjka čez ${f.daysUntilEmpty} dni`)
+  }
+
+  if (Number(f.currentStock) <= Number(f.minStock)) {
+    reasons.push('Pod minimalno zalogo')
+  }
+
+  if (f.trend === 'increasing') {
+    reasons.push('Poraba narašča')
+  }
+
+  if ((f.seasonalityFactor as number) > 1.2) {
+    reasons.push('Vikend porast pričakovana')
+  }
+
+  if (reasons.length === 0) {
+    reasons.push('Priporočeno naročilo glede na napoved')
+  }
+
+  return reasons.join(' · ')
+}
+
+function groupBy(arr: ReorderSuggestion[], key: keyof ReorderSuggestion): Record<string, number> {
+  const grouped: Record<string, number> = {}
+  for (const item of arr) {
+    const k = String(item[key] || 'Neznano')
+    grouped[k] = (grouped[k] || 0) + 1
+  }
+  return grouped
+}

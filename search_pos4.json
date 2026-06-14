@@ -1,0 +1,65 @@
+[
+  {
+    "url": "https://doc.toasttab.com/doc/platformguide/adminMenuHierarchy.html",
+    "name": "Menu hierarchy - - Platform guide - Toast Tab",
+    "snippet": "In addition to the hierarchical structure described above, the Toast platform allows the sharing and re-use of menu entities. For example, the Roast Chicken and Blackened Salmon menu items can share the same Entree Sides modifier group. The following list describes Toast's menu entity sharing and re-use rules:",
+    "host_name": "doc.toasttab.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://getanewpos.com/blog/toasttabpos/toast-tab-capabilities/how-to-use-menu-hierarchy-with-toast-pos-build-better-restaurant-menus",
+    "name": "How to Use Menu Hierarchy with Toast POS: Build Better",
+    "snippet": "Learn how to use Toast POS’s menu hierarchy to organize your restaurant menus efficiently. Discover best practices for building menus, using modifiers, and optimizing the order process across in-house and online platforms.",
+    "host_name": "getanewpos.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://doc.toasttab.com/doc/platformguide/adminUnderstandingTheMenuHierarchy.html",
+    "name": "Understanding the menu hierarchy - - Platform guide - Toast Tab",
+    "snippet": "This hierarchical structure allows your guests and employees to quickly and easily locate the items they want to add to an order and modify them as needed. The structure you create is used by all Toast products, including Toast Online Ordering, the Toast Takeout (Local by Toast) app, Toast Order and Pay, Toast Kiosk, and the Toast POS app. This documentation uses the term menu entity to refer ...",
+    "host_name": "doc.toasttab.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://support.toasttab.com/en/article/Menus-Menu-Groups-and-Subgroups",
+    "name": "Create and Manage Menus, Menu Groups, and Subgroups",
+    "snippet": "Learn about the menu hierarchy and how to create menus, groups, and subgroups.",
+    "host_name": "support.toasttab.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://doc.toasttab.com/doc/platformguide/adminCreatingYourMenuHierarchy.html",
+    "name": "Creating your menu hierarchy - - Platform guide - Toast Tab",
+    "snippet": "At the top of the details page for each menu group, subgroup, menu item, or modifier group, you see a set of breadcrumbs that you can use to quickly step your way back up the menu hierarchy.",
+    "host_name": "doc.toasttab.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://support.toasttab.com/en/article/Creating-Menus-Groups-and-Items-in-the-Menu-Builder",
+    "name": "Create Menus, Groups, Subgroups, and Items in the Menu Builder",
+    "snippet": "In this article, learn how to use the menu builder to create menus, groups, subgroups, and items for your menu.",
+    "host_name": "support.toasttab.com",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://doc.toasttab.com/doc/platformguide/platformUnderstandingInheritance.html",
+    "name": "Understanding inheritance - - Platform guide - Toast Tab",
+    "snippet": "For example, menus, menu groups, and menu items all have settings for tax rates, prep stations, courses, and sales categories but only menu items have settings for controlling stock count. For the settings that the menu entity types have in common, you can use inheritance to reduce the amount of work you have to do to configure your menus.",
+    "host_name": "doc.toasttab.com",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  }
+]

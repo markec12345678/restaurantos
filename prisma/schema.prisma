@@ -1,0 +1,2094 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// PROFESIONALNA MENU HIERARHIJA (Toast POS standard)
+// Menu → Category → MenuItem → ModifierGroup → Modifier
+// ============================================
+
+model Menu {
+  id         String     @id @default(cuid())
+  name       String     // "Hrana", "Pijača"
+  icon       String     @default("📋")
+  color      String     @default("#f59e0b")
+  sortOrder  Int        @default(0)
+  isActive   Boolean    @default(true)
+  categories Category[]
+  // --- Multi-location ---
+  locationId String?
+  location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@index([locationId])
+  // FIX: isActive — filtriranje aktivnih menijev (enak vzorec kot druge konfiguracije)
+  @@index([isActive])
+}
+
+model Category {
+  id         String     @id @default(cuid())
+  name       String     // "Predjedi", "Glavne jedi", "Vroče pijače"
+  icon       String     @default("🍽️")
+  color      String     @default("#f59e0b")
+  sortOrder  Int        @default(0)
+  menuId     String
+  menu       Menu       @relation(fields: [menuId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  menuItems  MenuItem[]
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  // FIX SCHEMA-01 HIGH: Index za menuId — vsaka nalaga menija poizveduje po menuId
+  @@index([menuId])
+  // FIX SCHEMA-01 MEDIUM: Unique ime kategorije znotraj menija — prepreči duplikate
+  @@unique([name, menuId])
+}
+
+model MenuItem {
+  id              String           @id @default(cuid())
+  name            String
+  description     String           @default("")
+  price           Decimal            // FIX: Decimal za valuto
+  image           String           @default("")
+  isAvailable     Boolean          @default(true)
+  sortOrder       Int              @default(0)
+  vatRate         Decimal           @default(22.00)     // DDV stopnja: 22.0, 9.5, 0 (%)  // FIX: Decimal za davčno stopnjo
+  allergens       String           @default("")       // Alergeni: "1,3,7,12" (EU številke)
+  categoryId      String
+  category        Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Toast: Sales Category (za poročila, ločeno od meni kategorije) ---
+  salesCategoryId String?
+  salesCategory   SalesCategory?   @relation(fields: [salesCategoryId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Toast: Price Group (različni ceniki) ---
+  priceGroupId    String?
+  priceGroup      PriceGroup?      @relation(fields: [priceGroupId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Toast: Revenue Center (bar, terasa, dostava) ---
+  revenueCenterId String?
+  revenueCenter   RevenueCenter?   @relation(fields: [revenueCenterId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Toast: Prep Station (kuhinja, bar) ---
+  prepStationId   String?
+  prepStation     PrepStation?     @relation(fields: [prepStationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Relations ---
+  orderItems      OrderItem[]
+  inventory       InventoryItem?
+  recipeItems     RecipeItem[]
+  modifierGroups  MenuItemModifierGroup[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([categoryId])
+  @@index([salesCategoryId])
+  @@index([priceGroupId])
+  @@index([revenueCenterId])
+  @@index([prepStationId])
+  @@index([isAvailable])
+  // FIX SCHEMA-09: Composite indexes za pogoste poizvedbe
+  @@index([categoryId, isAvailable])  // Prikaz menija: samo dostopni artikli v kategoriji
+  @@index([categoryId, sortOrder])    // Urejen prikaz menija po kategoriji
+}
+
+model ModifierGroup {
+  id          String   @id @default(cuid())
+  name        String   // "Način pečenja", "Priloge", "Velikost"
+  required    Boolean  @default(false)
+  minSelect   Int      @default(0)
+  maxSelect   Int?     // null = neomejeno
+  sortOrder   Int      @default(0)
+  modifiers   Modifier[]
+  menuItems   MenuItemModifierGroup[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Modifier {
+  id              String        @id @default(cuid())
+  name            String        // "Srednje pečeno", "Francoski krompir"
+  price           Decimal        @default(0)  // FIX: Decimal za valuto
+  isAvailable     Boolean       @default(true)
+  sortOrder       Int           @default(0)
+  // FIX ALLER-04 HIGH: Alergeni na modifierjih — "sir" (mleko), "oreščki" itd.
+  allergens       String        @default("")       // Alergeni: "1,3,7,12" (EU številke), enak format kot MenuItem
+  modifierGroupId String
+  modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([modifierGroupId])
+  // FIX: isAvailable — filtriranje dostopnih modifierjev (enak vzorec kot MenuItem)
+  @@index([isAvailable])
+}
+
+model MenuItemModifierGroup {
+  id              String        @id @default(cuid())
+  menuItemId      String
+  modifierGroupId String
+  sortOrder       Int           @default(0)
+  menuItem        MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  modifierGroup   ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([menuItemId, modifierGroupId])
+  @@index([modifierGroupId])  // FIX: FK index — "kateri artikli uporabljajo to modifikacijsko skupino?"
+}
+
+// ============================================
+// KONFIGURACIJA (Toast Configuration API)
+// ============================================
+
+model TaxRate {
+  id          String   @id @default(cuid())
+  name        String   // "Standard DDV 22%", "Znižana DDV 9.5%", "Oproščeno 0%"
+  rate        Decimal   // 22.0, 9.5, 0  // FIX: Decimal za davčno stopnjo
+  code        String   @default("")  // "S", "R", "Z" (FURS kode)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // FIX SCHEMA-02 HIGH: FURS koda mora biti unikatna — prepreči dvojne "S" kode
+  @@unique([code])
+  @@index([isActive])
+}
+
+model DiningOption {
+  id                String   @id @default(cuid())
+  name              String   // "Na mestu", "Vzemi s seboj", "Dostava"
+  type              String   // dine-in, takeout, delivery
+  serviceChargeId   String?  // Povezana servisna postavka
+  serviceCharge     ServiceCharge? @relation(fields: [serviceChargeId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  prepTimeMinutes   Int      @default(15) // Čas priprave v minutah
+  isActive          Boolean  @default(true)
+  sortOrder         Int      @default(0)
+  orders            Order[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // FIX SCHEMA-03 HIGH: type mora biti unikaten — findFirst({type: 'dine-in'}) predpostavlja enoličnost
+  @@unique([type])
+  @@index([isActive])
+  @@index([serviceChargeId])   // FIX: FK index — iskanje po servisni postavki
+}
+
+model RevenueCenter {
+  id          String   @id @default(cuid())
+  name        String   // "Bar", "Terasa", "Dostava", "Glavna dvorana"
+  code        String   @default("")  // Kratka koda za poročila
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  menuItems   MenuItem[]
+  tables      Table[]
+  orders      Order[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // FIX: isActive — filtriranje aktivnih centrov prihodkov
+  @@index([isActive])
+}
+
+model ServiceCharge {
+  id          String   @id @default(cuid())
+  name        String   // "Servisna postavka 10%", "Paketnina za dostavo"
+  type        String   // percentage, fixed
+  amount      Decimal   // Odstotek ali fiksni znesek  // FIX: Decimal za valuto
+  isAutoApply Boolean  @default(false) // Samodejno dodaj
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  diningOptions DiningOption[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // FIX: isActive — filtriranje aktivnih servisnih postavk
+  @@index([isActive])
+}
+
+model SalesCategory {
+  id          String   @id @default(cuid())
+  name        String   // "Hrana", "Pijača", "Alkoholne pijače", "Sladice", "Kava"
+  code        String   @default("")  // Kratka koda za poročila
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  menuItems   MenuItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // FIX: isActive — filtriranje aktivnih prodajnih kategorij
+  @@index([isActive])
+}
+
+model PriceGroup {
+  id          String   @id @default(cuid())
+  name        String   // "Redni cenik", "Happy Hour", "Lunch Special", "Catering"
+  description String   @default("")
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  menuItems      MenuItem[]
+  happyHourSchedules HappyHourSchedule[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // FIX: isActive — filtriranje aktivnih cenikov
+  @@index([isActive])
+}
+
+model PrepStation {
+  id          String   @id @default(cuid())
+  name        String   // "Vroča kuhinja", "Hladna kuhinja", "Bar", "Pekarna"
+  type        String   @default("kitchen") // kitchen, bar, pastry, grill
+  avgPrepTime Int      @default(15) // Povprečen čas priprave v minutah
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  menuItems   MenuItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // FIX: isActive — filtriranje aktivnih postaj priprave
+  @@index([isActive])
+  // FIX: type — filtriranje po vrsti postaje (kitchen, bar, pastry, grill)
+  @@index([type])
+}
+
+model AlternatePaymentType {
+  id          String   @id @default(cuid())
+  name        String   // "Dijaški bon", "Malica", "Vavčer", "Žeton"
+  code        String   @default("")
+  type        String   @default("voucher") // voucher, coupon, subsidy, token
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  payments    Payment[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // FIX: isActive — filtriranje aktivnih vrst plačil
+  @@index([isActive])
+  // FIX: type — filtriranje po vrsti (voucher, coupon, subsidy, token)
+  @@index([type])
+}
+
+model VoidReason {
+  id          String   @id @default(cuid())
+  name        String   // "Napaka natakarja", "Kuhinja zgrešila", "Stranka zamenjala mnenje", "Alergija"
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  orderItems  OrderItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // FIX: isActive — filtriranje aktivnih razlogov za poničenje
+  @@index([isActive])
+}
+
+model NoSaleReason {
+  id          String   @id @default(cuid())
+  name        String   // "Mali dvig", "Vračilo dobavitelju", "Izplačilo napitnine", "Zamenjava"
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // FIX: isActive — filtriranje aktivnih razlogov za nerealizacijo
+  @@index([isActive])
+}
+
+model Printer {
+  id          String   @id @default(cuid())
+  name        String   // "Kuhinja 1", "Bar tiskalnik", "Blagajna"
+  type        String   @default("thermal") // thermal, dot-matrix, label
+  location    String   @default("") // Fizična lokacija
+  ipAddress   String   @default("") // IP naslov omrežnega tiskalnika
+  isActive    Boolean  @default(true)
+  // Kaj se tiska na tem tiskalniku (JSON array)
+  printRules  String   @default("[]") // [{type: "order", prepStationId: "..."}, {type: "receipt"}]
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // FIX: isActive — filtriranje aktivnih tiskalnikov
+  @@index([isActive])
+  // FIX: type — filtriranje po vrsti tiskalnika (thermal, dot-matrix, label)
+  @@index([type])
+}
+
+model PackagingConfig {
+  id          String   @id @default(cuid())
+  name        String   // "Standard embalaža", "Premium embalaža"
+  isActive    Boolean  @default(true)
+  items       PackagingItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // FIX: isActive — filtriranje aktivnih konfiguracij embalaže
+  @@index([isActive])
+}
+
+model PackagingItem {
+  id                String          @id @default(cuid())
+  name              String          // "Kartonska škatla", "Alu folija", "Vrečka za pijačo"
+  price             Decimal          @default(0) // Dodatna cena za embalažo  // FIX: Decimal za valuto
+  packagingConfigId String
+  packagingConfig   PackagingConfig @relation(fields: [packagingConfigId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  isActive          Boolean         @default(true)
+  sortOrder         Int             @default(0)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([packagingConfigId])  // FIX: FK index — iskanje embalaže po konfiguraciji
+  // FIX: isActive — filtriranje aktivnih elementov embalaže
+  @@index([isActive])
+}
+
+// ============================================
+// NAROČILA, ČEKI IN PLAČILA (Toast Orders API)
+// ============================================
+
+model Table {
+  id              String   @id @default(cuid())
+  number          Int      // FIX SCHEMA-03: Odstranjen @unique — tabela number mora biti unikat samo znotraj lokacije
+  capacity        Int      @default(4)
+  status          String   @default("available")
+  area            String   @default("main")
+  // --- Vizualni tloris (drag-and-drop koordinate) ---
+  posX            Float    @default(0)     // X pozicija na tlorisu (0-100%)
+  posY            Float    @default(0)     // Y pozicija na tlorisu (0-100%)
+  width           Float    @default(8)     // Širina v % tlorisa
+  height          Float    @default(10)    // Višina v % tlorisa
+  shape           String   @default("round") // round, square, rectangular, booth
+  rotation        Float    @default(0)     // Rotacija v stopinjah
+  // --- Povezave ---
+  revenueCenterId String?
+  revenueCenter   RevenueCenter? @relation(fields: [revenueCenterId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  orders          Order[]
+  reservations    Reservation[]
+  waitlistEntries WaitlistEntry[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([revenueCenterId])
+  @@index([status])
+  @@index([locationId])
+  // FIX SCHEMA-03: Compound unique — miza 1 je lahko na več lokacijah, ampak enkrat na lokacijo
+  @@unique([number, locationId])
+}
+
+model Order {
+  id              String     @id @default(cuid())
+  orderNumber     Int        @unique
+  // --- Toast: Dining Option ---
+  diningOptionId  String?
+  diningOption    DiningOption? @relation(fields: [diningOptionId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  type            String     @default("dine-in") // dine-in, takeout, delivery
+  status          String     @default("pending")
+  tableId         String?
+  table           Table?     @relation(fields: [tableId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Toast: Revenue Center ---
+  revenueCenterId String?
+  revenueCenter   RevenueCenter? @relation(fields: [revenueCenterId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Stranka / Gost CRM ---
+  guestId         String?
+  guest           Guest?      @relation(fields: [guestId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  customerName    String     @default("")
+  customerPhone   String     @default("")
+  customerEmail   String     @default("")
+  // --- Zneski (iz čekov agregirano) ---
+  subtotal        Decimal     @default(0)  // FIX: Decimal za valuto
+  tax             Decimal     @default(0)  // FIX: Decimal za valuto
+  discount        Decimal     @default(0)  // FIX: Decimal za valuto
+  tip             Decimal     @default(0)  // FIX: Decimal za valuto
+  total           Decimal     @default(0)  // FIX: Decimal za valuto
+  totalWithTip    Decimal     @default(0)  // FIX: Decimal za valuto
+  // --- Status plačila ---
+  paymentStatus   String     @default("unpaid")
+  paymentMethod   String     @default("")
+  splitCount      Int        @default(1)
+  notes           String     @default("")
+  employeeId      String?
+  // --- Preklic/Storno metapodatki ---
+  cancelReason    String     @default("")   // Razlog za preklic/storno
+  cancelledAt     DateTime?                 // Kdaj je bilo preklicano/stornirano
+  cancelledBy     String     @default("")   // Kdo je preklical (employeeId ali ime)
+  // --- Razknjiževanje zaloge (prepreči dvojno razknjiževanje) ---
+  inventoryDeducted Boolean   @default(false) // Ali je bila zaloga že razknjižena
+  // --- Čas plačila ---
+  paidAt          DateTime?                  // Kdaj je bilo plačano
+  // --- Toast: Delivery Info ---
+  deliveryInfoId  String?   @unique
+  deliveryInfo    DeliveryInfo? @relation(fields: [deliveryInfoId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Relations ---
+  orderItems      OrderItem[]
+  courses         Course[]
+  checks          Check[]
+  receipt         Receipt[]
+  // --- Multi-location ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([tableId])
+  @@index([createdAt])
+  @@index([paidAt]) // FIX: Index for financial/paidAt queries (EOD, VAT, financial reports)
+  @@index([locationId])
+  @@index([employeeId]) // FIX: Index for employee reports and tips-by-employee queries
+  @@index([status, paymentStatus]) // FIX: Compound index for common filter pattern
+  @@index([paidAt, paymentStatus]) // Index for financial reports
+  @@index([type]) // Index for order type filtering
+  // FIX SCHEMA-10: Dodatni composite indexes za Order — najpogostejše poizvedbe
+  @@index([status, createdAt])  // KDS: aktivna naročila po času (pending, preparing, itd.)
+  @@index([createdAt, status])  // Dashboard: današnja naročila po statusu
+  @@index([diningOptionId])     // FIX: FK index — poizvedbe po načinu strežbe
+  @@index([revenueCenterId])    // FIX: FK index — poizvedbe po centru prihodkov
+  @@index([guestId])            // FIX: FK index — CRM poizvedbe: "naročila gosta"
+}
+
+model OrderItem {
+  id             String   @id @default(cuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Toast: Check povezava ---
+  checkId        String?
+  check          Check?   @relation(fields: [checkId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Artikel ---
+  menuItemId     String
+  menuItem       MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  quantity       Int      @default(1)
+  price          Decimal                        // Cena brez DDV  // FIX: Decimal za valuto
+  vatRate        Decimal   @default(22.00)   // DDV stopnja tega artikla  // FIX: Decimal za davčno stopnjo
+  vatAmount      Decimal   @default(0)      // Znesek DDV za ta artikel  // FIX: Decimal za valuto
+  notes          String   @default("")
+  modifiersJson  String   @default("[]") // JSON array of selected modifiers [{name, price}]
+  menuItemName   String   @default("") // FIX: Denormalizirano ime artikla za naročila
+  // --- Toast: Void/Poničitev ---
+  voided         Boolean  @default(false)
+  voidReasonId   String?
+  voidReason     VoidReason? @relation(fields: [voidReasonId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Toast: Discounts na artikel ---
+  discountAmount Decimal   @default(0)  // FIX: Decimal za valuto
+  appliedDiscountId String?
+  appliedDiscount Discount? @relation(fields: [appliedDiscountId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Course (fine dining) ---
+  courseId        String?
+  course          Course?   @relation(fields: [courseId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Status ---
+  status         String   @default("pending")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+  @@index([checkId])
+  @@index([menuItemId])
+  // FIX SCHEMA-06 HIGH: Index za voided — EOD poročila filtrirajo voided artikle
+  @@index([voided])
+  // FIX SCHEMA-06 MEDIUM: Index za courseId — course routes poizvedujejo po course
+  @@index([courseId])
+  // FIX SCHEMA-10: Composite indexes za OrderItem — ne-poničene postavke naročila
+  @@index([orderId, voided])  // EOD poročila: ne-poničene postavke na naročilo
+  @@index([orderId, status])  // KDS: prikaz statusa postavk za naročilo
+  @@index([voidReasonId])     // FIX: FK index — EOD poročila o razlogih za poničenje
+  @@index([appliedDiscountId]) // FIX: FK index — analiza popustov po postavkah
+}
+
+// ============================================
+// ČEKI (Toast Checks — več čekov na naročilo)
+// ============================================
+
+model Check {
+  id              String     @id @default(cuid())
+  checkNumber     Int                           // Sekvenčna številka čeka znotraj naročila
+  orderId         String
+  order           Order      @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Zneski čeka ---
+  subtotal        Decimal     @default(0)  // FIX: Decimal za valuto
+  tax             Decimal     @default(0)  // FIX: Decimal za valuto
+  discount        Decimal     @default(0)  // FIX: Decimal za valuto
+  serviceCharge   Decimal     @default(0)  // Servisna postavka  // FIX: Decimal za valuto
+  total           Decimal     @default(0)  // Subtotal + tax - discount + serviceCharge  // FIX: Decimal za valuto
+  tip             Decimal     @default(0)  // FIX: Decimal za valuto
+  totalWithTip    Decimal     @default(0)  // FIX: Decimal za valuto
+  // --- Plačilo čeka ---
+  paymentStatus   String     @default("unpaid") // unpaid, partial, paid
+  paymentMethod   String     @default("")
+  // --- Popusti na ček ---
+  appliedDiscountId String?
+  appliedDiscount  Discount?  @relation(fields: [appliedDiscountId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Relations ---
+  orderItems      OrderItem[]
+  payments        Payment[]
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@unique([orderId, checkNumber])
+  @@index([orderId])
+  @@index([paymentStatus])
+  // FIX SCHEMA-10: Composite indexes za Check — pogoste poizvedbe
+  @@index([paymentStatus, orderId])  // Iskanje neplačanih čekov za naročilo
+  @@index([appliedDiscountId])       // FIX: FK index — analiza popustov po čekih
+}
+
+model Payment {
+  id                    String                @id @default(cuid())
+  checkId               String
+  check                 Check                 @relation(fields: [checkId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Znesek ---
+  amount                Decimal                // Plačani znesek  // FIX: Decimal za valuto
+  tipAmount             Decimal   @default(0) // Napitnina  // FIX: Decimal za valuto
+  // --- Vrsta plačila ---
+  type                  String                // cash, card, mobile, voucher, loyalty, giftcard, alternate
+  // --- Toast: Alternate Payment Type ---
+  alternatePaymentTypeId String?
+  alternatePaymentType  AlternatePaymentType? @relation(fields: [alternatePaymentTypeId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Kartica ---
+  cardType              String   @default("") // visa, mastercard, maestro, diners, amex
+  cardLast4             String   @default("") // Zadnje 4 številke
+  authorizationCode     String   @default("") // Koda avtorizacije
+  // --- Toast: Gift Card ---
+  giftCardId            String?
+  giftCard              GiftCard?             @relation(fields: [giftCardId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Toast: Loyalty ---
+  loyaltyAccountId      String?
+  loyaltyAccount        LoyaltyAccount?       @relation(fields: [loyaltyAccountId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  loyaltyPointsUsed     Int      @default(0)
+  // --- Status ---
+  status                String   @default("completed") // completed, refunded, voided
+  employeeId            String?
+  // FIX HIGH: Idempotency key za deduplikacijo plačil (double-click protection)
+  idempotencyKey        String?  @unique  // Enolični ključ — prepreči duplikate
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([checkId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])      // FIX SCHEMA-07: Index za finančna poročila po datumu
+  @@index([employeeId])     // FIX SCHEMA-07: Index za poročila o napitninah po zaposlenem
+  @@index([alternatePaymentTypeId]) // FIX: FK index — poročila o alternativnih plačilih
+  @@index([giftCardId])            // FIX: FK index — usklajevanje stanja darilnih kartic
+  @@index([loyaltyAccountId])      // FIX: FK index — revizija loyalnostnih točk
+}
+
+model Discount {
+  id          String   @id @default(cuid())
+  name        String   // "Happy Hour -20%", "Zaposleniški popust", "Domači rojstni dan"
+  type        String   // percentage, fixed_amount, buy_x_get_y
+  amount      Decimal   // Odstotek ali znesek (odvisno od type)  // FIX: Decimal za valuto
+  // --- Pogoji ---
+  appliesTo   String   @default("check") // check, item, category
+  triggerType String   @default("manual") // manual, auto, promo_code
+  promoCode   String   @default("") // Koda za aktivacijo
+  // --- Omejitve ---
+  maxUses     Int?     // null = neomejeno
+  currentUses Int      @default(0)
+  validFrom   DateTime?
+  validTo     DateTime?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  // --- Relations ---
+  orderItems  OrderItem[]
+  checks      Check[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([promoCode])
+  @@index([isActive])
+  @@index([triggerType])
+}
+
+model DeliveryInfo {
+  id              String   @id @default(cuid())
+  // --- Naslov ---
+  address         String   // Ulica in hišna številka
+  city            String   @default("")
+  postCode        String   @default("")
+  // --- Kontakt ---
+  recipientName   String   @default("")
+  recipientPhone  String   @default("")
+  deliveryInstructions String @default("") // Navodila za dostavo (npr. "3. nadstropje, levo")
+  // --- Čas ---
+  promisedTime    DateTime? // Obljubljen čas dostave
+  estimatedTime   DateTime? // Predviden čas dostave
+  actualTime      DateTime? // Dejanski čas dostave
+  // --- Courier ---
+  courierName     String   @default("")
+  courierPhone    String   @default("")
+  // --- Status ---
+  status          String   @default("pending") // pending, preparing, ready, picked_up, delivered, failed
+  // --- Pakiranje ---
+  packagingFee    Decimal   @default(0) // Strošek embalaže  // FIX: Decimal za valuto
+  deliveryFee     Decimal   @default(0) // Strošek dostave  // FIX: Decimal za valuto
+  // --- Koordinate ---
+  latitude        Float?
+  longitude       Float?
+  // --- Relations ---
+  order           Order?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // FIX SCHEMA-05 HIGH: Index za status — dostavne poizvedbe po statusu
+  @@index([status])
+}
+
+// ============================================
+// ZAPOSLENI, FUNKCIJE IN URE (Toast Labor API)
+// ============================================
+
+model Employee {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  phone     String   @default("")
+  role      String   @default("staff")
+  status    String   @default("active")
+  hireDate  DateTime @default(now())
+  // --- Toast: PIN za prijavo v POS ---
+  pin       String   @default("") // 4-mestni PIN za hitro prijavo
+  // --- Relations ---
+  shifts       Shift[]
+  staffShifts  StaffShift[]
+  jobs         EmployeeJob[]
+  timeEntries  TimeEntry[]
+  cashShifts   CashRegisterShift[]
+  waitlistEntries WaitlistEntry[]
+  // --- Multi-location ---
+  locationId String?
+  location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([role])
+  @@index([pin])
+  @@index([locationId])
+}
+
+model Job {
+  id          String   @id @default(cuid())
+  name        String   // "Natakar", "Kuhar", "Barman", "Vodja izmene", "Skladnik"
+  code        String   @default("") // Kratka koda
+  basePayRate Decimal  @default(0) // Osnovna urna postavka  // FIX: Decimal za valuto
+  overtimeRate Decimal  @default(0) // Osnovna + 50% za presežek  // FIX: Decimal za valuto
+  // --- Dovoljenja (JSON) ---
+  permissions String   @default("[]") // ["take_orders", "void_items", "apply_discounts", "manage_cash", "admin"]
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  // --- Relations ---
+  employees   EmployeeJob[]
+  shifts      Shift[]
+  timeEntries TimeEntry[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // FIX: Ime funkcije mora biti unikatno — prepreči dvojne "Natakar" vnose
+  @@unique([name])
+  // FIX: isActive — filtriranje aktivnih delovnih mest
+  @@index([isActive])
+}
+
+model EmployeeJob {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  jobId      String
+  job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  payRate    Decimal   @default(0) // Override osnovne plače za tega zaposlenega  // FIX: Decimal za valuto
+  isPrimary  Boolean  @default(false) // Primarna funkcija
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([employeeId, jobId])
+  @@index([jobId])  // FIX: FK index — "kateri zaposleni imajo to delovno mesto?"
+}
+
+model Shift {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  jobId      String?
+  job        Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  date       DateTime
+  startTime  String   @default("09:00")
+  endTime    String   @default("17:00")
+  status     String   @default("scheduled") // scheduled, in_progress, completed, absent
+  // --- Toast: Break Types ---
+  breakMinutes Int    @default(30) // Skupaj minut odmora
+  notes      String   @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([date])
+  @@index([status])
+  @@index([employeeId, date]) // Index for shift queries
+  @@index([jobId])             // FIX: FK index — poizvedbe po delovnem mestu
+}
+
+model TimeEntry {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  jobId       String?
+  job         Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Clock In/Out ---
+  clockIn     DateTime
+  clockOut    DateTime?
+  // --- Odmor ---
+  breakStart  DateTime?
+  breakEnd    DateTime?
+  breakMinutes Int     @default(0) // Dejansko minut odmora
+  // --- Izračun ---
+  totalMinutes Int     @default(0) // Skupaj minut (brez odmora)
+  payRate     Decimal   @default(0) // Urna postavka za ta vnos  // FIX: Decimal za valuto
+  totalPay    Decimal   @default(0) // totalMinutes / 60 * payRate  // FIX: Decimal za valuto
+  // --- Tip ---
+  type        String   @default("regular") // regular, overtime, holiday, sick, vacation
+  status      String   @default("active") // active, approved, disputed
+  notes       String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([clockIn])
+  @@index([type])
+  @@index([status])
+  @@index([jobId])             // FIX: FK index — obračun plač po delovnem mestu
+}
+
+// ============================================
+// BLAGAJNA / IZMENE (Cash Register Shifts)
+// ============================================
+
+model CashRegisterShift {
+  id                String   @id @default(cuid())
+  employeeId        String?
+  employee          Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  employeeName      String   @default("")
+  status            String   @default("open")  // open, closed
+  openedAt          DateTime @default(now())
+  closedAt          DateTime?
+  startingCash      Decimal   @default(0) // Začetno stanje gotovine  // FIX: Decimal za valuto
+  closingCash       Decimal   @default(0) // Končno stanje gotovine (dejansko štete)  // FIX: Decimal za valuto
+  expectedCash      Decimal   @default(0) // Pričakovano stanje gotovine  // FIX: Decimal za valuto
+  cashSales         Decimal   @default(0) // Prodaja v gotovini  // FIX: Decimal za valuto
+  cardSales         Decimal   @default(0) // Kartična prodaja  // FIX: Decimal za valuto
+  mobileSales       Decimal   @default(0) // Mobilna prodaja  // FIX: Decimal za valuto
+  alternateSales    Decimal   @default(0) // Alternativna plačila (boni, vavčerji)  // FIX: Decimal za valuto
+  splitPayments     Decimal   @default(0) // Deljena plačila  // FIX: Decimal za valuto
+  totalSales        Decimal   @default(0) // Skupna prodaja  // FIX: Decimal za valuto
+  totalOrders       Int      @default(0)       // Število naročil
+  totalDiscounts    Decimal   @default(0) // Skupni popusti  // FIX: Decimal za valuto
+  totalTips         Decimal   @default(0) // Skupne napitnine  // FIX: Decimal za valuto
+  totalVoided       Decimal   @default(0) // Skupaj poničenih zneskov  // FIX: Decimal za valuto
+  cashDifference    Decimal   @default(0) // Razlika (dejansko - pričakovano)  // FIX: Decimal za valuto
+  notes             String   @default("")      // Opombe ob zaključku
+  // --- Multi-location ---
+  locationId        String?
+  location          Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([status])
+  @@index([employeeId])
+  @@index([openedAt])       // FIX SCHEMA-07: Index za poročila po datumskem obdobju
+  @@index([locationId])     // FIX SCHEMA-07: Index za multi-location poizvedbe
+  @@index([closedAt])       // FIX SCHEMA-09: Iskanje odprtih izmen (WHERE closedAt IS NULL)
+}
+
+model InventoryItem {
+  id              String    @id @default(cuid())
+  name            String
+  description     String    @default("")           // Opis artikla
+  image           String    @default("")           // Pot do slike
+  unit            String    @default("pcs")       // Enota zaloge: steklenica, keg, kos, L, kg
+  quantity        Decimal    @default(0)   // Količina na zalogi (v enotah)  // FIX: Decimal za natančnost
+  minQuantity     Decimal    @default(0)   // Minimalna količina za opozorilo  // FIX: Decimal za natančnost
+  costPerUnit     Decimal    @default(0)   // Nabavna cena na enoto zaloge  // FIX: Decimal za valuto
+  supplier        String    @default("")           // Dobavitelj
+  category        String    @default("general")    // Kategorija zaloge
+  location         String    @default("main")       // Lokacija/skladišče: main, bar, kuhinja, hladilnik, klet, etc.
+  expiryDate      DateTime?
+  // --- NORMATIVI (standardizirano odmerjanje) ---
+  servingsPerUnit Decimal    @default(1)  // Število servisov iz ene enote zaloge  // FIX: Decimal za natančnost
+  servingSize     String    @default("")           // Velikost servisa
+  costPerServing  Decimal    @default(0)  // Strošek na servis  // FIX: Decimal za valuto
+  // --- Povezava z menijem ---
+  menuItemId      String?   @unique
+  menuItem        MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  lastRestocked   DateTime  @default(now())
+  // --- Transakcije ---
+  transactions    StockTransaction[]
+  recipeItems     RecipeItem[]
+  purchaseOrderItems PurchaseOrderItem[]
+  // --- Multi-location ---
+  locationId      String?
+  locationRel     Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([expiryDate])
+  @@index([name])
+  @@index([category])
+  @@index([locationId])
+  @@index([supplier])
+  @@index([location])
+  @@index([quantity])
+}
+
+// ============================================
+// ZALOŽNE TRANSAKCIJE (sledenje vseh premikov)
+// ============================================
+
+model StockTransaction {
+  id              String        @id @default(cuid())
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  type            String        // "procurement", "sale", "write-off", "adjustment", "return"
+  quantity        Decimal             // FIX: Decimal za natančnost
+  previousQty     Decimal             // FIX: Decimal za natančnost
+  newQty          Decimal             // FIX: Decimal za natančnost
+  costPerUnit     Decimal             // FIX: Decimal za valuto
+  totalCost       Decimal             // FIX: Decimal za valuto
+  reason          String        @default("")
+  note            String        @default("")
+  supplierDoc     String        @default("")
+  employeeName    String        @default("")
+  orderId         String?
+  createdAt       DateTime      @default(now())
+
+  @@index([inventoryItemId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([inventoryItemId, type]) // FIX: Compound index for common queries (e.g., find sales per item)
+  @@index([orderId])              // FIX: Index for stock transactions linked to orders
+}
+
+model RecipeItem {
+  id              String        @id @default(cuid())
+  menuItemId      String
+  menuItem        MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  quantityPerServing Decimal    @default(0)  // FIX: Decimal za natančnost
+  unit            String        @default("")
+  notes           String        @default("")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([menuItemId, inventoryItemId])
+  @@index([inventoryItemId])  // FIX: FK index — "kateri recepti uporabljajo to sestavino?"
+}
+
+// ============================================
+// RAČUNI (Fiscal compliance - ZDDV-1)
+// ============================================
+
+model Receipt {
+  id                String   @id @default(cuid())
+  receiptNumber     String   @unique               // Sekvenčna številka: R-2026-000001
+  orderId           String                         // Omogoča več računov na naročilo (split payments)
+  order             Order    @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  // --- Podatki izdajatelja ---
+  businessName      String
+  businessAddress   String
+  businessId        String
+  taxId             String
+  registerId        String   @default("BLG-001")
+  // --- Davčno potrjevanje (FURS) ---
+  zoi               String   @default("")
+  eor               String   @default("")
+  fiscalVerified    Boolean  @default(false)
+  fiscalStatus      String   @default("none")       // none, pending, verified, failed
+  verificationDate  DateTime?
+  // --- Vsebina računa ---
+  subtotal          Decimal           // FIX: Decimal za valuto
+  vatBreakdown      String   @default("{}")
+  totalVat          Decimal           // FIX: Decimal za valuto
+  discount          Decimal   @default(0)  // FIX: Decimal za valuto
+  total             Decimal           // FIX: Decimal za valuto
+  tip               Decimal   @default(0)  // FIX: Decimal za valuto
+  totalWithTip      Decimal   @default(0) // FIX: Decimal za valuto
+  paymentMethod     String
+  // --- Meta ---
+  isCopy            Boolean  @default(false)
+  isStorno          Boolean  @default(false)
+  stornoOf          String   @default("")
+  printedAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([fiscalVerified])
+  @@index([createdAt])
+  // FIX SCHEMA-04 HIGH: Compound index za isStorno+orderId — findFirst({orderId, isStorno: false}) v 5+ mestih
+  @@index([orderId, isStorno])
+  // FIX SCHEMA-04 MEDIUM: Index za fiscalStatus — batch processing unfiscalized receipts
+  @@index([fiscalStatus])
+}
+
+// ============================================
+// ZVESTOBNI PROGRAM (Toast Loyalty)
+// ============================================
+
+model LoyaltyAccount {
+  id              String   @id @default(cuid())
+  // --- Stranka ---
+  customerName    String   @default("")
+  customerPhone   String   @default("")
+  customerEmail   String   @default("")
+  // --- Točke ---
+  pointsBalance   Int      @default(0)
+  lifetimePoints  Int      @default(0)
+  // --- Nivoji ---
+  tier            String   @default("bronze") // bronze, silver, gold, platinum
+  // --- Status ---
+  isActive        Boolean  @default(true)
+  // --- Relations ---
+  transactions    LoyaltyTransaction[]
+  payments        Payment[]
+  guest           Guest?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([customerPhone])
+  @@index([customerEmail])
+  // FIX: isActive — filtriranje aktivnih loyalnostnih računov
+  @@index([isActive])
+  // FIX: tier — filtriranje po nivoju zvestobe (bronze, silver, gold, platinum)
+  @@index([tier])
+}
+
+model LoyaltyTransaction {
+  id              String         @id @default(cuid())
+  loyaltyAccountId String
+  loyaltyAccount  LoyaltyAccount @relation(fields: [loyaltyAccountId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Transakcija ---
+  type            String         // earn, redeem, adjust, expire
+  points          Int            // Pozitivno za earn, negativno za redeem
+  reason          String         @default("") // "Nakup", "Rođendanski bonus", "Potečene točke"
+  // --- Povezava z naročilom ---
+  orderId         String?
+  checkId         String?
+  // --- Vrednost ---
+  monetaryValue   Decimal         @default(0) // Vrednost v EUR, če se točke unovčijo  // FIX: Decimal za valuto
+  createdAt       DateTime       @default(now())
+
+  @@index([loyaltyAccountId])
+  @@index([orderId])
+  @@index([checkId])
+  // FIX: type — filtriranje po vrsti transakcije (earn, redeem, adjust, expire)
+  @@index([type])
+  // FIX: createdAt — časovno filtriranje loyalnostnih transakcij
+  @@index([createdAt])
+  // FIX: Composite index — časovnica transakcij za račun zvestobe
+  @@index([loyaltyAccountId, createdAt])
+}
+
+// ============================================
+// DARILNE KARTICE (Toast Gift Cards)
+// ============================================
+
+model GiftCard {
+  id              String   @id @default(cuid())
+  cardNumber      String   @unique               // Številka kartice
+  // --- Vrednost ---
+  balance         Decimal   @default(0)     // Trenutno stanje  // FIX: Decimal za valuto
+  initialBalance  Decimal   @default(0)     // Začetna vrednost  // FIX: Decimal za valuto
+  // --- Status ---
+  status          String   @default("active")     // active, depleted, expired, suspended
+  // --- Lastnik ---
+  ownerName       String   @default("")
+  // --- Datumi ---
+  purchasedAt     DateTime @default(now())
+  expiresAt       DateTime?
+  // --- Relations ---
+  transactions    GiftCardTransaction[]
+  payments        Payment[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([expiresAt])
+  @@index([status])
+}
+
+model GiftCardTransaction {
+  id              String    @id @default(cuid())
+  giftCardId      String
+  giftCard        GiftCard  @relation(fields: [giftCardId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Transakcija ---
+  type            String    // load, redeem, adjust, transfer
+  amount          Decimal    // Pozitivno za load, negativno za redeem  // FIX: Decimal za valuto
+  balanceAfter    Decimal    // Stanje po transakciji  // FIX: Decimal za valuto
+  // --- Povezava ---
+  orderId         String?
+  checkId         String?
+  note            String    @default("")
+  createdAt       DateTime  @default(now())
+
+  @@index([giftCardId])
+  @@index([orderId])
+  @@index([checkId])
+  // FIX: type — filtriranje po vrsti transakcije (load, redeem, adjust, transfer)
+  @@index([type])
+  // FIX: createdAt — časovno filtriranje transakcij darilne kartice
+  @@index([createdAt])
+  // FIX: Composite index — zgodovina transakcij kartice po datumu
+  @@index([giftCardId, createdAt])
+}
+
+// ============================================
+// NASTAVITVE RESTAVRACIJE
+// ============================================
+
+model RestaurantSettings {
+  id                String   @id @default(cuid())
+  name              String   @default("RestaurantOS")
+  address           String   @default("")
+  city              String   @default("")
+  postCode          String   @default("")
+  phone             String   @default("")
+  email             String   @default("")
+  web               String   @default("")
+  businessId        String   @default("")           // Matična številka podjetja
+  taxId             String   @default("")           // ID za DDV (SIxxxxxxxxx)
+  registerNumber    String   @default("BLG-001")    // Številka blagajne
+  // --- FURS certifikat ---
+  fursCertPath      String   @default("")
+  fursCertPassword  String   @default("")
+  fursEnvironment   String   @default("test")
+  // --- DDV nastavitve ---
+  defaultVatRate    Decimal   @default(22.00)  // FIX: Decimal za davčno stopnjo
+  reducedVatRate    Decimal   @default(9.50)   // FIX: Decimal za davčno stopnjo
+  // --- Loyalty nastavitve ---
+  loyaltyEnabled    Boolean  @default(false)
+  loyaltyPointsPerEuro Int   @default(1)            // Točk na porabljen EUR
+  loyaltyPointsValue Decimal  @default(0.01) // Vrednost ene točke v EUR  // FIX: Decimal za valuto
+  // --- Ostalo ---
+  receiptFooter     String   @default("")
+  currency          String   @default("EUR")
+  locale            String   @default("sl-SI")
+  country           String   @default("SI")         // Država poslovanja: SI, HR, IT, AT, DE
+  // --- Auto-gratuity ---
+  autoGratuityEnabled   Boolean @default(false)       // Ali je auto-gratuiteta vklopljena
+  autoGratuityPercent   Decimal  @default(10.00)  // Odstotek avto-gratuigete  // FIX: Decimal za odstotek
+  autoGratuityThreshold Int     @default(6)           // Najmanjše število oseb za auto-gratuiteto
+  // --- Allergen nastavitve ---
+  allergenFilterEnabled Boolean @default(true)        // Ali je alergen filter vklopljen v POS
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// ============================================
+// LOKACIJE (Multi-location podpora)
+// Omogoča upravljanje več restavracij/poslovnih enot
+// ============================================
+
+model Location {
+  id              String   @id @default(cuid())
+  name            String                             // "Glavna restavracija", "Filiala Ljubljana", "Pop-up Maribor"
+  code            String   @unique                    // Kratka koda: "HQ", "LJU", "MB"
+  type            String   @default("restaurant")     // restaurant, food_truck, pop_up, cloud_kitchen, bar
+  address         String   @default("")
+  city            String   @default("")
+  postCode        String   @default("")
+  country         String   @default("SI")
+  phone           String   @default("")
+  email           String   @default("")
+  // --- Poslovni podatki (lahko se razlikujejo od matične družbe) ---
+  businessId      String   @default("")               // Matična št. za to lokacijo (lahko enaka kot matična)
+  taxId           String   @default("")               // DDV ID za to lokacijo
+  registerNumber  String   @default("")               // Blagajna za to lokacijo
+  premisesId      String   @default("")               // ID poslovnega prostora za FURS
+  // --- FURS certifikat (lokalen za lokacijo) ---
+  fursCertPath    String   @default("")
+  fursCertPassword String  @default("")
+  fursEnvironment String   @default("test")
+  // --- Nastavitve ---
+  timezone        String   @default("Europe/Ljubljana")
+  currency        String   @default("EUR")
+  locale          String   @default("sl-SI")
+  isOpen          Boolean  @default(false)            // Ali je lokacija trenutno odprta
+  isActive        Boolean  @default(true)
+  // --- Koordinate ---
+  latitude        Float?
+  longitude       Float?
+  // --- Metapodatki ---
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relacije
+  tables          Table[]
+  orders          Order[]
+  inventoryItems  InventoryItem[]
+  employees       Employee[]
+  cashShifts      CashRegisterShift[]
+  reservations    Reservation[]
+  deliveryZones   DeliveryZone[]
+  openingHours    OpeningHours[]
+  zReports        ZReport[]
+  tipPools        TipPool[]
+  deliveryTrackings DeliveryTracking[]
+  staffShifts      StaffShift[]
+  menus            Menu[]
+
+  @@index([code])
+  @@index([isActive])
+  @@index([type])
+}
+
+// ============================================
+// CONE DOSTAVE (Delivery Zones)
+// Toast-style zone-based delivery pricing
+// ============================================
+
+model DeliveryZone {
+  id              String   @id @default(cuid())
+  name            String                             // "Center Ljubljana", "Rožna dolina", "Šiška"
+  // --- Območje ---
+  postCodes       String   @default("[]")            // JSON: ["1000","1001"] — poštne številke v coni
+  cities          String   @default("[]")            // JSON: ["Ljubljana"] — mesta v coni
+  // --- Radij (alternativa poštnim številkam) ---
+  radiusKm        Float?                             // Radij v km od lokacije (null = uporabi postCodes)
+  centerLat       Float?
+  centerLng       Float?
+  // --- Cenitev ---
+  deliveryFee     Decimal   @default(2.50) // Cena dostave za to cono  // FIX: Decimal za valuto
+  minOrderAmount  Decimal   @default(10.00) // Minimalno naročilo za to cono  // FIX: Decimal za valuto
+  freeDeliveryAbove Decimal  @default(0)    // Brezplačna dostava nad ta znesek (0 = nikoli)  // FIX: Decimal za valuto
+  // --- Čas ---
+  estimatedMinutes Int     @default(30)              // Predviden čas dostave v minutah
+  // --- Status ---
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  // --- Lokacija ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Metapodatki ---
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([locationId])
+  @@index([isActive])
+}
+
+// ============================================
+// DELOVNI ČAS (Opening Hours)
+// Podpora za urnike po dnevih s prekinitvami
+// ============================================
+
+model OpeningHours {
+  id              String   @id @default(cuid())
+  // --- Dan v tednu ---
+  dayOfWeek       Int                                // 0=nedelja, 1=ponedeljek, ..., 6=sobota
+  // --- Čas odprtja/zaprtja ---
+  openTime        String   @default("08:00")         // "08:00"
+  closeTime       String   @default("22:00")         // "22:00"
+  // --- Premor (opcijsko) ---
+  breakStart      String   @default("")              // "14:00" (prazno = brez premora)
+  breakEnd        String   @default("")              // "16:00"
+  // --- Status ---
+  isClosed        Boolean  @default(false)            // true = ta dan je zaprto
+  // --- Lokacija ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Metapodatki ---
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([locationId])
+  @@index([dayOfWeek])
+  // FIX SCHEMA-07 HIGH: Compound unique — en dan enkrat na lokacijo, prepreči dvojne ponedeljke
+  @@unique([locationId, dayOfWeek])
+}
+
+// ============================================
+// HACCP DNEVNIKI
+// ============================================
+
+model HaccpEntry {
+  id              String   @id @default(cuid())
+  date            DateTime @default(now())
+  category        String                        // temperature, cleaning, delivery, cooling, training
+  title           String
+  description     String   @default("")
+  value           String   @default("")
+  status          String   @default("ok")        // ok, warning, critical
+  correctiveAction String  @default("")
+  employeeName    String   @default("")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([category])
+  @@index([date])
+  // FIX SCHEMA-10: Composite index za HaccpEntry — filtriranje po statusu znotraj datuma
+  @@index([status, date])
+}
+
+// ============================================
+// WEBHOOKS / INTEGRACIJE
+// ============================================
+
+model Webhook {
+  id          String   @id @default(cuid())
+  name        String   // "Poslano v kuhinjo", "Plačilo prejeto", "Zaloga nizka"
+  url         String   // Endpoint URL
+  events      String   @default("[]") // JSON: ["order.created", "order.paid", "stock.low", "shift.started"]
+  isActive    Boolean  @default(true)
+  secret      String   @default("") // Za podpisovanje payloada
+  lastTriggered DateTime?
+  failureCount Int     @default(0)
+  // --- Relations ---
+  deliveries  WebhookDelivery[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([lastTriggered])
+}
+
+// ============================================
+// ATOMICNI ŠTEVCI (Race-condition safe)
+// ============================================
+
+model Counter {
+  id    String @id @default(cuid())
+  name  String @unique  // "orderNumber", "receiptNumber", "checkNumber"
+  value Int    @default(0)
+}
+
+// ============================================
+// REVIZIJSKI DNEVNIK (Audit Log)
+// PCI DSS + FURS skladnost — sledenje vseh operacij
+// ============================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  timestamp  DateTime @default(now())
+  userId     String?  // ID zaposlenega, ki je izvedel operacijo
+  action     String   // CREATE_ORDER, VOID_ITEM, PAYMENT, REFUND, LOGIN, STORNO, itd.
+  entityType String   // Order, Payment, Receipt, StockItem, Employee, itd.
+  entityId   String?  // ID entitete
+  details    String   @default("{}") // JSON kontekst (kaj se je spremenilo)
+  ipAddress  String   @default("")
+  terminalId String?  // ID POS terminala
+  chainHash  String   @default("") // SHA-256 hash za zaščito pred poseganjem
+
+  @@index([entityType, entityId])
+  @@index([timestamp])
+  @@index([userId])
+  @@index([action])
+}
+
+// ============================================
+// RAZPORED ZAPOLENIH / STAFF SHIFTS (7shifts + Toast standard)
+// Tedenski razpored z izmenami, pokritost, ure
+// ============================================
+
+model StaffShift {
+  id              String   @id @default(cuid())
+  // --- Zaposleni ---
+  employeeId      String
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Izmena ---
+  shiftDate       DateTime                     // Datum izmene
+  shiftType       String   @default("morning") // morning, afternoon, evening, night, split, custom
+  startTime       String                       // HH:mm format
+  endTime         String                       // HH:mm format
+  // --- Lokacija ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Vloga ---
+  role            String   @default("server")  // server, chef, bartender, host, manager, prep, dishwasher
+  // --- Opombe ---
+  notes           String   @default("")
+  // --- Status ---
+  status          String   @default("scheduled") // scheduled, confirmed, in_progress, completed, cancelled, no_show
+  confirmedAt     DateTime?
+  // --- Ure ---
+  actualStart     DateTime?
+  actualEnd       DateTime?
+  breakMinutes    Int      @default(0)
+  // --- Avtor ---
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([shiftDate])
+  @@index([locationId])
+  @@index([status])
+  @@index([shiftType])
+  @@index([employeeId, shiftDate]) // Index for staff shift queries
+  // FIX SCHEMA-10: Composite index za StaffShift — aktivne izmene danes
+  @@index([status, shiftDate])
+  @@index([shiftDate, locationId])
+}
+
+// ============================================
+// REZERVACIJE (Toast Reservations — kar imajo TouchBistro in Toast)
+// ============================================
+
+model Reservation {
+  id              String   @id @default(cuid())
+  // --- Stranka ---
+  customerName    String
+  customerPhone   String   @default("")
+  customerEmail   String   @default("")
+  // --- Podatki rezervacije ---
+  dateTime        DateTime                     // Datum in čas rezervacije
+  partySize       Int                          // Število oseb
+  duration        Int      @default(120)        // Trajanje v minutah (privzeto 2h)
+  // --- Miza ---
+  tableId         String?
+  table           Table?   @relation(fields: [tableId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Status ---
+  status          String   @default("confirmed") // confirmed, seated, completed, cancelled, no_show
+  // --- Opombe ---
+  notes           String   @default("")          // Posebne želje, alergije, praznovanja
+  specialRequests String   @default("")          // Npr. "Otroški stol", "Ob oknu"
+  // --- Sledenje ---
+  source          String   @default("walk_in")   // walk_in, phone, website, app
+  employeeId      String?
+  waitlistEntries WaitlistEntry[]
+  // --- Potrditev ---
+  confirmedAt     DateTime?
+  reminderSent    Boolean  @default(false)
+  // --- Obisk ---
+  actualArrival   DateTime?
+  actualDeparture DateTime?
+  // --- Multi-location ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([dateTime])
+  @@index([status])
+  @@index([tableId])
+  @@index([tableId, status]) // FIX: Compound index for reservation conflict checks
+  @@index([locationId]) // Index for multi-location queries
+  @@index([employeeId]) // FIX SCHEMA-09: Poročila po zaposlenem
+  // FIX SCHEMA-10: Composite indexes za Reservation — pogoste poizvedbe
+  @@index([dateTime, status])  // "Danesnje aktivne rezervacije" — najbolj pogosta poizvedba
+  @@index([customerPhone])  // Iskanje rezervacij po telefonu
+  @@index([source])  // Filtriranje po viru (walk_in, website, itd.)
+}
+
+// ============================================
+// GOST CRM / GUEST PROFILES (Toast Guest — kar imajo vsi top POS)
+// Popolna zgodovina gosta, alergeni, preference, VIP status
+// ============================================
+
+model Guest {
+  id              String   @id @default(cuid())
+  // --- Osebni podatki ---
+  firstName       String   @default("")
+  lastName        String                        // Priimek (obvezen)
+  email           String   @default("")
+  phone           String   @default("")
+  // --- Status ---
+  isVip           Boolean  @default(false)
+  vipSince        DateTime?
+  // --- Alergeni in preference ---
+  allergens       String   @default("[]")       // JSON: ["1","3","7"] (EU številke alergenov)
+  dietaryPrefs    String   @default("[]")       // JSON: ["vegetarijansko","brez glutena","halal"]
+  dislikes        String   @default("[]")       // JSON: ["lignji","gobe"] — kaj gost ne mara
+  favoriteItems   String   @default("[]")       // JSON: ["Beefsteak","Laški teran"] — najljubše jedi
+  // --- Osebni podatki ---
+  birthday        DateTime?
+  anniversary     DateTime?
+  company         String   @default("")
+  notes           String   @default("")         // Osebne opombe: "Rad sedi ob oknu"
+  // --- Statistika (denormalizirano za hitre poizvedbe) ---
+  totalVisits     Int      @default(0)
+  totalSpent      Decimal   @default(0) // FIX: Decimal za valuto
+  avgCheckAmount  Decimal   @default(0) // FIX: Decimal za valuto
+  lastVisitAt     DateTime?
+  firstVisitAt    DateTime?
+  // --- Zvestoba ---
+  loyaltyAccountId String?  @unique
+  loyaltyAccount  LoyaltyAccount?  @relation(fields: [loyaltyAccountId], references: [id], onDelete: SetNull, onUpdate: SetNull) // FIX: SetNull — brisanje LoyaltyAccount ne blokira gosta
+  // --- Povezave ---
+  visits          GuestVisit[]
+  orders          Order[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([lastName])
+  @@index([firstName])
+  @@index([phone])
+  @@index([email])
+  @@index([isVip])
+  @@index([lastVisitAt])
+  // FIX SCHEMA-10: Composite indexes za Guest — pogoste poizvedbe
+  @@index([lastName, firstName])  // Iskanje gosta po imenu in priimku
+}
+
+model GuestVisit {
+  id              String   @id @default(cuid())
+  guestId         String
+  guest           Guest    @relation(fields: [guestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Podatki obiska ---
+  orderId         String?                       // Povezava z naročilom
+  tableId         String?
+  partySize       Int      @default(1)
+  // --- Zneski ---
+  totalSpent      Decimal   @default(0) // FIX: Decimal za valuto
+  tipAmount       Decimal   @default(0) // FIX: Decimal za valuto
+  // --- Kvaliteta ---
+  feedbackScore   Int?                          // 1-5 ocena gosta
+  feedbackComment String   @default("")
+  // --- Kdo je strežil ---
+  employeeId      String?
+  employeeName    String   @default("")
+  // --- Čas ---
+  arrivedAt       DateTime @default(now())
+  departedAt      DateTime?
+  durationMinutes Int      @default(0)
+  createdAt       DateTime @default(now())
+
+  @@index([guestId])
+  @@index([arrivedAt])
+  // FIX SCHEMA-09: Missing indexes za GuestVisit
+  @@index([employeeId])  // Poročila po natakarju
+  @@index([guestId, arrivedAt])  // Časovnica obiskov gosta
+  // FIX SCHEMA-10: Index za GuestVisit — iskanje obiskov po naročilu
+  @@index([orderId])
+}
+
+// ============================================
+// DOBAVITELJI / SUPPLIERS (Toast Supply Chain)
+// ============================================
+
+model Supplier {
+  id              String   @id @default(cuid())
+  name            String                        // "Mesarija Novak", "Pivovarna Laško"
+  code            String   @default("")         // Kratka koda "MN", "PL"
+  // --- Kontakt ---
+  contactPerson   String   @default("")
+  email           String   @default("")
+  phone           String   @default("")
+  // --- Naslov ---
+  address         String   @default("")
+  city            String   @default("")
+  postCode        String   @default("")
+  country         String   @default("Slovenija")
+  // --- Poslovni podatki ---
+  businessId      String   @default("")         // Matična številka
+  taxId           String   @default("")         // ID za DDV
+  iban            String   @default("")         // IBAN za plačila
+  bank            String   @default("")
+  // --- Pogoji ---
+  paymentTerms    String   @default("30 dni")   // "15 dni", "30 dni", "2% popust 10 dni"
+  deliveryDays    String   @default("[]")       // JSON: ["pon","sre","pet"]
+  minOrderAmount  Decimal   @default(0) // FIX: Decimal za valuto
+  // --- Ocena ---
+  rating          Decimal   @default(0) // 1-5 ocena dobavitelja
+  // --- Status ---
+  isActive        Boolean  @default(true)
+  notes           String   @default("")
+  // --- Relations ---
+  purchaseOrders  PurchaseOrder[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([name])
+  @@index([isActive])
+  // FIX SCHEMA-10: Unique constraint za Supplier — prepreči duplikate dobaviteljev
+  @@unique([name])
+}
+
+// ============================================
+// NAROČILA DOBAVITELJEM / PURCHASE ORDERS
+// ============================================
+
+model PurchaseOrder {
+  id              String   @id @default(cuid())
+  poNumber        String   @unique              // "ND-2026-000001"
+  supplierId      String
+  supplier        Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  // --- Status ---
+  status          String   @default("draft")    // draft, sent, confirmed, partial, received, cancelled
+  // --- Datumi ---
+  orderDate       DateTime @default(now())
+  expectedDate    DateTime?                     // Pričakovana dostava
+  receivedDate    DateTime?                     // Dejanska dostava
+  // --- Zneski ---
+  subtotal        Decimal   @default(0) // FIX: Decimal za valuto
+  vatAmount       Decimal   @default(0) // FIX: Decimal za valuto
+  totalAmount     Decimal   @default(0) // FIX: Decimal za valuto
+  // --- Dostava ---
+  deliveryAddress String   @default("")
+  deliveryNotes   String   @default("")
+  // --- Interna ---
+  requestedBy     String   @default("")         // Kdo je naročil
+  approvedBy      String   @default("")         // Kdo je odobril
+  notes           String   @default("")
+  // --- Relations ---
+  items           PurchaseOrderItem[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([orderDate])
+  // FIX: Composite index — nadzorna plošča dobavitelja: naročila po statusu
+  @@index([supplierId, status])
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(cuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Artikel ---
+  inventoryItemId String?
+  inventoryItem   InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  description     String                           // Opis artikla
+  // --- Količine ---
+  quantityOrdered Decimal        @default(0) // FIX: Decimal za natančnost
+  quantityReceived Decimal       @default(0) // FIX: Decimal za natančnost
+  unit            String        @default("pcs")
+  // --- Cene ---
+  unitPrice       Decimal        @default(0)  // Nabavna cena na enoto  // FIX: Decimal za valuto
+  vatRate         Decimal        @default(22.00)  // FIX: Decimal za davčno stopnjo
+  totalPrice      Decimal        @default(0)  // FIX: Decimal za valuto
+  // --- Status ---
+  status          String        @default("pending") // pending, partial, received, cancelled
+  notes           String        @default("")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([purchaseOrderId])
+  @@index([inventoryItemId])
+  @@index([status])
+  @@index([purchaseOrderId, status]) // FIX: Pogosta poizvedba — pridobi postavke naročila po statusu
+}
+
+// ============================================
+// ČAKALNA VRSTA / WAITLIST (Toast Waitlist)
+// ============================================
+
+model WaitlistEntry {
+  id              String   @id @default(cuid())
+  // --- Stranka ---
+  guestName       String                        // Ime stranke
+  guestPhone      String   @default("")
+  partySize       Int                           // Število oseb
+  // --- Čakana ---
+  quotedWaitMinutes Int     @default(0)         // Obljubljen čas čakanja
+  actualWaitMinutes  Int    @default(0)         // Dejanski čas čakanja
+  // --- Preference ---
+  preferredArea   String   @default("")         // "ob oknu", "terasa", "tiho"
+  specialNeeds    String   @default("")         // "otroški stol", "invalidski dostop"
+  // --- Status ---
+  status          String   @default("waiting")  // waiting, notified, seated, left, cancelled
+  // --- Časovni zapisi ---
+  checkedInAt     DateTime @default(now())
+  notifiedAt      DateTime?                     // Kdaj smo obvestili goste
+  seatedAt        DateTime?                     // Kdaj so sedli
+  leftAt          DateTime?                     // Kdaj so odšli (brez sedeža)
+  // --- Povezave ---
+  tableId         String?                       // Dodeljena miza
+  table           Table?   @relation(fields: [tableId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  reservationId   String?                       // Povezana rezervacija
+  reservation     Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  notes           String   @default("")
+  employeeId      String?
+  employee        Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([partySize])
+  @@index([status])
+  @@index([checkedInAt])
+  // FIX SCHEMA-09: Missing indexes za WaitlistEntry
+  @@index([employeeId])  // Kdo je vpisal v čakalno vrsto
+  @@index([tableId])  // Katera miza je dodeljena
+  @@index([reservationId])  // Povezava z rezervacijo
+}
+
+// ============================================
+// MENIJSKI TOKOVI / COURSE MANAGEMENT (Fine dining)
+// Toast Course Management — večhodni obroki
+// ============================================
+
+model Course {
+  id              String   @id @default(cuid())
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Tok ---
+  courseNumber    Int      @default(1)          // 1=predjed, 2=juha, 3=glavna, 4=sladica
+  name            String   @default("")         // "Predjed", "Juha", "Glavna jed", "Sladica"
+  // --- Status ---
+  status          String   @default("pending")  // pending, fired, preparing, ready, served, cancelled
+  // --- Časovni zapisi ---
+  firedAt         DateTime?                     // Kdaj je bilo poslano v kuhinjo
+  readyAt         DateTime?                     // Kdaj je bilo pripravljeno
+  servedAt        DateTime?                     // Kdaj je bilo postreženo
+  // --- Opombe ---
+  pacingNote      String   @default("")         // "Počasi — gosti še pijejo apertif"
+  // --- Relations ---
+  orderItems      OrderItem[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([status])
+  // FIX: Composite index — KDS poizvedbe: tokovi za naročilo po statusu (pending, fired, preparing)
+  @@index([orderId, status])
+}
+
+// ============================================
+// AI POGOVORNI ASISTENT / AI ASSISTANT LOG
+// Beleženje AI svetovanj za analizo
+// ============================================
+
+model AIConversation {
+  id              String   @id @default(cuid())
+  // --- Kontekst ---
+  type            String                        // "menu_optimization", "sales_forecast", "waste_prediction", "staffing", "general"
+  // --- Pogovor ---
+  userMessage     String                        // Kaj je uporabnik vprašal
+  aiResponse      String                        // AI odgovor
+  // --- Meta ---
+  model           String   @default("gemini-2.0-flash")
+  tokensUsed      Int      @default(0)
+  responseTimeMs  Int      @default(0)
+  // --- Povezave ---
+  employeeId      String?
+  createdAt       DateTime @default(now())
+
+  @@index([type])
+  @@index([createdAt])
+  // FIX SCHEMA-09: Missing index za AIConversation
+  @@index([employeeId])  // Poročila po zaposlenem
+}
+
+// ============================================
+// HAPPY HOUR / ČASOVNE CENIKOVNE PRAVILA
+// Toast Time-based Pricing — samodejni preklop cenikov
+// ============================================
+
+model HappyHourSchedule {
+  id              String   @id @default(cuid())
+  name            String   // "Happy Hour", "Lunch Special", "Late Night"
+  description     String   @default("")
+  // --- Povezava s cenikom ---
+  priceGroupId    String   // Kateri cenik se aktivira
+  priceGroup      PriceGroup @relation(fields: [priceGroupId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Popust (alternativno — brez menjave cenika) ---
+  discountType    String   @default("none") // none, percentage, fixed_amount
+  discountAmount  Decimal   @default(0) // Odstotek ali znesek  // FIX: Decimal za valuto
+  // --- Časovni razpored ---
+  daysOfWeek      String   @default("[1,2,3,4,5]") // JSON: 1=pon, 7=ned
+  startTime       String   // "16:00"
+  endTime         String   // "18:00"
+  // --- Datumsko obdobje (opcijsko — za sezonske akcije) ---
+  validFrom       DateTime?
+  validTo         DateTime?
+  // --- Omejitve ---
+  appliesTo       String   @default("all") // all, category_ids, menu_item_ids
+  appliesToIds    String   @default("[]")  // JSON array ID-jev
+  // --- Status ---
+  isActive        Boolean  @default(true)
+  autoActivate    Boolean  @default(true)  // Samodejno aktiviraj ob času
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([priceGroupId])
+}
+
+// ============================================
+// WEBHOOK DOBAVOSLOV (sledenje dostav in ponovnih poskusov)
+// ============================================
+
+model WebhookDelivery {
+  id              String   @id @default(cuid())
+  webhookId       String                        // Povezava na webhook
+  webhook         Webhook   @relation(fields: [webhookId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  event           String   // "order.created", "payment.received", itd.
+  payload         String   @default("{}") // JSON payload poslan na endpoint
+  // --- Odziv ---
+  statusCode      Int      @default(0) // HTTP status code (200 = uspeh)
+  responseBody    String   @default("") // Prvih 1000 znakov odziva
+  success         Boolean  @default(false)
+  // --- Ponovni poskusi ---
+  attemptCount    Int      @default(1) // Trenutno število poskusov
+  maxAttempts     Int      @default(5) // Maksimalno poskusov (1, 2, 5, 10, 30 min)
+  nextRetryAt     DateTime? // Kdaj poskusiti znova
+  // --- Podpisovanje ---
+  signature       String   @default("") // HMAC-SHA256 podpis payloada
+  // --- Časovni žig ---
+  deliveredAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([webhookId])
+  @@index([event])
+  @@index([success])
+  @@index([createdAt])
+  @@index([nextRetryAt])
+}
+
+// ============================================
+// INTEGRACIJE (povezave z zunanjimi sistemi)
+// e-Računi, računovodstvo, dostava, CRM, itd.
+// ============================================
+
+model Integration {
+  id              String   @id @default(cuid())
+  name            String   // "e-Računi", "Spire ERP", "Wolt Dostava"
+  type            String   // eracuni, accounting, delivery, crm, ecommerce, analytics, custom
+  provider        String   // "eracuni", "spire", "datalab", "wolt", "glovo", "custom"
+  // --- Povezava ---
+  baseUrl         String   @default("") // API URL ponudnika
+  apiKey          String   @default("") // Šifriran API ključ
+  apiSecret       String   @default("") // Šifriran API skrivnost
+  config          String   @default("{}") // JSON: dodatne nastavitve (podjetje_id, mapa_id, itd.)
+  // --- Sinhronizacija ---
+  syncEnabled     Boolean  @default(true)
+  syncInterval    Int      @default(300) // Sekunde med sinhronizacijami (5 min privzeto)
+  lastSyncAt      DateTime?
+  lastSyncStatus  String   @default("") // success, error, partial
+  lastSyncError   String   @default("")
+  // --- Dogodki, ki sprožijo sinhronizacijo ---
+  events          String   @default("[]") // JSON: ["order.paid", "receipt.created", "daily.close"]
+  // --- Status ---
+  isActive        Boolean  @default(true)
+  connectionStatus String  @default("disconnected") // connected, disconnected, error
+  // --- Dnevnik ---
+  logs            IntegrationLog[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([type])
+  @@index([provider])
+  @@index([isActive])
+  @@index([connectionStatus])
+}
+
+model IntegrationLog {
+  id              String     @id @default(cuid())
+  integrationId   String
+  integration     Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Podatki ---
+  action          String     // "sync_invoice", "push_order", "fetch_delivery_status"
+  direction       String     @default("outbound") // outbound (pošiljamo), inbound (prejemamo)
+  // --- Status ---
+  status          String     @default("pending") // pending, success, error, timeout
+  statusCode      Int        @default(0) // HTTP status code
+  requestData     String     @default("{}") // JSON: poslani podatki
+  responseData    String     @default("{}") // JSON: prejeti odziv
+  errorMessage    String     @default("")
+  // --- Čas ---
+  durationMs      Int        @default(0) // Trajanje v ms
+  createdAt       DateTime   @default(now())
+
+  @@index([integrationId])
+  @@index([action])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ============================================
+// SAAS NAROČNINA — Multi-tenant subscription system
+// ============================================
+
+model Subscription {
+  id                String   @id @default(cuid())
+  // --- Naročnik ---
+  companyName       String                              // Ime podjetja
+  email             String   @unique                    // Kontakt email
+  phone             String   @default("")
+  taxId             String   @default("")               // DDV ID
+  businessId        String   @default("")               // Matična št.
+  // --- Paket ---
+  plan              String   @default("starter")        // starter, professional, enterprise
+  status            String   @default("trial")          // trial, active, past_due, cancelled, expired
+  // --- Cenitev ---
+  monthlyPrice      Decimal   @default(0)   // EUR/mesec  // FIX: Decimal za valuto
+  locationCount     Int      @default(1)                // Št. lokacij
+  currency          String   @default("EUR")
+  // --- Obdobje ---
+  trialStartsAt     DateTime?
+  trialEndsAt       DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd  DateTime?
+  cancelledAt       DateTime?
+  // --- Način plačila ---
+  paymentMethod     String   @default("")               // card, bank_transfer, invoice
+  stripeCustomerId  String?                              // Stripe customer ID (za prihodnost)
+  // --- Metapodatki ---
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relacije
+  invoices          SubscriptionInvoice[]
+
+  @@index([email])
+  @@index([status])
+  @@index([plan])
+}
+
+model SubscriptionInvoice {
+  id              String   @id @default(cuid())
+  subscriptionId  String
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Račun ---
+  invoiceNumber   String   @unique
+  amount          Decimal                                // Znesek brez DDV  // FIX: Decimal za valuto
+  vatRate         Decimal   @default(22)   // DDV stopnja  // FIX: Decimal za davčno stopnjo
+  vatAmount       Decimal   @default(0)    // DDV znesek  // FIX: Decimal za valuto
+  totalAmount     Decimal   @default(0)    // Skupaj z DDV  // FIX: Decimal za valuto
+  currency        String   @default("EUR")
+  // --- Obdobje ---
+  periodStart     DateTime
+  periodEnd       DateTime
+  dueDate         DateTime
+  paidAt          DateTime?
+  status          String   @default("pending")           // pending, paid, overdue, cancelled
+  // --- PDF ---
+  pdfUrl          String   @default("")
+  // --- Metapodatki ---
+  createdAt       DateTime @default(now())
+
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+// ============================================
+// GOSTOVO POVPRATNA INFORMACIJA (Guest Feedback)
+// Toast POS + OpenTable standard za ocene in mnenja
+// ============================================
+
+model GuestFeedback {
+  id              String   @id @default(cuid())
+  // --- Gost ---
+  guestId         String?
+  guestName       String   @default("")
+  // --- Naročilo ---
+  orderId         String?
+  // --- Ocene (1-5) ---
+  overallRating   Int      @default(0)   // Skupna ocena
+  foodRating      Int      @default(0)   // Kakovost hrane
+  serviceRating   Int      @default(0)   // Kakovost postrežbe
+  atmosphereRating Int     @default(0)   // Atmosfera
+  // --- Komentarji ---
+  comment         String   @default("")
+  tags            String   @default("[]") // JSON: ["Odlična hrana", "Hitra postrežba"]
+  // --- Ali bi se vrnil / priporočil ---
+  wouldReturn     Boolean  @default(true)
+  wouldRecommend  Boolean  @default(true)
+  // --- Odgovor restavracije ---
+  responded       Boolean  @default(false)
+  response        String   @default("")
+  respondedAt     DateTime?
+  // --- Vir ---
+  source          String   @default("pos")  // pos, website, email, sms
+  // --- Čas ---
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([guestId])
+  @@index([orderId])
+  @@index([overallRating])
+  @@index([source])
+  @@index([createdAt])
+  @@index([responded])  // FIX: Pogosta poizvedba — odgovarjanje na neodgovorjene povratne informacije
+}
+
+// ============================================
+// Z-REPORT / DNEVNI ZAKLJUČEK (End of Day)
+// Toast POS standard — Z-report z vsemi statistikami
+// ============================================
+
+model ZReport {
+  id                String   @id @default(cuid())
+  // --- Obdobje ---
+  reportDate        DateTime                         // Datum poročila
+  openedAt          DateTime                           // Čas odprtja prve izmene
+  closedAt          DateTime?                          // Čas zaključka zadnje izmene
+  // --- Prodaja ---
+  totalSales        Decimal   @default(0) // Skupna prodaja (z DDV)  // FIX: Decimal za valuto
+  totalNetSales     Decimal   @default(0) // Čista prodaja (brez DDV)  // FIX: Decimal za valuto
+  totalTax          Decimal   @default(0) // Skupni DDV  // FIX: Decimal za valuto
+  // --- Po načinu plačila ---
+  cashSales         Decimal   @default(0)  // FIX: Decimal za valuto
+  cardSales         Decimal   @default(0)  // FIX: Decimal za valuto
+  mobileSales       Decimal   @default(0)  // FIX: Decimal za valuto
+  alternateSales    Decimal   @default(0)  // FIX: Decimal za valuto
+  // --- Po vrsti naročila ---
+  dineInSales       Decimal   @default(0)  // FIX: Decimal za valuto
+  takeoutSales      Decimal   @default(0)  // FIX: Decimal za valuto
+  deliverySales     Decimal   @default(0)  // FIX: Decimal za valuto
+  // --- DDV razčlenitev ---
+  vatStandard       Decimal   @default(0) // DDV 22% osnova  // FIX: Decimal za valuto
+  vatStandardAmount Decimal   @default(0) // DDV 22% znesek  // FIX: Decimal za valuto
+  vatReduced        Decimal   @default(0) // DDV 9.5% osnova  // FIX: Decimal za valuto
+  vatReducedAmount  Decimal   @default(0) // DDV 9.5% znesek  // FIX: Decimal za valuto
+  vatZero           Decimal   @default(0) // DDV 0% osnova  // FIX: Decimal za valuto
+  // --- Statistika ---
+  totalOrders       Int      @default(0)
+  totalGuests       Int      @default(0)
+  avgOrderValue     Decimal   @default(0) // FIX: Decimal za valuto
+  // --- Popusti in napitnine ---
+  totalDiscounts    Decimal   @default(0) // FIX: Decimal za valuto
+  totalTips         Decimal   @default(0) // FIX: Decimal za valuto
+  totalVoided       Decimal   @default(0) // FIX: Decimal za valuto
+  totalStorno       Decimal   @default(0) // FIX: Decimal za valuto
+  // --- Gotovina ---
+  startingCash      Decimal   @default(0) // FIX: Decimal za valuto
+  expectedCash      Decimal   @default(0) // FIX: Decimal za valuto
+  actualCash        Decimal   @default(0) // FIX: Decimal za valuto
+  cashDifference    Decimal   @default(0) // FIX: Decimal za valuto
+  cashDrops         Decimal   @default(0) // FIX: Decimal za valuto
+  // --- Stroški ---
+  totalCost         Decimal   @default(0) // Skupni stroški (food cost)  // FIX: Decimal za valuto
+  grossProfit       Decimal   @default(0) // Bruto dobiček  // FIX: Decimal za valuto
+  grossMargin       Decimal   @default(0)  // Bruto marža (%)  // FIX: Decimal za odstotek
+  // --- Status ---
+  status            String   @default("draft")          // draft, finalized, approved
+  finalizedBy       String   @default("")               // Kdo je zaključil
+  // --- Opombe ---
+  notes             String   @default("")
+  // --- Multi-location ---
+  locationId        String?
+  location          Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([reportDate])
+  @@index([status])
+  @@index([locationId])
+  // FIX SCHEMA-08 HIGH: Compound unique — eno Z-poročilo na dan na lokacijo, ne globalno
+  @@unique([reportDate, locationId])
+  @@index([closedAt])  // FIX SCHEMA-09: Iskanje zaključenih poročil po datumu
+}
+
+// ============================================
+// TIP POOL — Razdelitev napitnin (Toast standard)
+// Samodejna ali ročna distribucija napitnin med zaposlene
+// ============================================
+
+model TipPool {
+  id              String   @id @default(cuid())
+  // --- Obdobje ---
+  date            DateTime                           // Datum
+  shiftId         String?                            // Povezava z izmeno (opcija)
+  // --- Zneski ---
+  totalTips       Decimal   @default(0) // Skupne napitnine  // FIX: Decimal za valuto
+  cashTips        Decimal   @default(0) // FIX: Decimal za valuto
+  cardTips        Decimal   @default(0) // FIX: Decimal za valuto
+  // --- Metoda distribucije ---
+  distributionMethod String  @default("equal")       // equal, hours, points, manual
+  // --- Status ---
+  status          String   @default("pending")       // pending, distributed, approved, paid
+  // --- Dodelitve ---
+  distributions   TipDistribution[]
+  // --- Multi-location ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([date])
+  @@index([status])
+  @@index([locationId])
+}
+
+model TipDistribution {
+  id              String   @id @default(cuid())
+  tipPoolId       String
+  tipPool         TipPool  @relation(fields: [tipPoolId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Zaposleni ---
+  employeeId      String
+  employeeName    String   @default("")
+  // --- Ure ---
+  hoursWorked     Decimal   @default(0)  // Ure v izmeni  // FIX: Decimal za ure
+  // --- Točke (za points metodo) ---
+  points          Decimal   @default(0)  // FIX: Decimal za natančnost
+  // --- Znesek ---
+  amount          Decimal   @default(0) // Dodeljen znesek napitnine  // FIX: Decimal za valuto
+  // --- Status ---
+  status          String   @default("pending")       // pending, paid
+  paidAt          DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([tipPoolId])
+  @@index([employeeId])
+  @@index([status])
+  @@index([paidAt])  // FIX SCHEMA-09: Poračila o plačanih napitninah
+  @@index([employeeId, status])  // FIX: Pogosta poizvedba — neporačunane napitnine po zaposlenem
+}
+
+// ============================================
+// DELIVERY TRACKING — GPS sledenje voznikom
+// Toast + DoorDash standard
+// ============================================
+
+model DeliveryTracking {
+  id              String   @id @default(cuid())
+  deliveryInfoId  String   @unique                   // Povezava z dostavo
+  // --- Voznik ---
+  driverName      String   @default("")
+  driverPhone     String   @default("")
+  vehicleInfo     String   @default("")              // Npr. "Rdeč Fiat 500, LJ-123-AB"
+  // --- GPS koordinate ---
+  currentLat      Float?
+  currentLng      Float?
+  lastUpdateAt    DateTime?
+  // --- Status ---
+  status          String   @default("assigned")      // assigned, picked_up, on_the_way, arriving, delivered, failed
+  // --- ETA ---
+  estimatedArrival DateTime?
+  // --- Časovnica ---
+  assignedAt      DateTime?
+  pickedUpAt      DateTime?
+  onTheWayAt      DateTime?
+  deliveredAt     DateTime?
+  // --- Ocena ---
+  customerRating  Int?
+  customerFeedback String  @default("")
+  // --- Multi-location ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([deliveryInfoId])
+  @@index([status])
+  @@index([driverName])
+  @@index([locationId])  // FIX: Multi-location poizvedbe po lokaciji
+  @@index([estimatedArrival])  // FIX: Iskanje aktivnih dostav po času prihoda
+}
+
+// ============================================
+// SEJE (Session Persistence)
+// FIX MEDIUM: Seje shranjene v SQLite — preživijo restart strežnika
+// Hibridni pristop: pomnilniški cache + SQLite persistenca
+// ============================================
+
+model Session {
+  id              String   @id @default(cuid())
+  token           String   @unique              // Bearer token (64 hex znakov)
+  employeeId      String                        // ID zaposlenega
+  role            String                        // admin, manager, staff
+  permissions     String   @default("[]")       // JSON array: ["take_orders", "void_items", ...]
+  createdAt       Int                           // Unix timestamp ms
+  expiresAt       Int                           // Unix timestamp ms
+  absoluteExpiry  Int                           // Unix timestamp ms — absolutni maksimum (24h)
+  ipAddress       String   @default("")         // IP naslov ob prijavi
+  userAgent       String   @default("")         // User-Agent ob prijavi
+
+  @@index([token])
+  @@index([employeeId])
+  @@index([expiresAt])
+  // FIX SCHEMA-10: Composite index za Session — aktivne seje zaposlenega
+  @@index([employeeId, expiresAt])  // Iskanje aktivnih sej za zaposlenega
+}

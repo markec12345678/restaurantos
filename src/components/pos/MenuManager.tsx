@@ -1,0 +1,295 @@
+'use client'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { toast } from 'sonner'
+import { authFetch } from '@/components/pos/PinLogin'
+import { queryKeys } from '@/lib/query-keys'
+import { Plus, UtensilsCrossed, Tag, BookOpen, Settings2 } from 'lucide-react'
+import { useState, useMemo, useCallback, memo } from 'react'
+import dynamic from 'next/dynamic'
+import type { ItemFormState, CategoryFormState, MenuFormState, CategoryData, MenuData, ModifierGroupData } from './menu/constants'
+
+// ============================================
+// LAZY-NALOŽENE PODKOMPONENTE
+// ============================================
+const ItemsTab = dynamic(
+  () => import('./menu/ItemsTab').then(m => m.ItemsTab),
+  { ssr: false }
+)
+const CategoriesTab = dynamic(
+  () => import('./menu/CategoriesTab').then(m => m.CategoriesTab),
+  { ssr: false }
+)
+const MenusTab = dynamic(
+  () => import('./menu/MenusTab').then(m => m.MenusTab),
+  { ssr: false }
+)
+const ModifiersTab = dynamic(
+  () => import('./menu/ModifiersTab').then(m => m.ModifiersTab),
+  { ssr: false }
+)
+const ItemDialog = dynamic(
+  () => import('./menu/ItemDialog').then(m => m.ItemDialog),
+  { ssr: false }
+)
+const CategoryDialog = dynamic(
+  () => import('./menu/CategoryDialog').then(m => m.CategoryDialog),
+  { ssr: false }
+)
+const MenuDialog = dynamic(
+  () => import('./menu/MenuDialog').then(m => m.MenuDialog),
+  { ssr: false }
+)
+
+// ============================================
+// GLAVNA KOMPONENTA
+// ============================================
+export const MenuManager = memo(function MenuManager() {
+  const queryClient = useQueryClient()
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [search, setSearch] = useState('')
+  const [filterCategory, setFilterCategory] = useState('all')
+  const [filterMenu, setFilterMenu] = useState('all')
+  const [activeTab, setActiveTab] = useState('items')
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<Record<string, unknown> | null>(null)
+  const [itemForm, setItemForm] = useState<ItemFormState>({ name: '', description: '', price: '', categoryId: '', isAvailable: true, image: '', modifierGroupIds: [] as string[] })
+  const [catDialogOpen, setCatDialogOpen] = useState(false)
+  const [catForm, setCatForm] = useState<CategoryFormState>({ name: '', icon: '🍽️', color: '#f59e0b', menuId: '' })
+  const [menuDialogOpen, setMenuDialogOpen] = useState(false)
+  const [menuForm, setMenuForm] = useState<MenuFormState>({ name: '', icon: '📋', color: '#f59e0b' })
+
+  // Poizvedbe
+  const { data: menus } = useQuery({
+    queryKey: queryKeys.menus.all,
+    queryFn: async () => {
+      const res = await authFetch('/api/menus')
+      if (!res.ok) throw new Error('Napaka pri nalaganju')
+      return res.json() as Promise<MenuData[]>
+    },
+  })
+  const { data: categories } = useQuery({
+    queryKey: queryKeys.categories.all,
+    queryFn: async () => {
+      const res = await authFetch('/api/categories')
+      if (!res.ok) throw new Error('Napaka pri nalaganju')
+      return res.json() as Promise<CategoryData[]>
+    },
+  })
+  const { data: modifierGroups } = useQuery({
+    queryKey: queryKeys.modifierGroups.all,
+    queryFn: async () => {
+      const res = await authFetch('/api/modifier-groups')
+      if (!res.ok) throw new Error('Napaka pri nalaganju')
+      return res.json() as Promise<ModifierGroupData[]>
+    },
+  })
+  const { data: menuItems, isLoading } = useQuery({
+    queryKey: queryKeys.menuItems.all,
+    queryFn: async () => {
+      const res = await authFetch('/api/menu-items')
+      if (!res.ok) throw new Error('Napaka pri nalaganju')
+      return res.json()
+    },
+  })
+
+  // FIX PERF: useMemo za filtriranje — prej se je filtriralo ob vsakem renderu
+  const filteredItems = useMemo(() => (Array.isArray(menuItems) ? menuItems : []).filter((item: { name: string; categoryId: string; category?: { menu?: { id: string } } }) => {
+    const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase())
+    const matchesCat = filterCategory === 'all' || item.categoryId === filterCategory
+    const matchesMenu = filterMenu === 'all' || item.category?.menu?.id === filterMenu
+    return matchesSearch && matchesCat && matchesMenu
+  }), [menuItems, search, filterCategory, filterMenu])
+
+  // Mutacije menijev
+  const createMenuMutation = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      const res = await authFetch('/api/menus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Napaka pri ustvarjanju menija') }
+      return res.json()
+    },
+    onSuccess: () => { toast.success('Meni ustvarjen'); queryClient.invalidateQueries({ queryKey: queryKeys.menus.all }); setMenuDialogOpen(false) },
+    onError: (err: Error) => { toast.error(err.message || 'Napaka pri ustvarjanju menija') },
+  })
+
+  // Mutacije artiklov
+  const createItemMutation = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      const res = await authFetch('/api/menu-items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Napaka pri ustvarjanju artikla') }
+      return res.json()
+    },
+    onSuccess: () => { toast.success('Artikel ustvarjen'); queryClient.invalidateQueries({ queryKey: queryKeys.menuItems.all }); setDialogOpen(false) },
+    onError: (err: Error) => { toast.error(err.message || 'Napaka pri ustvarjanju artikla') },
+  })
+  const updateItemMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
+      const res = await authFetch(`/api/menu-items/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Napaka pri posodabljanju artikla') }
+      return res.json()
+    },
+    onSuccess: () => { toast.success('Artikel posodobljen'); queryClient.invalidateQueries({ queryKey: queryKeys.menuItems.all }); setDialogOpen(false); setEditingItem(null) },
+    onError: (err: Error) => { toast.error(err.message || 'Napaka pri posodabljanju artikla') },
+  })
+  const deleteItemMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await authFetch(`/api/menu-items/${id}`, { method: 'DELETE' })
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Napaka pri brisanju artikla') }
+      return res.json()
+    },
+    onSuccess: () => { toast.success('Artikel izbrisan'); queryClient.invalidateQueries({ queryKey: queryKeys.menuItems.all }) },
+    onError: (err: Error) => { toast.error(err.message || 'Napaka pri brisanju artikla') },
+  })
+  const toggleAvailabilityMutation = useMutation({
+    mutationFn: async ({ id, isAvailable }: { id: string; isAvailable: boolean }) => {
+      const res = await authFetch(`/api/menu-items/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isAvailable }) })
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Napaka pri spreminjanju razpoložljivosti') }
+      return res.json()
+    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.menuItems.all }) },
+    onError: (err: Error) => { toast.error(err.message || 'Napaka pri spreminjanju razpoložljivosti') },
+  })
+
+  // Mutacije kategorij
+  const createCatMutation = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      const res = await authFetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Napaka pri ustvarjanju kategorije') }
+      return res.json()
+    },
+    onSuccess: () => { toast.success('Kategorija ustvarjena'); queryClient.invalidateQueries({ queryKey: queryKeys.categories.all }); setCatDialogOpen(false) },
+  })
+
+  // FIX PERF: useCallback za handlerje — prej so se ustvarjali na vsakem renderu
+  const openCreateItem = useCallback(() => {
+    setEditingItem(null)
+    setItemForm({ name: '', description: '', price: '', categoryId: categories?.[0]?.id || '', isAvailable: true, image: '', modifierGroupIds: [] })
+    setDialogOpen(true)
+  }, [categories])
+  const openEditItem = useCallback((item: Record<string, unknown>) => {
+    setEditingItem(item)
+    const existingModGroups = (item.modifierGroups as { modifierGroup: { id: string } }[])?.map(mg => mg.modifierGroup.id) || []
+    setItemForm({
+      name: String(item.name),
+      description: String(item.description || ''),
+      price: String(item.price),
+      categoryId: String(item.categoryId),
+      isAvailable: Boolean(item.isAvailable),
+      image: String(item.image || ''),
+      modifierGroupIds: existingModGroups,
+    })
+    setDialogOpen(true)
+  }, [])
+  const handleItemSubmit = useCallback(() => {
+    const payload = { ...itemForm, price: parseFloat(itemForm.price) }
+    if (editingItem) {
+      updateItemMutation.mutate({ id: editingItem.id as string, ...payload })
+    } else {
+      createItemMutation.mutate(payload)
+    }
+  }, [itemForm, editingItem, updateItemMutation, createItemMutation])
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Upravljanje jedilnika</h2>
+          <p className="text-muted-foreground">Upravljajte menije, kategorije in artikle</p>
+        </div>
+        <Button onClick={openCreateItem}>
+          <Plus className="h-4 w-4 mr-2" />
+          Dodaj artikel
+        </Button>
+      </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="items">
+            <UtensilsCrossed className="h-4 w-4 mr-1" />
+            Artikli
+          </TabsTrigger>
+          <TabsTrigger value="categories">
+            <Tag className="h-4 w-4 mr-1" />
+            Kategorije
+          </TabsTrigger>
+          <TabsTrigger value="menus">
+            <BookOpen className="h-4 w-4 mr-1" />
+            Meniji
+          </TabsTrigger>
+          <TabsTrigger value="modifiers">
+            <Settings2 className="h-4 w-4 mr-1" />
+            Dodatki
+          </TabsTrigger>
+        </TabsList>
+        {/* Tab artiklov */}
+        <TabsContent value="items" className="space-y-4">
+          <ItemsTab
+            search={search}
+            onSearchChange={setSearch}
+            filterMenu={filterMenu}
+            onFilterMenuChange={setFilterMenu}
+            filterCategory={filterCategory}
+            onFilterCategoryChange={setFilterCategory}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            filteredItems={filteredItems}
+            categories={categories}
+            menus={menus}
+            isLoading={isLoading}
+            onEditItem={openEditItem}
+            onDeleteItem={(id) => deleteItemMutation.mutate(id)}
+            onToggleAvailability={(id, isAvailable) => toggleAvailabilityMutation.mutate({ id, isAvailable })}
+          />
+        </TabsContent>
+        {/* Tab kategorij */}
+        <TabsContent value="categories" className="space-y-4">
+          <CategoriesTab
+            menus={menus}
+            categories={categories}
+            onAddCategory={() => { setCatForm({ name: '', icon: '🍽️', color: '#f59e0b', menuId: menus?.[0]?.id || '' }); setCatDialogOpen(true) }}
+          />
+        </TabsContent>
+        {/* Tab menijev */}
+        <TabsContent value="menus" className="space-y-4">
+          <MenusTab
+            menus={menus}
+            categories={categories}
+            onAddMenu={() => { setMenuForm({ name: '', icon: '📋', color: '#f59e0b' }); setMenuDialogOpen(true) }}
+          />
+        </TabsContent>
+        {/* Tab dodatkov */}
+        <TabsContent value="modifiers" className="space-y-4">
+          <ModifiersTab modifierGroups={modifierGroups} />
+        </TabsContent>
+      </Tabs>
+
+      {/* Dialogi */}
+      <ItemDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        editingItem={editingItem}
+        itemForm={itemForm}
+        onItemFormChange={setItemForm}
+        menus={menus}
+        categories={categories}
+        modifierGroups={modifierGroups}
+        onSubmit={handleItemSubmit}
+      />
+      <CategoryDialog
+        open={catDialogOpen}
+        onOpenChange={setCatDialogOpen}
+        catForm={catForm}
+        onCatFormChange={setCatForm}
+        menus={menus}
+        onSubmit={() => createCatMutation.mutate(catForm as unknown as Record<string, unknown>)}
+      />
+      <MenuDialog
+        open={menuDialogOpen}
+        onOpenChange={setMenuDialogOpen}
+        menuForm={menuForm}
+        onMenuFormChange={setMenuForm}
+        onSubmit={() => createMenuMutation.mutate(menuForm as unknown as Record<string, unknown>)}
+      />
+    </div>
+  )
+})

@@ -1,0 +1,92 @@
+[
+  {
+    "url": "https://doc.toasttab.com/doc/platformguide/adminMenuHierarchy.html",
+    "name": "Menu hierarchy - - Platform guide",
+    "snippet": "Toast products use a hierarchical structure to organize a restaurant's menu offerings. Menu groups contain menu items, which are the offerings themselves. Read more\nToast products use a hierarchical structure to organize a restaurant's menu offerings: Menus are the highest level of the hierarchy and represent top-level categories for the offerings your restaurant serves, for example, Food, Drinks, Lunch, Dinner, Happy Hour, or Bar.",
+    "host_name": "doc.toasttab.com",
+    "rank": 0,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://squareup.com/help/us/en/article/7804-organize-your-menu-with-square-for-restaurants",
+    "name": "Create a menu group and edit layout",
+    "snippet": "A menu group organizes how your menus appear on your restaurant POS modes . Menu groups utilize color, size, and placement options to keep your menu items ... Read more",
+    "host_name": "squareup.com",
+    "rank": 1,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://resto-support.lightspeedhq.com/hc/en-us/articles/360022590433-Creating-a-menu",
+    "name": "Creating a menu",
+    "snippet": "Enter a name for the menu . · Click the Categories drop-down and select categories to add to the menu. Read more",
+    "host_name": "resto-support.lightspeedhq.com",
+    "rank": 2,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://support.toasttab.com/en/article/Creating-Menus-Groups-and-Items-in-the-Menu-Builder",
+    "name": "Create Menus, Groups, Subgroups, and Items in the Menu",
+    "snippet": "Apr 24, 2026 — In this article, learn how to use the menu builder to create menus, groups, subgroups, and items for your menu.",
+    "host_name": "support.toasttab.com",
+    "rank": 3,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://o-series-support.lightspeedhq.com/hc/en-us/articles/31329442916891-Design-your-POS-look-and-layout",
+    "name": "Design your POS look and layout",
+    "snippet": "Lightspeed offers a simple drag-and-drop tool so you can arrange your products and categories. Organising how your POS appears can streamline your operations. Read more",
+    "host_name": "o-series-support.lightspeedhq.com",
+    "rank": 4,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.taloflow.ai/guides/comparisons/lightspeedbar-vs-toast-rms",
+    "name": "Lightspeed Restaurant vs. Toast POS in 2025",
+    "snippet": "Lightspeed Restaurant is a comprehensive POS system tailored for the restaurant industry, providing a cloud-based solution that is 40% faster than other ... Read more",
+    "host_name": "www.taloflow.ai",
+    "rank": 5,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://loman.ai/blog/toast-pos-vs-lightspeed-resturant",
+    "name": "Toast POS vs Lightspeed Resturant",
+    "snippet": "Both systems offer core sales reporting, multi-location management, advanced inventory tracking, and bill-splitting capabilities. However, the nuanced ... Read more",
+    "host_name": "loman.ai",
+    "rank": 6,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.linkedin.com/pulse/touchbistro-vs-lightspeed-toast-square-foodship-r-m-mtrqf",
+    "name": "TouchBistro vs Lightspeed vs Toast vs Square vs Foodship",
+    "snippet": "Compare top restaurant POS systems: TouchBistro, Lightspeed , Toast , Square & Foodship. Features, pricing, and expert analysis to help choose ...",
+    "host_name": "www.linkedin.com",
+    "rank": 7,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://www.expertmarket.com/pos/square-vs-toast-vs-lightspeed",
+    "name": "Square vs Toast vs Lightspeed: Which POS is Best for",
+    "snippet": "Nov 21, 2025 — We test and compared three top POS systems, Square, Toast, and Lightspeed Restaurant to find out which is the best for hospitality ...",
+    "host_name": "www.expertmarket.com",
+    "rank": 8,
+    "date": "",
+    "favicon": ""
+  },
+  {
+    "url": "https://squareup.com/help/us/en/article/6424-create-menus-with-square-for-restaurants",
+    "name": "Create and update menus | Square Support Center - United States",
+    "snippet": "With Square for Restaurants, a menu is a specific set of menu groups and items that will appear on your POS for a certain period of the day or a certain shift. Your menus should correspond with the physical menus in your restaurant. If you have multiple menus you use throughout the day, you should have multiple menus in your Square for Restaurants ...",
+    "host_name": "squareup.com",
+    "rank": 9,
+    "date": "",
+    "favicon": ""
+  }
+]

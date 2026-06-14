@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Offline — RestaurantOS</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: linear-gradient(to bottom, #fef3c7, #fde68a);
+      color: #92400e;
+      text-align: center;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 480px;
+      background: white;
+      border-radius: 1.5rem;
+      padding: 3rem 2rem;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    }
+    .icon {
+      font-size: 4rem;
+      margin-bottom: 1.5rem;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      color: #78350f;
+    }
+    p {
+      color: #a16207;
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+    .retry-btn {
+      display: inline-block;
+      padding: 0.75rem 2rem;
+      background: #f59e0b;
+      color: white;
+      border: none;
+      border-radius: 0.75rem;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s;
+    }
+    .retry-btn:hover { background: #d97706; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">📡</div>
+    <h1>Brez povezave</h1>
+    <p>Trenutno nimate internetne povezave. Vaše naročilo in podatki so varno shranjeni. Prosimo, preverite povezavo in poskusite znova.</p>
+    <button class="retry-btn" onclick="window.location.reload()">Poskusi znova</button>
+  </div>
+</body>
+</html>
