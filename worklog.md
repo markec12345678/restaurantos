@@ -2145,3 +2145,44 @@ Stage Summary:
 - Unused callback parameters prefixed with _
 - All Slovenian language comments preserved
 - No emojis added
+
+---
+Task ID: round-14-component-split-final
+Agent: Main Agent (coordinating 9 sub-agents)
+Task: Continue splitting remaining POS components (350+ lines) + push to GitHub
+
+Work Log:
+- Set up GitHub token and pushed all accumulated changes
+- Split OrderPanel.tsx (422 → 390): extracted OrderHeader + OrderDialogs sub-components
+- Split AllergenFilter.tsx (398 → 21): extracted AllergenBadge, AllergenFilterBar, AllergenWarningDialog, utils
+- Split TableTurnoverAnalytics.tsx (395 → 162): extracted KpiCards, OccupiedTablesCard, VisualOverview, RecommendationsCard
+- Split HaccpManager.tsx (384 → 165): extracted useHaccpManager hook + HaccpEntryList
+- Split TipManager.tsx (380 → 211): 7 sub-components + constants
+- Split TaxReport.tsx (380 → 209): 6 sub-components + constants, converted to useQuery
+- Split ShiftOverview.tsx (375 → 201): 4 sub-components + constants
+- Split ComplianceDashboard.tsx (372 → 250): 3 sub-components + constants
+- Split NotificationManager.tsx (371 → 141): 5 sub-components + constants
+- Split VisualFloorPlan.tsx (367 → 101): extracted useFloorPlanState hook
+- Split WaitTimeEstimator.tsx (363 → 135): 5 sub-components + constants
+- Split FursManager.tsx (358 → 169): 5 sub-components + constants
+- Split IntegrationManager.tsx (357 → 133): extracted useIntegrationManager hook
+- Split VendorScorecard.tsx (355 → 193): 3 sub-components + constants
+- Split RecipeScaling.tsx (353 → 166): 3 sub-components + constants
+- Split InventoryAlerts.tsx (352 → 202): 4 sub-components + constants
+- Split LocationManager.tsx (349 → 156): extracted useLocationManager hook
+- Split WaitlistManager.tsx (348 → 163): 5 sub-components + constants
+- Split PinLogin.tsx (345 → 265): 4 sub-components, authFetch export preserved
+- Split OrderBump.tsx (343 → 199): 4 sub-components + constants
+- Split EmployeeManager.tsx (341 → 196): 5 sub-components + constants
+- Split SubscriptionManager.tsx (320 → 153): 6 sub-components + constants
+- Fixed 3 TypeScript errors (AllergenMatrix allergenCounts, NewFeedbackDialog type cast)
+- TypeScript: 0 errors in src/
+- ESLint: 0 errors, 0 warnings
+- Pushed to GitHub: 83e74c4
+
+Stage Summary:
+- 22 components split this round
+- 60 total sub-directories, 387 sub-component files
+- Only 1 file remains over 350 lines: OrderPanel.tsx (390)
+- All components previously over 355 lines now under 270 lines (except OrderPanel)
+- Pushed to GitHub main branch
