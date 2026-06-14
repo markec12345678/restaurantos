@@ -2210,3 +2210,21 @@ Stage Summary:
 - OrderList: 334→211 (37% reduction)
 - All files now under 354 lines (useOrderPanel.ts hook is the largest at 354)
 - No remaining files above 400 lines
+
+---
+Task ID: 15
+Agent: Main Agent
+Task: Round 15 - Split remaining hooks over 400 lines (useGiftCardManager, usePaymentDialog)
+
+Work Log:
+- Split useGiftCardManager.ts (454→371) — extracted useGiftCardMutations.ts (137)
+- Split usePaymentDialog.ts (429→299) — extracted usePaymentHandlers.ts (207)
+- Fixed TS error: Order.status type in usePaymentHandlers.ts changed from string to string? to match PaymentDialogProps
+- TypeScript: 0 errors, ESLint: 0 errors
+
+Stage Summary:
+- 2 hook files split, 2 new helper hook files created
+- useGiftCardManager: 454→371 (18% reduction)
+- usePaymentDialog: 429→299 (30% reduction)
+- ALL files now under 400 lines — largest is useGiftCardManager.ts at 371 lines
+- Total splits across Rounds 9-15: 44+ component splits
