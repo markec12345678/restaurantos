@@ -113,7 +113,7 @@ export const OrderPanel = memo(function OrderPanel() {
               editingOrderId={editingOrderId}
               editingOrderNumber={editingOrderNumber}
               onExitEditing={handleExitEditing}
-              onSubmit={() => placeOrderMutation.mutate()}
+              onSubmit={() => placeOrderMutation.mutate({ customerName, customerPhone, orderNotes })}
               isPending={placeOrderMutation.isPending}
               setClearCartConfirm={setClearCartConfirm}
             />

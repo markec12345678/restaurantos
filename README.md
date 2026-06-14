@@ -596,6 +596,7 @@ Projekt je bil deležen obsežnega refaktoriranja, pri katerem so bile velike mo
 | 19 | MenuManager, GiftCardTable, SplitCheckDialog, ReceiptDialog, MenuBrowser | 7 novih | 300 vrstic | <250 vrstic |
 | 20 | DeliveryManager, DailyChecklist, useGiftCardManager, TableMap, ExtendedForms | 12 novih | 283 vrstic | <224 vrstic |
 | 21 | SettingsManager, HappyHourTab, ShiftManager, ConfigCard, RecipeManager | 7 novih | 272 vrstic | <206 vrstic |
+| 22 | PrinterManager, useOrderPanel, PinLogin, KitchenPrepQueue, StaffScheduler | 5 novih | 268 vrstic | <218 vrstic |
 
 **Rezultat:** Vse POS datoteke so zdaj pod 250 vrstic. Vsaka komponenta sledi vzorcu:
 

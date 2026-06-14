@@ -1,14 +1,14 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { usePOSStore } from '@/lib/store'
-import { toast } from 'sonner'
 import { usePOSShortcuts } from '@/lib/use-pos-shortcuts'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import type { StockInfoType } from './types'
 import type { OrderType } from './OrderList'
+import { useOrderPanelMutations } from './useOrderPanelMutations'
 
 // Zunanji tipi, ki jih uporabljajo druge komponente
 export type { OrderPanelState, OrderPanelData, OrderPanelCalculations } from './types'
@@ -21,12 +21,11 @@ export function useOrderPanel() {
     cart, addToCart, removeFromCart, updateCartQuantity, updateCartNotes: _updateCartNotes, clearCart,
     cartTotal, cartSubtotal, cartTaxTotal, cartVatBreakdown,
     orderType, setOrderType, selectedTable, setSelectedTable,
-    discount, setDiscount, taxRate,
+    discount, setDiscount,
     activeMenuId, setActiveMenuId,
     editingOrderId, setEditingOrderId, editingOrderNumber, setEditingOrderNumber,
     appliedDiscountId, setAppliedDiscountId, diningOptionId, setDiningOptionId,
   } = usePOSStore()
-  const queryClient = useQueryClient()
 
   // ─── Lokalno stanje ────────────────────────────────────────────
   const [customerName, setCustomerName] = useState('')
@@ -46,10 +45,17 @@ export function useOrderPanel() {
   const [lastAddedId, setLastAddedId] = useState<string | null>(null)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
+  // ─── Mutations sub-hook ────────────────────────────────────────
+  const {
+    placeOrderMutation, updateOrderStatusMutation,
+    handleVoided, handleStornoComplete,
+    handleAddToOrder, handleExitEditing,
+  } = useOrderPanelMutations()
+
   // ─── Keyboard shortcuts ────────────────────────────────────────
   usePOSShortcuts({
     onNewOrder: () => { clearCart(); setCustomerName(''); setCustomerPhone(''); setOrderNotes(''); setDiscount(0); setEditingOrderId(null); setEditingOrderNumber(null); setMainTab('new-order') },
-    onPay: () => { if (cart.length > 0) placeOrderMutation.mutate() },
+    onPay: () => { if (cart.length > 0) placeOrderMutation.mutate({ customerName, customerPhone, orderNotes }) },
     onSearch: () => { /* Search is handled inside MenuBrowser */ },
     onClearCart: () => { if (cart.length > 0) setClearCartConfirm(true) },
     onOrderList: () => setMainTab('order-list'),
@@ -114,90 +120,7 @@ export function useOrderPanel() {
   const subtotal = cartSubtotal()
   const vatBreakdown = cartVatBreakdown()
   const totalTax = cartTaxTotal()
-  const _cappedDiscount = Math.min(discount, subtotal)
   const total = cartTotal()
-
-  // ─── Mutacije ──────────────────────────────────────────────────
-  const placeOrderMutation = useMutation({
-    mutationFn: async () => {
-      if (editingOrderId) {
-        const res = await authFetch(`/api/orders/${editingOrderId}/add-items`, {
-          method: 'POST',
-          body: JSON.stringify({
-            orderItems: cart.map(item => ({
-              menuItemId: item.id,
-              quantity: item.quantity,
-              price: item.price,
-              notes: item.notes,
-              modifiersJson: JSON.stringify(item.modifiers.map(m => ({ name: m.name, price: m.price, modifierGroupName: m.modifierGroupName }))),
-            })),
-          }),
-        })
-        if (!res.ok) throw new Error('Failed to add items')
-        return res.json()
-      }
-      const res = await authFetch('/api/orders', {
-        method: 'POST',
-        body: JSON.stringify({
-          type: orderType,
-          tableId: orderType === 'dine-in' ? selectedTable : null,
-          diningOptionId: diningOptionId || undefined,
-          customerName,
-          customerPhone,
-          discount: _cappedDiscount,
-          appliedDiscountId: appliedDiscountId || undefined,
-          taxRate,
-          notes: orderNotes,
-          orderItems: cart.map(item => ({
-            menuItemId: item.id,
-            quantity: item.quantity,
-            price: item.price,
-            notes: item.notes,
-            modifiersJson: JSON.stringify(item.modifiers.map(m => ({ name: m.name, price: m.price, modifierGroupName: m.modifierGroupName }))),
-          })),
-        }),
-      })
-      if (!res.ok) throw new Error('Failed to place order')
-      return res.json()
-    },
-    onSuccess: (data) => {
-      if (editingOrderId) {
-        toast.success(`Artikli dodani k naročilu #${editingOrderNumber}!`)
-      } else {
-        toast.success('Naročilo uspešno oddano! Plačaj in natisni račun.')
-      }
-      if (data && !editingOrderId) {
-        setAutoPayOrder(data)
-        setPaymentDialogOpen(true)
-      }
-      clearCart()
-      setCustomerName('')
-      setCustomerPhone('')
-      setOrderNotes('')
-      setDiscount(0)
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.tables.all })
-    },
-    onError: () => { toast.error('Napaka pri oddaji naročila') },
-  })
-
-  const updateOrderStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const res = await authFetch(`/api/orders/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ status }),
-      })
-      if (!res.ok) throw new Error('Failed to update order')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Status naročila posodobljen')
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.tables.all })
-    },
-  })
 
   // ─── Stabilni callbacki ────────────────────────────────────────
   const handlePaymentClose = useCallback(() => { setPaymentDialogOpen(false); setSelectedOrder(null); setAutoPayOrder(null) }, [])
@@ -209,24 +132,12 @@ export function useOrderPanel() {
   }, [])
   const handleReceiptClose = useCallback(() => { setReceiptOrder(null); setAutoReceiptOrderId(null) }, [])
   const handleVoidClose = useCallback(() => setVoidItem(null), [])
-  const handleVoided = useCallback(() => queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }), [queryClient])
   const handleStornoClose = useCallback(() => setStornoOrder(null), [])
-  const handleStornoComplete = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
-    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
-  }, [queryClient])
 
   const handleOrderClick = useCallback((order: OrderType) => setDetailOrder(order), [])
   const handlePayOrder = useCallback((order: OrderType) => { setSelectedOrder(order); setPaymentDialogOpen(true) }, [])
   const handlePrintReceipt = useCallback((order: OrderType) => setReceiptOrder(order), [])
   const handleStornoOrder = useCallback((order: OrderType) => setStornoOrder(order), [])
-  const handleAddToOrder = useCallback((order: OrderType) => {
-    setEditingOrderId(order.id)
-    setEditingOrderNumber(order.orderNumber)
-    setMainTab('new-order')
-  }, [setEditingOrderId, setEditingOrderNumber])
-
-  const handleExitEditing = useCallback(() => { setEditingOrderId(null); setEditingOrderNumber(null); clearCart() }, [setEditingOrderId, setEditingOrderNumber, clearCart])
   const handleClearCartConfirm = useCallback(() => { clearCart(); setClearCartConfirm(false) }, [clearCart])
 
   return {
