@@ -58,14 +58,25 @@ export interface RatingDistributionItem {
 
 /** Povratne oznake za feedback */
 export const FEEDBACK_TAGS = [
-  'Odlicna hrana', 'Hitra postrezba', 'Prijetna atmosfera',
-  'Prijazno osebje', 'Cisto', 'Dobra vinska karta',
-  'Predolgo cakanje', 'Hlada hrana', 'Glasno',
-  'Drago', 'Majhne porcije', 'Necisto',
+  'Odlična hrana', 'Hitra postrežba', 'Prijetna atmosfera',
+  'Prijazno osebje', 'Čisto', 'Dobra vinska karta',
+  'Predolgo čakanje', 'Hladna hrana', 'Glasno',
+  'Drago', 'Majhne porcije', 'Nečisto',
 ] as const
 
 /** Barve za stolpicni graf */
 export const PIE_COLORS = ['#ef4444', '#f59e0b', '#eab308', '#84cc16', '#10b981']
+
+/** Možnosti za filter ocen */
+export const FILTER_OPTIONS = ['all', '5', '4', '3', '2', '1'] as const
+
+/** Polja za ocenjevanje v novem mnenju */
+export const RATING_FIELDS = [
+  { key: 'overallRating', label: 'Skupna ocena' },
+  { key: 'foodRating', label: 'Hrana' },
+  { key: 'serviceRating', label: 'Postrežba' },
+  { key: 'atmosphereRating', label: 'Atmosfera' },
+] as const
 
 // --- Pomožne funkcije ---
 
@@ -97,7 +108,7 @@ export interface FeedbackRatingChartProps {
 
 export interface FeedbackFilterBarProps {
   filterRating: string
-  onFilterChange: (value: string) => void
+  onFilterChange: (_value: string) => void
 }
 
 export interface FeedbackListProps {
@@ -110,9 +121,9 @@ export interface FeedbackCardProps {
 
 export interface NewFeedbackDialogProps {
   open: boolean
-  onOpenChange: (open: boolean) => void
+  onOpenChange: (_open: boolean) => void
   newFeedback: NewFeedbackForm
-  onNewFeedbackChange: (form: NewFeedbackForm) => void
+  onNewFeedbackChange: (_form: NewFeedbackForm) => void
   onSubmit: () => void
   isSubmitting: boolean
 }

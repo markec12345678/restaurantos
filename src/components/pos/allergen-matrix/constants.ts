@@ -115,6 +115,7 @@ export interface AllergenTableProps {
   onEditItem: (_item: MenuItem) => void
 }
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface EuDisclaimerProps {
   // Brez dodatnih propsov — čisto prezentacijska
 }

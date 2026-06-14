@@ -96,7 +96,7 @@ export const getScoreBadge = (score: number): string => {
 
 export interface PerformanceHeaderProps {
   period: string
-  onPeriodChange: (period: string) => void
+  onPeriodChange: (_period: string) => void
 }
 
 export interface KpiSummaryCardsProps {

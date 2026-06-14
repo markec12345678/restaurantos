@@ -14,13 +14,14 @@ import { StornoDialog } from '@/components/pos/StornoDialog'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import dynamic from 'next/dynamic'
+import { STATUS_COLORS, NEXT_STATUS, STATUS_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS } from './order/constants'
 
 // Lazy-loaded sub-komponente
 const MenuBrowser = dynamic(() => import('./order/MenuBrowser').then(m => ({ default: m.MenuBrowser })), { ssr: false })
 const OrderList = dynamic(() => import('./order/OrderList').then(m => ({ default: m.OrderList })), { ssr: false })
 const OrderCart = dynamic(() => import('./order/OrderCart').then(m => ({ default: m.OrderCart })), { ssr: false })
-const ClearCartDialog = dynamic(() => import('./order/ClearCartDialog').then(m => m.ClearCartDialog), { ssr: false })
-const ShortcutsDialog = dynamic(() => import('./order/ShortcutsDialog').then(m => m.ShortcutsDialog), { ssr: false })
+const ClearCartDialog = dynamic(() => import('./order/ClearCartDialog').then(m => ({ default: m.ClearCartDialog })), { ssr: false })
+const ShortcutsDialog = dynamic(() => import('./order/ShortcutsDialog').then(m => ({ default: m.ShortcutsDialog })), { ssr: false })
 import type { StockInfoType } from './order/MenuBrowser'
 import type { OrderType } from './order/OrderList'
 
@@ -218,24 +219,13 @@ export const OrderPanel = memo(function OrderPanel() {
   })
 
   // ============================================
-  // STATUSNE MAPE
+  // STATUSNE MAPE (iz constants.ts)
   // ============================================
-  const statusColors: Record<string, string> = {
-    pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-    'in-progress': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-    ready: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
-    completed: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
-    cancelled: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-  }
-  const nextStatus: Record<string, string> = { pending: 'in-progress', 'in-progress': 'ready', ready: 'completed' }
-  const statusLabels: Record<string, string> = { pending: 'Čakajoče', 'in-progress': 'V obdelavi', ready: 'Pripravljeno', completed: 'Zaključeno', cancelled: 'Preklicano' }
-  const paymentStatusLabels: Record<string, string> = { unpaid: 'Neplačano', paid: 'Plačano', partial: 'Delno', storno: 'Stornirano' }
-  const paymentStatusColors: Record<string, string> = {
-    unpaid: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-    paid: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
-    partial: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
-    storno: 'bg-red-200 text-red-900 dark:bg-red-900/40 dark:text-red-300',
-  }
+  const statusColors = STATUS_COLORS
+  const nextStatus = NEXT_STATUS
+  const statusLabels = STATUS_LABELS
+  const paymentStatusLabels = PAYMENT_STATUS_LABELS
+  const paymentStatusColors = PAYMENT_STATUS_COLORS
 
   // ============================================
   // STABILNI CALLBACKI za dialoge
