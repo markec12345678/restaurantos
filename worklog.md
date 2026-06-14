@@ -2320,3 +2320,24 @@ Stage Summary:
 - 9 new files created
 - All files well under 300 lines
 - All imports updated, no broken references
+---
+Task ID: round-17
+Agent: Main Agent
+Task: Round 17 refactoring — split 4 large files into sub-components and sub-hooks
+
+Work Log:
+- Moved BookingExtractReport.tsx (311→106) to booking-extract/ subdirectory with 5 sub-components
+- Created booking-extract/types.ts (68 lines), RevenueTable.tsx (67), CostsTable.tsx (42), BookingEntryTable.tsx (70), BreakdownTables.tsx (168)
+- Extracted KitchenStationManager.tsx (304→160) into kitchen-station/ subdirectory
+- Created kitchen-station/constants.ts (61 lines), StationStatsCards.tsx (56), StationCard.tsx (103), Icons.tsx (19)
+- Extracted RecipeTab.tsx (306→62) — MenuItemList.tsx (111 lines) and RecipeDetail.tsx (146 lines)
+- Extracted useIntegrationManager.ts (305→233) — useIntegrationMutations.ts (115 lines) sub-hook
+- Removed unused IntegrationItem import from useIntegrationMutations.ts
+- TypeScript: 0 errors, ESLint: 0 errors/warnings
+- Pushed to GitHub
+
+Stage Summary:
+- 4 parent files split into 16 total files
+- 9 new files created (1 types, 1 constants, 1 icons, 5 sub-components, 1 sub-hook)
+- All files under 250 lines (max: BreakdownTables at 168)
+- Largest remaining POS files now ~300 lines
