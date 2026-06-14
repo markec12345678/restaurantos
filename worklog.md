@@ -2377,3 +2377,26 @@ Stage Summary:
 - 4 parent files split into 11 total files
 - 7 new files created (3 chart sub-components, 4 mutation sub-hooks)
 - All files under 270 lines (max: RecipeManager at 268)
+
+---
+Task ID: 19
+Agent: Main
+Task: Round 19 — Refactor top 5 largest POS files
+
+Work Log:
+- Read actual line counts: MenuBrowser (300), MenuManager (295), GiftCardTable (294), SplitCheckDialog (291), ReceiptDialog (291)
+- Extracted useMenuMutations from MenuManager.tsx → menu/useMenuMutations.ts (100 lines)
+- Extracted GiftCardFilters + GiftCardRow from GiftCardTable.tsx → gift-cards/ (63 + 148 lines)
+- Extracted useSplitCheck from SplitCheckDialog.tsx → split-check/useSplitCheck.ts (230 lines)
+- Extracted useReceiptMutations from ReceiptDialog.tsx → receipt/useReceiptMutations.ts (167 lines)
+- Extracted MenuItemsGrid + useModifierSelection from MenuBrowser.tsx → order/ (106 + 97 lines)
+- Fixed ESLint warnings: removed unused Badge import in GiftCardTable, unused ModifierGroupType in MenuBrowser, prefixed unused onStornoComplete param
+- Fixed TS error: added missing equalCount destructuring in SplitCheckDialog
+- TypeScript: 0 errors, ESLint: 0 errors/warnings
+- Committed and pushed to GitHub
+
+Stage Summary:
+- 5 parent files refactored, 7 new files created
+- MenuManager.tsx: 295→250 | GiftCardTable.tsx: 294→166 | SplitCheckDialog.tsx: 291→167 | ReceiptDialog.tsx: 291→186 | MenuBrowser.tsx: 300→197
+- All files now under 250 lines
+- New files: useMenuMutations (100), GiftCardFilters (63), GiftCardRow (148), useSplitCheck (230), useReceiptMutations (167), MenuItemsGrid (106), useModifierSelection (97)
