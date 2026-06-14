@@ -595,8 +595,9 @@ Projekt je bil deležen obsežnega refaktoriranja, pri katerem so bile velike mo
 | 18 | ShiftManager, GlobalNotifications, AIRecommendations, WebhookManager | 4 nove | 345 vrstic | <275 vrstic |
 | 19 | MenuManager, GiftCardTable, SplitCheckDialog, ReceiptDialog, MenuBrowser | 7 novih | 300 vrstic | <250 vrstic |
 | 20 | DeliveryManager, DailyChecklist, useGiftCardManager, TableMap, ExtendedForms | 12 novih | 283 vrstic | <224 vrstic |
+| 21 | SettingsManager, HappyHourTab, ShiftManager, ConfigCard, RecipeManager | 7 novih | 272 vrstic | <206 vrstic |
 
-**Rezultat:** Vse POS datoteke so zdaj pod 290 vrstic. Vsaka komponenta sledi vzorcu:
+**Rezultat:** Vse POS datoteke so zdaj pod 250 vrstic. Vsaka komponenta sledi vzorcu:
 
 - Pod-komponente ovite z `memo()` in z poimenovanimi izvozi
 - Starševske komponente uporabljajo `next/dynamic` za leno nalaganje
