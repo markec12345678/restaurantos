@@ -1,6 +1,6 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Eye } from 'lucide-react'
 import { useState, useEffect, useCallback, memo } from 'react'
@@ -11,6 +11,7 @@ import { StornoDialog } from '@/components/pos/StornoDialog'
 import { queryKeys } from '@/lib/query-keys'
 import QRCode from 'qrcode'
 import type { ReceiptData } from './receipt/constants'
+import { useReceiptMutations } from './receipt/useReceiptMutations'
 
 // Lazy-loaded podkomponente
 const ActionButtons = dynamic(() => import('./receipt/ActionButtons').then(m => ({ default: m.ActionButtons })), { ssr: false })
@@ -30,7 +31,6 @@ export const ReceiptDialog = memo(function ReceiptDialog({
   onClose: () => void
 }) {
   const [isPreview, setIsPreview] = useState(true)
-  const [verifying, setVerifying] = useState(false)
   const [stornoDialogOpen, setStornoDialogOpen] = useState(false)
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('')
   const queryClient = useQueryClient()
@@ -92,70 +92,24 @@ export const ReceiptDialog = memo(function ReceiptDialog({
     generateQR()
   }, [receipt?.fiscalVerified, receipt?.zoi, receipt?.receiptDate, receipt?.total, receipt?.taxId, receipt?.businessId, receipt?.registerId])
 
-  // Shrani račun v bazo
-  const saveReceipt = useMutation({
-    mutationFn: async () => {
-      if (!orderId) return null
-      const res = await authFetch(`/api/receipts/${orderId}`, { method: 'POST' })
-      if (!res.ok) throw new Error('Napaka')
-      return res.json()
-    },
-    onSuccess: () => {
+  // ============================================
+  // MUTATIONS (podedovane iz pod-hooka)
+  // ============================================
+  const {
+    verifying,
+    markCopy,
+    fiscalVerify,
+    handleConfirmAndPrint,
+    handlePrint,
+    handleSendEmail,
+    handleSendSms,
+  } = useReceiptMutations({
+    orderId,
+    setIsPreview,
+    onStornoComplete: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.receipt.byOrder(orderId as string) })
-    },
-  })
-
-  // Označi kot natisnjen
-  const markPrinted = useMutation({
-    mutationFn: async () => {
-      if (!orderId) return null
-      const res = await authFetch(`/api/receipts/${orderId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ printed: true }),
-      })
-      if (!res.ok) throw new Error('Napaka')
-      return res.json()
-    },
-  })
-
-  // Ustvari kopijo
-  const markCopy = useMutation({
-    mutationFn: async () => {
-      if (!orderId) return null
-      const res = await authFetch(`/api/receipts/${orderId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ isCopy: true }),
-      })
-      return res.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.receipt.byOrder(orderId as string) })
-    },
-  })
-
-  // FURS davčno overjanje
-  const fiscalVerify = useMutation({
-    mutationFn: async () => {
-      if (!orderId) return null
-      setVerifying(true)
-      const res = await authFetch('/api/furs', {
-        method: 'POST',
-        body: JSON.stringify({ orderId }),
-      })
-      const result = await res.json()
-      if (!res.ok) throw new Error(result.error || 'Napaka pri overjanju')
-      return result
-    },
-    onSuccess: (result) => {
-      setVerifying(false)
-      toast.success(result.message || 'Račun davčno overjen!')
-      queryClient.invalidateQueries({ queryKey: queryKeys.receipt.byOrder(orderId as string) })
-      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
-    },
-    onError: (err: Error) => {
-      setVerifying(false)
-      toast.error(`Napaka pri overjanju: ${err.message}`)
+      onClose()
     },
   })
 
@@ -163,65 +117,6 @@ export const ReceiptDialog = memo(function ReceiptDialog({
   const handleStorno = useCallback(() => {
     setStornoDialogOpen(true)
   }, [])
-
-  const handlePrint = async () => {
-    // Najprej shrani račun
-    try {
-      await saveReceipt.mutateAsync()
-    } catch {
-      // Already handled by mutation
-    }
-    setIsPreview(false)
-    window.print()
-    markPrinted.mutate()
-  }
-
-  const handleConfirmAndPrint = async () => {
-    setIsPreview(false)
-    try {
-      await saveReceipt.mutateAsync()
-      // Avtomatsko zaženi FURS overitev
-      await fiscalVerify.mutateAsync()
-      window.print()
-      markPrinted.mutate()
-    } catch {
-      // Napaka pri overjanju ali shranjevanju -- ne tiskaj
-    }
-  }
-
-  const handleSendEmail = useCallback(async () => {
-    if (!orderId) return
-    try {
-      const res = await authFetch('/api/digital-receipt', {
-        method: 'POST',
-        body: JSON.stringify({ orderId, method: 'email' }),
-      })
-      if (res.ok) {
-        toast.success('Digitalni račun poslan po e-pošti!')
-      } else {
-        toast.error('Napaka pri pošiljanju')
-      }
-    } catch {
-      toast.error('Napaka pri pošiljanju')
-    }
-  }, [orderId])
-
-  const handleSendSms = useCallback(async () => {
-    if (!orderId) return
-    try {
-      const res = await authFetch('/api/digital-receipt', {
-        method: 'POST',
-        body: JSON.stringify({ orderId, method: 'sms' }),
-      })
-      if (res.ok) {
-        toast.success('Digitalni račun poslan po SMS!')
-      } else {
-        toast.error('Napaka pri pošiljanju')
-      }
-    } catch {
-      toast.error('Napaka pri pošiljanju')
-    }
-  }, [orderId])
 
   return (
     <Dialog open={open} onOpenChange={() => onClose()}>

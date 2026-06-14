@@ -1,20 +1,15 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
-import { toast } from 'sonner'
-import { Search, X } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import { AllergenFilterBar } from './AllergenFilterBar'
 import { OrderTypeBar } from './OrderTypeBar'
 import { MenuCategoryNav } from './MenuCategoryNav'
-import { MenuItemCard } from './MenuItemCard'
+import { MenuItemsGrid } from './MenuItemsGrid'
 import { ModifierDialog } from './ModifierDialog'
+import { useModifierSelection } from './useModifierSelection'
 import type { SelectedModifier } from '@/lib/store'
 import type {
-  ModifierGroupType, MenuItemType, MenuType,
+  MenuItemType, MenuType,
   SuperGroupType, StockInfoType,
 } from './types'
 
@@ -89,13 +84,21 @@ export function MenuBrowser({
   onSetLastAddedId,
   lastAddedId,
 }: MenuBrowserProps) {
-  // Lokalno stanje za kategorije, super-skupine, iskanje, modifier dialog
+  // Lokalno stanje za kategorije, super-skupine, iskanje
   const [activeCategory, setActiveCategory] = useState<string>('all')
   const [activeSuperGroup, setActiveSuperGroup] = useState<string>('all')
   const [itemSearch, setItemSearch] = useState<string>('')
-  // Modifier dialog
-  const [modifierDialogItem, setModifierDialogItem] = useState<MenuItemType | null>(null)
-  const [selectedModifiers, setSelectedModifiers] = useState<Map<string, SelectedModifier>>(new Map())
+
+  // Modifier selection hook
+  const {
+    modifierDialogItem,
+    selectedModifiers,
+    modifierExtraPrice,
+    handleItemClick,
+    handleModifierToggle,
+    handleModifierConfirm,
+    closeModifierDialog,
+  } = useModifierSelection({ onAddToCart, onSetLastAddedId })
 
   // Izračuni
   const resolvedMenuId = useMemo(() => {
@@ -134,66 +137,11 @@ export function MenuBrowser({
     ) || []
   }, [menuItems, resolvedMenuId, activeCategory, activeSuperGroup, superGroups, itemSearch])
 
-  // Handlerji
-  const handleItemClick = (item: MenuItemType) => {
+  // Wrapper za handleItemClick z stock info
+  const onItemClicked = (item: MenuItemType) => {
     const stockInfo = menuStockMap?.[item.id]
-    if (stockInfo?.status === 'out') {
-      toast.error(`"${item.name}" ni na zalogi!`, { description: 'Artikla ni mogoče naročiti.' })
-      return
-    }
-    if (stockInfo?.status === 'low') {
-      toast.warning(`Nizka zaloga: "${item.name}"`, { description: `Na voljo samo ${stockInfo.available} servisov.` })
-    }
-    if (item.modifierGroups?.length > 0) {
-      setModifierDialogItem(item)
-      setSelectedModifiers(new Map())
-    } else {
-      onAddToCart({ id: item.id, name: item.name, price: item.price, categoryId: item.categoryId, image: item.image })
-      onSetLastAddedId(item.id)
-      setTimeout(() => onSetLastAddedId(null), 500)
-    }
+    handleItemClick(item, stockInfo ? { status: stockInfo.status, available: stockInfo.available } : undefined)
   }
-
-  const handleModifierToggle = (group: ModifierGroupType['modifierGroup'], modifier: { id: string; name: string; price: number }) => {
-    setSelectedModifiers(prev => {
-      const newMap = new Map(prev)
-      const key = modifier.id
-      if (group.maxSelect && !newMap.has(key)) {
-        const currentCount = Array.from(newMap.values()).filter(m => m.modifierGroupId === group.id).length
-        if (currentCount >= group.maxSelect) {
-          const toRemove = Array.from(newMap.entries()).find(([_, v]) => v.modifierGroupId === group.id)
-          if (toRemove) newMap.delete(toRemove[0])
-        }
-      }
-      if (newMap.has(key)) { newMap.delete(key) }
-      else {
-        newMap.set(key, { id: modifier.id, name: modifier.name, price: modifier.price, modifierGroupId: group.id, modifierGroupName: group.name })
-      }
-      return newMap
-    })
-  }
-
-  const handleModifierConfirm = () => {
-    if (!modifierDialogItem) return
-    const unmetRequired = modifierDialogItem.modifierGroups
-      .filter(mg => mg.modifierGroup.required)
-      .filter(mg => {
-        const selected = Array.from(selectedModifiers.values()).filter(m => m.modifierGroupId === mg.modifierGroup.id)
-        return selected.length < (mg.modifierGroup.minSelect || 1)
-      })
-    if (unmetRequired.length > 0) {
-      toast.error(`Obvezna izbira: ${unmetRequired.map(mg => mg.modifierGroup.name).join(', ')}`)
-      return
-    }
-    const modifiers = Array.from(selectedModifiers.values())
-    onAddToCart({ id: modifierDialogItem.id, name: modifierDialogItem.name, price: modifierDialogItem.price, categoryId: modifierDialogItem.categoryId, image: modifierDialogItem.image, modifiers })
-    onSetLastAddedId(modifierDialogItem.id)
-    setTimeout(() => onSetLastAddedId(null), 500)
-    setModifierDialogItem(null)
-    setSelectedModifiers(new Map())
-  }
-
-  const modifierExtraPrice = modifierDialogItem ? Array.from(selectedModifiers.values()).reduce((s, m) => s + m.price, 0) : 0
 
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -223,69 +171,18 @@ export function MenuBrowser({
       />
       {/* ALLERGEN FILTER BAR - EU 1169/2011 */}
       <AllergenFilterBar />
-      {/* Quick Search */}
-      {itemSearch && (
-        <div className="px-3 pt-2 flex items-center gap-2 flex-shrink-0">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Išči artikel..."
-              value={itemSearch}
-              onChange={e => setItemSearch(e.target.value)}
-              className="h-8 text-xs pl-8 pr-8"
-              aria-label="Išči artikel"
-              autoFocus
-            />
-            <Button variant="ghost" size="icon" aria-label="Zapri" className="absolute right-0.5 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setItemSearch('')}>
-              <X className="h-3 w-3" />
-            </Button>
-          </div>
-          <Badge variant="secondary" className="text-[10px] h-6 flex-shrink-0">{filteredMenuItems.length}</Badge>
-        </div>
-      )}
-      {!itemSearch && (
-        <div className="px-3 pt-2 flex-shrink-0">
-          <button
-            onClick={() => setItemSearch(' ')}
-            className="flex items-center gap-2 w-full text-sm text-muted-foreground hover:text-foreground transition-colors py-2 px-3 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-primary/5"
-          >
-            <Search className="h-4 w-4" />
-            <span>Išči artikel...</span>
-            <kbd className="ml-auto text-[10px] bg-muted px-1.5 py-0.5 rounded border font-mono">⌘K</kbd>
-          </button>
-        </div>
-      )}
-      {/* ITEMS GRID */}
-      <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
-        {menuLoading || menusLoading ? (
-          <div className="grid grid-cols-3 lg:grid-cols-4 gap-2.5">
-            {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
-          </div>
-        ) : filteredMenuItems.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-            Ni artiklov v tej kategoriji
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
-            {filteredMenuItems.map((item: MenuItemType) => {
-              const inCart = cart.filter(c => c.id === item.id)
-              const totalQty = inCart.reduce((sum, c) => sum + c.quantity, 0)
-              const stockInfo = menuStockMap?.[item.id]
-              const isOutOfStock = stockInfo?.status === 'out'
-              return (
-                <MenuItemCard
-                  key={item.id}
-                  item={item}
-                  totalQty={totalQty}
-                  lastAddedId={lastAddedId}
-                  stockInfo={stockInfo}
-                  onClick={() => !isOutOfStock && handleItemClick(item)}
-                />
-              )
-            })}
-          </div>
-        )}
-      </div>
+      {/* Items Grid s search */}
+      <MenuItemsGrid
+        filteredMenuItems={filteredMenuItems}
+        menuStockMap={menuStockMap}
+        cart={cart}
+        lastAddedId={lastAddedId}
+        itemSearch={itemSearch}
+        onItemSearchChange={setItemSearch}
+        onItemClick={onItemClicked}
+        menusLoading={menusLoading}
+        menuLoading={menuLoading}
+      />
       {/* MODIFIER DIALOG */}
       <ModifierDialog
         modifierDialogItem={modifierDialogItem}
@@ -293,7 +190,7 @@ export function MenuBrowser({
         modifierExtraPrice={modifierExtraPrice}
         onToggle={handleModifierToggle}
         onConfirm={handleModifierConfirm}
-        onClose={() => { setModifierDialogItem(null); setSelectedModifiers(new Map()) }}
+        onClose={closeModifierDialog}
       />
     </div>
   )

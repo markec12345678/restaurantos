@@ -2,22 +2,20 @@
 
 import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Table,
   TableBody,
   TableCell,
+  TableRow,
   TableHead,
   TableHeader,
-  TableRow,
 } from '@/components/ui/table'
-import { Search, Plus, Pencil, Trash2, ArrowDownToLine, Calendar, User, Hash, CheckCircle2, Clock, ArrowUpDown, History, Ban, Gift } from 'lucide-react'
-import { type GiftCard, statusConfig, formatDateSI, formatCurrency } from './constants'
+import { ArrowUpDown, Gift } from 'lucide-react'
+import { GiftCardFilters } from './GiftCardFilters'
+import { GiftCardRow } from './GiftCardRow'
+import type { GiftCard } from './constants'
 
-// --- Props ---
+// --- Tipi ---
 
 type SortField = 'purchasedAt' | 'balance' | 'cardNumber'
 type SortDir = 'asc' | 'desc'
@@ -73,38 +71,13 @@ export const GiftCardTable = memo(function GiftCardTable({
   return (
     <>
       {/* Filtri */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap gap-3 items-end">
-            <div className="relative flex-1 min-w-48 max-w-sm">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Išči po številki kartice ali lastniku..."
-                aria-label="Iskanje kartic"
-                value={search}
-                onChange={(e) => onSearchChange(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={onStatusFilterChange}>
-              <SelectTrigger className="w-44" id="gc-status-filter">
-                <SelectValue placeholder="Status filter" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Vsi statusi</SelectItem>
-                <SelectItem value="active">Aktivna</SelectItem>
-                <SelectItem value="depleted">Porabljena</SelectItem>
-                <SelectItem value="expired">Potekla</SelectItem>
-                <SelectItem value="suspended">Suspendirana</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button onClick={onOpenNewCard}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nova kartica
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <GiftCardFilters
+        search={search}
+        statusFilter={statusFilter}
+        onSearchChange={onSearchChange}
+        onStatusFilterChange={onStatusFilterChange}
+        onOpenNewCard={onOpenNewCard}
+      />
 
       {/* Tabela kartic */}
       <Card>
@@ -163,119 +136,18 @@ export const GiftCardTable = memo(function GiftCardTable({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredCards.map((card) => {
-                    const cfg = statusConfig[card.status] || statusConfig.active
-                    return (
-                      <TableRow key={card.id} className="hover:bg-muted/50">
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Hash className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="font-mono text-sm font-medium">{card.cardNumber}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <User className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-sm">{card.ownerName || '—'}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-medium text-sm">
-                          {formatCurrency(card.initialBalance)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span className={`font-bold text-sm ${card.balance > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}`}>
-                            {formatCurrency(card.balance)}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={`text-[10px] px-2 py-0.5 ${cfg.bgColor}`}>
-                            <span className={`h-1.5 w-1.5 rounded-full ${cfg.dotColor} mr-1.5`} aria-hidden="true" />
-                            {cfg.label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                            <Calendar className="h-3.5 w-3.5" />
-                            {formatDateSI(card.purchasedAt)}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                            <Clock className="h-3.5 w-3.5" />
-                            {card.expiresAt ? formatDateSI(card.expiresAt) : 'Brez roka'}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label="Zgodovina"
-                              className="h-7 w-7"
-                              title="Zgodovina transakcij"
-                              onClick={() => onOpenHistory(card)}
-                            >
-                              <History className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label="Naloži sredstva"
-                              className="h-7 w-7"
-                              title="Naloži sredstva"
-                              onClick={() => onOpenLoad(card)}
-                              disabled={card.status === 'suspended'}
-                            >
-                              <ArrowDownToLine className="h-3.5 w-3.5" />
-                            </Button>
-                            {card.status === 'active' ? (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label="Suspendiraj"
-                                className="h-7 w-7 text-amber-600"
-                                title="Suspendiraj"
-                                onClick={() => onSuspendCard(card)}
-                              >
-                                <Ban className="h-3.5 w-3.5" />
-                              </Button>
-                            ) : (card.status === 'suspended' || card.status === 'expired') ? (
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                aria-label="Reaktiviraj"
-                                className="h-7 w-7 text-emerald-600"
-                                title="Reaktiviraj"
-                                onClick={() => onReactivateCard(card)}
-                              >
-                                <CheckCircle2 className="h-3.5 w-3.5" />
-                              </Button>
-                            ) : null}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label="Uredi"
-                              className="h-7 w-7"
-                              title="Uredi"
-                              onClick={() => onOpenEdit(card)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              aria-label="Izbriši"
-                              className="h-7 w-7 text-destructive"
-                              title="Izbriši"
-                              onClick={() => onConfirmDelete(card)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })
+                  filteredCards.map((card) => (
+                    <GiftCardRow
+                      key={card.id}
+                      card={card}
+                      onOpenHistory={onOpenHistory}
+                      onOpenLoad={onOpenLoad}
+                      onOpenEdit={onOpenEdit}
+                      onConfirmDelete={onConfirmDelete}
+                      onSuspendCard={onSuspendCard}
+                      onReactivateCard={onReactivateCard}
+                    />
+                  ))
                 )}
               </TableBody>
             </Table>
