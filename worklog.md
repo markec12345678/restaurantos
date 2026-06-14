@@ -2359,3 +2359,21 @@ Stage Summary:
 - 4 parent files split into 10 total files
 - 6 new files created (2 types, 1 constants, 1 sound manager, 1 recommendation card, 2 mutation sub-hooks)
 - All files under 270 lines (max: ShiftManager at 270)
+---
+Task ID: round-19
+Agent: Main Agent
+Task: Round 19 refactoring — split 4 large files into sub-hooks and chart sub-components
+
+Work Log:
+- Extracted RecipeManager.tsx (305→268) — recipe/useRecipeMutations.ts (79 lines) sub-hook
+- Extracted useInventoryState.ts (301→244) — inventory/useInventoryMutations.ts (96 lines) sub-hook
+- Extracted usePaymentDialog.ts (299→202) — payment/useProcessPayment.ts (158 lines) sub-hook
+- Extracted PeriodReport.tsx (298→207) — period/TimeDistributionChart (45), PaymentMethodChart (72), CostAnalysisCard (67)
+- Fixed status type in useProcessPayment (string → string?)
+- TypeScript: 0 errors, ESLint: 0 errors/warnings
+- Pushed to GitHub
+
+Stage Summary:
+- 4 parent files split into 11 total files
+- 7 new files created (3 chart sub-components, 4 mutation sub-hooks)
+- All files under 270 lines (max: RecipeManager at 268)
