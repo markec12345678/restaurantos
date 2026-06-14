@@ -1,44 +1,24 @@
 'use client'
 
-// ═══════════════════════════════════════════════════════════════
+// ============================================
 // RestaurantOS — Sledenje stroškov
-// Restaurant365 + Toast standard
 // Kategorije, proračun, trendi, ponavljajoči stroški
-// ═══════════════════════════════════════════════════════════════
+// ============================================
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { authFetch } from '@/components/pos/PinLogin'
-import { DollarSign, Plus, TrendingDown, TrendingUp, Receipt, Building, Truck, Zap, ShieldCheck, Wrench, Package, CreditCard, Banknote, RefreshCw, ArrowUpRight } from 'lucide-react'
+import { DollarSign, Plus, TrendingDown, Receipt, RefreshCw } from 'lucide-react'
 import { useState, useMemo, useCallback, memo } from 'react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
-import { Label } from '@/components/ui/label'
 import { queryKeys } from '@/lib/query-keys'
-
-const CATEGORIES = [
-  { id: 'rent', label: 'Najemnina', icon: Building, color: 'blue' },
-  { id: 'utilities', label: 'Komunalne', icon: Zap, color: 'yellow' },
-  { id: 'supplies', label: 'Zaloge', icon: Package, color: 'green' },
-  { id: 'food', label: 'Živila', icon: Truck, color: 'orange' },
-  { id: 'labor', label: 'Delovna sila', icon: DollarSign, color: 'purple' },
-  { id: 'maintenance', label: 'Vzdrževanje', icon: Wrench, color: 'red' },
-  { id: 'insurance', label: 'Zavarovanje', icon: ShieldCheck, color: 'cyan' },
-  { id: 'marketing', label: 'Marketing', icon: TrendingUp, color: 'pink' },
-  { id: 'other', label: 'Ostalo', icon: Receipt, color: 'gray' },
-]
-
-const PAYMENT_METHODS = [
-  { id: 'cash', label: 'Gotovina', icon: Banknote },
-  { id: 'card', label: 'Kartica', icon: CreditCard },
-  { id: 'transfer', label: 'Transakcija', icon: ArrowUpRight },
-]
+import { ExpenseAddDialog } from './ExpenseAddDialog'
+import { CATEGORIES, PAYMENT_METHODS } from './constants'
 
 export const ExpenseTracker = memo(function ExpenseTracker() {
   const queryClient = useQueryClient()
@@ -81,7 +61,6 @@ export const ExpenseTracker = memo(function ExpenseTracker() {
     onError: () => toast.error('Napaka pri dodajanju stroška'),
   })
 
-  // FIX PERF: useMemo za izračune — prej so se računali na vsakem renderu
   const stats = data?.stats
   const expenses = data?.expenses || []
   const byCategory = stats?.byCategory || {}
@@ -91,7 +70,6 @@ export const ExpenseTracker = memo(function ExpenseTracker() {
     return (stats.totalExpenses / stats.count).toFixed(2)
   }, [stats?.count, stats?.totalExpenses])
 
-  // FIX PERF: useCallback za handlerje — prej so se ustvarjali na vsakem renderu
   const handleAddExpense = useCallback(() => {
     addMutation.mutate(form)
   }, [addMutation, form])
@@ -123,9 +101,7 @@ export const ExpenseTracker = memo(function ExpenseTracker() {
         </div>
         <div className="flex items-center gap-2">
           <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-36">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="today">Danes</SelectItem>
               <SelectItem value="week">Teden</SelectItem>
@@ -140,50 +116,28 @@ export const ExpenseTracker = memo(function ExpenseTracker() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingDown className="h-4 w-4 text-red-500" />
-              <span className="text-xs text-muted-foreground">Skupni stroški</span>
-            </div>
-            <p className="text-2xl font-bold">€{(stats?.totalExpenses || 0).toFixed(2)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <RefreshCw className="h-4 w-4 text-amber-500" />
-              <span className="text-xs text-muted-foreground">Ponavljajoči</span>
-            </div>
-            <p className="text-2xl font-bold">€{(stats?.recurringExpenses || 0).toFixed(2)}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <Receipt className="h-4 w-4 text-blue-500" />
-              <span className="text-xs text-muted-foreground">Število</span>
-            </div>
-            <p className="text-2xl font-bold">{stats?.count || 0}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="h-4 w-4 text-purple-500" />
-              <span className="text-xs text-muted-foreground">Povprečni</span>
-            </div>
-            <p className="text-2xl font-bold">€{avgExpense}</p>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-1"><TrendingDown className="h-4 w-4 text-red-500" /><span className="text-xs text-muted-foreground">Skupni stroški</span></div>
+          <p className="text-2xl font-bold">€{(stats?.totalExpenses || 0).toFixed(2)}</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-1"><RefreshCw className="h-4 w-4 text-amber-500" /><span className="text-xs text-muted-foreground">Ponavljajoči</span></div>
+          <p className="text-2xl font-bold">€{(stats?.recurringExpenses || 0).toFixed(2)}</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-1"><Receipt className="h-4 w-4 text-blue-500" /><span className="text-xs text-muted-foreground">Število</span></div>
+          <p className="text-2xl font-bold">{stats?.count || 0}</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-1"><DollarSign className="h-4 w-4 text-purple-500" /><span className="text-xs text-muted-foreground">Povprečni</span></div>
+          <p className="text-2xl font-bold">€{avgExpense}</p>
+        </CardContent></Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Stroški po kategorijah */}
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Po kategorijah</CardTitle>
-          </CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-lg">Po kategorijah</CardTitle></CardHeader>
           <CardContent>
             <div className="space-y-3">
               {CATEGORIES.map(cat => {
@@ -215,9 +169,7 @@ export const ExpenseTracker = memo(function ExpenseTracker() {
 
         {/* Zadnji stroški */}
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Zadnji vnosi</CardTitle>
-          </CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-lg">Zadnji vnosi</CardTitle></CardHeader>
           <CardContent>
             <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
               {expenses.slice(0, 20).map((exp: {
@@ -261,55 +213,14 @@ export const ExpenseTracker = memo(function ExpenseTracker() {
       </div>
 
       {/* Add Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Plus className="h-5 w-5" />Nov strošek</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="exp-category">Kategorija</Label>
-              <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
-                <SelectTrigger id="exp-category" autoFocus><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map(c => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="exp-description">Opis</Label>
-              <Input id="exp-description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Opis stroška"  aria-label="Opis stroška"/>
-            </div>
-            <div>
-              <Label htmlFor="exp-amount">Znesek (€)</Label>
-              <Input id="exp-amount" type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0.00"  aria-label="0.00"/>
-            </div>
-            <div>
-              <Label htmlFor="exp-vendor">Dobavitelj</Label>
-              <Input id="exp-vendor" value={form.vendor} onChange={(e) => setForm({ ...form, vendor: e.target.value })} placeholder="Ime dobavitelja"  aria-label="Ime dobavitelja"/>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <Label htmlFor="exp-payment">Način plačila</Label>
-                <Select value={form.paymentMethod} onValueChange={(v) => setForm({ ...form, paymentMethod: v })}>
-                  <SelectTrigger id="exp-payment"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {PAYMENT_METHODS.map(p => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-2 pt-5">
-                <input id="exp-recurring" type="checkbox" checked={form.recurring} onChange={(e) => setForm({ ...form, recurring: e.target.checked })} className="rounded" />
-                <Label htmlFor="exp-recurring" className="text-sm">Ponavljajoč</Label>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>Prekliči</Button>
-            <Button onClick={handleAddExpense} disabled={!form.description || !form.amount || addMutation.isPending}>Dodaj</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ExpenseAddDialog
+        open={showAddDialog}
+        onOpenChange={setShowAddDialog}
+        form={form}
+        setForm={setForm}
+        onSubmit={handleAddExpense}
+        isPending={addMutation.isPending}
+      />
     </div>
   )
 })

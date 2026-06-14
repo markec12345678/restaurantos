@@ -2293,3 +2293,30 @@ Stage Summary:
 - 8 new files created (types.ts x2, 3 sub-components, 2 sub-hooks, 1 filter bar)
 - All files well under 400 lines (max: 300 lines)
 - Largest POS file now useOrderPanel.ts at 267 lines (was 371 before this session's earlier work)
+
+---
+Task ID: round-16
+Agent: Main Agent
+Task: Round 16 refactoring — split 4 largest files into sub-components and sub-hooks
+
+Work Log:
+- Created haccp/useHaccpMutations.ts (78 lines) — extracted CRUD mutations
+- Reduced useHaccpManager.ts from 318 to 236 lines
+- Moved StockDashboard.tsx to stock-dashboard/ subdirectory with 3 sub-components
+- Created stock-dashboard/types.ts (49 lines), StockStatsCards.tsx (75 lines), StockItemRow.tsx (101 lines)
+- Reduced StockDashboard.tsx from 318 to 129 lines
+- Moved ExpenseTracker.tsx to expense-tracker/ subdirectory with dialog sub-component
+- Created expense-tracker/constants.ts (23 lines), ExpenseAddDialog.tsx (98 lines)
+- Reduced ExpenseTracker.tsx from 315 to 226 lines
+- Moved Sidebar.tsx to sidebar/ subdirectory with extracted navItems and hooks
+- Created sidebar/navItems.ts (87 lines), sidebar/useAuthUser.ts (39 lines)
+- Reduced Sidebar.tsx from 313 to 181 lines
+- Updated import paths in page.tsx and InventoryManager.tsx
+- Removed unused imports from navItems.ts (Maximize, Minimize, Monitor, ExternalLink, HandMetal)
+- TypeScript: 0 errors, ESLint: 0 errors/warnings
+
+Stage Summary:
+- 4 parent files split into 13 total files
+- 9 new files created
+- All files well under 300 lines
+- All imports updated, no broken references

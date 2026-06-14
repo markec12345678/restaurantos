@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { memo } from 'react'
 import dynamic from 'next/dynamic'
-import { StockDashboard } from '@/components/pos/StockDashboard'
+import { StockDashboard } from '@/components/pos/stock-dashboard/StockDashboard'
 import { useInventoryState } from './inventory/useInventoryState'
 
 // Lazy-loaded podkomponente

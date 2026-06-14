@@ -1,7 +1,7 @@
 'use client'
 
 import { usePOSStore } from '@/lib/store'
-import { Sidebar } from '@/components/pos/Sidebar'
+import { Sidebar } from '@/components/pos/sidebar/Sidebar'
 import { KioskBar } from '@/components/pos/KioskBar'
 import { PinLogin, getCurrentUser, setCurrentUser, getAuthToken } from '@/components/pos/PinLogin'
 import { HappyHourBanner } from '@/components/pos/HappyHourBanner'
@@ -59,7 +59,7 @@ const KitchenPrepQueue = dynamic(() => import('@/components/pos/KitchenPrepQueue
 const NotificationManager = dynamic(() => import('@/components/pos/NotificationManager').then(m => ({ default: m.NotificationManager })), { ssr: false, loading: () => loadingFallback })
 const AllergenMatrix = dynamic(() => import('@/components/pos/AllergenMatrix').then(m => ({ default: m.AllergenMatrix })), { ssr: false, loading: () => loadingFallback })
 const TableTurnoverAnalytics = dynamic(() => import('@/components/pos/TableTurnoverAnalytics').then(m => ({ default: m.TableTurnoverAnalytics })), { ssr: false, loading: () => loadingFallback })
-const ExpenseTracker = dynamic(() => import('@/components/pos/ExpenseTracker').then(m => ({ default: m.ExpenseTracker })), { ssr: false, loading: () => loadingFallback })
+const ExpenseTracker = dynamic(() => import('@/components/pos/expense-tracker/ExpenseTracker').then(m => ({ default: m.ExpenseTracker })), { ssr: false, loading: () => loadingFallback })
 const DailyChecklist = dynamic(() => import('@/components/pos/DailyChecklist').then(m => ({ default: m.DailyChecklist })), { ssr: false, loading: () => loadingFallback })
 const EndOfDayManager = dynamic(() => import('@/components/pos/EndOfDayManager').then(m => ({ default: m.EndOfDayManager })), { ssr: false, loading: () => loadingFallback })
 const CoursePacing = dynamic(() => import('@/components/pos/CoursePacing').then(m => ({ default: m.CoursePacing })), { ssr: false, loading: () => loadingFallback })

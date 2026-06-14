@@ -4,12 +4,13 @@
 // ============================================
 
 import { useState, useMemo, useCallback } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import { formatDateSI, isToday } from './utils'
 import type { HaccpEntry, HaccpFormData } from './types'
+import { useHaccpMutations } from './useHaccpMutations'
 
 export interface UseHaccpManagerReturn {
   // Stanja
@@ -59,8 +60,6 @@ export interface UseHaccpManagerReturn {
 }
 
 export function useHaccpManager(): UseHaccpManagerReturn {
-  const queryClient = useQueryClient()
-
   // --- Stanja ---
   const [activeTab, setActiveTab] = useState('all')
   const [search, setSearch] = useState('')
@@ -87,6 +86,17 @@ export function useHaccpManager(): UseHaccpManagerReturn {
 
   // --- Razširjeni vnosi ---
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null)
+
+  // ============================================
+  // MUTATIONS (iz useHaccpMutations)
+  // ============================================
+
+  const { createMutation, updateMutation, deleteMutation } = useHaccpMutations({
+    setDialogOpen,
+    setEditingEntry: () => setEditingEntry(null),
+    setDeleteDialogOpen,
+    setDeleteTarget: () => setDeleteTarget(null),
+  })
 
   // ============================================
   // QUERIES
@@ -127,66 +137,6 @@ export function useHaccpManager(): UseHaccpManagerReturn {
   const lastEntryTime = allEntries.length > 0
     ? formatDateSI(allEntries[0].createdAt)
     : 'Ni vnosov'
-
-  // ============================================
-  // MUTATIONS
-  // ============================================
-
-  const createMutation = useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      const res = await authFetch('/api/haccp', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error('Napaka')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('HACCP vnos uspešno dodan')
-      queryClient.invalidateQueries({ queryKey: queryKeys.haccp.all })
-      setDialogOpen(false)
-    },
-    onError: () => {
-      toast.error('Napaka pri dodajanju HACCP vnosa')
-    },
-  })
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await authFetch('/api/haccp', {
-        method: 'PUT',
-        body: JSON.stringify({ id, ...data }),
-      })
-      if (!res.ok) throw new Error('Napaka')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('HACCP vnos uspešno posodobljen')
-      queryClient.invalidateQueries({ queryKey: queryKeys.haccp.all })
-      setDialogOpen(false)
-      setEditingEntry(null)
-    },
-    onError: () => {
-      toast.error('Napaka pri posodabljanju HACCP vnosa')
-    },
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await authFetch(`/api/haccp?id=${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Napaka')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('HACCP vnos uspešno izbrisan')
-      queryClient.invalidateQueries({ queryKey: queryKeys.haccp.all })
-      setDeleteDialogOpen(false)
-      setDeleteTarget(null)
-    },
-    onError: () => {
-      toast.error('Napaka pri brisanju HACCP vnosa')
-    },
-  })
 
   // ============================================
   // HANDLERJI
@@ -270,49 +220,17 @@ export function useHaccpManager(): UseHaccpManagerReturn {
   const hasActiveFilters = !!(dateFrom || dateTo || search || activeTab !== 'all')
 
   return {
-    // Stanja
-    activeTab,
-    setActiveTab,
-    search,
-    setSearch,
-    dateFrom,
-    setDateFrom,
-    dateTo,
-    setDateTo,
-    showFilters,
-    setShowFilters,
-    dialogOpen,
-    editingEntry,
-    formData,
-    setFormData,
-    deleteDialogOpen,
-    deleteTarget,
-    expandedEntry,
-    setExpandedEntry,
-
-    // Podatki
-    isLoading,
-    allEntries,
-    filteredEntries,
-    todayEntries,
-    warningCount,
-    criticalCount,
-    lastEntryTime,
-    hasActiveFilters,
-
-    // Mutacije
+    activeTab, setActiveTab, search, setSearch,
+    dateFrom, setDateFrom, dateTo, setDateTo,
+    showFilters, setShowFilters,
+    dialogOpen, editingEntry, formData, setFormData,
+    deleteDialogOpen, deleteTarget, expandedEntry, setExpandedEntry,
+    isLoading, allEntries, filteredEntries, todayEntries,
+    warningCount, criticalCount, lastEntryTime, hasActiveFilters,
     isCreatePending: createMutation.isPending,
     isUpdatePending: updateMutation.isPending,
     isDeletePending: deleteMutation.isPending,
-
-    // Handlerji
-    openCreate,
-    openEdit,
-    handleSubmit,
-    confirmDelete,
-    resetFilters,
-    handleDialogOpenChange,
-    handleDeleteConfirm,
-    setDeleteDialogOpen,
+    openCreate, openEdit, handleSubmit, confirmDelete,
+    resetFilters, handleDialogOpenChange, handleDeleteConfirm, setDeleteDialogOpen,
   }
 }
