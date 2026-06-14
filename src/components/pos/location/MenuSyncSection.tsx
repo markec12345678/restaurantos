@@ -22,7 +22,7 @@ export const MenuSyncSection = memo(function MenuSyncSection({
   return (
     <Card className="border-purple-500/30">
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg flex items-center gap-2">🔄 Sinhronizacija menijev</CardTitle>
+        <CardTitle className="text-lg flex items-center gap-2">Sinhronizacija menijev</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">

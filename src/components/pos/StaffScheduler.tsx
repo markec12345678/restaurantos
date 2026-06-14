@@ -5,32 +5,28 @@
 // Tedenski pogled, dodeljevanje izmen, statistika ur
 // ═══════════════════════════════════════════════════════════════
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState, useMemo, useCallback, memo } from 'react'
+import { format, addDays, startOfWeek } from 'date-fns'
 import dynamic from 'next/dynamic'
-import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, Plus, CheckCircle2, XCircle, UserCheck, Briefcase, TrendingUp } from 'lucide-react'
-import { useState, useMemo, useCallback, memo } from 'react'
-import { format, addDays, startOfWeek, isToday } from 'date-fns'
-import { sl } from 'date-fns/locale'
-import { toast } from 'sonner'
-import { type EmployeeType, type ShiftType, type JobType, statusLabels, calcHours } from './scheduler/constants'
+import {
+  type EmployeeType,
+  type ShiftType,
+  type JobType,
+  type SchedulerStats,
+  calcHours,
+  statusLabels,
+} from './scheduler/constants'
 
-// ─── Lazy-loaded podkomponente ─────────────────────────────────
-const WeekView = dynamic(
-  () => import('./scheduler/WeekView').then(mod => mod.WeekView),
-  { ssr: false },
-)
-const ShiftDialog = dynamic(
-  () => import('./scheduler/ShiftDialog').then(mod => mod.ShiftDialog),
-  { ssr: false },
-)
-const CopyWeekDialog = dynamic(
-  () => import('./scheduler/CopyWeekDialog').then(mod => mod.CopyWeekDialog),
-  { ssr: false },
-)
+// Lazy-loaded podkomponente
+const SchedulerHeader = dynamic(() => import('./scheduler/SchedulerHeader').then(m => ({ default: m.SchedulerHeader })), { ssr: false })
+const WeekNavigator = dynamic(() => import('./scheduler/WeekNavigator').then(m => ({ default: m.WeekNavigator })), { ssr: false })
+const StatsCards = dynamic(() => import('./scheduler/StatsCards').then(m => ({ default: m.StatsCards })), { ssr: false })
+const WeekView = dynamic(() => import('./scheduler/WeekView').then(m => ({ default: m.WeekView })), { ssr: false })
+const ShiftDialog = dynamic(() => import('./scheduler/ShiftDialog').then(m => ({ default: m.ShiftDialog })), { ssr: false })
+const CopyWeekDialog = dynamic(() => import('./scheduler/CopyWeekDialog').then(m => ({ default: m.CopyWeekDialog })), { ssr: false })
 
 // ─── GLAVNA KOMPONENTA ─────────────────────────────────────────
 export const StaffScheduler = memo(function StaffScheduler() {
@@ -99,7 +95,7 @@ export const StaffScheduler = memo(function StaffScheduler() {
   }, [filteredShifts])
 
   // Statistika
-  const stats = useMemo(() => {
+  const stats = useMemo<SchedulerStats>(() => {
     const totalHours = filteredShifts.reduce((sum, s) => sum + calcHours(s.startTime, s.endTime, s.breakMinutes), 0)
     const scheduledCount = filteredShifts.filter(s => s.status === 'scheduled').length
     const completedCount = filteredShifts.filter(s => s.status === 'completed').length
@@ -211,125 +207,25 @@ export const StaffScheduler = memo(function StaffScheduler() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
-        <div>
-          <h2 className="text-xl font-bold flex items-center gap-2">
-            <CalendarDays className="h-5 w-5 text-primary" />
-            Razpored zaposlenih
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            {stats.uniqueEmployees} zaposlenih · {stats.totalHours.toFixed(1)} ur · {filteredShifts.length} izmen
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setCopyDialogOpen(true)}>
-            {/* Kopiraj teden gumb */}
-            <CalendarDays className="h-4 w-4 mr-1" /> Kopiraj teden
-          </Button>
-          <Button size="sm" onClick={() => openNewShift()}>
-            <Plus className="h-4 w-4 mr-1" /> Nova izmena
-          </Button>
-        </div>
-      </div>
+      <SchedulerHeader
+        stats={stats}
+        filteredShiftsCount={filteredShifts.length}
+        onCopyWeek={() => setCopyDialogOpen(true)}
+        onNewShift={() => openNewShift()}
+      />
       {/* Teden navigacija + filtri */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-border bg-muted/30 flex-shrink-0">
-        <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon" aria-label="Nazaj" className="h-8 w-8" onClick={() => navigateWeek(-1)}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button variant={isToday(addDays(weekStart, 3)) ? 'default' : 'outline'} size="sm" onClick={goToThisWeek} className="min-w-48">
-            <CalendarDays className="h-3.5 w-3.5 mr-1.5" />
-            {format(weekStart, 'd. MMM', { locale: sl })} — {format(weekEnd, 'd. MMM yyyy', { locale: sl })}
-          </Button>
-          <Button variant="outline" size="icon" aria-label="Naprej" className="h-8 w-8" onClick={() => navigateWeek(1)}>
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="flex gap-1 ml-4">
-          <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-            <SelectTrigger className="h-8 w-48 text-xs">
-              <SelectValue placeholder="Vsi zaposleni" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Vsi zaposleni ({employees.length})</SelectItem>
-              {employees.map(emp => (
-                <SelectItem key={emp.id} value={emp.id}>{emp.name} — {emp.role}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      {/* Statistične kartice */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 px-4 py-3 flex-shrink-0">
-        <Card className="p-3">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <Clock className="h-4 w-4 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Skupaj ur</p>
-              <p className="font-bold text-sm">{stats.totalHours.toFixed(1)}h</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-3">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
-              <UserCheck className="h-4 w-4 text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Zaposlenih</p>
-              <p className="font-bold text-sm">{stats.uniqueEmployees}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-3">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
-              <Briefcase className="h-4 w-4 text-amber-600" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Načrtovane</p>
-              <p className="font-bold text-sm">{stats.scheduledCount}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-3">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <TrendingUp className="h-4 w-4 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">V teku</p>
-              <p className="font-bold text-sm">{stats.inProgressCount}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-3">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-gray-100 dark:bg-gray-900/30 flex items-center justify-center">
-              <CheckCircle2 className="h-4 w-4 text-gray-600" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Zaključene</p>
-              <p className="font-bold text-sm">{stats.completedCount}</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-3">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
-              <XCircle className="h-4 w-4 text-red-600" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Odsotni</p>
-              <p className="font-bold text-sm">{stats.absentCount}</p>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Tedenski razpored — lazy-loaded */}
+      <WeekNavigator
+        weekStart={weekStart}
+        weekEnd={weekEnd}
+        selectedEmployee={selectedEmployee}
+        employees={employees}
+        onNavigateWeek={navigateWeek}
+        onGoToThisWeek={goToThisWeek}
+        onEmployeeChange={setSelectedEmployee}
+      />
+      {/* Statisticne kartice */}
+      <StatsCards stats={stats} />
+      {/* Tedenski razpored */}
       <WeekView
         weekDates={weekDates}
         shiftsByDate={shiftsByDate}
@@ -341,8 +237,7 @@ export const StaffScheduler = memo(function StaffScheduler() {
         onDeleteShift={handleDeleteShift}
         onStatusChange={handleShiftStatusChange}
       />
-
-      {/* Dialog za novo/uredi izmeno — lazy-loaded */}
+      {/* Dialog za novo/uredi izmeno */}
       <ShiftDialog
         open={dialogOpen}
         onClose={handleDialogClose}
@@ -352,8 +247,7 @@ export const StaffScheduler = memo(function StaffScheduler() {
         weekDates={weekDates}
         onSave={saveMutation.mutate}
       />
-
-      {/* Dialog za kopiranje tedna — lazy-loaded */}
+      {/* Dialog za kopiranje tedna */}
       <CopyWeekDialog
         open={copyDialogOpen}
         onClose={handleCopyDialogClose}

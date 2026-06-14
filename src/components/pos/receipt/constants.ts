@@ -111,3 +111,9 @@ export interface ReceiptContentProps {
   receipt: ReceiptData
   qrCodeDataUrl: string
 }
+
+/** Props za StatusBadges podkomponento */
+export interface StatusBadgesProps {
+  isPreview: boolean
+  receipt: ReceiptData
+}

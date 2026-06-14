@@ -6,15 +6,15 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Card, CardContent } from '@/components/ui/card'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import { FileText, CheckCircle2, Calculator } from 'lucide-react'
-import { useState, memo } from 'react'
+import { useState, useCallback, memo } from 'react'
 import dynamic from 'next/dynamic'
 import { format } from 'date-fns'
 import { sl } from 'date-fns/locale'
@@ -26,8 +26,8 @@ const ZReportStats = dynamic(() => import('./zreport/ZReportStats').then(m => ({
 const PaymentBreakdown = dynamic(() => import('./zreport/PaymentBreakdown').then(m => ({ default: m.PaymentBreakdown })), { ssr: false })
 const VatCashSection = dynamic(() => import('./zreport/VatCashSection').then(m => ({ default: m.VatCashSection })), { ssr: false })
 const ProfitDiscountSection = dynamic(() => import('./zreport/ProfitDiscountSection').then(m => ({ default: m.ProfitDiscountSection })), { ssr: false })
-const ZReportCloseDialog = dynamic(() => import('./zreport/ZReportCloseDialog').then(m => ({ default: m.ZReportCloseDialog })), { ssr: false })
 const ZReportHistory = dynamic(() => import('./zreport/ZReportHistory').then(m => ({ default: m.ZReportHistory })), { ssr: false })
+const ZReportCloseDialog = dynamic(() => import('./zreport/ZReportCloseDialog').then(m => ({ default: m.ZReportCloseDialog })), { ssr: false })
 
 export const ZReportManager = memo(function ZReportManager() {
   const queryClient = useQueryClient()
@@ -82,6 +82,46 @@ export const ZReportManager = memo(function ZReportManager() {
 
   const report = currentReport as ZReportData | null
 
+  // Handler za izbiro datuma
+  const handleDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSelectedDate(e.target.value)
+  }, [])
+
+  // Handler za odpiranje zaključnega dialoga
+  const handleOpenCloseDialog = useCallback(() => {
+    setShowCloseDialog(true)
+  }, [])
+
+  // Handler za zapiranje zaključnega dialoga (onOpenChange pattern)
+  const handleCloseDialogOpenChange = useCallback((open: boolean) => {
+    setShowCloseDialog(open)
+  }, [])
+
+  // Handler za generiranje osnutka
+  const handleGenerate = useCallback(() => {
+    generateMutation.mutate(false)
+  }, [generateMutation])
+
+  // Handler za finalno zaključevanje
+  const handleFinalize = useCallback(() => {
+    generateMutation.mutate(true)
+  }, [generateMutation])
+
+  // Handler za vnos dejanske gotovine
+  const handleActualCashChange = useCallback((value: string) => {
+    setActualCash(value)
+  }, [])
+
+  // Handler za vnos opomb
+  const handleCloseNotesChange = useCallback((value: string) => {
+    setCloseNotes(value)
+  }, [])
+
+  // Handler za izbibo datuma iz zgodovine
+  const handleSelectDate = useCallback((date: string) => {
+    setSelectedDate(date)
+  }, [])
+
   if (isLoading || loadingReport) {
     return (
       <div className="space-y-4 p-4">
@@ -106,21 +146,22 @@ export const ZReportManager = memo(function ZReportManager() {
           <p className="text-muted-foreground">Dnevni zaključek — End of Day Report</p>
         </div>
         <div className="flex items-center gap-3">
+          <label htmlFor="zreport-date-select" className="sr-only">Izberi datum</label>
           <Input
             id="zreport-date-select"
             type="date"
             value={selectedDate}
-            onChange={(e) => setSelectedDate(e.target.value)}
+            onChange={handleDateChange}
             className="w-44"
             aria-label="Izberi datum poročila"
           />
           {report?.status === 'draft' ? (
-            <Button onClick={() => setShowCloseDialog(true)} className="bg-amber-600 hover:bg-amber-700">
+            <Button onClick={handleOpenCloseDialog} className="bg-amber-600 hover:bg-amber-700" aria-label="Zaključi dan">
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Zaključi dan
             </Button>
           ) : !report ? (
-            <Button onClick={() => generateMutation.mutate(false)} disabled={generateMutation.isPending}>
+            <Button onClick={handleGenerate} disabled={generateMutation.isPending} aria-label="Generiraj Z-poročilo">
               <Calculator className="h-4 w-4 mr-2" />
               Generiraj Z-poročilo
             </Button>
@@ -133,7 +174,6 @@ export const ZReportManager = memo(function ZReportManager() {
         </div>
       </div>
 
-      {/* Podatki poročila */}
       {report && (
         <>
           {/* Glavna statistika */}
@@ -160,14 +200,13 @@ export const ZReportManager = memo(function ZReportManager() {
         </>
       )}
 
-      {/* Ni poročila za izbrani datum */}
       {!report && (
         <Card className="text-center py-16">
           <CardContent>
             <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">Ni Z-poročila za {format(new Date(selectedDate), 'd. MMMM yyyy', { locale: sl })}</h3>
             <p className="text-muted-foreground mb-4">Generirajte Z-poročilo za pregled dnevnih statistik</p>
-            <Button onClick={() => generateMutation.mutate(false)} disabled={generateMutation.isPending}>
+            <Button onClick={handleGenerate} disabled={generateMutation.isPending} aria-label="Generiraj Z-poročilo">
               <Calculator className="h-4 w-4 mr-2" />
               Generiraj Z-poročilo
             </Button>
@@ -175,22 +214,22 @@ export const ZReportManager = memo(function ZReportManager() {
         </Card>
       )}
 
-      {/* Zgodovina — zadnja Z-poročila */}
+      {/* Zgodovina */}
       <ZReportHistory
-        reports={reports || []}
-        onSelectDate={setSelectedDate}
+        reports={(reports || []) as ZReportData[]}
+        onSelectDate={handleSelectDate}
       />
 
       {/* Dialog za zaključek dneva */}
       <ZReportCloseDialog
         open={showCloseDialog}
-        onOpenChange={setShowCloseDialog}
+        onOpenChange={handleCloseDialogOpenChange}
         report={report}
         actualCash={actualCash}
-        onActualCashChange={setActualCash}
+        onActualCashChange={handleActualCashChange}
         closeNotes={closeNotes}
-        onCloseNotesChange={setCloseNotes}
-        onFinalize={() => generateMutation.mutate(true)}
+        onCloseNotesChange={handleCloseNotesChange}
+        onFinalize={handleFinalize}
         isPending={generateMutation.isPending}
       />
     </div>

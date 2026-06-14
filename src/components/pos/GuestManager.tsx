@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback, memo } from 'react'
-import dynamic from 'next/dynamic'
 import { authFetch } from '@/components/pos/PinLogin'
 import { toast } from 'sonner'
+import dynamic from 'next/dynamic'
 import type { GuestFormRow, GuestRow } from '@/lib/types'
 import { type GuestData, emptyGuestForm } from './guest/constants'
 
@@ -19,6 +19,7 @@ const GuestFormModal = dynamic(() => import('./guest/GuestFormModal').then(m => 
 // ============================================
 
 export const GuestManager = memo(function GuestManager() {
+  // --- Stanja ---
   const [guests, setGuests] = useState<GuestData[]>([])
   const [total, setTotal] = useState(0)
   const [search, setSearch] = useState('')
@@ -29,7 +30,7 @@ export const GuestManager = memo(function GuestManager() {
   const [tab, setTab] = useState<'list' | 'detail'>('list')
 
   // ============================================
-  // QUERIES
+  // POIZVEDBE
   // ============================================
 
   const fetchGuests = useCallback(async () => {
@@ -47,10 +48,11 @@ export const GuestManager = memo(function GuestManager() {
     }
   }, [search, vipOnly])
 
+  // Ponovno naloži goste ob spremembi filtrov
   useEffect(() => { fetchGuests() }, [fetchGuests])
 
   // ============================================
-  // MUTATIONS
+  // MUTACIJE
   // ============================================
 
   async function createGuest() {
@@ -95,37 +97,41 @@ export const GuestManager = memo(function GuestManager() {
   }
 
   // ============================================
-  // HANDLERJI
+  // OBDELAVA DOGODKOV
   // ============================================
+
+  const handleVipToggle = useCallback(() => {
+    setVipOnly(prev => !prev)
+  }, [])
 
   const handleNewGuest = useCallback(() => {
     setShowForm(true)
     setForm(emptyGuestForm())
   }, [])
 
-  const handleBackToList = useCallback(() => {
+  const handleToggleVip = useCallback((id: string, isVip: boolean) => {
+    updateGuest(id, { isVip: !isVip })
+  }, [selectedGuest])
+
+  const handleBack = useCallback(() => {
     setTab('list')
   }, [])
 
-  const handleToggleVip = useCallback((id: string, _currentVip: boolean) => {
-    updateGuest(id, { isVip: !_currentVip } as Partial<GuestRow>)
-  }, [selectedGuest])
-
   // ============================================
-  // GLAVNI RENDER
+  // RENDER
   // ============================================
 
   return (
     <div className="h-full flex flex-col">
-      {/* Glava */}
+      {/* Glava z gumbi */}
       <GuestHeader
         total={total}
         vipOnly={vipOnly}
-        onVipToggle={() => setVipOnly(!vipOnly)}
+        onVipToggle={handleVipToggle}
         onNewGuest={handleNewGuest}
       />
 
-      {/* Iskanje */}
+      {/* Iskalna vrstica */}
       <GuestSearch
         value={search}
         onChange={setSearch}
@@ -145,7 +151,7 @@ export const GuestManager = memo(function GuestManager() {
         {tab === 'detail' && selectedGuest && (
           <GuestDetail
             guest={selectedGuest}
-            onBack={handleBackToList}
+            onBack={handleBack}
             onToggleVip={handleToggleVip}
           />
         )}

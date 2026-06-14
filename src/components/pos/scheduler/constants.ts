@@ -76,3 +76,15 @@ export function calcHours(start: string, end: string, breakMin: number): number 
 export function getShiftColor(idx: number): string {
   return SHIFT_COLORS[idx % SHIFT_COLORS.length]
 }
+
+// ─── Skupni tipi za podkomponente ─────────────────────────────
+
+/** Statistika izmen za teden */
+export interface SchedulerStats {
+  totalHours: number
+  scheduledCount: number
+  completedCount: number
+  inProgressCount: number
+  absentCount: number
+  uniqueEmployees: number
+}

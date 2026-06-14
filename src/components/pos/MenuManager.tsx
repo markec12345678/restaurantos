@@ -8,39 +8,16 @@ import { queryKeys } from '@/lib/query-keys'
 import { Plus, UtensilsCrossed, Tag, BookOpen, Settings2 } from 'lucide-react'
 import { useState, useMemo, useCallback, memo } from 'react'
 import dynamic from 'next/dynamic'
-import type { ItemFormState, CategoryFormState, MenuFormState, CategoryData, MenuData, ModifierGroupData } from './menu/constants'
+import type { ItemFormState, CategoryFormState, MenuFormState } from './menu/constants'
 
-// ============================================
-// LAZY-NALOŽENE PODKOMPONENTE
-// ============================================
-const ItemsTab = dynamic(
-  () => import('./menu/ItemsTab').then(m => m.ItemsTab),
-  { ssr: false }
-)
-const CategoriesTab = dynamic(
-  () => import('./menu/CategoriesTab').then(m => m.CategoriesTab),
-  { ssr: false }
-)
-const MenusTab = dynamic(
-  () => import('./menu/MenusTab').then(m => m.MenusTab),
-  { ssr: false }
-)
-const ModifiersTab = dynamic(
-  () => import('./menu/ModifiersTab').then(m => m.ModifiersTab),
-  { ssr: false }
-)
-const ItemDialog = dynamic(
-  () => import('./menu/ItemDialog').then(m => m.ItemDialog),
-  { ssr: false }
-)
-const CategoryDialog = dynamic(
-  () => import('./menu/CategoryDialog').then(m => m.CategoryDialog),
-  { ssr: false }
-)
-const MenuDialog = dynamic(
-  () => import('./menu/MenuDialog').then(m => m.MenuDialog),
-  { ssr: false }
-)
+// Lazy-loaded podkomponente
+const ItemsTab = dynamic(() => import('./menu/ItemsTab').then(m => ({ default: m.ItemsTab })), { ssr: false })
+const CategoriesTab = dynamic(() => import('./menu/CategoriesTab').then(m => ({ default: m.CategoriesTab })), { ssr: false })
+const MenusTab = dynamic(() => import('./menu/MenusTab').then(m => ({ default: m.MenusTab })), { ssr: false })
+const ModifiersTab = dynamic(() => import('./menu/ModifiersTab').then(m => ({ default: m.ModifiersTab })), { ssr: false })
+const ItemDialog = dynamic(() => import('./menu/ItemDialog').then(m => ({ default: m.ItemDialog })), { ssr: false })
+const CategoryDialog = dynamic(() => import('./menu/CategoryDialog').then(m => ({ default: m.CategoryDialog })), { ssr: false })
+const MenuDialog = dynamic(() => import('./menu/MenuDialog').then(m => ({ default: m.MenuDialog })), { ssr: false })
 
 // ============================================
 // GLAVNA KOMPONENTA
@@ -54,19 +31,21 @@ export const MenuManager = memo(function MenuManager() {
   const [activeTab, setActiveTab] = useState('items')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingItem, setEditingItem] = useState<Record<string, unknown> | null>(null)
-  const [itemForm, setItemForm] = useState<ItemFormState>({ name: '', description: '', price: '', categoryId: '', isAvailable: true, image: '', modifierGroupIds: [] as string[] })
+  const [itemForm, setItemForm] = useState<ItemFormState>({ name: '', description: '', price: '', categoryId: '', isAvailable: true, image: '', modifierGroupIds: [] })
   const [catDialogOpen, setCatDialogOpen] = useState(false)
   const [catForm, setCatForm] = useState<CategoryFormState>({ name: '', icon: '🍽️', color: '#f59e0b', menuId: '' })
   const [menuDialogOpen, setMenuDialogOpen] = useState(false)
   const [menuForm, setMenuForm] = useState<MenuFormState>({ name: '', icon: '📋', color: '#f59e0b' })
 
-  // Poizvedbe
+  // ============================================
+  // QUERIES
+  // ============================================
   const { data: menus } = useQuery({
     queryKey: queryKeys.menus.all,
     queryFn: async () => {
       const res = await authFetch('/api/menus')
       if (!res.ok) throw new Error('Napaka pri nalaganju')
-      return res.json() as Promise<MenuData[]>
+      return res.json()
     },
   })
   const { data: categories } = useQuery({
@@ -74,7 +53,7 @@ export const MenuManager = memo(function MenuManager() {
     queryFn: async () => {
       const res = await authFetch('/api/categories')
       if (!res.ok) throw new Error('Napaka pri nalaganju')
-      return res.json() as Promise<CategoryData[]>
+      return res.json()
     },
   })
   const { data: modifierGroups } = useQuery({
@@ -82,7 +61,7 @@ export const MenuManager = memo(function MenuManager() {
     queryFn: async () => {
       const res = await authFetch('/api/modifier-groups')
       if (!res.ok) throw new Error('Napaka pri nalaganju')
-      return res.json() as Promise<ModifierGroupData[]>
+      return res.json()
     },
   })
   const { data: menuItems, isLoading } = useQuery({
@@ -94,7 +73,7 @@ export const MenuManager = memo(function MenuManager() {
     },
   })
 
-  // FIX PERF: useMemo za filtriranje — prej se je filtriralo ob vsakem renderu
+  // FIX PERF: useMemo za filtriranje -- prej se je filtriralo ob vsakem renderu
   const filteredItems = useMemo(() => (Array.isArray(menuItems) ? menuItems : []).filter((item: { name: string; categoryId: string; category?: { menu?: { id: string } } }) => {
     const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase())
     const matchesCat = filterCategory === 'all' || item.categoryId === filterCategory
@@ -102,7 +81,10 @@ export const MenuManager = memo(function MenuManager() {
     return matchesSearch && matchesCat && matchesMenu
   }), [menuItems, search, filterCategory, filterMenu])
 
-  // Mutacije menijev
+  // ============================================
+  // MUTATIONS
+  // ============================================
+  // Menu mutations
   const createMenuMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
       const res = await authFetch('/api/menus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
@@ -112,8 +94,7 @@ export const MenuManager = memo(function MenuManager() {
     onSuccess: () => { toast.success('Meni ustvarjen'); queryClient.invalidateQueries({ queryKey: queryKeys.menus.all }); setMenuDialogOpen(false) },
     onError: (err: Error) => { toast.error(err.message || 'Napaka pri ustvarjanju menija') },
   })
-
-  // Mutacije artiklov
+  // Menu item mutations
   const createItemMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
       const res = await authFetch('/api/menu-items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
@@ -150,8 +131,7 @@ export const MenuManager = memo(function MenuManager() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.menuItems.all }) },
     onError: (err: Error) => { toast.error(err.message || 'Napaka pri spreminjanju razpoložljivosti') },
   })
-
-  // Mutacije kategorij
+  // Category mutations
   const createCatMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
       const res = await authFetch('/api/categories', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
@@ -161,7 +141,10 @@ export const MenuManager = memo(function MenuManager() {
     onSuccess: () => { toast.success('Kategorija ustvarjena'); queryClient.invalidateQueries({ queryKey: queryKeys.categories.all }); setCatDialogOpen(false) },
   })
 
-  // FIX PERF: useCallback za handlerje — prej so se ustvarjali na vsakem renderu
+  // ============================================
+  // HANDLERJI
+  // ============================================
+  // FIX PERF: useCallback za handlerje -- prej so se ustvarjali na vsakem renderu
   const openCreateItem = useCallback(() => {
     setEditingItem(null)
     setItemForm({ name: '', description: '', price: '', categoryId: categories?.[0]?.id || '', isAvailable: true, image: '', modifierGroupIds: [] })
@@ -189,6 +172,22 @@ export const MenuManager = memo(function MenuManager() {
       createItemMutation.mutate(payload)
     }
   }, [itemForm, editingItem, updateItemMutation, createItemMutation])
+  const openCreateCategory = useCallback(() => {
+    setCatForm({ name: '', icon: '🍽️', color: '#f59e0b', menuId: menus?.[0]?.id || '' })
+    setCatDialogOpen(true)
+  }, [menus])
+  const openCreateMenu = useCallback(() => {
+    setMenuForm({ name: '', icon: '📋', color: '#f59e0b' })
+    setMenuDialogOpen(true)
+  }, [])
+
+  // FIX PERF: useMemo za grupiranje kategorij -- prej se je računalo ob vsakem renderu
+  const _categoriesByMenu = useMemo(() => (categories || []).reduce((acc: Record<string, typeof categories>, cat: { menuId?: string; menu?: { id: string; name: string } }) => {
+    const menuId = cat.menu?.id || cat.menuId || 'uncategorized'
+    if (!acc[menuId]) acc[menuId] = []
+    acc[menuId].push(cat)
+    return acc
+  }, {}), [categories])
 
   return (
     <div className="space-y-6">
@@ -227,7 +226,7 @@ export const MenuManager = memo(function MenuManager() {
             search={search}
             onSearchChange={setSearch}
             filterMenu={filterMenu}
-            onFilterMenuChange={setFilterMenu}
+            onFilterMenuChange={(v) => { setFilterMenu(v); setFilterCategory('all') }}
             filterCategory={filterCategory}
             onFilterCategoryChange={setFilterCategory}
             viewMode={viewMode}
@@ -241,12 +240,12 @@ export const MenuManager = memo(function MenuManager() {
             onToggleAvailability={(id, isAvailable) => toggleAvailabilityMutation.mutate({ id, isAvailable })}
           />
         </TabsContent>
-        {/* Tab kategorij */}
+        {/* Tab kategorij - organized by menu */}
         <TabsContent value="categories" className="space-y-4">
           <CategoriesTab
             menus={menus}
             categories={categories}
-            onAddCategory={() => { setCatForm({ name: '', icon: '🍽️', color: '#f59e0b', menuId: menus?.[0]?.id || '' }); setCatDialogOpen(true) }}
+            onAddCategory={openCreateCategory}
           />
         </TabsContent>
         {/* Tab menijev */}
@@ -254,16 +253,15 @@ export const MenuManager = memo(function MenuManager() {
           <MenusTab
             menus={menus}
             categories={categories}
-            onAddMenu={() => { setMenuForm({ name: '', icon: '📋', color: '#f59e0b' }); setMenuDialogOpen(true) }}
+            onAddMenu={openCreateMenu}
           />
         </TabsContent>
-        {/* Tab dodatkov */}
+        {/* Tab dodatkov (modifier groups) */}
         <TabsContent value="modifiers" className="space-y-4">
           <ModifiersTab modifierGroups={modifierGroups} />
         </TabsContent>
       </Tabs>
-
-      {/* Dialogi */}
+      {/* Item Dialog */}
       <ItemDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
@@ -275,6 +273,7 @@ export const MenuManager = memo(function MenuManager() {
         modifierGroups={modifierGroups}
         onSubmit={handleItemSubmit}
       />
+      {/* Category Dialog */}
       <CategoryDialog
         open={catDialogOpen}
         onOpenChange={setCatDialogOpen}
@@ -283,6 +282,7 @@ export const MenuManager = memo(function MenuManager() {
         menus={menus}
         onSubmit={() => createCatMutation.mutate(catForm as unknown as Record<string, unknown>)}
       />
+      {/* Menu Dialog */}
       <MenuDialog
         open={menuDialogOpen}
         onOpenChange={setMenuDialogOpen}

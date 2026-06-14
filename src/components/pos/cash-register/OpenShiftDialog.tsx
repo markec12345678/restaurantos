@@ -74,8 +74,8 @@ export const OpenShiftDialog = memo(function OpenShiftDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Prekliči</Button>
-          <Button onClick={() => onSubmit(form)} disabled={isPending}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} aria-label="Prekliči">Prekliči</Button>
+          <Button onClick={() => onSubmit(form)} disabled={isPending} aria-label="Odpri izmeno">
             {isPending ? 'Odpiram...' : 'Odpri izmeno'}
           </Button>
         </DialogFooter>

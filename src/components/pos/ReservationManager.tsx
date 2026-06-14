@@ -6,7 +6,6 @@
 // Koledar, časovni intervali, dodelitev mize, spominki
 // ============================================
 
-import dynamic from 'next/dynamic'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -19,26 +18,13 @@ import { useState, useMemo, useCallback, memo } from 'react'
 import { format, addDays, isToday } from 'date-fns'
 import { sl } from 'date-fns/locale'
 import { toast } from 'sonner'
-import { statusLabels } from './reservation/constants'
-import type { ReservationType } from './reservation/constants'
+import dynamic from 'next/dynamic'
+import { statusLabels, type ReservationType, type TableType } from './reservation/constants'
 
-// ============================================
-// LAZY LOADING POD-KOMPONENT
-// ============================================
-const TimelineView = dynamic(
-  () => import('./reservation/TimelineView').then(m => m.TimelineView),
-  { ssr: false }
-)
-
-const ListView = dynamic(
-  () => import('./reservation/ListView').then(m => m.ListView),
-  { ssr: false }
-)
-
-const ReservationDialog = dynamic(
-  () => import('./reservation/ReservationDialog').then(m => m.ReservationDialog),
-  { ssr: false }
-)
+// Lazy-loaded podkomponente
+const TimelineView = dynamic(() => import('./reservation/TimelineView').then(m => ({ default: m.TimelineView })), { ssr: false })
+const ListView = dynamic(() => import('./reservation/ListView').then(m => ({ default: m.ListView })), { ssr: false })
+const ReservationDialog = dynamic(() => import('./reservation/ReservationDialog').then(m => ({ default: m.ReservationDialog })), { ssr: false })
 
 // ============================================
 // GLAVNA KOMPONENTA
@@ -71,7 +57,7 @@ export const ReservationManager = memo(function ReservationManager() {
     },
   })
 
-  const { data: tables } = useQuery({
+  const { data: tables } = useQuery<TableType[]>({
     queryKey: queryKeys.tables.all,
     queryFn: async () => {
       const res = await authFetch('/api/tables')
@@ -137,6 +123,26 @@ export const ReservationManager = memo(function ReservationManager() {
     },
   })
 
+  // Handlerji za dialog
+  const handleOpenNew = useCallback(() => {
+    setEditingReservation(null)
+    setDialogOpen(true)
+  }, [])
+
+  const handleDialogClose = useCallback(() => {
+    setDialogOpen(false)
+    setEditingReservation(null)
+  }, [])
+
+  const handleEdit = useCallback((r: ReservationType) => {
+    setEditingReservation(r)
+    setDialogOpen(true)
+  }, [])
+
+  const handleStatusChange = useCallback((id: string, status: string) => {
+    statusMutation.mutate({ id, status })
+  }, [statusMutation])
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
@@ -154,7 +160,7 @@ export const ReservationManager = memo(function ReservationManager() {
           <Button variant="outline" size="sm" onClick={() => setViewMode(viewMode === 'list' ? 'timeline' : 'list')}>
             {viewMode === 'list' ? 'Časovni trak' : 'Seznam'}
           </Button>
-          <Button size="sm" onClick={() => { setEditingReservation(null); setDialogOpen(true) }}>
+          <Button size="sm" onClick={handleOpenNew}>
             <Plus className="h-4 w-4 mr-1" /> Nova rezervacija
           </Button>
         </div>
@@ -210,14 +216,14 @@ export const ReservationManager = memo(function ReservationManager() {
           <TimelineView
             reservations={filteredReservations}
             tables={tables || []}
-            onEdit={(r) => { setEditingReservation(r); setDialogOpen(true) }}
-            onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
+            onEdit={handleEdit}
+            onStatusChange={handleStatusChange}
           />
         ) : (
           <ListView
             reservations={filteredReservations}
-            onEdit={(r) => { setEditingReservation(r); setDialogOpen(true) }}
-            onStatusChange={(id, status) => statusMutation.mutate({ id, status })}
+            onEdit={handleEdit}
+            onStatusChange={handleStatusChange}
           />
         )}
       </div>
@@ -225,7 +231,7 @@ export const ReservationManager = memo(function ReservationManager() {
       {/* Dialog za novo/uredi rezervacijo */}
       <ReservationDialog
         open={dialogOpen}
-        onClose={() => { setDialogOpen(false); setEditingReservation(null) }}
+        onClose={handleDialogClose}
         reservation={editingReservation}
         tables={tables || []}
         selectedDate={selectedDate}

@@ -6,26 +6,20 @@ import { StatsCard } from './StatsCard'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DollarSign, ShoppingBag, Calculator, BarChartBig, PiggyBank, Shield } from 'lucide-react'
 import { usePOSStore } from '@/lib/store'
-import { authFetch } from '@/components/pos/PinLogin'
 import { useMemo, memo } from 'react'
 import dynamic from 'next/dynamic'
-import { format } from 'date-fns'
-import {
-  STATUS_COLORS,
-  STATUS_LABELS,
-  TYPE_LABELS,
-  DAY_NAMES,
-} from './dashboard/constants'
-import type { DashboardData, ComputedValues } from './dashboard/constants'
+import { authFetch } from '@/components/pos/PinLogin'
+import { STATUS_COLORS, STATUS_LABELS, TYPE_LABELS, DAY_NAMES } from './dashboard/constants'
+import type { DashboardData, WowChartDataPoint, ComputedValues } from './dashboard/constants'
 
-// Lenko naložene podkomponente — SSR onemogočen za klientne komponente z recharts
-const WoWComparison = dynamic(() => import('./dashboard/WoWComparison').then((m) => ({ default: m.WoWComparison })), { ssr: false })
-const ShiftFursStatus = dynamic(() => import('./dashboard/ShiftFursStatus').then((m) => ({ default: m.ShiftFursStatus })), { ssr: false })
-const ChartsSection = dynamic(() => import('./dashboard/ChartsSection').then((m) => ({ default: m.ChartsSection })), { ssr: false })
-const HeatmapSection = dynamic(() => import('./dashboard/HeatmapSection').then((m) => ({ default: m.HeatmapSection })), { ssr: false })
-const BreakdownSection = dynamic(() => import('./dashboard/BreakdownSection').then((m) => ({ default: m.BreakdownSection })), { ssr: false })
-const RecentActivity = dynamic(() => import('./dashboard/RecentActivity').then((m) => ({ default: m.RecentActivity })), { ssr: false })
-const StockAndKitchen = dynamic(() => import('./dashboard/StockAndKitchen').then((m) => ({ default: m.StockAndKitchen })), { ssr: false })
+// Lazy-loaded podkomponente
+const WoWComparison = dynamic(() => import('./dashboard/WoWComparison').then((m) => m.WoWComparison), { ssr: false })
+const ShiftFursStatus = dynamic(() => import('./dashboard/ShiftFursStatus').then((m) => m.ShiftFursStatus), { ssr: false })
+const ChartsSection = dynamic(() => import('./dashboard/ChartsSection').then((m) => m.ChartsSection), { ssr: false })
+const HeatmapSection = dynamic(() => import('./dashboard/HeatmapSection').then((m) => m.HeatmapSection), { ssr: false })
+const BreakdownSection = dynamic(() => import('./dashboard/BreakdownSection').then((m) => m.BreakdownSection), { ssr: false })
+const RecentActivity = dynamic(() => import('./dashboard/RecentActivity').then((m) => m.RecentActivity), { ssr: false })
+const StockAndKitchen = dynamic(() => import('./dashboard/StockAndKitchen').then((m) => m.StockAndKitchen), { ssr: false })
 
 export const Dashboard = memo(function Dashboard() {
   const { setActiveModule } = usePOSStore()
@@ -39,21 +33,21 @@ export const Dashboard = memo(function Dashboard() {
     },
   })
 
-  // Memoiziraj computed vrednosti — prepreči ponovni izračun ob vsakem renderju
+  // Memoiziraj computed vrednosti -- prepreci ponovni izracun ob vsakem renderju
   // MORA biti pred conditional return (Rules of Hooks)
   const computed: ComputedValues = useMemo(() => {
     const wow = data?.wowComparison
     const heatmapData = data?.heatmapData || []
     const guestAnalytics = data?.guestAnalytics
 
-    // Izračun max za barvno lestvico toplotne karte
+    // Compute heatmap max for color scaling
     const heatmapMax = Math.max(...heatmapData.map((h) => h.revenue), 1)
 
-    // Izgradnja WoW diagramskih podatkov
-    const wowChartData = (wow?.thisWeekDaily || []).map((d, idx) => {
+    // Build WoW chart data
+    const wowChartData: WowChartDataPoint[] = (wow?.thisWeekDaily || []).map((d, idx) => {
       const lastWeekDay = wow?.lastWeekDaily?.[idx]
       return {
-        day: DAY_NAMES[idx] || format(new Date(d.date), 'EEE'),
+        day: DAY_NAMES[idx] || d.date.slice(0, 3),
         'Ta teden': d.revenue,
         'Prejšnji teden': lastWeekDay?.revenue || 0,
       }
@@ -90,23 +84,23 @@ export const Dashboard = memo(function Dashboard() {
         <p className="text-muted-foreground">Pregled dneva in ključni kazalniki</p>
       </div>
 
-      {/* Statistične kartice */}
+      {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        <StatsCard title="Današnji prihodek" value={`€${(data?.todayRevenue || 0).toFixed(2)}`} subtitle={(data?.pendingOrders ?? 0) > 0 ? `${data?.pendingOrders} čakajočih` : undefined} icon={DollarSign} trend="up" />
-        <StatsCard title="Skupno naročil" value={data?.totalOrders ?? 0} subtitle={`${data?.completedOrders ?? 0} končanih · ${data?.cancelledOrders ?? 0} preklicanih`} icon={ShoppingBag} />
-        <StatsCard title="Povpr. naročilo" value={`€${(data?.avgOrderValue || 0).toFixed(2)}`} subtitle={(data?.todayTips ?? 0) > 0 ? `Napitnine: €${(data?.todayTips || 0).toFixed(2)}` : undefined} icon={Calculator} />
-        <StatsCard title="Zasedene mize" value={`${data?.activeTables ?? 0}/${data?.totalTables ?? 0}`} subtitle={(data?.readyOrders ?? 0) > 0 ? `${data?.readyOrders} pripravljenih` : undefined} icon={BarChartBig} />
-        <StatsCard title="Bruto dobiček" value={`€${(data?.grossProfit || 0).toFixed(2)}`} subtitle={(data?.grossMargin ?? 0) > 0 ? `Marža: ${data?.grossMargin}%` : undefined} icon={PiggyBank} trend={(data?.grossMargin ?? 0) > 50 ? 'up' : 'down'} />
-        <StatsCard title="FURS overjeno" value={data?.fursStatus?.todayVerified ?? 0} subtitle={(data?.fursStatus?.todayUnverified ?? 0) > 0 ? `${data?.fursStatus?.todayUnverified} brez overjanja` : 'Vse overjeno'} icon={Shield} trend={(data?.fursStatus?.todayUnverified ?? 0) === 0 ? 'up' : 'down'} />
+        <StatsCard title="Današnji prihodek" value={`€${(data?.todayRevenue || 0).toFixed(2)}`} subtitle={(data?.pendingOrders || 0) > 0 ? `${data?.pendingOrders} čakajočih` : undefined} icon={DollarSign} trend="up" />
+        <StatsCard title="Skupno naročil" value={data?.totalOrders || 0} subtitle={`${data?.completedOrders || 0} končanih · ${data?.cancelledOrders || 0} preklicanih`} icon={ShoppingBag} />
+        <StatsCard title="Povpr. naročilo" value={`€${(data?.avgOrderValue || 0).toFixed(2)}`} subtitle={(data?.todayTips || 0) > 0 ? `Napitnine: €${(data?.todayTips || 0).toFixed(2)}` : undefined} icon={Calculator} />
+        <StatsCard title="Zasedene mize" value={`${data?.activeTables || 0}/${data?.totalTables || 0}`} subtitle={(data?.readyOrders || 0) > 0 ? `${data?.readyOrders} pripravljenih` : undefined} icon={BarChartBig} />
+        <StatsCard title="Bruto dobiček" value={`€${(data?.grossProfit || 0).toFixed(2)}`} subtitle={(data?.grossMargin || 0) > 0 ? `Marža: ${data?.grossMargin}%` : undefined} icon={PiggyBank} trend={(data?.grossMargin || 0) > 50 ? 'up' : 'down'} />
+        <StatsCard title="FURS overjeno" value={data?.fursStatus?.todayVerified || 0} subtitle={(data?.fursStatus?.todayUnverified || 0) > 0 ? `${data?.fursStatus?.todayUnverified} brez overjanja` : 'Vse overjeno'} icon={Shield} trend={(data?.fursStatus?.todayUnverified || 0) === 0 ? 'up' : 'down'} />
       </div>
 
-      {/* Primerjava s prejšnjim tednom (WoW) */}
+      {/* WoW primerjava */}
       <WoWComparison wow={computed.wow} wowChartData={computed.wowChartData} />
 
       {/* Aktivna izmena + FURS status */}
       <ShiftFursStatus activeShift={data?.activeShift ?? null} fursStatus={data?.fursStatus ?? { todayVerified: 0, todayUnverified: 0, configured: false, environment: '' }} />
 
-      {/* Prihodek + kategorije */}
+      {/* Prihodek diagram + kategorije tortni */}
       <ChartsSection dailyRevenue={data?.dailyRevenue || []} categoryBreakdown={data?.categoryBreakdown || []} />
 
       {/* Toplotna karta prometa */}

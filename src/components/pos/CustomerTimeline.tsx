@@ -1,31 +1,32 @@
 'use client'
 
 import { useState, useEffect, useCallback, memo } from 'react'
-import { UserCircle } from 'lucide-react'
-import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
+import { toast } from 'sonner'
+import { UserCircle } from 'lucide-react'
 import type { GuestRow, GuestVisitRow } from '@/lib/types'
 import { authFetch } from '@/components/pos/PinLogin'
-import type { GuestProfile, GuestVisit } from './customer-timeline/constants'
+import type { GuestProfile } from './customer-timeline/constants'
 
-// --- Lenično naložene podkomponente ---
-
+// Lenično naložene podkomponente
 const SummaryCards = dynamic(
-  () => import('./customer-timeline/SummaryCards').then(m => m.SummaryCards),
+  () => import('./customer-timeline/SummaryCards').then(m => ({ default: m.SummaryCards })),
   { ssr: false }
 )
 
 const GuestList = dynamic(
-  () => import('./customer-timeline/GuestList').then(m => m.GuestList),
+  () => import('./customer-timeline/GuestList').then(m => ({ default: m.GuestList })),
   { ssr: false }
 )
 
 const GuestDetail = dynamic(
-  () => import('./customer-timeline/GuestDetail').then(m => m.GuestDetail),
+  () => import('./customer-timeline/GuestDetail').then(m => ({ default: m.GuestDetail })),
   { ssr: false }
 )
 
-// --- Glavna komponenta ---
+// ============================================
+// GLAVNA KOMPONENTA: CRM časovnica gostov
+// ============================================
 
 export const CustomerTimeline = memo(function CustomerTimeline() {
   const [guests, setGuests] = useState<GuestProfile[]>([])
@@ -33,14 +34,15 @@ export const CustomerTimeline = memo(function CustomerTimeline() {
   const [_loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Naloži seznam gostov iz API-ja
+  // --- Nalaganje gostov ---
+
   const loadGuests = useCallback(async () => {
     try {
       const res = await authFetch('/api/guests')
       const data = await res.json()
 
       const profiles: GuestProfile[] = (data || []).map((g: GuestRow) => {
-        const visits: GuestVisit[] = ((g.visits || []) as GuestVisitRow[]).map((v: GuestVisitRow) => ({
+        const visits = ((g.visits || []) as GuestVisitRow[]).map((v: GuestVisitRow) => ({
           id: v.id,
           date: (v.createdAt || v.visitDate) as string,
           table: (v.table as { number?: string } | null)?.number?.toString() || null,
@@ -107,6 +109,8 @@ export const CustomerTimeline = memo(function CustomerTimeline() {
     loadGuests()
   }, [loadGuests])
 
+  // --- Handlerji ---
+
   const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value)
   }, [])
@@ -115,7 +119,8 @@ export const CustomerTimeline = memo(function CustomerTimeline() {
     setSelectedGuest(guest)
   }, [])
 
-  // Filtriraj goste po iskalnem nizu
+  // --- Izračuni ---
+
   const filteredGuests = guests.filter(g =>
     g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (g.phone && g.phone.includes(searchQuery)) ||
@@ -127,6 +132,10 @@ export const CustomerTimeline = memo(function CustomerTimeline() {
   const returningGuests = guests.filter(g => g.totalVisits > 1).length
   const avgSpendAll = totalGuests > 0 ? guests.reduce((s, g) => s + g.avgSpend, 0) / totalGuests : 0
   const vipGuests = guests.filter(g => g.loyaltyTier === 'Zlato' || g.loyaltyTier === 'Platina').length
+
+  // ============================================
+  // RENDER
+  // ============================================
 
   return (
     <div className="p-4 space-y-4 h-full overflow-auto">

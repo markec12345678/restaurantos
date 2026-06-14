@@ -9,7 +9,7 @@ import { useState, useMemo, useCallback, memo } from 'react'
 import dynamic from 'next/dynamic'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import { type TableData, type TableFormData, type TableOrderData } from './tablemap/constants'
+import { type TableData, type TableFormData } from './tablemap/constants'
 
 // Lazy-loaded podkomponente
 const TableSummaryStats = dynamic(() => import('./tablemap/TableSummaryStats').then(m => ({ default: m.TableSummaryStats })), { ssr: false })
@@ -26,6 +26,8 @@ const TableDeleteDialog = dynamic(() => import('./tablemap/TableDeleteDialog').t
 export const TableMap = memo(function TableMap() {
   const queryClient = useQueryClient()
   const { setActiveModule, setSelectedTable, setOrderType, setEditingOrderId, setEditingOrderNumber } = usePOSStore()
+
+  // --- Stanja ---
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTable, setEditingTable] = useState<Record<string, unknown> | null>(null)
   const [formData, setFormData] = useState<TableFormData>({ number: '', capacity: '4', area: 'main', status: 'available' })
@@ -46,7 +48,7 @@ export const TableMap = memo(function TableMap() {
 
   // Fetch orders for selected table
   // FIX MEDIUM: Server-side filtering namesto client-side (prepreči nalaganje vseh naročil)
-  const { data: tableOrders } = useQuery<TableOrderData[]>({
+  const { data: tableOrders } = useQuery({
     queryKey: queryKeys.tables.orders(selectedTableForOrders?.id as string),
     queryFn: async () => {
       if (!selectedTableForOrders) return []
@@ -108,16 +110,16 @@ export const TableMap = memo(function TableMap() {
   })
 
   // ============================================
-  // HANDLERJI
+  // OBDELAVA DOGODKOV
   // ============================================
 
-  const openCreate = useCallback(() => {
+  const openCreate = () => {
     setEditingTable(null)
     setFormData({ number: '', capacity: '4', area: 'main', status: 'available' })
     setDialogOpen(true)
-  }, [])
+  }
 
-  const openEdit = useCallback((table: TableData) => {
+  const openEdit = (table: TableData) => {
     setEditingTable(table)
     setFormData({
       number: String(table.number),
@@ -126,9 +128,9 @@ export const TableMap = memo(function TableMap() {
       status: String(table.status),
     })
     setDialogOpen(true)
-  }, [])
+  }
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = () => {
     const parsedNumber = parseInt(formData.number)
     const parsedCapacity = parseInt(formData.capacity)
     if (isNaN(parsedNumber) || isNaN(parsedCapacity)) {
@@ -146,7 +148,7 @@ export const TableMap = memo(function TableMap() {
     } else {
       createMutation.mutate(payload)
     }
-  }, [formData, editingTable, updateMutation, createMutation])
+  }
 
   const handleTableClick = useCallback((table: TableData) => {
     if (table.status === 'occupied') {
@@ -181,13 +183,6 @@ export const TableMap = memo(function TableMap() {
     toast.info(`Dodajanje artiklov k naročilu #${orderNumber}`)
   }, [setSelectedTable, setOrderType, setActiveModule, setEditingOrderId, setEditingOrderNumber])
 
-  const handleDeleteConfirm = useCallback(() => {
-    if (deleteConfirm?.id) {
-      deleteMutation.mutate(deleteConfirm.id as string)
-    }
-    setDeleteConfirm(null)
-  }, [deleteConfirm, deleteMutation])
-
   // ============================================
   // IZRAČUNI
   // ============================================
@@ -197,7 +192,7 @@ export const TableMap = memo(function TableMap() {
     if (!acc[area]) acc[area] = []
     acc[area].push(table as TableData)
     return acc
-  }, {}), [tables])
+  }, {} as Record<string, TableData[]>), [tables])
 
   // Calculate summary stats — memoiziraj, da se ne preračuna ob vsakem renderju
   const { totalTables, occupiedTables, availableTables } = useMemo(() => {
@@ -209,23 +204,8 @@ export const TableMap = memo(function TableMap() {
     }
   }, [tables])
 
-  // --- Pomožni handlerji za dijaloge ---
-
-  const handleOrdersDialogOpenChange = useCallback((open: boolean) => {
-    if (!open) setSelectedTableForOrders(null)
-  }, [])
-
-  const handleDeleteDialogOpenChange = useCallback((open: boolean) => {
-    if (!open) setDeleteConfirm(null)
-  }, [])
-
-  const handleFormDialogOpenChange = useCallback((open: boolean) => {
-    setDialogOpen(open)
-    if (!open) setEditingTable(null)
-  }, [])
-
   // ============================================
-  // GLAVNI RENDER
+  // RENDER
   // ============================================
 
   return (
@@ -248,7 +228,7 @@ export const TableMap = memo(function TableMap() {
         totalTables={totalTables}
       />
 
-      {/* Legenda */}
+      {/* Legenda statusov */}
       <TableLegend />
 
       {/* Mreža miz */}
@@ -264,7 +244,7 @@ export const TableMap = memo(function TableMap() {
       <TableOrdersDialog
         table={selectedTableForOrders}
         orders={tableOrders}
-        onOpenChange={handleOrdersDialogOpenChange}
+        onOpenChange={() => setSelectedTableForOrders(null)}
         onAddToOrder={handleAddToOrder}
         onNewOrderForTable={handleNewOrderForTable}
       />
@@ -272,7 +252,7 @@ export const TableMap = memo(function TableMap() {
       {/* Dijalog za dodajanje/urejanje mize */}
       <TableFormDialog
         open={dialogOpen}
-        onOpenChange={handleFormDialogOpenChange}
+        onOpenChange={setDialogOpen}
         editingTable={editingTable}
         formData={formData}
         onFormDataChange={setFormData}
@@ -282,8 +262,13 @@ export const TableMap = memo(function TableMap() {
       {/* AlertDialog za brisanje mize — nadomesti window.confirm() */}
       <TableDeleteDialog
         table={deleteConfirm}
-        onOpenChange={handleDeleteDialogOpenChange}
-        onConfirm={handleDeleteConfirm}
+        onOpenChange={(open) => { if (!open) setDeleteConfirm(null) }}
+        onConfirm={() => {
+          if (deleteConfirm?.id) {
+            deleteMutation.mutate(deleteConfirm.id as string)
+          }
+          setDeleteConfirm(null)
+        }}
       />
     </div>
   )

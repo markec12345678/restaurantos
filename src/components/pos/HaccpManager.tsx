@@ -1,28 +1,28 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
-import { Plus, Search, AlertTriangle, Filter, RotateCcw, ShieldCheck, FileText, Activity } from 'lucide-react'
+import { Plus, ShieldCheck } from 'lucide-react'
 import { useState, useMemo, useCallback, memo } from 'react'
 import dynamic from 'next/dynamic'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import { categoryConfig, statusConfig, statusBadgeStyles, quickTemplates, tabItems } from './haccp/constants'
+import { tabItems } from './haccp/constants'
 import { formatDateSI, isToday } from './haccp/utils'
 import type { HaccpEntry, HaccpFormData } from './haccp/types'
 
-// Lazy-loaded sub-components
+// Lazy-loaded sub-komponente
 const HaccpSummaryCards = dynamic(() => import('./haccp/HaccpSummaryCards').then((m) => m.HaccpSummaryCards), { ssr: false })
 const HaccpEntryCard = dynamic(() => import('./haccp/HaccpEntryCard').then((m) => m.HaccpEntryCard), { ssr: false })
 const HaccpEntryDialog = dynamic(() => import('./haccp/HaccpEntryDialog').then((m) => m.HaccpEntryDialog), { ssr: false })
 const HaccpDeleteDialog = dynamic(() => import('./haccp/HaccpDeleteDialog').then((m) => m.HaccpDeleteDialog), { ssr: false })
+const HaccpQuickTemplates = dynamic(() => import('./haccp/HaccpQuickTemplates').then((m) => m.HaccpQuickTemplates), { ssr: false })
+const HaccpAlerts = dynamic(() => import('./haccp/HaccpAlerts').then((m) => m.HaccpAlerts), { ssr: false })
+const HaccpFilters = dynamic(() => import('./haccp/HaccpFilters').then((m) => m.HaccpFilters), { ssr: false })
+const HaccpEmptyState = dynamic(() => import('./haccp/HaccpEmptyState').then((m) => m.HaccpEmptyState), { ssr: false })
+const HaccpLoadingSkeleton = dynamic(() => import('./haccp/HaccpLoadingSkeleton').then((m) => m.HaccpLoadingSkeleton), { ssr: false })
 
 // ============================================
 // GLAVNA KOMPONENTA
@@ -237,195 +237,7 @@ export const HaccpManager = memo(function HaccpManager() {
     }
   }, [deleteTarget, deleteMutation])
 
-  // ============================================
-  // RENDER: HITRE PREDLOGE
-  // ============================================
-
-  const renderQuickTemplates = () => {
-    const templates = activeTab !== 'all' ? quickTemplates[activeTab] : null
-    if (!templates) return null
-
-    return (
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Activity className="h-4 w-4 text-primary" />
-            Hitri vnos — predloge
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-2">
-            {templates.map((tpl, i) => (
-              <Button
-                key={i}
-                variant="outline"
-                size="sm"
-                className="text-xs h-8"
-                onClick={() => openCreate(tpl.category, tpl.title, tpl.value)}
-              >
-                <Plus className="h-3 w-3 mr-1" />
-                {tpl.title}
-              </Button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  // ============================================
-  // RENDER: OPOZORILA (warning + critical)
-  // ============================================
-
-  const renderAlerts = () => {
-    const alertEntries = allEntries.filter((e) => e.status === 'warning' || e.status === 'critical')
-    if (alertEntries.length === 0) return null
-
-    return (
-      <Card className="border-red-200 dark:border-red-900/50">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertTriangle className="h-5 w-5 text-red-500" />
-            <span className="font-semibold text-red-600 dark:text-red-400">
-              Aktivna opozorila ({alertEntries.length})
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {alertEntries.slice(0, 8).map((entry) => {
-              const cfg = statusConfig[entry.status]
-              return (
-                <Badge
-                  key={entry.id}
-                  className={`text-xs cursor-pointer ${statusBadgeStyles[entry.status]}`}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => {
-                    const cat = entry.category
-                    if (activeTab !== cat) setActiveTab(cat)
-                  }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const cat = entry.category; if (activeTab !== cat) setActiveTab(cat) } }}
-                >
-                  <span className={`h-1.5 w-1.5 rounded-full ${cfg.dotColor} mr-1`} aria-hidden="true" />
-                  {entry.title}: {entry.value || cfg.label}
-                  {!entry.correctiveAction && ' ⚠ Brez ukrepa'}
-                </Badge>
-              )
-            })}
-            {alertEntries.length > 8 && (
-              <Badge variant="outline" className="text-xs">
-                +{alertEntries.length - 8} več
-              </Badge>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  // ============================================
-  // RENDER: FILTRI
-  // ============================================
-
-  const renderFilters = () => (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex flex-wrap gap-3 items-end">
-          <div className="relative flex-1 min-w-48 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Išči po naslovu, opisu, zaposlenem..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9"
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <Filter className="h-3.5 w-3.5 mr-1.5" />
-            Filtri datuma
-            {(dateFrom || dateTo) && (
-              <span className="ml-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-[9px] px-1">
-                !
-              </span>
-            )}
-          </Button>
-          {(dateFrom || dateTo || search || activeTab !== 'all') && (
-            <Button variant="ghost" size="sm" className="h-9" onClick={resetFilters}>
-              <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-              Počisti
-            </Button>
-          )}
-        </div>
-        {showFilters && (
-          <div className="flex flex-wrap gap-3 items-end mt-3 pt-3 border-t">
-            <div>
-              <Label className="text-xs">Od datuma</Label>
-              <Input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="h-9 w-40"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Do datuma</Label>
-              <Input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="h-9 w-40"
-              />
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  )
-
-  // ============================================
-  // RENDER: PRAZNO STANJE
-  // ============================================
-
-  const renderEmptyState = () => (
-    <div className="text-center py-16">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mx-auto mb-4">
-        <FileText className="h-8 w-8 text-muted-foreground" />
-      </div>
-      <h3 className="text-lg font-semibold mb-1">Ni HACCP vnosov</h3>
-      <p className="text-sm text-muted-foreground mb-4 max-w-sm mx-auto">
-        {activeTab !== 'all'
-          ? `Za kategorijo "${categoryConfig[activeTab]?.label || activeTab}" ni vnosov. Dodajte nov vnos ali spremenite filter.`
-          : 'Za izbrano obdobje ni vnosov. Dodajte nov vnos ali spremenite filter.'}
-      </p>
-      <Button onClick={() => openCreate(activeTab !== 'all' ? activeTab : undefined)}>
-        <Plus className="h-4 w-4 mr-2" />
-        Dodaj HACCP vnos
-      </Button>
-    </div>
-  )
-
-  // ============================================
-  // RENDER: LOADING SKELETON
-  // ============================================
-
-  const renderLoadingSkeleton = () => (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {[...Array(4)].map((_, i) => (
-          <Skeleton key={`sum-${i}`} className="h-20" />
-        ))}
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-        {[...Array(6)].map((_, i) => (
-          <Skeleton key={`card-${i}`} className="h-44" />
-        ))}
-      </div>
-    </div>
-  )
+  const hasActiveFilters = !!(dateFrom || dateTo || search || activeTab !== 'all')
 
   // ============================================
   // GLAVNI RENDER
@@ -440,7 +252,7 @@ export const HaccpManager = memo(function HaccpManager() {
             <p className="text-muted-foreground">Nalaganje...</p>
           </div>
         </div>
-        {renderLoadingSkeleton()}
+        <HaccpLoadingSkeleton />
       </div>
     )
   }
@@ -471,10 +283,25 @@ export const HaccpManager = memo(function HaccpManager() {
       />
 
       {/* Opozorila */}
-      {renderAlerts()}
+      <HaccpAlerts
+        allEntries={allEntries}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+      />
 
       {/* Filtri */}
-      {renderFilters()}
+      <HaccpFilters
+        search={search}
+        onSearchChange={setSearch}
+        dateFrom={dateFrom}
+        onDateFromChange={setDateFrom}
+        dateTo={dateTo}
+        onDateToChange={setDateTo}
+        showFilters={showFilters}
+        onShowFiltersChange={setShowFilters}
+        hasActiveFilters={hasActiveFilters}
+        onReset={resetFilters}
+      />
 
       {/* Zavihki po kategorijah */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -493,7 +320,10 @@ export const HaccpManager = memo(function HaccpManager() {
         {tabItems.map((tab) => (
           <TabsContent key={tab.value} value={tab.value} className="space-y-4 mt-4">
             {/* Hitre predloge */}
-            {renderQuickTemplates()}
+            <HaccpQuickTemplates
+              activeTab={activeTab}
+              onCreate={openCreate}
+            />
 
             {/* Seznam vnosov */}
             {filteredEntries.length > 0 ? (
@@ -510,7 +340,10 @@ export const HaccpManager = memo(function HaccpManager() {
                 ))}
               </div>
             ) : (
-              renderEmptyState()
+              <HaccpEmptyState
+                activeTab={activeTab}
+                onCreate={openCreate}
+              />
             )}
 
             {/* Število vnosov */}

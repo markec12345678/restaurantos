@@ -5,21 +5,18 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { Plus, Plug } from 'lucide-react'
-import { useState, useMemo, memo } from 'react'
+import { useState, useMemo, useCallback, memo } from 'react'
 import dynamic from 'next/dynamic'
 import { authFetch } from '@/components/pos/PinLogin'
-import { type IntegrationConnector } from '@/lib/integrations/connectors'
+import type { IntegrationConnector } from '@/lib/integrations/connectors'
 import { queryKeys } from '@/lib/query-keys'
 import type { IntegrationItem, FormData } from './integration/constants'
 
-// ============================================
-// LAZY LOADING POD-KOMPONENT
-// ============================================
-
-const StatsCards = dynamic(() => import('./integration/StatsCards').then(m => m.StatsCards), { ssr: false })
-const IntegrationTable = dynamic(() => import('./integration/IntegrationTable').then(m => m.IntegrationTable), { ssr: false })
-const IntegrationDialog = dynamic(() => import('./integration/IntegrationDialog').then(m => m.IntegrationDialog), { ssr: false })
-const DeleteDialog = dynamic(() => import('./integration/DeleteDialog').then(m => m.DeleteDialog), { ssr: false })
+// Lazy-loaded pod-komponente
+const StatsCards = dynamic(() => import('./integration/StatsCards').then((m) => m.StatsCards), { ssr: false })
+const IntegrationTable = dynamic(() => import('./integration/IntegrationTable').then((m) => m.IntegrationTable), { ssr: false })
+const IntegrationDialog = dynamic(() => import('./integration/IntegrationDialog').then((m) => m.IntegrationDialog), { ssr: false })
+const DeleteDialog = dynamic(() => import('./integration/DeleteDialog').then((m) => m.DeleteDialog), { ssr: false })
 
 // ============================================
 // GLAVNA KOMPONENTA
@@ -181,14 +178,14 @@ export const IntegrationManager = memo(function IntegrationManager() {
   // HANDLERJI
   // ============================================
 
-  const openCreate = () => {
+  const openCreate = useCallback(() => {
     setEditingItem(null)
     setSelectedConnector(null)
     setFormData({ name: '', type: 'custom', provider: 'custom', baseUrl: '', apiKey: '', apiSecret: '', config: '{}', syncEnabled: true, syncInterval: 300, events: [], isActive: true })
     setDialogOpen(true)
-  }
+  }, [])
 
-  const selectConnector = (connector: IntegrationConnector) => {
+  const selectConnector = useCallback((connector: IntegrationConnector) => {
     setSelectedConnector(connector)
     setFormData({
       name: connector.name,
@@ -210,9 +207,9 @@ export const IntegrationManager = memo(function IntegrationManager() {
       events: connector.defaultEvents,
       isActive: true,
     })
-  }
+  }, [])
 
-  const openEdit = (item: IntegrationItem) => {
+  const openEdit = useCallback((item: IntegrationItem) => {
     setEditingItem(item)
     setSelectedConnector(null)
     let parsedEvents: string[] = []
@@ -231,9 +228,9 @@ export const IntegrationManager = memo(function IntegrationManager() {
       isActive: item.isActive,
     })
     setDialogOpen(true)
-  }
+  }, [])
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     if (!formData.name.trim()) { toast.error('Ime je obvezno'); return }
 
     const payload = {
@@ -255,30 +252,26 @@ export const IntegrationManager = memo(function IntegrationManager() {
     } else {
       createMutation.mutate(payload)
     }
-  }
+  }, [formData, editingItem, updateMutation, createMutation])
 
-  const handleDialogOpenChange = (open: boolean) => {
+  const handleDialogOpenChange = useCallback((open: boolean) => {
     if (!open) {
       setEditingItem(null)
       setSelectedConnector(null)
     }
     setDialogOpen(open)
-  }
+  }, [])
 
-  const handleDialogCancel = () => {
-    setDialogOpen(false)
-    setEditingItem(null)
-    setSelectedConnector(null)
-  }
-
-  const handleDelete = (item: IntegrationItem) => {
+  const handleDeleteTarget = useCallback((item: IntegrationItem) => {
     setDeleteTarget(item)
     setDeleteDialogOpen(true)
-  }
+  }, [])
 
-  const handleDeleteConfirm = () => {
-    if (deleteTarget) deleteMutation.mutate(deleteTarget.id)
-  }
+  const handleDeleteConfirm = useCallback(() => {
+    if (deleteTarget) {
+      deleteMutation.mutate(deleteTarget.id)
+    }
+  }, [deleteTarget, deleteMutation])
 
   // ============================================
   // RENDER
@@ -321,7 +314,7 @@ export const IntegrationManager = memo(function IntegrationManager() {
         errorCount={errorCount}
       />
 
-      {/* Filtri in tabela */}
+      {/* Tabela in filtri */}
       <IntegrationTable
         filteredIntegrations={filteredIntegrations}
         search={search}
@@ -331,7 +324,7 @@ export const IntegrationManager = memo(function IntegrationManager() {
         onTest={(id) => testMutation.mutate(id)}
         onSync={(id) => syncMutation.mutate(id)}
         onEdit={openEdit}
-        onDelete={handleDelete}
+        onDelete={handleDeleteTarget}
         onAdd={openCreate}
         testPending={testMutation.isPending}
         syncPending={syncMutation.isPending}
@@ -347,7 +340,7 @@ export const IntegrationManager = memo(function IntegrationManager() {
         onFormDataChange={setFormData}
         onSelectConnector={selectConnector}
         onSubmit={handleSubmit}
-        onCancel={handleDialogCancel}
+        onCancel={() => { setDialogOpen(false); setEditingItem(null); setSelectedConnector(null) }}
         isCreating={createMutation.isPending}
         isUpdating={updateMutation.isPending}
       />

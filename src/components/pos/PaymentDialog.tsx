@@ -9,19 +9,21 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CreditCard, Heart, CheckCircle2, Split, Users } from 'lucide-react'
 import { useState, useRef, useEffect, memo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import dynamic from 'next/dynamic'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-// Sub-component imports
-import { PaymentSuccessAnimation } from './payment/PaymentSuccessAnimation'
-import { CashPaymentSection } from './payment/CashPaymentSection'
-import { GiftCardSection } from './payment/GiftCardSection'
-import { LoyaltySection } from './payment/LoyaltySection'
-import { AlternatePaymentSection } from './payment/AlternatePaymentSection'
-import { SplitPaymentTab } from './payment/SplitPaymentTab'
-import { ByItemsTab } from './payment/ByItemsTab'
 import { tipPresets, paymentMethods } from './payment/constants'
 import type { PaymentDialogProps } from './payment/types'
+
+// Lazy-loaded podkomponente
+const PaymentSuccessAnimation = dynamic(() => import('./payment/PaymentSuccessAnimation').then(m => ({ default: m.PaymentSuccessAnimation })), { ssr: false })
+const CashPaymentSection = dynamic(() => import('./payment/CashPaymentSection').then(m => ({ default: m.CashPaymentSection })), { ssr: false })
+const GiftCardSection = dynamic(() => import('./payment/GiftCardSection').then(m => ({ default: m.GiftCardSection })), { ssr: false })
+const LoyaltySection = dynamic(() => import('./payment/LoyaltySection').then(m => ({ default: m.LoyaltySection })), { ssr: false })
+const AlternatePaymentSection = dynamic(() => import('./payment/AlternatePaymentSection').then(m => ({ default: m.AlternatePaymentSection })), { ssr: false })
+const SplitPaymentTab = dynamic(() => import('./payment/SplitPaymentTab').then(m => ({ default: m.SplitPaymentTab })), { ssr: false })
+const ByItemsTab = dynamic(() => import('./payment/ByItemsTab').then(m => ({ default: m.ByItemsTab })), { ssr: false })
 
 // ============================================
 // KOMPONENTA

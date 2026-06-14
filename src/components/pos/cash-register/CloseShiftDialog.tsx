@@ -119,11 +119,12 @@ export const CloseShiftDialog = memo(function CloseShiftDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Prekliči</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} aria-label="Prekliči">Prekliči</Button>
           <Button
             variant="destructive"
             onClick={onSubmit}
             disabled={isPending}
+            aria-label="Zapri izmeno"
           >
             {isPending ? 'Zapiram...' : 'Zapri izmeno'}
           </Button>

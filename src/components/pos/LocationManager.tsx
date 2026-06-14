@@ -1,24 +1,27 @@
 'use client'
 
 import { useState, useCallback, memo } from 'react'
-import dynamic from 'next/dynamic'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Building2, Plus, Navigation } from 'lucide-react'
+import { Plus, Building2, Navigation } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import { authFetch } from '@/components/pos/PinLogin'
 import type { SyncResultRow, DeliveryZoneFormRow, LocationFormRow, DeliveryZoneRow } from '@/lib/types'
 import { queryKeys } from '@/lib/query-keys'
-import type { LocationData, DeleteConfirmState, LocationFormState, ZoneFormState } from './location/constants'
-import { defaultLocationForm, defaultZoneForm } from './location/constants'
+import { type LocationData, type DeleteConfirmState, type ZoneFormState, type LocationFormState, defaultLocationForm, defaultZoneForm } from './location/constants'
 
-// Lenčasično nalaganje podkomponent — izboljša začetni čas nalaganja
-const LocationStats = dynamic(() => import('./location/LocationStats').then(m => m.LocationStats), { ssr: false })
-const MenuSyncSection = dynamic(() => import('./location/MenuSyncSection').then(m => m.MenuSyncSection), { ssr: false })
-const DeliveryZonesSection = dynamic(() => import('./location/DeliveryZonesSection').then(m => m.DeliveryZonesSection), { ssr: false })
-const LocationForm = dynamic(() => import('./location/LocationForm').then(m => m.LocationForm), { ssr: false })
-const LocationsList = dynamic(() => import('./location/LocationsList').then(m => m.LocationsList), { ssr: false })
-const DeleteDialog = dynamic(() => import('./location/DeleteDialog').then(m => m.DeleteDialog), { ssr: false })
+// Lazy-loaded podkomponente
+const LocationStats = dynamic(() => import('./location/LocationStats').then(m => ({ default: m.LocationStats })), { ssr: false })
+const MenuSyncSection = dynamic(() => import('./location/MenuSyncSection').then(m => ({ default: m.MenuSyncSection })), { ssr: false })
+const DeliveryZonesSection = dynamic(() => import('./location/DeliveryZonesSection').then(m => ({ default: m.DeliveryZonesSection })), { ssr: false })
+const LocationForm = dynamic(() => import('./location/LocationForm').then(m => ({ default: m.LocationForm })), { ssr: false })
+const LocationsList = dynamic(() => import('./location/LocationsList').then(m => ({ default: m.LocationsList })), { ssr: false })
+const DeleteDialog = dynamic(() => import('./location/DeleteDialog').then(m => ({ default: m.DeleteDialog })), { ssr: false })
+
+// ============================================
+// GLAVNA KOMPONENTA
+// ============================================
 
 export const LocationManager = memo(function LocationManager() {
   const queryClient = useQueryClient()
@@ -31,14 +34,17 @@ export const LocationManager = memo(function LocationManager() {
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState | null>(null)
   const [syncing, setSyncing] = useState(false)
 
-  const [form, setForm] = useState<LocationFormState>(defaultLocationForm)
+  const [form, setForm] = useState<LocationFormState>({ ...defaultLocationForm })
 
   // Cone dostave
   const [showZones, setShowZones] = useState(false)
   const [showZoneForm, setShowZoneForm] = useState(false)
-  const [zoneForm, setZoneForm] = useState<ZoneFormState>(defaultZoneForm)
+  const [zoneForm, setZoneForm] = useState<ZoneFormState>({ ...defaultZoneForm })
 
-  // Pridobivanje con dostave
+  // ============================================
+  // QUERIES
+  // ============================================
+
   const { data: zonesData, isLoading: zonesLoading } = useQuery({
     queryKey: queryKeys.delivery.zones,
     queryFn: async () => {
@@ -49,34 +55,6 @@ export const LocationManager = memo(function LocationManager() {
     enabled: showZones,
   })
 
-  // Ustvarjanje cone dostave
-  const createZoneMutation = useMutation({
-    mutationFn: async (data: DeliveryZoneFormRow) => {
-      const res = await authFetch('/api/delivery-zones', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error('Napaka')
-      return res.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.delivery.zones })
-      setShowZoneForm(false)
-      setZoneForm(defaultZoneForm)
-    },
-  })
-
-  // Brisanje cone dostave
-  const deleteZoneMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await authFetch(`/api/delivery-zones/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Napaka')
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.delivery.zones }),
-  })
-
-  // Pridobivanje lokacij
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.locations.all,
     queryFn: async () => {
@@ -89,7 +67,10 @@ export const LocationManager = memo(function LocationManager() {
   const locations: LocationData[] = data?.locations || []
   const stats = data?.stats || { total: 0, active: 0, open: 0 }
 
-  // Ustvarjanje lokacije
+  // ============================================
+  // MUTATIONS
+  // ============================================
+
   const createMutation = useMutation({
     mutationFn: async (data: LocationFormRow) => {
       const res = await authFetch('/api/locations', {
@@ -107,7 +88,6 @@ export const LocationManager = memo(function LocationManager() {
     },
   })
 
-  // Preklop aktivnosti lokacije
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
       const res = await authFetch(`/api/locations/${id}`, {
@@ -121,7 +101,6 @@ export const LocationManager = memo(function LocationManager() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.locations.all }),
   })
 
-  // Brisanje lokacije
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await authFetch(`/api/locations/${id}`, { method: 'DELETE' })
@@ -130,9 +109,37 @@ export const LocationManager = memo(function LocationManager() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.locations.all }),
   })
 
-  // Ponastavitev obrazca
+  const createZoneMutation = useMutation({
+    mutationFn: async (data: DeliveryZoneFormRow) => {
+      const res = await authFetch('/api/delivery-zones', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      })
+      if (!res.ok) throw new Error('Napaka')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.delivery.zones })
+      setShowZoneForm(false)
+      setZoneForm({ ...defaultZoneForm })
+    },
+  })
+
+  const deleteZoneMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await authFetch(`/api/delivery-zones/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Napaka')
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.delivery.zones }),
+  })
+
+  // ============================================
+  // HANDLERJI
+  // ============================================
+
   const resetForm = useCallback(() => {
-    setForm(defaultLocationForm)
+    setForm({ ...defaultLocationForm })
     setEditingId(null)
   }, [])
 
@@ -240,9 +247,22 @@ export const LocationManager = memo(function LocationManager() {
     setForm(p => ({ ...p, type: e.target.value }))
   }, [])
 
+  const handleCancelForm = useCallback(() => {
+    setShowForm(false)
+    resetForm()
+  }, [resetForm])
+
+  // ============================================
+  // RENDER: LOADING SKELETON
+  // ============================================
+
   if (isLoading) {
     return <div className="space-y-4">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-40" />)}</div>
   }
+
+  // ============================================
+  // GLAVNI RENDER
+  // ============================================
 
   return (
     <div className="space-y-6">
@@ -260,7 +280,7 @@ export const LocationManager = memo(function LocationManager() {
         </Button>
         {locations.length > 1 && (
           <Button variant="outline" onClick={handleToggleSync} className="gap-2">
-            🔄 Sinhroniziraj meni
+            Sinhroniziraj meni
           </Button>
         )}
         <Button variant="outline" onClick={handleToggleZones} className="gap-2">
@@ -298,7 +318,7 @@ export const LocationManager = memo(function LocationManager() {
         onDeleteZone={handleDeleteZone}
       />
 
-      {/* Obrazec za ustvarjanje lokacije */}
+      {/* Obrazec za novo lokacijo */}
       <LocationForm
         showForm={showForm}
         form={form}
@@ -306,7 +326,7 @@ export const LocationManager = memo(function LocationManager() {
         onSetForm={setForm}
         onFormTypeChange={handleFormTypeChange}
         onSubmit={handleSubmit}
-        onCancel={() => { setShowForm(false); resetForm() }}
+        onCancel={handleCancelForm}
       />
 
       {/* Seznam lokacij */}

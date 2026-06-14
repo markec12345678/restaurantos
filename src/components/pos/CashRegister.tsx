@@ -2,29 +2,29 @@
 
 // ============================================
 // BLAGAJNA — Glavna komponenta
-// Upravljajte izmene in stanje blagajne
+// Vse query-je/mutacije/obdelovalce hrani tukaj,
+// podkomponente so lazy-loaded iz cash-register/
 // ============================================
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 import { Lock, Unlock, CalendarCheck } from 'lucide-react'
-import { useState, memo } from 'react'
+import { useState, memo, useCallback } from 'react'
 import { format } from 'date-fns'
+import dynamic from 'next/dynamic'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import dynamic from 'next/dynamic'
-
-// Leno-naložene podkomponente
-const ActiveShiftView = dynamic(() => import('./cash-register/ActiveShiftView').then(m => m.ActiveShiftView), { ssr: false })
-const RecentShiftsList = dynamic(() => import('./cash-register/RecentShiftsList').then(m => m.RecentShiftsList), { ssr: false })
-const OpenShiftDialog = dynamic(() => import('./cash-register/OpenShiftDialog').then(m => m.OpenShiftDialog), { ssr: false })
-const CloseShiftDialog = dynamic(() => import('./cash-register/CloseShiftDialog').then(m => m.CloseShiftDialog), { ssr: false })
-const EodDialog = dynamic(() => import('./cash-register/EodDialog').then(m => m.EodDialog), { ssr: false })
-
 import type { OpenShiftFormType, CloseShiftFormType, EodFormType } from './cash-register/constants'
+
+// Lazy-loaded podkomponente
+const ActiveShiftView = dynamic(() => import('./cash-register/ActiveShiftView').then(m => ({ default: m.ActiveShiftView })), { ssr: false })
+const RecentShiftsList = dynamic(() => import('./cash-register/RecentShiftsList').then(m => ({ default: m.RecentShiftsList })), { ssr: false })
+const OpenShiftDialog = dynamic(() => import('./cash-register/OpenShiftDialog').then(m => ({ default: m.OpenShiftDialog })), { ssr: false })
+const CloseShiftDialog = dynamic(() => import('./cash-register/CloseShiftDialog').then(m => ({ default: m.CloseShiftDialog })), { ssr: false })
+const EodDialog = dynamic(() => import('./cash-register/EodDialog').then(m => ({ default: m.EodDialog })), { ssr: false })
 
 export const CashRegister = memo(function CashRegister() {
   const queryClient = useQueryClient()
@@ -35,6 +35,7 @@ export const CashRegister = memo(function CashRegister() {
   const [closeForm, setCloseForm] = useState<CloseShiftFormType>({ closingCash: '', notes: '' })
   const [eodForm, setEodForm] = useState<EodFormType>({ closingCash: '', notes: '' })
 
+  // Memoizirani izračuni za EOD povzetek — ne prerčunava na vsakem renderju
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.cashRegister.all,
     queryFn: async () => {
@@ -54,9 +55,10 @@ export const CashRegister = memo(function CashRegister() {
     },
   })
 
+  // Zagotovi, da so employees vedno array (tudi ob napaki query-ja)
   const employeesList = Array.isArray(employees) ? employees : []
 
-  // EOD (Zaključek obratovalnega dneva)
+  // ─── EOD (Zaključek obratovalnega dneva) ───
   const [eodDate] = useState(format(new Date(), 'yyyy-MM-dd'))
 
   const { data: eodData, isLoading: eodLoading } = useQuery({
@@ -156,6 +158,24 @@ export const CashRegister = memo(function CashRegister() {
     onError: () => toast.error('Napaka pri zapiranju izmene'),
   })
 
+  // --- Callbacks za podkomponente ---
+  const handleOpenShiftSubmit = useCallback((form: OpenShiftFormType) => {
+    openShiftMutation.mutate(form)
+  }, [openShiftMutation])
+
+  const handleCloseShiftSubmit = useCallback(() => {
+    if (activeShift) closeShiftMutation.mutate({ id: activeShift.id, form: closeForm })
+  }, [activeShift, closeForm, closeShiftMutation])
+
+  const handleEodSubmit = useCallback(() => {
+    // FIX HIGH: Null-safe izračun closingCash — prej crash če eodData undefined
+    const startingCash = eodData?.activeShift?.startingCash ?? 0
+    const totalRevenue = eodData?.summary?.totalRevenue ?? 0
+    const closingCash = eodForm.closingCash ? parseFloat(eodForm.closingCash) : startingCash + totalRevenue
+    const notes = eodForm.notes
+    eodCloseMutation.mutate({ closingCash: isNaN(closingCash) ? 0 : closingCash, notes })
+  }, [eodData, eodForm, eodCloseMutation])
+
   if (isLoading) {
     return (
       <div className="space-y-6">
@@ -168,14 +188,6 @@ export const CashRegister = memo(function CashRegister() {
     )
   }
 
-  const handleEodSubmit = () => {
-    const startingCash = eodData?.activeShift?.startingCash ?? 0
-    const totalRevenue = eodData?.summary?.totalRevenue ?? 0
-    const closingCash = eodForm.closingCash ? parseFloat(eodForm.closingCash) : startingCash + totalRevenue
-    const notes = eodForm.notes
-    eodCloseMutation.mutate({ closingCash: isNaN(closingCash) ? 0 : closingCash, notes })
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -185,7 +197,11 @@ export const CashRegister = memo(function CashRegister() {
         </div>
         {activeShift ? (
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setEodDialog(true)}>
+            <Button
+              variant="outline"
+              onClick={() => setEodDialog(true)}
+              aria-label="Zaključi dan"
+            >
               <CalendarCheck className="h-4 w-4 mr-2" />
               Zaključi dan
             </Button>
@@ -195,13 +211,14 @@ export const CashRegister = memo(function CashRegister() {
                 setCloseForm({ closingCash: String(liveStats?.expectedCash || activeShift.startingCash), notes: '' })
                 setCloseDialog(true)
               }}
+              aria-label="Zapri izmeno"
             >
               <Lock className="h-4 w-4 mr-2" />
               Zapri izmeno
             </Button>
           </div>
         ) : (
-          <Button onClick={() => setOpenDialog(true)}>
+          <Button onClick={() => setOpenDialog(true)} aria-label="Odpri izmeno">
             <Unlock className="h-4 w-4 mr-2" />
             Odpri izmeno
           </Button>
@@ -212,6 +229,7 @@ export const CashRegister = memo(function CashRegister() {
       {activeShift ? (
         <ActiveShiftView activeShift={activeShift} liveStats={liveStats} />
       ) : (
+        /* No active shift */
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
             <Lock className="h-12 w-12 mx-auto mb-4 text-muted-foreground/30" />
@@ -219,7 +237,7 @@ export const CashRegister = memo(function CashRegister() {
             <p className="text-sm text-muted-foreground mb-4">
               Za začetek prodaje morate odpreti novo izmeno in vnesti začetno stanje gotovine.
             </p>
-            <Button onClick={() => setOpenDialog(true)}>
+            <Button onClick={() => setOpenDialog(true)} aria-label="Odpri izmeno">
               <Unlock className="h-4 w-4 mr-2" />
               Odpri izmeno
             </Button>
@@ -237,7 +255,7 @@ export const CashRegister = memo(function CashRegister() {
         form={openForm}
         onFormChange={setOpenForm}
         employees={employeesList}
-        onSubmit={openShiftMutation.mutate}
+        onSubmit={handleOpenShiftSubmit}
         isPending={openShiftMutation.isPending}
       />
 
@@ -248,13 +266,11 @@ export const CashRegister = memo(function CashRegister() {
         form={closeForm}
         onFormChange={setCloseForm}
         liveStats={liveStats}
-        onSubmit={() => {
-          if (activeShift) closeShiftMutation.mutate({ id: activeShift.id, form: closeForm })
-        }}
+        onSubmit={handleCloseShiftSubmit}
         isPending={closeShiftMutation.isPending}
       />
 
-      {/* ZOD Dialog */}
+      {/* ─── ZOD: Zaključek obratovalnega dneva ─── */}
       <EodDialog
         open={eodDialog}
         onOpenChange={setEodDialog}

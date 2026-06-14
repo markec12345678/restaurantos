@@ -1,39 +1,21 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import { CalendarDays, Clock, Play, CheckCircle2, Timer } from 'lucide-react'
+import { CalendarDays, Clock } from 'lucide-react'
 import { useState, useCallback, useMemo, memo } from 'react'
 import dynamic from 'next/dynamic'
-import type { ShiftItem, TimeEntryItem, ShiftFormState, Employee, Job } from './shift/constants'
+import { type ShiftItem, type TimeEntryItem, type Employee, type Job, type ShiftFormState } from './shift/constants'
 
-// ============================================
-// LAZY-LOADED PODKOMPONENTE
-// ============================================
-
-const ShiftsTab = dynamic(
-  () => import('./shift/ShiftsTab').then(mod => mod.ShiftsTab),
-  { ssr: false },
-)
-
-const TimeTab = dynamic(
-  () => import('./shift/TimeTab').then(mod => mod.TimeTab),
-  { ssr: false },
-)
-
-const ShiftDialog = dynamic(
-  () => import('./shift/ShiftDialog').then(mod => mod.ShiftDialog),
-  { ssr: false },
-)
-
-const DeleteShiftDialog = dynamic(
-  () => import('./shift/DeleteShiftDialog').then(mod => mod.DeleteShiftDialog),
-  { ssr: false },
-)
+// Lazy-loaded podkomponente
+const ShiftSummaryCards = dynamic(() => import('./shift/ShiftSummaryCards').then(m => ({ default: m.ShiftSummaryCards })), { ssr: false })
+const ShiftsTab = dynamic(() => import('./shift/ShiftsTab').then(m => ({ default: m.ShiftsTab })), { ssr: false })
+const TimeTab = dynamic(() => import('./shift/TimeTab').then(m => ({ default: m.TimeTab })), { ssr: false })
+const ShiftDialog = dynamic(() => import('./shift/ShiftDialog').then(m => ({ default: m.ShiftDialog })), { ssr: false })
+const DeleteShiftDialog = dynamic(() => import('./shift/DeleteShiftDialog').then(m => ({ default: m.DeleteShiftDialog })), { ssr: false })
 
 // ============================================
 // GLAVNA KOMPONENTA
@@ -221,27 +203,19 @@ export const ShiftManager = memo(function ShiftManager() {
     clockOutMutation.mutate({ id: entryId, clockOut: new Date().toISOString() })
   }, [clockOutMutation])
 
-  // Handler za dijalog izmene — počišče urejanje ob zaprtju
   const handleShiftDialogOpenChange = useCallback((open: boolean) => {
     if (!open) setEditingShift(null)
     setShiftDialogOpen(open)
   }, [])
 
-  // Handler za brisanje izmene
   const handleDeleteShift = useCallback((shift: ShiftItem) => {
     setDeleteShiftTarget(shift)
     setDeleteShiftDialogOpen(true)
   }, [])
 
   const handleDeleteConfirm = useCallback(() => {
-    if (deleteShiftTarget) {
-      deleteShiftMutation.mutate(deleteShiftTarget.id)
-    }
+    if (deleteShiftTarget) deleteShiftMutation.mutate(deleteShiftTarget.id)
   }, [deleteShiftTarget, deleteShiftMutation])
-
-  const handleDeleteDialogOpenChange = useCallback((open: boolean) => {
-    setDeleteShiftDialogOpen(open)
-  }, [])
 
   // ============================================
   // RENDER
@@ -259,60 +233,12 @@ export const ShiftManager = memo(function ShiftManager() {
       </div>
 
       {/* Povzetek */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">
-                <CalendarDays className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">{scheduledCount}</p>
-                <p className="text-xs text-muted-foreground">Načrtovane</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
-                <Play className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-amber-700 dark:text-amber-400">{inProgressCount}</p>
-                <p className="text-xs text-muted-foreground">V teku</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">
-                <CheckCircle2 className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{completedCount}</p>
-                <p className="text-xs text-muted-foreground">Zaključene</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="hover:shadow-md transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Timer className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{totalHoursToday.toFixed(1)}h</p>
-                <p className="text-xs text-muted-foreground">Ure danes</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <ShiftSummaryCards
+        scheduledCount={scheduledCount}
+        inProgressCount={inProgressCount}
+        completedCount={completedCount}
+        totalHoursToday={totalHoursToday}
+      />
 
       {/* Zavihki */}
       <Tabs defaultValue="shifts">
@@ -322,7 +248,7 @@ export const ShiftManager = memo(function ShiftManager() {
         </TabsList>
 
         {/* === ZAVIHEK: IZMENE === */}
-        <TabsContent value="shifts">
+        <TabsContent value="shifts" className="space-y-4">
           <ShiftsTab
             shifts={allShifts}
             shiftsLoading={shiftsLoading}
@@ -336,7 +262,7 @@ export const ShiftManager = memo(function ShiftManager() {
         </TabsContent>
 
         {/* === ZAVIHEK: URE === */}
-        <TabsContent value="time">
+        <TabsContent value="time" className="space-y-4">
           <TimeTab
             employeesList={employeesList}
             jobs={jobs}
@@ -371,7 +297,7 @@ export const ShiftManager = memo(function ShiftManager() {
       {/* Dijalog za brisanje */}
       <DeleteShiftDialog
         open={deleteShiftDialogOpen}
-        onOpenChange={handleDeleteDialogOpenChange}
+        onOpenChange={setDeleteShiftDialogOpen}
         onConfirm={handleDeleteConfirm}
         isPending={deleteShiftMutation.isPending}
       />

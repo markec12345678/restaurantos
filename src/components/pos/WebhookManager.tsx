@@ -11,17 +11,14 @@ import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import type { WebhookItem, FormData } from './webhook/constants'
 
-// ============================================
-// LAZY-LOADED POD-KOMPONENTE
-// ============================================
-
-const StatsCards = dynamic(() => import('./webhook/StatsCards').then(m => m.StatsCards), { ssr: false })
-const WebhookTable = dynamic(() => import('./webhook/WebhookTable').then(m => m.WebhookTable), { ssr: false })
-const WebhookDialog = dynamic(() => import('./webhook/WebhookDialog').then(m => m.WebhookDialog), { ssr: false })
-const DeleteDialog = dynamic(() => import('./webhook/DeleteDialog').then(m => m.DeleteDialog), { ssr: false })
+// Lazy-loaded pod-komponente
+const StatsCards = dynamic(() => import('./webhook/StatsCards').then(m => ({ default: m.StatsCards })), { ssr: false })
+const WebhookTable = dynamic(() => import('./webhook/WebhookTable').then(m => ({ default: m.WebhookTable })), { ssr: false })
+const WebhookDialog = dynamic(() => import('./webhook/WebhookDialog').then(m => ({ default: m.WebhookDialog })), { ssr: false })
+const DeleteDialog = dynamic(() => import('./webhook/DeleteDialog').then(m => ({ default: m.DeleteDialog })), { ssr: false })
 
 // ============================================
-// GLAVNA KOMPONENTA — WEBHOOK MANAGER
+// GLAVNA KOMPONENTA
 // ============================================
 
 export const WebhookManager = memo(function WebhookManager() {
@@ -212,13 +209,12 @@ export const WebhookManager = memo(function WebhookManager() {
     }
   }, [])
 
-  // --- Dijalog handlerji ---
   const handleDialogOpenChange = useCallback((open: boolean) => {
     if (!open) setEditingItem(null)
     setDialogOpen(open)
   }, [])
 
-  const handleDeleteItem = useCallback((item: WebhookItem) => {
+  const handleDeleteTarget = useCallback((item: WebhookItem) => {
     setDeleteTarget(item)
     setDeleteDialogOpen(true)
   }, [])
@@ -277,7 +273,7 @@ export const WebhookManager = memo(function WebhookManager() {
         onShowInactiveChange={setShowInactive}
         onTest={testWebhook}
         onEdit={openEdit}
-        onDelete={handleDeleteItem}
+        onDelete={handleDeleteTarget}
         onAdd={openCreate}
       />
 

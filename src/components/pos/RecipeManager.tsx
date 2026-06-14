@@ -9,15 +9,13 @@ import { useState, useMemo, memo } from 'react'
 import dynamic from 'next/dynamic'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import type { RecipeItemData, MenuItemData, InventoryData, AddFormState, EditFormState } from './recipe/constants'
+import type { RecipeItemData, AddFormState, EditFormState } from './recipe/constants'
 
-// ============================================
-// LAZY LOADED PODKOMPONENTE
-// ============================================
-const RecipeTab = dynamic(() => import('./recipe/RecipeTab').then(m => m.RecipeTab), { ssr: false })
-const MarginsTab = dynamic(() => import('./recipe/MarginsTab').then(m => m.MarginsTab), { ssr: false })
-const AddRecipeDialog = dynamic(() => import('./recipe/AddRecipeDialog').then(m => m.AddRecipeDialog), { ssr: false })
-const EditRecipeDialog = dynamic(() => import('./recipe/EditRecipeDialog').then(m => m.EditRecipeDialog), { ssr: false })
+// Lazy-loaded podkomponente
+const RecipeTab = dynamic(() => import('./recipe/RecipeTab').then(m => ({ default: m.RecipeTab })), { ssr: false })
+const MarginsTab = dynamic(() => import('./recipe/MarginsTab').then(m => ({ default: m.MarginsTab })), { ssr: false })
+const AddRecipeDialog = dynamic(() => import('./recipe/AddRecipeDialog').then(m => ({ default: m.AddRecipeDialog })), { ssr: false })
+const EditRecipeDialog = dynamic(() => import('./recipe/EditRecipeDialog').then(m => ({ default: m.EditRecipeDialog })), { ssr: false })
 
 // ============================================
 // KOMPONENTA
@@ -51,7 +49,7 @@ export const RecipeManager = memo(function RecipeManager() {
     },
   })
 
-  const { data: menuItems } = useQuery<MenuItemData[]>({
+  const { data: menuItems } = useQuery<import('./recipe/constants').MenuItemData[]>({
     queryKey: queryKeys.menuItems.all,
     queryFn: async () => {
       const res = await authFetch('/api/menu-items')
@@ -59,7 +57,7 @@ export const RecipeManager = memo(function RecipeManager() {
     },
   })
 
-  const { data: inventoryItems } = useQuery<InventoryData[]>({
+  const { data: inventoryItems } = useQuery<import('./recipe/constants').InventoryData[]>({
     queryKey: queryKeys.inventory.all,
     queryFn: async () => {
       const res = await authFetch('/api/inventory')
@@ -115,18 +113,18 @@ export const RecipeManager = memo(function RecipeManager() {
   })
 
   // ============================================
-  // IZRAČUNI
+  // IZRACUNI
   // ============================================
   // Skupine receptov po menijih
   const recipeGroups = useMemo(() => {
     if (!recipes || !menuItems) return { hrana: [], pijaca: [] }
     const hranaItems = menuItems.filter(mi => mi.category?.menu?.name === 'Hrana')
-    const pijacaItems = menuItems.filter(mi => mi.category?.menu?.name === 'Pijača')
+    const pijacaItems = menuItems.filter(mi => mi.category?.menu?.name === 'Pijaca')
 
-    const groupItems = (items: MenuItemData[]) => items.map(mi => {
+    const groupItems = (items: import('./recipe/constants').MenuItemData[]) => items.map(mi => {
       const itemRecipes = recipes.filter(r => r.menuItemId === mi.id)
       const totalCost = itemRecipes.reduce((sum, r) => sum + r.costPerServing, 0)
-      // Fallback na inventory costPerServing če ni recepta
+      // Fallback na inventory costPerServing ce ni recepta
       const fallbackCost = mi.inventory?.costPerServing || 0
       const effectiveCost = totalCost > 0 ? totalCost : fallbackCost
       return {
@@ -143,7 +141,7 @@ export const RecipeManager = memo(function RecipeManager() {
     }
   }, [recipes, menuItems])
 
-  // Pregled marž - vsi artikli
+  // Pregled marz - vsi artikli
   const marginData = useMemo(() => {
     if (!menuItems || !recipes) return []
     return menuItems.map(mi => {
@@ -189,7 +187,7 @@ export const RecipeManager = memo(function RecipeManager() {
   // Izbran meni artikel
   const selectedItem = useMemo(() => {
     if (!selectedMenuItemId || !menuItems) return null
-    return menuItems.find(mi => mi.id === selectedMenuItemId) ?? null
+    return menuItems.find(mi => mi.id === selectedMenuItemId)
   }, [selectedMenuItemId, menuItems])
 
   const selectedRecipes = useMemo(() => {
@@ -231,7 +229,7 @@ export const RecipeManager = memo(function RecipeManager() {
             <BookOpen className="h-6 w-6" />
             Recepti in normativi
           </h2>
-          <p className="text-muted-foreground">Upravljanje receptov, normativov in pregled marž</p>
+          <p className="text-muted-foreground">Upravljanje receptov, normativov in pregled marz</p>
         </div>
         <Button onClick={() => openAddDialog()}>
           <Plus className="h-4 w-4 mr-2" />
@@ -245,7 +243,7 @@ export const RecipeManager = memo(function RecipeManager() {
             <ChefHat className="h-3.5 w-3.5" /> Recepti po jedeh
           </TabsTrigger>
           <TabsTrigger value="margins" className="gap-1.5">
-            <TrendingUp className="h-3.5 w-3.5" /> Pregled marž
+            <TrendingUp className="h-3.5 w-3.5" /> Pregled marz
           </TabsTrigger>
         </TabsList>
 
@@ -257,7 +255,7 @@ export const RecipeManager = memo(function RecipeManager() {
             onSearchChange={setSearch}
             selectedMenuItemId={selectedMenuItemId}
             onSelectedMenuItemIdChange={setSelectedMenuItemId}
-            selectedItem={selectedItem}
+            selectedItem={selectedItem ?? null}
             selectedRecipes={selectedRecipes}
             selectedTotalCost={selectedTotalCost}
             onOpenAddDialog={openAddDialog}

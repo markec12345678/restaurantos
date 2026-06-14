@@ -138,3 +138,11 @@ export interface TableDialogProps {
   onShapeChange: (_value: string) => void
   onStatusChange: (_value: string) => void
 }
+
+export interface FloorPlanHeaderProps {
+  availableCount: number
+  occupiedCount: number
+  reservedCount: number
+  onAutoArrange: () => void
+  onOpenCreate: () => void
+}

@@ -11,11 +11,11 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import { ChefHat, Bell, RefreshCw, ListOrdered, LayoutGrid, Clock } from 'lucide-react'
+import { ChefHat, Clock, Flame, CheckCircle2, Bell, RefreshCw, LayoutGrid, ListOrdered } from 'lucide-react'
 import { useState, useEffect, useCallback, memo } from 'react'
 import dynamic from 'next/dynamic'
 import { toast } from 'sonner'
-import type { KitchenOrder, ViewMode, OrderItem } from './prep-queue/constants'
+import type { KitchenOrder, ViewMode } from './prep-queue/constants'
 
 // Lazy-loaded podkomponente
 const PrepQueueStats = dynamic(() => import('./prep-queue/PrepQueueStats').then(m => ({ default: m.PrepQueueStats })), { ssr: false })
@@ -42,14 +42,14 @@ export const KitchenPrepQueue = memo(function KitchenPrepQueue() {
 
       const kitchenOrders: KitchenOrder[] = activeOrders.map((order: {
         id: string; orderNumber: number; type: string; status: string; priority?: string;
-        createdAt: string; orderItems: OrderItem[]; table?: { number: number; name?: string };
+        createdAt: string; orderItems: KitchenOrder['orderItems']; table?: { number: number; name?: string };
         customerName?: string; specialInstructions?: string;
       }) => {
         const created = new Date(order.createdAt).getTime()
         const now = Date.now()
         const elapsedMinutes = Math.floor((now - created) / 60000)
         const estimatedPrepMinutes = order.orderItems?.reduce(
-          (sum: number, oi: OrderItem) => sum + (oi.menuItem?.prepTime || 15), 0
+          (sum: number, oi: { menuItem?: { prepTime?: number } }) => sum + (oi.menuItem?.prepTime || 15), 0
         ) / Math.max(order.orderItems?.length || 1, 1)
 
         return {
@@ -147,6 +147,16 @@ export const KitchenPrepQueue = memo(function KitchenPrepQueue() {
     toast.success(`Naročilo #${orderNumber} zaključeno`)
   }, [updateItemStatus])
 
+  // Handler za preklop pogleda
+  const handleViewModeToggle = useCallback(() => {
+    setViewMode(prev => prev === 'grid' ? 'list' : 'grid')
+  }, [])
+
+  // Handler za preklop zvoka
+  const handleSoundToggle = useCallback(() => {
+    setSoundEnabled(prev => !prev)
+  }, [])
+
   if (isLoading) {
     return (
       <div className="space-y-6 p-1">
@@ -162,7 +172,7 @@ export const KitchenPrepQueue = memo(function KitchenPrepQueue() {
 
   return (
     <div className="space-y-4 overflow-y-auto h-full p-1 custom-scrollbar">
-      {/* Header + Controls */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -175,9 +185,9 @@ export const KitchenPrepQueue = memo(function KitchenPrepQueue() {
           <Button
             variant={soundEnabled ? 'default' : 'outline'}
             size="sm"
-            onClick={() => setSoundEnabled(!soundEnabled)}
+            onClick={handleSoundToggle}
             className="gap-1"
-            aria-label={soundEnabled ? 'Izklopi zvok' : 'Vklopi zvok'}
+            aria-label={soundEnabled ? 'Izklopi zvočni alarm' : 'Vklopi zvočni alarm'}
           >
             <Bell className="h-3 w-3" />
             {soundEnabled ? 'Zvon' : 'Tiho'}
@@ -185,7 +195,7 @@ export const KitchenPrepQueue = memo(function KitchenPrepQueue() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+            onClick={handleViewModeToggle}
             className="gap-1"
             aria-label={viewMode === 'grid' ? 'Preklopi na seznam' : 'Preklopi na mrežo'}
           >
@@ -224,7 +234,7 @@ export const KitchenPrepQueue = memo(function KitchenPrepQueue() {
           title="V PRIPRAVI"
           count={preparingOrders.length}
           dotColor="bg-blue-500"
-          emptyIcon={Clock}
+          emptyIcon={Flame}
           emptyText="Ni naročil v pripravi"
           orders={preparingOrders}
           viewMode={viewMode}
@@ -237,7 +247,7 @@ export const KitchenPrepQueue = memo(function KitchenPrepQueue() {
           title="PRIPRAVLJENA"
           count={readyOrders.length}
           dotColor="bg-emerald-500"
-          emptyIcon={Clock}
+          emptyIcon={CheckCircle2}
           emptyText="Ni pripravljenih naročil"
           orders={readyOrders}
           viewMode={viewMode}

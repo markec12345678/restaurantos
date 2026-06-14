@@ -147,3 +147,10 @@ export interface DeleteShiftDialogProps {
   onConfirm: () => void
   isPending: boolean
 }
+
+export interface ShiftSummaryCardsProps {
+  scheduledCount: number
+  inProgressCount: number
+  completedCount: number
+  totalHoursToday: number
+}

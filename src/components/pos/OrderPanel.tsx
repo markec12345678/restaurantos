@@ -3,9 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usePOSStore } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { ShoppingBag, Clock, Trash2, Keyboard } from 'lucide-react'
+import { ShoppingBag, Clock, Keyboard } from 'lucide-react'
 import { useState, useCallback, memo } from 'react'
 import { usePOSShortcuts } from '@/lib/use-pos-shortcuts'
 import { ReceiptDialog } from '@/components/pos/ReceiptDialog'
@@ -19,7 +18,9 @@ import dynamic from 'next/dynamic'
 // Lazy-loaded sub-komponente
 const MenuBrowser = dynamic(() => import('./order/MenuBrowser').then(m => ({ default: m.MenuBrowser })), { ssr: false })
 const OrderList = dynamic(() => import('./order/OrderList').then(m => ({ default: m.OrderList })), { ssr: false })
-import { OrderCart } from './order/OrderCart'
+const OrderCart = dynamic(() => import('./order/OrderCart').then(m => ({ default: m.OrderCart })), { ssr: false })
+const ClearCartDialog = dynamic(() => import('./order/ClearCartDialog').then(m => m.ClearCartDialog), { ssr: false })
+const ShortcutsDialog = dynamic(() => import('./order/ShortcutsDialog').then(m => m.ShortcutsDialog), { ssr: false })
 import type { StockInfoType } from './order/MenuBrowser'
 import type { OrderType } from './order/OrderList'
 
@@ -269,6 +270,9 @@ export const OrderPanel = memo(function OrderPanel() {
   // Handler za exit editing
   const handleExitEditing = useCallback(() => { setEditingOrderId(null); setEditingOrderNumber(null); clearCart() }, [setEditingOrderId, setEditingOrderNumber, clearCart])
 
+  // Handler za clear cart dialog
+  const handleClearCartConfirm = useCallback(() => { clearCart(); setClearCartConfirm(false) }, [clearCart])
+
   // ============================================
   // RENDER
   // ============================================
@@ -413,49 +417,16 @@ export const OrderPanel = memo(function OrderPanel() {
         onStornoComplete={handleStornoComplete}
       />
       {/* Clear Cart Confirmation Dialog */}
-      <Dialog open={clearCartConfirm} onOpenChange={setClearCartConfirm}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Počisti košarico?</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Ali ste prepričani, da želite izbrisati vse artikle iz košarice? Tega dejanja ni mogoče razveljaviti.
-          </p>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setClearCartConfirm(false)} autoFocus>Prekliči</Button>
-            <Button variant="destructive" onClick={() => { clearCart(); setClearCartConfirm(false) }}>
-              <Trash2 className="h-4 w-4 mr-1" />
-              Počisti
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ClearCartDialog
+        open={clearCartConfirm}
+        onOpenChange={setClearCartConfirm}
+        onConfirm={handleClearCartConfirm}
+      />
       {/* Keyboard Shortcuts Dialog */}
-      <Dialog open={shortcutsOpen} onOpenChange={setShortcutsOpen}>
-        <DialogContent className="max-w-sm" tabIndex={-1}>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Keyboard className="h-5 w-5" />
-              Tipkovne bližnjice
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2 text-sm">
-            {[
-              { key: 'F2', desc: 'Novo naročilo' },
-              { key: 'F4', desc: 'Plačaj / Oddaj' },
-              { key: 'F5', desc: 'Seznam naročil' },
-              { key: 'F8', desc: 'Počisti košarico' },
-              { key: 'Ctrl+K', desc: 'Išči artikel' },
-              { key: 'Esc', desc: 'Zapri / Prekliči' },
-            ].map(s => (
-              <div key={s.key} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
-                <span className="text-muted-foreground">{s.desc}</span>
-                <kbd className="px-2 py-0.5 rounded bg-muted border border-border text-xs font-mono font-semibold">{s.key}</kbd>
-              </div>
-            ))}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ShortcutsDialog
+        open={shortcutsOpen}
+        onOpenChange={setShortcutsOpen}
+      />
     </div>
   )
 })

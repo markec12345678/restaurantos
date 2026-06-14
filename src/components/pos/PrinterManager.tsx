@@ -3,32 +3,30 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { Printer, Plus } from 'lucide-react'
-import { useState, useMemo, memo } from 'react'
+import { Plus, Printer } from 'lucide-react'
+import { useState, useMemo, useCallback, memo } from 'react'
 import dynamic from 'next/dynamic'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import type { PrinterItem, FormData, PrintRule, PrinterStatus } from './printer/constants'
 import { API_BASE, parsePrintRules } from './printer/constants'
+import type { PrinterItem, FormData as PrinterFormData, PrintRule, PrinterStatus } from './printer/constants'
+
+// Lazy-loaded pod-komponente
+const StatsCards = dynamic(() => import('./printer/StatsCards').then(m => ({ default: m.StatsCards })), { ssr: false })
+const PrinterGrid = dynamic(() => import('./printer/PrinterGrid').then(m => ({ default: m.PrinterGrid })), { ssr: false })
+const PrinterDialog = dynamic(() => import('./printer/PrinterDialog').then(m => ({ default: m.PrinterDialog })), { ssr: false })
 
 // ============================================
-// LAZY-LOADED POD-KOMPONENTE
-// ============================================
-
-const StatsCards = dynamic(() => import('./printer/StatsCards').then(m => m.StatsCards), { ssr: false })
-const PrinterGrid = dynamic(() => import('./printer/PrinterGrid').then(m => m.PrinterGrid), { ssr: false })
-const PrinterDialog = dynamic(() => import('./printer/PrinterDialog').then(m => m.PrinterDialog), { ssr: false })
-
-// ============================================
-// MAIN KOMPONENTA — PRINTER MANAGER
+// GLAVNA KOMPONENTA
 // ============================================
 
 export const PrinterManager = memo(function PrinterManager() {
   const queryClient = useQueryClient()
+
   const [search, setSearch] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingPrinter, setEditingPrinter] = useState<PrinterItem | null>(null)
-  const [formData, setFormData] = useState<FormData>({
+  const [formData, setFormData] = useState<PrinterFormData>({
     name: '',
     type: 'thermal',
     location: '',
@@ -41,7 +39,8 @@ export const PrinterManager = memo(function PrinterManager() {
 
   // ─── PRINTER CONNECTIVITY TEST ───
   const [printerStatus, setPrinterStatus] = useState<Record<string, PrinterStatus>>({})
-  const testConnectivity = async (printer: PrinterItem) => {
+
+  const testConnectivity = useCallback(async (printer: PrinterItem) => {
     setPrinterStatus(prev => ({ ...prev, [printer.id]: 'checking' }))
     try {
       // Preizkusi povezavo s tiskalnikom s TCP pingom preko print API-ja
@@ -60,7 +59,7 @@ export const PrinterManager = memo(function PrinterManager() {
       setPrinterStatus(prev => ({ ...prev, [printer.id]: 'offline' }))
       toast.error('Napaka pri povezavi')
     }
-  }
+  }, [])
 
   // ============================================
   // QUERY
@@ -145,7 +144,7 @@ export const PrinterManager = memo(function PrinterManager() {
   // HANDLERJI
   // ============================================
 
-  const openCreate = () => {
+  const openCreate = useCallback(() => {
     setEditingPrinter(null)
     setFormData({
       name: '',
@@ -158,9 +157,9 @@ export const PrinterManager = memo(function PrinterManager() {
       printRulesPrepStationOrder: false,
     })
     setDialogOpen(true)
-  }
+  }, [])
 
-  const openEdit = (printer: PrinterItem) => {
+  const openEdit = useCallback((printer: PrinterItem) => {
     setEditingPrinter(printer)
     const rules = parsePrintRules(printer.printRules)
     setFormData({
@@ -174,9 +173,9 @@ export const PrinterManager = memo(function PrinterManager() {
       printRulesPrepStationOrder: rules.some(r => r.type === 'prepStationOrder'),
     })
     setDialogOpen(true)
-  }
+  }, [])
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     if (!formData.name.trim()) {
       toast.error('Ime tiskalnika je obvezno')
       return
@@ -198,20 +197,19 @@ export const PrinterManager = memo(function PrinterManager() {
     } else {
       createMutation.mutate(payload)
     }
-  }
+  }, [formData, editingPrinter, updateMutation, createMutation])
 
-  const toggleActive = (printer: PrinterItem) => {
+  const toggleActive = useCallback((printer: PrinterItem) => {
     updateMutation.mutate({
       id: printer.id,
       isActive: !printer.isActive,
     })
-  }
+  }, [updateMutation])
 
-  // --- Dijalog handlerji ---
-  const handleDialogOpenChange = (open: boolean) => {
+  const handleDialogOpenChange = useCallback((open: boolean) => {
     if (!open) setEditingPrinter(null)
     setDialogOpen(open)
-  }
+  }, [])
 
   // ============================================
   // RENDER
@@ -255,7 +253,7 @@ export const PrinterManager = memo(function PrinterManager() {
         onToggleActive={toggleActive}
       />
 
-      {/* DIALOG ZA DODAJANJE/UREJANJE */}
+      {/* Dijalog za dodajanje/urejanje */}
       <PrinterDialog
         open={dialogOpen}
         editingPrinter={editingPrinter}

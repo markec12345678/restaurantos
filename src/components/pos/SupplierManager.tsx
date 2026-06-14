@@ -11,18 +11,17 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import { Truck, Plus, FileText } from 'lucide-react'
+import { Truck, FileText, Plus } from 'lucide-react'
 import { useState, memo } from 'react'
-import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
-
-// Leno-naložene podkomponente
-const SuppliersList = dynamic(() => import('./supplier/SuppliersList').then(m => m.SuppliersList), { ssr: false })
-const PurchaseOrdersList = dynamic(() => import('./supplier/PurchaseOrdersList').then(m => m.PurchaseOrdersList), { ssr: false })
-const SupplierDialog = dynamic(() => import('./supplier/SupplierDialog').then(m => m.SupplierDialog), { ssr: false })
-const PurchaseOrderDialog = dynamic(() => import('./supplier/PurchaseOrderDialog').then(m => m.PurchaseOrderDialog), { ssr: false })
-
+import { toast } from 'sonner'
 import type { SupplierType } from './supplier/constants'
+
+// Lazy-loaded podkomponente
+const SuppliersList = dynamic(() => import('./supplier/SuppliersList').then(m => ({ default: m.SuppliersList })), { ssr: false })
+const PurchaseOrdersList = dynamic(() => import('./supplier/PurchaseOrdersList').then(m => ({ default: m.PurchaseOrdersList })), { ssr: false })
+const SupplierDialog = dynamic(() => import('./supplier/SupplierDialog').then(m => ({ default: m.SupplierDialog })), { ssr: false })
+const PurchaseOrderDialog = dynamic(() => import('./supplier/PurchaseOrderDialog').then(m => ({ default: m.PurchaseOrderDialog })), { ssr: false })
 
 // ============================================
 // GLAVNA KOMPONENTA

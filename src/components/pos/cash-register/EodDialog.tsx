@@ -223,6 +223,7 @@ export const EodDialog = memo(function EodDialog({
                   size="lg"
                   onClick={onSubmit}
                   disabled={isPending}
+                  aria-label="Zaključi obratovalni dan"
                 >
                   <CalendarCheck className="h-4 w-4 mr-2" />
                   {isPending ? 'Zaključujem...' : 'ZAKLJUČI OBRATOVALNI DAN'}
