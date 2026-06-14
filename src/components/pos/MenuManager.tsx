@@ -26,7 +26,7 @@ export const MenuManager = memo(function MenuManager() {
     dialogOpen, setDialogOpen, editingItem, itemForm, setItemForm,
     catDialogOpen, setCatDialogOpen, catForm, setCatForm,
     menuDialogOpen, setMenuDialogOpen, menuForm, setMenuForm,
-    menus, categories, modifierGroups, menuItems, isLoading, filteredItems,
+    menus, categories, modifierGroups, menuItems: _menuItems, isLoading, filteredItems,
     createMenuMutation, deleteItemMutation, toggleAvailabilityMutation, createCatMutation,
     openCreateItem, openEditItem, handleItemSubmit,
     openCreateCategory, openCreateMenu,

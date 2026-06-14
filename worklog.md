@@ -2422,3 +2422,191 @@ Stage Summary:
 - NutritionalCalculator.tsx: 286→176 | CashRegister.tsx: 286→212 | OrderCart.tsx: 284→222 | useLoyaltyState.ts: 284→233 | useLocationManager.ts: 284→232
 - All files now under 250 lines
 - New files: nutrition/constants.ts (36), NutritionalStatsCards (60), NutritionalItemCard (70), useCashRegisterMutations (115), CartItemRow (76), CartTotals (53), useLoyaltyMutations (99), useLocationMutations (97)
+
+---
+Task ID: 24e
+Agent: Sub Agent
+Task: Split order/CheckoutViews.tsx into sub-components
+
+Work Log:
+- Read CheckoutViews.tsx (361 lines) containing 4 memo components: DetailsStep, PaymentStep, ConfirmationView, ItemDetailModal
+- Checked existing project patterns: components are individual files in src/app/order/ with memo+named exports, page.tsx lazy-loads via next/dynamic
+- Created 4 separate component files in src/app/order/: DetailsStep.tsx, PaymentStep.tsx, ConfirmationView.tsx, ItemDetailModal.tsx
+- Each file has use client directive, memo wrapper, named export, and Slovenian comments preserved
+- Rewrote CheckoutViews.tsx as barrel file that lazy-loads all 4 sub-components via next/dynamic with ssr:false and re-exports them
+- page.tsx imports unchanged — continues to import from CheckoutViews.tsx
+- TypeScript: 0 errors (npx tsc --noEmit)
+- ESLint: 0 errors, 0 warnings (npx eslint src/app/order/ --max-warnings 0)
+
+Stage Summary:
+- 4 new component files created, 1 parent file rewritten
+- Line counts: CheckoutViews.tsx 361→14 | DetailsStep.tsx 82 | PaymentStep.tsx 139 | ConfirmationView.tsx 66 | ItemDetailModal.tsx 86
+- All files under 200 lines (parent 14, largest sub-component 139)
+- TypeScript: 0 new errors | ESLint: 0 errors, 0 warnings
+
+---
+Task ID: 24f
+Agent: Sub Agent
+Task: Split receipt/page.tsx into sub-components
+
+Work Log:
+- Read receipt/page.tsx (351 lines) and identified logical sections: types, constants, data hook, UI components
+- Created types.ts with ReceiptItem, VatBreakdown, ReceiptData interfaces
+- Created constants.ts with PAYMENT_LABELS, TYPE_LABELS, fmtEur utility
+- Created use-receipt.ts custom hook extracting fetch/state/copyZOI logic
+- Created 9 sub-components in src/app/receipt/components/:
+  - ReceiptLoadingState.tsx (loading spinner)
+  - ReceiptErrorState.tsx (error state)
+  - ReceiptHeader.tsx (business info header)
+  - ReceiptDetails.tsx (receipt metadata: number, date, register, table, type, payment)
+  - ReceiptItemsList.tsx (items with modifiers)
+  - ReceiptTotals.tsx (subtotal, VAT breakdown, discount, total, tip)
+  - ReceiptFiscalData.tsx (FURS data: ZOI/EOR, fiscal status, copy button)
+  - ReceiptQrCode.tsx (QR code section)
+  - ReceiptActions.tsx (print/share buttons)
+- All sub-components wrapped with memo() and use named exports
+- Parent page.tsx rewritten to lazy-load all sub-components via next/dynamic + ssr: false
+- Added aria-label attributes to action buttons and copy button
+- Preserved all Slovenian language comments
+- TypeScript compiles with 0 errors
+- ESLint passes with 0 errors, 0 warnings
+
+Stage Summary:
+- 12 new files created, 1 parent file rewritten (351 -> 136 lines)
+- Line counts: page.tsx 136 | types.ts 52 | constants.ts 24 | use-receipt.ts 56 | ReceiptActions.tsx 42 | ReceiptDetails.tsx 56 | ReceiptErrorState.tsx 23 | ReceiptFiscalData.tsx 71 | ReceiptHeader.tsx 31 | ReceiptItemsList.tsx 53 | ReceiptLoadingState.tsx 18 | ReceiptQrCode.tsx 29 | ReceiptTotals.tsx 77
+- All files under 200 lines
+- TypeScript: 0 errors | ESLint: 0 errors, 0 warnings
+
+---
+Task ID: 24d
+Agent: Sub Agent
+Task: Split kds/page.tsx into sub-components
+
+Work Log:
+- Read original kds/page.tsx (546 lines) and analyzed structure
+- Studied existing split patterns in project (waiter/ page as reference)
+- Extracted types (OrderItemKDS, OrderKDS) into types.ts
+- Extracted useKDSSound hook into use-kds-sound.ts
+- Extracted KDSLogin component with memo() into KDSLogin.tsx
+- Extracted ElapsedTimer component with memo() into ElapsedTimer.tsx
+- Extracted OrderCard component with memo() into OrderCard.tsx
+- Extracted KDSHeader component with memo() into KDSHeader.tsx
+- Extracted KDSOrderGrid component with memo() into KDSOrderGrid.tsx
+- Rewrote page.tsx to use dynamic imports with ssr: false for all sub-components
+- Preserved all Slovenian language comments
+- Preserved all functional behavior, queries, mutations, and handlers in parent
+- Verified TypeScript: 0 new errors (2 pre-existing errors in unrelated files)
+- Verified ESLint: 0 errors, 0 warnings
+
+Stage Summary:
+- 7 new files created, 1 parent file rewritten (546 -> 249 lines)
+- Line counts: page.tsx 249 | types.ts 31 | use-kds-sound.ts 39 | KDSLogin.tsx 67 | ElapsedTimer.tsx 31 | OrderCard.tsx 131 | KDSHeader.tsx 103 | KDSOrderGrid.tsx 73
+- All files under 300 lines
+- TypeScript: 0 new errors (2 pre-existing) | ESLint: 0 errors, 0 warnings
+
+---
+Task ID: 24c
+Agent: Sub Agent
+Task: Split reserve/page.tsx into sub-components
+
+Work Log:
+- Read and analyzed the 558-line reserve/page.tsx file
+- Identified logical sections: types, constants, state/effects/handlers, success view, error view, header, step indicator, date/time section, customer form section, confirmation view
+- Created types.ts (ReservationSlot, RestaurantInfo, ReservationStep interfaces)
+- Created constants.ts (DAY_NAMES, PARTY_SIZES, TIME_SLOTS)
+- Created useReservation.ts custom hook (all state, useEffects, navigateDate, isValid, handleSubmit)
+- Created components/SuccessView.tsx (memo wrapped, named export)
+- Created components/ErrorView.tsx (memo wrapped, named export)
+- Created components/ReserveHeader.tsx (memo wrapped, named export)
+- Created components/StepIndicator.tsx (memo wrapped, named export)
+- Created components/DateTimeSection.tsx (memo wrapped, named export) - date picker, party size, time slots
+- Created components/CustomerFormSection.tsx (memo wrapped, named export) - customer info, special requests, summary with htmlFor+id pairs
+- Created components/ConfirmView.tsx (memo wrapped, named export) - confirmation view
+- Rewrote page.tsx to lazy-load all sub-components with next/dynamic + ssr: false
+- Added htmlFor+id pairs on all form labels/inputs (reserve-name, reserve-phone, reserve-email, reserve-requests, reserve-notes)
+- Added aria-label attributes on navigation buttons
+- Preserved all Slovenian language comments
+- Verified TypeScript: 0 new errors (pre-existing error in unrelated qr/[tableId] file)
+- Verified ESLint: 0 errors, 0 warnings
+
+Stage Summary:
+- Split 558-line page.tsx into 11 files with clear separation of concerns
+- Line counts: page.tsx 558 -> 135 lines (parent page)
+- All sub-components under 300 lines: SuccessView 61, ErrorView 29, ReserveHeader 36, StepIndicator 34, DateTimeSection 170, CustomerFormSection 149, ConfirmView 101
+- Supporting files: types.ts 19, constants.ts 12, useReservation.ts 160
+- TypeScript: 0 new errors
+- ESLint: 0 errors, 0 warnings
+
+---
+Task ID: 24b
+Agent: Sub Agent
+Task: Split qr-menu/page.tsx into sub-components
+
+Work Log:
+- Read original qr-menu/page.tsx (1079 lines) and analyzed its structure
+- Identified logical sections: types, constants, custom hook, and 9 sub-components
+- Created types.ts (84 lines) with all interfaces: Modifier, ModifierGroup, MenuItem, Category, Menu, CartItem, OrderResult, UpsellSuggestion, TimeOfDay
+- Created constants.ts (43 lines) with ALLERGEN_DATA, VAT_LABELS, getTimeOfDay
+- Created use-qr-menu.ts (429 lines) custom hook with all state, effects, handlers, and computed values
+- Created components/ subdirectory with 9 sub-components, all wrapped with memo() and using named exports:
+  - loading-screen.tsx (23 lines)
+  - order-result-screen.tsx (70 lines) - OrderConfirmedScreen + OrderErrorScreen
+  - menu-header.tsx (157 lines)
+  - allergen-panel.tsx (53 lines)
+  - menu-tabs.tsx (90 lines) - MenuTabs + CategoryTabs
+  - menu-item-list.tsx (133 lines)
+  - item-detail-modal.tsx (142 lines)
+  - cart-drawer.tsx (230 lines) - CartDrawer + FloatingCartBar
+  - upsell-suggestions.tsx (55 lines)
+- Rewrote parent page.tsx (189 lines) using next/dynamic + ssr: false for all sub-components
+- Fixed TypeScript error: TimeOfDay import from wrong module (moved to types.ts)
+- Fixed ESLint warnings: removed unused timeOfDay prop from MenuTabs, removed unused getTimeOfDay import from page.tsx, removed unused eslint-disable directive in use-qr-menu.ts
+- Verified: 0 new TypeScript errors in qr-menu/, 0 ESLint errors/warnings
+
+Stage Summary:
+- page.tsx: 1079 lines -> 189 lines (82% reduction)
+- All sub-components under 300 lines (largest: cart-drawer.tsx at 230 lines)
+- Created 12 new files (types.ts, constants.ts, use-qr-menu.ts, 9 component files)
+- All sub-components use memo() with named exports
+- All sub-components lazy-loaded with next/dynamic + ssr: false
+- All Slovenian language comments preserved
+- All htmlFor+id pairs and aria-label attributes preserved
+- TypeScript: 0 new errors
+- ESLint: 0 errors, 0 warnings
+
+---
+Task ID: 24a
+Agent: Sub Agent
+Task: Split qr/[tableId]/page.tsx into sub-components
+
+Work Log:
+- Read and analyzed the 1542-line page.tsx file structure
+- Identified logical sections: translations, types/constants, state/logic, and UI sections
+- Checked existing project patterns (memo + named exports, next/dynamic + ssr: false)
+- Created translations.ts (342 lines) - all 5-locale translations + Locale/TranslationValue types
+- Created types.ts (113 lines) - all interfaces (MenuItemType, CategoryType, MenuType, CartItem, RestaurantInfo, OrderResult) + constants (allergenLabels, statusIcons, statusColors, locales, drinkSuperGroups)
+- Created hooks/use-qr-ordering.ts (412 lines) - custom hook with all state, effects, handlers, derived values
+- Created 8 sub-components in components/ directory:
+  - LoadingState.tsx (24 lines) - loading spinner
+  - TableNotFound.tsx (21 lines) - table not found view
+  - OrderSuccess.tsx (84 lines) - order success + tracking view
+  - MenuHeader.tsx (243 lines) - header with language selector, menu tabs, search, super-group tabs, category pills
+  - MenuItemsList.tsx (212 lines) - menu items grid + MenuItemCard sub-component
+  - FloatingCartButton.tsx (51 lines) - floating cart button
+  - CartDrawer.tsx (232 lines) - cart drawer with items, customer info, totals
+  - ItemDetailModal.tsx (171 lines) - item detail modal
+  - Toasts.tsx (66 lines) - error toast + waiter called toast
+- Rewrote parent page.tsx (169 lines) to lazy-load sub-components with next/dynamic + ssr: false
+- Fixed TypeScript errors: TranslationValue type using mapped type to avoid literal string type incompatibility
+- Fixed ESLint warnings: prefixed unused callback parameters with _ in interface definitions, removed unused t prop from FloatingCartButton
+- Verified: TypeScript 0 errors, ESLint 0 errors/0 warnings
+
+Stage Summary:
+- Parent page.tsx reduced from 1542 to 169 lines (89% reduction)
+- All sub-components under 300 lines (largest: MenuHeader at 243)
+- Custom hook extracted: use-qr-ordering.ts (412 lines)
+- Types and constants extracted to separate files
+- All Slovenian language comments preserved
+- All htmlFor+id pairs and aria-label attributes preserved
+- TypeScript: 0 new errors
+- ESLint: 0 errors, 0 warnings
