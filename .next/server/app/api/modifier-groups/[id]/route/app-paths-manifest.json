@@ -1,0 +1,3 @@
+{
+  "/api/modifier-groups/[id]/route": "app/api/modifier-groups/[id]/route.js"
+}

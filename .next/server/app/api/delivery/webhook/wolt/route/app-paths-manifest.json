@@ -1,0 +1,3 @@
+{
+  "/api/delivery/webhook/wolt/route": "app/api/delivery/webhook/wolt/route.js"
+}

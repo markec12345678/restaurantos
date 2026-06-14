@@ -1383,3 +1383,138 @@ Stage Summary:
 - All sub-components lazy-loaded with next/dynamic + ssr: false
 - All queries/mutations remain in parent components
 - Pattern compliance: onOpenChange handlers, htmlFor+id pairs, aria-label attributes, Slovenian comments preserved, _ prefixed unused params
+
+---
+Task ID: 13
+Agent: Sub-agent
+Task: Split SplitCheckDialog component into sub-components
+
+Work Log:
+- Read full SplitCheckDialog.tsx (498 lines) and analyzed logical sections
+- Identified 3 sub-component boundaries: EqualSplitTab, ItemsSplitTab, CustomSplitTab
+- Created split-check/ subdirectory under pos/
+- Created split-check/constants.ts with: CartItem, SplitParty, SplitMode, PartyTotal types; EU_ALLERGEN_MAP constant; EqualSplitTabProps, ItemsSplitTabProps, CustomSplitTabProps, SplitCheckDialogProps interfaces
+- Created split-check/EqualSplitTab.tsx (memo-wrapped, named export) — equal split UI with person count controls, summary cards, visual person grid
+- Created split-check/ItemsSplitTab.tsx (memo-wrapped, named export) — item-based split UI with party cards, assigned/unassigned items, tip/payment method controls
+- Created split-check/CustomSplitTab.tsx (memo-wrapped, named export) — custom amount split UI with per-person inputs, running total validation
+- Rewrote parent SplitCheckDialog.tsx: kept all state/computed values/handlers, lazy-loads 3 sub-components with next/dynamic + ssr: false
+- Removed useEffect for equalCount sync (replaced with direct handler pattern via onEqualCountChange callback)
+- Removed _EU_ALLERGEN_MAP unused constant (moved to constants.ts as EU_ALLERGEN_MAP)
+- Verified: ESLint 0 errors/0 warnings, TypeScript 0 errors
+
+Line Counts:
+| File | Lines |
+|------|-------|
+| SplitCheckDialog.tsx (parent) | 291 |
+| split-check/constants.ts | 100 |
+| split-check/EqualSplitTab.tsx | 79 |
+| split-check/ItemsSplitTab.tsx | 154 |
+| split-check/CustomSplitTab.tsx | 91 |
+| **Total** | **715** |
+
+Original: 498 lines in single file -> 5 files totaling 715 lines (parent reduced from 498 to 291, -42%)
+
+---
+Task ID: 12
+Agent: Sub Agent (general-purpose)
+Task: Split GiftCardManager parent component (511 lines) to under 300 lines
+
+Work Log:
+- Read GiftCardManager.tsx (511 lines) and all 8 existing gift-cards/ sub-components
+- Analyzed parent: bulk was business logic (state, queries, mutations, handlers = ~335 lines) with JSX already delegating to sub-components
+- Identified 3 extraction targets:
+  1. useGiftCardManager.ts - custom hook for all state/queries/mutations/handlers/computed values
+  2. GiftCardLoadingSkeleton.tsx - loading skeleton component (was inline JSX)
+  3. GiftCardPageHeader.tsx - page header with "Nova kartica" button (was inline JSX)
+- Created all 3 new files in gift-cards/ directory following established patterns
+- Rewrote GiftCardManager.tsx to import hook and delegate to sub-components
+- ESLint: 0 errors, 0 warnings
+- TypeScript: 0 errors
+- Next.js build: passes
+
+Files Created:
+- src/components/pos/gift-cards/useGiftCardManager.ts (454 lines) - all state, queries, mutations, handlers, computed values
+- src/components/pos/gift-cards/GiftCardLoadingSkeleton.tsx (28 lines) - loading skeleton
+- src/components/pos/gift-cards/GiftCardPageHeader.tsx (33 lines) - page header
+
+Line Counts:
+| File | Lines |
+|------|-------|
+| GiftCardManager.tsx (parent) | 130 (was 511, -75%) |
+| gift-cards/useGiftCardManager.ts | 454 |
+| gift-cards/GiftCardLoadingSkeleton.tsx | 28 |
+| gift-cards/GiftCardPageHeader.tsx | 33 |
+
+Target met: 130 < 300 lines. Parent is now a thin orchestrator that calls useGiftCardManager() and renders sub-components.
+
+---
+Task ID: 14
+Agent: Sub Agent
+Task: Split DeliveryManager component (498 lines) into smaller sub-components
+
+Work Log:
+- Read full DeliveryManager.tsx (499 lines) and identified 3 logical sections: delivery tracking, online orders, edit/detail dialogs
+- Analyzed established pattern from reservation/, floorplan/, and other split components
+- Created delivery/ subdirectory under /home/z/my-project/src/components/pos/
+- Created delivery/constants.ts with shared types (DeliveryInfoData, OnlineOrder, DeliveryFormData), status label/color maps, helper functions (getNextOnlineStatus, getNextDeliveryStatus, deliveryAdvanceLabel, onlineAdvanceLabel, deliveryToFormData, emptyFormData), and props interfaces for all sub-components
+- Created 5 sub-component files, each wrapped with memo() and using named exports:
+  - DeliveryCard.tsx (71 lines): Active delivery card with advance/edit buttons
+  - CompletedDeliveryCard.tsx (27 lines): Completed delivery history card
+  - DeliveryEditDialog.tsx (68 lines): Edit delivery dialog with form fields
+  - OnlineOrderCard.tsx (65 lines): Online order card with status/detail buttons
+  - OnlineOrderDetailDialog.tsx (63 lines): Online order detail dialog
+- Rewrote DeliveryManager.tsx (283 lines): all queries/mutations/handlers kept in parent, lazy-loaded sub-components via next/dynamic + ssr: false
+- Moved OnlineOrdersSection queries/mutations into parent per pattern requirement (all queries in parent)
+- Used onOpenChange handler pattern for both dialogs (no setState inside useEffect)
+- Maintained htmlFor + id pairs for label-input associations in DeliveryEditDialog
+- Added aria-label attributes on interactive elements (advance buttons, edit/detail buttons)
+- Preserved all Slovenian language comments
+- Prefixed unused callback parameters with _ per lint rules
+- Removed emojis from OnlineOrderCard per rule #10
+- Fixed ESLint warning: removed unused getNextOnlineStatus import from parent
+- ESLint: 0 errors, 0 warnings
+- TypeScript: 0 errors
+
+Line Counts:
+| File | Lines |
+|------|-------|
+| DeliveryManager.tsx (parent) | 283 (was 499, -43%) |
+| delivery/constants.ts | 201 |
+| delivery/DeliveryCard.tsx | 71 |
+| delivery/CompletedDeliveryCard.tsx | 27 |
+| delivery/DeliveryEditDialog.tsx | 68 |
+| delivery/OnlineOrderCard.tsx | 65 |
+| delivery/OnlineOrderDetailDialog.tsx | 63 |
+| Total | 778 |
+
+---
+Task ID: 11
+Agent: Sub Agent
+Task: Split PaymentDialog parent — extract inline JSX to sub-components and custom hook
+
+Work Log:
+- Read PaymentDialog.tsx (642 lines) and all 9 existing files in payment/ subdirectory
+- Identified 3 large inline JSX sections still in parent: order summary (~30 lines), tip selection (~43 lines), single payment tab (~77 lines)
+- Identified that all queries/mutations/handlers (~330 lines) prevented reaching <350 target by JSX extraction alone
+- Created 4 new files in payment/:
+  1. OrderSummarySection.tsx (58 lines) — order summary display (subtotal, tax, discount, items)
+  2. TipSection.tsx (74 lines) — tip preset buttons + custom tip input + total with tip
+  3. SinglePaymentTab.tsx (149 lines) — payment method selector grid + conditional sub-sections (cash/giftcard/loyalty/alternate) + pay button
+  4. usePaymentDialog.ts (429 lines) — custom hook encapsulating all state, queries, mutations, handlers
+- Rewrote PaymentDialog.tsx to use usePaymentDialog hook + dynamic-imported sub-components
+- Removed 6 dynamic imports from parent (CashPaymentSection, GiftCardSection, LoyaltySection, AlternatePaymentSection, paymentMethods, tipPresets) — now handled by SinglePaymentTab internally
+- Removed unused UI imports from parent (Button, Input, Separator, Heart, CheckCircle2, useState, useRef, useEffect, useCallback, useMutation, useQuery, useQueryClient, toast, authFetch, queryKeys)
+- Fixed TS2339: added setTipAmount/setTipPercent to hook return object
+- ESLint: 0 errors, 0 warnings
+- TypeScript: 0 errors
+- Build: passes
+
+Line Count Summary:
+| File | Before | After |
+|------|--------|-------|
+| PaymentDialog.tsx | 642 | 159 |
+| payment/OrderSummarySection.tsx | — | 58 |
+| payment/TipSection.tsx | — | 74 |
+| payment/SinglePaymentTab.tsx | — | 149 |
+| payment/usePaymentDialog.ts | — | 429 |
+| payment/ (all files total) | 599 | 1109 |
