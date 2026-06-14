@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { EU_ALLERGENS } from '@/components/pos/AllergenFilter'
+import { EU_ALLERGENS } from '@/components/pos/allergen-filter/constants'
 import { ShieldAlert } from 'lucide-react'
 
 // ============================================

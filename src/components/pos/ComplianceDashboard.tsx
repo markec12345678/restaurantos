@@ -1,27 +1,22 @@
 'use client'
 
 import { useState, useEffect, memo } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { MenuItemRow } from '@/lib/types'
 import { authFetch } from '@/components/pos/PinLogin'
 import { toast } from 'sonner'
-import { Shield, ShieldCheck, AlertTriangle, CheckCircle, XCircle, Users, Lock, Eye, ClipboardList, Scale, AlertCircle, RefreshCw, Calendar } from 'lucide-react'
+import { Shield, RefreshCw } from 'lucide-react'
+import dynamic from 'next/dynamic'
+import type { ComplianceItem } from './compliance/constants'
+import { computeComplianceScore } from './compliance/constants'
 
-interface ComplianceItem {
-  id: string
-  category: 'gdpr' | 'allergens' | 'furs' | 'haccp' | 'labor' | 'fire_safety'
-  title: string
-  description: string
-  status: 'compliant' | 'warning' | 'non-compliant' | 'pending'
-  dueDate: string | null
-  lastChecked: string
-  actionRequired: string | null
-  regulation: string
-}
+// Lazy-loaded podkomponente
+const ComplianceSummaryCards = dynamic(() => import('./compliance/ComplianceSummaryCards').then(m => ({ default: m.ComplianceSummaryCards })), { ssr: false })
+const ComplianceTabs = dynamic(() => import('./compliance/ComplianceTabs').then(m => ({ default: m.ComplianceTabs })), { ssr: false })
 
+// ============================================
+// GLAVNA KOMPONENTA SKLADNOSTI S PREDPISI
+// ============================================
 export const ComplianceDashboard = memo(function ComplianceDashboard() {
   const [items, setItems] = useState<ComplianceItem[]>([])
   const [_loading, setLoading] = useState(true)
@@ -215,27 +210,12 @@ export const ComplianceDashboard = memo(function ComplianceDashboard() {
     }
   }
 
-  const statusConfig = {
-    'compliant': { label: 'Skladno', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle },
-    'warning': { label: 'Opozorilo', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400', icon: AlertTriangle },
-    'non-compliant': { label: 'Neskladno', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', icon: XCircle },
-    'pending': { label: 'V postopku', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400', icon: Clock },
-  }
-
-  const categoryConfig = {
-    'gdpr': { label: 'GDPR', icon: Lock, color: 'text-purple-600' },
-    'allergens': { label: 'Alergeni', icon: Eye, color: 'text-red-600' },
-    'furs': { label: 'FURS', icon: Scale, color: 'text-emerald-600' },
-    'haccp': { label: 'HACCP', icon: ClipboardList, color: 'text-blue-600' },
-    'labor': { label: 'Delovno pravo', icon: Users, color: 'text-orange-600' },
-    'fire_safety': { label: 'Požarna varnost', icon: AlertCircle, color: 'text-red-600' },
-  }
-
+  // Izračuni
   const compliantCount = items.filter(i => i.status === 'compliant').length
   const warningCount = items.filter(i => i.status === 'warning').length
   const nonCompliantCount = items.filter(i => i.status === 'non-compliant').length
   const pendingCount = items.filter(i => i.status === 'pending').length
-  const complianceScore = items.length > 0 ? Math.round((compliantCount / items.length) * 100) : 0
+  const complianceScore = computeComplianceScore(items)
 
   return (
     <div className="p-4 space-y-4 h-full overflow-auto">
@@ -255,118 +235,16 @@ export const ComplianceDashboard = memo(function ComplianceDashboard() {
       </div>
 
       {/* Povzetek */}
-      <div className="grid grid-cols-5 gap-3">
-        <Card className={complianceScore >= 80 ? 'border-green-200 dark:border-green-800' : 'border-red-200 dark:border-red-800'}>
-          <CardContent className="p-3 text-center">
-            <ShieldCheck className={`h-5 w-5 mx-auto mb-1 ${complianceScore >= 80 ? 'text-green-500' : 'text-red-500'}`} />
-            <p className="text-xl font-bold">{complianceScore}%</p>
-            <p className="text-xs text-muted-foreground">Skupna skladnost</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <CheckCircle className="h-5 w-5 text-green-500 mx-auto mb-1" />
-            <p className="text-xl font-bold text-green-600">{compliantCount}</p>
-            <p className="text-xs text-muted-foreground">Skladno</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <AlertTriangle className="h-5 w-5 text-amber-500 mx-auto mb-1" />
-            <p className="text-xl font-bold text-amber-600">{warningCount}</p>
-            <p className="text-xs text-muted-foreground">Opozorila</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <XCircle className="h-5 w-5 text-red-500 mx-auto mb-1" />
-            <p className="text-xl font-bold text-red-600">{nonCompliantCount}</p>
-            <p className="text-xs text-muted-foreground">Neskladno</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <Clock className="h-5 w-5 text-blue-500 mx-auto mb-1" />
-            <p className="text-xl font-bold text-blue-600">{pendingCount}</p>
-            <p className="text-xs text-muted-foreground">V postopku</p>
-          </CardContent>
-        </Card>
-      </div>
+      <ComplianceSummaryCards
+        complianceScore={complianceScore}
+        compliantCount={compliantCount}
+        warningCount={warningCount}
+        nonCompliantCount={nonCompliantCount}
+        pendingCount={pendingCount}
+      />
 
       {/* Skladnost po kategorijah */}
-      <Tabs defaultValue="all" className="space-y-3">
-        <TabsList>
-          <TabsTrigger value="all">Vse ({items.length})</TabsTrigger>
-          {Object.entries(categoryConfig).map(([key, conf]) => (
-            <TabsTrigger key={key} value={key}>
-              {conf.label} ({items.filter(i => i.category === key).length})
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        {['all', ...Object.keys(categoryConfig)].map(tabKey => (
-          <TabsContent key={tabKey} value={tabKey} className="space-y-2">
-            {items
-              .filter(i => tabKey === 'all' || i.category === tabKey)
-              .map(item => {
-                const statusConf = statusConfig[item.status]
-                const StatusIcon = statusConf.icon
-                const catConf = categoryConfig[item.category]
-                const CatIcon = catConf.icon
-
-                return (
-                  <Card key={item.id} className={`transition-all ${item.status === 'non-compliant' ? 'border-red-300 dark:border-red-800' : item.status === 'warning' ? 'border-amber-300 dark:border-amber-800' : ''}`}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start gap-3">
-                        <CatIcon className={`h-5 w-5 mt-0.5 ${catConf.color}`} />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-sm">{item.title}</span>
-                            <Badge className={statusConf.color}>
-                              <StatusIcon className="h-3 w-3 mr-1" /> {statusConf.label}
-                            </Badge>
-                            <Badge variant="outline" className="text-xs">{item.regulation}</Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground mb-2">{item.description}</p>
-
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3" />
-                              Zadnje preverjanje: {new Date(item.lastChecked).toLocaleDateString('sl-SI')}
-                            </span>
-                            {item.dueDate && (
-                              <span className="flex items-center gap-1 text-amber-600">
-                                <AlertTriangle className="h-3 w-3" />
-                                Rok: {new Date(item.dueDate).toLocaleDateString('sl-SI')}
-                              </span>
-                            )}
-                          </div>
-
-                          {item.actionRequired && (
-                            <div className="mt-2 p-2 rounded bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800">
-                              <div className="flex items-center gap-1 text-xs font-medium text-amber-800 dark:text-amber-300">
-                                <AlertTriangle className="h-3 w-3" />
-                                Potrebno dejanje: {item.actionRequired}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )
-              })}
-          </TabsContent>
-        ))}
-      </Tabs>
+      <ComplianceTabs items={items} />
     </div>
   )
 })
-
-function Clock({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-    </svg>
-  )
-}

@@ -1,27 +1,23 @@
 'use client'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { usePOSStore } from '@/lib/store'
-import { Button } from '@/components/ui/button'
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
-import { ShoppingBag, Clock, Keyboard } from 'lucide-react'
 import { useState, useCallback, memo } from 'react'
 import { usePOSShortcuts } from '@/lib/use-pos-shortcuts'
-import { ReceiptDialog } from '@/components/pos/ReceiptDialog'
-import { PaymentDialog } from '@/components/pos/PaymentDialog'
-import { VoidItemDialog } from '@/components/pos/VoidItemDialog'
-import { StornoDialog } from '@/components/pos/StornoDialog'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import dynamic from 'next/dynamic'
 import { STATUS_COLORS, NEXT_STATUS, STATUS_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS } from './order/constants'
 
-// Lazy-loaded sub-komponente
+// ─── Lazy-loaded podkomponente ──────────────────────────────────
 const MenuBrowser = dynamic(() => import('./order/MenuBrowser').then(m => ({ default: m.MenuBrowser })), { ssr: false })
 const OrderList = dynamic(() => import('./order/OrderList').then(m => ({ default: m.OrderList })), { ssr: false })
 const OrderCart = dynamic(() => import('./order/OrderCart').then(m => ({ default: m.OrderCart })), { ssr: false })
 const ClearCartDialog = dynamic(() => import('./order/ClearCartDialog').then(m => ({ default: m.ClearCartDialog })), { ssr: false })
 const ShortcutsDialog = dynamic(() => import('./order/ShortcutsDialog').then(m => ({ default: m.ShortcutsDialog })), { ssr: false })
+const OrderHeader = dynamic(() => import('./order/OrderHeader').then(m => ({ default: m.OrderHeader })), { ssr: false })
+const OrderDialogs = dynamic(() => import('./order/OrderDialogs').then(m => ({ default: m.OrderDialogs })), { ssr: false })
+
 import type { StockInfoType } from './order/MenuBrowser'
 import type { OrderType } from './order/OrderList'
 
@@ -59,7 +55,7 @@ export const OrderPanel = memo(function OrderPanel() {
   // Keyboard shortcuts dialog
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
-  // Keyboard shortcuts
+  // ─── Keyboard shortcuts ────────────────────────────────────────
   usePOSShortcuts({
     onNewOrder: () => { clearCart(); setCustomerName(''); setCustomerPhone(''); setOrderNotes(''); setDiscount(0); setEditingOrderId(null); setEditingOrderNumber(null); setMainTab('new-order') },
     onPay: () => { if (cart.length > 0) placeOrderMutation.mutate() },
@@ -131,7 +127,7 @@ export const OrderPanel = memo(function OrderPanel() {
   const subtotal = cartSubtotal()
   const vatBreakdown = cartVatBreakdown()
   const totalTax = cartTaxTotal()
-  const cappedDiscount = Math.min(discount, subtotal)
+  const _cappedDiscount = Math.min(discount, subtotal)
   const total = cartTotal()
 
   const placeOrderMutation = useMutation({
@@ -162,7 +158,7 @@ export const OrderPanel = memo(function OrderPanel() {
           diningOptionId: diningOptionId || undefined,
           customerName,
           customerPhone,
-          discount: cappedDiscount,
+          discount: _cappedDiscount,
           appliedDiscountId: appliedDiscountId || undefined,
           taxRate,
           notes: orderNotes,
@@ -237,7 +233,7 @@ export const OrderPanel = memo(function OrderPanel() {
       setReceiptOrder({ id: orderId })
     }
   }, [])
-  const handleReceiptClose = useCallback(() => setReceiptOrder(null), [])
+  const handleReceiptClose = useCallback(() => { setReceiptOrder(null); setAutoReceiptOrderId(null) }, [])
   const handleVoidClose = useCallback(() => setVoidItem(null), [])
   const handleVoided = useCallback(() => queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }), [queryClient])
   const handleStornoClose = useCallback(() => setStornoOrder(null), [])
@@ -268,30 +264,16 @@ export const OrderPanel = memo(function OrderPanel() {
   // ============================================
   return (
     <div className="h-full flex flex-col">
-      {/* TOP TAB BAR - Naročila / Seznam naročil */}
-      <div className="flex items-center border-b border-border bg-card px-4 h-11 flex-shrink-0">
-        <Tabs value={mainTab} onValueChange={setMainTab} className="w-full">
-          <TabsList className="h-8 bg-transparent p-0 gap-4">
-            <TabsTrigger value="new-order" className="h-8 px-0 text-sm font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary border-b-2 border-transparent data-[state=active]:border-primary rounded-none">
-              <ShoppingBag className="h-3.5 w-3.5 mr-1.5" />
-              Novo naročilo
-            </TabsTrigger>
-            <TabsTrigger value="order-list" className="h-8 px-0 text-sm font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary border-b-2 border-transparent data-[state=active]:border-primary rounded-none">
-              <Clock className="h-3.5 w-3.5 mr-1.5" />
-              Seznam naročil
-            </TabsTrigger>
-          </TabsList>
-          <Button variant="ghost" size="icon" aria-label="Ključ" className="h-7 w-7 ml-auto" onClick={() => setShortcutsOpen(true)} title="Tipkovne bližnjice">
-            <Keyboard className="h-3.5 w-3.5 text-muted-foreground" />
-          </Button>
-        </Tabs>
-      </div>
+      {/* TOP TAB BAR */}
+      <OrderHeader
+        mainTab={mainTab}
+        onMainTabChange={setMainTab}
+        onShortcutsOpen={() => setShortcutsOpen(true)}
+      />
       {/* MAIN CONTENT */}
       <div className="flex-1 overflow-hidden">
         {mainTab === 'new-order' ? (
-          /* ============================================
-             NOVO NAROČILO - Toast POS Layout
-             ============================================ */
+          /* NOVO NAROČILO - Toast POS Layout */
           <div className="h-full flex">
             {/* LEFT: Menu Area (65%) */}
             <MenuBrowser
@@ -352,9 +334,7 @@ export const OrderPanel = memo(function OrderPanel() {
             />
           </div>
         ) : (
-          /* ============================================
-             SEZNAM NAROČIL
-             ============================================ */
+          /* SEZNAM NAROČIL */
           <OrderList
             orders={orders}
             ordersLoading={ordersLoading}
@@ -378,32 +358,20 @@ export const OrderPanel = memo(function OrderPanel() {
           />
         )}
       </div>
-      {/* Payment Dialog */}
-      <PaymentDialog
-        order={(autoPayOrder || selectedOrder) as Parameters<typeof PaymentDialog>[0]['order']}
-        open={paymentDialogOpen}
-        onClose={handlePaymentClose}
+      {/* Dialogi */}
+      <OrderDialogs
+        paymentDialogOpen={paymentDialogOpen}
+        onPaymentClose={handlePaymentClose}
         onPaymentSuccess={handlePaymentSuccess}
-      />
-      {/* Receipt Dialog */}
-      <ReceiptDialog
-        orderId={receiptOrder?.id as string || null}
-        open={!!receiptOrder}
-        onClose={() => { handleReceiptClose(); setAutoReceiptOrderId(null) }}
-      />
-      {/* Void Item Dialog */}
-      <VoidItemDialog
-        orderItem={voidItem}
-        orderId={voidItem?.orderId || ''}
-        open={!!voidItem}
-        onClose={handleVoidClose}
+        autoPayOrder={autoPayOrder}
+        selectedOrder={selectedOrder}
+        receiptOrderId={receiptOrder?.id as string || null}
+        onReceiptClose={handleReceiptClose}
+        voidItem={voidItem}
+        onVoidClose={handleVoidClose}
         onVoided={handleVoided}
-      />
-      {/* Storno Dialog */}
-      <StornoDialog
-        order={stornoOrder as { id: string; orderNumber: number; total: number; subtotal: number; tax: number; discount: number; tip: number; paymentMethod: string; paymentStatus: string } | null}
-        open={!!stornoOrder}
-        onClose={handleStornoClose}
+        stornoOrder={stornoOrder}
+        onStornoClose={handleStornoClose}
         onStornoComplete={handleStornoComplete}
       />
       {/* Clear Cart Confirmation Dialog */}

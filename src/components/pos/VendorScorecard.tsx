@@ -1,49 +1,26 @@
 'use client'
 
-import { useState, useEffect, memo } from 'react'
+import { useState, useEffect, useMemo, useCallback, memo } from 'react'
 import { authFetch } from '@/components/pos/PinLogin'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
-import { SupplierRow, PurchaseOrderRow } from '@/lib/types'
 import { toast } from 'sonner'
-import { Factory, Phone, Mail, CheckCircle, AlertTriangle, XCircle, Truck, Package, DollarSign, BarChart3, ArrowUpRight, ArrowDownRight, RefreshCw } from 'lucide-react'
+import { Factory, RefreshCw } from 'lucide-react'
+import { SupplierRow, PurchaseOrderRow } from '@/lib/types'
+import dynamic from 'next/dynamic'
+import type { SupplierScore, SortBy } from './vendor/constants'
 
-interface SupplierScore {
-  id: string
-  name: string
-  contactPerson: string | null
-  phone: string | null
-  email: string | null
-  category: string
-  overallScore: number // 0-100
-  metrics: {
-    onTimeDelivery: number  // 0-100
-    qualityRating: number   // 0-100
-    priceCompetitiveness: number // 0-100
-    responsiveness: number  // 0-100
-    orderAccuracy: number   // 0-100
-  }
-  totalOrders: number
-  totalSpent: number
-  avgDeliveryDays: number
-  lastOrderDate: string | null
-  trend: 'up' | 'down' | 'stable'
-  recentIssues: string[]
-  tier: 'preferred' | 'standard' | 'probation'
-}
+// Lazy-loaded pod-komponente
+const VendorSummaryCards = dynamic(() => import('./vendor/VendorSummaryCards').then((m) => m.VendorSummaryCards), { ssr: false })
+const VendorSortBar = dynamic(() => import('./vendor/VendorSortBar').then((m) => m.VendorSortBar), { ssr: false })
+const SupplierCard = dynamic(() => import('./vendor/SupplierCard').then((m) => m.SupplierCard), { ssr: false })
 
 export const VendorScorecard = memo(function VendorScorecard() {
   const [suppliers, setSuppliers] = useState<SupplierScore[]>([])
   const [_loading, setLoading] = useState(true)
-  const [sortBy, setSortBy] = useState<'score' | 'delivery' | 'quality' | 'price'>('score')
+  const [sortBy, setSortBy] = useState<SortBy>('score')
 
-  useEffect(() => {
-    loadSuppliers()
-  }, [])
-
-  const loadSuppliers = async () => {
+  const loadSuppliers = useCallback(async () => {
     try {
       const [supRes, poRes] = await Promise.all([
         authFetch('/api/suppliers'),
@@ -145,9 +122,13 @@ export const VendorScorecard = memo(function VendorScorecard() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const sortedSuppliers = [...suppliers].sort((a, b) => {
+  useEffect(() => {
+    loadSuppliers()
+  }, [loadSuppliers])
+
+  const sortedSuppliers = useMemo(() => [...suppliers].sort((a, b) => {
     switch (sortBy) {
       case 'score': return b.overallScore - a.overallScore
       case 'delivery': return b.metrics.onTimeDelivery - a.metrics.onTimeDelivery
@@ -155,35 +136,13 @@ export const VendorScorecard = memo(function VendorScorecard() {
       case 'price': return b.metrics.priceCompetitiveness - a.metrics.priceCompetitiveness
       default: return 0
     }
-  })
+  }), [suppliers, sortBy])
 
   const avgScore = suppliers.length > 0
     ? Math.round(suppliers.reduce((s, sup) => s + sup.overallScore, 0) / suppliers.length)
     : 0
   const preferredCount = suppliers.filter(s => s.tier === 'preferred').length
   const probationCount = suppliers.filter(s => s.tier === 'probation').length
-
-  const tierConfig = {
-    preferred: { label: 'Prednostni', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400', icon: CheckCircle },
-    standard: { label: 'Standardni', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400', icon: BarChart3 },
-    probation: { label: 'Na preizkusu', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400', icon: AlertTriangle },
-  }
-
-  const getScoreColor = (score: number) => {
-    if (score >= 85) return 'text-green-600'
-    if (score >= 70) return 'text-amber-600'
-    return 'text-red-600'
-  }
-
-  const getScoreBg = (score: number) => {
-    if (score >= 85) return 'bg-green-500'
-    if (score >= 70) return 'bg-amber-500'
-    return 'bg-red-500'
-  }
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('sl-SI', { style: 'currency', currency: 'EUR' }).format(amount)
-  }
 
   return (
     <div className="p-4 space-y-4 h-full overflow-auto">
@@ -197,148 +156,27 @@ export const VendorScorecard = memo(function VendorScorecard() {
             <p className="text-sm text-muted-foreground">KPI-ji in ocene za vsakega dobavitelja</p>
           </div>
         </div>
-        <Button size="sm" variant="outline" onClick={loadSuppliers}>
+        <Button size="sm" variant="outline" onClick={loadSuppliers} aria-label="Osveži podatke">
           <RefreshCw className="h-3 w-3 mr-1" /> Osveži
         </Button>
       </div>
 
       {/* Povzetek */}
-      <div className="grid grid-cols-4 gap-3">
-        <Card>
-          <CardContent className="p-3 text-center">
-            <Factory className="h-5 w-5 text-violet-500 mx-auto mb-1" />
-            <p className="text-xl font-bold">{suppliers.length}</p>
-            <p className="text-xs text-muted-foreground">Dobavitelji</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <BarChart3 className="h-5 w-5 text-blue-500 mx-auto mb-1" />
-            <p className="text-xl font-bold">{avgScore}/100</p>
-            <p className="text-xs text-muted-foreground">Povprečna ocena</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <CheckCircle className="h-5 w-5 text-green-500 mx-auto mb-1" />
-            <p className="text-xl font-bold">{preferredCount}</p>
-            <p className="text-xs text-muted-foreground">Prednostni</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <AlertTriangle className="h-5 w-5 text-red-500 mx-auto mb-1" />
-            <p className="text-xl font-bold">{probationCount}</p>
-            <p className="text-xs text-muted-foreground">Na preizkusu</p>
-          </CardContent>
-        </Card>
-      </div>
+      <VendorSummaryCards
+        supplierCount={suppliers.length}
+        avgScore={avgScore}
+        preferredCount={preferredCount}
+        probationCount={probationCount}
+      />
 
       {/* Sortiranje */}
-      <div className="flex gap-2">
-        {[
-          { key: 'score', label: 'Skupna ocena' },
-          { key: 'delivery', label: 'Dobava' },
-          { key: 'quality', label: 'Kakovost' },
-          { key: 'price', label: 'Cena' },
-        ].map(s => (
-          <Button
-            key={s.key}
-            variant={sortBy === s.key ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setSortBy(s.key as typeof sortBy)}
-          >
-            {s.label}
-          </Button>
-        ))}
-      </div>
+      <VendorSortBar sortBy={sortBy} onSortChange={setSortBy} />
 
       {/* Seznam dobaviteljev */}
       <div className="space-y-3">
-        {sortedSuppliers.map((supplier, idx) => {
-          const tierConf = tierConfig[supplier.tier]
-          const TierIcon = tierConf.icon
-          const TrendIcon = supplier.trend === 'up' ? ArrowUpRight : supplier.trend === 'down' ? ArrowDownRight : BarChart3
-
-          return (
-            <Card key={supplier.id} className="transition-all hover:shadow-md">
-              <CardContent className="p-4">
-                <div className="flex items-start gap-4">
-                  {/* Ranking */}
-                  <div className={`flex h-10 w-10 items-center justify-center rounded-full text-white font-bold ${getScoreBg(supplier.overallScore)}`}>
-                    #{idx + 1}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-medium text-lg">{supplier.name}</span>
-                      <Badge className={tierConf.color}>
-                        <TierIcon className="h-3 w-3 mr-1" /> {tierConf.label}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">{supplier.category}</Badge>
-                      <div className={`flex items-center gap-1 text-sm ${supplier.trend === 'up' ? 'text-green-600' : supplier.trend === 'down' ? 'text-red-600' : 'text-gray-500'}`}>
-                        <TrendIcon className="h-4 w-4" />
-                      </div>
-                    </div>
-
-                    {/* Kontakt podatki */}
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
-                      {supplier.phone && (
-                        <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {supplier.phone}</span>
-                      )}
-                      {supplier.email && (
-                        <span className="flex items-center gap-1"><Mail className="h-3 w-3" /> {supplier.email}</span>
-                      )}
-                      <span className="flex items-center gap-1"><Truck className="h-3 w-3" /> {supplier.avgDeliveryDays} dni</span>
-                      <span className="flex items-center gap-1"><Package className="h-3 w-3" /> {supplier.totalOrders} naročil</span>
-                      <span className="flex items-center gap-1"><DollarSign className="h-3 w-3" /> {formatCurrency(supplier.totalSpent)}</span>
-                    </div>
-
-                    {/* Metrike */}
-                    <div className="grid grid-cols-5 gap-3">
-                      {[
-                        { label: 'Točnost dobave', value: supplier.metrics.onTimeDelivery },
-                        { label: 'Kakovost', value: supplier.metrics.qualityRating },
-                        { label: 'Cenovna konkurenčnost', value: supplier.metrics.priceCompetitiveness },
-                        { label: 'Odzivnost', value: supplier.metrics.responsiveness },
-                        { label: 'Točnost naročil', value: supplier.metrics.orderAccuracy },
-                      ].map(metric => (
-                        <div key={metric.label}>
-                          <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                            <span className="truncate">{metric.label}</span>
-                            <span className={`font-medium ${getScoreColor(metric.value)}`}>{metric.value}</span>
-                          </div>
-                          <Progress
-                            value={metric.value}
-                            className={`h-1.5 [&>div]:${metric.value >= 85 ? 'bg-green-500' : metric.value >= 70 ? 'bg-amber-500' : 'bg-red-500'}`}
-                            aria-valuetext={metric.value >= 85 ? 'Odlična ocena' : metric.value >= 70 ? 'Zadostna ocena' : 'Slaba ocena'}
-                          />
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Skupna ocena */}
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">Skupna ocena:</span>
-                        <span className={`text-xl font-bold ${getScoreColor(supplier.overallScore)}`}>
-                          {supplier.overallScore}/100
-                        </span>
-                      </div>
-                      <div className="flex gap-2">
-                        {supplier.recentIssues.map((issue, i) => (
-                          <Badge key={i} variant="destructive" className="text-xs">
-                            <XCircle className="h-3 w-3 mr-1" /> {issue}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
+        {sortedSuppliers.map((supplier, idx) => (
+          <SupplierCard key={supplier.id} supplier={supplier} rank={idx + 1} />
+        ))}
 
         {sortedSuppliers.length === 0 && (
           <Card>

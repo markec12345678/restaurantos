@@ -1,32 +1,21 @@
 'use client'
 
 import { useState, useEffect, useCallback, memo } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Progress } from '@/components/ui/progress'
 import { ShiftRow, EmployeeRow, TimeEntryRow } from '@/lib/types'
 import { authFetch } from '@/components/pos/PinLogin'
 import { toast } from 'sonner'
-import { Clock, UserCheck, Coffee, LogOut, Play, Users, Timer, CalendarDays, CheckCircle2 } from 'lucide-react'
+import { CalendarDays } from 'lucide-react'
+import dynamic from 'next/dynamic'
+import type { ShiftEmployee } from './shift-overview/constants'
 
-interface ShiftEmployee {
-  id: string
-  name: string
-  role: string
-  shiftType: 'morning' | 'afternoon' | 'evening' | 'full'
-  shiftStart: string
-  shiftEnd: string
-  status: 'scheduled' | 'clocked-in' | 'on-break' | 'clocked-out'
-  clockedInAt: string | null
-  breakStartedAt: string | null
-  totalBreakMinutes: number
-  location: string
-  hoursWorked: number
-  hoursRemaining: number
-}
+// Lazy-loaded podkomponente
+const ShiftSummaryCards = dynamic(() => import('./shift-overview/ShiftSummaryCards').then(m => ({ default: m.ShiftSummaryCards })), { ssr: false })
+const ShiftFilterBar = dynamic(() => import('./shift-overview/ShiftFilterBar').then(m => ({ default: m.ShiftFilterBar })), { ssr: false })
+const ShiftEmployeeList = dynamic(() => import('./shift-overview/ShiftEmployeeList').then(m => ({ default: m.ShiftEmployeeList })), { ssr: false })
 
+// ============================================
+// GLAVNA KOMPONENTA PREGLEDA IZMEN
+// ============================================
 export const ShiftOverview = memo(function ShiftOverview() {
   const [employees, setEmployees] = useState<ShiftEmployee[]>([])
   const [_loading, setLoading] = useState(true)
@@ -158,40 +147,7 @@ export const ShiftOverview = memo(function ShiftOverview() {
     }
   }, [loadShiftData])
 
-  const statusConfig = {
-    'clocked-in': {
-      label: 'Na delu',
-      color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-      icon: UserCheck,
-      dotColor: 'bg-green-500',
-    },
-    'on-break': {
-      label: 'Odmor',
-      color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
-      icon: Coffee,
-      dotColor: 'bg-amber-500',
-    },
-    'clocked-out': {
-      label: 'Odpisan',
-      color: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
-      icon: LogOut,
-      dotColor: 'bg-gray-400',
-    },
-    'scheduled': {
-      label: 'Načrtovan',
-      color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-      icon: Clock,
-      dotColor: 'bg-blue-400',
-    },
-  }
-
-  const shiftTypeConfig = {
-    morning: { label: 'Jutranja', color: 'text-yellow-600' },
-    afternoon: { label: 'Popoldanska', color: 'text-orange-600' },
-    evening: { label: 'Večerna', color: 'text-purple-600' },
-    full: { label: 'Celodnevna', color: 'text-blue-600' },
-  }
-
+  // Izračuni
   const filtered = filterStatus === 'all'
     ? employees
     : employees.filter(e => e.status === filterStatus)
@@ -201,8 +157,7 @@ export const ShiftOverview = memo(function ShiftOverview() {
   const scheduledCount = employees.filter(e => e.status === 'scheduled').length
   const totalHoursToday = employees.reduce((s, e) => s + e.hoursWorked, 0)
 
-  const now = new Date()
-  const currentTime = now.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })
+  const currentTime = new Date().toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })
 
   return (
     <div className="p-4 space-y-4 h-full overflow-auto">
@@ -221,155 +176,26 @@ export const ShiftOverview = memo(function ShiftOverview() {
       </div>
 
       {/* Povzetek */}
-      <div className="grid grid-cols-4 gap-3">
-        <Card>
-          <CardContent className="p-3 text-center">
-            <UserCheck className="h-5 w-5 text-green-500 mx-auto mb-1" />
-            <p className="text-xl font-bold">{clockedInCount}</p>
-            <p className="text-xs text-muted-foreground">Na delu</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <Coffee className="h-5 w-5 text-amber-500 mx-auto mb-1" />
-            <p className="text-xl font-bold">{onBreakCount}</p>
-            <p className="text-xs text-muted-foreground">Na odmoru</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <Clock className="h-5 w-5 text-blue-500 mx-auto mb-1" />
-            <p className="text-xl font-bold">{scheduledCount}</p>
-            <p className="text-xs text-muted-foreground">Načrtovani</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <Timer className="h-5 w-5 text-purple-500 mx-auto mb-1" />
-            <p className="text-xl font-bold">{Math.round(totalHoursToday * 10) / 10}h</p>
-            <p className="text-xs text-muted-foreground">Ure danes</p>
-          </CardContent>
-        </Card>
-      </div>
+      <ShiftSummaryCards
+        clockedInCount={clockedInCount}
+        onBreakCount={onBreakCount}
+        scheduledCount={scheduledCount}
+        totalHoursToday={totalHoursToday}
+      />
 
       {/* Filtri */}
-      <div className="flex gap-2">
-        {['all', 'clocked-in', 'on-break', 'scheduled', 'clocked-out'].map(status => (
-          <Button
-            key={status}
-            variant={filterStatus === status ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setFilterStatus(status)}
-          >
-            {status === 'all' ? 'Vsi' : statusConfig[status as keyof typeof statusConfig].label}
-          </Button>
-        ))}
-      </div>
+      <ShiftFilterBar
+        filterStatus={filterStatus}
+        onFilterChange={setFilterStatus}
+      />
 
       {/* Seznam zaposlenih */}
-      <div className="space-y-3">
-        {filtered.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <Users className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-              <p className="text-lg font-medium">Ni zaposlenih za prikaz</p>
-              <p className="text-sm text-muted-foreground">Spremenite filter ali dodajte razpored</p>
-            </CardContent>
-          </Card>
-        ) : (
-          filtered.map(emp => {
-            const config = statusConfig[emp.status]
-            const StatusIcon = config.icon
-            const shiftConf = shiftTypeConfig[emp.shiftType as keyof typeof shiftTypeConfig]
-            const shiftProgress = emp.hoursWorked > 0
-              ? Math.min(100, Math.round((emp.hoursWorked / (emp.hoursWorked + emp.hoursRemaining)) * 100))
-              : 0
-
-            return (
-              <Card key={emp.id} className="transition-all hover:shadow-md">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-4">
-                    {/* Avatar */}
-                    <div className="relative">
-                      <Avatar className="h-12 w-12">
-                        <AvatarFallback>
-                          {emp.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-background ${config.dotColor}`} aria-label={config.label} />
-                    </div>
-
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium">{emp.name}</span>
-                        <Badge className={config.color}>
-                          <StatusIcon className="h-3 w-3 mr-1" /> {config.label}
-                        </Badge>
-                        <Badge variant="outline" className={`text-xs ${shiftConf?.color || ''}`}>
-                          {shiftConf?.label || emp.shiftType}
-                        </Badge>
-                      </div>
-
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground mb-2">
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {emp.shiftStart} — {emp.shiftEnd}
-                        </span>
-                        <span>{emp.role}</span>
-                        <span>{emp.location}</span>
-                      </div>
-
-                      {/* Progress */}
-                      {emp.status === 'clocked-in' || emp.status === 'on-break' ? (
-                        <div>
-                          <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                            <span>{emp.hoursWorked}h delano</span>
-                            <span>{emp.hoursRemaining}h do konca</span>
-                          </div>
-                          <Progress value={shiftProgress} className="h-1.5" />
-                        </div>
-                      ) : null}
-
-                      {emp.breakStartedAt && emp.status === 'on-break' && (
-                        <div className="flex items-center gap-1 mt-1 text-xs text-amber-600">
-                          <Coffee className="h-3 w-3" />
-                          Odmor od {new Date(emp.breakStartedAt).toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })}
-                          {emp.totalBreakMinutes > 0 && ` (${emp.totalBreakMinutes} min skupaj)`}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-2">
-                      {emp.status === 'scheduled' && (
-                        <Button size="sm" onClick={() => handleClockIn(emp.id)}>
-                          <Play className="h-3 w-3 mr-1" /> Prijava
-                        </Button>
-                      )}
-                      {emp.status === 'clocked-in' && (
-                        <>
-                          <Button size="sm" variant="outline" onClick={() => handleBreak(emp.id, false)}>
-                            <Coffee className="h-3 w-3 mr-1" /> Odmor
-                          </Button>
-                          <Button size="sm" variant="destructive" onClick={() => handleClockOut(emp.id)}>
-                            <LogOut className="h-3 w-3 mr-1" /> Odjava
-                          </Button>
-                        </>
-                      )}
-                      {emp.status === 'on-break' && (
-                        <Button size="sm" onClick={() => handleBreak(emp.id, true)}>
-                          <CheckCircle2 className="h-3 w-3 mr-1" /> Konec odmora
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })
-        )}
-      </div>
+      <ShiftEmployeeList
+        employees={filtered}
+        onClockIn={handleClockIn}
+        onClockOut={handleClockOut}
+        onBreak={handleBreak}
+      />
     </div>
   )
 })

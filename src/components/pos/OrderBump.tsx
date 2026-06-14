@@ -1,35 +1,18 @@
 'use client'
+
 import { useState, useEffect, memo } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Sparkles, TrendingUp, Plus, Star, Percent, DollarSign, Zap, Target } from 'lucide-react'
-import type { OrderRow, OrderItemRow } from '@/lib/types'
+import { Sparkles } from 'lucide-react'
 import { authFetch } from '@/components/pos/PinLogin'
-interface UpsellItem {
-  id: string
-  name: string
-  price: number
-  originalPrice?: number
-  category: string
-  reason: string
-  type: 'add-on' | 'upgrade' | 'combo' | 'side'
-  popularity: number // 0-100
-  margin: number // percent
-  imageEmoji: string
-}
-interface OrderBumpRule {
-  id: string
-  name: string
-  trigger: string
-  suggestion: string
-  type: 'add-on' | 'upgrade' | 'combo' | 'side'
-  discount: number
-  enabled: boolean
-  conversionRate: number
-  totalRevenue: number
-}
+import type { OrderRow, OrderItemRow } from '@/lib/types'
+import dynamic from 'next/dynamic'
+import type { UpsellItem, OrderBumpRule } from './order-bump/constants'
+
+// Lazy-loaded podkomponente
+const KpiCards = dynamic(() => import('./order-bump/KpiCards').then(m => ({ default: m.KpiCards })), { ssr: false })
+const UpsellGrid = dynamic(() => import('./order-bump/UpsellGrid').then(m => ({ default: m.UpsellGrid })), { ssr: false })
+const RulesList = dynamic(() => import('./order-bump/RulesList').then(m => ({ default: m.RulesList })), { ssr: false })
+
 export const OrderBump = memo(function OrderBump() {
   const [suggestions, setSuggestions] = useState<UpsellItem[]>([])
   const [rules, setRules] = useState<OrderBumpRule[]>([])
@@ -179,15 +162,6 @@ export const OrderBump = memo(function OrderBump() {
     ? Math.round(rules.filter(r => r.enabled).reduce((s, r) => s + r.conversionRate, 0) / rules.filter(r => r.enabled).length)
     : 0
   const activeRules = rules.filter(r => r.enabled).length
-  const typeConfig = {
-    'add-on': { label: 'Dodatek', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
-    'upgrade': { label: 'Nadgradnja', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' },
-    'combo': { label: 'Kombo', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' },
-    'side': { label: 'Priloga', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' },
-  }
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('sl-SI', { style: 'currency', currency: 'EUR' }).format(amount)
-  }
   return (
     <div className="p-4 space-y-4 h-full overflow-auto">
       <div className="flex items-center justify-between">
@@ -202,142 +176,24 @@ export const OrderBump = memo(function OrderBump() {
         </div>
       </div>
       {/* KPI */}
-      <div className="grid grid-cols-4 gap-3">
-        <Card>
-          <CardContent className="p-3 text-center">
-            <DollarSign className="h-5 w-5 text-green-500 mx-auto mb-1" />
-            <p className="text-xl font-bold">{formatCurrency(totalPotentialRevenue)}</p>
-            <p className="text-xs text-muted-foreground">Potencialni prihodek</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <Target className="h-5 w-5 text-blue-500 mx-auto mb-1" />
-            <p className="text-xl font-bold">{avgConversion}%</p>
-            <p className="text-xs text-muted-foreground">Povprečna konverzija</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <Zap className="h-5 w-5 text-amber-500 mx-auto mb-1" />
-            <p className="text-xl font-bold">{activeRules}/{rules.length}</p>
-            <p className="text-xs text-muted-foreground">Aktivna pravila</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <TrendingUp className="h-5 w-5 text-purple-500 mx-auto mb-1" />
-            <p className="text-xl font-bold">+{Math.round(totalPotentialRevenue * avgConversion / 100)}</p>
-            <p className="text-xs text-muted-foreground">Dejanski prihodek</p>
-          </CardContent>
-        </Card>
-      </div>
+      <KpiCards
+        totalPotentialRevenue={totalPotentialRevenue}
+        avgConversion={avgConversion}
+        activeRules={activeRules}
+        totalRules={rules.length}
+        actualRevenue={Math.round(totalPotentialRevenue * avgConversion / 100)}
+      />
       {/* Upsell predlogi */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-yellow-500" /> Predlagani upsell artikli
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-3">
-            {suggestions.map(item => {
-              const typeConf = typeConfig[item.type]
-              const isAdded = addedItems.has(item.id)
-              return (
-                <div key={item.id} className={`p-3 rounded-lg border transition-all ${isAdded ? 'border-green-500 bg-green-50 dark:bg-green-900/10' : 'hover:border-primary hover:shadow-sm'}`}>
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-2xl">{item.imageEmoji}</span>
-                      <div>
-                        <span className="font-medium text-sm block">{item.name}</span>
-                        <Badge className={`${typeConf.color} text-[10px]`}>{typeConf.label}</Badge>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="font-bold text-lg">{formatCurrency(item.price)}</span>
-                    {item.originalPrice && (
-                      <span className="text-sm text-muted-foreground line-through">{formatCurrency(item.originalPrice)}</span>
-                    )}
-                    {item.originalPrice && (
-                      <Badge variant="destructive" className="text-[10px]">
-                        -{Math.round((1 - item.price / item.originalPrice) * 100)}%
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mb-3">{item.reason}</p>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1"><Star className="h-3 w-3" /> {item.popularity}%</span>
-                      <span className="flex items-center gap-1"><Percent className="h-3 w-3" /> {item.margin}% marža</span>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={isAdded ? 'default' : 'outline'}
-                      onClick={() => handleAddSuggestion(item.id)}
-                      className="h-7 text-xs"
-                    >
-                      {isAdded ? (
-                        <><Sparkles className="h-3 w-3 mr-1" /> Dodano!</>
-                      ) : (
-                        <><Plus className="h-3 w-3 mr-1" /> Dodaj</>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      <UpsellGrid
+        suggestions={suggestions}
+        addedItems={addedItems}
+        onAddSuggestion={handleAddSuggestion}
+      />
       {/* Pravila */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Zap className="h-4 w-4 text-amber-500" /> Upsell pravila
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {rules.map(rule => {
-              const typeConf = typeConfig[rule.type]
-              return (
-                <div key={rule.id} className={`flex items-center justify-between p-3 rounded-lg border ${rule.enabled ? '' : 'opacity-60'}`}>
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => handleToggleRule(rule.id)}
-                      className={`h-5 w-9 rounded-full transition-colors relative ${rule.enabled ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
-                    >
-                      <div className={`h-4 w-4 rounded-full bg-white absolute top-0.5 transition-transform ${rule.enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                    </button>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">{rule.name}</span>
-                        <Badge className={`${typeConf.color} text-[10px]`}>{typeConf.label}</Badge>
-                        {rule.discount > 0 && (
-                          <Badge variant="destructive" className="text-[10px]">-{rule.discount}%</Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                        <span>Prožilec: {rule.trigger}</span>
-                        <span>·</span>
-                        <span>{rule.suggestion}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="text-sm font-medium">{rule.conversionRate}% konverzija</p>
-                      <p className="text-xs text-muted-foreground">{formatCurrency(rule.totalRevenue)} prihodek</p>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      <RulesList
+        rules={rules}
+        onToggleRule={handleToggleRule}
+      />
     </div>
   )
 })
