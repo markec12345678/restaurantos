@@ -1,6 +1,6 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
@@ -10,6 +10,7 @@ import dynamic from 'next/dynamic'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import type { WebhookItem, FormData } from './webhook/constants'
+import { useWebhookMutations } from './webhook/useWebhookMutations'
 
 // Lazy-loaded pod-komponente
 const StatsCards = dynamic(() => import('./webhook/StatsCards').then(m => ({ default: m.StatsCards })), { ssr: false })
@@ -22,8 +23,6 @@ const DeleteDialog = dynamic(() => import('./webhook/DeleteDialog').then(m => ({
 // ============================================
 
 export const WebhookManager = memo(function WebhookManager() {
-  const queryClient = useQueryClient()
-
   // --- Stanja ---
   const [search, setSearch] = useState('')
   const [showInactive, setShowInactive] = useState(false)
@@ -86,57 +85,18 @@ export const WebhookManager = memo(function WebhookManager() {
   const { activeCount, totalEvents, failedCount } = webhookStats
 
   // ============================================
-  // MUTATIONS
+  // MUTATIONS (podedovane iz pod-hooka)
   // ============================================
 
-  const createMutation = useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      const res = await authFetch('/api/webhooks', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error('Napaka')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Spletna kljuka uspešno ustvarjena')
-      queryClient.invalidateQueries({ queryKey: queryKeys.webhooks.all })
-      setDialogOpen(false)
-    },
-    onError: () => toast.error('Napaka pri ustvarjanju spletne kljuke'),
-  })
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await authFetch(`/api/webhooks/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error('Napaka')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Spletna kljuka uspešno posodobljena')
-      queryClient.invalidateQueries({ queryKey: queryKeys.webhooks.all })
-      setDialogOpen(false)
-      setEditingItem(null)
-    },
-    onError: () => toast.error('Napaka pri posodabljanju spletne kljuke'),
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await authFetch(`/api/webhooks/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Napaka')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Spletna kljuka uspešno izbrisana')
-      queryClient.invalidateQueries({ queryKey: queryKeys.webhooks.all })
-      setDeleteDialogOpen(false)
-      setDeleteTarget(null)
-    },
-    onError: () => toast.error('Napaka pri brisanju spletne kljuke'),
+  const {
+    createMutation,
+    updateMutation,
+    deleteMutation,
+  } = useWebhookMutations({
+    onCloseDialog: () => setDialogOpen(false),
+    onClearEditingItem: () => setEditingItem(null),
+    onCloseDeleteDialog: () => setDeleteDialogOpen(false),
+    onClearDeleteTarget: () => setDeleteTarget(null),
   })
 
   // ============================================

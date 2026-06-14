@@ -6,93 +6,9 @@ import { Bell, ShoppingCart, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-
-// ============================================
-// ZVOČNI UPRAVLJATELJ
-// ============================================
-class NotificationSoundManager {
-  private audioContext: AudioContext | null = null
-  private enabled = true
-
-  toggle() {
-    this.enabled = !this.enabled
-    return this.enabled
-  }
-
-  isEnabled() { return this.enabled }
-
-  private getContext() {
-    if (!this.audioContext) this.audioContext = new AudioContext()
-    return this.audioContext
-  }
-
-  playNewOrder() {
-    if (!this.enabled) return
-    try {
-      const ctx = this.getContext()
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.type = 'sine'
-      osc.frequency.setValueAtTime(880, ctx.currentTime)
-      osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.12)
-      gain.gain.setValueAtTime(0.12, ctx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35)
-      osc.start(ctx.currentTime)
-      osc.stop(ctx.currentTime + 0.35)
-    } catch { /* Audio not available */ }
-  }
-
-  playOrderReady() {
-    if (!this.enabled) return
-    try {
-      const ctx = this.getContext()
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.type = 'sine'
-      osc.frequency.setValueAtTime(660, ctx.currentTime)
-      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1)
-      osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.2)
-      gain.gain.setValueAtTime(0.1, ctx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4)
-      osc.start(ctx.currentTime)
-      osc.stop(ctx.currentTime + 0.4)
-    } catch { /* Audio not available */ }
-  }
-
-  playPaymentReceived() {
-    if (!this.enabled) return
-    try {
-      const ctx = this.getContext()
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.type = 'sine'
-      osc.frequency.setValueAtTime(523, ctx.currentTime)
-      osc.frequency.setValueAtTime(659, ctx.currentTime + 0.1)
-      gain.gain.setValueAtTime(0.08, ctx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3)
-      osc.start(ctx.currentTime)
-      osc.stop(ctx.currentTime + 0.3)
-    } catch { /* Audio not available */ }
-  }
-}
-
-const soundManager = new NotificationSoundManager()
-
-// ============================================
-// TIPI
-// ============================================
-interface Notification {
-  id: string
-  type: 'new-order' | 'order-ready' | 'payment' | 'urgent'
-  message: string
-  timestamp: Date
-}
+import type { Notification } from './notifications/types'
+import { formatNotifTime } from './notifications/types'
+import { soundManager } from './notifications/NotificationSoundManager'
 
 // ============================================
 // KOMPONENTA
@@ -250,7 +166,7 @@ export const GlobalNotifications = memo(function GlobalNotifications() {
               <div className={config.color}>{config.icon}</div>
               <div className="flex-1 min-w-0">
                 <p className={`text-sm font-semibold ${config.color}`}>{notif.message}</p>
-                <p className="text-[10px] text-muted-foreground">{format(notif.timestamp, 'HH:mm:ss')}</p>
+                <p className="text-[10px] text-muted-foreground">{formatNotifTime(notif.timestamp, 'HH:mm:ss')}</p>
               </div>
               <button onClick={() => removeNotification(notif.id)} className="text-muted-foreground hover:text-foreground" aria-label="Zapri obvestilo">
                 ×
@@ -294,10 +210,3 @@ export const GlobalNotifications = memo(function GlobalNotifications() {
     </>
   )
 })
-
-function format(date: Date, fmt: string): string {
-  const h = date.getHours().toString().padStart(2, '0')
-  const m = date.getMinutes().toString().padStart(2, '0')
-  const s = date.getSeconds().toString().padStart(2, '0')
-  return fmt.replace('HH', h).replace('mm', m).replace('ss', s)
-}

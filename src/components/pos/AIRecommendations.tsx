@@ -2,47 +2,21 @@
 
 // ═══════════════════════════════════════════════════════════════
 // RestaurantOS — AI Menu Recommendations
-// Pametno priporočanje jedi glede na: uro, dan, sezono, 
+// Pametno priporočanje jedi glede na: uro, dan, sezono,
 // zgodovino naročil, popularnost, food cost, maržo
 // ═══════════════════════════════════════════════════════════════
 
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import { Brain, Sparkles, TrendingUp, DollarSign, ArrowUpRight, CalendarDays, Zap, ThumbsUp } from 'lucide-react'
+import { Brain } from 'lucide-react'
 import { useState, useMemo, memo } from 'react'
-import type { LucideIcon } from 'lucide-react'
-
-interface MenuItemData {
-  id: string
-  name: string
-  price: number
-  image: string
-  vatRate: number
-  allergens: string
-  category: { name: string; menu: { name: string } }
-  salesCategory?: { name: string }
-  orderItems: { id: string; quantity: number; createdAt: string }[]
-}
-
-interface Recommendation {
-  item: MenuItemData
-  score: number
-  reasons: string[]
-  category: 'popular' | 'profitable' | 'seasonal' | 'upsell' | 'trending'
-}
-
-const CATEGORY_CONFIG: Record<string, { label: string; icon: LucideIcon; color: string; desc: string }> = {
-  popular: { label: 'Popularne', icon: ThumbsUp, color: 'text-green-600 bg-green-100 dark:bg-green-900/30', desc: 'Najbolj prodajane jedi' },
-  profitable: { label: 'Profitabilne', icon: DollarSign, color: 'text-amber-600 bg-amber-100 dark:bg-amber-900/30', desc: 'Najvišja marža' },
-  seasonal: { label: 'Sezonske', icon: CalendarDays, color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30', desc: 'Glede na sezono/uro' },
-  upsell: { label: 'Upsell', icon: ArrowUpRight, color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30', desc: 'Priložnost za večjo prodajo' },
-  trending: { label: 'Trendi', icon: TrendingUp, color: 'text-red-600 bg-red-100 dark:bg-red-900/30', desc: 'Rastoča prodaja' },
-}
+import type { MenuItemData, Recommendation } from './ai-recommendations/constants'
+import { CATEGORY_CONFIG } from './ai-recommendations/constants'
+import { RecommendationCard } from './ai-recommendations/RecommendationCard'
 
 export const AIRecommendations = memo(function AIRecommendations() {
   const [activeTab, setActiveTab] = useState('all')
@@ -234,57 +208,9 @@ export const AIRecommendations = memo(function AIRecommendations() {
 
         <TabsContent value={activeTab} className="mt-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map((rec, idx) => {
-              const cfg = CATEGORY_CONFIG[rec.category] || CATEGORY_CONFIG.popular
-              const Icon = cfg.icon
-              return (
-                <Card key={rec.item.id} className="overflow-hidden">
-                  <div className={`h-1 ${cfg.color.split(' ')[1] || 'bg-gray-200'}`} />
-                  <CardContent className="p-4 space-y-3">
-                    {/* Header */}
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg font-bold text-muted-foreground">#{idx + 1}</span>
-                        <div>
-                          <div className="font-semibold text-sm">{rec.item.name}</div>
-                          <div className="text-xs text-muted-foreground">{rec.item.category?.name}</div>
-                        </div>
-                      </div>
-                      <Badge className={cfg.color}>
-                        <Icon className="h-3 w-3 mr-1" />
-                        {cfg.label}
-                      </Badge>
-                    </div>
-
-                    {/* Cena + Score */}
-                    <div className="flex items-center justify-between">
-                      <span className="text-lg font-bold text-green-600">€{rec.item.price.toFixed(2)}</span>
-                      <div className="flex items-center gap-1">
-                        <Sparkles className="h-4 w-4 text-amber-500" />
-                        <span className="text-sm font-semibold">{rec.score}</span>
-                        <span className="text-xs text-muted-foreground">točk</span>
-                      </div>
-                    </div>
-
-                    {/* Razlogi */}
-                    <div className="space-y-1">
-                      {rec.reasons.map((reason, i) => (
-                        <div key={i} className="flex items-center gap-2 text-xs">
-                          <Zap className="h-3 w-3 text-amber-500 shrink-0" />
-                          <span className="text-muted-foreground">{reason}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Score bar */}
-                    <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5">
-                      <div className="h-1.5 rounded-full bg-gradient-to-r from-purple-400 to-indigo-600"
-                        style={{ width: `${Math.min(rec.score, 100)}%` }} />
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })}
+            {filtered.map((rec, idx) => (
+              <RecommendationCard key={rec.item.id} rec={rec} index={idx} />
+            ))}
           </div>
 
           {filtered.length === 0 && (

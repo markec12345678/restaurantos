@@ -1,6 +1,6 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
@@ -9,6 +9,7 @@ import { CalendarDays, Clock } from 'lucide-react'
 import { useState, useCallback, useMemo, memo } from 'react'
 import dynamic from 'next/dynamic'
 import { type ShiftItem, type TimeEntryItem, type Employee, type Job, type ShiftFormState } from './shift/constants'
+import { useShiftMutations } from './shift/useShiftMutations'
 
 // Lazy-loaded podkomponente
 const ShiftSummaryCards = dynamic(() => import('./shift/ShiftSummaryCards').then(m => ({ default: m.ShiftSummaryCards })), { ssr: false })
@@ -22,8 +23,6 @@ const DeleteShiftDialog = dynamic(() => import('./shift/DeleteShiftDialog').then
 // ============================================
 
 export const ShiftManager = memo(function ShiftManager() {
-  const queryClient = useQueryClient()
-
   // --- Stanja za izmene ---
   const [shiftDialogOpen, setShiftDialogOpen] = useState(false)
   const [editingShift, setEditingShift] = useState<ShiftItem | null>(null)
@@ -86,52 +85,20 @@ export const ShiftManager = memo(function ShiftManager() {
     .reduce((sum, e) => sum + e.totalMinutes, 0) / 60
 
   // ============================================
-  // MUTATIONS
+  // MUTATIONS (podedovane iz pod-hooka)
   // ============================================
 
-  const createShiftMutation = useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      const res = await authFetch('/api/shifts', { method: 'POST', body: JSON.stringify(data) })
-      return res.json()
-    },
-    onSuccess: () => { toast.success('Izmena uspešno ustvarjena'); queryClient.invalidateQueries({ queryKey: queryKeys.shifts.all }); setShiftDialogOpen(false) },
-    onError: () => toast.error('Napaka pri ustvarjanju izmene'),
-  })
-
-  const updateShiftMutation = useMutation({
-    mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await authFetch(`/api/shifts/${id}`, { method: 'PUT', body: JSON.stringify(data) })
-      return res.json()
-    },
-    onSuccess: () => { toast.success('Izmena uspešno posodobljena'); queryClient.invalidateQueries({ queryKey: queryKeys.shifts.all }); setShiftDialogOpen(false); setEditingShift(null) },
-    onError: () => toast.error('Napaka pri posodabljanju izmene'),
-  })
-
-  const deleteShiftMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await authFetch(`/api/shifts/${id}`, { method: 'DELETE' })
-      return res.json()
-    },
-    onSuccess: () => { toast.success('Izmena uspešno izbrisana'); queryClient.invalidateQueries({ queryKey: queryKeys.shifts.all }); setDeleteShiftDialogOpen(false) },
-    onError: () => toast.error('Napaka pri brisanju izmene'),
-  })
-
-  const clockInMutation = useMutation({
-    mutationFn: async (data: { employeeId: string; jobId?: string; type?: string }) => {
-      const res = await authFetch('/api/time-entries', { method: 'POST', body: JSON.stringify({ ...data, clockIn: new Date().toISOString() }) })
-      return res.json()
-    },
-    onSuccess: () => { toast.success('Uspešno prijavljen'); queryClient.invalidateQueries({ queryKey: ['time-entries'] }); setClockInEmployeeId(''); setClockInJobId('') },
-    onError: () => toast.error('Napaka pri prijavi'),
-  })
-
-  const clockOutMutation = useMutation({
-    mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await authFetch(`/api/time-entries/${id}`, { method: 'PUT', body: JSON.stringify(data) })
-      return res.json()
-    },
-    onSuccess: () => { toast.success('Uspešno odjavljen'); queryClient.invalidateQueries({ queryKey: ['time-entries'] }) },
-    onError: () => toast.error('Napaka pri odjavi'),
+  const {
+    createShiftMutation,
+    updateShiftMutation,
+    deleteShiftMutation,
+    clockInMutation,
+    clockOutMutation,
+  } = useShiftMutations({
+    onCloseShiftDialog: () => setShiftDialogOpen(false),
+    onClearEditingShift: () => setEditingShift(null),
+    onCloseDeleteDialog: () => setDeleteShiftDialogOpen(false),
+    onResetClockInFields: () => { setClockInEmployeeId(''); setClockInJobId('') },
   })
 
   // ============================================
@@ -190,7 +157,6 @@ export const ShiftManager = memo(function ShiftManager() {
 
   const handleClockIn = useCallback(() => {
     if (!clockInEmployeeId) { toast.error('Izberite zaposlenega'); return }
-    // FIX HIGH: Prepreči duplicate clock-in — preveri, če zaposleni že ima aktivni vnos
     const hasActiveEntry = activeEntries.some((e: TimeEntryItem) => e.employeeId === clockInEmployeeId)
     if (hasActiveEntry) {
       toast.error('Ta zaposleni je že prijavljen. Najprej ga odjavite.')
@@ -247,7 +213,6 @@ export const ShiftManager = memo(function ShiftManager() {
           <TabsTrigger value="time"><Clock className="h-4 w-4 mr-1.5" />Ure</TabsTrigger>
         </TabsList>
 
-        {/* === ZAVIHEK: IZMENE === */}
         <TabsContent value="shifts" className="space-y-4">
           <ShiftsTab
             shifts={allShifts}
@@ -261,7 +226,6 @@ export const ShiftManager = memo(function ShiftManager() {
           />
         </TabsContent>
 
-        {/* === ZAVIHEK: URE === */}
         <TabsContent value="time" className="space-y-4">
           <TimeTab
             employeesList={employeesList}
