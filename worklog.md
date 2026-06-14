@@ -2228,3 +2228,43 @@ Stage Summary:
 - usePaymentDialog: 429→299 (30% reduction)
 - ALL files now under 400 lines — largest is useGiftCardManager.ts at 371 lines
 - Total splits across Rounds 9-15: 44+ component splits
+
+---
+Task ID: round-15
+Agent: Main Agent
+Task: Round 15 — Split 3 large files (order/page.tsx, waiter/page.tsx, sidebar.tsx) into sub-components
+
+Work Log:
+- Verified useGiftCardManager.ts (371 lines) and usePaymentDialog.ts (300 lines) are already under 400 — split in previous rounds
+- Split src/app/order/page.tsx (1046→177) into 8 files:
+  - types.ts (108 lines): All interfaces (Modifier, ModifierGroup, MenuItem, Category, Menu, CartItem, etc.)
+  - constants.ts (25 lines): ALLERGEN_DATA, delivery defaults
+  - useOnlineOrder.ts (308 lines): Custom hook with all state, data fetching, cart logic, handlers
+  - OrderHeader.tsx (175 lines): Header with search, order type toggle, location selector, hours
+  - MenuStep.tsx (156 lines): Menu browsing with category tabs, item cards, floating cart bar
+  - CartStep.tsx (112 lines): Cart view with items, summary, navigation
+  - CheckoutViews.tsx (361 lines): DetailsStep, PaymentStep, ConfirmationView, ItemDetailModal
+  - page.tsx (177 lines): Slim orchestrator with hook call and lazy-loaded sub-components
+- Split src/app/waiter/page.tsx (605→271) into 6 files:
+  - types.ts (53 lines): ReadyItem, WaiterNotification, OrderItem, Order interfaces
+  - WaiterLogin.tsx (68 lines): PIN login component with demo PINs
+  - useWaiterSound.ts (29 lines): Audio notification hook using Web Audio API
+  - ReadyTab.tsx (123 lines): Ready items notification tab
+  - OrdersTab.tsx (104 lines): Order list tab with expand/collapse
+  - page.tsx (271 lines): Main page with WebSocket, queries, tab navigation
+- Split src/components/ui/sidebar.tsx (726→355) into 3 files:
+  - sidebar-context.tsx (122 lines): Context, useSidebar hook, SidebarProvider, constants
+  - sidebar-menu.tsx (275 lines): All menu-related components + CVA variants
+  - sidebar.tsx (355 lines): Sidebar, SidebarTrigger, SidebarRail, accessories + re-exports
+- Fixed ConfirmationView type: changed inline type to OrderResultRow | null with null guard
+- Removed unused imports: Modifier from CartStep, ESTIMATED constants from CheckoutViews, ModifierGroup from MenuStep, CheckCircle from waiter/page.tsx, SIDEBAR_WIDTH from sidebar.tsx
+- All sub-components use memo() and named exports
+- Parent pages use next/dynamic + ssr: false for lazy loading
+- sidebar.tsx re-exports all names from sidebar-context and sidebar-menu for backward compatibility
+
+Stage Summary:
+- 3 parent files split into 17 files total
+- TypeScript: 0 errors
+- ESLint: 0 errors, 0 warnings
+- All component files under 400 lines
+- Remaining large files: API routes, QR pages, reserve page, KDS page
