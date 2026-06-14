@@ -580,7 +580,7 @@ RestaurantOS vključuje več AI funkcij, ki jih poganja Google Gemini:
 | Meni postavk (seed) | 438 |
 | Odvisnosti | 70+ |
 
-### 🔄 Refaktoriranje komponent (14 krogov)
+### 🔄 Refaktoriranje komponent (20 krogov)
 
 Projekt je bil deležen obsežnega refaktoriranja, pri katerem so bile velike monolitne komponente razdeljene v manjše, bolj obvladljive pod-komponente, namenske hooke in tipne datoteke.
 
@@ -590,8 +590,13 @@ Projekt je bil deležen obsežnega refaktoriranja, pri katerem so bile velike mo
 | 9 | ESLint popravki (22 napak → 0) | — | — | — |
 | 10–13 | 30+ komponent v podmape | 80+ | 900+ vrstic | <400 vrstic |
 | 14 | MenuBrowser, ConfigForm, OrderPanel, FursTab, OrderList | 14 novih | 585 vrstic | <400 vrstic |
+| 15–16 | BookingExtractReport, KitchenStationManager, RecipeTab, ShiftManager, GlobalNotifications | 10 novih | 460 vrstic | <280 vrstic |
+| 17 | BookingExtractReport, KitchenStationManager, RecipeTab, useIntegrationManager | 4 nove | 360 vrstic | <290 vrstic |
+| 18 | ShiftManager, GlobalNotifications, AIRecommendations, WebhookManager | 4 nove | 345 vrstic | <275 vrstic |
+| 19 | MenuManager, GiftCardTable, SplitCheckDialog, ReceiptDialog, MenuBrowser | 7 novih | 300 vrstic | <250 vrstic |
+| 20 | DeliveryManager, DailyChecklist, useGiftCardManager, TableMap, ExtendedForms | 12 novih | 283 vrstic | <224 vrstic |
 
-**Rezultat:** Vse 474 POS datoteke so zdaj pod 400 vrstic. Vsaka komponenta sledi vzorcu:
+**Rezultat:** Vse POS datoteke so zdaj pod 290 vrstic. Vsaka komponenta sledi vzorcu:
 
 - Pod-komponente ovite z `memo()` in z poimenovanimi izvozi
 - Starševske komponente uporabljajo `next/dynamic` za leno nalaganje

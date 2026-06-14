@@ -7,48 +7,21 @@
 // ═══════════════════════════════════════════════════════════════
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { Skeleton } from '@/components/ui/skeleton'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import { CheckCircle2, Circle, Clock, Sun, Moon, ChevronDown, ChevronUp, Save, RotateCcw, ClipboardCheck, Coffee, UtensilsCrossed, CreditCard, ShieldCheck, Building, Sparkles } from 'lucide-react'
+import { CheckCircle2, Clock, Sun, Moon, Save, RotateCcw, ClipboardCheck } from 'lucide-react'
 import { useState, memo } from 'react'
 import { toast } from 'sonner'
+import dynamic from 'next/dynamic'
+import { type ChecklistItem } from './checklist/types'
 
-interface ChecklistItem {
-  id: string
-  task: string
-  category: string
-  completed: boolean
-  completedBy?: string
-  completedAt?: string
-  notes?: string
-}
-
-const CATEGORY_ICONS: Record<string, typeof Coffee> = {
-  sistemi: CreditCard,
-  blagajna: CreditCard,
-  kuhinja: UtensilsCrossed,
-  bár: Coffee,
-  čistost: Sparkles,
-  jedilnica: Building,
-  rezervacije: Clock,
-  varnost: ShieldCheck,
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
-  sistemi: 'Sistemi',
-  blagajna: 'Blagajna',
-  kuhinja: 'Kuhinja',
-  bár: 'Bar',
-  čistost: 'Čistost',
-  jedilnica: 'Jedilnica',
-  rezervacije: 'Rezervacije',
-  varnost: 'Varnost',
-}
+// Lazy-loaded podkomponente
+const ChecklistCategory = dynamic(() => import('./checklist/ChecklistCategory').then(m => ({ default: m.ChecklistCategory })), { ssr: false })
 
 export const DailyChecklist = memo(function DailyChecklist() {
   const queryClient = useQueryClient()
@@ -124,7 +97,7 @@ export const DailyChecklist = memo(function DailyChecklist() {
   const totalCount = checklist.length
   const progressPct = totalCount > 0 ? (completedCount / totalCount) * 100 : 0
 
-  // Group by category (derived directly, no memo needed for small lists)
+  // Group by category
   const grouped: Record<string, ChecklistItem[]> = {}
   for (const item of checklist) {
     if (!grouped[item.category]) grouped[item.category] = []
@@ -200,61 +173,16 @@ export const DailyChecklist = memo(function DailyChecklist() {
 
       {/* Checklist by Category */}
       <div className="space-y-3">
-        {Object.entries(grouped).map(([category, items]) => {
-          const isExpanded = expandedCategories.has(category)
-          const catCompleted = items.filter(i => i.completed).length
-          const catIcon = CATEGORY_ICONS[category] || CheckCircle2
-          const CatIcon = catIcon
-          const catAllDone = catCompleted === items.length
-
-          return (
-            <Card key={category} className={catAllDone ? 'border-emerald-200 dark:border-emerald-800' : ''}>
-              <CardHeader className="p-3 pb-0 cursor-pointer" role="button" tabIndex={0} aria-expanded={expandedCategories.has(category)} onClick={() => toggleCategory(category)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCategory(category) } }}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <CatIcon className={`h-4 w-4 ${catAllDone ? 'text-emerald-500' : 'text-muted-foreground'}`} />
-                    <CardTitle className="text-sm font-semibold">
-                      {CATEGORY_LABELS[category] || category}
-                    </CardTitle>
-                    <Badge variant="outline" className="text-[10px]">
-                      {catCompleted}/{items.length}
-                    </Badge>
-                  </div>
-                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                </div>
-              </CardHeader>
-              {isExpanded && (
-                <CardContent className="p-3 pt-2 space-y-1">
-                  {items.map(item => (
-                    <button
-                      key={item.id}
-                      className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left transition-all ${
-                        item.completed
-                          ? 'bg-emerald-50 dark:bg-emerald-900/10 opacity-75'
-                          : 'hover:bg-muted/50'
-                      }`}
-                      onClick={() => toggleItem(item.id)}
-                    >
-                      {item.completed ? (
-                        <CheckCircle2 className="h-5 w-5 text-emerald-500 flex-shrink-0" />
-                      ) : (
-                        <Circle className="h-5 w-5 text-muted-foreground flex-shrink-0" />
-                      )}
-                      <span className={`text-sm ${item.completed ? 'line-through text-muted-foreground' : ''}`}>
-                        {item.task}
-                      </span>
-                      {item.completedAt && (
-                        <span className="text-[9px] text-muted-foreground ml-auto flex-shrink-0">
-                          {new Date(item.completedAt).toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </CardContent>
-              )}
-            </Card>
-          )
-        })}
+        {Object.entries(grouped).map(([category, items]) => (
+          <ChecklistCategory
+            key={category}
+            category={category}
+            items={items}
+            isExpanded={expandedCategories.has(category)}
+            onToggleCategory={toggleCategory}
+            onToggleItem={toggleItem}
+          />
+        ))}
       </div>
 
       {/* Actions */}

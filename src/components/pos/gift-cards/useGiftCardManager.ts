@@ -2,12 +2,12 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { useState, useMemo, useCallback } from 'react'
-import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import { type GiftCard, generateCardNumber } from './constants'
+import { type GiftCard } from './constants'
 import { useGiftCardMutations } from './useGiftCardMutations'
 import { useGiftCardDialogs } from './useGiftCardDialogs'
+import { useGiftCardMutationHandlers } from './useGiftCardMutationHandlers'
 
 // ============================================
 // HOOK: Upravljanje darilnih kartic
@@ -23,7 +23,6 @@ export function useGiftCardManager() {
 
   // ============================================
   // DIALOG STATE (iz useGiftCardDialogs)
-  // Ustvarimo najprej, da dobimo setterje za mutacije
   // ============================================
 
   const dlg = useGiftCardDialogs()
@@ -52,7 +51,6 @@ export function useGiftCardManager() {
   const filteredCards = useMemo(() => {
     let cards = allCards
 
-    // Iskanje po številki kartice ali imenu lastnika
     if (search.trim()) {
       const q = search.toLowerCase()
       cards = cards.filter(
@@ -62,7 +60,6 @@ export function useGiftCardManager() {
       )
     }
 
-    // Sortiranje
     cards = [...cards].sort((a, b) => {
       let cmp = 0
       if (sortField === 'purchasedAt') {
@@ -95,10 +92,10 @@ export function useGiftCardManager() {
   }), [allCards])
 
   // ============================================
-  // MUTATIONS (iz useGiftCardMutations)
+  // MUTATIONS + HANDLERJI
   // ============================================
 
-  const { createMutation, updateMutation, loadMutation, deleteMutation } = useGiftCardMutations({
+  const mutations = useGiftCardMutations({
     allCards,
     setNewCardDialogOpen: dlg.setNewCardDialogOpen,
     setEditDialogOpen: dlg.setEditDialogOpen,
@@ -109,91 +106,12 @@ export function useGiftCardManager() {
     setDeleteTarget: dlg.setDeleteTarget,
   })
 
-  // ============================================
-  // MUTATION HANDLERJI
-  // ============================================
-
-  const handleCreateCard = useCallback(() => {
-    if (!dlg.newCardForm.initialBalance || parseFloat(dlg.newCardForm.initialBalance) <= 0) {
-      toast.error('Začetni znesek mora biti večji od 0')
-      return
-    }
-    createMutation.mutate({
-      cardNumber: dlg.newCardForm.cardNumber || generateCardNumber(),
-      ownerName: dlg.newCardForm.ownerName,
-      balance: parseFloat(dlg.newCardForm.initialBalance),
-      initialBalance: parseFloat(dlg.newCardForm.initialBalance),
-      expiresAt: dlg.newCardForm.expiresAt || null,
-    })
-  }, [dlg.newCardForm, createMutation])
-
-  const handleEditSave = useCallback(() => {
-    if (!dlg.editTarget) return
-    updateMutation.mutate({
-      id: dlg.editTarget.id,
-      status: dlg.editForm.status,
-      expiresAt: dlg.editForm.expiresAt || null,
-    })
-  }, [dlg.editTarget, dlg.editForm, updateMutation])
-
-  const handleLoad = useCallback(() => {
-    if (!dlg.loadTarget) return
-    const amount = parseFloat(dlg.loadForm.amount)
-    if (!amount || amount <= 0) {
-      toast.error('Znesek mora biti večji od 0')
-      return
-    }
-    loadMutation.mutate({
-      id: dlg.loadTarget.id,
-      amount,
-      note: dlg.loadForm.note,
-    })
-  }, [dlg.loadTarget, dlg.loadForm, loadMutation])
-
-  const handleDeleteConfirm = useCallback(() => {
-    if (dlg.deleteTarget) {
-      deleteMutation.mutate(dlg.deleteTarget.id)
-    }
-  }, [dlg.deleteTarget, deleteMutation])
-
-  const suspendCard = useCallback((card: GiftCard) => {
-    updateMutation.mutate({
-      id: card.id,
-      status: 'suspended',
-      transaction: {
-        type: 'adjust',
-        amount: 0,
-        balanceAfter: card.balance,
-        note: 'Kartica suspendirana',
-      },
-    })
-  }, [updateMutation])
-
-  const reactivateCard = useCallback((card: GiftCard) => {
-    if (card.balance <= 0) {
-      updateMutation.mutate({
-        id: card.id,
-        status: 'depleted',
-        transaction: {
-          type: 'adjust',
-          amount: 0,
-          balanceAfter: card.balance,
-          note: 'Kartica reaktivirana (brez sredstev)',
-        },
-      })
-    } else {
-      updateMutation.mutate({
-        id: card.id,
-        status: 'active',
-        transaction: {
-          type: 'adjust',
-          amount: 0,
-          balanceAfter: card.balance,
-          note: 'Kartica reaktivirana',
-        },
-      })
-    }
-  }, [updateMutation])
+  const handlers = useGiftCardMutationHandlers(dlg, {
+    createMutate: mutations.createMutation.mutate,
+    updateMutate: mutations.updateMutation.mutate,
+    loadMutate: mutations.loadMutation.mutate,
+    deleteMutate: mutations.deleteMutation.mutate,
+  })
 
   // ============================================
   // SORTIRANJE
@@ -230,8 +148,8 @@ export function useGiftCardManager() {
     setNewCardDialogOpen: dlg.setNewCardDialogOpen,
     newCardForm: dlg.newCardForm,
     setNewCardForm: dlg.setNewCardForm,
-    handleCreateCard,
-    isCreatePending: createMutation.isPending,
+    handleCreateCard: handlers.handleCreateCard,
+    isCreatePending: mutations.createMutation.isPending,
 
     // Dijalog za urejanje
     editDialogOpen: dlg.editDialogOpen,
@@ -240,8 +158,8 @@ export function useGiftCardManager() {
     editForm: dlg.editForm,
     setEditForm: dlg.setEditForm,
     openEdit: dlg.openEdit,
-    handleEditSave,
-    isUpdatePending: updateMutation.isPending,
+    handleEditSave: handlers.handleEditSave,
+    isUpdatePending: mutations.updateMutation.isPending,
 
     // Dijalog za nalaganje
     loadDialogOpen: dlg.loadDialogOpen,
@@ -250,8 +168,8 @@ export function useGiftCardManager() {
     loadForm: dlg.loadForm,
     setLoadForm: dlg.setLoadForm,
     openLoad: dlg.openLoad,
-    handleLoad,
-    isLoadPending: loadMutation.isPending,
+    handleLoad: handlers.handleLoad,
+    isLoadPending: mutations.loadMutation.isPending,
 
     // Dijalog za zgodovino
     historyDialogOpen: dlg.historyDialogOpen,
@@ -264,13 +182,13 @@ export function useGiftCardManager() {
     setDeleteDialogOpen: dlg.setDeleteDialogOpen,
     deleteTarget: dlg.deleteTarget,
     confirmDelete: dlg.confirmDelete,
-    handleDeleteConfirm,
-    isDeletePending: deleteMutation.isPending,
+    handleDeleteConfirm: handlers.handleDeleteConfirm,
+    isDeletePending: mutations.deleteMutation.isPending,
 
     // Handlerji za tabelo
     handleSort,
     openNewCard: dlg.openNewCard,
-    suspendCard,
-    reactivateCard,
+    suspendCard: handlers.suspendCard,
+    reactivateCard: handlers.reactivateCard,
   }
 }
