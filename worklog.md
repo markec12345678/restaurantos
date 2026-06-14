@@ -2400,3 +2400,25 @@ Stage Summary:
 - MenuManager.tsx: 295→250 | GiftCardTable.tsx: 294→166 | SplitCheckDialog.tsx: 291→167 | ReceiptDialog.tsx: 291→186 | MenuBrowser.tsx: 300→197
 - All files now under 250 lines
 - New files: useMenuMutations (100), GiftCardFilters (63), GiftCardRow (148), useSplitCheck (230), useReceiptMutations (167), MenuItemsGrid (106), useModifierSelection (97)
+
+---
+Task ID: 20
+Agent: Main
+Task: Round 20 — Refactor next 5 largest POS files
+
+Work Log:
+- Read actual line counts: NutritionalCalculator (286), CashRegister (286), OrderCart (284), useLoyaltyState (284), useLocationManager (284)
+- Created nutrition/ sub-directory with constants.ts, NutritionalStatsCards.tsx, NutritionalItemCard.tsx
+- Extracted useCashRegisterMutations from CashRegister.tsx → cash-register/useCashRegisterMutations.ts (115 lines)
+- Extracted CartItemRow + CartTotals from OrderCart.tsx → order/ (76 + 53 lines)
+- Extracted useLoyaltyMutations from useLoyaltyState.ts → loyalty/useLoyaltyMutations.ts (99 lines)
+- Extracted useLocationMutations from useLocationManager.ts → location/useLocationMutations.ts (97 lines)
+- Fixed ESLint warnings: removed unused EodFormType, LocationFormState/ZoneFormState/defaultForms, AnimatePresence, useQueryClient
+- TypeScript: 0 errors, ESLint: 0 errors/warnings
+- Committed and pushed to GitHub
+
+Stage Summary:
+- 5 parent files refactored, 8 new files created
+- NutritionalCalculator.tsx: 286→176 | CashRegister.tsx: 286→212 | OrderCart.tsx: 284→222 | useLoyaltyState.ts: 284→233 | useLocationManager.ts: 284→232
+- All files now under 250 lines
+- New files: nutrition/constants.ts (36), NutritionalStatsCards (60), NutritionalItemCard (70), useCashRegisterMutations (115), CartItemRow (76), CartTotals (53), useLoyaltyMutations (99), useLocationMutations (97)
