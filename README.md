@@ -72,7 +72,7 @@ Sistem pokriva vse vidike restavratorskega poslovanja — od naročanja in plač
 │                      │                                      │
 │  ┌──────────────┐   │   ┌──────────────────────────┐       │
 │  │  POS App     │   │   │  API Routes (70+ modulov) │       │
-│  │  (76 komp.)  │◄──┼──►│  - Auth + Permissions     │       │
+│  │  (474 dat.)  │◄──┼──►│  - Auth + Permissions     │       │
 │  │              │   │   │  - Zod Validation         │       │
 │  │  ┌────────┐  │   │   │  - Prisma Transactions    │       │
 │  │  │Zustand │  │   │   └──────────┬───────────────┘       │
@@ -184,7 +184,7 @@ restaurantos/
 │   │   │   └── waiter/        # Natakalni mobilni pogled
 │   │   └── feedback/          # Javna stran za ocene
 │   ├── components/
-│   │   ├── pos/               # 76 POS komponent
+│   │   ├── pos/               # 474 POS datotek (komponente, hooki, tipi, konstante)
 │   │   └── ui/                # shadcn/ui komponente
 │   └── lib/
 │       ├── auth-middleware.ts  # Avtentikacija in dovoljenja
@@ -568,9 +568,10 @@ RestaurantOS vključuje več AI funkcij, ki jih poganja Google Gemini:
 
 | Metrika | Vrednost |
 |---|---|
-| Vrstic kode | ~88.000+ |
-| Izvornih datotek | 302 |
-| POS komponent | 76 |
+| Vrstic kode | ~105.000+ |
+| Izvornih datotek | 740 |
+| POS datotek (komponente/hooki/tipi) | 474 |
+| POS podmap (modulov) | 60 |
 | API modulov | 70+ (132 rut) |
 | Prisma modelov | 70 |
 | Zod shem | 55+ |
@@ -578,6 +579,28 @@ RestaurantOS vključuje več AI funkcij, ki jih poganja Google Gemini:
 | Jezikov | 5 |
 | Meni postavk (seed) | 438 |
 | Odvisnosti | 70+ |
+
+### 🔄 Refaktoriranje komponent (14 krogov)
+
+Projekt je bil deležen obsežnega refaktoriranja, pri katerem so bile velike monolitne komponente razdeljene v manjše, bolj obvladljive pod-komponente, namenske hooke in tipne datoteke.
+
+| Krog | Razdeljene komponente | Nove datoteke | Največja pred | Največja po |
+|---|---|---|---|---|
+| 1–8 | 40+ monolitnih komponent | 120+ | 1200+ vrstic | <400 vrstic |
+| 9 | ESLint popravki (22 napak → 0) | — | — | — |
+| 10–13 | 30+ komponent v podmape | 80+ | 900+ vrstic | <400 vrstic |
+| 14 | MenuBrowser, ConfigForm, OrderPanel, FursTab, OrderList | 14 novih | 585 vrstic | <400 vrstic |
+
+**Rezultat:** Vse 474 POS datoteke so zdaj pod 400 vrstic. Vsaka komponenta sledi vzorcu:
+
+- Pod-komponente ovite z `memo()` in z poimenovanimi izvozi
+- Starševske komponente uporabljajo `next/dynamic` za leno nalaganje
+- Vse poizvedbe/mutacije/handlerji ostanejo v starševski komponenti ali namenskem hooku
+- `onOpenChange` vzorec (brez setState znotraj useEffect)
+- `htmlFor` + `id` pari za label-input povezave (WCAG 2.1 AA)
+- `aria-label` atributi na interaktivnih elementih
+- Slovenski komentarji ohranjeni po celotni kodi
+- React Query key factory vzorec (`queryKeys`)
 
 ---
 
@@ -620,9 +643,10 @@ curl http://localhost:3000/api/seed-norms
 1. Ustvari Prisma model v `prisma/schema.prisma`
 2. Zaženi `npx prisma db push`
 3. Ustvari API route v `src/app/api/[modul]/route.ts`
-4. Ustvari komponento v `src/components/pos/[Komponenta].tsx`
+4. Ustvari komponento v `src/components/pos/[Komponenta]/[Komponenta].tsx` (z podmapo za pod-komponente, hooki, tipi in konstantami)
 5. Dodaj i18n ključe v vseh 5 jezikih (`messages/*.json`)
 6. Registriraj komponento v `src/app/[locale]/pos/page.tsx` in Sidebar
+7. Če komponenta preseže 400 vrstic, jo razdeli na pod-komponente (memo + named export), namenske hooke in konstante
 
 ---
 
