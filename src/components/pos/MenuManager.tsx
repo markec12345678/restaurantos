@@ -1,16 +1,12 @@
 'use client'
-import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { authFetch } from '@/components/pos/PinLogin'
-import { queryKeys } from '@/lib/query-keys'
 import { Plus, UtensilsCrossed, Tag, BookOpen, Settings2 } from 'lucide-react'
-import { useState, useMemo, useCallback, memo } from 'react'
+import { memo } from 'react'
 import dynamic from 'next/dynamic'
-import type { ItemFormState, CategoryFormState, MenuFormState } from './menu/constants'
-import { useMenuMutations } from './menu/useMenuMutations'
+import { useMenuManager } from './menu/useMenuManager'
 
-// Lazy-loaded podkomponente
+// Lazy-loaded pod-komponente
 const ItemsTab = dynamic(() => import('./menu/ItemsTab').then(m => ({ default: m.ItemsTab })), { ssr: false })
 const CategoriesTab = dynamic(() => import('./menu/CategoriesTab').then(m => ({ default: m.CategoriesTab })), { ssr: false })
 const MenusTab = dynamic(() => import('./menu/MenusTab').then(m => ({ default: m.MenusTab })), { ssr: false })
@@ -23,126 +19,18 @@ const MenuDialog = dynamic(() => import('./menu/MenuDialog').then(m => ({ defaul
 // GLAVNA KOMPONENTA
 // ============================================
 export const MenuManager = memo(function MenuManager() {
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const [search, setSearch] = useState('')
-  const [filterCategory, setFilterCategory] = useState('all')
-  const [filterMenu, setFilterMenu] = useState('all')
-  const [activeTab, setActiveTab] = useState('items')
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingItem, setEditingItem] = useState<Record<string, unknown> | null>(null)
-  const [itemForm, setItemForm] = useState<ItemFormState>({ name: '', description: '', price: '', categoryId: '', isAvailable: true, image: '', modifierGroupIds: [] })
-  const [catDialogOpen, setCatDialogOpen] = useState(false)
-  const [catForm, setCatForm] = useState<CategoryFormState>({ name: '', icon: '🍽️', color: '#f59e0b', menuId: '' })
-  const [menuDialogOpen, setMenuDialogOpen] = useState(false)
-  const [menuForm, setMenuForm] = useState<MenuFormState>({ name: '', icon: '📋', color: '#f59e0b' })
-
-  // ============================================
-  // QUERIES
-  // ============================================
-  const { data: menus } = useQuery({
-    queryKey: queryKeys.menus.all,
-    queryFn: async () => {
-      const res = await authFetch('/api/menus')
-      if (!res.ok) throw new Error('Napaka pri nalaganju')
-      return res.json()
-    },
-  })
-  const { data: categories } = useQuery({
-    queryKey: queryKeys.categories.all,
-    queryFn: async () => {
-      const res = await authFetch('/api/categories')
-      if (!res.ok) throw new Error('Napaka pri nalaganju')
-      return res.json()
-    },
-  })
-  const { data: modifierGroups } = useQuery({
-    queryKey: queryKeys.modifierGroups.all,
-    queryFn: async () => {
-      const res = await authFetch('/api/modifier-groups')
-      if (!res.ok) throw new Error('Napaka pri nalaganju')
-      return res.json()
-    },
-  })
-  const { data: menuItems, isLoading } = useQuery({
-    queryKey: queryKeys.menuItems.all,
-    queryFn: async () => {
-      const res = await authFetch('/api/menu-items')
-      if (!res.ok) throw new Error('Napaka pri nalaganju')
-      return res.json()
-    },
-  })
-
-  // FIX PERF: useMemo za filtriranje -- prej se je filtriralo ob vsakem renderu
-  const filteredItems = useMemo(() => (Array.isArray(menuItems) ? menuItems : []).filter((item: { name: string; categoryId: string; category?: { menu?: { id: string } } }) => {
-    const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase())
-    const matchesCat = filterCategory === 'all' || item.categoryId === filterCategory
-    const matchesMenu = filterMenu === 'all' || item.category?.menu?.id === filterMenu
-    return matchesSearch && matchesCat && matchesMenu
-  }), [menuItems, search, filterCategory, filterMenu])
-
-  // ============================================
-  // MUTATIONS (podedovane iz pod-hooka)
-  // ============================================
   const {
-    createMenuMutation,
-    createItemMutation,
-    updateItemMutation,
-    deleteItemMutation,
-    toggleAvailabilityMutation,
-    createCatMutation,
-  } = useMenuMutations({
-    onCloseItemDialog: () => setDialogOpen(false),
-    onClearEditingItem: () => setEditingItem(null),
-    onCloseCatDialog: () => setCatDialogOpen(false),
-    onCloseMenuDialog: () => setMenuDialogOpen(false),
-  })
-
-  // ============================================
-  // HANDLERJI
-  // ============================================
-  const openCreateItem = useCallback(() => {
-    setEditingItem(null)
-    setItemForm({ name: '', description: '', price: '', categoryId: categories?.[0]?.id || '', isAvailable: true, image: '', modifierGroupIds: [] })
-    setDialogOpen(true)
-  }, [categories])
-  const openEditItem = useCallback((item: Record<string, unknown>) => {
-    setEditingItem(item)
-    const existingModGroups = (item.modifierGroups as { modifierGroup: { id: string } }[])?.map(mg => mg.modifierGroup.id) || []
-    setItemForm({
-      name: String(item.name),
-      description: String(item.description || ''),
-      price: String(item.price),
-      categoryId: String(item.categoryId),
-      isAvailable: Boolean(item.isAvailable),
-      image: String(item.image || ''),
-      modifierGroupIds: existingModGroups,
-    })
-    setDialogOpen(true)
-  }, [])
-  const handleItemSubmit = useCallback(() => {
-    const payload = { ...itemForm, price: parseFloat(itemForm.price) }
-    if (editingItem) {
-      updateItemMutation.mutate({ id: editingItem.id as string, ...payload })
-    } else {
-      createItemMutation.mutate(payload)
-    }
-  }, [itemForm, editingItem, updateItemMutation, createItemMutation])
-  const openCreateCategory = useCallback(() => {
-    setCatForm({ name: '', icon: '🍽️', color: '#f59e0b', menuId: menus?.[0]?.id || '' })
-    setCatDialogOpen(true)
-  }, [menus])
-  const openCreateMenu = useCallback(() => {
-    setMenuForm({ name: '', icon: '📋', color: '#f59e0b' })
-    setMenuDialogOpen(true)
-  }, [])
-
-  // FIX PERF: useMemo za grupiranje kategorij -- prej se je računalo ob vsakem renderu
-  const _categoriesByMenu = useMemo(() => (categories || []).reduce((acc: Record<string, typeof categories>, cat: { menuId?: string; menu?: { id: string; name: string } }) => {
-    const menuId = cat.menu?.id || cat.menuId || 'uncategorized'
-    if (!acc[menuId]) acc[menuId] = []
-    acc[menuId].push(cat)
-    return acc
-  }, {}), [categories])
+    viewMode, setViewMode, search, setSearch,
+    filterCategory, setFilterCategory, filterMenu, setFilterMenu,
+    activeTab, setActiveTab,
+    dialogOpen, setDialogOpen, editingItem, itemForm, setItemForm,
+    catDialogOpen, setCatDialogOpen, catForm, setCatForm,
+    menuDialogOpen, setMenuDialogOpen, menuForm, setMenuForm,
+    menus, categories, modifierGroups, menuItems, isLoading, filteredItems,
+    createMenuMutation, deleteItemMutation, toggleAvailabilityMutation, createCatMutation,
+    openCreateItem, openEditItem, handleItemSubmit,
+    openCreateCategory, openCreateMenu,
+  } = useMenuManager()
 
   return (
     <div className="space-y-6">
@@ -195,7 +83,7 @@ export const MenuManager = memo(function MenuManager() {
             onToggleAvailability={(id, isAvailable) => toggleAvailabilityMutation.mutate({ id, isAvailable })}
           />
         </TabsContent>
-        {/* Tab kategorij - organized by menu */}
+        {/* Tab kategorij */}
         <TabsContent value="categories" className="space-y-4">
           <CategoriesTab
             menus={menus}
@@ -211,7 +99,7 @@ export const MenuManager = memo(function MenuManager() {
             onAddMenu={openCreateMenu}
           />
         </TabsContent>
-        {/* Tab dodatkov (modifier groups) */}
+        {/* Tab dodatkov */}
         <TabsContent value="modifiers" className="space-y-4">
           <ModifiersTab modifierGroups={modifierGroups} />
         </TabsContent>

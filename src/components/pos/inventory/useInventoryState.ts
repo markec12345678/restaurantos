@@ -1,8 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { toast } from 'sonner'
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import {
@@ -15,6 +14,7 @@ import {
   emptyWriteOffForm,
 } from './constants'
 import { useInventoryMutations } from './useInventoryMutations'
+import { useInventoryHandlers } from './useInventoryHandlers'
 
 // ============================================
 // HOOK: Stanje, poizvedbe, mutacije in handlerji
@@ -55,7 +55,6 @@ export function useInventoryState() {
   // QUERIES
   // ============================================
 
-  // Dinamične kategorije iz baze
   const { data: dbCategories } = useQuery<string[]>({
     queryKey: ['inventory-categories'],
     queryFn: async () => {
@@ -66,7 +65,6 @@ export function useInventoryState() {
     staleTime: 60000,
   })
 
-  // Zgradi seznam kategorij: 'all' + dinamične iz baze
   const invCategories = useMemo(() => ['all', ...(dbCategories || ['general'])], [dbCategories])
 
   const { data: items, isLoading } = useQuery<InventoryItemData[]>({
@@ -120,13 +118,7 @@ export function useInventoryState() {
   // MUTATIONS (podedovane iz pod-hooka)
   // ============================================
 
-  const {
-    createMutation,
-    updateMutation,
-    deleteMutation,
-    restockMutation,
-    writeOffMutation,
-  } = useInventoryMutations({
+  const mutations = useInventoryMutations({
     onCloseDialog: () => setDialogOpen(false),
     onClearEditingItem: () => setEditingItem(null),
     onCloseRestockDialog: () => setRestockDialogOpen(false),
@@ -134,88 +126,27 @@ export function useInventoryState() {
   })
 
   // ============================================
-  // HANDLERJI
+  // HANDLERJI (iz pod-hooka)
   // ============================================
 
-  const openCreate = useCallback(() => {
-    setEditingItem(null); setFormData({ ...emptyItemForm }); setDialogOpen(true)
-  }, [])
-
-  const openEdit = useCallback((item: InventoryItemData) => {
-    setEditingItem(item)
-    setFormData({
-      name: item.name, description: item.description || '', image: item.image || '',
-      unit: item.unit, quantity: String(item.quantity), minQuantity: String(item.minQuantity),
-      costPerUnit: String(item.costPerUnit), supplier: item.supplier || '', category: item.category,
-      expiryDate: item.expiryDate ? new Date(item.expiryDate).toISOString().split('T')[0] : '',
-      menuItemId: item.menuItemId || '', servingsPerUnit: String(item.servingsPerUnit || 1),
-      servingSize: item.servingSize || '', costPerServing: String(item.costPerServing || 0),
-    })
-    setDialogOpen(true)
-  }, [])
-
-  const handleSubmit = useCallback(() => {
-    const payload = {
-      ...formData,
-      quantity: parseFloat(formData.quantity) || 0,
-      minQuantity: parseFloat(formData.minQuantity) || 10,
-      costPerUnit: parseFloat(formData.costPerUnit) || 0,
-      servingsPerUnit: parseFloat(formData.servingsPerUnit) || 1,
-      costPerServing: parseFloat(formData.costPerServing) || 0,
-      expiryDate: formData.expiryDate || null,
-      menuItemId: formData.menuItemId || null,
-    }
-    if (editingItem) { updateMutation.mutate({ id: editingItem.id, ...payload }) }
-    else { createMutation.mutate(payload) }
-  }, [formData, editingItem, updateMutation, createMutation])
-
-  const openRestock = useCallback((itemId: string) => {
-    const item = (items || []).find((i) => i.id === itemId)
-    setRestockItemId(itemId)
-    setRestockData({ ...emptyRestockForm, costPerUnit: item ? String(item.costPerUnit) : '' })
-    setRestockDialogOpen(true)
-  }, [items])
-
-  const handleRestock = useCallback(() => {
-    if (!restockItemId || !restockData.quantity) { toast.error('Izpolnite količino'); return }
-    restockMutation.mutate({
-      inventoryItemId: restockItemId,
-      quantity: parseFloat(restockData.quantity),
-      costPerUnit: restockData.costPerUnit ? parseFloat(restockData.costPerUnit) : undefined,
-      supplierDoc: restockData.supplierDoc, employeeName: restockData.employeeName,
-      note: restockData.note,
-    })
-  }, [restockItemId, restockData, restockMutation])
-
-  const openWriteOff = useCallback((itemId: string) => {
-    setWriteOffItemId(itemId); setWriteOffData({ ...emptyWriteOffForm }); setWriteOffDialogOpen(true)
-  }, [])
-
-  const handleWriteOff = useCallback(() => {
-    if (!writeOffItemId || !writeOffData.quantity) { toast.error('Izpolnite količino'); return }
-    if (!writeOffData.reason) { toast.error('Izberite razlog'); return }
-    writeOffMutation.mutate({
-      inventoryItemId: writeOffItemId, quantity: parseFloat(writeOffData.quantity),
-      type: writeOffData.type, reason: writeOffData.reason, note: writeOffData.note,
-      employeeName: writeOffData.employeeName,
-    })
-  }, [writeOffItemId, writeOffData, writeOffMutation])
-
-  const toggleExpand = useCallback((itemId: string) => {
-    setExpandedItem((prev) => prev === itemId ? null : itemId)
-  }, [])
-
-  const clearTxFilters = useCallback(() => {
-    setTxTypeFilter('all'); setTxDateFrom(''); setTxDateTo('')
-  }, [])
-
-  const handleDeleteDialogOpenChange = useCallback((open: boolean) => {
-    if (!open) setDeleteTarget(null)
-  }, [])
-
-  const handleConfirmDelete = useCallback(() => {
-    if (deleteTarget) { deleteMutation.mutate(deleteTarget.id); setDeleteTarget(null) }
-  }, [deleteTarget, deleteMutation])
+  const handlers = useInventoryHandlers(
+    {
+      setDialogOpen, setEditingItem, setFormData,
+      setRestockDialogOpen, setRestockItemId, setRestockData,
+      setWriteOffDialogOpen, setWriteOffItemId, setWriteOffData,
+      setDeleteTarget, setExpandedItem,
+      setTxTypeFilter, setTxDateFrom, setTxDateTo,
+    },
+    mutations,
+    items || [],
+    editingItem,
+    formData,
+    restockItemId,
+    restockData,
+    writeOffItemId,
+    writeOffData,
+    deleteTarget,
+  )
 
   return {
     // Zavihki in iskanje
@@ -225,20 +156,20 @@ export function useInventoryState() {
     // Izračuni
     filteredItems, lowStockItems, sortedItems,
     // Dijalog za urejanje artikla
-    dialogOpen, setDialogOpen, editingItem, formData, setFormData, handleSubmit,
-    openCreate, openEdit,
+    dialogOpen, setDialogOpen, editingItem, formData, setFormData, handleSubmit: handlers.handleSubmit,
+    openCreate: handlers.openCreate, openEdit: handlers.openEdit,
     // Nabava
     restockDialogOpen, setRestockDialogOpen, restockItemId, setRestockItemId,
-    restockData, setRestockData, handleRestock, openRestock,
-    isRestockPending: restockMutation.isPending,
+    restockData, setRestockData, handleRestock: handlers.handleRestock, openRestock: handlers.openRestock,
+    isRestockPending: mutations.restockMutation.isPending,
     // Razknjižba
     writeOffDialogOpen, setWriteOffDialogOpen, writeOffItemId, setWriteOffItemId,
-    writeOffData, setWriteOffData, handleWriteOff, openWriteOff,
-    isWriteOffPending: writeOffMutation.isPending,
+    writeOffData, setWriteOffData, handleWriteOff: handlers.handleWriteOff, openWriteOff: handlers.openWriteOff,
+    isWriteOffPending: mutations.writeOffMutation.isPending,
     // Zgodovina filtri
     txTypeFilter, setTxTypeFilter, txDateFrom, setTxDateFrom, txDateTo, setTxDateTo,
-    expandedItem, toggleExpand, clearTxFilters,
+    expandedItem, toggleExpand: handlers.toggleExpand, clearTxFilters: handlers.clearTxFilters,
     // Brisanje
-    deleteTarget, setDeleteTarget, handleDeleteDialogOpenChange, handleConfirmDelete,
+    deleteTarget, setDeleteTarget, handleDeleteDialogOpenChange: handlers.handleDeleteDialogOpenChange, handleConfirmDelete: handlers.handleConfirmDelete,
   }
 }
