@@ -2341,3 +2341,21 @@ Stage Summary:
 - 9 new files created (1 types, 1 constants, 1 icons, 5 sub-components, 1 sub-hook)
 - All files under 250 lines (max: BreakdownTables at 168)
 - Largest remaining POS files now ~300 lines
+---
+Task ID: round-18
+Agent: Main Agent
+Task: Round 18 refactoring — split 4 large files into sub-hooks and sub-components
+
+Work Log:
+- Extracted ShiftManager.tsx (306→270) — shift/useShiftMutations.ts (92 lines) sub-hook with CRUD + clock in/out
+- Extracted GlobalNotifications.tsx (303→212) — notifications/types.ts (48 lines), notifications/NotificationSoundManager.ts (78 lines)
+- Extracted AIRecommendations.tsx (303→229) — ai-recommendations/constants.ts (33 lines), ai-recommendations/RecommendationCard.tsx (70 lines)
+- Extracted WebhookManager.tsx (301→261) — webhook/useWebhookMutations.ts (75 lines) sub-hook
+- Fixed missing toast import in ShiftManager.tsx after extraction
+- TypeScript: 0 errors, ESLint: 0 errors/warnings
+- Pushed to GitHub
+
+Stage Summary:
+- 4 parent files split into 10 total files
+- 6 new files created (2 types, 1 constants, 1 sound manager, 1 recommendation card, 2 mutation sub-hooks)
+- All files under 270 lines (max: ShiftManager at 270)
