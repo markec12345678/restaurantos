@@ -2186,3 +2186,27 @@ Stage Summary:
 - Only 1 file remains over 350 lines: OrderPanel.tsx (390)
 - All components previously over 355 lines now under 270 lines (except OrderPanel)
 - Pushed to GitHub main branch
+---
+Task ID: 14
+Agent: Main Agent
+Task: Round 14 - Split 5 remaining large components (MenuBrowser, ConfigForm, OrderPanel, FursTab, OrderList)
+
+Work Log:
+- Split MenuBrowser.tsx (585→342) into: OrderTypeBar.tsx (85), MenuCategoryNav.tsx (147), MenuItemCard.tsx (105), ModifierDialog.tsx (92)
+- Split ConfigForm.tsx (436→58) into: SimpleForms.tsx (221) with 9 form components, ExtendedForms.tsx (273) with 7 form components
+- Extract useOrderPanel hook from OrderPanel.tsx (390→175) → useOrderPanel.ts (354)
+- Split FursTab.tsx (358→218) → FursBatchVerification.tsx (147)
+- Split OrderList.tsx (334→211) → OrderDetailDialog.tsx (169)
+- Fixed TS error: cartVatBreakdown type in useOrderPanel.ts — replaced generic ReturnType with explicit Array type
+- Fixed ESLint warnings: removed unused Badge import from MenuItemCard, prefixed unused clearCart with _clearCart
+- TypeScript: 0 errors, ESLint: 0 errors
+
+Stage Summary:
+- 5 parent components split, 9 new sub-component files created
+- MenuBrowser: 585→342 (41% reduction)
+- ConfigForm: 436→58 (87% reduction)
+- OrderPanel: 390→175 (55% reduction)
+- FursTab: 358→218 (39% reduction)
+- OrderList: 334→211 (37% reduction)
+- All files now under 354 lines (useOrderPanel.ts hook is the largest at 354)
+- No remaining files above 400 lines

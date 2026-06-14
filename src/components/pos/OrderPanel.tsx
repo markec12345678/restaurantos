@@ -1,13 +1,8 @@
 'use client'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { usePOSStore } from '@/lib/store'
-import { toast } from 'sonner'
-import { useState, useCallback, memo } from 'react'
-import { usePOSShortcuts } from '@/lib/use-pos-shortcuts'
-import { authFetch } from '@/components/pos/PinLogin'
-import { queryKeys } from '@/lib/query-keys'
 import dynamic from 'next/dynamic'
+import { memo } from 'react'
 import { STATUS_COLORS, NEXT_STATUS, STATUS_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS } from './order/constants'
+import { useOrderPanel } from './order/useOrderPanel'
 
 // ─── Lazy-loaded podkomponente ──────────────────────────────────
 const MenuBrowser = dynamic(() => import('./order/MenuBrowser').then(m => ({ default: m.MenuBrowser })), { ssr: false })
@@ -18,250 +13,40 @@ const ShortcutsDialog = dynamic(() => import('./order/ShortcutsDialog').then(m =
 const OrderHeader = dynamic(() => import('./order/OrderHeader').then(m => ({ default: m.OrderHeader })), { ssr: false })
 const OrderDialogs = dynamic(() => import('./order/OrderDialogs').then(m => ({ default: m.OrderDialogs })), { ssr: false })
 
-import type { StockInfoType } from './order/MenuBrowser'
-import type { OrderType } from './order/OrderList'
-
 // ============================================
 // GLAVNA KOMPONENTA - Koordinator
 // ============================================
 export const OrderPanel = memo(function OrderPanel() {
   const {
-    cart, addToCart, removeFromCart, updateCartQuantity, updateCartNotes: _updateCartNotes, clearCart,
-    cartTotal, cartSubtotal, cartTaxTotal, cartVatBreakdown,
+    cart, addToCart, removeFromCart, updateCartQuantity, clearCart: _clearCart,
     orderType, setOrderType, selectedTable, setSelectedTable,
-    discount, setDiscount, taxRate,
-    activeMenuId, setActiveMenuId,
-    editingOrderId, setEditingOrderId, editingOrderNumber, setEditingOrderNumber,
+    discount, setDiscount, activeMenuId, setActiveMenuId,
+    editingOrderId, editingOrderNumber,
     appliedDiscountId, setAppliedDiscountId, diningOptionId, setDiningOptionId,
-  } = usePOSStore()
-  const queryClient = useQueryClient()
-  const [customerName, setCustomerName] = useState('')
-  const [customerPhone, setCustomerPhone] = useState('')
-  const [orderNotes, setOrderNotes] = useState('')
-  const [mainTab, setMainTab] = useState('new-order')
-  const [orderListTab, setOrderListTab] = useState('all')
-  const [selectedOrder, setSelectedOrder] = useState<OrderType | Record<string, unknown> | null>(null)
-  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
-  const [detailOrder, setDetailOrder] = useState<OrderType | null>(null)
-  const [receiptOrder, setReceiptOrder] = useState<OrderType | Record<string, unknown> | null>(null)
-  const [autoPayOrder, setAutoPayOrder] = useState<Record<string, unknown> | null>(null)
-  const [_autoReceiptOrderId, setAutoReceiptOrderId] = useState<string | null>(null)
-  const [voidItem, setVoidItem] = useState<{ id: string; name: string; quantity: number; price: number; vatRate: number; voided: boolean; orderId: string } | null>(null)
-  const [stornoOrder, setStornoOrder] = useState<OrderType | Record<string, unknown> | null>(null)
-  // Clear cart confirmation
-  const [clearCartConfirm, setClearCartConfirm] = useState(false)
-  // Menu item add animation
-  const [lastAddedId, setLastAddedId] = useState<string | null>(null)
-  // Keyboard shortcuts dialog
-  const [shortcutsOpen, setShortcutsOpen] = useState(false)
+    customerName, setCustomerName, customerPhone, setCustomerPhone,
+    orderNotes, setOrderNotes, mainTab, setMainTab,
+    orderListTab, setOrderListTab,
+    selectedOrder, paymentDialogOpen, detailOrder, setDetailOrder,
+    receiptOrder, autoPayOrder, voidItem, setVoidItem, stornoOrder,
+    clearCartConfirm, setClearCartConfirm, lastAddedId, setLastAddedId,
+    shortcutsOpen, setShortcutsOpen,
+    menus, menusLoading, menuItems, menuLoading,
+    tables, orders, ordersLoading, discounts, diningOptions, menuStockMap,
+    subtotal, vatBreakdown, totalTax, total,
+    placeOrderMutation, updateOrderStatusMutation,
+    handlePaymentClose, handlePaymentSuccess, handleReceiptClose,
+    handleVoidClose, handleVoided, handleStornoClose, handleStornoComplete,
+    handleOrderClick, handlePayOrder, handlePrintReceipt, handleStornoOrder,
+    handleAddToOrder, handleExitEditing, handleClearCartConfirm,
+  } = useOrderPanel()
 
-  // ─── Keyboard shortcuts ────────────────────────────────────────
-  usePOSShortcuts({
-    onNewOrder: () => { clearCart(); setCustomerName(''); setCustomerPhone(''); setOrderNotes(''); setDiscount(0); setEditingOrderId(null); setEditingOrderNumber(null); setMainTab('new-order') },
-    onPay: () => { if (cart.length > 0) placeOrderMutation.mutate() },
-    onSearch: () => { /* Search is handled inside MenuBrowser */ },
-    onClearCart: () => { if (cart.length > 0) setClearCartConfirm(true) },
-    onOrderList: () => setMainTab('order-list'),
-    onEscape: () => { /* Escape is handled inside MenuBrowser */ },
-  })
-
-  // ============================================
-  // PODATKI
-  // ============================================
-  const { data: menus, isLoading: menusLoading } = useQuery({
-    queryKey: queryKeys.menus.all,
-    queryFn: async () => { const res = await authFetch('/api/menus'); return res.json() },
-  })
-  const { data: menuItems, isLoading: menuLoading } = useQuery({
-    queryKey: queryKeys.menuItems.all,
-    queryFn: async () => { const res = await authFetch('/api/menu-items'); return res.json() },
-  })
-  const { data: tables } = useQuery({
-    queryKey: queryKeys.tables.all,
-    queryFn: async () => { const res = await authFetch('/api/tables'); return res.json() },
-  })
-  const { data: orders, isLoading: ordersLoading } = useQuery({
-    queryKey: queryKeys.orders.byStatus(orderListTab),
-    queryFn: async () => {
-      const params = new URLSearchParams()
-      if (orderListTab !== 'all') params.set('status', orderListTab)
-      const res = await authFetch(`/api/orders?${params}`)
-      return res.json()
-    },
-  })
-  const { data: discounts } = useQuery({
-    queryKey: ['discounts-active'],
-    queryFn: async () => {
-      const res = await authFetch('/api/discounts')
-      if (!res.ok) return []
-      const all = await res.json()
-      return all.filter((d: { isActive: boolean }) => d.isActive)
-    },
-  })
-  const { data: diningOptions } = useQuery({
-    queryKey: queryKeys.diningOptions.all,
-    queryFn: async () => {
-      const res = await authFetch('/api/configuration/dining-options')
-      if (!res.ok) return []
-      return res.json()
-    },
-  })
-  const { data: menuStockMap } = useQuery<Record<string, StockInfoType>>({
-    queryKey: queryKeys.inventory.menuStock,
-    queryFn: async () => {
-      try {
-        const res = await authFetch('/api/inventory/menu-stock')
-        if (!res.ok) return {}
-        return res.json()
-      } catch {
-        return {}
-      }
-    },
-    refetchInterval: 30000, // Osveži vsakih 30 sekund
-    staleTime: 20000,
-  })
-
-  // ============================================
-  // MUTACIJE
-  // ============================================
-  const subtotal = cartSubtotal()
-  const vatBreakdown = cartVatBreakdown()
-  const totalTax = cartTaxTotal()
-  const _cappedDiscount = Math.min(discount, subtotal)
-  const total = cartTotal()
-
-  const placeOrderMutation = useMutation({
-    mutationFn: async () => {
-      // Če urejamo obstoječe naročilo, dodaj artikle
-      if (editingOrderId) {
-        const res = await authFetch(`/api/orders/${editingOrderId}/add-items`, {
-          method: 'POST',
-          body: JSON.stringify({
-            orderItems: cart.map(item => ({
-              menuItemId: item.id,
-              quantity: item.quantity,
-              price: item.price,
-              notes: item.notes,
-              modifiersJson: JSON.stringify(item.modifiers.map(m => ({ name: m.name, price: m.price, modifierGroupName: m.modifierGroupName }))),
-            })),
-          }),
-        })
-        if (!res.ok) throw new Error('Failed to add items')
-        return res.json()
-      }
-      // Novo naročilo
-      const res = await authFetch('/api/orders', {
-        method: 'POST',
-        body: JSON.stringify({
-          type: orderType,
-          tableId: orderType === 'dine-in' ? selectedTable : null,
-          diningOptionId: diningOptionId || undefined,
-          customerName,
-          customerPhone,
-          discount: _cappedDiscount,
-          appliedDiscountId: appliedDiscountId || undefined,
-          taxRate,
-          notes: orderNotes,
-          orderItems: cart.map(item => ({
-            menuItemId: item.id,
-            quantity: item.quantity,
-            price: item.price,
-            notes: item.notes,
-            modifiersJson: JSON.stringify(item.modifiers.map(m => ({ name: m.name, price: m.price, modifierGroupName: m.modifierGroupName }))),
-          })),
-        }),
-      })
-      if (!res.ok) throw new Error('Failed to place order')
-      return res.json()
-    },
-    onSuccess: (data) => {
-      if (editingOrderId) {
-        toast.success(`Artikli dodani k naročilu #${editingOrderNumber}!`)
-      } else {
-        toast.success('Naročilo uspešno oddano! Plačaj in natisni račun.')
-      }
-      // Samodejno odpri plačilno okno z novim naročilom
-      if (data && !editingOrderId) {
-        setAutoPayOrder(data)
-        setPaymentDialogOpen(true)
-      }
-      clearCart()
-      setCustomerName('')
-      setCustomerPhone('')
-      setOrderNotes('')
-      setDiscount(0)
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.tables.all })
-    },
-    onError: () => { toast.error('Napaka pri oddaji naročila') },
-  })
-
-  const updateOrderStatusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const res = await authFetch(`/api/orders/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ status }),
-      })
-      if (!res.ok) throw new Error('Failed to update order')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Status naročila posodobljen')
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.tables.all })
-    },
-  })
-
-  // ============================================
-  // STATUSNE MAPE (iz constants.ts)
-  // ============================================
+  // Statusne mape (iz constants.ts)
   const statusColors = STATUS_COLORS
   const nextStatus = NEXT_STATUS
   const statusLabels = STATUS_LABELS
   const paymentStatusLabels = PAYMENT_STATUS_LABELS
   const paymentStatusColors = PAYMENT_STATUS_COLORS
 
-  // ============================================
-  // STABILNI CALLBACKI za dialoge
-  // ============================================
-  const handlePaymentClose = useCallback(() => { setPaymentDialogOpen(false); setSelectedOrder(null); setAutoPayOrder(null) }, [])
-  const handlePaymentSuccess = useCallback((orderId: string) => {
-    if (orderId) {
-      setAutoReceiptOrderId(orderId)
-      setReceiptOrder({ id: orderId })
-    }
-  }, [])
-  const handleReceiptClose = useCallback(() => { setReceiptOrder(null); setAutoReceiptOrderId(null) }, [])
-  const handleVoidClose = useCallback(() => setVoidItem(null), [])
-  const handleVoided = useCallback(() => queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }), [queryClient])
-  const handleStornoClose = useCallback(() => setStornoOrder(null), [])
-  const handleStornoComplete = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
-    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
-  }, [queryClient])
-
-  // Handler za OrderList akcije
-  const handleOrderClick = useCallback((order: OrderType) => setDetailOrder(order), [])
-  const handlePayOrder = useCallback((order: OrderType) => { setSelectedOrder(order); setPaymentDialogOpen(true) }, [])
-  const handlePrintReceipt = useCallback((order: OrderType) => setReceiptOrder(order), [])
-  const handleStornoOrder = useCallback((order: OrderType) => setStornoOrder(order), [])
-  const handleAddToOrder = useCallback((order: OrderType) => {
-    setEditingOrderId(order.id)
-    setEditingOrderNumber(order.orderNumber)
-    setMainTab('new-order')
-  }, [setEditingOrderId, setEditingOrderNumber])
-
-  // Handler za exit editing
-  const handleExitEditing = useCallback(() => { setEditingOrderId(null); setEditingOrderNumber(null); clearCart() }, [setEditingOrderId, setEditingOrderNumber, clearCart])
-
-  // Handler za clear cart dialog
-  const handleClearCartConfirm = useCallback(() => { clearCart(); setClearCartConfirm(false) }, [clearCart])
-
-  // ============================================
-  // RENDER
-  // ============================================
   return (
     <div className="h-full flex flex-col">
       {/* TOP TAB BAR */}

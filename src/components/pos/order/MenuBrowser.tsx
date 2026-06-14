@@ -3,14 +3,15 @@
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Search, X, ChevronRight, Check, Users, ImageIcon, ShieldAlert } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { useState, useMemo } from 'react'
 import { AllergenFilterBar } from './AllergenFilterBar'
+import { OrderTypeBar } from './OrderTypeBar'
+import { MenuCategoryNav } from './MenuCategoryNav'
+import { MenuItemCard } from './MenuItemCard'
+import { ModifierDialog } from './ModifierDialog'
 import type { SelectedModifier } from '@/lib/store'
 
 // ============================================
@@ -239,163 +240,31 @@ export function MenuBrowser({
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
       {/* Order Type + Table Bar */}
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30 flex-shrink-0">
-        <Select value={orderType} onValueChange={setOrderType}>
-          <SelectTrigger className="w-32 h-8 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="dine-in">🍽️ Na mestu</SelectItem>
-            <SelectItem value="takeout">📦 Za s seboj</SelectItem>
-            <SelectItem value="delivery">🚚 Dostava</SelectItem>
-          </SelectContent>
-        </Select>
-        {/* Dining option iz konfiguracije */}
-        {diningOptions && diningOptions.length > 0 && (
-          <Select value={diningOptionId || 'none'} onValueChange={(v) => setDiningOptionId(v === 'none' ? null : v)}>
-            <SelectTrigger className="w-40 h-8 text-xs">
-              <SelectValue placeholder="Način postrežbe" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Privzeto</SelectItem>
-              {diningOptions.map((opt) => (
-                <SelectItem key={opt.id} value={opt.id}>
-                  {opt.type === 'dine-in' ? '🍽️' : opt.type === 'takeout' ? '📦' : '🚚'} {opt.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-        {orderType === 'dine-in' && (
-          <Select value={selectedTable || ''} onValueChange={setSelectedTable}>
-            <SelectTrigger className="w-36 h-8 text-xs">
-              <SelectValue placeholder="Izberi mizo" />
-            </SelectTrigger>
-            <SelectContent>
-              {tables?.filter((t) => t.status === 'available' || t.status === 'occupied').map((table) => (
-                <SelectItem key={table.id} value={table.id}>
-                  Miza {table.number} ({table.capacity} mest)
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-        {selectedTable && orderType === 'dine-in' && (
-          <Badge variant="outline" className="text-xs h-6">
-            <Users className="h-3 w-3 mr-1" />
-            Miza {tables?.find((t) => t.id === selectedTable)?.number}
-          </Badge>
-        )}
-      </div>
-      {/* MENU TABS - Toast Style (Food / Drinks) */}
-      <div className="flex gap-1.5 px-4 py-2.5 border-b border-border flex-shrink-0">
-        {menus?.map((menu: MenuType, idx: number) => {
-          const isActive = resolvedMenuId === menu.id || (!resolvedMenuId && idx === 0)
-          return (
-            <button
-              key={menu.id}
-              onClick={() => { setActiveMenuId(menu.id); setActiveCategory('all'); setActiveSuperGroup('all') }}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-base font-bold transition-all duration-150 ${
-                isActive
-                  ? 'text-white shadow-md scale-[1.02]'
-                  : 'bg-muted text-muted-foreground hover:bg-accent'
-              }`}
-              style={isActive ? { backgroundColor: menu.color } : {}}
-            >
-              <span className="text-lg">{menu.icon}</span>
-              {menu.name}
-            </button>
-          )
-        })}
-      </div>
+      <OrderTypeBar
+        orderType={orderType}
+        setOrderType={setOrderType}
+        diningOptionId={diningOptionId}
+        setDiningOptionId={setDiningOptionId}
+        selectedTable={selectedTable}
+        setSelectedTable={setSelectedTable}
+        tables={tables}
+        diningOptions={diningOptions}
+      />
+      {/* Menu Tabs + Category Navigation */}
+      <MenuCategoryNav
+        menus={menus}
+        resolvedMenuId={resolvedMenuId}
+        activeMenuId={activeMenuId}
+        setActiveMenuId={setActiveMenuId}
+        categoriesForMenu={categoriesForMenu}
+        activeCategory={activeCategory}
+        setActiveCategory={setActiveCategory}
+        activeSuperGroup={activeSuperGroup}
+        setActiveSuperGroup={setActiveSuperGroup}
+        superGroups={superGroups}
+      />
       {/* ALLERGEN FILTER BAR - EU 1169/2011 */}
       <AllergenFilterBar />
-      {/* CATEGORY NAVIGATION - Smart layout for large category counts */}
-      {categoriesForMenu.length > 10 ? (
-        /* GROUPED CATEGORIES for drinks menu (21 categories) */
-        <div className="border-b border-border flex-shrink-0">
-          {/* Super-group tabs */}
-          <div className="flex gap-1 px-4 py-1.5 overflow-x-auto custom-scrollbar">
-            <button
-              onClick={() => { setActiveCategory('all'); setActiveSuperGroup('all') }}
-              className={`flex-shrink-0 px-3 py-1 rounded-md text-[11px] font-bold transition-colors ${
-                activeCategory === 'all' && activeSuperGroup === 'all'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-accent'
-              }`}
-            >
-              Vse
-            </button>
-            {superGroups.map((sg) => (
-              <button
-                key={sg.id}
-                onClick={() => { setActiveSuperGroup(sg.id); setActiveCategory('all') }}
-                className={`flex-shrink-0 px-3 py-1 rounded-md text-[11px] font-bold transition-colors ${
-                  activeSuperGroup === sg.id
-                    ? 'text-white'
-                    : 'bg-muted text-muted-foreground hover:bg-accent'
-                }`}
-                style={activeSuperGroup === sg.id ? { backgroundColor: sg.color } : {}}
-              >
-                {sg.icon} {sg.name}
-              </button>
-            ))}
-          </div>
-          {/* Sub-categories within active super-group */}
-          {activeSuperGroup !== 'all' && (
-            <div className="flex gap-1 px-4 py-1.5 overflow-x-auto custom-scrollbar">
-              {categoriesForMenu
-                .filter((cat: { id: string; name: string; icon: string; color: string }) => {
-                  const sg = superGroups.find(s => s.categoryIds.includes(cat.id))
-                  return sg?.id === activeSuperGroup
-                })
-                .map((cat: { id: string; name: string; icon: string; color: string }) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setActiveCategory(cat.id)}
-                    className={`flex-shrink-0 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-colors ${
-                      activeCategory === cat.id
-                        ? 'text-white'
-                        : 'bg-muted/60 text-muted-foreground hover:bg-accent'
-                    }`}
-                    style={activeCategory === cat.id ? { backgroundColor: cat.color || '#6b7280' } : {}}
-                  >
-                    {cat.icon} {cat.name}
-                  </button>
-                ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        /* SIMPLE PILLS for food menu (8 categories) */
-        <div className="flex gap-1.5 px-4 py-2 border-b border-border overflow-x-auto flex-shrink-0 custom-scrollbar">
-          <button
-            onClick={() => setActiveCategory('all')}
-            className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-              activeCategory === 'all'
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-accent'
-            }`}
-          >
-            Vse
-          </button>
-          {categoriesForMenu.map((cat: { id: string; name: string; icon: string; color: string }) => (
-            <button
-              key={cat.id}
-              onClick={() => setActiveCategory(cat.id)}
-              className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                activeCategory === cat.id
-                  ? 'text-white'
-                  : 'bg-muted text-muted-foreground hover:bg-accent'
-              }`}
-              style={activeCategory === cat.id ? { backgroundColor: cat.color || '#6b7280' } : {}}
-            >
-              {cat.icon} {cat.name}
-            </button>
-          ))}
-        </div>
-      )}
-      {/* ITEMS GRID - Toast Style Large Buttons */}
       {/* Quick Search */}
       {itemSearch && (
         <div className="px-3 pt-2 flex items-center gap-2 flex-shrink-0">
@@ -428,6 +297,7 @@ export function MenuBrowser({
           </button>
         </div>
       )}
+      {/* ITEMS GRID */}
       <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
         {menuLoading || menusLoading ? (
           <div className="grid grid-cols-3 lg:grid-cols-4 gap-2.5">
@@ -442,144 +312,31 @@ export function MenuBrowser({
             {filteredMenuItems.map((item: MenuItemType) => {
               const inCart = cart.filter(c => c.id === item.id)
               const totalQty = inCart.reduce((sum, c) => sum + c.quantity, 0)
-              const hasMods = item.modifierGroups?.length > 0
               const stockInfo = menuStockMap?.[item.id]
               const isOutOfStock = stockInfo?.status === 'out'
-              const isLowStock = stockInfo?.status === 'low'
               return (
-                <button
+                <MenuItemCard
                   key={item.id}
+                  item={item}
+                  totalQty={totalQty}
+                  lastAddedId={lastAddedId}
+                  stockInfo={stockInfo}
                   onClick={() => !isOutOfStock && handleItemClick(item)}
-                  className={`relative flex flex-col rounded-xl border bg-card hover:bg-accent/50 active:scale-[0.97] transition-all text-left overflow-hidden group ${
-                    isOutOfStock
-                      ? 'border-red-300 dark:border-red-900/50 opacity-60 cursor-not-allowed'
-                      : isLowStock
-                        ? 'border-amber-300 dark:border-amber-900/50'
-                        : 'border-border'
-                  } ${lastAddedId === item.id ? 'ring-2 ring-primary ring-offset-1' : ''}`}
-                >
-                  {/* Stock indicator - OUT OF STOCK overlay */}
-                  {isOutOfStock && (
-                    <div className="absolute inset-0 z-20 flex items-center justify-center bg-red-500/10 dark:bg-red-900/20">
-                      <span className="rounded-md bg-red-600 px-2 py-0.5 text-white text-[10px] font-bold shadow" aria-label="Ni zaloge">NI ZALOGE</span>
-                    </div>
-                  )}
-                  {/* Low stock badge */}
-                  {isLowStock && !isOutOfStock && (
-                    <div className="absolute top-1 left-1/2 -translate-x-1/2 z-10">
-                      <span className="flex items-center gap-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 text-[8px] font-bold px-1.5 py-0.5 shadow-sm whitespace-nowrap" aria-label={`Nizka zaloga, ${stockInfo.available} servisov na voljo`}>
-                        Nizka zal. {stockInfo.available > 0 ? `(${stockInfo.available})` : ''}
-                      </span>
-                    </div>
-                  )}
-                  {/* Quantity badge */}
-                  {totalQty > 0 && (
-                    <div className="absolute top-1.5 right-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold shadow-sm">
-                      {totalQty}
-                    </div>
-                  )}
-                  {/* Modifier indicator */}
-                  {hasMods && !isLowStock && (
-                    <div className="absolute top-1.5 left-1.5 z-10">
-                      <span className="flex items-center gap-0.5 rounded-full bg-secondary/80 text-secondary-foreground text-[9px] font-medium px-1.5 py-0.5">
-                        <ChevronRight className="h-2.5 w-2.5" />
-                        Izbira
-                      </span>
-                    </div>
-                  )}
-                  {/* Image */}
-                  <div className="w-full aspect-square bg-muted/40 relative overflow-hidden">
-                    {item.image ? (
-                      <img
-                        src={item.image}
-                        alt={item.name}
-                        className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-200 ${isOutOfStock ? 'grayscale' : ''}`}
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement
-                          target.style.display = 'none'
-                          target.nextElementSibling?.classList.remove('hidden')
-                        }}
-                      />
-                    ) : null}
-                    <div className={`absolute inset-0 flex items-center justify-center ${item.image ? 'hidden' : ''}`}>
-                      <ImageIcon className={`h-8 w-8 ${isOutOfStock ? 'text-red-300' : 'text-muted-foreground/30'}`} />
-                    </div>
-                  </div>
-                  {/* Info */}
-                  <div className="p-2 flex-1 flex flex-col justify-between">
-                    <div className="flex items-start justify-between gap-1">
-                      <p className={`font-semibold text-xs leading-tight line-clamp-2 ${isOutOfStock ? 'text-muted-foreground line-through' : ''}`}>{item.name}</p>
-                      {item.allergens && (
-                        <span className="flex-shrink-0 flex items-center gap-0.5 rounded-full bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 text-[8px] font-bold px-1 py-0.5 border border-red-200 dark:border-red-800" title={`Alergeni: ${item.allergens}`}>
-                          <ShieldAlert className="h-2.5 w-2.5" />
-                          {item.allergens.split(',').length}
-                        </span>
-                      )}
-                    </div>
-                    <p className={`font-bold text-sm mt-1 ${isOutOfStock ? 'text-muted-foreground' : 'text-primary'}`}>€{item.price.toFixed(2)}</p>
-                  </div>
-                </button>
+                />
               )
             })}
           </div>
         )}
       </div>
       {/* MODIFIER DIALOG */}
-      <Dialog open={!!modifierDialogItem} onOpenChange={(open) => { if (!open) { setModifierDialogItem(null); setSelectedModifiers(new Map()) } }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-3">
-              {modifierDialogItem?.image && (
-                <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0">
-                  <img src={modifierDialogItem.image} alt={modifierDialogItem.name} className="w-full h-full object-cover" />
-                </div>
-              )}
-              <div>
-                <p>{modifierDialogItem?.name}</p>
-                <p className="text-sm font-normal text-muted-foreground">€{(modifierDialogItem?.price || 0).toFixed(2)}</p>
-              </div>
-            </DialogTitle>
-          </DialogHeader>
-          <ScrollArea className="max-h-[50vh]">
-            <div className="space-y-4 pr-3">
-              {modifierDialogItem?.modifierGroups.map((mg: ModifierGroupType) => (
-                <div key={mg.id} className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold">{mg.modifierGroup.name}</span>
-                    {mg.modifierGroup.required && <Badge variant="destructive" className="text-[9px] h-4 px-1">Obvezno</Badge>}
-                    {mg.modifierGroup.maxSelect && <span className="text-[10px] text-muted-foreground">(max {mg.modifierGroup.maxSelect})</span>}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {mg.modifierGroup.modifiers.map(mod => {
-                      const isSelected = selectedModifiers.has(mod.id)
-                      return (
-                        <button
-                          key={mod.id}
-                          onClick={() => handleModifierToggle(mg.modifierGroup, mod)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
-                            isSelected
-                              ? 'bg-primary text-primary-foreground border-primary'
-                              : 'bg-card text-card-foreground border-border hover:bg-accent'
-                          }`}
-                        >
-                          {mod.name}{mod.price > 0 ? ` +€${mod.price.toFixed(2)}` : ''}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => { setModifierDialogItem(null); setSelectedModifiers(new Map()) }} autoFocus>Prekliči</Button>
-            <Button onClick={handleModifierConfirm}>
-              <Check className="h-4 w-4 mr-1" />
-              Potrdi €{((modifierDialogItem?.price || 0) + modifierExtraPrice).toFixed(2)}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ModifierDialog
+        modifierDialogItem={modifierDialogItem}
+        selectedModifiers={selectedModifiers}
+        modifierExtraPrice={modifierExtraPrice}
+        onToggle={handleModifierToggle}
+        onConfirm={handleModifierConfirm}
+        onClose={() => { setModifierDialogItem(null); setSelectedModifiers(new Map()) }}
+      />
     </div>
   )
 }
