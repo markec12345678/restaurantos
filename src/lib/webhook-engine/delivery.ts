@@ -1,111 +1,21 @@
 // ============================================
-// WEBHOOK ENGINE — Dostava, podpisovanje, ponovni poskusi
-// Profesionalen sistem za zanesljivo dostavo webhookov
-// Podpira: HMAC-SHA256 podpisovanje, eksponentno vračanje, omejitev poskusov
+// WEBHOOK ENGINE — Dostava
+// Pošiljanje webhookov na endpointe, SSRF zaščita, beleženje
 // ============================================
 
 import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
-
-// ============================================
-// TIPI
-// ============================================
-
-export type WebhookEventType =
-  | 'order.created'
-  | 'order.updated'
-  | 'order.paid'
-  | 'order.ready'
-  | 'order.cancelled'
-  | 'order.delivered'
-  | 'payment.received'
-  | 'payment.refunded'
-  | 'receipt.created'
-  | 'receipt.fiscal_verified'
-  | 'stock.low'
-  | 'stock.critical'
-  | 'stock.restocked'
-  | 'shift.started'
-  | 'shift.ended'
-  | 'cash_register.opened'
-  | 'cash_register.closed'
-  | 'reservation.created'
-  | 'reservation.cancelled'
-  | 'guest.created'
-  | 'loyalty.tier_upgraded'
-  | 'daily_report.ready'
-  | 'delivery.status_changed'
-  | 'delivery.driver_assigned'
-  | 'tip_pool.distributed'
-  | 'z_report.generated'
-  | 'z_report.finalized'
-  | 'integration.sync_failed'
-
-export interface WebhookPayload {
-  id: string
-  event: WebhookEventType
-  timestamp: string
-  data: Record<string, unknown>
-  restaurant?: {
-    name: string
-    id: string
-  }
-}
-
-interface DeliveryResult {
-  success: boolean
-  statusCode: number
-  responseBody: string
-  durationMs: number
-}
-
-// ============================================
-// KONSTANTE
-// ============================================
-
-const WEBHOOK_TIMEOUT_MS = 10_000 // 10 sekund timeout
-const MAX_RESPONSE_BODY_LENGTH = 1000 // Prvih 1000 znakov odziva
-const RETRY_DELAYS_MS = [60_000, 300_000, 900_000, 3_600_000, 10_800_000] // 1min, 5min, 15min, 1h, 3h
-const MAX_PAYLOAD_SIZE = 256 * 1024 // 256 KB max payload
-
-// ============================================
-// PODPISOVANJE
-// ============================================
-
-/**
- * Ustvari HMAC-SHA256 podpis za webhook payload
- * Format: sha256=<hex-digest> (enako kot GitHub/Stripe webhooks)
- */
-export function signPayload(payload: string, secret: string): string {
-  if (!secret) return ''
-  const hmac = crypto.createHmac('sha256', secret)
-  hmac.update(payload)
-  return `sha256=${hmac.digest('hex')}`
-}
-
-/**
- * Preveri HMAC-SHA256 podpis (za prejem webhooks)
- * FIX MEDIUM: timingSafeEqual zahteva enako dolžino bufferjev — padding za varno primerjavo
- */
-export function verifySignature(payload: string, signature: string, secret: string): boolean {
-  if (!secret || !signature) return false
-  const expected = signPayload(payload, secret)
-  try {
-    const sigBuf = Buffer.from(signature)
-    const expBuf = Buffer.from(expected)
-    // FIX: Če sta bufferja različnih dolžin, primerjamo z začasnimi bufferji enake dolžine
-    // timingSafeEqual zahteva enako dolžino — različna dolžina že razkrije informacijo
-    const maxLen = Math.max(sigBuf.length, expBuf.length)
-    const sigPadded = Buffer.alloc(maxLen)
-    const expPadded = Buffer.alloc(maxLen)
-    sigBuf.copy(sigPadded)
-    expBuf.copy(expPadded)
-    return crypto.timingSafeEqual(sigPadded, expPadded)
-  } catch {
-    return false
-  }
-}
+import { signPayload } from './signing'
+import {
+  type WebhookEventType,
+  type WebhookPayload,
+  type DeliveryResult,
+  WEBHOOK_TIMEOUT_MS,
+  MAX_RESPONSE_BODY_LENGTH,
+  MAX_PAYLOAD_SIZE,
+  RETRY_DELAYS_MS,
+} from './types'
 
 // ============================================
 // DOBAVA
@@ -114,7 +24,7 @@ export function verifySignature(payload: string, signature: string, secret: stri
 /**
  * Pošlji webhook na endpoint z ustreznimi glavami in timeoutom
  */
-async function deliverWebhook(
+export async function deliverWebhook(
   url: string,
   payload: string,
   signature: string,
@@ -231,7 +141,7 @@ export async function triggerWebhook(
 /**
  * FIX MEDIUM: Preveri, ali URL kaže na notranji/lokalni naslov (SSRF zaščita)
  */
-function isInternalUrl(url: string): boolean {
+export function isInternalUrl(url: string): boolean {
   try {
     const parsed = new URL(url)
     const hostname = parsed.hostname.toLowerCase()
@@ -358,129 +268,4 @@ async function deliverAndLog(
       },
     })
   }
-}
-
-// ============================================
-// PONOVNI POSKUSI (retry worker)
-// ============================================
-
-/**
- * Obdela vse webhooke, ki čakajo na ponovni poskus
-// Pokliči periodično (npr. vsako minuto iz API rute ali cron)
- */
-export async function processRetryQueue(): Promise<{
-  processed: number
-  succeeded: number
-  failed: number
-}> {
-  const now = new Date()
-  let processed = 0
-  let succeeded = 0
-  let failed = 0
-
-  // Pridobi vse dostave, ki potrebujejo ponovni poskus
-  const pendingDeliveries = await db.webhookDelivery.findMany({
-    where: {
-      success: false,
-      nextRetryAt: { lte: now },
-      attemptCount: { lt: 6 }, // Max 5 ponovnih poskusov + 1 začetni = 6
-    },
-    take: 50, // Omejitev na 50 na obdelavo
-    orderBy: { createdAt: 'asc' },
-  })
-
-  for (const delivery of pendingDeliveries) {
-    // Pridobi webhook
-    const webhook = await db.webhook.findUnique({ where: { id: delivery.webhookId } })
-    if (!webhook || !webhook.isActive) {
-      // Webhook ne obstaja več ali je onemogočen — označi kot neuspešno
-      await db.webhookDelivery.update({
-        where: { id: delivery.id },
-        data: { nextRetryAt: null, success: false },
-      })
-      continue
-    }
-
-    const newAttemptCount = delivery.attemptCount + 1
-    const result = await deliverWebhook(
-      webhook.url,
-      delivery.payload,
-      delivery.signature,
-      webhook.secret
-    )
-
-    processed++
-
-    if (result.success) {
-      succeeded++
-      await db.webhookDelivery.update({
-        where: { id: delivery.id },
-        data: {
-          statusCode: result.statusCode,
-          responseBody: result.responseBody,
-          success: true,
-          attemptCount: newAttemptCount,
-          deliveredAt: new Date(),
-          nextRetryAt: null,
-        },
-      })
-
-      // Ponastavi števec napak
-      await db.webhook.update({
-        where: { id: webhook.id },
-        data: { failureCount: 0 },
-      })
-    } else {
-      failed++
-      const retryIndex = newAttemptCount - 1 // 0-based index
-      const nextRetryDelay = RETRY_DELAYS_MS[retryIndex] || RETRY_DELAYS_MS[RETRY_DELAYS_MS.length - 1]
-      const hasMoreRetries = newAttemptCount < delivery.maxAttempts
-
-      await db.webhookDelivery.update({
-        where: { id: delivery.id },
-        data: {
-          statusCode: result.statusCode,
-          responseBody: result.responseBody,
-          attemptCount: newAttemptCount,
-          nextRetryAt: hasMoreRetries ? new Date(Date.now() + nextRetryDelay) : null,
-        },
-      })
-
-      if (!hasMoreRetries) {
-        // Vsi poskusi izčrpani — povečaj števec napak
-        await db.webhook.update({
-          where: { id: webhook.id },
-          data: { failureCount: { increment: 1 } },
-        })
-      }
-    }
-  }
-
-  return { processed, succeeded, failed }
-}
-
-// ============================================
-// TEST WEBHOOK
-// ============================================
-
-/**
- * Pošlji testni webhook na podan URL
- */
-export async function testWebhookDelivery(
-  url: string,
-  secret: string
-): Promise<DeliveryResult & { deliveryId?: string }> {
-  const testPayload: WebhookPayload = {
-    id: crypto.randomUUID(),
-    event: 'order.created' as WebhookEventType, // Testni dogodek
-    timestamp: new Date().toISOString(),
-    data: { message: 'Testni webhook iz RestaurantOS', version: '1.0' },
-  }
-
-  const payloadStr = JSON.stringify(testPayload)
-  const signature = signPayload(payloadStr, secret)
-
-  const result = await deliverWebhook(url, payloadStr, signature, secret)
-
-  return result
 }

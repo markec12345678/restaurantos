@@ -2832,3 +2832,258 @@ Stage Summary:
 - Slovenian comments preserved throughout
 - TypeScript: 0 errors
 - ESLint: 0 errors, 0 warnings
+
+---
+Task ID: 26a
+Agent: Sub Agent
+Task: Split lib/webhook-engine.ts into sub-modules
+
+Work Log:
+- Read webhook-engine.ts (487 lines) and identified logical groupings
+- Checked all external imports of @/lib/webhook-engine (5 files) to ensure backward compatibility
+- Created src/lib/webhook-engine/ directory with 6 sub-modules:
+  - types.ts (65 lines) — WebhookEventType, WebhookPayload, DeliveryResult, constants
+  - signing.ts (40 lines) — signPayload, verifySignature
+  - delivery.ts (271 lines) — deliverWebhook, triggerWebhook, isInternalUrl, deliverAndLog
+  - retry.ts (103 lines) — processRetryQueue
+  - test.ts (31 lines) — testWebhookDelivery
+  - index.ts (20 lines) — barrel re-exports for backward compatibility
+- Deleted original webhook-engine.ts
+- Verified: npx tsc --noEmit → 0 errors
+- Verified: npx eslint src/lib/webhook-engine/ --max-warnings 0 → 0 errors/warnings
+- All Slovenian comments preserved in each module
+- All existing imports of @/lib/webhook-engine continue to work unchanged
+
+Stage Summary:
+- Original file (487 lines) split into 6 focused modules, each under 300 lines
+- Barrel index.ts is 20 lines (under 80 line limit)
+- TypeScript: 0 errors, ESLint: 0 errors
+- Full backward compatibility maintained — no import changes needed in consuming files
+
+---
+Task ID: 26b
+Agent: Sub Agent
+Task: Split lib/api-utils.ts into sub-modules
+
+Work Log:
+- Read api-utils.ts (454 lines) and identified 3 logical groupings
+- Checked all existing imports of `@/lib/api-utils` across 100+ route files — all use named imports of: handleApiError, validateRequest, parseJsonBody, validateBody, handleRouteError, validateApiResponse
+- Confirmed matchBusinessError is not directly imported by any consumer (only used internally by handleRouteError)
+- Created src/lib/api-utils/ directory with 4 files:
+  - request.ts (251 lines): validateRequest, parseJsonBody + DEFAULT_MAX_BODY_SIZE constant
+  - validation.ts (87 lines): validateApiResponse, validateBody
+  - errors.ts (122 lines): matchBusinessError, handleApiError, handleRouteError
+  - index.ts (8 lines): barrel re-export of all 6 named exports
+- Updated import paths in sub-modules: `../sanitize`, `../logger` (relative to api-utils/ sub-directory)
+- Deleted original src/lib/api-utils.ts
+- Verified: npx tsc --noEmit — only pre-existing errors (unrelated: dashboard/_helpers.ts Decimal type, order-items/[id]/route.ts Permission typo)
+- Verified: npx eslint src/lib/api-utils/ --max-warnings 0 — 0 errors, 0 warnings
+- All existing `@/lib/api-utils` imports continue to work via barrel re-export
+
+Stage Summary:
+- api-utils.ts (454 lines) split into 4 files: request.ts (251), validation.ts (87), errors.ts (122), index.ts (8)
+- Each module under 300 lines, barrel under 80 lines ✓
+- Slovenian comments preserved ✓
+- TypeScript: 0 new errors, ESLint: 0 errors ✓
+- Full backward compatibility — no import changes needed in consuming files ✓
+
+---
+Task ID: 26c
+Agent: Sub Agent
+Task: Split lib/country-config.ts into sub-modules
+
+Work Log:
+- Read and analyzed the 452-line country-config.ts: identified types (2 exports), 5 country configs (SI/HR/IT/AT/DE), and 6 utility exports
+- Checked all existing imports of `@/lib/country-config` (9 consumer files) — used: getCountryConfig, CountryCode, countryList
+- Created `src/lib/country-config/` directory with 8 files:
+  - `types.ts` (71 lines) — CountryCode type + CountryConfig interface with Slovenian comments
+  - `si.ts` (66 lines) — Slovenia config
+  - `hr.ts` (69 lines) — Croatia config
+  - `it.ts` (69 lines) — Italy config
+  - `at.ts` (69 lines) — Austria config
+  - `de.ts` (68 lines) — Germany config
+  - `utils.ts` (54 lines) — countries, countryList, getCountryConfig, getCountryByLocale, getTaxCodeForRate, getTaxRateOptions
+  - `index.ts` (17 lines) — barrel re-export for full backward compatibility
+- Deleted original `src/lib/country-config.ts`
+- Verified: `@/lib/country-config` resolves to `src/lib/country-config/index.ts` via TypeScript trace
+- TypeScript: 0 new errors (1 pre-existing in dashboard/_helpers.ts)
+- ESLint: 0 errors, 0 warnings on country-config directory
+
+Stage Summary:
+- 452-line monolith split into 8 focused modules (max 71 lines each, barrel 17 lines)
+- All existing `@/lib/country-config` imports continue to work without changes
+- Slovenian comments preserved in all files
+- TypeScript: 0 errors introduced, ESLint: 0 errors
+
+---
+Task ID: 26d
+Agent: Sub Agent
+Task: Split lib/auth-middleware.ts into sub-modules
+
+Work Log:
+- Read auth-middleware.ts (449 lines) and identified 5 logical groupings: types, constants, session store, permissions, middleware
+- Checked all existing imports of `@/lib/auth-middleware` across codebase — `requireAuth`, `createSession`, `destroySession`, `verifyToken` are the only external imports; `optionalAuth` is not imported elsewhere
+- Created `src/lib/auth-middleware/` directory with 6 files:
+  - `types.ts` (25 lines) — Session interface + Permission type
+  - `constants.ts` (87 lines) — SESSION_TTL_MS, MAX_SESSIONS, PUBLIC_GET_ROUTES, ROUTE_PERMISSIONS
+  - `session-store.ts` (215 lines) — sessions Map, loadSessionsFromDb, syncSessionToWs, session cleanup interval, createSession, verifyToken, destroySession
+  - `permissions.ts` (42 lines) — isPublicRoute, getRequiredPermissions, hasPermission
+  - `middleware.ts` (110 lines) — requireAuth, optionalAuth, extractBearerToken
+  - `index.ts` (13 lines) — barrel re-export for backward compatibility
+- Deleted original `src/lib/auth-middleware.ts`
+- Fixed `void_items` → `void_item` in order-items/[id]/route.ts (pre-existing bug exposed by exporting Permission type)
+- ESLint: 0 errors, 0 warnings on new module
+- TypeScript: 0 new errors (only pre-existing errors in unrelated files remain)
+- All existing `@/lib/auth-middleware` imports continue to work unchanged
+
+Stage Summary:
+- Split 449-line file into 6 focused modules (max 215 lines, barrel 13 lines) — all under 300-line limit
+- Full backward compatibility: no import changes required across 100+ consumer files
+- Slovenian comments preserved throughout
+- ESLint: 0 errors/0 warnings; TypeScript: 0 new errors
+
+---
+Task ID: 26e
+Agent: Sub Agent
+Task: Split lib/websocket-client.ts into sub-modules
+
+Work Log:
+- Read original websocket-client.ts (308 lines) and identified logical groupings: types, broadcast helper, query invalidation, heartbeat, and main hook
+- Checked existing imports: only KitchenDisplay.tsx imports from `@/lib/websocket-client`
+- Created `src/lib/websocket-client/` directory with 6 files:
+  - `types.ts` (45 lines) — WSMessage, WSEventType, UseKitchenWebSocketOptions, UseKitchenWebSocketReturn
+  - `broadcast.ts` (22 lines) — broadcastWSEvent helper
+  - `use-query-invalidation.ts` (49 lines) — useWSQueryInvalidation hook for React Query cache invalidation by event type
+  - `use-heartbeat.ts` (41 lines) — useHeartbeat hook for ping/pong heartbeat management
+  - `use-kitchen-websocket.ts` (190 lines) — main useKitchenWebSocket hook
+  - `index.ts` (6 lines) — barrel re-export for backward compatibility
+- Deleted original `src/lib/websocket-client.ts`
+- All existing imports of `@/lib/websocket-client` continue to work via barrel re-export
+- Verified: TypeScript 0 new errors (pre-existing errors unrelated), ESLint 0 errors/0 warnings
+- All Slovenian comments preserved
+
+Stage Summary:
+- Split 308-line file into 6 focused modules (max 190 lines, barrel 6 lines) — all under 200-line limit
+- Full backward compatibility: `import { useKitchenWebSocket } from '@/lib/websocket-client'` still works
+- Slovenian comments preserved throughout
+- ESLint: 0 errors/0 warnings; TypeScript: 0 new errors
+
+---
+Task ID: 26f-26g
+Agent: Sub Agent
+Task: Split middleware.ts + page.tsx
+
+Work Log:
+- Read worklog.md, middleware.ts (276 lines), and page.tsx (298 lines) to understand structure
+- Verified no imports from `@/middleware` in codebase; `@/lib/auth-middleware` is separate (API auth, not Next.js middleware)
+- Created `src/lib/middleware/` directory with 3 extracted modules:
+  - `rate-limit.ts` (137 lines): RateEntry/RateLimitConfig types, rateLimitStore, API_RATE_LIMITS config, checkMiddlewareRateLimit, getMiddlewareClientIp
+  - `security-headers.ts` (73 lines): applySecurityHeaders function (CSP, HSTS, X-Frame-Options, etc.)
+  - `api-protection.ts` (58 lines): handleApiProtection function (body size limit + rate limiting)
+- Thinned `src/middleware.ts` from 276 → 49 lines (just orchestrator + config export)
+- Created `src/app/components/` directory with 4 extracted modules:
+  - `module-registry.tsx` (153 lines): All dynamic imports + moduleComponents map + AIAssistant export
+  - `use-pos-auth.ts` (68 lines): usePOSAuth hook (auth validation + expired session listener)
+  - `auth-screens.tsx` (44 lines): AuthLoadingScreen + AuthLoginScreen (memo wrapped)
+  - `active-module-view.tsx` (36 lines): ActiveModuleView (AnimatePresence + ErrorBoundary)
+- Thinned `src/app/page.tsx` from 298 → 58 lines (thin orchestrator)
+- Fixed TypeScript error: AuthUser primaryJob type mismatch — imported real type from `@/components/pos/pin-login/constants` instead of local duplicate
+- Fixed ESLint warning: renamed unused `user` param to `_user` in AuthLoginScreenProps
+- Verified: `rg "from.*@/middleware" src/` = 0 results, `rg "from.*@/lib/auth-middleware" src/` = 118 files (unchanged)
+- All Slovenian comments preserved
+
+Stage Summary:
+- middleware.ts: 276 → 49 lines (< 100 ✓)
+- page.tsx: 298 → 58 lines (< 150 ✓)
+- All sub-components < 200 lines ✓ (max 153 lines)
+- TypeScript: 0 new errors in changed files (pre-existing errors in unrelated files)
+- ESLint: 0 errors, 0 warnings on all changed/created files
+- 7 new files created in `src/lib/middleware/` and `src/app/components/`
+
+---
+Task ID: 26j
+Agent: Sub Agent
+Task: Split 4 more API routes into helper modules
+
+Work Log:
+- Read all 4 target route files (dashboard 447 lines, locations/sync 414 lines, end-of-day 409 lines, payments 380 lines)
+- Analyzed structure of each route and planned helper extraction strategy
+- Created dashboard/_helpers.ts with fetchTodayAggregation, fetchTablesStockRecent, computeWeeklyRevenue, computeAvgWaitTime, fetchFursShiftCogs, computeWowComparison, computeHeatmapData, fetchGuestAnalytics
+- Created dashboard/_helpers-analytics.ts for the large fetchAnalyticsBreakdowns function (7 parallel analytics queries)
+- Created locations/sync/_helpers.ts with locationSyncSchema, fetchSourceMenus, syncMenusToTargets, fetchMenuComparison, buildMenuComparison
+- Created end-of-day/_helpers.ts with fetchEodData, computeEodMetrics, closeShift
+- Created payments/_helpers.ts with PaymentInput type, handleGiftCardDeduction, handleLoyaltyPointsDeduction, updateCheckAndOrderStatus, handleLoyaltyEarn, postPaymentProcessing
+- Fixed TypeScript issues: Decimal→number conversions for Prisma fields, null→undefined for createAuditLog userId, Map type casts for Prisma create results, PaymentInput types for number|Decimal compatibility
+- Fixed ESLint warnings: removed unused imports (round2 in EOD route, logger in payments route), prefixed unused destructure with underscore
+- Verified 0 new TypeScript errors in changed files, 0 ESLint errors/warnings
+
+Stage Summary:
+- dashboard/route.ts: 447 → 115 lines (< 300 ✓)
+- dashboard/_helpers.ts: 332 lines (< 350 ✓), _helpers-analytics.ts: 154 lines (< 350 ✓)
+- locations/sync/route.ts: 414 → 135 lines (< 300 ✓), _helpers.ts: 322 lines (< 350 ✓)
+- end-of-day/route.ts: 409 → 139 lines (< 300 ✓), _helpers.ts: 317 lines (< 350 ✓)
+- payments/route.ts: 380 → 195 lines (< 300 ✓), _helpers.ts: 308 lines (< 350 ✓)
+- 9 new helper files created, all Slovenian comments preserved
+- TypeScript: 0 new errors in changed files (pre-existing errors in unrelated files)
+- ESLint: 0 errors, 0 warnings on all changed/created files
+
+---
+Task ID: 26i
+Agent: Sub Agent
+Task: Split 4 medium API routes into helper modules
+
+Work Log:
+- Read all 4 target route files: financial (604 lines), online-order (572 lines), orders/[id] (539 lines), eod (476 lines)
+- Created _helpers-queries.ts and _helpers-compute.ts for financial route (extracted calcDateRange, fetchFinancialData, computeFinancialMetrics, computeTimeDistribution)
+- Created _helpers.ts for online-order route (extracted schemas, constants, checkRestaurantOpen, calculateDeliveryFee, calculateOrderItems, triggerWebhookAsync)
+- Created _helpers.ts for orders/[id] route (extracted VALID_STATUS_TRANSITIONS, VALID_PAYMENT_TRANSITIONS, broadcastWS, freeTableIfNoActiveOrders, handleOrderCompletion, handleOrderCancellation, handleItemStatusUpdate)
+- Created _helpers.ts for eod route (extracted fetchEodData, computeEodMetrics, computeCategoryBreakdown, enrichEmployeeNames)
+- Fixed TypeScript errors: changed `unknown` types to `DecimalLike` for Prisma Decimal values, fixed `db.createAuditLog` to `createAuditLog` import, fixed unused variable warnings
+- Verified: 0 TypeScript errors in changed files (3 pre-existing in seed files), 0 ESLint errors/warnings
+
+Stage Summary:
+- 4 route files split into 9 files total (4 route.ts + 5 helper files)
+- Line counts: financial/route.ts: 71, financial/_helpers-queries.ts: 146, financial/_helpers-compute.ts: 313, online-order/route.ts: 310, online-order/_helpers.ts: 210, orders/[id]/route.ts: 287, orders/[id]/_helpers.ts: 236, eod/route.ts: 206, eod/_helpers.ts: 240
+- All route.ts files under 350 lines ✓, all helper files under 400 lines ✓
+- TypeScript: 0 new errors, ESLint: 0 errors, Slovenian comments preserved ✓
+
+---
+Task ID: 26h
+Agent: Sub Agent
+Task: Split 4 largest API routes into helper modules
+
+Work Log:
+- Read worklog.md and understood previous agent work
+- Analyzed structure of all 4 target route files to plan splitting strategy
+- Split /api/seed-norms/route.ts (1671→140 lines) into 7 helper files:
+  - helpers/types.ts (22 lines) - Shared types (InvItem, InvMap, MiFn, RecipeEntry)
+  - helpers/create-beverage-inventory.ts (295 lines) - Beverage inventory creation
+  - helpers/create-food-inventory.ts (219 lines) - Food inventory creation
+  - helpers/build-spirits-recipes.ts (394 lines) - Coffee, spirits, cocktails, gin tonics recipes
+  - helpers/build-wine-beer-recipes.ts (401 lines) - Waters, juices, beer, wine recipes
+  - helpers/build-food-recipes.ts (309 lines) - Food recipe building (pasta, pizza, burgers, etc.)
+  - helpers/build-restorantos-recipes.ts (433 lines) - RestorantOS food recipes (malice, palacinke, etc.)
+- Split /api/seed/route.ts (978→226 lines) into 3 helper files:
+  - helpers/menu-items.ts (549 lines) - Menu items data with category/modifier references
+  - helpers/config-data.ts (99 lines) - Configuration data (tax rates, dining options, etc.)
+  - helpers/demo-data.ts (158 lines) - Demo data (tables, employees, shifts, orders)
+- Split /api/seed-food-norms/route.ts (817→146 lines) into 4 helper files:
+  - helpers/types.ts (5 lines) - Shared types (InvItem, InvMap, CatMap)
+  - helpers/create-inventory.ts (244 lines) - Food inventory creation
+  - helpers/create-food-helper.ts (61 lines) - createFood helper function
+  - helpers/seed-food-part1.ts (369 lines) - Food seeding part 1 (predjedi through mesne jedi)
+  - helpers/seed-food-part2.ts (310 lines) - Food seeding part 2 (burgerji through vegetarijanske)
+- Split /api/furs/route.ts (675→100 lines) into 3 helper files:
+  - helpers/build-config.ts (39 lines) - buildFursConfigFromSettings function
+  - helpers/verify-invoice.ts (293 lines) - Invoice verification (POST handler)
+  - helpers/storno-invoice.ts (292 lines) - Invoice storno (PUT handler)
+- Verified TypeScript: 0 new errors (2 pre-existing in reports/eod)
+- Verified ESLint: 0 errors, 0 warnings across all 4 directories
+- Slovenian comments preserved in all files
+
+Stage Summary:
+- All 4 route.ts files now under 400 lines (140, 226, 146, 100)
+- All helper modules under 550 lines (largest: menu-items.ts at 549)
+- TypeScript: 0 new errors, ESLint: 0 errors
+- Created 17 new helper files total across 4 directories
+- Original API logic and data completely preserved

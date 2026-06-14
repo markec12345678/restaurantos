@@ -26,7 +26,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const { id } = await params
 
     // FIX BUG 8: Zahtevaj avtentikacijo za posodobitev order item-ov
-    const authResult = await requireAuth(req, { permission: 'void_items' })
+    const authResult = await requireAuth(req, { permission: 'void_item' })
     if (authResult.error) return authResult.error
 
     const bodyResult = await parseJsonBody(req)

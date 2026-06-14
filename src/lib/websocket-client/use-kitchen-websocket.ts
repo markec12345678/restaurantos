@@ -1,82 +1,16 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { logger } from '@/lib/logger'
-import { queryKeys } from '@/lib/query-keys'
-
-// ============================================
-// TIPI
-// ============================================
-
-export interface WSMessage {
-  type: string
-  payload: unknown
-  timestamp: string
-}
-
-export type WSEventType =
-  | 'NEW_ORDER'
-  | 'ORDER_UPDATED'
-  | 'ITEM_STATUS_CHANGED'
-  | 'ORDER_CANCELLED'
-  | 'ORDER_FIRED'
-  | 'ORDER_READY'
-  | 'STOCK_LOW'
-  | 'STOCK_OUT'
-  | 'CONNECTED'
-  | 'SERVER_SHUTDOWN'
-  | 'AUTH_SUCCESS'
-  | 'AUTH_REQUIRED'
-
-interface UseKitchenWebSocketOptions {
-  /** Auto-reconnect on disconnect (default: true) */
-  autoReconnect?: boolean
-  /** Max reconnection attempts before giving up (default: 10) */
-  maxReconnectAttempts?: number
-  /** Called when a specific event is received */
-  onEvent?: (_message: WSMessage) => void
-  /** FIX CRITICAL: Bearer token za WS avtentikacijo */
-  token?: string | null
-}
-
-interface UseKitchenWebSocketReturn {
-  /** Whether the WebSocket is currently connected */
-  connected: boolean
-  /** The last event received from the WebSocket */
-  lastEvent: WSMessage | null
-  /** Manually reconnect the WebSocket */
-  reconnect: () => void
-  /** Send a message through the WebSocket */
-  send: (_type: string, _payload: unknown) => void
-}
-
-// ============================================
-// WS BROADCAST HELPER (za uporabo v API-jih)
-// ============================================
-
-/**
- * Pošlje WebSocket dogodek preko strežniškega broadcast-a
- * To funkcijo kličejo API rute, ko želijo obvestiti KDS odjemalce
- */
-export async function broadcastWSEvent(type: WSEventType, payload: unknown): Promise<void> {
-  try {
-    await fetch('/api/ws-broadcast', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, payload }),
-    })
-  } catch (err: unknown) {
-    logger.error('WS', 'Broadcast napaka:', err)
-  }
-}
+import type { WSMessage, UseKitchenWebSocketOptions, UseKitchenWebSocketReturn } from './types'
+import { useWSQueryInvalidation } from './use-query-invalidation'
+import { useHeartbeat } from './use-heartbeat'
 
 // ============================================
 // HOOK: useKitchenWebSocket
 // ============================================
 
 export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): UseKitchenWebSocketReturn {
-  const queryClient = useQueryClient()
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectAttemptsRef = useRef(0)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -95,40 +29,11 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
     tokenRef.current = options.token
   }, [options.autoReconnect, options.maxReconnectAttempts, options.token])
 
-  // Heartbeat refs
-  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const missedPingsRef = useRef(0)
+  // Heartbeat
+  const { startHeartbeat, stopHeartbeat, handlePong } = useHeartbeat()
 
   // Invalidacija React Query po dogodkih
-  const invalidateRelevantQueries = useCallback((eventType: string) => {
-    switch (eventType) {
-      case 'NEW_ORDER':
-      case 'ORDER_UPDATED':
-      case 'ORDER_CANCELLED':
-        queryClient.invalidateQueries({ queryKey: queryKeys.kitchen.all })
-        queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
-        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
-        queryClient.invalidateQueries({ queryKey: queryKeys.orders.sidebar })
-        break
-      case 'ITEM_STATUS_CHANGED':
-        queryClient.invalidateQueries({ queryKey: queryKeys.kitchen.all })
-        queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
-        break
-      case 'STOCK_LOW':
-      case 'STOCK_OUT':
-        queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all })
-        queryClient.invalidateQueries({ queryKey: queryKeys.inventory.menuStock })
-        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
-        queryClient.invalidateQueries({ queryKey: queryKeys.inventory.lowStock })
-        break
-      case 'ORDER_FIRED':
-      case 'ORDER_READY':
-        queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
-        queryClient.invalidateQueries({ queryKey: queryKeys.kitchen.all })
-        queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
-        break
-    }
-  }, [queryClient])
+  const invalidateRelevantQueries = useWSQueryInvalidation()
 
   // Shranimo onEvent v ref, da se izognemo ponovnemu povezovanju ob spremembi
   const onEventRef = useRef(options.onEvent)
@@ -139,17 +44,14 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
       clearTimeout(reconnectTimerRef.current)
       reconnectTimerRef.current = null
     }
-    if (pingIntervalRef.current) {
-      clearInterval(pingIntervalRef.current)
-      pingIntervalRef.current = null
-    }
+    stopHeartbeat()
     if (wsRef.current) {
       wsRef.current.onclose = null // Prepreči avtomatsko ponovno povezovanje
       wsRef.current.close(1000, 'Client disconnect')
       wsRef.current = null
     }
     setConnected(false)
-  }, [])
+  }, [stopHeartbeat])
 
   const connect = useCallback(() => {
     // Čiščenje prejšnje povezave
@@ -176,7 +78,6 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
       ws.onopen = () => {
         setConnected(true)
         reconnectAttemptsRef.current = 0
-        missedPingsRef.current = 0
         logger.info('WS', 'Povezan na strežnik')
 
         // FIX HIGH: Vedno pošlji AUTH sporočilo po povezavi (token ni več v URL-ju)
@@ -186,10 +87,7 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
         const storedToken = typeof window !== 'undefined' ? sessionStorage.getItem('pos_auth_token') : null
         const authToken = currentToken || storedToken
         if (authToken) {
-          ws.send(JSON.stringify({
-            type: 'AUTH',
-            payload: { token: authToken },
-          }))
+          ws.send(JSON.stringify({ type: 'AUTH', payload: { token: authToken } }))
         }
 
         // Identificiraj se
@@ -201,18 +99,8 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
           },
         }))
 
-        // Start heartbeat ping interval
-        pingIntervalRef.current = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) {
-            missedPingsRef.current++
-            if (missedPingsRef.current > 2) {
-              logger.warn('WS', 'Preveč zamujenih pingov, zapiram povezavo')
-              ws.close()
-              return
-            }
-            ws.send(JSON.stringify({ type: 'ping' }))
-          }
-        }, 30000)
+        // Start heartbeat
+        startHeartbeat(ws)
       }
 
       ws.onmessage = (event) => {
@@ -224,7 +112,7 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
 
           // Handle pong response for heartbeat
           if (message.type === 'pong') {
-            missedPingsRef.current = 0
+            handlePong()
             return
           }
 
@@ -243,10 +131,7 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
       ws.onclose = (event) => {
         setConnected(false)
         wsRef.current = null
-        if (pingIntervalRef.current) {
-          clearInterval(pingIntervalRef.current)
-          pingIntervalRef.current = null
-        }
+        stopHeartbeat()
         logger.info('WS', `Povezava zaprta (koda: ${event.code})`)
 
         // Samodejno ponovno poveži z eksponentnim zakasnitvijo
@@ -266,16 +151,13 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
 
       ws.onerror = (err) => {
         logger.error('WS', 'Napaka na povezavi:', err)
-        if (pingIntervalRef.current) {
-          clearInterval(pingIntervalRef.current)
-          pingIntervalRef.current = null
-        }
+        stopHeartbeat()
       }
     } catch (err: unknown) {
       logger.error('WS', 'Napaka pri vzpostavljanju povezave:', err)
       setConnected(false)
     }
-  }, [invalidateRelevantQueries])
+  }, [invalidateRelevantQueries, startHeartbeat, stopHeartbeat, handlePong])
 
   useEffect(() => { connectFnRef.current = connect }, [connect])
 
