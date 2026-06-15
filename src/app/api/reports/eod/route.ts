@@ -5,14 +5,12 @@
 // POST: Zaključi obratovalni dan (zapri blagajno, generiraj izpiske)
 // ============================================
 
-import { db, createAuditLog } from '@/lib/db'
-import { toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { eodCloseSchema, validateReportDateRange } from '@/lib/validations'
 import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
-import { fetchEodData, computeEodMetrics, computeCategoryBreakdown, enrichEmployeeNames } from './_helpers'
+import { fetchEodData, computeEodMetrics, computeCategoryBreakdown, enrichEmployeeNames, computeEodCloseData, closeShiftTransaction, logEodClose } from './_helpers'
 
 export async function GET(req: Request) {
   try {
@@ -94,6 +92,7 @@ export async function POST(req: Request) {
     const dayEnd = new Date(targetDate + 'T23:59:59.999Z')
 
     // Preveri, da so vsa naročila zaključena ali preklicana
+    const { db } = await import('@/lib/db')
     const pendingOrders = await db.order.count({
       where: {
         createdAt: { gte: dayStart, lte: dayEnd },
@@ -108,99 +107,63 @@ export async function POST(req: Request) {
       }, { status: 400 })
     }
 
-    // Pridobi aktivno izmeno
-    const activeShift = await db.cashRegisterShift.findFirst({
-      where: { status: 'open' },
-      orderBy: { openedAt: 'desc' },
-    })
+    // Izračunaj zaključne podatke
+    const closeData = await computeEodCloseData(dayStart, dayEnd, closingCash, targetDate)
 
-    if (!activeShift) {
-      return NextResponse.json({ error: 'Ni odprte blagajniške izmene' }, { status: 400 })
+    if (closeData.activeShift === null) {
+      // Already handled by the throw in computeEodCloseData
     }
 
-    // Izračunaj zaključne podatke
-    // FIX CRITICAL: Uporabi ACTUAL payments iz checkov + paidAt za zaključek dneva
-    const completedOrders = await db.order.findMany({
-      where: {
-        paidAt: { gte: dayStart, lte: dayEnd },
-        paymentStatus: 'paid',
-      },
-      select: {
-        id: true, total: true, discount: true, tip: true,
-        checks: {
-          select: {
-            payments: {
-              where: { status: 'completed' },
-              select: { type: true, amount: true, tipAmount: true },
-            },
-          },
-        },
-      },
-    })
-
-    // FIX CRITICAL: Izračunaj po ACTUAL plačilih (uporabi payments iz checkov)
-    const allPayments = completedOrders.flatMap(o => o.checks.flatMap(c => c.payments))
-    const cashSales = allPayments.filter(p => p.type === 'cash').reduce((s, p) => s + toNum(p.amount), 0)
-    const cardSales = allPayments.filter(p => p.type === 'card').reduce((s, p) => s + toNum(p.amount), 0)
-    const mobileSales = allPayments.filter(p => p.type === 'mobile').reduce((s, p) => s + toNum(p.amount), 0)
-    const alternateSales = allPayments.filter(p => ['voucher', 'loyalty', 'giftcard', 'alternate'].includes(p.type)).reduce((s, p) => s + toNum(p.amount), 0)
-    const totalSales = allPayments.reduce((s, p) => s + toNum(p.amount), 0)
-    const totalTips = allPayments.reduce((s, p) => s + toNum(p.tipAmount), 0)
-    // FIX MEDIUM: Gotovinske napitnine se prištejejo k pričakovani gotovini
-    const cashTips = allPayments.filter(p => p.type === 'cash').reduce((s, p) => s + toNum(p.tipAmount), 0)
-    const totalDiscounts = completedOrders.reduce((s, o) => s + toNum(o.discount), 0)
-    const voidedItems = await db.orderItem.aggregate({
-      where: { voided: true, order: { createdAt: { gte: dayStart, lte: dayEnd } } },
-      _sum: { price: true },
-    })
-
-    const expectedCash = toNum(activeShift.startingCash) + cashSales + cashTips
-    const actualClosingCash = closingCash ?? expectedCash
-    // FIX MEDIUM: cashDifference mora upoštevati tip v gotovinskih plačilih
-    const cashDifference = actualClosingCash - expectedCash
-
-    // FIX BUG-4 CRITICAL: Zapri izmeno ZNOTRAJ transakcije — prepreči double-close race condition
-    await db.$transaction(async (tx) => {
-      const shiftToClose = await tx.cashRegisterShift.findUnique({ where: { id: activeShift.id } })
-      if (!shiftToClose) throw new Error('SHIFT_NOT_FOUND')
-      if (shiftToClose.status === 'closed') throw new Error('SHIFT_ALREADY_CLOSED')
-
-      await tx.cashRegisterShift.update({
-        where: { id: activeShift.id },
-        data: {
-          status: 'closed', closedAt: new Date(),
-          closingCash: actualClosingCash, expectedCash, cashDifference,
-          cashSales, cardSales, mobileSales, alternateSales,
-          totalSales, totalOrders: completedOrders.length,
-          totalDiscounts, totalTips,
-          totalVoided: toNum(voidedItems._sum.price),
-          notes: notes || shiftToClose.notes,
-        },
-      })
+    // Zapri izmeno
+    await closeShiftTransaction(closeData.activeShift.id, {
+      actualClosingCash: closeData.actualClosingCash,
+      expectedCash: closeData.expectedCash,
+      cashDifference: closeData.cashDifference,
+      cashSales: closeData.cashSales,
+      cardSales: closeData.cardSales,
+      mobileSales: closeData.mobileSales,
+      alternateSales: closeData.alternateSales,
+      totalSales: closeData.totalSales,
+      completedOrdersCount: closeData.completedOrders.length,
+      totalDiscounts: closeData.totalDiscounts,
+      totalTips: closeData.totalTips,
+      totalVoided: closeData.totalVoided,
+      notes: notes || undefined,
     })
 
     // Revizijski dnevnik
-    await createAuditLog({
-      userId: authResult.session?.employeeId,
-      action: 'CLOSE_REGISTER_SHIFT',
-      entityType: 'CashRegisterShift',
-      entityId: activeShift.id,
-      details: { date: targetDate, totalSales, cashSales, cardSales, mobileSales, cashDifference },
-    })
+    await logEodClose(
+      authResult.session?.employeeId,
+      closeData.activeShift.id,
+      targetDate,
+      {
+        totalSales: closeData.totalSales,
+        cashSales: closeData.cashSales,
+        cardSales: closeData.cardSales,
+        mobileSales: closeData.mobileSales,
+        cashDifference: closeData.cashDifference,
+      },
+    )
 
     return NextResponse.json({
       success: true,
       message: 'Obratovalni dan uspešno zaključen',
-      shiftId: activeShift.id,
+      shiftId: closeData.activeShift.id,
       closedAt: new Date().toISOString(),
       summary: {
-        totalSales, cashSales, cardSales, mobileSales,
-        totalTips, totalDiscounts,
-        startingCash: toNum(activeShift.startingCash),
-        expectedCash, closingCash: actualClosingCash, cashDifference,
+        totalSales: closeData.totalSales, cashSales: closeData.cashSales, cardSales: closeData.cardSales, mobileSales: closeData.mobileSales,
+        totalTips: closeData.totalTips, totalDiscounts: closeData.totalDiscounts,
+        startingCash: closeData.startingCash,
+        expectedCash: closeData.expectedCash, closingCash: closeData.actualClosingCash, cashDifference: closeData.cashDifference,
       },
     })
   } catch (error: unknown) {
+    if (error instanceof Error && error.message === 'NO_OPEN_SHIFT') {
+      return NextResponse.json({ error: 'Ni odprte blagajniške izmene' }, { status: 400 })
+    }
+    if (error instanceof Error && error.message === 'SHIFT_ALREADY_CLOSED') {
+      return NextResponse.json({ error: 'Izmena je že zaprta' }, { status: 409 })
+    }
     return handleApiError(error, 'POST /api/reports/eod', 'Napaka pri zaključku dneva')
   }
 }

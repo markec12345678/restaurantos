@@ -2,7 +2,9 @@
 
 import { memo, useEffect, useCallback } from 'react'
 import { type GuestFormRow } from '@/lib/types'
-import { ALLERGEN_LIST, DIETARY_OPTIONS } from './constants'
+import { GuestFormFields } from './GuestFormFields'
+import { AllergenSelector } from './AllergenSelector'
+import { DietaryPrefsSelector } from './DietaryPrefsSelector'
 
 // --- Props ---
 
@@ -45,133 +47,9 @@ export const GuestFormModal = memo(function GuestFormModal({
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-xl" aria-label="Zapri">×</button>
         </div>
         <div className="p-4 space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="guest-firstName" className="text-xs font-medium text-gray-500">Ime</label>
-              <input
-                id="guest-firstName"
-                value={form.firstName || ''}
-                onChange={e => onFormChange({ ...form, firstName: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm mt-1"
-                placeholder="Ime"
-              />
-            </div>
-            <div>
-              <label htmlFor="guest-lastName" className="text-xs font-medium text-gray-500">Priimek *</label>
-              <input
-                id="guest-lastName"
-                value={form.lastName || ''}
-                onChange={e => onFormChange({ ...form, lastName: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm mt-1"
-                placeholder="Priimek"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="guest-phone" className="text-xs font-medium text-gray-500">Telefon</label>
-              <input
-                id="guest-phone"
-                value={form.phone || ''}
-                onChange={e => onFormChange({ ...form, phone: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm mt-1"
-                placeholder="+386 ..."
-              />
-            </div>
-            <div>
-              <label htmlFor="guest-email" className="text-xs font-medium text-gray-500">Email</label>
-              <input
-                id="guest-email"
-                value={form.email || ''}
-                onChange={e => onFormChange({ ...form, email: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm mt-1"
-                placeholder="email@primer.si"
-              />
-            </div>
-          </div>
-          <div>
-            <label htmlFor="guest-company" className="text-xs font-medium text-gray-500">Podjetje</label>
-            <input
-              id="guest-company"
-              value={form.company || ''}
-              onChange={e => onFormChange({ ...form, company: e.target.value })}
-              className="w-full border rounded-lg px-3 py-2 text-sm mt-1"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="guest-birthday" className="text-xs font-medium text-gray-500">Rojstni dan</label>
-              <input
-                id="guest-birthday"
-                type="date"
-                value={form.birthday || ''}
-                onChange={e => onFormChange({ ...form, birthday: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm mt-1"
-              />
-            </div>
-            <div>
-              <label htmlFor="guest-anniversary" className="text-xs font-medium text-gray-500">Obletnica</label>
-              <input
-                id="guest-anniversary"
-                type="date"
-                value={form.anniversary || ''}
-                onChange={e => onFormChange({ ...form, anniversary: e.target.value })}
-                className="w-full border rounded-lg px-3 py-2 text-sm mt-1"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-gray-500">Alergeni</label>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {ALLERGEN_LIST.map(a => {
-                const code = a.split('-')[0]
-                const selected = (form.allergens || []).includes(code)
-                return (
-                  <button
-                    key={code}
-                    onClick={() => onFormChange({
-                      ...form,
-                      allergens: selected
-                        ? (form.allergens ?? []).filter((x: string) => x !== code)
-                        : [...(form.allergens ?? []), code],
-                    })}
-                    className={`text-[10px] px-1.5 py-0.5 rounded transition ${
-                      selected ? 'bg-red-500 text-white' : 'bg-red-50 text-red-700 hover:bg-red-100'
-                    }`}
-                  >
-                    {a}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-gray-500">Prehranske preference</label>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {DIETARY_OPTIONS.map(pref => {
-                const selected = (form.dietaryPrefs || []).includes(pref)
-                return (
-                  <button
-                    key={pref}
-                    onClick={() => onFormChange({
-                      ...form,
-                      dietaryPrefs: selected
-                        ? (form.dietaryPrefs ?? []).filter((x: string) => x !== pref)
-                        : [...(form.dietaryPrefs ?? []), pref],
-                    })}
-                    className={`text-[10px] px-1.5 py-0.5 rounded transition ${
-                      selected ? 'bg-green-500 text-white' : 'bg-green-50 text-green-700 hover:bg-green-100'
-                    }`}
-                  >
-                    {pref}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
+          <GuestFormFields form={form} onFormChange={onFormChange} />
+          <AllergenSelector form={form} onFormChange={onFormChange} />
+          <DietaryPrefsSelector form={form} onFormChange={onFormChange} />
           <div>
             <label htmlFor="guest-notes" className="text-xs font-medium text-gray-500">Opombe</label>
             <textarea
@@ -183,7 +61,6 @@ export const GuestFormModal = memo(function GuestFormModal({
               placeholder="Posebne želje, preference sedeža..."
             />
           </div>
-
           <div className="flex items-center gap-2">
             <input
               id="guest-isVip"

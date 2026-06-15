@@ -7,8 +7,7 @@ import { NextResponse } from 'next/server'
 
 import type { Session, Permission } from './types'
 import { SESSION_TTL_MS } from './constants'
-import { verifyToken } from './session-store'
-import { syncSessionToWs } from './session-store'
+import { verifyToken, syncSessionToWs } from './session-store'
 import { db } from '../db'
 import { isPublicRoute, getRequiredPermissions, hasPermission } from './permissions'
 

@@ -4120,3 +4120,117 @@ Split 12 large files into smaller modules by extracting sub-components with `mem
 ### Verification
 - `npx tsc --noEmit` — ✅ passes
 - `npx eslint src/ --max-warnings 0` — ✅ passes
+
+---
+Task ID: 31-a
+Agent: Sub Agent
+Task: Split POS components & hooks 212-216 lines into smaller modules
+
+Work Log:
+- Read all 15 target files (212-216 lines each) and understood their structure
+- Checked existing barrel files, imports, and dependency chains
+- Split each file according to its type (component, hook, lib module, API helper)
+
+1. **GuestFormModal.tsx** (216→93): Extracted GuestFormFields, AllergenSelector, DietaryPrefsSelector as memo() sub-components
+2. **useOnlineOrder.ts** (216→101): Split into use-order-state.ts (113 lines) + use-order-actions.ts (86 lines), updated barrel
+3. **session-store.ts** (215→deleted): Split into session-store/ directory with session-cache.ts (116), session-lifecycle.ts (84), index.ts (7). Updated middleware.ts imports.
+4. **calendar.tsx** (213→deleted): Split into calendar/ directory with Calendar.tsx (56), CalendarDayButton.tsx (48), calendar-parts.tsx (96), index.tsx (4)
+5. **ProfitLossReport.tsx** (213→84): Extracted load-report.ts (115) with loadPnlReport + getPeriodDates, PnlLoadingIndicator.tsx (18)
+6. **KitchenDisplay.tsx** (212→117): Extracted useKitchenMutations.ts (65) into kitchen/ directory
+7. **GlobalNotifications.tsx** (212→124): Extracted NotificationItem.tsx (61) + typeConfig into notifications/
+8. **CashRegister.tsx** (212→134): Extracted CashRegisterLoading.tsx (49) with loading skeleton + NoActiveShiftCard
+9. **MenuItemsList.tsx** (212→125): Extracted MenuEmptyStates.tsx (35) with EmptySearchResults + EmptyCategory
+10. **orders/_helpers.ts** (212→deleted): Split into _helpers/ directory with broadcast.ts (29), order-items.ts (97), stock.ts (65), index.ts (7)
+11. **OrderList.tsx** (211→118): Extracted OrderCard.tsx (106) as memo() sub-component
+12. **TipManager.tsx** (211→99): Extracted TipManagerHeader.tsx (53) into tip/ directory
+13. **DailyChecklist.tsx** (211→121): Extracted ChecklistSubComponents.tsx (94) with ChecklistHeader, ChecklistProgress, ChecklistActions
+14. **sync-menus.ts** (210→28): Split into batch-fetch.ts (70) + sync-logic.ts (80), slim orchestrator remains
+15. **glovo/_helpers.ts** (210→deleted): Split into _helpers/ directory with glovo-schema.ts (48), glovo-idempotency.ts (37), glovo-mapping.ts (31), glovo-inventory.ts (50), glovo-logging.ts (42), index.ts (8)
+
+- Fixed all TypeScript errors: missing exports, wrong import paths, missing z namespace
+- Fixed all ESLint errors/warnings: unused imports, setState-in-effect, memoization deps
+- All 44 new/modified files pass `npx eslint` with 0 errors, 0 warnings
+- TypeScript: 0 new errors (only pre-existing errors in kds/, waiter/, furs/ modules)
+- ProfitLossReport: wrapped setState calls in queueMicrotask to avoid cascading renders
+
+Stage Summary:
+- 15 files split from 212-216 lines to ≤134 lines each
+- 29 new sub-module files created (all ≤125 lines, most <100)
+- 3 original files deleted after directory migration (session-store.ts, calendar.tsx, _helpers.ts ×2)
+- All sub-modules use named exports only
+- TypeScript: 0 new errors introduced
+- ESLint: 0 new errors/warnings introduced
+
+---
+Task ID: 31-b1
+Agent: General-Purpose Sub Agent
+Task: Split files 200-209 group 1 (10 files)
+
+Work Log:
+- Read all 10 target files to assess current state
+- Found 7/10 files already split by previous passes:
+  - TaxReport.tsx: 76 lines, already uses dynamic imports for sub-components → no action needed
+  - glavne-jedi.ts: already in glavne-jedi/ directory with index.ts barrel → no action needed
+  - TableRevenueReport.tsx: 97 lines, already uses separate sub-components → no action needed
+  - TaxTab.tsx: 47 lines, already uses separate sub-components → no action needed
+  - usePaymentHandlers.ts: already in usePaymentHandlers/ directory with index.ts barrel → no action needed
+  - _helpers.ts: already in _helpers/ directory with index.ts barrel → no action needed
+  - useRecipeManager.ts: already in useRecipeManager/ directory with sub-modules → no action needed
+  - certificates.ts: 66 lines, already small → no action needed
+  - useKDSPage.ts: 45 lines, already uses sub-modules → no action needed
+- PeriodReport.tsx (172 lines): extracted 4 inline sub-components with memo():
+  - period/PeriodReportHeader.tsx (42 lines) — date navigation header
+  - period/PeriodStatsGrid.tsx (40 lines) — 9-cell stats grid
+  - period/CategoryBreakdownCard.tsx (28 lines) — category revenue chart card
+  - period/TopItemsCard.tsx (53 lines) — top selling items list card
+- Main PeriodReport.tsx reduced from 172 → 89 lines
+- Fixed pre-existing ESLint warnings in 3 files:
+  - use-waiter-websocket.ts: removed unused useCallback, useQueryClient, queryKeys imports
+  - payment-handlers.ts: removed unused useCallback import
+  - certificates.ts: removed unused tryNodeCryptoPKCS12, extractCertificateFromPKCS12 from import lines (kept re-exports)
+  - usePaymentState.ts: removed unused toast import, prefixed unused `open` param with underscore
+- tsc --noEmit: PASSED (0 errors)
+- eslint src/ --max-warnings 0: PASSED (0 warnings, 0 errors)
+
+Stage Summary:
+- 4 new files created (period/ sub-components)
+- 5 files modified (PeriodReport.tsx refactor + 4 ESLint fixes)
+- PeriodReport.tsx: 172 → 89 lines
+- TypeScript: 0 errors
+- ESLint: 0 errors, 0 warnings
+
+---
+Task ID: 31-b2
+Agent: Sub Agent
+Task: Split files 200-205 lines (group 2) into smaller modules
+
+Work Log:
+- Read all 19 target files; 4 did not exist (vat/_helpers.ts, useShiftManager.ts, wolt/_helpers.ts, delivery-tracking/_helpers.ts)
+- 3 files already under limit / already split (eod/route.ts 170 lines with _helpers/, useWaiterPage.ts 107 lines, reservations/route.ts 55 lines with _helpers)
+- Split 12 files total:
+
+1. TableReservationSync.tsx (188→89 lines): Extracted useTableReservationData and useComputedData hooks → table-reservation/useTableReservationData.ts and table-reservation/useComputedData.ts
+2. ShiftDialog.tsx (239→99 lines): Extracted ShiftFormFields → scheduler/ShiftFormFields.tsx and ShiftTimeFields → scheduler/ShiftTimeFields.tsx
+3. usePaymentDialog.ts (203→73 lines): Split into usePaymentDialog/ directory with usePaymentState.ts, usePaymentQueries.ts, usePaymentDialog.ts, index.ts barrel. Deleted original.
+4. StockTab.tsx (203→77 lines): Extracted StockItemCard → inventory/StockItemCard.tsx
+5. HaccpEntryDialog.tsx (203→70 lines): Extracted HaccpFormFields → haccp/HaccpFormFields.tsx
+6. InventoryAlerts.tsx (203→76 lines): Extracted useInventoryAlerts hook → inventory-alerts/useInventoryAlerts.ts
+7. CoursePacing.tsx (203→49 lines): Extracted useCoursePacing hook → course-pacing/useCoursePacing.ts
+8. PurchaseOrderDialog.tsx (202→113 lines): Extracted POItemRow → supplier/POItemRow.tsx and POTotals → supplier/POTotals.tsx
+9. delivery/constants.ts (202→deleted): Split into delivery/constants/ directory with types.ts, status-maps.ts, helpers.ts, index.ts barrel. Deleted original.
+10. ShiftOverview.tsx (202→73 lines): Extracted useShiftOverview hook → shift-overview/useShiftOverview.ts
+11. checks/_helpers.ts (202→deleted): Split into checks/_helpers/ directory with calculate.ts, transaction.ts, index.ts barrel. Deleted original.
+12. use-toast.ts (201→deleted): Split into use-toast/ directory with types.ts, toast-logic.ts, index.ts barrel. Deleted original.
+
+- Fixed import path errors (relative paths for hooks moved into sub-directories)
+- Fixed ESLint warnings (unused imports: round2 in calculate.ts, CheckOrderItem in transaction.ts)
+- TypeScript: 0 errors ✓
+- ESLint: 0 warnings ✓
+
+Stage Summary:
+- 12 files split, 4 skipped (non-existent), 3 skipped (already under limit)
+- 27 new files created, 4 original files deleted
+- All sub-modules under 150 lines
+- Named exports used throughout (no default exports)
+- TSC --noEmit: PASS
+- ESLint --max-warnings 0: PASS

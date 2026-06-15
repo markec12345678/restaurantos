@@ -10,17 +10,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { FileText, Plus, X } from 'lucide-react'
+import { FileText, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import type { SupplierType } from './constants'
-
-interface POItemDraft {
-  description: string
-  quantityOrdered: number
-  unit: string
-  unitPrice: number
-  vatRate: number
-}
+import { POItemRow, type POItemDraft } from './POItemRow'
+import { POTotals } from './POTotals'
 
 interface PurchaseOrderDialogProps {
   open: boolean
@@ -131,59 +125,19 @@ export const PurchaseOrderDialog = memo(function PurchaseOrderDialog({
               </Button>
             </div>
             {items.map((item, idx) => (
-              <div key={idx} className="grid grid-cols-12 gap-2 items-end">
-                <div className="col-span-5">
-                  <Input value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} placeholder="Opis artikla" className="h-8 text-xs" aria-label="Opis artikla"/>
-                </div>
-                <div className="col-span-2">
-                  <Input type="number" value={item.quantityOrdered} onChange={e => updateItem(idx, 'quantityOrdered', parseFloat(e.target.value) || 0)} className="h-8 text-xs" aria-label="Količina"/>
-                </div>
-                <div className="col-span-1">
-                  <Select value={item.unit} onValueChange={v => updateItem(idx, 'unit', v)}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="kos">kos</SelectItem>
-                      <SelectItem value="kg">kg</SelectItem>
-                      <SelectItem value="L">L</SelectItem>
-                      <SelectItem value="stek.">stek.</SelectItem>
-                      <SelectItem value="keg">keg</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="col-span-2">
-                  <Input type="number" value={item.unitPrice} onChange={e => updateItem(idx, 'unitPrice', parseFloat(e.target.value) || 0)} placeholder="Cena" className="h-8 text-xs" aria-label="Cena"/>
-                </div>
-                <div className="col-span-1">
-                  <span className="text-xs font-medium">&euro;{(item.quantityOrdered * item.unitPrice).toFixed(2)}</span>
-                </div>
-                <div className="col-span-1">
-                  {items.length > 1 && (
-                    <Button variant="ghost" size="icon" aria-label="Odstrani" className="h-7 w-7" onClick={() => removeItem(idx)}>
-                      <X className="h-3 w-3 text-destructive" />
-                    </Button>
-                  )}
-                </div>
-              </div>
+              <POItemRow
+                key={idx}
+                item={item}
+                idx={idx}
+                canRemove={items.length > 1}
+                onUpdate={updateItem}
+                onRemove={removeItem}
+              />
             ))}
           </div>
 
           {/* Skupaj */}
-          <div className="flex justify-end p-3 rounded-lg bg-muted/50">
-            <div className="text-right space-y-1">
-              <div className="flex justify-between gap-8 text-xs">
-                <span className="text-muted-foreground">Vmesna vsota:</span>
-                <span className="font-medium">&euro;{subtotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between gap-8 text-xs">
-                <span className="text-muted-foreground">DDV:</span>
-                <span className="font-medium">&euro;{vatAmount.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between gap-8 text-sm border-t pt-1">
-                <span className="font-bold">SKUPAJ:</span>
-                <span className="font-bold">&euro;{total.toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
+          <POTotals subtotal={subtotal} vatAmount={vatAmount} total={total} />
 
           <div>
             <label htmlFor="po-notes" className="text-xs font-medium">Opombe</label>

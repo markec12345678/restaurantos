@@ -1,214 +1,99 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import type { RestaurantSettingsRow, WeeklyHoursRow, OrderResultRow } from '@/lib/types'
-import type {
-  Menu, MenuItem, Modifier, ModifierGroup, CartItem,
-  OrderType, CheckoutStep, DeliveryDetails, TakeoutDetails,
-  DeliveryZoneInfo, LocationInfo, PromoResult,
-} from '../types'
+import { useCallback } from 'react'
+import type { Menu, CartItem } from '../types'
 import {
   DEFAULT_DELIVERY_FEE, DEFAULT_MIN_ORDER,
   ESTIMATED_DELIVERY_MIN, ESTIMATED_TAKEOUT_MIN,
 } from '../constants'
 import {
-  addToCartLogic, removeFromCartLogic, updateQuantityLogic,
   getSubtotal, getDeliveryFee, getMinOrderAmount, getEstimatedMinutes,
-  getTotal, toggleModifierLogic,
+  getTotal,
 } from './cart-utils'
-import {
-  fetchMenuData, fetchOrderConfigData, checkDeliveryZoneApi,
-  checkPromoCodeApi, submitOrderApi,
-} from './api-helpers'
+import { useOrderState } from './use-order-state'
+import { useOrderActions } from './use-order-actions'
 
 // =====================================================================
 // HOOK: Stanje in logika spletne naročilne platforme
 // =====================================================================
 
 export function useOnlineOrder() {
-  const [menus, setMenus] = useState<Menu[]>([])
-  const [settings, setSettings] = useState<RestaurantSettingsRow | null>(null)
-  const [activeMenu, setActiveMenu] = useState<string>('')
-  const [activeCategory, setActiveCategory] = useState<string>('')
-  const [cart, setCart] = useState<CartItem[]>([])
-  const [loading, setLoading] = useState(true)
-  const [orderType, setOrderType] = useState<OrderType>('delivery')
-  const [step, setStep] = useState<CheckoutStep>('menu')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [isDark, setIsDark] = useState(false)
-  // --- Dodatna polja ---
-  const [isOpenNow, setIsOpenNow] = useState(true)
-  const [weeklyHours, setWeeklyHours] = useState<WeeklyHoursRow[]>([])
-  const [locations, setLocations] = useState<LocationInfo[]>([])
-  const [selectedLocation, setSelectedLocation] = useState<string>('')
-  const [deliveryZone, setDeliveryZone] = useState<DeliveryZoneInfo | null>(null)
-  const [deliveryZoneChecked, setDeliveryZoneChecked] = useState(false)
-  const [promoCode, setPromoCode] = useState('')
-  const [promoResult, setPromoResult] = useState<PromoResult | null>(null)
-  const [promoLoading, setPromoLoading] = useState(false)
-  const [showHours, setShowHours] = useState(false)
-
-  // Checkout podatki
-  const [deliveryDetails, setDeliveryDetails] = useState<DeliveryDetails>({
-    fullName: '', phone: '', email: '', address: '', city: '', postCode: '', notes: '',
+  const state = useOrderState()
+  const actions = useOrderActions({
+    cart: state.cart,
+    setCart: state.setCart,
+    setShowItemDetail: state.setShowItemDetail,
+    setItemNotes: state.setItemNotes,
+    setSelectedMods: state.setSelectedMods,
+    setOrderSending: state.setOrderSending,
+    setOrderResult: state.setOrderResult,
+    setStep: state.setStep,
+    setError: state.setError,
+    orderType: state.orderType,
+    deliveryZone: state.deliveryZone,
+    promoCode: state.promoCode,
+    promoResult: state.promoResult,
+    paymentMethod: state.paymentMethod,
+    deliveryDetails: state.deliveryDetails,
+    takeoutDetails: state.takeoutDetails,
+    selectedLocation: state.selectedLocation,
   })
-  const [takeoutDetails, setTakeoutDetails] = useState<TakeoutDetails>({
-    fullName: '', phone: '', email: '', notes: '', preferredTime: '',
-  })
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'cash' | 'mobile'>('card')
-  const [orderSending, setOrderSending] = useState(false)
-  const [orderResult, setOrderResult] = useState<OrderResultRow | null>(null)
-  const [error, setError] = useState<string>('')
-
-  // Item detail modal
-  const [showItemDetail, setShowItemDetail] = useState<MenuItem | null>(null)
-  const [itemNotes, setItemNotes] = useState('')
-  const [selectedMods, setSelectedMods] = useState<Modifier[]>([])
-
-  useEffect(() => {
-    initMenu()
-    initOrderConfig()
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    setIsDark(prefersDark)
-  }, [])
-
-  async function initMenu() {
-    const result = await fetchMenuData()
-    if (result.error) setError(result.error)
-    setMenus(result.menus)
-    setSettings(result.settings)
-    setActiveMenu(result.activeMenu)
-    setActiveCategory(result.activeCategory)
-    setLoading(false)
-  }
-
-  async function initOrderConfig() {
-    const result = await fetchOrderConfigData(selectedLocation)
-    if (result.error) setError(result.error)
-    setIsOpenNow(result.isOpenNow)
-    setWeeklyHours(result.weeklyHours)
-    setLocations(result.locations)
-    if (result.selectedLocation !== selectedLocation) setSelectedLocation(result.selectedLocation)
-  }
-
-  // Preveri cono dostave ko se spremeni naslov
-  async function checkDeliveryZone(postCode: string, city: string) {
-    const result = await checkDeliveryZoneApi(postCode, city)
-    setDeliveryZoneChecked(result.checked)
-    setDeliveryZone(result.zone)
-  }
-
-  // Preveri promo kodo
-  async function checkPromoCode() {
-    if (!promoCode.trim()) return
-    setPromoLoading(true)
-    try {
-      const sub = getSubtotal(cart)
-      const result = await checkPromoCodeApi(promoCode, sub)
-      setPromoResult(result)
-    } finally {
-      setPromoLoading(false)
-    }
-  }
-
-  const addToCart = useCallback((item: MenuItem, modifiers: Modifier[] = [], notes: string = '') => {
-    setCart(prev => addToCartLogic(prev, item, modifiers, notes))
-    setShowItemDetail(null)
-    setItemNotes('')
-    setSelectedMods([])
-  }, [])
-
-  const removeFromCart = useCallback((index: number) => {
-    setCart(prev => removeFromCartLogic(prev, index))
-  }, [])
-
-  const updateQuantity = useCallback((index: number, delta: number) => {
-    setCart(prev => updateQuantityLogic(prev, index, delta))
-  }, [])
-
-  function toggleModifier(mod: Modifier, group: ModifierGroup) {
-    setSelectedMods(prev => toggleModifierLogic(prev, mod, group))
-  }
-
-  async function placeOrder() {
-    if (cart.length === 0) return
-    setOrderSending(true)
-    try {
-      const _promoDiscount = promoResult?.valid && promoResult.discount ? promoResult.discount.discountAmount : 0
-      const deliveryFee = getDeliveryFee(orderType, getSubtotal(cart), deliveryZone, DEFAULT_DELIVERY_FEE)
-
-      const result = await submitOrderApi({
-        orderType,
-        cart,
-        paymentMethod,
-        deliveryDetails,
-        takeoutDetails,
-        deliveryFee,
-        promoCode,
-        promoResult,
-        selectedLocation,
-      })
-
-      if (result.success && result.data) {
-        setCart([])
-        setOrderResult(result.data)
-        setStep('confirmation')
-      } else {
-        alert(result.error || 'Napaka pri naročanju')
-      }
-    } catch {
-      setError('Napaka pri oddaji naročila.')
-    } finally {
-      setOrderSending(false)
-    }
-  }
 
   // --- Izpeljane vrednosti ---
-  const currentMenu = menus.find(m => m.id === activeMenu)
-  const currentCategory = currentMenu?.categories.find(c => c.id === activeCategory)
-  const filteredItems = searchQuery && currentCategory
+  const currentMenu = state.menus.find((m: Menu) => m.id === state.activeMenu)
+  const currentCategory = currentMenu?.categories.find(c => c.id === state.activeCategory)
+  const filteredItems = state.searchQuery && currentCategory
     ? currentCategory.menuItems.filter(item =>
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.description.toLowerCase().includes(searchQuery.toLowerCase())
+        item.name.toLowerCase().includes(state.searchQuery.toLowerCase()) ||
+        item.description.toLowerCase().includes(state.searchQuery.toLowerCase())
       )
     : currentCategory?.menuItems || []
-  const cartItemCount = cart.reduce((s, i) => s + i.quantity, 0)
-  const subtotal = getSubtotal(cart)
-  const promoDiscount = promoResult?.valid && promoResult.discount ? promoResult.discount.discountAmount : 0
-  const total = getTotal(cart, orderType, deliveryZone, promoDiscount, DEFAULT_DELIVERY_FEE)
+  const cartItemCount = state.cart.reduce((s: number, i: CartItem) => s + i.quantity, 0)
+  const subtotal = getSubtotal(state.cart)
+  const promoDiscount = state.promoResult?.valid && state.promoResult.discount ? state.promoResult.discount.discountAmount : 0
+  const total = getTotal(state.cart, state.orderType, state.deliveryZone, promoDiscount, DEFAULT_DELIVERY_FEE)
 
   const resetAfterConfirmation = useCallback(() => {
-    setStep('menu')
-    setOrderResult(null)
-    setPromoCode('')
-    setPromoResult(null)
-    setDeliveryZone(null)
-    setDeliveryZoneChecked(false)
-  }, [])
+    state.setStep('menu')
+    state.setOrderResult(null)
+    state.setPromoCode('')
+    state.setPromoResult(null)
+    state.setDeliveryZone(null)
+    state.setDeliveryZoneChecked(false)
+  }, [state])
 
   return {
     // Stanje
-    menus, settings, activeMenu, setActiveMenu, activeCategory, setActiveCategory,
-    cart, loading, orderType, setOrderType, step, setStep,
-    searchQuery, setSearchQuery, isDark, setIsDark,
-    isOpenNow, weeklyHours, locations, selectedLocation, setSelectedLocation,
-    deliveryZone, deliveryZoneChecked, promoCode, setPromoCode,
-    promoResult, setPromoResult, promoLoading, showHours, setShowHours,
-    deliveryDetails, setDeliveryDetails, takeoutDetails, setTakeoutDetails,
-    paymentMethod, setPaymentMethod, orderSending, orderResult, error, setError,
-    showItemDetail, setShowItemDetail, itemNotes, setItemNotes,
-    selectedMods, setSelectedMods, toggleModifier,
+    menus: state.menus, settings: state.settings, activeMenu: state.activeMenu, setActiveMenu: state.setActiveMenu,
+    activeCategory: state.activeCategory, setActiveCategory: state.setActiveCategory,
+    cart: state.cart, loading: state.loading, orderType: state.orderType, setOrderType: state.setOrderType,
+    step: state.step, setStep: state.setStep,
+    searchQuery: state.searchQuery, setSearchQuery: state.setSearchQuery, isDark: state.isDark, setIsDark: state.setIsDark,
+    isOpenNow: state.isOpenNow, weeklyHours: state.weeklyHours, locations: state.locations,
+    selectedLocation: state.selectedLocation, setSelectedLocation: state.setSelectedLocation,
+    deliveryZone: state.deliveryZone, deliveryZoneChecked: state.deliveryZoneChecked,
+    promoCode: state.promoCode, setPromoCode: state.setPromoCode,
+    promoResult: state.promoResult, setPromoResult: state.setPromoResult,
+    promoLoading: state.promoLoading, showHours: state.showHours, setShowHours: state.setShowHours,
+    deliveryDetails: state.deliveryDetails, setDeliveryDetails: state.setDeliveryDetails,
+    takeoutDetails: state.takeoutDetails, setTakeoutDetails: state.setTakeoutDetails,
+    paymentMethod: state.paymentMethod, setPaymentMethod: state.setPaymentMethod,
+    orderSending: state.orderSending, orderResult: state.orderResult, error: state.error, setError: state.setError,
+    showItemDetail: state.showItemDetail, setShowItemDetail: state.setShowItemDetail,
+    itemNotes: state.itemNotes, setItemNotes: state.setItemNotes,
+    selectedMods: state.selectedMods, setSelectedMods: state.setSelectedMods,
+    toggleModifier: actions.toggleModifier,
     // Izračuni
     currentMenu, currentCategory, filteredItems,
     cartItemCount, subtotal, total,
-    getSubtotal: () => getSubtotal(cart),
-    getDeliveryFee: () => getDeliveryFee(orderType, subtotal, deliveryZone, DEFAULT_DELIVERY_FEE),
-    getMinOrderAmount: () => getMinOrderAmount(deliveryZone, DEFAULT_MIN_ORDER),
-    getEstimatedMinutes: () => getEstimatedMinutes(orderType, deliveryZone, ESTIMATED_DELIVERY_MIN, ESTIMATED_TAKEOUT_MIN),
-    getTotal: () => getTotal(cart, orderType, deliveryZone, promoDiscount, DEFAULT_DELIVERY_FEE),
+    getSubtotal: () => getSubtotal(state.cart),
+    getDeliveryFee: () => getDeliveryFee(state.orderType, subtotal, state.deliveryZone, DEFAULT_DELIVERY_FEE),
+    getMinOrderAmount: () => getMinOrderAmount(state.deliveryZone, DEFAULT_MIN_ORDER),
+    getEstimatedMinutes: () => getEstimatedMinutes(state.orderType, state.deliveryZone, ESTIMATED_DELIVERY_MIN, ESTIMATED_TAKEOUT_MIN),
+    getTotal: () => getTotal(state.cart, state.orderType, state.deliveryZone, promoDiscount, DEFAULT_DELIVERY_FEE),
     // Akcije
-    addToCart, removeFromCart, updateQuantity,
-    checkDeliveryZone, checkPromoCode, placeOrder,
+    addToCart: actions.addToCart, removeFromCart: actions.removeFromCart, updateQuantity: actions.updateQuantity,
+    checkDeliveryZone: state.checkDeliveryZone, checkPromoCode: state.checkPromoCode, placeOrder: actions.placeOrder,
     resetAfterConfirmation,
     // Konstante (za prikaz)
     ESTIMATED_DELIVERY_MIN, ESTIMATED_TAKEOUT_MIN,

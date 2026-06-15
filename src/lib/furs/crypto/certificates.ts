@@ -3,14 +3,10 @@
 // Ekstrakcija certifikatov iz PKCS12
 // ============================================
 
-import crypto from 'crypto'
 import fs from 'fs'
-import path from 'path'
-import { execFileSync } from 'child_process'
 import { logger } from '../../logger'
-
-// Cache naloženega ključa (da ne beremo certifikata pri vsakem klicu)
-let cachedPrivateKey: { key: string | Buffer; loadedAt: number } | null = null
+import { loadFromPKCS12, getCachedPrivateKey, setCachedPrivateKey, clearPrivateKeyCache } from './pkcs12-loader'
+import { loadFromPEM, detectCertType } from './pem-loader'
 
 /**
  * Naloži privatni ključ iz p12/pfx certifikata za FURS podpisovanje
@@ -27,8 +23,9 @@ export function loadCertificatePrivateKey(
   password: string
 ): string | Buffer | null {
   // Preveri cache (veljaven 1 uro)
-  if (cachedPrivateKey && cachedPrivateKey.loadedAt > Date.now() - 3600000) {
-    return cachedPrivateKey.key
+  const cached = getCachedPrivateKey()
+  if (cached && cached.loadedAt > Date.now() - 3600000) {
+    return cached.key
   }
 
   try {
@@ -38,15 +35,17 @@ export function loadCertificatePrivateKey(
       return null
     }
 
-    const certExt = path.extname(certPath).toLowerCase()
+    const certType = detectCertType(certPath)
 
-    if (certExt === '.p12' || certExt === '.pfx') {
+    if (certType === 'pkcs12') {
       return loadFromPKCS12(certPath, password)
-    } else if (certExt === '.pem' || certExt === '.key') {
-      return loadFromPEM(certPath)
+    } else if (certType === 'pem') {
+      const result = loadFromPEM(certPath)
+      if (result) setCachedPrivateKey(result)
+      return result
     } else {
       // Poskusi kot PKCS12
-      logger.warn('FURS', `Nepoznana končnica ${certExt}, poskušam kot PKCS12`)
+      logger.warn('FURS', `Nepoznana končnica, poskušam kot PKCS12`)
       return loadFromPKCS12(certPath, password)
     }
   } catch (err: unknown) {
@@ -59,148 +58,9 @@ export function loadCertificatePrivateKey(
  * Počisti cache certifikata (npr. ob spremembi nastavitev)
  */
 export function clearCertificateCache(): void {
-  cachedPrivateKey = null
+  clearPrivateKeyCache()
 }
 
-/**
- * Ekstrahiraj privatni ključ iz PKCS12 datoteke z OpenSSL
- *
- * OpenSSL ukaz: openssl pkcs12 -in file.p12 -nocerts -nodes -passin pass:XXX
- * Vrne PEM formatiran privatni ključ
- */
-function loadFromPKCS12(certPath: string, password: string): string | null {
-  try {
-    // Metoda 1: OpenSSL CLI (najbolj zanesljiva za FURS certifikate)
-    // FIX CRITICAL: Uporabi execFileSync namesto execSync — prepreči shell injection
-    // execFileSync podaja argumente direktno procesu BREZ shell interpretacije
-    const pemKey = execFileSync('openssl', [
-      'pkcs12', '-in', certPath, '-nocerts', '-nodes',
-      '-passin', `pass:${password}`,
-    ], {
-      encoding: 'utf8',
-      timeout: 10000,
-      maxBuffer: 1024 * 1024, // 1MB max
-      stdio: ['pipe', 'pipe', 'pipe'], // stderr captured, not suppressed
-    }).trim()
-
-    if (!pemKey || !pemKey.includes('BEGIN')) {
-      logger.error('FURS', 'OpenSSL ni vrnil veljavnega ključa')
-      return tryNodeCryptoPKCS12(certPath, password)
-    }
-
-    // Preveri, da je ključ pravilen (poskusi ustvariti KeyObject)
-    try {
-      const keyObject = crypto.createPrivateKey({
-        key: pemKey,
-        format: 'pem',
-      })
-      // Preveri, da je RSA
-      if (keyObject.asymmetricKeyType !== 'rsa') {
-        logger.warn('FURS', `Ključ ni RSA (je ${keyObject.asymmetricKeyType}) — FURS zahteva RSA`)
-      }
-    } catch (verifyErr: unknown) {
-      logger.error('FURS', 'Ključ iz OpenSSL ni veljaven:', verifyErr)
-      return tryNodeCryptoPKCS12(certPath, password)
-    }
-
-    // Cache
-    cachedPrivateKey = { key: pemKey, loadedAt: Date.now() }
-    logger.info('FURS', 'Privatni ključ uspešno naložen iz PKCS12 (OpenSSL)')
-    return pemKey
-  } catch (err: unknown) {
-    // OpenSSL ni na voljo ali je napaka — poskusi Node.js crypto
-    logger.warn('FURS', 'OpenSSL napaka, poskušam Node.js crypto fallback:',
-      err instanceof Error ? err.message : String(err))
-    return tryNodeCryptoPKCS12(certPath, password)
-  }
-}
-
-/**
- * Fallback: Poskusi naložiti PKCS12 z Node.js crypto.createPrivateKey
- * (Podprto v Node.js 17+ z --experimental-openssl-legacy-provider)
- */
-function tryNodeCryptoPKCS12(certPath: string, password: string): string | null {
-  try {
-    const p12Buffer = fs.readFileSync(certPath)
-
-    // Node.js createPrivateKey z DER formatom iz PKCS12
-    // Opomba: To deluje samo, če je PKCS12 brez šifriranega ključa
-    // ali če Node.js podpira dešifriranje z danim geslom
-    const keyObject = crypto.createPrivateKey({
-      key: p12Buffer,
-      format: 'der',
-      type: 'pkcs8',
-      passphrase: password,
-    })
-
-    const pemKey = keyObject.export({ type: 'pkcs8', format: 'pem' }) as string
-
-    cachedPrivateKey = { key: pemKey, loadedAt: Date.now() }
-    logger.info('FURS', 'Privatni ključ naložen iz PKCS12 (Node.js crypto)')
-    return pemKey
-  } catch (err: unknown) {
-    logger.error('FURS', 'Node.js crypto PKCS12 fallback napaka:',
-      err instanceof Error ? err.message : String(err))
-    return null
-  }
-}
-
-/**
- * Naloži privatni ključ iz PEM datoteke
- */
-function loadFromPEM(certPath: string): string | null {
-  try {
-    const pemData = fs.readFileSync(certPath, 'utf8')
-
-    // Preveri, da je veljaven PEM ključ
-    if (!pemData.includes('BEGIN')) {
-      logger.error('FURS', 'Datoteka ne vsebuje veljavnega PEM ključa')
-      return null
-    }
-
-    // Preveri z crypto
-    try {
-      crypto.createPrivateKey({ key: pemData, format: 'pem' })
-    } catch {
-      logger.error('FURS', 'PEM ključ ni veljaven')
-      return null
-    }
-
-    cachedPrivateKey = { key: pemData, loadedAt: Date.now() }
-    logger.info('FURS', 'Privatni ključ naložen iz PEM datoteke')
-    return pemData
-  } catch (err: unknown) {
-    logger.error('FURS', 'Napaka pri branju PEM datoteke:', err)
-    return null
-  }
-}
-
-/**
- * Preberi certifikat iz PKCS12 in izvleči podatke (ZA IZDAJO, ne za podpis)
- * Vrne certifikat v PEM formatu
- */
-export function extractCertificateFromPKCS12(
-  certPath: string,
-  password: string
-): string | null {
-  try {
-    // FIX CRITICAL: Uporabi execFileSync namesto execSync — prepreči shell injection
-    const pemCert = execFileSync('openssl', [
-      'pkcs12', '-in', certPath, '-clcerts', '-nokeys',
-      '-passin', `pass:${password}`,
-    ], {
-      encoding: 'utf8',
-      timeout: 10000,
-      maxBuffer: 1024 * 1024,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim()
-
-    if (!pemCert || !pemCert.includes('BEGIN CERTIFICATE')) {
-      return null
-    }
-
-    return pemCert
-  } catch {
-    return null
-  }
-}
+// Re-export
+export { extractCertificateFromPKCS12 } from './pem-loader'
+export { tryNodeCryptoPKCS12 } from './pkcs12-loader'

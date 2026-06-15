@@ -1,18 +1,16 @@
 'use client'
 import { useState, useCallback, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { DollarSign, ShoppingBag, Wallet, ChevronLeft, ChevronRight, UtensilsCrossed } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
 import { authFetch } from '@/components/pos/PinLogin'
-import { PeriodType, PIE_COLORS } from './constants'
-import {
-  BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-} from 'recharts'
+import { PeriodType } from './constants'
+import { TableRevenueSummaryCards } from './table-revenue/TableRevenueSummaryCards'
+import { TableRevenueCharts } from './table-revenue/TableRevenueCharts'
+import { TableRevenueDetailsTable } from './table-revenue/TableRevenueDetailsTable'
 
 // ============================================
 // PRIHODEK PO MIZAH — Analiza zasedenosti in prometa
@@ -65,6 +63,7 @@ export function TableRevenueReport() {
   }
   return (
     <div className="space-y-6">
+      {/* Navigacija po datumih */}
       <div className="flex items-center justify-center gap-4">
         <Button variant="outline" size="icon" aria-label="Nazaj" onClick={() => navigateDate(-1)}>
           <ChevronLeft className="h-4 w-4" />
@@ -84,125 +83,15 @@ export function TableRevenueReport() {
           </Button>
         ))}
       </div>
-      {/* Povzetek */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="text-center p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20 border">
-          <UtensilsCrossed className="h-5 w-5 mx-auto text-blue-600 mb-1" />
-          <p className="text-xs text-muted-foreground mb-1">Aktivne mize</p>
-          <p className="text-2xl font-bold text-blue-600">{tables.length}</p>
-        </div>
-        <div className="text-center p-4 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border">
-          <DollarSign className="h-5 w-5 mx-auto text-emerald-600 mb-1" />
-          <p className="text-xs text-muted-foreground mb-1">Prihodek mize</p>
-          <p className="text-2xl font-bold text-emerald-600">{fmt(totalTableRevenue)}</p>
-        </div>
-        <div className="text-center p-4 rounded-lg bg-purple-50 dark:bg-purple-900/20 border">
-          <ShoppingBag className="h-5 w-5 mx-auto text-purple-600 mb-1" />
-          <p className="text-xs text-muted-foreground mb-1">Naročila</p>
-          <p className="text-2xl font-bold text-purple-600">{totalTableOrders}</p>
-        </div>
-        <div className="text-center p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border">
-          <Wallet className="h-5 w-5 mx-auto text-amber-600 mb-1" />
-          <p className="text-xs text-muted-foreground mb-1">Napitnine</p>
-          <p className="text-2xl font-bold text-amber-600">{fmt(totalTableTips)}</p>
-        </div>
-      </div>
-      {/* Grafikon po mizah */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <UtensilsCrossed className="h-4 w-4" />
-              Prihodek po mizah
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {tables.length > 0 ? (
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={tables.slice(0, 15)}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="tableNumber" tick={{ fontSize: 11 }} label={{ value: 'Miza', position: 'insideBottom', offset: -5, fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
-                    <Tooltip formatter={(value: number) => [`€${value.toFixed(2)}`, 'Prihodek']} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
-                    <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <p className="text-center py-12 text-muted-foreground">Ni naročil za mizami v tem obdobju</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Prihodek po conah</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {Object.values(areas).length > 0 ? (
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={Object.values(areas)}
-                      dataKey="revenue"
-                      nameKey="area"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={80}
-                      label={({ area, percent }: { area: string; percent: number }) => `${areaLabels[area] || area} ${(percent * 100).toFixed(0)}%`}
-                    >
-                      {Object.values(areas).map((_entry: unknown, index: number) => (
-                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value: number) => [`€${value.toFixed(2)}`, 'Prihodek']} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <p className="text-center py-12 text-muted-foreground">Ni podatkov po conah</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-      {/* Tabela podrobnosti */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg">Podrobnosti po mizah</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="border rounded-lg overflow-hidden max-h-96 overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-muted/50">
-                <tr className="border-b">
-                  <th className="text-left p-3 font-medium">Miza</th>
-                  <th className="text-left p-3 font-medium">Cona</th>
-                  <th className="text-right p-3 font-medium">Naročila</th>
-                  <th className="text-right p-3 font-medium">Prihodek</th>
-                  <th className="text-right p-3 font-medium">Povp.</th>
-                  <th className="text-right p-3 font-medium">Napitnine</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tables.map((t: { tableNumber: number; area: string; orderCount: number; revenue: number; avgOrder: number; tips: number }, idx: number) => (
-                  <tr key={idx} className="border-b hover:bg-muted/30">
-                    <td className="p-3 font-bold">Miza {t.tableNumber}</td>
-                    <td className="p-3">{areaLabels[t.area] || t.area}</td>
-                    <td className="p-3 text-right">{t.orderCount}</td>
-                    <td className="p-3 text-right font-semibold text-emerald-600">{fmt(t.revenue)}</td>
-                    <td className="p-3 text-right">{fmt(t.avgOrder)}</td>
-                    <td className="p-3 text-right text-amber-600">{fmt(t.tips)}</td>
-                  </tr>
-                ))}
-                {tables.length === 0 && (
-                  <tr><td colSpan={6} className="p-6 text-center text-muted-foreground">Ni naročil za mizami</td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      <TableRevenueSummaryCards
+        activeTables={tables.length}
+        totalRevenue={totalTableRevenue}
+        totalOrders={totalTableOrders}
+        totalTips={totalTableTips}
+        fmt={fmt}
+      />
+      <TableRevenueCharts tables={tables} areas={areas} areaLabels={areaLabels} />
+      <TableRevenueDetailsTable tables={tables} areaLabels={areaLabels} fmt={fmt} />
     </div>
   )
 }

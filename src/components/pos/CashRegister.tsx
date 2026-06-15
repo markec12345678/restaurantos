@@ -8,8 +8,6 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Lock, Unlock, CalendarCheck } from 'lucide-react'
 import { useState, memo, useCallback } from 'react'
 import { format } from 'date-fns'
@@ -18,6 +16,7 @@ import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import type { OpenShiftFormType, CloseShiftFormType, EodFormType } from './cash-register/constants'
 import { useCashRegisterMutations } from './cash-register/useCashRegisterMutations'
+import { CashRegisterLoading, NoActiveShiftCard } from './cash-register/CashRegisterLoading'
 
 // Lazy-loaded podkomponente
 const ActiveShiftView = dynamic(() => import('./cash-register/ActiveShiftView').then(m => ({ default: m.ActiveShiftView })), { ssr: false })
@@ -34,7 +33,6 @@ export const CashRegister = memo(function CashRegister() {
   const [closeForm, setCloseForm] = useState<CloseShiftFormType>({ closingCash: '', notes: '' })
   const [eodForm, setEodForm] = useState<EodFormType>({ closingCash: '', notes: '' })
 
-  // Memoizirani izračuni za EOD povzetek — ne prerčunava na vsakem renderju
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.cashRegister.all,
     queryFn: async () => {
@@ -54,10 +52,7 @@ export const CashRegister = memo(function CashRegister() {
     },
   })
 
-  // Zagotovi, da so employees vedno array (tudi ob napaki query-ja)
   const employeesList = Array.isArray(employees) ? employees : []
-
-  // ─── EOD (Zaključek obratovalnega dneva) ───
   const [eodDate] = useState(format(new Date(), 'yyyy-MM-dd'))
 
   const { data: eodData, isLoading: eodLoading } = useQuery({
@@ -74,9 +69,6 @@ export const CashRegister = memo(function CashRegister() {
   const liveStats = data?.liveStats
   const recentShifts = data?.recentShifts || []
 
-  // ============================================
-  // MUTATIONS (podedovane iz pod-hooka)
-  // ============================================
   const { openShiftMutation, closeShiftMutation, eodCloseMutation } = useCashRegisterMutations({
     onCloseOpenDialog: () => setOpenDialog(false),
     onCloseCloseDialog: () => setCloseDialog(false),
@@ -84,7 +76,6 @@ export const CashRegister = memo(function CashRegister() {
     onResetEodForm: () => setEodForm({ closingCash: '', notes: '' }),
   })
 
-  // --- Callbacks za podkomponente ---
   const handleOpenShiftSubmit = useCallback((form: OpenShiftFormType) => {
     openShiftMutation.mutate(form)
   }, [openShiftMutation])
@@ -94,7 +85,6 @@ export const CashRegister = memo(function CashRegister() {
   }, [activeShift, closeForm, closeShiftMutation])
 
   const handleEodSubmit = useCallback(() => {
-    // FIX HIGH: Null-safe izračun closingCash — prej crash če eodData undefined
     const startingCash = eodData?.activeShift?.startingCash ?? 0
     const totalRevenue = eodData?.summary?.totalRevenue ?? 0
     const closingCash = eodForm.closingCash ? parseFloat(eodForm.closingCash) : startingCash + totalRevenue
@@ -103,15 +93,7 @@ export const CashRegister = memo(function CashRegister() {
   }, [eodData, eodForm, eodCloseMutation, eodDate])
 
   if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <Skeleton className="h-10 w-48" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28" />)}
-        </div>
-        <Skeleton className="h-64" />
-      </div>
-    )
+    return <CashRegisterLoading />
   }
 
   return (
@@ -123,90 +105,30 @@ export const CashRegister = memo(function CashRegister() {
         </div>
         {activeShift ? (
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setEodDialog(true)}
-              aria-label="Zaključi dan"
-            >
-              <CalendarCheck className="h-4 w-4 mr-2" />
-              Zaključi dan
+            <Button variant="outline" onClick={() => setEodDialog(true)} aria-label="Zaključi dan">
+              <CalendarCheck className="h-4 w-4 mr-2" />Zaključi dan
             </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                setCloseForm({ closingCash: String(liveStats?.expectedCash || activeShift.startingCash), notes: '' })
-                setCloseDialog(true)
-              }}
-              aria-label="Zapri izmeno"
-            >
-              <Lock className="h-4 w-4 mr-2" />
-              Zapri izmeno
+            <Button variant="destructive" onClick={() => { setCloseForm({ closingCash: String(liveStats?.expectedCash || activeShift.startingCash), notes: '' }); setCloseDialog(true) }} aria-label="Zapri izmeno">
+              <Lock className="h-4 w-4 mr-2" />Zapri izmeno
             </Button>
           </div>
         ) : (
           <Button onClick={() => setOpenDialog(true)} aria-label="Odpri izmeno">
-            <Unlock className="h-4 w-4 mr-2" />
-            Odpri izmeno
+            <Unlock className="h-4 w-4 mr-2" />Odpri izmeno
           </Button>
         )}
       </div>
 
-      {/* Active Shift Info */}
       {activeShift ? (
         <ActiveShiftView activeShift={activeShift} liveStats={liveStats} />
       ) : (
-        /* No active shift */
-        <Card className="border-dashed">
-          <CardContent className="py-12 text-center">
-            <Lock className="h-12 w-12 mx-auto mb-4 text-muted-foreground/30" />
-            <h3 className="text-lg font-semibold mb-2">Blagajna ni odprta</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Za začetek prodaje morate odpreti novo izmeno in vnesti začetno stanje gotovine.
-            </p>
-            <Button onClick={() => setOpenDialog(true)} aria-label="Odpri izmeno">
-              <Unlock className="h-4 w-4 mr-2" />
-              Odpri izmeno
-            </Button>
-          </CardContent>
-        </Card>
+        <NoActiveShiftCard onOpenShift={() => setOpenDialog(true)} />
       )}
 
-      {/* Recent Closed Shifts */}
       <RecentShiftsList shifts={recentShifts} />
-
-      {/* Open Shift Dialog */}
-      <OpenShiftDialog
-        open={openDialog}
-        onOpenChange={setOpenDialog}
-        form={openForm}
-        onFormChange={setOpenForm}
-        employees={employeesList}
-        onSubmit={handleOpenShiftSubmit}
-        isPending={openShiftMutation.isPending}
-      />
-
-      {/* Close Shift Dialog */}
-      <CloseShiftDialog
-        open={closeDialog}
-        onOpenChange={setCloseDialog}
-        form={closeForm}
-        onFormChange={setCloseForm}
-        liveStats={liveStats}
-        onSubmit={handleCloseShiftSubmit}
-        isPending={closeShiftMutation.isPending}
-      />
-
-      {/* ─── ZOD: Zaključek obratovalnega dneva ─── */}
-      <EodDialog
-        open={eodDialog}
-        onOpenChange={setEodDialog}
-        eodData={eodData}
-        eodLoading={eodLoading}
-        form={eodForm}
-        onFormChange={setEodForm}
-        onSubmit={handleEodSubmit}
-        isPending={eodCloseMutation.isPending}
-      />
+      <OpenShiftDialog open={openDialog} onOpenChange={setOpenDialog} form={openForm} onFormChange={setOpenForm} employees={employeesList} onSubmit={handleOpenShiftSubmit} isPending={openShiftMutation.isPending} />
+      <CloseShiftDialog open={closeDialog} onOpenChange={setCloseDialog} form={closeForm} onFormChange={setCloseForm} liveStats={liveStats} onSubmit={handleCloseShiftSubmit} isPending={closeShiftMutation.isPending} />
+      <EodDialog open={eodDialog} onOpenChange={setEodDialog} eodData={eodData} eodLoading={eodLoading} form={eodForm} onFormChange={setEodForm} onSubmit={handleEodSubmit} isPending={eodCloseMutation.isPending} />
     </div>
   )
 })
