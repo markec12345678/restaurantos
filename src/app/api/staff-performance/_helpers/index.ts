@@ -4,9 +4,12 @@ export {
   type EmployeePerformance,
   type PerformanceTotals,
   getDateRange,
-  computeEmployeePerformance,
-  calculatePerformanceScores,
   computeTotals,
 } from './metrics'
+
+export {
+  computeEmployeePerformance,
+  calculatePerformanceScores,
+} from './performance-calc'
 
 export { fetchPerformanceData } from './data-fetch'

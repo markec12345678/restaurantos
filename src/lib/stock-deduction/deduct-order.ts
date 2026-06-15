@@ -1,10 +1,12 @@
 // ============================================
 // ODBIJI ZALOGO OB PRODAJI (FIRE naročila)
+// Orchestrator — recipe + direct deduction
 // ============================================
 
 import { db } from '../db'
-import { toNum, round2, multiply, add } from '../decimal'
 import type { StockDeductionItem, StockDeductionResult } from './types'
+import { deductRecipeItems } from './deduct-recipe'
+import { deductDirectItem } from './deduct-direct'
 
 export async function deductStockForOrder(
   orderId: string,
@@ -31,142 +33,15 @@ export async function deductStockForOrder(
     return result
   }
 
-  // FIX HIGH: Celotno razknjiževanje v eni transakciji — prepreči parcialno stanje
-  // inventoryDeducted flag se nastavi ZNOTRAJ transakcije, kar zagotavlja atomarnost
+  // Celotno razknjiževanje v eni transakciji — prepreči parcialno stanje
   await db.$transaction(async (tx) => {
-    // Obdelaj vsak artikel
-    for (const item of items) {
-      if (item.voided) continue
+    // 1. Recipe-based deduction (vrne indekse obdelanih postavk)
+    const recipeHandled = await deductRecipeItems(tx, items, orderId, orderNumber, result)
 
-      // 1. Preveri RecipeItem (večsastavni recepti) — PREDNOST
-      const recipeItems = await tx.recipeItem.findMany({
-        where: { menuItemId: item.menuItemId },
-      })
-
-      if (recipeItems.length > 0) {
-        // Uporabi receptne sestavine
-        for (const recipe of recipeItems) {
-          const qtyToDeduct = toNum(multiply(recipe.quantityPerServing, item.quantity))
-
-          const invItem = await tx.inventoryItem.findUnique({
-            where: { id: recipe.inventoryItemId },
-          })
-
-          if (!invItem) {
-            result.errors.push({
-              inventoryItemId: recipe.inventoryItemId,
-              error: `Sestavina ${recipe.inventoryItemId} ni najdena`,
-            })
-            continue
-          }
-
-          // Atomic decrement
-          const updatedItem = await tx.inventoryItem.update({
-            where: { id: invItem.id },
-            data: { quantity: { decrement: qtyToDeduct } },
-          })
-          const previousQty = toNum(add(updatedItem.quantity, qtyToDeduct))
-          let newQty = toNum(updatedItem.quantity)
-
-          // Clamp to 0 if negative
-          let actualDeducted = qtyToDeduct
-          if (newQty < 0) {
-            actualDeducted = round2(add(qtyToDeduct, newQty))
-            await tx.inventoryItem.update({ where: { id: invItem.id }, data: { quantity: 0 } })
-            newQty = 0
-          }
-
-          await tx.stockTransaction.create({
-            data: {
-              inventoryItemId: invItem.id,
-              type: 'sale',
-              quantity: -actualDeducted,
-              previousQty,
-              newQty,
-              costPerUnit: invItem.costPerUnit,
-              totalCost: round2(multiply(actualDeducted, invItem.costPerUnit)),
-              reason: `Prodaja - naročilo #${orderNumber}`,
-              orderId,
-            },
-          })
-
-          result.deducted.push({
-            inventoryItemId: invItem.id,
-            name: invItem.name,
-            quantityDeducted: qtyToDeduct,
-            previousQty,
-            newQty,
-            method: 'recipe',
-          })
-
-          if (newQty <= toNum(invItem.minQuantity)) {
-            result.lowStockAlerts.push({
-              inventoryItemId: invItem.id,
-              name: invItem.name,
-              currentQty: newQty,
-              minQty: toNum(invItem.minQuantity),
-            })
-          }
-        }
-      } else {
-        // 2. Fallback: direktna 1:1 povezava InventoryItem↔MenuItem
-        const invItem = await tx.inventoryItem.findFirst({
-          where: { menuItemId: item.menuItemId },
-        })
-
-        if (!invItem || toNum(invItem.servingsPerUnit) <= 0) continue
-
-        const unitsPerServing = 1 / toNum(invItem.servingsPerUnit)
-        const totalUnitsToDeduct = Math.round(item.quantity * unitsPerServing * 10000) / 10000
-
-        // Atomic decrement
-        const updatedItem = await tx.inventoryItem.update({
-          where: { id: invItem.id },
-          data: { quantity: { decrement: totalUnitsToDeduct } },
-        })
-        const previousQty = toNum(add(updatedItem.quantity, totalUnitsToDeduct))
-        let newQty = toNum(updatedItem.quantity)
-
-        // Clamp to 0 if negative
-        let actualDeducted = totalUnitsToDeduct
-        if (newQty < 0) {
-          actualDeducted = round2(add(totalUnitsToDeduct, newQty))
-          await tx.inventoryItem.update({ where: { id: invItem.id }, data: { quantity: 0 } })
-          newQty = 0
-        }
-
-        await tx.stockTransaction.create({
-          data: {
-            inventoryItemId: invItem.id,
-            type: 'sale',
-            quantity: -actualDeducted,
-            previousQty,
-            newQty,
-            costPerUnit: invItem.costPerUnit,
-            totalCost: round2(multiply(actualDeducted, invItem.costPerUnit)),
-            reason: `Prodaja - naročilo #${orderNumber}`,
-            orderId,
-          },
-        })
-
-        result.deducted.push({
-          inventoryItemId: invItem.id,
-          name: invItem.name,
-          quantityDeducted: totalUnitsToDeduct,
-          previousQty,
-          newQty,
-          method: 'direct',
-        })
-
-        if (newQty <= toNum(invItem.minQuantity)) {
-          result.lowStockAlerts.push({
-            inventoryItemId: invItem.id,
-            name: invItem.name,
-            currentQty: newQty,
-            minQty: toNum(invItem.minQuantity),
-          })
-        }
-      }
+    // 2. Direct deduction za preostale postavke
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].voided || recipeHandled.has(i)) continue
+      await deductDirectItem(tx, items[i], orderId, orderNumber, result)
     }
 
     // Označi naročilo kot razknjiženo ZNOTRAJ transakcije — atomarno

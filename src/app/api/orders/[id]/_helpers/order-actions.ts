@@ -1,5 +1,4 @@
-// Pomožne funkcije za posodabljanje naročil
-// PUT/PATCH/DELETE /api/orders/[id] — pomožni modul za statusne prehode in akcije
+// Pomožne funkcije za posodabljanje naročil — akcije (broadcast, completion, cancellation)
 
 import { db, createAuditLog } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
@@ -7,23 +6,6 @@ import { returnStockForOrder, broadcastLowStockAlert } from '@/lib/stock-deducti
 import { getAppUrl } from '@/lib/utils'
 import { emitEvent } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
-import { NextResponse } from 'next/server'
-
-// ─── Status transition state machine — prepreči nazadovanje statusa ───
-export const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
-  'pending': ['in-progress', 'cancelled'],
-  'in-progress': ['ready', 'cancelled'],
-  'ready': ['completed', 'cancelled'],
-  'completed': [], // Completed orders CANNOT change status (one-way)
-  'cancelled': [],  // Cancelled orders CANNOT be revived
-}
-
-export const VALID_PAYMENT_TRANSITIONS: Record<string, string[]> = {
-  'unpaid': ['partial', 'paid'],
-  'partial': ['paid'],
-  'paid': ['storno'],
-  'storno': [],
-}
 
 // ─── Helper za WebSocket broadcast ───
 export async function broadcastWS(type: string, payload: unknown) {
@@ -156,32 +138,4 @@ export async function handleOrderCancellation(
     orderId: id, orderNumber: existingOrder.orderNumber,
     cancelReason: cancelReason || '',
   })
-}
-
-// Preveri veljavnost prehoda statusa in plačilnega statusa
-export function validateOrderTransitions(
-  existingOrder: { status: string; paymentStatus: string },
-  data: { status?: string; paymentStatus?: string },
-): NextResponse | null {
-  if (data.status && data.status !== existingOrder.status) {
-    const allowedTransitions = VALID_STATUS_TRANSITIONS[existingOrder.status] || []
-    if (!allowedTransitions.includes(data.status)) {
-      return NextResponse.json(
-        { error: `Prehod iz '${existingOrder.status}' v '${data.status}' ni dovoljen. Dovoljeni: [${allowedTransitions.join(', ')}]` },
-        { status: 400 }
-      )
-    }
-  }
-
-  if (data.paymentStatus && data.paymentStatus !== existingOrder.paymentStatus) {
-    const allowed = VALID_PAYMENT_TRANSITIONS[existingOrder.paymentStatus] || []
-    if (!allowed.includes(data.paymentStatus)) {
-      return NextResponse.json(
-        { error: `Plačilni prehod iz '${existingOrder.paymentStatus}' v '${data.paymentStatus}' ni dovoljen` },
-        { status: 400 }
-      )
-    }
-  }
-
-  return null
 }

@@ -2,15 +2,15 @@
 // QR Menu - Main hook za stanje in logiko
 // =====================================================================
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import type { BeforeInstallPromptEvent } from '@/lib/types';
+import { useState, useCallback, useRef } from 'react';
 import { useFocusTrap } from '@/lib/use-focus-trap';
 import type { Menu, MenuItem, Modifier, ModifierGroup, CartItem, OrderResult, UpsellSuggestion } from '../types';
 import { getTimeOfDay } from '../constants';
 import type { FontSize, QRMenuState } from './types';
 import { addItemToCart, removeCartItemByIndex, updateCartItemQuantity, calculateCartTotal, calculateCartTotalWithVat, getCartItemCount } from './cart-utils';
 import { toggleModifierLogic, validateModifierGroupsLogic, filterItemsBySearch, reorderCategoriesByTimeOfDay } from './modifier-utils';
-import { readInitPreferences, fetchMenuData, findTimeOfDayCategory, fetchUpsellData, submitOrderRequest } from './api-helpers';
+import { submitOrderRequest } from './api-helpers';
+import { useQRMenuEffects } from './use-effects';
 
 export type { FontSize } from './types';
 export type { QRMenuState } from './types';
@@ -47,68 +47,13 @@ export function useQRMenu(): QRMenuState {
   const itemDetailRef = useFocusTrap<HTMLDivElement>(!!showItemDetail);
   const cartDrawerRef = useFocusTrap<HTMLDivElement>(showCart);
 
-  // Init: fetch menu, read preferences, register PWA prompt
-  useEffect(() => {
-    (async () => {
-      try {
-        const prefs = readInitPreferences();
-        if (prefs.tableParam) setTableNumber(prefs.tableParam);
-        setIsDark(prefs.prefersDark);
-        setIsHighContrast(prefs.prefersContrast);
-        if (prefs.savedFontSize) setFontSize(prefs.savedFontSize);
-
-        const result = await fetchMenuData();
-        if (result) {
-          setMenus(result.menus as Menu[]);
-          setSettings(result.settings as import('@/lib/types').RestaurantSettingsRow);
-          setActiveMenu(result.initialMenuId);
-          const tod = getTimeOfDay(new Date().getHours());
-          const catId = findTimeOfDayCategory(
-            (result.menus as Menu[])[0]?.categories,
-            tod.promotedPrefix,
-          );
-          setActiveCategory(catId || result.initialCategoryId);
-        }
-      } catch {
-        setError('Napaka pri nalaganju menija. Poskusite znova.');
-      } finally {
-        setLoading(false);
-      }
-    })();
-
-    const handler = (e: Event) => {
-      e.preventDefault();
-      window.deferredPrompt = e as BeforeInstallPromptEvent;
-    };
-    window.addEventListener('beforeinstallprompt' as keyof WindowEventMap, handler as EventListener);
-    return () => {
-      window.removeEventListener('beforeinstallprompt' as keyof WindowEventMap, handler as EventListener);
-    };
-  }, []);
-
-  // Time-of-day update vsakih 5 minut
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimeOfDay(getTimeOfDay(new Date().getHours()));
-    }, 300000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // AI Upsell: ko se košarica spremeni
-  useEffect(() => {
-    if (cart.length > 0) {
-      (async () => {
-        setUpsellLoading(true);
-        try {
-          const currentCat = menus.find(m => m.id === activeMenu)?.categories.find(c => c.id === activeCategory);
-          const suggestions = await fetchUpsellData(cart, currentCat?.name || '');
-          setUpsellSuggestions(suggestions);
-        } catch { /* Upsell is optional */ } finally { setUpsellLoading(false); }
-      })();
-    } else {
-      setUpsellSuggestions([]);
-    }
-  }, [cart.length, activeCategory]);
+  // Effects
+  useQRMenuEffects({
+    setMenus, setSettings, setActiveMenu, setActiveCategory,
+    setTableNumber, setIsDark, setIsHighContrast, setFontSize,
+    setLoading, setError, setTimeOfDay, setUpsellLoading, setUpsellSuggestions,
+    cart, menus, activeMenu, activeCategory,
+  });
 
   const addToCart = useCallback((item: MenuItem, modifiers: Modifier[] = [], notes: string = '') => {
     setCart(prev => addItemToCart(prev, item, modifiers, notes));

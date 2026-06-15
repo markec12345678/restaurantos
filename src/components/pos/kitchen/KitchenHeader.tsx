@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -8,6 +9,11 @@ import {
   Grid3X3, List, Maximize, Minimize,
 } from 'lucide-react'
 import type { KDSData } from './types'
+
+const KitchenFilterTabs = dynamic(
+  () => import('./KitchenFilterTabs').then(m => ({ default: m.KitchenFilterTabs })),
+  { ssr: false }
+)
 
 // --- Props ---
 
@@ -156,25 +162,13 @@ export const KitchenHeader = memo(function KitchenHeader({
       </div>
 
       {/* Filter tabs */}
-      <div className="px-4 pb-2 flex gap-1.5">
-        {[
-          { value: 'all', label: 'Vsa naročila', count: filteredOrdersCount },
-          { value: 'pending', label: 'Čakajoča', count: pendingOrdersCount },
-          { value: 'in-progress', label: 'V pripravi', count: inProgressOrdersCount },
-        ].map(tab => (
-          <button
-            key={tab.value}
-            onClick={() => onFilterStatusChange(tab.value as 'all' | 'pending' | 'in-progress')}
-            className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
-              filterStatus === tab.value
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted text-muted-foreground hover:bg-accent'
-            }`}
-          >
-            {tab.label} ({tab.count})
-          </button>
-        ))}
-      </div>
+      <KitchenFilterTabs
+        filterStatus={filterStatus}
+        onFilterStatusChange={onFilterStatusChange}
+        filteredOrdersCount={filteredOrdersCount}
+        pendingOrdersCount={pendingOrdersCount}
+        inProgressOrdersCount={inProgressOrdersCount}
+      />
     </div>
   )
 })

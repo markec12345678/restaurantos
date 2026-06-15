@@ -4422,3 +4422,202 @@ Stage Summary:
 - Each sub-module under 150 lines (most under 100)
 - All named exports (no default exports)
 - tsc: 0 errors, eslint: 0 warnings
+
+---
+Task ID: 6
+Agent: Sub Agent (batch 5)
+Task: Split 4 files to bring each under 180 lines (Round 31 threshold)
+
+Work Log:
+
+1. **deduct-order.ts** (180→55 lines): Split into 3 files:
+   - `deduct-order.ts` (55 lines) — orchestrator: checks order, starts transaction, delegates to recipe/direct, marks deducted
+   - `deduct-recipe.ts` (92 lines) — `deductRecipeItems()`: processes items with RecipeItem entries, returns Set of handled indices
+   - `deduct-direct.ts` (69 lines) — `deductDirectItem()`: direct 1:1 InventoryItem↔MenuItem fallback
+   - Barrel `index.ts` unchanged (still re-exports `deductStockForOrder` from `./deduct-order`)
+
+2. **reports.ts** (181→10+5×35 lines): Split into barrel + 5 language files:
+   - Deleted `reports.ts`, created `reports/` directory with `index.ts` barrel (10 lines)
+   - `reports-sl.ts` (35), `reports-en.ts` (34), `reports-it.ts` (34), `reports-hr.ts` (34), `reports-de.ts` (34)
+   - `i18n/index.ts` import `from './reports'` still resolves via directory index
+
+3. **KitchenHeader.tsx** (180→174+45 lines): Split into 2 files:
+   - `KitchenHeader.tsx` (174 lines) — main header with dynamic-imported KitchenFilterTabs
+   - `KitchenFilterTabs.tsx` (45 lines) — filter tab buttons, memo'd, lazy-loaded via `next/dynamic`
+   - Props: filterStatus, onFilterStatusChange, filteredOrdersCount, pendingOrdersCount, inProgressOrdersCount
+
+4. **cart-drawer-parts.tsx** (180→2+85+99 lines): Split into barrel + 2 files:
+   - `cart-drawer-parts.tsx` (2 lines) — barrel re-exporting CartItemRow + UpsellSection + CartTotalsFooter
+   - `CartItemRow.tsx` (85 lines) — cart item row with quantity controls and allergens
+   - `CartUpsellFooter.tsx` (99 lines) — UpsellSection + CartTotalsFooter components
+
+All files verified under 180 lines. tsc --noEmit: no new errors (all errors are pre-existing, unrelated to these changes).
+
+Stage Summary:
+- 4 files split into 12 files + 2 barrel files
+- All resulting files under 180 lines (largest: KitchenHeader.tsx at 174)
+- Zero new TS errors introduced
+- All imports verified: stock-deduction barrel, i18n/reports barrel, cart-drawer-parts barrel, KitchenHeader dynamic import
+
+---
+Task ID: split-api-routes-batch-1
+Agent: Sub Agent
+Task: Split 4 API route files to bring each under 180 lines (Round 31 threshold)
+
+Work Log:
+- Read worklog.md for context on progressive refactoring project
+- Discovered api/orders/[id]/_helpers was already a directory (_helpers/) with barrel index.ts (from prior round), not a single _helpers.ts file
+- File 1: api/orders/[id]/route.ts (195→80 lines)
+  - Extracted entire PUT handler body into _helpers/put-handler.ts (125 lines) as handlePutOrder()
+  - Updated _helpers/index.ts barrel to re-export handlePutOrder from put-handler
+  - route.ts PUT now delegates to handlePutOrder(req, params)
+  - PATCH and DELETE handlers remain in route.ts
+- File 2: api/daily-checklist/route.ts (189→120 lines)
+  - Created _helpers.ts (73 lines) with: ChecklistItem interface, checklistItemSchema, saveChecklistSchema, getChecklistSchema, OPENING_CHECKLIST, CLOSING_CHECKLIST
+  - route.ts imports all from ./_helpers
+- File 3: api/locations/[id]/route.ts (185→160 lines)
+  - Created _helpers.ts (29 lines) with: updateLocationSchema
+  - route.ts imports updateLocationSchema from ./_helpers
+  - Removed z import from route.ts (no longer needed)
+- File 4: api/purchase-orders/[id]/route.ts (182→84 lines)
+  - Created _helpers.ts (116 lines) with: purchaseOrderUpdateSchema, VALID_PO_TRANSITIONS, handleReceiveAction()
+  - route.ts imports purchaseOrderUpdateSchema, VALID_PO_TRANSITIONS, handleReceiveAction from ./_helpers
+  - Removed z, toNum, round2, isPositive, greaterThanOrEqual, multiply imports from route.ts (no longer needed)
+
+TypeScript: `npx tsc --noEmit` passes with only pre-existing errors (forecast-item.ts, useWSConnection.ts) unrelated to our changes
+ESLint: zero warnings/errors on all 9 modified/new files
+
+Stage Summary:
+- 4 route files split, 5 new files created
+- All route files now under 180 lines: orders/[id] (80), daily-checklist (120), locations/[id] (160), purchase-orders/[id] (84)
+- All helper files under 180 lines: put-handler (125), daily-checklist/_helpers (73), locations/_helpers (29), purchase-orders/_helpers (116)
+- Zero new TS/ESLint errors introduced
+
+---
+Task ID: 4
+Agent: Sub Agent (Batch 3)
+Task: Split 5 component files to bring each under 180 lines (Round 31 threshold)
+
+Work Log:
+
+### File 1: ItemsTab.tsx (189→109 lines)
+- Created `ItemsTabGrid.tsx` (86 lines) — `export const ItemsTabGrid = memo(...)` renders grid view of menu items
+- Created `ItemsTabList.tsx` (71 lines) — `export const ItemsTabList = memo(...)` renders list view of menu items
+- Main `ItemsTab.tsx` imports both via `next/dynamic` and renders filters + delegates to grid/list
+- Both sub-components accept `{ filteredItems, categories, onEditItem, onDeleteItem, onToggleAvailability }` derived from `ItemsTabProps`
+
+### File 2: cash-register/EodSections.tsx (189→2 lines, barrel)
+- Created `eod-summary-sections.tsx` (137 lines) — exports EodSummary, EodVatBreakdown, EodPaymentMethods, EodCostsSection, EodEmployeeBreakdown
+- Created `eod-close-section.tsx` (57 lines) — exports EodCloseSection (has own Input/Button imports)
+- `EodSections.tsx` now barrel re-exports all 6 components
+- No external consumers found for these exports (EodDialog uses separate individual files)
+
+### File 3: MenuEngineeringMatrix.tsx (188→87 lines)
+- Created `menu-engineering/use-engineering-data.ts` (136 lines) — custom hook `useEngineeringData()` containing queryFn, data processing, median/quadrant computation, categoryFilter/viewMode state, and computed categories/filteredItems/chartData
+- Main component imports hook and only handles rendering + lazy-loaded sub-components
+- Hook returns `{ data, isLoading, categories, filteredItems, chartData, categoryFilter, setCategoryFilter, viewMode, setViewMode }`
+
+### File 4: ReceiptDialog.tsx (186→140 lines)
+- Created `receipt/useQrCode.ts` (61 lines) — custom hook `useQrCode(receipt)` containing QR code generation effect
+- Hook accepts `ReceiptData | null | undefined`, returns `qrCodeDataUrl: string`
+- Main component imports hook, removes inline QR useEffect
+
+### File 5: VoidItemDialog.tsx (185→143 lines)
+- Created `void-item/useVoidMutation.ts` (89 lines) — custom hook `useVoidMutation({ orderItem, orderId, onVoided, onClose })`
+- Hook returns `{ voidReasons, selectedReasonId, setSelectedReasonId, customReason, setCustomReason, voidMutation, canSubmit, resetAndClose }`
+- Main component imports hook, retains only UI rendering logic
+
+TypeScript: `npx tsc --noEmit` passes — only pre-existing errors (forecast-item.ts Decimal type, orders/[id] missing export, useWSConnection ref type)
+All 12 files (5 modified + 7 new) are under 180 lines.
+
+Stage Summary:
+- 5 component files split, 7 new files created
+- All resulting files under 180 lines:
+  - ItemsTab.tsx (109), ItemsTabGrid.tsx (86), ItemsTabList.tsx (71)
+  - EodSections.tsx (2 barrel), eod-summary-sections.tsx (137), eod-close-section.tsx (57)
+  - MenuEngineeringMatrix.tsx (87), use-engineering-data.ts (136)
+  - ReceiptDialog.tsx (140), useQrCode.ts (61)
+  - VoidItemDialog.tsx (143), useVoidMutation.ts (89)
+- Zero new TS errors introduced
+
+---
+Task ID: 5
+Agent: Sub Agent
+Task: Split 5 page/hook/component files to bring each under 180 lines (Round 31 threshold)
+
+Work Log:
+- Read worklog.md for context on progressive refactoring project
+- File 1: src/app/qr-menu/page.tsx (189→51 lines)
+  - Extracted main menu render block into components/main-menu-view.tsx (150 lines) as `export const MainMenuView = memo(function MainMenuView({...}))`
+  - Props: `{ state: QRMenuState }` — receives entire hook state object
+  - All 9 lazy-loaded sub-components (MenuHeader, AllergenPanel, MenuTabs, CategoryTabs, MenuItemList, ItemDetailModal, CartDrawer, FloatingCartBar, UpsellSuggestions) moved into MainMenuView
+  - page.tsx keeps LoadingScreen, OrderConfirmedScreen, OrderErrorScreen + lazy-loads MainMenuView via next/dynamic
+- File 2: src/app/qr/[tableId]/hooks/use-qr-ordering/use-qr-ordering.ts (187→138 lines)
+  - Extracted effects into use-effects.ts (96 lines) as `export function useQREffects({...})`
+  - Contains: params resolution effect, fetch menu + verify table effect, poll order status effect
+  - Interface: UseQREffectsParams with all needed state setters + orderResult
+  - Main hook keeps: state declarations, useQREffects call, cart handlers, order logic, derived values, return
+- File 3: src/app/qr-menu/use-qr-menu/use-qr-menu.ts (187→132 lines)
+  - Extracted effects into use-effects.ts (113 lines) as `export function useQRMenuEffects({...})`
+  - Contains: init effect (fetch menu, read preferences, PWA prompt), time-of-day interval, upsell effect
+  - Interface: UseQRMenuEffectsParams with all needed state setters + cart/menus/activeMenu/activeCategory
+  - Main hook keeps: state declarations, useQRMenuEffects call, cart handlers, order logic, modifier logic, derived values, return
+- File 4: src/components/pos/InventoryManager.tsx (185→90 lines)
+  - Extracted tab content into inventory/InventoryTabs.tsx (116 lines) as `export const InventoryTabs = memo(function InventoryTabs({...}))`
+  - Props: `{ s: ReturnType<typeof useInventoryState> }` — receives entire hook state
+  - Contains: Tabs component with all 5 tab triggers + 5 TabsContent panels + lazy-loaded tab sub-components
+  - Main InventoryManager keeps: header, LowStockAlerts, InventoryTabs (dynamic), and 4 dialogs
+- File 5: src/components/pos/sidebar/Sidebar.tsx (181→161 lines)
+  - Extracted bottom section into sidebar/SidebarBottom.tsx (58 lines) as `export const SidebarBottom = memo(function SidebarBottom({...}))`
+  - Props: isFullscreen, toggleFullscreen, setKioskMode, theme, setTheme, mounted
+  - Contains: KDS/Waiter links, fullscreen button, kiosk button, theme toggle + LanguageSwitcher
+  - Main Sidebar lazy-loads SidebarBottom via next/dynamic, keeps UserIndicator inline
+
+TypeScript: `npx tsc --noEmit` passes with only pre-existing errors (forecast-item.ts, orders/[id]/route.ts, useWSConnection.ts) unrelated to our changes
+ESLint: zero errors/warnings on all 10 modified/new files (fixed unused Locale import in use-effects.ts)
+
+Stage Summary:
+- 5 files split into 10 files + 0 new barrel files
+- All resulting files under 180 lines (largest: Sidebar.tsx at 161)
+- File sizes: page.tsx (51), main-menu-view.tsx (150), use-qr-ordering.ts (138), use-effects.ts (96), use-qr-menu.ts (132), use-effects.ts (113), InventoryManager.tsx (90), InventoryTabs.tsx (116), Sidebar.tsx (161), SidebarBottom.tsx (58)
+- Zero new TS/ESLint errors introduced
+
+---
+Task ID: 3
+Agent: Sub Agent (Split lib/hook batch 2)
+Task: Split 4 lib/hook files over 180 lines threshold (Round 31 compliance)
+
+Work Log:
+- Read worklog.md and all 4 target files
+- Split File 1: useWSConnection.ts (190→108 lines)
+  - Extracted WebSocket creation + event handlers into useWSConnect.ts (126 lines) exporting `createWSConnection()`
+  - Main hook now delegates connection logic to `createWSConnection` via callbacks interface
+  - Fixed `tokenRef` type to accept `null` (matching `token?: string | null` in options)
+  - Fixed ESLint warnings: prefixed unused interface params with `_`
+- Split File 2: staff-performance/_helpers/metrics.ts (188→59 lines)
+  - Extracted `computeEmployeePerformance` + `calculatePerformanceScores` into performance-calc.ts (131 lines)
+  - metrics.ts keeps: types (EmployeePerformance, PerformanceTotals), getDateRange, computeTotals
+  - Updated _helpers/index.ts barrel to re-export from both files
+- Split File 3: orders/[id]/_helpers.ts (187 lines → directory)
+  - Deleted _helpers.ts, created _helpers/ directory with:
+    - transitions.ts (46 lines): VALID_STATUS_TRANSITIONS, VALID_PAYMENT_TRANSITIONS, validateOrderTransitions
+    - order-actions.ts (141 lines): broadcastWS, freeTableIfNoActiveOrders, handleOrderCompletion, handleOrderCancellation
+    - put-handler.ts (126 lines): handlePutOrder (reconstructed from prior round's route.ts extraction)
+    - index.ts (16 lines): barrel re-exporting all
+  - route.ts imports `handlePutOrder` from `./_helpers` (barrel handles resolution)
+- Split File 4: inventory/forecast/_helpers/forecast-data.ts (187→83 lines)
+  - Extracted per-item processing loop into forecast-item.ts (130 lines) exporting `processInventoryItem()`
+  - Used DecimalLike type for Prisma Decimal fields to fix TS errors
+  - Removed unused `toNum` import from forecast-data.ts
+  - Updated _helpers/index.ts barrel to also export processInventoryItem
+
+Verification:
+- `npx tsc --noEmit`: 0 errors
+- `npx eslint src/`: 0 errors, 0 warnings
+- All resulting files under 180 lines (largest: performance-calc.ts at 131)
+
+Stage Summary:
+- 4 files split into 8 new files + 3 barrel updates
+- All resulting files well under 180-line threshold
+- File sizes: useWSConnection.ts (108), useWSConnect.ts (126), metrics.ts (59), performance-calc.ts (131), transitions.ts (46), order-actions.ts (141), put-handler.ts (126), forecast-data.ts (83), forecast-item.ts (130)
+- Zero TS/ESLint errors introduced

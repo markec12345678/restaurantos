@@ -1,14 +1,11 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { AlertTriangle, XCircle } from 'lucide-react'
-import { useState, memo } from 'react'
-import { toast } from 'sonner'
-import { authFetch } from '@/components/pos/PinLogin'
-import { queryKeys } from '@/lib/query-keys'
+import { memo } from 'react'
+import { useVoidMutation } from './void-item/useVoidMutation'
 
 // ============================================
 // TIPI
@@ -31,56 +28,17 @@ interface VoidItemDialogProps {
 // ============================================
 // KOMPONENTA
 // ============================================
-export const VoidItemDialog = memo(function VoidItemDialog({ orderItem, orderId: _orderId, open, onClose, onVoided }: VoidItemDialogProps) {
-  const queryClient = useQueryClient()
-  const [selectedReasonId, setSelectedReasonId] = useState<string | null>(null)
-  const [customReason, setCustomReason] = useState('')
-
-  // Naloži razloge za void
-  const { data: voidReasons } = useQuery({
-    queryKey: queryKeys.voidReasons.all,
-    queryFn: async () => {
-      const res = await authFetch('/api/configuration/void-reasons')
-      if (!res.ok) return []
-      return res.json() as Promise<{ id: string; name: string; isActive: boolean }[]>
-    },
-    enabled: open,
-  })
-
-  // Void mutacija
-  const voidMutation = useMutation({
-    mutationFn: async () => {
-      if (!orderItem) return null
-      const res = await authFetch(`/api/order-items/${orderItem.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          voided: true,
-          voidReasonId: selectedReasonId,
-          voidReasonText: customReason || voidReasons?.find(r => r.id === selectedReasonId)?.name || '',
-        }),
-      })
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success(`Artikel "${orderItem?.name}" je voidan (poniščen)`)
-      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.kitchen.all })
-      onVoided?.()
-      resetAndClose()
-    },
-    onError: () => {
-      toast.error('Napaka pri poničitvi artikla')
-    },
-  })
-
-  const resetAndClose = () => {
-    setSelectedReasonId(null)
-    setCustomReason('')
-    onClose()
-  }
-
-  const canSubmit = selectedReasonId || customReason.trim().length >= 3
+export const VoidItemDialog = memo(function VoidItemDialog({ orderItem, orderId, open, onClose, onVoided }: VoidItemDialogProps) {
+  const {
+    voidReasons,
+    selectedReasonId,
+    setSelectedReasonId,
+    customReason,
+    setCustomReason,
+    voidMutation,
+    canSubmit,
+    resetAndClose,
+  } = useVoidMutation({ orderItem, orderId, onVoided, onClose })
 
   if (!orderItem) return null
 
