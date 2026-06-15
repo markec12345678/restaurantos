@@ -4,27 +4,18 @@
 // ============================================
 
 import { db, createAuditLog } from '@/lib/db'
-import { deepToNumbers, sumBy, toNum } from '@/lib/decimal'
+import { deepToNumbers, toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
-import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
-const createTipPoolSchema = z.object({
-  date: z.string().min(1, 'Datum je obvezen').max(30, 'Neveljaven format datuma'),
-  distributionMethod: z.enum(['equal', 'hours', 'points', 'manual']).default('equal'),
-  locationId: z.string().max(100, 'ID lokacije je predolg').optional(),
-})
-
-const distributeTipsSchema = z.object({
-  tipPoolId: z.string().min(1, 'ID tip poola je obvezen').max(100, 'ID je predolg'),
-  distributions: z.array(z.object({
-    employeeId: z.string().min(1, 'ID zaposlenega je obvezen').max(100, 'ID je predolg'),
-    employeeName: z.string().min(1, 'Ime zaposlenega je obvezno').max(100, 'Ime je predolgo'),
-    hoursWorked: z.number().min(0).max(24, 'Ure ne morejo preseči 24').default(0),
-    points: z.number().min(0).max(1000, 'Preveč točk').default(0),
-    amount: z.number().min(0, 'Znesek ne more biti negativen').max(999999, 'Znesek je previsok'),
-  })).min(1, 'Vsaj ena distribucija je obvezna').max(100, 'Preveč distribucij'),
-})
+import {
+  createTipPoolSchema,
+  distributeTipsSchema,
+  calculateDistributions,
+  calculateHours,
+  fetchDayPayments,
+  persistTipPoolWithDistributions,
+} from './_helpers'
 
 // GET — Pridobi tip poole
 export async function GET(req: Request) {
@@ -84,22 +75,7 @@ export async function POST(req: Request) {
     }
 
     // Pridobi napitnine iz plačil za ta dan
-    // FIX BUG-7 MEDIUM: Filtriraj plačila po locationId preko check → order → locationId
-    const paymentWhere: Record<string, unknown> = {
-      createdAt: { gte: dayStart, lt: dayEnd },
-      tipAmount: { gt: 0 },
-      status: 'completed',
-    }
-    if (locationId) {
-      paymentWhere.check = { order: { locationId } }
-    }
-    const payments = await db.payment.findMany({
-      where: paymentWhere,
-    })
-
-    const totalTips = toNum(sumBy(payments, p => p.tipAmount))
-    const cashTips = toNum(sumBy(payments.filter(p => p.type === 'cash'), p => p.tipAmount))
-    const cardTips = toNum(sumBy(payments.filter(p => p.type === 'card'), p => p.tipAmount))
+    const { totalTips, cashTips, cardTips } = await fetchDayPayments(dayStart, dayEnd, locationId)
 
     // Pridobi zaposlene, ki so delali ta dan
     const shifts = await db.shift.findMany({
@@ -119,81 +95,17 @@ export async function POST(req: Request) {
     }
 
     // Izračunaj distribucijo
-    let distributions: Array<{
-      employeeId: string
-      employeeName: string
-      hoursWorked: number
-      points: number
-      amount: number
-    }> = []
+    const distributions = calculateDistributions(distributionMethod, employees, totalTips)
 
-    switch (distributionMethod) {
-      case 'equal': {
-        const perPerson = totalTips / employees.length
-        distributions = employees.map(e => ({ ...e, amount: Math.round(perPerson * 100) / 100 }))
-        break
-      }
-      case 'hours': {
-        const totalHours = employees.reduce((sum, e) => sum + e.hoursWorked, 0)
-        distributions = employees.map(e => ({
-          ...e,
-          amount: totalHours > 0 ? Math.round((e.hoursWorked / totalHours) * totalTips * 100) / 100 : 0,
-        }))
-        break
-      }
-      case 'points': {
-        const totalPoints = employees.reduce((sum, e) => sum + e.points, 0)
-        distributions = employees.map(e => ({
-          ...e,
-          amount: totalPoints > 0 ? Math.round((e.points / totalPoints) * totalTips * 100) / 100 : 0,
-        }))
-        break
-      }
-      case 'manual': {
-        // Za manual distribucijo nastavi 0, uporabnik bo ročno določil
-        distributions = employees.map(e => ({ ...e, amount: 0 }))
-        break
-      }
-    }
-
-    // Poravnaj razliko zaradi zaokroževanja
-    const distributedTotal = distributions.reduce((sum, d) => sum + d.amount, 0)
-    const diff = Math.round((totalTips - distributedTotal) * 100) / 100
-    if (diff !== 0 && distributions.length > 0) {
-      distributions[0].amount = Math.round((distributions[0].amount + diff) * 100) / 100
-    }
-
-    // Upsert tip pool
-    const poolData = {
-      date: dayStart,
-      totalTips,
-      cashTips,
-      cardTips,
-      distributionMethod,
-      status: 'pending' as const,
-      locationId: locationId || null,
-    }
-
-    const pool = existing
-      ? await db.tipPool.update({ where: { id: existing.id }, data: poolData })
-      : await db.tipPool.create({ data: poolData })
-
-    // Izbriši stare distribucije in ustvari nove
-    await db.tipDistribution.deleteMany({ where: { tipPoolId: pool.id } })
-    await db.tipDistribution.createMany({
-      data: distributions.map(d => ({
-        tipPoolId: pool.id,
-        employeeId: d.employeeId,
-        employeeName: d.employeeName,
-        hoursWorked: d.hoursWorked,
-        points: d.points,
-        amount: d.amount,
-        status: 'pending',
-      })),
-    })
+    // Upsert tip pool + distribucije
+    const poolId = await persistTipPoolWithDistributions(
+      existing,
+      { date: dayStart, totalTips, cashTips, cardTips, distributionMethod, status: 'pending', locationId: locationId || null },
+      distributions
+    )
 
     const result = await db.tipPool.findUnique({
-      where: { id: pool.id },
+      where: { id: poolId },
       include: { distributions: true },
     })
 
@@ -218,9 +130,7 @@ export async function PUT(req: Request) {
     if (!pool) return NextResponse.json({ error: 'Tip pool ne obstaja' }, { status: 404 })
     if (pool.status === 'paid') return NextResponse.json({ error: 'Tip pool je že izplačan' }, { status: 400 })
 
-    // FIX CRITICAL: Prejšnja koda je uporabila upsert z lažnim IDjem `${tipPoolId}_${d.employeeId}`
-    // ki NIKOLI ni zadel obstoječega zapisa (CUID format). Vsak PUT je ustvaril DUPLIKATNE distribucije.
-    // Popravek: izbriši stare distribucije in ustvari nove (enako kot POST route)
+    // FIX CRITICAL: Izbriši stare distribucije in ustvari nove
     await db.tipDistribution.deleteMany({ where: { tipPoolId } })
     await db.tipDistribution.createMany({
       data: distributions.map(d => ({
@@ -256,17 +166,4 @@ export async function PUT(req: Request) {
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/tip-pool', 'Napaka pri posodabljanju napitnin')
   }
-}
-
-// Pomožna funkcija za izračun ur
-// FIX BUG-8 MEDIUM: Podpora za nočne izmene (npr. 22:00–06:00) — prejšnja koda je vrnila 0
-function calculateHours(startTime: string, endTime: string): number {
-  const [sh, sm] = startTime.split(':').map(Number)
-  const [eh, em] = endTime.split(':').map(Number)
-  const startMin = (sh || 0) * 60 + (sm || 0)
-  const endMin = (eh || 0) * 60 + (em || 0)
-  let diff = endMin - startMin
-  // FIX: Če je diff negativen, je izmena čez polnoč (npr. 22:00–06:00)
-  if (diff < 0) diff += 24 * 60
-  return diff > 0 ? Math.round(diff / 60 * 100) / 100 : 0
 }

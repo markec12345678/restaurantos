@@ -1,98 +1,21 @@
-// ============================================
-// WEBHOOK ENGINE — Dostava
-// Pošiljanje webhookov na endpointe, SSRF zaščita, beleženje
-// ============================================
+// Webhook sprožitev — poišče aktivne webhooke in dostavi asinhrono
 
 import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
-import { signPayload } from './signing'
+import { signPayload } from '../signing'
 import {
   type WebhookEventType,
   type WebhookPayload,
-  type DeliveryResult,
-  WEBHOOK_TIMEOUT_MS,
-  MAX_RESPONSE_BODY_LENGTH,
   MAX_PAYLOAD_SIZE,
   RETRY_DELAYS_MS,
-} from './types'
-
-// ============================================
-// DOBAVA
-// ============================================
-
-/**
- * Pošlji webhook na endpoint z ustreznimi glavami in timeoutom
- */
-export async function deliverWebhook(
-  url: string,
-  payload: string,
-  signature: string,
-  secret: string
-): Promise<DeliveryResult> {
-  const startTime = Date.now()
-
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'User-Agent': 'RestaurantOS-Webhook/1.0',
-      'X-Webhook-Signature': signature,
-      'X-Webhook-Timestamp': new Date().toISOString(),
-      'X-Webhook-ID': crypto.randomUUID(),
-    }
-
-    // Če ima webhook skrivnost, dodamo tudi "Stripe-style" glavo
-    if (secret) {
-      const timestamp = Math.floor(Date.now() / 1000).toString()
-      const signaturePayload = `${timestamp}.${payload}`
-      const sig = signPayload(signaturePayload, secret)
-      headers['X-Webhook-Signature-256'] = sig
-      headers['X-Webhook-Timestamp-Sec'] = timestamp
-    }
-
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS)
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: payload,
-      signal: controller.signal,
-    })
-
-    clearTimeout(timeoutId)
-
-    const responseBody = await response.text()
-    const durationMs = Date.now() - startTime
-
-    return {
-      success: response.status >= 200 && response.status < 300,
-      statusCode: response.status,
-      responseBody: responseBody.substring(0, MAX_RESPONSE_BODY_LENGTH),
-      durationMs,
-    }
-  } catch (error: unknown) {
-    const durationMs = Date.now() - startTime
-    const isTimeout = error instanceof Error && error.name === 'AbortError'
-
-    return {
-      success: false,
-      statusCode: isTimeout ? 408 : 0,
-      responseBody: isTimeout ? 'Request timed out' : (error instanceof Error ? error.message : 'Unknown error'),
-      durationMs,
-    }
-  }
-}
-
-// ============================================
-// GLAVNA FUNKCIJA — SPROŽI WEBHOOK
-// ============================================
+} from '../types'
+import { deliverWebhook } from './deliver'
+import { isInternalUrl } from './ssrf'
 
 /**
  * Sproži webhook dogodek — poišče vse aktivne webhooke za ta dogodek
  * in jih asinhrono dostavi. Ne blokira klicanja.
- *
- * FIX MEDIUM: SSRF zaščita — preveri, da URL ni notranji (localhost, 10.x, 172.16-31.x, 192.168.x)
  */
 export async function triggerWebhook(
   event: WebhookEventType,
@@ -135,42 +58,6 @@ export async function triggerWebhook(
     deliverAndLog(webhook, event, data, restaurantInfo).catch(err => {
       logger.error('WebhookEngine', `Napaka pri dostavi webhook ${webhook.id}:`, err)
     })
-  }
-}
-
-/**
- * FIX MEDIUM: Preveri, ali URL kaže na notranji/lokalni naslov (SSRF zaščita)
- */
-export function isInternalUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url)
-    const hostname = parsed.hostname.toLowerCase()
-    // Lokalni naslovi
-    if (hostname === 'localhost' || hostname === '0.0.0.0' || hostname === '::1') {
-      return true
-    }
-    // FIX HIGH: Celoten 127.x.x.x loopback obseg (ne le 127.0.0.1)
-    if (/^127\./.test(hostname)) return true
-    // FIX HIGH: IPv4-mapped IPv6 loopback
-    if (/^::ffff:127\./.test(hostname)) return true
-    // FIX HIGH: Link-local naslovi
-    if (/^169\.254\./.test(hostname)) return true
-    // FIX HIGH: IPv6 unique local (fc00::/7)
-    if (/^f[cd]/.test(hostname)) return true
-    // Privatni RFC1918 obsegi
-    if (/^10\./.test(hostname) || /^192\.168\./.test(hostname)) {
-      return true
-    }
-    if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(hostname)) {
-      return true
-    }
-    // .local, .internal, .test TLD
-    if (hostname.endsWith('.local') || hostname.endsWith('.internal') || hostname.endsWith('.test')) {
-      return true
-    }
-    return false
-  } catch {
-    return true // Neveljaven URL = zavrnjen
   }
 }
 
@@ -246,7 +133,7 @@ async function deliverAndLog(
     }
   } else {
     // Neuspešna dostava — načrtuj ponovni poskus
-    const nextRetryDelay = RETRY_DELAYS_MS[0] // Prvi ponovni poskus čez 1 min
+    const nextRetryDelay = RETRY_DELAYS_MS[0]
     const nextRetryAt = new Date(Date.now() + nextRetryDelay)
 
     await db.webhookDelivery.update({

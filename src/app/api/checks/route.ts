@@ -1,11 +1,20 @@
 
 import { db } from '@/lib/db'
-import { deepToNumbers, toNum, round2 } from '@/lib/decimal'
+import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { getNextCounter } from '@/lib/counters'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createCheckSchema } from '@/lib/validations'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
+import {
+  calculateCheckAmounts,
+  validateAndCalculateDiscount,
+  recalculateTaxWithDiscount,
+  recalculateAffectedChecks,
+  applyDiscountAtomic,
+  linkOrderItemsToCheck,
+} from './_helpers'
+
 export async function GET(req: Request) {
   try {
     // FIX: Zahtevaj avtentikacijo za branje čekov
@@ -101,89 +110,27 @@ export async function POST(req: Request) {
     }
 
     // FIX H-08: Strežniški izračun zneskov iz dejanskih OrderItem-ov
-    let subtotal = 0
-    let tax = 0
-    for (const oi of checkOrderItems) {
-      const itemBase = toNum(oi.price) * oi.quantity // FIX: Decimal→number
-      const itemVat = toNum(oi.vatAmount) > 0 ? toNum(oi.vatAmount) : (toNum(oi.price) * oi.quantity * toNum(oi.vatRate) / 100) // FIX: Decimal truthy bug — Decimal(0) || fallback nikoli ne sproži
-      subtotal += itemBase
-      tax += itemVat
-    }
+    const { subtotal, tax } = calculateCheckAmounts(checkOrderItems)
 
     // FIX H-03: Popust ne more preseči vmesne vsote
-    // FIX BUG: Preveri veljavnost popusta OUTSIDE tx (za hitro zavrnitev),
-    // vendar NE povečuj currentUses tukaj — to naredi SAMO znotraj $transaction!
-    let discount = 0
-    let discountIdForTx: string | null = null
-    if (data.appliedDiscountId) {
-      const discountObj = await db.discount.findUnique({ where: { id: data.appliedDiscountId } })
-      if (discountObj) {
-        // FIX MEDIUM: Preveri, da je popust aktiven in v veljavnem obdobju
-        if (!discountObj.isActive) {
-          return NextResponse.json({ error: 'Popust ni aktiven' }, { status: 400 })
-        }
-        const now = new Date()
-        if (discountObj.validFrom && now < discountObj.validFrom) {
-          return NextResponse.json({ error: 'Popust še ni veljaven' }, { status: 400 })
-        }
-        if (discountObj.validTo && now > discountObj.validTo) {
-          return NextResponse.json({ error: 'Popust je potekel' }, { status: 400 })
-        }
-        if (discountObj.maxUses !== null && discountObj.currentUses >= discountObj.maxUses) {
-          return NextResponse.json({ error: 'Popust je že bil uporabljen največkrat' }, { status: 400 })
-        }
-
-        if (discountObj.type === 'percentage') {
-          discount = subtotal * (toNum(discountObj.amount) / 100) // FIX: Decimal→number
-        } else if (discountObj.type === 'fixed_amount') {
-          discount = toNum(discountObj.amount) // FIX: Decimal→number
-        }
-        discount = Math.min(discount, subtotal)
-        discountIdForTx = discountObj.id
-
-        // Popust currentUses se posodobi SAMO znotraj $transaction spodaj — prepreči double increment
-      }
+    const { discount, discountId: discountIdForTx, error: discountError } = await validateAndCalculateDiscount(data.appliedDiscountId, subtotal)
+    if (discountError) {
+      return NextResponse.json({ error: discountError }, { status: 400 })
     }
 
-    // FIX HIGH: Popust zmanjša davčno osnovo — DDV se mora preračunati (EU/FURS zahteva)
-    // Formula: taxableBase = subtotal - discount; tax = taxableBase * (taxRate / (1 + taxRate))
-    // Enoostavljena formula z existing tax ratio:
-    const taxableBase = subtotal - discount
-    const taxRatio = subtotal > 0 ? tax / subtotal : 0
-    const recalculatedTax = Math.round(taxableBase * taxRatio * 100) / 100
-    const total = taxableBase + recalculatedTax + 0 // serviceCharge = 0 za nov ček
+    // FIX HIGH: Popust zmanjša davčno osnovo — DDV se mora preračunati
+    const { recalculatedTax, total } = recalculateTaxWithDiscount(subtotal, tax, discount)
 
-    // FIX: Ustvari ček IN poveži OrderItem-e v eni transakciji — prepreči delno stanje
+    // FIX: Ustvari ček IN poveži OrderItem-e v eni transakciji
     const check = await db.$transaction(async (tx) => {
-      // Atomarna posodobitev popusta: prepreči race condition na maxUses
-      // FIX BUG: Uporabi discountIdForTx (nastavljen zunaj tx) namesto data.appliedDiscountId
-      // da se izognemo double increment — preverjanje je bilo že narejeno zunaj tx
-      if (discountIdForTx) {
-        const discountObj = await tx.discount.findUnique({ where: { id: discountIdForTx } })
-        if (discountObj) {
-          if (discountObj.maxUses !== null) {
-            const updated = await tx.discount.updateMany({
-              where: { id: discountObj.id, currentUses: { lt: discountObj.maxUses } },
-              data: { currentUses: { increment: 1 } },
-            })
-            if (updated.count === 0) {
-              throw new Error('Popust je že bil uporabljen največkrat')
-            }
-          } else {
-            await tx.discount.update({
-              where: { id: discountObj.id },
-              data: { currentUses: { increment: 1 } },
-            })
-          }
-        }
-      }
+      await applyDiscountAtomic(tx, discountIdForTx)
 
       const newCheck = await tx.check.create({
         data: {
           checkNumber,
           orderId: data.orderId,
           subtotal,
-          tax: recalculatedTax, // FIX: Preračunan DDV z upoštevanjem popusta
+          tax: recalculatedTax,
           discount,
           serviceCharge: 0,
           total,
@@ -196,65 +143,18 @@ export async function POST(req: Request) {
       })
 
       // Poveži OrderItem-e s tem Check-om
-      if (data.orderItemIds && data.orderItemIds.length > 0) {
-        await tx.orderItem.updateMany({
-          where: { id: { in: data.orderItemIds } },
-          data: { checkId: newCheck.id },
-        })
-      } else {
-        // Poveži vse nepovezane OrderItem-e tega naročila
-        const unassignedItems = order.orderItems.filter(oi => !oi.checkId)
-        if (unassignedItems.length > 0) {
-          await tx.orderItem.updateMany({
-            where: { id: { in: unassignedItems.map(oi => oi.id) } },
-            data: { checkId: newCheck.id },
-          })
-        }
-      }
+      await linkOrderItemsToCheck(
+        tx,
+        newCheck.id,
+        data.orderItemIds || [],
+        order.orderItems.map(oi => ({ id: oi.id, checkId: oi.checkId }))
+      )
 
       return newCheck
     })
 
     // FIX BUG-03: Preračunaj totale izvornih čekov, ki so izgubili artikle
-    // Ko se OrderItem-i prenesejo na nov ček, morajo izvorni čeki posodobiti svoje zneske
-    const reassignedItemIds = data.orderItemIds || []
-    if (reassignedItemIds.length > 0) {
-      // Pridobi vse čeke, ki so bili prizadeti (imajo manj artiklov kot prej)
-      const affectedChecks = await db.check.findMany({
-        where: {
-          orderId: data.orderId,
-          id: { not: check.id }, // Vsi čeki tega naročila RAZEN novega
-        },
-        include: { orderItems: true },
-      })
-
-      for (const affectedCheck of affectedChecks) {
-        if (affectedCheck.orderItems.length === 0) continue
-        // Preračunaj totale iz preostalih artiklov
-        let newSubtotal = 0
-        let newTax = 0
-        for (const oi of affectedCheck.orderItems) {
-          if (oi.voided) continue
-          const itemBase = toNum(oi.price) * oi.quantity
-          const itemVat = toNum(oi.vatAmount) > 0 ? toNum(oi.vatAmount) : (toNum(oi.price) * oi.quantity * toNum(oi.vatRate) / 100) // FIX: Decimal truthy bug — Decimal(0) || fallback nikoli ne sproži
-          newSubtotal += itemBase
-          newTax += itemVat
-        }
-        const newDiscount = toNum(affectedCheck.discount) // FIX: Decimal truthy — toNum() instead of || 0
-        const newTotal = round2(newSubtotal + newTax + toNum(affectedCheck.serviceCharge) - newDiscount) // FIX: Decimal truthy + round2
-        const newTotalWithTip = round2(newTotal + toNum(affectedCheck.tip)) // FIX: Decimal truthy + round2
-
-        await db.check.update({
-          where: { id: affectedCheck.id },
-          data: {
-            subtotal: round2(newSubtotal), // FIX: round2 on currency fields
-            tax: round2(newTax),
-            total: newTotal,
-            totalWithTip: newTotalWithTip,
-          },
-        })
-      }
-    }
+    await recalculateAffectedChecks(data.orderId, check.id, data.orderItemIds || [])
 
     // Re-fetch z posodobljenimi relacijami
     const checkWithItems = await db.check.findUnique({
