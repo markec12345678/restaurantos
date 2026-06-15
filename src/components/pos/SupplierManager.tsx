@@ -5,7 +5,7 @@
 // Toast POS standard — Dobavitelji, ceniki, nabavna naročila
 // ============================================
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -14,8 +14,8 @@ import { queryKeys } from '@/lib/query-keys'
 import { Truck, FileText, Plus } from 'lucide-react'
 import { useState, memo } from 'react'
 import dynamic from 'next/dynamic'
-import { toast } from 'sonner'
 import type { SupplierType } from './supplier/constants'
+import { useSupplierMutations } from './supplier/useSupplierMutations'
 
 // Lazy-loaded podkomponente
 const SuppliersList = dynamic(() => import('./supplier/SuppliersList').then(m => ({ default: m.SuppliersList })), { ssr: false })
@@ -27,7 +27,6 @@ const PurchaseOrderDialog = dynamic(() => import('./supplier/PurchaseOrderDialog
 // GLAVNA KOMPONENTA
 // ============================================
 export const SupplierManager = memo(function SupplierManager() {
-  const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState('suppliers')
   const [searchTerm, _setSearchTerm] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -64,50 +63,12 @@ export const SupplierManager = memo(function SupplierManager() {
     },
   })
 
-  // Shrani dobavitelja
-  const saveSupplierMutation = useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      if (editingSupplier) {
-        const res = await authFetch(`/api/suppliers/${editingSupplier.id}`, {
-          method: 'PUT',
-          body: JSON.stringify(data),
-        })
-        if (!res.ok) throw new Error('Napaka pri posodabljanju')
-        return res.json()
-      } else {
-        const res = await authFetch('/api/suppliers', {
-          method: 'POST',
-          body: JSON.stringify(data),
-        })
-        if (!res.ok) throw new Error('Napaka pri ustvarjanju')
-        return res.json()
-      }
-    },
-    onSuccess: () => {
-      toast.success(editingSupplier ? 'Dobavitelj posodobljen' : 'Dobavitelj ustvarjen')
-      queryClient.invalidateQueries({ queryKey: queryKeys.suppliers.all })
-      setDialogOpen(false)
-      setEditingSupplier(null)
-    },
-    onError: () => toast.error('Napaka pri shranjevanju'),
-  })
-
-  // Ustvari nabavno naročilo
-  const createPOMutation = useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      const res = await authFetch('/api/purchase-orders', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error('Napaka pri ustvarjanju naročila')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Nabavno naročilo ustvarjeno')
-      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all })
-      setPoDialogOpen(false)
-    },
-    onError: () => toast.error('Napaka pri ustvarjanju naročila'),
+  // Mutacije
+  const { saveSupplierMutation, createPOMutation } = useSupplierMutations({
+    editingSupplier,
+    setDialogOpen,
+    setEditingSupplier,
+    setPoDialogOpen,
   })
 
   return (

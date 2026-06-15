@@ -1,66 +1,9 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { authFetch } from '@/components/pos/PinLogin'
-import { queryKeys } from '@/lib/query-keys'
-import { useState, useCallback, useMemo } from 'react'
-import { type ShiftItem, type TimeEntryItem, type Employee, type Job, type ShiftFormState } from '../constants'
+import { useState, useCallback } from 'react'
+import { type ShiftItem, type TimeEntryItem, type ShiftFormState } from '../constants'
 import { useShiftMutations } from '../useShiftMutations'
-
-// ============================================
-// QUERIES — Poizvedbe za izmene, zaposlene, delovna mesta
-// ============================================
-
-export function useShiftQueries() {
-  const { data: employees } = useQuery<Employee[]>({
-    queryKey: queryKeys.employees.all,
-    queryFn: async () => { const res = await authFetch('/api/employees'); if (!res.ok) throw new Error('Napaka'); return res.json() },
-  })
-
-  const { data: jobs } = useQuery<Job[]>({
-    queryKey: queryKeys.jobs.all,
-    queryFn: async () => { const res = await authFetch('/api/jobs'); if (!res.ok) throw new Error('Napaka'); return res.json() },
-  })
-
-  const { data: shifts, isLoading: shiftsLoading } = useQuery<ShiftItem[]>({
-    queryKey: queryKeys.shifts.all,
-    queryFn: async () => { const res = await authFetch('/api/shifts'); if (!res.ok) throw new Error('Napaka'); return res.json() },
-  })
-
-  const { data: timeEntries, isLoading: entriesLoading } = useQuery<TimeEntryItem[]>({
-    queryKey: ['time-entries'],
-    queryFn: async () => { const res = await authFetch('/api/time-entries'); if (!res.ok) throw new Error('Napaka'); return res.json() },
-  })
-
-  return { employees, jobs, shifts, shiftsLoading, timeEntries, entriesLoading }
-}
-
-// ============================================
-// IZRAČUNI — Aktivne izmene, statistike
-// ============================================
-
-export function useShiftComputations(
-  employees: Employee[] | undefined,
-  shifts: ShiftItem[] | undefined,
-  timeEntries: TimeEntryItem[] | undefined,
-) {
-  const employeesList = Array.isArray(employees) ? employees : []
-  const allShifts = shifts || []
-  const allEntries = timeEntries || []
-
-  const activeEntries = useMemo(() => allEntries.filter(e => !e.clockOut), [allEntries])
-  const completedEntries = useMemo(() => allEntries.filter(e => e.clockOut).sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime()), [allEntries])
-
-  const scheduledCount = allShifts.filter(s => s.status === 'scheduled').length
-  const inProgressCount = allShifts.filter(s => s.status === 'in_progress').length
-  const completedCount = allShifts.filter(s => s.status === 'completed').length
-  const totalHoursToday = allEntries
-    .filter(e => new Date(e.clockIn).toDateString() === new Date().toDateString())
-    .reduce((sum, e) => sum + e.totalMinutes, 0) / 60
-
-  return { employeesList, allShifts, activeEntries, completedEntries, scheduledCount, inProgressCount, completedCount, totalHoursToday }
-}
 
 // ============================================
 // STANJA — Dialogi in polja

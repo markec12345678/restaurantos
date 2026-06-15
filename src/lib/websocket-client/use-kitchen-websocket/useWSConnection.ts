@@ -1,16 +1,16 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback } from 'react'
 import { logger } from '@/lib/logger'
-import type { WSMessage, UseKitchenWebSocketOptions, UseKitchenWebSocketReturn } from './types'
-import { useWSQueryInvalidation } from './use-query-invalidation'
-import { useHeartbeat } from './use-heartbeat'
+import type { WSMessage, UseKitchenWebSocketOptions } from '../types'
+import { useWSQueryInvalidation } from '../use-query-invalidation'
+import { useHeartbeat } from '../use-heartbeat'
 
 // ============================================
-// HOOK: useKitchenWebSocket
+// WebSocket connection management
 // ============================================
 
-export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): UseKitchenWebSocketReturn {
+export function useWSConnection(options: UseKitchenWebSocketOptions = {}) {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectAttemptsRef = useRef(0)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -23,7 +23,7 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
   const maxReconnectAttemptsRef = useRef(options.maxReconnectAttempts ?? 10)
   const tokenRef = useRef(options.token)
   // Update refs inside effect to avoid render-phase ref writes (only on actual change)
-  useEffect(() => {
+  const updateOptionRefs = useCallback(() => {
     autoReconnectRef.current = options.autoReconnect ?? true
     maxReconnectAttemptsRef.current = options.maxReconnectAttempts ?? 10
     tokenRef.current = options.token
@@ -37,7 +37,9 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
 
   // Shranimo onEvent v ref, da se izognemo ponovnemu povezovanju ob spremembi
   const onEventRef = useRef(options.onEvent)
-  useEffect(() => { onEventRef.current = options.onEvent }, [options.onEvent])
+  const updateOnEventRef = useCallback(() => {
+    onEventRef.current = options.onEvent
+  }, [options.onEvent])
 
   const disconnect = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -68,7 +70,6 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
     // Ustvari WebSocket povezavo
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     // FIX HIGH: Token NE sme biti v URL-ju — viden v logih, DevTools, referrerjih
-    // Vedno uporabi AUTH sporočilo po povezavi namesto URL parametra
     const wsUrl = `${protocol}//${window.location.host}/ws`
 
     try {
@@ -83,7 +84,6 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
         // FIX HIGH: Vedno pošlji AUTH sporočilo po povezavi (token ni več v URL-ju)
         const currentToken = tokenRef.current
         // FIX M-6: Token je shranjen kot 'pos_auth_token', ne 'pos_token'
-        // SECURITY: Uporabljamo SAMO sessionStorage (ne localStorage) za auth tokene
         const storedToken = typeof window !== 'undefined' ? sessionStorage.getItem('pos_auth_token') : null
         const authToken = currentToken || storedToken
         if (authToken) {
@@ -159,8 +159,6 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
     }
   }, [invalidateRelevantQueries, startHeartbeat, stopHeartbeat, handlePong])
 
-  useEffect(() => { connectFnRef.current = connect }, [connect])
-
   const reconnect = useCallback(() => {
     disconnect()
     reconnectAttemptsRef.current = 0
@@ -177,14 +175,16 @@ export function useKitchenWebSocket(options: UseKitchenWebSocketOptions = {}): U
     }
   }, [])
 
-  // Vzpostavi povezavo ob mount, zapri ob unmount
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- WebSocket lifecycle: connect on mount, disconnect on unmount
-    connect()
-    return () => {
-      disconnect()
-    }
-  }, [connect, disconnect])
-
-  return { connected, lastEvent, reconnect, send }
+  return {
+    wsRef,
+    connectFnRef,
+    connected,
+    lastEvent,
+    connect,
+    disconnect,
+    reconnect,
+    send,
+    updateOptionRefs,
+    updateOnEventRef,
+  }
 }

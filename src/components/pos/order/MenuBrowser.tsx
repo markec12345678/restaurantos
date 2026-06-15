@@ -7,6 +7,7 @@ import { MenuCategoryNav } from './MenuCategoryNav'
 import { MenuItemsGrid } from './MenuItemsGrid'
 import { ModifierDialog } from './ModifierDialog'
 import { useModifierSelection } from './useModifierSelection'
+import { useMenuBrowserLogic, buildSuperGroups } from './useMenuBrowserLogic'
 import type { SelectedModifier } from '@/lib/store'
 import type {
   MenuItemType, MenuType,
@@ -17,14 +18,12 @@ import type {
 export type { ModifierGroupType, MenuItemType, MenuType, SuperGroupType, StockInfoType } from './types'
 
 export interface MenuBrowserProps {
-  // Podatki
   menus: MenuType[] | undefined
   menuItems: MenuItemType[] | undefined
   tables: { id: string; number: number; capacity: number; status: string }[] | undefined
   diningOptions: { id: string; name: string; type: string }[] | undefined
   discounts: { id: string; name: string; type: string; amount: number }[] | undefined
   menuStockMap: Record<string, StockInfoType> | undefined
-  // Store state
   orderType: string
   setOrderType: (_type: string) => void
   selectedTable: string | null
@@ -38,23 +37,16 @@ export interface MenuBrowserProps {
   appliedDiscountId: string | null
   setAppliedDiscountId: (_id: string | null) => void
   subtotal: number
-  // Cart info za badge
   cart: { id: string; quantity: number }[]
-  // Editing
   editingOrderId: string | null
   editingOrderNumber: number | null
-  // Loading
   menusLoading: boolean
   menuLoading: boolean
-  // Handlerji
   onAddToCart: (_item: { id: string; name: string; price: number; categoryId: string; image: string; modifiers?: SelectedModifier[] }) => void
   onSetLastAddedId: (_id: string | null) => void
   lastAddedId: string | null
 }
 
-// ============================================
-// MENU BROWSER - Brskanje po meniju
-// ============================================
 export function MenuBrowser({
   menus,
   menuItems,
@@ -84,12 +76,10 @@ export function MenuBrowser({
   onSetLastAddedId,
   lastAddedId,
 }: MenuBrowserProps) {
-  // Lokalno stanje za kategorije, super-skupine, iskanje
   const [activeCategory, setActiveCategory] = useState<string>('all')
   const [activeSuperGroup, setActiveSuperGroup] = useState<string>('all')
   const [itemSearch, setItemSearch] = useState<string>('')
 
-  // Modifier selection hook
   const {
     modifierDialogItem,
     selectedModifiers,
@@ -100,44 +90,24 @@ export function MenuBrowser({
     closeModifierDialog,
   } = useModifierSelection({ onAddToCart, onSetLastAddedId })
 
-  // Izračuni
-  const resolvedMenuId = useMemo(() => {
-    if (activeMenuId) return activeMenuId
-    if (menus && menus.length > 0) return menus[0].id
-    return null
+  const superGroups: SuperGroupType[] = useMemo(() => {
+    // Need to get categories first for buildSuperGroups
+    const resolvedMenuId = activeMenuId || (menus && menus.length > 0 ? menus[0].id : null)
+    const activeMenu = menus?.find((m: MenuType) => m.id === resolvedMenuId)
+    const categoriesForMenu = activeMenu?.categories || []
+    return buildSuperGroups(categoriesForMenu || [])
   }, [activeMenuId, menus])
 
-  const activeMenu = menus?.find((m: MenuType) => m.id === resolvedMenuId)
-  const categoriesForMenu = activeMenu?.categories || []
+  const { resolvedMenuId, categoriesForMenu, filteredMenuItems } = useMenuBrowserLogic({
+    menus,
+    menuItems,
+    activeMenuId,
+    activeCategory,
+    activeSuperGroup,
+    superGroups,
+    itemSearch,
+  })
 
-  // SUPER-GROUPS for drinks menu (Toast POS style sub-groups)
-  const superGroups: SuperGroupType[] = useMemo(() => {
-    const catNames = categoriesForMenu.map((c: { name: string }) => c.name)
-    // Only define super-groups for the drinks menu (Pijača)
-    if (!catNames.includes('Penine in Šampanjci')) return []
-    return [
-      { id: 'vina', name: 'Vina', icon: '🍷', color: '#7c2d12', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Penine in Šampanjci', 'Bela Vina', 'Rosé Vino', 'Rdeča Vina', 'Tuja Vina', 'Likersko Vino'].includes(c.name)).map((c: { id: string }) => c.id) },
-      { id: 'piva', name: 'Piva', icon: '🍺', color: '#d97706', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Točeno Pivo', 'Pivo', 'Craft Piva', 'Brezalkoholno Pivo'].includes(c.name)).map((c: { id: string }) => c.id) },
-      { id: 'zganepijace', name: 'Žgane pijače', icon: '🥃', color: '#6b21a8', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Viski', 'Gin', 'Likerji', 'Grenčice', 'Destilati, Konjak in Rum'].includes(c.name)).map((c: { id: string }) => c.id) },
-      { id: 'napitki', name: 'Napitki', icon: '☕', color: '#92400e', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Topli Napitki', 'Mešane Pijače'].includes(c.name)).map((c: { id: string }) => c.id) },
-      { id: 'brezalkoholne', name: 'Brezalkoholne', icon: '🥤', color: '#0ea5e9', categoryIds: categoriesForMenu.filter((c: { name: string }) => ['Vode', 'Naravni Sokovi', 'Sokovi', 'Gazirane Pijače'].includes(c.name)).map((c: { id: string }) => c.id) },
-    ]
-  }, [categoriesForMenu])
-
-  const filteredMenuItems = useMemo(() => {
-    return menuItems?.filter(
-      (item: MenuItemType) => {
-        const matchesMenu = !resolvedMenuId || item.category?.menu?.id === resolvedMenuId
-        const matchesCategory = activeCategory === 'all' || item.categoryId === activeCategory
-        const matchesSuperGroup = activeSuperGroup === 'all' ||
-          superGroups.some(sg => sg.id === activeSuperGroup && sg.categoryIds.includes(item.categoryId))
-        const matchesSearch = !itemSearch || item.name.toLowerCase().includes(itemSearch.toLowerCase())
-        return matchesMenu && matchesCategory && matchesSuperGroup && matchesSearch && item.isAvailable
-      }
-    ) || []
-  }, [menuItems, resolvedMenuId, activeCategory, activeSuperGroup, superGroups, itemSearch])
-
-  // Wrapper za handleItemClick z stock info
   const onItemClicked = (item: MenuItemType) => {
     const stockInfo = menuStockMap?.[item.id]
     handleItemClick(item, stockInfo ? { status: stockInfo.status, available: stockInfo.available } : undefined)
@@ -145,7 +115,6 @@ export function MenuBrowser({
 
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-      {/* Order Type + Table Bar */}
       <OrderTypeBar
         orderType={orderType}
         setOrderType={setOrderType}
@@ -156,7 +125,6 @@ export function MenuBrowser({
         tables={tables}
         diningOptions={diningOptions}
       />
-      {/* Menu Tabs + Category Navigation */}
       <MenuCategoryNav
         menus={menus}
         resolvedMenuId={resolvedMenuId}
@@ -169,9 +137,7 @@ export function MenuBrowser({
         setActiveSuperGroup={setActiveSuperGroup}
         superGroups={superGroups}
       />
-      {/* ALLERGEN FILTER BAR - EU 1169/2011 */}
       <AllergenFilterBar />
-      {/* Items Grid s search */}
       <MenuItemsGrid
         filteredMenuItems={filteredMenuItems}
         menuStockMap={menuStockMap}
@@ -183,7 +149,6 @@ export function MenuBrowser({
         menusLoading={menusLoading}
         menuLoading={menuLoading}
       />
-      {/* MODIFIER DIALOG */}
       <ModifierDialog
         modifierDialogItem={modifierDialogItem}
         selectedModifiers={selectedModifiers}

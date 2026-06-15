@@ -1,13 +1,12 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
-import { useState, useMemo, useCallback, memo } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo, useCallback, memo } from 'react'
 import { format } from 'date-fns'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import dynamic from 'next/dynamic'
-import type { EmployeeFormData, ShiftFormData } from './employee/constants'
+import { useEmployeeManagerState, useEmployeeManagerMutations } from './useEmployeeManagerState'
 
 // Lazy-loaded podkomponente
 const EmployeeHeader = dynamic(() => import('./employee/EmployeeHeader').then(m => ({ default: m.EmployeeHeader })), { ssr: false })
@@ -18,14 +17,10 @@ const DeleteDialog = dynamic(() => import('./employee/DeleteDialog').then(m => (
 
 export const EmployeeManager = memo(function EmployeeManager() {
   const queryClient = useQueryClient()
-  const [search, setSearch] = useState('')
-  const [filterRole, setFilterRole] = useState('all')
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingEmployee, setEditingEmployee] = useState<Record<string, unknown> | null>(null)
-  const [formData, setFormData] = useState<EmployeeFormData>({ name: '', email: '', phone: '', role: 'staff', status: 'active', hireDate: '' })
-  const [shiftDialogOpen, setShiftDialogOpen] = useState(false)
-  const [shiftForm, setShiftForm] = useState<ShiftFormData>({ employeeId: '', date: '', startTime: '09:00', endTime: '17:00' })
-  const [deleteTarget, setDeleteTarget] = useState<Record<string, unknown> | null>(null)
+  const state = useEmployeeManagerState()
+  const { createMutation, updateMutation, deleteMutation, createShiftMutation } = useEmployeeManagerMutations(
+    queryClient, state.setDialogOpen, state.setShiftDialogOpen, state.setEditingEmployee
+  )
 
   const { data: employees, isLoading } = useQuery({
     queryKey: queryKeys.employees.all,
@@ -47,59 +42,21 @@ export const EmployeeManager = memo(function EmployeeManager() {
 
   const employeesList = Array.isArray(employees) ? employees : []
 
-  // FIX PERF: useMemo za filtriranje — prej se je filtriralo ob vsakem renderu
   const filteredEmployees = useMemo(() => employeesList.filter((emp: { name: string; role: string }) => {
-    const matchesSearch = emp.name.toLowerCase().includes(search.toLowerCase())
-    const matchesRole = filterRole === 'all' || emp.role === filterRole
+    const matchesSearch = emp.name.toLowerCase().includes(state.search.toLowerCase())
+    const matchesRole = state.filterRole === 'all' || emp.role === state.filterRole
     return matchesSearch && matchesRole
-  }), [employeesList, search, filterRole])
+  }), [employeesList, state.search, state.filterRole])
 
-  const createMutation = useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      const res = await authFetch('/api/employees', { method: 'POST', body: JSON.stringify(data) })
-      if (!res.ok) throw new Error('Failed')
-      return res.json()
-    },
-    onSuccess: () => { toast.success('Zaposleni ustvarjen'); queryClient.invalidateQueries({ queryKey: queryKeys.employees.all }); setDialogOpen(false) },
-  })
-
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
-      const res = await authFetch(`/api/employees/${id}`, { method: 'PUT', body: JSON.stringify(data) })
-      if (!res.ok) throw new Error('Failed')
-      return res.json()
-    },
-    onSuccess: () => { toast.success('Zaposleni posodobljen'); queryClient.invalidateQueries({ queryKey: queryKeys.employees.all }); setDialogOpen(false); setEditingEmployee(null) },
-  })
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await authFetch(`/api/employees/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Failed')
-      return res.json()
-    },
-    onSuccess: () => { toast.success('Zaposleni izbrisan'); queryClient.invalidateQueries({ queryKey: queryKeys.employees.all }) },
-  })
-
-  const createShiftMutation = useMutation({
-    mutationFn: async (data: Record<string, unknown>) => {
-      const res = await authFetch('/api/shifts', { method: 'POST', body: JSON.stringify(data) })
-      if (!res.ok) throw new Error('Failed')
-      return res.json()
-    },
-    onSuccess: () => { toast.success('Izmena razporejena'); queryClient.invalidateQueries({ queryKey: queryKeys.shifts.all }); setShiftDialogOpen(false) },
-  })
-
-  // FIX PERF: useCallback za handlerje — prej so se ustvarjali na vsakem renderu
   const openCreate = useCallback(() => {
-    setEditingEmployee(null)
-    setFormData({ name: '', email: '', phone: '', role: 'staff', status: 'active', hireDate: format(new Date(), 'yyyy-MM-dd') })
-    setDialogOpen(true)
-  }, [])
+    state.setEditingEmployee(null)
+    state.setFormData({ name: '', email: '', phone: '', role: 'staff', status: 'active', hireDate: format(new Date(), 'yyyy-MM-dd') })
+    state.setDialogOpen(true)
+  }, [state])
 
   const openEdit = useCallback((emp: Record<string, unknown>) => {
-    setEditingEmployee(emp)
-    setFormData({
+    state.setEditingEmployee(emp)
+    state.setFormData({
       name: String(emp.name),
       email: String(emp.email),
       phone: String(emp.phone || ''),
@@ -107,17 +64,17 @@ export const EmployeeManager = memo(function EmployeeManager() {
       status: String(emp.status),
       hireDate: emp.hireDate ? format(new Date(emp.hireDate as string), 'yyyy-MM-dd') : '',
     })
-    setDialogOpen(true)
-  }, [])
+    state.setDialogOpen(true)
+  }, [state])
 
   const handleSubmit = useCallback(() => {
-    const payload = { ...formData, hireDate: formData.hireDate || new Date().toISOString() }
-    if (editingEmployee) {
-      updateMutation.mutate({ id: editingEmployee.id as string, ...payload })
+    const payload = { ...state.formData, hireDate: state.formData.hireDate || new Date().toISOString() }
+    if (state.editingEmployee) {
+      updateMutation.mutate({ id: state.editingEmployee.id as string, ...payload })
     } else {
       createMutation.mutate(payload)
     }
-  }, [formData, editingEmployee, updateMutation, createMutation])
+  }, [state.formData, state.editingEmployee, updateMutation, createMutation])
 
   const toggleStatus = useCallback((emp: Record<string, unknown>) => {
     const newStatus = emp.status === 'active' ? 'inactive' : 'active'
@@ -125,69 +82,62 @@ export const EmployeeManager = memo(function EmployeeManager() {
   }, [updateMutation])
 
   const openShiftDialog = useCallback(() => {
-    setShiftForm({ employeeId: '', date: format(new Date(), 'yyyy-MM-dd'), startTime: '09:00', endTime: '17:00' })
-    setShiftDialogOpen(true)
-  }, [])
+    state.setShiftForm({ employeeId: '', date: format(new Date(), 'yyyy-MM-dd'), startTime: '09:00', endTime: '17:00' })
+    state.setShiftDialogOpen(true)
+  }, [state])
 
   const handleDialogOpenChange = useCallback((open: boolean) => {
-    if (!open) setEditingEmployee(null)
-    setDialogOpen(open)
-  }, [])
+    if (!open) state.setEditingEmployee(null)
+    state.setDialogOpen(open)
+  }, [state])
 
   const handleShiftDialogOpenChange = useCallback((open: boolean) => {
-    setShiftDialogOpen(open)
-  }, [])
+    state.setShiftDialogOpen(open)
+  }, [state])
 
   const handleDeleteOpenChange = useCallback((open: boolean) => {
-    if (!open) setDeleteTarget(null)
-  }, [])
+    if (!open) state.setDeleteTarget(null)
+  }, [state])
 
   const handleDeleteConfirm = useCallback(() => {
-    if (deleteTarget?.id) deleteMutation.mutate(deleteTarget.id as string)
-    setDeleteTarget(null)
-  }, [deleteTarget, deleteMutation])
+    if (state.deleteTarget?.id) deleteMutation.mutate(state.deleteTarget.id as string)
+    state.setDeleteTarget(null)
+  }, [state.deleteTarget, deleteMutation, state])
 
   return (
     <div className="space-y-6">
-      <EmployeeHeader
-        onOpenCreate={openCreate}
-        onOpenShiftDialog={openShiftDialog}
-      />
-
+      <EmployeeHeader onOpenCreate={openCreate} onOpenShiftDialog={openShiftDialog} />
       <EmployeeList
         employees={filteredEmployees}
         isLoading={isLoading}
-        search={search}
-        filterRole={filterRole}
-        onSearchChange={setSearch}
-        onFilterRoleChange={setFilterRole}
+        search={state.search}
+        filterRole={state.filterRole}
+        onSearchChange={state.setSearch}
+        onFilterRoleChange={state.setFilterRole}
         onEdit={openEdit}
         onToggleStatus={toggleStatus}
-        onDelete={setDeleteTarget}
+        onDelete={state.setDeleteTarget}
         shifts={shifts}
       />
-
       <EmployeeDialog
-        open={dialogOpen}
+        open={state.dialogOpen}
         onOpenChange={handleDialogOpenChange}
-        editingEmployee={editingEmployee}
-        formData={formData}
-        onFormDataChange={setFormData}
+        editingEmployee={state.editingEmployee}
+        formData={state.formData}
+        onFormDataChange={state.setFormData}
         onSubmit={handleSubmit}
       />
-
       <ShiftDialog
-        open={shiftDialogOpen}
+        open={state.shiftDialogOpen}
         onOpenChange={handleShiftDialogOpenChange}
-        shiftForm={shiftForm}
-        onShiftFormChange={setShiftForm}
+        shiftForm={state.shiftForm}
+        onShiftFormChange={state.setShiftForm}
         employees={employeesList}
-        onSubmit={() => createShiftMutation.mutate(shiftForm as unknown as Record<string, unknown>)}
+        onSubmit={() => createShiftMutation.mutate(state.shiftForm as unknown as Record<string, unknown>)}
       />
-
       <DeleteDialog
-        open={!!deleteTarget}
-        deleteTarget={deleteTarget}
+        open={!!state.deleteTarget}
+        deleteTarget={state.deleteTarget}
         onOpenChange={handleDeleteOpenChange}
         onConfirm={handleDeleteConfirm}
       />

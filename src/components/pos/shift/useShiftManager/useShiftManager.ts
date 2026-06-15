@@ -1,6 +1,8 @@
 'use client'
 
-import { useShiftState, useShiftQueries, useShiftComputations, useShiftHandlers } from './useShiftHandlers'
+import { useShiftState, useShiftHandlers } from './useShiftHandlers'
+import { useShiftQueries } from './useShiftQueries'
+import { useShiftComputations } from './useShiftComputations'
 
 // ============================================
 // HOOK: Upravljanje izmen in ur

@@ -10,7 +10,7 @@ import {
   broadcastWS,
   handleOrderCompletion, handleOrderCancellation, validateOrderTransitions,
 } from './_helpers'
-import { emitOrderWebhooks, handleFireAction, handleItemStatusUpdate, performOrderSoftDelete } from './_helpers-webhooks'
+import { emitOrderWebhooks, handleFireAction, handleItemStatusUpdate, performOrderSoftDelete } from './webhooks'
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -34,7 +34,6 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
     }
 
-    // FIX BUG-01: Preveri veljavnost prehoda statusa
     const transitionError = validateOrderTransitions(existingOrder, data)
     if (transitionError) return transitionError
 
