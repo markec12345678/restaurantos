@@ -1,0 +1,50 @@
+// ============================================
+// NAROČILA / ORDERS — Slovenščina
+// ============================================
+
+export const ordersSl: Record<string, string> = {
+  // Naročila
+  'orders.new': 'Novo naročilo',
+  'orders.cart': 'Košarica',
+  'orders.empty': 'Košarica je prazna',
+  'orders.pay': 'Plačaj',
+  'orders.send': 'Pošlji v kuhinjo',
+  'orders.fire': 'Pošlji (FIRE)',
+  'orders.split': 'Razdeli račun',
+  'orders.split.evenly': 'Razdeli enako',
+  'orders.split.byItems': 'Razdeli po artiklih',
+  'orders.split.custom': 'Razdeli po meri',
+  'orders.void': 'Poniči',
+  'orders.void.reason': 'Razlog za poničenje',
+  'orders.storno': 'Storno',
+  'orders.refund': 'Vračilo',
+  'orders.receipt': 'Račun',
+  'orders.receipt.digital': 'Pošlji digitalni račun',
+  'orders.receipt.print': 'Natisni račun',
+  'orders.receipt.email': 'Pošlji po e-pošti',
+  'orders.receipt.sms': 'Pošlji po SMS',
+  'orders.type.dine-in': 'Na mestu',
+  'orders.type.takeout': 'Za s seboj',
+  'orders.type.delivery': 'Dostava',
+  'orders.status.pending': 'Čakajoče',
+  'orders.status.fired': 'Poslano',
+  'orders.status.preparing': 'V pripravi',
+  'orders.status.ready': 'Pripravljeno',
+  'orders.status.served': 'Postreženo',
+  'orders.status.completed': 'Zaključeno',
+  'orders.status.cancelled': 'Preklicano',
+
+  // Plačila
+  'payment.cash': 'Gotovina',
+  'payment.card': 'Kartica',
+  'payment.mobile': 'Mobilno',
+  'payment.voucher': 'Vavčer',
+  'payment.giftcard': 'Darilna kartica',
+  'payment.loyalty': 'Zvestobne točke',
+  'payment.split': 'Deljeno plačilo',
+  'payment.change': 'Vračilo',
+  'payment.amount': 'Znesek',
+  'payment.processing': 'Obdelava plačila...',
+  'payment.success': 'Plačilo uspešno',
+  'payment.failed': 'Plačilo neuspešno',
+}
