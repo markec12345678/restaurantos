@@ -1,12 +1,13 @@
 
 // Shema za delno posodabljanje plačila (vsa polja opcijska)
 import { db } from '@/lib/db'
-import { deepToNumbers, sumBy, greaterThanOrEqual, subtract, toNum, isPositive, round2 } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createPaymentSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { z } from 'zod'
+import { reverseGiftCard, reverseLoyaltyPoints, recalculatePaymentStatus, deepToNumbers } from './_helpers'
+
 const updatePaymentSchema = createPaymentSchema.partial().extend({
   status: z.enum(['completed', 'refunded', 'voided']).optional(),
   employeeId: z.string().nullable().optional(),
@@ -80,87 +81,12 @@ export async function PUT(
       // Wrap reversal + update in a single transaction
       const payment = await db.$transaction(async (tx) => {
         // Reverse gift card balance if it was a giftcard payment
-        if (existingPayment.type === 'giftcard' && existingPayment.giftCardId) {
-          // FIX CRITICAL: Validate card status before refunding balance
-          // A suspended/expired card should not receive balance back automatically
-          const giftCard = await tx.giftCard.findUnique({ where: { id: existingPayment.giftCardId } })
-          if (!giftCard) {
-            throw new Error('Darilna kartica ni najdena — vračilo ni mogoče')
-          }
-
-          // Allow refund to active cards; for suspended/expired, only allow if card was active at payment time
-          if (giftCard.status === 'suspended') {
-            throw new Error('Darilna kartica je suspendirana — obrnite se na upravitelja za vračilo')
-          }
-
-          const updatedGiftCard = await tx.giftCard.update({
-            where: { id: existingPayment.giftCardId },
-            data: { balance: { increment: existingPayment.amount } },
-          })
-
-          // If card was depleted and now has balance, reactivate it
-          if (giftCard.status === 'depleted' && isPositive(updatedGiftCard.balance)) { // FIX: Decimal comparison — use isPositive() instead of > 0
-            await tx.giftCard.update({
-              where: { id: existingPayment.giftCardId },
-              data: { status: 'active' },
-            })
-          }
-          await tx.giftCardTransaction.create({
-            data: {
-              giftCardId: existingPayment.giftCardId,
-              type: 'adjust',
-              amount: existingPayment.amount,
-              balanceAfter: updatedGiftCard.balance,
-              checkId: existingPayment.checkId,
-              note: `Vračilo/poničitev plačila ${id}`,
-            },
-          })
-        }
+        await reverseGiftCard(tx, existingPayment, id)
 
         // Reverse loyalty points if it was a loyalty payment
-        if (existingPayment.type === 'loyalty' && existingPayment.loyaltyAccountId && existingPayment.loyaltyPointsUsed > 0) {
-          // FIX HIGH: Fetch account first to validate before incrementing — prevents
-          // pointsBalance from exceeding lifetimePoints (data integrity violation)
-          const loyaltyAccount = await tx.loyaltyAccount.findUnique({
-            where: { id: existingPayment.loyaltyAccountId },
-          })
-          if (!loyaltyAccount || !loyaltyAccount.isActive) {
-            throw new Error('Zvestobni račun ni aktiven — vračilo točk ni mogoče')
-          }
-
-          const returnedPoints = existingPayment.loyaltyPointsUsed
-          // FIX HIGH: Validate that returned points won't push pointsBalance above lifetimePoints
-          if (loyaltyAccount.pointsBalance + returnedPoints > loyaltyAccount.lifetimePoints) {
-            throw new Error('Vračilo točk presega lifetimePoints — vračilo ni mogoče')
-          }
-
-          await tx.loyaltyAccount.update({
-            where: { id: existingPayment.loyaltyAccountId },
-            data: { pointsBalance: { increment: returnedPoints } },
-          })
-
-          // FIX HIGH: Calculate monetaryValue proportionally to points returned.
-          // monetaryValue = (returnedPoints / pointsUsedInPayment) * paymentAmount
-          // This ensures the transaction value scales correctly if partial points are returned.
-          const monetaryValue = round2(
-            (returnedPoints / existingPayment.loyaltyPointsUsed) * toNum(existingPayment.amount)
-          )
-
-          await tx.loyaltyTransaction.create({
-            data: {
-              loyaltyAccountId: existingPayment.loyaltyAccountId,
-              type: 'adjust',
-              points: returnedPoints,
-              reason: `Vračilo/poničitev plačila ${id}`,
-              checkId: existingPayment.checkId,
-              monetaryValue,
-            },
-          })
-        }
+        await reverseLoyaltyPoints(tx, existingPayment, id)
 
         // FIX HIGH: Zmanjšaj discount.currentUses ob povračilu/poničitvi plačila
-        // Prejšnja koda je uporabila decrement brez preverjanja currentUses > 0 —
-        // to je lahko povzročilo negativen currentUses, kar prelomi maxUses enforcement
         const checkForDiscount = await tx.check.findUnique({ where: { id: existingPayment.checkId } })
         if (checkForDiscount?.appliedDiscountId) {
           await tx.discount.updateMany({
@@ -181,44 +107,8 @@ export async function PUT(
           },
         })
 
-        // Recalculate the check's paymentStatus
-        const checkId = existingPayment.checkId
-        const allPayments = await tx.payment.findMany({
-          where: { checkId, status: 'completed' },
-        })
-        const totalPaid = sumBy(allPayments, p => p.amount)
-        const check = await tx.check.findUnique({ where: { id: checkId } })
-
-        let paymentStatus = 'unpaid'
-        if (check) {
-          if (greaterThanOrEqual(totalPaid, subtract(check.total, 0.01))) {
-            paymentStatus = 'paid'
-          } else if (toNum(totalPaid) > 0) {
-            paymentStatus = 'partial'
-          }
-        }
-
-        await tx.check.update({
-          where: { id: checkId },
-          data: { paymentStatus },
-        })
-
-        // FIX CRITICAL: Recalculate ORDER paymentStatus after refund/void
-        // Previously only the check was updated but the order was left as 'paid'
-        const orderId = checkForDiscount?.orderId || existingPayment.check?.orderId
-        if (orderId) {
-          const allOrderChecks = await tx.check.findMany({ where: { orderId } })
-          const allPaid = allOrderChecks.every(c => c.paymentStatus === 'paid')
-          const anyPartial = allOrderChecks.some(c => c.paymentStatus === 'partial')
-          const orderPaymentStatus = allPaid ? 'paid' : anyPartial ? 'partial' : 'unpaid'
-          await tx.order.update({
-            where: { id: orderId },
-            data: {
-              paymentStatus: orderPaymentStatus,
-              ...(orderPaymentStatus === 'unpaid' ? { paidAt: null } : {}),
-            },
-          })
-        }
+        // Recalculate payment statuses
+        await recalculatePaymentStatus(tx, existingPayment, checkForDiscount)
 
         return updatedPayment
       })
