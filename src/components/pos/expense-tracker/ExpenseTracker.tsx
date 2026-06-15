@@ -1,36 +1,29 @@
 'use client'
 
-// ============================================
-// RestaurantOS — Sledenje stroškov
-// Kategorije, proračun, trendi, ponavljajoči stroški
-// ============================================
-
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { memo, useMemo, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { authFetch } from '@/components/pos/PinLogin'
-import { DollarSign, Plus, TrendingDown, Receipt, RefreshCw } from 'lucide-react'
-import { useState, useMemo, useCallback, memo } from 'react'
-import { format } from 'date-fns'
+import { Plus, Receipt, RefreshCw } from 'lucide-react'
+import { useState } from 'react'
 import { toast } from 'sonner'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-keys'
 import { ExpenseAddDialog } from './ExpenseAddDialog'
-import { CATEGORIES, PAYMENT_METHODS } from './constants'
+import { ExpenseStatsCards } from './ExpenseStatsCards'
+import { CategoryBreakdown } from './CategoryBreakdown'
+import { RecentExpensesList } from './RecentExpensesList'
 
+// ============================================
+// Main ExpenseTracker component
+// ============================================
 export const ExpenseTracker = memo(function ExpenseTracker() {
   const queryClient = useQueryClient()
   const [period, setPeriod] = useState('month')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [form, setForm] = useState({
-    category: 'supplies',
-    description: '',
-    amount: '',
-    vendor: '',
-    paymentMethod: 'cash',
-    recurring: false,
+    category: 'supplies', description: '', amount: '', vendor: '', paymentMethod: 'cash', recurring: false,
   })
 
   const { data, isLoading, refetch } = useQuery({
@@ -90,7 +83,6 @@ export const ExpenseTracker = memo(function ExpenseTracker() {
 
   return (
     <div className="space-y-6 overflow-y-auto h-full p-1 custom-scrollbar">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -114,105 +106,13 @@ export const ExpenseTracker = memo(function ExpenseTracker() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card><CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-1"><TrendingDown className="h-4 w-4 text-red-500" /><span className="text-xs text-muted-foreground">Skupni stroški</span></div>
-          <p className="text-2xl font-bold">€{(stats?.totalExpenses || 0).toFixed(2)}</p>
-        </CardContent></Card>
-        <Card><CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-1"><RefreshCw className="h-4 w-4 text-amber-500" /><span className="text-xs text-muted-foreground">Ponavljajoči</span></div>
-          <p className="text-2xl font-bold">€{(stats?.recurringExpenses || 0).toFixed(2)}</p>
-        </CardContent></Card>
-        <Card><CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-1"><Receipt className="h-4 w-4 text-blue-500" /><span className="text-xs text-muted-foreground">Število</span></div>
-          <p className="text-2xl font-bold">{stats?.count || 0}</p>
-        </CardContent></Card>
-        <Card><CardContent className="p-4">
-          <div className="flex items-center gap-2 mb-1"><DollarSign className="h-4 w-4 text-purple-500" /><span className="text-xs text-muted-foreground">Povprečni</span></div>
-          <p className="text-2xl font-bold">€{avgExpense}</p>
-        </CardContent></Card>
-      </div>
+      <ExpenseStatsCards stats={stats} avgExpense={avgExpense} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Stroški po kategorijah */}
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-lg">Po kategorijah</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {CATEGORIES.map(cat => {
-                const catData = byCategory[cat.id]
-                if (!catData) return null
-                const CatIcon = cat.icon
-                const pct = stats?.totalExpenses ? (catData.total / stats.totalExpenses) * 100 : 0
-                return (
-                  <div key={cat.id} className="flex items-center gap-3">
-                    <div className={`h-8 w-8 rounded-full bg-${cat.color}-100 dark:bg-${cat.color}-900/30 flex items-center justify-center`}>
-                      <CatIcon className={`h-4 w-4 text-${cat.color}-600`} />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-sm font-medium">{cat.label}</span>
-                        <span className="text-sm font-bold">€{catData.total.toFixed(2)}</span>
-                      </div>
-                      <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div className={`h-full bg-${cat.color}-500 rounded-full`} style={{ width: `${pct}%` }} />
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{catData.count} vnosov · {pct.toFixed(1)}%</p>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Zadnji stroški */}
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-lg">Zadnji vnosi</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-96 overflow-y-auto custom-scrollbar">
-              {expenses.slice(0, 20).map((exp: {
-                id: string; category: string; description: string; amount: number;
-                date: string; vendor: string; paymentMethod: string; recurring: boolean
-              }) => {
-                const catInfo = CATEGORIES.find(c => c.id === exp.category) || CATEGORIES[CATEGORIES.length - 1]
-                const CatIcon = catInfo.icon
-                const payMethod = PAYMENT_METHODS.find(p => p.id === exp.paymentMethod) || PAYMENT_METHODS[0]
-                const PayIcon = payMethod.icon
-                return (
-                  <div key={exp.id} className="flex items-center gap-3 p-2.5 rounded-lg border hover:bg-muted/30 transition-colors">
-                    <div className={`h-9 w-9 rounded-full bg-${catInfo.color}-100 dark:bg-${catInfo.color}-900/30 flex items-center justify-center flex-shrink-0`}>
-                      <CatIcon className={`h-4 w-4 text-${catInfo.color}-600`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium truncate">{exp.description}</p>
-                        {exp.recurring && <Badge variant="outline" className="text-[9px]">Ponavljajoč</Badge>}
-                      </div>
-                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span>{catInfo.label}</span>
-                        {exp.vendor && <span>· {exp.vendor}</span>}
-                        <span>· {format(new Date(exp.date), 'dd.MM.yyyy')}</span>
-                        <PayIcon className="h-3 w-3" />
-                      </div>
-                    </div>
-                    <span className="text-sm font-bold text-red-600">-€{exp.amount.toFixed(2)}</span>
-                  </div>
-                )
-              })}
-              {expenses.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Receipt className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">Ni zabeleženih stroškov</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <CategoryBreakdown byCategory={byCategory} totalExpenses={stats?.totalExpenses || 0} />
+        <RecentExpensesList expenses={expenses} />
       </div>
 
-      {/* Add Dialog */}
       <ExpenseAddDialog
         open={showAddDialog}
         onOpenChange={setShowAddDialog}

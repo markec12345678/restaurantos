@@ -1,6 +1,7 @@
 'use client'
 import React from 'react'
-import { TaxRateForm, DiningOptionForm, RevenueCenterForm, SalesCategoryForm, PriceGroupForm, ServiceChargeForm, PrepStationForm, VoidReasonForm, NoSaleReasonForm } from './SimpleForms'
+import { TaxRateForm, RevenueCenterForm, SalesCategoryForm, VoidReasonForm, NoSaleReasonForm } from './SimpleForms'
+import { DiningOptionForm, PriceGroupForm, ServiceChargeForm, PrepStationForm } from './DetailedForms'
 import { AltPaymentTypeForm, PrinterForm, DiscountForm, GiftCardForm, LoyaltyForm, WebhookForm } from './ExtendedForms'
 
 // ============================================

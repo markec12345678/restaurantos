@@ -22,7 +22,7 @@ const CategoryTabs = dynamic(() => import('./components/menu-tabs').then(m => ({
 const MenuItemList = dynamic(() => import('./components/menu-item-list').then(m => ({ default: m.MenuItemList })), { ssr: false });
 const ItemDetailModal = dynamic(() => import('./components/item-detail-modal').then(m => ({ default: m.ItemDetailModal })), { ssr: false });
 const CartDrawer = dynamic(() => import('./components/cart-drawer').then(m => ({ default: m.CartDrawer })), { ssr: false });
-const FloatingCartBar = dynamic(() => import('./components/cart-drawer').then(m => ({ default: m.FloatingCartBar })), { ssr: false });
+const FloatingCartBar = dynamic(() => import('./components/FloatingCartBar').then(m => ({ default: m.FloatingCartBar })), { ssr: false });
 const UpsellSuggestions = dynamic(() => import('./components/upsell-suggestions').then(m => ({ default: m.UpsellSuggestions })), { ssr: false });
 
 export default function QRMenuPage() {

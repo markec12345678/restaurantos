@@ -1,25 +1,17 @@
 'use client'
 
-// ═══════════════════════════════════════════════════════════════
-// RestaurantOS — Z-Report / Dnevni zaključek
-// Toast POS + Square standard — poln Z-report z DDV, gotovino, stroški
-// ═══════════════════════════════════════════════════════════════
-
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
-import { authFetch } from '@/components/pos/PinLogin'
-import { queryKeys } from '@/lib/query-keys'
 import { FileText, CheckCircle2, Calculator } from 'lucide-react'
-import { useState, useCallback, memo } from 'react'
-import dynamic from 'next/dynamic'
 import { format } from 'date-fns'
 import { sl } from 'date-fns/locale'
-import { toast } from 'sonner'
+import dynamic from 'next/dynamic'
 import type { ZReportData } from './zreport/constants'
+import { useZReportManager } from './useZReportManager'
 
 // Lazy-loaded podkomponente
 const ZReportStats = dynamic(() => import('./zreport/ZReportStats').then(m => ({ default: m.ZReportStats })), { ssr: false })
@@ -30,97 +22,25 @@ const ZReportHistory = dynamic(() => import('./zreport/ZReportHistory').then(m =
 const ZReportCloseDialog = dynamic(() => import('./zreport/ZReportCloseDialog').then(m => ({ default: m.ZReportCloseDialog })), { ssr: false })
 
 export const ZReportManager = memo(function ZReportManager() {
-  const queryClient = useQueryClient()
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [showCloseDialog, setShowCloseDialog] = useState(false)
-  const [actualCash, setActualCash] = useState('')
-  const [closeNotes, setCloseNotes] = useState('')
-
-  // Pridobi Z-poročila
-  const { data: reports, isLoading } = useQuery({
-    queryKey: queryKeys.zReport.all,
-    queryFn: async () => {
-      const res = await authFetch('/api/z-report')
-      return res.json()
-    },
-  })
-
-  // Pridobi trenutno poročilo
-  const { data: currentReport, isLoading: loadingReport } = useQuery({
-    queryKey: [...queryKeys.zReport.current, selectedDate],
-    queryFn: async () => {
-      const res = await authFetch(`/api/z-report?date=${selectedDate}`)
-      const data = await res.json()
-      return data.length > 0 ? data[0] : null
-    },
-  })
-
-  // Generiraj/Zaključi Z-poročilo
-  const generateMutation = useMutation({
-    mutationFn: async (finalize: boolean) => {
-      const res = await authFetch('/api/z-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: selectedDate,
-          actualCash: parseFloat(actualCash) || 0,
-          notes: closeNotes,
-          finalize,
-        }),
-      })
-      if (!res.ok) throw new Error('Napaka pri generiranju Z-poročila')
-      return res.json()
-    },
-    onSuccess: (_, finalize) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.zReport.current })
-      queryClient.invalidateQueries({ queryKey: queryKeys.zReport.all })
-      toast.success(finalize ? 'Z-poročilo zaključeno!' : 'Z-poročilo generirano!')
-      setShowCloseDialog(false)
-    },
-    onError: () => toast.error('Napaka pri generiranju Z-poročila'),
-  })
-
-  const report = currentReport as ZReportData | null
-
-  // Handler za izbiro datuma
-  const handleDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setSelectedDate(e.target.value)
-  }, [])
-
-  // Handler za odpiranje zaključnega dialoga
-  const handleOpenCloseDialog = useCallback(() => {
-    setShowCloseDialog(true)
-  }, [])
-
-  // Handler za zapiranje zaključnega dialoga (onOpenChange pattern)
-  const handleCloseDialogOpenChange = useCallback((open: boolean) => {
-    setShowCloseDialog(open)
-  }, [])
-
-  // Handler za generiranje osnutka
-  const handleGenerate = useCallback(() => {
-    generateMutation.mutate(false)
-  }, [generateMutation])
-
-  // Handler za finalno zaključevanje
-  const handleFinalize = useCallback(() => {
-    generateMutation.mutate(true)
-  }, [generateMutation])
-
-  // Handler za vnos dejanske gotovine
-  const handleActualCashChange = useCallback((value: string) => {
-    setActualCash(value)
-  }, [])
-
-  // Handler za vnos opomb
-  const handleCloseNotesChange = useCallback((value: string) => {
-    setCloseNotes(value)
-  }, [])
-
-  // Handler za izbibo datuma iz zgodovine
-  const handleSelectDate = useCallback((date: string) => {
-    setSelectedDate(date)
-  }, [])
+  const {
+    selectedDate,
+    showCloseDialog,
+    report,
+    isLoading,
+    loadingReport,
+    generateMutation,
+    handleDateChange,
+    handleOpenCloseDialog,
+    handleCloseDialogOpenChange,
+    handleGenerate,
+    handleFinalize,
+    handleActualCashChange,
+    handleCloseNotesChange,
+    handleSelectDate,
+    reports,
+    actualCash,
+    closeNotes,
+  } = useZReportManager()
 
   if (isLoading || loadingReport) {
     return (
@@ -176,19 +96,10 @@ export const ZReportManager = memo(function ZReportManager() {
 
       {report && (
         <>
-          {/* Glavna statistika */}
           <ZReportStats report={report} />
-
-          {/* Po načinu plačila + Vrsta naročila */}
           <PaymentBreakdown report={report} />
-
-          {/* DDV razčlenitev + Gotovina */}
           <VatCashSection report={report} />
-
-          {/* Profitabiliteta + Popusti/Void */}
           <ProfitDiscountSection report={report} />
-
-          {/* Opombe */}
           {report.notes && (
             <Card>
               <CardContent className="pt-4">
@@ -214,13 +125,11 @@ export const ZReportManager = memo(function ZReportManager() {
         </Card>
       )}
 
-      {/* Zgodovina */}
       <ZReportHistory
         reports={(reports || []) as ZReportData[]}
         onSelectDate={handleSelectDate}
       />
 
-      {/* Dialog za zaključek dneva */}
       <ZReportCloseDialog
         open={showCloseDialog}
         onOpenChange={handleCloseDialogOpenChange}

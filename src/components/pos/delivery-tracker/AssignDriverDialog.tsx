@@ -1,26 +1,27 @@
 'use client'
 
 import { memo } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
-import { User } from 'lucide-react'
-import type { AssignDriverDialogProps } from './constants'
+import { Button } from '@/components/ui/button'
 
-// ============================================
-// ASSIGN DRIVER DIALOG - Dodelitev voznika dostavi
-// ============================================
+interface AssignDriverDialogProps {
+  open: boolean
+  onOpenChange: (_open: boolean) => void
+  driverName: string
+  onDriverNameChange: (_v: string) => void
+  driverPhone: string
+  onDriverPhoneChange: (_v: string) => void
+  vehicleInfo: string
+  onVehicleInfoChange: (_v: string) => void
+  isPending: boolean
+  onAssign: () => void
+}
+
 export const AssignDriverDialog = memo(function AssignDriverDialog({
-  open,
-  onOpenChange,
-  driverName,
-  onDriverNameChange,
-  driverPhone,
-  onDriverPhoneChange,
-  vehicleInfo,
-  onVehicleInfoChange,
-  isPending,
-  onAssign,
+  open, onOpenChange, driverName, onDriverNameChange,
+  driverPhone, onDriverPhoneChange, vehicleInfo, onVehicleInfoChange,
+  isPending, onAssign,
 }: AssignDriverDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -28,27 +29,12 @@ export const AssignDriverDialog = memo(function AssignDriverDialog({
         <DialogHeader>
           <DialogTitle>Dodeli voznika</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div>
-            <label htmlFor="driver-name" className="text-sm font-medium">Ime voznika</label>
-            <Input id="driver-name" value={driverName} onChange={e => onDriverNameChange(e.target.value)} placeholder="Janez Novak" className="mt-1" aria-label="Ime voznika" autoFocus />
-          </div>
-          <div>
-            <label htmlFor="driver-phone" className="text-sm font-medium">Telefon</label>
-            <Input id="driver-phone" value={driverPhone} onChange={e => onDriverPhoneChange(e.target.value)} placeholder="+386 31 234 567" className="mt-1" aria-label="Telefon voznika" />
-          </div>
-          <div>
-            <label htmlFor="driver-vehicle" className="text-sm font-medium">Vozilo</label>
-            <Input id="driver-vehicle" value={vehicleInfo} onChange={e => onVehicleInfoChange(e.target.value)} placeholder="Rdeč Fiat 500, LJ-123-AB" className="mt-1" aria-label="Vozilo" />
-          </div>
+        <div className="space-y-3">
+          <Input placeholder="Ime voznika" value={driverName} onChange={e => onDriverNameChange(e.target.value)} />
+          <Input placeholder="Telefon" value={driverPhone} onChange={e => onDriverPhoneChange(e.target.value)} />
+          <Input placeholder="Vozilo" value={vehicleInfo} onChange={e => onVehicleInfoChange(e.target.value)} />
+          <Button onClick={onAssign} disabled={isPending}>Dodeli</Button>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Prekliči</Button>
-          <Button onClick={onAssign} disabled={isPending || !driverName || !driverPhone}>
-            <User className="h-4 w-4 mr-2" />
-            Dodeli
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
