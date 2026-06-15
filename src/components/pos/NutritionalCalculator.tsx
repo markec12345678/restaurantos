@@ -3,68 +3,25 @@
 // ═══════════════════════════════════════════════════════════════
 // RestaurantOS — Nutritional Calculator
 // EU 1169/2011 compliance — alergeni, kalorije, makrohranila
-// Za vsak menu item z alergeni in nutritivnimi podatki
 // ═══════════════════════════════════════════════════════════════
 
-import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { authFetch } from '@/components/pos/PinLogin'
-import { queryKeys } from '@/lib/query-keys'
 import { AlertTriangle, ShieldCheck, Search, X, Info } from 'lucide-react'
-import { useState, useMemo, memo } from 'react'
-import { ALLERGEN_MAP, type MenuItemData } from './nutrition/constants'
+import { memo } from 'react'
+import { ALLERGEN_MAP } from './nutrition/constants'
 import { NutritionalStatsCards } from './nutrition/NutritionalStatsCards'
 import { NutritionalItemCard } from './nutrition/NutritionalItemCard'
+import { useNutritionalCalc } from './nutrition/useNutritionalCalc'
 
 export const NutritionalCalculator = memo(function NutritionalCalculator() {
-  const [search, setSearch] = useState('')
-  const [allergenFilter, setAllergenFilter] = useState<string | null>(null)
-
-  const { data: menuItems, isLoading } = useQuery({
-    queryKey: queryKeys.menuItemNutrition.all,
-    queryFn: async () => {
-      const res = await authFetch('/api/menu-items?limit=500')
-      if (!res.ok) throw new Error('Napaka pri nalaganju')
-      return res.json()
-    },
-  })
-
-  const items = (menuItems || []) as MenuItemData[]
-
-  const filtered = useMemo(() => {
-    let result = items
-
-    if (search) {
-      const q = search.toLowerCase()
-      result = result.filter(i => i.name.toLowerCase().includes(q) || i.category?.name?.toLowerCase().includes(q))
-    }
-
-    if (allergenFilter) {
-      result = result.filter(i => {
-        const allergens = i.allergens ? i.allergens.split(',').map(a => a.trim()) : []
-        return allergens.includes(allergenFilter)
-      })
-    }
-
-    return result
-  }, [items, search, allergenFilter])
-
-  // Statistike
-  const stats = useMemo(() => {
-    const withAllergens = items.filter(i => i.allergens && i.allergens.length > 0)
-    const allergenCounts: Record<string, number> = {}
-    for (const item of withAllergens) {
-      const allergens = item.allergens.split(',').map(a => a.trim())
-      for (const a of allergens) {
-        allergenCounts[a] = (allergenCounts[a] || 0) + 1
-      }
-    }
-    return { withAllergens: withAllergens.length, total: items.length, allergenCounts }
-  }, [items])
+  const {
+    search, setSearch, allergenFilter, setAllergenFilter,
+    filtered, stats, isLoading,
+  } = useNutritionalCalc()
 
   if (isLoading) {
     return (
@@ -86,7 +43,6 @@ export const NutritionalCalculator = memo(function NutritionalCalculator() {
         <p className="text-muted-foreground">EU 1169/2011 skladnost — alergeni in nutritivni podatki</p>
       </div>
 
-      {/* Povzetek */}
       <NutritionalStatsCards total={stats.total} withAllergens={stats.withAllergens} />
 
       {/* Iskanje */}

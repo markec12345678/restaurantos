@@ -1,10 +1,11 @@
 'use client'
 
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
+import { useReceiptActions } from './receipt-actions'
 
 // ============================================
 // HOOK: Mutacije za račune (shrani, natisni, kopiraj, FURS)
@@ -91,67 +92,13 @@ export function useReceiptMutations({
     },
   })
 
-  // Tiskaj račun (shrani + natisni)
-  const handlePrint = useCallback(async () => {
-    try {
-      await saveReceipt.mutateAsync()
-    } catch {
-      // Already handled by mutation
-    }
-    setIsPreview(false)
-    window.print()
-    markPrinted.mutate()
-  }, [saveReceipt, setIsPreview, markPrinted])
-
-  // Potrdi in natisni (shrani + FURS overitev + tiskaj)
-  const handleConfirmAndPrint = useCallback(async () => {
-    setIsPreview(false)
-    try {
-      await saveReceipt.mutateAsync()
-      // Avtomatsko zaženi FURS overitev
-      await fiscalVerify.mutateAsync()
-      window.print()
-      markPrinted.mutate()
-    } catch {
-      // Napaka pri overjanju ali shranjevanju -- ne tiskaj
-    }
-  }, [saveReceipt, fiscalVerify, markPrinted, setIsPreview])
-
-  // Pošlji digitalni račun po e-pošti
-  const handleSendEmail = useCallback(async () => {
-    if (!orderId) return
-    try {
-      const res = await authFetch('/api/digital-receipt', {
-        method: 'POST',
-        body: JSON.stringify({ orderId, method: 'email' }),
-      })
-      if (res.ok) {
-        toast.success('Digitalni račun poslan po e-pošti!')
-      } else {
-        toast.error('Napaka pri pošiljanju')
-      }
-    } catch {
-      toast.error('Napaka pri pošiljanju')
-    }
-  }, [orderId])
-
-  // Pošlji digitalni račun po SMS
-  const handleSendSms = useCallback(async () => {
-    if (!orderId) return
-    try {
-      const res = await authFetch('/api/digital-receipt', {
-        method: 'POST',
-        body: JSON.stringify({ orderId, method: 'sms' }),
-      })
-      if (res.ok) {
-        toast.success('Digitalni račun poslan po SMS!')
-      } else {
-        toast.error('Napaka pri pošiljanju')
-      }
-    } catch {
-      toast.error('Napaka pri pošiljanju')
-    }
-  }, [orderId])
+  const { handlePrint, handleConfirmAndPrint, handleSendEmail, handleSendSms } = useReceiptActions({
+    orderId,
+    setIsPreview,
+    saveReceiptMutateAsync: saveReceipt.mutateAsync,
+    fiscalVerifyMutateAsync: fiscalVerify.mutateAsync,
+    markPrintedMutate: () => markPrinted.mutate(),
+  })
 
   return {
     verifying,

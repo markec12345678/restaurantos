@@ -1,9 +1,6 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
 import { useState, useMemo } from 'react'
-import { authFetch } from '@/components/pos/PinLogin'
-import { queryKeys } from '@/lib/query-keys'
 import {
   type InventoryItemData,
   type ItemFormData,
@@ -13,6 +10,7 @@ import {
   emptyRestockForm,
   emptyWriteOffForm,
 } from './constants'
+import { useInventoryQueries } from './useInventoryQueries'
 import { useInventoryMutations } from './useInventoryMutations'
 import { useInventoryHandlers } from './useInventoryHandlers'
 
@@ -52,51 +50,11 @@ export function useInventoryState() {
   const [deleteTarget, setDeleteTarget] = useState<InventoryItemData | null>(null)
 
   // ============================================
-  // QUERIES
+  // QUERIES (iz pod-hooka)
   // ============================================
 
-  const { data: dbCategories } = useQuery<string[]>({
-    queryKey: ['inventory-categories'],
-    queryFn: async () => {
-      const res = await authFetch('/api/inventory?distinctCategories=true')
-      if (!res.ok) return ['general']
-      return res.json()
-    },
-    staleTime: 60000,
-  })
-
-  const invCategories = useMemo(() => ['all', ...(dbCategories || ['general'])], [dbCategories])
-
-  const { data: items, isLoading } = useQuery<InventoryItemData[]>({
-    queryKey: [...queryKeys.inventory.all, filterCategory],
-    queryFn: async () => {
-      const params = new URLSearchParams()
-      if (filterCategory !== 'all') params.set('category', filterCategory)
-      const res = await authFetch(`/api/inventory?${params}`)
-      return res.json()
-    },
-  })
-
-  const { data: menuItems } = useQuery({
-    queryKey: queryKeys.menuItems.all,
-    queryFn: async () => {
-      const res = await authFetch('/api/menu-items')
-      return res.json()
-    },
-  })
-
-  const { data: transactionsData, isLoading: txLoading } = useQuery({
-    queryKey: [...queryKeys.inventory.transactions, txTypeFilter, txDateFrom, txDateTo],
-    queryFn: async () => {
-      const params = new URLSearchParams()
-      if (txTypeFilter !== 'all') params.set('type', txTypeFilter)
-      if (txDateFrom) params.set('from', txDateFrom)
-      if (txDateTo) params.set('to', txDateTo)
-      params.set('limit', '200')
-      const res = await authFetch(`/api/inventory/transactions?${params}`)
-      return res.json()
-    },
-    enabled: activeTab === 'history',
+  const { invCategories, items, isLoading, menuItems, transactionsData, txLoading } = useInventoryQueries({
+    activeTab, filterCategory, txTypeFilter, txDateFrom, txDateTo,
   })
 
   // ============================================

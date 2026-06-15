@@ -2,23 +2,17 @@
 
 // ═══════════════════════════════════════════════════════════════
 // RestaurantOS — Zaključek dneva (End of Day)
-// Toast POS + Restaurant365 standard
-// Celoten EOD proces: Z-poročilo, FURS, gotovina, DDV, povzetek
-// Koordinator — poizvedbe, mutacije, delegiranje pod-komponentam
+// Koordinator — delegira podatke in prikaz pod-komponentam
 // ═══════════════════════════════════════════════════════════════
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { authFetch } from '@/components/pos/PinLogin'
-import { queryKeys } from '@/lib/query-keys'
 import { CheckCircle2, FileText, Lock } from 'lucide-react'
-import { useState, useCallback, memo } from 'react'
+import { memo } from 'react'
 import { format } from 'date-fns'
-import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
-import type { EODData } from './eod/constants'
+import { useEodData } from './eod/useEodData'
 
 // Lazy-loaded pod-komponente
 const EodChecklist = dynamic(() => import('./eod/EodChecklist').then(m => ({ default: m.EodChecklist })), { ssr: false })
@@ -30,63 +24,15 @@ const CloseDayDialog = dynamic(() => import('./eod/CloseDayDialog').then(m => ({
 // GLAVNA KOMPONENTA - Koordinator
 // ============================================
 export const EndOfDayManager = memo(function EndOfDayManager() {
-  const queryClient = useQueryClient()
-  const [showCloseDialog, setShowCloseDialog] = useState(false)
-  const [actualCash, setActualCash] = useState('')
-  const [eodNotes, setEodNotes] = useState('')
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['orders', 'payments']))
-  // EOD checklist — interaktivno potrjevanje namesto hardcoded false
-  // Must be declared before any early returns to satisfy rules-of-hooks
-  const [cashConfirmed, setCashConfirmed] = useState(false)
-  const [checklistConfirmed, setChecklistConfirmed] = useState(false)
-
-  const { data, isLoading, refetch: _refetch } = useQuery<EODData>({
-    queryKey: queryKeys.endOfDay.all,
-    queryFn: async () => {
-      const res = await authFetch('/api/end-of-day')
-      return res.json()
-    },
-  })
-
-  const closeDayMutation = useMutation({
-    mutationFn: async () => {
-      const res = await authFetch('/api/end-of-day', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: data?.date || new Date().toISOString().split('T')[0],
-          actualCash: parseFloat(actualCash) || 0,
-          notes: eodNotes,
-        }),
-      })
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: 'Napaka' }))
-        throw new Error(errorData.error || `Napaka (${res.status})`)
-      }
-      return res.json()
-    },
-    onSuccess: (result) => {
-      toast.success(result.message || 'Dan uspešno zaključen!')
-      setShowCloseDialog(false)
-      queryClient.invalidateQueries({ queryKey: queryKeys.endOfDay.all })
-      queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
-    },
-    onError: () => toast.error('Napaka pri zaključku dneva'),
-  })
-
-  const toggleSection = useCallback((section: string) => {
-    setExpandedSections(prev => {
-      const next = new Set(prev)
-      if (next.has(section)) next.delete(section)
-      else next.add(section)
-      return next
-    })
-  }, [])
-
-  const handleToggleCash = useCallback(() => setCashConfirmed(v => !v), [])
-  const handleToggleChecklist = useCallback(() => setChecklistConfirmed(v => !v), [])
-  const handleActualCashChange = useCallback((v: string) => setActualCash(v), [])
-  const handleEodNotesChange = useCallback((v: string) => setEodNotes(v), [])
+  const {
+    data, isLoading,
+    showCloseDialog, setShowCloseDialog,
+    actualCash, eodNotes,
+    expandedSections, cashConfirmed, checklistConfirmed,
+    closeDayMutation,
+    toggleSection, handleToggleCash, handleToggleChecklist,
+    handleActualCashChange, handleEodNotesChange,
+  } = useEodData()
 
   if (isLoading) {
     return (
@@ -110,7 +56,6 @@ export const EndOfDayManager = memo(function EndOfDayManager() {
 
   const completedChecks = eodChecks.filter(c => c.done).length
   const allChecksDone = eodChecks.every(c => c.done)
-
   const expectedCash = (data.shift?.startingCash || 0) + (data.shift?.cashSales || 0)
 
   return (
@@ -139,37 +84,15 @@ export const EndOfDayManager = memo(function EndOfDayManager() {
         </div>
       </div>
 
-      {/* EOD Checklist */}
-      <EodChecklist
-        eodChecks={eodChecks}
-        completedChecks={completedChecks}
-        allChecksDone={allChecksDone}
-        onToggleCash={handleToggleCash}
-        onToggleChecklist={handleToggleChecklist}
-      />
-
-      {/* KPI Cards */}
+      <EodChecklist eodChecks={eodChecks} completedChecks={completedChecks} allChecksDone={allChecksDone} onToggleCash={handleToggleCash} onToggleChecklist={handleToggleChecklist} />
       <EodKpiCards data={data} />
-
-      {/* Expandable Sections */}
-      <EodSections
-        data={data}
-        expandedSections={expandedSections}
-        onToggleSection={toggleSection}
-      />
-
-      {/* Close Day Dialog */}
+      <EodSections data={data} expandedSections={expandedSections} onToggleSection={toggleSection} />
       <CloseDayDialog
-        open={showCloseDialog}
-        onOpenChange={setShowCloseDialog}
-        actualCash={actualCash}
-        onActualCashChange={handleActualCashChange}
-        eodNotes={eodNotes}
-        onEodNotesChange={handleEodNotesChange}
-        expectedCash={expectedCash}
-        startingCash={data.shift?.startingCash || 0}
-        cashSales={data.shift?.cashSales || 0}
-        isPending={closeDayMutation.isPending}
+        open={showCloseDialog} onOpenChange={setShowCloseDialog}
+        actualCash={actualCash} onActualCashChange={handleActualCashChange}
+        eodNotes={eodNotes} onEodNotesChange={handleEodNotesChange}
+        expectedCash={expectedCash} startingCash={data.shift?.startingCash || 0}
+        cashSales={data.shift?.cashSales || 0} isPending={closeDayMutation.isPending}
         onConfirm={() => closeDayMutation.mutate()}
       />
     </div>

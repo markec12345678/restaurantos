@@ -11,15 +11,13 @@ import { type GuestData, emptyGuestForm } from './guest/constants'
 const GuestHeader = dynamic(() => import('./guest/GuestHeader').then(m => ({ default: m.GuestHeader })), { ssr: false })
 const GuestSearch = dynamic(() => import('./guest/GuestSearch').then(m => ({ default: m.GuestSearch })), { ssr: false })
 const GuestList = dynamic(() => import('./guest/GuestList').then(m => ({ default: m.GuestList })), { ssr: false })
-const GuestDetail = dynamic(() => import('./guest/GuestDetail').then(m => ({ default: m.GuestDetail })), { ssr: false })
-const GuestFormModal = dynamic(() => import('./guest/GuestFormModal').then(m => ({ default: m.GuestFormModal })), { ssr: false })
+const GuestDetailDialog = dynamic(() => import('./guest/GuestDetailDialog').then(m => ({ default: m.GuestDetailDialog })), { ssr: false })
 
 // ============================================
 // GLAVNA KOMPONENTA
 // ============================================
 
 export const GuestManager = memo(function GuestManager() {
-  // --- Stanja ---
   const [guests, setGuests] = useState<GuestData[]>([])
   const [total, setTotal] = useState(0)
   const [search, setSearch] = useState('')
@@ -28,10 +26,6 @@ export const GuestManager = memo(function GuestManager() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState<GuestFormRow>({} as GuestFormRow)
   const [tab, setTab] = useState<'list' | 'detail'>('list')
-
-  // ============================================
-  // POIZVEDBE
-  // ============================================
 
   const fetchGuests = useCallback(async () => {
     try {
@@ -48,41 +42,26 @@ export const GuestManager = memo(function GuestManager() {
     }
   }, [search, vipOnly])
 
-  // Ponovno naloži goste ob spremembi filtrov
   useEffect(() => { fetchGuests() }, [fetchGuests])
-
-  // ============================================
-  // MUTACIJE
-  // ============================================
 
   async function createGuest() {
     try {
-      const res = await authFetch('/api/guests', {
-        method: 'POST',
-        body: JSON.stringify(form),
-      })
+      const res = await authFetch('/api/guests', { method: 'POST', body: JSON.stringify(form) })
       if (!res.ok) throw new Error('Napaka')
       setShowForm(false)
       setForm({} as GuestFormRow)
       fetchGuests()
-    } catch {
-      toast.error('Napaka pri dodajanju gosta')
-    }
+    } catch { toast.error('Napaka pri dodajanju gosta') }
   }
 
   async function updateGuest(id: string, data: Partial<GuestRow>) {
     try {
-      const res = await authFetch(`/api/guests/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      })
+      const res = await authFetch(`/api/guests/${id}`, { method: 'PUT', body: JSON.stringify(data) })
       if (!res.ok) throw new Error('Napaka')
       const updated = await res.json()
       if (selectedGuest?.id === id) setSelectedGuest(updated)
       fetchGuests()
-    } catch {
-      toast.error('Napaka pri posodabljanju gosta')
-    }
+    } catch { toast.error('Napaka pri posodabljanju gosta') }
   }
 
   async function selectGuest(id: string) {
@@ -91,80 +70,26 @@ export const GuestManager = memo(function GuestManager() {
       const data = await res.json()
       setSelectedGuest(data)
       setTab('detail')
-    } catch {
-      toast.error('Napaka pri nalaganju gosta')
-    }
+    } catch { toast.error('Napaka pri nalaganju gosta') }
   }
 
-  // ============================================
-  // OBDELAVA DOGODKOV
-  // ============================================
-
-  const handleVipToggle = useCallback(() => {
-    setVipOnly(prev => !prev)
-  }, [])
-
-  const handleNewGuest = useCallback(() => {
-    setShowForm(true)
-    setForm(emptyGuestForm())
-  }, [])
-
-  const handleToggleVip = useCallback((id: string, isVip: boolean) => {
-    updateGuest(id, { isVip: !isVip })
-  }, [selectedGuest])
-
-  const handleBack = useCallback(() => {
-    setTab('list')
-  }, [])
-
-  // ============================================
-  // RENDER
-  // ============================================
+  const handleVipToggle = useCallback(() => setVipOnly(prev => !prev), [])
+  const handleNewGuest = useCallback(() => { setShowForm(true); setForm(emptyGuestForm()) }, [])
+  const handleToggleVip = useCallback((id: string, isVip: boolean) => { updateGuest(id, { isVip: !isVip }) }, [selectedGuest])
+  const handleBack = useCallback(() => setTab('list'), [])
 
   return (
     <div className="h-full flex flex-col">
-      {/* Glava z gumbi */}
-      <GuestHeader
-        total={total}
-        vipOnly={vipOnly}
-        onVipToggle={handleVipToggle}
-        onNewGuest={handleNewGuest}
-      />
-
-      {/* Iskalna vrstica */}
-      <GuestSearch
-        value={search}
-        onChange={setSearch}
-      />
-
-      {/* Vsebina */}
+      <GuestHeader total={total} vipOnly={vipOnly} onVipToggle={handleVipToggle} onNewGuest={handleNewGuest} />
+      <GuestSearch value={search} onChange={setSearch} />
       <div className="flex-1 overflow-hidden flex">
-        {/* Seznam gostov */}
-        <GuestList
-          guests={guests}
-          selectedGuestId={selectedGuest?.id ?? null}
-          tab={tab}
-          onSelectGuest={selectGuest}
+        <GuestList guests={guests} selectedGuestId={selectedGuest?.id ?? null} tab={tab} onSelectGuest={selectGuest} />
+        <GuestDetailDialog
+          tab={tab} selectedGuest={selectedGuest} showForm={showForm}
+          form={form} onFormChange={setForm} onBack={handleBack}
+          onToggleVip={handleToggleVip} onCloseForm={() => setShowForm(false)} onSubmitForm={createGuest}
         />
-
-        {/* Podrobnosti gosta */}
-        {tab === 'detail' && selectedGuest && (
-          <GuestDetail
-            guest={selectedGuest}
-            onBack={handleBack}
-            onToggleVip={handleToggleVip}
-          />
-        )}
       </div>
-
-      {/* Modal za dodajanje novega gosta */}
-      <GuestFormModal
-        open={showForm}
-        form={form}
-        onFormChange={setForm}
-        onClose={() => setShowForm(false)}
-        onSubmit={createGuest}
-      />
     </div>
   )
 })

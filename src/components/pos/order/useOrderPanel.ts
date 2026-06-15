@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { usePOSStore } from '@/lib/store'
 import { usePOSShortcuts } from '@/lib/use-pos-shortcuts'
@@ -9,13 +9,11 @@ import { queryKeys } from '@/lib/query-keys'
 import type { StockInfoType } from './types'
 import type { OrderType } from './OrderList'
 import { useOrderPanelMutations } from './useOrderPanelMutations'
+import { useOrderHandlers } from './useOrderHandlers'
 
-// Zunanji tipi, ki jih uporabljajo druge komponente
 export type { OrderPanelState, OrderPanelData, OrderPanelCalculations } from './types'
 
-// ============================================
 // USE ORDER PANEL - Hook za stanje in logiko
-// ============================================
 export function useOrderPanel() {
   const {
     cart, addToCart, removeFromCart, updateCartQuantity, updateCartNotes: _updateCartNotes, clearCart,
@@ -27,7 +25,7 @@ export function useOrderPanel() {
     appliedDiscountId, setAppliedDiscountId, diningOptionId, setDiningOptionId,
   } = usePOSStore()
 
-  // ─── Lokalno stanje ────────────────────────────────────────────
+  // Lokalno stanje
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [orderNotes, setOrderNotes] = useState('')
@@ -45,14 +43,14 @@ export function useOrderPanel() {
   const [lastAddedId, setLastAddedId] = useState<string | null>(null)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
-  // ─── Mutations sub-hook ────────────────────────────────────────
+  // Mutations sub-hook
   const {
     placeOrderMutation, updateOrderStatusMutation,
     handleVoided, handleStornoComplete,
     handleAddToOrder, handleExitEditing,
   } = useOrderPanelMutations()
 
-  // ─── Keyboard shortcuts ────────────────────────────────────────
+  // Keyboard shortcuts
   usePOSShortcuts({
     onNewOrder: () => { clearCart(); setCustomerName(''); setCustomerPhone(''); setOrderNotes(''); setDiscount(0); setEditingOrderId(null); setEditingOrderNumber(null); setMainTab('new-order') },
     onPay: () => { if (cart.length > 0) placeOrderMutation.mutate({ customerName, customerPhone, orderNotes }) },
@@ -62,7 +60,7 @@ export function useOrderPanel() {
     onEscape: () => { /* Escape is handled inside MenuBrowser */ },
   })
 
-  // ─── Podatki ───────────────────────────────────────────────────
+  // Podatki
   const { data: menus, isLoading: menusLoading } = useQuery({
     queryKey: queryKeys.menus.all,
     queryFn: async () => { const res = await authFetch('/api/menus'); return res.json() },
@@ -116,63 +114,35 @@ export function useOrderPanel() {
     staleTime: 20000,
   })
 
-  // ─── Izračuni ──────────────────────────────────────────────────
+  // Izračuni
   const subtotal = cartSubtotal()
   const vatBreakdown = cartVatBreakdown()
   const totalTax = cartTaxTotal()
   const total = cartTotal()
 
-  // ─── Stabilni callbacki ────────────────────────────────────────
-  const handlePaymentClose = useCallback(() => { setPaymentDialogOpen(false); setSelectedOrder(null); setAutoPayOrder(null) }, [])
-  const handlePaymentSuccess = useCallback((orderId: string) => {
-    if (orderId) {
-      setAutoReceiptOrderId(orderId)
-      setReceiptOrder({ id: orderId })
-    }
-  }, [])
-  const handleReceiptClose = useCallback(() => { setReceiptOrder(null); setAutoReceiptOrderId(null) }, [])
-  const handleVoidClose = useCallback(() => setVoidItem(null), [])
-  const handleStornoClose = useCallback(() => setStornoOrder(null), [])
-
-  const handleOrderClick = useCallback((order: OrderType) => setDetailOrder(order), [])
-  const handlePayOrder = useCallback((order: OrderType) => { setSelectedOrder(order); setPaymentDialogOpen(true) }, [])
-  const handlePrintReceipt = useCallback((order: OrderType) => setReceiptOrder(order), [])
-  const handleStornoOrder = useCallback((order: OrderType) => setStornoOrder(order), [])
-  const handleClearCartConfirm = useCallback(() => { clearCart(); setClearCartConfirm(false) }, [clearCart])
+  // Handlerji (iz pod-hooka)
+  const handlers = useOrderHandlers({
+    setPaymentDialogOpen, setSelectedOrder, setAutoPayOrder,
+    setAutoReceiptOrderId, setReceiptOrder, setVoidItem,
+    setStornoOrder, setDetailOrder, clearCart, setClearCartConfirm,
+  })
 
   return {
-    // Store
     cart, addToCart, removeFromCart, updateCartQuantity, clearCart,
     orderType, setOrderType, selectedTable, setSelectedTable,
     discount, setDiscount, activeMenuId, setActiveMenuId,
-    editingOrderId, editingOrderNumber,
-    appliedDiscountId, setAppliedDiscountId, diningOptionId, setDiningOptionId,
-    // Lokalno stanje
+    editingOrderId, editingOrderNumber, appliedDiscountId, setAppliedDiscountId, diningOptionId, setDiningOptionId,
     customerName, setCustomerName, customerPhone, setCustomerPhone,
-    orderNotes, setOrderNotes, mainTab, setMainTab,
-    orderListTab, setOrderListTab,
-    selectedOrder, setSelectedOrder,
-    paymentDialogOpen, setPaymentDialogOpen,
-    detailOrder, setDetailOrder,
-    receiptOrder, setReceiptOrder,
-    autoPayOrder, setAutoPayOrder,
-    autoReceiptOrderId, setAutoReceiptOrderId,
-    voidItem, setVoidItem,
-    stornoOrder, setStornoOrder,
-    clearCartConfirm, setClearCartConfirm,
-    lastAddedId, setLastAddedId,
-    shortcutsOpen, setShortcutsOpen,
-    // Podatki
+    orderNotes, setOrderNotes, mainTab, setMainTab, orderListTab, setOrderListTab,
+    selectedOrder, setSelectedOrder, paymentDialogOpen, setPaymentDialogOpen,
+    detailOrder, setDetailOrder, receiptOrder, setReceiptOrder,
+    autoPayOrder, setAutoPayOrder, autoReceiptOrderId, setAutoReceiptOrderId,
+    voidItem, setVoidItem, stornoOrder, setStornoOrder,
+    clearCartConfirm, setClearCartConfirm, lastAddedId, setLastAddedId, shortcutsOpen, setShortcutsOpen,
     menus, menusLoading, menuItems, menuLoading,
     tables, orders, ordersLoading, discounts, diningOptions, menuStockMap,
-    // Izračuni
     subtotal, vatBreakdown, totalTax, total,
-    // Mutacije
     placeOrderMutation, updateOrderStatusMutation,
-    // Handlerji
-    handlePaymentClose, handlePaymentSuccess, handleReceiptClose,
-    handleVoidClose, handleVoided, handleStornoClose, handleStornoComplete,
-    handleOrderClick, handlePayOrder, handlePrintReceipt, handleStornoOrder,
-    handleAddToOrder, handleExitEditing, handleClearCartConfirm,
+    ...handlers, handleVoided, handleStornoComplete, handleAddToOrder, handleExitEditing,
   }
 }

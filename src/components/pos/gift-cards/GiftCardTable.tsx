@@ -1,24 +1,18 @@
 'use client'
 
 import { memo } from 'react'
+import dynamic from 'next/dynamic'
 import { Card, CardContent } from '@/components/ui/card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableRow,
-  TableHead,
-  TableHeader,
-} from '@/components/ui/table'
-import { ArrowUpDown, Gift } from 'lucide-react'
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table'
+import { Gift } from 'lucide-react'
 import { GiftCardFilters } from './GiftCardFilters'
 import { GiftCardRow } from './GiftCardRow'
 import type { GiftCard } from './constants'
+import type { SortField, SortDir } from './GiftCardTableHeader'
+
+const GiftCardTableHeader = dynamic(() => import('./GiftCardTableHeader').then(m => ({ default: m.GiftCardTableHeader })), { ssr: false })
 
 // --- Tipi ---
-
-type SortField = 'purchasedAt' | 'balance' | 'cardNumber'
-type SortDir = 'asc' | 'desc'
 
 interface GiftCardTableProps {
   allCards: GiftCard[]
@@ -38,15 +32,6 @@ interface GiftCardTableProps {
   onSuspendCard: (_card: GiftCard) => void
   onReactivateCard: (_card: GiftCard) => void
 }
-
-// --- Pomožna komponenta za ikono sortiranja ---
-
-const SortIcon = memo(function SortIcon({ field, sortField, sortDir }: { field: SortField; sortField: SortField; sortDir: SortDir }) {
-  if (sortField !== field) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />
-  return sortDir === 'asc'
-    ? <ArrowUpDown className="h-3 w-3 ml-1 text-primary" />
-    : <ArrowUpDown className="h-3 w-3 ml-1 text-primary rotate-180" />
-})
 
 // --- Komponenta ---
 
@@ -84,42 +69,7 @@ export const GiftCardTable = memo(function GiftCardTable({
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead
-                    className="cursor-pointer select-none"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onSort('cardNumber')}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSort('cardNumber') } }}
-                  >
-                    <span className="flex items-center">Številka kartice <SortIcon field="cardNumber" sortField={sortField} sortDir={sortDir} /></span>
-                  </TableHead>
-                  <TableHead>Lastnik</TableHead>
-                  <TableHead className="text-right">Začetno stanje</TableHead>
-                  <TableHead
-                    className="text-right cursor-pointer select-none"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onSort('balance')}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSort('balance') } }}
-                  >
-                    <span className="flex items-center justify-end">Trenutno stanje <SortIcon field="balance" sortField={sortField} sortDir={sortDir} /></span>
-                  </TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead
-                    className="cursor-pointer select-none"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => onSort('purchasedAt')}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSort('purchasedAt') } }}
-                  >
-                    <span className="flex items-center">Datum nakupa <SortIcon field="purchasedAt" sortField={sortField} sortDir={sortDir} /></span>
-                  </TableHead>
-                  <TableHead>Datum poteka</TableHead>
-                  <TableHead className="text-right">Dejanja</TableHead>
-                </TableRow>
-              </TableHeader>
+              <GiftCardTableHeader sortField={sortField} sortDir={sortDir} onSort={onSort} />
               <TableBody>
                 {filteredCards.length === 0 ? (
                   <TableRow>

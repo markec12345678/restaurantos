@@ -1,12 +1,11 @@
 'use client'
 import dynamic from 'next/dynamic'
 import { memo } from 'react'
-import { STATUS_COLORS, NEXT_STATUS, STATUS_LABELS, PAYMENT_STATUS_LABELS, PAYMENT_STATUS_COLORS } from './order/constants'
 import { useOrderPanel } from './order/useOrderPanel'
 
 // ─── Lazy-loaded podkomponente ──────────────────────────────────
 const MenuBrowser = dynamic(() => import('./order/MenuBrowser').then(m => ({ default: m.MenuBrowser })), { ssr: false })
-const OrderList = dynamic(() => import('./order/OrderList').then(m => ({ default: m.OrderList })), { ssr: false })
+const OrderItemList = dynamic(() => import('./order/OrderItemList').then(m => ({ default: m.OrderItemList })), { ssr: false })
 const OrderCart = dynamic(() => import('./order/OrderCart').then(m => ({ default: m.OrderCart })), { ssr: false })
 const ClearCartDialog = dynamic(() => import('./order/ClearCartDialog').then(m => ({ default: m.ClearCartDialog })), { ssr: false })
 const ShortcutsDialog = dynamic(() => import('./order/ShortcutsDialog').then(m => ({ default: m.ShortcutsDialog })), { ssr: false })
@@ -39,13 +38,6 @@ export const OrderPanel = memo(function OrderPanel() {
     handleOrderClick, handlePayOrder, handlePrintReceipt, handleStornoOrder,
     handleAddToOrder, handleExitEditing, handleClearCartConfirm,
   } = useOrderPanel()
-
-  // Statusne mape (iz constants.ts)
-  const statusColors = STATUS_COLORS
-  const nextStatus = NEXT_STATUS
-  const statusLabels = STATUS_LABELS
-  const paymentStatusLabels = PAYMENT_STATUS_LABELS
-  const paymentStatusColors = PAYMENT_STATUS_COLORS
 
   return (
     <div className="h-full flex flex-col">
@@ -120,16 +112,11 @@ export const OrderPanel = memo(function OrderPanel() {
           </div>
         ) : (
           /* SEZNAM NAROČIL */
-          <OrderList
+          <OrderItemList
             orders={orders}
             ordersLoading={ordersLoading}
             orderListTab={orderListTab}
             setOrderListTab={setOrderListTab}
-            statusColors={statusColors}
-            statusLabels={statusLabels}
-            nextStatus={nextStatus}
-            paymentStatusLabels={paymentStatusLabels}
-            paymentStatusColors={paymentStatusColors}
             onUpdateOrderStatus={(params) => updateOrderStatusMutation.mutate(params)}
             isStatusUpdatePending={updateOrderStatusMutation.isPending}
             onOrderClick={handleOrderClick}

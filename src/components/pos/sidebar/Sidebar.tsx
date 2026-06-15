@@ -18,6 +18,7 @@ import { navItems } from './navItems'
 import { useAuthUser, useMounted } from './useAuthUser'
 
 const SidebarBottom = dynamic(() => import('./SidebarBottom').then(m => ({ default: m.SidebarBottom })), { ssr: false })
+const SidebarNav = dynamic(() => import('./SidebarNav').then(m => ({ default: m.SidebarNav })), { ssr: false })
 
 export const Sidebar = memo(function Sidebar() {
   const activeModule = usePOSStore(s => s.activeModule)
@@ -32,7 +33,6 @@ export const Sidebar = memo(function Sidebar() {
   const { onModuleHover } = useSidebarHoverPrefetch()
   const countryConfig = getCountryConfig(country as CountryCode)
 
-  // Fullscreen toggle
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {})
@@ -72,89 +72,29 @@ export const Sidebar = memo(function Sidebar() {
 
   return (
     <>
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setSidebarOpen(false)} aria-hidden="true" />
-      )}
-
-      {/* Mobile hamburger */}
-      <Button
-        variant="ghost" size="icon" className="fixed top-3 left-3 z-50 md:hidden"
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        aria-label={sidebarOpen ? 'Zapri meni' : 'Odpri meni'}
-        aria-expanded={sidebarOpen}
-      >
+      {sidebarOpen && (<div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setSidebarOpen(false)} aria-hidden="true" />)}
+      <Button variant="ghost" size="icon" className="fixed top-3 left-3 z-50 md:hidden" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label={sidebarOpen ? 'Zapri meni' : 'Odpri meni'} aria-expanded={sidebarOpen}>
         {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </Button>
-
-      {/* Sidebar */}
-      <aside
-        aria-label="Glavna navigacija"
-        className={cn(
-          'fixed md:static inset-y-0 left-0 z-50 flex flex-col w-56 bg-card border-r border-border transition-transform duration-300 md:translate-x-0',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        )}
-      >
-        {/* Logo */}
+      <aside aria-label="Glavna navigacija" className={cn('fixed md:static inset-y-0 left-0 z-50 flex flex-col w-56 bg-card border-r border-border transition-transform duration-300 md:translate-x-0', sidebarOpen ? 'translate-x-0' : '-translate-x-full')}>
         <div className="flex items-center gap-2.5 px-4 py-4 border-b border-border" aria-label="RestaurantOS - domača stran">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Store className="h-4.5 w-4.5" />
           </div>
           <div>
-            <h1 className="font-bold text-sm leading-tight flex items-center gap-1.5">
-              RestaurantOS
-              <span className="text-base">{countryConfig.flag}</span>
-            </h1>
+            <h1 className="font-bold text-sm leading-tight flex items-center gap-1.5">RestaurantOS<span className="text-base">{countryConfig.flag}</span></h1>
             <p className="text-[10px] text-muted-foreground">{t('nav.posSystem')} · {countryConfig.currencySymbol}</p>
           </div>
         </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto custom-scrollbar" aria-label="Glavna navigacija">
-          {visibleNavItems.map((item) => {
-            const Icon = item.icon
-            const isActive = activeModule === item.id
-            return (
-              <button
-                key={item.id}
-                onClick={() => { setActiveModule(item.id); setSidebarOpen(false) }}
-                onMouseEnter={() => onModuleHover(item.id)}
-                aria-current={isActive ? 'page' : undefined}
-                aria-label={t(item.labelKey)}
-                className={cn(
-                  'flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors',
-                  isActive
-                    ? item.highlight ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-accent text-accent-foreground'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {t(item.labelKey)}
-                {item.id === 'orders' && activeOrderCount > 0 && (
-                  <span className="ml-auto flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1" aria-label={`${activeOrderCount} aktivnih naročil`}>
-                    {activeOrderCount}
-                  </span>
-                )}
-                {item.id === 'kitchen' && activeOrderCount > 0 && (
-                  <span className="ml-auto flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-orange-500 text-white text-[9px] font-bold px-1" aria-label={`${activeOrderCount} v pripravi`}>
-                    {activeOrderCount}
-                  </span>
-                )}
-              </button>
-            )
-          })}
-        </nav>
-
-        {/* Bottom section */}
-        <UserIndicator />
-        <SidebarBottom
-          isFullscreen={isFullscreen}
-          toggleFullscreen={toggleFullscreen}
-          setKioskMode={setKioskMode}
-          theme={theme}
-          setTheme={setTheme}
-          mounted={mounted}
+        <SidebarNav
+          visibleNavItems={visibleNavItems}
+          activeModule={activeModule}
+          activeOrderCount={activeOrderCount}
+          onModuleClick={(id) => { setActiveModule(id); setSidebarOpen(false) }}
+          onModuleHover={onModuleHover}
         />
+        <UserIndicator />
+        <SidebarBottom isFullscreen={isFullscreen} toggleFullscreen={toggleFullscreen} setKioskMode={setKioskMode} theme={theme} setTheme={setTheme} mounted={mounted} />
       </aside>
     </>
   )

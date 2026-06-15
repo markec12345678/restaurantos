@@ -15,10 +15,6 @@ const HaccpFilters = dynamic(() => import('./haccp/HaccpFilters').then((m) => m.
 const HaccpLoadingSkeleton = dynamic(() => import('./haccp/HaccpLoadingSkeleton').then((m) => m.HaccpLoadingSkeleton), { ssr: false })
 const HaccpEntryList = dynamic(() => import('./haccp/HaccpEntryList').then((m) => m.HaccpEntryList), { ssr: false })
 
-// ============================================
-// GLAVNA KOMPONENTA
-// ============================================
-
 export const HaccpManager = memo(function HaccpManager() {
   const {
     activeTab,

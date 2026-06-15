@@ -1,20 +1,16 @@
 'use client'
-import React from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
-import { toast } from 'sonner'
 import { Pencil } from 'lucide-react'
 import { useState } from 'react'
 import { authFetch } from '@/components/pos/PinLogin'
+import { toast } from 'sonner'
+import dynamic from 'next/dynamic'
 
-// ============================================
-// CUSTOM TAB: DELOVNI ČAS (OpeningHours)
-// Urejanje urnika za vse dni v tednu
-// ============================================
+const DayRow = dynamic(() => import('./DayRow').then(m => ({ default: m.DayRow })), { ssr: false })
+
 const DAY_NAMES = ['Nedelja', 'Ponedeljek', 'Torek', 'Sreda', 'Četrtek', 'Petek', 'Sobota']
 const DAY_SHORT = ['Ned', 'Pon', 'Tor', 'Sre', 'Čet', 'Pet', 'Sob']
 
@@ -43,7 +39,6 @@ export function OpeningHoursTab() {
   const [saving, setSaving] = useState(false)
   const hours = data?.hours || []
   const startEdit = () => {
-    // Pripravi 7 dni, zapolni manjkajoče s privzetki
     const existing = new Map(hours.map(h => [h.dayOfWeek, h]))
     const all7: OpeningHour[] = Array.from({ length: 7 }, (_, i) => {
       const ex = existing.get(i)
@@ -78,7 +73,6 @@ export function OpeningHoursTab() {
     }
   }
   if (isLoading) return <div className="space-y-3">{[...Array(7)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>
-  // Prikaz trenutnega urnika
   const now = new Date()
   const todayIdx = now.getDay()
   const todayHours = hours.find(h => h.dayOfWeek === todayIdx)
@@ -100,18 +94,15 @@ export function OpeningHoursTab() {
       </div>
       {!editing ? (
         <>
-          {/* Tabelarični pregled */}
           <div className="border rounded-xl overflow-hidden">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-muted/50 border-b">
+              <thead><tr className="bg-muted/50 border-b">
                   <th className="text-left p-3 font-medium">Dan</th>
                   <th className="text-center p-3 font-medium">Odprtje</th>
                   <th className="text-center p-3 font-medium">Zaprtje</th>
                   <th className="text-center p-3 font-medium">Odmor</th>
                   <th className="text-center p-3 font-medium">Status</th>
-                </tr>
-              </thead>
+                </tr></thead>
               <tbody>
                 {Array.from({ length: 7 }, (_, i) => {
                   const h = hours.find(x => x.dayOfWeek === i)
@@ -145,24 +136,12 @@ export function OpeningHoursTab() {
         <>
           <div className="space-y-3">
             {editHours.map((h, idx) => (
-              <div key={idx} className={`flex items-center gap-3 p-3 rounded-xl border ${h.isClosed ? 'bg-gray-50/50 opacity-70' : 'bg-background'}`}>
-                <span className="w-12 font-semibold text-sm">{DAY_SHORT[idx]}</span>
-                <Switch checked={!h.isClosed} onCheckedChange={v => updateDay(idx, 'isClosed', !v)} />
-                {!h.isClosed ? (
-                  <>
-                    <Input type="time" value={h.openTime} onChange={e => updateDay(idx, 'openTime', e.target.value)} className="w-32" />
-                    <span className="text-muted-foreground">—</span>
-                    <Input type="time" value={h.closeTime} onChange={e => updateDay(idx, 'closeTime', e.target.value)} className="w-32" />
-                    <div className="flex items-center gap-1 ml-2">
-                      <span className="text-xs text-muted-foreground">Odmor:</span>
-                      <Input type="time" value={h.breakStart} onChange={e => updateDay(idx, 'breakStart', e.target.value)} className="w-28" placeholder="Od"  aria-label="Od"/>
-                      <Input type="time" value={h.breakEnd} onChange={e => updateDay(idx, 'breakEnd', e.target.value)} className="w-28" placeholder="Do"  aria-label="Do"/>
-                    </div>
-                  </>
-                ) : (
-                  <span className="text-sm text-red-500 font-medium">Zaprto</span>
-                )}
-              </div>
+              <DayRow
+                key={idx}
+                dayShort={DAY_SHORT[idx]}
+                hour={h}
+                onUpdate={(field, value) => updateDay(idx, field, value)}
+              />
             ))}
           </div>
           <div className="flex gap-2">

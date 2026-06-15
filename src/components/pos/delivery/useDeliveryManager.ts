@@ -1,6 +1,6 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
@@ -13,6 +13,7 @@ import {
   deliveryToFormData,
   getNextDeliveryStatus,
 } from './constants'
+import { useDeliveryFetch } from './useDeliveryFetch'
 
 // ============================================
 // HOOK: Upravljanje dostav in online naročil
@@ -21,40 +22,12 @@ import {
 
 export function useDeliveryManager() {
   const queryClient = useQueryClient()
+  const fetchState = useDeliveryFetch()
 
-  // --- Dostave stanje ---
-  const [statusFilter, setStatusFilter] = useState('all')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingDelivery, setEditingDelivery] = useState<DeliveryInfoData | null>(null)
   const [formData, setFormData] = useState<DeliveryFormData>(emptyFormData)
-
-  // --- Online naročila stanje ---
-  const [onlineFilter, setOnlineFilter] = useState('pending,in-progress,ready')
   const [detailOrder, setDetailOrder] = useState<OnlineOrder | null>(null)
-
-  // --- Poizvedbe: dostave ---
-  const { data: deliveries, isLoading } = useQuery<DeliveryInfoData[]>({
-    queryKey: [...queryKeys.delivery.tracking, statusFilter],
-    queryFn: async () => {
-      const params = new URLSearchParams()
-      if (statusFilter !== 'all') params.set('status', statusFilter)
-      const res = await authFetch(`/api/delivery?${params}`)
-      if (!res.ok) throw new Error('Napaka pri nalaganju dostav')
-      return res.json()
-    },
-  })
-
-  // --- Poizvedbe: online naročila ---
-  const { data: ordersData, isLoading: ordersLoading } = useQuery<{ orders: OnlineOrder[] }>({
-    queryKey: [...queryKeys.delivery.onlineOrders, onlineFilter],
-    queryFn: async () => {
-      const res = await authFetch(`/api/orders?status=${onlineFilter}&type=delivery,takeout&limit=20&source=online`)
-      if (!res.ok) return { orders: [] }
-      const data = await res.json()
-      return { orders: Array.isArray(data) ? data : data.orders || [] }
-    },
-    refetchInterval: 15000, // Auto-refresh vsakih 15s
-  })
 
   // --- Mutacije: posodobi dostavo ---
   const updateMutation = useMutation({
@@ -126,41 +99,15 @@ export function useDeliveryManager() {
     if (!open) setDetailOrder(null)
   }, [])
 
-  // --- Izpeljani podatki ---
-  const safeDeliveries = Array.isArray(deliveries) ? deliveries : []
-  const activeDeliveries = safeDeliveries.filter(d => !['delivered', 'failed'].includes(d.status))
-  const completedDeliveries = safeDeliveries.filter(d => ['delivered', 'failed'].includes(d.status))
-
-  const orders = ordersData?.orders || []
-  const onlineOrders = orders.filter(o => o.notes?.includes('ONLINE'))
-
   return {
-    // Stanje
-    statusFilter,
-    setStatusFilter,
+    ...fetchState,
     dialogOpen,
     setDialogOpen,
     editingDelivery,
     formData,
     setFormData,
-    onlineFilter,
-    setOnlineFilter,
     detailOrder,
-
-    // Nalaganje
-    isLoading,
-    ordersLoading,
-
-    // Izpeljano
-    activeDeliveries,
-    completedDeliveries,
-    onlineOrders,
-    safeDeliveries,
-
-    // Mutacije
     updateMutation,
-
-    // Handlerji
     openEdit,
     handleUpdate,
     advanceStatus,

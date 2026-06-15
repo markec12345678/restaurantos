@@ -1,15 +1,8 @@
 'use client'
 
-// ============================================
-// HOOK: Stanje dijalogov darilnih kartic
-// Upravlja samo dialog state (odpiranje/zapiranje, obrazci, tarče)
-// Brez mutacij — handlerji, ki kličejo mutate(), so v starševskem hooku
-// ============================================
-
 import { useState, useCallback } from 'react'
 import { type GiftCard, generateCardNumber } from './constants'
-
-// --- Tipi obrazcev ---
+import { useGiftCardDialogOpen } from './useGiftCardDialogOpen'
 
 export interface NewCardForm {
   cardNumber: string
@@ -28,133 +21,77 @@ export interface LoadFundsForm {
   note: string
 }
 
-// ============================================
-// HOOK
-// ============================================
-
 export function useGiftCardDialogs() {
-  // --- Dijalog za novo kartico ---
-  const [newCardDialogOpen, setNewCardDialogOpen] = useState(false)
+  const dialogOpen = useGiftCardDialogOpen()
+
   const [newCardForm, setNewCardForm] = useState<NewCardForm>({
-    cardNumber: '',
-    ownerName: '',
-    initialBalance: '',
-    expiresAt: '',
+    cardNumber: '', ownerName: '', initialBalance: '', expiresAt: '',
   })
-
-  // --- Dijalog za urejanje kartice ---
-  const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<GiftCard | null>(null)
-  const [editForm, setEditForm] = useState<EditCardForm>({
-    status: 'active',
-    expiresAt: '',
-  })
-
-  // --- Dijalog za nalaganje sredstev ---
-  const [loadDialogOpen, setLoadDialogOpen] = useState(false)
+  const [editForm, setEditForm] = useState<EditCardForm>({ status: 'active', expiresAt: '' })
   const [loadTarget, setLoadTarget] = useState<GiftCard | null>(null)
-  const [loadForm, setLoadForm] = useState<LoadFundsForm>({
-    amount: '',
-    note: '',
-  })
-
-  // --- Dijalog za zgodovino transakcij ---
-  const [historyDialogOpen, setHistoryDialogOpen] = useState(false)
+  const [loadForm, setLoadForm] = useState<LoadFundsForm>({ amount: '', note: '' })
   const [historyTarget, setHistoryTarget] = useState<GiftCard | null>(null)
-
-  // --- Dijalog za brisanje ---
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<GiftCard | null>(null)
-
-  // --- onOpenChange handlerji ---
 
   const handleEditDialogOpenChange = useCallback((open: boolean) => {
     if (!open) setEditTarget(null)
-    setEditDialogOpen(open)
-  }, [])
+    dialogOpen.setEditDialogOpen(open)
+  }, [dialogOpen])
 
   const handleLoadDialogOpenChange = useCallback((open: boolean) => {
     if (!open) setLoadTarget(null)
-    setLoadDialogOpen(open)
-  }, [])
+    dialogOpen.setLoadDialogOpen(open)
+  }, [dialogOpen])
 
   const handleHistoryDialogOpenChange = useCallback((open: boolean) => {
     if (!open) setHistoryTarget(null)
-    setHistoryDialogOpen(open)
-  }, [])
-
-  // --- open handlerji ---
+    dialogOpen.setHistoryDialogOpen(open)
+  }, [dialogOpen])
 
   const openNewCard = useCallback(() => {
-    setNewCardForm({
-      cardNumber: generateCardNumber(),
-      ownerName: '',
-      initialBalance: '',
-      expiresAt: '',
-    })
-    setNewCardDialogOpen(true)
-  }, [])
+    setNewCardForm({ cardNumber: generateCardNumber(), ownerName: '', initialBalance: '', expiresAt: '' })
+    dialogOpen.setNewCardDialogOpen(true)
+  }, [dialogOpen])
 
   const openEdit = useCallback((card: GiftCard) => {
     setEditTarget(card)
-    setEditForm({
-      status: card.status,
-      expiresAt: card.expiresAt ? new Date(card.expiresAt).toISOString().split('T')[0] : '',
-    })
-    setEditDialogOpen(true)
-  }, [])
+    setEditForm({ status: card.status, expiresAt: card.expiresAt ? new Date(card.expiresAt).toISOString().split('T')[0] : '' })
+    dialogOpen.setEditDialogOpen(true)
+  }, [dialogOpen])
 
   const openLoad = useCallback((card: GiftCard) => {
     setLoadTarget(card)
     setLoadForm({ amount: '', note: '' })
-    setLoadDialogOpen(true)
-  }, [])
+    dialogOpen.setLoadDialogOpen(true)
+  }, [dialogOpen])
 
   const openHistory = useCallback((card: GiftCard) => {
     setHistoryTarget(card)
-    setHistoryDialogOpen(true)
-  }, [])
+    dialogOpen.setHistoryDialogOpen(true)
+  }, [dialogOpen])
 
   const confirmDelete = useCallback((card: GiftCard) => {
     setDeleteTarget(card)
-    setDeleteDialogOpen(true)
-  }, [])
+    dialogOpen.setDeleteDialogOpen(true)
+  }, [dialogOpen])
 
   return {
-    // Nova kartica
-    newCardDialogOpen,
-    setNewCardDialogOpen,
-    newCardForm,
-    setNewCardForm,
-    openNewCard,
-    // Urejanje
-    editDialogOpen,
-    setEditDialogOpen,
-    setEditTarget,
-    editTarget,
-    editForm,
-    setEditForm,
-    handleEditDialogOpenChange,
-    openEdit,
-    // Nalaganje
-    loadDialogOpen,
-    setLoadDialogOpen,
-    setLoadTarget,
-    loadTarget,
-    loadForm,
-    setLoadForm,
-    handleLoadDialogOpenChange,
-    openLoad,
-    // Zgodovina
-    historyDialogOpen,
-    historyTarget,
-    handleHistoryDialogOpenChange,
-    openHistory,
-    // Brisanje
-    deleteDialogOpen,
-    setDeleteDialogOpen,
-    setDeleteTarget,
-    deleteTarget,
-    confirmDelete,
+    newCardDialogOpen: dialogOpen.newCardDialogOpen,
+    setNewCardDialogOpen: dialogOpen.setNewCardDialogOpen,
+    newCardForm, setNewCardForm, openNewCard,
+    editDialogOpen: dialogOpen.editDialogOpen,
+    setEditDialogOpen: dialogOpen.setEditDialogOpen,
+    setEditTarget, editTarget, editForm, setEditForm,
+    handleEditDialogOpenChange, openEdit,
+    loadDialogOpen: dialogOpen.loadDialogOpen,
+    setLoadDialogOpen: dialogOpen.setLoadDialogOpen,
+    setLoadTarget, loadTarget, loadForm, setLoadForm,
+    handleLoadDialogOpenChange, openLoad,
+    historyDialogOpen: dialogOpen.historyDialogOpen,
+    historyTarget, handleHistoryDialogOpenChange, openHistory,
+    deleteDialogOpen: dialogOpen.deleteDialogOpen,
+    setDeleteDialogOpen: dialogOpen.setDeleteDialogOpen,
+    setDeleteTarget, deleteTarget, confirmDelete,
   }
 }

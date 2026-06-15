@@ -1,9 +1,5 @@
-// ============================================
 // DELJENI TIPI IN KONSTANTE ZA LOCATION MANAGER
-// ============================================
-
 import type { SyncResultRow, DeliveryZoneRow } from '@/lib/types'
-import { UtensilsCrossed, Wine, Truck, Coffee, ShoppingBag } from 'lucide-react'
 
 // Tip lokacijskih podatkov
 export interface LocationData {
@@ -92,15 +88,6 @@ export const defaultZoneForm: ZoneFormState = {
   freeDeliveryAbove: '0', estimatedMinutes: '30', locationId: '',
 }
 
-// Ikone po tipu lokacije
-export const typeIcons: Record<string, React.ReactNode> = {
-  restaurant: <UtensilsCrossed className="h-4 w-4" />,
-  bar: <Wine className="h-4 w-4" />,
-  food_truck: <Truck className="h-4 w-4" />,
-  pop_up: <Coffee className="h-4 w-4" />,
-  cloud_kitchen: <ShoppingBag className="h-4 w-4" />,
-}
-
 // Oznake tipov lokacij
 export const typeLabels: Record<string, string> = {
   restaurant: 'Restavracija',
@@ -110,10 +97,7 @@ export const typeLabels: Record<string, string> = {
   cloud_kitchen: 'Cloud Kitchen',
 }
 
-// ============================================
-// VmesNIKI ZA PROPS PODKOMPONENT
-// ============================================
-
+// VMESNIKI ZA PROPS PODKOMPONENT
 export interface LocationStatsProps {
   total: number
   active: number
@@ -168,3 +152,6 @@ export interface DeleteDialogProps {
   onOpenChange: (_open: boolean) => void
   onConfirmDelete: () => void
 }
+
+// Re-export ikone
+export { typeIcons } from './icons'

@@ -3,9 +3,9 @@
 // ============================================
 
 import { db } from '@/lib/db'
-import { toNum, round2, greaterThan, multiply, abs } from '@/lib/decimal'
-import { generateReorderReason, groupBy } from './utils'
+import { groupBy } from './utils'
 import type { ReorderSuggestion, ReorderSummary, ReorderResult } from './types'
+import { processItemForSuggestion } from './process-item'
 
 export async function getReorderSuggestions(urgency: string): Promise<ReorderResult> {
   // Pridobi vse artikle za analizo
@@ -40,7 +40,6 @@ export async function getReorderSuggestions(urgency: string): Promise<ReorderRes
       distinct: ['inventoryItemId'],
       select: { inventoryItemId: true, createdAt: true },
     }),
-    // Vsi procuremente za izračun povprečnega časa dobave
     db.stockTransaction.findMany({
       where: {
         inventoryItemId: { in: allItemIds },
@@ -73,7 +72,7 @@ export async function getReorderSuggestions(urgency: string): Promise<ReorderRes
       let intervals = 0
       for (let i = 1; i < procs.length; i++) {
         const diff = (new Date(procs[i].createdAt).getTime() - new Date(procs[i - 1].createdAt).getTime()) / (1000 * 60 * 60 * 24)
-        if (diff > 0 && diff < 90) { // Ignoriraj anomalije
+        if (diff > 0 && diff < 90) {
           totalDays += diff
           intervals++
         }
@@ -85,67 +84,21 @@ export async function getReorderSuggestions(urgency: string): Promise<ReorderRes
   // Izračunaj predloge za vsak artikel
   for (const item of allItems) {
     const recentSales = salesByItem.get(item.id) || []
+    const avgDeliveryDays = avgDeliveryDaysByItem.get(item.id) || 3
+    const lastProcDate = lastProcByItem.get(item.id)?.createdAt?.toISOString() || null
 
-    const last7DaysSales = recentSales.filter(t => new Date(t.createdAt) >= sevenDaysAgo)
-    const totalSold7d = last7DaysSales.reduce((s, t) => s + toNum(abs(t.quantity)), 0)
-    const totalSold30d = recentSales.reduce((s, t) => s + toNum(abs(t.quantity)), 0)
-
-    const avgDailyConsumption = totalSold30d > 0 ? totalSold30d / 30 : 0
-    const recentDailyConsumption = totalSold7d > 0 ? totalSold7d / 7 : 0
-
-    // Trend: ali poraba narašča?
-    const trend = recentDailyConsumption > avgDailyConsumption * 1.2 ? 'increasing' :
-                  recentDailyConsumption < avgDailyConsumption * 0.5 ? 'decreasing' : 'stable'
-
-    const isLowStock = !greaterThan(item.quantity, item.minQuantity)
-    const daysUntilEmpty = avgDailyConsumption > 0 ? Math.floor(toNum(item.quantity) / avgDailyConsumption) : 999
-
-    // Določi nujnost
-    let riskLevel: 'critical' | 'high' | 'medium' | 'low' = 'low'
-    if (toNum(item.quantity) <= 0 || daysUntilEmpty <= 1) riskLevel = 'critical'
-    else if (isLowStock || daysUntilEmpty <= 3) riskLevel = 'high'
-    else if (daysUntilEmpty <= 7 || trend === 'increasing') riskLevel = 'medium'
-
-    const needsReorder = isLowStock || daysUntilEmpty <= 7 || riskLevel !== 'low'
-
-    if (!needsReorder && riskLevel === 'low') continue
-    if (urgency && riskLevel !== urgency) continue
-
-    // Predlagana količina: pokrij 14 dni porabe ali dopolni do 2x minimalne zaloge
-    const suggestedOrderQty = Math.max(
-      Math.ceil(avgDailyConsumption * 14),
-      Math.max(toNum(item.minQuantity) * 2 - toNum(item.quantity), 0),
-      1
+    const suggestion = processItemForSuggestion(
+      item,
+      recentSales,
+      sevenDaysAgo,
+      avgDeliveryDays,
+      urgency,
+      lastProcDate,
     )
 
-    const reason = generateReorderReason({
-      daysUntilEmpty,
-      currentStock: toNum(item.quantity),
-      minStock: toNum(item.minQuantity),
-      trend,
-      seasonalityFactor: 1,
-      riskLevel,
-      needsReorder,
-    }, item)
-
-    // Pridobi zadnji datum dobave (iz batch lookup mape)
-    const lastProcurement = lastProcByItem.get(item.id)
-
-    suggestions.push({
-      inventoryItemId: item.id,
-      itemName: item.name,
-      unit: item.unit,
-      supplier: item.supplier,
-      currentStock: toNum(item.quantity),
-      suggestedQty: suggestedOrderQty,
-      costPerUnit: toNum(item.costPerUnit),
-      totalCost: round2(multiply(suggestedOrderQty, item.costPerUnit)),
-      urgency: riskLevel as ReorderSuggestion['urgency'],
-      reason,
-      lastOrderDate: lastProcurement?.createdAt?.toISOString() || null,
-      avgDeliveryDays: avgDeliveryDaysByItem.get(item.id) || 3,
-      category: item.category,
-    })
+    if (suggestion) {
+      suggestions.push(suggestion)
+    }
   }
 
   // Razvrsti po nujnosti

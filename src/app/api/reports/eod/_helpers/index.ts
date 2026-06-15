@@ -17,3 +17,4 @@ export { computeEodMetrics } from './metrics'
 export { computeCategoryBreakdown, enrichEmployeeNames } from './secondary-queries'
 
 export { computeEodCloseData, closeShiftTransaction, logEodClose, type EodCloseResult } from './eod-close'
+export { handleEodPost, handleEodPostError } from './post-handler'

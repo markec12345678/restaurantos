@@ -1,34 +1,13 @@
 'use client'
 
 import { toast } from 'sonner'
-import { useState, useCallback } from 'react'
-import { type ShiftItem, type TimeEntryItem, type ShiftFormState } from '../constants'
+import { useCallback } from 'react'
+import { type ShiftItem, type TimeEntryItem } from '../constants'
 import { useShiftMutations } from '../useShiftMutations'
+import { useShiftState } from './useShiftState'
 
-// ============================================
-// STANJA — Dialogi in polja
-// ============================================
-
-export function useShiftState() {
-  const [shiftDialogOpen, setShiftDialogOpen] = useState(false)
-  const [editingShift, setEditingShift] = useState<ShiftItem | null>(null)
-  const [shiftForm, setShiftForm] = useState<ShiftFormState>({
-    employeeId: '',
-    jobId: '',
-    date: new Date().toISOString().split('T')[0],
-    startTime: '09:00',
-    endTime: '17:00',
-    breakMinutes: '30',
-    notes: '',
-  })
-  const [deleteShiftDialogOpen, setDeleteShiftDialogOpen] = useState(false)
-  const [deleteShiftTarget, setDeleteShiftTarget] = useState<ShiftItem | null>(null)
-
-  // --- Stanja za ure ---
-  const [clockInEmployeeId, setClockInEmployeeId] = useState('')
-  const [clockInJobId, setClockInJobId] = useState('')
-
-  return {
+export function useShiftHandlers() {
+  const {
     shiftDialogOpen, setShiftDialogOpen,
     editingShift, setEditingShift,
     shiftForm, setShiftForm,
@@ -36,28 +15,8 @@ export function useShiftState() {
     deleteShiftTarget, setDeleteShiftTarget,
     clockInEmployeeId, setClockInEmployeeId,
     clockInJobId, setClockInJobId,
-  }
-}
+  } = useShiftState()
 
-// ============================================
-// HANDLERJI — Akcije za izmene
-// ============================================
-
-export function useShiftHandlers(
-  shiftForm: ShiftFormState,
-  editingShift: ShiftItem | null,
-  deleteShiftTarget: ShiftItem | null,
-  activeEntries: TimeEntryItem[],
-  clockInEmployeeId: string,
-  clockInJobId: string,
-  setShiftDialogOpen: (_open: boolean) => void,
-  setEditingShift: (_shift: ShiftItem | null) => void,
-  setDeleteShiftDialogOpen: (_open: boolean) => void,
-  setDeleteShiftTarget: (_shift: ShiftItem | null) => void,
-  setClockInEmployeeId: (_id: string) => void,
-  setClockInJobId: (_id: string) => void,
-  setShiftForm: (_form: ShiftFormState) => void,
-) {
   const {
     createShiftMutation,
     updateShiftMutation,
@@ -121,15 +80,12 @@ export function useShiftHandlers(
     updateShiftMutation.mutate({ id: shift.id, status: 'absent' })
   }, [updateShiftMutation])
 
-  const handleClockIn = useCallback(() => {
+  const handleClockIn = useCallback((activeEntries: TimeEntryItem[]) => {
     if (!clockInEmployeeId) { toast.error('Izberite zaposlenega'); return }
     const hasActiveEntry = activeEntries.some((e: TimeEntryItem) => e.employeeId === clockInEmployeeId)
-    if (hasActiveEntry) {
-      toast.error('Ta zaposleni je že prijavljen. Najprej ga odjavite.')
-      return
-    }
+    if (hasActiveEntry) { toast.error('Ta zaposleni je že prijavljen. Najprej ga odjavite.'); return }
     clockInMutation.mutate({ employeeId: clockInEmployeeId, jobId: clockInJobId || undefined })
-  }, [clockInEmployeeId, clockInJobId, activeEntries, clockInMutation])
+  }, [clockInEmployeeId, clockInJobId, clockInMutation])
 
   const handleClockOut = useCallback((entryId: string) => {
     clockOutMutation.mutate({ id: entryId, clockOut: new Date().toISOString() })
@@ -150,11 +106,15 @@ export function useShiftHandlers(
   }, [deleteShiftTarget, deleteShiftMutation])
 
   return {
+    shiftDialogOpen, setShiftDialogOpen, editingShift, shiftForm,
+    deleteShiftDialogOpen, setDeleteShiftDialogOpen, deleteShiftTarget,
+    clockInEmployeeId, setClockInEmployeeId, clockInJobId, setClockInJobId,
     createShiftMutation, updateShiftMutation, deleteShiftMutation, clockInMutation,
     openCreateShift, openEditShift, handleShiftSubmit,
     startShift, completeShift, markAbsent,
     handleClockIn, handleClockOut,
     handleShiftDialogOpenChange,
     handleDeleteShift, handleDeleteConfirm,
+    setShiftForm,
   }
 }

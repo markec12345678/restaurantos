@@ -1,24 +1,16 @@
 'use client'
 
 import { memo } from 'react'
+import dynamic from 'next/dynamic'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { Plus, Award } from 'lucide-react'
-import { type LoyaltyAccount, tierConfig } from './constants'
+import { type LoyaltyAccount } from './constants'
+import type { FormData } from './LoyaltyFormFields'
+
+const LoyaltyFormFields = dynamic(() => import('./LoyaltyFormFields').then(m => ({ default: m.LoyaltyFormFields })), { ssr: false })
 
 // --- Props ---
-
-interface FormData {
-  customerName: string
-  customerPhone: string
-  customerEmail: string
-  tier: string
-  isActive: boolean
-}
 
 interface LoyaltyFormDialogProps {
   open: boolean
@@ -62,77 +54,7 @@ export const LoyaltyFormDialog = memo(function LoyaltyFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Ime stranke */}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">Ime stranke *</Label>
-            <Input
-              placeholder="npr. Ana Novak"
-              value={formData.customerName}
-              onChange={(e) => onFormDataChange({ ...formData, customerName: e.target.value })}
-              autoFocus
-            />
-          </div>
-
-          {/* Telefon in E-pošta */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-sm font-semibold">Telefon</Label>
-              <Input
-                placeholder="npr. 031 234 567"
-                value={formData.customerPhone}
-                onChange={(e) => onFormDataChange({ ...formData, customerPhone: e.target.value })}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm font-semibold">E-pošta</Label>
-              <Input
-                placeholder="npr. ana@primer.si"
-                type="email"
-                value={formData.customerEmail}
-                onChange={(e) => onFormDataChange({ ...formData, customerEmail: e.target.value })}
-              />
-            </div>
-          </div>
-
-          {/* Nivo */}
-          <div className="space-y-1.5">
-            <Label className="text-sm font-semibold">Nivo</Label>
-            <Select
-              value={formData.tier}
-              onValueChange={(v) => onFormDataChange({ ...formData, tier: v })}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Izberite nivo" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(tierConfig).map(([key, cfg]) => {
-                  const Icon = cfg.icon
-                  return (
-                    <SelectItem key={key} value={key}>
-                      <span className="flex items-center gap-2">
-                        <Icon className={`h-3.5 w-3.5 ${cfg.color}`} />
-                        {cfg.label}
-                      </span>
-                    </SelectItem>
-                  )
-                })}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Aktiven */}
-          <div className="flex items-center justify-between rounded-lg border p-3">
-            <div className="space-y-0.5">
-              <Label className="text-sm font-semibold">Aktiven račun</Label>
-              <p className="text-xs text-muted-foreground">Nedejavni računi ne morejo zbirati ali unovčevati točk</p>
-            </div>
-            <Switch
-              checked={formData.isActive}
-              onCheckedChange={(checked) => onFormDataChange({ ...formData, isActive: checked })}
-            />
-          </div>
-        </div>
+        <LoyaltyFormFields formData={formData} onFormDataChange={onFormDataChange} />
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={onCancel}>

@@ -8,7 +8,9 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
 import { authFetch } from '@/components/pos/PinLogin'
 import { PeriodType } from './constants'
-import { HeatmapGrid, PeakHoursCard, PeriodComparisonCard } from './HeatmapSubComponents'
+import { HeatmapGrid } from './HeatmapSubComponents'
+import { PeakHoursCard } from './PeakHoursCard'
+import { PeriodComparisonCard } from './PeriodComparisonCard'
 import { TimeSlotChart } from './HeatmapSubComponents/TimeSlotChart'
 
 // ============================================

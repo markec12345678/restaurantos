@@ -5,14 +5,25 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ShoppingBag, TrendingUp, Wallet, Users, ChevronLeft, ChevronRight, CreditCard } from 'lucide-react'
+import { ShoppingBag, TrendingUp, Wallet, Users, ChevronLeft, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
 import { authFetch } from '@/components/pos/PinLogin'
-import { PeriodType, paymentMethodLabels } from './constants'
+import { PeriodType } from './constants'
 import {
   BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
+import dynamic from 'next/dynamic'
+
+// Lazy-loaded podkomponente
+const TipsEmployeeTable = dynamic(
+  () => import('./TipsSubComponents').then(m => ({ default: m.TipsEmployeeTable })),
+  { ssr: false },
+)
+const TipsPaymentMethods = dynamic(
+  () => import('./TipsSubComponents').then(m => ({ default: m.TipsPaymentMethods })),
+  { ssr: false },
+)
 
 // ============================================
 // NAPITNINE — Razčlenitev napitnin po zaposlenih
@@ -118,59 +129,9 @@ export function TipsReport() {
             )}
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Podrobnosti po zaposlenih</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="border rounded-lg overflow-hidden max-h-72 overflow-y-auto">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-muted/50">
-                  <tr className="border-b">
-                    <th className="text-left p-3 font-medium">Zaposleni</th>
-                    <th className="text-right p-3 font-medium">Napitnine</th>
-                    <th className="text-right p-3 font-medium">Naročila</th>
-                    <th className="text-right p-3 font-medium">Povp.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tipsByEmp.map((emp: { employeeName: string; tips: number; orderCount: number; avgTip: number }, idx: number) => (
-                    <tr key={idx} className="border-b hover:bg-muted/30">
-                      <td className="p-3 font-medium">{emp.employeeName}</td>
-                      <td className="p-3 text-right text-emerald-600 font-semibold">{fmt(emp.tips)}</td>
-                      <td className="p-3 text-right">{emp.orderCount}</td>
-                      <td className="p-3 text-right">{fmt(emp.avgTip)}</td>
-                    </tr>
-                  ))}
-                  {tipsByEmp.length === 0 && (
-                    <tr><td colSpan={4} className="p-6 text-center text-muted-foreground">Ni napitnin</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+        <TipsEmployeeTable tipsByEmp={tipsByEmp} fmt={fmt} />
       </div>
-      {/* Napitnine po plačilnih metodah */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <CreditCard className="h-4 w-4" />
-            Napitnine po plačilnih metodah
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-4">
-            {(fin.paymentMethods || []).map((pm: { method: string; tips: number; count: number }, idx: number) => (
-              <div key={idx} className="text-center p-3 rounded-lg border">
-                <p className="text-xs text-muted-foreground">{paymentMethodLabels[pm.method] || pm.method}</p>
-                <p className="text-lg font-bold text-emerald-600">{fmt(pm.tips || 0)}</p>
-                <p className="text-xs text-muted-foreground">{pm.count} naročil</p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <TipsPaymentMethods paymentMethods={fin.paymentMethods || []} fmt={fmt} />
     </div>
   )
 }

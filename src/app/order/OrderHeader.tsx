@@ -1,8 +1,11 @@
 'use client'
 
 import { memo } from 'react'
+import dynamic from 'next/dynamic'
 import type { RestaurantSettingsRow, WeeklyHoursRow } from '@/lib/types'
 import type { LocationInfo, OrderType, CheckoutStep } from './types'
+
+const OrderHeaderActions = dynamic(() => import('./OrderHeaderActions').then(m => ({ default: m.OrderHeaderActions })), { ssr: false })
 
 interface OrderHeaderProps {
   settings: RestaurantSettingsRow | null
@@ -40,29 +43,7 @@ export const OrderHeader = memo(function OrderHeader({
             </h1>
             <p className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>Online naročanje</p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsDark(!isDark)}
-              className={`p-2 rounded-xl ${isDark ? 'bg-gray-800 text-gray-400' : 'bg-blue-50 text-blue-700'} transition`}
-            >
-              {isDark ? '☀️' : '🌙'}
-            </button>
-            {/* Gumb za košarico */}
-            <button
-              onClick={() => setStep(step === 'cart' ? 'menu' : 'cart')}
-              className="relative bg-blue-600 text-white p-3 rounded-xl shadow-lg hover:bg-blue-700 transition"
-              aria-label={step === 'cart' ? 'Zapri košarico' : 'Odpri košarico'}
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" />
-              </svg>
-              {cartItemCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-bounce">
-                  {cartItemCount}
-                </span>
-              )}
-            </button>
-          </div>
+          <OrderHeaderActions isDark={isDark} setIsDark={setIsDark} step={step} setStep={setStep} cartItemCount={cartItemCount} />
         </div>
 
         {/* Izbira vrste naročila */}
@@ -115,10 +96,7 @@ export const OrderHeader = memo(function OrderHeader({
             <span className={`text-xs font-medium ${isOpenNow ? 'text-green-700' : 'text-red-600'}`}>
               {isOpenNow ? 'Trenutno odprto' : 'Trenutno zaprto'}
             </span>
-            <button
-              onClick={() => setShowHours(!showHours)}
-              className="text-xs text-blue-600 underline ml-1"
-            >
+            <button onClick={() => setShowHours(!showHours)} className="text-xs text-blue-600 underline ml-1">
               Delovni čas
             </button>
           </div>

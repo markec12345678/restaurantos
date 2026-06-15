@@ -1,13 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { format, addDays, isBefore, startOfDay } from 'date-fns'
-import type { ReservationSlot, RestaurantInfo, ReservationStep } from './types'
-import { DAY_NAMES, TIME_SLOTS } from './constants'
-
-// =====================================================================
-// HOOK: Stanje in logika javne strani za rezervacije
-// =====================================================================
+import type { ReservationStep } from './types'
+import { useReservationFetch } from './useReservationFetch'
 
 export function useReservation() {
   const [step, setStep] = useState<ReservationStep>('details')
@@ -21,67 +17,9 @@ export function useReservation() {
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [_reservationId, setReservationId] = useState('')
-  const [restaurantInfo, setRestaurantInfo] = useState<RestaurantInfo | null>(null)
-  const [availableSlots, setAvailableSlots] = useState<ReservationSlot[]>([])
-  const [slotsLoading, setSlotsLoading] = useState(false)
 
-  // Pridobi podatke restavracije
-  useEffect(() => {
-    fetch('/api/settings')
-      .then(r => r.json())
-      .then(data => {
-        if (data?.settings) {
-          setRestaurantInfo({
-            name: data.settings.restaurantName || 'RestaurantOS',
-            address: data.settings.address || '',
-            phone: data.settings.phone || '',
-            logo: data.settings.logo || '',
-            openingHours: data.settings.openingHours || {},
-          })
-        }
-      })
-      .catch(() => {})
-  }, [])
+  const { availableSlots, slotsLoading, fetchedRestaurantInfo: restaurantInfo } = useReservationFetch(selectedDate, partySize)
 
-  // Pridobi razpoložljive termin ob spremembi datuma/velikosti
-  useEffect(() => {
-    const fetchSlots = async () => {
-      setSlotsLoading(true)
-      try {
-        const dateStr = format(selectedDate, 'yyyy-MM-dd')
-        const res = await fetch(`/api/reservations?date=${dateStr}&partySize=${partySize}&checkAvailability=true`)
-        const data = await res.json()
-
-        if (data?.availableSlots) {
-          setAvailableSlots(data.availableSlots)
-        } else {
-          // Izračunaj na podlagi odpiralnih časov
-          const dayName = DAY_NAMES[selectedDate.getDay()].toLowerCase()
-          const hours = restaurantInfo?.openingHours?.[dayName]
-          if (hours) {
-            const slots = TIME_SLOTS.filter(t => t >= hours.open && t <= hours.close).map(t => ({
-              time: t,
-              available: true,
-              tablesAvailable: 3,
-            }))
-            setAvailableSlots(slots)
-          } else {
-            // Privzeto za vsak dan
-            setAvailableSlots(
-              TIME_SLOTS.map(t => ({ time: t, available: true, tablesAvailable: 2 }))
-            )
-          }
-        }
-      } catch {
-        // Fallback - vsi termini na voljo
-        setAvailableSlots(TIME_SLOTS.map(t => ({ time: t, available: true, tablesAvailable: 2 })))
-      }
-      setSlotsLoading(false)
-    }
-    fetchSlots()
-  }, [selectedDate, partySize, restaurantInfo])
-
-  // Datum navigacija
   const navigateDate = (dir: number) => {
     const newDate = addDays(selectedDate, dir)
     if (!isBefore(newDate, startOfDay(new Date()))) {
@@ -90,10 +28,8 @@ export function useReservation() {
     }
   }
 
-  // Veljavnost obrazca
   const isValid = !!(selectedDate && selectedTime && partySize && customerName && customerPhone)
 
-  // Pošlji rezervacijo
   const handleSubmit = async () => {
     if (!isValid) return
     setLoading(true)
@@ -103,15 +39,9 @@ export function useReservation() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customerName,
-          customerPhone,
-          customerEmail,
-          dateTime: dateTime.toISOString(),
-          partySize,
-          duration: 120,
-          notes,
-          specialRequests,
-          source: 'website',
+          customerName, customerPhone, customerEmail,
+          dateTime: dateTime.toISOString(), partySize,
+          duration: 120, notes, specialRequests, source: 'website',
         }),
       })
       if (!res.ok) {
@@ -128,33 +58,9 @@ export function useReservation() {
   }
 
   return {
-    // Stanje
-    step,
-    setStep,
-    selectedDate,
-    setSelectedDate,
-    selectedTime,
-    setSelectedTime,
-    partySize,
-    setPartySize,
-    customerName,
-    setCustomerName,
-    customerPhone,
-    setCustomerPhone,
-    customerEmail,
-    setCustomerEmail,
-    specialRequests,
-    setSpecialRequests,
-    notes,
-    setNotes,
-    loading,
-    restaurantInfo,
-    availableSlots,
-    slotsLoading,
-    // Izpeljano
-    isValid,
-    // Akcije
-    navigateDate,
-    handleSubmit,
+    step, setStep, selectedDate, setSelectedDate, selectedTime, setSelectedTime,
+    partySize, setPartySize, customerName, setCustomerName, customerPhone, setCustomerPhone,
+    customerEmail, setCustomerEmail, specialRequests, setSpecialRequests, notes, setNotes,
+    loading, restaurantInfo, availableSlots, slotsLoading, isValid, navigateDate, handleSubmit,
   }
 }

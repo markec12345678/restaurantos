@@ -1,18 +1,11 @@
 
 // FIX CRITICAL: Zod validacija za zaprtje izmene
-import { db, createAuditLog } from '@/lib/db'
+import { db } from '@/lib/db'
 import { toNum, deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
-import { z } from 'zod'
-import { emitEvent } from '@/lib/event-emitter'
-import { logger } from '@/lib/logger'
 import { handleRouteError, validateRequest } from '@/lib/api-utils'
-const closeShiftSchema = z.object({
-  closingCash: z.number().min(0, 'Končna gotovina ne more biti negativna').optional(),
-  totalTips: z.number().min(0, 'Napitnine ne morejo biti negativne').default(0),
-  notes: z.string().max(1000, 'Opombe ne smejo preseči 1000 znakov').default(''),
-})
+import { closeShiftSchema, postShiftCloseActions } from './_helpers'
 
 // PUT /api/cash-register/[id] — Close a shift
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -76,7 +69,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       })
 
       // Ločeno poizvedba za storno — BREZ prekrivanja s plačanimi
-      // FIX HIGH: Storno naročila naj uporabijo cancelledAt namesto updatedAt — updatedAt se spremeni ob vsaki redakciji
+      // FIX HIGH: Storno naročila naj uporabijo cancelledAt namesto updatedAt
       const stornoOrders = await tx.order.findMany({
         where: {
           paymentStatus: 'storno',
@@ -93,7 +86,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       const mobileSales = allPayments.filter(p => p.type === 'mobile').reduce((sum, p) => sum + toNum(p.amount), 0)
       const alternateSales = allPayments.filter(p => ['voucher', 'loyalty', 'giftcard', 'alternate'].includes(p.type)).reduce((sum, p) => sum + toNum(p.amount), 0)
 
-      // FIX CASH-06 MEDIUM: Split plačila — preštej naročila z več plačilnimi metodami
+      // FIX CASH-06 MEDIUM: Split plačila
       const ordersWithMultiplePayments = paidOrders.filter(o => {
         const paymentTypes = new Set(o.checks.flatMap(c => c.payments.map(p => p.type)))
         return paymentTypes.size > 1
@@ -105,11 +98,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       const totalTips = allPayments.reduce((sum, p) => sum + toNum(p.tipAmount), 0)
       const totalVoided = stornoOrders.reduce((sum, o) => sum + Math.abs(toNum(o.total)), 0)
       const totalOrders = paidOrders.length
-      // FIX MEDIUM: Gotovinske napitnine se prištejejo k pričakovani gotovini
       const cashTips = allPayments.filter(p => p.type === 'cash').reduce((sum, p) => sum + toNum(p.tipAmount), 0)
       const expectedCash = toNum(shift.startingCash) + cashSales + cashTips
       // FIX HIGH: closingCash uporabi ?? namesto || — 0€ v blagajni je legitimna vrednost
-      // Prejšnja koda je obravnavala 0 kot falsy in zamenjala z expectedCash (skrivanje kraje)
       const closingCash = data.closingCash ?? expectedCash
       const cashDifference = closingCash - expectedCash
 
@@ -137,34 +128,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       })
     })
 
-    // FIX MEDIUM: Audit log za zaprtje izmene
-    await createAuditLog({
-      userId: authResult.session?.employeeId,
-      action: 'CLOSE_REGISTER_SHIFT',
-      entityType: 'CashRegisterShift',
-      entityId: id,
-      details: {
-        totalSales: toNum(closedShift.totalSales),
-        cashSales: toNum(closedShift.cashSales),
-        cardSales: toNum(closedShift.cardSales),
-        cashDifference: toNum(closedShift.cashDifference),
-      },
-    })
-
-    // Webhook: cash_register.closed
-    emitEvent('cash_register.closed', {
-      shiftId: id,
-      employeeName: closedShift.employeeName || '',
-      totalSales: toNum(closedShift.totalSales),
-      cashDifference: toNum(closedShift.cashDifference),
-    }).catch(err => logger.error('API', '[Webhook] cash_register.closed napaka:', err))
-
-    // Webhook: daily_report.ready
-    emitEvent('daily_report.ready', {
-      date: new Date().toISOString().split('T')[0],
-      totalSales: toNum(closedShift.totalSales),
-      totalOrders: closedShift.totalOrders,
-    }).catch(err => logger.error('API', '[Webhook] daily_report.ready napaka:', err))
+    // Audit log + webhooks
+    await postShiftCloseActions(closedShift, id, authResult.session?.employeeId)
 
     return NextResponse.json(deepToNumbers(closedShift))
   } catch (error: unknown) {

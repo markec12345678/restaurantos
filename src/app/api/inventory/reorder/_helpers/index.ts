@@ -6,3 +6,4 @@ export type { ReorderSuggestion, ReorderSummary, ReorderResult, ReorderOrderResu
 export { generateReorderReason, groupBy } from './utils'
 export { getReorderSuggestions } from './suggestions'
 export { createReorderOrder } from './create-order'
+export { processItemForSuggestion } from './process-item'

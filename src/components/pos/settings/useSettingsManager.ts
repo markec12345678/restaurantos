@@ -1,14 +1,14 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
+import { useQuery } from '@tanstack/react-query'
 import { useState, useEffect, useCallback } from 'react'
+import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { usePOSStore } from '@/lib/store'
 import { getCountryConfig, type CountryCode } from '@/lib/country-config'
 import { setLocale } from '@/lib/i18n'
-import { queryKeys } from '@/lib/query-keys'
 import type { SettingsData, FursStatus } from './constants'
+import { useSettingsSave } from './useSettingsSave'
 
 // ============================================
 // HOOK: Upravljanje nastavitev
@@ -16,7 +16,6 @@ import type { SettingsData, FursStatus } from './constants'
 // ============================================
 
 export function useSettingsManager() {
-  const queryClient = useQueryClient()
   const { country: storeCountry, setCountry: setStoreCountry, setLocale: setStoreLocale } = usePOSStore()
   const [activeTab, setActiveTab] = useState('country')
   const [fursStatus, setFursStatus] = useState<FursStatus>('disconnected')
@@ -39,7 +38,6 @@ export function useSettingsManager() {
     if (settings) {
       queueMicrotask(() => {
         setForm({ ...settings })
-        // Sinhronizacija države iz nastavitev v lokalno stanje
         if (settings.country) {
           setSelectedCountry(settings.country as CountryCode)
         }
@@ -47,7 +45,6 @@ export function useSettingsManager() {
     }
   }, [settings])
 
-  // Ko se spremeni država, samodejno posodobi nastavitve
   const handleCountryChange = useCallback((code: CountryCode) => {
     setSelectedCountry(code)
     setStoreCountry(code)
@@ -66,63 +63,24 @@ export function useSettingsManager() {
 
   const currentCountryConfig = getCountryConfig(selectedCountry)
 
-  const saveMutation = useMutation({
-    mutationFn: async (data: Partial<SettingsData>) => {
-      const res = await authFetch('/api/settings', {
-        method: 'PUT',
-        body: JSON.stringify(data),
-      })
-      if (!res.ok) throw new Error('Napaka pri shranjevanju')
-      return res.json()
-    },
-    onSuccess: () => {
-      toast.success('Nastavitve shranjene!')
-      queryClient.invalidateQueries({ queryKey: ['settings'] })
-      setLastSaved(new Date().toLocaleTimeString('sl-SI'))
-    },
-    onError: () => toast.error('Napaka pri shranjevanju nastavitev'),
+  const { saveMutation, bulkVatMutation, handleSave, handleBulkVatChange } = useSettingsSave({
+    form, bulkVatFrom, bulkVatTo,
   })
 
-  const handleSave = useCallback(() => {
-    saveMutation.mutate(form)
-  }, [form, saveMutation])
-
-  const bulkVatMutation = useMutation({
-    mutationFn: async ({ fromRate, toRate }: { fromRate: number; toRate: number }) => {
-      const res = await authFetch('/api/menu-items/bulk-vat', {
-        method: 'POST',
-        body: JSON.stringify({ fromRate, toRate }),
+  // Posodobi lastSaved ko se saveMutation uspešno izvede
+  useEffect(() => {
+    if (saveMutation.isSuccess) {
+      queueMicrotask(() => {
+        setLastSaved(new Date().toLocaleTimeString('sl-SI'))
       })
-      if (!res.ok) throw new Error('Napaka pri masovni spremembi DDV')
-      return res.json()
-    },
-    onSuccess: (data) => {
-      toast.success(`DDV stopnja posodobljena za ${data?.updated ?? 'vse'} artikle`)
-      queryClient.invalidateQueries({ queryKey: queryKeys.menuItems.all })
-    },
-    onError: () => toast.error('Napaka pri masovni spremembi DDV'),
-  })
-
-  const handleBulkVatChange = useCallback(() => {
-    const from = parseFloat(bulkVatFrom)
-    const to = parseFloat(bulkVatTo)
-    if (isNaN(from) || isNaN(to)) {
-      toast.error('Izberite veljavne DDV stopnje')
-      return
     }
-    if (from === to) {
-      toast.error('Sedanja in nova stopnja morata biti različni')
-      return
-    }
-    bulkVatMutation.mutate({ fromRate: from, toRate: to })
-  }, [bulkVatFrom, bulkVatTo, bulkVatMutation])
+  }, [saveMutation.isSuccess])
 
   const testFursConnection = useCallback(async () => {
     setFursStatus('testing')
     try {
       const res = await authFetch('/api/furs')
       const data = await res.json()
-
       if (data.connected) {
         setFursStatus('connected')
         toast.success(data.message || `FURS povezava uspešna (${data.environment === 'production' ? 'PRODUKCIJA' : 'TESTNO'})`)
@@ -148,7 +106,6 @@ export function useSettingsManager() {
   }, [])
 
   return {
-    // Stanja
     activeTab, setActiveTab,
     fursStatus,
     lastSaved,
@@ -158,12 +115,8 @@ export function useSettingsManager() {
     form,
     currentCountryConfig,
     isLoading,
-
-    // Mutacije
     saveMutation,
     bulkVatMutation,
-
-    // Handlerji
     handleCountryChange,
     handleSave,
     handleBulkVatChange,

@@ -1,80 +1,12 @@
-// Pomožne funkcije za račune
-// GET/POST/PUT /api/receipts/[id] — pomožni modul za izračune, DDV razdelitev in ZOI
+// Izračuni za račune — postavke, DDV razdelitev
 
-import { toNum, round2, multiply, divide, type DecimalLike } from '@/lib/decimal'
-import crypto from 'crypto'
-
-// ─── Tipi ───
-export interface ReceiptItemCalc {
-  id: string
-  name: string
-  quantity: number
-  unitPrice: number
-  vatRate: number
-  basePrice: number
-  vatAmount: number
-  totalWithVat: number
-  modifiers: { name: string; price?: number }[]
-  notes: string | null
-  category: string
-}
-
-export interface VatBreakdownEntry {
-  base: number
-  vat: number
-  total: number
-}
-
-// ─── Privzete nastavitve restavracije (GET predogled) ───
-export const DEFAULT_SETTINGS = {
-  name: 'RestaurantOS',
-  address: 'Podčetrtk 97',
-  city: 'Podčetrtk',
-  postCode: '3254',
-  phone: '+386 3 818 30 00',
-  email: '',
-  taxId: 'SI12345678',
-  businessId: '12345678',
-  registerNumber: 'BLG-001',
-  receiptFooter: 'Hvala za obisk!',
-}
-
-// ─── Privzete nastavitve (POST — minimalni nabor) ───
-export const MINIMAL_SETTINGS = {
-  name: 'RestaurantOS',
-  address: '',
-  postCode: '',
-  city: '',
-  businessId: '',
-  taxId: '',
-  registerNumber: 'BLG-001',
-}
-
-// ─── ZOI placeholder generator (pravi ZOI potrebuje FURS certifikat in digitalni podpis) ───
-// FIX CRITICAL: Determinističen ZOI placeholder — ESM import namesto require('crypto')
-export function generateZOIPlaceholder(orderNumber: number, receiptNumber: string): string {
-  // Deterministični hash iz številke naročila + številke računa — vedno enak za isti račun
-  const hash = crypto.createHash('sha256')
-    .update(`ZOI-PLACEHOLDER-${orderNumber}-${receiptNumber}`)
-    .digest('hex')
-  // Vzamemo prvih 32 hex znakov (16 bajtov) in formatiramo
-  return hash.substring(0, 32).toUpperCase()
-}
+import { toNum, round2, multiply, divide } from '@/lib/decimal'
+import type { ReceiptItemCalc, VatBreakdownEntry, ReceiptOrderItemInput, VatCalcOrderItemInput } from './types'
 
 // ─── Izračunaj postavke računa (za GET predogled) ───
 // FIX MEDIUM: Izključi voidane artikle iz računa
 export function buildReceiptItems(
-  orderItems: Array<{
-    id: string
-    price: DecimalLike
-    quantity: number
-    vatRate: DecimalLike
-    modifiersJson: string | null
-    notes: string | null
-    voided: boolean
-    discountAmount: DecimalLike
-    menuItem: { name: string; vatRate: DecimalLike; category: { name: string } | null }
-  }>,
+  orderItems: ReceiptOrderItemInput[],
 ): ReceiptItemCalc[] {
   return orderItems
     .filter(oi => !oi.voided)
@@ -127,14 +59,7 @@ export function buildVatBreakdown(receiptItems: ReceiptItemCalc[]): Record<strin
 // ─── Izračunaj DDV razdelitev za ustvarjanje računa (POST) s porazdelitvijo popusta ───
 // FIX BUG: Porazdeli popust proporcionalno po DDV stopnjah — FURS skladno
 export function calculateVatBreakdownForReceipt(
-  orderItems: Array<{
-    price: DecimalLike
-    quantity: number
-    vatRate: DecimalLike
-    vatAmount: DecimalLike
-    voided: boolean
-    menuItem: { vatRate: DecimalLike } | null
-  }>,
+  orderItems: VatCalcOrderItemInput[],
   totalDiscount: number,
 ): Record<string, { base: number; vat: number }> {
   const vatBreakdown: Record<string, { base: number; vat: number }> = {}
