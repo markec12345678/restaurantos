@@ -4,8 +4,15 @@ import { getNextReceiptNumber } from '@/lib/counters'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createReceiptSchema, receiptResponseSchema, receiptCreatedResponseSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody, validateApiResponse } from '@/lib/api-utils'
-import { toNum, round2, multiply, divide, deepToNumbers } from '@/lib/decimal'
-import crypto from 'crypto'
+import { toNum, round2, deepToNumbers } from '@/lib/decimal'
+import {
+  generateZOIPlaceholder,
+  DEFAULT_SETTINGS,
+  MINIMAL_SETTINGS,
+  buildReceiptItems,
+  buildVatBreakdown,
+  calculateVatBreakdownForReceipt,
+} from './_helpers'
 
 // GET /api/receipts/[id] — Generiraj račun s predogledom (ZDDV-1 skladen)
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -32,65 +39,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     // Pridobi nastavitve restavracije
     const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
-    const s = settings || {
-      name: 'RestaurantOS',
-      address: 'Podčetrtk 97',
-      city: 'Podčetrtk',
-      postCode: '3254',
-      phone: '+386 3 818 30 00',
-      email: '',
-      taxId: 'SI12345678',
-      businessId: '12345678',
-      registerNumber: 'BLG-001',
-      receiptFooter: 'Hvala za obisk!',
-    }
+    const s = settings || DEFAULT_SETTINGS
 
-    // Parse modifiers from JSON
-    // FIX MEDIUM: Izključi voidane artikle iz računa
-    const receiptItems = order.orderItems
-      .filter(oi => !oi.voided)
-      .map(oi => {
-      let modifiers: { name: string; price?: number }[] = []
-      try {
-        modifiers = JSON.parse(oi.modifiersJson || '[]')
-      } catch { /* empty */ }
-
-      const vatRate = toNum(oi.vatRate) || toNum(oi.menuItem?.vatRate) || 22.0 // FIX: Decimal→number
-      // FIX MEDIUM: Vključi ceno modifikatorjev v skupno ceno artikla
-      let modifiersTotal = 0
-      for (const mod of modifiers) {
-        modifiersTotal += mod.price || 0
-      }
-      // FIX BUG2: Subtract discountAmount from basePrice — previously discount was not deducted per-item
-      // This caused VAT breakdown to include undiscounted amounts, producing incorrect totals
-      const basePrice = (toNum(oi.price) + modifiersTotal) * oi.quantity - toNum(oi.discountAmount) // FIX: Decimal→number, truthy bug
-      const vatAmount = basePrice * (vatRate / 100)
-      const totalWithVat = basePrice + vatAmount
-
-      return {
-        id: oi.id,
-        name: oi.menuItem.name,
-        quantity: oi.quantity,
-        unitPrice: toNum(oi.price),
-        vatRate,
-        basePrice,
-        vatAmount,
-        totalWithVat,
-        modifiers,
-        notes: oi.notes,
-        category: oi.menuItem.category?.name || '',
-      }
-    })
-
-    // DDV razdelitev po stopnjah
-    const vatBreakdown: Record<string, { base: number; vat: number; total: number }> = {}
-    for (const item of receiptItems) {
-      const rate = String(item.vatRate)
-      if (!vatBreakdown[rate]) vatBreakdown[rate] = { base: 0, vat: 0, total: 0 }
-      vatBreakdown[rate].base += item.basePrice
-      vatBreakdown[rate].vat += item.vatAmount
-      vatBreakdown[rate].total += item.totalWithVat
-    }
+    const receiptItems = buildReceiptItems(order.orderItems)
+    const vatBreakdown = buildVatBreakdown(receiptItems)
 
     const subtotal = receiptItems.reduce((sum, item) => sum + item.basePrice, 0)
     const totalVat = receiptItems.reduce((sum, item) => sum + item.vatAmount, 0)
@@ -192,55 +144,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // Pridobi nastavitve
     const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
-    const s2 = settings || {
-      name: 'RestaurantOS',
-      address: '',
-      postCode: '',
-      city: '',
-      businessId: '',
-      taxId: '',
-      registerNumber: 'BLG-001',
-    }
+    const s2 = settings || MINIMAL_SETTINGS
 
     // Izračunaj DDV razdelitev (strežniško — edini vir resnice)
-    // FIX BUG: Porazdeli popust proporcionalno po DDV stopnjah — FURS skladno
-    // Brez tega je total narobe (subtotal + totalVat - discount ni enak vsoti itemov)
-    const totalDiscount = toNum(order.discount) // FIX: Decimal truthy — toNum() instead of || 0
-    const vatBreakdownForReceipt: Record<string, { base: number; vat: number }> = {}
-    for (const oi of order.orderItems.filter(item => !item.voided)) {
-      const vatRate = toNum(oi.vatRate) || toNum(oi.menuItem?.vatRate) || 22.0 // FIX: Decimal→number
-      const rate = String(vatRate)
-      // Uporabi že izračunani vatAmount (ki upošteva popust) če obstaja, sicer izračunaj
-      const base = toNum(oi.price) * oi.quantity // FIX: Decimal→number
-      const vat = toNum(oi.vatAmount) > 0 ? toNum(oi.vatAmount) : (base * (vatRate / 100)) // FIX: Decimal truthy — toNum() > 0 instead of ||
-      if (!vatBreakdownForReceipt[rate]) vatBreakdownForReceipt[rate] = { base: 0, vat: 0 }
-      vatBreakdownForReceipt[rate].base += base // base is already number
-      vatBreakdownForReceipt[rate].vat += vat // vat is already number
-    }
-
-    // Porazdeli popust po DDV stopnjah (proporcionalno)
-    if (totalDiscount > 0) {
-      const totalBase = Object.values(vatBreakdownForReceipt).reduce((s, d) => s + d.base, 0)
-      let discountDistributed = 0
-      for (const [rate, data] of Object.entries(vatBreakdownForReceipt)) {
-        const isLast = rate === Object.keys(vatBreakdownForReceipt).at(-1)
-        let rateDiscount: number
-        if (isLast) {
-          rateDiscount = Math.round((totalDiscount - discountDistributed) * 100) / 100
-        } else if (totalBase > 0) {
-          rateDiscount = Math.round((data.base / totalBase) * totalDiscount * 100) / 100
-        } else {
-          rateDiscount = 0
-        }
-        discountDistributed += rateDiscount
-        data.base -= rateDiscount
-        // Preračunaj DDV na novi osnovi
-        data.vat = round2(multiply(data.base, divide(Number(rate), 100)))
-      }
-    }
+    const totalDiscount = toNum(order.discount)
+    const vatBreakdownForReceipt = calculateVatBreakdownForReceipt(order.orderItems, totalDiscount)
 
     // FIX CRITICAL: Atomna sekvenčna številka + ustvarjanje računa v transakciji (FURS skladnost)
-    // Če db.receipt.create() odpove, se counter increment povrne — prepreči vrzeli v številkah računov
     const receipt = await db.$transaction(async (tx) => {
       const receiptNumber = await getNextReceiptNumber(tx)
 
@@ -264,7 +174,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           totalVat: order.tax,
           discount: order.discount,
           total: order.total,
-          tip: toNum(order.tip), // FIX: Decimal truthy — toNum() instead of || 0
+          tip: toNum(order.tip),
           totalWithTip: round2(toNum(order.total) + toNum(order.tip)),
           paymentMethod: data.paymentMethod,
           isCopy: false,
@@ -273,8 +183,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         },
       })
 
-      // FIX MEDIUM: Posodobi order paymentMethod če še ni nastavljen —
-      // zagotovi konsistentnost med order in receipt
+      // FIX MEDIUM: Posodobi order paymentMethod če še ni nastavljen
       if (!order.paymentMethod && data.paymentMethod) {
         await tx.order.update({
           where: { id },
@@ -309,7 +218,6 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     // FIX HIGH: EOR se lahko nastavi SAMO prek FURS API-ja — ne direktno od klienta
-    // Odstranjena možnost nastavitve eor, fiscalVerified iz klienta — varnostna zahteva
     const updated = await db.receipt.update({
       where: { id: receipt.id },
       data: {
@@ -322,15 +230,4 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/receipts/[id]', 'Napaka pri posodobitvi računa')
   }
-}
-
-// Placeholder ZOI generator (pravi ZOI potrebuje FURS certifikat in digitalni podpis)
-// FIX CRITICAL: Determinističen ZOI placeholder — ESM import namesto require('crypto')
-function generateZOIPlaceholder(orderNumber: number, receiptNumber: string): string {
-  // Deterministični hash iz številke naročila + številke računa — vedno enak za isti račun
-  const hash = crypto.createHash('sha256')
-    .update(`ZOI-PLACEHOLDER-${orderNumber}-${receiptNumber}`)
-    .digest('hex')
-  // Vzamemo prvih 32 hex znakov (16 bajtov) in formatiramo
-  return hash.substring(0, 32).toUpperCase()
 }

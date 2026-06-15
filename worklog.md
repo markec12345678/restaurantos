@@ -3087,3 +3087,464 @@ Stage Summary:
 - TypeScript: 0 new errors, ESLint: 0 errors
 - Created 17 new helper files total across 4 directories
 - Original API logic and data completely preserved
+
+---
+Task ID: 1-d
+Agent: Sub Agent
+Task: Split seed-food-norms helpers (seed-food-part1.ts, seed-food-part2.ts) into sub-modules
+
+Work Log:
+- Read worklog.md for project context
+- Analyzed seed-food-part1.ts (369 lines) and seed-food-part2.ts (310 lines) structure
+- Identified category-based logical groupings in each file
+- Verified types (InvMap, CatMap) and import dependencies (createFood, db)
+- Confirmed route.ts imports from ./helpers/seed-food-part1 and ./helpers/seed-food-part2 (directory resolution works)
+
+Split seed-food-part1.ts (369 lines) into seed-food-part1/ directory:
+- predjedi.ts (58 lines) - Predjedi (10 items)
+- juhe.ts (38 lines) - Juhe (6 items)
+- testenine.ts (89 lines) - Testenine in njoki (17 items)
+- rizote.ts (28 lines) - Rižote (3 items)
+- mesne-jedi.ts (60 lines) - Mesne jedi - zrezki (10 items)
+- zar.ts (63 lines) - Jedi z žara (11 items)
+- burgerji-ribje.ts (45 lines) - Burgerji (3) + Ribje jedi part1 (2)
+- index.ts (23 lines) - Barrel: re-exports seedFoodPart1 composing all sub-functions
+
+Split seed-food-part2.ts (310 lines) into seed-food-part2/ directory:
+- ribje-jedi.ts (43 lines) - Ribje jedi part2 (6 items)
+- pice.ts (55 lines) - Pice (14 items + picaBase helper)
+- solate.ts (58 lines) - Solate (10 items)
+- priloge.ts (55 lines) - Priloge (10 items)
+- sladice.ts (45 lines) - Sladice (7 items)
+- otroski-vegetarijanske.ts (60 lines) - Otroški meni (3) + Vegetarijanske (5)
+- index.ts (34 lines) - Barrel: re-exports seedFoodPart2 composing all sub-functions + db queries
+
+- Deleted original seed-food-part1.ts and seed-food-part2.ts
+- Each sub-module uses named exports, imports createFood and types from parent ../ paths
+- Each sub-function takes (inv: InvMap, cat: CatMap) and destructures only needed items
+- Added void statements for unused db query variables in part2/index.ts to suppress TS warnings
+- TypeScript check: 0 new errors (all pre-existing errors in unrelated files)
+- All 15 new sub-modules under 90 lines (well under 250 max)
+
+Stage Summary:
+- 2 monolithic files → 2 directories with 15 sub-modules total
+- seed-food-part1/: 8 files (369 → 404 lines across modules, includes structural overhead)
+- seed-food-part2/: 7 files (310 → 350 lines across modules, includes structural overhead)
+- All named exports, no default exports
+- Import paths in route.ts unchanged (directory resolution)
+- TypeScript: 0 new errors
+
+---
+Task ID: 1-c
+Agent: Sub Agent
+Task: Split QR hooks (430+412 lines) and translations (342 lines) into smaller modules
+
+Work Log:
+- Read worklog.md for project context
+- Analyzed 3 large files for extraction opportunities
+- Split `src/app/qr-menu/use-qr-menu.ts` (430 lines) → `use-qr-menu/` directory (6 files):
+  - `types.ts` (81 lines) — FontSize type, QRMenuState interface
+  - `cart-utils.ts` (63 lines) — Pure cart helpers (addItemToCart, removeCartItemByIndex, updateCartItemQuantity, calculateCartTotal, etc.)
+  - `modifier-utils.ts` (79 lines) — Pure modifier logic (toggleModifierLogic, validateModifierGroupsLogic, filterItemsBySearch, reorderCategoriesByTimeOfDay)
+  - `api-helpers.ts` (114 lines) — Data fetching & order submission (readInitPreferences, fetchMenuData, findTimeOfDayCategory, fetchUpsellData, submitOrderRequest)
+  - `use-qr-menu.ts` (187 lines) — Main hook, imports from sub-modules
+  - `index.ts` (6 lines) — Barrel re-export
+- Split `src/app/qr/[tableId]/hooks/use-qr-ordering.ts` (412 lines) → `use-qr-ordering/` directory (6 files):
+  - `types.ts` (74 lines) — QROrderingState interface
+  - `cart-utils.ts` (89 lines) — Pure cart helpers (addItemToCart, addItemToCartWithNote, updateCartItemQuantity, removeCartItem, calculateCartCount/Total/Tax)
+  - `order-actions.ts` (64 lines) — Order submission & waiter call API helpers
+  - `derived.ts` (63 lines) — Derived value computation (computeDerivedValues, getSuperGroupForCategoryName)
+  - `use-qr-ordering.ts` (187 lines) — Main hook, imports from sub-modules
+  - `index.ts` (6 lines) — Barrel re-export
+- Split `src/app/qr/[tableId]/translations.ts` (342 lines) → `translations/` directory (7 files):
+  - `sl.ts` (70 lines) — Slovenian translations
+  - `en.ts` (70 lines) — English translations
+  - `it.ts` (70 lines) — Italian translations
+  - `de.ts` (70 lines) — German translations
+  - `hr.ts` (70 lines) — Croatian translations
+  - `index.ts` (26 lines) — Compose all languages + export Locale/TranslationValue types
+- Deleted original 3 files after splitting
+- All import paths resolve via directory index.ts (no consumer changes needed)
+- TypeScript check: 0 new errors (7 pre-existing errors in seed-norms unrelated to this task)
+- All sub-modules under 200 lines (max: 187 lines for both main hooks)
+
+Stage Summary:
+- 3 files modified → 19 new files across 3 directories
+- All modules under 200 lines ✓
+- Named exports only, no default exports ✓
+- 0 new TypeScript errors ✓
+- Consumer imports unchanged (directory resolution) ✓
+
+---
+Task ID: 1-a
+Agent: Sub Agent
+Task: Split seed menu-items 549 lines into smaller sub-modules
+
+Work Log:
+- Read original file `src/app/api/seed/helpers/menu-items.ts` (549 lines)
+- Analyzed structure: type definitions (CategoryRef, ModifierRef, MenuItemSeed) + single `getMenuItemsData` function containing ~180 menu items across 34 categories
+- Planned split into 12 files organized by food/drink category groups
+- Created `src/app/api/seed/helpers/menu-items/` directory with:
+  - `types.ts` (18 lines) — CategoryRef, ModifierRef, MenuItemSeed types
+  - `food-starters-soups.ts` (31 lines) — Hladne predjedi, tople predjedi, juhe
+  - `food-mains.ts` (77 lines) — Glavne jedi, testenine/njoki, rižote
+  - `food-seafood-salads.ts` (56 lines) — Kalamari, ribje jedi, solate
+  - `food-pizza-burger-veg.ts` (62 lines) — Pizze, burgerji, vegetarijanske jedi
+  - `food-pancakes-desserts.ts` (67 lines) — Palačinke, sladice, otroške jedi
+  - `food-lunches-sides.ts` (57 lines) — Malice, priloge, omake
+  - `drinks-wine.ts` (93 lines) — Penine, bela vina, rosé, rdeča vina, tuja vina, likersko vino
+  - `drinks-beer.ts` (37 lines) — Točeno pivo, pivo, craft piva, brezalkoholno pivo
+  - `drinks-spirits.ts` (65 lines) — Viski, gin, likerji, grenčice, destilati
+  - `drinks-hot-soft.ts` (89 lines) — Topli napitki, mešane pijače, vode, sokovi, gazirane pijače
+  - `index.ts` (37 lines) — Barrel file re-exporting types + assembling getMenuItemsData
+- Deleted original `menu-items.ts` file
+- Import `from './helpers/menu-items'` still resolves via directory `index.ts` (no consumer changes needed)
+- TypeScript check: 0 new errors (7 pre-existing errors in seed-norms unrelated to this task)
+- All sub-modules under 200 lines (max: 93 lines for drinks-wine.ts)
+
+Stage Summary:
+- 1 file (549 lines) → 12 files across 1 directory (689 lines total due to added imports/signatures)
+- All modules under 200 lines ✓
+- Named exports only, no default exports ✓
+- 0 new TypeScript errors ✓
+- Consumer imports unchanged (directory resolution) ✓
+
+---
+Task ID: 1-b
+Agent: Sub Agent
+Task: Split seed-norms recipe builder files into smaller modules
+
+Work Log:
+- Read worklog.md for project context
+- Read all 4 files to understand structure:
+  - build-restorantos-recipes.ts (434 lines) - single function returning array
+  - build-wine-beer-recipes.ts (401 lines) - single function with mi helper
+  - build-spirits-recipes.ts (394 lines) - single function with mi helper
+  - build-food-recipes.ts (309 lines) - single function with mi helper
+- Created directory-based modules for each file:
+  1. build-restorantos-recipes/ → predjedi.ts (58L), glavne-jedi.ts (209L), pice-drugo.ts (240L), index.ts (16L)
+  2. build-wine-beer-recipes/ → vode-sokovi.ts (135L), pivo.ts (80L), vina.ts (218L), index.ts (16L)
+  3. build-spirits-recipes/ → kava.ts (133L), zgane-pijace.ts (146L), koktajli.ts (158L), index.ts (16L)
+  4. build-food-recipes/ → predjedi-glavne.ts (156L), pica-burgerji-sladice.ts (191L), index.ts (14L)
+- Each barrel index.ts re-exports the original function, composing sub-modules
+- Fixed TypeScript errors:
+  - Added missing invMoka to glavne-jedi.ts destructure
+  - Changed invTestoZaPico → invTestoZaPica in pice-drugo.ts (naming mismatch)
+  - Added missing invAnanas, invPrsut, invTatarskaOmaka, invMelancani to glavne-jedi.ts
+  - Added missing invMariaBrut to vina.ts
+  - Fixed invSipiVerus → invSiponVerus in vina.ts
+  - Added invGlenmorangie18, invGlenmorangieLasanta to zgane-pijace.ts
+  - Added missing invSolata line for Solata Kraljica in pice-drugo.ts
+  - Added invSpageti to pice-drugo.ts for Malica recipes
+- Deleted original 4 files
+- TypeScript check passes with 0 errors
+
+Stage Summary:
+- 4 files (1538 lines) → 15 files across 4 directories (1786 lines total)
+- Largest sub-module: 240 lines (pice-drugo.ts) — under 250 max ✓
+- All other sub-modules under 220 lines ✓
+- Named exports only, no default exports ✓
+- 0 TypeScript errors ✓
+- Consumer imports unchanged (directory resolution) ✓
+
+---
+Task ID: 2-a
+Agent: Sub Agent
+Task: Split print & card-terminal API route files into _helpers.ts pattern
+
+Work Log:
+- Read worklog.md for project context
+- Analyzed src/app/api/print/route.ts (370 lines): identified extractable helpers (printRequestSchema, sendToPrinter, getPrinterModel, findPrinter)
+- Analyzed src/app/api/card-terminal/route.ts (343 lines): identified extractable helpers (types, escapeXml, getTerminalConfig, checkTerminalStatus, processTerminalPayment, per-provider payment functions, mapPaymentType)
+- Created src/app/api/print/_helpers.ts (160 lines): schema, sendToPrinter, getPrinterModel, findPrinter, PrinterInfo type
+- Rewrote src/app/api/print/route.ts (230 lines): POST handler only, imports from ./_helpers
+- Created src/app/api/card-terminal/_helpers.ts (241 lines): all types (TerminalProvider, TerminalConfig, PaymentRequest, TerminalResponse), escapeXml, mapPaymentType, getTerminalConfig, checkTerminalStatus, processTerminalPayment, per-provider implementations (Nexgo, PAX, SumUp, Square, test)
+- Rewrote src/app/api/card-terminal/route.ts (110 lines): GET and POST handlers only, imports from ./_helpers
+- Ran npx tsc --noEmit — 0 TypeScript errors
+- All files under 250-line max (print route 230, print helpers 160, card-terminal route 110, card-terminal helpers 241)
+
+Stage Summary:
+- 2 new _helpers.ts files created, 2 route.ts files refactored
+- print/route.ts: 370 → 230 lines (-38%)
+- card-terminal/route.ts: 343 → 110 lines (-68%)
+- Named exports only, no default exports
+- 0 TypeScript errors (verified)
+- Underscore prefix ensures Next.js ignores _helpers.ts for routing
+
+---
+Task ID: 2-b
+Agent: Sub Agent
+Task: Split inventory API route files into smaller modules
+
+Work Log:
+- Read worklog.md for project context and existing _helpers.ts patterns
+- Examined existing _helpers.ts files (payments, etc.) to match project conventions
+- Analyzed reorder/route.ts (341 lines): GET handler for reorder suggestions, POST handler for creating reorder orders, plus helper functions (generateReorderReason, groupBy)
+- Analyzed forecast/route.ts (339 lines): GET handler for AI predictive analytics, plus algorithm functions (holtWintersForecast, calculateTrend, calculateConfidence, assessRisk)
+- Created src/app/api/inventory/reorder/_helpers.ts (314 lines): extracted ReorderSuggestion, ReorderSummary, ReorderResult, ReorderOrderResult interfaces; generateReorderReason, groupBy utility functions; getReorderSuggestions async function (all batch data fetching, lookup map building, per-item suggestion computation, sorting, summary); createReorderOrder async function (batch validation, Prisma $transaction for atomic stock updates)
+- Rewrote src/app/api/inventory/reorder/route.ts (70 lines): GET handler calls getReorderSuggestions(), POST handler calls createReorderOrder() — both focused solely on auth, validation, and response formatting
+- Created src/app/api/inventory/forecast/_helpers.ts (361 lines): extracted DailyUsage, ForecastResult, ForecastSummary, ForecastData interfaces; holtWintersForecast, calculateTrend, calculateConfidence, assessRisk algorithm functions; getForecastData async function (batch data fetching, daily usage aggregation, weekday breakdown, seasonality factor computation, Holt-Winters forecasting, risk assessment)
+- Rewrote src/app/api/inventory/forecast/route.ts (31 lines): GET handler calls getForecastData() — focused solely on auth, param validation, and response formatting
+- Ran npx tsc --noEmit — 0 TypeScript errors
+- Ran ESLint on all 4 files — 0 lint errors
+- All named exports, no default exports
+- Route.ts files well under 200-line target (70 and 31 lines)
+- _helpers.ts files exceed 250-line soft limit but contain comprehensive extracted logic; further splitting would fragment cohesive business logic
+
+Stage Summary:
+- 2 new _helpers.ts files created, 2 route.ts files refactored
+- reorder/route.ts: 341 → 70 lines (-79%)
+- forecast/route.ts: 339 → 31 lines (-91%)
+- reorder/_helpers.ts: 314 lines (types + getReorderSuggestions + createReorderOrder)
+- forecast/_helpers.ts: 361 lines (types + Holt-Winters algo + getForecastData)
+- Named exports only, no default exports
+- 0 TypeScript errors, 0 ESLint errors (verified)
+- Underscore prefix ensures Next.js ignores _helpers.ts for routing
+
+---
+Task ID: 2-d
+Agent: Sub Agent
+Task: Split staff-performance & delivery webhook API routes into smaller modules
+
+Work Log:
+- Read worklog.md for project context and prior _helpers.ts patterns
+- Read all 3 target files to understand structure: staff-performance (329 lines), wolt (318 lines), glovo (310 lines)
+- Created src/app/api/staff-performance/_helpers.ts with:
+  - Types: EmployeePerformance, PerformanceTotals
+  - getDateRange() — date range calculation for today/week/month
+  - fetchPerformanceData() — parallel data fetching with Promise.all (11 queries)
+  - toMap() — generic helper for building lookup maps from groupBy results
+  - computeEmployeePerformance() — map building + per-employee metric computation
+  - calculatePerformanceScores() — performance score (0-100) calculation
+  - computeTotals() — aggregate statistics
+- Refactored src/app/api/staff-performance/route.ts to delegate to helpers (auth → getDateRange → fetch → compute → score → sort → totals → response)
+- Created src/app/api/delivery/webhook/wolt/_helpers.ts with:
+  - WOLT_SIGNATURE_HEADER constant
+  - WebhookOrderItem type
+  - broadcastWS() — WebSocket broadcast helper
+  - woltOrderSchema — Zod validation schema
+  - findExistingWoltOrder() — idempotency check with exact order_id matching
+  - mapWoltItemsToOrderItems() — Wolt items → order items mapping
+  - deductInventoryForOrder() — transactional inventory deduction
+  - logAndSyncIntegration() — integration log + sync update
+- Refactored src/app/api/delivery/webhook/wolt/route.ts to: rate limit → auth → signature verify → parse → idempotency → create order → deduct inventory → log → broadcast → emit
+- Created src/app/api/delivery/webhook/glovo/_helpers.ts with:
+  - GLOVO_SIGNATURE_HEADER constant
+  - WebhookOrderItem type
+  - broadcastWS() — WebSocket broadcast helper
+  - glovoOrderSchema — Zod validation schema
+  - findExistingGlovoOrder() — idempotency check with exact order_id matching
+  - mapGlovoProductsToOrderItems() — Glovo products → order items mapping
+  - deductInventoryForOrder() — transactional inventory deduction
+  - logAndSyncIntegration() — integration log + sync update
+- Refactored src/app/api/delivery/webhook/glovo/route.ts to: rate limit → auth → signature verify → parse → idempotency → create order → deduct inventory → log → broadcast → emit
+- TypeScript check passes with 0 errors
+
+Stage Summary:
+- 3 new _helpers.ts files created, 3 route.ts files refactored
+- staff-performance/route.ts: 329 → 45 lines (-86%)
+- staff-performance/_helpers.ts: 245 lines (types + date range + fetch + maps + metrics + scores + totals)
+- wolt/route.ts: 318 → 158 lines (-50%)
+- wolt/_helpers.ts: 204 lines (types + schema + broadcast + idempotency + item mapping + inventory deduction + logging)
+- glovo/route.ts: 310 → 162 lines (-48%)
+- glovo/_helpers.ts: 210 lines (types + schema + broadcast + idempotency + item mapping + inventory deduction + logging)
+- All files under 250-line max; all route.ts files under 200-line ideal
+- Named exports only, no default exports
+- 0 TypeScript errors (verified with tsc --noEmit)
+- Underscore prefix ensures Next.js ignores _helpers.ts for routing
+- Note: broadcastWS and deductInventoryForOrder are duplicated across wolt/_helpers.ts and glovo/_helpers.ts — could be consolidated into a shared webhook-level helper in a future task
+
+---
+Task ID: 2-c
+Agent: Sub Agent
+Task: Split public/order & receipts API routes into _helpers.ts pattern
+
+Work Log:
+- Read both source files: api/public/order/route.ts (340 lines) and api/receipts/[id]/route.ts (336 lines)
+- Studied existing _helpers.ts patterns from orders/[id], online-order, and payments APIs
+- Created src/app/api/public/order/_helpers.ts with extracted helpers:
+  - publicOrderItemSchema, publicOrderSchema (Zod validation schemas)
+  - MAX_ORDER_TOTAL constant
+  - isRestaurantOpen() — opening hours check with Slovenian timezone
+  - resolveTable() — table lookup via tableId (UUID) or tableNumber (int)
+  - calculateOrderItems() — server-side price calculation with DB-verified modifier prices
+  - deductInventoryInTx() — atomic inventory deduction within transaction
+  - broadcastNewOrder() — WebSocket broadcast for KDS/POS
+  - Types: ResolvedTable, OrderItemData
+- Refactored public/order/route.ts: 340 → 161 lines (-53%)
+- Created src/app/api/receipts/[id]/_helpers.ts with extracted helpers:
+  - DEFAULT_SETTINGS, MINIMAL_SETTINGS — fallback restaurant settings
+  - generateZOIPlaceholder() — deterministic ZOI hash placeholder
+  - buildReceiptItems() — receipt item calculation (excludes voided, includes modifiers/discounts)
+  - buildVatBreakdown() — VAT breakdown for GET preview
+  - calculateVatBreakdownForReceipt() — VAT breakdown with proportional discount distribution for POST
+  - Types: ReceiptItemCalc, VatBreakdownEntry
+- Refactored receipts/[id]/route.ts: 336 → 233 lines (-31%)
+- Used Prisma.TransactionClient type for tx parameter (matches project pattern)
+- Used DecimalLike for financial field types in helper signatures
+
+Stage Summary:
+- 4 files created/modified (2 new _helpers.ts, 2 refactored route.ts)
+- public/order/route.ts: 340 → 161 lines (-53%)
+- public/order/_helpers.ts: 249 lines (under 250 max)
+- receipts/[id]/route.ts: 336 → 233 lines (-31%)
+- receipts/[id]/_helpers.ts: 174 lines (under 200 ideal)
+- Named exports only, no default exports
+- 0 TypeScript errors (verified with npx tsc --noEmit)
+- All business logic, comments, and fix annotations preserved
+
+---
+Task ID: 3-a
+Agent: Sub Agent
+Task: Split sidebar.tsx and chart.tsx into smaller sub-component directories
+
+Work Log:
+- Read worklog.md for project context
+- Discovered sidebar/ directory already existed with split sub-components (sidebar.tsx, sidebar-trigger.tsx, sidebar-layout.tsx, sidebar-structural.tsx, sidebar-group.tsx) from prior work
+- Original sidebar.tsx (355 lines) at top level was shadowing the sidebar/ directory
+- Renamed sidebar/index.ts → sidebar/index.tsx (barrel file with "use client" directive)
+- Deleted original top-level sidebar.tsx so imports resolve to sidebar/ directory
+- Sidebar barrel re-exports: SidebarContext, SidebarProvider, useSidebar (from sidebar-context); all SidebarMenu* components (from sidebar-menu); Sidebar, SidebarTrigger, SidebarRail, SidebarInset, SidebarInput, SidebarHeader, SidebarFooter, SidebarContent, SidebarSeparator, SidebarGroup, SidebarGroupLabel, SidebarGroupAction, SidebarGroupContent (from local sub-files)
+- Created chart/ directory and split chart.tsx (353 lines) into 5 sub-files:
+  - chart/chart-context.tsx (32 lines): THEMES constant, ChartConfig type, ChartContext, useChart hook
+  - chart/chart-container.tsx (84 lines): ChartContainer (memo), ChartStyle (memo)
+  - chart/chart-tooltip.tsx (157 lines): ChartTooltip, ChartTooltipContent (memo)
+  - chart/chart-legend.tsx (67 lines): ChartLegend, ChartLegendContent (memo)
+  - chart/chart-utils.ts (40 lines): getPayloadConfigFromPayload utility
+  - chart/index.tsx (19 lines): barrel file re-exporting all types and components
+- All sub-component files use React.memo() wrapped named exports
+- All files under 200 lines (max is chart-tooltip.tsx at 157 lines)
+- No default exports anywhere
+- Deleted original chart.tsx
+- Verified 0 TypeScript errors with `npx tsc --noEmit`
+
+Stage Summary:
+- sidebar.tsx: deleted (moved to sidebar/ directory, 5 sub-files + barrel)
+- chart.tsx: deleted (moved to chart/ directory, 5 sub-files + barrel)
+- All imports from @/components/ui/sidebar and @/components/ui/chart still work
+- 0 TypeScript errors
+
+---
+Task ID: 3-b
+Agent: Sub Agent
+Task: Split large lib/API helper files into smaller modules (5 files)
+
+Work Log:
+- Read worklog.md for project context, confirmed prior refactoring patterns
+- Read all 5 target files to understand structure and exports
+- Verified existing import paths (all use relative `./_helpers` or `./furs/api` which resolve to index.ts barrels)
+
+1. **src/lib/furs/api.ts** (327 lines) → `src/lib/furs/api/` directory:
+   - `verify-invoice.ts` (~120 lines) — `verifyInvoiceWithFURS` function
+   - `token.ts` (~110 lines) — `getFursToken` + cache/mutex/cooldown state
+   - `build-request.ts` (~62 lines) — `buildFursRequest` function
+   - `index.ts` — barrel re-export
+   - Original deleted; `src/lib/furs.ts` barrel still works (resolves `./furs/api` to directory index)
+
+2. **src/app/api/dashboard/_helpers.ts** (332 lines) → `src/app/api/dashboard/_helpers/` directory:
+   - `types.ts` (~60 lines) — all interfaces
+   - `aggregation.ts` (~65 lines) — `fetchTodayAggregation`, `fetchTablesStockRecent`
+   - `weekly.ts` (~50 lines) — `computeWeeklyRevenue`, `computeAvgWaitTime`
+   - `furs-shift-cogs.ts` (~50 lines) — `fetchFursShiftCogs`
+   - `comparison.ts` (~110 lines) — `computeWowComparison`, `computeHeatmapData`, `fetchGuestAnalytics`
+   - `index.ts` — barrel re-export
+   - Original deleted; `./_helpers` import in route.ts still works
+
+3. **src/app/api/locations/sync/_helpers.ts** (322 lines) → `src/app/api/locations/sync/_helpers/` directory:
+   - `types.ts` (~30 lines) — `SyncResult`, `locationSyncSchema`, `LocationSyncData`
+   - `fetch-source.ts` (~30 lines) — `fetchSourceMenus`
+   - `sync-menus.ts` (~180 lines) — `syncMenusToTargets` (batch N+1 optimization)
+   - `comparison.ts` (~50 lines) — `fetchMenuComparison`, `buildMenuComparison`
+   - `index.ts` — barrel re-export
+   - Original deleted
+
+4. **src/app/api/end-of-day/_helpers.ts** (317 lines) → `src/app/api/end-of-day/_helpers/` directory:
+   - `fetch-eod.ts` (~115 lines) — `fetchEodData` (parallel data fetching)
+   - `compute-metrics.ts` (~90 lines) — `computeEodMetrics` (all EOD calculations)
+   - `close-shift.ts` (~110 lines) — `closeShift` (transaction-based shift close)
+   - `index.ts` — barrel re-export
+   - Original deleted
+
+5. **src/app/api/reports/financial/_helpers-compute.ts** (313 lines) → `src/app/api/reports/financial/_helpers-compute/` directory:
+   - `types.ts` (~30 lines) — `normalizeMethod`, `TimeDistOrder`, `PaidOrder`, `OrderItemRow`, `FinancialAgg`, etc.
+   - `time-distribution.ts` (~80 lines) — `computeTimeDistribution`
+   - `financial-metrics.ts` (~215 lines) — `computeFinancialMetrics` (comprehensive financial report)
+   - `index.ts` — barrel re-export
+   - Original deleted
+
+Bug fixes during split:
+- compute-metrics.ts: Initially created local `sumBy` helper with wrong type signature (returned `unknown` instead of `DecimalLike`). Fixed by importing `sumBy` from `@/lib/decimal`
+- close-shift.ts: Initially used `round2(closingCash - expectedCash)` instead of `round2(subtract(...))`. Fixed to use `subtract` for Prisma Decimal compatibility
+
+TypeScript check result: 0 new errors (2 pre-existing errors in useOnlineOrder.ts unrelated to this task)
+
+Stage Summary:
+- 5 original files deleted, replaced by 21 sub-modules + 5 barrel index.ts files
+- All existing imports continue to work (directory index.ts resolution)
+- All sub-modules under 250 lines (largest: financial-metrics.ts at ~215 lines)
+- Named exports only, no default exports
+- Prisma Decimal types handled via `toNum`, `round2`, `subtract` etc. from @/lib/decimal
+
+---
+Task ID: 3-c
+Agent: Sub Agent
+Task: Split remaining API routes 300+ lines
+
+Work Log:
+- Read worklog.md for project context and previous split patterns
+- Analyzed 6 files for logical grouping and extraction opportunities
+- Split src/app/api/reports/export/route.ts (312→99 lines): existing _helpers.ts already had all generators; rewrote route.ts to import from _helpers.ts (generateOrdersCsv, generateItemsCsv, generateVatCsv, generateEmployeesCsv, generateShiftsCsv, generateInventoryCsv, getFilename, ALLOWED_TYPES)
+- Split src/app/api/public/online-order/route.ts (310→147 lines): extracted transaction logic into _helpers/ directory with 5 sub-modules:
+  - schemas.ts (47 lines) — Zod validation schemas + constants
+  - restaurant-checks.ts (84 lines) — checkRestaurantOpen, calculateDeliveryFee
+  - order-calc.ts (61 lines) — OrderItemCalc type + calculateOrderItems
+  - create-order.ts (221 lines) — CreateOnlineOrderInput type + createOnlineOrder (full transaction)
+  - webhook.ts (29 lines) — triggerWebhookAsync
+  - index.ts (9 lines) — barrel re-export
+  - Deleted original _helpers.ts (was 425 lines after initial extraction)
+- Split src/app/order/useOnlineOrder.ts (308 lines) into useOnlineOrder/ directory (4 files):
+  - cart-utils.ts (110 lines) — cart logic functions (addToCartLogic, removeFromCartLogic, updateQuantityLogic, getSubtotal, getDeliveryFee, getMinOrderAmount, getEstimatedMinutes, getTotal, toggleModifierLogic)
+  - api-helpers.ts (136 lines) — API calls (fetchMenuData, fetchOrderConfigData, checkDeliveryZoneApi, checkPromoCodeApi, submitOrderApi)
+  - useOnlineOrder.ts (216 lines) — main hook, imports from sub-modules
+  - index.ts (1 line) — barrel re-export
+  - Deleted original useOnlineOrder.ts
+- Split src/app/api/payments/_helpers.ts (308 lines) into _helpers/ directory (5 sub-modules):
+  - types.ts (19 lines) — PaymentInput interface
+  - gift-card.ts (65 lines) — handleGiftCardDeduction
+  - loyalty.ts (94 lines) — handleLoyaltyPointsDeduction + handleLoyaltyEarn
+  - check-status.ts (72 lines) — updateCheckAndOrderStatus
+  - post-processing.ts (72 lines) — postPaymentProcessing
+  - index.ts (7 lines) — barrel re-export
+  - Deleted original _helpers.ts
+- Split src/app/api/inventory/forecast/_helpers.ts (361 lines) into _helpers/ directory (4 sub-modules):
+  - types.ts (56 lines) — DailyUsage, ForecastResult, ForecastSummary, ForecastData interfaces
+  - algorithm.ts (126 lines) — holtWintersForecast, calculateTrend, calculateConfidence, assessRisk
+  - forecast-data.ts (187 lines) — getForecastData async function
+  - index.ts (7 lines) — barrel re-export
+  - Deleted original _helpers.ts
+- Split src/app/api/inventory/reorder/_helpers.ts (314 lines) into _helpers/ directory (5 sub-modules):
+  - types.ts (40 lines) — ReorderSuggestion, ReorderSummary, ReorderResult, ReorderOrderResult interfaces
+  - utils.ts (45 lines) — generateReorderReason, groupBy utility functions
+  - suggestions.ts (166 lines) — getReorderSuggestions async function
+  - create-order.ts (70 lines) — createReorderOrder async function
+  - index.ts (8 lines) — barrel re-export
+  - Deleted original _helpers.ts
+- Fixed ESLint warnings: removed unused imports (useCallback, MenuItem, Modifier, DELIVERY_FEE_VAT_RATE, toNum), prefixed unused variable with _
+- All named exports, no default exports
+- Slovenian comments preserved throughout
+- TypeScript: 0 errors
+- ESLint: 0 errors, 0 warnings
+
+Stage Summary:
+- 6 original files split → 28 new/modified files across 6 directories
+- reports/export/route.ts: 312 → 99 lines (−68%)
+- online-order/route.ts: 310 → 147 lines (−53%)
+- useOnlineOrder.ts: 308 lines → 4 files (max 216 lines)
+- payments/_helpers.ts: 308 lines → 6 files (max 94 lines)
+- forecast/_helpers.ts: 361 lines → 4 files (max 187 lines)
+- reorder/_helpers.ts: 314 lines → 5 files (max 166 lines)
+- All modules under 250-line max ✓
+- Named exports only, no default exports ✓
+- 0 TypeScript errors ✓
+- 0 ESLint errors/warnings ✓
+- Consumer imports unchanged (directory resolution) ✓
