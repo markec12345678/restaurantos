@@ -69,12 +69,16 @@ export async function createAuditLog(entry: AuditLogEntry): Promise<void> {
         select: { chainHash: true },
       })
 
+      // FIX COMPLIANCE: previousHash posebej shranjen — omogoča neodvisno preverjanje
+      // integritete verige (brez njega bi bila veriga nepreverljiva za revizijo).
+      const previousHash = lastLog?.chainHash || ''
+
       const detailsStr = JSON.stringify(entry.details || {})
 
       // FIX HIGH: Vključi VSE pomembne podatke v hash — prepreči skrivanje manipulacije
       // Prej je hash vseboval samo details, zdaj vključuje tudi action, entityType, entityId, userId
       const hashPayload = [
-        lastLog?.chainHash || '',
+        previousHash,
         entry.action,
         entry.entityType,
         entry.entityId || '',
@@ -94,6 +98,7 @@ export async function createAuditLog(entry: AuditLogEntry): Promise<void> {
           details: detailsStr,
           ipAddress: entry.ipAddress || '',
           terminalId: entry.terminalId || null,
+          previousHash,
           chainHash,
         },
       })

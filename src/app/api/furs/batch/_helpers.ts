@@ -43,15 +43,17 @@ export interface BatchReceiptResult {
 // Pridobi in zakleni neoverjene račune
 export async function fetchAndLockUnverifiedReceipts(): Promise<string[]> {
   return db.$transaction(async (tx) => {
+    // FIX F4-3c: ZDDV-1 zakonski rok 48h — pridobi VSE neoverjene račune
+    // (ne glede na starost), da se zagotovi skladnost z zakonodajo.
+    // Prejšnja koda je imela 30-dnevni window, kar je prekršilo 48h rok.
     const receipts = await tx.receipt.findMany({
       where: {
         fiscalVerified: false,
         fiscalStatus: { not: 'processing' },
         isStorno: false,
-        createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
       },
-      orderBy: { createdAt: 'asc' },
-      take: 50,
+      orderBy: { createdAt: 'asc' },  // Najstarejši prvi (najvišja prioriteta)
+      take: 100,  // FIX: Povečano s 50 na 100 za hitrejši bulk processing
       select: { id: true },
     })
 

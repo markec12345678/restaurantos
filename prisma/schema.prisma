@@ -146,12 +146,17 @@ model TaxRate {
   code        String   @default("")  // "S", "R", "Z" (FURS kode)
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
+  // --- Multi-location (FIX: DDV se razlikuje po državi — Location.country) ---
+  locationId  String?
+  location    Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // FIX SCHEMA-02 HIGH: FURS koda mora biti unikatna — prepreči dvojne "S" kode
   @@unique([code])
+  diningOptions  DiningOption[] // FIX F5-7: Relation from DiningOption
   @@index([isActive])
+  @@index([locationId]) // FIX: per-lokacija davčne stopnje
 }
 
 model DiningOption {
@@ -161,6 +166,9 @@ model DiningOption {
   serviceChargeId   String?  // Povezana servisna postavka
   serviceCharge     ServiceCharge? @relation(fields: [serviceChargeId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   prepTimeMinutes   Int      @default(15) // Čas priprave v minutah
+  // FIX F5-7: DDV override glede na lokacijo konzumacije (dine-in 9.5% vs takeaway 22%)
+  taxRateId         String?  // Če nastavljeno, override MenuItem.vatRate
+  taxRate           TaxRate?  @relation(fields: [taxRateId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   isActive          Boolean  @default(true)
   sortOrder         Int      @default(0)
   orders            Order[]
@@ -535,9 +543,10 @@ model Check {
 model Payment {
   id                    String                @id @default(cuid())
   checkId               String
-  check                 Check                 @relation(fields: [checkId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  check                 Check                 @relation(fields: [checkId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani finančno revizijsko sled
   // --- Znesek ---
   amount                Decimal                // Plačani znesek  // FIX: Decimal za valuto
+  refundAmount          Decimal   @default(0) // FIX: Delni povračila — znesek, ki je bil povrnjen
   tipAmount             Decimal   @default(0) // Napitnina  // FIX: Decimal za valuto
   // --- Vrsta plačila ---
   type                  String                // cash, card, mobile, voucher, loyalty, giftcard, alternate
@@ -647,7 +656,8 @@ model Employee {
   status    String   @default("active")
   hireDate  DateTime @default(now())
   // --- Toast: PIN za prijavo v POS ---
-  pin       String   @default("") // 4-mestni PIN za hitro prijavo
+  pin       String   @unique @default("") // FIX SECURITY: 4-mestni PIN za hitro prijavo — @unique prepreči duplikate (impersonacijo)
+  pinLookup String?  @unique // FIX PERF: HMAC-SHA256(NEXTAUTH_SECRET, pin) za O(1) iskanje pri prijavi (pin ostane bcrypt-hashiran za varno primerjavo)
   // --- Relations ---
   shifts       Shift[]
   staffShifts  StaffShift[]
@@ -708,7 +718,7 @@ model EmployeeJob {
 model Shift {
   id         String   @id @default(cuid())
   employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani plačilno zgodovino (soft-delete preko status='cancelled')
   jobId      String?
   job        Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   date       DateTime
@@ -718,6 +728,9 @@ model Shift {
   // --- Toast: Break Types ---
   breakMinutes Int    @default(30) // Skupaj minut odmora
   notes      String   @default("")
+  // --- Multi-location (FIX: izmene so na lokaciji) ---
+  locationId String?
+  location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -726,12 +739,13 @@ model Shift {
   @@index([status])
   @@index([employeeId, date]) // Index for shift queries
   @@index([jobId])             // FIX: FK index — poizvedbe po delovnem mestu
+  @@index([locationId]) // FIX: per-lokacija izmene
 }
 
 model TimeEntry {
   id          String   @id @default(cuid())
   employeeId  String
-  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani evidence delovnih ur
   jobId       String?
   job         Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Clock In/Out ---
@@ -749,6 +763,9 @@ model TimeEntry {
   type        String   @default("regular") // regular, overtime, holiday, sick, vacation
   status      String   @default("active") // active, approved, disputed
   notes       String   @default("")
+  // --- Multi-location (FIX: delovne ure so per-lokacija za plače) ---
+  locationId  String?
+  location    Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -757,6 +774,7 @@ model TimeEntry {
   @@index([type])
   @@index([status])
   @@index([jobId])             // FIX: FK index — obračun plač po delovnem mestu
+  @@index([locationId]) // FIX: per-lokacija evidence ur
 }
 
 // ============================================
@@ -846,7 +864,7 @@ model InventoryItem {
 model StockTransaction {
   id              String        @id @default(cuid())
   inventoryItemId String
-  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani zalogo audit
   type            String        // "procurement", "sale", "write-off", "adjustment", "return"
   quantity        Decimal             // FIX: Decimal za natančnost
   previousQty     Decimal             // FIX: Decimal za natančnost
@@ -876,6 +894,10 @@ model RecipeItem {
   quantityPerServing Decimal    @default(0)  // FIX: Decimal za natančnost
   unit            String        @default("")
   notes           String        @default("")
+  // FIX F5-4: Multi-level recipes — sub-recepti (npr. "pica testo" uporabljen v "margherita")
+  parentRecipeItemId String?    // Če nastavljeno, je ta RecipeItem del nadrejenega recepta
+  parentRecipeItem   RecipeItem? @relation("RecipeHierarchy", fields: [parentRecipeItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  subRecipes         RecipeItem[] @relation("RecipeHierarchy")
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -938,7 +960,7 @@ model LoyaltyAccount {
   id              String   @id @default(cuid())
   // --- Stranka ---
   customerName    String   @default("")
-  customerPhone   String   @default("")
+  customerPhone   String   @unique @default("") // FIX: prepreči duplikatne prijave na isto telefonsko številko
   customerEmail   String   @default("")
   // --- Točke ---
   pointsBalance   Int      @default(0)
@@ -965,7 +987,7 @@ model LoyaltyAccount {
 model LoyaltyTransaction {
   id              String         @id @default(cuid())
   loyaltyAccountId String
-  loyaltyAccount  LoyaltyAccount @relation(fields: [loyaltyAccountId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  loyaltyAccount  LoyaltyAccount @relation(fields: [loyaltyAccountId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani zgodovino točk
   // --- Transakcija ---
   type            String         // earn, redeem, adjust, expire
   points          Int            // Pozitivno za earn, negativno za redeem
@@ -1018,7 +1040,7 @@ model GiftCard {
 model GiftCardTransaction {
   id              String    @id @default(cuid())
   giftCardId      String
-  giftCard        GiftCard  @relation(fields: [giftCardId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  giftCard        GiftCard  @relation(fields: [giftCardId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani zgodovino darilnih kartic
   // --- Transakcija ---
   type            String    // load, redeem, adjust, transfer
   amount          Decimal    // Pozitivno za load, negativno za redeem  // FIX: Decimal za valuto
@@ -1078,6 +1100,14 @@ model RestaurantSettings {
   autoGratuityThreshold Int     @default(6)           // Najmanjše število oseb za auto-gratuiteto
   // --- Allergen nastavitve ---
   allergenFilterEnabled Boolean @default(true)        // Ali je alergen filter vklopljen v POS
+  // --- FASE 3: Email konfiguracija (scheduled reports) ---
+  emailEnabled        Boolean  @default(false)   // Ali je email servis omogočen
+  emailSmtpHost       String   @default("")      // SMTP strežnik (npr. smtp.gmail.com)
+  emailSmtpPort       Int      @default(587)     // SMTP port (587=STARTTLS, 465=SSL)
+  emailSmtpUser       String   @default("")      // SMTP uporabniško ime
+  emailSmtpPassword   String   @default("")      // SMTP geslo (naj bo encrypted v produkciji)
+  emailFromAddress    String   @default("")      // Naslov pošiljatelja (npr. reports@restaurant.com)
+  emailReportRecipients String @default("[]")   // JSON: ["knjigovodja@racunovodja.si"] za dnevne Z-report
   isActive          Boolean  @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -1103,7 +1133,7 @@ model Location {
   businessId      String   @default("")               // Matična št. za to lokacijo (lahko enaka kot matična)
   taxId           String   @default("")               // DDV ID za to lokacijo
   registerNumber  String   @default("")               // Blagajna za to lokacijo
-  premisesId      String   @default("")               // ID poslovnega prostora za FURS
+  premisesId      String   @unique @default("") // FIX: FURS premises ID mora biti unikaten per lokacija
   // --- FURS certifikat (lokalen za lokacijo) ---
   fursCertPath    String   @default("")
   fursCertPassword String  @default("")
@@ -1135,6 +1165,13 @@ model Location {
   deliveryTrackings DeliveryTracking[]
   staffShifts      StaffShift[]
   menus            Menu[]
+  // --- Multi-location relations (FIX: per-lokacija evidence) ---
+  haccpEntries     HaccpEntry[]
+  shifts           Shift[]
+  timeEntries      TimeEntry[]
+  purchaseOrders   PurchaseOrder[]
+  taxRates         TaxRate[]
+  guestFeedbacks   GuestFeedback[]
 
   @@index([code])
   @@index([isActive])
@@ -1220,6 +1257,12 @@ model HaccpEntry {
   status          String   @default("ok")        // ok, warning, critical
   correctiveAction String  @default("")
   employeeName    String   @default("")
+  // FIX F5-8: Kriptografska zaščita (hash chain) — EU 852/2004
+  previousHash    String   @default("")  // Hash prejšnjega vnosa
+  chainHash       String   @default("")  // SHA-256(previousHash + title + value + status + date)
+  // --- Multi-location (FIX: HACCP mora biti per-lokacija za inšpekcije — EU 852/2004) ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -1227,6 +1270,7 @@ model HaccpEntry {
   @@index([date])
   // FIX SCHEMA-10: Composite index za HaccpEntry — filtriranje po statusu znotraj datuma
   @@index([status, date])
+  @@index([locationId]) // FIX: per-lokacija HACCP poročila
 }
 
 // ============================================
@@ -1276,7 +1320,8 @@ model AuditLog {
   details    String   @default("{}") // JSON kontekst (kaj se je spremenilo)
   ipAddress  String   @default("")
   terminalId String?  // ID POS terminala
-  chainHash  String   @default("") // SHA-256 hash za zaščito pred poseganjem
+  previousHash String   @default("") // FIX COMPLIANCE: hash prejšnjega vnosa (SHA-256 veriga)
+  chainHash    String   @default("") // hash tega vnosa (SHA-256(previousHash + payload)) — zaščita pred poseganjem
 
   @@index([entityType, entityId])
   @@index([timestamp])
@@ -1293,7 +1338,7 @@ model StaffShift {
   id              String   @id @default(cuid())
   // --- Zaposleni ---
   employeeId      String
-  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani razpored zgodovino
   // --- Izmena ---
   shiftDate       DateTime                     // Datum izmene
   shiftType       String   @default("morning") // morning, afternoon, evening, night, split, custom
@@ -1376,7 +1421,9 @@ model Reservation {
   // FIX SCHEMA-10: Composite indexes za Reservation — pogoste poizvedbe
   @@index([dateTime, status])  // "Danesnje aktivne rezervacije" — najbolj pogosta poizvedba
   @@index([customerPhone])  // Iskanje rezervacij po telefonu
+  @@unique([tableId, dateTime]) // FIX: ena miza, en čas = ena rezervacija
   @@index([source])  // Filtriranje po viru (walk_in, website, itd.)
+  // FIX: Prepreči dvojno rezervacijo iste mize ob istem času (null tableId = walk-in, ne krši)
 }
 
 // ============================================
@@ -1432,7 +1479,7 @@ model Guest {
 model GuestVisit {
   id              String   @id @default(cuid())
   guestId         String
-  guest           Guest    @relation(fields: [guestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  guest           Guest    @relation(fields: [guestId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani zgodovino obiskov
   // --- Podatki obiska ---
   orderId         String?                       // Povezava z naročilom
   tableId         String?
@@ -1446,6 +1493,9 @@ model GuestVisit {
   // --- Kdo je strežil ---
   employeeId      String?
   employeeName    String   @default("")
+  // FIX F5-8: Kriptografska zaščita (hash chain) — EU 852/2004
+  previousHash    String   @default("")  // Hash prejšnjega vnosa
+  chainHash       String   @default("")  // SHA-256(previousHash + title + value + status + date)
   // --- Čas ---
   arrivedAt       DateTime @default(now())
   departedAt      DateTime?
@@ -1468,7 +1518,7 @@ model GuestVisit {
 model Supplier {
   id              String   @id @default(cuid())
   name            String                        // "Mesarija Novak", "Pivovarna Laško"
-  code            String   @default("")         // Kratka koda "MN", "PL"
+  code            String   @unique @default("") // FIX: duplikatne kode prelomijo poročila
   // --- Kontakt ---
   contactPerson   String   @default("")
   email           String   @default("")
@@ -1487,6 +1537,8 @@ model Supplier {
   paymentTerms    String   @default("30 dni")   // "15 dni", "30 dni", "2% popust 10 dni"
   deliveryDays    String   @default("[]")       // JSON: ["pon","sre","pet"]
   minOrderAmount  Decimal   @default(0) // FIX: Decimal za valuto
+  // --- FASE 3: Accounts Payable relation ---
+  accountsPayables AccountsPayable[]
   // --- Ocena ---
   rating          Decimal   @default(0) // 1-5 ocena dobavitelja
   // --- Status ---
@@ -1528,9 +1580,14 @@ model PurchaseOrder {
   // --- Interna ---
   requestedBy     String   @default("")         // Kdo je naročil
   approvedBy      String   @default("")         // Kdo je odobril
+  // --- Multi-location (FIX: nabava je za zalogo lokacije) ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   notes           String   @default("")
   // --- Relations ---
   items           PurchaseOrderItem[]
+  // --- FASE 3: Povezava z AccountsPayable ---
+  accountsPayableId String?                      // ID AP vnosa, če je PO knjižen kot obveznost
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -1539,6 +1596,7 @@ model PurchaseOrder {
   @@index([orderDate])
   // FIX: Composite index — nadzorna plošča dobavitelja: naročila po statusu
   @@index([supplierId, status])
+  @@index([locationId]) // FIX: per-lokacija nabava
 }
 
 model PurchaseOrderItem {
@@ -1891,12 +1949,16 @@ model GuestFeedback {
   respondedAt     DateTime?
   // --- Vir ---
   source          String   @default("pos")  // pos, website, email, sms
+  // --- Multi-location (FIX: povratne informacije so per-lokacija za poročila) ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Čas ---
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   @@index([guestId])
   @@index([orderId])
+  @@index([locationId]) // FIX: per-lokacija povratne informacije
   @@index([overallRating])
   @@index([source])
   @@index([createdAt])
@@ -2009,6 +2071,9 @@ model TipDistribution {
   // --- Zaposleni ---
   employeeId      String
   employeeName    String   @default("")
+  // FIX F5-8: Kriptografska zaščita (hash chain) — EU 852/2004
+  previousHash    String   @default("")  // Hash prejšnjega vnosa
+  chainHash       String   @default("")  // SHA-256(previousHash + title + value + status + date)
   // --- Ure ---
   hoursWorked     Decimal   @default(0)  // Ure v izmeni  // FIX: Decimal za ure
   // --- Točke (za points metodo) ---
@@ -2080,9 +2145,9 @@ model Session {
   employeeId      String                        // ID zaposlenega
   role            String                        // admin, manager, staff
   permissions     String   @default("[]")       // JSON array: ["take_orders", "void_items", ...]
-  createdAt       Int                           // Unix timestamp ms
-  expiresAt       Int                           // Unix timestamp ms
-  absoluteExpiry  Int                           // Unix timestamp ms — absolutni maksimum (24h)
+  createdAt       BigInt                        // FIX: BigInt — Date.now() ms preseže 32-bit Int (overflow pri ~2.1M)
+  expiresAt       BigInt                        // Unix timestamp ms
+  absoluteExpiry  BigInt                        // Unix timestamp ms — absolutni maksimum (24h)
   ipAddress       String   @default("")         // IP naslov ob prijavi
   userAgent       String   @default("")         // User-Agent ob prijavi
 
@@ -2091,4 +2156,152 @@ model Session {
   @@index([expiresAt])
   // FIX SCHEMA-10: Composite index za Session — aktivne seje zaposlenega
   @@index([employeeId, expiresAt])  // Iskanje aktivnih sej za zaposlenega
+}
+
+// ============================================
+// KNJIGOVODSTVO — Double-entry (Faza 1)
+// JournalEntry + JournalLine za trial balance, P&L, balance sheet
+// ============================================
+
+model JournalEntry {
+  id           String         @id @default(cuid())
+  entryNumber  String         @unique           // JE-YYYY-NNNNNN
+  date         DateTime       @default(now())
+  reference    String         @default("")      // ID povezanega dokumenta (Order/Payment/Expense)
+  referenceType String        @default("")      // order, payment, expense, refund, adjustment
+  description  String         @default("")
+  source       String         @default("manual") // manual, auto-order, auto-payment, auto-expense
+  status       String         @default("posted") // draft, posted, reversed
+  postedAt     DateTime?
+  postedBy     String?         // Employee ID
+  // --- Relacije ---
+  lines        JournalLine[]
+  // --- Meta ---
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([date])
+  @@index([reference])
+  @@index([referenceType])
+  @@index([status])
+  @@index([source])
+  @@index([date, status])
+}
+
+model JournalLine {
+  id             String        @id @default(cuid())
+  journalEntryId String
+  journalEntry   JournalEntry  @relation(fields: [journalEntryId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ne briši knjigovodske postavke
+  // --- Konto ---
+  accountCode    String                     // Kontni načrt (npr. 7000=Promet, 2600=DDV, 1000=Banka, 1010=Blagajna)
+  accountName    String                     // Ime konta
+  accountType    String                     // asset, liability, equity, revenue, expense
+  // --- Zneski (double-entry: vsaj 2 vrstici, debiti == krediti) ---
+  debit          Decimal       @default(0)  // FIX: Decimal za valuto
+  credit         Decimal       @default(0)  // FIX: Decimal za valuto
+  // --- Opis ---
+  description    String        @default("")
+  // --- Meta ---
+  createdAt      DateTime      @default(now())
+
+  @@index([journalEntryId])
+  @@index([accountCode])
+  @@index([accountType])
+  @@index([accountCode, accountType])
+}
+
+// ============================================
+// OBVEZNOSTI DOBAVITELJEM (Accounts Payable) — Faza 3
+// Sledi neplačanim računom dobaviteljev, aging, partial payments
+// ============================================
+
+model AccountsPayable {
+  id              String    @id @default(cuid())
+  apNumber        String    @unique             // AP-YYYY-NNNNNN
+  supplierId      String
+  supplier        Supplier  @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  purchaseOrderId String?                       // Povezava z nabavnim naročilom
+  // --- Račun dobavitelja ---
+  invoiceNumber   String     @default("")       // Številka računa dobavitelja
+  invoiceDate     DateTime   @default(now())    // Datum računa
+  dueDate         DateTime                      // Datum zapadlosti
+  // --- Zneski ---
+  subtotal        Decimal                       // Bruto brez DDV
+  vatAmount       Decimal    @default(0)        // DDV
+  totalAmount     Decimal                       // Skupaj z DDV
+  paidAmount      Decimal    @default(0)        // Kaj je že plačano (partial payments)
+  // --- Status ---
+  status          String     @default("open")   // open, partial, paid, overdue, cancelled
+  paidAt          DateTime?
+  // --- Meta ---
+  notes           String     @default("")
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([status, dueDate])  // Aging report: open/overdue po datumu
+}
+
+// ============================================
+// TERJATVE STRANK (Accounts Receivable) — Faza 3
+// Sledi neplačanim računom strank (B2B, catering, corporate)
+// ============================================
+
+model AccountsReceivable {
+  id              String    @id @default(cuid())
+  arNumber        String    @unique             // AR-YYYY-NNNNNN
+  orderId         String?                       // Povezava z naročilom (če je iz POS)
+  guestId         String?                       // Povezava z gostom
+  // --- Stranka ---
+  customerName    String                        // Ime stranke (B2B)
+  customerTaxId   String     @default("")       // Davčna številka stranke
+  customerEmail   String     @default("")       // Za pošiljanje računa
+  // --- Račun ---
+  invoiceNumber   String     @default("")
+  invoiceDate     DateTime   @default(now())
+  dueDate         DateTime
+  // --- Zneski ---
+  subtotal        Decimal
+  vatAmount       Decimal    @default(0)
+  totalAmount     Decimal
+  paidAmount      Decimal    @default(0)
+  // --- Status ---
+  status          String     @default("open")   // open, partial, paid, overdue, cancelled
+  paidAt          DateTime?
+  // --- Meta ---
+  notes           String     @default("")
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([status])
+  @@index([dueDate])
+  @@index([status, dueDate])
+  @@index([customerTaxId])
+}
+
+// ============================================
+// DNEVNIK EMAIL POROČIL (Scheduled Email Log) — Faza 3
+// Sledi poslanim email poročilom (Z-report, dnevni/tedenski summary)
+// ============================================
+
+model ScheduledEmailLog {
+  id              String    @id @default(cuid())
+  reportType      String                        // z_report, daily_summary, weekly_summary, vat_report
+  recipient       String                        // Email naslov prejemnika
+  subject         String
+  body            String     @default("")       // Email vsebina (preview)
+  attachmentName  String     @default("")       // Ime priponke (npr. Z-report_2026-06-17.pdf)
+  status          String     @default("pending") // pending, sent, failed
+  errorMessage    String     @default("")       // Napaka če failed
+  sentAt          DateTime?
+  // --- Povezani podatki ---
+  reportDate      DateTime?                     // Datum poročila (ne datum pošiljanja)
+  createdAt       DateTime   @default(now())
+
+  @@index([status])
+  @@index([reportType])
+  @@index([createdAt])
+  @@index([recipient])
 }

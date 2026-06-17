@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import bcrypt from 'bcryptjs'
+import { hashPinLookup, pinLookupEnabled } from '@/lib/pin-lookup'
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
@@ -61,24 +62,36 @@ export async function POST(req: Request) {
     // FIX SECURITY: validateRequest() prepreči DoS z oversized payload
     const { data, error: validationError } = await validateRequest(req, createEmployeeSchema)
     if (validationError) return validationError
-    // FIX C-04: Hash PIN z bcrypt pred shranjevanjem
+    // FIX C-04 + FIX PERF: Hash PIN z bcrypt + zapiši pinLookup za O(1) iskanje
     let hashedPin = ''
+    let pinLookup = ''
     if (data.pin && data.pin.length >= 4) {
-      // FIX HIGH: Preveri, da PIN ni že v uporabi pri drugem zaposlenem
-      const _existingPin = await db.employee.findFirst({
-        where: { pin: { not: '' }, status: 'active' },
-      })
-      // Since PINs are hashed, we need to check all active employees
-      const allActive = await db.employee.findMany({
-        where: { status: 'active', pin: { not: '' } },
-        select: { id: true, pin: true },
-      })
-      for (const emp of allActive) {
-        if (emp.pin && await bcrypt.compare(data.pin, emp.pin)) {
+      // FIX PERF: O(1) duplicate check preko pinLookup (prej O(n) findMany + N x bcrypt.compare)
+      if (pinLookupEnabled()) {
+        pinLookup = hashPinLookup(data.pin)
+        const existing = await db.employee.findUnique({
+          where: { pinLookup, status: 'active' },
+          select: { id: true },
+        })
+        if (existing) {
           return NextResponse.json(
             { error: 'PIN je že v uporabi pri drugem zaposlenem. Izberite drug PIN.' },
             { status: 409 }
           )
+        }
+      } else {
+        // Fallback: O(n) bcrypt compare (če NEXTAUTH_SECRET manjka)
+        const allActive = await db.employee.findMany({
+          where: { status: 'active', pin: { not: '' } },
+          select: { id: true, pin: true },
+        })
+        for (const emp of allActive) {
+          if (emp.pin && await bcrypt.compare(data.pin, emp.pin)) {
+            return NextResponse.json(
+              { error: 'PIN je že v uporabi pri drugem zaposlenem. Izberite drug PIN.' },
+              { status: 409 }
+            )
+          }
         }
       }
       hashedPin = await bcrypt.hash(data.pin, 10)
@@ -96,6 +109,7 @@ export async function POST(req: Request) {
         status: data.status,
         hireDate: data.hireDate ? new Date(data.hireDate) : new Date(),
         pin: hashedPin,
+        pinLookup: pinLookup || null,
       },
     })
     // Ustvari EmployeeJob, če je podan jobId

@@ -135,6 +135,14 @@ export async function POST(req: Request) {
         data: { inventoryDeducted: true }
       })
 
+      // FIX F7-5: Miza avtomatsko postane 'occupied' ob QR naročilu
+      if (tableId) {
+        await tx.table.update({
+          where: { id: tableId },
+          data: { status: 'occupied' },
+        })
+      }
+
       return newOrder
     })
 

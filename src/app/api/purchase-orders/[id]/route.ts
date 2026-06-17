@@ -11,6 +11,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { purchaseOrderUpdateSchema, VALID_PO_TRANSITIONS, handleReceiveAction } from './_helpers'
+import { sendEmail, isEmailEnabled } from '@/lib/email'
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -81,4 +82,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/purchase-orders/[id]', 'Napaka pri posodabljanju naročila')
   }
+}
+
+
+// FIX F5-9: Pošlji email obvestilo dobavitelju o nabavnem naročilu
+async function sendEmailIfConfigured(supplierId: string, poNumber: string): Promise<void> {
+  const emailEnabled = await isEmailEnabled()
+  if (!emailEnabled) return
+  const supplier = await db.supplier.findUnique({ where: { id: supplierId } })
+  if (!supplier?.email) return
+  await sendEmail({
+    to: supplier.email,
+    subject: `Nabavno naročilo ${poNumber} — RestaurantOS`,
+    text: `Spoštovani,\n\nPosiljamo vam nabavno naročilo ${poNumber}.\n\nProsimo za potrditev prejema in pričakovanega datuma dostave.\n\nLep pozdrav,\nRestaurantOS`,
+    html: `<h2>Nabavno naročilo ${poNumber}</h2><p>Spoštovani,</p><p>Pošiljamo vam nabavno naročilo <strong>${poNumber}</strong>.</p><p>Prosimo za potrditev prejema in pričakovanega datuma dostave.</p><hr><p>Lep pozdrav,<br>RestaurantOS</p>`,
+  })
 }

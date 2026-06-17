@@ -110,6 +110,32 @@ export async function handleReceiveAction(
         receivedDate: allReceived ? new Date() : null,
       },
     })
+
+    // FIX F5-5: Avtomatsko kreiraj AccountsPayable ob popolnem prejemu blaga
+    // Poveže nabavno naročilo z obveznostjo do dobavitelja (AP aging)
+    if (allReceived) {
+      const year = new Date().getFullYear()
+      const apCount = await tx.accountsPayable.count({ where: { apNumber: { startsWith: `AP-${year}-` } } })
+      const apNumber = `AP-${year}-${String(apCount + 1).padStart(6, '0')}`
+      const dueDate = new Date()
+      dueDate.setDate(dueDate.getDate() + 30) // Default 30 dni plačila
+
+      await tx.accountsPayable.create({
+        data: {
+          apNumber,
+          supplierId: po.supplierId,
+          purchaseOrderId: po.id,
+          invoiceNumber: po.poNumber, // Uporabi PO kot referenco
+          invoiceDate: new Date(),
+          dueDate,
+          subtotal: toNum(po.subtotal),
+          vatAmount: toNum(po.vatAmount),
+          totalAmount: toNum(po.totalAmount),
+          status: 'open',
+          notes: `Avtomatsko kreirano ob prejemu ${po.poNumber}`,
+        },
+      })
+    }
   })
 
   return NextResponse.json({ success: true, message: 'Blago prevzeto in zaloga posodobljena' })

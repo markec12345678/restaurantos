@@ -1,3 +1,4 @@
+import { generateJournalForPayment } from '@/lib/accounting/journal-generator'
 // Pomožne funkcije za POST /api/payments — plačilna transakcija
 
 import { db } from '@/lib/db'
@@ -92,6 +93,12 @@ export async function handleCreatePayment(
     })
 
     await postPaymentProcessing(result.id, paymentInput, check.orderId, employeeId ?? undefined)
+
+    // FIX FASE 1: Avtomatsko generiraj knjigovodski vnos (double-entry)
+    // Non-blocking — če spodleti, ne prekini plačila (samo zabeleži napako)
+    generateJournalForPayment(check.orderId, result.id, employeeId ?? undefined).catch((err) => {
+      console.error('[Journal] Avtomatsko knjiženje spodletelo:', err)
+    })
 
     const paymentWithRelations = await db.payment.findUnique({
       where: { id: result.id },

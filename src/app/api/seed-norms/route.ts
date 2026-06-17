@@ -29,7 +29,9 @@ export async function POST(req: Request) {
     if (authResult.error) return authResult.error
 
     // Pobriši stare inventarne postavke in recepte
+    // FIX: po spremembi kaskad (Restrict) moramo najprej pobrisati stockTransactions
     await db.recipeItem.deleteMany()
+    await db.stockTransaction.deleteMany()
     await db.inventoryItem.deleteMany()
 
     // Pridobi vse menu iteme za mapiranje po imenu

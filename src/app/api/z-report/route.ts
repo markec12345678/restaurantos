@@ -5,6 +5,8 @@
 // ============================================
 
 import { db, createAuditLog } from '@/lib/db'
+import { sendZReportEmail, isEmailEnabled, getReportRecipients } from '@/lib/email'
+import { fetchReportData, generateReportPdf } from '@/app/api/reports/export/_helpers'
 import { round2, deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
@@ -152,6 +154,29 @@ export async function POST(req: Request) {
       details: { date: d.toLocaleDateString('sl-SI'), totalSales: stats.totalSales, message: `Z-poročilo za ${d.toLocaleDateString('sl-SI')}: €${round2(stats.totalSales)}` },
       userId: authResult.session?.employeeId,
     })
+
+    // FIX F5-6: Avtomatsko pošlji Z-report email ob finalize (če je email omogočen)
+    if (finalize) {
+      try {
+        const emailEnabled = await isEmailEnabled()
+        if (emailEnabled) {
+          const recipients = await getReportRecipients()
+          if (recipients.length > 0) {
+            const dateStr = d.toISOString().split('T')[0]
+            const dateFilter = { gte: new Date(dateStr + 'T00:00:00'), lte: new Date(dateStr + 'T23:59:59') }
+            const reportData = await fetchReportData(dateFilter)
+            const pdfBuffer = await generateReportPdf(reportData)
+            await sendZReportEmail(recipients, dateStr, pdfBuffer, {
+              totalSales: round2(stats.totalSales),
+              totalTax: round2(stats.totalTax),
+              totalOrders: paidOrders.length,
+            })
+          }
+        }
+      } catch (emailErr) {
+        console.error('[Z-Report] Email pošiljanje spodletelo:', emailErr)
+      }
+    }
 
     return NextResponse.json(deepToNumbers(report), { status: report.createdAt ? 200 : 201 })
   } catch (error: unknown) {

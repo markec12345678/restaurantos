@@ -40,7 +40,7 @@ export async function GET(req: Request) {
         skip: offset,
         include: {
           table: true,
-          orderItems: { include: { menuItem: true } },
+          orderItems: { include: { menuItem: { include: { prepStation: true, category: { include: { menu: true } } } } } },  // FIX FASE 2: prepStation za DB-driven KDS routing
         },
       }),
       db.order.count({ where }),

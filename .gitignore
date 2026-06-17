@@ -1,3 +1,98 @@
-skills/
+# ============================================
+# RestaurantOS — .gitignore
+# Professional configuration per Next.js 16 + Node.js best practices
+# ============================================
+
+# ── Dependencies ──────────────────────────────
 node_modules/
+.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# ── Testing ───────────────────────────────────
+coverage/
+*.lcov
+
+# ── Next.js ───────────────────────────────────
+.next/
+out/
+build/
+.vercel
+
+# ── TypeScript ────────────────────────────────
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Production build artifacts ────────────────
+dist/
+
+# ── Environment variables (NEVER commit) ──────
+.env
+.env*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# ── Database (SQLite) ─────────────────────────
+db/*.db
+db/*.db-journal
+db/*.db-wal
+db/*.db-shm
+db/*.sqlite
+db/*.sqlite3
+
+# ── Logs ──────────────────────────────────────
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+ai-daemon.log
+
+# ── OS / Editor ───────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*.bak
+
+# ── Secrets / certs ───────────────────────────
+*.pem
+*.key
+*.cert
+*.p12
+*.pfx
+
+# ============================================
+# Project-specific
+# ============================================
+
+# Agent / automation work logs (not source code)
+agent-ctx/
+worklog*.md
+worklog*.json
+
+# Upload / download scratch directories
+upload/
+download/
+
+# Skill packages (external tooling)
+skills/
 tool-results/
+
+# Generated image audit / VLM progress (regenerable)
+vlm-results-progress.json
+missing-images.json
+missing_images.json
+still-missing.json
+items_to_regen.json
+image_analysis.json
+suspected_icons.json
+
+# Local dev scratch files
+1
+*.scratch
