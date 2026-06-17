@@ -59,19 +59,61 @@ export function createSession(employee: {
  * Preveri veljavnost tokena in vrne sejo
  */
 export async function verifyToken(token: string): Promise<Session | null> {
-  await loadSessionsFromDb()
-
+  // 1. Preveri in-memory cache (hitro)
   const session = sessions.get(token)
-  if (!session) return null
-  if (session.expiresAt < Date.now()) {
-    sessions.delete(token)
+  if (session) {
+    if (session.expiresAt < Date.now()) {
+      sessions.delete(token)
+      return null
+    }
+    if (session.absoluteExpiry < Date.now()) {
+      sessions.delete(token)
+      return null
+    }
+    return session
+  }
+
+  // 2. FIX VERCEL: Preveri DB directly (serverless = prazna Map na vsakem klicu)
+  // Na Vercelu je vsak API klic v novi serverless funkciji — in-memory Map je vedno prazen!
+  try {
+    const dbSession = await db.session.findUnique({
+      where: { token },
+    })
+    if (!dbSession) return null
+
+    const now = Date.now()
+    const expiresAt = Number(dbSession.expiresAt)
+    const absoluteExpiry = Number(dbSession.absoluteExpiry)
+
+    if (expiresAt < now || absoluteExpiry < now) {
+      // Seja je potekla — izbriši iz DB
+      await db.session.deleteMany({ where: { token } }).catch(() => {})
+      return null
+    }
+
+    // Rekonstruiraj session objekt
+    const reconstructed: Session = {
+      token: dbSession.token,
+      employeeId: dbSession.employeeId,
+      role: dbSession.role,
+      permissions: JSON.parse(dbSession.permissions || '[]'),
+      createdAt: Number(dbSession.createdAt),
+      expiresAt,
+      absoluteExpiry,
+    }
+
+    // Shrani v cache za prihodnje klice v isti request
+    sessions.set(token, reconstructed)
+    return reconstructed
+  } catch {
+    // DB napaka — poskusi loadSessionsFromDb kot fallback
+    await loadSessionsFromDb()
+    const fallbackSession = sessions.get(token)
+    if (fallbackSession && fallbackSession.expiresAt >= Date.now() && fallbackSession.absoluteExpiry >= Date.now()) {
+      return fallbackSession
+    }
     return null
   }
-  if (session.absoluteExpiry < Date.now()) {
-    sessions.delete(token)
-    return null
-  }
-  return session
 }
 
 /**
