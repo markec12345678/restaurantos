@@ -63,14 +63,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   // CLI skripte in orodja — console je pričakovan v teh datotekah
   files: [
     "scripts/**/*.{js,mjs,ts}",
-    "*.mjs",
-    "add_food_items.js",
     "daemon.js",
-    "generate-*.js",
-    "generate-*.mjs",
-    "replace-*.mjs",
-    "replace-*.js",
-    "ai-image-daemon.mjs",
   ],
   rules: {
     "no-console": "off",
@@ -90,7 +83,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-console": "off",
   },
 }, {
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "server.js"]
+  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills/**", "data/**", "server.js", "ecosystem.config.js"]
 }];
 
 export default eslintConfig;

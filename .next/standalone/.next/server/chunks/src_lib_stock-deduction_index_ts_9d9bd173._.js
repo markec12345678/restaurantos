@@ -1,3 +1,0 @@
-module.exports=[844856,t=>{"use strict";t.i(148128);var r=t.i(35046),o=t.i(736768),c=t.i(436698),d=t.i(428689),e=t.i(747715);t.s(["broadcastLowStockAlert",()=>e.broadcastLowStockAlert,"checkStockAvailability",()=>r.checkStockAvailability,"deductStockForAddedItems",()=>o.deductStockForAddedItems,"deductStockForOrder",()=>c.deductStockForOrder,"returnStockForOrder",()=>d.returnStockForOrder])}];
-
-//# sourceMappingURL=src_lib_stock-deduction_index_ts_9d9bd173._.js.map

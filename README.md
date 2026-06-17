@@ -112,103 +112,41 @@ restaurantos/
 │   └── schema.prisma          # 70 Prisma modelov (1979 vrstic)
 ├── src/
 │   ├── app/
-│   │   ├── api/               # 70+ API modulov (132 rut)
-│   │   │   ├── ai/            # AI napovedi in priporočila
-│   │   │   ├── ai-assistant/  # AI klepet pomočnik
-│   │   │   ├── audit/         # Revizijski dnevnik
-│   │   │   ├── auth/          # Avtentikacija (PIN, seje)
-│   │   │   ├── card-terminal/ # Bančni terminal
-│   │   │   ├── cash-register/ # Blagajna (odpiranje/zapiranje)
-│   │   │   ├── categories/    # Kategorije menija
-│   │   │   ├── checks/        # Delitev računa
-│   │   │   ├── configuration/ # Nastavitve restavracije
-│   │   │   ├── courses/       # Course pacing
-│   │   │   ├── daily-checklist/ # Dnevni seznam
-│   │   │   ├── dashboard/     # Nadzorna plošča
-│   │   │   ├── delivery/      # Dostave
-│   │   │   ├── delivery-tracking/ # Sledenje dostav
-│   │   │   ├── delivery-zones/ # Cone dostave
-│   │   │   ├── digital-receipt/ # Digitalni račun
-│   │   │   ├── discounts/     # Popusti
-│   │   │   ├── employees/     # Zaposleni
-│   │   │   ├── end-of-day/    # Zaključek dneva
-│   │   │   ├── expenses/      # Stroški
-│   │   │   ├── feedback-public/ # Javne ocene
-│   │   │   ├── food-cost/     # Kalkulator stroškov
-│   │   │   ├── furs/          # FURS davčno potrjevanje
-│   │   │   ├── gift-cards/    # Darilne kartice
-│   │   │   ├── guests/        # Upravljanje gostov
-│   │   │   ├── haccp/         # HACCP dnevnik
-│   │   │   ├── happy-hour/    # Happy hour akcije
-│   │   │   ├── integrations/  # Zunanje integracije
-│   │   │   ├── inventory/     # Zaloge
-│   │   │   ├── kitchen/       # Kuhinja
-│   │   │   ├── locations/     # Lokacije
-│   │   │   ├── loyalty/       # Zvestoben program
-│   │   │   ├── menu-items/    # Meni postavke
-│   │   │   ├── menus/         # Meniji
-│   │   │   ├── modifier-groups/ # Skupine prilagoditev
-│   │   │   ├── notifications/ # Obvestila
-│   │   │   ├── opening-hours/ # Odpiralni časi
-│   │   │   ├── orders/        # Naročila
-│   │   │   ├── payments/      # Plačila
-│   │   │   ├── print/         # Tiskanje
-│   │   │   ├── public/        # Javne API-ji (brez auth)
-│   │   │   ├── purchase-orders/ # Nabavna naročila
-│   │   │   ├── recipes/       # Recepti
-│   │   │   ├── reports/       # Poročila
-│   │   │   ├── reservations/  # Rezervacije
-│   │   │   ├── seed/          # Sejanje baze
-│   │   │   ├── settings/      # Nastavitve
-│   │   │   ├── shifts/        # Izmene
-│   │   │   ├── staff-performance/ # Učinkovitost osebja
-│   │   │   ├── staff-shifts/  # Razpored zaposlenih
-│   │   │   ├── stock/         # Zaloge
-│   │   │   ├── subscription/  # Naročnine
-│   │   │   ├── suppliers/     # Dobavitelji
-│   │   │   ├── tables/        # Mize
-│   │   │   ├── time-entries/  # Časovne evidence
-│   │   │   ├── tip-pool/      # Napitnine
-│   │   │   ├── waitlist/      # Čakalni seznam
-│   │   │   ├── webhooks/      # Webhook integracije
-│   │   │   ├── ws-broadcast/  # WebSocket broadcast
-│   │   │   └── z-report/      # Z-poročilo
-│   │   ├── [locale]/          # Internacionalizirane strani
-│   │   │   ├── kds/           # Kitchen Display System
-│   │   │   ├── order-status/  # Sledenje naročila za stranke
-│   │   │   ├── pricing/       # Cenik strani
-│   │   │   ├── qr-menu/       # QR meni za stranke
-│   │   │   ├── qr/            # QR naročanje po mizi
-│   │   │   ├── receipt/       # Digitalni račun
-│   │   │   ├── reserve/       # Javna stran za rezervacije
-│   │   │   └── waiter/        # Natakalni mobilni pogled
+│   │   ├── api/               # 70+ API modulov (132 rut) — auth, orders, furs, ...
+│   │   ├── [locale]/          # Internacionalizirane javne strani (kds, qr-menu, reserve, ...)
+│   │   ├── components/        # App-level komponente (module-registry, auth-screens)
 │   │   └── feedback/          # Javna stran za ocene
 │   ├── components/
-│   │   ├── pos/               # 474 POS datotek (komponente, hooki, tipi, konstante)
-│   │   └── ui/                # shadcn/ui komponente
-│   └── lib/
-│       ├── auth-middleware.ts  # Avtentikacija in dovoljenja
-│       ├── db.ts              # Prisma klient + audit log
-│       ├── decimal.ts         # Decimal aritmetika (toNum, round2, add, subtract, ...)
-│       ├── rate-limit.ts      # Rate limiting za javne API-je
-│       ├── validations.ts     # Zod sheme (55+ shem, validateBody helper)
-│       ├── i18n.ts            # 5-jezični prevodi
-│       ├── store.ts           # Zustand globalno stanje
-│       └── offline/           # IndexedDB + Service Worker
-├── messages/                  # i18n prevodi (5 jezikov)
-│   ├── sl.json               # Slovenščina (primarni)
-│   ├── en.json               # English
-│   ├── it.json               # Italiano
-│   ├── hr.json               # Hrvatski
-│   └── de.json               # Deutsch
-├── db/
-│   └── custom.db             # SQLite baza (438 meni postavk)
-├── public/                    # Statične datoteke, slike
-├── .env.example              # Predloga okoljskih spremenljivk
-├── Dockerfile                # Docker za produkcijo
-├── CONTRIBUTING.md           # Navodila za sodelovanje
-├── LICENSE                   # MIT licenca
-└── README.md                 # Ta datoteka
+│   │   ├── pos/               # POS moduli (55+ lenobo naloženih komponent)
+│   │   └── ui/                # shadcn/ui komponente (Radix + Tailwind)
+│   ├── hooks/                 # React hooki (use-toast, ...)
+│   ├── i18n/                  # next-intl konfiguracija
+│   └── lib/                   # auth-middleware, db, decimal, furs/, escpos/, validations, store, ...
+├── data/                      # Referenčni podatki (NE v runtime) — glej data/README.md
+│   ├── menus/                 # Scraped meniji (jurman_*, favola, ponvica, ...)
+│   ├── search/                # Captured web-search rezultati (search_*, qr_*)
+│   ├── api-dumps/             # Reference payloadi tujih POS API-jev (toast_*, pos_*)
+│   ├── slovenian/             # Slovenski podatki (slo_alcohol, slovenian_food, tasteatlas)
+│   ├── audit/                 # Enkratni auditi (page_allergens, page_qr_guide)
+│   └── misc/                  # Razno (all_items, pub_food)
+├── scripts/                   # Razvojne & operativne skripte — glej scripts/README.md
+│   ├── images/                # Generiranje/replace slik (AI, Pexels, stock, SVG)
+│   ├── seed/                  # Sejanje baze (add_food_items, seed-minimal, ...)
+│   ├── ops/                   # Zagon strežnika (start.sh, keep-alive.sh, run-prod.sh)
+│   └── *.mjs / *.ts           # Build helperji, konsolidacija, fix-duplicates, ...
+├── messages/                  # i18n prevodi (5 jezikov: sl, en, it, hr, de)
+├── db/                        # SQLite baza (gitignored — generira se z db:push)
+├── public/                    # Statične datoteke, slike, sw.js (Service Worker)
+├── certs/                     # FURS certifikati (gitignored — glej .env.example)
+├── server.js                  # Custom Next.js strežnik z WebSocket (KDS real-time)
+├── daemon.js                  # Process supervisor (avtomatski restart)
+├── ecosystem.config.js        # PM2 produkcijska konfiguracija
+├── .env.example               # Predloga okoljskih spremenljivk (kopiraj v .env)
+├── .gitignore                 # Strogi ignore (build, db, env, logs, agent-ctx, ...)
+├── Dockerfile                 # Multi-stage Docker build (Node 20-alpine)
+├── CONTRIBUTING.md            # Navodila za sodelovanje
+├── LICENSE                    # MIT licenca
+└── README.md                  # Ta datoteka
 ```
 
 ---
@@ -233,16 +171,21 @@ npm install
 
 # 3. Nastavi okoljske spremenljivke
 cp .env.example .env
-# Uredi .env in nastavi GEMINI_API_KEY (za AI funkcije)
+# Uredi .env — nastavi vsaj: NEXTAUTH_SECRET, GEMINI_API_KEY, FURS_* (za davčno potrjevanje)
+# ⚠️  .env NIKOLI ne sme biti commitan (je v .gitignore)
 
 # 4. Sinhroniziraj bazo in ustvari Prisma klienta
 npx prisma db push
 npx prisma generate
 
-# 5. Zaženi razvojni strežnik
+# 5. (Opciono) Za FURS davčno potrjevanje dodaj certifikat
+#    mkdir -p certs && cp /pot/do/furs.p12 certs/furs.p12
+#    V .env nastavi FURS_CERT_PATH, FURS_CERT_PASSWORD, FURS_TAX_NUMBER
+
+# 6. Zaženi razvojni strežnik
 npm run dev
 
-# 6. Odpri http://localhost:3000
+# 7. Odpri http://localhost:3000
 ```
 
 ### Začetni prijavni podatki
@@ -510,6 +453,20 @@ Expense / NotificationTemplate / StaffShift
 | Združljiv export | CSV izvoz onemogoči formule (=+@-) — prepreči CSV injection |
 | Javni ID-ji | Javni API-ji ne izpostavljajo internih DB ID-jev, koordinat, telefonskih številk |
 | Inventory export | Izvoz zalog zahteva admin dovoljenje — vsebuje občutljive nabavne podatke |
+
+### 🧹 Repo higiena (professionilni standardi)
+
+| Mehanizem | Opis |
+|---|---|
+| `.env` gitignored | Okoljske spremenljivke (skrivnosti, certifikati) NIKOLI v git — sledi `.env.example` |
+| `.next/` gitignored | Build artefakti se ne verzijonirajo |
+| `db/*.db` gitignored | SQLite baza je lokalna; v produkciji se generira z `prisma db push` |
+| `*.tsbuildinfo` / `next-env.d.ts` | TypeScript inkrementalni podatki in Next.js avto-generirana datoteka — ignorirano |
+| `certs/` | FURS PKCS12 certifikati ločeni in gitignored |
+| `worklog*.md`, `agent-ctx/` | Avtomatizacijski dnevniki ločeni od izvorne kode |
+| `upload/`, `download/` | Začasni dir-ji za upload/download — gitignored |
+| CSP + HSTS | `next.config.ts` vsili Content-Security-Policy in HSTS headerje |
+| Security headers | X-Frame-Options DENY, X-Content-Type-Options, Referrer-Policy, Permissions-Policy |
 
 ---
 
