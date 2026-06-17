@@ -1092,6 +1092,14 @@ model RestaurantSettings {
   autoGratuityThreshold Int     @default(6)           // Najmanjše število oseb za auto-gratuiteto
   // --- Allergen nastavitve ---
   allergenFilterEnabled Boolean @default(true)        // Ali je alergen filter vklopljen v POS
+  // --- FASE 3: Email konfiguracija (scheduled reports) ---
+  emailEnabled        Boolean  @default(false)   // Ali je email servis omogočen
+  emailSmtpHost       String   @default("")      // SMTP strežnik (npr. smtp.gmail.com)
+  emailSmtpPort       Int      @default(587)     // SMTP port (587=STARTTLS, 465=SSL)
+  emailSmtpUser       String   @default("")      // SMTP uporabniško ime
+  emailSmtpPassword   String   @default("")      // SMTP geslo (naj bo encrypted v produkciji)
+  emailFromAddress    String   @default("")      // Naslov pošiljatelja (npr. reports@restaurant.com)
+  emailReportRecipients String @default("[]")   // JSON: ["knjigovodja@racunovodja.si"] za dnevne Z-report
   isActive          Boolean  @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -1515,6 +1523,8 @@ model Supplier {
   paymentTerms    String   @default("30 dni")   // "15 dni", "30 dni", "2% popust 10 dni"
   deliveryDays    String   @default("[]")       // JSON: ["pon","sre","pet"]
   minOrderAmount  Decimal   @default(0) // FIX: Decimal za valuto
+  // --- FASE 3: Accounts Payable relation ---
+  accountsPayables AccountsPayable[]
   // --- Ocena ---
   rating          Decimal   @default(0) // 1-5 ocena dobavitelja
   // --- Status ---
@@ -1562,6 +1572,8 @@ model PurchaseOrder {
   notes           String   @default("")
   // --- Relations ---
   items           PurchaseOrderItem[]
+  // --- FASE 3: Povezava z AccountsPayable ---
+  accountsPayableId String?                      // ID AP vnosa, če je PO knjižen kot obveznost
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -2179,4 +2191,100 @@ model JournalLine {
   @@index([accountCode])
   @@index([accountType])
   @@index([accountCode, accountType])
+}
+
+// ============================================
+// OBVEZNOSTI DOBAVITELJEM (Accounts Payable) — Faza 3
+// Sledi neplačanim računom dobaviteljev, aging, partial payments
+// ============================================
+
+model AccountsPayable {
+  id              String    @id @default(cuid())
+  apNumber        String    @unique             // AP-YYYY-NNNNNN
+  supplierId      String
+  supplier        Supplier  @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  purchaseOrderId String?                       // Povezava z nabavnim naročilom
+  // --- Račun dobavitelja ---
+  invoiceNumber   String     @default("")       // Številka računa dobavitelja
+  invoiceDate     DateTime   @default(now())    // Datum računa
+  dueDate         DateTime                      // Datum zapadlosti
+  // --- Zneski ---
+  subtotal        Decimal                       // Bruto brez DDV
+  vatAmount       Decimal    @default(0)        // DDV
+  totalAmount     Decimal                       // Skupaj z DDV
+  paidAmount      Decimal    @default(0)        // Kaj je že plačano (partial payments)
+  // --- Status ---
+  status          String     @default("open")   // open, partial, paid, overdue, cancelled
+  paidAt          DateTime?
+  // --- Meta ---
+  notes           String     @default("")
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([supplierId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([status, dueDate])  // Aging report: open/overdue po datumu
+}
+
+// ============================================
+// TERJATVE STRANK (Accounts Receivable) — Faza 3
+// Sledi neplačanim računom strank (B2B, catering, corporate)
+// ============================================
+
+model AccountsReceivable {
+  id              String    @id @default(cuid())
+  arNumber        String    @unique             // AR-YYYY-NNNNNN
+  orderId         String?                       // Povezava z naročilom (če je iz POS)
+  guestId         String?                       // Povezava z gostom
+  // --- Stranka ---
+  customerName    String                        // Ime stranke (B2B)
+  customerTaxId   String     @default("")       // Davčna številka stranke
+  customerEmail   String     @default("")       // Za pošiljanje računa
+  // --- Račun ---
+  invoiceNumber   String     @default("")
+  invoiceDate     DateTime   @default(now())
+  dueDate         DateTime
+  // --- Zneski ---
+  subtotal        Decimal
+  vatAmount       Decimal    @default(0)
+  totalAmount     Decimal
+  paidAmount      Decimal    @default(0)
+  // --- Status ---
+  status          String     @default("open")   // open, partial, paid, overdue, cancelled
+  paidAt          DateTime?
+  // --- Meta ---
+  notes           String     @default("")
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([status])
+  @@index([dueDate])
+  @@index([status, dueDate])
+  @@index([customerTaxId])
+}
+
+// ============================================
+// DNEVNIK EMAIL POROČIL (Scheduled Email Log) — Faza 3
+// Sledi poslanim email poročilom (Z-report, dnevni/tedenski summary)
+// ============================================
+
+model ScheduledEmailLog {
+  id              String    @id @default(cuid())
+  reportType      String                        // z_report, daily_summary, weekly_summary, vat_report
+  recipient       String                        // Email naslov prejemnika
+  subject         String
+  body            String     @default("")       // Email vsebina (preview)
+  attachmentName  String     @default("")       // Ime priponke (npr. Z-report_2026-06-17.pdf)
+  status          String     @default("pending") // pending, sent, failed
+  errorMessage    String     @default("")       // Napaka če failed
+  sentAt          DateTime?
+  // --- Povezani podatki ---
+  reportDate      DateTime?                     // Datum poročila (ne datum pošiljanja)
+  createdAt       DateTime   @default(now())
+
+  @@index([status])
+  @@index([reportType])
+  @@index([createdAt])
+  @@index([recipient])
 }
