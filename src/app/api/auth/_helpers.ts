@@ -145,7 +145,7 @@ export function buildAuthResponse(matchedEmployee: MatchedEmployee) {
       primaryJob: primaryJob ? {
         id: primaryJob.id,
         name: primaryJob.name,
-        payRate: primaryJob.basePayRate,
+        payRate: Number(primaryJob.basePayRate), // FIX: Decimal → number (Zod schema pričakuje number)
       } : null,
       permissions,
     },

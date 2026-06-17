@@ -2115,9 +2115,9 @@ model Session {
   employeeId      String                        // ID zaposlenega
   role            String                        // admin, manager, staff
   permissions     String   @default("[]")       // JSON array: ["take_orders", "void_items", ...]
-  createdAt       Int                           // Unix timestamp ms
-  expiresAt       Int                           // Unix timestamp ms
-  absoluteExpiry  Int                           // Unix timestamp ms — absolutni maksimum (24h)
+  createdAt       BigInt                        // FIX: BigInt — Date.now() ms preseže 32-bit Int (overflow pri ~2.1M)
+  expiresAt       BigInt                        // Unix timestamp ms
+  absoluteExpiry  BigInt                        // Unix timestamp ms — absolutni maksimum (24h)
   ipAddress       String   @default("")         // IP naslov ob prijavi
   userAgent       String   @default("")         // User-Agent ob prijavi
 

@@ -43,11 +43,11 @@ export async function loadSessionsFromDb(): Promise<void> {
     try {
       const now = Date.now()
       await db.session.deleteMany({
-        where: { expiresAt: { lt: now } }
+        where: { expiresAt: { lt: BigInt(now) } }
       })
 
       const dbSessions = await db.session.findMany({
-        where: { absoluteExpiry: { gte: now } }
+        where: { absoluteExpiry: { gte: BigInt(now) } }
       })
 
       for (const dbSession of dbSessions) {
@@ -57,9 +57,9 @@ export async function loadSessionsFromDb(): Promise<void> {
             employeeId: dbSession.employeeId,
             role: dbSession.role,
             permissions: JSON.parse(dbSession.permissions || '[]'),
-            createdAt: dbSession.createdAt,
-            expiresAt: dbSession.expiresAt,
-            absoluteExpiry: dbSession.absoluteExpiry,
+            createdAt: Number(dbSession.createdAt),
+            expiresAt: Number(dbSession.expiresAt),
+            absoluteExpiry: Number(dbSession.absoluteExpiry),
           }
           sessions.set(dbSession.token, session)
           syncSessionToWs(dbSession.token, session)
