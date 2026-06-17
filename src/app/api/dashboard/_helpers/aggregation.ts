@@ -8,8 +8,11 @@ import type { TodayAggregationResult, TablesStockRecentResult } from './types'
 
 export async function fetchTodayAggregation(today: Date, tomorrow: Date): Promise<TodayAggregationResult> {
   const [todayPaidAgg, todayStatusCounts] = await Promise.all([
+    // FIX V4: Finančni podatki (revenue/tips/tax) se zapišejo ob plačilu — uporabi paidAt
+    // Prejšnja koda je uporabljala createdAt, kar je povzročilo napačne številke
+    // (tips=€0 v dashboard, a €2.29 v Z-report, ker se tip zapiše šele ob payment)
     db.order.aggregate({
-      where: { createdAt: { gte: today, lt: tomorrow }, paymentStatus: 'paid' },
+      where: { paidAt: { gte: today, lt: tomorrow }, paymentStatus: 'paid' },
       _sum: { total: true, tip: true, tax: true, discount: true },
       _count: true,
       _avg: { total: true },

@@ -12,14 +12,18 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   try {
     const { id } = await params
 
-    const authResult = await requireAuth(req, { permission: 'void_item' })
-    if (authResult.error) return authResult.error
-
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error
 
     const { data, error: validationError } = validateBody(updateOrderItemSchema, bodyResult.data)
     if (validationError) return validationError
+
+    // FIX V3: Loči void od status update — kuhar lahko spremeni status (take_orders),
+    // void pa zahteva void_item dovoljenje (omejen nabor zaposlenih)
+    const isVoidOperation = data.voided === true
+    const requiredPermission = isVoidOperation ? 'void_item' : 'take_orders'
+    const authResult = await requireAuth(req, { permission: requiredPermission })
+    if (authResult.error) return authResult.error
 
     const updateData: Record<string, unknown> = {}
     if (data.status) updateData.status = data.status
