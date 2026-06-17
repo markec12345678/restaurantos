@@ -4,6 +4,7 @@
 // FIX CRITICAL: Rate limiting za preprečitev enumeracije računov
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { checkRateLimit, getClientIp, GENERAL_PUBLIC_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
 import { generateReceiptToken, buildDigitalReceiptResponse } from './_helpers'
@@ -66,7 +67,7 @@ export async function GET(req: Request) {
     })
 
     const response = await buildDigitalReceiptResponse(receipt, order)
-    return NextResponse.json(response)
+    return NextResponse.json(deepToNumbers(response))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/digital-receipt', 'Napaka pri pridobivanju računa')
   }

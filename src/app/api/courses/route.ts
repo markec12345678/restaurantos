@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
@@ -42,7 +43,7 @@ export async function GET(req: Request) {
       orderBy: { courseNumber: 'asc' },
     })
 
-    return NextResponse.json(courses)
+    return NextResponse.json(deepToNumbers(courses))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/courses', 'Napaka pri pridobivanju kursov')
   }

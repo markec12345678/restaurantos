@@ -2,6 +2,7 @@
 // GET /api/settings — Pridobi nastavitve restavracije
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateSettingsSchema } from '@/lib/validations'
 import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'

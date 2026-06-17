@@ -1,6 +1,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { checkRateLimit, getClientIp, AI_ASSISTANT_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
@@ -125,7 +126,7 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
-    return NextResponse.json(conversations);
+    return NextResponse.json(deepToNumbers(conversations));
   } catch {
     return NextResponse.json([]);
   }

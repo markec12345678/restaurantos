@@ -7,6 +7,7 @@
 // ============================================
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { parseJsonBody, handleApiError } from '@/lib/api-utils'
@@ -69,7 +70,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       userId: authResult.session?.employeeId,
     })
 
-    return NextResponse.json(shift)
+    return NextResponse.json(deepToNumbers(shift))
   } catch (error: unknown) {
     return handleApiError(error, 'PATCH /api/staff-shifts/[id]', 'Napaka pri posodabljanju izmene')
   }

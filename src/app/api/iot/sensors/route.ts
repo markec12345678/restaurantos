@@ -2,6 +2,7 @@
 // Za Bluetooth LoRa senzorje (SmartSense, Ruuvi) integracijo z HACCP
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { z } from 'zod'

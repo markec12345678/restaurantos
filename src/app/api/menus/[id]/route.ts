@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { updateMenuSchema } from '@/lib/validations'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,7 +33,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       where: { id },
       data: updateData,
     })
-    return NextResponse.json(menu)
+    return NextResponse.json(deepToNumbers(menu))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/menus/[id]', 'Napaka pri posodobitvi menija')
   }

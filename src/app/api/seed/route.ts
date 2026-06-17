@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
 import { checkRateLimit, getClientIp, SEED_LIMIT } from '@/lib/rate-limit'
 import { requireAuth } from '@/lib/auth-middleware'

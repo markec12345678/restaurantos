@@ -1,6 +1,7 @@
 // POST /api/inventory/restock — Vnos nabave (prevzem blaga v zalogo)
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { inventoryRestockSchema } from '@/lib/validations'
 import { toNum, round2, multiply, divide, isPositive } from '@/lib/decimal'
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
       })
       return { updated, transaction }
     })
-    return NextResponse.json(result)
+    return NextResponse.json(deepToNumbers(result))
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/inventory/restock', 'Napaka pri vnosu nabave')
   }

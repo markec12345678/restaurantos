@@ -1,6 +1,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createCategorySchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
         },
       },
     })
-    return NextResponse.json(categories)
+    return NextResponse.json(deepToNumbers(categories))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/categories', 'Napaka pri pridobivanju kategorij')
   }

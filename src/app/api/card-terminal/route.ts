@@ -1,5 +1,6 @@
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { cardTerminalPaymentSchema } from '@/lib/validations'
 import { logger } from '@/lib/logger'
@@ -106,7 +107,7 @@ export async function POST(req: Request) {
       },
     })
 
-    return NextResponse.json(result)
+    return NextResponse.json(deepToNumbers(result))
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/card-terminal', 'Napaka pri plačilu na terminalu')
   }

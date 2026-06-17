@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-middleware'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { z } from 'zod'
 
 const VALID_PERMISSIONS = [
@@ -75,7 +76,7 @@ export async function PUT(
       },
     })
 
-    return NextResponse.json(job)
+    return NextResponse.json(deepToNumbers(job))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/jobs/[id]', 'Napaka pri posodabljanju delovnega mesta')
   }

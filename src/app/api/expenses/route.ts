@@ -6,6 +6,7 @@
 // FIX MEDIUM: Zod validacija za stroške — prepreči injection in negativne zneske
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { round2, toNum, type DecimalLike } from '@/lib/decimal'
 import { z } from 'zod'

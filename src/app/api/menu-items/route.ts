@@ -2,6 +2,7 @@
 // Extend schema with modifierGroupIds (not part of base MenuItem schema)
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createMenuItemSchema } from '@/lib/validations'
 import { z } from 'zod'
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
         },
       },
     })
-    return NextResponse.json(items)
+    return NextResponse.json(deepToNumbers(items))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/menu-items', 'Failed to fetch menu items')
   }

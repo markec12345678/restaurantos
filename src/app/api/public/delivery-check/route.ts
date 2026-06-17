@@ -9,6 +9,7 @@
 // FIX MEDIUM: Zod validacija za query parametre
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { checkRateLimit, getClientIp, DELIVERY_CHECK_LIMIT } from '@/lib/rate-limit'
 import { toNum } from '@/lib/decimal'
 import { z } from 'zod'

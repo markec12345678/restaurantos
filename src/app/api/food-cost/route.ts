@@ -2,6 +2,7 @@
 // Calculate food cost for all menu items or a specific one
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { toNum, round2, multiply } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'

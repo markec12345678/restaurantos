@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
@@ -107,7 +108,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return updated
     })
 
-    return NextResponse.json(course)
+    return NextResponse.json(deepToNumbers(course))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/courses/[id]', 'Napaka pri posodabljanju kursa')
   }

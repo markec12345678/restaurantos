@@ -4,6 +4,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { updateLocationSchema } from './_helpers'
@@ -111,7 +112,7 @@ export async function PUT(
       data,
     })
 
-    return NextResponse.json(location)
+    return NextResponse.json(deepToNumbers(location))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/locations/[id]', 'Napaka pri posodobitvi lokacije')
   }

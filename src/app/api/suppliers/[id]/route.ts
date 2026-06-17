@@ -6,6 +6,7 @@
 // GET - Pridobi posameznega dobavitelja
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateSupplierSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
@@ -30,7 +31,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       },
     })
     if (!supplier) return NextResponse.json({ error: 'Dobavitelj ni najden' }, { status: 404 })
-    return NextResponse.json(supplier)
+    return NextResponse.json(deepToNumbers(supplier))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/suppliers/[id]', 'Napaka pri pridobivanju dobavitelja')
   }
@@ -61,7 +62,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       data,
     })
 
-    return NextResponse.json(supplier)
+    return NextResponse.json(deepToNumbers(supplier))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/suppliers/[id]', 'Napaka pri posodabljanju dobavitelja')
   }

@@ -6,6 +6,7 @@
 
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { sendNotificationSchema, sendBatchSchema, simulateSend, parseDetails } from './_helpers'

@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
@@ -49,7 +50,7 @@ export async function PUT(
       data: updateData,
     })
 
-    return NextResponse.json(webhook)
+    return NextResponse.json(deepToNumbers(webhook))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/webhooks/[id]', 'Napaka pri posodobitvi webhooka')
   }

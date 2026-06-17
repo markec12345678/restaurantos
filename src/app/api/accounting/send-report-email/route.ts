@@ -2,6 +2,7 @@
 import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { sendZReportEmail, isEmailEnabled, getReportRecipients } from '@/lib/email'

@@ -7,6 +7,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { checkRateLimit, getClientIp, PUBLIC_ORDER_LIMIT } from '@/lib/rate-limit'
 import { toNum } from '@/lib/decimal'
 import { logger } from '@/lib/logger'

@@ -5,6 +5,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateGuestSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
@@ -34,7 +35,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: 'Gost ni najden' }, { status: 404 })
     }
 
-    return NextResponse.json(guest)
+    return NextResponse.json(deepToNumbers(guest))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/guests/[id]', 'Napaka pri pridobivanju gosta')
   }
@@ -85,7 +86,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       include: { loyaltyAccount: true },
     })
 
-    return NextResponse.json(guest)
+    return NextResponse.json(deepToNumbers(guest))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/guests/[id]', 'Napaka pri posodabljanju gosta')
   }

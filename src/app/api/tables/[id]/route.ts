@@ -1,6 +1,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateTableSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
@@ -44,7 +45,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         ...(data.rotation !== undefined && { rotation: data.rotation }),
       },
     })
-    return NextResponse.json(table)
+    return NextResponse.json(deepToNumbers(table))
   } catch (error: unknown) {
     if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === 'P2002') {
       return NextResponse.json(

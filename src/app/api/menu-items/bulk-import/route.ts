@@ -2,6 +2,7 @@
 // Podpira: name, description, price, vatRate, categoryName, allergens, isAvailable
 // Format: CSV (text/csv) ali Excel (.xlsx)
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { db } from '@/lib/db'

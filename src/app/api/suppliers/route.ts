@@ -7,6 +7,7 @@
 // GET - Pridobi dobavitelje
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createSupplierSchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'

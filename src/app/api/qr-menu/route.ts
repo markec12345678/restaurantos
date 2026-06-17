@@ -3,6 +3,7 @@
 // FIX CRITICAL: Rate limiting za preprečitev zlorabe
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { checkRateLimit, getClientIp, PUBLIC_MENU_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
 

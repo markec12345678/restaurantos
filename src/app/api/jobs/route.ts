@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-middleware'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { z } from 'zod'
 
 const createJobSchema = z.object({
@@ -38,7 +39,7 @@ export async function GET(req: Request) {
       },
     })
 
-    return NextResponse.json(jobs)
+    return NextResponse.json(deepToNumbers(jobs))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/jobs', 'Napaka pri pridobivanju delovnih mest')
   }

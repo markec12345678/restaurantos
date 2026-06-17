@@ -5,6 +5,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { z } from 'zod'
@@ -100,7 +101,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       data: updateData,
     })
 
-    return NextResponse.json(entry)
+    return NextResponse.json(deepToNumbers(entry))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/waitlist/[id]', 'Napaka pri posodabljanju čakalne vrste')
   }

@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { processRetryQueue } from '@/lib/webhook-engine'
 
@@ -68,7 +69,7 @@ export async function POST(req: Request) {
   try {
     const result = await processRetryQueue()
 
-    return NextResponse.json(result)
+    return NextResponse.json(deepToNumbers(result))
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/webhooks/deliveries', 'Napaka pri obdelavi ponovnih poskusov')
   }

@@ -1,6 +1,7 @@
 // GET /api/auth/webauthn — Generiraj WebAuthn challenge za biometric login
 // POST /api/auth/webauthn — Verificiraj WebAuthn assertion + login
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import { createSession } from '@/lib/auth-middleware/session-store'

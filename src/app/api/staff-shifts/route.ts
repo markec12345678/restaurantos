@@ -6,6 +6,7 @@
 
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { Prisma } from '@prisma/client'
 import { logger } from '@/lib/logger'

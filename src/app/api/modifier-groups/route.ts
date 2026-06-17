@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createModifierGroupSchema } from '@/lib/validations'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
@@ -23,7 +24,7 @@ export async function GET(req: Request) {
         },
       },
     })
-    return NextResponse.json(modifierGroups)
+    return NextResponse.json(deepToNumbers(modifierGroups))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/modifier-groups', 'Failed to fetch modifier groups')
   }

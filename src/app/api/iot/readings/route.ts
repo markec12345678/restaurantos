@@ -3,6 +3,7 @@
 // Če temperatura > 4°C (hladilnik) ali > -18°C (zamrzovalnik), auto warning HACCP
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { z } from 'zod'
 

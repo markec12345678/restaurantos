@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createPackagingSchema } from '@/lib/validations'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +29,7 @@ export async function GET(req: Request) {
       },
     })
 
-    return NextResponse.json(packagingConfigs)
+    return NextResponse.json(deepToNumbers(packagingConfigs))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/packaging', 'Napaka pri pridobivanju embalaže')
   }

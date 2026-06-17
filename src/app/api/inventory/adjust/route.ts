@@ -1,6 +1,7 @@
 // POST /api/inventory/adjust — Razknjižba/Odpis zaloge
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { inventoryAdjustSchema, batchAdjustSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
       entityId: data.inventoryItemId,
       details: { type: data.type, quantity: txQuantity, previousQty: toNum(previousQty), newQty, reason: data.reason, itemName: item.name },
     })
-    return NextResponse.json(result)
+    return NextResponse.json(deepToNumbers(result))
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/inventory/adjust', 'Napaka pri razknjižbi')
   }

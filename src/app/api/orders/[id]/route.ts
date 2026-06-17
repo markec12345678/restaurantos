@@ -1,6 +1,7 @@
 
 // PUT / PATCH / DELETE /api/orders/[id]
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { orderPatchActionSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
@@ -36,7 +37,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
       const result = await handleItemStatusUpdate(id, itemId, status, order)
       if ('error' in result) return NextResponse.json({ error: result.error }, { status: result.status })
-      return NextResponse.json(result)
+      return NextResponse.json(deepToNumbers(result))
     }
 
     if (patchData.action === 'fire') {

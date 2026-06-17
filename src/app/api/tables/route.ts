@@ -1,6 +1,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createTableSchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
@@ -17,7 +18,7 @@ export async function GET(req: Request) {
       orderBy: { number: 'asc' },
       include: { orders: { where: { status: { in: ['pending', 'in-progress', 'ready'] } }, take: 1 } },
     })
-    return NextResponse.json(tables)
+    return NextResponse.json(deepToNumbers(tables))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/tables', 'Napaka pri pridobivanju miz')
   }

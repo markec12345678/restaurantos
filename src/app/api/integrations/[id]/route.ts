@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
@@ -41,7 +42,7 @@ export async function GET(
       apiSecret: integration.apiSecret ? '••••••••' : '',
     }
 
-    return NextResponse.json(sanitized)
+    return NextResponse.json(deepToNumbers(sanitized))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/integrations/[id]', 'Napaka pri pridobivanju integracije')
   }
@@ -102,7 +103,7 @@ export async function PUT(
       data: updateData,
     })
 
-    return NextResponse.json(integration)
+    return NextResponse.json(deepToNumbers(integration))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/integrations/[id]', 'Napaka pri posodobitvi integracije')
   }

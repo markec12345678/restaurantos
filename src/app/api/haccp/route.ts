@@ -2,6 +2,7 @@
 // GET /api/haccp — Pridobi HACCP vnose
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createHaccpSchema, haccpUpdateSchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
@@ -127,7 +128,7 @@ export async function PUT(req: Request) {
       },
     })
 
-    return NextResponse.json(entry)
+    return NextResponse.json(deepToNumbers(entry))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/haccp', 'Napaka pri posodabljanju HACCP vnosa')
   }

@@ -3,6 +3,7 @@
 import { db } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { checkRateLimit, getClientIp, KIOSK_LIMIT } from '@/lib/rate-limit'
 import { z } from 'zod'

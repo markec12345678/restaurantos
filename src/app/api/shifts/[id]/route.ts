@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { updateShiftSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +44,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         job: { select: { id: true, name: true, basePayRate: true } },
       },
     })
-    return NextResponse.json(shift)
+    return NextResponse.json(deepToNumbers(shift))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/shifts/[id]', 'Napaka pri posodobitvi izmene')
   }

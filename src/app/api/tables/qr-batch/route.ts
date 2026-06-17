@@ -1,5 +1,6 @@
 // GET /api/tables/qr-batch — Vrni seznam QR URL-jev za vse mize (za print nalepk)
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { db } from '@/lib/db'

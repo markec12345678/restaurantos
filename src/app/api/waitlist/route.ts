@@ -5,6 +5,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createWaitlistSchema } from '@/lib/validations'
 import { logger } from '@/lib/logger'
@@ -21,7 +22,7 @@ export async function GET(req: Request) {
       where: { status: { in: ['waiting', 'notified'] } },
       orderBy: { checkedInAt: 'asc' },
     })
-    return NextResponse.json(entries)
+    return NextResponse.json(deepToNumbers(entries))
   } catch (error: unknown) {
     logger.error('API', 'Napaka pri pridobivanju čakalne vrste:', error)
     // FIX C-08: Ne razkrivaj error.message

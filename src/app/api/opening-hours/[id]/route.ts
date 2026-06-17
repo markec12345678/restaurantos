@@ -5,6 +5,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { z } from 'zod'
@@ -44,7 +45,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       },
     })
 
-    return NextResponse.json(hours)
+    return NextResponse.json(deepToNumbers(hours))
   } catch (error: unknown) {
     return handleApiError(error, 'PATCH /api/opening-hours/[id]', 'Napaka pri posodabljanju')
   }

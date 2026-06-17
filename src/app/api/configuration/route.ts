@@ -1,6 +1,7 @@
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-middleware'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { configPostSchema, allowedFields, modelMap, coerceFieldTypes } from './_helpers'
 

@@ -4,6 +4,7 @@
 // FIX CRITICAL: Rate limiting za preprečitev enumeracije miz
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { checkRateLimit, getClientIp, VERIFY_TABLE_LIMIT } from '@/lib/rate-limit'
 
 

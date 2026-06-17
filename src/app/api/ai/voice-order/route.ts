@@ -1,6 +1,7 @@
 // POST /api/ai/voice-order — AI Voice Ordering z Gemini
 // Sprejme text (transkript glasu) ali audio (base64) in vrne strukturirano naročilo
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { db } from '@/lib/db'

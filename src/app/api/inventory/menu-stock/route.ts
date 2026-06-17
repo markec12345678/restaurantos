@@ -3,6 +3,7 @@
 // Vrne mapo menuItemId → { status, available, unit } za prikaz na POS zaslonu
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { toNum, isPositive, greaterThan, multiply, divide } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
@@ -112,7 +113,7 @@ export async function GET(req: Request) {
       }
     }
 
-    return NextResponse.json(stockMap)
+    return NextResponse.json(deepToNumbers(stockMap))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/inventory/menu-stock', 'Napaka pri pridobivanju zaloge menija')
   }

@@ -2,6 +2,16 @@ import { PrismaClient } from '@prisma/client'
 import crypto from 'crypto'
 import { logger } from './logger'
 
+
+// FIX VERCEL: Prisma.Decimal.toJSON() returns string on PostgreSQL.
+// Override to return number so frontend gets numbers (not Decimal objects).
+// This fixes: "e.price.toFixed is not a function" on production.
+import { Prisma } from '@prisma/client'
+if (Prisma.Decimal.prototype) {
+  (Prisma.Decimal.prototype as unknown as Record<string, unknown>).toJSON = function(this: { toNumber: () => number }) { return this.toNumber() }
+}
+
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
