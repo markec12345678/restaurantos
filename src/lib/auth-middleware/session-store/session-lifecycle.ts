@@ -12,11 +12,11 @@ import { sessions, syncSessionToWs, loadSessionsFromDb } from './session-cache'
 /**
  * Ustvari novo sejo po uspešni prijavi
  */
-export function createSession(employee: {
+export async function createSession(employee: {
   id: string
   role: string
   permissions: string[]
-}, ipAddress?: string, userAgent?: string): string {
+}, ipAddress?: string, userAgent?: string): Promise<string> {
   const token = crypto.randomBytes(32).toString('hex')
   const now = Date.now()
 
@@ -35,22 +35,25 @@ export function createSession(employee: {
   // Sinhroniziraj z WS session store
   syncSessionToWs(token, session)
 
-  // Shrani sejo v SQLite za persistenco
-  db.session.create({
-    data: {
-      token,
-      employeeId: employee.id,
-      role: employee.role,
-      permissions: JSON.stringify(employee.permissions),
-      createdAt: BigInt(now),
-      expiresAt: BigInt(now + SESSION_TTL_MS),
-      absoluteExpiry: BigInt(now + 24 * 60 * 60 * 1000),
-      ipAddress: ipAddress || '',
-      userAgent: userAgent || '',
-    },
-  }).catch((err: Error) => {
-    logger.warn('AUTH', 'Napaka pri shranjevanju seje v DB:', err.message)
-  })
+  // FIX VERCEL: AWAIT DB write — na serverless moramo počakati da seja pride v DB
+  // Prej je bilo non-blocking (.catch()), a Vercel serverless ubije funkcijo preden se write konča
+  try {
+    await db.session.create({
+      data: {
+        token,
+        employeeId: employee.id,
+        role: employee.role,
+        permissions: JSON.stringify(employee.permissions),
+        createdAt: BigInt(now),
+        expiresAt: BigInt(now + SESSION_TTL_MS),
+        absoluteExpiry: BigInt(now + 24 * 60 * 60 * 1000),
+        ipAddress: ipAddress || '',
+        userAgent: userAgent || '',
+      },
+    })
+  } catch (err: unknown) {
+    logger.warn('AUTH', 'Napaka pri shranjevanju seje v DB:', err instanceof Error ? err.message : String(err))
+  }
 
   return token
 }

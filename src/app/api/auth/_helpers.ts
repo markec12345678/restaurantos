@@ -116,7 +116,7 @@ export async function buildAuthStatusResponse(session: Awaited<ReturnType<typeof
   }
 }
 
-export function buildAuthResponse(matchedEmployee: MatchedEmployee) {
+export async function buildAuthResponse(matchedEmployee: MatchedEmployee) {
   const allPermissions: string[] = []
   const primaryJob = matchedEmployee.jobs.find(j => j.isPrimary)?.job || matchedEmployee.jobs[0]?.job
 
@@ -129,7 +129,7 @@ export function buildAuthResponse(matchedEmployee: MatchedEmployee) {
 
   const permissions = [...new Set(allPermissions)]
 
-  const token = createSession({
+  const token = await createSession({
     id: matchedEmployee.id,
     role: matchedEmployee.role,
     permissions,

@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Napačen PIN ali nedejaven uporabnik' }, { status: 401 })
     }
 
-    const responseData = buildAuthResponse(matchedEmployee)
+    const responseData = await buildAuthResponse(matchedEmployee)
 
     try {
       authResponseSchema.parse(responseData)
