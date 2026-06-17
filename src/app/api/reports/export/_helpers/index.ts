@@ -1,10 +1,10 @@
 // Tipi in konfiguracija za izvoz poročil
 
 export type ReportType = 'orders' | 'items' | 'vat' | 'employees' | 'shifts' | 'inventory'
-export type ExportFormat = 'csv' | 'pdf' | 'excel' | 'xml'
+export type ExportFormat = 'csv' | 'pdf' | 'excel' | 'xml' | 'ubl'
 
 export const ALLOWED_TYPES: ReportType[] = ['orders', 'items', 'vat', 'employees', 'shifts', 'inventory']
-export const ALLOWED_FORMATS: ExportFormat[] = ['csv', 'pdf', 'excel', 'xml']
+export const ALLOWED_FORMATS: ExportFormat[] = ['csv', 'pdf', 'excel', 'xml', 'ubl']
 
 export function getFilename(type: ReportType, startDate: string | null, endDate: string | null, format: ExportFormat = 'csv'): string {
   const ext = format === 'excel' ? 'xlsx' : format
@@ -29,3 +29,4 @@ export { fetchReportData, type ReportData } from './report-data'
 export { generateReportPdf } from './pdf-generator'
 export { generateReportExcel } from './excel-generator'
 export { generateEdavkiXml } from './xml-generator'
+export { generateUblInvoice } from './ubl-generator'

@@ -12,7 +12,7 @@ import { db } from '@/lib/db'
 import {
   generateOrdersCsv, generateItemsCsv, generateVatCsv,
   generateEmployeesCsv, generateShiftsCsv, generateInventoryCsv,
-  fetchReportData, generateReportPdf, generateReportExcel, generateEdavkiXml,
+  fetchReportData, generateReportPdf, generateReportExcel, generateEdavkiXml, generateUblInvoice,
   getFilename, ALLOWED_TYPES, ALLOWED_FORMATS,
 } from './_helpers'
 import type { ReportType, ExportFormat } from './_helpers'
@@ -108,6 +108,25 @@ export async function GET(req: Request) {
     if (format === 'xml') {
       const xml = generateEdavkiXml(data, { taxNumber, taxpayerName })
       return new NextResponse(xml, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/xml; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+        },
+      })
+    }
+
+    // F6-1: UBL 2.1 / PEPPOL BIS 3.0 (EU 2026 e-invoicing mandat)
+    if (format === 'ubl') {
+      const ubl = generateUblInvoice(data, {
+        supplierName: taxpayerName,
+        supplierTaxId: taxNumber || 'SI00000000',
+        supplierAddress: 'Slovenska cesta 1',
+        supplierCity: 'Ljubljana',
+        supplierCountry: 'SI',
+        invoiceNumber: `POS-DAILY-${data.startDate || 'all'}`,
+      })
+      return new NextResponse(ubl, {
         status: 200,
         headers: {
           'Content-Type': 'application/xml; charset=utf-8',

@@ -46,8 +46,30 @@ export const deliveryConnectors: IntegrationConnector[] = [
     defaultEvents: ['order.created', 'order.ready', 'order.delivered'],
     syncCapabilities: ['push_orders', 'pull_delivery_status', 'sync_menu'],
   },
-]
 
+  // --- Deliverect (Uber Eats / DoorDash / Grubhub aggregator) ---
+  // F6-4: EU standard za delivery aggregator
+  {
+    id: 'deliverect',
+    name: 'Deliverect',
+    type: 'delivery',
+    provider: 'deliverect',
+    description: 'Integracija z Deliverect platformo - agregator za Uber Eats, DoorDash, Grubhub, Deliveroo. Ena platforma za vse delivery kanale z avtomatsko sinhronizacijo menija, zaloge in naročil.',
+    icon: 'T',
+    baseUrl: 'https://api.deliverect.com',
+    configFields: [
+      { key: 'clientId', label: 'API Client ID', type: 'text', required: true, placeholder: 'Deliverect Client ID' },
+      { key: 'clientSecret', label: 'API Client Secret', type: 'password', required: true },
+      { key: 'locationId', label: 'Deliverect Location ID', type: 'text', required: true, placeholder: '0000000000000000' },
+      { key: 'autoAccept', label: 'Samodejno sprejemanje', type: 'select', required: true, defaultValue: 'true', options: [
+        { value: 'true', label: 'Da - samodejno sprejmi naročila' },
+        { value: 'false', label: 'Ne - ročno potrjevanje' },
+      ]},
+    ],
+    defaultEvents: ['order.created', 'order.ready', 'order.delivered', 'order.cancelled'],
+    syncCapabilities: ['push_orders', 'pull_delivery_status', 'sync_menu', 'sync_availability', 'sync_all_channels'],
+  },
+]
 export const ecommerceConnectors: IntegrationConnector[] = [
   // --- Shopify E-Commerce ---
   {
@@ -64,6 +86,35 @@ export const ecommerceConnectors: IntegrationConnector[] = [
     ],
     defaultEvents: ['order.created', 'order.paid', 'stock.low', 'stock.restocked'],
     syncCapabilities: ['push_products', 'pull_orders', 'sync_inventory', 'sync_menu'],
+  },
+]
+
+// F6-7: Labor management konektorji (7shifts)
+export const laborConnectors: IntegrationConnector[] = [
+  // --- 7shifts (Labor Scheduling + Payroll + Tips) ---
+  {
+    id: '7shifts',
+    name: '7shifts',
+    type: 'crm', // uporabimo crm tip ker ni posebnega labor tipa
+    provider: '7shifts',
+    description: 'Integracija z 7shifts — vodilna platforma za labor management v restavracijah. AI forecast labora glede na prodajo, scheduling, tip management, payroll in retention tools. Built specifically za restavracije.',
+    icon: '📅',
+    baseUrl: 'https://api.7shifts.com/v2',
+    configFields: [
+      { key: 'apiKey', label: 'API Key', type: 'password', required: true, helpText: '7shifts API Key (iz Settings > Integrations)' },
+      { key: 'companyId', label: 'Company ID', type: 'text', required: true, placeholder: '12345' },
+      { key: 'locationId', label: 'Location ID', type: 'text', required: true, placeholder: '67890' },
+      { key: 'syncTips', label: 'Sinhroniziraj napitnine', type: 'select', required: true, defaultValue: 'true', options: [
+        { value: 'true', label: 'Da — pošiljaj tipe v 7shifts payroll' },
+        { value: 'false', label: 'Ne — ročno vnos' },
+      ]},
+      { key: 'syncSchedule', label: 'Sinhroniziraj razpored', type: 'select', required: true, defaultValue: 'true', options: [
+        { value: 'true', label: 'Da — prenesi razpored v POS' },
+        { value: 'false', label: 'Ne — samo pošiljaj podatke' },
+      ]},
+    ],
+    defaultEvents: ['shift.started', 'shift.ended', 'cash_register.closed', 'daily_report.ready'],
+    syncCapabilities: ['push_tips', 'push_labor_hours', 'pull_schedule', 'pull_forecast', 'sync_employees'],
   },
 ]
 

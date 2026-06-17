@@ -120,3 +120,10 @@ export const AUTHENTICATED_LIMIT: RateLimitConfig = {
   maxRequests: 60,
   windowMs: 60 * 1000,
 }
+
+
+/** FIX F6-6: Kiosk self-service — 10 naročil na uro (prepreči spam) */
+export const KIOSK_LIMIT: RateLimitConfig = {
+  maxRequests: 10,
+  windowMs: 60 * 60 * 1000, // 1 ura
+}

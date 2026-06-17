@@ -4,11 +4,12 @@
 
 import type { IntegrationConnector } from './types'
 import { accountingConnectors } from './accounting'
-import { deliveryConnectors, ecommerceConnectors, crmConnectors, analyticsConnectors, customConnectors } from './connectors'
+import { deliveryConnectors, ecommerceConnectors, crmConnectors, analyticsConnectors, customConnectors, laborConnectors } from './connectors'
 
 export const INTEGRATION_CONNECTORS: IntegrationConnector[] = [
   ...accountingConnectors,
   ...deliveryConnectors,
+  ...laborConnectors,
   ...ecommerceConnectors,
   ...crmConnectors,
   ...analyticsConnectors,
