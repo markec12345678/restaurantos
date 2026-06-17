@@ -146,12 +146,16 @@ model TaxRate {
   code        String   @default("")  // "S", "R", "Z" (FURS kode)
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
+  // --- Multi-location (FIX: DDV se razlikuje po državi — Location.country) ---
+  locationId  String?
+  location    Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // FIX SCHEMA-02 HIGH: FURS koda mora biti unikatna — prepreči dvojne "S" kode
   @@unique([code])
   @@index([isActive])
+  @@index([locationId]) // FIX: per-lokacija davčne stopnje
 }
 
 model DiningOption {
@@ -648,6 +652,7 @@ model Employee {
   hireDate  DateTime @default(now())
   // --- Toast: PIN za prijavo v POS ---
   pin       String   @unique @default("") // FIX SECURITY: 4-mestni PIN za hitro prijavo — @unique prepreči duplikate (impersonacijo)
+  pinLookup String?  @unique // FIX PERF: HMAC-SHA256(NEXTAUTH_SECRET, pin) za O(1) iskanje pri prijavi (pin ostane bcrypt-hashiran za varno primerjavo)
   // --- Relations ---
   shifts       Shift[]
   staffShifts  StaffShift[]
@@ -708,7 +713,7 @@ model EmployeeJob {
 model Shift {
   id         String   @id @default(cuid())
   employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani plačilno zgodovino (soft-delete preko status='cancelled')
   jobId      String?
   job        Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   date       DateTime
@@ -718,6 +723,9 @@ model Shift {
   // --- Toast: Break Types ---
   breakMinutes Int    @default(30) // Skupaj minut odmora
   notes      String   @default("")
+  // --- Multi-location (FIX: izmene so na lokaciji) ---
+  locationId String?
+  location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -726,12 +734,13 @@ model Shift {
   @@index([status])
   @@index([employeeId, date]) // Index for shift queries
   @@index([jobId])             // FIX: FK index — poizvedbe po delovnem mestu
+  @@index([locationId]) // FIX: per-lokacija izmene
 }
 
 model TimeEntry {
   id          String   @id @default(cuid())
   employeeId  String
-  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani evidence delovnih ur
   jobId       String?
   job         Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Clock In/Out ---
@@ -749,6 +758,9 @@ model TimeEntry {
   type        String   @default("regular") // regular, overtime, holiday, sick, vacation
   status      String   @default("active") // active, approved, disputed
   notes       String   @default("")
+  // --- Multi-location (FIX: delovne ure so per-lokacija za plače) ---
+  locationId  String?
+  location    Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -757,6 +769,7 @@ model TimeEntry {
   @@index([type])
   @@index([status])
   @@index([jobId])             // FIX: FK index — obračun plač po delovnem mestu
+  @@index([locationId]) // FIX: per-lokacija evidence ur
 }
 
 // ============================================
@@ -846,7 +859,7 @@ model InventoryItem {
 model StockTransaction {
   id              String        @id @default(cuid())
   inventoryItemId String
-  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani zalogo audit
   type            String        // "procurement", "sale", "write-off", "adjustment", "return"
   quantity        Decimal             // FIX: Decimal za natančnost
   previousQty     Decimal             // FIX: Decimal za natančnost
@@ -938,7 +951,7 @@ model LoyaltyAccount {
   id              String   @id @default(cuid())
   // --- Stranka ---
   customerName    String   @default("")
-  customerPhone   String   @default("")
+  customerPhone   String   @unique @default("") // FIX: prepreči duplikatne prijave na isto telefonsko številko
   customerEmail   String   @default("")
   // --- Točke ---
   pointsBalance   Int      @default(0)
@@ -965,7 +978,7 @@ model LoyaltyAccount {
 model LoyaltyTransaction {
   id              String         @id @default(cuid())
   loyaltyAccountId String
-  loyaltyAccount  LoyaltyAccount @relation(fields: [loyaltyAccountId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  loyaltyAccount  LoyaltyAccount @relation(fields: [loyaltyAccountId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani zgodovino točk
   // --- Transakcija ---
   type            String         // earn, redeem, adjust, expire
   points          Int            // Pozitivno za earn, negativno za redeem
@@ -1018,7 +1031,7 @@ model GiftCard {
 model GiftCardTransaction {
   id              String    @id @default(cuid())
   giftCardId      String
-  giftCard        GiftCard  @relation(fields: [giftCardId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  giftCard        GiftCard  @relation(fields: [giftCardId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani zgodovino darilnih kartic
   // --- Transakcija ---
   type            String    // load, redeem, adjust, transfer
   amount          Decimal    // Pozitivno za load, negativno za redeem  // FIX: Decimal za valuto
@@ -1103,7 +1116,7 @@ model Location {
   businessId      String   @default("")               // Matična št. za to lokacijo (lahko enaka kot matična)
   taxId           String   @default("")               // DDV ID za to lokacijo
   registerNumber  String   @default("")               // Blagajna za to lokacijo
-  premisesId      String   @default("")               // ID poslovnega prostora za FURS
+  premisesId      String   @unique @default("") // FIX: FURS premises ID mora biti unikaten per lokacija
   // --- FURS certifikat (lokalen za lokacijo) ---
   fursCertPath    String   @default("")
   fursCertPassword String  @default("")
@@ -1135,6 +1148,13 @@ model Location {
   deliveryTrackings DeliveryTracking[]
   staffShifts      StaffShift[]
   menus            Menu[]
+  // --- Multi-location relations (FIX: per-lokacija evidence) ---
+  haccpEntries     HaccpEntry[]
+  shifts           Shift[]
+  timeEntries      TimeEntry[]
+  purchaseOrders   PurchaseOrder[]
+  taxRates         TaxRate[]
+  guestFeedbacks   GuestFeedback[]
 
   @@index([code])
   @@index([isActive])
@@ -1220,6 +1240,9 @@ model HaccpEntry {
   status          String   @default("ok")        // ok, warning, critical
   correctiveAction String  @default("")
   employeeName    String   @default("")
+  // --- Multi-location (FIX: HACCP mora biti per-lokacija za inšpekcije — EU 852/2004) ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -1227,6 +1250,7 @@ model HaccpEntry {
   @@index([date])
   // FIX SCHEMA-10: Composite index za HaccpEntry — filtriranje po statusu znotraj datuma
   @@index([status, date])
+  @@index([locationId]) // FIX: per-lokacija HACCP poročila
 }
 
 // ============================================
@@ -1294,7 +1318,7 @@ model StaffShift {
   id              String   @id @default(cuid())
   // --- Zaposleni ---
   employeeId      String
-  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani razpored zgodovino
   // --- Izmena ---
   shiftDate       DateTime                     // Datum izmene
   shiftType       String   @default("morning") // morning, afternoon, evening, night, split, custom
@@ -1377,7 +1401,9 @@ model Reservation {
   // FIX SCHEMA-10: Composite indexes za Reservation — pogoste poizvedbe
   @@index([dateTime, status])  // "Danesnje aktivne rezervacije" — najbolj pogosta poizvedba
   @@index([customerPhone])  // Iskanje rezervacij po telefonu
+  @@unique([tableId, dateTime]) // FIX: ena miza, en čas = ena rezervacija
   @@index([source])  // Filtriranje po viru (walk_in, website, itd.)
+  // FIX: Prepreči dvojno rezervacijo iste mize ob istem času (null tableId = walk-in, ne krši)
 }
 
 // ============================================
@@ -1433,7 +1459,7 @@ model Guest {
 model GuestVisit {
   id              String   @id @default(cuid())
   guestId         String
-  guest           Guest    @relation(fields: [guestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  guest           Guest    @relation(fields: [guestId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani zgodovino obiskov
   // --- Podatki obiska ---
   orderId         String?                       // Povezava z naročilom
   tableId         String?
@@ -1469,7 +1495,7 @@ model GuestVisit {
 model Supplier {
   id              String   @id @default(cuid())
   name            String                        // "Mesarija Novak", "Pivovarna Laško"
-  code            String   @default("")         // Kratka koda "MN", "PL"
+  code            String   @unique @default("") // FIX: duplikatne kode prelomijo poročila
   // --- Kontakt ---
   contactPerson   String   @default("")
   email           String   @default("")
@@ -1529,6 +1555,9 @@ model PurchaseOrder {
   // --- Interna ---
   requestedBy     String   @default("")         // Kdo je naročil
   approvedBy      String   @default("")         // Kdo je odobril
+  // --- Multi-location (FIX: nabava je za zalogo lokacije) ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   notes           String   @default("")
   // --- Relations ---
   items           PurchaseOrderItem[]
@@ -1540,6 +1569,7 @@ model PurchaseOrder {
   @@index([orderDate])
   // FIX: Composite index — nadzorna plošča dobavitelja: naročila po statusu
   @@index([supplierId, status])
+  @@index([locationId]) // FIX: per-lokacija nabava
 }
 
 model PurchaseOrderItem {
@@ -1892,12 +1922,16 @@ model GuestFeedback {
   respondedAt     DateTime?
   // --- Vir ---
   source          String   @default("pos")  // pos, website, email, sms
+  // --- Multi-location (FIX: povratne informacije so per-lokacija za poročila) ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Čas ---
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   @@index([guestId])
   @@index([orderId])
+  @@index([locationId]) // FIX: per-lokacija povratne informacije
   @@index([overallRating])
   @@index([source])
   @@index([createdAt])

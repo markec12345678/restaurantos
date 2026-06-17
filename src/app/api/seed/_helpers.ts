@@ -4,9 +4,20 @@ import { db } from '@/lib/db'
 // CLEANUP: Delete all existing data
 // ============================================
 export async function cleanupExistingData() {
+  // FIX: Po spremembi kaskad (Cascade → Restrict) moramo najprej izbrisati
+  // child tabele, preden brišemo parente (Employee, InventoryItem, Guest, itd.).
+  // Vrstni red sledi FK odvisnostim (child → parent).
   await db.orderItem.deleteMany()
   await db.order.deleteMany()
+  // --- Child tabele pred parenti (Restrict kaskade) ---
+  await db.guestVisit.deleteMany()
+  await db.timeEntry.deleteMany()
+  await db.staffShift.deleteMany()
   await db.shift.deleteMany()
+  await db.stockTransaction.deleteMany()
+  await db.loyaltyTransaction.deleteMany()
+  await db.giftCardTransaction.deleteMany()
+  await db.recipeItem.deleteMany()
   await db.inventoryItem.deleteMany()
   await db.menuItemModifierGroup.deleteMany()
   await db.modifier.deleteMany()
@@ -15,6 +26,9 @@ export async function cleanupExistingData() {
   await db.category.deleteMany()
   await db.menu.deleteMany()
   await db.table.deleteMany()
+  await db.giftCard.deleteMany()
+  await db.loyaltyAccount.deleteMany()
+  await db.guest.deleteMany()
   await db.employee.deleteMany()
   // Configuration tables (respecting foreign keys: DiningOption → ServiceCharge)
   await db.diningOption.deleteMany()

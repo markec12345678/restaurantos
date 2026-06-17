@@ -92,7 +92,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     // Soft-delete: označi kot terminiran (ne izbriši iz baze)
     const employee = await db.employee.update({
       where: { id },
-      data: { status: 'terminated', pin: '' }, // Onemogoči PIN prijavo
+      data: { status: 'terminated', pin: '', pinLookup: null }, // Onemogoči PIN prijavo (počisti tudi pinLookup)
     })
 
     return NextResponse.json({ success: true, message: 'Zaposleni označen kot terminiran', employee: { ...employee, pin: '' } })

@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { createSession } from '@/lib/auth-middleware'
+import { hashPinLookup, pinLookupEnabled } from '@/lib/pin-lookup'
 
 export interface MatchedEmployee {
   id: string
@@ -18,6 +19,36 @@ export interface MatchedEmployee {
 }
 
 export async function verifyPin(data: { pin: string }): Promise<MatchedEmployee | null> {
+  // FIX PERF: O(1) iskanje preko pinLookup (HMAC-SHA256) namesto O(n) findMany + N x bcrypt.compare.
+  // Če NEXTAUTH_SECRET manjka ali zaposleni še nima pinLookup (migracija), fallback na findMany.
+  if (pinLookupEnabled()) {
+    const lookup = hashPinLookup(data.pin)
+    if (lookup) {
+      const emp = await db.employee.findUnique({
+        where: { pinLookup: lookup, status: 'active' },
+        include: { jobs: { include: { job: true } } },
+      })
+      if (emp) {
+        const isHashed = emp.pin.startsWith('$2')
+        // Če je PIN že bcrypt-hashan, potrdi z bcrypt.compare (defense in depth).
+        // Če je plaintext (stara migracija), pinLookup že garantuje ujemanje
+        // (HMAC je determinističen) — takoj migriraj na hash + pinLookup.
+        if (isHashed) {
+          if (await bcrypt.compare(data.pin, emp.pin)) {
+            return emp as unknown as MatchedEmployee
+          }
+          return null // pinLookup matchal, bcrypt ne — nekonsistenca, zavrni
+        }
+        // Plaintext PIN — migriraj na bcrypt hash + pinLookup
+        const hashedPin = await bcrypt.hash(emp.pin, 10)
+        await db.employee.update({ where: { id: emp.id }, data: { pin: hashedPin, pinLookup: lookup } })
+        return emp as unknown as MatchedEmployee
+      }
+      return null // pinLookup ni našel — PIN ni v bazi
+    }
+  }
+
+  // Fallback: O(n) findMany + bcrypt.compare (za okolja brez NEXTAUTH_SECRET ali stare zaposlene)
   const employees = await db.employee.findMany({
     where: { status: 'active', pin: { not: '' } },
     include: { jobs: { include: { job: true } } },
@@ -41,9 +72,10 @@ export async function verifyPin(data: { pin: string }): Promise<MatchedEmployee 
       pinMatches = crypto.timingSafeEqual(paddedPin, paddedInput)
       if (pinMatches) {
         const hashedPin = await bcrypt.hash(emp.pin, 10)
+        // FIX: ob migraciji zapiši tudi pinLookup za prihodnje O(1) iskanje
         await db.employee.update({
           where: { id: emp.id },
-          data: { pin: hashedPin },
+          data: { pin: hashedPin, pinLookup: hashPinLookup(emp.pin) },
         })
       }
     }

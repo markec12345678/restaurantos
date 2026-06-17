@@ -18,7 +18,7 @@
 | **PIN varnost** | ⚠️ `Employee.pin` ni bil unique **POPRAVLJENO** |
 | **AuditLog hash veriga** | ⚠️ Nepopolna (samo 1 polje) **POPRAVLJENO** |
 | **Cascade integriteta** | ⚠️ 7 nevarnih kaskad (1 kritična **POPRAVLJENA**, 6 dokumentirano) |
-| **Soft-delete** | ❌ Manjka kljub trditvam README (priporočilo) |
+| **Soft-delete** | ✅ ŽE implementiran v kodi (preko `status` polj, ne `deletedAt`) — glej popravek spodaj |
 | **Multi-location pokritost** | ⚠️ 7 modelov brez `locationId` (priporočilo) |
 | **Decimal za valute** | ✅ Brezhibno (vse monetary polja so Decimal) |
 | **FURS skladnost** | ✅ Popolna (ZOI, EOR, fiscalStatus na Receipt) |
@@ -89,17 +89,30 @@ prestavljena/izbrisana eksplicitno (kar je pravilno obnašanje za finančne evid
 
 ## 🟡 Priporočila za naslednjo fazo (nisu critical, a po smernicah potrebna)
 
-### A. Soft-delete implementacija (README trdi, shema nima)
+### A. Soft-delete — ŽE implementiran (popravek prejšnjega audit-a)
 
-README.md trdi soft-delete za HACCP, goste, artikle in izmene, vendar `deletedAt`/`isDeleted`
-ne obstaja nikjer v shemi. V kombinaciji z nevarnimi kaskadami (spodaj) to pomeni, da
-brisanje teh entitet **trajno uniči** poslovne evidence.
+**Prejšnji audit je bil nepopoln.** Trdil sem, da soft-delete manjka ker ni `deletedAt`
+polja. Podrobna preverba DELETE handlerjev je pokazala, da je soft-delete **že
+implementiran v aplikacijski kodi** preko obstoječih `status` polj:
 
-**Priporočeni popravki:**
-- Dodaj `deletedAt DateTime?` na: `HaccpEntry`, `Guest`, `MenuItem`, `Shift`, `Employee`,
-  `InventoryItem`, `Supplier`, `Table`.
-- V vseh `find*` klicih dodaj `where: { deletedAt: null }` (ali uporabi Prisma middleware).
-- V `delete*` klicih zamenjaj z `update: { data: { deletedAt: new Date() } }`.
+| Model | Mehansizem soft-delete | Datoteka |
+|---|---|---|
+| `Employee` | `status: 'terminated'`, `pin: ''` | `src/app/api/employees/[id]/route.ts` |
+| `Guest` | anonimizacija PII (firstName/email/phone → prazno) | `src/app/api/guests/[id]/route.ts` |
+| `MenuItem` | `isAvailable: false` | `src/app/api/menu-items/[id]/route.ts` |
+| `Shift` | `status: 'cancelled'` | `src/app/api/shifts/[id]/route.ts` |
+| `HaccpEntry` | `status: 'archived'` (EU 852/2004 zahteva) | `src/app/api/haccp/route.ts` |
+| `InventoryItem` | količina na 0 + onemogočeno | `src/app/api/inventory/[id]/_helpers.ts` |
+
+**Zakaj `deletedAt` ni bil dodan:** dodajanje `deletedAt` bi bilo duplikat obstoječega
+mehanizma. Ekipa je konsistentno izbrala `status`-bazirani soft-delete, kar je prav tako
+veljavno (in bolj ekspresivno — `terminated`, `archived`, `cancelled` so bolj zgovorna
+stanja kot `deletedAt: DateTime?`).
+
+**Posledica:** ker se parent entitete (Employee, Guest, InventoryItem) nikoli ne
+hard-deleteajo v production, kaskade `Cascade → Restrict` (glej popravek B) nikoli ne
+sprožijo v normalnem obratovanju. Edini hard-delete je v `seed/_helpers.ts`, ki je bil
+posodobljen (glej spodaj).
 
 ### B. Ostale nevarne kaskade (6)
 
@@ -167,6 +180,111 @@ git reflog expire --expire=now --all && git gc --prune=now --aggressive
 ```
 
 > ⚠️ Po force-push obvezno obvesti vse sodelujoče, da morajo ponovno klonirati.
+
+---
+
+## 🟢 Implementirana priporočila (commit 3: `feat: schema hardening`)
+
+Po audit-u so bile implementirane naslednje spremembe, naslonjene na ugotovitve
+zgornjih sekcij A–E:
+
+### B. Kaskade Cascade → Restrict (7 relacij)
+
+Vse nevarne kaskade, ki bi tiho pobrisale revizijsko/finančno zgodovino, so spremenjene:
+
+| Otak → Starš | Popravek |
+|---|---|
+| `Shift → Employee` | `Cascade` → `Restrict` |
+| `TimeEntry → Employee` | `Cascade` → `Restrict` |
+| `StaffShift → Employee` | `Cascade` → `Restrict` |
+| `StockTransaction → InventoryItem` | `Cascade` → `Restrict` |
+| `LoyaltyTransaction → LoyaltyAccount` | `Cascade` → `Restrict` |
+| `GiftCardTransaction → GiftCard` | `Cascade` → `Restrict` |
+| `GuestVisit → Guest` | `Cascade` → `Restrict` |
+
+**Zakaj varno:** ker aplikacijska koda nikoli ne hard-deletea teh parentov (soft-delete
+preko `status` polj — glej sekcijo A), `Restrict` nikoli ne blokirajo normalnega
+obratovanja. Edini hard-delete je v `seed/_helpers.ts` in `seed-norms/route.ts`, ki sta
+bila posodobljena, da najprej pobrišeta child tabele.
+
+**Namenoma pustljene `Cascade`** (varne za svoj kontekst):
+- `EmployeeJob → Employee` (join tabela, smiselno pobrisati ob brisanju employee)
+- `RecipeItem → InventoryItem` in `RecipeItem → MenuItem` (receptni deli, smiselno
+  pobrisati ko sestavina/artikel ne obstaja)
+
+### C. `locationId` na 6 modelih (multi-location pokritost)
+
+Dodan `locationId String?` + relacija + `@@index([locationId])` na:
+
+| Model | Razlog |
+|---|---|
+| `HaccpEntry` | **Legalno** — EU 852/2004 zahteva per-lokacija HACCP dnevnike |
+| `Shift` | Izmene so na lokaciji (`StaffShift` ga je imel, legacy `Shift` ne) |
+| `TimeEntry` | Delovne ure za plače so per-lokacija |
+| `PurchaseOrder` | Nabava je za zalogo lokacije |
+| `TaxRate` | DDV se razlikuje po državi (`Location.country`) |
+| `GuestFeedback` | Povratne informacije so per-lokacija za poročila |
+
+Vsi so `nullable` + `onDelete: SetNull` — **backward compatible** (obstoječi zapisi
+imajo `null` = globalno/chain-wide). `Location` model je razširjen z 6 novimi relacijami.
+
+> `MenuItem` izpustjen: meni hierarhija dedne preko `Menu.locationId` — dodajanje
+> neposrednega `locationId` na MenuItem bi zahtevalo globljo predelavo kataloga.
+
+### D. 4 manjkajoče `@unique` omejitve
+
+| Model.Polje | Popravek |
+|---|---|
+| `LoyaltyAccount.customerPhone` | dodan `@unique` (prepreči duplikatne prijave) |
+| `Supplier.code` | dodan `@unique` (duplikatne kode prelomijo poročila) |
+| `Location.premisesId` | dodan `@unique` (FURS premises ID mora biti unikaten) |
+| `Reservation [tableId, dateTime]` | dodan `@@unique` (prepreči dvojno rezervacijo mize) |
+
+> ⚠️ **Pomembno pred `db:push`:** če v bazi že obstajajo duplikati (npr. dva gosta z
+> isto telefonsko številko), bo `db:push` failal. Pred menjavo zaženi cleanup query:
+> ```sql
+> SELECT customerPhone, COUNT(*) FROM LoyaltyAccount GROUP BY customerPhone HAVING COUNT(*) > 1;
+> SELECT code, COUNT(*) FROM Supplier WHERE code != '' GROUP BY code HAVING COUNT(*) > 1;
+> SELECT premisesId, COUNT(*) FROM Location WHERE premisesId != '' GROUP BY premisesId HAVING COUNT(*) > 1;
+> ```
+
+### E. PIN lookup optimizacija (O(n) → O(1))
+
+**Problem:** `verifyPin()` je delal `findMany({ where: { status: 'active', pin: { not: '' } } })`
+in nato iteriral čez VSE aktivne zaposlene s `bcrypt.compare` — O(n) poizvedba +
+N bcrypt operacij. Pri 50+ zaposlenih je to občutno. Enak problem v `employees/route.ts`
+POST duplicate-check.
+
+**Rešitev:** dodano `pinLookup String? @unique` polje na `Employee`:
+- `pinLookup = HMAC-SHA256(NEXTAUTH_SECRET, plaintext_pin)`
+- HMAC (ne plain SHA-256) prepreči rainbow table napade na kratke 4-mestne PIN-e
+- `NEXTAUTH_SECRET` je strežniška skrivnost — napadalec z dostopom do baze ne more
+  obrniti `pinLookup` brez secret-a
+- `pin` ostane bcrypt-hashiran (defense in depth)
+- `findUnique({ where: { pinLookup } })` — **O(1)**
+
+**Spremenjene datoteke:**
+- `src/lib/pin-lookup.ts` (nova) — `hashPinLookup()`, `pinLookupEnabled()` helperji
+- `src/app/api/auth/_helpers.ts` — `verifyPin()` sedaj najprej poskusi O(1) `findUnique`
+  preko `pinLookup`, z backward-compatible fallback na O(n) `findMany` (če
+  `NEXTAUTH_SECRET` manjka ali zaposleni še nima `pinLookup` iz časov pred menjavo)
+- `src/app/api/employees/route.ts` — POST duplicate-check sedaj O(1) preko `pinLookup`,
+  z fallback; `create()` zapiše `pinLookup` ob kreiranju zaposlenega
+- `src/app/api/employees/[id]/route.ts` — DELETE (termination) počisti `pinLookup`
+- Ob prvi prijavi starega zaposlenega (plaintext PIN brez `pinLookup`) se migracija
+  izvede avtomatsko: zapiše se bcrypt hash + `pinLookup`
+
+**Backward compatible:** če `NEXTAUTH_SECRET` ni nastavljen, `pinLookupEnabled()` vrne
+`false` in celoten sistem fallback-a na originalni O(n) pristop — nobena funkcionalnost
+ne prelomi.
+
+### F. Seed helper posodobitev (Restrict-safe deletion order)
+
+`src/app/api/seed/_helpers.ts` in `src/app/api/seed-norms/route.ts` sta posodobljena,
+da najprej pobrišeta child tabele (`guestVisit`, `timeEntry`, `staffShift`,
+`stockTransaction`, `loyaltyTransaction`, `giftCardTransaction`, `recipeItem`) pred
+parenti (`employee`, `inventoryItem`, `loyaltyAccount`, `giftCard`, `guest`) — ker
+kaskade niso več `Cascade`.
 
 ---
 
