@@ -535,7 +535,7 @@ model Check {
 model Payment {
   id                    String                @id @default(cuid())
   checkId               String
-  check                 Check                 @relation(fields: [checkId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  check                 Check                 @relation(fields: [checkId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani finančno revizijsko sled
   // --- Znesek ---
   amount                Decimal                // Plačani znesek  // FIX: Decimal za valuto
   tipAmount             Decimal   @default(0) // Napitnina  // FIX: Decimal za valuto
@@ -647,7 +647,7 @@ model Employee {
   status    String   @default("active")
   hireDate  DateTime @default(now())
   // --- Toast: PIN za prijavo v POS ---
-  pin       String   @default("") // 4-mestni PIN za hitro prijavo
+  pin       String   @unique @default("") // FIX SECURITY: 4-mestni PIN za hitro prijavo — @unique prepreči duplikate (impersonacijo)
   // --- Relations ---
   shifts       Shift[]
   staffShifts  StaffShift[]
@@ -1276,7 +1276,8 @@ model AuditLog {
   details    String   @default("{}") // JSON kontekst (kaj se je spremenilo)
   ipAddress  String   @default("")
   terminalId String?  // ID POS terminala
-  chainHash  String   @default("") // SHA-256 hash za zaščito pred poseganjem
+  previousHash String   @default("") // FIX COMPLIANCE: hash prejšnjega vnosa (SHA-256 veriga)
+  chainHash    String   @default("") // hash tega vnosa (SHA-256(previousHash + payload)) — zaščita pred poseganjem
 
   @@index([entityType, entityId])
   @@index([timestamp])

@@ -5,6 +5,11 @@ import { handleListPayments, handleCreatePayment } from './_helpers'
 
 export async function GET(req: Request) {
   try {
+    // FIX SECURITY: GET je prej klical handleListPayments BREZ requireAuth() —
+    // vsak nepooblaščen uporabnik je lahko izčrpal celotno tabelo plačil.
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
+
     return await handleListPayments(req)
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/payments', 'Napaka pri pridobivanju plačil')
