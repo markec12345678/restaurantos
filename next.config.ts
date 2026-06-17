@@ -31,6 +31,9 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // FIX: pdfkit needs runtime access to font data files (.afm) in node_modules
+  // Turbopack can't bundle these — mark as external package
+  serverExternalPackages: ['pdfkit'],
   // FIX BUG 25: Onemogoči ignoreBuildErrors — skriva prave TS napake
   typescript: {
     ignoreBuildErrors: false,

@@ -82,6 +82,18 @@ export const OrderCard = memo(function OrderCard({
                   {item.modifiers.map(m => m.name).join(', ')}
                 </div>
               )}
+              {/* FIX FASE 1: Alergen alert — kuhinjska varnost (EU 852/2004) */}
+              {(() => {
+                const allergens = item.allergens || (item as { menuItem?: { allergens?: string } }).menuItem?.allergens
+                if (!allergens) return null
+                const list = allergens.split(',').map(a => a.trim()).filter(Boolean)
+                if (list.length === 0) return null
+                return (
+                  <div className="ml-7 text-xs text-red-700 dark:text-red-400 font-bold flex items-center gap-1 bg-red-100 dark:bg-red-950/40 px-1.5 py-0.5 rounded-md w-fit">
+                    <AlertTriangle className="w-3 h-3" /> ALERGENI: {list.join(', ')}
+                  </div>
+                )
+              })()}
               {item.notes && (
                 <div className="ml-7 text-xs text-orange-600 font-semibold flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" /> {item.notes}

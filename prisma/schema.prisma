@@ -542,6 +542,7 @@ model Payment {
   check                 Check                 @relation(fields: [checkId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani finančno revizijsko sled
   // --- Znesek ---
   amount                Decimal                // Plačani znesek  // FIX: Decimal za valuto
+  refundAmount          Decimal   @default(0) // FIX: Delni povračila — znesek, ki je bil povrnjen
   tipAmount             Decimal   @default(0) // Napitnina  // FIX: Decimal za valuto
   // --- Vrsta plačila ---
   type                  String                // cash, card, mobile, voucher, loyalty, giftcard, alternate
@@ -2126,4 +2127,56 @@ model Session {
   @@index([expiresAt])
   // FIX SCHEMA-10: Composite index za Session — aktivne seje zaposlenega
   @@index([employeeId, expiresAt])  // Iskanje aktivnih sej za zaposlenega
+}
+
+// ============================================
+// KNJIGOVODSTVO — Double-entry (Faza 1)
+// JournalEntry + JournalLine za trial balance, P&L, balance sheet
+// ============================================
+
+model JournalEntry {
+  id           String         @id @default(cuid())
+  entryNumber  String         @unique           // JE-YYYY-NNNNNN
+  date         DateTime       @default(now())
+  reference    String         @default("")      // ID povezanega dokumenta (Order/Payment/Expense)
+  referenceType String        @default("")      // order, payment, expense, refund, adjustment
+  description  String         @default("")
+  source       String         @default("manual") // manual, auto-order, auto-payment, auto-expense
+  status       String         @default("posted") // draft, posted, reversed
+  postedAt     DateTime?
+  postedBy     String?         // Employee ID
+  // --- Relacije ---
+  lines        JournalLine[]
+  // --- Meta ---
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([date])
+  @@index([reference])
+  @@index([referenceType])
+  @@index([status])
+  @@index([source])
+  @@index([date, status])
+}
+
+model JournalLine {
+  id             String        @id @default(cuid())
+  journalEntryId String
+  journalEntry   JournalEntry  @relation(fields: [journalEntryId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ne briši knjigovodske postavke
+  // --- Konto ---
+  accountCode    String                     // Kontni načrt (npr. 7000=Promet, 2600=DDV, 1000=Banka, 1010=Blagajna)
+  accountName    String                     // Ime konta
+  accountType    String                     // asset, liability, equity, revenue, expense
+  // --- Zneski (double-entry: vsaj 2 vrstici, debiti == krediti) ---
+  debit          Decimal       @default(0)  // FIX: Decimal za valuto
+  credit         Decimal       @default(0)  // FIX: Decimal za valuto
+  // --- Opis ---
+  description    String        @default("")
+  // --- Meta ---
+  createdAt      DateTime      @default(now())
+
+  @@index([journalEntryId])
+  @@index([accountCode])
+  @@index([accountType])
+  @@index([accountCode, accountType])
 }

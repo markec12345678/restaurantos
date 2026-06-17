@@ -11,6 +11,7 @@ export interface OrderItemKDS {
   category: string | null
   station: string | null
   modifiers: { name: string }[]
+  allergens?: string | null  // FIX FASE 1: EU alergeni (1-14) za kuhinjsko varnost
   firedAt: string | null
   prepTimeMinutes: number | null
 }

@@ -1,27 +1,27 @@
-
 // ============================================
-// GET /api/reports/export — Izvoz poročil v CSV
-// Parametri: type=orders|items|vat|employees|shifts|inventory, startDate, endDate
-// Vrne CSV datoteko z ustreznimi podatki
+// GET /api/reports/export — Izvoz poročil v CSV / PDF / Excel / eDavki XML
+// Parametri: type=orders|items|vat|employees|shifts|inventory, format=csv|pdf|excel|xml, startDate, endDate
+// Vrne datoteko v ustreznem formatu z UTF-8 podporo
 // ============================================
 
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateReportDateRange } from '@/lib/validations'
 import { handleApiError } from '@/lib/api-utils'
+import { db } from '@/lib/db'
 import {
   generateOrdersCsv, generateItemsCsv, generateVatCsv,
   generateEmployeesCsv, generateShiftsCsv, generateInventoryCsv,
-  getFilename, ALLOWED_TYPES,
+  fetchReportData, generateReportPdf, generateReportExcel, generateEdavkiXml,
+  getFilename, ALLOWED_TYPES, ALLOWED_FORMATS,
 } from './_helpers'
-import type { ReportType } from './_helpers'
+import type { ReportType, ExportFormat } from './_helpers'
 
 export async function GET(req: Request) {
   try {
-    // FIX CRITICAL: Zahtevaj avtentikacijo za izvoz poslovnih podatkov
-    // FIX HIGH: Inventory export zahteva admin — vsebuje občutljive nabavne podatke
     const { searchParams } = new URL(req.url)
     const type = searchParams.get('type') || 'orders'
+    const format = (searchParams.get('format') || 'csv') as ExportFormat
 
     const permission = type === 'inventory' ? 'admin' : 'view_reports'
     const authResult = await requireAuth(req, { permission })
@@ -30,13 +30,14 @@ export async function GET(req: Request) {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
-    // FIX HIGH: Validiraj datumski obseg — prepreči izvoz celotne zgodovine
     const dateError = validateReportDateRange(startDate, endDate)
     if (dateError) return dateError
 
-    // FIX HIGH: Validiraj type parameter
     if (!ALLOWED_TYPES.includes(type as ReportType)) {
       return NextResponse.json({ error: 'Neznana vrsta izvoza' }, { status: 400 })
+    }
+    if (!ALLOWED_FORMATS.includes(format)) {
+      return NextResponse.json({ error: `Neznan format. Dovoljeni: ${ALLOWED_FORMATS.join(', ')}` }, { status: 400 })
     }
 
     const dateFilter: Record<string, Date> = {}
@@ -44,55 +45,78 @@ export async function GET(req: Request) {
     if (endDate) dateFilter.lte = new Date(endDate)
 
     const reportType = type as ReportType
-    let csv = ''
-    let filename = ''
+    const filename = getFilename(reportType, startDate, endDate, format)
 
-    switch (reportType) {
-      case 'orders': {
-        const result = await generateOrdersCsv(dateFilter)
-        csv = result.csv
-        break
+    // ═══ CSV (originalna logika) ═══
+    if (format === 'csv') {
+      let csv = ''
+      switch (reportType) {
+        case 'orders': { csv = (await generateOrdersCsv(dateFilter)).csv; break }
+        case 'items': { csv = (await generateItemsCsv(dateFilter)).csv; break }
+        case 'vat': { csv = (await generateVatCsv(dateFilter)).csv; break }
+        case 'employees': { csv = (await generateEmployeesCsv(dateFilter)).csv; break }
+        case 'shifts': { csv = (await generateShiftsCsv(dateFilter)).csv; break }
+        case 'inventory': { csv = (await generateInventoryCsv()).csv; break }
       }
-      case 'items': {
-        const result = await generateItemsCsv(dateFilter)
-        csv = result.csv
-        break
-      }
-      case 'vat': {
-        const result = await generateVatCsv(dateFilter)
-        csv = result.csv
-        break
-      }
-      case 'employees': {
-        const result = await generateEmployeesCsv(dateFilter)
-        csv = result.csv
-        break
-      }
-      case 'shifts': {
-        const result = await generateShiftsCsv(dateFilter)
-        csv = result.csv
-        break
-      }
-      case 'inventory': {
-        const result = await generateInventoryCsv()
-        csv = result.csv
-        break
+      const bom = '\uFEFF'
+      return new NextResponse(bom + csv, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+        },
+      })
+    }
+
+    // ═══ PDF / Excel / XML — uporabljajo skupni ReportData fetcher ═══
+    // Za te formate uporabimo orders tip (popoln promet z DDV razčlenitvijo)
+    const data = await fetchReportData(dateFilter)
+
+    // Pridobi davčno številko in ime iz RestaurantSettings (za XML)
+    let taxNumber = ''
+    let taxpayerName = 'RestaurantOS'
+    if (format === 'xml') {
+      const settings = await db.restaurantSettings.findFirst()
+      if (settings) {
+        taxNumber = settings.taxId || settings.registerNumber || ''
+        taxpayerName = settings.name || 'RestaurantOS'
       }
     }
 
-    filename = getFilename(reportType, startDate, endDate)
+    if (format === 'pdf') {
+      const buffer = await generateReportPdf(data)
+      return new NextResponse(new Uint8Array(buffer), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+        },
+      })
+    }
 
-    // UTF-8 BOM za pravilen prikaz v Excelu
-    const bom = '\uFEFF'
-    const csvContent = bom + csv
+    if (format === 'excel') {
+      const buffer = await generateReportExcel(data)
+      return new NextResponse(new Uint8Array(buffer), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+        },
+      })
+    }
 
-    return new NextResponse(csvContent, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
-      },
-    })
+    if (format === 'xml') {
+      const xml = generateEdavkiXml(data, { taxNumber, taxpayerName })
+      return new NextResponse(xml, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/xml; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+        },
+      })
+    }
+
+    return NextResponse.json({ error: 'Nepodprt format' }, { status: 400 })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/reports/export', 'Napaka pri izvozu')
   }
