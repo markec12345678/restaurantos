@@ -36,19 +36,14 @@ interface LogEntry {
   data?: unknown
 }
 
-// FIX: AsyncLocalStorage za request ID tracking — brez ročnega posredovanja
-// Edge Runtime (middleware) ne podpira async_hooks, zato uporabimo pogojen uvoz
-let requestIdStorage: { run: (_id: string, _fn: () => void) => void; getStore: () => string | undefined } | null = null
+// FIX VERCEL: Popolnoma odstranjen async_hooks — Vercel webpack ne more resolvarat
+// Uporabljamo simple fallback (requestId shranjen v globalno spremenljivko)
+// To je dovolj za logiranje — AsyncLocalStorage je bil uporabljen samo za request ID tracking
+let currentRequestId: string | null = null
 
-try {
-  // FIX VERCEL: Uporabljaj eval('require') za bypass webpack staticke analize
-  // Webpack/Turbopack ne zna resolvarat 'async_hooks' med buildom na Vercelu
-  const dynamicRequire = eval('require')
-  const { AsyncLocalStorage } = dynamicRequire('async_hooks')
-  requestIdStorage = new AsyncLocalStorage()
-} catch {
-  // async_hooks ni na voljo (Edge Runtime) — request ID tracking ne bo deloval
-  requestIdStorage = null
+const requestIdStorage: { run: (_id: string, _fn: () => void) => void; getStore: () => string | undefined } | null = {
+  run: (id: string, fn: () => void) => { currentRequestId = id; fn(); currentRequestId = null },
+  getStore: () => currentRequestId ?? undefined,
 }
 
 /** Generiraj enoličen ID zahtevka (8 znakov, dovolj za tracing) */
