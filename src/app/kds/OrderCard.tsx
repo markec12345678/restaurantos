@@ -36,13 +36,19 @@ export const OrderCard = memo(function OrderCard({
   }
   return (
     <div className={cn(
-      'rounded-xl border-2 overflow-hidden transition-all shadow-md flex flex-col',
+      'relative rounded-xl border-2 overflow-hidden transition-all shadow-md flex flex-col',
       allReady ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20' :
       isDanger ? 'border-red-500 bg-red-50/50 dark:bg-red-950/20 animate-pulse' :
       isWarning ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/20' :
       'border-border bg-card',
       order.priority && 'ring-2 ring-orange-500 ring-offset-2'
     )}>
+      {/* F7-4: QR badge za spletna naročila */}
+      {(order.customerName?.includes('QR') || order.notes?.includes('QR')) && (
+        <div className="absolute top-0 right-0 bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-bl-lg z-10">
+          QR
+        </div>
+      )}
       {/* Glava */}
       <div className={cn(
         'flex items-center justify-between px-3 py-2 text-white font-bold text-sm',

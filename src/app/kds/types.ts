@@ -8,6 +8,7 @@ export interface OrderItemKDS {
   quantity: number
   status: string
   notes: string | null
+  customerName?: string  // F7-4: za QR badge identifikacijo
   category: string | null
   station: string | null
   modifiers: { name: string }[]
@@ -27,6 +28,7 @@ export interface OrderKDS {
   firedAt: string | null
   createdAt: string
   notes: string | null
+  customerName?: string  // F7-4: za QR badge identifikacijo
   course: number | null
   priority: boolean
 }
