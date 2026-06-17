@@ -33,11 +33,56 @@ export function useKDSOrders(
       const [pendingData, inProgressData, readyData] = await Promise.all([
         pendingRes.json(), inProgressRes.json(), readyRes.json(),
       ])
-      const allOrders = [
+      const rawOrders = [
         ...(pendingData.orders || pendingData || []),
         ...(inProgressData.orders || inProgressData || []),
         ...(readyData.orders || readyData || []),
-      ] as OrderKDS[]
+      ]
+
+      // FIX FASE 2: Transform orders API response → OrderKDS format
+      // - orderItems → items (z allergens + station iz menuItem.prepStation)
+      // - DB-driven station routing (prej hardcoded "kuhinja"/"sank")
+      const allOrders: OrderKDS[] = rawOrders.map((o: Record<string, unknown>) => {
+        const rawItems = (o.orderItems || o.items || []) as Array<Record<string, unknown>>
+        const items = rawItems.map((oi: Record<string, unknown>): Record<string, unknown> => {
+          const menuItem = oi.menuItem as Record<string, unknown> | undefined
+          const prepStation = menuItem?.prepStation as Record<string, unknown> | undefined
+          // station = prepStation.type (kitchen, bar, pastry, grill) — DB-driven
+          const station = prepStation?.type as string | null || prepStation?.name as string | null || null
+          return {
+            id: oi.id,
+            name: oi.menuItemName || menuItem?.name || '',
+            quantity: oi.quantity,
+            status: oi.status,
+            notes: oi.notes,
+            // FIX FASE 1: allergens iz menuItem za kuhinjsko varnost
+            allergens: menuItem?.allergens || null,
+            // category + station iz menuItem (DB-driven routing)
+            category: menuItem?.category as Record<string, unknown> | null,
+            station,
+            modifiers: (() => {
+              try { return JSON.parse(String(oi.modifiersJson || '[]')) } catch { return [] }
+            })(),
+            firedAt: oi.firedAt || null,
+            prepTimeMinutes: menuItem?.prepTimeMinutes || prepStation?.avgPrepTime || null,
+          }
+        })
+        return {
+          id: o.id,
+          orderNumber: o.orderNumber,
+          type: o.type,
+          status: o.status,
+          table: o.table as { number: number; area: string } | null,
+          employee: o.employee as { name: string } | null,
+          items,
+          firedAt: o.firedAt || null,
+          createdAt: o.createdAt,
+          notes: o.notes as string | null,
+          course: o.course as number | null,
+          priority: o.priority as boolean,
+        } as unknown as OrderKDS
+      })
+
       const seen = new Set<string>()
       return allOrders.filter(o => { if (seen.has(o.id)) return false; seen.add(o.id); return true })
     },

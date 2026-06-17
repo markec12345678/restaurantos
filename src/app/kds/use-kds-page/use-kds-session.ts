@@ -33,9 +33,13 @@ export function useKDSWebSocket(
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data)
-            if (data.type === 'new_order' || data.type === 'order_update' || data.type === 'order_ready') {
+            // FIX FASE 2: API pošilja uppercase (NEW_ORDER), klient je prej poslušal lowercase.
+            // Normaliziraj na lowercase za konsistentnost.
+            const msgType = (data.type || '').toLowerCase()
+            if (msgType === 'new_order' || msgType === 'order_updated' || msgType === 'order_update' || msgType === 'item_status_changed' || msgType === 'item_status_update' || msgType === 'order_ready' || msgType === 'order_cancelled') {
+              // Takoj invalidiraj KDS query — real-time refresh (ne čaka 5s polling)
               queryClient.invalidateQueries({ queryKey: queryKeys.orders.kds })
-              if (data.type === 'new_order') {
+              if (msgType === 'new_order') {
                 playSound()
                 if (navigator.vibrate) navigator.vibrate([200, 100, 200])
               }

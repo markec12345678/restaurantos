@@ -7,7 +7,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
-import { syncEracuni, syncAccounting, syncGeneric } from './_helpers'
+import { syncEracuni, syncAccounting, syncGeneric, syncQuickBooks, syncXero } from './_helpers'
 
 export async function POST(
   req: Request,
@@ -43,11 +43,26 @@ export async function POST(
         syncStatus = result.success ? 'success' : 'error'
         syncError = result.error
       } else if (integration.type === 'accounting') {
-        const result = await syncAccounting(integration)
-        statusCode = result.statusCode
-        responseData = result.responseData
-        syncStatus = result.success ? 'success' : 'error'
-        syncError = result.error
+        // FIX FASE 2: QuickBooks + Xero imajo lastne sync helperje
+        if (integration.provider === 'quickbooks') {
+          const result = await syncQuickBooks(integration)
+          statusCode = result.statusCode
+          responseData = result.responseData
+          syncStatus = result.success ? 'success' : 'error'
+          syncError = result.error
+        } else if (integration.provider === 'xero') {
+          const result = await syncXero(integration)
+          statusCode = result.statusCode
+          responseData = result.responseData
+          syncStatus = result.success ? 'success' : 'error'
+          syncError = result.error
+        } else {
+          const result = await syncAccounting(integration)
+          statusCode = result.statusCode
+          responseData = result.responseData
+          syncStatus = result.success ? 'success' : 'error'
+          syncError = result.error
+        }
       } else {
         const result = await syncGeneric(integration)
         statusCode = result.statusCode
