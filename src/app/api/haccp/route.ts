@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createHaccpSchema, haccpUpdateSchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+import crypto from 'crypto'
 export async function GET(req: Request) {
   try {
     // FIX BUG 12: Zahtevaj avtentikacijo za HACCP
@@ -62,9 +63,19 @@ export async function POST(req: Request) {
     const { data, error: validationError } = await validateRequest(req, createHaccpSchema)
     if (validationError) return validationError
 
+    // FIX F5-8: Kriptografska zaščita — hash chain za HACCP evidence (EU 852/2004)
+    const lastEntry = await db.haccpEntry.findFirst({
+      orderBy: { createdAt: 'desc' },
+      select: { chainHash: true },
+    })
+    const previousHash = lastEntry?.chainHash || ''
+    const entryDate = data.date ? new Date(data.date) : new Date()
+    const hashPayload = [previousHash, data.title, data.value, data.status, entryDate.toISOString()].join('|')
+    const chainHash = crypto.createHash('sha256').update(hashPayload).digest('hex')
+
     const entry = await db.haccpEntry.create({
       data: {
-        date: data.date ? new Date(data.date) : new Date(),
+        date: entryDate,
         category: data.category,
         title: data.title,
         description: data.description,
@@ -72,6 +83,8 @@ export async function POST(req: Request) {
         status: data.status,
         correctiveAction: data.correctiveAction,
         employeeName: data.employeeName || authResult.session?.employeeId || '',
+        previousHash,
+        chainHash,
       },
     })
 

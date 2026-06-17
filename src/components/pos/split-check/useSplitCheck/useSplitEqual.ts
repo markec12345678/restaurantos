@@ -3,6 +3,33 @@
 import { useState, useMemo, useCallback } from 'react'
 import type { SplitParty } from '../constants'
 
+// FIX F5-10: DDV-aware rounding za value-based split
+// Slovensko pravilo: pri delitvi zneska na N delov, zadnji del dobi ostanek
+// (da vsota N delov = izvorni znesek, glede na zaokrožitvene cente)
+export function distributeWithDdvRounding(
+  totalAmount: number,
+  parts: number
+): number[] {
+  if (parts <= 0) return []
+  if (parts === 1) return [totalAmount]
+  
+  // Izračunaj osnovo in DDV za vsak del
+  const baseAmount = totalAmount / parts
+  const roundedBase = Math.floor(baseAmount * 100) / 100 // zaokroži navzdol na cent
+  
+  const distributions: number[] = []
+  let distributed = 0
+  for (let i = 0; i < parts - 1; i++) {
+    distributions.push(roundedBase)
+    distributed += roundedBase
+  }
+  // Zadnji del dobi ostanek (garantira vsota = totalAmount)
+  distributions.push(Math.round((totalAmount - distributed) * 100) / 100)
+  
+  return distributions
+}
+
+
 export function useSplitEqual(
   orderTotal: number,
   autoGratuityAmount: number,

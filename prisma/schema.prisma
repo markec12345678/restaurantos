@@ -154,6 +154,7 @@ model TaxRate {
 
   // FIX SCHEMA-02 HIGH: FURS koda mora biti unikatna — prepreči dvojne "S" kode
   @@unique([code])
+  diningOptions  DiningOption[] // FIX F5-7: Relation from DiningOption
   @@index([isActive])
   @@index([locationId]) // FIX: per-lokacija davčne stopnje
 }
@@ -165,6 +166,9 @@ model DiningOption {
   serviceChargeId   String?  // Povezana servisna postavka
   serviceCharge     ServiceCharge? @relation(fields: [serviceChargeId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   prepTimeMinutes   Int      @default(15) // Čas priprave v minutah
+  // FIX F5-7: DDV override glede na lokacijo konzumacije (dine-in 9.5% vs takeaway 22%)
+  taxRateId         String?  // Če nastavljeno, override MenuItem.vatRate
+  taxRate           TaxRate?  @relation(fields: [taxRateId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   isActive          Boolean  @default(true)
   sortOrder         Int      @default(0)
   orders            Order[]
@@ -890,6 +894,10 @@ model RecipeItem {
   quantityPerServing Decimal    @default(0)  // FIX: Decimal za natančnost
   unit            String        @default("")
   notes           String        @default("")
+  // FIX F5-4: Multi-level recipes — sub-recepti (npr. "pica testo" uporabljen v "margherita")
+  parentRecipeItemId String?    // Če nastavljeno, je ta RecipeItem del nadrejenega recepta
+  parentRecipeItem   RecipeItem? @relation("RecipeHierarchy", fields: [parentRecipeItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  subRecipes         RecipeItem[] @relation("RecipeHierarchy")
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -1249,6 +1257,9 @@ model HaccpEntry {
   status          String   @default("ok")        // ok, warning, critical
   correctiveAction String  @default("")
   employeeName    String   @default("")
+  // FIX F5-8: Kriptografska zaščita (hash chain) — EU 852/2004
+  previousHash    String   @default("")  // Hash prejšnjega vnosa
+  chainHash       String   @default("")  // SHA-256(previousHash + title + value + status + date)
   // --- Multi-location (FIX: HACCP mora biti per-lokacija za inšpekcije — EU 852/2004) ---
   locationId      String?
   location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -1482,6 +1493,9 @@ model GuestVisit {
   // --- Kdo je strežil ---
   employeeId      String?
   employeeName    String   @default("")
+  // FIX F5-8: Kriptografska zaščita (hash chain) — EU 852/2004
+  previousHash    String   @default("")  // Hash prejšnjega vnosa
+  chainHash       String   @default("")  // SHA-256(previousHash + title + value + status + date)
   // --- Čas ---
   arrivedAt       DateTime @default(now())
   departedAt      DateTime?
@@ -2057,6 +2071,9 @@ model TipDistribution {
   // --- Zaposleni ---
   employeeId      String
   employeeName    String   @default("")
+  // FIX F5-8: Kriptografska zaščita (hash chain) — EU 852/2004
+  previousHash    String   @default("")  // Hash prejšnjega vnosa
+  chainHash       String   @default("")  // SHA-256(previousHash + title + value + status + date)
   // --- Ure ---
   hoursWorked     Decimal   @default(0)  // Ure v izmeni  // FIX: Decimal za ure
   // --- Točke (za points metodo) ---
