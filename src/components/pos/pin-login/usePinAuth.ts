@@ -40,6 +40,7 @@ export function setCurrentUser(user: AuthUser | null) {
 
 export function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null
+  // FIX: Preveri tudi localStorage 'pos_token' (uporablja se v POS prijavi)
   try {
     const stored = sessionStorage.getItem('pos_auth_token')
     if (stored) {
@@ -48,6 +49,16 @@ export function getAuthToken(): string | null {
     }
   } catch {
     // sessionStorage ni na voljo
+  }
+  // FIX: Preveri localStorage 'pos_token' (glavni POS login shrani tu)
+  try {
+    const localStorageToken = localStorage.getItem('pos_token')
+    if (localStorageToken) {
+      authToken = localStorageToken
+      return authToken
+    }
+  } catch {
+    // localStorage ni na voljo
   }
   return authToken
 }
