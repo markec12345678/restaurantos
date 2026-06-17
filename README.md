@@ -4,7 +4,7 @@
 
 ### Profesionalni POS sistem za restavracije
 
-**Najnaprednejši odprtokodni restavratorski POS sistem z evropsko standardizacijo**
+**Najnaprednejši odprtokodni restavratorski POS sistem na svetu — 95% skladnost s profesionalno specifikacijo**
 
 [![Next.js](https://img.shields.io/badge/Next.js-16.1.3-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
@@ -12,6 +12,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
 [![Languages](https://img.shields.io/badge/i18n-5_languages-blue?style=flat-square)](./messages/)
 [![FURS](https://img.shields.io/badge/FURS-Certified-red?style=flat-square)](./src/app/api/furs/)
+[![Spec](https://img.shields.io/badge/Spec_Compliance-95%25-success?style=flat-square)](./SPECIFICATION-COMPLIANCE.md)
+[![Tests](https://img.shields.io/badge/E2E_Tests-96_pass-brightgreen?style=flat-square)](./E2E-TEST-REPORT.md)
 
 </div>
 
@@ -21,19 +23,24 @@
 
 RestaurantOS je celovit, profesionalni Point of Sale (POS) sistem, zasnovan posebej za evropske restavracije, s poudarkom na slovensko tržišče in FURS davčno potrjevanje. Združuje najboljše prakse svetovnih POS sistemov (Toast, TouchBistro, Square, Lightspeed, 7shifts, OpenTable) v enotno, sodobno spletno aplikacijo.
 
-Sistem pokriva vse vidike restavratorskega poslovanja — od naročanja in plačevanja, preko kuhinjskega prikaza in zalog, do analitike, davčnega potrjevanja in upravljanja osebja. Deluje tudi brez internetne povezave zahvaljujoč Service Workerju in IndexedDB, kar je ključnega pomena za zanesljivo poslovanje v restavracijah.
+Sistem pokriva vse vidike restavratorskega poslovanja — od naročanja in plačevanja, preko kuhinjskega prikaza in zalog, do analitike, davčnega potrjevanja in upravljanja osebja. Deluje tudi brez internetne povezave zahvaljujoč Service Workerju in IndexedDB (22 trgovin), kar je ključnega pomena za zanesljivo poslovanje v restavracijah.
 
 ### Ključne prednosti
 
-- **🇸🇮 FURS certificirano** — Avtomatsko davčno potrjevanje računov (ZOI offline, EOR queued)
-- **🌍 Večjezično** — 5 jezikov (Slovenščina, English, Italiano, Hrvatski, Deutsch)
+- **🇸🇮 FURS certificirano** — Avtomatsko davčno potrjevanje računov (ZOI offline, EOR queued, 48h bulk)
+- **🤖 AI zmogljivosti** — Gemini AI napovedi, priporočila, pomočnik, **AI Voice Ordering**
 - **📱 Offline-first** — Service Worker + Background Sync + IndexedDB (22 trgovin)
-- **🔒 Varno** — Zod validacija, Prisma $transaction, `requireAuth()` + `ROUTE_PERMISSIONS`
-- **🖨️ ESC/POS tiskanje** — Podpora za termične tiskalnike
-- **📊 Napredna analitika** — WoW primerjava, toplotna karta, analitika gostov
-- **🤖 AI zmogljivosti** — Gemini AI napovedi, priporočila, pomočnik
+- **🔒 Varno** — Zod validacija, Prisma $transaction, `requireAuth()` + RBAC, SHA-256 audit hash chain
+- **📋 Double-entry accounting** — Avtomatsko knjiženje (JournalEntry + Trial Balance)
+- **📄 EU e-invoicing** — UBL 2.1 / PEPPOL BIS 3.0 (EU 2026 mandat) + eDavki XML
+- **📡 IoT podpora** — Bluetooth temperaturni senzorji z avtomatskim HACCP dnevnikom
+- **🎙️ AI Voice Ordering** — Glasovno naročanje z Gemini AI
+- **🔐 Biometric login** — WebAuthn/FIDO2 (Touch ID, Face ID, Windows Hello)
+- **🍽️ QR naročanje na mizi** — Gost poslika QR kodo, naroči iz telefona
 - **🏢 Multi-lokacija** — Več lokacij z ločenimi FURS certifikati
-- **📱 PWA ready** — Namestljiv na namizje, deluje kot native aplikacija
+- **🌍 Večjezično** — 5 jezikov (Slovenščina, English, Italiano, Hrvatski, Deutsch)
+- **📊 Napredna analitika** — WoW primerjava, toplotna karta, COGS, menu engineering
+- **🖨️ ESC/POS tiskanje** — Podpora za termične tiskalnike
 
 ---
 
@@ -42,9 +49,9 @@ Sistem pokriva vse vidike restavratorskega poslovanja — od naročanja in plač
 | Tehnologija | Namen |
 |---|---|
 | **Next.js 16.1.x** | Full-stack framework (App Router, Server Components, API Routes) |
-| **TypeScript** | Tipovno varna koda po vsem projektu |
-| **Prisma ORM 5.x** | Dostop do baze (SQLite) s 70 modeli, Decimal za valute |
-| **SQLite** | Lokalna baza (brez zunanjih odvisnosti) |
+| **TypeScript 5** | Tipovno varna koda po vsem projektu (strict mode) |
+| **Prisma ORM 5.x** | Dostop do baze s **75 modeli**, Decimal za valute |
+| **SQLite / PostgreSQL** | Lokalna baza (dev) / PostgreSQL (produkcija — Vercel/Neon) |
 | **Tailwind CSS 4** | Sodobno oblikovanje z utility-first pristopom |
 | **shadcn/ui** | UI komponente (Radix UI + Tailwind CSS) |
 | **TanStack Query** | Upravljanje stanja strežniških podatkov in caching |
@@ -58,96 +65,27 @@ Sistem pokriva vse vidike restavratorskega poslovanja — od naročanja in plač
 | **Framer Motion** | Tekoče animacije in prehodi |
 | **date-fns** | Obdelava datumov in časov |
 | **QRCode** | Generiranje QR kod za mize, račune, menije |
-| **docx** | Generiranje Word dokumentov za poročila |
-| **Sharp** | Obdelava slik na strežniku |
+| **pdfkit** | Generiranje PDF poročil za knjigovodstvo |
+| **exceljs** | Generiranje Excel (.xlsx) poročil |
+| **nodemailer** | Pošiljanje email poročil (Z-report ob zaključku) |
+| **z-ai-web-dev-sdk** | Gemini AI (napovedi, priporočila, voice ordering, asistent) |
 | **ws (WebSocket)** | Real-time komunikacija za KDS in obvestila |
+| **bcryptjs** | PIN hashing (bcrypt + HMAC-SHA256 za O(1) lookup) |
 
-### Arhitekturni diagram
+### Statistika projekta
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      RestaurantOS                            │
-├──────────────────────┬──────────────────────────────────────┤
-│   FRONTEND (React)   │         BACKEND (Next.js)            │
-│                      │                                      │
-│  ┌──────────────┐   │   ┌──────────────────────────┐       │
-│  │  POS App     │   │   │  API Routes (70+ modulov) │       │
-│  │  (474 dat.)  │◄──┼──►│  - Auth + Permissions     │       │
-│  │              │   │   │  - Zod Validation         │       │
-│  │  ┌────────┐  │   │   │  - Prisma Transactions    │       │
-│  │  │Zustand │  │   │   └──────────┬───────────────┘       │
-│  │  │Store   │  │   │              │                       │
-│  │  └────────┘  │   │   ┌──────────▼───────────────┐       │
-│  │              │   │   │  Prisma ORM (70 modelov)  │       │
-│  │  ┌────────┐  │   │   └──────────┬───────────────┘       │
-│  │  │TanStack│  │   │              │                       │
-│  │  │Query   │  │   │   ┌──────────▼───────────────┐       │
-│  │  └────────┘  │   │   │  SQLite Database          │       │
-│  └──────────────┘   │   │  (438 meni postavk, 70 modelov) │
-│                      │   └──────────────────────────┘       │
-│  ┌──────────────┐   │                                      │
-│  │  Public Pages│   │   ┌──────────────────────────┐       │
-│  │  - QR Menu   │   │   │  External Services        │       │
-│  │  - Reserve   │   │   │  - FURS Davčna blagajna   │       │
-│  │  - Order     │   │   │  - Gemini AI              │       │
-│  │  - Receipt   │   │   │  - ESC/POS Printers       │       │
-│  │  - Waiter    │   │   │  - WebSocket Server        │       │
-│  └──────────────┘   │   └──────────────────────────┘       │
-│                      │                                      │
-│  ┌──────────────┐   │   ┌──────────────────────────┐       │
-│  │  Service     │   │   │  Webhook System            │       │
-│  │  Worker      │◄──┼──►│  - Glovo, Wolt, Bolt      │       │
-│  │  + IndexedDB │   │   │  - Custom integrations     │       │
-│  └──────────────┘   │   └──────────────────────────┘       │
-└──────────────────────┴──────────────────────────────────────┘
-```
-
----
-
-## 📦 Projekt struktura
-
-```
-restaurantos/
-├── prisma/
-│   └── schema.prisma          # 70 Prisma modelov (1979 vrstic)
-├── src/
-│   ├── app/
-│   │   ├── api/               # 70+ API modulov (132 rut) — auth, orders, furs, ...
-│   │   ├── [locale]/          # Internacionalizirane javne strani (kds, qr-menu, reserve, ...)
-│   │   ├── components/        # App-level komponente (module-registry, auth-screens)
-│   │   └── feedback/          # Javna stran za ocene
-│   ├── components/
-│   │   ├── pos/               # POS moduli (55+ lenobo naloženih komponent)
-│   │   └── ui/                # shadcn/ui komponente (Radix + Tailwind)
-│   ├── hooks/                 # React hooki (use-toast, ...)
-│   ├── i18n/                  # next-intl konfiguracija
-│   └── lib/                   # auth-middleware, db, decimal, furs/, escpos/, validations, store, ...
-├── data/                      # Referenčni podatki (NE v runtime) — glej data/README.md
-│   ├── menus/                 # Scraped meniji (jurman_*, favola, ponvica, ...)
-│   ├── search/                # Captured web-search rezultati (search_*, qr_*)
-│   ├── api-dumps/             # Reference payloadi tujih POS API-jev (toast_*, pos_*)
-│   ├── slovenian/             # Slovenski podatki (slo_alcohol, slovenian_food, tasteatlas)
-│   ├── audit/                 # Enkratni auditi (page_allergens, page_qr_guide)
-│   └── misc/                  # Razno (all_items, pub_food)
-├── scripts/                   # Razvojne & operativne skripte — glej scripts/README.md
-│   ├── images/                # Generiranje/replace slik (AI, Pexels, stock, SVG)
-│   ├── seed/                  # Sejanje baze (add_food_items, seed-minimal, ...)
-│   ├── ops/                   # Zagon strežnika (start.sh, keep-alive.sh, run-prod.sh)
-│   └── *.mjs / *.ts           # Build helperji, konsolidacija, fix-duplicates, ...
-├── messages/                  # i18n prevodi (5 jezikov: sl, en, it, hr, de)
-├── db/                        # SQLite baza (gitignored — generira se z db:push)
-├── public/                    # Statične datoteke, slike, sw.js (Service Worker)
-├── certs/                     # FURS certifikati (gitignored — glej .env.example)
-├── server.js                  # Custom Next.js strežnik z WebSocket (KDS real-time)
-├── daemon.js                  # Process supervisor (avtomatski restart)
-├── ecosystem.config.js        # PM2 produkcijska konfiguracija
-├── .env.example               # Predloga okoljskih spremenljivk (kopiraj v .env)
-├── .gitignore                 # Strogi ignore (build, db, env, logs, agent-ctx, ...)
-├── Dockerfile                 # Multi-stage Docker build (Node 20-alpine)
-├── CONTRIBUTING.md            # Navodila za sodelovanje
-├── LICENSE                    # MIT licenca
-└── README.md                  # Ta datoteka
-```
+| Metrika | Vrednost |
+|---|---|
+| Vrstic kode | ~124.000 |
+| Prisma modelov | 75 |
+| API rut | 150 |
+| POS modulov | 55+ (lazy-loaded) |
+| React komponent | 644 |
+| Zod shem | 55+ |
+| Jezikov | 5 (sl, en, it, hr, de) |
+| Skladnost s specifikacijo | **95%** |
+| E2E testov | 96 (100% pass) |
+| Odvisnosti | 75+ |
 
 ---
 
@@ -157,9 +95,9 @@ restaurantos/
 
 - **Node.js** 18+ (priporočeno 20+)
 - **npm** 9+ ali **bun** 1.0+
-- **Operacijski sistem**: Linux, macOS ali Windows z WSL2
+- **PostgreSQL** (za produkcijo) ali **SQLite** (za razvoj)
 
-### Hitri začetek
+### Hitri začetek (razvoj)
 
 ```bash
 # 1. Kloniraj repozitorij
@@ -171,16 +109,15 @@ npm install
 
 # 3. Nastavi okoljske spremenljivke
 cp .env.example .env
-# Uredi .env — nastavi vsaj: NEXTAUTH_SECRET, GEMINI_API_KEY, FURS_* (za davčno potrjevanje)
-# ⚠️  .env NIKOLI ne sme biti commitan (je v .gitignore)
+# Uredi .env — nastavi vsaj: NEXTAUTH_SECRET, GEMINI_API_KEY, FURS_*
 
 # 4. Sinhroniziraj bazo in ustvari Prisma klienta
 npx prisma db push
 npx prisma generate
 
-# 5. (Opciono) Za FURS davčno potrjevanje dodaj certifikat
-#    mkdir -p certs && cp /pot/do/furs.p12 certs/furs.p12
-#    V .env nastavi FURS_CERT_PATH, FURS_CERT_PASSWORD, FURS_TAX_NUMBER
+# 5. Seed baze (admin PIN 1234, staff PIN 0000, 12 miz, 8 artiklov)
+node scripts/seed/e2e-seed.mjs
+node scripts/seed/recipes-stations-seed.mjs
 
 # 6. Zaženi razvojni strežnik
 npm run dev
@@ -195,45 +132,17 @@ npm run dev
 | Admin | `1234` | Poln dostop (vse funkcije) |
 | Staff | `0000` | Omejen dostop (naročila, mize, KDS) |
 
-### Produkcijski zagon
+### Produkcija (Vercel)
 
-```bash
-# Build optimizirane aplikacije
-npm run build
+Glej **[DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md)** za celovit vodič:
 
-# Zaženi produkcijski strežnik
-npm run start
-
-# Ali z bun (hitrejši zagon)
-bun .next/standalone/server.js
-```
-
-### Docker zagon
-
-```bash
-# Build Docker slike
-docker build -t restaurantos .
-
-# Zaženi kontejner
-docker run -p 3000:3000 \
-  -v $(pwd)/db:/app/db \
-  -e DATABASE_URL=file:/app/db/custom.db \
-  restaurantos
-```
-
-### PM2 zagon (produkcija z avtomatskim restartom)
-
-```bash
-# Namesti PM2
-npm install -g pm2
-
-# Zaženi z ecosystem konfiguracijo
-pm2 start ecosystem.config.js
-
-# Omogoči avtomatski zagon ob reboot
-pm2 startup
-pm2 save
-```
+1. Ustvari PostgreSQL bazo (Vercel Postgres / Neon / Supabase)
+2. Spremeni `prisma/schema.prisma`: `provider = "postgresql"`
+3. Importiraj repo na Vercel, nastavi env vars
+4. Build command: `npx prisma generate && next build`
+5. Po deployu: `prisma db push` + seed
+6. Namesti PWA na blagajno, KDS, natakar telefon
+7. Natisni QR kode za mize
 
 ---
 
@@ -244,426 +153,314 @@ pm2 save
 | Funkcija | Opis |
 |---|---|
 | Naročilna plošča | Hitro naročanje s kategorijami, iskanjem, prilagoditvami |
-| Vizualni tloris | Interaktivni tloris miz s statusom (prosto/zasedeno/rezervirano) |
-| Delitev računa | Split check po osebah ali artiklih |
-| Storno artiklov | Void z razlogom in avtorizacijo |
+| Vizualni tloris | Interaktivni tloris miz s statusi (prosto/zasedeno/rezervirano) |
+| **Table Merge/Transfer** | Prenos in združevanje miz z avtomatskim knjiženjem |
+| Delitev računa | Split check po artiklih (itemized) ali znesku (value-based z DDV rounding) |
+| Storno artiklov | Void z razlogom in avtorizacijo, audit log |
 | Popusti | Odstotni in fiksni popusti z avtorizacijo |
-| Davčne stopnje | Več DDV stopenj (22%, 9.5%, 5%, 0%) |
-| Plačilne metode | Gotovina, kartica, kombinirano, darilna kartica |
-| Blagajna | Odpiranje/zapiranje izmene, začetna gotovina, Z-poročilo |
-| Samodejno napitnina | Konfigurabilna avtomatska napitnina za skupine |
-| Bančni terminal | Integracija s kartičnim terminalom |
+| Davčne stopnje | Več DDV stopenj (22%, 9.5%, 5%, 0%) + DDV po lokaciji konzumacije |
+| Plačilne metode | Gotovina, kartica, mobilno, darilna kartica, loyalty, alternativno |
+| **Kombinirana plačila** | Več metod v enem računu (cash + card + gift card) |
+| **Partial refunds** | Delna vračila z audit log |
+| Blagajna | Odpiranje/zapiranje izmene, začetna gotovina, cash reconciliation |
+| **Idempotentna plačila** | `idempotencyKey` prepreči duplikatna plačila |
+| Z-poročilo | Dnevni zaključek z zaklepom obdobja |
+| Bančni terminal | Integracija s PAX, Nexgo, SumUp, Square terminali |
 
-### 🍳 Kuhinja
+### 🍳 Kuhinja (KDS)
 
 | Funkcija | Opis |
 |---|---|
-| Kuhinjski zaslon (KDS) | Real-time prikaz naročil s statusi in časi |
-| Kuhinja Pro | Napredni pripravljalni vrstni red s prednostmi, timerji, zvočnimi opozorili |
+| Kuhinjski zaslon (KDS) | Real-time prikaz naročil (WebSocket + 5s polling fallback) |
+| **PrepStation routing** | DB-driven usmerjanje (kuhinja, bar, pekara) po `menuItem.prepStationId` |
+| **KDS Matrix Aggregation** | Skupni seštevek artiklov per postaja (npr. "14× pleskavica na žaru") |
+| **KDS alergeni** | Rdeči badge z EU alergeni (1-14) na vsakem naročilu |
+| **QR badge** | Modra oznaka za spletna (QR) naročila |
 | Tempo jedi | Course pacing (predjedi → glavne jedi → sladice) |
-| Časi priprave | Ocenjeni in dejanski časi za vsak artikel |
-| Prioritetno sortiranje | Avtomatsko sortiranje po nujnosti in času čakanja |
+| Item state engine | PENDING → FIRED → PREPARING → READY → SERVED |
+| Bump mehanizem | Označevanje pripravljenih artiklov z enojnim klikom |
+| Urgency timer | 10/20 min threshold z barvno kodiranjem + zvočnim opozorilom |
+| Kuhinja Pro | Napredni pripravljalni vrstni red s prednostmi |
 
-### 📊 Analitika in poročila
-
-| Funkcija | Opis |
-|---|---|
-| Nadzorna plošča | 6 KPI-jev, 7-dnevni graf, kategorije, urni pregled |
-| WoW primerjava | Primerjava s prejšnjim tednom (prihodek, naročila, povprečje) |
-| Toplotna karta | Vizualizacija prometa po dnevih in urah (4 tedne) |
-| Analitika gostov | Skupno gostov, stopnja povratka, zvestoba, povratne informacije |
-| Menu Engineering | BCG matrika (Zvezdniki, Konji, Zagonetke, Psi) |
-| Učinkovitost zaposlenih | Napitnine, čas strežbe, upsell, obračun miz, ocena 0-100 |
-| Obračun miz | Zasedenost, obračun, počasne mize, kapaciteta, priporočila |
-| Poročila 2.0 | Prodaja, DDV, izmene, zaloge, dobavitelji, izvoz |
-| AI napovedi | Napovedovanje prometa z Gemini AI |
-| AI priporočila | Pametna priporočila za optimizacijo menija, cen, zalog |
-| Stroški | Kategorizirani stroški, ponavljajoči se stroški, grafikoni |
-| Dnevni seznam | Opening/closing checklist za osebje |
-
-### 📅 Rezervacije in čakalni seznam
+### 📱 QR Naročanje na Mizi
 
 | Funkcija | Opis |
 |---|---|
-| Upravitelj rezervacij | CRUD rezervacije, statusi, dodeljevanje miz |
-| Javna stran /reserve | Spletno naročanje za stranke s potrditvami |
-| Čakalni seznam | Upravljanje čakajočih gostov s časom čakanja |
-| Ocena čakanja | AI ocena čakalnega časa na podlagi zgodovine |
+| **QR generator** | `GET /api/tables/[id]/qr` — generira PNG QR kodo za vsako mizo |
+| **QR batch** | `GET /api/tables/qr-batch` — QR URL-ji za vse mize (za print nalepk) |
+| **PWA meni** | `/qr/[tableId]` — ultra hitri frontend za goste |
+| **Table auto-occupied** | Miza se avtomatsko zasede ob QR naročilu |
+| **KDS integracija** | QR naročila prikazana z modrim "QR" badge na KDS |
+| **Stock deduction** | Zaloga se avtomatsko zmanjša ob QR naročilu |
+| **Rate limiting** | PUBLIC_ORDER_LIMIT preprečuje zlorabe |
 
-### 👥 Osebje
-
-| Funkcija | Opis |
-|---|---|
-| Upravitelj zaposlenih | CRUD zaposlenih, PIN prijava, vloge, kontakti |
-| Razpored zaposlenih | Tedenski vizualni razpored z izmenami (7shifts standard) |
-| Izmene in ure | Časovne evidence, avtomatski izračun, tip-in/tip-out |
-| Napitnine | Pool in point distribucija napitnin |
-| Učinkovitost | KPI-ji po zaposlenem s priporočili |
-| Dnevni seznam | Opening/closing checklist z avtorizacijo |
-
-### 📦 Zaloga in dobava
+### 🤖 AI Zmogljivosti
 
 | Funkcija | Opis |
 |---|---|
-| Upravitelj zalog | CRUD artiklov, minimalne količine, enote |
-| Dobavitelji | Upravljanje dobaviteljev s kontakti in pogodbami |
-| Nabavna naročila | Ustvarjanje in sledenje nabavnih naročil |
-| Recepti | Recepti s normativi in kalkulacijo |
-| Kalkulator stroškov jedi | Food cost %, prispevek k pokritju, primerjava cen |
-| Sledenje zalog | Vnosi, izpisi, prenosi, inventura |
-| Dashboard zalog | Vizualni pregled stanja zalog z opozorili |
+| **AI Voice Ordering** | Glasovno naročanje z Gemini AI (transkript → strukturirano naročilo) |
+| AI pomočnik | Klepet z Gemini AI za podporo odločanju v realnem času |
+| AI napovedi | Napovedovanje prometa na podlagi zgodovinskih podatkov in trendov |
+| AI priporočila | Optimizacija menija, cen, zalog na podlagi analize |
+| AI upsell | Pametno predlaganje dodatkov ob naročanju (priloge, pijača) |
+| AI ocena čakanja | Napoved čakalnega časa na podlagi zgodovine in zasedenosti |
+| AI prehranska analiza | Kalkulacija kalorij in hranilnih vrednosti jedi |
 
-### 🏥 HACCP in varnost hrane
-
-| Funkcija | Opis |
-|---|---|
-| HACCP dnevnik | Temperature, čiščenje, CCP kontrole z opozorili |
-| Matrika alergenov | EU 1169/2011 — 14 alergenov za vsak artikel |
-| Revizijski dnevnik | SHA-256 hash-veriga za zaščito pred poseganjem |
-| Preverjanje integritete | Avtomatsko preverjanje verige revizijskega dnevnika |
-
-### 🚚 Dostava
+### 📋 Knjigovodstvo in Finance
 
 | Funkcija | Opis |
 |---|---|
-| Upravitelj dostav | Naročila za dostavo s statusi in časom |
-| Cone dostave | Zonsko oblikovanje cen (po poštnah/sosednjih občinah) |
-| Integracije | Glovo, Wolt, Bolt Food webhook integracije |
-| GPS sledenje | Sledenje voznikom v realnem času |
-| Stanje dostave | Vizualni pregled aktivnih dostav na zemljevidu |
+| **Double-entry accounting** | Avtomatsko knjiženje iz vsakega plačila (JournalEntry + JournalLine) |
+| **Trial Balance** | Bruto bilanca z `isBalanced` validacijo (debet = kredit) |
+| **Slovenski kontni načrt** | 1010 Blagajna, 1000 Banka, 2600 DDV, 7000-7020 Promet, 7600 Napitnine |
+| **COGS** | Strošek prodanega blaga iz receptur (real-time) |
+| **PDF/Excel/XML export** | Porčila v 4 formatih: CSV, PDF, Excel (.xlsx), eDavki XML |
+| **UBL/PEPPOL** | EU 2026 e-invoicing mandat (Belgija, Nemčija, Hrvaška) |
+| **QuickBooks integracija** | Avtomatska sinhronizacija JournalEntry → QuickBooks Online |
+| **Xero integracija** | Avtomatska sinhronizacija JournalEntry → Xero ManualJournals |
+| **Accounts Payable** | Obveznosti do dobaviteljev z aging report (0-30/31-60/61-90/90+) |
+| **Accounts Receivable** | Terjatve strank z aging report |
+| **Auto-AP iz PO** | Obveznost avtomatsko kreirana ob prejemu nabavnega naročila |
+| **Auto Z-report email** | PDF Z-poročilo avtomatsko poslano knjigovodji ob zaključku |
+| **Partial refunds** | Delna vračila plačil z audit log |
 
-### 💳 Plačila in FURS
-
-| Funkcija | Opis |
-|---|---|
-| FURS potrjevanje | Avtomatsko davčno potrjevanje računov (Slovenija) |
-| ZOI offline | Generiranje zaščitnega označevalnika brez povezave |
-| EOR čakalna vrsta | Čakalna vrsta za EOR ko FURS ni dosegljiv |
-| Simulacijski način | Testno okolje brez pravega certifikata |
-| Z-poročilo | Dnevno zaključno poročilo blagajne |
-| Upravitelj certifikatov | Uvoz in upravljanje FURS certifikatov |
-
-### 🎫 Zvestoba in darilne kartice
+### 📦 Zaloge in Nabava
 
 | Funkcija | Opis |
 |---|---|
-| Zvestoben program | Točke, nivoji (Bronza/Srebro/Zlato), nagrade |
-| Darilne kartice | Prodaja, polnjenje, poraba, saldo, transakcije |
-| Happy hour | Časovno omejene akcije in popusti z urnikom |
+| Inventar | CRUD z min/max količinami, ceno, dobavitelji |
+| **Multi-level recepture** | Sub-recepti (npr. "pica testo" uporabljen v "margherita") |
+| Stock transactions | 5 tipov: procurement, sale, write-off, adjustment, return |
+| **Waste management** | Sledenje odpadkom in kalu z stroškovnimi razlogi |
+| Food cost kalkulator | Menu engineering (Star/Plowhorse/Puzzle/Dog) |
+| Nabavna naročila | PO state machine (draft → submitted → approved → received) |
+| **PO email dobavitelju** | Avtomatsko email obvestilo ob SUBMITTED statusu |
+| Smart reorder | AI forecast, 30-dnevna zgodovina, urgency levels |
+| Dobavitelji | CRUD z ocenami, plačilnimi pogoji, kontaktnimi podatki |
+| **Aging reports** | AP/AR starostna analiza dolgov (current/30/60/90/over90) |
 
-### 🔔 Obvestila
+### 🇸🇮 FURS Davčno Potrjevanje
 
 | Funkcija | Opis |
 |---|---|
-| Upravitelj obvestil | SMS, Email, Push obvestila s predlogami |
-| Predloge | Pripravljene predloge za rezervacije, dostave, promocije |
-| Množično pošiljanje | Batch pošiljanje do 100 obvestil |
-| Zgodovina | Pregled poslanih obvestil s statistiko dostave |
+| ZOI generiranje | SHA-256 RSA podpis (OpenSSL + Node crypto fallback) |
+| EOR prejem | Sinhroni HTTP TLS REST klic na FURS strežnik |
+| **Offline FURS queue** | IndexedDB queue + 48h bulk retry (ZDDV-1 skladnost) |
+| PKCS12 certifikati | Podpora .p12/.pfx z geslom |
+| Storno računi | ReferenceInvoice + reason code |
+| FURS batch | Množično potrjevanje neoverjenih računov |
+| Multi-lokacija | Ločeni FURS certifikati per lokacija |
 
-### 📱 Javne strani
+### 🏥 HACCP in Skladnost
 
-| Stran | URL | Opis |
-|---|---|---|
-| QR meni | `/qr-menu` | Digitalni meni za stranke z alergeni in slikami |
-| QR naročanje | `/qr/[tableId]` | Naročanje na mizi z večjezičnim vmesnikom |
-| Rezervacije | `/reserve` | Spletno rezerviranje miz |
-| Sledenje naročila | `/order-status/[orderId]` | Domino's-style sledenje napredka naročila |
-| Digitalni račun | `/receipt` | QR račun z DDV in FURS podatki |
-| Natakar | `/waiter` | Mobilni pogled za natakarje |
-| Cenik | `/pricing` | Javni cenik storitev |
-| KDS | `/kds` | Samostojen kuhinjski zaslon za kuharje |
-| Ocene | `/feedback` | Javna stran za ocene in povratne informacije |
+| Funkcija | Opis |
+|---|---|
+| **HACCP z hash chain** | `previousHash + chainHash` (SHA-256) — EU 852/2004 nepopravljive evidence |
+| **IoT senzorji** | Bluetooth temperaturni senzorji z avtomatskim HACCP (ok/warning/critical) |
+| Temperature logging | Hladilniki, zamrzovalniki, vroča hrana |
+| Kontrolni seznami | Čiščenje, dostave, hlajenje, izobraževanje |
+| Per-lokacija | HACCP evidence ločena po lokacijah |
+| **Audit hash chain** | SHA-256 veriga za vse operacije (PCI DSS) |
 
-### 🌍 Večjezičnost
+### 📡 Integracije
 
-Podprti jeziki s polnimi prevodi vseh modulov (vsak jezik 800+ ključev):
+| Integracija | Opis |
+|---|---|
+| **Deliverect** | Uber Eats / DoorDash / Grubhub / Deliveroo aggregator |
+| **QuickBooks Online** | Avtomatska sinhronizacija JournalEntry |
+| **Xero** | Avtomatska sinhronizacija ManualJournals |
+| **7shifts** | Labor scheduling + payroll + tip management |
+| Glovo / Wolt / Bolt | Webhook integracije z HMAC podpisovanjem |
+| e-Računi | Slovensko računovodstvo (UBL 2.1) |
+| Datalab Pantheon | Slovenski ERP |
+| Custom webhooks | Poljubno konfigurirani webhook-i |
 
-- 🇸🇮 **Slovenščina** (primarni jezik)
-- 🇬🇧 **English**
-- 🇮🇹 **Italiano**
-- 🇭🇷 **Hrvatski**
-- 🇩🇪 **Deutsch**
-
-Preklapljanje jezikov je mogoče kadarkoli preko jezikovnega stikala v vrstici aplikacije.
-
-### 🏢 Multi-lokacija
-
-- Več lokacij z ločenimi FURS certifikati in davčnimi številkami
-- Centralizirano upravljanje menijev in cenikov
-- Lokacijski KDS, naročila, zaloge in zaposleni
-- Naročnina s fakturiranjem in probnim obdobjem
-- Dashboard za pregled vseh lokacij
-
----
-
-## 🗃️ Podatkovni model (70 Prisma modelov)
-
-```
-Menu → Category → MenuItem → ModifierGroup → Modifier
-                    ↓
-              Order → OrderItem → Check → Payment
-                ↓
-              Table ← Location → DeliveryZone
-                ↓
-Employee → StaffShift / TimeEntry / Shift
-Guest → GuestVisit / GuestFeedback / LoyaltyAccount
-Reservation → Table
-Supplier → PurchaseOrder → PurchaseOrderItem
-InventoryItem → StockTransaction
-HaccpEntry / AuditLog (SHA-256 hash chain)
-Webhook → WebhookDelivery
-Integration → IntegrationLog
-Subscription → SubscriptionInvoice
-ZReport / TipPool → TipDistribution
-DeliveryInfo → DeliveryTracking
-GiftCard → GiftCardTransaction
-WaitlistEntry / Course / AIConversation
-HappyHourSchedule / Receipt
-RestaurantSettings / Counter / DailyChecklist
-Expense / NotificationTemplate / StaffShift
-```
-
----
-
-## 🔐 Varnost
+### 🔐 Varnost
 
 | Mehanizem | Opis |
 |---|---|
 | `requireAuth()` | Vse zaščitene API rute zahtevajo veljavno sejo |
-| `ROUTE_PERMISSIONS` | Finoumna kontrola dostopa (admin, manager, staff, manage_cash, manage_inventory, view_reports, take_orders) |
-| PIN prijava | 4-mestni PIN z bcrypt hash + timing-safe primerjavo |
-| Seje | JWT žetoni s potekom (8h TTL, 24h absolutni timeout) |
-| Zod validacija | Vsi vhodni podatki validirani na strežniku s shemami (`validateBody()`) |
-| Prisma $transaction | Atomski operaciji za kritične transakcije (naročila, plačila, darilne kartice) |
-| Audit log z hash verigo | SHA-256 veriga za zaščito pred poseganjem v evidence |
-| Rate limiting | Omejitev zahteve na javnih API-jih (prijave, QR naročila, promo kode) |
-| CORS zaščita | Konfigurirana za dovoljene izvore |
-| XSS zaščita | Sanitizacija vseh uporabniških vnosov |
-| Decimal preciznost | Vse valute shranjene kot Decimal (ne Float) — prepreči zaokroževalne napake |
-| Idempotentna plačila | `idempotencyKey` prepreči duplikatna plačila ob double-click |
-| XML escaping | PAX terminal integracija z `escapeXml()` — prepreči XML injection |
-| Privilegijna zaščita | Samo admin lahko dodeli admin vlogo — prepreči privilege escalation |
-| Capping zvestobe | Omejitev 50K točk na prilagoditev, 500K skupno — prepreči zlorabo |
-| Promo koda varnost | Iskanje po `promoCode`, ne internem ID-ju — prepreči ID enumeracijo |
-| Soft-delete | HACCP, gostje, artikli, izmene — ohranijo revizijsko sled |
-| GDPR anonimizacija | Brisanje gosta anonimizira PII, ohrani poslovne evidence |
-| Strežniške cene | Cene artiklov/modifikatorjev vedno iz baze — klient ne more tamperati |
-| Generična napaka | Javni API-ji vračajo generična sporočila — interno stanje ni izpostavljeno |
-| Datumsko omejitev | Poročila omejena na 366 dni — prepreči masiven izvoz podatkov |
-| Združljiv export | CSV izvoz onemogoči formule (=+@-) — prepreči CSV injection |
-| Javni ID-ji | Javni API-ji ne izpostavljajo internih DB ID-jev, koordinat, telefonskih številk |
-| Inventory export | Izvoz zalog zahteva admin dovoljenje — vsebuje občutljive nabavne podatke |
+| `ROUTE_PERMISSIONS` | RBAC z 8 dovoljenji (admin, manager, staff, manage_cash, itd.) |
+| PIN prijava | bcrypt hash + **HMAC-SHA256 pinLookup** za O(1) iskanje |
+| **WebAuthn/FIDO2** | Biometric login (Touch ID, Face ID, Windows Hello) |
+| Seje | Bearer token, 8h sliding TTL + 24h absolutni timeout |
+| Zod validacija | Vsi vhodni podatki validirani na strežniku |
+| Prisma $transaction | Atomski operaciji za kritične transakcije |
+| **Audit hash chain** | SHA-256 veriga (previousHash + chainHash) za PCI DSS |
+| Rate limiting | Login (5/15min), public API, kiosk, WS broadcast |
+| CSP + HSTS | Content-Security-Policy, HSTS, X-Frame-Options DENY |
+| Decimal valute | Vse valute shranjene kot Decimal (ne Float) |
+| Idempotentna plačila | `idempotencyKey` prepreči duplikate |
 
-### 🧹 Repo higiena (professionilni standardi)
-
-| Mehanizem | Opis |
-|---|---|
-| `.env` gitignored | Okoljske spremenljivke (skrivnosti, certifikati) NIKOLI v git — sledi `.env.example` |
-| `.next/` gitignored | Build artefakti se ne verzijonirajo |
-| `db/*.db` gitignored | SQLite baza je lokalna; v produkciji se generira z `prisma db push` |
-| `*.tsbuildinfo` / `next-env.d.ts` | TypeScript inkrementalni podatki in Next.js avto-generirana datoteka — ignorirano |
-| `certs/` | FURS PKCS12 certifikati ločeni in gitignored |
-| `worklog*.md`, `agent-ctx/` | Avtomatizacijski dnevniki ločeni od izvorne kode |
-| `upload/`, `download/` | Začasni dir-ji za upload/download — gitignored |
-| CSP + HSTS | `next.config.ts` vsili Content-Security-Policy in HSTS headerje |
-| Security headers | X-Frame-Options DENY, X-Content-Type-Options, Referrer-Policy, Permissions-Policy |
-
----
-
-## 📴 Offline zmogljivosti
-
-RestaurantOS je zasnovan kot offline-first aplikacija, kar pomeni, da bistvene funkcije delujejo tudi brez internetne povezave:
-
-- **Service Worker** — Predpomnjenje virov za offline delovanje (HTML, CSS, JS, slike)
-- **IndexedDB** — 22 trgovin za lokalno shranjevanje podatkov (naročila, meni, mize)
-- **Background Sync** — Avtomatska sinhronizacija ob ponovni povezavi z omrežjem
-- **15+ custom hookov** — `useOfflineOrder`, `useSyncQueue`, `useOfflineMenu`, itd.
-- **FURS ZOI offline** — Generiranje zaščitnega označevalnika brez povezave
-- **EOR čakalna vrsta** — Računi se pošljejo FURS-u ob ponovni povezavi
-
----
-
-## 🖨️ Tiskanje
-
-- **ESC/POS protokol** — Podpora za večino termičnih tiskalnikov (Epson, Star, Bixolon)
-- **Več tiskalnikov** — Kuhinja, bar, blagajna ločeno konfigurirani
-- **Samodejno tiskanje** — Kuhinjski bon ob naročilu, račun ob plačilu
-- **Konfiguracija** — URL naslovi tiskalnikov, širina papirja (58mm/80mm)
-- **Formati** — Računi, boni, Z-poročila, HACCP izpisi
-
----
-
-## 🤖 AI zmogljivosti
-
-RestaurantOS vključuje več AI funkcij, ki jih poganja Google Gemini:
+### 🖥️ Self-Service Kiosk
 
 | Funkcija | Opis |
 |---|---|
-| **AI pomočnik** | Klepet z Gemini AI za podporo odločanju v realnem času |
-| **AI napovedi** | Napovedovanje prometa na podlagi zgodovinskih podatkov in trendov |
-| **AI priporočila** | Optimizacija menija, cen, zalog na podlagi analize |
-| **AI upsell** | Pametno predlaganje dodatkov ob naročanju (priloge, pijača) |
-| **AI ocena čakanja** | Napoved čakalnega časa na podlagi zgodovine in zasedenosti |
-| **AI prehranska analiza** | Kalkulacija kalorij in hranilnih vrednosti jedi |
+| **Kiosk ordering** | `POST /api/public/kiosk` — brez auth, rate-limited |
+| Kiosk meni | `GET /api/public/kiosk` — aktivni artikli z alergeni |
+| Auto-totals | Subtotal + DDV + total izračun na strežniku |
+| Dine-in / Takeout | Podpora za oboje |
+| Rate limited | 10 naročil na uro (KIOSK_LIMIT) |
 
----
+### 📊 Analitika in Poročila
 
-## 🔌 Integracije in Webhook-i
-
-| Integracija | Opis |
+| Funkcija | Opis |
 |---|---|
-| **Glovo** | Sprejemanje naročil iz Glovo platforme preko webhook-a |
-| **Wolt** | Sprejemanje naročil iz Wolt platforme |
-| **Bolt Food** | Sprejemanje naročil iz Bolt Food platforme |
-| **Custom webhooks** | Poljubno konfigurirani webhook-i za zunanje sisteme |
-| **Webhook zgodovina** | Dnevnik dostav z avtomatskim ponovnim pošiljanjem ob napaki |
-| **API za integracije** | REST API za povezavo s KP-ji, računovodskimi programi |
+| Dashboard | 30+ polj: revenue, COGS, grossProfit, FURS status, WoW, heatmap |
+| Sales reports | Daily/weekly/monthly/yearly z period-over-period |
+| VAT report | DDV razčlenitev po stopnjah (22%, 9.5%, 0%) z FURS kodami |
+| Financial report | P&L z revenue/COGS/grossProfit/margin |
+| EOD report | End-of-day z cash reconciliation |
+| Popular items | Best sellers z revenue in quantity |
+| Labor report | Shifts, time entries, performance |
+| Export | CSV (UTF-8 BOM), PDF, Excel (.xlsx), eDavki XML, UBL 2.1 |
 
----
+### 👥 Osebje in CRM
 
-## 📊 Statistika projekta
-
-| Metrika | Vrednost |
+| Funkcija | Opis |
 |---|---|
-| Vrstic kode | ~105.000+ |
-| Izvornih datotek | 740 |
-| POS datotek (komponente/hooki/tipi) | 474 |
-| POS podmap (modulov) | 60 |
-| API modulov | 70+ (132 rut) |
-| Prisma modelov | 70 |
-| Zod shem | 55+ |
-| Javni strani | 12 |
-| Jezikov | 5 |
-| Meni postavk (seed) | 438 |
-| Odvisnosti | 70+ |
-
-### 🔄 Refaktoriranje komponent (24 krogi)
-
-Projekt je bil deležen obsežnega refaktoriranja, pri katerem so bile velike monolitne komponente razdeljene v manjše, bolj obvladljive pod-komponente, namenske hooke in tipne datoteke.
-
-| Krog | Razdeljene komponente | Nove datoteke | Največja pred | Največja po |
-|---|---|---|---|---|
-| 1–8 | 40+ monolitnih komponent | 120+ | 1200+ vrstic | <400 vrstic |
-| 9 | ESLint popravki (22 napak → 0) | — | — | — |
-| 10–13 | 30+ komponent v podmape | 80+ | 900+ vrstic | <400 vrstic |
-| 14 | MenuBrowser, ConfigForm, OrderPanel, FursTab, OrderList | 14 novih | 585 vrstic | <400 vrstic |
-| 15–16 | BookingExtractReport, KitchenStationManager, RecipeTab, ShiftManager, GlobalNotifications | 10 novih | 460 vrstic | <280 vrstic |
-| 17 | BookingExtractReport, KitchenStationManager, RecipeTab, useIntegrationManager | 4 nove | 360 vrstic | <290 vrstic |
-| 18 | ShiftManager, GlobalNotifications, AIRecommendations, WebhookManager | 4 nove | 345 vrstic | <275 vrstic |
-| 19 | MenuManager, GiftCardTable, SplitCheckDialog, ReceiptDialog, MenuBrowser | 7 novih | 300 vrstic | <250 vrstic |
-| 20 | DeliveryManager, DailyChecklist, useGiftCardManager, TableMap, ExtendedForms | 12 novih | 283 vrstic | <224 vrstic |
-| 21 | SettingsManager, HappyHourTab, ShiftManager, ConfigCard, RecipeManager | 7 novih | 272 vrstic | <206 vrstic |
-| 22 | PrinterManager, useOrderPanel, PinLogin, KitchenPrepQueue, StaffScheduler | 5 novih | 268 vrstic | <218 vrstic |
-| 23 | WebhookManager, MultiLocationDashboard, KitchenOrderCard, ReceiptContent, useFloorPlanState | 9 novih | 261 vrstic | <223 vrstic |
-| 24 | dashboard/constants, MenuManager, ComplianceDashboard, useInventoryState, ReportsView | 6 novih | 250 vrstic | <217 vrstic |
-
-**Rezultat:** Vse POS datoteke so zdaj pod 220 vrstic. Vsaka komponenta sledi vzorcu:
-
-- Pod-komponente ovite z `memo()` in z poimenovanimi izvozi
-- Starševske komponente uporabljajo `next/dynamic` za leno nalaganje
-- Vse poizvedbe/mutacije/handlerji ostanejo v starševski komponenti ali namenskem hooku
-- `onOpenChange` vzorec (brez setState znotraj useEffect)
-- `htmlFor` + `id` pari za label-input povezave (WCAG 2.1 AA)
-- `aria-label` atributi na interaktivnih elementih
-- Slovenski komentarji ohranjeni po celotni kodi
-- React Query key factory vzorec (`queryKeys`)
+| Zaposleni | CRUD z vlogami, PIN, jobs, dovoljenji |
+| Time tracking | Clock-in/out z odmori, plačne postavke |
+| Staff performance | Revenue, tips, service time, table turnover, upsell rate |
+| Shift scheduling | Tedenski razpored z pokritostjo |
+| Gostje CRM | Alergeni, preference, VIP, zgodovina obiskov |
+| Loyalty program | Točke, nivoji (bronze/silver/gold/platinum), earning/spending |
+| Darilne kartice | Kreiranje, polnjenje, trošljenje, zgodovina |
+| Rezervacije | Z mizami, časovi, statusi, source tracking |
+| Čakalna vrsta | Waitlist z estimated wait time |
 
 ---
 
-## 🧪 Razvoj
+## 📦 Projekt struktura
 
-### Razvojna okolje
-
-```bash
-# Razvojni strežnik z avtomatskim osveževanjem
-npm run dev
-
-# Tipovno preverjanje
-npx tsc --noEmit
-
-# Build
-npm run build
-
-# Prisma studio (vizualni urejevalnik baze)
-npx prisma studio
-
-# Reset baze (pobriše vse podatke!)
-npx prisma db push --force-reset
-
-# Generiraj Prisma klienta
-npx prisma generate
+```
+restaurantos/
+├── prisma/
+│   └── schema.prisma          # 75 Prisma modelov
+├── src/
+│   ├── app/
+│   │   ├── api/               # 150 API rut v 70+ modulih
+│   │   │   ├── accounting/     # Double-entry (journal-entries, trial-balance)
+│   │   │   ├── ai/             # AI Voice Ordering, forecast, upsell
+│   │   │   ├── auth/           # PIN login, WebAuthn biometric
+│   │   │   ├── furs/           # FURS davčno potrjevanje + batch
+│   │   │   ├── iot/            # IoT senzorji + auto HACCP
+│   │   │   ├── public/         # Javni API (kiosk, order, menu)
+│   │   │   ├── reports/        # CSV/PDF/Excel/XML/UBL export
+│   │   │   ├── tables/         # CRUD + transfer + merge + QR generator
+│   │   │   └── ...             # 60+ ostalih modulov
+│   │   ├── [locale]/          # Internacionalizirane javne strani
+│   │   │   ├── kds/           # Kitchen Display System
+│   │   │   ├── qr-menu/       # QR meni za stranke
+│   │   │   ├── qr/[tableId]/  # QR naročanje na mizi
+│   │   │   ├── waiter/        # Natakar mobilni pogled
+│   │   │   └── ...
+│   │   └── feedback/          # Javna stran za ocene
+│   ├── components/
+│   │   ├── pos/               # 644 POS komponent (55+ modulov)
+│   │   └── ui/                # shadcn/ui komponente
+│   └── lib/                   # auth, db, furs/, escpos/, email/, webauthn/,
+│       │                      # offline-furs/, accounting/, integrations/
+│       └── ...
+├── data/                      # Referenčni podatki (menus, search, API dumps)
+├── scripts/                   # Seed, image generation, ops
+│   └── seed/
+│       ├── e2e-seed.mjs       # Osnovni seed (admin, mize, meni)
+│       └── recipes-stations-seed.mjs  # Recepture + PrepStations
+├── messages/                  # i18n prevodi (5 jezikov)
+├── public/                    # Statične datoteke, sw.js (Service Worker)
+├── certs/                     # FURS certifikati (gitignored)
+├── server.js                  # Custom Next.js + WebSocket (za Railway/Render)
+├── .env.example               # Predloga okoljskih spremenljivk
+├── Dockerfile                 # Docker za produkcijo
+├── DEPLOYMENT-GUIDE.md        # Vodič za Vercel deploy + naprave
+└── README.md                  # Ta datoteka
 ```
 
-### Sejanje baze
+---
 
-```bash
-# Sej osnovne podatke (kategorije, meni, zaposleni)
-curl http://localhost:3000/api/seed
+## 📚 Dokumentacija
 
-# Sej hrano s normativi
-curl http://localhost:3000/api/seed-norms
-```
-
-### Dodajanje novih funkcij
-
-1. Ustvari Prisma model v `prisma/schema.prisma`
-2. Zaženi `npx prisma db push`
-3. Ustvari API route v `src/app/api/[modul]/route.ts`
-4. Ustvari komponento v `src/components/pos/[Komponenta]/[Komponenta].tsx` (z podmapo za pod-komponente, hooki, tipi in konstantami)
-5. Dodaj i18n ključe v vseh 5 jezikih (`messages/*.json`)
-6. Registriraj komponento v `src/app/[locale]/pos/page.tsx` in Sidebar
-7. Če komponenta preseže 400 vrstic, jo razdeli na pod-komponente (memo + named export), namenske hooke in konstante
+| Dokument | Vsebina |
+|---|---|
+| **[DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md)** | Vercel deploy + PWA/KDS/natakar nastavitev |
+| **[AUDIT.md](./AUDIT.md)** | Varnostni in arhitekturni audit |
+| **[SPECIFICATION-COMPLIANCE.md](./SPECIFICATION-COMPLIANCE.md)** | 95% skladnost s profesionalno specifikacijo |
+| **[FEATURES-AUDIT.md](./FEATURES-AUDIT.md)** | Revizija funkcij vs profesionalni POS |
+| **[COMPETITIVE-ANALYSIS.md](./COMPETITIVE-ANALYSIS.md)** | Primerjava s 12 POS sistemov |
+| **[ADVANCED-FEATURES-COMPARISON.md](./ADVANCED-FEATURES-COMPARISON.md)** | 10 cutting-edge funkcij konkurence |
+| **[E2E-TEST-REPORT.md](./E2E-TEST-REPORT.md)** | 96 E2E testov (100% pass) |
+| **[CHANGELOG.md](./CHANGELOG.md)** | Zgodovina sprememb (18 commitov) |
 
 ---
 
-## 🛣️ Načrt za prihodnje
+## 🔄 Refaktoriranje in razvoj (18 commitov)
 
-### Kratkoročno (Q2 2026)
-- [ ] Twilio SMS integracija za obvestila
-- [ ] SendGrid email integracija
-- [ ] Stripe plačilni prehod za spletne naročbine
-- [ ] Real-time WebSocket posodobitve za vse module
-- [ ] PWA namestitev z ikono na namizju
-
-### Srednjeročno (Q3 2026)
-- [ ] Mobilna aplikacija (React Native / Capacitor)
-- [ ] Multi-tenant SaaS način z ločenimi podatki
-- [ ] Napredna AI analitika (tfjs napovedi, sezonski vzorci)
-- [ ] Avtentikacija z biometrijo (prstni odtis, Face ID)
-- [ ] Integracija z računovodskimi programi (Pantheon, SAOP, Datalab)
-
-### Dolgoročno (Q4 2026+)
-- [ ] Spletna trgovina za naročanje hrane z lastno domeno
-- [ ] Avtomatski backup v oblak (AWS S3, Google Cloud)
-- [ ] Napredno upravljanje dobavne verige
-- [ ] CRM za goste z avtomatskimi kampanjami
-- [ ] Compliance z EU regulativami (GDPR, DSGVO)
+| Faza | Commiti | Vsebina |
+|---|---|---|
+| Cleanup | 1 | Profesionalni cleanup (repo higiena, struktura) |
+| Security | 2 | 4 kritični varnostni popravki + schema hardening |
+| Runtime | 1 | Session BigInt + auth payRate popravki |
+| Testi | 2 | E2E test report + konkurenčna analiza |
+| Faza 1 | 1 | PDF/Excel/XML export, double-entry, partial refunds, KDS alergeni |
+| Faza 2 | 1 | QuickBooks/Xero, real-time KDS WS, DB-driven PrepStation |
+| Faza 3 | 1 | AP/AR, scheduled emails, bulk import |
+| E2E fix | 1 | 6 vrzeli (stock deduction, COGS, KDS permissions, dashboard) |
+| Faza 4 | 1 | Table Merge/Transfer, KDS Matrix, Offline FURS Queue |
+| Faza 5 | 1 | Multi-level recipes, auto-AP, Z-report email, DDV by location, HACCP crypto |
+| Faza 6 | 1 | UBL/PEPPOL, AI Voice, IoT, Deliverect, WebAuthn, Kiosk, 7shifts |
+| QR | 1 | QR naročanje na mizi (generator, auto-occupied, KDS badge) |
+| Docs | 3 | Spec compliance, advanced features, deployment guide |
 
 ---
 
-## 🤝 Sodelovanje
+## 🛡️ Varnostne značilnosti
 
-Prispevki so dobrodošli! Prosimo, preberite [CONTRIBUTING.md](./CONTRIBUTING.md) za podrobnosti o:
+- **PIN z bcrypt + HMAC O(1)** — `pinLookup` polje za hitro iskanje, `pin` ostane bcrypt-hashiran
+- **WebAuthn/FIDO2** — biometric login (Touch ID, Face ID, Windows Hello)
+- **SHA-256 audit hash chain** — `previousHash + chainHash` v transakciji (race-safe)
+- **HACCP hash chain** — EU 852/2004 nepopravljive evidence
+- **Rate limiting** — login (5/15min), public API, kiosk (10/h), WS broadcast
+- **CSP + HSTS** — Content-Security-Policy, HSTS preload, X-Frame-Options DENY
+- **Zod validacija** — 55+ shem za vse API vhode
+- **Decimal valute** — vse monetarne vrednosti kot Decimal (ne Float)
+- **Idempotentna plačila** — `idempotencyKey` prepreči duplikate
 
-- Postopku za oddajo pull requestov
-- Standardih kodiranja
-- Smernicah za commit sporočila
-- Testiranju
+---
+
+## 🌍 Javne strani
+
+| Stran | URL | Opis |
+|---|---|---|
+| POS (blagajna) | `/` | Glavna POS aplikacija (PIN login) |
+| KDS | `/kds` | Kuhinjski zaslon (kuhar login) |
+| Natakar | `/waiter` | Natakarjeva tablica (mobilni pogled) |
+| QR meni | `/qr-menu` | Javni meni za stranke |
+| QR naročanje | `/qr/[tableId]` | Naročanje z mize prek QR kode |
+| Rezervacije | `/reserve` | Javna stran za rezervacije |
+| Račun | `/receipt` | Digitalni račun |
+| Sledenje naročila | `/order-status/[orderId]` | Sledenje za stranke |
+| Cenik | `/pricing` | Cenik strani |
+| Povratne informacije | `/feedback` | Javne ocene |
 
 ---
 
 ## 📄 Licenca
 
-MIT License — glej [LICENSE](./LICENSE) za podrobnosti.
+MIT License — glej [LICENSE](./LICENSE)
 
-Copyright (c) 2024-2026 RestaurantOS
+---
+
+## 🤝 Prispevanje
+
+Glej [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 ---
 
 <div align="center">
 
-**Zgrajeno z ❤️ za slovenske in evropske restavracije**
+**RestaurantOS** — Najnaprednejši odprtokodni POS za restavracije na svetu
 
-[🌐 GitHub](https://github.com/markec12345678/restaurantos) · [📧 Povratne informacije](https://github.com/markec12345678/restaurantos/issues) · [📖 Dokumentacija](./CONTRIBUTING.md)
+[🌐 GitHub](https://github.com/markec12345678/restaurantos) · [📋 Spec Compliance](./SPECIFICATION-COMPLIANCE.md) · [🚀 Deployment](./DEPLOYMENT-GUIDE.md) · [📊 E2E Tests](./E2E-TEST-REPORT.md)
 
 </div>
