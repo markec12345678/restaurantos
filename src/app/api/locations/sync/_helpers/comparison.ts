@@ -20,10 +20,10 @@ export async function fetchMenuComparison(locationIds: string[]) {
           m.locationId,
           COUNT(DISTINCT m.id) as menuCount,
           COUNT(DISTINCT c.id) as categoryCount,
-          COUNT(DISTINCT CASE WHEN mi.isAvailable = 1 THEN mi.id END) as itemCount
-        FROM Menu m
-        LEFT JOIN Category c ON c.menuId = m.id
-        LEFT JOIN MenuItem mi ON mi.categoryId = c.id
+          COUNT(DISTINCT CASE WHEN mi.isAvailable = true THEN mi.id END) as itemCount
+        FROM "Menu" m
+        LEFT JOIN "Category" c ON c.menuId = m.id
+        LEFT JOIN "MenuItem" mi ON mi.categoryId = c.id
         WHERE m.locationId IN (${Prisma.join(locationIds)})
         GROUP BY m.locationId
       `

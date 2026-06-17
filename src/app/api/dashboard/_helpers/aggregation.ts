@@ -53,7 +53,7 @@ export async function fetchTablesStockRecent(): Promise<TablesStockRecentResult>
     // Raw SQL za cross-field primerjavo (quantity <= minQuantity) — Prisma tega ne podpira
     db.$queryRaw<Array<{ id: string; name: string; quantity: number; minQuantity: number; unit: string | null }>>`
       SELECT id, name, quantity, "minQuantity", unit
-      FROM InventoryItem
+      FROM "InventoryItem"
       WHERE quantity <= "minQuantity"
       ORDER BY name ASC
       LIMIT 5
