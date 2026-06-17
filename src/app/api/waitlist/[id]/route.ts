@@ -30,6 +30,8 @@ const updateWaitlistSchema = z.object({
   notes: z.string().max(1000, 'Opombe ne smejo preseči 1000 znakov').optional(),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     // FIX C-07: Zahtevaj avtentikacijo za posodabljanje čakalne vrste

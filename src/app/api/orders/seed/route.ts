@@ -7,6 +7,8 @@ import { toNum, round2, calcVat } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     // Zahtevaj admin avtentikacijo za seed

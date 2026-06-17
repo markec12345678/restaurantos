@@ -8,6 +8,8 @@ import { sendZReportEmail, isEmailEnabled, getReportRecipients } from '@/lib/ema
 import { fetchReportData, generateReportPdf } from '@/app/api/reports/export/_helpers'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })

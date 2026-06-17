@@ -25,6 +25,8 @@ const updateInvoiceSchema = z.object({
 })
 
 // GET /api/subscription/invoices — Seznam računov
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })

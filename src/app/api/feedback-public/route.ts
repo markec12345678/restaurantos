@@ -20,6 +20,8 @@ const feedbackSchema = z.object({
   source: z.enum(['qr_kiosk', 'web', 'receipt']).default('qr_kiosk'),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   // FIX CRITICAL: Rate limiting — skupni modul
   const clientIp = getClientIp(req)

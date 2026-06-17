@@ -10,6 +10,8 @@ import { createWaitlistSchema } from '@/lib/validations'
 import { logger } from '@/lib/logger'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // FIX C-07: Zahtevaj avtentikacijo za čakalno vrsto — vsebovana imena gostov, telefoni

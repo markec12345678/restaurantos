@@ -12,6 +12,8 @@ const updateCourseSchema = z.object({
   pacingNote: z.string().max(500, 'Opomba o tempu ne sme preseči 500 znakov').optional(),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     // FIX: Zahtevaj avtentikacijo

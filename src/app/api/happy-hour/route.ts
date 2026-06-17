@@ -6,6 +6,8 @@ import { createHappyHourSchema } from '@/lib/validations'
 import { NextResponse } from 'next/server'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // FIX CRITICAL: Zahtevaj avtentikacijo za dostop do Happy Hour podatkov

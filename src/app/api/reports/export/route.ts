@@ -18,6 +18,8 @@ import {
 import type { ReportType, ExportFormat } from './_helpers'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)

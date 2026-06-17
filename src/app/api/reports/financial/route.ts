@@ -9,6 +9,8 @@ import { calcDateRange, fetchFinancialData } from './_helpers-queries'
 import { computeFinancialMetrics } from './_helpers-compute'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

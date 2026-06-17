@@ -19,6 +19,8 @@ import {
 } from './_helpers'
 
 // GET — Pridobi tip poole
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'manage_employees' })

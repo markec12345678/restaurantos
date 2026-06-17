@@ -13,6 +13,8 @@ const createWebhookSchema = z.object({
   secret: z.string().max(200, 'Skrivnost ne sme preseči 200 znakov').default(''),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   // AVTENTIKACIJA: Webhooki so občutljivi - samo admin
   const authResult = await requireAuth(req, { permission: 'admin' })

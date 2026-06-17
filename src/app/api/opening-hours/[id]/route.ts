@@ -19,6 +19,8 @@ const updateOpeningHoursSchema = z.object({
   isClosed: z.boolean().optional(),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })

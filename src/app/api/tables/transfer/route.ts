@@ -16,6 +16,8 @@ const transferSchema = z.object({
   orderId: z.string().nullable().optional(),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })

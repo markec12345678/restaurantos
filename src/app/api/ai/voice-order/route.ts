@@ -13,6 +13,8 @@ const voiceOrderSchema = z.object({
   customerName: z.string().max(100).default('Voice Order'),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })

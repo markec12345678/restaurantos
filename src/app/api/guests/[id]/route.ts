@@ -9,6 +9,8 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { updateGuestSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     // FIX C-01: Zahtevaj avtentikacijo za dostop do gosta

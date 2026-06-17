@@ -27,6 +27,8 @@ const deliveryZoneSchema = z.object({
 })
 
 // GET /api/delivery-zones
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })

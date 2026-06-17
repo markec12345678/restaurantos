@@ -17,6 +17,8 @@ const wsBroadcastSchema = z.object({
 
 // POST /api/ws-broadcast — Oddaj WebSocket dogodek vsem povezanim odjemalcem
 // To API kličejo API rute (orders, order-items), ko želijo obvestiti KDS odjemalce
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     // FIX BUG 22: Zahtevaj avtentikacijo — prepreči zlorabo za lažna obvestila

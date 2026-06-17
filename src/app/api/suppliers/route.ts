@@ -11,6 +11,8 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createSupplierSchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // FIX C-06: Zahtevaj avtentikacijo za vpogled v dobavitelje

@@ -10,6 +10,8 @@ import { generateChallenge, base64urlEncode, verifyAssertion } from '@/lib/webau
 // In-memory challenge store (v produkciji: Redis ali DB)
 const challenges = new Map<string, { challenge: string; expires: number }>()
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const challenge = generateChallenge()

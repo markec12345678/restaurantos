@@ -19,6 +19,8 @@ const createApSchema = z.object({
   notes: z.string().max(1000).default(''),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'view_reports' })

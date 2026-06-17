@@ -11,6 +11,8 @@ const createMenuItemWithModifiersSchema = createMenuItemSchema.extend({
   modifierGroupIds: z.array(z.string().min(1)).default([]),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
   try {
     const authResult = await requireAuth(request)

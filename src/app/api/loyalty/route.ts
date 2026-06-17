@@ -6,6 +6,8 @@ import { createLoyaltySchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

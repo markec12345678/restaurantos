@@ -6,6 +6,8 @@ import { createDiscountSchema } from '@/lib/validations'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // FIX: Zahtevaj avtentikacijo za branje popustov — izpostavlja promoCode, maxUses, itd.

@@ -6,6 +6,8 @@ import { handleApiError } from '@/lib/api-utils'
 import { handlePostCheck } from './_helpers/post-handler'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // FIX: Zahtevaj avtentikacijo za branje čekov

@@ -9,6 +9,8 @@ import { printRequestSchema, handleOrderPrint, handleReceiptPrint, handleTestPri
 // POST /api/print — Tiskanje na omrežni tiskalnik (ESC/POS over TCP/IP)
 // ============================================
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   // Rate limiting — prepreči zlorabo API-ja
   const rl = checkRateLimit('print', getClientIp(req), AUTHENTICATED_LIMIT)

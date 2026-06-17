@@ -14,6 +14,8 @@ import { fetchEodData, computeEodMetrics, computeCategoryBreakdown, enrichEmploy
 import { handleEodPost, handleEodPostError } from './_helpers/post-handler'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

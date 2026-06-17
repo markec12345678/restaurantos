@@ -8,6 +8,8 @@ import { handleApiError } from '@/lib/api-utils'
 // GET /api/integrations/[id]/logs — Dnevnik integracije
 // ============================================
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }

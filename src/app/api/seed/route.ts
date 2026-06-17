@@ -11,6 +11,8 @@ import { seedMenusAndCategories } from './helpers/seed-structure'
 import { seedModifierGroups } from './helpers/seed-modifiers'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })

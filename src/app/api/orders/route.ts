@@ -8,6 +8,8 @@ import { handleApiError } from '@/lib/api-utils'
 import { handlePostOrder } from './_helpers/post-handler'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

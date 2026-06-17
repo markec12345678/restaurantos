@@ -18,6 +18,8 @@ import { seedFoodPart2 } from './helpers/seed-food-part2'
 import type { CatMap } from './helpers/types'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

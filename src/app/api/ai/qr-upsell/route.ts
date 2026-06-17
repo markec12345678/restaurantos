@@ -24,6 +24,8 @@ import ZAI from 'z-ai-web-dev-sdk'
 // 3. Zgodovine naročil (popular items)
 // =====================================================================
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     // FIX AUTH: AI endpoint zahteva avtentikacijo — prepreči zlorabo in stroške

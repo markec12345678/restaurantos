@@ -8,6 +8,8 @@ import { toNum, round2, divide, decEquals, deepToNumbers } from '@/lib/decimal'
 import { handleDeleteInventory } from './_helpers'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params

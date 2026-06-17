@@ -9,6 +9,8 @@ import { handlePutOrder } from './_helpers'
 import { handleFireAction, handleItemStatusUpdate, performOrderSoftDelete } from './webhooks'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return handlePutOrder(req, params)
 }

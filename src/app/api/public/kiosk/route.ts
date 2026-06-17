@@ -20,6 +20,8 @@ const kioskOrderSchema = z.object({
   paymentMethod: z.enum(['cash', 'card']).default('card'),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     // Vrni meni za kiosk (samo aktivni artikli z alergeni)

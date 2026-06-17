@@ -9,6 +9,8 @@ import { SYSTEM_PROMPT, gatherDataContext, generateFallbackResponse } from './_h
 import { logger } from '@/lib/logger'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     // FIX: Zahtevaj avtentikacijo za AI asistenta

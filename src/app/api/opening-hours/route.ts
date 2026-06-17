@@ -26,6 +26,8 @@ const batchSchema = z.object({
 })
 
 // GET /api/opening-hours
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })

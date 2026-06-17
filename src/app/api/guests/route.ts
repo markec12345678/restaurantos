@@ -11,6 +11,8 @@ import { emitEvent } from '@/lib/event-emitter'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // FIX C-01: Zahtevaj avtentikacijo za dostop do gostov

@@ -5,6 +5,8 @@ import { updateGiftCardSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { toNum, greaterThan, deepToNumbers } from '@/lib/decimal'
 
+export const dynamic = 'force-dynamic'
+
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }

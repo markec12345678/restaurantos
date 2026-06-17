@@ -17,6 +17,8 @@ const sensorSchema = z.object({
   isActive: z.boolean().default(true),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'view_reports' })

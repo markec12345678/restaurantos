@@ -13,6 +13,8 @@ import { handleApiError, validateRequest } from '@/lib/api-utils'
 // GET /api/locations — Seznam lokacij
 // ============================================
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   const authResult = await requireAuth(req, { permission: 'admin' })
   if (authResult.error) return authResult.error

@@ -13,6 +13,8 @@ import { toNum, round2, add } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // FIX CRITICAL: Zahtevaj avtentikacijo za dostop do blagajniških podatkov

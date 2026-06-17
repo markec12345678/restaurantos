@@ -14,6 +14,8 @@ import { purchaseOrderUpdateSchema, VALID_PO_TRANSITIONS, handleReceiveAction } 
 import { sendEmail, isEmailEnabled } from '@/lib/email'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     // FIX C-09: Zahtevaj avtentikacijo

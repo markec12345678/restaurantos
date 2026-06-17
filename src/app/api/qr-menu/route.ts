@@ -7,6 +7,8 @@ import { checkRateLimit, getClientIp, PUBLIC_MENU_LIMIT } from '@/lib/rate-limit
 import { handleApiError } from '@/lib/api-utils'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   // FIX CRITICAL: Rate limiting
   const clientIp = getClientIp(req)

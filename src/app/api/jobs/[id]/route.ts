@@ -28,6 +28,8 @@ const updateJobSchema = z.object({
   sortOrder: z.number().int().min(0).max(9999).optional(),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }

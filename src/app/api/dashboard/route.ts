@@ -18,6 +18,8 @@ import {
 import { fetchAnalyticsBreakdowns } from './_helpers-analytics'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

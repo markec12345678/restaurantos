@@ -7,6 +7,8 @@ import { configPostSchema, allowedFields, modelMap, coerceFieldTypes } from './_
 
 // FIX CRITICAL: Zahtevaj avtentikacijo za GET — konfiguracija vsebuje
 // popuste, storno razloge, tiskalniške konfiguracije itd.
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req)

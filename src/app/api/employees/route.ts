@@ -8,6 +8,8 @@ import { handleApiError, validateRequest } from '@/lib/api-utils'
 import bcrypt from 'bcryptjs'
 import { hashPinLookup, pinLookupEnabled } from '@/lib/pin-lookup'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

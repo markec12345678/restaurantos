@@ -23,6 +23,8 @@ const updateRecipeSchema = z.object({
 })
 
 // GET /api/recipes — Pridobi recepte/normative
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // Auth check — requires manage_inventory permission

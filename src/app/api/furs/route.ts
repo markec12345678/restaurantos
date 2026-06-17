@@ -18,6 +18,8 @@ import { logger } from '@/lib/logger'
 
 
 // GET /api/furs — Preveri status FURS povezave
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

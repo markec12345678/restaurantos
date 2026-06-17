@@ -24,6 +24,8 @@ const updateDiscountSchema = z.object({
   return true
 }, { message: 'Odstotni popust ne sme preseči 100%', path: ['amount'] })
 
+export const dynamic = 'force-dynamic'
+
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }

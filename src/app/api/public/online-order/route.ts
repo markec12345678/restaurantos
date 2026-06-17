@@ -18,6 +18,8 @@ import {
   triggerWebhookAsync, createOnlineOrder,
 } from './_helpers'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   // FIX CRITICAL: Rate limiting — skupni modul
   const clientIp = getClientIp(req)

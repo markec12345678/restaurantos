@@ -6,6 +6,8 @@ import { updateDeliverySchema } from '@/lib/validations'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { handleRouteError, parseJsonBody, validateBody } from '@/lib/api-utils'
 
+export const dynamic = 'force-dynamic'
+
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }

@@ -16,6 +16,8 @@ const createJobSchema = z.object({
   sortOrder: z.number().int().min(0).default(0),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // FIX CRITICAL: Zahtevaj avtentikacijo za branje delovnih mest — izpostavlja dovoljenja in plačne podatke

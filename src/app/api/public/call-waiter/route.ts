@@ -15,6 +15,8 @@ const callWaiterSchema = z.object({
   message: z.string().max(200).default(''),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   // FIX CRITICAL: Rate limiting
   const clientIp = getClientIp(req)

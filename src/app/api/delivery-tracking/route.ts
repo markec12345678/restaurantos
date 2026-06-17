@@ -15,6 +15,8 @@ import {
 } from './_helpers'
 
 // GET — Pridobi aktivne dostave s sledenjem
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })

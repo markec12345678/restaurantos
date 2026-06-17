@@ -16,6 +16,8 @@ import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { handleGetReservations, handleCreateReservation } from './_helpers'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // FIX C-05: Zahtevaj avtentikacijo za vpogled v rezervacije

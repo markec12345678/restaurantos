@@ -13,6 +13,8 @@ const updateWebhookSchema = z.object({
   secret: z.string().max(200, 'Skrivnost ne sme preseči 200 znakov').optional(),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }

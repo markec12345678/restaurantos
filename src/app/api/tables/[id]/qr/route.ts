@@ -9,6 +9,8 @@ import QRCode from 'qrcode'
 import { getAppUrl } from '@/lib/utils'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })

@@ -9,6 +9,8 @@ import { handleApiError } from '@/lib/api-utils'
 // GET /api/webhooks/deliveries — Seznam dostav webhookov
 // ============================================
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   const authResult = await requireAuth(req, { permission: 'admin' })
   if (authResult.error) return authResult.error

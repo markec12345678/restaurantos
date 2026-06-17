@@ -15,6 +15,8 @@ import { handleApiError } from '@/lib/api-utils'
 import { computeVatBreakdown, computeTimeVatDistribution } from './_helpers'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

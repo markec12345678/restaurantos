@@ -16,6 +16,8 @@ import { verifyPin, buildAuthResponse, buildAuthStatusResponse } from './_helper
 // ============================================
 
 // POST /api/auth — Prijava z PIN-om
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     const bodyResult = await parseJsonBody(req)

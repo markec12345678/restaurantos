@@ -5,6 +5,8 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createCategorySchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: Request) {
   try {
     const authResult = await requireAuth(request)

@@ -20,6 +20,8 @@ const deliveryCheckSchema = z.object({
   city: z.string().max(100).default(''),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   // FIX CRITICAL: Rate limiting
   const clientIp = getClientIp(req)

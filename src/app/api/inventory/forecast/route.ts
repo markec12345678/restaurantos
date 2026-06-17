@@ -10,6 +10,8 @@ import { handleApiError } from '@/lib/api-utils'
 import { getForecastData } from './_helpers'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // FIX HIGH: Require manage_inventory permission for forecast data

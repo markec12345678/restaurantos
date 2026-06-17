@@ -17,6 +17,8 @@ const getCoursesSchema = z.object({
   orderId: z.string().min(1, 'ID naročila je obvezen').max(100, 'ID naročila ne sme preseči 100 znakov'),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // FIX: Zahtevaj avtentikacijo za kurse

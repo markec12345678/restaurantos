@@ -9,6 +9,8 @@ import { closeShiftSchema, postShiftCloseActions } from './_helpers'
 
 
 // PUT /api/cash-register/[id] — Close a shift
+export const dynamic = 'force-dynamic'
+
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params

@@ -22,6 +22,8 @@ import {
   MAX_ORDER_TOTAL,
 } from './_helpers'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   // FIX CRITICAL: Rate limiting — uporabi skupni modul
   const clientIp = getClientIp(req)

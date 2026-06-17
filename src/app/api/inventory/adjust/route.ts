@@ -6,6 +6,8 @@ import { inventoryAdjustSchema, batchAdjustSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { toNum, round2, multiply } from '@/lib/decimal'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     const bodyResult = await parseJsonBody(req)

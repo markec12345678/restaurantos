@@ -7,6 +7,8 @@ import { emitEvent } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // FIX BUG 13: Zahtevaj avtentikacijo za vpogled v izmene

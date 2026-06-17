@@ -5,6 +5,8 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { updateLoyaltySchema } from '@/lib/validations'
 import { handleRouteError, parseJsonBody, validateBody } from '@/lib/api-utils'
 
+export const dynamic = 'force-dynamic'
+
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }

@@ -4,6 +4,8 @@ import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { handleListPayments, handleCreatePayment } from './_helpers'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     // FIX SECURITY: GET je prej klical handleListPayments BREZ requireAuth() —

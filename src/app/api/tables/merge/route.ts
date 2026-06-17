@@ -17,6 +17,8 @@ const mergeSchema = z.object({
   targetTableId: z.string().min(1, 'Ciljna miza je obvezna'),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })

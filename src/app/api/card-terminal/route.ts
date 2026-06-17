@@ -15,6 +15,8 @@ import type { PaymentRequest } from './_helpers'
 // ============================================
 
 // GET /api/card-terminal — Status terminala
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })

@@ -6,6 +6,8 @@ import { inventoryRestockSchema } from '@/lib/validations'
 import { toNum, round2, multiply, divide, isPositive } from '@/lib/decimal'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     // FIX BUG 10: Zahtevaj avtentikacijo za restock

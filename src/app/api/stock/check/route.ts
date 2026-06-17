@@ -16,6 +16,8 @@ const stockCheckSchema = z.object({
   })).min(1, 'Vsaj en artikel je obvezen').max(100, 'Največ 100 artiklov na preverbo'),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })

@@ -88,6 +88,8 @@ function mapRow(headers: string[], row: string[], rowNum: number): { data?: Impo
   }
 }
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'manage_inventory' })

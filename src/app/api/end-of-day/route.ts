@@ -12,6 +12,8 @@ import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { fetchEodData, computeEodMetrics, closeShift } from './_helpers'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'manage_cash' })

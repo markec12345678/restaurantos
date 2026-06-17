@@ -6,6 +6,8 @@ import { handleApiError } from '@/lib/api-utils'
 
 // GET /api/audit — Pridobi revizijski dnevnik
 // Samo admin lahko vidi revizijske vnose (PCI DSS zahteva)
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })

@@ -20,6 +20,8 @@ import { buildRestorantosRecipes } from './helpers/build-restorantos-recipes'
 import type { MiFn, RecipeEntry } from './helpers/types'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

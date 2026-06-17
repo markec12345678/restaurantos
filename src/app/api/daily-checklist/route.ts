@@ -10,6 +10,8 @@ import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { saveChecklistSchema, getChecklistSchema, OPENING_CHECKLIST, CLOSING_CHECKLIST, ChecklistItem } from './_helpers'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })

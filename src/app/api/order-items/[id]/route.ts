@@ -9,6 +9,8 @@ import { toNum, deepToNumbers } from '@/lib/decimal'
 import { broadcastWS, recalculateOrderTotals, recalculateCheckTotals, returnStockForVoidedItem } from './_helpers'
 
 
+export const dynamic = 'force-dynamic'
+
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params

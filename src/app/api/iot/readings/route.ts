@@ -16,6 +16,8 @@ const readingSchema = z.object({
 })
 
 // Brez auth — IoT naprave pošiljajo z API key (v produkciji dodati API key validacijo)
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     const bodyResult = await parseJsonBody(req)

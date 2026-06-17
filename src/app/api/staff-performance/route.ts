@@ -15,6 +15,8 @@ import {
   computeTotals,
 } from './_helpers'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'view_reports' })

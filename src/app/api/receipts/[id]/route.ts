@@ -9,6 +9,8 @@ import { handlePostReceipt } from './_helpers/post-handler'
 
 
 // GET /api/receipts/[id] — Generiraj račun s predogledom (ZDDV-1 skladen)
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     // FIX C-07: Zahtevaj avtentikacijo za ogled računa
