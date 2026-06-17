@@ -52,11 +52,11 @@ async function main() {
     { name: 'Beefsteak', desc: 'Goveji zrezek s prilogo', price: 24.50, cat: catFood.id, vat: 22, img: '/images/beefsteak.webp' },
     { name: 'Lignji na žaru', desc: 'Sveži lignji z limono', price: 18.90, cat: catFood.id, vat: 22, img: '/images/lignji.webp' },
     { name: 'Pizza Margherita', desc: 'Klasična italijanska pizza', price: 9.50, cat: catFood.id, vat: 22, img: '/images/pizza.webp' },
-    { name: 'Špaghetti Carbonara', desc: 'Italijanska klasika', price: 11.50, cat: catFood.id, vat: 22, img: '' },
-    { name: 'Laški Teran', desc: 'Rdeče vino, 0.2l', price: 3.50, cat: catDrinks.id, vat: 22, img: '' },
-    { name: 'Pivo Laško', desc: 'Točeno, 0.5l', price: 3.20, cat: catDrinks.id, vat: 22, img: '' },
-    { name: 'Coca-Cola', desc: '0.33l', price: 2.50, cat: catDrinks.id, vat: 22, img: '' },
-    { name: 'Kava', desc: 'Espresso', price: 1.80, cat: catDrinks.id, vat: 22, img: '' },
+    { name: 'Špaghetti Carbonara', desc: 'Italijanska klasika', price: 11.50, cat: catFood.id, vat: 22, img: '/images/spaghetti.webp' },
+    { name: 'Laški Teran', desc: 'Rdeče vino, 0.2l', price: 3.50, cat: catDrinks.id, vat: 22, img: '/images/spaghetti.webp' },
+    { name: 'Pivo Laško', desc: 'Točeno, 0.5l', price: 3.20, cat: catDrinks.id, vat: 22, img: '/images/spaghetti.webp' },
+    { name: 'Coca-Cola', desc: '0.33l', price: 2.50, cat: catDrinks.id, vat: 22, img: '/images/spaghetti.webp' },
+    { name: 'Kava', desc: 'Espresso', price: 1.80, cat: catDrinks.id, vat: 22, img: '/images/spaghetti.webp' },
   ]
   for (const it of items) {
     await prisma.menuItem.create({ data: { name: it.name, description: it.desc, price: it.price, image: it.img, isAvailable: true, sortOrder: 0, vatRate: it.vat, categoryId: it.cat } })
