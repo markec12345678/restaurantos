@@ -19,6 +19,7 @@ import { buildFoodRecipes } from './helpers/build-food-recipes'
 import { buildRestorantosRecipes } from './helpers/build-restorantos-recipes'
 import type { MiFn, RecipeEntry } from './helpers/types'
 
+
 export async function POST(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

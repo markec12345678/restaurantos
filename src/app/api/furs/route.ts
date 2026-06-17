@@ -16,6 +16,7 @@ import { verifyInvoice } from './helpers/verify-invoice'
 import { stornoInvoice } from './helpers/storno-invoice'
 import { logger } from '@/lib/logger'
 
+
 // GET /api/furs — Preveri status FURS povezave
 export async function GET(req: Request) {
   try {

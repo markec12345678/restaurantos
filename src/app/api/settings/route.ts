@@ -6,6 +6,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { updateSettingsSchema } from '@/lib/validations'
 import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
+
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

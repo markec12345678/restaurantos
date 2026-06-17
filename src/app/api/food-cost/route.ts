@@ -6,6 +6,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { toNum, round2, multiply } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
 
+
 export async function GET(req: Request) {
   try {
     // FIX: Zahtevaj avtentikacijo za food cost analizo

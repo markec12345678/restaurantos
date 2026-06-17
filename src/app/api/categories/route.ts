@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createCategorySchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+
 export async function GET(request: Request) {
   try {
     const authResult = await requireAuth(request)

@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+
 // =====================================================================
 // OPENING HOURS API — CRUD za delovni čas lokacij
 // Podpora za urnike po dnevih s premori

@@ -11,6 +11,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { parseJsonBody, handleApiError } from '@/lib/api-utils'
 
+
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     // FIX: Staff shift management requires manage_employees, not manage_cash

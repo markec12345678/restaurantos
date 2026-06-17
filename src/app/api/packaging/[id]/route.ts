@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { updatePackagingSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
+
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }

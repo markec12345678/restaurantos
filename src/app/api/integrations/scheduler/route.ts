@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 
 import { handleApiError } from '@/lib/api-utils'
+
 export async function POST(req: Request) {
   const authResult = await requireAuth(req, { permission: 'admin' })
   if (authResult.error) return authResult.error

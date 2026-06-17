@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { createSession } from '@/lib/auth-middleware/session-store'
 import { generateChallenge, base64urlEncode, verifyAssertion } from '@/lib/webauthn'
 
+
 // In-memory challenge store (v produkciji: Redis ali DB)
 const challenges = new Map<string, { challenge: string; expires: number }>()
 

@@ -8,6 +8,7 @@ import { handleApiError } from '@/lib/api-utils'
 import { calcDateRange, fetchFinancialData } from './_helpers-queries'
 import { computeFinancialMetrics } from './_helpers-compute'
 
+
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

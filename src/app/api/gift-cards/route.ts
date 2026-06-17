@@ -7,6 +7,7 @@ import { isPositive, deepToNumbers } from '@/lib/decimal'
 import { logger } from '@/lib/logger'
 import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

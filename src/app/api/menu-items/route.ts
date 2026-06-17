@@ -6,6 +6,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createMenuItemSchema } from '@/lib/validations'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+
 const createMenuItemWithModifiersSchema = createMenuItemSchema.extend({
   modifierGroupIds: z.array(z.string().min(1)).default([]),
 })

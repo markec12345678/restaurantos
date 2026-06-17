@@ -9,6 +9,7 @@ import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-lim
 import { handleRouteError, handleApiError, validateRequest } from '@/lib/api-utils'
 import { openShiftSchema, calculateLiveStats, openShift } from './_helpers'
 
+
 // GET /api/cash-register — Get current and recent shifts
 export async function GET(req: Request) {
   try {

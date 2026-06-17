@@ -6,6 +6,7 @@ import { validateReportDateRange } from '@/lib/validations'
 import { toNum, multiply, round2 } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
 
+
 export async function GET(req: Request) {
   try {
     // FIX CRITICAL: Zahtevaj avtentikacijo za dostop do prodajnih podatkov

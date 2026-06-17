@@ -13,6 +13,7 @@ import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { purchaseOrderUpdateSchema, VALID_PO_TRANSITIONS, handleReceiveAction } from './_helpers'
 import { sendEmail, isEmailEnabled } from '@/lib/email'
 
+
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     // FIX C-09: Zahtevaj avtentikacijo

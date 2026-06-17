@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateSupplierSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
+
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     // FIX C-06: Zahtevaj avtentikacijo

@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createDiscountSchema } from '@/lib/validations'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+
 export async function GET(req: Request) {
   try {
     // FIX: Zahtevaj avtentikacijo za branje popustov — izpostavlja promoCode, maxUses, itd.

@@ -11,6 +11,7 @@ import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { createAuditLog } from '@/lib/db'
 import { z } from 'zod'
 
+
 const mergeSchema = z.object({
   sourceTableId: z.string().min(1, 'Izvorna miza je obvezna'),
   targetTableId: z.string().min(1, 'Ciljna miza je obvezna'),

@@ -7,6 +7,7 @@ import { generateCsrfToken } from '@/lib/csrf'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { verifyPin, buildAuthResponse, buildAuthStatusResponse } from './_helpers'
 
+
 // ============================================
 // PIN AVTENTIKACIJA ZA POS SISTEM
 // Profesionalna prijava s session managementom

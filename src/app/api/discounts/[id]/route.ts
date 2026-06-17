@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+
 // FIX HIGH: Zod validacija za posodobitev popusta
 const updateDiscountSchema = z.object({
   name: z.string().min(1, 'Ime popusta je obvezno').max(200, 'Ime ne sme preseči 200 znakov').optional(),

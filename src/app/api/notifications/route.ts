@@ -10,6 +10,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { sendNotificationSchema, sendBatchSchema, simulateSend, parseDetails } from './_helpers'
 
+
 // ============================================
 // GET — Pridobi obvestila
 // ============================================

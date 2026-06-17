@@ -12,6 +12,7 @@ import { validateReportDateRange } from '@/lib/validations'
 import { toNum, round2, add } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
 
+
 export async function GET(req: Request) {
   try {
     // FIX CRITICAL: Zahtevaj avtentikacijo za dostop do blagajniških podatkov

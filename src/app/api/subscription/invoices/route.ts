@@ -11,6 +11,7 @@ import { getNextCounter } from '@/lib/counters'
 import { toNum, round2, multiply, add, deepToNumbers } from '@/lib/decimal'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+
 const createInvoiceSchema = z.object({
   subscriptionId: z.string().min(1, 'ID naročnine je obvezen').max(100, 'ID naročnine je predolg'),
   periodStart: z.string().min(1, 'Začetek obdobja je obvezen').max(30, 'Neveljaven format datuma'),

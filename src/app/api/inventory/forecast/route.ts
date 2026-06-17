@@ -9,6 +9,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { getForecastData } from './_helpers'
 
+
 export async function GET(req: Request) {
   try {
     // FIX HIGH: Require manage_inventory permission for forecast data

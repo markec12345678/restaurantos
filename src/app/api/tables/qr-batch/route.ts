@@ -5,6 +5,7 @@ import { handleApiError } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import { getAppUrl } from '@/lib/utils'
 
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })

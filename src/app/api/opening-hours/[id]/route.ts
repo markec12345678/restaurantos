@@ -9,6 +9,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { z } from 'zod'
 
+
 // Zod validacija za posodobitev delovnega časa
 const updateOpeningHoursSchema = z.object({
   openTime: z.string().optional(),

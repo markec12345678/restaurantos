@@ -13,6 +13,7 @@ import { toNum } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
 import { createEmptyStats, aggregateOrderItems, finalizeStats, computeEmployeeTotals } from './_helpers'
 
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'view_reports' })

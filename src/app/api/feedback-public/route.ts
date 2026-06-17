@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server'
 import { checkRateLimit, getClientIp, FEEDBACK_PUBLIC_LIMIT } from '@/lib/rate-limit'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+
 const feedbackSchema = z.object({
   ratings: z.record(z.string(), z.number().min(1).max(5)).refine(r => Object.keys(r).length > 0, 'Vsaj ena ocena je obvezna'),
   comment: z.string().max(500).default(''),

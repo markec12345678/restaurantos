@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateReservationSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
+
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     // FIX C-05: Zahtevaj avtentikacijo za posodabljanje rezervacije

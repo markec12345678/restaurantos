@@ -11,6 +11,7 @@ import { checkRateLimit, getClientIp, PROMO_CHECK_LIMIT } from '@/lib/rate-limit
 import { toNum, calcDiscount } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
 
+
 export async function GET(req: Request) {
   // FIX CRITICAL: Rate limiting
   const clientIp = getClientIp(req)

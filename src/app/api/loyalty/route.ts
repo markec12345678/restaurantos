@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createLoyaltySchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

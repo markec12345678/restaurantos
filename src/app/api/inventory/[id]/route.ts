@@ -7,6 +7,7 @@ import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { toNum, round2, divide, decEquals, deepToNumbers } from '@/lib/decimal'
 import { handleDeleteInventory } from './_helpers'
 
+
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params

@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { SYSTEM_PROMPT, gatherDataContext, generateFallbackResponse } from './_helpers'
 import { logger } from '@/lib/logger'
 
+
 export async function POST(req: Request) {
   try {
     // FIX: Zahtevaj avtentikacijo za AI asistenta

@@ -23,6 +23,8 @@ import {
 } from './_helpers'
 
 // POST /api/delivery/webhook/wolt — Wolt pošlje naročilo
+export const dynamic = 'force-dynamic'
+
 export async function POST(req: Request) {
   try {
     // FIX: Rate limit za Wolt webhook — prepreči ponovne pošiljanke (replay attacks)

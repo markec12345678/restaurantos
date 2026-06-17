@@ -14,6 +14,7 @@ import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-lim
 import { handleApiError } from '@/lib/api-utils'
 import { computeVatBreakdown, computeTimeVatDistribution } from './_helpers'
 
+
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

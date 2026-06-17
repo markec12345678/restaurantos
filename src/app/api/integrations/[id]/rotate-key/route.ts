@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import crypto from 'crypto'
 
+
 const rotateKeySchema = z.object({
   field: z.enum(['apiKey', 'apiSecret']),
   newValue: z.string().min(1).max(500).optional(),

@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { parseJsonBody, handleApiError } from '@/lib/api-utils'
 
+
 const updateSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   postCodes: z.string().max(2000).optional(),

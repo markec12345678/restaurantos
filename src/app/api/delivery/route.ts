@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createDeliverySchema } from '@/lib/validations'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+
 export async function GET(req: Request) {
   try {
     // FIX C-07: Zahtevaj avtentikacijo za dostave

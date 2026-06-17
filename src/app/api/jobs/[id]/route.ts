@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+
 const VALID_PERMISSIONS = [
   'take_orders', 'void_items', 'apply_discounts', 'manage_cash',
   'manage_inventory', 'manage_employees', 'view_reports', 'admin',

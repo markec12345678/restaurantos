@@ -6,6 +6,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createHaccpSchema, haccpUpdateSchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import crypto from 'crypto'
+
 export async function GET(req: Request) {
   try {
     // FIX BUG 12: Zahtevaj avtentikacijo za HACCP

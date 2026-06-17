@@ -6,6 +6,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { toNum, round2, calcVat } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
 
+
 export async function POST(req: Request) {
   try {
     // Zahtevaj admin avtentikacijo za seed

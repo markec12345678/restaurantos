@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { generateTrialBalance } from '@/lib/accounting/journal-generator'
 
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'view_reports' })

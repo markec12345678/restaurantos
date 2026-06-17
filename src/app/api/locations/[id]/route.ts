@@ -8,6 +8,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { updateLocationSchema } from './_helpers'
 
+
 // ============================================
 // GET /api/locations/[id] — Podrobnosti lokacije
 // ============================================

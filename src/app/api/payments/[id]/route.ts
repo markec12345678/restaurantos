@@ -8,6 +8,7 @@ import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { z } from 'zod'
 import { reverseGiftCard, reverseLoyaltyPoints, recalculatePaymentStatus, deepToNumbers } from './_helpers'
 
+
 const updatePaymentSchema = createPaymentSchema.partial().extend({
   status: z.enum(['completed', 'refunded', 'voided']).optional(),
   employeeId: z.string().nullable().optional(),

@@ -4,6 +4,7 @@ import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { printRequestSchema, handleOrderPrint, handleReceiptPrint, handleTestPrint } from './_helpers'
 
+
 // ============================================
 // POST /api/print — Tiskanje na omrežni tiskalnik (ESC/POS over TCP/IP)
 // ============================================

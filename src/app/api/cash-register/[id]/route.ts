@@ -7,6 +7,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleRouteError, validateRequest } from '@/lib/api-utils'
 import { closeShiftSchema, postShiftCloseActions } from './_helpers'
 
+
 // PUT /api/cash-register/[id] — Close a shift
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {

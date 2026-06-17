@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createGuestFeedbackSchema } from '@/lib/validations'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })

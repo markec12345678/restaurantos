@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { updateModifierGroupSchema } from '@/lib/validations'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
+
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authResult = await requireAuth(request, { permission: 'admin' })

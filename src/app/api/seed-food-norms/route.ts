@@ -17,6 +17,7 @@ import { seedFoodPart1 } from './helpers/seed-food-part1'
 import { seedFoodPart2 } from './helpers/seed-food-part2'
 import type { CatMap } from './helpers/types'
 
+
 export async function POST(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

@@ -7,6 +7,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { buildReceiptPreview } from './_route-helpers'
 import { handlePostReceipt } from './_helpers/post-handler'
 
+
 // GET /api/receipts/[id] — Generiraj račun s predogledom (ZDDV-1 skladen)
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {

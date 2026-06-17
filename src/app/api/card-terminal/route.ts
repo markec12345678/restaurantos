@@ -7,6 +7,7 @@ import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { getTerminalConfig, checkTerminalStatus, processTerminalPayment } from './_helpers'
 import type { PaymentRequest } from './_helpers'
 
+
 // ============================================
 // CARD TERMINAL INTEGRATION API
 // Podpora za: Nexgo, PAX, Verifone, Ingenico, SumUp, Square Reader

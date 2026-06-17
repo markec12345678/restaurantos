@@ -9,6 +9,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { syncEracuni, syncAccounting, syncGeneric, syncQuickBooks, syncXero } from './_helpers'
 
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }

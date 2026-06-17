@@ -7,6 +7,7 @@ import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-lim
 import { handleApiError } from '@/lib/api-utils'
 import { handlePostOrder } from './_helpers/post-handler'
 
+
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

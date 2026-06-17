@@ -14,6 +14,7 @@ import { toNum } from '@/lib/decimal'
 import { z } from 'zod'
 import { handleApiError } from '@/lib/api-utils'
 
+
 const deliveryCheckSchema = z.object({
   postCode: z.string().min(1, 'Poštna številka je obvezna').max(20),
   city: z.string().max(100).default(''),

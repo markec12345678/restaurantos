@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createMenuSchema } from '@/lib/validations'
 import { NextResponse } from 'next/server'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req)

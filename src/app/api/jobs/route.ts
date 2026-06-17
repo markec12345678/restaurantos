@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+
 const createJobSchema = z.object({
   name: z.string().min(1, 'Ime je obvezno').max(200),
   code: z.string().max(50).default(''),

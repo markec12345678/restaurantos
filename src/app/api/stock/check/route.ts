@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+
 // ============================================
 // POST /api/stock/check — Preveri razpoložljivost zaloge
 // Uporabi se PRED oddajo naročila za opozorilo natakarja

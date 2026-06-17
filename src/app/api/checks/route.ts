@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { handlePostCheck } from './_helpers/post-handler'
 
+
 export async function GET(req: Request) {
   try {
     // FIX: Zahtevaj avtentikacijo za branje čekov

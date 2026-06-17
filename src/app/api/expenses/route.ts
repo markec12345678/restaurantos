@@ -10,6 +10,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { round2, toNum, type DecimalLike } from '@/lib/decimal'
 import { z } from 'zod'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
+
 const createExpenseSchema = z.object({
   category: z.enum(['food', 'beverage', 'labor', 'rent', 'utilities', 'marketing', 'maintenance', 'supplies', 'insurance', 'other'], {
     message: 'Neveljavna kategorija stroška',

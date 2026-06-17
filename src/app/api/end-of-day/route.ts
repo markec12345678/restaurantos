@@ -11,6 +11,7 @@ import { toNum } from '@/lib/decimal'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { fetchEodData, computeEodMetrics, closeShift } from './_helpers'
 
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'manage_cash' })

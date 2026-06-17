@@ -13,6 +13,7 @@ import { validateFursConfig, loadCertificatePrivateKey } from '@/lib/furs'
 import { handleApiError } from '@/lib/api-utils'
 import { buildFursConfig, fetchAndLockUnverifiedReceipts, processBatchReceipt, type BatchReceiptResult } from './_helpers'
 
+
 export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })

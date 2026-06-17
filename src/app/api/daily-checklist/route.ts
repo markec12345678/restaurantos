@@ -9,6 +9,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { saveChecklistSchema, getChecklistSchema, OPENING_CHECKLIST, CLOSING_CHECKLIST, ChecklistItem } from './_helpers'
 
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })

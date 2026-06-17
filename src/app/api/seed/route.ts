@@ -10,6 +10,7 @@ import { cleanupExistingData } from './_helpers'
 import { seedMenusAndCategories } from './helpers/seed-structure'
 import { seedModifierGroups } from './helpers/seed-modifiers'
 
+
 export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })

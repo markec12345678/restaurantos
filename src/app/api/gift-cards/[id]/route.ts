@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { updateGiftCardSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { toNum, greaterThan, deepToNumbers } from '@/lib/decimal'
+
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }

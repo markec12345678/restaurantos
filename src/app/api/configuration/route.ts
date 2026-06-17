@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { configPostSchema, allowedFields, modelMap, coerceFieldTypes } from './_helpers'
 
+
 // FIX CRITICAL: Zahtevaj avtentikacijo za GET — konfiguracija vsebuje
 // popuste, storno razloge, tiskalniške konfiguracije itd.
 export async function GET(req: Request) {

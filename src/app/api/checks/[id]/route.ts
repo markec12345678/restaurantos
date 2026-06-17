@@ -6,6 +6,7 @@ import { updateCheckSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { deepToNumbers } from '@/lib/decimal'
 import {
+
   validateDiscount,
   calculateDiscountUpdate,
   calculateNoDiscountTotals,

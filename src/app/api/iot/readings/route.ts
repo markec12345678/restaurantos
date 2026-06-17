@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { z } from 'zod'
 
+
 const readingSchema = z.object({
   sensorId: z.string().min(1),
   temperature: z.number(),

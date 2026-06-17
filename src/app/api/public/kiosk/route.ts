@@ -7,6 +7,7 @@ import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { checkRateLimit, getClientIp, KIOSK_LIMIT } from '@/lib/rate-limit'
 import { z } from 'zod'
 
+
 const kioskOrderSchema = z.object({
   orderItems: z.array(z.object({
     menuItemId: z.string().min(1),

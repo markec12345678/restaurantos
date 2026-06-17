@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { checkRateLimit, getClientIp, VERIFY_TABLE_LIMIT } from '@/lib/rate-limit'
 
+
 export async function GET(req: Request) {
   // FIX CRITICAL: Rate limiting
   const clientIp = getClientIp(req)

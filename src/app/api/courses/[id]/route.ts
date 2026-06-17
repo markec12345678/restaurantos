@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+
 // Shema za posodobitev kursa — podpira akcije (fire/ready/served) in urejanje polj
 const updateCourseSchema = z.object({
   action: z.enum(['fire', 'ready', 'served'], { message: 'Neveljavna akcija' }).optional(),

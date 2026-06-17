@@ -5,6 +5,7 @@ import { updateTimeEntrySchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { toNum, round2, multiply, deepToNumbers } from '@/lib/decimal'
+
 export async function PUT(
   req: Request,
   { params }: { params: Promise<{ id: string }> }

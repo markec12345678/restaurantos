@@ -8,6 +8,7 @@ import { checkRateLimit, getClientIp, GENERAL_PUBLIC_LIMIT } from '@/lib/rate-li
 import { handleApiError } from '@/lib/api-utils'
 import { generateReceiptToken, buildDigitalReceiptResponse } from './_helpers'
 
+
 export async function GET(req: Request) {
   // FIX CRITICAL: Rate limiting
   const clientIp = getClientIp(req)

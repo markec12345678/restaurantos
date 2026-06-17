@@ -6,6 +6,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { z } from 'zod'
 
+
 const createArSchema = z.object({
   customerName: z.string().min(1, 'Ime stranke je obvezno'),
   customerTaxId: z.string().max(50).default(''),

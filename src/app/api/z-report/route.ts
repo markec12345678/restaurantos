@@ -14,6 +14,7 @@ import { z } from 'zod'
 import { handleApiError, handleRouteError, validateRequest } from '@/lib/api-utils'
 import { calculateReportStats, buildReportData } from './_helpers'
 
+
 const generateZReportSchema = z.object({
   date: z.string().min(1, 'Datum je obvezen').max(30, 'Neveljaven format datuma'),
   locationId: z.string().max(100, 'ID lokacije je predolg').optional(),

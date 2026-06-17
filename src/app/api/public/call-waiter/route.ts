@@ -9,6 +9,7 @@ import { z } from 'zod'
 import { getAppUrl } from '@/lib/utils'
 import { checkRateLimit, getClientIp, CALL_WAITER_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+
 const callWaiterSchema = z.object({
   tableId: z.string().min(1).max(100, 'tableId preveč dolg'),
   message: z.string().max(200).default(''),

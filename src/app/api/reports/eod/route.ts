@@ -13,6 +13,7 @@ import { handleApiError } from '@/lib/api-utils'
 import { fetchEodData, computeEodMetrics, computeCategoryBreakdown, enrichEmployeeNames } from './_helpers'
 import { handleEodPost, handleEodPostError } from './_helpers/post-handler'
 
+
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja

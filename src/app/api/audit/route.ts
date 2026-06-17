@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 
 import { handleApiError } from '@/lib/api-utils'
+
 // GET /api/audit — Pridobi revizijski dnevnik
 // Samo admin lahko vidi revizijske vnose (PCI DSS zahteva)
 export async function GET(req: Request) {

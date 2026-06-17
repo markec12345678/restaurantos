@@ -6,6 +6,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { z } from 'zod'
 
+
 const sensorSchema = z.object({
   sensorId: z.string().min(1),
   name: z.string().min(1),

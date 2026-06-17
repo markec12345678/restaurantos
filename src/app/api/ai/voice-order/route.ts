@@ -6,6 +6,7 @@ import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import { z } from 'zod'
 
+
 const voiceOrderSchema = z.object({
   transcript: z.string().min(1, 'Transkript je obvezen'),
   tableId: z.string().nullable().optional(),

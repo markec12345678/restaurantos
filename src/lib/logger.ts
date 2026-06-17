@@ -41,7 +41,10 @@ interface LogEntry {
 let requestIdStorage: { run: (_id: string, _fn: () => void) => void; getStore: () => string | undefined } | null = null
 
 try {
-  const { AsyncLocalStorage } = require('async_hooks') as { AsyncLocalStorage: new () => { run: (_id: string, _fn: () => void) => void; getStore: () => string | undefined } } // eslint-disable-line @typescript-eslint/no-require-imports -- async_hooks ni na voljo v Edge Runtime
+  // FIX VERCEL: Uporabljaj eval('require') za bypass webpack staticke analize
+  // Webpack/Turbopack ne zna resolvarat 'async_hooks' med buildom na Vercelu
+  const dynamicRequire = eval('require')
+  const { AsyncLocalStorage } = dynamicRequire('async_hooks')
   requestIdStorage = new AsyncLocalStorage()
 } catch {
   // async_hooks ni na voljo (Edge Runtime) — request ID tracking ne bo deloval

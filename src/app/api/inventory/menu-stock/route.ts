@@ -7,6 +7,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { toNum, isPositive, greaterThan, multiply, divide } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
 
+
 export async function GET(req: Request) {
   try {
     // Auth check — requires manage_inventory permission

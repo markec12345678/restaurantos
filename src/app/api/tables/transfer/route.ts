@@ -9,6 +9,7 @@ import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { z } from 'zod'
 import { createAuditLog } from '@/lib/db'
 
+
 const transferSchema = z.object({
   sourceTableId: z.string().min(1, 'Izvorna miza je obvezna'),
   targetTableId: z.string().min(1, 'Ciljna miza je obvezna'),

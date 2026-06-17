@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { updateShiftSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
+
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authResult = await requireAuth(req, { permission: 'manage_employees' })

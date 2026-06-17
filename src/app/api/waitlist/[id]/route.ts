@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { z } from 'zod'
+
 // FIX HIGH: State machine za čakalno vrsto — prepreči neveljavne prehode
 const validWaitlistTransitions: Record<string, string[]> = {
   waiting: ['notified', 'seated', 'left', 'cancelled'],

@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createTableSchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+
 export async function GET(req: Request) {
   try {
     // FIX: Zahtevaj avtentikacijo za branje miz

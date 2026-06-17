@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 
 import { handleApiError } from '@/lib/api-utils'
+
 // GET /api/kitchen — Active orders for kitchen display
 export async function GET(req: Request) {
   try {
