@@ -29,7 +29,9 @@ export const MultiLocationDashboard = memo(function MultiLocationDashboard() {
     queryFn: async () => {
       const res = await authFetch('/api/locations')
       if (!res.ok) throw new Error('Napaka pri nalaganju')
-      return res.json()
+      const data = await res.json()
+      // FIX: API vrne {locations: [...], stats: {...}} — izvleci array
+      return Array.isArray(data) ? data : (data.locations || data.items || [])
     },
   })
 
@@ -53,7 +55,7 @@ export const MultiLocationDashboard = memo(function MultiLocationDashboard() {
     )
   }
 
-  const locs = (locations || []) as LocationData[]
+  const locs = (Array.isArray(locations) ? locations : []) as LocationData[]
 
   return (
     <div className="space-y-4 p-2 overflow-y-auto h-full custom-scrollbar">
