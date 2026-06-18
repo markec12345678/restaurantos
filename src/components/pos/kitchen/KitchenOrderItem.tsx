@@ -67,7 +67,7 @@ export const KitchenOrderItem = memo(function KitchenOrderItem({
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <span className={`flex-shrink-0 ${config.color}`} aria-hidden="true">{config.icon}</span>
           <span className="font-bold text-sm">{item.quantity}x</span>
-          <span className="text-sm truncate">{item.menuItem.name}</span>
+          <span className="text-sm truncate">{item.menuItem?.name || 'Neznan artikel'}</span>
           {modifiers.length > 0 && (
             <div className="flex gap-0.5">
               {modifiers.map((m: { name: string }, i: number) => (
@@ -99,7 +99,7 @@ export const KitchenOrderItem = memo(function KitchenOrderItem({
           <div className="flex items-center gap-2 mb-1">
             <span className={`flex-shrink-0 ${config.color}`} aria-hidden="true">{config.icon}</span>
             <span className="font-bold text-lg">{item.quantity}x</span>
-            <span className="font-semibold text-base">{item.menuItem.name}</span>
+            <span className="font-semibold text-base">{item.menuItem?.name || 'Neznan artikel'}</span>
           </div>
           {modifiers.length > 0 && (
             <div className="flex flex-wrap gap-1 ml-8 mb-1">
@@ -116,7 +116,7 @@ export const KitchenOrderItem = memo(function KitchenOrderItem({
             </p>
           )}
           <p className="text-[10px] text-muted-foreground ml-8">
-            {item.menuItem.category.icon} {item.menuItem.category.name}
+            {item.menuItem?.category?.icon || ''} {item.menuItem?.category?.name || ''}
           </p>
         </div>
         <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
