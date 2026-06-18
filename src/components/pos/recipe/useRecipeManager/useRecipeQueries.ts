@@ -15,7 +15,6 @@ export function useRecipeQueries() {
     queryKey: queryKeys.recipes.all,
     queryFn: async () => {
       const res = await authFetch('/api/recipes')
-      if (!res.ok) return []
       const data = await res.json()
       return Array.isArray(data) ? data : (data.items || data.menuItems || data.shifts || data.employees || data.recipes || data.transactions || data.suppliers || data.giftCards || data.locations || data.jobs || data.categories || data.menus || data.accounts || data.entries || [])
     },
@@ -25,7 +24,6 @@ export function useRecipeQueries() {
     queryKey: queryKeys.menuItems.all,
     queryFn: async () => {
       const res = await authFetch('/api/menu-items')
-      if (!res.ok) return []
       const data = await res.json()
       return Array.isArray(data) ? data : (data.items || data.menuItems || data.shifts || data.employees || data.recipes || data.transactions || data.suppliers || data.giftCards || data.locations || data.jobs || data.categories || data.menus || data.accounts || data.entries || [])
     },
@@ -35,7 +33,6 @@ export function useRecipeQueries() {
     queryKey: queryKeys.inventory.all,
     queryFn: async () => {
       const res = await authFetch('/api/inventory')
-      if (!res.ok) return []
       const data = await res.json()
       return Array.isArray(data) ? data : (data.items || data.menuItems || data.shifts || data.employees || data.recipes || data.transactions || data.suppliers || data.giftCards || data.locations || data.jobs || data.categories || data.menus || data.accounts || data.entries || [])
     },
