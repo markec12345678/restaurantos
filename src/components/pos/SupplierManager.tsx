@@ -43,8 +43,8 @@ export const SupplierManager = memo(function SupplierManager() {
     queryFn: async () => {
       const params = searchTerm ? `?search=${searchTerm}` : ''
       const res = await authFetch(`/api/suppliers${params}`)
+      if (!res.ok) return []
       const data = await res.json()
-      // FIX: API vrne {suppliers: [...], total, ...} — izvleci array
       return Array.isArray(data) ? data : (data.suppliers || data.items || [])
     },
   })
@@ -53,9 +53,9 @@ export const SupplierManager = memo(function SupplierManager() {
     queryKey: queryKeys.purchaseOrders.all,
     queryFn: async () => {
       const res = await authFetch('/api/purchase-orders')
+      if (!res.ok) return []
       const data = await res.json()
-      // FIX: API vrne {orders: [...], total, ...} — izvleci array
-      return Array.isArray(data) ? data : (data.orders || data.items || [])
+      return Array.isArray(data) ? data : (data.purchaseOrders || data.orders || data.items || [])
     },
   })
 
@@ -63,9 +63,9 @@ export const SupplierManager = memo(function SupplierManager() {
     queryKey: ['inventory-brief'],
     queryFn: async () => {
       const res = await authFetch('/api/inventory?distinctCategories=true')
+      if (!res.ok) return []
       const data = await res.json()
-      // FIX: distinctCategories vrne array; defenzivno izvleci array tudi iz objekta
-      return Array.isArray(data) ? data : (data.items || data.categories || [])
+      return Array.isArray(data) ? data : (data.categories || data.items || [])
     },
   })
 
