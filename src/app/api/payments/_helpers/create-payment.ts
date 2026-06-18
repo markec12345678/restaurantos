@@ -55,14 +55,10 @@ async function findExistingPaymentByIdempotencyKey(idempotencyKey: string) {
 /**
  * Prepozna Prisma unique constraint violation (P2002).
  * To se zgodi, ko dva vzporedna requesta poskusiata ustvariti plačilo z istim idempotencyKey.
+ * Uporablja Prisma lastno razred napak (PrismaClientKnownRequestError) za kanonsko detekcijo.
  */
 function isUniqueConstraintViolation(error: unknown): boolean {
-  return (
-    error !== null &&
-    typeof error === 'object' &&
-    'code' in error &&
-    (error as { code?: unknown }).code === 'P2002'
-  )
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002'
 }
 
 export async function handleCreatePayment(
