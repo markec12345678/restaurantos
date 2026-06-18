@@ -8,6 +8,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { Phone, ShoppingCart } from 'lucide-react'
 import { onlineStatusLabels, onlineStatusColors, getNextOnlineStatus, onlineAdvanceLabel } from './constants'
 import type { OnlineOrderCardProps } from './constants'
@@ -43,7 +44,7 @@ export const OnlineOrderCard = memo(function OnlineOrderCard({
               <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{order.customerPhone}</span>
                 <span>{order.orderItems?.length || 0} artiklov</span>
-                <span className="font-semibold text-blue-700">€{order.total.toFixed(2)}</span>
+                <span className="font-semibold text-blue-700">€{safeToFixed(order.total, 2)}</span>
                 <span>{new Date(order.createdAt).toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
             </div>

@@ -8,6 +8,7 @@ import { memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import type { PaymentDialogProps } from './payment/types'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { usePaymentDialog } from './payment/usePaymentDialog'
 
 // Lazy-loaded podkomponente
@@ -58,7 +59,7 @@ export const PaymentDialog = memo(function PaymentDialog(props: PaymentDialogPro
                 <DialogTitle className="flex items-center justify-between">
                   <span>Plačilo #{order.orderNumber}</span>
                   <Badge variant="outline" className="text-sm font-bold">
-                    €{orderTotal.toFixed(2)}
+                    €{safeToFixed(orderTotal, 2)}
                   </Badge>
                 </DialogTitle>
               </DialogHeader>

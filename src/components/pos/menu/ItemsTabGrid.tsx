@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Pencil, Trash2, ImageIcon } from 'lucide-react'
 import type { ItemsTabProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // MREŽNI POGLED ARTIKLOV
@@ -61,7 +62,7 @@ export const ItemsTabGrid = memo(function ItemsTabGrid({
             <CardContent className="p-3 space-y-2">
               <div>
                 <p className="font-medium text-sm">{String(item.name)}</p>
-                <p className="text-primary font-bold text-sm">&euro;{Number(item.price).toFixed(2)}</p>
+                <p className="text-primary font-bold text-sm">&euro;{safeToFixed(Number(item.price), 2)}</p>
               </div>
               {Boolean(item.description) && <p className="text-xs text-muted-foreground line-clamp-2">{String(item.description)}</p>}
               <div className="flex items-center justify-between flex-wrap gap-1">

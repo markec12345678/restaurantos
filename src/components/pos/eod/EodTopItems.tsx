@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrendingUp } from 'lucide-react'
 import type { EodSectionsProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 export const EodTopItems = memo(function EodTopItems({ data }: Pick<EodSectionsProps, 'data'>) {
   return (
@@ -21,7 +22,7 @@ export const EodTopItems = memo(function EodTopItems({ data }: Pick<EodSectionsP
               </div>
               <div className="flex items-center gap-3 text-sm">
                 <span className="text-muted-foreground">{item.quantity}x</span>
-                <span className="font-semibold">&euro;{item.revenue.toFixed(2)}</span>
+                <span className="font-semibold">&euro;{safeToFixed(item.revenue, 2)}</span>
               </div>
             </div>
           ))}

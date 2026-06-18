@@ -2,6 +2,7 @@
 
 import { memo } from 'react';
 import type { MenuItem, UpsellSuggestion } from '../types';
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 export interface UpsellSuggestionsProps {
   suggestions: UpsellSuggestion[];
@@ -41,11 +42,11 @@ export const UpsellSuggestions = memo(function UpsellSuggestions({
                 if (found) onAddToCart(found);
               }}
               className={`flex-shrink-0 ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-amber-50 hover:bg-amber-100'} rounded-xl p-2.5 text-left transition min-w-[160px]`}
-              aria-label={`${sug.name} €${(sug.price * 1.22).toFixed(2)}. ${sug.reason}`}
+              aria-label={`${sug.name} €${safeToFixed(sug.price * 1.22, 2)}. ${sug.reason}`}
             >
               <p className={`text-xs font-bold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{sug.name}</p>
               <p className={`text-[10px] mt-0.5 line-clamp-2 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{sug.reason}</p>
-              <p className={`text-xs font-bold mt-1 ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>+€{(sug.price * 1.22).toFixed(2)}</p>
+              <p className={`text-xs font-bold mt-1 ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>+€{safeToFixed(sug.price * 1.22, 2)}</p>
             </button>
           ))}
         </div>

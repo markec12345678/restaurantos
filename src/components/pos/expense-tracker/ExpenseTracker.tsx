@@ -8,6 +8,7 @@ import { authFetch } from '@/components/pos/PinLogin'
 import { Plus, Receipt, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-keys'
 import { ExpenseAddDialog } from './ExpenseAddDialog'
@@ -60,7 +61,7 @@ export const ExpenseTracker = memo(function ExpenseTracker() {
 
   const avgExpense = useMemo(() => {
     if (!stats?.count || !stats?.totalExpenses) return '0.00'
-    return (stats.totalExpenses / stats.count).toFixed(2)
+    return safeToFixed(stats.totalExpenses / stats.count, 2)
   }, [stats?.count, stats?.totalExpenses])
 
   const handleAddExpense = useCallback(() => {

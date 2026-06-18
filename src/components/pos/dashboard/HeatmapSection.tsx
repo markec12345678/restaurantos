@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Flame } from 'lucide-react'
 import { DAY_NAMES } from './constants'
 import type { HeatmapSectionProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 /**
  * HeatmapSection — toplotna karta prometa (zadnje 4 tedne).
@@ -54,7 +55,7 @@ export const HeatmapSection = memo(function HeatmapSection({ heatmapData, heatma
                       <div key={hour} className="flex-1 px-0.5">
                         <div
                           className={`h-6 rounded-sm ${bgColor} flex items-center justify-center text-[8px] font-bold ${intensity > 0.5 ? 'text-white' : 'text-foreground'}`}
-                          title={`${dayName} ${hour}:00 — €${rev.toFixed(2)} (${cell?.orders || 0} naročil)`}
+                          title={`${dayName} ${hour}:00 — €${safeToFixed(rev, 2)} (${cell?.orders || 0} naročil)`}
                         >
                           {rev > 0 ? `€${Math.round(rev)}` : ''}
                         </div>

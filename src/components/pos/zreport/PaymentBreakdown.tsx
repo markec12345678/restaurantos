@@ -8,6 +8,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Banknote, CreditCard, Smartphone, Package, UtensilsCrossed, ShoppingBag, Truck } from 'lucide-react'
 import type { PaymentBreakdownProps, PaymentRowProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ─── Pomožna komponenta: PaymentRow ────────────────────────────
 const PaymentRow = memo(function PaymentRow({ icon: Icon, label, value, total, color }: PaymentRowProps) {
@@ -19,7 +20,7 @@ const PaymentRow = memo(function PaymentRow({ icon: Icon, label, value, total, c
           <Icon className="h-3.5 w-3.5 text-muted-foreground" />
           {label}
         </span>
-        <span className="text-sm font-medium">€{(value || 0).toFixed(2)} <span className="text-xs text-muted-foreground">({pct.toFixed(0)}%)</span></span>
+        <span className="text-sm font-medium">€{safeToFixed(value || 0, 2)} <span className="text-xs text-muted-foreground">({safeToFixed(pct, 0)}%)</span></span>
       </div>
       <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5">
         <div className={`h-1.5 rounded-full ${color}`} style={{ width: `${pct}%` }} />

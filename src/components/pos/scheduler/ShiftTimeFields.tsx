@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Clock } from 'lucide-react'
 import { TIME_SLOTS, calcHours } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 export const ShiftTimeFields = memo(function ShiftTimeFields({
   date, setDate,
@@ -67,7 +68,7 @@ export const ShiftTimeFields = memo(function ShiftTimeFields({
       </div>
       <div className={`text-sm font-medium p-2 rounded-lg ${hours > 8 ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'}`}>
         <Clock className="h-3.5 w-3.5 inline mr-1" />
-        Skupaj: {hours.toFixed(1)} ur {hours > 8 ? '(podaljšek!)' : hours >= 6 ? '(polna izmena)' : '(skrajšana izmena)'}
+        Skupaj: {safeToFixed(hours, 1)} ur {hours > 8 ? '(podaljšek!)' : hours >= 6 ? '(polna izmena)' : '(skrajšana izmena)'}
       </div>
     </div>
   )

@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import type { OrderType, DeliveryDetails, TakeoutDetails, DeliveryZoneInfo } from './types'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // =====================================================================
 // PODATKI ZA DOSTAVO / PREVZEM
@@ -47,7 +48,7 @@ export const DetailsStep = memo(function DetailsStep({
             )}
             {deliveryZone && (
               <div className="col-span-2 p-2 rounded-xl bg-green-50 border border-green-200 text-xs text-green-700">
-                ✓ Cona dostave: {deliveryZone.name} — dostava €{deliveryZone.deliveryFee.toFixed(2)} • {deliveryZone.estimatedMinutes} min
+                ✓ Cona dostave: {deliveryZone.name} — dostava €{safeToFixed(deliveryZone.deliveryFee, 2)} • {deliveryZone.estimatedMinutes} min
               </div>
             )}
           </div>

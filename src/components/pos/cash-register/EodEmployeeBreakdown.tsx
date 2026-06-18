@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EodData = any
@@ -19,8 +20,8 @@ export const EodEmployeeBreakdown = memo(function EodEmployeeBreakdown({ eodData
           <span>{String((emp as Record<string, unknown>).employeeName || emp.employeeId)}</span>
           <div className="flex items-center gap-3">
             <span className="text-muted-foreground">{emp.orderCount} naročil</span>
-            <span className="font-semibold">&euro;{emp.revenue.toFixed(2)}</span>
-            {emp.tips > 0 && <span className="text-xs text-emerald-600">+&euro;{emp.tips.toFixed(2)}</span>}
+            <span className="font-semibold">&euro;{safeToFixed(emp.revenue, 2)}</span>
+            {emp.tips > 0 && <span className="text-xs text-emerald-600">+&euro;{safeToFixed(emp.tips, 2)}</span>}
           </div>
         </div>
       ))}

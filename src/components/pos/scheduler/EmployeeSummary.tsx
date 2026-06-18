@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { BarChart3 } from 'lucide-react'
 import { type ShiftType, statusLabels, statusColors, calcHours } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // EMPLOYEE SUMMARY CARD — Povzetek po zaposlenem
@@ -31,15 +32,15 @@ export const EmployeeSummaryCard = memo(function EmployeeSummaryCard({ empId, em
           <p className="text-[10px] text-muted-foreground">{emp.role}</p>
         </div>
         <div className="ml-auto text-right">
-          <p className="text-sm font-bold">{totalH.toFixed(1)}h</p>
-          <p className="text-[10px] text-muted-foreground">{completedH.toFixed(1)}h opravljenih</p>
+          <p className="text-sm font-bold">{safeToFixed(totalH, 1)}h</p>
+          <p className="text-[10px] text-muted-foreground">{safeToFixed(completedH, 1)}h opravljenih</p>
         </div>
       </div>
       <div className="space-y-1">
         {empShifts.map(s => (
           <div key={s.id} className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">{format(new Date(s.date), 'EEE d', { locale: sl })}</span>
-            <span>{s.startTime}—{s.endTime} ({calcHours(s.startTime, s.endTime, s.breakMinutes).toFixed(1)}h)</span>
+            <span>{s.startTime}—{s.endTime} ({safeToFixed(calcHours(s.startTime, s.endTime, s.breakMinutes), 1)}h)</span>
             <Badge variant="outline" className={`text-[8px] h-4 px-1 ${statusColors[s.status]}`}>
               {statusLabels[s.status]}
             </Badge>
@@ -51,7 +52,7 @@ export const EmployeeSummaryCard = memo(function EmployeeSummaryCard({ empId, em
         <div className="flex justify-between text-[10px] text-muted-foreground">
           <span>40h tedensko</span>
           <span className={totalH > 40 ? 'text-red-600 font-bold' : totalH >= 35 ? 'text-emerald-600' : ''}>
-            {totalH.toFixed(1)}h ({((totalH / 40) * 100).toFixed(0)}%)
+            {safeToFixed(totalH, 1)}h ({((totalH / 40) * 100).toFixed(0)}%)
           </span>
         </div>
         <div className="h-1.5 bg-muted rounded-full mt-1 overflow-hidden" role="progressbar" aria-valuenow={Math.min(100, (totalH / 40) * 100)} aria-valuemin={0} aria-valuemax={100} aria-valuetext={totalH > 40 ? 'Prekoračene ure' : totalH >= 35 ? 'Zadostne ure' : 'Nizke ure'}>

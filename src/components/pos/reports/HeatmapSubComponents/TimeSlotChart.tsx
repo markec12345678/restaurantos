@@ -1,4 +1,5 @@
 'use client'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Clock } from 'lucide-react'
@@ -30,7 +31,7 @@ export const TimeSlotChart = memo(function TimeSlotChart({ heatmap }: TimeSlotCh
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
               <XAxis dataKey="hour" tick={{ fontSize: 10 }} tickFormatter={(v) => `${v}h`} />
               <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
-              <Tooltip formatter={(value: number, name: string) => [name === 'revenue' ? `€${value.toFixed(2)}` : value, name === 'revenue' ? 'Prihodek' : 'Naročila']} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
+              <Tooltip formatter={(value: number, name: string) => [name === 'revenue' ? `€${safeToFixed(value, 2)}` : value, name === 'revenue' ? 'Prihodek' : 'Naročila']} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
               <Bar dataKey="revenue" fill="#f59e0b" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

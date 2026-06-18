@@ -1,5 +1,6 @@
 'use client'
 
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -37,7 +38,7 @@ export const OverviewTab = memo(function OverviewTab({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatsCard
           title="Prihodek (30 dni)"
-          value={`€${(salesData?.totalRevenue || 0).toFixed(2)}`}
+          value={`€${safeToFixed(salesData?.totalRevenue || 0, 2)}`}
           icon={DollarSign}
         />
         <StatsCard
@@ -47,7 +48,7 @@ export const OverviewTab = memo(function OverviewTab({
         />
         <StatsCard
           title="Povpr. naročilo"
-          value={`€${(salesData?.avgOrderValue || 0).toFixed(2)}`}
+          value={`€${safeToFixed(salesData?.avgOrderValue || 0, 2)}`}
           icon={TrendingUp}
         />
         <StatsCard
@@ -74,7 +75,7 @@ export const OverviewTab = memo(function OverviewTab({
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="date" tickFormatter={(v) => format(new Date(v), 'MMM dd')} tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
-                    <Tooltip formatter={(value: number) => [`€${value.toFixed(2)}`, 'Prihodek']} labelFormatter={(label) => format(new Date(label), 'MMM dd, yyyy')} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
+                    <Tooltip formatter={(value: number) => [`€${safeToFixed(value, 2)}`, 'Prihodek']} labelFormatter={(label) => format(new Date(label), 'MMM dd, yyyy')} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
                     <Line type="monotone" dataKey="revenue" stroke="oklch(0.7 0.15 55)" strokeWidth={2} dot={{ fill: 'oklch(0.7 0.15 55)', r: 4 }} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -108,12 +109,12 @@ export const OverviewTab = memo(function OverviewTab({
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={salesData?.typeBreakdown || []} dataKey="revenue" nameKey="type" cx="50%" cy="50%" outerRadius={80} label={({ type, percent }: { type: string; percent: number }) => `${orderTypeLabels[type] || type} ${(percent * 100).toFixed(0)}%`}>
+                      <Pie data={salesData?.typeBreakdown || []} dataKey="revenue" nameKey="type" cx="50%" cy="50%" outerRadius={80} label={({ type, percent }: { type: string; percent: number }) => `${orderTypeLabels[type] || type} ${safeToFixed(percent * 100, 0)}%`}>
                         {(salesData?.typeBreakdown || []).map((_entry: unknown, index: number) => (
                           <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: number) => [`€${value.toFixed(2)}`, 'Prihodek']} />
+                      <Tooltip formatter={(value: number) => [`€${safeToFixed(value, 2)}`, 'Prihodek']} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>

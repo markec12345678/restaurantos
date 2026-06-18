@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { Input } from '@/components/ui/input'
 import { Gift } from 'lucide-react'
 import type { GiftCardItem } from './types'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 interface GiftCardSectionProps {
   giftCards: GiftCardItem[]
@@ -51,7 +52,7 @@ export const GiftCardSection = memo(function GiftCardSection({
                 <span className="font-mono font-medium">{gc.cardNumber}</span>
                 {gc.ownerName && <span className="text-muted-foreground">({gc.ownerName})</span>}
               </div>
-              <span className="font-bold">€{gc.balance.toFixed(2)}</span>
+              <span className="font-bold">€{safeToFixed(gc.balance, 2)}</span>
             </button>
           ))}
       </div>

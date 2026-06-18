@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import type { StatsCardsProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // STATISTIČNE KARTICE — Prikaz statistike naročnine
@@ -21,7 +22,7 @@ export const StatsCards = memo(function StatsCards({ stats }: StatsCardsProps) {
       </CardContent></Card>
       <Card><CardContent className="p-4 text-center">
         <p className="text-xs text-muted-foreground">Skupni prihodek</p>
-        <p className="text-xl font-bold text-blue-600">€{(stats.totalRevenue || 0).toFixed(2)}</p>
+        <p className="text-xl font-bold text-blue-600">€{safeToFixed(stats.totalRevenue || 0, 2)}</p>
       </CardContent></Card>
     </div>
   )

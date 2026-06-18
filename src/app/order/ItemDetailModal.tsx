@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import type { MenuItem, Modifier, ModifierGroup } from './types'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // =====================================================================
 // MODAL ZA PODROBNOSTI ARTIKLA
@@ -57,7 +58,7 @@ export const ItemDetailModal = memo(function ItemDetailModal({
                       }`}
                     >
                       <span className="font-medium">{mod.name}</span>
-                      {mod.price > 0 && <span className="text-xs text-gray-500 ml-1">+€{mod.price.toFixed(2)}</span>}
+                      {mod.price > 0 && <span className="text-xs text-gray-500 ml-1">+€{safeToFixed(mod.price, 2)}</span>}
                     </button>
                   )
                 })}

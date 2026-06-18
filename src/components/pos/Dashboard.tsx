@@ -8,6 +8,7 @@ import { DollarSign, ShoppingBag, Calculator, BarChartBig, PiggyBank, Shield } f
 import { usePOSStore } from '@/lib/store'
 import { useMemo, memo } from 'react'
 import dynamic from 'next/dynamic'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { authFetch } from '@/components/pos/PinLogin'
 import { STATUS_COLORS, STATUS_LABELS, TYPE_LABELS, DAY_NAMES } from './dashboard/constants'
 import type { DashboardData, WowChartDataPoint, ComputedValues } from './dashboard/constants'
@@ -86,11 +87,11 @@ export const Dashboard = memo(function Dashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        <StatsCard title="Današnji prihodek" value={`€${(data?.todayRevenue || 0).toFixed(2)}`} subtitle={(data?.pendingOrders || 0) > 0 ? `${data?.pendingOrders} čakajočih` : undefined} icon={DollarSign} trend="up" />
+        <StatsCard title="Današnji prihodek" value={`€${safeToFixed(data?.todayRevenue || 0, 2)}`} subtitle={(data?.pendingOrders || 0) > 0 ? `${data?.pendingOrders} čakajočih` : undefined} icon={DollarSign} trend="up" />
         <StatsCard title="Skupno naročil" value={data?.totalOrders || 0} subtitle={`${data?.completedOrders || 0} končanih · ${data?.cancelledOrders || 0} preklicanih`} icon={ShoppingBag} />
-        <StatsCard title="Povpr. naročilo" value={`€${(data?.avgOrderValue || 0).toFixed(2)}`} subtitle={(data?.todayTips || 0) > 0 ? `Napitnine: €${(data?.todayTips || 0).toFixed(2)}` : undefined} icon={Calculator} />
+        <StatsCard title="Povpr. naročilo" value={`€${safeToFixed(data?.avgOrderValue || 0, 2)}`} subtitle={(data?.todayTips || 0) > 0 ? `Napitnine: €${safeToFixed(data?.todayTips || 0, 2)}` : undefined} icon={Calculator} />
         <StatsCard title="Zasedene mize" value={`${data?.activeTables || 0}/${data?.totalTables || 0}`} subtitle={(data?.readyOrders || 0) > 0 ? `${data?.readyOrders} pripravljenih` : undefined} icon={BarChartBig} />
-        <StatsCard title="Bruto dobiček" value={`€${(data?.grossProfit || 0).toFixed(2)}`} subtitle={(data?.grossMargin || 0) > 0 ? `Marža: ${data?.grossMargin}%` : undefined} icon={PiggyBank} trend={(data?.grossMargin || 0) > 50 ? 'up' : 'down'} />
+        <StatsCard title="Bruto dobiček" value={`€${safeToFixed(data?.grossProfit || 0, 2)}`} subtitle={(data?.grossMargin || 0) > 0 ? `Marža: ${data?.grossMargin}%` : undefined} icon={PiggyBank} trend={(data?.grossMargin || 0) > 50 ? 'up' : 'down'} />
         <StatsCard title="FURS overjeno" value={data?.fursStatus?.todayVerified || 0} subtitle={(data?.fursStatus?.todayUnverified || 0) > 0 ? `${data?.fursStatus?.todayUnverified} brez overjanja` : 'Vse overjeno'} icon={Shield} trend={(data?.fursStatus?.todayUnverified || 0) === 0 ? 'up' : 'down'} />
       </div>
 

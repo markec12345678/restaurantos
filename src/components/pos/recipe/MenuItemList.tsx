@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Search } from 'lucide-react'
 import type { RecipeGroups } from './constants'
 import { marginBadge } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // SEZNAM MENI ARTIKLOV - LEVI DEL
@@ -62,7 +63,7 @@ export const MenuItemList = memo(function MenuItemList({
                     <span className="truncate font-medium">{mi.name}</span>
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-xs text-muted-foreground">€{mi.price.toFixed(2)}</span>
+                    <span className="text-xs text-muted-foreground">€{safeToFixed(mi.price, 2)}</span>
                     {mi.totalCost > 0 && (
                       <Badge className={`text-[9px] h-4 px-1 ${marginBadge(mi.totalCost > 0 ? ((mi.price - mi.totalCost) / mi.price * 100) : 0)}`}>
                         {((mi.price - mi.totalCost) / mi.price * 100).toFixed(0)}%
@@ -94,7 +95,7 @@ export const MenuItemList = memo(function MenuItemList({
                     <span className="truncate font-medium">{mi.name}</span>
                   </div>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className="text-xs text-muted-foreground">€{mi.price.toFixed(2)}</span>
+                    <span className="text-xs text-muted-foreground">€{safeToFixed(mi.price, 2)}</span>
                     {mi.totalCost > 0 && (
                       <Badge className={`text-[9px] h-4 px-1 ${marginBadge(mi.totalCost > 0 ? ((mi.price - mi.totalCost) / mi.price * 100) : 0)}`}>
                         {((mi.price - mi.totalCost) / mi.price * 100).toFixed(0)}%

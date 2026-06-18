@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Receipt } from 'lucide-react'
 import type { InvoicesTableProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // TABELA RAČUNOV — Prikaz računov naročnine

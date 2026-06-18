@@ -1,3 +1,4 @@
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { Badge } from '@/components/ui/badge'
 import {
   type ConfigItem, type TaxRate, type ServiceCharge,
@@ -28,7 +29,7 @@ export function renderServiceCharge(item: ConfigItem) {
       <p className="font-medium text-sm truncate">{d.name}</p>
       <div className="flex items-center gap-2 mt-1">
         <Badge variant="default" className="text-xs">
-          {d.type === 'percentage' ? `${d.amount}%` : `€${d.amount.toFixed(2)}`}
+          {d.type === 'percentage' ? `${d.amount}%` : `€${safeToFixed(d.amount, 2)}`}
         </Badge>
         <Badge variant="outline" className="text-xs">{d.type === 'percentage' ? 'Odstotek' : 'Fiksno'}</Badge>
       </div>
@@ -46,7 +47,7 @@ export function renderDiscount(item: ConfigItem) {
       <p className="font-medium text-sm truncate">{d.name}</p>
       <div className="flex flex-wrap items-center gap-1.5 mt-1">
         <Badge variant="default" className="text-xs">
-          {d.type === 'percentage' ? `${d.amount}%` : `€${d.amount.toFixed(2)}`}
+          {d.type === 'percentage' ? `${d.amount}%` : `€${safeToFixed(d.amount, 2)}`}
         </Badge>
         <Badge variant="outline" className="text-xs">{d.triggerType}</Badge>
       </div>
@@ -68,8 +69,8 @@ export function renderGiftCard(item: ConfigItem) {
       <p className="font-medium text-sm truncate font-mono">{d.cardNumber}</p>
       <p className="text-xs text-muted-foreground truncate">{d.ownerName || 'Brez lastnika'}</p>
       <div className="flex items-center gap-2 mt-1">
-        <Badge variant="default" className="text-xs">€{d.balance.toFixed(2)}</Badge>
-        <Badge variant="outline" className="text-xs">Začetno: €{d.initialBalance.toFixed(2)}</Badge>
+        <Badge variant="default" className="text-xs">€{safeToFixed(d.balance, 2)}</Badge>
+        <Badge variant="outline" className="text-xs">Začetno: €{safeToFixed(d.initialBalance, 2)}</Badge>
       </div>
       <div className="flex items-center gap-1.5 mt-1">
         <Badge variant={d.status === 'active' ? 'default' : d.status === 'expired' ? 'destructive' : 'secondary'} className="text-[10px]">

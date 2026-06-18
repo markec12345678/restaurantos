@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { format } from 'date-fns'
 import type { OrderType } from './OrderList'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // Lazy-loaded podkomponenta
 const OrderItemsSection = dynamic(() => import('./OrderItemsSection').then(m => ({ default: m.OrderItemsSection })), { ssr: false })
@@ -101,10 +102,10 @@ export const OrderDetailDialog = memo(function OrderDetailDialog({
           />
           <Separator />
           <div className="space-y-1 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Vmesna vsota</span><span>€{(detailOrder?.subtotal || 0).toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Davek</span><span>€{(detailOrder?.tax || 0).toFixed(2)}</span></div>
-            {Number(detailOrder?.discount || 0) > 0 && <div className="flex justify-between text-emerald-600"><span>Popust</span><span>-€{(detailOrder?.discount || 0).toFixed(2)}</span></div>}
-            <div className="flex justify-between font-bold"><span>Skupaj</span><span>€{(detailOrder?.total || 0).toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Vmesna vsota</span><span>€{safeToFixed(detailOrder?.subtotal || 0, 2)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Davek</span><span>€{safeToFixed(detailOrder?.tax || 0, 2)}</span></div>
+            {Number(detailOrder?.discount || 0) > 0 && <div className="flex justify-between text-emerald-600"><span>Popust</span><span>-€{safeToFixed(detailOrder?.discount || 0, 2)}</span></div>}
+            <div className="flex justify-between font-bold"><span>Skupaj</span><span>€{safeToFixed(detailOrder?.total || 0, 2)}</span></div>
           </div>
         </div>
       </DialogContent>

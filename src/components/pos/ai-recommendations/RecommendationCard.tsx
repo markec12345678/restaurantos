@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Sparkles, Zap } from 'lucide-react'
 import type { Recommendation } from './constants'
 import { CATEGORY_CONFIG } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // KARTICA POSAMEZNEGA PRIPOROČILA
@@ -41,7 +42,7 @@ export const RecommendationCard = memo(function RecommendationCard({ rec, index 
 
         {/* Cena + Score */}
         <div className="flex items-center justify-between">
-          <span className="text-lg font-bold text-green-600">€{rec.item.price.toFixed(2)}</span>
+          <span className="text-lg font-bold text-green-600">€{safeToFixed(rec.item.price, 2)}</span>
           <div className="flex items-center gap-1">
             <Sparkles className="h-4 w-4 text-amber-500" />
             <span className="text-sm font-semibold">{rec.score}</span>

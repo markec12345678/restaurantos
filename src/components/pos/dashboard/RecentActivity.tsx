@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Clock, TrendingUp, UserCheck, Users } from 'lucide-react'
 import { format } from 'date-fns'
 import type { RecentActivityProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 /**
  * RecentActivity — zadnja naročila, najbolj prodajani artikli
@@ -45,7 +46,7 @@ export const RecentActivity = memo(function RecentActivity({
                   <Badge variant="outline" className={statusColors[order.status] || ''}>
                     {statusLabels[order.status] || order.status}
                   </Badge>
-                  <span className="text-sm font-semibold">€{order.total.toFixed(2)}</span>
+                  <span className="text-sm font-semibold">€{safeToFixed(order.total, 2)}</span>
                 </div>
               </div>
             ))}
@@ -72,7 +73,7 @@ export const RecentActivity = memo(function RecentActivity({
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <span className="text-muted-foreground">{item.quantity}x</span>
-                    <span className="font-semibold">€{item.revenue.toFixed(2)}</span>
+                    <span className="font-semibold">€{safeToFixed(item.revenue, 2)}</span>
                   </div>
                 </div>
               ))}
@@ -115,7 +116,7 @@ export const RecentActivity = memo(function RecentActivity({
               <div className="flex justify-between text-sm">
                 <span className="font-medium">Stopnja povratka</span>
                 <span className={`font-bold ${(guestAnalytics?.guestReturnRate || 0) >= 30 ? 'text-emerald-600' : (guestAnalytics?.guestReturnRate || 0) >= 15 ? 'text-amber-600' : 'text-red-600'}`}>
-                  {(guestAnalytics?.guestReturnRate || 0).toFixed(1)}%
+                  {safeToFixed(guestAnalytics?.guestReturnRate || 0, 1)}%
                 </span>
               </div>
               <div className="h-2 bg-muted rounded-full overflow-hidden" role="progressbar" aria-valuenow={Math.min(100, guestAnalytics?.guestReturnRate || 0)} aria-valuemin={0} aria-valuemax={100} aria-valuetext={(guestAnalytics?.guestReturnRate || 0) >= 30 ? 'Odlična zvestoba gostov' : (guestAnalytics?.guestReturnRate || 0) >= 15 ? 'Solidna stopnja povratka' : 'Priložnost za izboljšavo zvestobe'}>

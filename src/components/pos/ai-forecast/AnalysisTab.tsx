@@ -8,6 +8,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrendingUp, BarChart3, Brain, AlertTriangle, ShieldCheck } from 'lucide-react'
 import type { AnalysisTabProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 export const AnalysisTab = memo(function AnalysisTab({ forecasts }: AnalysisTabProps) {
   return (
@@ -42,7 +43,7 @@ export const AnalysisTab = memo(function AnalysisTab({ forecasts }: AnalysisTabP
               {f.seasonalityFactor > 1.1 && (
                 <p className="text-xs text-amber-600 mt-2">
                   <TrendingUp className="h-3 w-3 inline mr-1" />
-                  Vikend porast: {f.seasonalityFactor.toFixed(1)}x večja poraba
+                  Vikend porast: {safeToFixed(f.seasonalityFactor, 1)}x večja poraba
                 </p>
               )}
             </CardContent>

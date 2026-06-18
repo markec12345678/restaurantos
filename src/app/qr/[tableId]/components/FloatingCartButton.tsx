@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { motion } from 'framer-motion'
 import { ShoppingCart } from 'lucide-react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 interface FloatingCartButtonProps {
   cartCount: number
@@ -43,7 +44,7 @@ export const FloatingCartButton = memo(function FloatingCartButton({
               {cartCount} {cartCount === 1 ? itemLabel : itemsLabel}
             </span>
           </div>
-          <span className="text-lg font-bold">{cartTotal.toFixed(2)} {currency}</span>
+          <span className="text-lg font-bold">{safeToFixed(cartTotal, 2)} {currency}</span>
         </button>
       </div>
     </motion.div>

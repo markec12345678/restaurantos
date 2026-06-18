@@ -7,6 +7,7 @@ import { format } from 'date-fns'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { PIE_COLORS } from './constants'
 import type { ChartsSectionProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 /**
  * ChartsSection — prihodek zadnjih 7 dni (stolpčni diagram)
@@ -27,7 +28,7 @@ export const ChartsSection = memo(function ChartsSection({ dailyRevenue, categor
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="date" tickFormatter={(v) => format(new Date(v), 'EEE')} className="text-xs" tick={{ fontSize: 12 }} />
                 <YAxis className="text-xs" tick={{ fontSize: 12 }} tickFormatter={(v) => `€${v}`} />
-                <Tooltip formatter={(value: number) => [`€${value.toFixed(2)}`, 'Prihodek']} labelFormatter={(label) => format(new Date(label), 'MMM dd, yyyy')} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
+                <Tooltip formatter={(value: number) => [`€${safeToFixed(value, 2)}`, 'Prihodek']} labelFormatter={(label) => format(new Date(label), 'MMM dd, yyyy')} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
                 <Bar dataKey="revenue" fill="oklch(0.7 0.15 55)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -45,10 +46,10 @@ export const ChartsSection = memo(function ChartsSection({ dailyRevenue, categor
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={categoryBreakdown} dataKey="revenue" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                  <Pie data={categoryBreakdown} dataKey="revenue" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${safeToFixed(percent * 100, 0)}%`}>
                     {categoryBreakdown.map((_: unknown, index: number) => <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip formatter={(value: number) => [`€${value.toFixed(2)}`, 'Prihodek']} />
+                  <Tooltip formatter={(value: number) => [`€${safeToFixed(value, 2)}`, 'Prihodek']} />
                 </PieChart>
               </ResponsiveContainer>
             </div>

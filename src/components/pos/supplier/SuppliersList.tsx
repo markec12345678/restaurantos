@@ -8,6 +8,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { Truck, Phone, Mail, MapPin, Building2, Star, Edit, FileText, Clock, ChevronDown, ChevronUp, Hash } from 'lucide-react'
 import type { SupplierType } from './constants'
 
@@ -131,7 +132,7 @@ export const SuppliersList = memo(function SuppliersList({
                   {supplier.minOrderAmount > 0 && (
                     <div className="p-2 rounded-lg bg-muted/50">
                       <p className="text-[10px] text-muted-foreground">Min. naročilo</p>
-                      <p className="text-xs font-bold">&euro;{supplier.minOrderAmount.toFixed(2)}</p>
+                      <p className="text-xs font-bold">&euro;{safeToFixed(supplier.minOrderAmount, 2)}</p>
                     </div>
                   )}
                   {supplier.address && (

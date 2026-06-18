@@ -6,6 +6,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrendingUp, Timer, Target, ArrowDownRight, Award } from 'lucide-react'
 import type { RecommendationsSectionProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 export const RecommendationsSection = memo(function RecommendationsSection({
   employees,
@@ -33,7 +34,7 @@ export const RecommendationsSection = memo(function RecommendationsSection({
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Povprečni čas {emp.avgServiceTime.toFixed(0)} min je nad povprečjem. Priporočamo dodatno usposabljanje ali pomoč med vršnimi urami.
+                Povprečni čas {safeToFixed(emp.avgServiceTime, 0)} min je nad povprečjem. Priporočamo dodatno usposabljanje ali pomoč med vršnimi urami.
               </p>
             </div>
           ))}
@@ -48,7 +49,7 @@ export const RecommendationsSection = memo(function RecommendationsSection({
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Upsell stopnja {emp.upsellRate.toFixed(0)}% je nizka. Predlagamo usposabljanje za predlaganje dodatkov, prilog in pijač.
+                Upsell stopnja {safeToFixed(emp.upsellRate, 0)}% je nizka. Predlagamo usposabljanje za predlaganje dodatkov, prilog in pijač.
               </p>
             </div>
           ))}
@@ -63,7 +64,7 @@ export const RecommendationsSection = memo(function RecommendationsSection({
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Stopnja stornacij {emp.voidRate.toFixed(1)}% je nad 5%. Preverite vzroke — morebiti napake pri vnosu ali težave s komunikacijo.
+                Stopnja stornacij {safeToFixed(emp.voidRate, 1)}% je nad 5%. Preverite vzroke — morebiti napake pri vnosu ali težave s komunikacijo.
               </p>
             </div>
           ))}

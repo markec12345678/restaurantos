@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Edit, ShieldAlert } from 'lucide-react'
 import { EU_ALLERGENS, parseAllergens } from './constants'
 import type { AllergenTableProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // MATRIKA ALERGENOV — TABELA
@@ -64,7 +65,7 @@ export const AllergenTable = memo(function AllergenTable({
                     <td className="p-3">
                       <div>
                         <p className="font-medium text-sm">{item.name}</p>
-                        <p className="text-xs text-muted-foreground">{'\u20AC'}{item.price.toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">{'\u20AC'}{safeToFixed(item.price, 2)}</p>
                       </div>
                     </td>
                     <td className="p-3 text-xs text-muted-foreground">{item.category?.name || '-'}</td>

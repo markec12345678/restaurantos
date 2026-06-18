@@ -8,6 +8,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Wallet, Banknote, CreditCard, Smartphone, Receipt, Split, Gift, CheckCircle2 } from 'lucide-react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { format } from 'date-fns'
 import type { ActiveShiftType, LiveStatsType } from './constants'
 
@@ -37,7 +38,7 @@ export const ActiveShiftView = memo(function ActiveShiftView({ activeShift, live
             </div>
             <div className="text-right">
               <p className="text-sm text-muted-foreground">Začetna gotovina</p>
-              <p className="text-xl font-bold">&euro;{activeShift.startingCash.toFixed(2)}</p>
+              <p className="text-xl font-bold">&euro;{safeToFixed(activeShift.startingCash, 2)}</p>
             </div>
           </div>
         </CardContent>
@@ -52,9 +53,9 @@ export const ActiveShiftView = memo(function ActiveShiftView({ activeShift, live
                 <Banknote className="h-4 w-4 text-emerald-600" />
                 <span className="text-xs text-muted-foreground">Gotovina</span>
               </div>
-              <p className="text-xl font-bold">&euro;{liveStats.cashSales.toFixed(2)}</p>
+              <p className="text-xl font-bold">&euro;{safeToFixed(liveStats.cashSales, 2)}</p>
               <p className="text-[10px] text-muted-foreground mt-1">
-                Pričakovano: &euro;{liveStats.expectedCash.toFixed(2)}
+                Pričakovano: &euro;{safeToFixed(liveStats.expectedCash, 2)}
               </p>
             </CardContent>
           </Card>
@@ -64,7 +65,7 @@ export const ActiveShiftView = memo(function ActiveShiftView({ activeShift, live
                 <CreditCard className="h-4 w-4 text-blue-600" />
                 <span className="text-xs text-muted-foreground">Kartično</span>
               </div>
-              <p className="text-xl font-bold">&euro;{liveStats.cardSales.toFixed(2)}</p>
+              <p className="text-xl font-bold">&euro;{safeToFixed(liveStats.cardSales, 2)}</p>
             </CardContent>
           </Card>
           <Card>
@@ -73,7 +74,7 @@ export const ActiveShiftView = memo(function ActiveShiftView({ activeShift, live
                 <Smartphone className="h-4 w-4 text-purple-600" />
                 <span className="text-xs text-muted-foreground">Mobilno</span>
               </div>
-              <p className="text-xl font-bold">&euro;{liveStats.mobileSales.toFixed(2)}</p>
+              <p className="text-xl font-bold">&euro;{safeToFixed(liveStats.mobileSales, 2)}</p>
             </CardContent>
           </Card>
           <Card className="border-primary/20">
@@ -82,7 +83,7 @@ export const ActiveShiftView = memo(function ActiveShiftView({ activeShift, live
                 <Wallet className="h-4 w-4 text-primary" />
                 <span className="text-xs text-muted-foreground">Skupaj</span>
               </div>
-              <p className="text-xl font-bold text-primary">&euro;{liveStats.totalSales.toFixed(2)}</p>
+              <p className="text-xl font-bold text-primary">&euro;{safeToFixed(liveStats.totalSales, 2)}</p>
               <p className="text-[10px] text-muted-foreground mt-1">
                 {liveStats.totalOrders} naročil
               </p>
@@ -107,28 +108,28 @@ export const ActiveShiftView = memo(function ActiveShiftView({ activeShift, live
                   <Banknote className="h-4 w-4 text-emerald-600" />
                   <span className="text-sm">Gotovina</span>
                 </div>
-                <span className="font-semibold">&euro;{liveStats.cashSales.toFixed(2)}</span>
+                <span className="font-semibold">&euro;{safeToFixed(liveStats.cashSales, 2)}</span>
               </div>
               <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/50">
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-4 w-4 text-blue-600" />
                   <span className="text-sm">Kartično</span>
                 </div>
-                <span className="font-semibold">&euro;{liveStats.cardSales.toFixed(2)}</span>
+                <span className="font-semibold">&euro;{safeToFixed(liveStats.cardSales, 2)}</span>
               </div>
               <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/50">
                 <div className="flex items-center gap-2">
                   <Smartphone className="h-4 w-4 text-purple-600" />
                   <span className="text-sm">Mobilno</span>
                 </div>
-                <span className="font-semibold">&euro;{liveStats.mobileSales.toFixed(2)}</span>
+                <span className="font-semibold">&euro;{safeToFixed(liveStats.mobileSales, 2)}</span>
               </div>
               <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/50">
                 <div className="flex items-center gap-2">
                   <Split className="h-4 w-4 text-amber-600" />
                   <span className="text-sm">Deljeno</span>
                 </div>
-                <span className="font-semibold">&euro;{liveStats.splitPayments.toFixed(2)}</span>
+                <span className="font-semibold">&euro;{safeToFixed(liveStats.splitPayments, 2)}</span>
               </div>
               <Separator />
               <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-primary/5">
@@ -136,7 +137,7 @@ export const ActiveShiftView = memo(function ActiveShiftView({ activeShift, live
                   <Wallet className="h-4 w-4 text-primary" />
                   <span className="font-semibold">Skupaj</span>
                 </div>
-                <span className="font-bold text-lg">&euro;{liveStats.totalSales.toFixed(2)}</span>
+                <span className="font-bold text-lg">&euro;{safeToFixed(liveStats.totalSales, 2)}</span>
               </div>
               {liveStats.totalDiscounts > 0 && (
                 <div className="flex items-center justify-between py-2 px-3 rounded-lg">
@@ -144,7 +145,7 @@ export const ActiveShiftView = memo(function ActiveShiftView({ activeShift, live
                     <Gift className="h-4 w-4 text-rose-500" />
                     <span className="text-sm text-muted-foreground">Popusti</span>
                   </div>
-                  <span className="text-sm text-rose-600">-&euro;{liveStats.totalDiscounts.toFixed(2)}</span>
+                  <span className="text-sm text-rose-600">-&euro;{safeToFixed(liveStats.totalDiscounts, 2)}</span>
                 </div>
               )}
             </div>

@@ -5,6 +5,7 @@ import { MessageSquare } from 'lucide-react'
 import { allergenLabels } from '../types'
 import type { TranslationValue } from '../translations'
 import type { MenuItemType, CartItem } from '../types'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 interface ItemContentSectionProps {
   t: TranslationValue
@@ -38,7 +39,7 @@ export const ItemContentSection = memo(function ItemContentSection({
       <div className="flex items-start justify-between mb-3">
         <h2 className="text-xl font-bold flex-1 pr-3">{detailItem.name}</h2>
         <span className="text-xl font-bold text-amber-600 flex-shrink-0">
-          {detailItem.price.toFixed(2)} {t.currency}
+          {safeToFixed(detailItem.price, 2)} {t.currency}
         </span>
       </div>
 

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Clock, Flame, CheckCircle2, ArrowRight } from 'lucide-react'
 import { memo } from 'react'
 import type { OrderItemWithMenu } from './types'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // KOMPONENTA ZA POSAMEZNI ARTIKEL
@@ -104,7 +105,7 @@ export const KitchenOrderItem = memo(function KitchenOrderItem({
             <div className="flex flex-wrap gap-1 ml-8 mb-1">
               {modifiers.map((m: { name: string; price?: number }, i: number) => (
                 <Badge key={i} variant="secondary" className="text-[10px] h-5 px-1.5">
-                  {m.name}{m.price ? ` (+€${m.price.toFixed(2)})` : ''}
+                  {m.name}{m.price ? ` (+€${safeToFixed(m.price, 2)})` : ''}
                 </Badge>
               ))}
             </div>

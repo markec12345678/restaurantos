@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Clock, AlertTriangle, UtensilsCrossed, LayoutGrid } from 'lucide-react'
 import type { OccupiedTablesCardProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 export const OccupiedTablesCard = memo(function OccupiedTablesCard({ analytics }: OccupiedTablesCardProps) {
   return (
@@ -52,7 +53,7 @@ export const OccupiedTablesCard = memo(function OccupiedTablesCard({ analytics }
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>{t.customer || 'Hodič'}</span>
-                    <span>{'\u20AC'}{t.total.toFixed(2)}</span>
+                    <span>{'\u20AC'}{safeToFixed(t.total, 2)}</span>
                   </div>
                 </div>
               ))}

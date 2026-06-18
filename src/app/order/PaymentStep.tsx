@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import type { CartItem, OrderType, DeliveryZoneInfo, PromoResult } from './types'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // =====================================================================
 // PLAČILO
@@ -47,7 +48,7 @@ export const PaymentStep = memo(function PaymentStep({
           return (
             <div key={idx} className="flex justify-between text-sm py-1">
               <span>{item.quantity}× {item.menuItem.name}</span>
-              <span>€{(priceWithVat * item.quantity).toFixed(2)}</span>
+              <span>€{safeToFixed(priceWithVat * item.quantity, 2)}</span>
             </div>
           )
         })}
@@ -60,12 +61,12 @@ export const PaymentStep = memo(function PaymentStep({
         {promoResult?.valid && promoResult.discount && (
           <div className="flex justify-between text-sm py-1 text-green-600">
             <span>🏷 {promoResult.discount.description}</span>
-            <span>-€{promoResult.discount.discountAmount.toFixed(2)}</span>
+            <span>-€{safeToFixed(promoResult.discount.discountAmount, 2)}</span>
           </div>
         )}
         <div className="flex justify-between font-bold text-lg pt-2 mt-2 border-t">
           <span>Skupaj</span>
-          <span className="text-blue-600">€{total.toFixed(2)}</span>
+          <span className="text-blue-600">€{safeToFixed(total, 2)}</span>
         </div>
       </div>
 
@@ -85,7 +86,7 @@ export const PaymentStep = memo(function PaymentStep({
         </div>
         {promoResult && (
           <p className={`text-xs ${promoResult.valid ? 'text-green-600' : 'text-red-500'}`}>
-            {promoResult.valid ? `✓ ${promoResult.discount?.description} (-€${promoResult.discount?.discountAmount.toFixed(2)})` : `✕ ${promoResult.message}`}
+            {promoResult.valid ? `✓ ${promoResult.discount?.description} (-€${safeToFixed(promoResult.discount?.discountAmount, 2)})` : `✕ ${promoResult.message}`}
           </p>
         )}
       </div>
@@ -130,7 +131,7 @@ export const PaymentStep = memo(function PaymentStep({
               Pošiljam...
             </span>
           ) : (
-            `Potrdi naročilo • €${total.toFixed(2)}`
+            `Potrdi naročilo • €${safeToFixed(total, 2)}`
           )}
         </button>
       </div>

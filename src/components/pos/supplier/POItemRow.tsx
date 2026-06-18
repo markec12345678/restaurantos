@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { X } from 'lucide-react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 export interface POItemDraft {
   description: string
@@ -53,7 +54,7 @@ export const POItemRow = memo(function POItemRow({
         <Input type="number" value={item.unitPrice} onChange={e => onUpdate(idx, 'unitPrice', parseFloat(e.target.value) || 0)} placeholder="Cena" className="h-8 text-xs" aria-label="Cena"/>
       </div>
       <div className="col-span-1">
-        <span className="text-xs font-medium">&euro;{(item.quantityOrdered * item.unitPrice).toFixed(2)}</span>
+        <span className="text-xs font-medium">&euro;{safeToFixed(item.quantityOrdered * item.unitPrice, 2)}</span>
       </div>
       <div className="col-span-1">
         {canRemove && (

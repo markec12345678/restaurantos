@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BarChart3 } from 'lucide-react'
 import type { AreaOccupancyChartProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // ZASEDENOST PO OBMOČJIH — Vizualizacija
@@ -23,7 +24,7 @@ export const AreaOccupancyChart = memo(function AreaOccupancyChart({ areaOccupan
             <div key={area} className="space-y-1">
               <div className="flex justify-between text-sm">
                 <span className="font-medium">{label}</span>
-                <span className="text-muted-foreground">{occupied}/{total} miz ({pct.toFixed(0)}%)</span>
+                <span className="text-muted-foreground">{occupied}/{total} miz ({safeToFixed(pct, 0)}%)</span>
               </div>
               <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2">
                 <div className={`h-2 rounded-full ${

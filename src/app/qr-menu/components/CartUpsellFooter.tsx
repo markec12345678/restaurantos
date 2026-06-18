@@ -2,6 +2,7 @@
 
 import { memo } from 'react';
 import type { CartItem, Menu, UpsellSuggestion } from '../types';
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // AI Upsell section sub-component
@@ -33,7 +34,7 @@ export const UpsellSection = memo(function UpsellSection({
               if (found) onAddToCart(found);
             }}
             className={`flex-shrink-0 ${isDark ? 'bg-gray-800 hover:bg-gray-700' : 'bg-amber-50 hover:bg-amber-100'} rounded-xl px-3 py-2 text-left transition min-w-[140px]`}
-            aria-label={`${sug.name} €${(sug.price * 1.22).toFixed(2)}`}
+            aria-label={`${sug.name} €${safeToFixed(sug.price * 1.22, 2)}`}
           >
             <p className={`text-xs font-bold ${isDark ? 'text-gray-200' : 'text-gray-800'}`}>{sug.name}</p>
             <p className={`text-[10px] line-clamp-1 ${isDark ? 'text-gray-500' : 'text-gray-500'}`}>{sug.reason}</p>
@@ -64,15 +65,15 @@ export const CartTotalsFooter = memo(function CartTotalsFooter({
       <div className="space-y-1">
         <div className={`flex justify-between text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
           <span>Znesek brez DDV</span>
-          <span>€{totalWithoutVat.toFixed(2)}</span>
+          <span>€{safeToFixed(totalWithoutVat, 2)}</span>
         </div>
         <div className={`flex justify-between text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
           <span>DDV</span>
-          <span>€{(totalWithVat - totalWithoutVat).toFixed(2)}</span>
+          <span>€{safeToFixed(totalWithVat - totalWithoutVat, 2)}</span>
         </div>
         <div className={`flex justify-between text-lg font-bold pt-1 ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
           <span>Skupaj</span>
-          <span>€{totalWithVat.toFixed(2)}</span>
+          <span>€{safeToFixed(totalWithVat, 2)}</span>
         </div>
       </div>
       <button
@@ -83,7 +84,7 @@ export const CartTotalsFooter = memo(function CartTotalsFooter({
             ? 'bg-gray-400 text-gray-600 cursor-not-allowed shadow-none'
             : 'bg-amber-500 text-white hover:bg-amber-600 shadow-amber-500/30'
         }`}
-        aria-label={`Naroči za €${totalWithVat.toFixed(2)}`}
+        aria-label={`Naroči za €${safeToFixed(totalWithVat, 2)}`}
       >
         {orderSending ? (
           <span className="flex items-center justify-center gap-2">
@@ -91,7 +92,7 @@ export const CartTotalsFooter = memo(function CartTotalsFooter({
             Pošiljam...
           </span>
         ) : (
-          `Naroči · €${totalWithVat.toFixed(2)}`
+          `Naroči · €${safeToFixed(totalWithVat, 2)}`
         )}
       </button>
     </div>

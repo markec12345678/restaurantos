@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { AlertTriangle, Leaf, Info } from 'lucide-react'
 import type { MenuItemData } from './constants'
 import { ALLERGEN_MAP } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // --- Props ---
 
@@ -29,7 +30,7 @@ export const NutritionalItemCard = memo(function NutritionalItemCard({
             <div className="font-semibold text-sm">{item.name}</div>
             <div className="text-xs text-muted-foreground">{item.category?.name}</div>
           </div>
-          <span className="font-bold text-green-600">€{item.price.toFixed(2)}</span>
+          <span className="font-bold text-green-600">€{safeToFixed(item.price, 2)}</span>
         </div>
 
         {/* Alergeni */}

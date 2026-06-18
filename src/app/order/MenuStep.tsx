@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import type { Category, MenuItem, CartItem, OrderType, Modifier } from './types'
 import { ALLERGEN_DATA, DEFAULT_DELIVERY_FEE, DEFAULT_MIN_ORDER, ESTIMATED_DELIVERY_MIN, ESTIMATED_TAKEOUT_MIN } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 interface MenuStepProps {
   isDark: boolean
@@ -50,8 +51,8 @@ export const MenuStep = memo(function MenuStep({
           <span className={isDark ? 'text-blue-300' : 'text-blue-700'}>
             {orderType === 'delivery'
               ? deliveryZone
-                ? `Dostava (${deliveryZone.name}) ${getDeliveryFee().toFixed(2)} € • Min. ${getMinOrderAmount().toFixed(2)} € • ${getEstimatedMinutes()}-${getEstimatedMinutes() + 15} min${deliveryZone.freeDeliveryAbove > 0 ? ` • Brezplačno nad €${deliveryZone.freeDeliveryAbove.toFixed(2)}` : ''}`
-                : `Dostava ${DEFAULT_DELIVERY_FEE.toFixed(2)} € • Min. naročilo ${DEFAULT_MIN_ORDER.toFixed(2)} € • ${ESTIMATED_DELIVERY_MIN}-${ESTIMATED_DELIVERY_MIN + 15} min`
+                ? `Dostava (${deliveryZone.name}) ${getDeliveryFee().toFixed(2)} € • Min. ${getMinOrderAmount().toFixed(2)} € • ${getEstimatedMinutes()}-${getEstimatedMinutes() + 15} min${deliveryZone.freeDeliveryAbove > 0 ? ` • Brezplačno nad €${safeToFixed(deliveryZone.freeDeliveryAbove, 2)}` : ''}`
+                : `Dostava ${safeToFixed(DEFAULT_DELIVERY_FEE, 2)} € • Min. naročilo ${safeToFixed(DEFAULT_MIN_ORDER, 2)} € • ${ESTIMATED_DELIVERY_MIN}-${ESTIMATED_DELIVERY_MIN + 15} min`
               : `Prevzem na lokaciji • ${ESTIMATED_TAKEOUT_MIN}-${ESTIMATED_TAKEOUT_MIN + 10} min`}
           </span>
         </div>
@@ -119,7 +120,7 @@ export const MenuStep = memo(function MenuStep({
                   </div>
                 )}
                 <div className="flex items-end justify-between gap-2 mt-2">
-                  <span className={`font-bold ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>€{priceWithVat.toFixed(2)}</span>
+                  <span className={`font-bold ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>€{safeToFixed(priceWithVat, 2)}</span>
                   <button
                     onClick={(e) => { e.stopPropagation(); addToCart(item) }}
                     className="bg-blue-600 text-white rounded-xl p-2 shadow-md hover:bg-blue-700 active:scale-90 transition"
@@ -147,7 +148,7 @@ export const MenuStep = memo(function MenuStep({
               <span className="bg-white/20 rounded-lg px-2 py-0.5 text-sm">{cartItemCount}</span>
               Košarica
             </span>
-            <span>€{total.toFixed(2)}</span>
+            <span>€{safeToFixed(total, 2)}</span>
           </button>
         </div>
       )}

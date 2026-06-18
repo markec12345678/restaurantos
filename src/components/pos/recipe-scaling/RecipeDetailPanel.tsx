@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { ChefHat, Calculator, Plus, Minus, Package, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import { type RecipeDetailPanelProps, formatCurrency } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // Podrobnosti in raztegovanje izbranega recepta
 export const RecipeDetailPanel = memo(function RecipeDetailPanel({
@@ -75,7 +76,7 @@ export const RecipeDetailPanel = memo(function RecipeDetailPanel({
 
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">Faktor:</span>
-                <Badge variant="secondary" className="text-sm font-bold">{scaleFactor.toFixed(2)}x</Badge>
+                <Badge variant="secondary" className="text-sm font-bold">{safeToFixed(scaleFactor, 2)}x</Badge>
               </div>
 
               <div className="flex items-center gap-4 ml-auto">
@@ -101,7 +102,7 @@ export const RecipeDetailPanel = memo(function RecipeDetailPanel({
             {scaleFactor !== 1 && (
               <Badge variant="secondary" className="text-xs">
                 {scaleFactor > 1 ? <ArrowUpRight className="h-3 w-3 mr-1" /> : <ArrowDownRight className="h-3 w-3 mr-1" />}
-                {scaleFactor.toFixed(2)}x
+                {safeToFixed(scaleFactor, 2)}x
               </Badge>
             )}
           </CardTitle>

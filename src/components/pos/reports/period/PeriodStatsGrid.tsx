@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { StatsCard } from '../../StatsCard'
 import { DollarSign, ShoppingBag, TrendingUp, Receipt, Wallet, Package, AlertTriangle } from 'lucide-react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // Statistična mreža za poročilo po obdobju
@@ -22,7 +23,7 @@ interface PeriodStatsGridProps {
 export const PeriodStatsGrid = memo(function PeriodStatsGrid({ fin, fmt, fmtPct }: PeriodStatsGridProps) {
   const trendText = (change: number) => {
     if (change === 0) return 'enako'
-    return `${change > 0 ? '+' : ''}${change.toFixed(1)}%`
+    return `${change > 0 ? '+' : ''}${safeToFixed(change, 1)}%`
   }
   return (
     <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-9 gap-3">
@@ -34,7 +35,7 @@ export const PeriodStatsGrid = memo(function PeriodStatsGrid({ fin, fmt, fmtPct 
       <StatsCard title="Bruto dobiček" value={fmt(fin.costs.grossProfit)} icon={TrendingUp} subtitle={fmtPct(fin.costs.grossMargin)} trend={fin.costs.grossMargin > 50 ? 'up' : 'down'} />
       <StatsCard title="Nabavni stroški" value={fmt(fin.costs.procurementCost)} icon={Package} />
       <StatsCard title="Odpisi" value={fmt(fin.costs.writeOffCost)} icon={AlertTriangle} />
-      <StatsCard title="Napitnine" value={fmt(fin.totalTips || 0)} icon={Wallet} subtitle={fin.tipPercentage ? `${fin.tipPercentage.toFixed(1)}%` : ''} />
+      <StatsCard title="Napitnine" value={fmt(fin.totalTips || 0)} icon={Wallet} subtitle={fin.tipPercentage ? `${safeToFixed(fin.tipPercentage, 1)}%` : ''} />
     </div>
   )
 })

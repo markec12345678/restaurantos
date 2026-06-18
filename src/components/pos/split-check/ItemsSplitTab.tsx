@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { DialogFooter } from '@/components/ui/dialog'
 import { Receipt, Plus, Trash2, CreditCard, Banknote, Smartphone, CheckCircle2 } from 'lucide-react'
 import type { ItemsSplitTabProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 export const ItemsSplitTab = memo(function ItemsSplitTab({
   partyTotals,
@@ -41,7 +42,7 @@ export const ItemsSplitTab = memo(function ItemsSplitTab({
                 />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-bold">€{party.total.toFixed(2)}</span>
+                <span className="text-sm font-bold">€{safeToFixed(party.total, 2)}</span>
                 {parties.length > 1 && (
                   <Button variant="ghost" size="icon" aria-label="Izbriši" className="h-6 w-6" onClick={() => onRemoveParty(party.id)}>
                     <Trash2 className="h-3 w-3 text-destructive" />
@@ -57,7 +58,7 @@ export const ItemsSplitTab = memo(function ItemsSplitTab({
                     <div key={item.id} className="flex items-center justify-between text-sm bg-muted/30 rounded px-2 py-1">
                       <span>{item.quantity}x {item.name}</span>
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">€{(item.price * item.quantity).toFixed(2)}</span>
+                        <span className="font-medium">€{safeToFixed(item.price * item.quantity, 2)}</span>
                         <Button variant="ghost" size="icon" aria-label="Izbriši" className="h-5 w-5" onClick={() => onUnassignItem(item.id)}>
                           <Trash2 className="h-2.5 w-2.5 text-muted-foreground" />
                         </Button>
@@ -122,7 +123,7 @@ export const ItemsSplitTab = memo(function ItemsSplitTab({
               <div key={item.id} className="flex items-center justify-between text-sm border rounded-lg px-3 py-2 hover:bg-muted/30 transition-colors">
                 <span>{item.quantity}x {item.name}</span>
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">€{(item.price * item.quantity).toFixed(2)}</span>
+                  <span className="font-medium">€{safeToFixed(item.price * item.quantity, 2)}</span>
                   <div className="flex gap-1">
                     {parties.map(party => (
                       <Button

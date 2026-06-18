@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import { Wallet } from 'lucide-react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EodData = any
@@ -23,8 +24,8 @@ export const EodPaymentMethods = memo(function EodPaymentMethods({ eodData }: Eo
             <span className="capitalize">{pm.method === 'cash' ? 'Gotovina' : pm.method === 'card' ? 'Kartica' : pm.method === 'mobile' ? 'Mobilno' : pm.method}</span>
             <div className="flex items-center gap-3">
               <span className="text-muted-foreground">{pm.count}&times;</span>
-              <span className="font-semibold">&euro;{pm.revenue.toFixed(2)}</span>
-              {pm.tips > 0 && <span className="text-xs text-emerald-600">+&euro;{pm.tips.toFixed(2)} tip</span>}
+              <span className="font-semibold">&euro;{safeToFixed(pm.revenue, 2)}</span>
+              {pm.tips > 0 && <span className="text-xs text-emerald-600">+&euro;{safeToFixed(pm.tips, 2)} tip</span>}
             </div>
           </div>
         ))}

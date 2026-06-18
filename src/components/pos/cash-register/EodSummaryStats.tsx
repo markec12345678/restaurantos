@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EodData = any
@@ -14,7 +15,7 @@ export const EodSummaryStats = memo(function EodSummaryStats({ eodData }: EodSum
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       <div className="text-center p-3 rounded-lg bg-primary/5 border">
         <p className="text-xs text-muted-foreground">Prihodek</p>
-        <p className="text-lg font-bold text-primary">&euro;{eodData.summary.totalRevenue.toFixed(2)}</p>
+        <p className="text-lg font-bold text-primary">&euro;{safeToFixed(eodData.summary.totalRevenue, 2)}</p>
       </div>
       <div className="text-center p-3 rounded-lg bg-muted/50 border">
         <p className="text-xs text-muted-foreground">Naročila</p>
@@ -23,11 +24,11 @@ export const EodSummaryStats = memo(function EodSummaryStats({ eodData }: EodSum
       </div>
       <div className="text-center p-3 rounded-lg bg-muted/50 border">
         <p className="text-xs text-muted-foreground">Povprečno</p>
-        <p className="text-lg font-bold">&euro;{eodData.summary.avgOrderValue.toFixed(2)}</p>
+        <p className="text-lg font-bold">&euro;{safeToFixed(eodData.summary.avgOrderValue, 2)}</p>
       </div>
       <div className="text-center p-3 rounded-lg bg-muted/50 border">
         <p className="text-xs text-muted-foreground">Napitnine</p>
-        <p className="text-lg font-bold text-emerald-600">&euro;{eodData.summary.totalTips.toFixed(2)}</p>
+        <p className="text-lg font-bold text-emerald-600">&euro;{safeToFixed(eodData.summary.totalTips, 2)}</p>
       </div>
     </div>
   )

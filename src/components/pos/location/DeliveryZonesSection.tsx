@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Navigation, Plus, Trash2 } from 'lucide-react'
 import type { DeliveryZonesSectionProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import type { DeliveryZoneRow } from '@/lib/types'
 
 // Odsek za upravljanje con dostave
@@ -54,9 +55,9 @@ export const DeliveryZonesSection = memo(function DeliveryZonesSection({
                     {zone.locationId && <Badge variant="outline" className="text-[10px]">Lokacija</Badge>}
                   </div>
                   <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                    <span>Dostava: €{(zone.deliveryFee || 0).toFixed(2)}</span>
-                    <span>Min: €{(zone.minOrderAmount || 0).toFixed(2)}</span>
-                    {zone.freeDeliveryAbove != null && zone.freeDeliveryAbove > 0 && <span className="text-green-600">Brezplačno nad €{zone.freeDeliveryAbove.toFixed(2)}</span>}
+                    <span>Dostava: €{safeToFixed(zone.deliveryFee || 0, 2)}</span>
+                    <span>Min: €{safeToFixed(zone.minOrderAmount || 0, 2)}</span>
+                    {zone.freeDeliveryAbove != null && zone.freeDeliveryAbove > 0 && <span className="text-green-600">Brezplačno nad €{safeToFixed(zone.freeDeliveryAbove, 2)}</span>}
                     <span>{(zone.estimatedMinutes ?? 30)} min</span>
                   </div>
                   <div className="text-[10px] text-muted-foreground mt-0.5">

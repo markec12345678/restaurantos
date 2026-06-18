@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { CalendarDays, Plus } from 'lucide-react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { ShiftDialogProps } from './constants'
 
 // ============================================
@@ -63,7 +64,7 @@ export const ShiftDialog = memo(function ShiftDialog({
               <SelectContent>
                 <SelectItem value="none">Brez</SelectItem>
                 {jobs?.map(j => (
-                  <SelectItem key={j.id} value={j.id}>{j.name} (€{j.basePayRate.toFixed(2)}/h)</SelectItem>
+                  <SelectItem key={j.id} value={j.id}>{j.name} (€{safeToFixed(j.basePayRate, 2)}/h)</SelectItem>
                 ))}
               </SelectContent>
             </Select>

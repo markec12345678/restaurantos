@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { CheckCircle2 } from 'lucide-react'
 import type { TipDistribution, TipPoolData } from './constants'
 import { formatCurrency } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 interface TipDistributionTableProps {
   pool: TipPoolData
@@ -60,7 +61,7 @@ export const TipDistributionTable = memo(function TipDistributionTable({
                     type="number"
                     step="0.01"
                     className="w-24 h-8 text-right"
-                    value={editingAmounts[d.employeeId] ?? d.amount.toFixed(2)}
+                    value={editingAmounts[d.employeeId] ?? safeToFixed(d.amount, 2)}
                     onChange={(e) => onAmountChange(d.employeeId, e.target.value)}
                   />
                 ) : (

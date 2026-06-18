@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { FileText, Printer, ChevronLeft, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
 import { authFetch } from '@/components/pos/PinLogin'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { queryKeys } from '@/lib/query-keys'
 import { PeriodType } from './constants'
 import type { FinancialData } from './booking-extract/types'
@@ -46,8 +47,8 @@ export function BookingExtractReport() {
     if (!fin) return ''
     return fin.periodLabel || ''
   }, [fin])
-  const fmt = (n: number) => `€${n.toFixed(2)}`
-  const fmtPct = (n: number) => `${n.toFixed(1)}%`
+  const fmt = (n: number) => `€${safeToFixed(n, 2)}`
+  const fmtPct = (n: number) => `${safeToFixed(n, 1)}%`
 
   if (finLoading) return <div className="space-y-4">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-40" />)}</div>
   if (!fin) return <p className="text-center py-12 text-muted-foreground">Ni podatkov</p>

@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { CheckCircle2, Users, Clock, ChefHat } from 'lucide-react'
 import type { StatsGridProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // STATISTIKA — Štiri kartice z metrikami
@@ -27,7 +28,7 @@ export const StatsGrid = memo(function StatsGrid({ estimation }: StatsGridProps)
             <Users className="h-4 w-4 text-amber-600" />
             <span className="text-xs text-muted-foreground">Zasedenost</span>
           </div>
-          <div className="text-xl font-bold text-amber-600">{estimation.occupancyRate.toFixed(0)}%</div>
+          <div className="text-xl font-bold text-amber-600">{safeToFixed(estimation.occupancyRate, 0)}%</div>
         </CardContent>
       </Card>
       <Card>

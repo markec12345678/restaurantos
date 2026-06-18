@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { FileMinus, SlidersHorizontal, ArrowUpCircle } from 'lucide-react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { type InventoryItemData, type WriteOffFormData, writeOffReasons } from './constants'
 
 // --- Props ---
@@ -70,7 +71,7 @@ export const WriteOffTab = memo(function WriteOffTab({
               {selectedItem && (
                 <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-sm">
                   <div className="flex justify-between"><span className="text-muted-foreground">Trenutna zaloga:</span><span className="font-medium">{selectedItem.quantity} {selectedItem.unit}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Nabavna vrednost:</span><span className="font-medium">€{(selectedItem.quantity * selectedItem.costPerUnit).toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Nabavna vrednost:</span><span className="font-medium">€{safeToFixed(selectedItem.quantity * selectedItem.costPerUnit, 2)}</span></div>
                 </div>
               )}
             </div>
@@ -96,7 +97,7 @@ export const WriteOffTab = memo(function WriteOffTab({
                   return (
                     <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
                       <p>Nova zaloga: <span className="font-medium text-red-600">{newQty} {selectedItem.unit}</span></p>
-                      <p>Strošek odpisa: <span className="font-medium text-red-600">€{costLoss.toFixed(2)}</span></p>
+                      <p>Strošek odpisa: <span className="font-medium text-red-600">€{safeToFixed(costLoss, 2)}</span></p>
                     </div>
                   )
                 })()}

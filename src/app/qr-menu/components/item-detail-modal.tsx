@@ -4,6 +4,7 @@ import { memo, type RefObject } from 'react';
 import type { MenuItem, Modifier, ModifierGroup } from '../types';
 import type { FontSize } from '../use-qr-menu';
 import { ALLERGEN_DATA } from '../constants';
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 export interface ItemDetailModalProps {
   item: MenuItem;
@@ -98,7 +99,7 @@ export const ItemDetailModal = memo(function ItemDetailModal({
                       }`}
                       role="checkbox"
                       aria-checked={!!isSelected}
-                      aria-label={`${mod.name}${mod.price > 0 ? ` +€${mod.price.toFixed(2)}` : ''}`}
+                      aria-label={`${mod.name}${mod.price > 0 ? ` +€${safeToFixed(mod.price, 2)}` : ''}`}
                     >
                       <span className="flex items-center gap-2">
                         <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center ${
@@ -108,7 +109,7 @@ export const ItemDetailModal = memo(function ItemDetailModal({
                         </span>
                         {mod.name}
                       </span>
-                      {mod.price > 0 && <span className={`text-xs font-medium ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>+€{mod.price.toFixed(2)}</span>}
+                      {mod.price > 0 && <span className={`text-xs font-medium ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>+€{safeToFixed(mod.price, 2)}</span>}
                     </button>
                   );
                 })}

@@ -8,6 +8,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BarChart3, TrendingDown, DollarSign, AlertTriangle, Receipt } from 'lucide-react'
 import { formatCurrency } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import type { ProfitDiscountSectionProps } from './constants'
 
 export const ProfitDiscountSection = memo(function ProfitDiscountSection({ report }: ProfitDiscountSectionProps) {
@@ -36,7 +37,7 @@ export const ProfitDiscountSection = memo(function ProfitDiscountSection({ repor
                 report.grossMargin > 65 ? 'text-green-600' :
                 report.grossMargin > 50 ? 'text-amber-600' : 'text-red-600'
               }`}>
-                {report.grossMargin.toFixed(1)}%
+                {safeToFixed(report.grossMargin, 1)}%
               </span>
             </div>
             {/* Vizualna vrstica marže */}

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { CheckCircle2, Clock, Sun, Moon, Save, RotateCcw, ClipboardCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // DAILY CHECKLIST HEADER
@@ -61,7 +62,7 @@ export const ChecklistProgress = memo(function ChecklistProgress({ completedCoun
             {allCompleted ? <CheckCircle2 className="h-5 w-5 text-emerald-500" /> : <Clock className="h-5 w-5 text-amber-500" />}
             <span className="font-bold">{allCompleted ? 'Zaključeno!' : `${completedCount}/${totalCount} opravljenih`}</span>
           </div>
-          <Badge variant={allCompleted ? 'default' : 'secondary'}>{progressPct.toFixed(0)}%</Badge>
+          <Badge variant={allCompleted ? 'default' : 'secondary'}>{safeToFixed(progressPct, 0)}%</Badge>
         </div>
         <Progress value={progressPct} className={`h-2 ${allCompleted ? '[&>div]:bg-emerald-500' : ''}`} aria-valuetext={allCompleted ? 'Zaključeno' : 'V teku'} />
       </CardContent>

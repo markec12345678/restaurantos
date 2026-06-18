@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Truck } from 'lucide-react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { type InventoryItemData, type RestockFormData } from './constants'
 
 interface ProcurementFormProps {
@@ -69,7 +70,7 @@ export const ProcurementForm = memo(function ProcurementForm({
               <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-sm">
                 <div className="flex justify-between"><span className="text-muted-foreground">Trenutna zaloga:</span><span className="font-medium">{selectedItem.quantity} {selectedItem.unit}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Enota:</span><span className="font-medium">{selectedItem.unit}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Trenutna nabavna cena:</span><span className="font-medium">€{selectedItem.costPerUnit.toFixed(2)}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Trenutna nabavna cena:</span><span className="font-medium">€{safeToFixed(selectedItem.costPerUnit, 2)}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Dobavitelj:</span><span className="font-medium">{selectedItem.supplier || 'Ni določen'}</span></div>
               </div>
             )}

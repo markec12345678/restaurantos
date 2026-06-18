@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import { entryTypeConfig, formatDateTimeSI, minutesToHours } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // TABELA ZAKLJUČENIH VNOSOV
@@ -54,7 +55,7 @@ export const CompletedEntriesTable = memo(function CompletedEntriesTable({
                     <TableCell className="text-xs whitespace-nowrap">{entry.clockOut ? formatDateTimeSI(entry.clockOut) : '—'}</TableCell>
                     <TableCell className="text-sm font-mono">{minutesToHours(entry.totalMinutes)}</TableCell>
                     <TableCell><Badge className={`text-[10px] ${typeCfg.bgColor}`}>{typeCfg.label}</Badge></TableCell>
-                    <TableCell className="text-right text-sm font-medium">€{entry.totalPay.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-sm font-medium">€{safeToFixed(entry.totalPay, 2)}</TableCell>
                   </TableRow>
                 )
               })}

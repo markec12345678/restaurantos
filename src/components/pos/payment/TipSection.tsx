@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { Input } from '@/components/ui/input'
 import { Heart } from 'lucide-react'
 import { tipPresets } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // IZBIRA NAPITNINE
@@ -66,7 +67,7 @@ export const TipSection = memo(function TipSection({
       {tipAmount > 0 && (
         <div className="flex justify-between font-bold text-base bg-rose-50 dark:bg-rose-900/20 p-2 rounded-lg mt-2">
           <span className="flex items-center gap-2"><Heart className="h-3.5 w-3.5 text-rose-500" /> Skupaj z napitnino</span>
-          <span>€{totalWithTip.toFixed(2)}</span>
+          <span>€{safeToFixed(totalWithTip, 2)}</span>
         </div>
       )}
     </div>

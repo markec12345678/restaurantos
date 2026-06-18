@@ -5,6 +5,7 @@
 import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency, type RevenueTabProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 interface RevenueItem {
   label: string
@@ -37,7 +38,7 @@ export const RevenueTab = memo(function RevenueTab({ data }: RevenueTabProps) {
                   </span>
                   <div className="text-right">
                     <span className="font-medium text-sm">{formatCurrency(item.value)}</span>
-                    <span className="text-xs text-muted-foreground ml-2">{percent.toFixed(1)}%</span>
+                    <span className="text-xs text-muted-foreground ml-2">{safeToFixed(percent, 1)}%</span>
                   </div>
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">

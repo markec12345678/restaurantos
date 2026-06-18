@@ -6,6 +6,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { QUADRANT_COLORS, QUADRANT_LABELS, QUADRANT_ORDER, getProfitWeightClass, type TableViewProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 export const TableView = memo(function TableView({ filteredItems }: TableViewProps) {
   return (
@@ -33,15 +34,15 @@ export const TableView = memo(function TableView({ filteredItems }: TableViewPro
                   <tr key={item.id} className="border-b hover:bg-muted/30 transition-colors">
                     <td className="p-3 font-medium">{item.name}</td>
                     <td className="p-3 text-muted-foreground">{item.category}</td>
-                    <td className="p-3 text-right">{'\u20AC'}{item.price.toFixed(2)}</td>
-                    <td className="p-3 text-right">{'\u20AC'}{item.foodCost.toFixed(2)}</td>
+                    <td className="p-3 text-right">{'\u20AC'}{safeToFixed(item.price, 2)}</td>
+                    <td className="p-3 text-right">{'\u20AC'}{safeToFixed(item.foodCost, 2)}</td>
                     <td className="p-3 text-right">
                       <span className={getProfitWeightClass(item.grossProfitPercent)}>
-                        {item.grossProfitPercent.toFixed(1)}%
+                        {safeToFixed(item.grossProfitPercent, 1)}%
                       </span>
                     </td>
                     <td className="p-3 text-right">{item.quantitySold}x</td>
-                    <td className="p-3 text-right font-medium">{'\u20AC'}{item.revenue.toFixed(2)}</td>
+                    <td className="p-3 text-right font-medium">{'\u20AC'}{safeToFixed(item.revenue, 2)}</td>
                     <td className="p-3 text-center">
                       <Badge style={{ backgroundColor: QUADRANT_COLORS[item.quadrant] + '20', color: QUADRANT_COLORS[item.quadrant] }} className="text-[10px]">
                         {QUADRANT_LABELS[item.quadrant]}

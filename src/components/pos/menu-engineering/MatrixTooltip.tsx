@@ -5,6 +5,7 @@
 import { memo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { QUADRANT_COLORS, QUADRANT_LABELS, getProfitColorClass, type MatrixTooltipProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 export const MatrixTooltip = memo(function MatrixTooltip({ active, payload }: MatrixTooltipProps) {
   if (!active || !payload?.length) return null
@@ -22,16 +23,16 @@ export const MatrixTooltip = memo(function MatrixTooltip({ active, payload }: Ma
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-muted-foreground">Cena:</span>
-          <span>{'\u20AC'}{item.price.toFixed(2)}</span>
+          <span>{'\u20AC'}{safeToFixed(item.price, 2)}</span>
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-muted-foreground">Strosek hrane:</span>
-          <span>{'\u20AC'}{item.foodCost.toFixed(2)}</span>
+          <span>{'\u20AC'}{safeToFixed(item.foodCost, 2)}</span>
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-muted-foreground">Bruto dobcek:</span>
           <span className={getProfitColorClass(item.grossProfitPercent)}>
-            {item.grossProfitPercent.toFixed(1)}%
+            {safeToFixed(item.grossProfitPercent, 1)}%
           </span>
         </div>
         <div className="flex justify-between gap-4">
@@ -40,7 +41,7 @@ export const MatrixTooltip = memo(function MatrixTooltip({ active, payload }: Ma
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-muted-foreground">Prihodek:</span>
-          <span>{'\u20AC'}{item.revenue.toFixed(2)}</span>
+          <span>{'\u20AC'}{safeToFixed(item.revenue, 2)}</span>
         </div>
         <div className="flex justify-between gap-4">
           <span className="text-muted-foreground">Kvadrant:</span>

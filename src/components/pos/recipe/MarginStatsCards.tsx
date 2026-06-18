@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { marginColor } from './constants'
 import type { MarginStats } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 interface MarginStatsCardsProps {
   stats: MarginStats
@@ -16,7 +17,7 @@ export const MarginStatsCards = memo(function MarginStatsCards({ stats }: Margin
         <CardContent className="p-4 text-center">
           <p className="text-xs text-muted-foreground">Povprečna marža</p>
           <p className={`text-2xl font-bold ${marginColor(stats.avgMargin)}`}>
-            {stats.avgMargin.toFixed(1)}%
+            {safeToFixed(stats.avgMargin, 1)}%
           </p>
         </CardContent>
       </Card>

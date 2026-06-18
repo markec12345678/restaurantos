@@ -7,6 +7,7 @@ import { allergenLabels } from '../types'
 import type { TranslationValue } from '../translations'
 import type { MenuItemType, CartItem, CategoryType } from '../types'
 import { EmptySearchResults, EmptyCategory } from './MenuEmptyStates'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // POSAMEZNA KARTICA MENIJSKEGA ARTIKLA
@@ -46,7 +47,7 @@ export const MenuItemCard = memo(function MenuItemCard({
             </div>
           )}
           <div className="flex items-center justify-between">
-            <span className="font-bold text-amber-600 text-sm">{item.price.toFixed(2)} {t.currency}</span>
+            <span className="font-bold text-amber-600 text-sm">{safeToFixed(item.price, 2)} {t.currency}</span>
             {cartQty === 0 ? (
               <button onClick={(e) => { e.stopPropagation(); onAddToCart(item) }} className="flex items-center gap-1 px-3 py-1 bg-amber-500 text-white rounded-full text-xs font-medium hover:bg-amber-600 transition-colors">
                 <Plus className="h-3 w-3" />{t.addToCart}

@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CATEGORIES } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // Category breakdown
@@ -31,12 +32,12 @@ export const CategoryBreakdown = memo(function CategoryBreakdown({ byCategory, t
                 <div className="flex-1">
                   <div className="flex items-center justify-between mb-0.5">
                     <span className="text-sm font-medium">{cat.label}</span>
-                    <span className="text-sm font-bold">€{catData.total.toFixed(2)}</span>
+                    <span className="text-sm font-bold">€{safeToFixed(catData.total, 2)}</span>
                   </div>
                   <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                     <div className={`h-full bg-${cat.color}-500 rounded-full`} style={{ width: `${pct}%` }} />
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{catData.count} vnosov · {pct.toFixed(1)}%</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{catData.count} vnosov · {safeToFixed(pct, 1)}%</p>
                 </div>
               </div>
             )

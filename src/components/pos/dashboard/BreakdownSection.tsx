@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Clock, Receipt, Calculator } from 'lucide-react'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import type { BreakdownSectionProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 /**
  * BreakdownSection — urni pregled prihodka, razdelitev po vrsti naročila
@@ -31,7 +32,7 @@ export const BreakdownSection = memo(function BreakdownSection({
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="label" tick={{ fontSize: 10 }} />
                 <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `€${v}`} />
-                <Tooltip formatter={(value: number) => [`€${value.toFixed(2)}`, 'Prihodek']} />
+                <Tooltip formatter={(value: number) => [`€${safeToFixed(value, 2)}`, 'Prihodek']} />
                 <Line type="monotone" dataKey="revenue" stroke="oklch(0.7 0.15 55)" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
@@ -56,7 +57,7 @@ export const BreakdownSection = memo(function BreakdownSection({
                       <p className="text-xs text-muted-foreground">{item.count} naročil</p>
                     </div>
                   </div>
-                  <span className="font-bold text-sm">€{item.revenue.toFixed(2)}</span>
+                  <span className="font-bold text-sm">€{safeToFixed(item.revenue, 2)}</span>
                 </div>
               ))}
             </div>
@@ -78,11 +79,11 @@ export const BreakdownSection = memo(function BreakdownSection({
                 <div key={item.rate} className="space-y-1">
                   <div className="flex justify-between text-sm">
                     <span className="font-medium">DDV {item.rate}%</span>
-                    <span className="font-bold">€{item.vat.toFixed(2)}</span>
+                    <span className="font-bold">€{safeToFixed(item.vat, 2)}</span>
                   </div>
                   <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Osnova: €{item.base.toFixed(2)}</span>
-                    <span>Skupaj: €{(item.base + item.vat).toFixed(2)}</span>
+                    <span>Osnova: €{safeToFixed(item.base, 2)}</span>
+                    <span>Skupaj: €{safeToFixed(item.base + item.vat, 2)}</span>
                   </div>
                   <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                     <div className="h-full bg-primary rounded-full" style={{ width: `${Math.min(100, (item.base / (todayRevenue || 1)) * 100)}%` }} />

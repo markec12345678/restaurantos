@@ -4,6 +4,7 @@ import { memo, useState } from 'react'
 import { CheckCircle, ChevronRight, ShoppingBag, ShoppingCart } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Order } from './types'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ─── ORDERS TAB — Seznam naročil ───────────────────────────────
 
@@ -75,7 +76,7 @@ export const OrdersTab = memo(function OrdersTab({ orders, onMarkServed, getElap
                       {item.notes && <p className="text-[11px] text-muted-foreground ml-5">{item.notes}</p>}
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground">{(item.price * item.quantity).toFixed(2)} €</span>
+                      <span className="text-xs font-medium text-muted-foreground">{safeToFixed(item.price * item.quantity, 2)} €</span>
                       {item.status === 'ready' && (
                         <button onClick={() => onMarkServed(order.id, [item.id])}
                           className="px-2.5 py-1 rounded-lg bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 touch-manipulation min-h-[36px]">
@@ -86,7 +87,7 @@ export const OrdersTab = memo(function OrdersTab({ orders, onMarkServed, getElap
                   </div>
                 ))}
                 <div className="flex items-center justify-between pt-2 border-t mt-2">
-                  <span className="font-bold">Skupaj: {order.total.toFixed(2)} €</span>
+                  <span className="font-bold">Skupaj: {safeToFixed(order.total, 2)} €</span>
                   {readyItems.length > 0 && (
                     <button onClick={() => onMarkServed(order.id, readyItems.map(i => i.id))}
                       className="px-4 py-2.5 rounded-xl bg-emerald-500 text-white font-bold text-sm hover:bg-emerald-600 active:scale-95 touch-manipulation min-h-[48px]">

@@ -8,6 +8,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { Progress } from '@/components/ui/progress'
 import { TrendingUp } from 'lucide-react'
 import { riskConfig, trendConfig, fmtQty } from './constants'
@@ -67,7 +68,7 @@ export const ForecastTab = memo(function ForecastTab({ forecasts, isLoading }: F
                   </div>
                   {f.seasonalityFactor > 1.15 && (
                     <Badge variant="outline" className="text-amber-600 border-amber-400 text-xs">
-                      <TrendingUp className="h-3 w-3 mr-1" /> Vikend porast ({f.seasonalityFactor.toFixed(1)}x)
+                      <TrendingUp className="h-3 w-3 mr-1" /> Vikend porast ({safeToFixed(f.seasonalityFactor, 1)}x)
                     </Badge>
                   )}
                 </div>

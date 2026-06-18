@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button'
 import { FileWarning } from 'lucide-react'
 import type { AlreadyCancelledViewProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // PRIKAZ ŽE STORNIRANEGA/PREKLICANEGA NAROČILA
@@ -33,7 +34,7 @@ export const AlreadyCancelledView = memo(function AlreadyCancelledView({
           <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Znesek</span>
-              <span className="font-semibold">&euro;{totalWithTip.toFixed(2)}</span>
+              <span className="font-semibold">&euro;{safeToFixed(totalWithTip, 2)}</span>
             </div>
           </div>
         </div>

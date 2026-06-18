@@ -5,6 +5,7 @@
 
 import { TrendingUp, TrendingDown, Minus, AlertTriangle, ShieldCheck, Zap, Clock } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // --- TIPI ---
 
@@ -63,8 +64,8 @@ export const trendConfig: Record<string, { icon: ReactNode; color: string; label
 
 // --- POMOŽNE FUNKCIJE ---
 
-export const fmt = (n: number | null | undefined) => (n ?? 0).toFixed(2)
-export const fmtQty = (n: number | null | undefined) => { const v = n ?? 0; return v < 1 ? v.toFixed(3) : v.toFixed(1) }
+export const fmt = (n: number | null | undefined) => safeToFixed(n ?? 0, 2)
+export const fmtQty = (n: number | null | undefined) => { const v = n ?? 0; return v < 1 ? safeToFixed(v, 3) : safeToFixed(v, 1) }
 
 // --- PROPS INTERFACI ZA POD-KOMPONENTE ---
 

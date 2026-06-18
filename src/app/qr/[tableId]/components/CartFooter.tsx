@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { ChevronRight, Loader2 } from 'lucide-react'
 import type { TranslationValue } from '../translations'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 interface CartFooterProps {
   t: TranslationValue
@@ -24,15 +25,15 @@ export const CartFooter = memo(function CartFooter({
       <div className="space-y-1 mb-3">
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">{t.subtotal}</span>
-          <span>{(cartTotal - cartTax).toFixed(2)} {t.currency}</span>
+          <span>{safeToFixed(cartTotal - cartTax, 2)} {t.currency}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">{t.vat}</span>
-          <span>{cartTax.toFixed(2)} {t.currency}</span>
+          <span>{safeToFixed(cartTax, 2)} {t.currency}</span>
         </div>
         <div className="flex justify-between text-lg font-bold pt-1 border-t border-gray-200 dark:border-gray-800">
           <span>{t.total}</span>
-          <span className="text-amber-600">{cartTotal.toFixed(2)} {t.currency}</span>
+          <span className="text-amber-600">{safeToFixed(cartTotal, 2)} {t.currency}</span>
         </div>
       </div>
 

@@ -6,6 +6,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { DollarSign, Star, BarChart3, Timer, Trophy } from 'lucide-react'
 import type { KpiSummaryCardsProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 export const KpiSummaryCards = memo(function KpiSummaryCards({
   totals,
@@ -20,7 +21,7 @@ export const KpiSummaryCards = memo(function KpiSummaryCards({
             </div>
             <span className="text-xs text-muted-foreground font-medium">Skupni prihodek</span>
           </div>
-          <p className="text-xl font-bold">€{(totals?.totalRevenue || 0).toFixed(2)}</p>
+          <p className="text-xl font-bold">€{safeToFixed(totals?.totalRevenue || 0, 2)}</p>
         </CardContent>
       </Card>
       <Card>
@@ -31,7 +32,7 @@ export const KpiSummaryCards = memo(function KpiSummaryCards({
             </div>
             <span className="text-xs text-muted-foreground font-medium">Skupne napitnine</span>
           </div>
-          <p className="text-xl font-bold">€{(totals?.totalTips || 0).toFixed(2)}</p>
+          <p className="text-xl font-bold">€{safeToFixed(totals?.totalTips || 0, 2)}</p>
         </CardContent>
       </Card>
       <Card>
@@ -53,7 +54,7 @@ export const KpiSummaryCards = memo(function KpiSummaryCards({
             </div>
             <span className="text-xs text-muted-foreground font-medium">Povpr. čas strežbe</span>
           </div>
-          <p className="text-xl font-bold">{(totals?.avgServiceTime || 0).toFixed(0)} min</p>
+          <p className="text-xl font-bold">{safeToFixed(totals?.avgServiceTime || 0, 0)} min</p>
         </CardContent>
       </Card>
       <Card>
@@ -64,7 +65,7 @@ export const KpiSummaryCards = memo(function KpiSummaryCards({
             </div>
             <span className="text-xs text-muted-foreground font-medium">Povpr. ocena</span>
           </div>
-          <p className="text-xl font-bold">{(totals?.avgPerformanceScore || 0).toFixed(0)}/100</p>
+          <p className="text-xl font-bold">{safeToFixed(totals?.avgPerformanceScore || 0, 0)}/100</p>
         </CardContent>
       </Card>
     </div>

@@ -3,6 +3,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { TrendingUp } from 'lucide-react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 interface PeriodComparisonCardProps {
   periodComparison: {
@@ -37,7 +38,7 @@ export const PeriodComparisonCard = memo(function PeriodComparisonCard({ periodC
                 <span className="text-xs text-muted-foreground">prej: {typeof item.previous === 'number' && item.label !== 'Naročila' ? fmt(item.previous) : item.previous}</span>
                 {item.change !== 0 && (
                   <Badge variant={item.change > 0 ? 'default' : 'destructive'} className="text-[10px] px-1">
-                    {item.change > 0 ? '+' : ''}{item.change.toFixed(1)}%
+                    {item.change > 0 ? '+' : ''}{safeToFixed(item.change, 1)}%
                   </Badge>
                 )}
               </div>

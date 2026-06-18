@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import type { ModifiersTabProps, ModifierGroupData } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // TAB DODATKOV (modifier groups)
@@ -31,7 +32,7 @@ export const ModifiersTab = memo(function ModifiersTab({
               {mg.modifiers.map((mod) => (
                 <div key={mod.id} className="flex items-center justify-between py-1 px-2 rounded bg-muted/50 text-sm">
                   <span>{mod.name}</span>
-                  {mod.price > 0 && <span className="text-primary font-medium">+€{mod.price.toFixed(2)}</span>}
+                  {mod.price > 0 && <span className="text-primary font-medium">+€{safeToFixed(mod.price, 2)}</span>}
                 </div>
               ))}
             </div>

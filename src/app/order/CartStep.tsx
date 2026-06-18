@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import type { CartItem, OrderType, DeliveryZoneInfo, PromoResult } from './types'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 interface CartStepProps {
   isDark: boolean
@@ -55,7 +56,7 @@ export const CartStep = memo(function CartStep({
                       <span className="w-6 text-center font-bold text-sm">{item.quantity}</span>
                       <button onClick={() => updateQuantity(idx, 1)} className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center text-sm font-bold">+</button>
                     </div>
-                    <span className="font-bold text-sm w-16 text-right">€{(priceWithVat * item.quantity).toFixed(2)}</span>
+                    <span className="font-bold text-sm w-16 text-right">€{safeToFixed(priceWithVat * item.quantity, 2)}</span>
                     <button onClick={() => removeFromCart(idx)} className="text-red-400 hover:text-red-600 text-sm" aria-label="Odstrani iz košarice">✕</button>
                   </div>
                 </div>
@@ -81,12 +82,12 @@ export const CartStep = memo(function CartStep({
             {promoResult?.valid && promoResult.discount && (
               <div className="flex justify-between text-sm text-green-600">
                 <span>🏷 {promoResult.discount.description}</span>
-                <span>-€{promoResult.discount.discountAmount.toFixed(2)}</span>
+                <span>-€{safeToFixed(promoResult.discount.discountAmount, 2)}</span>
               </div>
             )}
             <div className="flex justify-between font-bold text-lg pt-2 border-t">
               <span>Skupaj</span>
-              <span className="text-blue-600">€{total.toFixed(2)}</span>
+              <span className="text-blue-600">€{safeToFixed(total, 2)}</span>
             </div>
             {orderType === 'delivery' && subtotal < getMinOrderAmount() && (
               <p className="text-xs text-amber-600">Min. naročilo za dostavo: €{getMinOrderAmount().toFixed(2)}</p>

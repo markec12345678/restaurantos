@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-react'
 import { type ShiftType, DAY_NAMES, calcHours } from './constants'
 import { ShiftRow } from './ShiftRow'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ─── DayCard — Posamezen dan v tednu ───
 
@@ -45,7 +46,7 @@ export const DayCard = memo(function DayCard({
               {isTodayDate && <Badge className="ml-2 text-[9px]" variant="default">Danes</Badge>}
             </p>
             <p className="text-xs text-muted-foreground">
-              {shifts.length} {shifts.length === 1 ? 'izmena' : 'izmen'} · {totalHours.toFixed(1)}h
+              {shifts.length} {shifts.length === 1 ? 'izmena' : 'izmen'} · {safeToFixed(totalHours, 1)}h
             </p>
           </div>
         </div>

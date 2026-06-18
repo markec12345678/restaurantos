@@ -5,6 +5,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertTriangle, TrendingUp, Timer, Users, CheckCircle2, Zap } from 'lucide-react'
 import type { RecommendationsCardProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 export const RecommendationsCard = memo(function RecommendationsCard({ analytics }: RecommendationsCardProps) {
   return (
@@ -24,7 +25,7 @@ export const RecommendationsCard = memo(function RecommendationsCard({ analytics
                 <span className="text-sm font-semibold text-red-700 dark:text-red-400">Visoka stopnja počasnih miz</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                {analytics.slowTableRate.toFixed(0)}% miz je zasedenih več kot 90 minut. Razmislite o boljšem razporejanju miz ali spodbujanju hitrejšega obračuna.
+                {safeToFixed(analytics.slowTableRate, 0)}% miz je zasedenih več kot 90 minut. Razmislite o boljšem razporejanju miz ali spodbujanju hitrejšega obračuna.
               </p>
             </div>
           )}
@@ -35,7 +36,7 @@ export const RecommendationsCard = memo(function RecommendationsCard({ analytics
                 <span className="text-sm font-semibold text-amber-700 dark:text-amber-400">Visoka zasedenost</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Zasedenost {analytics.occupancyRate.toFixed(0)}% — razmislite o čakalnem seznamu ali dodanih mizah. Povečajte dostavo za razbremenitev.
+                Zasedenost {safeToFixed(analytics.occupancyRate, 0)}% — razmislite o čakalnem seznamu ali dodanih mizah. Povečajte dostavo za razbremenitev.
               </p>
             </div>
           )}
@@ -46,7 +47,7 @@ export const RecommendationsCard = memo(function RecommendationsCard({ analytics
                 <span className="text-sm font-semibold text-blue-700 dark:text-blue-400">Nizek obračun</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Povprečen obračun {analytics.turnoverRate.toFixed(1)}x na mizo je nizek. Predlagamo hitrejše postreženje, prednaročanje in upsell za povečanje vrednosti.
+                Povprečen obračun {safeToFixed(analytics.turnoverRate, 1)}x na mizo je nizek. Predlagamo hitrejše postreženje, prednaročanje in upsell za povečanje vrednosti.
               </p>
             </div>
           )}
@@ -57,7 +58,7 @@ export const RecommendationsCard = memo(function RecommendationsCard({ analytics
                 <span className="text-sm font-semibold text-purple-700 dark:text-purple-400">Nizka izraba kapacitete</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Izraba kapacitete {analytics.capacityUtilization.toFixed(0)}% — veliko prostih mest. Predlagamo promocije za privabljanje večjih skupin ali happy hour ponudbe.
+                Izraba kapacitete {safeToFixed(analytics.capacityUtilization, 0)}% — veliko prostih mest. Predlagamo promocije za privabljanje večjih skupin ali happy hour ponudbe.
               </p>
             </div>
           )}

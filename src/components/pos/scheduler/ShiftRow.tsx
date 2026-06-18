@@ -4,6 +4,7 @@ import { Clock, Edit, Trash2, CheckCircle2, AlertTriangle, Coffee, TrendingUp } 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { type ShiftType, statusLabels, statusColors, calcHours, getShiftColor } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // SHIFT ROW — Posamezna izmena v dnevu
@@ -43,7 +44,7 @@ export const ShiftRow = memo(function ShiftRow({
             {shift.startTime} — {shift.endTime}
           </div>
           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-            <span className={overtime ? 'text-red-600 font-bold' : ''}>{hours.toFixed(1)}h</span>
+            <span className={overtime ? 'text-red-600 font-bold' : ''}>{safeToFixed(hours, 1)}h</span>
             {shift.breakMinutes > 0 && (
               <span className="flex items-center gap-0.5">
                 <Coffee className="h-2.5 w-2.5" /> {shift.breakMinutes}min

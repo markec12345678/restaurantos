@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Separator } from '@/components/ui/separator'
 import { CalendarCheck, FileText } from 'lucide-react'
 import type { EodFormType } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EodData = any
@@ -40,7 +41,7 @@ export const EodCloseForm = memo(function EodCloseForm({
               id="eod-cash"
               type="number"
               step="0.01"
-              placeholder={eodData.activeShift ? String((eodData.activeShift.startingCash + eodData.summary.totalRevenue).toFixed(2)) : '0.00'}
+              placeholder={eodData.activeShift ? String(safeToFixed(eodData.activeShift.startingCash + eodData.summary.totalRevenue, 2)) : '0.00'}
               value={form.closingCash}
               onChange={e => onFormChange({ ...form, closingCash: e.target.value })}
               autoFocus

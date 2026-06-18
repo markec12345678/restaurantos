@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { Phone, MapPin, Clock } from 'lucide-react'
 import type { OrderData } from '../types'
 import { getElapsedTime, getEstimatedTime, getStepIndex } from '../constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ═══════════════════════════════════════════════════════════════
 // RestaurantOS — Kartica s podatki naročila
@@ -27,7 +28,7 @@ export const OrderInfoCard = memo(function OrderInfoCard({ order }: OrderInfoCar
           <p className="text-sm text-muted-foreground">{typeLabel}</p>
         </div>
         <div className="text-right">
-          <p className="text-2xl font-bold text-primary">{'\u20AC'}{order.total.toFixed(2)}</p>
+          <p className="text-2xl font-bold text-primary">{'\u20AC'}{safeToFixed(order.total, 2)}</p>
           <p className="text-xs text-muted-foreground">
             {getElapsedTime(order.createdAt)}
           </p>

@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { History } from 'lucide-react'
 import { type LoyaltyAccount, tierConfig, tierBadgeStyles, transactionTypeConfig, transactionBadgeStyles, formatDateSI, formatPoints } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // --- Props ---
 
@@ -113,7 +114,7 @@ export const LoyaltyHistoryDialog = memo(function LoyaltyHistoryDialog({
                         {tx.reason || '—'}
                       </TableCell>
                       <TableCell className="text-right text-sm">
-                        {tx.monetaryValue > 0 ? `€${tx.monetaryValue.toFixed(2)}` : '—'}
+                        {tx.monetaryValue > 0 ? `€${safeToFixed(tx.monetaryValue, 2)}` : '—'}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                         {formatDateSI(tx.createdAt)}

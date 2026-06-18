@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Pencil, Trash2, ImageIcon } from 'lucide-react'
 import type { ItemsTabProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // SEZNAMSKI POGLED ARTIKLOV
@@ -58,7 +59,7 @@ export const ItemsTabList = memo(function ItemsTabList({
             </div>
             <div className="flex items-center gap-3">
               {cat && <Badge variant="outline" className="text-xs">{cat.icon} {cat.name}</Badge>}
-              <span className="font-bold text-sm">&euro;{Number(item.price).toFixed(2)}</span>
+              <span className="font-bold text-sm">&euro;{safeToFixed(Number(item.price), 2)}</span>
               <Switch checked={Boolean(item.isAvailable)} onCheckedChange={(c) => onToggleAvailability(item.id as string, c)} className="scale-75" />
               <Button variant="ghost" size="icon" aria-label="Uredi" className="h-7 w-7" onClick={() => onEditItem(item)}><Pencil className="h-3 w-3" /></Button>
               <Button variant="ghost" size="icon" aria-label="Izbriši" className="h-7 w-7 text-destructive" onClick={() => onDeleteItem(item.id as string)}><Trash2 className="h-3 w-3" /></Button>

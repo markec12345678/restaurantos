@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { BookOpen, Plus, Trash2, Pencil, ChefHat, Package } from 'lucide-react'
 import type { MenuItemData, RecipeItemData } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // PODROBNOSTI RECEPTA - DESNI DEL
@@ -53,7 +54,7 @@ export const RecipeDetail = memo(function RecipeDetail({
           <div>
             <h3 className="text-xl font-bold">{selectedItem.name}</h3>
             <p className="text-sm text-muted-foreground">
-              {selectedItem.category?.name || ''} · €{selectedItem.price.toFixed(2)}
+              {selectedItem.category?.name || ''} · €{safeToFixed(selectedItem.price, 2)}
             </p>
           </div>
           <Button size="sm" onClick={() => onOpenAddDialog(selectedItem.id)}>
@@ -67,22 +68,22 @@ export const RecipeDetail = memo(function RecipeDetail({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
               <div>
                 <p className="text-xs text-muted-foreground">Nabavni strošek</p>
-                <p className="text-lg font-bold text-red-600">€{selectedTotalCost.toFixed(2)}</p>
+                <p className="text-lg font-bold text-red-600">€{safeToFixed(selectedTotalCost, 2)}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Prodajna cena</p>
-                <p className="text-lg font-bold">€{selectedItem.price.toFixed(2)}</p>
+                <p className="text-lg font-bold">€{safeToFixed(selectedItem.price, 2)}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Bruto marža</p>
                 <p className={`text-lg font-bold ${marginPct >= 60 ? 'text-emerald-600' : marginPct >= 40 ? 'text-amber-600' : 'text-red-600'}`}>
-                  €{(selectedItem.price - selectedTotalCost).toFixed(2)}
+                  €{safeToFixed(selectedItem.price - selectedTotalCost, 2)}
                 </p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Marža v %</p>
                 <p className={`text-lg font-bold ${marginPct >= 60 ? 'text-emerald-600' : marginPct >= 40 ? 'text-amber-600' : 'text-red-600'}`}>
-                  {selectedTotalCost > 0 ? marginPct.toFixed(1) : '—'}%
+                  {selectedTotalCost > 0 ? safeToFixed(marginPct, 1) : '—'}%
                 </p>
               </div>
             </div>
@@ -106,13 +107,13 @@ export const RecipeDetail = memo(function RecipeDetail({
                   <div>
                     <p className="font-medium text-sm">{recipe.inventoryItem.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {recipe.quantityPerServing} {recipe.unit || recipe.inventoryItem.unit} · €{recipe.inventoryItem.costPerUnit.toFixed(2)}/{recipe.inventoryItem.unit}
+                      {recipe.quantityPerServing} {recipe.unit || recipe.inventoryItem.unit} · €{safeToFixed(recipe.inventoryItem.costPerUnit, 2)}/{recipe.inventoryItem.unit}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-right">
-                    <p className="font-semibold text-sm">€{recipe.costPerServing.toFixed(2)}</p>
+                    <p className="font-semibold text-sm">€{safeToFixed(recipe.costPerServing, 2)}</p>
                     <p className="text-[10px] text-muted-foreground">na porcijo</p>
                   </div>
                   <Button variant="ghost" size="icon" aria-label="Uredi" className="h-7 w-7" onClick={() => onOpenEditDialog(recipe)}>
@@ -127,7 +128,7 @@ export const RecipeDetail = memo(function RecipeDetail({
 
             <div className="flex justify-between p-3 rounded-lg bg-muted/50 font-semibold text-sm">
               <span>Skupni strošek na porcijo:</span>
-              <span>€{selectedTotalCost.toFixed(2)}</span>
+              <span>€{safeToFixed(selectedTotalCost, 2)}</span>
             </div>
           </div>
         ) : (

@@ -8,6 +8,7 @@ import { queryKeys } from '@/lib/query-keys'
 import { PeriodType } from './constants'
 import { TimeDistributionChart } from './period/TimeDistributionChart'
 import { PaymentMethodChart } from './period/PaymentMethodChart'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { CostAnalysisCard } from './period/CostAnalysisCard'
 import { PeriodReportHeader } from './period/PeriodReportHeader'
 import { PeriodStatsGrid } from './period/PeriodStatsGrid'
@@ -45,8 +46,8 @@ export function PeriodReport({ initialPeriod }: { initialPeriod: PeriodType }) {
     if (!fin) return ''
     return fin.periodLabel || ''
   }, [fin])
-  const fmt = (n: number) => `€${n.toFixed(2)}`
-  const fmtPct = (n: number) => `${n.toFixed(1)}%`
+  const fmt = (n: number) => `€${safeToFixed(n, 2)}`
+  const fmtPct = (n: number) => `${safeToFixed(n, 1)}%`
 
   // Period description for chart title
   const chartPeriodLabel = period === 'daily' ? 'Promet po urah' : period === 'weekly' ? 'Promet po dnevih' : period === 'monthly' ? 'Promet po dnevih v mesecu' : 'Promet po mesecih'

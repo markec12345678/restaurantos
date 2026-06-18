@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Clock } from 'lucide-react'
 import { format, subDays } from 'date-fns'
 import { ShiftRow } from '@/lib/types'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 
@@ -25,7 +26,7 @@ export function ShiftsReport() {
       return res.json()
     },
   })
-  const fmt = (n: number) => `€${n.toFixed(2)}`
+  const fmt = (n: number) => `€${safeToFixed(n, 2)}`
   const formatDuration = (min: number) => {
     const h = Math.floor(min / 60)
     const m = min % 60

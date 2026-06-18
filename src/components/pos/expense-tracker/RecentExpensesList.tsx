@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { format } from 'date-fns'
 import { Receipt } from 'lucide-react'
 import { CATEGORIES, PAYMENT_METHODS } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // Recent expenses list
@@ -45,7 +46,7 @@ export const RecentExpensesList = memo(function RecentExpensesList({ expenses }:
                     <PayIcon className="h-3 w-3" />
                   </div>
                 </div>
-                <span className="text-sm font-bold text-red-600">-€{exp.amount.toFixed(2)}</span>
+                <span className="text-sm font-bold text-red-600">-€{safeToFixed(exp.amount, 2)}</span>
               </div>
             )
           })}

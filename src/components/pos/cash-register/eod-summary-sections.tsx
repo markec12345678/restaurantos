@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import { Receipt, Wallet } from 'lucide-react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EodData = any
@@ -15,7 +16,7 @@ export const EodSummary = memo(function EodSummary({ eodData }: EodSummaryProps)
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       <div className="text-center p-3 rounded-lg bg-primary/5 border">
         <p className="text-xs text-muted-foreground">Prihodek</p>
-        <p className="text-lg font-bold text-primary">&euro;{eodData.summary.totalRevenue.toFixed(2)}</p>
+        <p className="text-lg font-bold text-primary">&euro;{safeToFixed(eodData.summary.totalRevenue, 2)}</p>
       </div>
       <div className="text-center p-3 rounded-lg bg-muted/50 border">
         <p className="text-xs text-muted-foreground">Naročila</p>
@@ -24,11 +25,11 @@ export const EodSummary = memo(function EodSummary({ eodData }: EodSummaryProps)
       </div>
       <div className="text-center p-3 rounded-lg bg-muted/50 border">
         <p className="text-xs text-muted-foreground">Povprečno</p>
-        <p className="text-lg font-bold">&euro;{eodData.summary.avgOrderValue.toFixed(2)}</p>
+        <p className="text-lg font-bold">&euro;{safeToFixed(eodData.summary.avgOrderValue, 2)}</p>
       </div>
       <div className="text-center p-3 rounded-lg bg-muted/50 border">
         <p className="text-xs text-muted-foreground">Napitnine</p>
-        <p className="text-lg font-bold text-emerald-600">&euro;{eodData.summary.totalTips.toFixed(2)}</p>
+        <p className="text-lg font-bold text-emerald-600">&euro;{safeToFixed(eodData.summary.totalTips, 2)}</p>
       </div>
     </div>
   )
@@ -54,16 +55,16 @@ export const EodVatBreakdown = memo(function EodVatBreakdown({ eodData }: EodSum
           {eodData.vatBreakdown.map((vb: { rate: number; base: number; vat: number }, i: number) => (
             <tr key={i} className="border-b last:border-0">
               <td className="p-2 font-medium">{vb.rate}%</td>
-              <td className="p-2 text-right">&euro;{vb.base.toFixed(2)}</td>
-              <td className="p-2 text-right">&euro;{vb.vat.toFixed(2)}</td>
-              <td className="p-2 text-right font-semibold">&euro;{(vb.base + vb.vat).toFixed(2)}</td>
+              <td className="p-2 text-right">&euro;{safeToFixed(vb.base, 2)}</td>
+              <td className="p-2 text-right">&euro;{safeToFixed(vb.vat, 2)}</td>
+              <td className="p-2 text-right font-semibold">&euro;{safeToFixed(vb.base + vb.vat, 2)}</td>
             </tr>
           ))}
           <tr className="bg-muted/30 font-bold">
             <td className="p-2">SKUPAJ</td>
-            <td className="p-2 text-right">&euro;{eodData.summary.totalSubtotal.toFixed(2)}</td>
-            <td className="p-2 text-right">&euro;{eodData.summary.totalTax.toFixed(2)}</td>
-            <td className="p-2 text-right">&euro;{eodData.summary.totalRevenue.toFixed(2)}</td>
+            <td className="p-2 text-right">&euro;{safeToFixed(eodData.summary.totalSubtotal, 2)}</td>
+            <td className="p-2 text-right">&euro;{safeToFixed(eodData.summary.totalTax, 2)}</td>
+            <td className="p-2 text-right">&euro;{safeToFixed(eodData.summary.totalRevenue, 2)}</td>
           </tr>
         </tbody>
       </table>
@@ -84,8 +85,8 @@ export const EodPaymentMethods = memo(function EodPaymentMethods({ eodData }: Eo
             <span className="capitalize">{pm.method === 'cash' ? 'Gotovina' : pm.method === 'card' ? 'Kartica' : pm.method === 'mobile' ? 'Mobilno' : pm.method}</span>
             <div className="flex items-center gap-3">
               <span className="text-muted-foreground">{pm.count}&times;</span>
-              <span className="font-semibold">&euro;{pm.revenue.toFixed(2)}</span>
-              {pm.tips > 0 && <span className="text-xs text-emerald-600">+&euro;{pm.tips.toFixed(2)} tip</span>}
+              <span className="font-semibold">&euro;{safeToFixed(pm.revenue, 2)}</span>
+              {pm.tips > 0 && <span className="text-xs text-emerald-600">+&euro;{safeToFixed(pm.tips, 2)} tip</span>}
             </div>
           </div>
         ))}
@@ -99,19 +100,19 @@ export const EodCostsSection = memo(function EodCostsSection({ eodData }: EodSum
     <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
       <div className="text-center p-2 rounded-lg bg-orange-50 dark:bg-orange-900/10">
         <p className="text-[10px] text-muted-foreground">Nabava</p>
-        <p className="font-bold text-orange-600 text-sm">&euro;{eodData.costs.procurementCost.toFixed(2)}</p>
+        <p className="font-bold text-orange-600 text-sm">&euro;{safeToFixed(eodData.costs.procurementCost, 2)}</p>
       </div>
       <div className="text-center p-2 rounded-lg bg-red-50 dark:bg-red-900/10">
         <p className="text-[10px] text-muted-foreground">COGS</p>
-        <p className="font-bold text-red-600 text-sm">&euro;{eodData.costs.cogs.toFixed(2)}</p>
+        <p className="font-bold text-red-600 text-sm">&euro;{safeToFixed(eodData.costs.cogs, 2)}</p>
       </div>
       <div className="text-center p-2 rounded-lg bg-amber-50 dark:bg-amber-900/10">
         <p className="text-[10px] text-muted-foreground">Odpisi</p>
-        <p className="font-bold text-amber-600 text-sm">&euro;{eodData.costs.writeOffCost.toFixed(2)}</p>
+        <p className="font-bold text-amber-600 text-sm">&euro;{safeToFixed(eodData.costs.writeOffCost, 2)}</p>
       </div>
       <div className="text-center p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/10">
         <p className="text-[10px] text-muted-foreground">Bruto marža</p>
-        <p className="font-bold text-emerald-600 text-sm">&euro;{eodData.costs.grossProfit.toFixed(2)} ({eodData.costs.grossMargin.toFixed(1)}%)</p>
+        <p className="font-bold text-emerald-600 text-sm">&euro;{safeToFixed(eodData.costs.grossProfit, 2)} ({safeToFixed(eodData.costs.grossMargin, 1)}%)</p>
       </div>
     </div>
   )
@@ -127,8 +128,8 @@ export const EodEmployeeBreakdown = memo(function EodEmployeeBreakdown({ eodData
           <span>{String((emp as Record<string, unknown>).employeeName || emp.employeeId)}</span>
           <div className="flex items-center gap-3">
             <span className="text-muted-foreground">{emp.orderCount} naročil</span>
-            <span className="font-semibold">&euro;{emp.revenue.toFixed(2)}</span>
-            {emp.tips > 0 && <span className="text-xs text-emerald-600">+&euro;{emp.tips.toFixed(2)}</span>}
+            <span className="font-semibold">&euro;{safeToFixed(emp.revenue, 2)}</span>
+            {emp.tips > 0 && <span className="text-xs text-emerald-600">+&euro;{safeToFixed(emp.tips, 2)}</span>}
           </div>
         </div>
       ))}

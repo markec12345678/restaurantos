@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Trophy, Star, Zap, Target } from 'lucide-react'
 import { ROLE_LABELS, getScoreBadge, type TopPerformerCardsProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 export const TopPerformerCards = memo(function TopPerformerCards({
   topPerformer,
@@ -29,7 +30,7 @@ export const TopPerformerCards = memo(function TopPerformerCards({
               <Badge className={getScoreBadge(topPerformer.performanceScore)}>
                 {topPerformer.performanceScore}/100
               </Badge>
-              <span className="text-sm font-semibold">€{topPerformer.totalRevenue.toFixed(2)}</span>
+              <span className="text-sm font-semibold">€{safeToFixed(topPerformer.totalRevenue, 2)}</span>
             </div>
           </CardContent>
         </Card>
@@ -45,7 +46,7 @@ export const TopPerformerCards = memo(function TopPerformerCards({
             <p className="text-xs text-muted-foreground mb-2">{ROLE_LABELS[mostTips.role] || mostTips.role}</p>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">{mostTips.totalOrders} naročil</span>
-              <span className="text-sm font-semibold text-emerald-600">€{mostTips.totalTips.toFixed(2)}</span>
+              <span className="text-sm font-semibold text-emerald-600">€{safeToFixed(mostTips.totalTips, 2)}</span>
             </div>
           </CardContent>
         </Card>
@@ -61,7 +62,7 @@ export const TopPerformerCards = memo(function TopPerformerCards({
             <p className="text-xs text-muted-foreground mb-2">{ROLE_LABELS[fastest.role] || fastest.role}</p>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Povprečno</span>
-              <span className="text-sm font-semibold text-blue-600">{fastest.avgServiceTime.toFixed(0)} min</span>
+              <span className="text-sm font-semibold text-blue-600">{safeToFixed(fastest.avgServiceTime, 0)} min</span>
             </div>
           </CardContent>
         </Card>
@@ -77,7 +78,7 @@ export const TopPerformerCards = memo(function TopPerformerCards({
             <p className="text-xs text-muted-foreground mb-2">{ROLE_LABELS[bestUpseller.role] || bestUpseller.role}</p>
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Upsell stopnja</span>
-              <span className="text-sm font-semibold text-purple-600">{bestUpseller.upsellRate.toFixed(0)}%</span>
+              <span className="text-sm font-semibold text-purple-600">{safeToFixed(bestUpseller.upsellRate, 0)}%</span>
             </div>
           </CardContent>
         </Card>

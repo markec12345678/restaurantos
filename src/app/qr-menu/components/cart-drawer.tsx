@@ -3,6 +3,7 @@
 import { memo } from 'react';
 import type { CartItem } from '../types';
 import { CartItemRow, UpsellSection, CartTotalsFooter } from './cart-drawer-parts';
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // EMPTY CART VIEW
@@ -65,7 +66,7 @@ export const FloatingCartBar = memo(function FloatingCartBar({ cartItemCount, to
             <span className="bg-white text-amber-600 rounded-full w-7 h-7 flex items-center justify-center text-sm font-bold">{cartItemCount}</span>
             <span className="font-semibold">Vaša košarica</span>
           </div>
-          <span className="text-lg font-bold">{totalWithVat.toFixed(2)} €</span>
+          <span className="text-lg font-bold">{safeToFixed(totalWithVat, 2)} €</span>
         </button>
       </div>
     </div>

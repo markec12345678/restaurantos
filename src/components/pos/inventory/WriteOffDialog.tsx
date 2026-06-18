@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { FileMinus, ArrowUpCircle } from 'lucide-react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { type InventoryItemData, type WriteOffFormData, writeOffReasons } from './constants'
 
 // --- Props ---
@@ -50,7 +51,7 @@ export const WriteOffDialog = memo(function WriteOffDialog({
         {selectedItem && (
           <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-3 mb-3 space-y-1 text-sm">
             <p className="font-medium">{selectedItem.name}</p>
-            <p className="text-muted-foreground">Trenutna zaloga: <span className="font-medium">{selectedItem.quantity} {selectedItem.unit}</span> (vrednost: €{(selectedItem.quantity * selectedItem.costPerUnit).toFixed(2)})</p>
+            <p className="text-muted-foreground">Trenutna zaloga: <span className="font-medium">{selectedItem.quantity} {selectedItem.unit}</span> (vrednost: €{safeToFixed(selectedItem.quantity * selectedItem.costPerUnit, 2)})</p>
           </div>
         )}
         <div className="space-y-3">

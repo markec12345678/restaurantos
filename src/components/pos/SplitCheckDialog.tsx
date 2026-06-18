@@ -8,6 +8,7 @@ import { memo } from 'react'
 import dynamic from 'next/dynamic'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Split, Equal, Receipt, Calculator, PartyPopper, AlertTriangle } from 'lucide-react'
 import type { SplitCheckDialogProps, SplitMode } from './split-check/constants'
@@ -65,7 +66,7 @@ export const SplitCheckDialog = memo(function SplitCheckDialog({
         {autoGratuity && (
           <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm">
             <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0" />
-            <span>Za skupino {partySize}+ oseb se samodejno doda gratuiteta {autoGratuityPercent}% (&euro;{autoGratuityAmount.toFixed(2)})</span>
+            <span>Za skupino {partySize}+ oseb se samodejno doda gratuiteta {autoGratuityPercent}% (&euro;{safeToFixed(autoGratuityAmount, 2)})</span>
           </div>
         )}
         <Tabs value={splitMode} onValueChange={(v) => setSplitMode(v as SplitMode)}>

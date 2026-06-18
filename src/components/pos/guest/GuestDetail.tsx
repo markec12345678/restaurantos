@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import { type GuestData, parseJsonField } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // --- Props ---
 
@@ -42,11 +43,11 @@ export const GuestDetail = memo(function GuestDetail({
           <p className="text-xs text-blue-500">Obiski</p>
         </div>
         <div className="bg-green-50 rounded-lg p-3 text-center">
-          <p className="text-2xl font-bold text-green-700">€{guest.totalSpent.toFixed(0)}</p>
+          <p className="text-2xl font-bold text-green-700">€{safeToFixed(guest.totalSpent, 0)}</p>
           <p className="text-xs text-green-500">Skupaj</p>
         </div>
         <div className="bg-purple-50 rounded-lg p-3 text-center">
-          <p className="text-2xl font-bold text-purple-700">€{guest.avgCheckAmount.toFixed(2)}</p>
+          <p className="text-2xl font-bold text-purple-700">€{safeToFixed(guest.avgCheckAmount, 2)}</p>
           <p className="text-xs text-purple-500">Povpr. ček</p>
         </div>
         <div className="bg-amber-50 rounded-lg p-3 text-center">
@@ -119,7 +120,7 @@ export const GuestDetail = memo(function GuestDetail({
               {visit.employeeName != null && <span className="text-xs text-gray-500 ml-2"> Strežil: {String(visit.employeeName)}</span>}
             </div>
             <div className="text-right">
-              <span className="text-sm font-medium">€{(visit.totalSpent ?? 0).toFixed(2)}</span>
+              <span className="text-sm font-medium">€{safeToFixed(visit.totalSpent ?? 0, 2)}</span>
               {visit.feedbackScore != null && <span className="text-xs text-amber-500 ml-2">{'⭐'.repeat(visit.feedbackScore)}</span>}
             </div>
           </div>

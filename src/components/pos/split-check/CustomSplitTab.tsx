@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { DialogFooter } from '@/components/ui/dialog'
 import { Plus, Trash2, CheckCircle2 } from 'lucide-react'
 import type { CustomSplitTabProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 export const CustomSplitTab = memo(function CustomSplitTab({
   parties,
@@ -25,7 +26,7 @@ export const CustomSplitTab = memo(function CustomSplitTab({
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Vnesi znesek za vsako osebo. Skupaj mora ustrezati €{(orderTotal + autoGratuityAmount).toFixed(2)}.
+        Vnesi znesek za vsako osebo. Skupaj mora ustrezati €{safeToFixed(orderTotal + autoGratuityAmount, 2)}.
       </p>
       {parties.map((party) => (
         <div key={party.id} className="flex items-center gap-3">
@@ -36,7 +37,7 @@ export const CustomSplitTab = memo(function CustomSplitTab({
               id={`custom-amount-${party.id}`}
               step="0.01"
               min="0"
-              max={(orderTotal + autoGratuityAmount).toFixed(2)}
+              max={safeToFixed(orderTotal + autoGratuityAmount, 2)}
               placeholder="0.00"
               className="h-9"
               value={customAmounts[party.id] !== undefined ? customAmounts[party.id].toFixed(2) : ''}
@@ -70,11 +71,11 @@ export const CustomSplitTab = memo(function CustomSplitTab({
         <span className="text-sm font-medium">Skupaj:</span>
         <div className="text-right">
           <span className={`text-sm font-bold ${customDifference === 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}`}>
-            €{customTotal.toFixed(2)} / €{(orderTotal + autoGratuityAmount).toFixed(2)}
+            €{safeToFixed(customTotal, 2)} / €{safeToFixed(orderTotal + autoGratuityAmount, 2)}
           </span>
           {customDifference !== 0 && (
             <p className="text-xs text-red-600 dark:text-red-400">
-              {customDifference > 0 ? `Manjka €${customDifference.toFixed(2)}` : `Preseženo za €${Math.abs(customDifference).toFixed(2)}`}
+              {customDifference > 0 ? `Manjka €${safeToFixed(customDifference, 2)}` : `Preseženo za €${safeToFixed(Math.abs(customDifference), 2)}`}
             </p>
           )}
         </div>

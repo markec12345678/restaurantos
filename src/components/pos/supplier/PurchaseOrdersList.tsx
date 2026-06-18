@@ -8,6 +8,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Truck, FileText, Calendar, Clock } from 'lucide-react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { format } from 'date-fns'
 import type { PurchaseOrderType } from './constants'
 import { poStatusLabels, poStatusColors } from './constants'
@@ -52,8 +53,8 @@ export const PurchaseOrdersList = memo(function PurchaseOrdersList({ orders }: P
                   </div>
                   <div className="flex items-center gap-4 mt-2">
                     <span className="text-xs text-muted-foreground">{po.items?.length || 0} artiklov</span>
-                    <span className="font-bold text-sm">&euro;{po.totalAmount.toFixed(2)}</span>
-                    <span className="text-xs text-muted-foreground">(DDV: &euro;{po.vatAmount.toFixed(2)})</span>
+                    <span className="font-bold text-sm">&euro;{safeToFixed(po.totalAmount, 2)}</span>
+                    <span className="text-xs text-muted-foreground">(DDV: &euro;{safeToFixed(po.vatAmount, 2)})</span>
                   </div>
                 </div>
               </div>

@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Plus, Minus, Trash2 } from 'lucide-react'
 import type { CartItem } from '../types'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 interface CartItemsListProps {
   cart: CartItem[]
@@ -27,7 +28,7 @@ export const CartItemsList = memo(function CartItemsList({
           )}
           <div className="flex-1 min-w-0">
             <h4 className="font-medium text-sm truncate">{c.name}</h4>
-            <p className="text-xs text-muted-foreground">{c.price.toFixed(2)}</p>
+            <p className="text-xs text-muted-foreground">{safeToFixed(c.price, 2)}</p>
             {c.notes && (
               <p className="text-xs text-amber-600 mt-0.5">{c.notes}</p>
             )}

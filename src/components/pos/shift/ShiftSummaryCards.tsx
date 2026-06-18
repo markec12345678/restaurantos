@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { CalendarDays, Play, CheckCircle2, Timer } from 'lucide-react'
 import { ShiftSummaryCardsProps } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // POVZETEK IZMEN IN UR
@@ -63,7 +64,7 @@ export const ShiftSummaryCards = memo(function ShiftSummaryCards({
               <Timer className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-2xl font-bold">{totalHoursToday.toFixed(1)}h</p>
+              <p className="text-2xl font-bold">{safeToFixed(totalHoursToday, 1)}h</p>
               <p className="text-xs text-muted-foreground">Ure danes</p>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { memo, type RefObject } from 'react';
 import type { MenuItem, CartItem } from '../types';
 import type { FontSize } from '../use-qr-menu';
 import { ALLERGEN_DATA, VAT_LABELS } from '../constants';
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 export interface MenuItemListProps {
   items: MenuItem[];

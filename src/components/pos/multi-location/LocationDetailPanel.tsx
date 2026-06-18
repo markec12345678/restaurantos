@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Activity } from 'lucide-react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ============================================
 // PODROBNOSTI IZBRE LOKACIJE
@@ -20,7 +21,7 @@ export const LocationDetailPanel = memo(function LocationDetailPanel({
 }: {
   stats: LocationStats
 }) {
-  const formatCurrency = (val: number) => `€${(val || 0).toFixed(2)}`
+  const formatCurrency = (val: number) => `€${safeToFixed(val || 0, 2)}`
 
   return (
     <Card className="border-indigo-200 dark:border-indigo-800">

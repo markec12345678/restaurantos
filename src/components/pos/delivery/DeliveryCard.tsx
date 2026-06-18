@@ -8,6 +8,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { MapPin, Phone, Clock, Navigation, RefreshCw } from 'lucide-react'
 import { statusLabels, statusColors, deliveryAdvanceLabel } from './constants'
 import type { DeliveryCardProps } from './constants'
@@ -55,7 +56,7 @@ export const DeliveryCard = memo(function DeliveryCard({
         )}
 
         <div className="flex items-center justify-between text-xs">
-          <span>Dostava: €{(delivery.deliveryFee ?? 0).toFixed(2)} | Embalaža: €{(delivery.packagingFee ?? 0).toFixed(2)}</span>
+          <span>Dostava: €{safeToFixed(delivery.deliveryFee ?? 0, 2)} | Embalaža: €{safeToFixed(delivery.packagingFee ?? 0, 2)}</span>
         </div>
 
         <div className="flex gap-2">

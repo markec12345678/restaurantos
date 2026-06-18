@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
 import { authFetch } from '@/components/pos/PinLogin'
 import { PeriodType } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { HeatmapGrid } from './HeatmapSubComponents'
 import { PeakHoursCard } from './PeakHoursCard'
 import { PeriodComparisonCard } from './PeriodComparisonCard'
@@ -37,7 +38,7 @@ export const HeatmapReport = memo(function HeatmapReport() {
       return res.json()
     },
   })
-  const fmt = (n: number) => `€${n.toFixed(2)}`
+  const fmt = (n: number) => `€${safeToFixed(n, 2)}`
   if (isLoading) return <div className="space-y-4">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-40" />)}</div>
   if (!fin) return <p className="text-center py-12 text-muted-foreground">Ni podatkov</p>
   const heatmap = fin.hourlyHeatmap || []

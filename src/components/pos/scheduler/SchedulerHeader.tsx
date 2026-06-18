@@ -7,6 +7,7 @@ import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { CalendarDays, Copy, Plus } from 'lucide-react'
 import { type SchedulerStats } from './constants'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 // ─── Props ─────────────────────────────────────────────────────
 export interface SchedulerHeaderProps {
@@ -31,7 +32,7 @@ export const SchedulerHeader = memo(function SchedulerHeader({
           Razpored zaposlenih
         </h2>
         <p className="text-xs text-muted-foreground">
-          {stats.uniqueEmployees} zaposlenih · {stats.totalHours.toFixed(1)} ur · {filteredShiftsCount} izmen
+          {stats.uniqueEmployees} zaposlenih · {safeToFixed(stats.totalHours, 1)} ur · {filteredShiftsCount} izmen
         </p>
       </div>
       <div className="flex items-center gap-2">

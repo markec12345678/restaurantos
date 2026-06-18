@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import type { FoodCostItem } from './types'
 import { CLASSIFICATION_COLORS, CLASSIFICATION_LABELS } from './types'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 
 interface FoodCostExpandedDetailProps {
   item: FoodCostItem
@@ -24,15 +25,15 @@ export const FoodCostExpandedDetail = memo(function FoodCostExpandedDetail({ ite
       <div className="grid grid-cols-4 gap-2 mb-3">
         <div className="bg-gray-50 rounded p-2 text-center">
           <p className="text-xs text-gray-500">Prodajna cena</p>
-          <p className="font-bold text-sm">€{item.sellingPriceInclVat.toFixed(2)}</p>
+          <p className="font-bold text-sm">€{safeToFixed(item.sellingPriceInclVat, 2)}</p>
         </div>
         <div className="bg-red-50 rounded p-2 text-center">
           <p className="text-xs text-gray-500">Strošek sestavin</p>
-          <p className="font-bold text-sm text-red-600">€{item.totalIngredientCost.toFixed(2)}</p>
+          <p className="font-bold text-sm text-red-600">€{safeToFixed(item.totalIngredientCost, 2)}</p>
         </div>
         <div className="bg-green-50 rounded p-2 text-center">
           <p className="text-xs text-gray-500">Bruto dobiček</p>
-          <p className="font-bold text-sm text-green-600">€{item.grossProfit.toFixed(2)}</p>
+          <p className="font-bold text-sm text-green-600">€{safeToFixed(item.grossProfit, 2)}</p>
         </div>
         <div className="bg-blue-50 rounded p-2 text-center">
           <p className="text-xs text-gray-500">Bruto marža</p>
@@ -57,8 +58,8 @@ export const FoodCostExpandedDetail = memo(function FoodCostExpandedDetail({ ite
             <tr key={i} className="border-b border-gray-100">
               <td className="py-1">{ing.name}</td>
               <td className="text-right">{ing.quantity} {ing.unit}</td>
-              <td className="text-right">€{(ing.costPerUnit || 0).toFixed(2)}</td>
-              <td className="text-right font-medium">€{ing.totalCost.toFixed(2)}</td>
+              <td className="text-right">€{safeToFixed(ing.costPerUnit || 0, 2)}</td>
+              <td className="text-right font-medium">€{safeToFixed(ing.totalCost, 2)}</td>
               <td className="text-right">
                 <span className={(ing.stockLevel as number) <= 5 ? 'text-red-500' : 'text-gray-500'}>
                   {(ing.stockLevel as number)} {(ing.stockUnit as string)}
@@ -70,7 +71,7 @@ export const FoodCostExpandedDetail = memo(function FoodCostExpandedDetail({ ite
       </table>
       {item.priceDifference > 0.5 && (
         <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-2 text-xs">
-          💡 <strong>Predlagana cena:</strong> €{item.suggestedPrice.toFixed(2)} (razlika: +€{item.priceDifference.toFixed(2)})
+          💡 <strong>Predlagana cena:</strong> €{safeToFixed(item.suggestedPrice, 2)} (razlika: +€{safeToFixed(item.priceDifference, 2)})
           — glede na ciljni food cost 28%
         </div>
       )}
