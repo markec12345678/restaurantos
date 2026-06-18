@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -70,7 +71,7 @@ export const ModifierDialog = memo(function ModifierDialog({
                             : 'bg-card text-card-foreground border-border hover:bg-accent'
                         }`}
                       >
-                        {mod.name}{mod.price > 0 ? ` +€${mod.price.toFixed(2)}` : ''}
+                        {mod.name}{mod.price > 0 ? ` +€${safeToFixed(mod.price, 2)}` : ''}
                       </button>
                     )
                   })}

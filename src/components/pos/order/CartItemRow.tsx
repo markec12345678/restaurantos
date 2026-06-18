@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { motion } from 'framer-motion'
@@ -43,12 +44,12 @@ export const CartItemRow = memo(function CartItemRow({
       {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="text-xs font-semibold truncate">{item.name}</p>
-        <p className="text-[10px] text-muted-foreground">€{item.price.toFixed(2)} na kos</p>
+        <p className="text-[10px] text-muted-foreground">€{safeToFixed(item.price, 2)} na kos</p>
         {item.modifiers.length > 0 && (
           <div className="flex flex-wrap gap-0.5 mt-0.5">
             {item.modifiers.map(m => (
               <Badge key={m.id} variant="outline" className="text-[8px] h-3.5 px-1 py-0">
-                {m.name}{m.price > 0 ? ` +€${m.price.toFixed(2)}` : ''}
+                {m.name}{m.price > 0 ? ` +€${safeToFixed(m.price, 2)}` : ''}
               </Badge>
             ))}
           </div>

@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { XCircle, ImageIcon } from 'lucide-react'
@@ -51,7 +52,7 @@ export const OrderItemsSection = memo(function OrderItemsSection({
                   if (mods.length > 0) return (
                     <div className="flex flex-wrap gap-0.5 mt-0.5">
                       {mods.map((m: { name: string; price: number }, mi: number) => (
-                        <Badge key={mi} variant="outline" className="text-[9px] h-3.5 px-1 py-0">{m.name}{m.price > 0 ? ` +€${m.price.toFixed(2)}` : ''}</Badge>
+                        <Badge key={mi} variant="outline" className="text-[9px] h-3.5 px-1 py-0">{m.name}{m.price > 0 ? ` +€${safeToFixed(m.price, 2)}` : ''}</Badge>
                       ))}
                     </div>
                   )
