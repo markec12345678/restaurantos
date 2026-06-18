@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from '@sentry/nextjs'
 
 const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
@@ -10,6 +11,7 @@ const securityHeaders = [
   { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
   // FIX HIGH: CSP — omeji vire, iz katerih se lahko nalaga vsebino
   // Dovoli: self, inline styles/scripts (Next.js potrebuje), ws: za WebSocket, data: za slike
+  // Sentry: dodan https://*.sentry.io v connect-src in img-src
   {
     key: 'Content-Security-Policy',
     value: [
@@ -18,7 +20,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
-      "connect-src 'self' ws: wss: http://localhost:* https://api.github.com",
+      "connect-src 'self' ws: wss: http://localhost:* https://api.github.com https://*.sentry.io",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -49,4 +51,18 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// ─── Sentry wrapper ────────────────────────────────────────────
+// Samodejno upload-a source maps po build-u (Sentry dashboard bo pokazal
+// originalno TypeScript kodo, ne minificirano). Org slug in project sta
+// nastavljena iz environment spremenljivk (ali hardcoded spodaj).
+export default withSentryConfig(nextConfig, {
+  // Samo če je SENTRY_AUTH_TOKEN nastavljen, se source maps upload-a
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+  },
+  // Org/project iz environmenta ali hardcoded
+  org: process.env.SENTRY_ORG || 'markec12345678',
+  project: process.env.SENTRY_PROJECT || 'restaurantos',
+  // Ne logger v development
+  silent: !process.env.SENTRY_AUTH_TOKEN,
+})
