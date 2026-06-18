@@ -25,8 +25,7 @@ export function useInventoryQueries({ activeTab, filterCategory, txTypeFilter, t
     queryFn: async () => {
       const res = await authFetch('/api/inventory?distinctCategories=true')
       if (!res.ok) return ['general']
-      const data = await res.json()
-      return Array.isArray(data) ? data : (data.categories || data.items || [])
+      const data = await res.json(); return Array.isArray(data) ? data : (data.items || data.employees || data.jobs || data.shifts || data.entries || data.recipes || data.menuItems || data.transactions || data.suppliers || data.giftCards || data.locations || data.categories || data.menus || data.accounts || data.invoices || data.logs || data.haccpEntries || data.orders || data.payments || data.receipts || data.tables || data.loyaltyAccounts || [])
     },
     staleTime: 60000,
   })
@@ -39,7 +38,6 @@ export function useInventoryQueries({ activeTab, filterCategory, txTypeFilter, t
       const params = new URLSearchParams()
       if (filterCategory !== 'all') params.set('category', filterCategory)
       const res = await authFetch(`/api/inventory?${params}`)
-      if (!res.ok) return []
       const data = await res.json()
       return Array.isArray(data) ? data : (data.items || [])
     },
@@ -49,7 +47,6 @@ export function useInventoryQueries({ activeTab, filterCategory, txTypeFilter, t
     queryKey: queryKeys.menuItems.all,
     queryFn: async () => {
       const res = await authFetch('/api/menu-items')
-      if (!res.ok) return []
       const data = await res.json()
       return Array.isArray(data) ? data : (data.menuItems || data.items || [])
     },
@@ -64,10 +61,8 @@ export function useInventoryQueries({ activeTab, filterCategory, txTypeFilter, t
       if (txDateTo) params.set('to', txDateTo)
       params.set('limit', '200')
       const res = await authFetch(`/api/inventory/transactions?${params}`)
-      if (!res.ok) return { transactions: [], summary: [] }
       const data = await res.json()
-      if (Array.isArray(data)) return { transactions: data, summary: [] }
-      return { transactions: data.transactions || [], summary: data.summary || [] }
+      return Array.isArray(data) ? data : (data.transactions || [])
     },
     enabled: activeTab === 'history',
   })
