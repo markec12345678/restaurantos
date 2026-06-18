@@ -43,9 +43,7 @@ export const SupplierManager = memo(function SupplierManager() {
     queryFn: async () => {
       const params = searchTerm ? `?search=${searchTerm}` : ''
       const res = await authFetch(`/api/suppliers${params}`)
-      if (!res.ok) return []
-      const data = await res.json()
-      return Array.isArray(data) ? data : (data.suppliers || data.items || [])
+      return res.json()
     },
   })
 
@@ -53,9 +51,7 @@ export const SupplierManager = memo(function SupplierManager() {
     queryKey: queryKeys.purchaseOrders.all,
     queryFn: async () => {
       const res = await authFetch('/api/purchase-orders')
-      if (!res.ok) return []
-      const data = await res.json()
-      return Array.isArray(data) ? data : (data.purchaseOrders || data.orders || data.items || [])
+      return res.json()
     },
   })
 
@@ -63,9 +59,7 @@ export const SupplierManager = memo(function SupplierManager() {
     queryKey: ['inventory-brief'],
     queryFn: async () => {
       const res = await authFetch('/api/inventory?distinctCategories=true')
-      if (!res.ok) return []
-      const data = await res.json()
-      return Array.isArray(data) ? data : (data.categories || data.items || [])
+      return res.json()
     },
   })
 
