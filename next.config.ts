@@ -52,14 +52,16 @@ const nextConfig: NextConfig = {
 };
 
 // ─── Sentry wrapper (v10) ──────────────────────────────────────
-// Minimal config — Sentry auto-detects org/project from env vars:
-//   SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT
-// Source maps upload only if SENTRY_AUTH_TOKEN is set.
+// Minimal config — no source maps upload (avoids standalone build conflict).
+// Sentry still captures errors; just without source map deobfuscation.
+// To enable source maps later: set SENTRY_AUTH_TOKEN env var and remove this disable.
 export default withSentryConfig(nextConfig, {
-  // Source maps upload only when auth token is present
+  // Disable source maps upload — conflicts with output: "standalone"
   sourcemaps: {
-    disable: !process.env.SENTRY_AUTH_TOKEN,
+    disable: true,
   },
-  // Suppress logs in development (no token = no upload = no noise)
+  // Suppress all Sentry build logs
   silent: true,
+  // Don't upload anything (no auth token configured)
+  disable: !process.env.SENTRY_AUTH_TOKEN,
 })
