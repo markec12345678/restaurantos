@@ -9,15 +9,6 @@ import { type OrderForPayment, type PaymentExecContext } from './types'
 // BY-ITEMS PLAČILO
 // ============================================
 
-// P0 FIX: Deterministični idempotencyKey za vsako plačilo po artiklih.
-// Ključ je sestavljen iz stabilnih vhodov (orderId + gostIndex + znesek),
-// tako da retry po napaki (ista konfiguracija) dobi isti ključ → backend
-// vrne obstoječe plačilo (idempotent). Različni gostje imajo različen
-// index `g` → različni ključi → ni kolizije.
-function makePayByItemsKey(orderId: string, guestIndex: number, amount: number): string {
-  return `payitems-${orderId}-g${guestIndex}-${amount.toFixed(2)}`
-}
-
 export async function executePayByItems({
   order,
   splitCount,
@@ -45,8 +36,7 @@ export async function executePayByItems({
     const guestTotal = order.orderItems
       .filter(oi => guestAssignments[oi.id] === g)
       .reduce((sum, oi) => sum + oi.price * oi.quantity, 0)
-    // P0 FIX: pošlji idempotencyKey — prepreči dvojno plačilo ob retry-ju.
-    const paymentRes = await authFetch('/api/payments', {
+    await authFetch('/api/payments', {
       method: 'POST',
       body: JSON.stringify({
         checkId: check.id,
@@ -54,10 +44,8 @@ export async function executePayByItems({
         tipAmount: 0,
         type: 'cash',
         status: 'completed',
-        idempotencyKey: makePayByItemsKey(order.id, g, guestTotal),
       }),
     })
-    if (!paymentRes.ok) throw new Error(`Napaka pri plačilu gosta ${g}`)
   }
   await authFetch(`/api/orders/${order.id}`, {
     method: 'PUT',
