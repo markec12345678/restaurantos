@@ -12,9 +12,10 @@ export function useShiftComputations(
   shifts: ShiftItem[] | undefined,
   timeEntries: TimeEntryItem[] | undefined,
 ) {
+  // FIX: Array.isArray guard — prepreči .filter crash če bi query vrnil objekt
   const employeesList = Array.isArray(employees) ? employees : []
-  const allShifts = shifts || []
-  const allEntries = timeEntries || []
+  const allShifts = Array.isArray(shifts) ? shifts : []
+  const allEntries = Array.isArray(timeEntries) ? timeEntries : []
 
   const activeEntries = useMemo(() => allEntries.filter(e => !e.clockOut), [allEntries])
   const completedEntries = useMemo(() => allEntries.filter(e => e.clockOut).sort((a, b) => new Date(b.clockIn).getTime() - new Date(a.clockIn).getTime()), [allEntries])
