@@ -464,3 +464,5 @@ Glej [CONTRIBUTING.md](./CONTRIBUTING.md)
 [🌐 GitHub](https://github.com/markec12345678/restaurantos) · [📋 Spec Compliance](./SPECIFICATION-COMPLIANCE.md) · [🚀 Deployment](./DEPLOYMENT-GUIDE.md) · [📊 E2E Tests](./E2E-TEST-REPORT.md)
 
 </div>
+
+<!-- build trigger: 1781806341 -->
