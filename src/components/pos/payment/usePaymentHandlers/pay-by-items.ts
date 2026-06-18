@@ -44,6 +44,7 @@ export async function executePayByItems({
         tipAmount: 0,
         type: 'cash',
         status: 'completed',
+        idempotencyKey: `payitems-${order.id}-g${g}-${guestTotal.toFixed(2)}`,
       }),
     })
   }
