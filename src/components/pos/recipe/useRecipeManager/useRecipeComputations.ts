@@ -16,12 +16,15 @@ export function useRecipeComputations(
 ) {
   // Skupine receptov po menijih
   const recipeGroups = useMemo(() => {
-    if (!recipes || !menuItems) return { hrana: [], pijaca: [] }
-    const hranaItems = menuItems.filter(mi => mi.category?.menu?.name === 'Hrana')
-    const pijacaItems = menuItems.filter(mi => mi.category?.menu?.name === 'Pijaca')
+    // FIX: Array.isArray guard — prepreči .filter crash če bi query vrnil objekt
+    const recipesArr = Array.isArray(recipes) ? recipes : []
+    const menuItemsArr = Array.isArray(menuItems) ? menuItems : []
+    if (recipesArr.length === 0 && menuItemsArr.length === 0) return { hrana: [], pijaca: [] }
+    const hranaItems = menuItemsArr.filter(mi => mi.category?.menu?.name === 'Hrana')
+    const pijacaItems = menuItemsArr.filter(mi => mi.category?.menu?.name === 'Pijaca')
 
     const groupItems = (items: MenuItemData[]) => items.map(mi => {
-      const itemRecipes = recipes.filter(r => r.menuItemId === mi.id)
+      const itemRecipes = recipesArr.filter(r => r.menuItemId === mi.id)
       const totalCost = itemRecipes.reduce((sum, r) => sum + r.costPerServing, 0)
       // Fallback na inventory costPerServing ce ni recepta
       const fallbackCost = mi.inventory?.costPerServing || 0
@@ -42,9 +45,12 @@ export function useRecipeComputations(
 
   // Pregled marz - vsi artikli
   const marginData = useMemo(() => {
-    if (!menuItems || !recipes) return []
-    return menuItems.map(mi => {
-      const itemRecipes = recipes.filter(r => r.menuItemId === mi.id)
+    // FIX: Array.isArray guard
+    const recipesArr = Array.isArray(recipes) ? recipes : []
+    const menuItemsArr = Array.isArray(menuItems) ? menuItems : []
+    if (menuItemsArr.length === 0) return []
+    return menuItemsArr.map(mi => {
+      const itemRecipes = recipesArr.filter(r => r.menuItemId === mi.id)
       const recipeCost = itemRecipes.reduce((sum, r) => sum + r.costPerServing, 0)
       const fallbackCost = mi.inventory?.costPerServing || 0
       const cost = recipeCost > 0 ? recipeCost : fallbackCost
@@ -85,16 +91,18 @@ export function useRecipeComputations(
 
   // Izbran meni artikel
   const selectedItem = useMemo(() => {
-    if (!selectedMenuItemId || !menuItems) return null
+    // FIX: Array.isArray guard
+    if (!selectedMenuItemId || !Array.isArray(menuItems)) return null
     return menuItems.find(mi => mi.id === selectedMenuItemId)
   }, [selectedMenuItemId, menuItems])
 
   const selectedRecipes = useMemo(() => {
-    if (!selectedMenuItemId || !recipes) return []
+    // FIX: Array.isArray guard
+    if (!selectedMenuItemId || !Array.isArray(recipes)) return []
     return recipes.filter(r => r.menuItemId === selectedMenuItemId)
   }, [selectedMenuItemId, recipes])
 
-  const selectedTotalCost = selectedRecipes.reduce((sum, r) => sum + r.costPerServing, 0)
+  const selectedTotalCost = (Array.isArray(selectedRecipes) ? selectedRecipes : []).reduce((sum, r) => sum + r.costPerServing, 0)
 
   return {
     recipeGroups,
