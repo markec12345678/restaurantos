@@ -38,7 +38,8 @@ export function useInventoryQueries({ activeTab, filterCategory, txTypeFilter, t
       const params = new URLSearchParams()
       if (filterCategory !== 'all') params.set('category', filterCategory)
       const res = await authFetch(`/api/inventory?${params}`)
-      return res.json()
+      const data = await res.json()
+      return Array.isArray(data) ? data : (data.items || [])
     },
   })
 
@@ -46,7 +47,8 @@ export function useInventoryQueries({ activeTab, filterCategory, txTypeFilter, t
     queryKey: queryKeys.menuItems.all,
     queryFn: async () => {
       const res = await authFetch('/api/menu-items')
-      return res.json()
+      const data = await res.json()
+      return Array.isArray(data) ? data : (data.menuItems || data.items || [])
     },
   })
 
@@ -59,7 +61,8 @@ export function useInventoryQueries({ activeTab, filterCategory, txTypeFilter, t
       if (txDateTo) params.set('to', txDateTo)
       params.set('limit', '200')
       const res = await authFetch(`/api/inventory/transactions?${params}`)
-      return res.json()
+      const data = await res.json()
+      return Array.isArray(data) ? data : (data.transactions || [])
     },
     enabled: activeTab === 'history',
   })
