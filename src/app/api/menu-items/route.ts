@@ -36,20 +36,20 @@ export async function GET(request: Request) {
     const limit = Math.min(Number.isNaN(parseInt(limitParam || '')) ? 500 : parseInt(limitParam || ''), 500)
     const offset = Number.isNaN(parseInt(offsetParam || '')) ? 0 : parseInt(offsetParam || '')
 
-    const include = simple === 'true'
+    const include = (simple === 'true'
       ? { category: { select: { id: true, name: true, menuId: true } } }
       : {
           category: {
             include: { menu: { select: { id: true, name: true } } },
           },
           modifierGroups: {
-            orderBy: { sortOrder: 'asc' },
+            orderBy: { sortOrder: 'asc' as const },
             include: {
               modifierGroup: {
                 include: {
                   modifiers: {
                     where: { isAvailable: true },
-                    orderBy: { sortOrder: 'asc' },
+                    orderBy: { sortOrder: 'asc' as const },
                   },
                 },
               },
@@ -60,7 +60,7 @@ export async function GET(request: Request) {
     const [items, total] = await Promise.all([
       db.menuItem.findMany({
         where,
-        orderBy: { sortOrder: 'asc' },
+        orderBy: { sortOrder: 'asc' as const },
         take: limit,
         skip: offset,
         include,
