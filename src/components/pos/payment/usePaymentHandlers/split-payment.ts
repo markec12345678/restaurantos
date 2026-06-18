@@ -9,6 +9,15 @@ import { type OrderForPayment, type PaymentExecContext } from './types'
 // SPLIT PLAČILO
 // ============================================
 
+// P0 FIX: Deterministični idempotencyKey za vsako split plačilo.
+// Ključ vključi checkId + splitIndex + znesek, tako da:
+//   - retry po napaki (ista konfiguracija) dobi isti ključ → idempotent
+//   - različni split-i (index 0, 1, 2...) imajo različne ključe → ni kolizije,
+//     tudi če imata enak znesek (npr. 2x €10)
+function makeSplitPaymentKey(checkId: string, splitIndex: number, amount: number): string {
+  return `split-${checkId}-s${splitIndex}-${amount.toFixed(2)}`
+}
+
 export async function executeSplitPayment({
   order,
   orderTotal,
@@ -61,6 +70,9 @@ export async function executeSplitPayment({
     payments.push({ amount, tipPortion })
   }
   for (let i = 0; i < payments.length; i++) {
+    // P0 FIX: pošlji idempotencyKey — prepreči dvojno plačilo ob retry-ju.
+    // Ključ je determinističen (checkId + index + znesek), tako da retry
+    // z istimi vhodi dobi isti ključ → backend vrne obstoječe plačilo.
     const paymentRes = await authFetch('/api/payments', {
       method: 'POST',
       body: JSON.stringify({
@@ -68,6 +80,7 @@ export async function executeSplitPayment({
         amount: payments[i].amount,
         tipAmount: payments[i].tipPortion,
         type: paymentMethod === 'cash' ? 'cash' : paymentMethod === 'card' ? 'card' : paymentMethod === 'mobile' ? 'mobile' : paymentMethod === 'split' ? 'split' : 'cash',
+        idempotencyKey: makeSplitPaymentKey(check.id, i, payments[i].amount),
       }),
     })
     if (!paymentRes.ok) throw new Error(`Napaka pri ustvarjanju plačila ${i + 1}`)
