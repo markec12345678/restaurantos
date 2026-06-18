@@ -62,7 +62,13 @@ export function useInventoryQueries({ activeTab, filterCategory, txTypeFilter, t
       params.set('limit', '200')
       const res = await authFetch(`/api/inventory/transactions?${params}`)
       const data = await res.json()
-      return Array.isArray(data) ? data : (data.transactions || [])
+      // FIX: API vrne {transactions: [...], summary: [...], total} — ohrani celoten objekt
+      // za HistoryTab (ki bere .transactions in .summary); defenzivno če array
+      if (Array.isArray(data)) return { transactions: data, summary: [] }
+      return {
+        transactions: Array.isArray(data.transactions) ? data.transactions : [],
+        summary: Array.isArray(data.summary) ? data.summary : [],
+      }
     },
     enabled: activeTab === 'history',
   })
