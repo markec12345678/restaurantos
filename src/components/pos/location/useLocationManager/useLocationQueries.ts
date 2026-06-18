@@ -10,7 +10,7 @@ export function useLocationQueries(showZones: boolean) {
     queryKey: queryKeys.delivery.zones,
     queryFn: async () => {
       const res = await authFetch('/api/delivery-zones')
-      if (!res.ok) throw new Error('Napaka pri nalaganju')
+      if (!res.ok) return []
       const data = await res.json(); return Array.isArray(data) ? data : (data.items || data.employees || data.jobs || data.shifts || data.entries || data.recipes || data.menuItems || data.transactions || data.suppliers || data.giftCards || data.locations || data.categories || data.menus || data.accounts || data.invoices || data.logs || data.haccpEntries || data.orders || data.payments || data.receipts || data.tables || data.loyaltyAccounts || [])
     },
     enabled: showZones,
@@ -20,8 +20,9 @@ export function useLocationQueries(showZones: boolean) {
     queryKey: queryKeys.locations.all,
     queryFn: async () => {
       const res = await authFetch('/api/locations')
-      if (!res.ok) throw new Error('Napaka pri nalaganju')
-      const data = await res.json(); return Array.isArray(data) ? data : (data.items || data.employees || data.jobs || data.shifts || data.entries || data.recipes || data.menuItems || data.transactions || data.suppliers || data.giftCards || data.locations || data.categories || data.menus || data.accounts || data.invoices || data.logs || data.haccpEntries || data.orders || data.payments || data.receipts || data.tables || data.loyaltyAccounts || [])
+      if (!res.ok) return { locations: [], stats: { total: 0, active: 0, open: 0 } }
+      const data = await res.json()
+      return Array.isArray(data) ? { locations: data, stats: { total: data.length, active: 0, open: 0 } } : { locations: data.locations || [], stats: data.stats || { total: 0, active: 0, open: 0 } }
     },
   })
 
