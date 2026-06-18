@@ -29,11 +29,11 @@ export const KitchenOrderCard = memo(function KitchenOrderCard({
   stationFilter?: 'all' | 'kuhinja' | 'sank'
 }) {
   // Group items by category (food items together, drinks together)
-  const foodItems = order.orderItems.filter(oi =>
-    oi.menuItem.category.menu.name === 'Hrana'
+  const foodItems = (order.orderItems || []).filter(oi =>
+    oi.menuItem?.category?.menu?.name === 'Hrana'
   )
-  const drinkItems = order.orderItems.filter(oi =>
-    oi.menuItem.category.menu.name === 'Pijača'
+  const drinkItems = (order.orderItems || []).filter(oi =>
+    oi.menuItem?.category?.menu?.name === 'Pijača'
   )
 
   // Filtriraj glede na postajo (kuhinja = samo hrana, šank = samo pijača)
