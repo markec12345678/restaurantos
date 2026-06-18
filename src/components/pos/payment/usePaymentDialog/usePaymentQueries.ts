@@ -11,7 +11,7 @@ export function usePaymentQueries(open: boolean, paymentMethod: string, loyaltyS
     queryFn: async () => {
       const res = await authFetch('/api/configuration/alt-payment-types')
       if (!res.ok) return []
-      return res.json()
+      const data = await res.json(); return Array.isArray(data) ? data : (data.items || data.employees || data.jobs || data.shifts || data.entries || data.recipes || data.menuItems || data.transactions || data.suppliers || data.giftCards || data.locations || data.categories || data.menus || data.accounts || data.invoices || data.logs || data.haccpEntries || data.orders || data.payments || data.receipts || data.tables || data.loyaltyAccounts || [])
     },
     enabled: open,
   })
@@ -22,7 +22,7 @@ export function usePaymentQueries(open: boolean, paymentMethod: string, loyaltyS
     queryFn: async () => {
       const res = await authFetch('/api/gift-cards')
       if (!res.ok) return []
-      return res.json()
+      const data = await res.json(); return Array.isArray(data) ? data : (data.items || data.employees || data.jobs || data.shifts || data.entries || data.recipes || data.menuItems || data.transactions || data.suppliers || data.giftCards || data.locations || data.categories || data.menus || data.accounts || data.invoices || data.logs || data.haccpEntries || data.orders || data.payments || data.receipts || data.tables || data.loyaltyAccounts || [])
     },
     enabled: open && paymentMethod === 'giftcard',
   })
@@ -34,7 +34,7 @@ export function usePaymentQueries(open: boolean, paymentMethod: string, loyaltyS
       if (!loyaltySearch || loyaltySearch.length < 2) return []
       const res = await authFetch(`/api/loyalty?search=${encodeURIComponent(loyaltySearch)}`)
       if (!res.ok) return []
-      return res.json()
+      const data = await res.json(); return Array.isArray(data) ? data : (data.items || data.employees || data.jobs || data.shifts || data.entries || data.recipes || data.menuItems || data.transactions || data.suppliers || data.giftCards || data.locations || data.categories || data.menus || data.accounts || data.invoices || data.logs || data.haccpEntries || data.orders || data.payments || data.receipts || data.tables || data.loyaltyAccounts || [])
     },
     enabled: open && paymentMethod === 'loyalty' && loyaltySearch.length >= 2,
   })

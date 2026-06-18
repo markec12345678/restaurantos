@@ -19,7 +19,7 @@ export function useHaccpQueries(activeTab: string, dateFrom: string, dateTo: str
     queryFn: async () => {
       const res = await authFetch(`/api/haccp?${queryParams}`)
       if (!res.ok) throw new Error('Napaka pri nalaganju')
-      return res.json()
+      const data = await res.json(); return Array.isArray(data) ? data : (data.items || data.employees || data.jobs || data.shifts || data.entries || data.recipes || data.menuItems || data.transactions || data.suppliers || data.giftCards || data.locations || data.categories || data.menus || data.accounts || data.invoices || data.logs || data.haccpEntries || data.orders || data.payments || data.receipts || data.tables || data.loyaltyAccounts || [])
     },
   })
 
