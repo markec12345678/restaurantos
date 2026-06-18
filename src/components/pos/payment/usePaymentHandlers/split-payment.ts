@@ -68,6 +68,7 @@ export async function executeSplitPayment({
         amount: payments[i].amount,
         tipAmount: payments[i].tipPortion,
         type: paymentMethod === 'cash' ? 'cash' : paymentMethod === 'card' ? 'card' : paymentMethod === 'mobile' ? 'mobile' : paymentMethod === 'split' ? 'split' : 'cash',
+        idempotencyKey: `split-${check.id}-s${i}-${payments[i].amount.toFixed(2)}`,
       }),
     })
     if (!paymentRes.ok) throw new Error(`Napaka pri ustvarjanju plačila ${i + 1}`)
