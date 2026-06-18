@@ -20,12 +20,11 @@ export function useNutritionalCalc() {
     queryFn: async () => {
       const res = await authFetch('/api/menu-items?limit=500')
       if (!res.ok) throw new Error('Napaka pri nalaganju')
-      const data = await res.json()
-      return Array.isArray(data) ? data : (data.menuItems || data.items || [])
+      return res.json()
     },
   })
 
-  const items = (Array.isArray(menuItems) ? menuItems : []) as MenuItemData[]
+  const items = (menuItems || []) as MenuItemData[]
 
   const filtered = useMemo(() => {
     let result = items
