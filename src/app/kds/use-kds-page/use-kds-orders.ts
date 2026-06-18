@@ -21,7 +21,7 @@ export function useKDSOrders(
   const { data: ordersData, isLoading, refetch } = useQuery({
     queryKey: queryKeys.orders.kds,
     queryFn: async () => {
-      const token = localStorage.getItem('pos_token')
+      const token = sessionStorage.getItem('pos_auth_token') || localStorage.getItem('pos_auth_token') || localStorage.getItem('pos_token')
       const headers: Record<string, string> = {}
       if (token) headers.Authorization = `Bearer ${token}`
       const [pendingRes, inProgressRes, readyRes] = await Promise.all([
@@ -29,7 +29,7 @@ export function useKDSOrders(
         fetch('/api/orders?status=in-progress&limit=50', { headers }),
         fetch('/api/orders?status=ready&limit=50', { headers }),
       ])
-      if (!pendingRes.ok || !inProgressRes.ok || !readyRes.ok) throw new Error('Napaka pri nalaganju')
+      if (!pendingRes.ok || !inProgressRes.ok || !readyRes.ok) return []
       const [pendingData, inProgressData, readyData] = await Promise.all([
         pendingRes.json(), inProgressRes.json(), readyRes.json(),
       ])
