@@ -63,15 +63,15 @@ export function useOrderPanel() {
   // Podatki
   const { data: menus, isLoading: menusLoading } = useQuery({
     queryKey: queryKeys.menus.all,
-    queryFn: async () => { const res = await authFetch('/api/menus'); return res.json() },
+    queryFn: async () => { const res = await authFetch('/api/menus'); if (!res.ok) return []; const json = await res.json(); return Array.isArray(json) ? json : [] },
   })
   const { data: menuItems, isLoading: menuLoading } = useQuery({
     queryKey: queryKeys.menuItems.all,
-    queryFn: async () => { const res = await authFetch('/api/menu-items'); return res.json() },
+    queryFn: async () => { const res = await authFetch('/api/menu-items'); if (!res.ok) return []; const json = await res.json(); return Array.isArray(json) ? json : (json.menuItems ?? json.items ?? []) },
   })
   const { data: tables } = useQuery({
     queryKey: queryKeys.tables.all,
-    queryFn: async () => { const res = await authFetch('/api/tables'); return res.json() },
+    queryFn: async () => { const res = await authFetch('/api/tables'); if (!res.ok) return []; const json = await res.json(); return Array.isArray(json) ? json : (json.tables ?? []) },
   })
   const { data: orders, isLoading: ordersLoading } = useQuery({
     queryKey: queryKeys.orders.byStatus(orderListTab),
@@ -79,7 +79,9 @@ export function useOrderPanel() {
       const params = new URLSearchParams()
       if (orderListTab !== 'all') params.set('status', orderListTab)
       const res = await authFetch(`/api/orders?${params}`)
-      return res.json()
+      if (!res.ok) return []
+      const json = await res.json()
+      return Array.isArray(json) ? json : (json.orders ?? [])
     },
   })
   const { data: discounts } = useQuery({
@@ -87,7 +89,8 @@ export function useOrderPanel() {
     queryFn: async () => {
       const res = await authFetch('/api/discounts')
       if (!res.ok) return []
-      const all = await res.json()
+      const json = await res.json()
+      const all = Array.isArray(json) ? json : (json.discounts ?? [])
       return all.filter((d: { isActive: boolean }) => d.isActive)
     },
   })
@@ -96,7 +99,8 @@ export function useOrderPanel() {
     queryFn: async () => {
       const res = await authFetch('/api/configuration/dining-options')
       if (!res.ok) return []
-      return res.json()
+      const json = await res.json().catch(() => [])
+      return Array.isArray(json) ? json : (json.diningOptions ?? [])
     },
   })
   const { data: menuStockMap } = useQuery<Record<string, StockInfoType>>({
