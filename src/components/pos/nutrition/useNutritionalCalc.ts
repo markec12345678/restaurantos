@@ -20,11 +20,14 @@ export function useNutritionalCalc() {
     queryFn: async () => {
       const res = await authFetch('/api/menu-items?limit=500')
       if (!res.ok) throw new Error('Napaka pri nalaganju')
-      return res.json()
+      const data = await res.json()
+      // FIX: API vrne {menuItems: [...], total, ...} — izvleci array, drugače .filter crne
+      return Array.isArray(data) ? data : (data.menuItems || data.items || [])
     },
   })
 
-  const items = (menuItems || []) as MenuItemData[]
+  // FIX: Zagotovi array tudi če bi query vrnil objekt (defenzivno)
+  const items = (Array.isArray(menuItems) ? menuItems : []) as MenuItemData[]
 
   const filtered = useMemo(() => {
     let result = items
