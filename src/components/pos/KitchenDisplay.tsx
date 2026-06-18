@@ -58,14 +58,16 @@ export const KitchenDisplay = memo(function KitchenDisplay() {
   }, [wsLastEvent, queryClient])
 
   useEffect(() => {
-    if (!data?.orders) return
-    const currentOrderIds = data.orders.map(o => o.id)
+    // FIX: Zagotovi array — defenzivno varstvo pred .filter crak če API vrne nepričakovano obliko
+    const ordersArr = Array.isArray(data?.orders) ? data.orders : []
+    if (ordersArr.length === 0) return
+    const currentOrderIds = ordersArr.map(o => o.id)
     const newOrders = currentOrderIds.filter(id => !prevOrdersRef.current.includes(id))
     if (newOrders.length > 0 && prevOrdersRef.current.length > 0) {
       if (soundEnabled) soundManager.playNewOrder()
       toast.info(`\uD83C\uDF7D\uFE0F ${newOrders.length > 1 ? `${newOrders.length} nova naročila` : 'Novo naročilo'}!`, { duration: 3000 })
     }
-    const urgentOrders = data.orders.filter(o => o.urgency === 'critical')
+    const urgentOrders = ordersArr.filter(o => o.urgency === 'critical')
     if (urgentOrders.length > 0 && soundEnabled) {
       const veryUrgent = urgentOrders.filter(o => o.waitMinutes >= 25)
       if (veryUrgent.length > 0) soundManager.playUrgent()
@@ -79,7 +81,8 @@ export const KitchenDisplay = memo(function KitchenDisplay() {
   }, [])
 
   const filteredOrders = useMemo(() => {
-    return (data?.orders || []).filter(order => {
+    // FIX: Array.isArray guard — prepreči .filter crash
+    return (Array.isArray(data?.orders) ? data.orders : []).filter(order => {
       if (filterStatus === 'all') return true
       return order.status === filterStatus
     })
