@@ -29,7 +29,7 @@ export function useKDSOrders(
         fetch('/api/orders?status=in-progress&limit=50', { headers }),
         fetch('/api/orders?status=ready&limit=50', { headers }),
       ])
-      if (!pendingRes.ok || !inProgressRes.ok || !readyRes.ok) return { pending: [], inProgress: [], ready: [] }
+      if (!pendingRes.ok || !inProgressRes.ok || !readyRes.ok) return []
       const [pendingData, inProgressData, readyData] = await Promise.all([
         pendingRes.json(), inProgressRes.json(), readyRes.json(),
       ])
