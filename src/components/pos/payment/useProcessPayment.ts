@@ -50,17 +50,11 @@ interface ProcessPaymentCallbacks {
 //       ali ustvari novo (201) če prvi poskus ni prišel do baze. Oba primera
 //       pravilna — NIKOLI dvojno plačilo.
 function generateIdempotencyKey(): string {
-  // crypto.randomUUID() je na voljo v vseh modernih brskalnikih (Chrome 92+,
-  // Safari 15.4+, Firefox 95+) in Node 19+. Fallback za starejše brskalnike.
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID()
-  }
-  // Fallback: RFC4122 v4 (dovolj dober za idempotency key)
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0
-    const v = c === 'x' ? r : (r & 0x3) | 0x8
-    return v.toString(16)
-  })
+  // Enostaven, a zadostno unikaten ključ za idempotency. Ker se generira
+  // samo ob prvem poskusu (useRef) in vztraja čez retry-je, zadostuje
+  // timestamp + naključni del. Brez crypto global (izogne se DOM/Node type
+  // ambiguiteti in browser compatibility skrbinam).
+  return `pay-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 export function useProcessPayment(params: ProcessPaymentParams, callbacks: ProcessPaymentCallbacks) {
