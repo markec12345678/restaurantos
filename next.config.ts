@@ -51,18 +51,15 @@ const nextConfig: NextConfig = {
   },
 };
 
-// ─── Sentry wrapper ────────────────────────────────────────────
-// Samodejno upload-a source maps po build-u (Sentry dashboard bo pokazal
-// originalno TypeScript kodo, ne minificirano). Org slug in project sta
-// nastavljena iz environment spremenljivk (ali hardcoded spodaj).
+// ─── Sentry wrapper (v10) ──────────────────────────────────────
+// Minimal config — Sentry auto-detects org/project from env vars:
+//   SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT
+// Source maps upload only if SENTRY_AUTH_TOKEN is set.
 export default withSentryConfig(nextConfig, {
-  // Samo če je SENTRY_AUTH_TOKEN nastavljen, se source maps upload-a
+  // Source maps upload only when auth token is present
   sourcemaps: {
     disable: !process.env.SENTRY_AUTH_TOKEN,
   },
-  // Org/project iz environmenta ali hardcoded
-  org: process.env.SENTRY_ORG || 'markec12345678',
-  project: process.env.SENTRY_PROJECT || 'restaurantos',
-  // Ne logger v development
-  silent: !process.env.SENTRY_AUTH_TOKEN,
+  // Suppress logs in development (no token = no upload = no noise)
+  silent: true,
 })
