@@ -1,3 +1,5 @@
+'use client'
+
 // ============================================
 // PROCESS PAYMENT MUTATION — Check → Payment → Order → Receipt → FURS → Print
 // ============================================
