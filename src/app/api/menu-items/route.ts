@@ -1,4 +1,3 @@
-
 // Extend schema with modifierGroupIds (not part of base MenuItem schema)
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
@@ -22,6 +21,9 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const categoryId = searchParams.get('categoryId')
     const menuId = searchParams.get('menuId')
+    const limitParam = searchParams.get('limit')
+    const offsetParam = searchParams.get('offset')
+    const simple = searchParams.get('simple') // Skip heavy includes when true
 
     let where = {}
     if (categoryId) {
@@ -30,29 +32,43 @@ export async function GET(request: Request) {
       where = { category: { menuId } }
     }
 
-    const items = await db.menuItem.findMany({
-      where,
-      orderBy: { sortOrder: 'asc' },
-      include: {
-        category: {
-          include: { menu: { select: { id: true, name: true } } },
-        },
-        modifierGroups: {
-          orderBy: { sortOrder: 'asc' },
-          include: {
-            modifierGroup: {
-              include: {
-                modifiers: {
-                  where: { isAvailable: true },
-                  orderBy: { sortOrder: 'asc' },
+    // FIX PERF: Paginacija + optional simple mode (brez modifierGroups za hitrejši response)
+    const limit = Math.min(Number.isNaN(parseInt(limitParam || '')) ? 500 : parseInt(limitParam), 500)
+    const offset = Number.isNaN(parseInt(offsetParam || '')) ? 0 : parseInt(offsetParam)
+
+    const include = simple === 'true'
+      ? { category: { select: { id: true, name: true, menuId: true } } }
+      : {
+          category: {
+            include: { menu: { select: { id: true, name: true } } },
+          },
+          modifierGroups: {
+            orderBy: { sortOrder: 'asc' },
+            include: {
+              modifierGroup: {
+                include: {
+                  modifiers: {
+                    where: { isAvailable: true },
+                    orderBy: { sortOrder: 'asc' },
+                  },
                 },
               },
             },
           },
-        },
-      },
-    })
-    return NextResponse.json(deepToNumbers(items))
+        }
+
+    const [items, total] = await Promise.all([
+      db.menuItem.findMany({
+        where,
+        orderBy: { sortOrder: 'asc' },
+        take: limit,
+        skip: offset,
+        include,
+      }),
+      db.menuItem.count({ where }),
+    ])
+
+    return NextResponse.json({ menuItems: deepToNumbers(items), total, limit, offset })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/menu-items', 'Failed to fetch menu items')
   }
@@ -60,11 +76,9 @@ export async function GET(request: Request) {
 
 export async function POST(req: Request) {
   try {
-    // Auth check
-    const authResult = await requireAuth(req)
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
     if (authResult.error) return authResult.error
 
-    // FIX SECURITY: validateRequest() prepreči DoS z oversized payload
     const { data, error: validationError } = await validateRequest(req, createMenuItemWithModifiersSchema)
     if (validationError) return validationError
 
@@ -72,35 +86,15 @@ export async function POST(req: Request) {
 
     const item = await db.menuItem.create({
       data: {
-        name: itemData.name,
-        description: itemData.description,
-        price: itemData.price,
-        image: itemData.image,
-        isAvailable: itemData.isAvailable,
-        // FIX A6 MEDIUM: allergens in vatRate MANJKALA v create klicu — novi artikli so imeli prazne alergene
-        allergens: itemData.allergens || '',
-        vatRate: itemData.vatRate ?? 22.0,
-        sortOrder: 0,
-        categoryId: itemData.categoryId,
-        ...(modifierGroupIds?.length ? {
-          modifierGroups: {
-            create: modifierGroupIds.map((groupId: string, i: number) => ({
-              modifierGroupId: groupId,
-              sortOrder: i,
-            })),
-          },
-        } : {}),
+        ...itemData,
+        modifierGroups: modifierGroupIds.length > 0
+          ? { create: modifierGroupIds.map((id: string, idx: number) => ({ modifierGroupId: id, sortOrder: idx })) }
+          : undefined,
       },
-      include: {
-        category: true,
-        modifierGroups: {
-          include: {
-            modifierGroup: { include: { modifiers: true } },
-          },
-        },
-      },
+      include: { category: true },
     })
-    return NextResponse.json(item, { status: 201 })
+
+    return NextResponse.json(deepToNumbers(item), { status: 201 })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/menu-items', 'Failed to create menu item')
   }
