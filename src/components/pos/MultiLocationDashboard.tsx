@@ -28,10 +28,9 @@ export const MultiLocationDashboard = memo(function MultiLocationDashboard() {
     queryKey: queryKeys.locations.all,
     queryFn: async () => {
       const res = await authFetch('/api/locations')
-      if (!res.ok) throw new Error('Napaka pri nalaganju')
-      const data = await res.json()
-      // FIX: API vrne {locations: [...], stats: {...}} — izvleci array
-      return Array.isArray(data) ? data : (data.locations || data.items || [])
+      if (!res.ok) return []
+      const json = await res.json()
+      return Array.isArray(json) ? json : (json.locations ?? [])
     },
   })
 
