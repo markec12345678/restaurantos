@@ -33,8 +33,8 @@ export async function GET(request: Request) {
     }
 
     // FIX PERF: Paginacija + optional simple mode (brez modifierGroups za hitrejši response)
-    const limit = Math.min(Number.isNaN(parseInt(limitParam || '')) ? 500 : parseInt(limitParam), 500)
-    const offset = Number.isNaN(parseInt(offsetParam || '')) ? 0 : parseInt(offsetParam)
+    const limit = Math.min(Number.isNaN(parseInt(limitParam || '')) ? 500 : parseInt(limitParam || ''), 500)
+    const offset = Number.isNaN(parseInt(offsetParam || '')) ? 0 : parseInt(offsetParam || '')
 
     const include = simple === 'true'
       ? { category: { select: { id: true, name: true, menuId: true } } }
