@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import { withSentryConfig } from '@sentry/nextjs'
 
 const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
@@ -11,7 +10,6 @@ const securityHeaders = [
   { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
   // FIX HIGH: CSP — omeji vire, iz katerih se lahko nalaga vsebino
   // Dovoli: self, inline styles/scripts (Next.js potrebuje), ws: za WebSocket, data: za slike
-  // Sentry: dodan https://*.sentry.io v connect-src in img-src
   {
     key: 'Content-Security-Policy',
     value: [
@@ -20,7 +18,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
-      "connect-src 'self' ws: wss: http://localhost:* https://api.github.com https://*.sentry.io",
+      "connect-src 'self' ws: wss: http://localhost:* https://api.github.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -51,15 +49,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-// ─── Sentry wrapper (v10) ──────────────────────────────────────
-// Minimal config — Sentry auto-detects org/project from env vars:
-//   SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT
-// Source maps upload only if SENTRY_AUTH_TOKEN is set.
-export default withSentryConfig(nextConfig, {
-  // Source maps upload only when auth token is present
-  sourcemaps: {
-    disable: !process.env.SENTRY_AUTH_TOKEN,
-  },
-  // Suppress logs in development (no token = no upload = no noise)
-  silent: true,
-})
+export default nextConfig;
