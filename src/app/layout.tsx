@@ -5,6 +5,7 @@ import { Toaster } from "sonner";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { RegisterSW } from "@/components/register-sw";
+import { ErrorHandler } from "@/components/error-handler";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -64,6 +65,7 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <QueryProvider>
             {children}
+            <ErrorHandler />
             <Toaster position="top-right" richColors />
             <RegisterSW />
           </QueryProvider>
