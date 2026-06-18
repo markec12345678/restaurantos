@@ -56,6 +56,7 @@ export async function GET(request: Request) {
             },
           },
         }
+    )
 
     const [items, total] = await Promise.all([
       db.menuItem.findMany({
