@@ -25,6 +25,7 @@ export function useEodData() {
     queryKey: queryKeys.endOfDay.all,
     queryFn: async () => {
       const res = await authFetch('/api/end-of-day')
+      if (!res.ok) return null
       return res.json()
     },
   })
