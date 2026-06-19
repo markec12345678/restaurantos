@@ -27,8 +27,9 @@ export function useDeliveryFetch() {
       const params = new URLSearchParams()
       if (statusFilter !== 'all') params.set('status', statusFilter)
       const res = await authFetch(`/api/delivery?${params}`)
-      if (!res.ok) throw new Error('Napaka pri nalaganju dostav')
-      return res.json()
+      if (!res.ok) return []
+      const json = await res.json()
+      return Array.isArray(json) ? json : (json.deliveries ?? json.orders ?? [])
     },
   })
 
