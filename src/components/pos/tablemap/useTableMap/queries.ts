@@ -14,7 +14,9 @@ export function useTableQueries(selectedTableForOrders: TableData | null) {
     queryKey: queryKeys.tables.all,
     queryFn: async () => {
       const res = await authFetch('/api/tables')
-      return res.json()
+      if (!res.ok) return []
+      const json = await res.json()
+      return Array.isArray(json) ? json : (json.tables ?? [])
     },
   })
 
