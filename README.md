@@ -466,3 +466,5 @@ Glej [CONTRIBUTING.md](./CONTRIBUTING.md)
 </div>
 
 <!-- build trigger: 1781806341 -->
+
+<!-- build trigger: force fresh Vercel deploy 1781875784 -->
