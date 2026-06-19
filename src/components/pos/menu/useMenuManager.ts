@@ -59,8 +59,9 @@ export function useMenuManager() {
     queryKey: queryKeys.menuItems.all,
     queryFn: async () => {
       const res = await authFetch('/api/menu-items')
-      if (!res.ok) throw new Error('Napaka pri nalaganju')
-      return res.json()
+      if (!res.ok) return []
+      const json = await res.json()
+      return Array.isArray(json) ? json : (json.menuItems ?? json.items ?? [])
     },
   })
 
