@@ -32,24 +32,27 @@ export function useMenuManager() {
     queryKey: queryKeys.menus.all,
     queryFn: async () => {
       const res = await authFetch('/api/menus')
-      if (!res.ok) throw new Error('Napaka pri nalaganju')
-      return res.json()
+      if (!res.ok) return []
+      const json = await res.json()
+      return Array.isArray(json) ? json : (json.menus ?? [])
     },
   })
   const { data: categories } = useQuery({
     queryKey: queryKeys.categories.all,
     queryFn: async () => {
       const res = await authFetch('/api/categories')
-      if (!res.ok) throw new Error('Napaka pri nalaganju')
-      return res.json()
+      if (!res.ok) return []
+      const json = await res.json()
+      return Array.isArray(json) ? json : (json.categories ?? [])
     },
   })
   const { data: modifierGroups } = useQuery({
     queryKey: queryKeys.modifierGroups.all,
     queryFn: async () => {
       const res = await authFetch('/api/modifier-groups')
-      if (!res.ok) throw new Error('Napaka pri nalaganju')
-      return res.json()
+      if (!res.ok) return []
+      const json = await res.json()
+      return Array.isArray(json) ? json : (json.modifierGroups ?? [])
     },
   })
   const { data: menuItems, isLoading } = useQuery({
