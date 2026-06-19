@@ -5,7 +5,7 @@
 // FIX MEDIUM: Cache version auto-incremented — change version when deploying
 // ============================================
 
-const CACHE_VERSION = 'v7' // Increment this when deploying new code
+const CACHE_VERSION = 'v8' // Increment this when deploying new code
 const CACHE_NAME = `restos-pos-${CACHE_VERSION}`
 const STATIC_CACHE = `restos-static-${CACHE_VERSION}`
 const API_CACHE = `restos-api-${CACHE_VERSION}`
