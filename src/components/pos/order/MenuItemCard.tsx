@@ -16,6 +16,22 @@ export interface MenuItemCardProps {
   onClick: () => void
 }
 
+
+// Generate a consistent color from a string (for placeholder backgrounds)
+function stringToColor(str: string): string {
+  const colors = [
+    '#f97316', '#ea580c', '#dc2626', '#b91c1c',
+    '#7c3aed', '#6d28d9', '#2563eb', '#1d4ed8',
+    '#059669', '#047857', '#d97706', '#b45309',
+    '#db2777', '#be185d', '#0891b2', '#0e7490',
+  ]
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return colors[Math.abs(hash) % colors.length]
+}
+
 // ============================================
 // MENU ITEM CARD - Kartica artikla v mreži
 // ============================================
@@ -80,12 +96,19 @@ export const MenuItemCard = memo(function MenuItemCard({
             onError={(e) => {
               const target = e.target as HTMLImageElement
               target.style.display = 'none'
-              target.nextElementSibling?.classList.remove('hidden')
+              const fallback = target.nextElementSibling as HTMLElement | null
+              if (fallback) fallback.style.display = 'flex'
             }}
           />
         ) : null}
-        <div className={`absolute inset-0 flex items-center justify-center ${item.image ? 'hidden' : ''}`}>
-          <ImageIcon className={`h-8 w-8 ${isOutOfStock ? 'text-red-300' : 'text-muted-foreground/30'}`} />
+        {/* Fallback: colored circle with first letter of item name */}
+        <div
+          className="absolute inset-0 flex items-center justify-center"
+          style={{ display: item.image ? 'none' : 'flex', background: `linear-gradient(135deg, ${stringToColor(item.name)}, ${stringToColor(item.name + 'x')})` }}
+        >
+          <span className="text-3xl font-bold text-white/90 drop-shadow-lg">
+            {item.name.charAt(0).toUpperCase()}
+          </span>
         </div>
       </div>
       {/* Info */}
