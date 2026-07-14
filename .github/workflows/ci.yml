@@ -23,6 +23,10 @@ jobs:
     name: Lint & Typecheck
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      # prisma validate/generate zahtevajo, da je DATABASE_URL prisoten
+      # (vrednost je dummy — validate preverja samo format schem-e, ne povezavo)
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci?schema=public"
     steps:
       - uses: actions/checkout@v4
 
@@ -52,13 +56,33 @@ jobs:
         run: bunx tsc --noEmit
 
   # ───────────────────────────────────────────
-  # Job 2: Production build
+  # Job 2: Production build (z realno PostgreSQL bazo)
   # ───────────────────────────────────────────
   build:
     name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: quality
+    env:
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci?schema=public"
+      NEXTAUTH_SECRET: "ci-test-secret-do-not-use-in-prod"
+      FURS_ENV: "test"
+      FURS_ALLOW_SIMULATION: "true"
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        # Healthcheck — počakaj, da je Postgres pripravljen
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -78,16 +102,11 @@ jobs:
       - name: Generate Prisma client
         run: bunx prisma generate
 
-      - name: Push schema to ephemeral SQLite
+      - name: Push schema to PostgreSQL
         run: bunx prisma db push --skip-generate
 
       - name: Build Next.js
         run: bun run build
-        env:
-          DATABASE_URL: "file:./db/ci-test.db"
-          NEXTAUTH_SECRET: "ci-test-secret-do-not-use-in-prod"
-          FURS_ENV: "test"
-          FURS_ALLOW_SIMULATION: "true"
 
   # ───────────────────────────────────────────
   # Job 3: Security audit (dependency + secret scan)
