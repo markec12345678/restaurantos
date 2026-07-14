@@ -22,7 +22,7 @@ const mockDb = {
   $disconnect: vi.fn(),
 }
 
-// Avtomatsko mock-iraj @/lib/db (Prisma client)
+// Avtomatsko mock-iraj @/lib/db (Prisma client + helpers)
 vi.mock('@/lib/db', () => ({
   db: new Proxy(mockDb, {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -44,6 +44,9 @@ vi.mock('@/lib/db', () => ({
       }
     },
   }),
+  // Mock tudi ostale export-e iz @/lib/db (ki jih aplikacija uporablja)
+  enableWalMode: vi.fn().mockResolvedValue(undefined),
+  createAuditLog: vi.fn().mockResolvedValue(undefined),
 }))
 
 // ── Mock next/headers (cookies, headers) ─────────
