@@ -1,0 +1,140 @@
+# ============================================
+# RestaurantOS — Continuous Integration
+# Zažene se ob vsakem pushu in pull requestu
+# ============================================
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+# Prekliče tekoče build-e, ko nov commit prispe na isti PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ───────────────────────────────────────────
+  # Job 1: Lint + Typecheck + Prisma validate
+  # ───────────────────────────────────────────
+  quality:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # prisma validate/generate zahtevajo, da je DATABASE_URL prisoten
+      # (vrednost je dummy — validate preverja samo format schem-e, ne povezavo)
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci?schema=public"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Validate Prisma schema
+        run: bunx prisma validate --schema prisma/schema.prisma
+
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
+      - name: ESLint
+        run: bun run lint
+
+      - name: TypeScript typecheck (no emit)
+        run: bunx tsc --noEmit
+
+  # ───────────────────────────────────────────
+  # Job 2: Production build (z realno PostgreSQL bazo)
+  # ───────────────────────────────────────────
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: quality
+    env:
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci?schema=public"
+      NEXTAUTH_SECRET: "ci-test-secret-do-not-use-in-prod"
+      FURS_ENV: "test"
+      FURS_ALLOW_SIMULATION: "true"
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        # Healthcheck — počakaj, da je Postgres pripravljen
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
+      - name: Push schema to PostgreSQL
+        run: bunx prisma db push --skip-generate
+
+      - name: Build Next.js
+        run: bun run build
+
+  # ───────────────────────────────────────────
+  # Job 3: Security audit (dependency + secret scan)
+  # ───────────────────────────────────────────
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Potrebno za gitleaks (pregled zgodovine)
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run bun audit (dependency vulnerabilities)
+        run: bun audit --severity moderate || true
+        continue-on-error: true
+
+      - name: Check for committed secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: true
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
