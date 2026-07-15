@@ -25,14 +25,13 @@ describe('parseJsonBody', () => {
       expect(result.data).toEqual({ name: 'Test', value: 42 })
     })
 
-    it('uspešno pars-a JSON array', async () => {
+    it('uspešno pars-a JSON array (FIX PR #7: ohrani array, ne pretvori v objekt)', async () => {
       const req = makeRequest([1, 2, 3, 'test'])
       const result = await parseJsonBody(req)
       expect(result.error).toBeNull()
-      // Opomba: sanitizeObject lahko spremeni array v objekt s številskimi ključi
-      // Preverimo le, da so vrednosti ohranjene
-      const data = result.data as Record<string, unknown>
-      expect(Object.values(data)).toEqual([1, 2, 3, 'test'])
+      // Po FIX-u PR #7: array-i morajo ostati array-i (prej so se pretvorili v {"0":1,...})
+      expect(Array.isArray(result.data)).toBe(true)
+      expect(result.data).toEqual([1, 2, 3, 'test'])
     })
 
     it('uspešno pars-a gnezdene objekte', async () => {
@@ -162,19 +161,18 @@ describe('parseJsonBody', () => {
       expect(data.level1.level2.dangerous).not.toContain('onerror')
     })
 
-    it('sanatizira v array elementih', async () => {
+    it('sanatizira v array elementih (FIX PR #7: array ostane array)', async () => {
       const req = makeRequest({
         items: ['<b>safe</b>', '<script>evil()</script>', 'plain text'],
       })
       const result = await parseJsonBody(req)
       expect(result.error).toBeNull()
-      // sanitizeObject lahko spremeni array v objekt s številskimi ključi
-      const data = result.data as { items: Record<string, string> }
-      const serialized = JSON.stringify(data.items)
-      // Script tag naj bo sanatiziran povsod
-      expect(serialized).not.toContain('<script>')
-      // Navadne besede ohranjene
-      expect(serialized).toContain('plain text')
+      // Po FIX-u PR #7: items mora biti array, ne objekt s številskimi ključi
+      const data = result.data as { items: string[] }
+      expect(Array.isArray(data.items)).toBe(true)
+      expect(data.items[0]).toBe('safe') // <b> odstranjen
+      expect(data.items[1]).not.toContain('<script>')
+      expect(data.items[2]).toBe('plain text')
     })
   })
 

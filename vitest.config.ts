@@ -33,11 +33,12 @@ export default defineConfig({
         'src/**/index.ts',
       ],
       thresholds: {
-        // Začetne meje — dvigni, ko bo več testov
-        statements: 40,
-        branches: 30,
-        functions: 35,
-        lines: 40,
+        // Dvignjeno v PR #7 (prej 40/30/35/40, sedaj 55/45/50/55)
+        // Cilj: po PR #8+ dvigni na 70/60/65/70
+        statements: 55,
+        branches: 45,
+        functions: 50,
+        lines: 55,
       },
     },
 

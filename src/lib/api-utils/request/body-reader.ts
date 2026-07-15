@@ -4,7 +4,7 @@
 // ============================================
 
 import { NextResponse } from 'next/server'
-import { sanitizeObject } from '../../sanitize'
+import { sanitizeValue } from '../../sanitize'
 import { logger } from '../../logger'
 
 /** Privzeta maksimalna velikost JSON body-ja (1 MB) */
@@ -105,8 +105,10 @@ export async function readAndParseBody(
   }
 
   // 4. Sanatiziraj stringe (XSS preprečevanje)
+  // FIX (PR #7): Uporabimo sanitizeValue, ki pravilno ohrani array-e
+  // na vrhnjem nivoju (prej je sanitizeObject pretvoril [1,2,3] v {"0":1,"1":2,"2":3})
   if (shouldSanitize && typeof body === 'object' && body !== null) {
-    body = sanitizeObject(body as Record<string, unknown>)
+    body = sanitizeValue(body)
   }
 
   return { data: body, error: null }
