@@ -6,7 +6,7 @@
 
 import { NextResponse } from 'next/server'
 import { ZodSchema } from 'zod'
-import { sanitizeObject } from '../sanitize'
+import { sanitizeValue } from '../sanitize'
 import { logger } from '../logger'
 
 /**
@@ -61,9 +61,10 @@ export function validateBody<T>(
   const shouldSanitize = options?.sanitize ?? true
 
   // Sanatiziraj stringe
+  // FIX (PR #7): sanitizeValue ohrani array-e na vrhnjem nivoju
   let processedBody = body
   if (shouldSanitize && typeof body === 'object' && body !== null) {
-    processedBody = sanitizeObject(body as Record<string, unknown>)
+    processedBody = sanitizeValue(body)
   }
 
   const parsed = schema.safeParse(processedBody)

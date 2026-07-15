@@ -4,7 +4,7 @@
 
 import { z } from 'zod'
 import { NextResponse } from 'next/server'
-import { sanitizeObject } from '../sanitize'
+import { sanitizeValue } from '../sanitize'
 
 // ============================================
 // HELPER: Varno parsnje z Zod
@@ -15,9 +15,10 @@ export function validateBody<T>(
   body: unknown
 ): { data: T; error: NextResponse | null } {
   // Sanatiziraj string vrednosti pred validacijo (XSS preprečevanje)
+  // FIX (PR #7): sanitizeValue ohrani array-e na vrhnjem nivoju
   let processedBody = body
   if (typeof body === 'object' && body !== null) {
-    processedBody = sanitizeObject(body as Record<string, unknown>)
+    processedBody = sanitizeValue(body)
   }
 
   const result = schema.safeParse(processedBody)

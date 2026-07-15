@@ -29,9 +29,36 @@ export function sanitizeString(input: string): string {
 }
 
 /**
+ * Sanitizira poljubno vrednost — string, array, ali objekt.
+ * Rekurzivno preišče strukturo in sanitizira vse string vrednosti.
+ * Številke, booleani in null/undefined ostanejo nespremenjeni.
+ *
+ * FIX (PR #7): Prej je sanitizeObject sprejel samo Record<string, unknown>,
+ * kar je pomenilo, da so se VRHNI array-i (npr. JSON body `[1,2,3]`)
+ * pretvorili v objekte s številskimi ključi ({"0":1,"1":2,"2":3}).
+ * Sedaj sanitizeValue pravilno ohrani array-e na kateremkoli nivoju.
+ */
+export function sanitizeValue<T>(value: T): T {
+  if (typeof value === 'string') {
+    return sanitizeString(value) as unknown as T
+  }
+  if (Array.isArray(value)) {
+    return value.map(item => sanitizeValue(item)) as unknown as T
+  }
+  if (typeof value === 'object' && value !== null) {
+    return sanitizeObject(value as Record<string, unknown>) as unknown as T
+  }
+  // number, boolean, null, undefined, function, symbol — nespremenjeno
+  return value
+}
+
+/**
  * Sanitizira objekt z besedilnimi polji.
  * Rekurzivno preišče objekt in sanitizira vse string vrednosti.
  * Številke, booleani in null/undefined ostanejo nespremenjeni.
+ *
+ * OPOMBA: Za sanitizacijo poljubne vrednosti (vključno z array-i
+ * na vrhnjem nivoju) uporabite `sanitizeValue`.
  */
 export function sanitizeObject<T extends Record<string, unknown>>(obj: T): T {
   const result: Record<string, unknown> = {}
