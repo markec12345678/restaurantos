@@ -1,0 +1,74 @@
+---
+name: ✨ Feature Request
+about: Predlagaj novo funkcionalnost
+title: "[FEATURE] "
+labels: ["enhancement", "triage"]
+assignees:
+  - markec12345678
+---
+
+## ✨ Predlagana funkcionalnost
+
+<!-- Kratek opis, kaj bi rad dodal/spremenil -->
+
+## 🎯 Problem, ki ga rešuje
+
+<!-- Zakaj je to potrebno? Kateri use-case pokriva? -->
+
+## 💡 Predlagana rešitev
+
+<!-- Kako bi to lahko implementirali? Kske konkretnosti -->
+
+## 🔄 Alternativne rešitve
+
+<!-- Katere druge možnosti smo premislili? Zakaj so slabše? -->
+
+## 📊 Vpliv na obstoječe module
+
+Označi z `x` kar velja:
+
+- [ ] FURS davčno potrjevanje
+- [ ] Avtentikacija / avtorizacija
+- [ ] Plačila in računi
+- [ ] Zaloge in inventar
+- [ ] Kuhinjski prikaz (KDS)
+- [ ] AI funkcionalnosti
+- [ ] Dostava (Glovo/Wolt/Bolt)
+- [ ] Analitika in poročila
+- [ ] Multi-lokacija
+- [ ] Offline-first (Service Worker)
+- [ ] Ni vpliva — nova samostojna funkcionalnost
+
+## 🎯 Ciljni uporabniki
+
+- [ ] Natakarji
+- [ ] Kuhinja
+- [ ] Managerji
+- [ ] Lastniki restavracije
+- [ ] Gostje (QR menu, online order)
+- [ ] Računovodje
+- [ ] Drugo: <!-- specifikacija -->
+
+## 📋 Predloga za implementacijo
+
+<!-- Če imaš predlog za strukturo kode, Prisma model, API endpoint... -->
+
+```prisma
+// Predlog za nov Prisma model (če relevantno)
+```
+
+## 📚 Referenčne implementacije
+
+<!-- Ali obstaja podobna funkcionalnost v drugih POS sistemih (Toast, Square, Lightspeed...)? -->
+
+## 📅 Prioriteta
+
+- [ ] 🔴 Kritično — blokira produkcijo
+- [ ] 🟡 Visoko — pomembno za naslednji release
+- [ ] 🟢 Nizko — imamo čas
+
+## ✅ Checklist pred oddajo
+
+- [ ] Iskal sem po obstoječih issue-jih in ni duplikata
+- [ ] Opis je jasen in specifičen
+- [ ] Navedel sem konkretne use-case

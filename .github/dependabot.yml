@@ -1,0 +1,113 @@
+# ============================================
+# RestaurantOS — Dependabot Configuration
+# Avtomatski security update-i za dependencies
+# ============================================
+# Dokumentacija: https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+
+updates:
+  # ── npm/bun dependencies ──────────────────────
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Ljubljana"
+    open-pull-requests-limit: 10
+    # Group-iraj minor/patch update-e v en PR (zmanjša število PR-jev)
+    groups:
+      # Production dependencies (pOMEMBNO: testiraj pred merge)
+      production:
+        update-types:
+          - minor
+          - patch
+        patterns:
+          - "next"
+          - "react"
+          - "react-dom"
+          - "@prisma/client"
+          - "prisma"
+          - "@tanstack/react-query"
+          - "@tanstack/react-table"
+          - "zod"
+          - "zustand"
+      # Radix UI komponente (skupaj, ker so kompatibilne)
+      radix-ui:
+        patterns:
+          - "@radix-ui/*"
+      # Development dependencies (manj tvegano)
+      dev-dependencies:
+        dependency-type: "development"
+        update-types:
+          - minor
+          - patch
+    # IGNORIRAJ major update-e za kritične pakete (ročno pregledovanje)
+    ignore:
+      # Next.js major verzije zahtevajo ročno migracijo
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+      # React major verzije (19 → 20+) zahtevajo ročno testiranje
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      # Prisma major verzije zahtevajo schema migration
+      - dependency-name: "prisma"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@prisma/client"
+        update-types: ["version-update:semver-major"]
+    # Commit message konvencija (Conventional Commits)
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    # Label-i za PR-je
+    labels:
+      - "dependencies"
+      - "automated"
+    # Reviewers (kode owners)
+    reviewers:
+      - "markec12345678"
+    # Assignees
+    assignees:
+      - "markec12345678"
+    # Branch prefix
+    pull-request-branch-name:
+      separator: "/"
+
+  # ── GitHub Actions versions ──────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Ljubljana"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - "dependencies"
+      - "ci"
+      - "automated"
+    reviewers:
+      - "markec12345678"
+
+  # ── Docker base image ────────────────────────
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Ljubljana"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(docker)"
+    labels:
+      - "dependencies"
+      - "docker"
+      - "automated"
+    reviewers:
+      - "markec12345678"
