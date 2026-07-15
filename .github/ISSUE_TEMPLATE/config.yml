@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Splošno vprašanje (Discussions)
+    url: https://github.com/markec12345678/restaurantos/discussions
+    about: Za splošna vprašanja, ideje in pomoč pri uporabi. Ne poročaj bug-ov tukaj.
+  - name: 🔒 Kritična varnostna ranljivost
+    url: https://github.com/markec12345678/restaurantos/blob/main/SECURITY.md
+    about: Za kritične ranljivosti NE odpri issue-ja — sledi postopku v SECURITY.md (zasebno e-mail poročilo).
+  - name: 📖 Dokumentacija
+    url: https://github.com/markec12345678/restaurantos#readme
+    about: Preberi README, AUDIT.md in DEPLOYMENT-GUIDE.md preden odpreš issue.
