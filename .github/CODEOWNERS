@@ -1,0 +1,42 @@
+# RestaurantOS — CODEOWNERS
+# Vsaka sprememba v teh datotekah zahteva review od navedenih lastnikov.
+# Format: <path>  @username1 @username2
+# Sintaksa: https://docs.github.com/en/repositories/managing-your-repositories-settings-and-features/customizing-your-repository/about-code-owners
+
+# ── Lastnik repozitorija (vse spremembe) ──────────
+*                           @markec12345678
+
+# ── FURS / davčno potrjevanje ─────────────────────
+# Kritično za ZDDV-1 skladnost — vsaka sprememba mora biti skrbno pregledana
+/src/lib/furs/              @markec12345678
+/src/app/api/furs/          @markec12345678
+/src/lib/offline-furs/      @markec12345678
+
+# ── Avtentikacija & varnost ────────────────────────
+/src/lib/auth-middleware/   @markec12345678
+/src/app/api/auth/          @markec12345678
+/src/lib/middleware/        @markec12345678
+/src/lib/webhook-engine/    @markec12345678
+
+# ── Audit log (PCI DSS + FURS skladnost) ──────────
+# Hash veriga je kritična za integriteto revizijskega dnevnika
+/src/lib/db.ts              @markec12345678
+/src/app/api/audit/         @markec12345678
+
+# ── Plačila ───────────────────────────────────────
+# Kritično za pravilno knjiženje in davčno poročanje
+/src/app/api/payments/      @markec12345678
+/src/app/api/receipts/      @markec12345678
+/src/app/api/cash-register/ @markec12345678
+
+# ── CI/CD konfiguracija ───────────────────────────
+/.github/                   @markec12345678
+/Dockerfile                 @markec12345678
+/Caddyfile                  @markec12345678
+/ecosystem.config.js        @markec12345678
+
+# ── Baza (Prisma schema) ──────────────────────────
+/prisma/                    @markec12345678
+
+# ── Testi ─────────────────────────────────────────
+/tests/                     @markec12345678
