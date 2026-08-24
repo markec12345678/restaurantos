@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
+import { checkRateLimit, getClientIp, AI_ASSISTANT_LIMIT } from '@/lib/rate-limit'
 import { db } from '@/lib/db'
 import { z } from 'zod'
 
@@ -18,6 +19,15 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
   try {
+    // FIX SECURITY: dodaj specifičen rate limit (AI calls so dragi — Gemini API stane)
+    const rl = checkRateLimit('ai-voice-order', getClientIp(req), AI_ASSISTANT_LIMIT)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Preveč zahtevkov — počakajte minutko' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } }
+      )
+    }
+
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 

@@ -5,6 +5,14 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
+// FIX SECURITY: maskiraj webhook secret v odgovorih (enak pattern kot /api/webhooks GET)
+function maskWebhookSecret<T extends { secret?: string }>(webhook: T): T {
+  if (webhook && typeof webhook.secret === 'string' && webhook.secret) {
+    return { ...webhook, secret: '****' }
+  }
+  return webhook
+}
+
 // FIX HIGH: Zod validacija za posodobitev webhooka — prepreči injection
 const updateWebhookSchema = z.object({
   name: z.string().min(1, 'Ime je obvezno').max(200, 'Ime ne sme preseči 200 znakov').optional(),
@@ -50,7 +58,8 @@ export async function PUT(
       data: updateData,
     })
 
-    return NextResponse.json(deepToNumbers(webhook))
+    // FIX SECURITY: maskiraj secret v odgovoru
+    return NextResponse.json(deepToNumbers(maskWebhookSecret(webhook)))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/webhooks/[id]', 'Napaka pri posodobitvi webhooka')
   }

@@ -127,7 +127,9 @@ export async function GET(req: Request) {
       take: 50,
     });
     return NextResponse.json(deepToNumbers(conversations));
-  } catch {
-    return NextResponse.json([]);
+  } catch (error: unknown) {
+    // FIX: prej je ta koda tiho vrnila [] — admin je videl prazen seznam
+    // brez indikacije napake. Sedaj logiraj in vrni 500.
+    return handleApiError(error, 'GET /api/ai-assistant', 'Napaka pri pridobivanju AI pogovorov')
   }
 }

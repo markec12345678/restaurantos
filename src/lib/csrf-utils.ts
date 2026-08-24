@@ -1,6 +1,20 @@
 // ============================================
 // CSRF ZAŠČITA — Pomožne funkcije za preverjanje
 // ============================================
+//
+// NOTE (audit finding): `verifyCsrf()` je definiran spodaj, a nikoli klican
+// v middleware-u ali posameznih API rutah. Aplikacija uporablja Bearer-token
+// avtentikacijo (ne cookie-based), kar pomeni, da klasične CSRF napade
+// izvedljene iz brskalnika napadalec ne more izkoristiti — bearer token
+// ne more biti prisilno poslan iz cross-origin forme.
+//
+// Dve opciji za prihodnost:
+//   1. Če se bo aplikacija kdaj preselila na cookie-based auth — implementirati
+//      `verifyCsrf()` v middleware (src/middleware.ts) za vse POST/PUT/DELETE.
+//   2. Drugače — izbrisati to kodo, da ne ustvarja false sense of security.
+//
+// Zaenkrat pustimo kot dokumentirano mrtvo kodo z jasno oznako.
+// ============================================
 
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
