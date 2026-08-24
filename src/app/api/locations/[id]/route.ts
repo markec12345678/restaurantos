@@ -9,6 +9,14 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { updateLocationSchema } from './_helpers'
 
+// FIX SECURITY: maske za občutljiva polja, ki se ne smejo vračati v odgovoru
+function maskLocationSecrets<T extends { fursCertPassword?: string }>(location: T): T {
+  if (location && typeof location.fursCertPassword === 'string' && location.fursCertPassword) {
+    return { ...location, fursCertPassword: '****' }
+  }
+  return location
+}
+
 
 // ============================================
 // GET /api/locations/[id] — Podrobnosti lokacije
@@ -64,8 +72,9 @@ export async function GET(
       _count: true,
     })
 
+    // FIX SECURITY: maskiraj fursCertPassword pred vračanjem klientu
     return NextResponse.json({
-      ...location,
+      ...maskLocationSecrets(location),
       todayStats: {
         totalSales: todayStats._sum.total || 0,
         totalTips: todayStats._sum.tip || 0,
@@ -112,7 +121,8 @@ export async function PUT(
       data,
     })
 
-    return NextResponse.json(deepToNumbers(location))
+    // FIX SECURITY: maskiraj fursCertPassword v odgovoru
+    return NextResponse.json(deepToNumbers(maskLocationSecrets(location)))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/locations/[id]', 'Napaka pri posodobitvi lokacije')
   }
