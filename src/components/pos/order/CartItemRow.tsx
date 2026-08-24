@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import Image from 'next/image'
 import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -33,8 +34,8 @@ export const CartItemRow = memo(function CartItemRow({
     >
       {/* Thumbnail */}
       {item.image ? (
-        <div className="w-10 h-10 rounded-md overflow-hidden flex-shrink-0">
-          <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+        <div className="w-10 h-10 rounded-md overflow-hidden flex-shrink-0 relative">
+          <Image src={item.image} alt={item.name} fill sizes="40px" className="object-cover" />
         </div>
       ) : (
         <div className="w-10 h-10 rounded-md bg-muted flex-shrink-0 flex items-center justify-center">

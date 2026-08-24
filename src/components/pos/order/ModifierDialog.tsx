@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import Image from 'next/image'
 import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -39,8 +40,8 @@ export const ModifierDialog = memo(function ModifierDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             {modifierDialogItem?.image && (
-              <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0">
-                <img src={modifierDialogItem.image} alt={modifierDialogItem.name} className="w-full h-full object-cover" />
+              <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 relative">
+                <Image src={modifierDialogItem.image} alt={modifierDialogItem.name} fill sizes="40px" className="object-cover" />
               </div>
             )}
             <div>
