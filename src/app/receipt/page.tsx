@@ -52,7 +52,8 @@ const ReceiptActions = dynamic(
 function ReceiptContent() {
   const searchParams = useSearchParams()
   const receiptId = searchParams.get('id')
-  const { receipt, loading, error, copied, copyZOI } = useReceipt(receiptId)
+  const token = searchParams.get('t')
+  const { receipt, loading, error, copied, copyZOI } = useReceipt(receiptId, token)
 
   if (loading) {
     return <ReceiptLoadingState />

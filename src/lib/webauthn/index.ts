@@ -37,23 +37,24 @@ export function base64urlDecode(str: string): Uint8Array {
 
 /**
  * Verificiraj WebAuthn assertion (login)
- * V produkciji: uporabi @simplewebauthn/server za polno validacijo
+ *
+ * ⚠️ SECURITY WARNING: Ta funkcija NE preverja kriptografskega podpisa!
+ * Trenutno samo preverja, da `clientData.challenge` ustreza pričakovanemu challenge-u,
+ * kar napadalec lahko trivialno ponaredi (pove, da pozna employeeId → dobi session).
+ *
+ * Za pravo WebAuthn/FIDO2 integracijo uporabi `@simplewebauthn/server`:
+ *   import { verifyAuthenticationResponse } from '@simplewebauthn/server'
+ *
+ * Dokler ni integriran, route `/api/auth/webauthn` vrača 503 (glej route.ts).
  */
-export function verifyAssertion(assertion: {
+export function verifyAssertion(_assertion: {
   credentialId: string
   authenticatorData: string
   clientDataJSON: string
   signature: string
-}, expectedChallenge: string): boolean {
-  // Osnovna validacija — v produkciji dodati cryptographic signature verification
-  if (!assertion.credentialId || !assertion.signature) return false
-  // Preveri da clientDataJSON vsebuje expectedChallenge
-  try {
-    const clientData = JSON.parse(
-      new TextDecoder().decode(base64urlDecode(assertion.clientDataJSON))
-    )
-    return clientData.challenge === expectedChallenge
-  } catch {
-    return false
-  }
+}, _expectedChallenge: string): boolean {
+  // NEVARNO: vrni false, dokler ni implementirano pravo preverjanje podpisa.
+  // Route `/api/auth/webauthn` je sicer onemogočen, a če ga kdowo omogoči z
+  // WEBAUTHN_ENABLED=true, ta funkcija še vedno zavrne vse assertion-e.
+  return false
 }

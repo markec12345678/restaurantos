@@ -1,13 +1,13 @@
 
-// GET /api/digital-receipt?id=xxx — Javno dostopen digitalni račun za goste
+// GET /api/digital-receipt?id=xxx&t=yyy — Javno dostopen digitalni račun za goste
 // Brez avtentikacije — gost dostopa preko QR kode ali linka
-// FIX CRITICAL: Rate limiting za preprečitev enumeracije računov
+// SECURITY: Token `t` je obvezen — preprečuje enumeracijo računov po ID-ju
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { checkRateLimit, getClientIp, GENERAL_PUBLIC_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
-import { generateReceiptToken, buildDigitalReceiptResponse } from './_helpers'
+import { verifyReceiptToken, buildDigitalReceiptResponse } from './_helpers'
 
 
 export const dynamic = 'force-dynamic'
@@ -37,12 +37,26 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Račun ni najden' }, { status: 404 })
     }
 
-    // SECURITY: Preveri HMAC žeton za preprečitev enumeracije računov
-    if (token) {
-      const expectedToken = generateReceiptToken(receiptId)
-      if (token !== expectedToken) {
-        return NextResponse.json({ error: 'Račun ni najden' }, { status: 404 })
-      }
+    // SECURITY: Token je obvezen — brez njega ne izdamo računa
+    // Prejšnja koda je preverila token samo, če je bil poslan — kar pomeni, da
+    // je vsak, ki je poznal CUID, lahko prebral polne fiskalne podatke kateregakoli računa.
+    if (!token) {
+      return NextResponse.json({ error: 'Manjka dostopni žeton' }, { status: 401 })
+    }
+
+    // SECURITY: Constant-time primerjava tokena (prepreči timing napade)
+    let tokenValid = false
+    try {
+      tokenValid = verifyReceiptToken(receiptId, token)
+    } catch {
+      // Secret manjka — vrni 500 z jasnim navodilom
+      return NextResponse.json(
+        { error: 'Strežnik ni pravilno konfiguriran za izdajo digitalnih računov. Kontaktirajte podporo.' },
+        { status: 500 }
+      )
+    }
+    if (!tokenValid) {
+      return NextResponse.json({ error: 'Račun ni najden' }, { status: 404 })
     }
 
     // Poišči račun po ID-ju

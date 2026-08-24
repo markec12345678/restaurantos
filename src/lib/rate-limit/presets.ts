@@ -127,3 +127,9 @@ export const KIOSK_LIMIT: RateLimitConfig = {
   maxRequests: 10,
   windowMs: 60 * 60 * 1000, // 1 ura
 }
+
+/** IoT senzor readings — 60 na minuto na IP (tipično 1 reading / 5 min per senzor) */
+export const IOT_LIMIT: RateLimitConfig = {
+  maxRequests: 60,
+  windowMs: 60 * 1000,
+}

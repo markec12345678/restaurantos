@@ -2,9 +2,9 @@
 // Za Bluetooth LoRa senzorje (SmartSense, Ruuvi) integracijo z HACCP
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
+import { createHaccpEntryWithChain } from '@/lib/haccp-chain'
 import { z } from 'zod'
 
 
@@ -45,23 +45,16 @@ export async function POST(req: Request) {
     const { data, error } = validateBody(sensorSchema, bodyResult.data)
     if (error) return error
     // Shrani kot HaccpEntry (IoT senzor → HACCP dnevnik)
-    const crypto = await import('crypto')
-    const lastEntry = await db.haccpEntry.findFirst({ orderBy: { createdAt: 'desc' }, select: { chainHash: true } })
-    const previousHash = lastEntry?.chainHash || ''
+    // FIX CRITICAL (race): uporabi transakcijsko varno createHaccpEntryWithChain
     const value = `${data.minThreshold}-${data.maxThreshold}°C`
-    const hashPayload = [previousHash, data.name, value, 'ok', new Date().toISOString()].join('|')
-    const chainHash = crypto.createHash('sha256').update(hashPayload).digest('hex')
-    const entry = await db.haccpEntry.create({
-      data: {
-        category: 'temperature',
-        title: `IoT senzor: ${data.name}`,
-        description: `Senzor ${data.sensorId} na lokaciji ${data.location}`,
-        value,
-        status: 'ok',
-        employeeName: 'IoT Auto',
-        previousHash,
-        chainHash,
-      },
+    const entry = await createHaccpEntryWithChain({
+      date: new Date(),
+      category: 'temperature',
+      title: `IoT senzor: ${data.name}`,
+      description: `Senzor ${data.sensorId} na lokaciji ${data.location}`,
+      value,
+      status: 'ok',
+      employeeName: 'IoT Auto',
     })
     return NextResponse.json(entry, { status: 201 })
   } catch (error: unknown) {

@@ -17,8 +17,10 @@ import { toSlovenianDate } from '../helpers'
  * 2. Podpiši z RSA-SHA256 (uporabi privatni ključ iz certifikata)
  * 3. ZOI = Base64(prvih 16 bajtov SHA256 hasha podpisa)
  *
- * Če certifikat ni na voljo, uporabi deterministični SHA256 hash
- * (za testno/nameščevalno fazo — v produkciji MORA biti pravi podpis)
+ * SECURITY: Če certifikat (privateKey) ni na voljo:
+ *   - V production okolju: VRŽI NAPAKO (prejšnja koda je tiho padla na
+ *     nekompatibilen SHA-256 fallback — kršitev ZDDV-1).
+ *   - V test okolju: uporabi deterministični SHA-256 hash (za dev/test).
  */
 export function generateZOI(
   data: {
@@ -54,7 +56,21 @@ export function generateZOI(
     totalStr,
   ].join('|')
 
-  if (privateKey) {
+  // FIX CRITICAL: Če privateKey manjka v production okolju, VRŽI NAPAKO.
+  // Prejšnja koda je tiho padla na SHA-256 fallback tudi v produkciji —
+  // kar pomeni, da so se lahko izdali "fiskalni" računi, ki niso bili
+  // skladni z ZDDV-1 (RSA-SHA256 podpis je obvezen).
+  if (!privateKey) {
+    if (env === 'production') {
+      throw new Error(
+        'FURS ZOI: privatni ključ manjka v production okolju. ' +
+        'Naloži certifikat (FURS_CERT_PATH / FURS_CERT_PASSWORD) pred izdajo računov. ' +
+        'Če želiš dovoliti testni fallback, nastavi FURS_ENVIRONMENT=test.'
+      )
+    }
+    // Test okolje: uporabi SHA-256 fallback (ni skladno s FURS, a dovoljeno za dev)
+    logger.warn('FURS', 'ZOI generiran z SHA-256 fallback (test okolje, brez certifikata) — NI za produkcijo!')
+  } else {
     // Korak 3a: Pravi RSA-SHA256 podpis (produkcija)
     try {
       const signer = crypto.createSign('RSA-SHA256')
@@ -66,20 +82,17 @@ export function generateZOI(
       const zoiBytes = signatureHash.subarray(0, 16)
       return zoiBytes.toString('base64')
     } catch (err: unknown) {
-      // FIX F1 CRITICAL: Prejšnja koda je referencirala `environment` ki NI bil v sklopu —
-      // v produkciji bi tiho padlo na SHA256 fallback namesto vrglo napako (ZDDV-1 kršitev)
-      logger.warn('FURS', 'Napaka pri RSA podpisovanju, uporabljam fallback:', err)
-      // V testnem okolju dovoli fallback, v produkciji vrni napako
+      // FIX F1 CRITICAL: V produkciji vrni napako namesto tihi SHA-256 fallback
+      logger.warn('FURS', 'Napaka pri RSA podpisovanju:', err)
       if (env === 'production') {
         throw new Error(`FURS RSA podpisovanje ni uspelo v produkciji: ${err instanceof Error ? err.message : String(err)}`)
       }
-      // Fallback na SHA256 brez podpisa (samo za testno fazo)
+      // V testnem okolju dovoli fallback na SHA-256
     }
   }
 
-  // Korak 3b: Fallback — SHA256 hash (za testno fazo)
+  // Korak 3b: Fallback — SHA256 hash (SAMO za testno fazo, ko env != 'production')
   // Opomba: To NI skladno s FURS specifikacijo za produkcijo!
-  // V produkciji MORA biti uporabljen pravi RSA-SHA256 podpis
   const hash = crypto.createHash('sha256').update(concatenatedData, 'utf8').digest()
   const zoiBytes = hash.subarray(0, 16)
   return zoiBytes.toString('base64')

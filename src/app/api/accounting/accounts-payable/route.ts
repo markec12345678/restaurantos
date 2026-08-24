@@ -4,6 +4,7 @@ import { deepToNumbers, toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
 
@@ -76,8 +77,22 @@ export async function POST(req: Request) {
     if (validationError) return validationError
 
     const year = new Date().getFullYear()
-    const count = await db.accountsPayable.count({ where: { apNumber: { startsWith: `AP-${year}-` } } })
-    const apNumber = `AP-${year}-${String(count + 1).padStart(6, '0')}`
+    // FIX CRITICAL (race): Atomsko generiraj apNumber z db.counter.upsert.
+    // Prejšnja koda `count + 1` je bila neatomska — dve sočasni POST bi dobili
+    // enako številko (unique constraint violation → 500).
+    const counterName = `apNumber-${year}`
+    let apNumber: string
+    try {
+      const counter = await db.counter.upsert({
+        where: { name: counterName },
+        update: { value: { increment: 1 } },
+        create: { name: counterName, value: 1 },
+      })
+      apNumber = `AP-${year}-${String(counter.value).padStart(6, '0')}`
+    } catch (counterErr: unknown) {
+      logger.error('API', '[AP] Counter upsert failed:', counterErr)
+      return NextResponse.json({ error: 'Napaka pri generiranju številke obveznosti. Poskusite znova.' }, { status: 503 })
+    }
 
     const ap = await db.accountsPayable.create({
       data: {
