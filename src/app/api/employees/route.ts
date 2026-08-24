@@ -127,8 +127,9 @@ export async function POST(req: Request) {
         },
       })
     }
-    // Vrni brez PIN-a
-    return NextResponse.json({ ...employee, pin: hashedPin ? '****' : '' }, { status: 201 })
+    // FIX SECURITY: izloči pinLookup iz odgovora (enako kot GET in PUT)
+    const { pinLookup: _pl, ...safeEmployee } = employee
+    return NextResponse.json({ ...safeEmployee, pin: hashedPin ? '****' : '' }, { status: 201 })
   } catch (error: unknown) {
     if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === 'P2002') {
       return NextResponse.json(

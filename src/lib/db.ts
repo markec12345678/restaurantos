@@ -118,3 +118,58 @@ export async function createAuditLog(entry: AuditLogEntry): Promise<void> {
     logger.error('DB', 'Napaka pri pisanju revizijskega dnevnika:', error)
   }
 }
+
+/**
+ * Ustvari VEČ revizijskih vnosov v eni transakciji — za batch operacije.
+ *
+ * FIX PERFORMANCE: prejšnja koda je v notifications PUT (send-batch) klicala
+ * createAuditLog v zanki — vsak klic je ločena transakcija z read+write.
+ * Za N=100 obvestil = 100 transakcij = 200 round-tripov v DB.
+ *
+ * Sedaj vsi vnosi v eni transakciji z verižnim hashanjem
+ * (vsak vnos referencira chainHash prejšnjega v istem batch-u).
+ */
+export async function createAuditLogsBatch(entries: AuditLogEntry[]): Promise<void> {
+  if (entries.length === 0) return
+  try {
+    await db.$transaction(async (tx) => {
+      // Pridobi zadnji vnos za hash verigo ZNOTRAJ transakcije
+      let lastHash = ''
+      const lastLog = await tx.auditLog.findFirst({
+        orderBy: { timestamp: 'desc' },
+        select: { chainHash: true },
+      })
+      if (lastLog?.chainHash) lastHash = lastLog.chainHash
+
+      for (const entry of entries) {
+        const detailsStr = JSON.stringify(entry.details || {})
+        const hashPayload = [
+          lastHash,
+          entry.action,
+          entry.entityType,
+          entry.entityId || '',
+          entry.userId || '',
+          detailsStr,
+        ].join('|')
+        const chainHash = crypto.createHash('sha256').update(hashPayload).digest('hex')
+
+        await tx.auditLog.create({
+          data: {
+            userId: entry.userId || null,
+            action: entry.action,
+            entityType: entry.entityType,
+            entityId: entry.entityId || null,
+            details: detailsStr,
+            ipAddress: entry.ipAddress || '',
+            terminalId: entry.terminalId || null,
+            previousHash: lastHash,
+            chainHash,
+          },
+        })
+        lastHash = chainHash
+      }
+    })
+  } catch (error: unknown) {
+    logger.error('DB', 'Napaka pri pisanju batch revizijskega dnevnika:', error)
+  }
+}
