@@ -2296,6 +2296,31 @@ model JournalEntry {
   @@index([postedById]) // FIX issue #43: FK index
 }
 
+// ============================================
+// KONTNI NAČRT (Chart of Accounts) — issue #38
+// Slovenski SKM 2006 poenostavljen za restavracije
+// Omogoča validacijo accountCode v JournalLine + hierarhijo
+// ============================================
+
+model ChartOfAccount {
+  id          String   @id @default(cuid())
+  code        String   @unique              // 1010, 2600, 7000, itd.
+  name        String                        // "Blagajna", "DDV izhodni", "Promet — na mestu"
+  accountType String                        // asset, liability, equity, revenue, expense
+  parentId    String?                       // Hierarhija: 7000 → 7000.01 (subkonta)
+  parent      ChartOfAccount?  @relation("AccountHierarchy", fields: [parentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  subAccounts ChartOfAccount[]  @relation("AccountHierarchy")
+  isActive    Boolean  @default(true)
+  description String   @default("")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([accountType])
+  @@index([parentId])
+  @@index([isActive])
+}
+
 model JournalLine {
   id             String        @id @default(cuid())
   journalEntryId String
