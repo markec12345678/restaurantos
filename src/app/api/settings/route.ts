@@ -42,13 +42,17 @@ export async function GET(req: Request) {
       })
     }
 
-    // FIX BUG 11: Ne izpostavi občutljivih podatkov v GET odgovoru
-    const { fursCertPassword, fursCertPath, ...safeSettings } = settings
+    // FIX BUG 11 + FIX SECURITY: Ne izpostavi občutljivih podatkov v GET odgovoru
+    // - fursCertPassword, fursCertPath: FURS certifikat (že maskirano prej)
+    // - emailSmtpPassword: SMTP geslo za pošiljanje email poročil (prej leakano!)
+    const { fursCertPassword, fursCertPath, emailSmtpPassword, ...safeSettings } = settings
     return NextResponse.json({
       ...safeSettings,
       fursCertPassword: fursCertPassword ? '••••••' : '',
       fursCertPath: fursCertPath ? '••••••' : '', // Skrij pot do certifikata
       hasFursCert: !!(fursCertPath && fursCertPassword), // Povej samo ali obstaja
+      emailSmtpPassword: emailSmtpPassword ? '••••••' : '',
+      hasEmailConfig: !!(emailSmtpPassword && settings.emailSmtpUser),
     })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/settings', 'Napaka pri pridobivanju nastavitev')
@@ -125,6 +129,15 @@ export async function PUT(req: Request) {
       } else if (updateData.fursCertPath === '') {
         delete updateData.fursCertPath // Ohrani staro če ni ekspliciten _clear
       }
+      // FIX SECURITY: enak pattern za emailSmtpPassword — ne shrani maskirane vrednosti
+      if (updateData.emailSmtpPassword === '••••••') {
+        delete updateData.emailSmtpPassword
+      }
+      if (updateData.emailSmtpPassword === '' && body._clearSmtpPassword === true) {
+        updateData.emailSmtpPassword = ''
+      } else if (updateData.emailSmtpPassword === '') {
+        delete updateData.emailSmtpPassword // Ohrani staro če ni ekspliciten _clear
+      }
 
       settings = await db.restaurantSettings.update({
         where: { id: settings.id },
@@ -132,9 +145,13 @@ export async function PUT(req: Request) {
       })
     }
 
-    // Ne izpostavi gesla
-    const { fursCertPassword, ...safeSettings } = settings
-    return NextResponse.json({ ...safeSettings, fursCertPassword: fursCertPassword ? '••••••' : '' })
+    // FIX SECURITY: Ne izpostavi gesel v odgovoru (fursCertPassword + emailSmtpPassword)
+    const { fursCertPassword, emailSmtpPassword, ...safeSettings } = settings
+    return NextResponse.json({
+      ...safeSettings,
+      fursCertPassword: fursCertPassword ? '••••••' : '',
+      emailSmtpPassword: emailSmtpPassword ? '••••••' : '',
+    })
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/settings', 'Napaka pri posodabljanju nastavitev')
   }

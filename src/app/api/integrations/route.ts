@@ -87,7 +87,13 @@ export async function POST(req: Request) {
       },
     })
 
-    return NextResponse.json(integration, { status: 201 })
+    // FIX SECURITY: maskiraj apiKey + apiSecret v odgovoru (enako kot GET)
+    // Prejšnja koda je vrnila plain secret ob kreiranju.
+    return NextResponse.json({
+      ...integration,
+      apiKey: integration.apiKey ? '••••••••' : '',
+      apiSecret: integration.apiSecret ? '••••••••' : '',
+    }, { status: 201 })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/integrations', 'Napaka pri ustvarjanju integracije')
   }
