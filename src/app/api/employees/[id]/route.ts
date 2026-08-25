@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { updateEmployeeSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import bcrypt from 'bcryptjs'
+import { invalidateEmployeeStatusCache } from '@/lib/auth-middleware/session-store'
 
 
 export const dynamic = 'force-dynamic'
@@ -65,9 +66,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       data: updateData,
     })
 
+    // FIX SECURITY: invalidiraj status cache če se je status spremenil
+    // (terminiran zaposleni ne sme več dostopati do API-jev)
+    if (data.status !== undefined && data.status !== existing.status) {
+      invalidateEmployeeStatusCache(id)
+    }
+
     // FIX SECURITY: nikoli ne vračaj `pinLookup` (HMAC) klientu — lahko bi ga
     // napadalec uporabil za offline brute-force PIN-a če pozna NEXTAUTH_SECRET.
-    // Prejšnja koda je spread-ala celoten employee object vključno s pinLookup.
     const { pinLookup, ...safeEmployee } = employee
     return NextResponse.json({ ...safeEmployee, pin: safeEmployee.pin ? '****' : '' })
   } catch (error: unknown) {
@@ -101,6 +107,10 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       where: { id },
       data: { status: 'terminated', pin: '', pinLookup: null }, // Onemogoči PIN prijavo (počisti tudi pinLookup)
     })
+
+    // FIX SECURITY: invalidiraj status cache — terminiran zaposleni ne sme
+    // več dostopati do API-jev z obstoječo sejo (ki je še veljavna do 8h).
+    invalidateEmployeeStatusCache(id)
 
     // FIX SECURITY: izloči pinLookup iz odgovora (enako kot PUT)
     const { pinLookup: _pinLookup, ...safeEmployee } = employee
