@@ -4,7 +4,7 @@
 // Toast POS + SevenRooms standard
 // ============================================
 
-import { db, createAuditLog } from '@/lib/db'
+import { db, createAuditLog, createAuditLogsBatch } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
@@ -107,17 +107,24 @@ export async function PUT(req: Request) {
 
     const { notifications } = data
     const results: Array<{ recipient: string; channel: string; success: boolean; providerId: string }> = []
+    const auditEntries: Array<{ action: string; entityType: string; details: Record<string, unknown>; userId?: string }> = []
 
+    // FIX PERFORMANCE: prejšnja koda je klicala createAuditLog v zanki — vsak
+    // klic je ločena transakcija z read+write. Za N=100 obvestil = 100 transakcij.
+    // Sedaj zbiramo vnose in jih zapišemo v eni transakciji z createAuditLogsBatch.
     for (const notif of notifications) {
       const { success, providerId } = simulateSend(notif.channel)
-      await createAuditLog({
+      results.push({ recipient: notif.recipient, channel: notif.channel, success, providerId })
+      auditEntries.push({
         action: success ? 'NOTIFICATION_SENT' : 'NOTIFICATION_FAILED',
         entityType: 'Notification',
-        details: { channel: notif.channel, recipient: notif.recipient, subject: notif.subject || '', providerId, success, batch: true } as Record<string, unknown>,
+        details: { channel: notif.channel, recipient: notif.recipient, subject: notif.subject || '', providerId, success, batch: true },
         userId: authResult.session?.employeeId,
       })
-      results.push({ recipient: notif.recipient, channel: notif.channel, success, providerId })
     }
+
+    // Zapiši vse audit vnose v eni transakciji
+    await createAuditLogsBatch(auditEntries)
 
     return NextResponse.json({ total: results.length, sent: results.filter(r => r.success).length, failed: results.filter(r => !r.success).length, results })
   } catch (error: unknown) {

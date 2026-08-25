@@ -4,6 +4,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { maskWebhookSecret } from '@/lib/secret-masks'
 
 // FIX SECURITY: maskiraj webhook secret v GET odgovorih.
 // Prejšnja koda je vračala polne vrstice vključno s `secret` — tudi če je admin-only,
@@ -43,8 +44,8 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' },
     })
 
-    // FIX SECURITY: maskiraj secret v odgovoru
-    return NextResponse.json(deepToNumbers(webhooks.map(maskWebhookSecrets)))
+    // FIX SECURITY: maskiraj webhook secret v GET odgovoru
+    return NextResponse.json(deepToNumbers(webhooks.map(maskWebhookSecret)))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/webhooks', 'Napaka pri pridobivanju spletnih kljuk')
   }
@@ -77,8 +78,8 @@ export async function POST(req: Request) {
       },
     })
 
-    // NOTE: pri POST vrne neo-maskiran secret — uporabnik ga mora videti enkrat
-    // ob kreiranju, da ga lahko kopira. Vsa nadaljnja GET klica ga maskirajo.
+    // NOTE: POST vrne neo-maskiran secret — uporabnik ga mora videti enkrat
+    // ob kreiranju, da ga lahko kopira. Vsi nadaljnji GET klici ga maskirajo.
     return NextResponse.json(webhook, { status: 201 })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/webhooks', 'Napaka pri ustvarjanju spletne kljuke')

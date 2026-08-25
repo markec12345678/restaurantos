@@ -8,6 +8,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { updateLocationSchema } from './_helpers'
+import { maskLocationSecrets } from '@/lib/secret-masks'
 
 // FIX SECURITY: maske za občutljiva polja, ki se ne smejo vračati v odgovoru
 function maskLocationSecrets<T extends { fursCertPassword?: string }>(location: T): T {
@@ -72,7 +73,11 @@ export async function GET(
       _count: true,
     })
 
+<<<<<<< HEAD
     // FIX SECURITY: maskiraj fursCertPassword pred vračanjem klientu
+=======
+    // FIX SECURITY: maskiraj fursCertPassword + fursCertPath pred vračanjem klientu
+>>>>>>> origin/perf/notifications-batch-and-audit
     return NextResponse.json({
       ...maskLocationSecrets(location),
       todayStats: {
@@ -121,7 +126,11 @@ export async function PUT(
       data,
     })
 
+<<<<<<< HEAD
     // FIX SECURITY: maskiraj fursCertPassword v odgovoru
+=======
+    // FIX SECURITY: maskiraj fursCertPassword + fursCertPath v odgovoru
+>>>>>>> origin/perf/notifications-batch-and-audit
     return NextResponse.json(deepToNumbers(maskLocationSecrets(location)))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/locations/[id]', 'Napaka pri posodobitvi lokacije')

@@ -9,6 +9,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { maskLocationSecrets } from '@/lib/secret-masks'
 
 // FIX SECURITY: maske za občutljiva polja, ki se ne smejo vračati v GET odgovoru
 function maskLocationSecrets<T extends { fursCertPassword?: string }>(location: T): T {
@@ -62,7 +63,7 @@ export async function GET(req: Request) {
     const openNow = await db.location.count({ where: { isOpen: true, isActive: true } })
 
     return NextResponse.json({
-      locations: maskedLocations,
+      locations: locations.map(maskLocationSecrets),
       stats: { total: totalLocations, active: activeLocations, open: openNow },
     })
   } catch (error: unknown) {
@@ -115,7 +116,7 @@ export async function POST(req: Request) {
 
     const location = await db.location.create({ data })
 
-    // FIX SECURITY: maskiraj fursCertPassword v odgovoru
+    // FIX SECURITY: maskiraj fursCertPassword + fursCertPath v odgovoru
     return NextResponse.json(maskLocationSecrets(location), { status: 201 })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/locations', 'Napaka pri ustvarjanju lokacije')
