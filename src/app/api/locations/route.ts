@@ -10,6 +10,14 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
+// FIX SECURITY: maske za občutljiva polja, ki se ne smejo vračati v GET odgovoru
+function maskLocationSecrets<T extends { fursCertPassword?: string }>(location: T): T {
+  if (location && typeof location.fursCertPassword === 'string' && location.fursCertPassword) {
+    return { ...location, fursCertPassword: '****' }
+  }
+  return location
+}
+
 // ============================================
 // GET /api/locations — Seznam lokacij
 // ============================================
@@ -44,13 +52,17 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' },
     })
 
+    // FIX SECURITY: maskiraj fursCertPassword v odgovoru
+    // (prejšnja koda je vračala polno vrstico vključno z geslom certifikata)
+    const maskedLocations = locations.map(maskLocationSecrets)
+
     // Statistika
     const totalLocations = await db.location.count()
     const activeLocations = await db.location.count({ where: { isActive: true } })
     const openNow = await db.location.count({ where: { isOpen: true, isActive: true } })
 
     return NextResponse.json({
-      locations,
+      locations: maskedLocations,
       stats: { total: totalLocations, active: activeLocations, open: openNow },
     })
   } catch (error: unknown) {
@@ -103,7 +115,8 @@ export async function POST(req: Request) {
 
     const location = await db.location.create({ data })
 
-    return NextResponse.json(location, { status: 201 })
+    // FIX SECURITY: maskiraj fursCertPassword v odgovoru
+    return NextResponse.json(maskLocationSecrets(location), { status: 201 })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/locations', 'Napaka pri ustvarjanju lokacije')
   }

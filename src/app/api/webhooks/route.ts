@@ -5,6 +5,16 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
+// FIX SECURITY: maskiraj webhook secret v GET odgovorih.
+// Prejšnja koda je vračala polne vrstice vključno s `secret` — tudi če je admin-only,
+// naj skrivnosti ne zapustijo strežnika. Secret se prikaže samo ob kreiranju (POST).
+function maskWebhookSecrets<T extends { secret?: string }>(webhook: T): T {
+  if (webhook && typeof webhook.secret === 'string' && webhook.secret) {
+    return { ...webhook, secret: '****' }
+  }
+  return webhook
+}
+
 // Validacijska shema za kreiranje webhooka
 const createWebhookSchema = z.object({
   name: z.string().min(1, 'Ime je obvezno').max(200, 'Ime ne sme preseči 200 znakov'),
@@ -33,7 +43,8 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' },
     })
 
-    return NextResponse.json(deepToNumbers(webhooks))
+    // FIX SECURITY: maskiraj secret v odgovoru
+    return NextResponse.json(deepToNumbers(webhooks.map(maskWebhookSecrets)))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/webhooks', 'Napaka pri pridobivanju spletnih kljuk')
   }
@@ -66,6 +77,8 @@ export async function POST(req: Request) {
       },
     })
 
+    // NOTE: pri POST vrne neo-maskiran secret — uporabnik ga mora videti enkrat
+    // ob kreiranju, da ga lahko kopira. Vsa nadaljnja GET klica ga maskirajo.
     return NextResponse.json(webhook, { status: 201 })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/webhooks', 'Napaka pri ustvarjanju spletne kljuke')
