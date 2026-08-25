@@ -69,6 +69,8 @@ export async function generateJournalForPayment(
         status: 'posted',
         postedAt: new Date(),
         postedBy: employeeId || null,
+        // FIX issue #31: nastavi locationId iz povezanega naročila za multi-location accounting
+        locationId: order.locationId || null,
         lines: {
           create: [
             // Debet: banka/blagajna (prejmemo denar)

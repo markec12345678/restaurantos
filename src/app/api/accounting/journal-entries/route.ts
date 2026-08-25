@@ -17,9 +17,12 @@ export async function GET(req: Request) {
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
     const referenceType = searchParams.get('referenceType')
+    // FIX issue #31: opcijsko filtriranje po lokaciji za multi-location accounting
+    const locationId = searchParams.get('locationId')
 
     const where: Record<string, unknown> = {}
     if (referenceType) where.referenceType = referenceType
+    if (locationId) where.locationId = locationId
     if (dateFrom || dateTo) {
       const dateFilter: Record<string, Date> = {}
       if (dateFrom) dateFilter.gte = new Date(dateFrom)
@@ -38,7 +41,7 @@ export async function GET(req: Request) {
         orderBy: { date: 'desc' },
         take: limit,
         skip: offset,
-        include: { lines: true },
+        include: { lines: true, location: { select: { id: true, name: true, code: true } } },
       }),
       db.journalEntry.count({ where }),
     ])
