@@ -8,7 +8,7 @@
 
 ## 📊 Izvržna povzetka
 
-RestaurantOS je **najnaprednejši odprtokodni POS sistem za restavracije**, zasnovan za
+RestaurantOS je **funkcionalno bogat odprtokodni POS sistem za restavracije**, zasnovan za
 evropsko/slovensko tržišče z vgrajenim FURS davčnim potrjevanjem. V primerjavi z
 konkurenco izstopa po:
 
@@ -16,7 +16,7 @@ konkurenco izstopa po:
    potrjevanjem (ZOI offline, EOR queued, PKCS12 certifikati)
 2. **Najbolj moderni stack** — Next.js 16 + TypeScript 5 + Prisma (vecina konkurence
    je na PHP/CodeIgniter ali Java)
-3. **Offline-first PWA** — Service Worker + IndexedDB (22 trgovin) za delo brez interneta
+3. **Offline-first PWA** — Service Worker + IndexedDB (2 trgovini: `pendingOrders`, `pendingReceipts`) za delo brez interneta
 4. **AI zmogljivosti** — Gemini AI napovedi, priporočila, asistent (konkurenca šele
    uvaja)
 5. **Najobsežnejši moduli** — 55+ POS modulov (konkurenca 10-20)
@@ -56,7 +56,7 @@ konkurenco izstopa po:
 
 ### Zaključek odprtokodne primerjave
 
-**RestaurantOS je tehnično najnaprednejši** odprtokodni POS, a ima **manjši ekosistem**
+**RestaurantOS je tehnično moderen** odprtokodni POS (Next.js 16 + TypeScript 5), a ima **manjši ekosistem**
 kot opensourcepos (4249★) in NexoPOS (1219★). Floreant in uniCenta sta zastarela
 (Java, zadnji update 2015-2017).
 
@@ -153,7 +153,7 @@ z offline PWA. A slovenski konkurenti imajo:
    slovenskim davčnim potrjevanjem (ZOI offline, EOR queued, PKCS12 certifikati)
 2. **🤖 AI zmogljivosti** — Gemini AI napovedi prometa, priporočila upsell, klepet
    asistent, analiza menija (konkurenca šele uvaja "Menu Engineering")
-3. **📴 Offline-first PWA** — Service Worker + IndexedDB (22 trgovin) za polno delo
+3. **📴 Offline-first PWA** — Service Worker + IndexedDB (2 trgovini) za polno delo
    brez interneta (konkurenca je cloud-only ali desktop)
 4. **🍽️ EU HACCP dnevnik** — skladnost z EU 852/2004 (konkurenca nima)
 5. **🔒 Audit hash chain** — SHA-256 veriga za PCI DSS skladnost (redko med POS)
@@ -246,7 +246,7 @@ stackom.
 
 ### Sklep
 
-**RestaurantOS je tehnično najnaprednejši odprtokodni POS za restavracije na trgu.**
+**RestaurantOS je funkcionalno bogat odprtokodni POS za restavracije.**
 Njegova edinstvena kombinacija FURS + AI + offline PWA + HACCP + hash chain
 audit ga uvršča v lastno nišo — **evropski restavratorji, ki potrebujejo odprtokodno,
 FURS-certificirano, AI-poganjano rešitev**.

@@ -224,4 +224,4 @@
 - KDS alergeni (kuhinjska varnost)
 - Audit hash chain (PCI DSS)
 
-Z implementacijo Faze 4 (3 kritične + 5 visokih) bi RestaurantOS dosegel **~90% skladnosti** in postal **najnaprednejši odprtokodni POS na svetu**.
+Z implementacijo Faze 4 (3 kritične + 5 visokih) bi RestaurantOS dosegel **~90% skladnosti** s profesionalno POS specifikacijo.

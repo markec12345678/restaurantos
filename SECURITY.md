@@ -47,7 +47,7 @@ RestaurantOS uporablja večplastno varnostno arhitekturo:
 ### Avtentikacija & Avtorizacija
 - **PIN-based auth** z bcrypt + HMAC-SHA256 za O(1) lookup
 - **RBAC** — `requireAuth(req, { permission: 'admin' })` na 132/152 API-jih
-- **WebAuthn/FIDO2** — ⚠️ EXPERIMENTAL/ONEMOGOČENO (signature verification ni implementirana; glej PR #30)
+- **WebAuthn/FIDO2** — ⚠️ EKSPERIMENTALNO/ONEMOGOČENO (preverjanje podpisa ni implementirano; glej PR #30)
 - **Rate limiting** na vseh javnih endpointih (login, qr-menu, feedback, webhooks)
 - **Session invalidation** ob terminaciji zaposlenega (verifyToken preverja status, 60s cache; glej PR #53)
 
