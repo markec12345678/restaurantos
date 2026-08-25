@@ -418,7 +418,9 @@ model Order {
   // --- Preklic/Storno metapodatki ---
   cancelReason    String     @default("")   // Razlog za preklic/storno
   cancelledAt     DateTime?                 // Kdaj je bilo preklicano/stornirano
-  cancelledBy     String     @default("")   // Kdo je preklical (employeeId ali ime)
+  cancelledBy     String     @default("")   // Kdo je preklical (employeeId ali ime) — @deprecated, use cancelledById
+  cancelledById   String?                      // FIX issue #43: FK do Employee
+  cancelledByEmp  Employee?  @relation("CancelledOrders", fields: [cancelledById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // --- Razknjiževanje zaloge (prepreči dvojno razknjiževanje) ---
   inventoryDeducted Boolean   @default(false) // Ali je bila zaloga že razknjižena
   // --- Čas plačila ---
@@ -453,6 +455,7 @@ model Order {
   @@index([diningOptionId])     // FIX: FK index — poizvedbe po načinu strežbe
   @@index([revenueCenterId])    // FIX: FK index — poizvedbe po centru prihodkov
   @@index([guestId])            // FIX: FK index — CRM poizvedbe: "naročila gosta"
+  @@index([cancelledById])      // FIX issue #43: FK index — poizvedbe po preklicu
 }
 
 model OrderItem {
@@ -665,6 +668,16 @@ model Employee {
   timeEntries  TimeEntry[]
   cashShifts   CashRegisterShift[]
   waitlistEntries WaitlistEntry[]
+  // --- Soft reference FKs (issue #43) ---
+  cancelledOrders       Order[]
+  stockTransactions     StockTransaction[]
+  requestedPurchaseOrders PurchaseOrder[]
+  approvedPurchaseOrders  PurchaseOrder[]
+  finalizedZReports     ZReport[]
+  postedJournalEntries  JournalEntry[]
+  createdStaffShifts    StaffShift[]
+  guestVisits           GuestVisit[]
+  tipDistributions      TipDistribution[]
   // --- Multi-location ---
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -874,7 +887,9 @@ model StockTransaction {
   reason          String        @default("")
   note            String        @default("")
   supplierDoc     String        @default("")
-  employeeName    String        @default("")
+  employeeName    String        @default("")   // @deprecated, use employeeId (issue #43)
+  employeeId      String?                       // FIX issue #43: FK do Employee
+  employee        Employee?     @relation(fields: [employeeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   orderId         String?
   createdAt       DateTime      @default(now())
 
@@ -883,6 +898,7 @@ model StockTransaction {
   @@index([createdAt])
   @@index([inventoryItemId, type]) // FIX: Compound index for common queries (e.g., find sales per item)
   @@index([orderId])              // FIX: Index for stock transactions linked to orders
+  @@index([employeeId])           // FIX issue #43: FK index — poizvedbe po zaposlenem
 }
 
 model RecipeItem {
@@ -1359,7 +1375,9 @@ model StaffShift {
   actualEnd       DateTime?
   breakMinutes    Int      @default(0)
   // --- Avtor ---
-  createdBy       String?
+  createdBy       String?                        // @deprecated, use createdById (issue #43)
+  createdById     String?                        // FIX issue #43: FK do Employee
+  createdByEmp    Employee?  @relation("CreatedStaffShifts", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -1372,6 +1390,7 @@ model StaffShift {
   // FIX SCHEMA-10: Composite index za StaffShift — aktivne izmene danes
   @@index([status, shiftDate])
   @@index([shiftDate, locationId])
+  @@index([createdById]) // FIX issue #43: FK index
 }
 
 // ============================================
@@ -1492,7 +1511,8 @@ model GuestVisit {
   feedbackComment String   @default("")
   // --- Kdo je strežil ---
   employeeId      String?
-  employeeName    String   @default("")
+  employee        Employee?  @relation(fields: [employeeId], references: [id], onDelete: SetNull, onUpdate: Cascade) // FIX issue #43: dodana FK relacija
+  employeeName    String   @default("")   // @deprecated, use employeeId (issue #43)
   // FIX F5-8: Kriptografska zaščita (hash chain) — EU 852/2004
   previousHash    String   @default("")  // Hash prejšnjega vnosa
   chainHash       String   @default("")  // SHA-256(previousHash + title + value + status + date)
@@ -1578,8 +1598,12 @@ model PurchaseOrder {
   deliveryAddress String   @default("")
   deliveryNotes   String   @default("")
   // --- Interna ---
-  requestedBy     String   @default("")         // Kdo je naročil
-  approvedBy      String   @default("")         // Kdo je odobril
+  requestedBy     String   @default("")         // Kdo je naročil — @deprecated, use requestedById (issue #43)
+  approvedBy      String   @default("")         // Kdo je odobril — @deprecated, use approvedById (issue #43)
+  requestedById   String?                      // FIX issue #43: FK do Employee
+  approvedById    String?                      // FIX issue #43: FK do Employee
+  requestedByEmp  Employee?  @relation("RequestedPurchaseOrders", fields: [requestedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  approvedByEmp   Employee?  @relation("ApprovedPurchaseOrders", fields: [approvedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // --- Multi-location (FIX: nabava je za zalogo lokacije) ---
   locationId      String?
   location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -1597,6 +1621,8 @@ model PurchaseOrder {
   // FIX: Composite index — nadzorna plošča dobavitelja: naročila po statusu
   @@index([supplierId, status])
   @@index([locationId]) // FIX: per-lokacija nabava
+  @@index([requestedById]) // FIX issue #43: FK index
+  @@index([approvedById])  // FIX issue #43: FK index
 }
 
 model PurchaseOrderItem {
@@ -2016,7 +2042,9 @@ model ZReport {
   grossMargin       Decimal   @default(0)  // Bruto marža (%)  // FIX: Decimal za odstotek
   // --- Status ---
   status            String   @default("draft")          // draft, finalized, approved
-  finalizedBy       String   @default("")               // Kdo je zaključil
+  finalizedBy       String   @default("")               // Kdo je zaključil — @deprecated, use finalizedById (issue #43)
+  finalizedById     String?                             // FIX issue #43: FK do Employee
+  finalizedByEmp    Employee?  @relation("FinalizedZReports", fields: [finalizedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // --- Opombe ---
   notes             String   @default("")
   // --- Multi-location ---
@@ -2031,6 +2059,7 @@ model ZReport {
   // FIX SCHEMA-08 HIGH: Compound unique — eno Z-poročilo na dan na lokacijo, ne globalno
   @@unique([reportDate, locationId])
   @@index([closedAt])  // FIX SCHEMA-09: Iskanje zaključenih poročil po datumu
+  @@index([finalizedById]) // FIX issue #43: FK index
 }
 
 // ============================================
@@ -2070,7 +2099,8 @@ model TipDistribution {
   tipPool         TipPool  @relation(fields: [tipPoolId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   // --- Zaposleni ---
   employeeId      String
-  employeeName    String   @default("")
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX issue #43: dodana FK relacija
+  employeeName    String   @default("")   // @deprecated, use employeeId (issue #43)
   // FIX F5-8: Kriptografska zaščita (hash chain) — EU 852/2004
   previousHash    String   @default("")  // Hash prejšnjega vnosa
   chainHash       String   @default("")  // SHA-256(previousHash + title + value + status + date)
@@ -2173,7 +2203,9 @@ model JournalEntry {
   source       String         @default("manual") // manual, auto-order, auto-payment, auto-expense
   status       String         @default("posted") // draft, posted, reversed
   postedAt     DateTime?
-  postedBy     String?         // Employee ID
+  postedBy     String?         // Employee ID — @deprecated, use postedById (issue #43)
+  postedById   String?         // FIX issue #43: FK do Employee
+  postedByEmp  Employee?  @relation("PostedJournalEntries", fields: [postedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // --- Relacije ---
   lines        JournalLine[]
   // --- Meta ---
@@ -2186,6 +2218,7 @@ model JournalEntry {
   @@index([status])
   @@index([source])
   @@index([date, status])
+  @@index([postedById]) // FIX issue #43: FK index
 }
 
 model JournalLine {
