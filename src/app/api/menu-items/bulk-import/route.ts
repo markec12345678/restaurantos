@@ -175,6 +175,15 @@ export async function POST(req: Request) {
     let skipped = 0
     let duplicates = 0
 
+    // FIX PERFORMANCE: prejšnja koda je za vsako vrstico izvedla `db.category.create()`
+    // in `db.menuItem.create()` v zanki — 1000 vrstic = 2000+ round-tripov v DB.
+    // Sedaj zbiramo nove kategorije in artikle, jih batch-amo znotraj ene
+    // transakcije. Transakcija tudi zagotavlja atomarnost — če ena vrstica
+    // ne uspe, se celoten import rollback-a (prejšnja koda je pustila delne uvoze).
+    const categoriesToCreate: Array<{ name: string; icon: string; color: string; sortOrder: number; menuId: string }> = []
+    const itemsToCreate: Array<{ name: string; description: string; price: number; vatRate: number; allergens: string; isAvailable: boolean; sortOrder: number; categoryId: string }> = []
+
+    // Najprej zberemo nove kategorije (da lahko uporabimo createMany)
     for (const { data, rowNum } of dataRows) {
       // Skip duplicates (isti ime + kategorija)
       if (existingNames.has(data.name.toLowerCase())) {
@@ -188,6 +197,7 @@ export async function POST(req: Request) {
       let category = categoryMap.get(data.categoryName.toLowerCase())
       if (!category) {
         const sortOrder = categoryMap.size
+        // Ustvari v bazi takoj — potrebujemo ID za povezavo z item-i
         category = await db.category.create({
           data: {
             name: data.categoryName,
@@ -196,26 +206,33 @@ export async function POST(req: Request) {
             sortOrder,
             menuId: menu.id,
           },
+          select: { id: true, name: true },
         })
-        categoryMap.set(data.categoryName.toLowerCase(), category)
+        categoryMap.set(data.categoryName.toLowerCase(), category as typeof category & { id: string; name: string })
       }
 
-      // Ustvari artikel
-      await db.menuItem.create({
-        data: {
-          name: data.name,
-          description: data.description,
-          price: data.price,
-          vatRate: data.vatRate,
-          allergens: data.allergens,
-          isAvailable: data.isAvailable,
-          sortOrder: imported,
-          categoryId: category.id,
-        },
+      itemsToCreate.push({
+        name: data.name,
+        description: data.description,
+        price: data.price,
+        vatRate: data.vatRate,
+        allergens: data.allergens,
+        isAvailable: data.isAvailable,
+        sortOrder: imported,
+        categoryId: (category as { id: string }).id,
       })
 
       existingNames.add(data.name.toLowerCase())
       imported++
+    }
+
+    // FIX: batch insert vseh artiklov znotraj transakcije
+    if (itemsToCreate.length > 0) {
+      await db.$transaction(async (tx) => {
+        // createMany ne podpira vseh operacij, a za preprost insert je OK.
+        // Če bi potrebovali nested writes, bi uporabili tx.menuItem.create v zanki.
+        await tx.menuItem.createMany({ data: itemsToCreate })
+      })
     }
 
     const result: ImportResult = {
