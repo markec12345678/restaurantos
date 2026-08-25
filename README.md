@@ -30,20 +30,12 @@ Sistem pokriva vse vidike restavratorskega poslovanja — od naročanja in plač
 - **🇸🇮 FURS podpora** — Avtomatsko davčno potrjevanje računov (ZOI offline, EOR queued, 48h bulk)
 - **🤖 AI zmogljivosti** — Gemini AI napovedi, priporočila, pomočnik, **AI Voice Ordering**
 - **📱 Offline-first** — Service Worker + Background Sync + IndexedDB (2 trgovini)
-<<<<<<< HEAD
 - **🔒 Varno** — Zod validacija (98+ shem), Prisma $transaction, `requireAuth()` + RBAC, SHA-256 audit hash chain, session invalidation ob terminaciji
-=======
-- **🔒 Varno** — Zod validacija, Prisma $transaction, `requireAuth()` + RBAC, SHA-256 audit hash chain
->>>>>>> origin/docs/sync-remaining-docs
 - **📋 Double-entry accounting** — Avtomatsko knjiženje (JournalEntry + Trial Balance)
 - **📄 EU e-invoicing** — UBL 2.1 / PEPPOL BIS 3.0 (EU 2026 mandat) + eDavki XML
 - **📡 IoT podpora** — Bluetooth temperaturni senzorji z avtomatskim HACCP dnevnikom (zahteva `IOT_API_KEY`)
 - **🎙️ AI Voice Ordering** — Glasovno naročanje z Gemini AI
-<<<<<<< HEAD
 - **🔐 Biometric login** — ⚠️ WebAuthn/FIDO2 EKSPERIMENTALNO (preverjanje podpisa še ni implementirano; glej [AUDIT-REPORT.md](./AUDIT-REPORT.md))
-=======
-- **🔐 Biometric login** — ⚠️ WebAuthn/FIDO2 EKSPERIMENTALNO (preverjanje podpisa še ni implementirano)
->>>>>>> origin/docs/sync-remaining-docs
 - **🍽️ QR naročanje na mizi** — Gost poslika QR kodo, naroči iz telefona
 - **🏢 Multi-lokacija** — Več lokacij z ločenimi FURS certifikati
 - **🌍 Večjezično** — 5 jezikov (Slovenščina, English, Italiano, Hrvatski, Deutsch)
@@ -302,7 +294,6 @@ Glej **[DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md)** za celovit vodič:
 | `requireAuth()` | Vse zaščitene API rute zahtevajo veljavno sejo |
 | `ROUTE_PERMISSIONS` | RBAC z 8 dovoljenji (admin, manager, staff, manage_cash, itd.) |
 | PIN prijava | bcrypt hash + **HMAC-SHA256 pinLookup** za O(1) iskanje |
-<<<<<<< HEAD
 | **WebAuthn/FIDO2** | ⚠️ EKSPERIMENTALNO — preverjanje podpisa še ni implementirano (glej [AUDIT-REPORT.md](./AUDIT-REPORT.md)) |
 | Seje | Bearer token, 8h sliding TTL + 24h absolutni timeout + **status check** (terminiran zaposleni izgubi dostop v 60s) |
 | Zod validacija | 98+ shem na strežniku + client-side validacija za javne forme |
@@ -313,15 +304,6 @@ Glej **[DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md)** za celovit vodič:
 | Rate limiting | Login (5/15min), public API (10+/min), kiosk (10/h), IoT (60/min), WS broadcast |
 | CSP + HSTS | Content-Security-Policy, HSTS preload, X-Frame-Options SAMEORIGIN, COOP/CORP |
 | **Secrets masking** | pin, pinLookup, fursCertPassword, fursCertPath, emailSmtpPassword, webhook secret, integration apiKey/apiSecret — vsi maskirani v API odgovorih |
-=======
-| **WebAuthn/FIDO2** | ⚠️ EKSPERIMENTALNO — preverjanje podpisa še ni implementirano |
-| Seje | Bearer token, 8h sliding TTL + 24h absolutni timeout |
-| Zod validacija | Vsi vhodni podatki validirani na strežniku |
-| Prisma $transaction | Atomski operaciji za kritične transakcije |
-| **Audit hash chain** | SHA-256 veriga (previousHash + chainHash) za PCI DSS |
-| Rate limiting | Login (5/15min), public API, kiosk, WS broadcast |
-| CSP + HSTS | Content-Security-Policy, HSTS, X-Frame-Options DENY |
->>>>>>> origin/docs/sync-remaining-docs
 | Decimal valute | Vse valute shranjene kot Decimal (ne Float) |
 | Idempotentna plačila | `idempotencyKey` prepreči duplikate (fast-path + P2002 race-path) |
 | **SSRF zaščita** | Outbound webhooks zavračajo interne/metadata naslove (127.x, 169.254.x, RFC1918) |
