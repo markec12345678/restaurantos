@@ -284,7 +284,7 @@ Po prijavi natakar vidi:
 PWA deluje tudi brez interneta (Service Worker + IndexedDB):
 - Naročila se shranijo lokalno
 - Ob vzpostavitvi povezave se avtomatsko sinhronizirajo
-- 22 trgovin v IndexedDB
+- 2 trgovini v IndexedDB (`pendingOrders` za offline naročila, `pendingReceipts` za FURS 48h retry)
 
 ---
 

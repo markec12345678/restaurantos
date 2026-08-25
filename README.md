@@ -4,7 +4,7 @@
 
 ### Profesionalni POS sistem za restavracije
 
-**Najnaprednejši odprtokodni restavratorski POS sistem na svetu — 95% skladnost s profesionalno specifikacijo**
+**Odprtokodni restavratorski POS sistem s FURS podporo in AI integracijo**
 
 [![Next.js](https://img.shields.io/badge/Next.js-16.1.3-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
@@ -23,19 +23,19 @@
 
 RestaurantOS je celovit, profesionalni Point of Sale (POS) sistem, zasnovan posebej za evropske restavracije, s poudarkom na slovensko tržišče in FURS davčno potrjevanje. Združuje najboljše prakse svetovnih POS sistemov (Toast, TouchBistro, Square, Lightspeed, 7shifts, OpenTable) v enotno, sodobno spletno aplikacijo.
 
-Sistem pokriva vse vidike restavratorskega poslovanja — od naročanja in plačevanja, preko kuhinjskega prikaza in zalog, do analitike, davčnega potrjevanja in upravljanja osebja. Deluje tudi brez internetne povezave zahvaljujoč Service Workerju in IndexedDB (22 trgovin), kar je ključnega pomena za zanesljivo poslovanje v restavracijah.
+Sistem pokriva vse vidike restavratorskega poslovanja — od naročanja in plačevanja, preko kuhinjskega prikaza in zalog, do analitike, davčnega potrjevanja in upravljanja osebja. Deluje tudi brez internetne povezave zahvaljujoč Service Workerju in IndexedDB (2 trgovini: `pendingOrders` in `pendingReceipts`), kar je ključnega pomena za zanesljivo poslovanje v restavracijah.
 
 ### Ključne prednosti
 
 - **🇸🇮 FURS certificirano** — Avtomatsko davčno potrjevanje računov (ZOI offline, EOR queued, 48h bulk)
 - **🤖 AI zmogljivosti** — Gemini AI napovedi, priporočila, pomočnik, **AI Voice Ordering**
-- **📱 Offline-first** — Service Worker + Background Sync + IndexedDB (22 trgovin)
+- **📱 Offline-first** — Service Worker + Background Sync + IndexedDB (2 trgovini)
 - **🔒 Varno** — Zod validacija, Prisma $transaction, `requireAuth()` + RBAC, SHA-256 audit hash chain
 - **📋 Double-entry accounting** — Avtomatsko knjiženje (JournalEntry + Trial Balance)
 - **📄 EU e-invoicing** — UBL 2.1 / PEPPOL BIS 3.0 (EU 2026 mandat) + eDavki XML
 - **📡 IoT podpora** — Bluetooth temperaturni senzorji z avtomatskim HACCP dnevnikom
 - **🎙️ AI Voice Ordering** — Glasovno naročanje z Gemini AI
-- **🔐 Biometric login** — WebAuthn/FIDO2 (Touch ID, Face ID, Windows Hello)
+- **🔐 Biometric login** — ⚠️ WebAuthn/FIDO2 EKSPERIMENTALNO (preverjanje podpisa še ni implementirano)
 - **🍽️ QR naročanje na mizi** — Gost poslika QR kodo, naroči iz telefona
 - **🏢 Multi-lokacija** — Več lokacij z ločenimi FURS certifikati
 - **🌍 Večjezično** — 5 jezikov (Slovenščina, English, Italiano, Hrvatski, Deutsch)
@@ -61,7 +61,7 @@ Sistem pokriva vse vidike restavratorskega poslovanja — od naročanja in plač
 | **Zod** | Validacija podatkov na strežniku in odjemalcu |
 | **Zustand** | Lahko globalno stanje za POS košarico in UI |
 | **Service Worker** | Offline zmogljivost, predpomnjenje, sinhronizacija |
-| **IndexedDB** | Lokalno shranjevanje (22 trgovin) za offline delovanje |
+| **IndexedDB** | Lokalno shranjevanje (2 trgovini: `pendingOrders`, `pendingReceipts`) za offline delovanje |
 | **Framer Motion** | Tekoče animacije in prehodi |
 | **date-fns** | Obdelava datumov in časov |
 | **QRCode** | Generiranje QR kod za mize, račune, menije |
@@ -282,7 +282,7 @@ Glej **[DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md)** za celovit vodič:
 | `requireAuth()` | Vse zaščitene API rute zahtevajo veljavno sejo |
 | `ROUTE_PERMISSIONS` | RBAC z 8 dovoljenji (admin, manager, staff, manage_cash, itd.) |
 | PIN prijava | bcrypt hash + **HMAC-SHA256 pinLookup** za O(1) iskanje |
-| **WebAuthn/FIDO2** | Biometric login (Touch ID, Face ID, Windows Hello) |
+| **WebAuthn/FIDO2** | ⚠️ EKSPERIMENTALNO — preverjanje podpisa še ni implementirano |
 | Seje | Bearer token, 8h sliding TTL + 24h absolutni timeout |
 | Zod validacija | Vsi vhodni podatki validirani na strežniku |
 | Prisma $transaction | Atomski operaciji za kritične transakcije |
@@ -342,7 +342,7 @@ restaurantos/
 │   │   ├── api/               # 150 API rut v 70+ modulih
 │   │   │   ├── accounting/     # Double-entry (journal-entries, trial-balance)
 │   │   │   ├── ai/             # AI Voice Ordering, forecast, upsell
-│   │   │   ├── auth/           # PIN login, WebAuthn biometric
+│   │   │   ├── auth/           # PIN login, WebAuthn (experimental)
 │   │   │   ├── furs/           # FURS davčno potrjevanje + batch
 │   │   │   ├── iot/            # IoT senzorji + auto HACCP
 │   │   │   ├── public/         # Javni API (kiosk, order, menu)
@@ -417,7 +417,7 @@ restaurantos/
 ## 🛡️ Varnostne značilnosti
 
 - **PIN z bcrypt + HMAC O(1)** — `pinLookup` polje za hitro iskanje, `pin` ostane bcrypt-hashiran
-- **WebAuthn/FIDO2** — biometric login (Touch ID, Face ID, Windows Hello)
+- **WebAuthn/FIDO2** — ⚠️ EKSPERIMENTALNO (preverjanje podpisa ni implementirano; onemogočeno privzeto)
 - **SHA-256 audit hash chain** — `previousHash + chainHash` v transakciji (race-safe)
 - **HACCP hash chain** — EU 852/2004 nepopravljive evidence
 - **Rate limiting** — login (5/15min), public API, kiosk (10/h), WS broadcast
@@ -459,7 +459,7 @@ Glej [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 <div align="center">
 
-**RestaurantOS** — Najnaprednejši odprtokodni POS za restavracije na svetu
+**RestaurantOS** — Odprtokodni POS za restavracije s FURS podporo
 
 [🌐 GitHub](https://github.com/markec12345678/restaurantos) · [📋 Spec Compliance](./SPECIFICATION-COMPLIANCE.md) · [🚀 Deployment](./DEPLOYMENT-GUIDE.md) · [📊 E2E Tests](./E2E-TEST-REPORT.md)
 
