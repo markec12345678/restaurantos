@@ -4,16 +4,16 @@
 
 ### Profesionalni POS sistem za restavracije
 
-**Najnaprednejši odprtokodni restavratorski POS sistem na svetu — 95% skladnost s profesionalno specifikacijo**
+**Odprtokodni restavratorski POS sistem s FURS podporo in AI integracijo**
 
-[![Next.js](https://img.shields.io/badge/Next.js-16.1.3-black?style=flat-square&logo=next.js)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16.1.x-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
 [![Prisma](https://img.shields.io/badge/Prisma-5.x-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
 [![Languages](https://img.shields.io/badge/i18n-5_languages-blue?style=flat-square)](./messages/)
 [![FURS](https://img.shields.io/badge/FURS-Certified-red?style=flat-square)](./src/app/api/furs/)
-[![Spec](https://img.shields.io/badge/Spec_Compliance-95%25-success?style=flat-square)](./SPECIFICATION-COMPLIANCE.md)
 [![Tests](https://img.shields.io/badge/E2E_Tests-96_pass-brightgreen?style=flat-square)](./E2E-TEST-REPORT.md)
+[![Security Audit](https://img.shields.io/badge/Security_Audit-Complete-success?style=flat-square)](./AUDIT-REPORT.md)
 
 </div>
 
@@ -23,19 +23,19 @@
 
 RestaurantOS je celovit, profesionalni Point of Sale (POS) sistem, zasnovan posebej za evropske restavracije, s poudarkom na slovensko tržišče in FURS davčno potrjevanje. Združuje najboljše prakse svetovnih POS sistemov (Toast, TouchBistro, Square, Lightspeed, 7shifts, OpenTable) v enotno, sodobno spletno aplikacijo.
 
-Sistem pokriva vse vidike restavratorskega poslovanja — od naročanja in plačevanja, preko kuhinjskega prikaza in zalog, do analitike, davčnega potrjevanja in upravljanja osebja. Deluje tudi brez internetne povezave zahvaljujoč Service Workerju in IndexedDB (22 trgovin), kar je ključnega pomena za zanesljivo poslovanje v restavracijah.
+Sistem pokriva vse vidike restavratorskega poslovanja — od naročanja in plačevanja, preko kuhinjskega prikaza in zalog, do analitike, davčnega potrjevanja in upravljanja osebja. Deluje tudi brez internetne povezave zahvaljujoč Service Workerju in IndexedDB (2 trgovini: `pendingOrders` in `pendingReceipts`), kar je ključnega pomena za zanesljivo poslovanje v restavracijah.
 
 ### Ključne prednosti
 
-- **🇸🇮 FURS certificirano** — Avtomatsko davčno potrjevanje računov (ZOI offline, EOR queued, 48h bulk)
+- **🇸🇮 FURS podpora** — Avtomatsko davčno potrjevanje računov (ZOI offline, EOR queued, 48h bulk)
 - **🤖 AI zmogljivosti** — Gemini AI napovedi, priporočila, pomočnik, **AI Voice Ordering**
-- **📱 Offline-first** — Service Worker + Background Sync + IndexedDB (22 trgovin)
-- **🔒 Varno** — Zod validacija, Prisma $transaction, `requireAuth()` + RBAC, SHA-256 audit hash chain
+- **📱 Offline-first** — Service Worker + Background Sync + IndexedDB (2 trgovini)
+- **🔒 Varno** — Zod validacija (98+ shem), Prisma $transaction, `requireAuth()` + RBAC, SHA-256 audit hash chain, session invalidation ob terminaciji
 - **📋 Double-entry accounting** — Avtomatsko knjiženje (JournalEntry + Trial Balance)
 - **📄 EU e-invoicing** — UBL 2.1 / PEPPOL BIS 3.0 (EU 2026 mandat) + eDavki XML
-- **📡 IoT podpora** — Bluetooth temperaturni senzorji z avtomatskim HACCP dnevnikom
+- **📡 IoT podpora** — Bluetooth temperaturni senzorji z avtomatskim HACCP dnevnikom (zahteva `IOT_API_KEY`)
 - **🎙️ AI Voice Ordering** — Glasovno naročanje z Gemini AI
-- **🔐 Biometric login** — WebAuthn/FIDO2 (Touch ID, Face ID, Windows Hello)
+- **🔐 Biometric login** — ⚠️ WebAuthn/FIDO2 EKSPERIMENTALNO (preverjanje podpisa še ni implementirano; glej [AUDIT-REPORT.md](./AUDIT-REPORT.md))
 - **🍽️ QR naročanje na mizi** — Gost poslika QR kodo, naroči iz telefona
 - **🏢 Multi-lokacija** — Več lokacij z ločenimi FURS certifikati
 - **🌍 Večjezično** — 5 jezikov (Slovenščina, English, Italiano, Hrvatski, Deutsch)
@@ -61,7 +61,7 @@ Sistem pokriva vse vidike restavratorskega poslovanja — od naročanja in plač
 | **Zod** | Validacija podatkov na strežniku in odjemalcu |
 | **Zustand** | Lahko globalno stanje za POS košarico in UI |
 | **Service Worker** | Offline zmogljivost, predpomnjenje, sinhronizacija |
-| **IndexedDB** | Lokalno shranjevanje (22 trgovin) za offline delovanje |
+| **IndexedDB** | Lokalno shranjevanje (2 trgovini: `pendingOrders`, `pendingReceipts`) za offline delovanje |
 | **Framer Motion** | Tekoče animacije in prehodi |
 | **date-fns** | Obdelava datumov in časov |
 | **QRCode** | Generiranje QR kod za mize, račune, menije |
@@ -76,16 +76,18 @@ Sistem pokriva vse vidike restavratorskega poslovanja — od naročanja in plač
 
 | Metrika | Vrednost |
 |---|---|
-| Vrstic kode | ~124.000 |
+| Vrstic kode | ~125.000 |
 | Prisma modelov | 75 |
-| API rut | 150 |
-| POS modulov | 55+ (lazy-loaded) |
-| React komponent | 644 |
-| Zod shem | 55+ |
+| API rut | 152 |
+| POS modulov | 61 (lazy-loaded) |
+| React komponent | 645 |
+| Zod shem | 98+ |
 | Jezikov | 5 (sl, en, it, hr, de) |
-| Skladnost s specifikacijo | **95%** |
 | E2E testov | 96 (100% pass) |
+| Unit testov | 41+ (SSRF, PIN lookup, sanitize, webhook signing, FURS, itd.) |
 | Odvisnosti | 75+ |
+
+> **Opomba:** Prejšnja verzija README je trdila "95% skladnost s profesionalno specifikacijo" in "22 IndexedDB trgovin" — oboje je bilo popravljeno po varnostnem auditu (glej [AUDIT-REPORT.md](./AUDIT-REPORT.md)).
 
 ---
 
@@ -109,7 +111,13 @@ npm install
 
 # 3. Nastavi okoljske spremenljivke
 cp .env.example .env
-# Uredi .env — nastavi vsaj: NEXTAUTH_SECRET, GEMINI_API_KEY, FURS_*
+# Uredi .env — nastavi vsaj:
+#   NEXTAUTH_SECRET        — skrivnost za seje (openssl rand -base64 32)
+#   RECEIPT_TOKEN_SECRET   — skrivnost za digitalne račune (ločena od NEXTAUTH_SECRET)
+#   GEMINI_API_KEY         — za AI funkcije
+#   FURS_*                 — za davčno potrjevanje
+#   IOT_API_KEY            — če uporabljaš IoT senzorje (openssl rand -hex 32)
+#   FURS_ALLOW_SIMULATION=true  — za dev/test brez pravega certifikata
 
 # 4. Sinhroniziraj bazo in ustvari Prisma klienta
 npx prisma db push
@@ -124,6 +132,8 @@ npm run dev
 
 # 7. Odpri http://localhost:3000
 ```
+
+> ⚠️ **Pomembno:** `FURS_ALLOW_SIMULATION` je privzeto `false`. Za razvoj brez pravega FURS certifikata ga eksplicitno nastavi na `true` v `.env`.
 
 ### Začetni prijavni podatki
 
@@ -264,16 +274,18 @@ Glej **[DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md)** za celovit vodič:
 
 ### 📡 Integracije
 
-| Integracija | Opis |
-|---|---|
-| **Deliverect** | Uber Eats / DoorDash / Grubhub / Deliveroo aggregator |
-| **QuickBooks Online** | Avtomatska sinhronizacija JournalEntry |
-| **Xero** | Avtomatska sinhronizacija ManualJournals |
-| **7shifts** | Labor scheduling + payroll + tip management |
-| Glovo / Wolt / Bolt | Webhook integracije z HMAC podpisovanjem |
-| e-Računi | Slovensko računovodstvo (UBL 2.1) |
-| Datalab Pantheon | Slovenski ERP |
-| Custom webhooks | Poljubno konfigurirani webhook-i |
+| Integracija | Status | Opis |
+|---|---|---|
+| **Glovo** | ✅ Implementirano | Webhook integracija z HMAC-SHA256 podpisovanjem |
+| **Wolt** | ✅ Implementirano | Webhook integracija z HMAC-SHA256 podpisovanjem |
+| **QuickBooks Online** | ✅ Implementirano | Avtomatska sinhronizacija JournalEntry |
+| **Xero** | ✅ Implementirano | Avtomatska sinhronizacija ManualJournals |
+| **e-Računi** | ✅ Implementirano | Slovensko računovodstvo (UBL 2.1) |
+| **Datalab Pantheon** | ✅ Implementirano | Slovenski ERP |
+| Custom webhooks | ✅ Implementirano | Poljubno konfigurirani webhook-i z HMAC podpisovanjem |
+| **Deliverect** | ⚠️ Načrtovano | Uber Eats / DoorDash / Grubhub / Deliveroo aggregator — še ni implementirano |
+| **Bolt Food** | ⚠️ Načrtovano | Webhook integracija — še ni implementirano |
+| **7shifts** | ⚠️ Načrtovano | Labor scheduling + payroll + tip management — še ni implementirano |
 
 ### 🔐 Varnost
 
@@ -282,15 +294,22 @@ Glej **[DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md)** za celovit vodič:
 | `requireAuth()` | Vse zaščitene API rute zahtevajo veljavno sejo |
 | `ROUTE_PERMISSIONS` | RBAC z 8 dovoljenji (admin, manager, staff, manage_cash, itd.) |
 | PIN prijava | bcrypt hash + **HMAC-SHA256 pinLookup** za O(1) iskanje |
-| **WebAuthn/FIDO2** | Biometric login (Touch ID, Face ID, Windows Hello) |
-| Seje | Bearer token, 8h sliding TTL + 24h absolutni timeout |
-| Zod validacija | Vsi vhodni podatki validirani na strežniku |
-| Prisma $transaction | Atomski operaciji za kritične transakcije |
-| **Audit hash chain** | SHA-256 veriga (previousHash + chainHash) za PCI DSS |
-| Rate limiting | Login (5/15min), public API, kiosk, WS broadcast |
-| CSP + HSTS | Content-Security-Policy, HSTS, X-Frame-Options DENY |
+| **WebAuthn/FIDO2** | ⚠️ EKSPERIMENTALNO — preverjanje podpisa še ni implementirano (glej [AUDIT-REPORT.md](./AUDIT-REPORT.md)) |
+| Seje | Bearer token, 8h sliding TTL + 24h absolutni timeout + **status check** (terminiran zaposleni izgubi dostop v 60s) |
+| Zod validacija | 98+ shem na strežniku + client-side validacija za javne forme |
+| Prisma $transaction | Atomski operaciji za kritične transakcije (53+ call sites) |
+| **Audit hash chain** | SHA-256 veriga (previousHash + chainHash) za PCI DSS — transakcijsko varna |
+| **HACCP hash chain** | SHA-256 veriga za EU 852/2004 — transakcijsko varna |
+| **TipDistribution hash chain** | SHA-256 veriga za napitnine |
+| Rate limiting | Login (5/15min), public API (10+/min), kiosk (10/h), IoT (60/min), WS broadcast |
+| CSP + HSTS | Content-Security-Policy, HSTS preload, X-Frame-Options SAMEORIGIN, COOP/CORP |
+| **Secrets masking** | pin, pinLookup, fursCertPassword, fursCertPath, emailSmtpPassword, webhook secret, integration apiKey/apiSecret — vsi maskirani v API odgovorih |
 | Decimal valute | Vse valute shranjene kot Decimal (ne Float) |
-| Idempotentna plačila | `idempotencyKey` prepreči duplikate |
+| Idempotentna plačila | `idempotencyKey` prepreči duplikate (fast-path + P2002 race-path) |
+| **SSRF zaščita** | Outbound webhooks zavračajo interne/metadata naslove (127.x, 169.254.x, RFC1918) |
+| **FURS ZOI fail-fast** | V produkciji vrže napako če certifikat manjka (ne tiho fallback na SHA-256) |
+| **IoT API key** | `X-IoT-Api-Key` header obvezen za IoT readings (fail-closed) |
+| **Receipt token** | HMAC-SHA256 (ne DJB2) — token obvezen za dostop do digitalnega računa |
 
 ### 🖥️ Self-Service Kiosk
 
@@ -383,14 +402,15 @@ restaurantos/
 
 | Dokument | Vsebina |
 |---|---|
+| **[AUDIT-REPORT.md](./AUDIT-REPORT.md)** | 🆕 Celoviti varnostni audit (40 findingov, 40 popravkov, PR #30–#55) |
+| **[SECURITY.md](./SECURITY.md)** | Varnostna politika + implementirani varnostni ukrepi |
 | **[DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md)** | Vercel deploy + PWA/KDS/natakar nastavitev |
-| **[AUDIT.md](./AUDIT.md)** | Varnostni in arhitekturni audit |
-| **[SPECIFICATION-COMPLIANCE.md](./SPECIFICATION-COMPLIANCE.md)** | 95% skladnost s profesionalno specifikacijo |
+| **[AUDIT.md](./AUDIT.md)** | Varnostni in arhitekturni audit (zgodnji) |
 | **[FEATURES-AUDIT.md](./FEATURES-AUDIT.md)** | Revizija funkcij vs profesionalni POS |
 | **[COMPETITIVE-ANALYSIS.md](./COMPETITIVE-ANALYSIS.md)** | Primerjava s 12 POS sistemov |
 | **[ADVANCED-FEATURES-COMPARISON.md](./ADVANCED-FEATURES-COMPARISON.md)** | 10 cutting-edge funkcij konkurence |
 | **[E2E-TEST-REPORT.md](./E2E-TEST-REPORT.md)** | 96 E2E testov (100% pass) |
-| **[CHANGELOG.md](./CHANGELOG.md)** | Zgodovina sprememb (18 commitov) |
+| **[CHANGELOG.md](./CHANGELOG.md)** | Zgodovina sprememb |
 
 ---
 
@@ -417,14 +437,21 @@ restaurantos/
 ## 🛡️ Varnostne značilnosti
 
 - **PIN z bcrypt + HMAC O(1)** — `pinLookup` polje za hitro iskanje, `pin` ostane bcrypt-hashiran
-- **WebAuthn/FIDO2** — biometric login (Touch ID, Face ID, Windows Hello)
+- **WebAuthn/FIDO2** — ⚠️ EKSPERIMENTALNO (preverjanje podpisa ni implementirano; onemogočeno privzeto)
 - **SHA-256 audit hash chain** — `previousHash + chainHash` v transakciji (race-safe)
-- **HACCP hash chain** — EU 852/2004 nepopravljive evidence
-- **Rate limiting** — login (5/15min), public API, kiosk (10/h), WS broadcast
-- **CSP + HSTS** — Content-Security-Policy, HSTS preload, X-Frame-Options DENY
-- **Zod validacija** — 55+ shem za vse API vhode
+- **HACCP hash chain** — EU 852/2004 nepopravljive evidence (transakcijsko varna)
+- **TipDistribution hash chain** — SHA-256 veriga za napitnine
+- **Session invalidation** — terminiran zaposleni izgubi dostop v 60s (ne 8h)
+- **Rate limiting** — login (5/15min), public API, kiosk (10/h), IoT (60/min), WS broadcast
+- **CSP + HSTS** — Content-Security-Policy, HSTS preload, X-Frame-Options SAMEORIGIN, COOP/CORP
+- **Zod validacija** — 98+ shem za vse API vhode + client-side za javne forme
 - **Decimal valute** — vse monetarne vrednosti kot Decimal (ne Float)
 - **Idempotentna plačila** — `idempotencyKey` prepreči duplikate
+- **Secrets masking** — vsi gesli/ključi maskirani v API odgovorih
+- **SSRF zaščita** — outbound webhooks zavračajo interne naslove
+- **FURS ZOI fail-fast** — produkcija vrže napako če certifikat manjka
+
+> 📋 Glej [AUDIT-REPORT.md](./AUDIT-REPORT.md) za celovito poročilo o varnostnem auditu (40 findingov, 40 popravkov).
 
 ---
 
@@ -459,9 +486,9 @@ Glej [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 <div align="center">
 
-**RestaurantOS** — Najnaprednejši odprtokodni POS za restavracije na svetu
+**RestaurantOS** — Odprtokodni POS za restavracije s FURS podporo
 
-[🌐 GitHub](https://github.com/markec12345678/restaurantos) · [📋 Spec Compliance](./SPECIFICATION-COMPLIANCE.md) · [🚀 Deployment](./DEPLOYMENT-GUIDE.md) · [📊 E2E Tests](./E2E-TEST-REPORT.md)
+[🌐 GitHub](https://github.com/markec12345678/restaurantos) · [🛡️ Audit Report](./AUDIT-REPORT.md) · [🔒 Security](./SECURITY.md) · [🚀 Deployment](./DEPLOYMENT-GUIDE.md) · [📊 E2E Tests](./E2E-TEST-REPORT.md)
 
 </div>
 
