@@ -8,6 +8,68 @@ datasource db {
 }
 
 // ============================================
+// NAČRTOVANI ENUMI (issue #41) — za prihodnjo migracijo
+// ============================================
+// Trenutno se vsa status/type polja shranjujejo kot String (brez DB-level
+// integritete). Ko se issue #41 implementira, spodnje enum-e dodaj in
+// spremeni polja iz String v ustrezni enum tip.
+//
+// Na SQLite so enum-i shranjeni kot TEXT — obstoječi podatki (npr. "pending")
+// bodo še naprej delovali. Na PostgreSQL se ustvari native enum type.
+//
+// Vpliv na kodo:
+// - Prisma query: `where: { status: 'pending' }` — še vedno deluje
+// - TS primerjava: `if (order.status === 'pending')` — še vedno deluje
+//   (TS narrow-a union tip)
+// - Neveljavne vrednosti: `order.status = 'invalid'` → TS error (to je point!)
+//
+// Enum-i, ki jih je treba dodati (po modelih):
+//
+// enum EmployeeRole { admin manager staff }
+// enum EmployeeStatus { active inactive terminated }
+// enum OrderStatus { pending preparing ready served paid cancelled }
+// enum OrderPaymentStatus { unpaid partial paid refunded }
+// enum OrderType { dine_in takeout delivery }
+// enum PaymentType { cash card mobile voucher loyalty giftcard alternate }
+// enum PaymentStatus { completed refunded voided }
+// enum ReceiptFiscalStatus { none pending verified failed }
+// enum FursEnvironment { test production }
+// enum LoyaltyTier { bronze silver gold platinum }
+// enum LoyaltyTransactionType { earn redeem adjust expire }
+// enum GiftCardStatus { active depleted expired suspended }
+// enum GiftCardTransactionType { load redeem adjust transfer }
+// enum StockTransactionType { procurement sale write_off adjustment return }
+// enum PurchaseOrderStatus { draft sent confirmed partial received cancelled }
+// enum ShiftStatus { scheduled in_progress completed absent }
+// enum TimeEntryType { regular overtime holiday sick vacation }
+// enum TimeEntryStatus { active approved disputed }
+// enum CashRegisterShiftStatus { open closed }
+// enum JournalEntryStatus { draft posted reversed }
+// enum JournalLineAccountType { asset liability equity revenue expense }
+// enum AccountsPayableStatus { open partial paid overdue cancelled }
+// enum AccountsReceivableStatus { open partial paid overdue cancelled }
+// enum HaccpEntryCategory { temperature cleaning delivery cooling training }
+// enum HaccpEntryStatus { ok warning critical archived }
+// enum StaffShiftType { morning afternoon evening night split custom }
+// enum StaffShiftStatus { scheduled confirmed in_progress completed cancelled no_show }
+// enum ReservationStatus { confirmed seated completed cancelled no_show }
+// enum WaitlistEntryStatus { waiting notified seated left cancelled }
+// enum OrderItemStatus { pending fired preparing ready served cancelled }
+// enum DeliveryInfoStatus { pending preparing ready picked_up delivered failed }
+// enum SubscriptionPlan { starter professional enterprise }
+// enum SubscriptionStatus { trial active past_due cancelled expired }
+// enum ZReportStatus { draft finalized approved }
+// enum TipDistributionStatus { pending paid }
+// enum DeliveryTrackingStatus { assigned picked_up on_the_way arriving delivered failed }
+// enum WebhookDeliveryStatus { pending success error timeout }
+// enum DiscountType { percentage fixed_amount buy_x_get_y }
+// enum LocationType { restaurant food_truck pop_up cloud_kitchen bar }
+// enum DiningOptionType { dine_in takeout delivery }
+// enum PrepStationType { kitchen bar pastry grill }
+// enum PrinterType { thermal dot_matrix label }
+// ============================================
+
+// ============================================
 // PROFESIONALNA MENU HIERARHIJA (Toast POS standard)
 // Menu → Category → MenuItem → ModifierGroup → Modifier
 // ============================================
