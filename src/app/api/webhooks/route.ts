@@ -6,16 +6,6 @@ import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { maskWebhookSecret } from '@/lib/secret-masks'
 
-// FIX SECURITY: maskiraj webhook secret v GET odgovorih.
-// Prejšnja koda je vračala polne vrstice vključno s `secret` — tudi če je admin-only,
-// naj skrivnosti ne zapustijo strežnika. Secret se prikaže samo ob kreiranju (POST).
-function maskWebhookSecrets<T extends { secret?: string }>(webhook: T): T {
-  if (webhook && typeof webhook.secret === 'string' && webhook.secret) {
-    return { ...webhook, secret: '****' }
-  }
-  return webhook
-}
-
 // Validacijska shema za kreiranje webhooka
 const createWebhookSchema = z.object({
   name: z.string().min(1, 'Ime je obvezno').max(200, 'Ime ne sme preseči 200 znakov'),
