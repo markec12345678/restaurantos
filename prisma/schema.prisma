@@ -1493,9 +1493,11 @@ model GuestVisit {
   // --- Kdo je strežil ---
   employeeId      String?
   employeeName    String   @default("")
-  // FIX F5-8: Kriptografska zaščita (hash chain) — EU 852/2004
+  // FIX F5-8 + issue #35: Kriptografska zaščita (hash chain) — EU 852/2004
+  // IMPLEMENTIRANO: createGuestVisitWithChain() v src/lib/guest-visit-chain.ts
+  // POST /api/guests/[id]/visits uporablja to funkcijo za transakcijsko varno pisanje.
   previousHash    String   @default("")  // Hash prejšnjega vnosa
-  chainHash       String   @default("")  // SHA-256(previousHash + title + value + status + date)
+  chainHash       String   @default("")  // SHA-256(previousHash + employeeName + totalSpent + 'visited' + arrivedAt)
   // --- Čas ---
   arrivedAt       DateTime @default(now())
   departedAt      DateTime?
