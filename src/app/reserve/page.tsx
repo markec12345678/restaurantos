@@ -50,6 +50,9 @@ export default function ReservePage() {
     isValid,
     navigateDate,
     handleSubmit,
+    errors,
+    touched,
+    markTouched,
   } = useReservation()
 
   // ─── SUCCESS ───────────────────────────────────────────────
@@ -98,11 +101,11 @@ export default function ReservePage() {
             {/* Desno: Podatki stranke */}
             <CustomerFormSection
               customerName={customerName}
-              setCustomerName={setCustomerName}
+              setCustomerName={(v: string) => { setCustomerName(v); markTouched('customerName') }}
               customerPhone={customerPhone}
-              setCustomerPhone={setCustomerPhone}
+              setCustomerPhone={(v: string) => { setCustomerPhone(v); markTouched('customerPhone') }}
               customerEmail={customerEmail}
-              setCustomerEmail={setCustomerEmail}
+              setCustomerEmail={(v: string) => { setCustomerEmail(v); markTouched('customerEmail') }}
               specialRequests={specialRequests}
               setSpecialRequests={setSpecialRequests}
               notes={notes}
@@ -112,6 +115,8 @@ export default function ReservePage() {
               partySize={partySize}
               isValid={isValid}
               onContinue={() => { if (isValid) setStep('confirm') }}
+              errors={errors}
+              touched={touched}
             />
           </div>
         ) : step === 'confirm' ? (

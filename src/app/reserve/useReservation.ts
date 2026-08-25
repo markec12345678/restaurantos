@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { format, addDays, isBefore, startOfDay } from 'date-fns'
 import type { ReservationStep } from './types'
 import { useReservationFetch } from './useReservationFetch'
+import { validateReservationForm } from './validation'
 
 export function useReservation() {
   const [step, setStep] = useState<ReservationStep>('details')
@@ -17,6 +18,7 @@ export function useReservation() {
   const [notes, setNotes] = useState('')
   const [loading, setLoading] = useState(false)
   const [_reservationId, setReservationId] = useState('')
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
 
   const { availableSlots, slotsLoading, fetchedRestaurantInfo: restaurantInfo } = useReservationFetch(selectedDate, partySize)
 
@@ -28,10 +30,20 @@ export function useReservation() {
     }
   }
 
-  const isValid = !!(selectedDate && selectedTime && partySize && customerName && customerPhone)
+  // FIX: prejšnja koda je uporabljala goli `isValid = !!(... && ...)` brez
+  // preverjanja formata. Sedaj z Zod shemo dobimo konkretne errorje za UI.
+  const errors = useMemo(() => validateReservationForm({
+    customerName, customerPhone, customerEmail, partySize, specialRequests, notes,
+  }), [customerName, customerPhone, customerEmail, partySize, specialRequests, notes])
+
+  const isValid = !!(selectedDate && selectedTime && partySize && Object.keys(errors).length === 0)
+
+  const markTouched = (field: string) => setTouched(prev => ({ ...prev, [field]: true }))
 
   const handleSubmit = async () => {
-    if (!isValid) return
+    // Označi vsa polja kot touched, da se prikažejo errorji
+    setTouched({ customerName: true, customerPhone: true, customerEmail: true, partySize: true })
+    if (!isValid || !selectedTime) return
     setLoading(true)
     try {
       const dateTime = new Date(`${format(selectedDate, 'yyyy-MM-dd')}T${selectedTime}:00`)
@@ -62,5 +74,6 @@ export function useReservation() {
     partySize, setPartySize, customerName, setCustomerName, customerPhone, setCustomerPhone,
     customerEmail, setCustomerEmail, specialRequests, setSpecialRequests, notes, setNotes,
     loading, restaurantInfo, availableSlots, slotsLoading, isValid, navigateDate, handleSubmit,
+    errors, touched, markTouched,
   }
 }
