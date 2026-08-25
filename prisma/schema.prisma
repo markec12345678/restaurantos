@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -725,19 +725,19 @@ model Employee {
   pinLookup String?  @unique // FIX PERF: HMAC-SHA256(NEXTAUTH_SECRET, pin) za O(1) iskanje pri prijavi (pin ostane bcrypt-hashiran za varno primerjavo)
   // --- Relations ---
   shifts       Shift[]
-  staffShifts  StaffShift[]
+  staffShifts  StaffShift[] @relation("StaffShifts")
   jobs         EmployeeJob[]
   timeEntries  TimeEntry[]
   cashShifts   CashRegisterShift[]
   waitlistEntries WaitlistEntry[]
   // --- Soft reference FKs (issue #43) ---
-  cancelledOrders       Order[]
+  cancelledOrders       Order[]          @relation("CancelledOrders")
   stockTransactions     StockTransaction[]
-  requestedPurchaseOrders PurchaseOrder[]
-  approvedPurchaseOrders  PurchaseOrder[]
-  finalizedZReports     ZReport[]
-  postedJournalEntries  JournalEntry[]
-  createdStaffShifts    StaffShift[]
+  requestedPurchaseOrders PurchaseOrder[] @relation("RequestedPurchaseOrders")
+  approvedPurchaseOrders  PurchaseOrder[] @relation("ApprovedPurchaseOrders")
+  finalizedZReports     ZReport[]        @relation("FinalizedZReports")
+  postedJournalEntries  JournalEntry[]   @relation("PostedJournalEntries")
+  createdStaffShifts    StaffShift[]     @relation("CreatedStaffShifts")
   guestVisits           GuestVisit[]
   tipDistributions      TipDistribution[]
   // --- Multi-location ---
@@ -1423,7 +1423,7 @@ model StaffShift {
   id              String   @id @default(cuid())
   // --- Zaposleni ---
   employeeId      String
-  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani razpored zgodovino
+  employee        Employee @relation("StaffShifts", fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani razpored zgodovino
   // --- Izmena ---
   shiftDate       DateTime                     // Datum izmene
   shiftType       String   @default("morning") // morning, afternoon, evening, night, split, custom

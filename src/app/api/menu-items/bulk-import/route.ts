@@ -165,7 +165,7 @@ export async function POST(req: Request) {
 
     // Pridobi vse obstoječe kategorije za ta menu
     const existingCategories = await db.category.findMany({ where: { menuId: menu.id } })
-    const categoryMap = new Map(existingCategories.map(c => [c.name.toLowerCase(), c]))
+    const categoryMap = new Map<string, { id: string; name: string }>(existingCategories.map(c => [c.name.toLowerCase(), { id: c.id, name: c.name }]))
 
     // Pridobi vse obstoječe artikle (za duplicate detection)
     const existingItems = await db.menuItem.findMany({ select: { name: true, categoryId: true } })
@@ -208,7 +208,7 @@ export async function POST(req: Request) {
           },
           select: { id: true, name: true },
         })
-        categoryMap.set(data.categoryName.toLowerCase(), category as typeof category & { id: string; name: string })
+        categoryMap.set(data.categoryName.toLowerCase(), category)
       }
 
       itemsToCreate.push({

@@ -18,6 +18,13 @@ export const updateSettingsSchema = z.object({
   fursCertPath: z.string().max(500).optional(),
   fursCertPassword: z.string().max(200).optional(),
   fursEnvironment: z.enum(['test', 'production']).optional(),
+  // FIX issue #51: emailSmtpPassword je bil manjkal v Zod shemi — TypeScript error
+  emailSmtpHost: z.string().max(200).optional(),
+  emailSmtpPort: z.number().int().min(1).max(65535).optional(),
+  emailSmtpUser: z.string().max(200).optional(),
+  emailSmtpPassword: z.string().max(200).optional(),
+  emailFromAddress: z.string().max(200).optional(),
+  emailEnabled: z.boolean().optional(),
   defaultVatRate: z.number().min(0).max(100).optional(),
   reducedVatRate: z.number().min(0).max(100).optional(),
   loyaltyEnabled: z.boolean().optional(),

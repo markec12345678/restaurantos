@@ -10,14 +10,6 @@ import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { updateLocationSchema } from './_helpers'
 import { maskLocationSecrets } from '@/lib/secret-masks'
 
-// FIX SECURITY: maske za občutljiva polja, ki se ne smejo vračati v odgovoru
-function maskLocationSecrets<T extends { fursCertPassword?: string }>(location: T): T {
-  if (location && typeof location.fursCertPassword === 'string' && location.fursCertPassword) {
-    return { ...location, fursCertPassword: '****' }
-  }
-  return location
-}
-
 
 // ============================================
 // GET /api/locations/[id] — Podrobnosti lokacije
