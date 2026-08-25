@@ -73,11 +73,7 @@ export async function GET(
       _count: true,
     })
 
-<<<<<<< HEAD
-    // FIX SECURITY: maskiraj fursCertPassword pred vračanjem klientu
-=======
     // FIX SECURITY: maskiraj fursCertPassword + fursCertPath pred vračanjem klientu
->>>>>>> origin/perf/notifications-batch-and-audit
     return NextResponse.json({
       ...maskLocationSecrets(location),
       todayStats: {
@@ -126,11 +122,7 @@ export async function PUT(
       data,
     })
 
-<<<<<<< HEAD
-    // FIX SECURITY: maskiraj fursCertPassword v odgovoru
-=======
     // FIX SECURITY: maskiraj fursCertPassword + fursCertPath v odgovoru
->>>>>>> origin/perf/notifications-batch-and-audit
     return NextResponse.json(deepToNumbers(maskLocationSecrets(location)))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/locations/[id]', 'Napaka pri posodobitvi lokacije')
