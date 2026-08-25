@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { updateEmployeeSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import bcrypt from 'bcryptjs'
+import { invalidateEmployeeStatusCache } from '@/lib/auth-middleware/session-store'
 
 
 export const dynamic = 'force-dynamic'
@@ -65,6 +66,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       data: updateData,
     })
 
+    // FIX SECURITY: invalidiraj status cache če se je status spremenil
+    // (terminiran zaposleni ne sme več dostopati do API-jev)
+    if (data.status !== undefined && data.status !== existing.status) {
+      invalidateEmployeeStatusCache(id)
+    }
+
     // Vrni brez PIN-a
     return NextResponse.json({ ...employee, pin: employee.pin ? '****' : '' })
   } catch (error: unknown) {
@@ -98,6 +105,10 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       where: { id },
       data: { status: 'terminated', pin: '', pinLookup: null }, // Onemogoči PIN prijavo (počisti tudi pinLookup)
     })
+
+    // FIX SECURITY: invalidiraj status cache — terminiran zaposleni ne sme
+    // več dostopati do API-jev z obstoječo sejo (ki je še veljavna do 8h).
+    invalidateEmployeeStatusCache(id)
 
     return NextResponse.json({ success: true, message: 'Zaposleni označen kot terminiran', employee: { ...employee, pin: '' } })
   } catch (error: unknown) {
