@@ -46,6 +46,13 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: false,
   },
   reactStrictMode: true, // FIX: Omogoči strict mode za boljšo kakovost kode
+  // next/image: optimizacija slik (WebP/AVIF konverzija, responsive sizing, lazy loading)
+  // Vse slike so lokalne v /public/menu-images/ — ni treba nastavljati remotePatterns.
+  images: {
+    formats: ['image/avif', 'image/webp'],
+    // Dovoli optimizacijo slik do 2MB (default 1MB je premajhen za nekatere menijske slike)
+    minimumCacheTTL: 60 * 60 * 24, // 1 dan
+  },
   headers() {
     return [
       {

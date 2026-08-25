@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import Image from 'next/image'
 import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -33,8 +34,8 @@ export const OrderItemsSection = memo(function OrderItemsSection({
         <div key={oi.id} className={`flex items-start justify-between text-sm py-1 gap-2 ${oi.voided ? 'opacity-40 line-through' : ''}`}>
           <div className="flex items-start gap-2 flex-1">
             {oi.menuItem.image ? (
-              <div className="w-9 h-9 rounded-md overflow-hidden flex-shrink-0">
-                <img src={oi.menuItem.image} alt={oi.menuItem.name} className="w-full h-full object-cover" />
+              <div className="w-9 h-9 rounded-md overflow-hidden flex-shrink-0 relative">
+                <Image src={oi.menuItem.image} alt={oi.menuItem.name} fill sizes="36px" className="object-cover" />
               </div>
             ) : (
               <div className="w-9 h-9 rounded-md bg-muted flex-shrink-0 flex items-center justify-center">

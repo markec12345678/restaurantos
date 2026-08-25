@@ -23,6 +23,8 @@ const updateRecipeSchema = z.object({
 })
 
 // GET /api/recipes — Pridobi recepte/normative
+// FIX: dodana paginacija (prej je vrnil vse vrstice z globokimi includes —
+// za 500 menu item-ov × 5 sestavin = 2500 vrstic + 5000 nested v vsakem zahtevku)
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
@@ -33,18 +35,29 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url)
     const menuItemId = searchParams.get('menuItemId')
+    const inventoryItemId = searchParams.get('inventoryItemId')
+    const rawLimit = parseInt(searchParams.get('limit') || '200')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
+    const limit = Math.min(Number.isNaN(rawLimit) ? 200 : rawLimit, 500)
+    const offset = Math.max(Number.isNaN(rawOffset) ? 0 : rawOffset, 0)
 
     const where: Record<string, unknown> = {}
     if (menuItemId) where.menuItemId = menuItemId
+    if (inventoryItemId) where.inventoryItemId = inventoryItemId
 
-    const recipes = await db.recipeItem.findMany({
-      where,
-      include: {
-        menuItem: { select: { id: true, name: true, price: true } },
-        inventoryItem: { select: { id: true, name: true, unit: true, costPerUnit: true, quantity: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    })
+    const [recipes, total] = await Promise.all([
+      db.recipeItem.findMany({
+        where,
+        include: {
+          menuItem: { select: { id: true, name: true, price: true } },
+          inventoryItem: { select: { id: true, name: true, unit: true, costPerUnit: true, quantity: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      db.recipeItem.count({ where }),
+    ])
 
     // Obogatitev s stroški na porcijo
     const enriched = recipes.map(r => ({
@@ -52,7 +65,7 @@ export async function GET(req: Request) {
       costPerServing: toNum(multiply(r.quantityPerServing, r.inventoryItem.costPerUnit)),
     }))
 
-    return NextResponse.json(deepToNumbers(enriched))
+    return NextResponse.json({ recipes: deepToNumbers(enriched), total, limit, offset })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/recipes', 'Napaka pri pridobivanju receptov')
   }

@@ -23,12 +23,16 @@ export function useAllergenMatrixState() {
     queryFn: async () => {
       const res = await authFetch('/api/categories')
       if (!res.ok) throw new Error('Napaka pri nalaganju')
-      const categories = await res.json()
+      const json = await res.json()
+      // FIX: /api/categories vrača {categories, total, ...} — podpremo tudi legacy array
+      const categories: Array<{ menuItems?: MenuItem[]; name?: string }> = Array.isArray(json)
+        ? json
+        : (json?.categories ?? [])
       const allItems: MenuItem[] = []
       for (const cat of categories) {
         if (cat.menuItems) {
           for (const item of cat.menuItems) {
-            allItems.push({ ...item, category: { name: cat.name } })
+            allItems.push({ ...item, category: { name: cat.name ?? '' } })
           }
         }
       }

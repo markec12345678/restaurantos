@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import Image from 'next/image'
 import type { MenuItem, Modifier, ModifierGroup } from './types'
 import { safeToFixed, safeNum } from '@/lib/safe-format'
 
@@ -33,7 +34,9 @@ export const ItemDetailModal = memo(function ItemDetailModal({
         </div>
         <div className="p-4 space-y-4">
           {showItemDetail.image && (
-            <img src={showItemDetail.image} alt={showItemDetail.name} className="w-full h-48 object-cover rounded-xl" />
+            <div className="relative w-full h-48">
+              <Image src={showItemDetail.image} alt={showItemDetail.name} fill sizes="(max-width: 768px) 100vw, 480px" className="object-cover rounded-xl" />
+            </div>
           )}
           {showItemDetail.description && <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{showItemDetail.description}</p>}
           <p className={`font-bold text-lg ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>

@@ -1,6 +1,7 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useState } from 'react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -32,6 +33,9 @@ export const ItemDialog = memo(function ItemDialog({
   onSubmit,
   menuItems,
 }: ItemDialogProps) {
+  // FIX: track napake slike z state (prejšnja koda je manipulirala DOM direktno — ne deluje z next/image)
+  const [imageError, setImageError] = useState(false)
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -47,10 +51,10 @@ export const ItemDialog = memo(function ItemDialog({
           <div>
             <Label htmlFor="inv-image">Slika (URL)</Label>
             <div className="flex gap-2">
-              <Input id="inv-image" value={formData.image} onChange={(e) => onFormDataChange({ ...formData, image: e.target.value })} placeholder="/inventory-images/artikel.png" aria-label="/inventory-images/artikel.png"/>
-              {formData.image && (
-                <div className="w-10 h-10 rounded border overflow-hidden flex-shrink-0">
-                  <img src={formData.image} alt="Predogled" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+              <Input id="inv-image" value={formData.image} onChange={(e) => { onFormDataChange({ ...formData, image: e.target.value }); setImageError(false) }} placeholder="/inventory-images/artikel.png" aria-label="/inventory-images/artikel.png"/>
+              {formData.image && !imageError && (
+                <div className="w-10 h-10 rounded border overflow-hidden flex-shrink-0 relative">
+                  <Image src={formData.image} alt="Predogled" fill sizes="40px" className="object-cover" onError={() => setImageError(true)} />
                 </div>
               )}
             </div>

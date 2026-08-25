@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Minus } from 'lucide-react'
 import { allergenLabels } from '../types'
@@ -31,8 +32,8 @@ export const MenuItemCard = memo(function MenuItemCard({
     <motion.div layout className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden hover:shadow-md transition-shadow">
       <div className="flex cursor-pointer" onClick={() => onOpenDetail(item)}>
         {item.image && (
-          <div className="w-24 h-24 flex-shrink-0">
-            <img src={item.image} alt={item.name} className="w-full h-full object-cover" loading="lazy" />
+          <div className="w-24 h-24 flex-shrink-0 relative">
+            <Image src={item.image} alt={item.name} fill sizes="96px" className="object-cover" />
           </div>
         )}
         <div className="flex-1 p-3 min-w-0">

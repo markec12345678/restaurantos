@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import Image from 'next/image'
 import { Plus, Minus, Trash2 } from 'lucide-react'
 import type { CartItem } from '../types'
 import { safeToFixed, safeNum } from '@/lib/safe-format'
@@ -24,7 +25,9 @@ export const CartItemsList = memo(function CartItemsList({
           className="flex items-center gap-3 bg-gray-50 dark:bg-gray-800 rounded-xl p-3"
         >
           {c.image && (
-            <img src={c.image} alt={c.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+            <div className="relative w-12 h-12 rounded-lg overflow-hidden flex-shrink-0">
+              <Image src={c.image} alt={c.name} fill sizes="48px" className="object-cover" />
+            </div>
           )}
           <div className="flex-1 min-w-0">
             <h4 className="font-medium text-sm truncate">{c.name}</h4>
