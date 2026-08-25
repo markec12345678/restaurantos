@@ -47,30 +47,52 @@ RestaurantOS uporablja večplastno varnostno arhitekturo:
 ### Avtentikacija & Avtorizacija
 - **PIN-based auth** z bcrypt + HMAC-SHA256 za O(1) lookup
 - **RBAC** — `requireAuth(req, { permission: 'admin' })` na 132/152 API-jih
-- **WebAuthn/FIDO2** — biometrična prijava (Touch ID, Face ID, Windows Hello)
+- **WebAuthn/FIDO2** — ⚠️ EKSPERIMENTALNO/ONEMOGOČENO (preverjanje podpisa ni implementirano; glej PR #30)
 - **Rate limiting** na vseh javnih endpointih (login, qr-menu, feedback, webhooks)
+- **Session invalidation** ob terminaciji zaposlenega (verifyToken preverja status, 60s cache; glej PR #53)
 
 ### Podatkovna integriteta
-- **AuditLog** z SHA-256 hash verigo (tamper-evident)
-- **HMAC tokens** za digitalne račune (preprečuje enumeracijo)
-- **Zod validacija** na strežniku in odjemalcu
-- **Prisma `$transaction`** za atomicne operacije
+- **AuditLog** z SHA-256 hash verigo (tamper-evident, transakcijsko varen)
+- **HACCP hash chain** — transakcijsko varen (prejšnja implementacija je bila racy; glej PR #30)
+- **TipDistribution hash chain** — implementiran (glej PR #45)
+- **HMAC-SHA256 tokens** za digitalne račune (prejšnja DJB2 implementacija je bila brute-forceable; glej PR #30)
+- **Zod validacija** na strežniku (98+ shem) in odjemalcu (reserve, order forme; glej PR #48, #49)
+- **Prisma `$transaction`** za atomicne operacije (53+ call sites)
 
 ### Spletne ranljivosti
 - **Webhook signature verification** (HMAC-SHA256) za Glovo/Wolt
 - **`timingSafeEqual`** za primerjavo podpisov (timing-attack odporno)
 - **`execFileSync`** namesto `execSync` za OpenSSL CLI (preprečuje shell injection)
-- **SSRF zaščita** v webhook delivery engine
+- **SSRF zaščita** v webhook delivery engine (zavrača 127.x, 169.254.x, RFC1918, .local/.internal/.test TLD; glej test tests/unit/webhook/ssrf.test.ts)
+- **CSP** z `unsafe-inline` za scripts (nonce-based CSP je TODO — issue #34)
+- **HSTS** preload, X-Frame-Options SAMEORIGIN, COOP/CORP same-origin
+
+### Secrets masking (API odgovori)
+- **pin / pinLookup** — maskirano v vseh employees API odgovorih (PR #48, #50)
+- **fursCertPassword / fursCertPath** — maskirano v locations + settings (PR #45, #50, #51)
+- **emailSmtpPassword** — maskirano v settings (PR #51)
+- **webhook secret** — maskirano v vseh webhooks API odgovorih (PR #45, #50)
+- **integration apiKey / apiSecret** — maskirano v vseh integrations API odgovorih (PR #51)
+- **receipt token** — pravi HMAC-SHA256 (ne DJB2; PR #30)
 
 ### FURS skladnost
 - **RSA-SHA256 podpisovanje** ZOI s pravim privatnim ključem
-- **V produkciji ne pade tiho** na SHA256 fallback (ZDDV-1 skladnost)
+- **V produkciji ne pade tiho** na SHA256 fallback (fail-fast; glej PR #30)
 - **Slovenski čas (CET/CEST)** izričen v ZOI (preprečuje server-time bug)
+- **FURS_ALLOW_SIMULATION** default `false` (prej `true` — glej PR #45)
+
+### IoT & HACCP
+- **IoT readings** zahtevajo `X-IoT-Api-Key` header (prej brez auth; glej PR #30)
+- **HACCP entries** se kreirajo znotraj `$transaction` (prej race-prone; glej PR #30)
 
 ### Spremljanje
 - **Gitleaks** v CI — preprečuje commit skrivnosti
 - **bun audit** — pregled odvisnosti za znane CVE-je
 - **AuditLog** — vsako administrativno dejanje je zabeleženo
+
+### Race condition fixes
+- **Counter-based number generation** za orderNumber, apNumber, arNumber (prej `count+1`; glej PR #30)
+- **Idempotent payments** z `idempotencyKey` (fast-path + P2002 race-path + DB unique)
 
 ## 🔐 Credential Hygiene
 

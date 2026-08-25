@@ -172,7 +172,7 @@
 | # | Funkcija | RestaurantOS | Konkurenca |
 |---|---|---|---|
 | 1 | **FURS ZOI/EOR** | ✅ 95% (edini open source) | ❌ Noben open source |
-| 2 | **Offline-first PWA + IndexedDB** | ✅ 90% (22 trgovin) | ⚠️ Toast/Square delno |
+| 2 | **Offline-first PWA + IndexedDB** | ✅ 90% (2 trgovini) | ⚠️ Toast/Square delno |
 | 3 | **Audit hash chain (SHA-256)** | ✅ 95% (PCI DSS) | ⚠️ Redki |
 | 4 | **Double-entry accounting (vgrajeno)** | ✅ 88% (JournalEntry) | ❌ Toast/Square addon |
 | 5 | **eDavki XML export** | ✅ 85% | ❌ Noben open source |
@@ -231,4 +231,4 @@
 - ✅ Edini z EU HACCP + hash chain
 - ✅ Edini z double-entry accounting vgrajeno
 
-**Z implementacijo Faze 6 (4 kritične + 3 visoke)** bi RestaurantOS dosegel **~95% skladnosti** in postal **najnaprednejši odprtokodni POS na svetu** — konkurenčen celo Toast/Square v naprednih funkcijah.
+**Z implementacijo Faze 6 (4 kritične + 3 visoke)** bi RestaurantOS dosegel **~95% skladnosti** s profesionalno specifikacijo — konkurenčen celo Toast/Square v naprednih funkcijah.
