@@ -1172,6 +1172,10 @@ model Location {
   purchaseOrders   PurchaseOrder[]
   taxRates         TaxRate[]
   guestFeedbacks   GuestFeedback[]
+  // --- Accounting relations (issue #31: multi-location accounting) ---
+  journalEntries      JournalEntry[]
+  accountsPayables    AccountsPayable[]
+  accountsReceivables AccountsReceivable[]
 
   @@index([code])
   @@index([isActive])
@@ -2174,6 +2178,9 @@ model JournalEntry {
   status       String         @default("posted") // draft, posted, reversed
   postedAt     DateTime?
   postedBy     String?         // Employee ID
+  // --- Multi-location (issue #31) ---
+  locationId   String?                           // Lokacija za to knjiženje (nullable za backward compat)
+  location     Location?      @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // --- Relacije ---
   lines        JournalLine[]
   // --- Meta ---
@@ -2186,6 +2193,7 @@ model JournalEntry {
   @@index([status])
   @@index([source])
   @@index([date, status])
+  @@index([locationId])
 }
 
 model JournalLine {
@@ -2221,6 +2229,9 @@ model AccountsPayable {
   supplierId      String
   supplier        Supplier  @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   purchaseOrderId String?                       // Povezava z nabavnim naročilom
+  // --- Multi-location (issue #31) ---
+  locationId      String?                       // Lokacija za to obveznost (nullable za backward compat)
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // --- Račun dobavitelja ---
   invoiceNumber   String     @default("")       // Številka računa dobavitelja
   invoiceDate     DateTime   @default(now())    // Datum računa
@@ -2242,6 +2253,7 @@ model AccountsPayable {
   @@index([status])
   @@index([dueDate])
   @@index([status, dueDate])  // Aging report: open/overdue po datumu
+  @@index([locationId])
 }
 
 // ============================================
@@ -2254,6 +2266,9 @@ model AccountsReceivable {
   arNumber        String    @unique             // AR-YYYY-NNNNNN
   orderId         String?                       // Povezava z naročilom (če je iz POS)
   guestId         String?                       // Povezava z gostom
+  // --- Multi-location (issue #31) ---
+  locationId      String?                       // Lokacija za to terjatev (nullable za backward compat)
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // --- Stranka ---
   customerName    String                        // Ime stranke (B2B)
   customerTaxId   String     @default("")       // Davčna številka stranke
@@ -2279,6 +2294,7 @@ model AccountsReceivable {
   @@index([dueDate])
   @@index([status, dueDate])
   @@index([customerTaxId])
+  @@index([locationId])
 }
 
 // ============================================
