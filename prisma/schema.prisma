@@ -8,6 +8,68 @@ datasource db {
 }
 
 // ============================================
+// NAČRTOVANI ENUMI (issue #41) — za prihodnjo migracijo
+// ============================================
+// Trenutno se vsa status/type polja shranjujejo kot String (brez DB-level
+// integritete). Ko se issue #41 implementira, spodnje enum-e dodaj in
+// spremeni polja iz String v ustrezni enum tip.
+//
+// Na SQLite so enum-i shranjeni kot TEXT — obstoječi podatki (npr. "pending")
+// bodo še naprej delovali. Na PostgreSQL se ustvari native enum type.
+//
+// Vpliv na kodo:
+// - Prisma query: `where: { status: 'pending' }` — še vedno deluje
+// - TS primerjava: `if (order.status === 'pending')` — še vedno deluje
+//   (TS narrow-a union tip)
+// - Neveljavne vrednosti: `order.status = 'invalid'` → TS error (to je point!)
+//
+// Enum-i, ki jih je treba dodati (po modelih):
+//
+// enum EmployeeRole { admin manager staff }
+// enum EmployeeStatus { active inactive terminated }
+// enum OrderStatus { pending preparing ready served paid cancelled }
+// enum OrderPaymentStatus { unpaid partial paid refunded }
+// enum OrderType { dine_in takeout delivery }
+// enum PaymentType { cash card mobile voucher loyalty giftcard alternate }
+// enum PaymentStatus { completed refunded voided }
+// enum ReceiptFiscalStatus { none pending verified failed }
+// enum FursEnvironment { test production }
+// enum LoyaltyTier { bronze silver gold platinum }
+// enum LoyaltyTransactionType { earn redeem adjust expire }
+// enum GiftCardStatus { active depleted expired suspended }
+// enum GiftCardTransactionType { load redeem adjust transfer }
+// enum StockTransactionType { procurement sale write_off adjustment return }
+// enum PurchaseOrderStatus { draft sent confirmed partial received cancelled }
+// enum ShiftStatus { scheduled in_progress completed absent }
+// enum TimeEntryType { regular overtime holiday sick vacation }
+// enum TimeEntryStatus { active approved disputed }
+// enum CashRegisterShiftStatus { open closed }
+// enum JournalEntryStatus { draft posted reversed }
+// enum JournalLineAccountType { asset liability equity revenue expense }
+// enum AccountsPayableStatus { open partial paid overdue cancelled }
+// enum AccountsReceivableStatus { open partial paid overdue cancelled }
+// enum HaccpEntryCategory { temperature cleaning delivery cooling training }
+// enum HaccpEntryStatus { ok warning critical archived }
+// enum StaffShiftType { morning afternoon evening night split custom }
+// enum StaffShiftStatus { scheduled confirmed in_progress completed cancelled no_show }
+// enum ReservationStatus { confirmed seated completed cancelled no_show }
+// enum WaitlistEntryStatus { waiting notified seated left cancelled }
+// enum OrderItemStatus { pending fired preparing ready served cancelled }
+// enum DeliveryInfoStatus { pending preparing ready picked_up delivered failed }
+// enum SubscriptionPlan { starter professional enterprise }
+// enum SubscriptionStatus { trial active past_due cancelled expired }
+// enum ZReportStatus { draft finalized approved }
+// enum TipDistributionStatus { pending paid }
+// enum DeliveryTrackingStatus { assigned picked_up on_the_way arriving delivered failed }
+// enum WebhookDeliveryStatus { pending success error timeout }
+// enum DiscountType { percentage fixed_amount buy_x_get_y }
+// enum LocationType { restaurant food_truck pop_up cloud_kitchen bar }
+// enum DiningOptionType { dine_in takeout delivery }
+// enum PrepStationType { kitchen bar pastry grill }
+// enum PrinterType { thermal dot_matrix label }
+// ============================================
+
+// ============================================
 // PROFESIONALNA MENU HIERARHIJA (Toast POS standard)
 // Menu → Category → MenuItem → ModifierGroup → Modifier
 // ============================================
@@ -418,7 +480,9 @@ model Order {
   // --- Preklic/Storno metapodatki ---
   cancelReason    String     @default("")   // Razlog za preklic/storno
   cancelledAt     DateTime?                 // Kdaj je bilo preklicano/stornirano
-  cancelledBy     String     @default("")   // Kdo je preklical (employeeId ali ime)
+  cancelledBy     String     @default("")   // Kdo je preklical (employeeId ali ime) — @deprecated, use cancelledById
+  cancelledById   String?                      // FIX issue #43: FK do Employee
+  cancelledByEmp  Employee?  @relation("CancelledOrders", fields: [cancelledById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // --- Razknjiževanje zaloge (prepreči dvojno razknjiževanje) ---
   inventoryDeducted Boolean   @default(false) // Ali je bila zaloga že razknjižena
   // --- Čas plačila ---
@@ -453,6 +517,7 @@ model Order {
   @@index([diningOptionId])     // FIX: FK index — poizvedbe po načinu strežbe
   @@index([revenueCenterId])    // FIX: FK index — poizvedbe po centru prihodkov
   @@index([guestId])            // FIX: FK index — CRM poizvedbe: "naročila gosta"
+  @@index([cancelledById])      // FIX issue #43: FK index — poizvedbe po preklicu
 }
 
 model OrderItem {
@@ -665,6 +730,16 @@ model Employee {
   timeEntries  TimeEntry[]
   cashShifts   CashRegisterShift[]
   waitlistEntries WaitlistEntry[]
+  // --- Soft reference FKs (issue #43) ---
+  cancelledOrders       Order[]
+  stockTransactions     StockTransaction[]
+  requestedPurchaseOrders PurchaseOrder[]
+  approvedPurchaseOrders  PurchaseOrder[]
+  finalizedZReports     ZReport[]
+  postedJournalEntries  JournalEntry[]
+  createdStaffShifts    StaffShift[]
+  guestVisits           GuestVisit[]
+  tipDistributions      TipDistribution[]
   // --- Multi-location ---
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -874,7 +949,9 @@ model StockTransaction {
   reason          String        @default("")
   note            String        @default("")
   supplierDoc     String        @default("")
-  employeeName    String        @default("")
+  employeeName    String        @default("")   // @deprecated, use employeeId (issue #43)
+  employeeId      String?                       // FIX issue #43: FK do Employee
+  employee        Employee?     @relation(fields: [employeeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   orderId         String?
   createdAt       DateTime      @default(now())
 
@@ -883,6 +960,7 @@ model StockTransaction {
   @@index([createdAt])
   @@index([inventoryItemId, type]) // FIX: Compound index for common queries (e.g., find sales per item)
   @@index([orderId])              // FIX: Index for stock transactions linked to orders
+  @@index([employeeId])           // FIX issue #43: FK index — poizvedbe po zaposlenem
 }
 
 model RecipeItem {
@@ -1078,7 +1156,10 @@ model RestaurantSettings {
   businessId        String   @default("")           // Matična številka podjetja
   taxId             String   @default("")           // ID za DDV (SIxxxxxxxxx)
   registerNumber    String   @default("BLG-001")    // Številka blagajne
-  // --- FURS certifikat ---
+  // --- FURS certifikat (DEPRECATED — issue #37) ---
+  // @deprecated: Uporabljaj Location.fursCertPath/Password/Environment namesto teh polj.
+  // buildFursConfigFromSettings() sedaj najprej preveri Location, fallback na RestaurantSettings.
+  // Ta polja bodo odstranjena v prihodnji migraciji po tem ko vsi uporabniki preidejo na Location.
   fursCertPath      String   @default("")
   fursCertPassword  String   @default("")
   fursEnvironment   String   @default("test")
@@ -1172,6 +1253,10 @@ model Location {
   purchaseOrders   PurchaseOrder[]
   taxRates         TaxRate[]
   guestFeedbacks   GuestFeedback[]
+  // --- Accounting relations (issue #31: multi-location accounting) ---
+  journalEntries      JournalEntry[]
+  accountsPayables    AccountsPayable[]
+  accountsReceivables AccountsReceivable[]
 
   @@index([code])
   @@index([isActive])
@@ -1359,7 +1444,9 @@ model StaffShift {
   actualEnd       DateTime?
   breakMinutes    Int      @default(0)
   // --- Avtor ---
-  createdBy       String?
+  createdBy       String?                        // @deprecated, use createdById (issue #43)
+  createdById     String?                        // FIX issue #43: FK do Employee
+  createdByEmp    Employee?  @relation("CreatedStaffShifts", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -1372,6 +1459,7 @@ model StaffShift {
   // FIX SCHEMA-10: Composite index za StaffShift — aktivne izmene danes
   @@index([status, shiftDate])
   @@index([shiftDate, locationId])
+  @@index([createdById]) // FIX issue #43: FK index
 }
 
 // ============================================
@@ -1492,14 +1580,13 @@ model GuestVisit {
   feedbackComment String   @default("")
   // --- Kdo je strežil ---
   employeeId      String?
-  employeeName    String   @default("")
-  // FIX F5-8: Kriptografska zaščita (hash chain) — EU 852/2004
-  // NOTE (issue #35): hash chain za GuestVisit še NI implementiran v aplikacijski kodi —
-  // polja se vedno zapišeta kot "". GuestVisit se trenutno kreira samo prek seed-a.
-  // Ko bo implementiran endpoint za kreiranje GuestVisit, uporabi enak pattern
-  // kot createTipDistributionWithChain (db.$transaction + read+hash+write).
+  employee        Employee?  @relation(fields: [employeeId], references: [id], onDelete: SetNull, onUpdate: Cascade) // FIX issue #43: dodana FK relacija
+  employeeName    String   @default("")   // @deprecated, use employeeId (issue #43)
+  // FIX F5-8 + issue #35: Kriptografska zaščita (hash chain) — EU 852/2004
+  // IMPLEMENTIRANO: createGuestVisitWithChain() v src/lib/guest-visit-chain.ts
+  // POST /api/guests/[id]/visits uporablja to funkcijo za transakcijsko varno pisanje.
   previousHash    String   @default("")  // Hash prejšnjega vnosa
-  chainHash       String   @default("")  // SHA-256(previousHash + title + value + status + date)
+  chainHash       String   @default("")  // SHA-256(previousHash + employeeName + totalSpent + 'visited' + arrivedAt)
   // --- Čas ---
   arrivedAt       DateTime @default(now())
   departedAt      DateTime?
@@ -1582,8 +1669,12 @@ model PurchaseOrder {
   deliveryAddress String   @default("")
   deliveryNotes   String   @default("")
   // --- Interna ---
-  requestedBy     String   @default("")         // Kdo je naročil
-  approvedBy      String   @default("")         // Kdo je odobril
+  requestedBy     String   @default("")         // Kdo je naročil — @deprecated, use requestedById (issue #43)
+  approvedBy      String   @default("")         // Kdo je odobril — @deprecated, use approvedById (issue #43)
+  requestedById   String?                      // FIX issue #43: FK do Employee
+  approvedById    String?                      // FIX issue #43: FK do Employee
+  requestedByEmp  Employee?  @relation("RequestedPurchaseOrders", fields: [requestedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  approvedByEmp   Employee?  @relation("ApprovedPurchaseOrders", fields: [approvedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // --- Multi-location (FIX: nabava je za zalogo lokacije) ---
   locationId      String?
   location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -1601,6 +1692,8 @@ model PurchaseOrder {
   // FIX: Composite index — nadzorna plošča dobavitelja: naročila po statusu
   @@index([supplierId, status])
   @@index([locationId]) // FIX: per-lokacija nabava
+  @@index([requestedById]) // FIX issue #43: FK index
+  @@index([approvedById])  // FIX issue #43: FK index
 }
 
 model PurchaseOrderItem {
@@ -2020,7 +2113,9 @@ model ZReport {
   grossMargin       Decimal   @default(0)  // Bruto marža (%)  // FIX: Decimal za odstotek
   // --- Status ---
   status            String   @default("draft")          // draft, finalized, approved
-  finalizedBy       String   @default("")               // Kdo je zaključil
+  finalizedBy       String   @default("")               // Kdo je zaključil — @deprecated, use finalizedById (issue #43)
+  finalizedById     String?                             // FIX issue #43: FK do Employee
+  finalizedByEmp    Employee?  @relation("FinalizedZReports", fields: [finalizedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // --- Opombe ---
   notes             String   @default("")
   // --- Multi-location ---
@@ -2035,6 +2130,7 @@ model ZReport {
   // FIX SCHEMA-08 HIGH: Compound unique — eno Z-poročilo na dan na lokacijo, ne globalno
   @@unique([reportDate, locationId])
   @@index([closedAt])  // FIX SCHEMA-09: Iskanje zaključenih poročil po datumu
+  @@index([finalizedById]) // FIX issue #43: FK index
 }
 
 // ============================================
@@ -2074,7 +2170,8 @@ model TipDistribution {
   tipPool         TipPool  @relation(fields: [tipPoolId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   // --- Zaposleni ---
   employeeId      String
-  employeeName    String   @default("")
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX issue #43: dodana FK relacija
+  employeeName    String   @default("")   // @deprecated, use employeeId (issue #43)
   // FIX F5-8: Kriptografska zaščita (hash chain) — EU 852/2004
   previousHash    String   @default("")  // Hash prejšnjega vnosa
   chainHash       String   @default("")  // SHA-256(previousHash + title + value + status + date)
@@ -2177,7 +2274,12 @@ model JournalEntry {
   source       String         @default("manual") // manual, auto-order, auto-payment, auto-expense
   status       String         @default("posted") // draft, posted, reversed
   postedAt     DateTime?
-  postedBy     String?         // Employee ID
+  postedBy     String?         // Employee ID — @deprecated, use postedById (issue #43)
+  postedById   String?         // FIX issue #43: FK do Employee
+  postedByEmp  Employee?  @relation("PostedJournalEntries", fields: [postedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  // --- Multi-location (issue #31) ---
+  locationId   String?                           // Lokacija za to knjiženje (nullable za backward compat)
+  location     Location?      @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // --- Relacije ---
   lines        JournalLine[]
   // --- Meta ---
@@ -2190,6 +2292,8 @@ model JournalEntry {
   @@index([status])
   @@index([source])
   @@index([date, status])
+  @@index([locationId])
+  @@index([postedById]) // FIX issue #43: FK index
 }
 
 model JournalLine {
@@ -2225,6 +2329,9 @@ model AccountsPayable {
   supplierId      String
   supplier        Supplier  @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   purchaseOrderId String?                       // Povezava z nabavnim naročilom
+  // --- Multi-location (issue #31) ---
+  locationId      String?                       // Lokacija za to obveznost (nullable za backward compat)
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // --- Račun dobavitelja ---
   invoiceNumber   String     @default("")       // Številka računa dobavitelja
   invoiceDate     DateTime   @default(now())    // Datum računa
@@ -2246,6 +2353,7 @@ model AccountsPayable {
   @@index([status])
   @@index([dueDate])
   @@index([status, dueDate])  // Aging report: open/overdue po datumu
+  @@index([locationId])
 }
 
 // ============================================
@@ -2258,6 +2366,9 @@ model AccountsReceivable {
   arNumber        String    @unique             // AR-YYYY-NNNNNN
   orderId         String?                       // Povezava z naročilom (če je iz POS)
   guestId         String?                       // Povezava z gostom
+  // --- Multi-location (issue #31) ---
+  locationId      String?                       // Lokacija za to terjatev (nullable za backward compat)
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // --- Stranka ---
   customerName    String                        // Ime stranke (B2B)
   customerTaxId   String     @default("")       // Davčna številka stranke
@@ -2283,6 +2394,7 @@ model AccountsReceivable {
   @@index([dueDate])
   @@index([status, dueDate])
   @@index([customerTaxId])
+  @@index([locationId])
 }
 
 // ============================================
