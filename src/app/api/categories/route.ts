@@ -15,19 +15,32 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const menuId = searchParams.get('menuId')
+    const includeItems = searchParams.get('includeItems') !== 'false' // default true
+    const rawLimit = parseInt(searchParams.get('limit') || '200')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
+    const limit = Math.min(Number.isNaN(rawLimit) ? 200 : rawLimit, 500)
+    const offset = Math.max(Number.isNaN(rawOffset) ? 0 : rawOffset, 0)
 
     const where = menuId ? { menuId } : {}
-    const categories = await db.category.findMany({
-      where,
-      orderBy: { sortOrder: 'asc' },
-      include: {
-        menu: { select: { id: true, name: true } },
-        menuItems: {
-          orderBy: { sortOrder: 'asc' },
+    const [categories, total] = await Promise.all([
+      db.category.findMany({
+        where,
+        orderBy: { sortOrder: 'asc' },
+        include: {
+          menu: { select: { id: true, name: true } },
+          // FIX: `menuItems` include je drag — za velike menije lahko vrne 1000+ vrstic.
+          // Dodaj query param `?includeItems=false` za lightweight listing (samo kategorije).
+          ...(includeItems
+            ? { menuItems: { orderBy: { sortOrder: 'asc' } } }
+            : { _count: { select: { menuItems: true } } }
+          ),
         },
-      },
-    })
-    return NextResponse.json(deepToNumbers(categories))
+        take: limit,
+        skip: offset,
+      }),
+      db.category.count({ where }),
+    ])
+    return NextResponse.json({ categories: deepToNumbers(categories), total, limit, offset })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/categories', 'Napaka pri pridobivanju kategorij')
   }

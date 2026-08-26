@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -33,8 +34,8 @@ export const ItemDialog = memo(function ItemDialog({
         </DialogHeader>
         <div className="space-y-3">
           {itemForm.image && (
-            <div className="w-full aspect-[16/9] rounded-lg overflow-hidden bg-muted/50">
-              <img src={itemForm.image} alt="Preview" className="w-full h-full object-cover" />
+            <div className="relative w-full aspect-[16/9] rounded-lg overflow-hidden bg-muted/50">
+              <Image src={itemForm.image} alt="Predogled" fill sizes="(max-width: 768px) 100vw, 480px" className="object-cover" />
             </div>
           )}
           <div>

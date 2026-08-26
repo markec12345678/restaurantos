@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { updateEmployeeSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import bcrypt from 'bcryptjs'
+import { invalidateEmployeeStatusCache } from '@/lib/auth-middleware/session-store'
 
 
 export const dynamic = 'force-dynamic'
@@ -65,8 +66,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       data: updateData,
     })
 
-    // Vrni brez PIN-a
-    return NextResponse.json({ ...employee, pin: employee.pin ? '****' : '' })
+    // FIX SECURITY: invalidiraj status cache če se je status spremenil
+    // (terminiran zaposleni ne sme več dostopati do API-jev)
+    if (data.status !== undefined && data.status !== existing.status) {
+      invalidateEmployeeStatusCache(id)
+    }
+
+    // FIX SECURITY: nikoli ne vračaj `pinLookup` (HMAC) klientu — lahko bi ga
+    // napadalec uporabil za offline brute-force PIN-a če pozna NEXTAUTH_SECRET.
+    const { pinLookup, ...safeEmployee } = employee
+    return NextResponse.json({ ...safeEmployee, pin: safeEmployee.pin ? '****' : '' })
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/employees/[id]', 'Napaka pri posodobitvi zaposlenega')
   }
@@ -99,7 +108,13 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       data: { status: 'terminated', pin: '', pinLookup: null }, // Onemogoči PIN prijavo (počisti tudi pinLookup)
     })
 
-    return NextResponse.json({ success: true, message: 'Zaposleni označen kot terminiran', employee: { ...employee, pin: '' } })
+    // FIX SECURITY: invalidiraj status cache — terminiran zaposleni ne sme
+    // več dostopati do API-jev z obstoječo sejo (ki je še veljavna do 8h).
+    invalidateEmployeeStatusCache(id)
+
+    // FIX SECURITY: izloči pinLookup iz odgovora (enako kot PUT)
+    const { pinLookup: _pinLookup, ...safeEmployee } = employee
+    return NextResponse.json({ success: true, message: 'Zaposleni označen kot terminiran', employee: { ...safeEmployee, pin: '' } })
   } catch (error: unknown) {
     return handleApiError(error, 'DELETE /api/employees/[id]', 'Napaka pri brisanju zaposlenega')
   }

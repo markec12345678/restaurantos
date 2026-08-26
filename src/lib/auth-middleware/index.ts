@@ -7,7 +7,7 @@
 export type { Session, Permission } from './types'
 
 // Upravljanje sej
-export { createSession, verifyToken, destroySession } from './session-store'
+export { createSession, verifyToken, destroySession, invalidateEmployeeStatusCache } from './session-store'
 
 // Middleware funkciji
 export { requireAuth, optionalAuth } from './middleware'

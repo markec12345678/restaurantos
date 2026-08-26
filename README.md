@@ -120,6 +120,11 @@ Glej [SETUP-GUIDE.md](./SETUP-GUIDE.md) za podrobna navodila.
 | E2E testov | 96 (100% pass) |
 | Unit testov | 41+ (SSRF, PIN lookup, sanitize, webhook signing, FURS, itd.) |
 | Odvisnosti | 75+ |
+| Meni artiklov (seed) | **437** (s slikami, alergeni, cenami, DDV) |
+| Kategorij (seed) | 39 (hrana + pijača) |
+| Popustov (seed) | 10 (lastna poraba, zaposleniški, happy hour, itd.) |
+| Davčne stopnje | 3 (22%, 9.5%, 0%) |
+| Modifikatorji (seed) | 10 (mleko, sladilo, led, alkohol) |
 
 > **Opomba:** Prejšnja verzija README je trdila "95% skladnost s profesionalno specifikacijo" in "22 IndexedDB trgovin" — oboje je bilo popravljeno po varnostnem auditu (glej [AUDIT-REPORT.md](./AUDIT-REPORT.md)).
 
@@ -161,10 +166,16 @@ npx prisma generate
 node scripts/seed/e2e-seed.mjs
 node scripts/seed/recipes-stations-seed.mjs
 
-# 6. Zaženi razvojni strežnik
+# 6. FULL SEED (437 artiklov s slikami, alergeni, 39 kategorij, popusti, DDV)
+npx tsx scripts/seed/full-seed-direct.ts
+
+# 7. Dodaj alergene (EU 1169/2011 — 14 alergenov)
+npx tsx scripts/seed/add-allergens.ts
+
+# 8. Zaženi razvojni strežnik
 npm run dev
 
-# 7. Odpri http://localhost:3000
+# 9. Odpri http://localhost:3000
 ```
 
 > ⚠️ **Pomembno:** `FURS_ALLOW_SIMULATION` je privzeto `false`. Za razvoj brez pravega FURS certifikata ga eksplicitno nastavi na `true` v `.env`.

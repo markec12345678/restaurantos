@@ -4,7 +4,7 @@
 // Toast POS + SevenRooms standard
 // ============================================
 
-import { db, createAuditLog } from '@/lib/db'
+import { db, createAuditLog, createAuditLogsBatch } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
@@ -24,7 +24,9 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status') || 'all'
     const rawLimit = parseInt(searchParams.get('limit') || '50')
+    const rawOffset = parseInt(searchParams.get('offset') || '0')
     const limit = Math.min(Number.isNaN(rawLimit) ? 50 : rawLimit, 200)
+    const offset = Math.max(Number.isNaN(rawOffset) ? 0 : rawOffset, 0)
 
     const where: Record<string, unknown> = {
       action: { in: ['NOTIFICATION_SENT', 'NOTIFICATION_FAILED', 'NOTIFICATION_QUEUED'] },
@@ -33,11 +35,16 @@ export async function GET(req: Request) {
       where.action = status === 'sent' ? 'NOTIFICATION_SENT' : status === 'failed' ? 'NOTIFICATION_FAILED' : 'NOTIFICATION_QUEUED'
     }
 
-    const notifications = await db.auditLog.findMany({
-      where,
-      orderBy: { timestamp: 'desc' },
-      take: limit,
-    })
+    // FIX: dodaj `total` za paginacijo + parallel count
+    const [notifications, total] = await Promise.all([
+      db.auditLog.findMany({
+        where,
+        orderBy: { timestamp: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      db.auditLog.count({ where }),
+    ])
 
     // Statistika
     const today = new Date()
@@ -62,7 +69,7 @@ export async function GET(req: Request) {
       else if (channel === 'push') pushCount++
     }
 
-    return NextResponse.json({ notifications, stats: { totalSent: sentCount, totalFailed: failedCount, byType: { sms: smsCount, email: emailCount, push: pushCount } } })
+    return NextResponse.json({ notifications, total, limit, offset, stats: { totalSent: sentCount, totalFailed: failedCount, byType: { sms: smsCount, email: emailCount, push: pushCount } } })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/notifications', 'Napaka pri pridobivanju obvestil')
   }
@@ -107,17 +114,24 @@ export async function PUT(req: Request) {
 
     const { notifications } = data
     const results: Array<{ recipient: string; channel: string; success: boolean; providerId: string }> = []
+    const auditEntries: Array<{ action: string; entityType: string; details: Record<string, unknown>; userId?: string }> = []
 
+    // FIX PERFORMANCE: prejšnja koda je klicala createAuditLog v zanki — vsak
+    // klic je ločena transakcija z read+write. Za N=100 obvestil = 100 transakcij.
+    // Sedaj zbiramo vnose in jih zapišemo v eni transakciji z createAuditLogsBatch.
     for (const notif of notifications) {
       const { success, providerId } = simulateSend(notif.channel)
-      await createAuditLog({
+      results.push({ recipient: notif.recipient, channel: notif.channel, success, providerId })
+      auditEntries.push({
         action: success ? 'NOTIFICATION_SENT' : 'NOTIFICATION_FAILED',
         entityType: 'Notification',
-        details: { channel: notif.channel, recipient: notif.recipient, subject: notif.subject || '', providerId, success, batch: true } as Record<string, unknown>,
+        details: { channel: notif.channel, recipient: notif.recipient, subject: notif.subject || '', providerId, success, batch: true },
         userId: authResult.session?.employeeId,
       })
-      results.push({ recipient: notif.recipient, channel: notif.channel, success, providerId })
     }
+
+    // Zapiši vse audit vnose v eni transakciji
+    await createAuditLogsBatch(auditEntries)
 
     return NextResponse.json({ total: results.length, sent: results.filter(r => r.success).length, failed: results.filter(r => !r.success).length, results })
   } catch (error: unknown) {

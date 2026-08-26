@@ -4,6 +4,7 @@ import { deepToNumbers, toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
 
@@ -74,8 +75,20 @@ export async function POST(req: Request) {
     if (validationError) return validationError
 
     const year = new Date().getFullYear()
-    const count = await db.accountsReceivable.count({ where: { arNumber: { startsWith: `AR-${year}-` } } })
-    const arNumber = `AR-${year}-${String(count + 1).padStart(6, '0')}`
+    // FIX CRITICAL (race): Atomsko generiraj arNumber z db.counter.upsert.
+    const counterName = `arNumber-${year}`
+    let arNumber: string
+    try {
+      const counter = await db.counter.upsert({
+        where: { name: counterName },
+        update: { value: { increment: 1 } },
+        create: { name: counterName, value: 1 },
+      })
+      arNumber = `AR-${year}-${String(counter.value).padStart(6, '0')}`
+    } catch (counterErr: unknown) {
+      logger.error('API', '[AR] Counter upsert failed:', counterErr)
+      return NextResponse.json({ error: 'Napaka pri generiranju številke terjatve. Poskusite znova.' }, { status: 503 })
+    }
 
     const ar = await db.accountsReceivable.create({
       data: {

@@ -1,88 +1,48 @@
 // GET /api/auth/webauthn — Generiraj WebAuthn challenge za biometric login
 // POST /api/auth/webauthn — Verificiraj WebAuthn assertion + login
+//
+// ⚠️ SECURITY: WebAuthn implementation is INCOMPLETE.
+// `verifyAssertion()` v `src/lib/webauthn/index.ts` NE preverja kriptografskega podpisa —
+// preverja samo `clientData.challenge`, kar napadalec lahko trivialno ponaredi.
+// To pomeni, da lahko vsak, ki pozna `employeeId`, dobi veljaven session token.
+//
+// Dokler ne bo integriran `@simplewebauthn/server` za pravo preverjanje podpisa,
+// je ta route onemogočen, razen če je env spremenljivka `WEBAUTHN_ENABLED=true`.
+// Tudi takrat naj se uporablja samo v zaprtem testnem okolju.
+//
+// TODO: integriraj @simplewebauthn/server (verifyAuthenticationResponse + verifyRegistrationResponse)
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
-import { handleApiError, parseJsonBody } from '@/lib/api-utils'
-import { db } from '@/lib/db'
-import { createSession } from '@/lib/auth-middleware/session-store'
-import { generateChallenge, base64urlEncode, verifyAssertion } from '@/lib/webauthn'
-
-
-// In-memory challenge store (v produkciji: Redis ali DB)
-const challenges = new Map<string, { challenge: string; expires: number }>()
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
-  try {
-    const challenge = generateChallenge()
-    const challengeB64 = base64urlEncode(challenge)
-    const challengeId = crypto.randomUUID()
-    challenges.set(challengeId, { challenge: challengeB64, expires: Date.now() + 5 * 60 * 1000 })
-
-    return NextResponse.json({
-      challengeId,
-      challenge: challengeB64,
-      rpId: typeof window !== 'undefined' ? window.location.hostname : 'localhost',
-      timeout: 60000,
-      userVerification: 'required',
-    })
-  } catch (error: unknown) {
-    return handleApiError(error, 'GET /api/auth/webauthn', 'Napaka pri WebAuthn challenge')
-  }
+function webauthnDisabled() {
+  return NextResponse.json(
+    {
+      error: 'WebAuthn biometric login je trenutno onemogočen.',
+      reason: 'implementacija preverjanja podpisa ni dokončana — varnostna luknja',
+      hint: 'uporabljajte PIN prijavo ali nastavite WEBAUTHN_ENABLED=true v .env (samo za testno okolje)',
+      docs: 'https://github.com/markec12345678/restaurantos/security',
+    },
+    { status: 503 }
+  )
 }
 
-export async function POST(req: Request) {
-  try {
-    const bodyResult = await parseJsonBody(req)
-    if (bodyResult.error) return bodyResult.error
-    const { challengeId, assertion, employeeId } = bodyResult.data as {
-      challengeId: string
-      assertion: { credentialId: string; authenticatorData: string; clientDataJSON: string; signature: string }
-      employeeId: string
-    }
-
-    // Pridobi in validiraj challenge
-    const stored = challenges.get(challengeId)
-    if (!stored || stored.expires < Date.now()) {
-      return NextResponse.json({ error: 'Challenge je potekel' }, { status: 400 })
-    }
-    challenges.delete(challengeId) // One-time use
-
-    // Verificiraj assertion
-    if (!verifyAssertion(assertion, stored.challenge)) {
-      return NextResponse.json({ error: 'Biometric avtentikacija ni uspela' }, { status: 401 })
-    }
-
-    // Pridobi zaposlenega
-    const employee = await db.employee.findUnique({
-      where: { id: employeeId, status: 'active' },
-      include: { jobs: { include: { job: true } } },
-    })
-    if (!employee) return NextResponse.json({ error: 'Zaposleni ni najden' }, { status: 404 })
-
-    // Kreiraj sejo
-    const allPermissions: string[] = []
-    for (const ej of employee.jobs) {
-      try {
-        const perms = JSON.parse(ej.job.permissions || '[]')
-        allPermissions.push(...perms)
-      } catch { /* ignore */ }
-    }
-    const permissions = [...new Set(allPermissions)]
-    const token = createSession({
-      id: employee.id,
-      role: employee.role,
-      permissions,
-    })
-
-    return NextResponse.json({
-      success: true,
-      token,
-      employee: { id: employee.id, name: employee.name, role: employee.role, permissions },
-      message: `Biometric prijava uspešna — ${employee.name}`,
-    })
-  } catch (error: unknown) {
-    return handleApiError(error, 'POST /api/auth/webauthn', 'Napaka pri WebAuthn login')
+export async function GET() {
+  if (process.env.WEBAUTHN_ENABLED !== 'true') {
+    return webauthnDisabled()
   }
+  // Eksperimentalna pot — vrani jasno opozorilo, da implementacija ni varna
+  return NextResponse.json({
+    warning: 'WebAuthn je v eksperimentalnem načinu — preverjanje podpisa NI implementirano!',
+    rpId: process.env.NEXTAUTH_URL ? new URL(process.env.NEXTAUTH_URL).hostname : 'localhost',
+    timeout: 60000,
+    userVerification: 'required',
+    experimental: true,
+  })
+}
+
+export async function POST() {
+  // Tudi z WEBAUTHN_ENABLED=true onemogočimo POST, ker verifyAssertion() ne preverja podpisa.
+  // Za pravo WebAuthn podporo je treba najprej integrirati @simplewebauthn/server.
+  return webauthnDisabled()
 }

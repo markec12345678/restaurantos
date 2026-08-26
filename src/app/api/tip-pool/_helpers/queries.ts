@@ -3,6 +3,7 @@
 import { db } from '@/lib/db'
 import { sumBy, toNum } from '@/lib/decimal'
 import type { Distribution } from './schemas'
+import { createTipDistributionWithChain } from '@/lib/tip-distribution-chain'
 
 export interface DayTipsResult {
   payments: { tipAmount: Parameters<typeof toNum>[0]; type: string }[]
@@ -51,18 +52,20 @@ export async function persistTipPoolWithDistributions(
     : await db.tipPool.create({ data: poolData })
 
   // Izbriši stare distribucije in ustvari nove
+  // FIX SECURITY (issue #35): uporabi createTipDistributionWithChain za hash verigo
+  // (prejšnja createMany() ni nastavila previousHash/chainHash — lažna integriteta)
   await db.tipDistribution.deleteMany({ where: { tipPoolId: pool.id } })
-  await db.tipDistribution.createMany({
-    data: distributions.map(d => ({
+  await createTipDistributionWithChain(
+    distributions.map(d => ({
       tipPoolId: pool.id,
       employeeId: d.employeeId,
       employeeName: d.employeeName,
       hoursWorked: d.hoursWorked,
       points: d.points,
       amount: d.amount,
-      status: 'pending',
-    })),
-  })
+      status: 'pending' as const,
+    }))
+  )
 
   return pool.id
 }

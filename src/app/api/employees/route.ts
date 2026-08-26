@@ -41,7 +41,29 @@ export async function GET(req: Request) {
         orderBy: { name: 'asc' },
         take: limit,
         skip: offset,
-        include: { shifts: true, jobs: { include: { job: true } } },
+        // FIX SECURITY: ne vračaj `pinLookup` (HMAC) klientu — lahko bi ga napadalec
+        // uporabil za offline brute-force PIN-a če pozna NEXTAUTH_SECRET.
+        // FIX PERFORMANCE: `shifts: true` je brez paginacije — za zaposlene z
+        // večletno zgodovino izmen lahko vrne 1000+ vrstic. Omejimo na zadnjih 20.
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          role: true,
+          status: true,
+          pin: true,
+          hireDate: true,
+          locationId: true,
+          createdAt: true,
+          updatedAt: true,
+          shifts: {
+            orderBy: { date: 'desc' },
+            take: 20,
+            select: { id: true, date: true, startTime: true, endTime: true, status: true },
+          },
+          jobs: { include: { job: { select: { id: true, name: true, code: true } } } },
+        },
       }),
       db.employee.count({ where }),
     ])
@@ -127,8 +149,9 @@ export async function POST(req: Request) {
         },
       })
     }
-    // Vrni brez PIN-a
-    return NextResponse.json({ ...employee, pin: hashedPin ? '****' : '' }, { status: 201 })
+    // FIX SECURITY: izloči pinLookup iz odgovora (enako kot GET in PUT)
+    const { pinLookup: _pl, ...safeEmployee } = employee
+    return NextResponse.json({ ...safeEmployee, pin: hashedPin ? '****' : '' }, { status: 201 })
   } catch (error: unknown) {
     if (typeof error === 'object' && error !== null && 'code' in error && (error as { code: string }).code === 'P2002') {
       return NextResponse.json(

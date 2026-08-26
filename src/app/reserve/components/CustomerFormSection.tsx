@@ -25,6 +25,8 @@ interface CustomerFormSectionProps {
   partySize: number
   isValid: boolean
   onContinue: () => void
+  errors?: Partial<Record<'customerName' | 'customerPhone' | 'customerEmail' | 'partySize' | 'specialRequests' | 'notes', string>>
+  touched?: Record<string, boolean>
 }
 
 export const CustomerFormSection = memo(function CustomerFormSection({
@@ -43,7 +45,12 @@ export const CustomerFormSection = memo(function CustomerFormSection({
   partySize,
   isValid,
   onContinue,
+  errors = {},
+  touched = {},
 }: CustomerFormSectionProps) {
+  // Prikaži error samo če je bilo polje touched (uporabnik je vpisoval ali poskusil submit)
+  const showError = (field: keyof typeof errors) => touched[field] && errors[field]
+
   return (
     <div className="space-y-4">
       <div className="bg-white dark:bg-card rounded-2xl shadow-lg p-6">
@@ -61,8 +68,13 @@ export const CustomerFormSection = memo(function CustomerFormSection({
               value={customerName}
               onChange={e => setCustomerName(e.target.value)}
               placeholder="Janez Novak"
-              className="w-full mt-1 px-4 py-3 rounded-xl border-2 focus:border-primary focus:outline-none bg-background text-sm"
+              aria-invalid={!!showError('customerName')}
+              aria-describedby={showError('customerName') ? 'reserve-name-error' : undefined}
+              className={`w-full mt-1 px-4 py-3 rounded-xl border-2 focus:outline-none bg-background text-sm ${showError('customerName') ? 'border-red-500 focus:border-red-500' : 'focus:border-primary'}`}
             />
+            {showError('customerName') && (
+              <p id="reserve-name-error" role="alert" className="text-xs text-red-500 mt-1">{errors.customerName}</p>
+            )}
           </div>
           <div>
             <label htmlFor="reserve-phone" className="text-sm font-medium flex items-center gap-1">
@@ -74,8 +86,15 @@ export const CustomerFormSection = memo(function CustomerFormSection({
               value={customerPhone}
               onChange={e => setCustomerPhone(e.target.value)}
               placeholder="+386 40 123 456"
-              className="w-full mt-1 px-4 py-3 rounded-xl border-2 focus:border-primary focus:outline-none bg-background text-sm"
+              inputMode="tel"
+              autoComplete="tel"
+              aria-invalid={!!showError('customerPhone')}
+              aria-describedby={showError('customerPhone') ? 'reserve-phone-error' : undefined}
+              className={`w-full mt-1 px-4 py-3 rounded-xl border-2 focus:outline-none bg-background text-sm ${showError('customerPhone') ? 'border-red-500 focus:border-red-500' : 'focus:border-primary'}`}
             />
+            {showError('customerPhone') && (
+              <p id="reserve-phone-error" role="alert" className="text-xs text-red-500 mt-1">{errors.customerPhone}</p>
+            )}
           </div>
           <div>
             <label htmlFor="reserve-email" className="text-sm font-medium">E-pošta</label>
@@ -85,8 +104,15 @@ export const CustomerFormSection = memo(function CustomerFormSection({
               value={customerEmail}
               onChange={e => setCustomerEmail(e.target.value)}
               placeholder="janez@email.si"
-              className="w-full mt-1 px-4 py-3 rounded-xl border-2 focus:border-primary focus:outline-none bg-background text-sm"
+              inputMode="email"
+              autoComplete="email"
+              aria-invalid={!!showError('customerEmail')}
+              aria-describedby={showError('customerEmail') ? 'reserve-email-error' : undefined}
+              className={`w-full mt-1 px-4 py-3 rounded-xl border-2 focus:outline-none bg-background text-sm ${showError('customerEmail') ? 'border-red-500 focus:border-red-500' : 'focus:border-primary'}`}
             />
+            {showError('customerEmail') && (
+              <p id="reserve-email-error" role="alert" className="text-xs text-red-500 mt-1">{errors.customerEmail}</p>
+            )}
           </div>
         </div>
       </div>

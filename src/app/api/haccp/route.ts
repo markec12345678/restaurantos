@@ -6,7 +6,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createHaccpSchema, haccpUpdateSchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
-import crypto from 'crypto'
+import { createHaccpEntryWithChain } from '@/lib/haccp-chain'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,29 +67,19 @@ export async function POST(req: Request) {
     const { data, error: validationError } = await validateRequest(req, createHaccpSchema)
     if (validationError) return validationError
 
-    // FIX F5-8: Kriptografska zaščita — hash chain za HACCP evidence (EU 852/2004)
-    const lastEntry = await db.haccpEntry.findFirst({
-      orderBy: { createdAt: 'desc' },
-      select: { chainHash: true },
-    })
-    const previousHash = lastEntry?.chainHash || ''
+    // FIX F5-8 + FIX CRITICAL (race): Hash chain ZNOTRAJ transakcije.
+    // Prejšnja koda je brala `lastEntry.chainHash` zunaj transakcije —
+    // dva sočasna klica bi ustvarila razvejano verigo.
     const entryDate = data.date ? new Date(data.date) : new Date()
-    const hashPayload = [previousHash, data.title, data.value, data.status, entryDate.toISOString()].join('|')
-    const chainHash = crypto.createHash('sha256').update(hashPayload).digest('hex')
-
-    const entry = await db.haccpEntry.create({
-      data: {
-        date: entryDate,
-        category: data.category,
-        title: data.title,
-        description: data.description,
-        value: data.value,
-        status: data.status,
-        correctiveAction: data.correctiveAction,
-        employeeName: data.employeeName || authResult.session?.employeeId || '',
-        previousHash,
-        chainHash,
-      },
+    const entry = await createHaccpEntryWithChain({
+      date: entryDate,
+      category: data.category,
+      title: data.title,
+      description: data.description,
+      value: data.value,
+      status: data.status,
+      correctiveAction: data.correctiveAction,
+      employeeName: data.employeeName || authResult.session?.employeeId || '',
     })
 
     return NextResponse.json(entry, { status: 201 })

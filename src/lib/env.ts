@@ -21,9 +21,12 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().optional(),
 
   // ── FURS ───────────────────────────────────
+  // FIX SECURITY: prejšnji default je bil 'true' — production deploy, ki bi
+  // skopiral .env.example, bi tiho poganjal FURS v simulacijskem načinu.
+  // Default je sedaj 'false' — eksplicitno moraš nastaviti 'true' za dev/test.
   FURS_ALLOW_SIMULATION: z
     .enum(['true', 'false'])
-    .default('true')
+    .default('false')
     .transform(v => v === 'true'),
   FURS_CERT_PATH: z.string().optional(),
   FURS_KEY_PATH: z.string().optional(),

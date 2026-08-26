@@ -103,7 +103,12 @@ export async function PUT(
       data: updateData,
     })
 
-    return NextResponse.json(deepToNumbers(integration))
+    // FIX SECURITY: maskiraj apiKey + apiSecret v PUT odgovoru (enako kot GET)
+    return NextResponse.json(deepToNumbers({
+      ...integration,
+      apiKey: integration.apiKey ? '••••••••' : '',
+      apiSecret: integration.apiSecret ? '••••••••' : '',
+    }))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/integrations/[id]', 'Napaka pri posodobitvi integracije')
   }

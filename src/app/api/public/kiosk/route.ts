@@ -5,7 +5,8 @@ import { toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
-import { checkRateLimit, getClientIp, KIOSK_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimit, getClientIp, KIOSK_LIMIT, PUBLIC_MENU_LIMIT } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
 
@@ -23,7 +24,15 @@ const kioskOrderSchema = z.object({
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+export async function GET(req: Request) {
+  // FIX SECURITY: dodaj rate limit na GET (menu fetch) — prejšnja koda ni bila
+  // omejena, napadalec je lahko z metal DB poizvedbami in izčrpal povezave.
+  // Kiosk tipično naloži meni ob zagonu, 30 req/min je več kot dovolj.
+  const rl = checkRateLimit('kiosk-menu', getClientIp(req), PUBLIC_MENU_LIMIT)
+  if (!rl.allowed) {
+    return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429 })
+  }
+
   try {
     // Vrni meni za kiosk (samo aktivni artikli z alergeni)
     const menu = await db.menu.findMany({
@@ -99,10 +108,26 @@ export async function POST(req: Request) {
 
     const total = subtotal + tax
 
+    // FIX CRITICAL (race): Atomsko generiraj orderNumber z db.counter.upsert.
+    // Prejšnja koda `await db.order.count() + 1` je bila neatomska — dve sočasni
+    // kiosk naročili bi dobili enako številko (unique constraint violation → 500).
+    let nextOrderNumber: number
+    try {
+      const counter = await db.counter.upsert({
+        where: { name: 'orderNumber' },
+        update: { value: { increment: 1 } },
+        create: { name: 'orderNumber', value: 1 },
+      })
+      nextOrderNumber = counter.value
+    } catch (counterErr: unknown) {
+      logger.error('API', '[KIOSK] Counter upsert failed:', counterErr)
+      return NextResponse.json({ error: 'Napaka pri generiranju številke naročila. Poskusite znova.' }, { status: 503 })
+    }
+
     // Ustvari naročilo (dine-in za mizo, takeout za s seboj)
     const order = await db.order.create({
       data: {
-        orderNumber: await db.order.count() + 1,
+        orderNumber: nextOrderNumber,
         type: data.diningOption,
         status: 'pending',
         customerName: data.customerName,

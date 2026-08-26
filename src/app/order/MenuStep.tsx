@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import Image from 'next/image'
 import type { Category, MenuItem, CartItem, OrderType, Modifier } from './types'
 import { ALLERGEN_DATA, DEFAULT_DELIVERY_FEE, DEFAULT_MIN_ORDER, ESTIMATED_DELIVERY_MIN, ESTIMATED_TAKEOUT_MIN } from './constants'
 import { safeToFixed, safeNum } from '@/lib/safe-format'
@@ -91,8 +92,8 @@ export const MenuStep = memo(function MenuStep({
               onClick={() => { setShowItemDetail(item); setItemNotes(''); setSelectedMods([]) }}
             >
               {item.image ? (
-                <div className="flex-shrink-0 w-24 h-28">
-                  <img src={item.image} alt={item.name} className="w-full h-full object-cover" loading="lazy" />
+                <div className="flex-shrink-0 w-24 h-28 relative">
+                  <Image src={item.image} alt={item.name} fill sizes="96px" className="object-cover" />
                 </div>
               ) : (
                 <div className={`flex-shrink-0 w-24 h-28 flex items-center justify-center ${isDark ? 'bg-gray-800' : 'bg-blue-50'}`}>

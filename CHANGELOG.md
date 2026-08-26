@@ -49,6 +49,89 @@
 
 ---
 
+## [Security Audit 2026-08-25] — Varnostni audit + 40 popravkov
+
+### Povzetek
+Celovit varnostni audit je identificiral 40 finding-ov. Vsi so bili popravljani
+preko 14 PR-ov (#30–#57). Podrobnosti v [AUDIT-REPORT.md](./AUDIT-REPORT.md).
+
+### 🔴 Kritične ranljivosti (PR #30)
+- **WebAuthn bypass** — `verifyAssertion()` ni preverjal podpisa; route onemogočen
+- **Receipt token forgery** — DJB2 (32-bit) zamenjan z HMAC-SHA256; token obvezen
+- **IoT readings brez auth** — dodan `X-IoT-Api-Key` header + fail-closed
+- **HACCP hash chain race** — `createHaccpEntryWithChain()` z `$transaction`
+- **FURS ZOI silent fallback** — fail-fast v produkciji ko certifikat manjka
+- **Race conditions** — `count+1` → atomski `counter.upsert` (kiosk, AP, AR)
+
+### 🔴 Secrets masking (PR #45, #48, #50, #51)
+- `pin` / `pinLookup` — maskirano v vseh employees API odgovorih
+- `fursCertPassword` / `fursCertPath` — maskirano v locations + settings
+- `emailSmtpPassword` — maskirano v settings
+- webhook `secret` — maskirano v vseh webhooks API odgovorih
+- integration `apiKey` / `apiSecret` — maskirano v vseh integrations API odgovorih
+- Centralni `src/lib/secret-masks.ts` z `maskLocationSecrets()` + `maskWebhookSecret()`
+
+### 🔴 Session invalidation (PR #53)
+- `verifyToken()` preverja `employee.status === 'active'` s 60s cache
+- Terminiran zaposleni izgubi dostop v 60s (prej do 8h)
+
+### 🟠 Hardening (PR #45, #46)
+- CSP cleanup (`unsafe-eval` odstranjen iz produkcije)
+- X-Frame-Options konsistenten (SAMEORIGIN)
+- COOP/CORP dodan v middleware
+- TipDistribution hash chain implementiran
+- `FURS_ALLOW_SIMULATION` default `false`
+- `broadcastWS` logira napake (ne tiho pogoltne)
+- Kiosk GET rate limit + POST race fix
+- Paginacija za recipes, categories, notifications
+- AI voice-order rate limit
+- Mrtva CSRF koda dokumentirana
+- Mrtvi i18n provider izbrisan (113 LOC)
+
+### 🟠 Performance (PR #47, #49, #50, #46)
+- `next/image` migracija (10 komponent, AVIF/WebP, ~70% manj slik)
+- `menu-items/bulk-import` — `createMany` v `$transaction`
+- `notifications send-batch` — `createAuditLogsBatch` (1 transakcija)
+- Paginacija za recipes, categories, notifications
+
+### 🟠 UX (PR #48, #49)
+- Zod validacija za `/reserve` (ime, telefon, email, partySize)
+- Zod validacija za `/order` DetailsStep (delivery + takeout)
+- Error display z `aria-invalid`, `role="alert"`, `inputMode`
+
+### 🧪 Testi (PR #52)
+- SSRF protection testi (30+ primerov, AWS/GCP/Azure metadata)
+- PIN lookup HMAC testi (collision-free za vseh 10.000 PINov)
+
+### 📝 Dokumentacija (PR #54, #55, #56, #57)
+- `AUDIT-REPORT.md` — celoviti varnostni audit (40 findingov, 40 popravkov)
+- `SECURITY.md` — posodobljen z natančnim post-audit statusom
+- `README.md` — sinhroniziran z dejanskim stanjem (22→2 IndexedDB, WebAuthn experimental, integrations status, statistika)
+- Vsi `.md` dokumenti — popravljene zastarele trditve ("22 trgovin", "najnaprednejši", "WebAuthn biometric")
+
+### 📋 Schema (PR #58)
+- `prisma/schema.prisma` — dodana dokumentacija načrtovanih enum-ov (issue #41)
+
+### Novi env vars
+- `IOT_API_KEY` — obvezen za IoT readings
+- `RECEIPT_TOKEN_SECRET` — obvezen za digitalne račune (HMAC-SHA256)
+- `WEBAUTHN_ENABLED` — opt-in experimental WebAuthn (default: false)
+- `FURS_ALLOW_SIMULATION` — default spremenjen iz `true` v `false`
+
+### Breaking changes
+1. WebAuthn login onemogočen privzeto (vrne 503)
+2. Digitalni račun zahteva `?t=<token>` parameter
+3. IoT readings zahtevajo `X-IoT-Api-Key` header
+4. FURS v produkciji zahteva certifikat (ne tiho fallback)
+5. `FURS_ALLOW_SIMULATION` default `false`
+
+### Priporočila po merge-u
+- Rotiraj: `NEXTAUTH_SECRET`, `RECEIPT_TOKEN_SECRET`, `FURS_CERT_PASSWORD`, `EMAIL_SMTP_PASSWORD`, webhook secrets, integration keys
+- Merge vrstni red: PR #50 najprej (centralni secret-masks.ts)
+- Za multi-instance: dodaj Redis za rate limiting (issue #39)
+
+---
+
 ## [Unreleased] — 2026-06-17
 
 ### Commit 1: `e4c7040` — Profesionalni cleanup (repo higiena)

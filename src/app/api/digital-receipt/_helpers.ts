@@ -1,21 +1,37 @@
 // Pomožne funkcije za digital-receipt API — Token generacija in formatiranje odgovora
 
+import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
 import { generateFursQRContent } from '@/lib/furs'
 
-// SECURITY: HMAC žeton za digitalne račune — prepreči enumeracijo ID-jev
+// SECURITY: HMAC-SHA256 žeton za digitalne račune — prepreči enumeracijo ID-jev
+//
+// Prejšnja implementacija je uporabljala 32-bitni DJB2 hash (~2,1 × 10⁹ možnosti,
+// izražen kot 6-7 znakov base36) — brute-force v minutah. Sedaj uporabljamo
+// pravi HMAC-SHA256 (256-bit), ki je kriptografsko varen.
+//
+// POMEMBNO: `RECEIPT_TOKEN_SECRET` MORA biti nastavljen v produkciji.
+// Če ni, je token še vedno (šibko) zaščiten z NEXTAUTH_SECRET, a če tudi ta manjka,
+// sprožimo napako namesto da pademo na javno-known fallback.
 export function generateReceiptToken(receiptId: string): string {
-  const secret = process.env.RECEIPT_TOKEN_SECRET || process.env.NEXTAUTH_SECRET || 'fallback-receipt-secret'
-  const data = `${receiptId}:${secret}`
-  // Uporabimo preprosto zgoščevanje — za produkcijo priporočamo crypto.subtle.sign()
-  let hash = 0
-  for (let i = 0; i < data.length; i++) {
-    const char = data.charCodeAt(i)
-    hash = ((hash << 5) - hash) + char
-    hash |= 0 // Convert to 32bit integer
+  const secret = process.env.RECEIPT_TOKEN_SECRET || process.env.NEXTAUTH_SECRET
+  if (!secret) {
+    throw new Error(
+      'RECEIPT_TOKEN_SECRET ali NEXTAUTH_SECRET mora biti nastavljen za varne digitalne račune.'
+    )
   }
-  return Math.abs(hash).toString(36)
+  // Uporabi prvi del (16 bajtov = 32 hex znakov) za krajši URL, še vedno 128-bit varnosti
+  return crypto.createHmac('sha256', secret).update(receiptId).digest('hex').slice(0, 32)
+}
+
+// Constant-time primerjava za preprečitev timing napadov
+export function verifyReceiptToken(receiptId: string, providedToken: string): boolean {
+  const expectedToken = generateReceiptToken(receiptId)
+  const a = Buffer.from(expectedToken)
+  const b = Buffer.from(providedToken)
+  if (a.length !== b.length) return false
+  return crypto.timingSafeEqual(a, b)
 }
 
 export interface ReceiptRow {

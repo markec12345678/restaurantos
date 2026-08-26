@@ -26,7 +26,12 @@ export function useRecipeScaling() {
       const recipesData = await recipesRes.json()
       const invData = await invRes.json()
 
-      const mappedRecipes: Recipe[] = (recipesData || []).map((r: RecipeRow) => {
+      // FIX: /api/recipes sedaj vrača {recipes, total, limit, offset} — podpremo tudi legacy array
+      const recipesArray: RecipeRow[] = Array.isArray(recipesData)
+        ? recipesData
+        : (recipesData?.recipes ?? recipesData?.items ?? [])
+
+      const mappedRecipes: Recipe[] = recipesArray.map((r: RecipeRow) => {
         const ingredients: RecipeIngredient[] = (r.ingredients || r.items || []).map((ing: RecipeIngredientRow) => {
           const invItem = invData?.find?.((i: InventoryItemRow) => i.id === ing.inventoryItemId)
           const costPerUnit = invItem?.costPerUnit || ing.costPerUnit || ing.unitCost || 0

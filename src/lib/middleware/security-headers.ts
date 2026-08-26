@@ -22,6 +22,7 @@ export function applySecurityHeaders(response: NextResponse, request: NextReques
 
   // X-Frame-Options — prepreči clickjacking (iframe embedding)
   // SAMEORIGIN: dovoli iframe samo iz iste domene (potrebno za PWA manifest)
+  // FIX: Konsistentno z next.config.ts (prej je bil tam DENY — inkonsistenca)
   response.headers.set('X-Frame-Options', 'SAMEORIGIN')
 
   // X-Content-Type-Options — prepreči MIME sniffing
@@ -40,6 +41,10 @@ export function applySecurityHeaders(response: NextResponse, request: NextReques
     'camera=(), microphone=(), geolocation=(self), payment=(self)'
   )
 
+  // FIX: Cross-Origin politike za Spectre mitigation (prej samo v next.config.ts)
+  response.headers.set('Cross-Origin-Opener-Policy', 'same-origin')
+  response.headers.set('Cross-Origin-Resource-Policy', 'same-origin')
+
   // Content-Security-Policy — prepreči XSS in injiciranje skript
   // Restriktivna politika z dovoljenjem za:
   // - self: lastni skripti, stili, slike, fonti
@@ -47,8 +52,12 @@ export function applySecurityHeaders(response: NextResponse, request: NextReques
   // - data: URI: za slike v base64 formatu
   // - blob: za Service Worker in dinamične vire
   // - ws/wss: za WebSocket povezave (KDS real-time posodobitve)
-  // - connect-src 'self': API klici samo na lasten strežnik
-  // V produkciji je 'unsafe-eval' odstranjen za boljšo XSS zaščito
+  // - connect-src 'self' https: ws: wss: API klici samo na lasten strežnik + WSS
+  //
+  // NOTE: 'unsafe-inline' za scripts je še vedno prisoten ker Next.js injecta
+  // inline hydration script (potreben za delovanje). Pravilna rešitev je nonce-based
+  // CSP (experimental.nonce v next.config.ts) — sledi v issue #34.
+  // 'unsafe-eval' je v produkciji odstranjen (dev only).
   const isDev = process.env.NODE_ENV === 'development'
   const scriptSrc = isDev
     ? "script-src 'self' 'unsafe-eval' 'unsafe-inline'" // dev: potrebno za Next.js HMR

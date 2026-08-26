@@ -5,6 +5,7 @@ import { deepToNumbers, toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { distributeTipsSchema } from './schemas'
 import { validateRequest } from '@/lib/api-utils'
+import { createTipDistributionWithChain } from '@/lib/tip-distribution-chain'
 
 export async function handlePutTipPool(
   req: Request,
@@ -20,9 +21,11 @@ export async function handlePutTipPool(
   if (pool.status === 'paid') return NextResponse.json({ error: 'Tip pool je že izplačan' }, { status: 400 })
 
   // FIX CRITICAL: Izbriši stare distribucije in ustvari nove
+  // FIX SECURITY (issue #35): uporabi createTipDistributionWithChain za hash verigo
+  // (prejšnja createMany() ni nastavila previousHash/chainHash — lažna integriteta)
   await db.tipDistribution.deleteMany({ where: { tipPoolId } })
-  await db.tipDistribution.createMany({
-    data: distributions.map(d => ({
+  await createTipDistributionWithChain(
+    distributions.map(d => ({
       tipPoolId,
       employeeId: d.employeeId,
       employeeName: d.employeeName,
@@ -30,8 +33,8 @@ export async function handlePutTipPool(
       points: d.points,
       amount: d.amount,
       status: 'pending' as const,
-    })),
-  })
+    }))
+  )
 
   // Označi kot distributed
   await db.tipPool.update({

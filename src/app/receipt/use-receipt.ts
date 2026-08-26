@@ -13,7 +13,7 @@ interface UseReceiptReturn {
   copyZOI: () => void
 }
 
-export function useReceipt(receiptId: string | null): UseReceiptReturn {
+export function useReceipt(receiptId: string | null, token: string | null): UseReceiptReturn {
   const [receipt, setReceipt] = useState<ReceiptData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -25,14 +25,19 @@ export function useReceipt(receiptId: string | null): UseReceiptReturn {
       setLoading(false)
       return
     }
-    fetchReceipt(receiptId)
-  }, [receiptId])
+    if (!token) {
+      setError('Manjka dostopni žeton — uporabite link iz SMS-a ali QR kode')
+      setLoading(false)
+      return
+    }
+    fetchReceipt(receiptId, token)
+  }, [receiptId, token])
 
-  async function fetchReceipt(id: string) {
+  async function fetchReceipt(id: string, t: string) {
     try {
-      const res = await fetch(`/api/digital-receipt?id=${encodeURIComponent(id)}`)
+      const res = await fetch(`/api/digital-receipt?id=${encodeURIComponent(id)}&t=${encodeURIComponent(t)}`)
       if (!res.ok) {
-        setError('Račun ni najden')
+        setError('Račun ni najden ali žeton ni veljaven')
         return
       }
       const data = await res.json()
