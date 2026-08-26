@@ -5,9 +5,9 @@
 // ═══════════════════════════════════════════════════════════════
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
-import { CalendarDays, Copy, Plus } from 'lucide-react'
+import { CalendarDays, Copy, Plus, Sparkles } from 'lucide-react'
 import { type SchedulerStats } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // ─── Props ─────────────────────────────────────────────────────
 export interface SchedulerHeaderProps {
@@ -15,6 +15,7 @@ export interface SchedulerHeaderProps {
   filteredShiftsCount: number
   onCopyWeek: () => void
   onNewShift: () => void
+  onAIGenerate?: () => void
 }
 
 // ─── Komponenta ────────────────────────────────────────────────
@@ -23,6 +24,7 @@ export const SchedulerHeader = memo(function SchedulerHeader({
   filteredShiftsCount,
   onCopyWeek,
   onNewShift,
+  onAIGenerate,
 }: SchedulerHeaderProps) {
   return (
     <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
@@ -36,6 +38,11 @@ export const SchedulerHeader = memo(function SchedulerHeader({
         </p>
       </div>
       <div className="flex items-center gap-2">
+        {onAIGenerate && (
+          <Button variant="outline" size="sm" onClick={onAIGenerate} className="border-primary/40 text-primary hover:bg-primary/5">
+            <Sparkles className="h-4 w-4 mr-1" /> AI generiraj
+          </Button>
+        )}
         <Button variant="outline" size="sm" onClick={onCopyWeek}>
           <Copy className="h-4 w-4 mr-1" /> Kopiraj teden
         </Button>

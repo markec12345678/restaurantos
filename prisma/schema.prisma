@@ -1217,6 +1217,7 @@ model Location {
   guestFeedbacks   GuestFeedback[]
   journalEntries   JournalEntry[]   // FIX issue #31: multi-location accounting
   virtualBrands    VirtualBrand[]   // Ghost kitchen hub
+  devices          DeviceRegistry[] // FIX: Offline-first POS device tracking
 
   @@index([code])
   @@index([isActive])
@@ -2573,4 +2574,138 @@ model SustainabilityReport {
 
   @@index([date])
   @@index([locationId])
+}
+
+// ============================================
+// OFFLINE OUTBOX — Transactional outbox pattern
+// ============================================
+// Ko POS dela offline (brez povezave do FURS/Stripe/itd.),
+// se transakcije zapišejo v outbox. Sync engine jih nato
+// poskusi ponovno poslati, ko je povezava nazaj.
+//
+// Pattern je行业标准 2025 (Microservices + offline-first POS).
+// ============================================
+model OutboxEvent {
+  id              String   @id @default(cuid())
+  // --- Kaj ---
+  aggregateType   String                       // "order", "invoice", "furs_invoice", "payment"
+  aggregateId     String                       // ID entitete (npr. Order.id)
+  eventType       String                       // "created", "updated", "voided", "paid"
+  // --- Payload ---
+  payload         Json                         // Celotni podatki za ponovno pošiljanje
+  // --- Cilj ---
+  target          String                       // "furs", "stripe", "email", "sms", "webhook", "internal"
+  targetEndpoint  String   @default("")        // URL ali handler ID
+  // --- Status ---
+  status          String   @default("pending") // pending, processing, sent, failed, dead_letter
+  attempts        Int      @default(0)
+  maxAttempts     Int      @default(5)
+  // --- Napaka ---
+  lastError       String   @default("")
+  // --- Ključ za idempotentnost ---
+  idempotencyKey  String   @unique             // prepreči duplikate pri retry-jih
+  // --- Čas ---
+  nextRetryAt     DateTime?
+  processedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status, nextRetryAt])
+  @@index([target, status])
+  @@index([aggregateType, aggregateId])
+  @@index([createdAt])
+}
+
+// ============================================
+// SYNC STATE — sledi statusu sinhronizacije per entiteta
+// ============================================
+model SyncState {
+  id              String   @id @default(cuid())
+  // --- Kaj ---
+  entityType      String                       // "order", "menu_item", "employee"
+  entityId        String                       // ID entitete
+  // --- Status ---
+  lastSyncedAt    DateTime?
+  syncVersion     Int      @default(0)         // Vector clock — poveča se ob vsaki spremembi
+  // --- Konflikt ---
+  conflictStatus  String   @default("none")    // none, detected, resolved
+  conflictData    Json?
+  // --- Meta ---
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([entityType, entityId])
+  @@index([lastSyncedAt])
+  @@index([conflictStatus])
+}
+
+// ============================================
+// DEVICE REGISTRY — sledi POS napravam in offline stanju
+// ============================================
+model DeviceRegistry {
+  id              String   @id @default(cuid())
+  // --- Identifikacija ---
+  deviceId        String   @unique             // Hardware ID ali browser fingerprint
+  name            String                       // "POS-1", "KDS-kuhinja", "Tablet-3"
+  // --- Lokacija ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Tip ---
+  type            String   @default("pos")     // pos, kds, tablet, mobile, kiosk
+  // --- Status ---
+  status          String   @default("offline") // online, offline, sleeping
+  lastSeenAt      DateTime?
+  // --- Verzija ---
+  appVersion      String   @default("")
+  // --- Meta ---
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([locationId])
+  @@index([status])
+}
+
+// ============================================
+// WALLET PAYMENT — Apple Pay / Google Pay / NFC
+// ============================================
+// Sledi contactless plačilom preko mobilnih denarnic.
+// PCI DSS 4.0.1 obvezno od 31. marca 2025.
+// ============================================
+model WalletPayment {
+  id                String   @id @default(cuid())
+  // --- Povezava s Payment ---
+  paymentId         String?                              // opcijsko — povezava z glavnim Payment zapisom
+  checkId           String?                              // opcijsko — povezava s Check
+  // --- Tip denarnice ---
+  walletType        String                               // apple_pay, google_pay, samsung_pay, nfc_card, qr_pay
+  // --- Transaction info ---
+  transactionId     String   @default("")                // ID iz denarnice (Apple Pay paymentToken id)
+  merchantId        String   @default("")                // Naš merchant identifier
+  // --- Znesek ---
+  amount            Decimal                              // Plačani znesek
+  currency          String   @default("EUR")
+  // --- Tokenization ---
+  paymentToken      String   @default("")                // Encrypted token iz denarnice
+  tokenType         String   @default("")                // PKPaymentToken, Google paymentData, itd.
+  // --- Card info (iz tokena) ---
+  cardBrand         String   @default("")                // visa, mastercard, amex, discover
+  cardLast4         String   @default("")
+  // --- Status ---
+  status            String   @default("pending")         // pending, authorized, captured, failed, refunded
+  capturedAt        DateTime?
+  refundedAmount    Decimal  @default(0)
+  // --- Napaka ---
+  errorCode         String   @default("")
+  errorMessage      String   @default("")
+  // --- Device info ---
+  deviceId          String?                              // Katera POS naprava je sprejela
+  // --- Meta ---
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([paymentId])
+  @@index([checkId])
+  @@index([walletType, status])
+  @@index([transactionId])
+  @@index([createdAt])
 }

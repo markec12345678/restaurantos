@@ -1,8 +1,9 @@
 'use client'
 
 import { format, addDays } from 'date-fns'
-import { memo } from 'react'
+import { memo, useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
+import { useQueryClient } from '@tanstack/react-query'
 import { useStaffScheduler } from './scheduler/useStaffScheduler'
 
 // Lazy-loaded podkomponente
@@ -12,6 +13,7 @@ const StatsCards = dynamic(() => import('./scheduler/StatsCards').then(m => ({ d
 const WeekView = dynamic(() => import('./scheduler/WeekView').then(m => ({ default: m.WeekView })), { ssr: false })
 const ShiftDialog = dynamic(() => import('./scheduler/ShiftDialog').then(m => ({ default: m.ShiftDialog })), { ssr: false })
 const CopyWeekDialog = dynamic(() => import('./scheduler/CopyWeekDialog').then(m => ({ default: m.CopyWeekDialog })), { ssr: false })
+const AISchedulerModal = dynamic(() => import('./scheduler/AISchedulerModal').then(m => ({ default: m.AISchedulerModal })), { ssr: false })
 
 // ─── GLAVNA KOMPONENTA ─────────────────────────────────────────
 export const StaffScheduler = memo(function StaffScheduler() {
@@ -32,6 +34,14 @@ export const StaffScheduler = memo(function StaffScheduler() {
     handleCopyWeek, handleCopyDialogClose,
   } = useStaffScheduler()
 
+  const queryClient = useQueryClient()
+  const [aiModalOpen, setAiModalOpen] = useState(false)
+  const handleAIGenerate = useCallback(() => setAiModalOpen(true), [])
+  const handleAIApplied = useCallback(() => {
+    // Invalidate vse shift query-je da se osveži pogled
+    queryClient.invalidateQueries({ queryKey: ['shifts'] })
+  }, [queryClient])
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
@@ -40,6 +50,7 @@ export const StaffScheduler = memo(function StaffScheduler() {
         filteredShiftsCount={shifts.length}
         onCopyWeek={() => setCopyDialogOpen(true)}
         onNewShift={() => openNewShift()}
+        onAIGenerate={handleAIGenerate}
       />
       {/* Teden navigacija + filtri */}
       <WeekNavigator
@@ -84,6 +95,14 @@ export const StaffScheduler = memo(function StaffScheduler() {
         onCopySourceDateChange={setCopySourceDate}
         defaultSourceDate={format(addDays(weekStart, -7), 'yyyy-MM-dd')}
         onCopy={handleCopyWeek}
+      />
+      {/* AI Scheduler modal */}
+      <AISchedulerModal
+        open={aiModalOpen}
+        onClose={() => setAiModalOpen(false)}
+        startDate={format(weekStart, 'yyyy-MM-dd')}
+        days={7}
+        onApplied={handleAIApplied}
       />
     </div>
   )
