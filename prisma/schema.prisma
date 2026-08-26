@@ -79,6 +79,7 @@ model MenuItem {
   inventory       InventoryItem?
   recipeItems     RecipeItem[]
   modifierGroups  MenuItemModifierGroup[]
+  mealtimeRules   MealtimeRule[]   // FIX MEALTIMES: per-item availability scheduling
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
@@ -91,6 +92,30 @@ model MenuItem {
   // FIX SCHEMA-09: Composite indexes za pogoste poizvedbe
   @@index([categoryId, isAvailable])  // Prikaz menija: samo dostopni artikli v kategoriji
   @@index([categoryId, sortOrder])    // Urejen prikaz menija po kategoriji
+}
+
+// ============================================
+// MEALTIMES — TastyIgniter-style per-item availability scheduling
+// Artikel je dostopen samo ob določenih dneh/časih (npr. zajtrk 6-11h, nedeljska pečenka)
+// ============================================
+
+model MealtimeRule {
+  id          String   @id @default(cuid())
+  menuItemId  String
+  menuItem    MenuItem  @relation(fields: [menuItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  name        String   @default("")       // "Zajtrk", "Kosilo", "Happy Hour"
+  // Dnevi v tednu: 0=nedelja, 1=ponedelnik, ..., 6=sobota
+  daysOfWeek  String   @default("[1,2,3,4,5]")  // JSON array
+  // Časovno okno (prazno = cel dan)
+  timeFrom    String   @default("")       // "06:00"
+  timeTo      String   @default("")       // "11:00"
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([menuItemId])
+  @@index([isActive])
 }
 
 model ModifierGroup {
