@@ -697,6 +697,8 @@ model Employee {
   // --- Relations ---
   shifts       Shift[]
   staffShifts  StaffShift[]
+  availability StaffAvailability[]
+  timeOffRequests TimeOffRequest[]
   jobs         EmployeeJob[]
   timeEntries  TimeEntry[]
   cashShifts   CashRegisterShift[]
@@ -1415,6 +1417,54 @@ model StaffShift {
   // FIX SCHEMA-10: Composite index za StaffShift — aktivne izmene danes
   @@index([status, shiftDate])
   @@index([shiftDate, locationId])
+}
+
+// ============================================
+// STAFF AVAILABILITY (AI Scheduler input)
+//============================================
+model StaffAvailability {
+  id           String   @id @default(cuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // Dan v tednu: 0=nedelja, 1=ponedelnik, ..., 6=sobota
+  dayOfWeek    Int
+  // Časovno okno (HH:mm)
+  startTime    String                       // "07:00"
+  endTime      String                       // "15:00"
+  // Preference
+  isPreferred  Boolean  @default(true)      // true = rade dela v tem oknu, false = na voljo v sili
+  notes        String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([employeeId, dayOfWeek, startTime, endTime])
+  @@index([employeeId])
+  @@index([dayOfWeek])
+}
+
+// ============================================
+// TIME OFF REQUEST ( dopust, bolniška, prost dan)
+// ============================================
+model TimeOffRequest {
+  id           String   @id @default(cuid())
+  employeeId   String
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // Tip
+  type         String   @default("vacation") // vacation, sick, personal, holiday, unpaid
+  // Časovno obdobje
+  startDate    DateTime
+  endDate    DateTime
+  // Status
+  status       String   @default("pending") // pending, approved, rejected, cancelled
+  reason       String   @default("")
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([startDate, endDate])
+  @@index([status])
 }
 
 // ============================================
