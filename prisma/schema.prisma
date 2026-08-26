@@ -2476,3 +2476,51 @@ model VirtualBrand {
   @@index([isActive])
   @@index([locationId])
 }
+
+// ============================================
+// CARBON FOOTPRINT — Sustainability tracking
+// Per-dish CO2e izračun iz sestavin (LCA database)
+// ============================================
+
+model CarbonFactor {
+  id              String   @id @default(cuid())
+  name            String                        // "Goveje meso", "Piščanec", "Paradižnik", "Riž"
+  category        String   @default("ingredient") // ingredient, packaging, transport
+  co2ePerKg       Decimal                        // kg CO2e per kg produkta (LCA)
+  unit            String   @default("kg")        // kg, L, kos
+  source          String   @default("Agribalyse") // Vir podatkov (Agribalyse, Klimato, lasten)
+  // --- Detail ---
+  waterUsage      Decimal?                       // L vode per kg (water footprint)
+  landUse         Decimal?                       // m² per kg
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([name, category])
+  @@index([category])
+  @@index([isActive])
+}
+
+model SustainabilityReport {
+  id              String   @id @default(cuid())
+  date            DateTime @default(now())
+  // --- Sestavine ---
+  totalCo2e       Decimal  @default(0)            // kg CO2e skupno
+  totalWater      Decimal  @default(0)            // L vode skupno
+  totalLand       Decimal  @default(0)            // m² skupno
+  // --- Promet ---
+  totalOrders     Int      @default(0)
+  totalRevenue    Decimal  @default(0)
+  // --- Izračuni ---
+  co2ePerOrder    Decimal  @default(0)            // kg CO2e per naročilo
+  co2ePerEuro     Decimal  @default(0)            // kg CO2e per € prometa
+  // --- Waste ---
+  foodWasteKg     Decimal  @default(0)            // Kg zavrnjene hrane
+  packagingWasteKg Decimal @default(0)            // Kg embalaže
+  // --- Meta ---
+  locationId      String?
+  createdAt       DateTime @default(now())
+
+  @@index([date])
+  @@index([locationId])
+}
