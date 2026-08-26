@@ -1,6 +1,53 @@
 # Changelog — RestaurantOS
 
-Vse pomembne spremembe na veji `chore/professional-cleanup`.
+## [Unreleased] — 2026-08-26
+
+### Workflow povezovanje + setup wizard + PWA
+
+#### Dodano
+- **Setup Wizard** (`/setup`) — first-run konfiguracija z izbiro ene ali več lokacij
+  - `GET /api/setup/status` — preveri ali je sistem inicializiran
+  - `POST /api/setup/init` — ustvari admin + lokacijo + FURS + core podatke (davki, konti)
+  - `SetupRedirect` komponenta — samodejna preusmeritev na `/setup`
+- **PGlite (embedded PostgreSQL)** — deluje brez Dockerja/root dostopa
+  - `db.ts` z `PrismaPGlite` adapterjem (singleton instanca)
+  - `scripts/init-pglite.mjs` — inicializacija baze iz Prisma sheme
+  - `scripts/seed-e2e-pglite.mjs` — seed testnih podatkov
+- **PWA Install Prompt** — namestitev na domači zaslon (Add to Home Screen)
+- **AuditLogViewer** — revizijski dnevnik UI za admin (PCI DSS + FURS skladnost)
+  - Filtriranje po akciji, entiteti, uporabniku, datumu
+  - Paginacija, CSV export, hash chain integrity check
+- **ExportReport z izbiro formata** — CSV, PDF, Excel (XLSX), eDavki XML
+- **WebSocket centralni broadcast** — `broadcastWSEvent` (in-process + HTTP fallback)
+- **Server-side receipt creation** — avtomatska fiskalizacija po plačilu (neodvisno od klienta)
+
+#### Spremenjeno
+- **Schema popravki:**
+  - `Order.firedAt` — čas pošiljanja v kuhinjo (KDS timer)
+  - `Order.employee` — FK relacija do Employee (prej samo soft-FK)
+  - `OrderItem.firedAt` — per-item urgency timer
+  - `Session.createdAt/expiresAt/absoluteExpiry` — BigInt → DateTime (PGlite compat)
+  - `ChartOfAccount` model — ponovno dodan (bil izgubljen)
+  - `HaccpEntry` — dodani FK-ji za Employee, OrderItem, MenuItem (EU 852/2004)
+  - `JournalLine.chartOfAccount` — FK na ChartOfAccount.code (issue #38)
+- **`deepToNumbers`** — Date → ISO string (Zod response sheme)
+- **`handle-fire-action.ts`** — zapiše firedAt na Order in OrderItem
+- **Dashboard analytics** — vsi groupBy uporabljajo paidAt (ne createdAt)
+- **EOD** — preverja odprta naročila pred zaprtjem (forceClose opcija)
+- **Reservations/Waitlist** — sinhronizirajo Table.status (reserved/occupied/available)
+- **Permissions** — menu-items, categories, tables zahtevajo manage_inventory
+- **FURS ByteString fix** — em-dash v X-Fiscal-Warning headerjih zamenjan z navadnim dash
+
+#### Testiranje
+- **TypeCheck:** 0 napak v `src/`
+- **Vitest:** 158/158 testov zelenih
+- **Playwright E2E:** 23/24 testov zelenih (setup + workflow)
+  - Setup Wizard: 8/8 zelenih
+  - Natakar workflow: 8/8 zelenih
+  - Kuhar workflow: 3/3 zelenih
+  - Lastnik workflow: 10/10 zelenih
+
+---
 
 ## [Unreleased] — 2026-06-17
 
