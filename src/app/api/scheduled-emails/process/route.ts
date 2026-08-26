@@ -25,9 +25,17 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
   try {
-    // Avtentikacija: admin ali service token (za cron)
-    const authResult = await requireAuth(req)
-    if (authResult.error) return authResult.error
+    // FIX AUD-13: Vercel Cron pošlje Authorization: Bearer $CRON_SECRET
+    // Poleg tega podpira tudi običajni Bearer token (za ročne klice)
+    const authHeader = req.headers.get('authorization')
+    const cronSecret = process.env.CRON_SECRET || process.env.WS_BROADCAST_SECRET || ''
+    if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+      // Vercel Cron avtentikacija — dovoli nadaljevanje
+    } else {
+      // Običajna avtentikacija
+      const authResult = await requireAuth(req)
+      if (authResult.error) return authResult.error
+    }
 
     // Preveri ali je email omogočen
     const emailEnabled = await isEmailEnabled()

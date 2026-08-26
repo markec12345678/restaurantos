@@ -128,8 +128,12 @@ export async function POST(req: Request) {
         customerName: `Bolt:${data.order_id} — ${data.customer.name}`,
         customerPhone: data.customer.phone,
         notes: `Bolt dostava na: ${data.delivery_address}. Opombe: ${data.delivery_notes}`,
+        // FIX AUD-17: Pravilen DDV za vsak artikel — uporabi vatRate iz baze
         subtotal: subtotalNum,
-        tax: round2(subtotalNum * 0.22), // FIXME: uporabi prave DDV stopnje
+        tax: orderItemsData.reduce((sum, item) => {
+          const itemTotal = toNum(item.price) * item.quantity
+          return round2(sum + itemTotal * (Number(item.vatRate) / 100))
+        }, 0),
         discount: 0,
         tip: 0,
         total,

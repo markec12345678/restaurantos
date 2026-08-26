@@ -35,19 +35,24 @@ export async function POST(req: Request) {
 
     const menuItemsData = getMenuItemsData(cats, mods)
 
-    // FIX AUDIT: Pravilno nastavi DDV stopnjo glede na kategorijo
-    // Hrana in brezalkoholne pijače = 9.5%, alkohol = 22%
-    const alcoholCategories = ['Vina', 'Bela vina', 'Rdeča vina', 'Rosé vina', 'Penine', 'Pivo', 'Točeno pivo',
-      'Craft piva', 'Brezalk. pivo', 'Žgane pijače', 'Destilati', 'Likerji', 'Likersko vino', 'Gin', 'Viski',
-      'Tuja vina', 'Penine']
-    const nonAlcoholCategories = ['Tople napitke', 'Gazirane pijače', 'Sokovi', 'Vode']
+    // FIX AUD-01: Pravilno nastavi DDV stopnjo glede na kategorijo
+    // cats je keyed by friendly name (npr. "belaVina"), ne by UUID.
+    // Item.categoryId je UUID, zato moramo poiskati ime kategorije drugače.
+    const alcoholCategoryNames = ['Bela vina', 'Rdeča vina', 'Rosé vina', 'Penine', 'Točeno pivo',
+      'Pivo', 'Craft piva', 'Brezalk. pivo', 'Žgane pijače', 'Destilati', 'Likerji',
+      'Likersko vino', 'Gin', 'Viski', 'Tuja vina', 'Mešane pijače']
+    const nonAlcoholCategoryNames = ['Topli napitki', 'Gazirane pijače', 'Sokovi', 'Vode', 'Naravni sokovi']
+
+    // Zgradi lookup: categoryId → categoryName
+    const allCategories = await db.category.findMany({ select: { id: true, name: true } })
+    const categoryIdToName = new Map(allCategories.map(c => [c.id, c.name]))
 
     for (const item of menuItemsData) {
       if (item.vatRate === undefined) {
-        const catName = cats[item.categoryId]?.name || ''
-        if (alcoholCategories.some(c => catName.includes(c))) {
+        const catName = categoryIdToName.get(item.categoryId) || ''
+        if (alcoholCategoryNames.some(c => catName.toLowerCase().includes(c.toLowerCase()))) {
           item.vatRate = 22.0
-        } else if (nonAlcoholCategories.some(c => catName.includes(c))) {
+        } else if (nonAlcoholCategoryNames.some(c => catName.toLowerCase().includes(c.toLowerCase()))) {
           item.vatRate = 9.5
         } else {
           // Hrana = 9.5%

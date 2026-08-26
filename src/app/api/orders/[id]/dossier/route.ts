@@ -53,7 +53,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           appliedDiscount: { select: { name: true, type: true, amount: true } },
           payments: {
             include: {
-              giftCard: { select: { id: true, cardNumber: true } } as any,
+          giftCard: { select: { id: true, cardNumber: true } },
               loyaltyAccount: { select: { id: true, customerName: true } },
               alternatePaymentType: { select: { name: true, code: true } },
             },
@@ -219,7 +219,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       type: order.type,
       tableNumber: order.table?.number,
       employeeName: order.employee?.name,
-      guestName: order.guest?.name,
+      guestName: order.guest ? `${order.guest.firstName || ''} ${order.guest.lastName || ''}`.trim() || null : null,
       createdAt: order.createdAt,
       paidAt: order.paidAt,
       firedAt: order.firedAt,

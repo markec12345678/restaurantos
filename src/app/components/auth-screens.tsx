@@ -33,11 +33,7 @@ export const AuthLoginScreen = memo(function AuthLoginScreen({ onLogin }: AuthLo
     <div className="h-screen bg-background">
       <PinLogin
         onLogin={(user) => { onLogin(user); setCurrentUser(user) }}
-        onSkip={() => {
-          const guest: AuthUser = { id: 'guest', name: 'Gost', email: '', role: 'guest', primaryJob: null, permissions: ['take_orders', 'view_reports'] }
-          setCurrentUser(guest)
-          onLogin(guest)
-        }}
+        // FIX AUD-15: Remove onSkip — anyone could access POS without PIN (security hole)
       />
     </div>
   )
