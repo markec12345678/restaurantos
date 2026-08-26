@@ -98,6 +98,7 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^11.1.0",
     "vaul": "^1.1.2",
+    "web-push": "^3.6.7",
     "ws": "^8.20.0",
     "z-ai-web-dev-sdk": "^0.0.17",
     "zod": "^4.0.2",

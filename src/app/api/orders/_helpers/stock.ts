@@ -6,6 +6,7 @@ import { deductStockForOrder, broadcastLowStockAlert } from '@/lib/stock-deducti
 import { emitOrderCreated } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
 import { broadcastWS, autoPrintKitchenOrder } from './broadcast'
+import { notifyNewOrder } from '@/lib/push/notifications'
 
 // Tip za podatke naročila za post-creation efekti
 export interface PostCreationOrderData {
@@ -50,6 +51,12 @@ export async function handlePostCreationEffects(
 
   autoPrintKitchenOrder(order as unknown as Record<string, unknown>)
 
+  // FIX: Pošlji push notification kuharjem in natakarjem o novem naročilu
+  const tableNum = order.tableId ? await getTableNumber(order.tableId) : null
+  notifyNewOrder(order.orderNumber, tableNum, 0).catch(err =>
+    logger.warn('PUSH', 'Napaka pri push notification za novo naročilo:', err)
+  )
+
   emitOrderCreated({
     orderId: order.id, orderNumber: order.orderNumber,
     type: order.type, tableId: order.tableId || undefined, total: toNum(order.total),
@@ -62,4 +69,17 @@ export async function handlePostCreationEffects(
     entityId: order.id,
     details: { orderNumber: order.orderNumber, total: toNum(order.total), type: order.type, tableId: order.tableId, inventoryDeducted: stockDeducted },
   })
+}
+
+// Helper za pridobitev številke mize
+async function getTableNumber(tableId: string): Promise<number | null> {
+  try {
+    const table = await db.table.findUnique({
+      where: { id: tableId },
+      select: { number: true },
+    })
+    return table?.number || null
+  } catch {
+    return null
+  }
 }

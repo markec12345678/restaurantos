@@ -53,10 +53,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Manjka podpis' }, { status: 401 })
     }
 
-    // TODO: Implement signature verification ko Bolt pošlje pravi secret
-    // const expectedSig = crypto.createHmac('sha256', boltIntegration.apiSecret)
-    //   .update(body).digest('hex')
-    // if (signature !== expectedSig) { return 401 }
+    // FIX: HMAC-SHA256 signature verification — prepreči lažna naročila
+    const crypto = await import('crypto')
+    const webhookSecret = boltIntegration.apiSecret || process.env.WEBHOOK_SECRET || ''
+    if (webhookSecret) {
+      const expectedSig = crypto
+        .createHmac('sha256', webhookSecret)
+        .update(body)
+        .digest('hex')
+      // Constant-time comparison (prepreči timing attack)
+      if (
+        signature.length !== expectedSig.length ||
+        !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))
+      ) {
+        logger.warn('Bolt', 'Neveljaven podpis — zavrnjeno')
+        return NextResponse.json({ error: 'Neveljaven podpis' }, { status: 401 })
+      }
+    } else {
+      logger.warn('Bolt', 'Webhook secret ni konfiguriran — preskakujem preverjanje podpisa')
+    }
 
     // Parse in validiraj payload
     let payload

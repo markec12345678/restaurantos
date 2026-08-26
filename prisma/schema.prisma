@@ -675,6 +675,7 @@ model Employee {
   // FIX WORKFLOW-1: order.employee back-reference (FK relacija)
   orders       Order[]    @relation("OrderEmployee")
   postedJournalEntries JournalEntry[] @relation("PostedJournalEntries")
+  pushSubscriptions PushSubscription[] @relation("PushSubscriptions")
   // --- Multi-location ---
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -2347,4 +2348,25 @@ model ScheduledEmailLog {
   @@index([reportType])
   @@index([createdAt])
   @@index([recipient])
+}
+
+// ============================================
+// WEB PUSH SUBSCRIPTIONS — Push notifications
+// ============================================
+
+model PushSubscription {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation("PushSubscriptions", fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  endpoint    String   // Push service URL (FCM, Apple, Mozilla)
+  p256dhKey   String   // P-256 public key
+  authKey     String   // Auth secret
+  userAgent   String   @default("")  // Za identifikacijo naprave
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([endpoint])
+  @@index([isActive])
 }
