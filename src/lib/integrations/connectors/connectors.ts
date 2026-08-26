@@ -69,6 +69,28 @@ export const deliveryConnectors: IntegrationConnector[] = [
     defaultEvents: ['order.created', 'order.ready', 'order.delivered', 'order.cancelled'],
     syncCapabilities: ['push_orders', 'pull_delivery_status', 'sync_menu', 'sync_availability', 'sync_all_channels'],
   },
+
+  // --- Bolt Food Dostava ---
+  {
+    id: 'bolt',
+    name: 'Bolt Food',
+    type: 'delivery',
+    provider: 'bolt',
+    description: 'Integracija z Bolt Food za dostavo naročil. Samodejno sprejemanje naročil preko webhook-a, ažuriranje statusa in upravljanje zaloge. Priljubljena platforma v Sloveniji, Hrvaški in Baltskih državah.',
+    icon: '🛵',
+    baseUrl: 'https://api.bolt.eu',
+    configFields: [
+      { key: 'storeId', label: 'ID trgovine', type: 'text', required: true, placeholder: 'Bolt store ID' },
+      { key: 'apiKey', label: 'API ključ', type: 'password', required: true, placeholder: 'Bolt API key' },
+      { key: 'webhookSecret', label: 'Webhook skrivnost', type: 'password', required: true, placeholder: 'HMAC-SHA256 secret', helpText: 'Skupni ključ za preverjanje podpisov webhook naročil' },
+      { key: 'autoAccept', label: 'Samodejno sprejemanje', type: 'select', required: true, defaultValue: 'true', options: [
+        { value: 'true', label: 'Da — samodejno sprejmi vsa naročila' },
+        { value: 'false', label: 'Ne — ročna potrditev' },
+      ]},
+    ],
+    defaultEvents: ['order.created', 'order.ready', 'order.delivered', 'order.cancelled'],
+    syncCapabilities: ['push_orders', 'pull_delivery_status', 'sync_menu', 'sync_availability', 'sync_all_channels'],
+  },
 ]
 export const ecommerceConnectors: IntegrationConnector[] = [
   // --- Shopify E-Commerce ---
