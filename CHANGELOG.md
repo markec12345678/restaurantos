@@ -1,5 +1,62 @@
 # Changelog — RestaurantOS
 
+## [Unreleased] — 2026-08-28
+
+### FURS compliance + POS 2026 raziskava + finalni popravki
+
+#### Dodano
+- **FURS Certificate Lifecycle Monitor** — `GET /api/furs/cert-status`
+  - Preverja stanje certifikata, opozori pred potekom (60 dni)
+  - FURS rotacija certifikatov sep 2025 — 8000 poteklo
+  - Preverja nepotrjene račune (1h warning, 48h ZDDV-1 critical)
+- **E-Invoice Book Reporting** — `GET /api/furs/e-invoice-book`
+  - Knjiga računov za FURS predajo (zakonska obveznost od 1. julija 2025)
+  - JSON + CSV export z DDV razčlenitvijo, ZOI, EOR
+- **MealtimeRule** — `src/lib/mealtimes.ts` + menu API filtering
+  - `isItemAvailableNow()` — preverja ali je artikel dostopen ob trenutnem času
+  - `?checkMealtimes=true` in `?hideUnavailable=1` query parametri
+- **KOT Document Lifecycle** (URY Mosaic-style) — `KotDocument` model + `GET/POST /api/kot`
+  - 4 tipi: original, modified, partially_cancelled, cancelled
+  - Avtomatsko kreiran ob `handleFireAction`
+- **Order Dossier** (POSR-style) — `GET /api/orders/[id]/dossier`
+  - Celovita časovnica: order → KOT → items → voids → payments → receipts → FURS → audit
+- **Operational Red Flags** (URY Mosaic-style) — `GET /api/operational-alerts`
+  - 8 tipov alertov z severity (critical/warning/info)
+- **GL/TB/BS/P&L Reports** (POSR/URY-style) — 3 novi API endpointi
+  - `generateProfitLoss()`, `generateBalanceSheet()`, `generateGeneralLedger()`
+- **Web Push Notifications** — `POST/DELETE /api/push/subscribe`, `GET /api/push/vapid-key`
+- **Bolt Food Webhook** — HMAC-SHA256 verification, idempotent, rate-limited
+- **Scheduled Email Reports** — Vercel Cron (vsakih 15 minut), PDF attachment
+
+#### Kritični popravki
+- **Skip-login bypass** — odstranjen onSkip (kdorkoli je lahko videl POS)
+- **DDV lookup** — cats[item.categoryId] iskal UUID v friendly-name mapi → categoryIdToName Map
+- **KOT auto-create** — handleFireAction zdaj avtomatsko ustvari KOT dokument
+- **Vercel Cron auth** — CRON_SECRET bypass dodan
+- **Bolt webhook DDV** — hardcoded 22% → pravilen DDV iz menuItem.vatRate
+- **FURS JWT** — base64url double-encoding popravljen (blokiral produkcijo)
+- **Refund reversal** — gift card/loyalty/check/order status reverziranje
+- **Loyalty fraud** — server-side validacija vrednosti točk
+- **P&L report** — hardcoded konstante → API fetch
+- **console.log → logger** v 5 produkcijkih datotekah
+- **scripts/seed tsc napake** — 0 napak (prvič popolnoma čisto!)
+
+#### Spletna raziskava (22 iskanj, 220 virov)
+- Offline-first z transactional outbox = dominantni pattern 2025
+- FURS cert rotacija + e-invoice book = zakonska obveznost
+- ViDA e-invoicing vstopil v veljavo 29. junija 2026
+- AI forecasting do 50% boljša natančnost
+- NFC tap-to-pay baseline, QR order-and-pay standard (40% prefer)
+- Ghost kitchens potrebujejo unified POS + KDS + delivery hub
+
+#### Testiranje
+- TypeCheck: **0 napak** (popolnoma čisto!)
+- Vitest: 191/191 zelenih
+- Praktični testi: vse funkcije delujejo end-to-end
+- Prisma: 79 modelov
+
+---
+
 ## [Unreleased] — 2026-08-27
 
 ### Konkurenčne funkcije + kritični popravki

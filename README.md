@@ -16,6 +16,8 @@
 [![E2E Tests](https://img.shields.io/badge/E2E_Tests-23_pass-brightgreen?style=flat-square)](./tests/e2e/)
 [![TypeCheck](https://img.shields.io/badge/TypeCheck-0_errors-brightgreen?style=flat-square)](./tsconfig.json)
 [![Security Audit](https://img.shields.io/badge/Security_Audit-Complete-success?style=flat-square)](./AUDIT-REPORT.md)
+[![Prisma Models](https://img.shields.io/badge/Prisma_Models-79-blue?style=flat-square)](./prisma/schema.prisma)
+[![Compliance](https://img.shields.io/badge/EU_Compliance-FURS%20%7C%20HACCP%20%7C%20PCI_DSS-success?style=flat-square)](./SECURITY.md)
 
 </div>
 
@@ -56,6 +58,10 @@ Sistem pokriva vse vidike restavratorskega poslovanja — od naročanja in plač
 - **🔐 FURS JWT Fix** — Pravilen RSA-SHA256 JWT podpis za produkcijo (base64url encoding)
 - **💰 Loyalty Fraud Prevention** — Server-side validacija vrednosti točk proti znesku plačila
 - **💳 Refund Reversal** — Popolno reverziranje gift card, loyalty, check/order status ob povračilu
+- **🔐 FURS Cert Monitor** — Avtomatsko preverjanje stanja certifikata z opozorili pred potekom
+- **📋 E-Invoice Book** — Knjiga računov za FURS predajo (zakonska obveznost od jul 2025)
+- **🕐 Mealtime Scheduling** — Artikel dostopen samo ob določenih dneh/časih (TastyIgniter-style)
+- **📊 GL/TB/BS/P&L** — General Ledger, Trial Balance, Balance Sheet, Profit & Loss poročila
 
 ---
 
