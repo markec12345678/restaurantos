@@ -674,6 +674,7 @@ model Employee {
   waitlistEntries WaitlistEntry[]
   // FIX WORKFLOW-1: order.employee back-reference (FK relacija)
   orders       Order[]    @relation("OrderEmployee")
+  postedJournalEntries JournalEntry[] @relation("PostedJournalEntries")
   // --- Multi-location ---
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -1181,6 +1182,7 @@ model Location {
   purchaseOrders   PurchaseOrder[]
   taxRates         TaxRate[]
   guestFeedbacks   GuestFeedback[]
+  journalEntries   JournalEntry[]   // FIX issue #31: multi-location accounting
 
   @@index([code])
   @@index([isActive])
@@ -2185,6 +2187,11 @@ model JournalEntry {
   status       String         @default("posted") // draft, posted, reversed
   postedAt     DateTime?
   postedBy     String?         // Employee ID
+  postedById   String?                            // FIX issue #43: FK do Employee
+  postedByEmp  Employee?      @relation("PostedJournalEntries", fields: [postedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  // --- Multi-location (issue #31) ---
+  locationId   String?
+  location     Location?      @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Relacije ---
   lines        JournalLine[]
   // --- Meta ---
@@ -2197,6 +2204,7 @@ model JournalEntry {
   @@index([status])
   @@index([source])
   @@index([date, status])
+  @@index([locationId])
 }
 
 // ============================================

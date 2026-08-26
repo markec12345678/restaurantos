@@ -9,6 +9,54 @@ import type { Session } from '../types'
 import { SESSION_TTL_MS } from '../constants'
 import { sessions, syncSessionToWs, loadSessionsFromDb } from './session-cache'
 
+// FIX SECURITY: Cache za status zaposlenega — prepreči DA je terminiran zaposleni
+// še vedno lahko dostopa do API-jev do poteka seje (do 8h!).
+// Cache je 60s — če admin terminira zaposlenega, bo seja prenehala veljati v 60s.
+const employeeStatusCache = new Map<string, { status: string; checkedAt: number }>()
+const EMPLOYEE_STATUS_CACHE_TTL_MS = 60 * 1000 // 60 sekund
+
+/**
+ * Preveri ali je zaposleni še vedno aktiven (s 60s cache-om)
+ * FIX SECURITY: preverja tudi ali je zaposleni še vedno 'active'.
+ * Prejšnja koda je preverjala samo TTL seje — če je admin terminiral
+ * zaposleni (DELETE /api/employees/[id] nastavi status='terminated'),
+ * je obstoječa seja še vedno veljala do 8h (sliding TTL) / 24h (absolute).
+ * Sedaj preverjamo status zaposlenega s 60s cache-om.
+ */
+async function isEmployeeActive(employeeId: string): Promise<boolean> {
+  // Preveri cache
+  const cached = employeeStatusCache.get(employeeId)
+  if (cached && Date.now() - cached.checkedAt < EMPLOYEE_STATUS_CACHE_TTL_MS) {
+    return cached.status === 'active'
+  }
+
+  // Preveri v bazi
+  try {
+    const employee = await db.employee.findUnique({
+      where: { id: employeeId },
+      select: { status: true },
+    })
+    if (!employee) {
+      employeeStatusCache.set(employeeId, { status: 'not_found', checkedAt: Date.now() })
+      return false
+    }
+    employeeStatusCache.set(employeeId, { status: employee.status, checkedAt: Date.now() })
+    return employee.status === 'active'
+  } catch {
+    // DB napaka — fail-open (dovoli dostop, da ne blokiramo celotnega sistema)
+    return true
+  }
+}
+
+/**
+ * Invalidiraj cache za specifičnega zaposlenega.
+ * Kliče se ko admin terminira ali izbriše zaposlenega.
+ */
+export function invalidateEmployeeStatusCache(employeeId: string): void {
+  employeeStatusCache.delete(employeeId)
+  logger.info('AUTH', `Invalidiran status cache za zaposlenega ${employeeId}`)
+}
+
 /**
  * Ustvari novo sejo po uspešni prijavi
  */
@@ -91,6 +139,13 @@ export async function verifyToken(token: string): Promise<Session | null> {
     const absoluteExpiry = dbSession.absoluteExpiry instanceof Date ? dbSession.absoluteExpiry.getTime() : Number(dbSession.absoluteExpiry)
 
     if (expiresAt < now || absoluteExpiry < now) {
+      await db.session.deleteMany({ where: { token } }).catch(() => {})
+      return null
+    }
+
+    // FIX SECURITY: preveri status zaposlenega tudi za DB sessions
+    const isActive = await isEmployeeActive(dbSession.employeeId)
+    if (!isActive) {
       await db.session.deleteMany({ where: { token } }).catch(() => {})
       return null
     }
