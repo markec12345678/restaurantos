@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger"
 // ============================================
 // Z-REPORT API — Dnevni zaključek (End of Day)
 // Toast POS + Square standard
@@ -177,7 +178,7 @@ export async function POST(req: Request) {
           }
         }
       } catch (emailErr) {
-        console.error('[Z-Report] Email pošiljanje spodletelo:', emailErr)
+        logger.error("CONSOLE", '[Z-Report] Email pošiljanje spodletelo:', emailErr)
       }
     }
 

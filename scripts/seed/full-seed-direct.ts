@@ -181,13 +181,14 @@ async function main() {
   
   // Uporabimo dinamični import za seed helperje
   const { getMenuItemsData } = await import('../../src/app/api/seed/helpers/menu-items')
-  const { seedModifierGroups } = await import('../../src/app/api/seed/helpers/seed-modifiers')
   const { seedMenusAndCategories } = await import('../../src/app/api/seed/helpers/seed-structure')
+  const { seedModifierGroups } = await import('../../src/app/api/seed/helpers/seed-modifiers')
 
   // Ponastavimo kategorije iz seed helperjev
   await prisma.category.deleteMany()
-  const { cats } = await seedMenusAndCategories(prisma)
-  const mods = await seedModifierGroups(prisma)
+  // FIX AUD-21: seedMenusAndCategories() in seedModifierGroups() ne sprejmeta argumenta
+  const { cats } = await seedMenusAndCategories()
+  const mods = await seedModifierGroups()
   
   const menuItemsData = getMenuItemsData(cats, mods)
   console.log(`   📋 Najdeno ${menuItemsData.length} artiklov za uvoz\n`)

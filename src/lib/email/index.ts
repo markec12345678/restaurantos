@@ -155,3 +155,133 @@ export async function getReportRecipients(): Promise<string[]> {
     return []
   }
 }
+
+// ============================================
+// SCHEDULED EMAIL LOG — internal creator (uporablja se iz EOD + API route)
+// AUD-12: Da se ScheduledEmailLog sproži ob EOD completed
+// ============================================
+
+export type ScheduledReportType = 'z_report' | 'daily_summary' | 'weekly_summary' | 'vat_report'
+
+export interface CreateScheduledEmailResult {
+  success: boolean
+  created: number
+  recipients: string[]
+  reportDate: string
+  reportType: ScheduledReportType
+  skipped?: boolean
+  reason?: string
+}
+
+/**
+ * Ustvari ScheduledEmailLog za vsakega konfiguriranega prejemnika.
+ *
+ * Uporablja se:
+ *   1. Iz POST /api/scheduled-emails/create (administrativni endpoint)
+ *   2. Iz closeShift() ob EOD completed (avtomatski z_report)
+ *
+ * Vedenje:
+ *   - Če email NI omogočen (isEmailEnabled=false) → vrne {success:false, reason}
+ *   - Če ni prejemnikov → vrne {success:false, reason}
+ *   - Če že obstaja pending/sent log za ta reportType+datum → vrne {success:true, skipped:true}
+ *   - Sicer: ustvari en ScheduledEmailLog na prejemnika (status='pending')
+ *
+ * Non-throwing: nikoli ne vrže — klicalec naj handle-a rezultat.
+ */
+export async function createScheduledEmailLog(
+  reportType: ScheduledReportType = 'z_report',
+  reportDate: Date = new Date(),
+): Promise<CreateScheduledEmailResult> {
+  try {
+    const emailEnabled = await isEmailEnabled()
+    if (!emailEnabled) {
+      return {
+        success: false,
+        created: 0,
+        recipients: [],
+        reportDate: reportDate.toISOString().split('T')[0],
+        reportType,
+        reason: 'Email ni konfiguriran (emailEnabled=false ali manjkajo SMTP nastavitve)',
+      }
+    }
+
+    const recipients = await getReportRecipients()
+    if (recipients.length === 0) {
+      return {
+        success: false,
+        created: 0,
+        recipients: [],
+        reportDate: reportDate.toISOString().split('T')[0],
+        reportType,
+        reason: 'Ni konfiguriranih prejemnikov (emailReportRecipients prazen)',
+      }
+    }
+
+    const dateStr = reportDate.toISOString().split('T')[0]
+
+    // Preveri ali že obstaja pending/sent email za ta datum in tip
+    const existing = await db.scheduledEmailLog.findFirst({
+      where: {
+        reportType,
+        reportDate: {
+          gte: new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 0, 0, 0),
+          lte: new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 23, 59, 59),
+        } as never,
+        status: { in: ['pending', 'sent'] },
+      },
+    })
+
+    if (existing) {
+      return {
+        success: true,
+        created: 0,
+        recipients,
+        reportDate: dateStr,
+        reportType,
+        skipped: true,
+        reason: `Email za ${reportType} ${dateStr} je že ${existing.status}`,
+      }
+    }
+
+    // Ustvari ScheduledEmailLog za vsakega prejemnika
+    const subject = `${reportType === 'z_report' ? 'Z-poročilo' : 'Poročilo'} — ${dateStr}`
+    const body = `Avtomatsko generirano ${reportType} poročilo za ${dateStr}.`
+    const attachmentName = `${reportType}_${dateStr}.pdf`
+
+    for (const recipient of recipients) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (db.scheduledEmailLog as any).create({
+        data: {
+          reportType,
+          recipient,
+          subject,
+          body,
+          attachmentName,
+          status: 'pending',
+          reportDate,
+        },
+      })
+    }
+
+    logger.info('EMAIL', `Ustvarjenih ${recipients.length} scheduled emailov za ${dateStr} (${reportType})`)
+
+    return {
+      success: true,
+      created: recipients.length,
+      recipients,
+      reportDate: dateStr,
+      reportType,
+    }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Neznana napaka'
+    logger.error('EMAIL', `Napaka pri createScheduledEmailLog:`, msg)
+    return {
+      success: false,
+      created: 0,
+      recipients: [],
+      reportDate: reportDate.toISOString().split('T')[0],
+      reportType,
+      reason: msg,
+    }
+  }
+}

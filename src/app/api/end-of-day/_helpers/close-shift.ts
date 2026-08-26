@@ -2,6 +2,8 @@
 
 import { db, createAuditLog } from '@/lib/db'
 import { toNum, sumBy, round2, add, subtract } from '@/lib/decimal'
+import { logger } from '@/lib/logger'
+import { createScheduledEmailLog } from '@/lib/email'
 
 // ─── Zaključi izmeno (POST transakcija) ─────────────────────
 
@@ -112,6 +114,33 @@ export async function closeShift(
     } as Record<string, unknown>,
     userId: employeeId ?? undefined,
   })
+
+  // AUD-12: Po uspešnem EOD sproži ScheduledEmailLog za z_report.
+  // Non-blocking — napake ne smejo pokvariti EOD rezultata.
+  // Samo če je email omogočen in imamo prejemnike (helper internalno preveri).
+  try {
+    const reportDate = date ? new Date(date) : new Date()
+    if (Number.isNaN(reportDate.getTime())) {
+      // Neveljaven datum — ne poskusi
+      logger.warn('EOD', `Scheduled email skipped: neveljaven datum "${date}"`)
+    } else {
+      const result = await createScheduledEmailLog('z_report', reportDate)
+      if (result.success) {
+        if (result.skipped) {
+          logger.info('EOD', `Scheduled email already exists: ${result.reason}`)
+        } else {
+          logger.info('EOD', `Scheduled email created: ${result.created} prejemnikov za ${result.reportDate}`)
+        }
+      } else {
+        // Ni napaka — samo info (email morda ni konfiguriran)
+        logger.info('EOD', `Scheduled email skipped: ${result.reason}`)
+      }
+    }
+  } catch (emailError) {
+    // Non-blocking: log + nadaljuj. EOD je že uspešno zaključen.
+    const msg = emailError instanceof Error ? emailError.message : 'Neznana napaka'
+    logger.error('EOD', `Scheduled email creation failed (non-blocking):`, msg)
+  }
 
   return cashDiff
 }

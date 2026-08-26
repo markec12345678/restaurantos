@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger"
 // ============================================
 // JOURNAL ENTRY GENERATOR — avtomatsko knjiženje iz poslovnih dogodkov
 // Double-entry: vsako plačilo generira 2+ vrstici (debet == kredit)
@@ -108,7 +109,7 @@ export async function generateJournalForPayment(
 
     return entry.id
   } catch (error) {
-    console.error('[Journal] Napaka pri generiranju vnosa:', error)
+    logger.error("CONSOLE", '[Journal] Napaka pri generiranju vnosa:', error)
     return null
   }
 }

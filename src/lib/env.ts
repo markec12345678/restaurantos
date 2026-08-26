@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger"
 // ============================================
 // VALIDACIJA OKOLJSKIH SPREMENLJIVK Z ZOD
 // Fail-fast ob zagonu — prepreči runtime napake zaradi manjkajočih/napačnih env spremenljivk
@@ -91,7 +92,7 @@ function parseEnv() {
 
     if (hasCriticalErrors || process.env.NODE_ENV !== 'production') {
       // eslint-disable-next-line no-console
-      console.error(
+      logger.error("CONSOLE", 
         '\n❌ VALIDACIJA OKOLJSKIH SPREMENLJIVK JE SPODLETELA:\n' +
         errors.join('\n') +
         '\n\nProsimo, preverite .env datoteko glede na .env.example\n'

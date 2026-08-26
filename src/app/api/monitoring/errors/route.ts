@@ -1,3 +1,4 @@
+import { logger } from "@/lib/logger"
 import { NextResponse } from 'next/server'
 
 // ─── Lightweight Error Monitoring Endpoint ────────────────────
@@ -17,10 +18,10 @@ export async function POST(req: Request) {
     // 1. Log to Vercel built-in logging (always visible in dashboard)
     const logLine = `[${level.toUpperCase()}] ${timestamp} | ${message} | url=${url} | tags=${JSON.stringify(tags)}`
     if (level === 'error') {
-      console.error(logLine)
-      if (stack) console.error(stack)
+      logger.error("CONSOLE", logLine)
+      if (stack) logger.error("CONSOLE", stack)
     } else {
-      console.warn(logLine)
+      logger.warn("CONSOLE", logLine)
     }
 
     // 2. Optionally forward to Sentry ingest API (envelope endpoint)
@@ -58,13 +59,13 @@ export async function POST(req: Request) {
           })
         }
       } catch (sentryErr) {
-        console.error('[monitoring] Sentry forward failed:', sentryErr instanceof Error ? sentryErr.message : 'unknown')
+        logger.error("CONSOLE", '[monitoring] Sentry forward failed:', sentryErr instanceof Error ? sentryErr.message : 'unknown')
       }
     }
 
     return NextResponse.json({ ok: true })
   } catch (err) {
-    console.error('[monitoring] Failed to process error report:', err)
+    logger.error("CONSOLE", '[monitoring] Failed to process error report:', err)
     return NextResponse.json({ ok: false }, { status: 500 })
   }
 }
