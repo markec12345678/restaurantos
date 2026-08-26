@@ -697,5 +697,6 @@
   "nav.orderBump": "Upsell & Order Bump",
   "nav.wasteTracker": "Sledenje odpadkom",
   "nav.recipeScaling": "Raztegovanje receptov",
-  "nav.compliance": "Skladnost s predpisi"
+  "nav.compliance": "Skladnost s predpisi",
+  "nav.auditLog": "Revizijski dnevnik",
 }

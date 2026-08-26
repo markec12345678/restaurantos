@@ -62,7 +62,7 @@ export async function verifyInvoice(req: Request): Promise<Response> {
           error: result.error || 'Napaka pri FURS overjanju',
           warning: 'FISKALIZACIJA NI USPELA — Račun je označen kot pending. Ponovite overitev čim prej!',
         }, { status: 400 })
-        failResponse.headers.set('X-Fiscal-Warning', 'Fiscalization pending — receipt requires manual re-verification')
+        failResponse.headers.set('X-Fiscal-Warning', 'Fiscalization pending - receipt requires manual re-verification')
         return failResponse
       }
 
@@ -96,7 +96,7 @@ export async function verifyInvoice(req: Request): Promise<Response> {
         fiscalStatus: 'pending',
         warning: 'FISKALIZACIJA NI USPELA — Račun je označen kot pending. Ponovite overitev čim prej!',
       }, { status: 500 })
-      errorResponse.headers.set('X-Fiscal-Warning', 'Fiscalization pending — receipt requires manual re-verification')
+      errorResponse.headers.set('X-Fiscal-Warning', 'Fiscalization pending - receipt requires manual re-verification')
       return errorResponse
     }
   } catch (error: unknown) {

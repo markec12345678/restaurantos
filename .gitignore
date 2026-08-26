@@ -34,13 +34,23 @@ dist/
 .env.test.local
 .env.production.local
 
-# ── Database (SQLite) ─────────────────────────
+# ── Database (PostgreSQL / PGlite) ────────────
 db/*.db
 db/*.db-journal
 db/*.db-wal
 db/*.db-shm
 db/*.sqlite
 db/*.sqlite3
+# PGlite (embedded PostgreSQL v Node.js) — lokalni podatki
+pglite-data/
+pglite-e2e-data/
+pglite-dev-data/
+pglite-test-*/
+
+# ── Test results ──────────────────────────────
+test-results/
+playwright-report/
+coverage/
 
 # ── Logs ──────────────────────────────────────
 *.log

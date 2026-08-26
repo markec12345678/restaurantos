@@ -50,15 +50,17 @@ export default defineConfig({
   webServer: process.env.CI
     ? undefined
     : {
-        command: 'bun run dev',
+        command: 'npm run dev',
         url: BASE_URL,
         reuseExistingServer: true,
         timeout: 120_000,
         env: {
-          DATABASE_URL: 'file:./db/test-e2e.db',
+          DATABASE_URL: '',
+          PGLITE_DATA_DIR: '/home/z/my-project/pglite-e2e-data',
           FURS_ENV: 'test',
           FURS_ALLOW_SIMULATION: 'true',
           NEXTAUTH_SECRET: 'e2e-test-secret-only',
+          WS_BROADCAST_SECRET: 'e2e-test-secret-only',
         },
       },
 })

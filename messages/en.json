@@ -697,5 +697,6 @@
   "nav.orderBump": "Upsell & Order Bump",
   "nav.wasteTracker": "Waste Tracker",
   "nav.recipeScaling": "Recipe Scaling",
-  "nav.compliance": "Compliance Dashboard"
+  "nav.compliance": "Compliance Dashboard",
+  "nav.auditLog": "Audit Log",
 }

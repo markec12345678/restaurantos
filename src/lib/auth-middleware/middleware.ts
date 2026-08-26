@@ -40,6 +40,12 @@ export async function requireAuth(
     return { session: null, error: null }
   }
 
+  // FIX WORKFLOW-49: /api/setup POST je dovoljen brez avtentikacije (first-run inicializacija)
+  // Po inicializaciji sistem sam prepreči re-init (POST vrne 409 Conflict)
+  if (pathname.startsWith('/api/setup')) {
+    return { session: null, error: null }
+  }
+
   const token = extractBearerToken(req)
 
   if (!token) {
@@ -84,9 +90,11 @@ export async function requireAuth(
   session.expiresAt = Math.min(Date.now() + SESSION_TTL_MS, session.absoluteExpiry)
 
   // Persistiraj podaljšano sejo v SQLite
+  // Persistiraj podaljšano sejo v PostgreSQL
+  // FIX WORKFLOW-45: expiresAt je v aplikaciji number (Unix ms), v DB pa DateTime
   db.session.updateMany({
     where: { token },
-    data: { expiresAt: session.expiresAt },
+    data: { expiresAt: new Date(session.expiresAt) },
   }).catch(() => {})
 
   // Sinhroniziraj z WS session store

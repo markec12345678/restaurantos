@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
 }
 
 datasource db {
@@ -415,6 +416,10 @@ model Order {
   splitCount      Int        @default(1)
   notes           String     @default("")
   employeeId      String?
+  // FIX WORKFLOW-1: FK relacija do Employee (prej samo soft-FK employeeId)
+  employee        Employee?  @relation("OrderEmployee", fields: [employeeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  // FIX WORKFLOW-2: firedAt — čas, kdaj je naročilo poslano v kuhinjo (KDS timer + waiter elapsed)
+  firedAt         DateTime?
   // --- Preklic/Storno metapodatki ---
   cancelReason    String     @default("")   // Razlog za preklic/storno
   cancelledAt     DateTime?                 // Kdaj je bilo preklicano/stornirano
@@ -485,6 +490,8 @@ model OrderItem {
   course          Course?   @relation(fields: [courseId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Status ---
   status         String   @default("pending")
+  // FIX WORKFLOW-3: firedAt — čas, kdaj je artikel poslan v kuhinjo (KDS urgency timer)
+  firedAt        DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -665,6 +672,8 @@ model Employee {
   timeEntries  TimeEntry[]
   cashShifts   CashRegisterShift[]
   waitlistEntries WaitlistEntry[]
+  // FIX WORKFLOW-1: order.employee back-reference (FK relacija)
+  orders       Order[]    @relation("OrderEmployee")
   // --- Multi-location ---
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -2145,16 +2154,18 @@ model Session {
   employeeId      String                        // ID zaposlenega
   role            String                        // admin, manager, staff
   permissions     String   @default("[]")       // JSON array: ["take_orders", "void_items", ...]
-  createdAt       BigInt                        // FIX: BigInt — Date.now() ms preseže 32-bit Int (overflow pri ~2.1M)
-  expiresAt       BigInt                        // Unix timestamp ms
-  absoluteExpiry  BigInt                        // Unix timestamp ms — absolutni maksimum (24h)
+  // FIX WORKFLOW-45: prej BigInt — ne deluje s pglite-prisma-adapter (BigInt se
+  // serializira kot float, PostgreSQL ga zavrne). DateTime (TIMESTAMP) shrani
+  // ms-precision nativno in je prava izbiba za seje.
+  createdAt       DateTime  @default(now())
+  expiresAt       DateTime
+  absoluteExpiry  DateTime                      // Absolutni maksimum (24h)
   ipAddress       String   @default("")         // IP naslov ob prijavi
   userAgent       String   @default("")         // User-Agent ob prijavi
 
   @@index([token])
   @@index([employeeId])
   @@index([expiresAt])
-  // FIX SCHEMA-10: Composite index za Session — aktivne seje zaposlenega
   @@index([employeeId, expiresAt])  // Iskanje aktivnih sej za zaposlenega
 }
 
@@ -2186,6 +2197,30 @@ model JournalEntry {
   @@index([status])
   @@index([source])
   @@index([date, status])
+}
+
+// ============================================
+// KONTNI NAČRT (Chart of Accounts) — SKM 2006
+// Slovenski standardni kontni načrt za knjigovodstvo
+// ============================================
+
+model ChartOfAccount {
+  id          String   @id @default(cuid())
+  code        String   @unique              // 1010, 2600, 7000, itd.
+  name        String                        // "Blagajna", "DDV izhodni", "Promet — na mestu"
+  accountType String                        // asset, liability, equity, revenue, expense
+  parentId    String?                       // Hierarhija: 7000 → 7000.01 (subkonta)
+  parent      ChartOfAccount?  @relation("AccountHierarchy", fields: [parentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  subAccounts ChartOfAccount[]  @relation("AccountHierarchy")
+  isActive    Boolean  @default(true)
+  description String   @default("")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([accountType])
+  @@index([parentId])
+  @@index([isActive])
 }
 
 model JournalLine {

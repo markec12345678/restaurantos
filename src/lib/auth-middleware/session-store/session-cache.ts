@@ -42,24 +42,27 @@ export async function loadSessionsFromDb(): Promise<void> {
   sessionLoadPromise = (async () => {
     try {
       const now = Date.now()
+      // FIX WORKFLOW-45: prej BigInt(now) — sedaj new Date(now) za DateTime stolpec
       await db.session.deleteMany({
-        where: { expiresAt: { lt: BigInt(now) } }
+        where: { expiresAt: { lt: new Date(now) } }
       })
 
       const dbSessions = await db.session.findMany({
-        where: { absoluteExpiry: { gte: BigInt(now) } }
+        where: { absoluteExpiry: { gte: new Date(now) } }
       })
 
       for (const dbSession of dbSessions) {
         try {
+          // FIX WORKFLOW-45: pretvorba DateTime → number (Unix epoch ms)
+          const toMs = (d: unknown): number => d instanceof Date ? d.getTime() : Number(d)
           const session: Session = {
             token: dbSession.token,
             employeeId: dbSession.employeeId,
             role: dbSession.role,
             permissions: JSON.parse(dbSession.permissions || '[]'),
-            createdAt: Number(dbSession.createdAt),
-            expiresAt: Number(dbSession.expiresAt),
-            absoluteExpiry: Number(dbSession.absoluteExpiry),
+            createdAt: toMs(dbSession.createdAt),
+            expiresAt: toMs(dbSession.expiresAt),
+            absoluteExpiry: toMs(dbSession.absoluteExpiry),
           }
           sessions.set(dbSession.token, session)
           syncSessionToWs(dbSession.token, session)

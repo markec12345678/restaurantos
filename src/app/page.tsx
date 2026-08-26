@@ -11,6 +11,8 @@ import { moduleComponents, AIAssistant } from '@/app/components/module-registry'
 import { usePOSAuth } from '@/app/components/use-pos-auth'
 import { AuthLoadingScreen, AuthLoginScreen } from '@/app/components/auth-screens'
 import { ActiveModuleView } from '@/app/components/active-module-view'
+import { SetupRedirect } from '@/components/setup/setup-redirect'
+import { PwaInstallPrompt } from '@/components/pwa/pwa-install-prompt'
 
 export default function POSPage() {
   const { activeModule, kioskMode } = usePOSStore()
@@ -20,13 +22,23 @@ export default function POSPage() {
   useModulePrefetch(activeModule)
   const { authUser, setAuthUser, authChecked } = usePOSAuth()
 
-  // Dokler ni preverjena avtentikacija, prikaži nalagalni zaslon
+  // FIX WORKFLOW-48: preusmeri na /setup če sistem še ni inicializiran (first-run)
   if (!authChecked) {
-    return <AuthLoadingScreen />
+    return (
+      <>
+        <SetupRedirect />
+        <AuthLoadingScreen />
+      </>
+    )
   }
 
   if (!authUser) {
-    return <AuthLoginScreen onLogin={(user) => setAuthUser(user)} />
+    return (
+      <>
+        <SetupRedirect />
+        <AuthLoginScreen onLogin={(user) => setAuthUser(user)} />
+      </>
+    )
   }
 
   return (
@@ -53,6 +65,8 @@ export default function POSPage() {
       </div>
       <GlobalNotifications />
       <AIAssistant />
+      {/* PWA install prompt — prikaže se ko brskalnik dovoljuje namestitev */}
+      <PwaInstallPrompt />
     </div>
   )
 }

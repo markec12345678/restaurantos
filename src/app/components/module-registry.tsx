@@ -78,6 +78,8 @@ const OrderBump = dynamic(() => import('@/components/pos/OrderBump').then(m => (
 const WasteTracker = dynamic(() => import('@/components/pos/WasteTracker').then(m => ({ default: m.WasteTracker })), { ssr: false, loading: () => loadingFallback })
 const RecipeScaling = dynamic(() => import('@/components/pos/RecipeScaling').then(m => ({ default: m.RecipeScaling })), { ssr: false, loading: () => loadingFallback })
 const ComplianceDashboard = dynamic(() => import('@/components/pos/ComplianceDashboard').then(m => ({ default: m.ComplianceDashboard })), { ssr: false, loading: () => loadingFallback })
+// FIX WORKFLOW-50: AuditLogViewer — revizijski dnevnik za admin (PCI DSS + FURS)
+const AuditLogViewer = dynamic(() => import('@/components/pos/AuditLogViewer').then(m => ({ default: m.AuditLogViewer })), { ssr: false, loading: () => loadingFallback })
 // Default exports
 const GuestManager = dynamic(() => import('@/components/pos/GuestManager').then(m => ({ default: m.GuestManager })), { ssr: false, loading: () => loadingFallback })
 const FoodCostCalculator = dynamic(() => import('@/components/pos/food-cost/FoodCostCalculator'), { ssr: false, loading: () => loadingFallback })
@@ -146,6 +148,7 @@ export const moduleComponents: Record<string, ComponentType> = {
   'waste-tracker': WasteTracker,
   'recipe-scaling': RecipeScaling,
   'compliance': ComplianceDashboard,
+  'audit-log': AuditLogViewer,
   settings: SettingsManager,
 }
 

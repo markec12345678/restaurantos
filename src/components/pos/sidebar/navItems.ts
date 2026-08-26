@@ -83,5 +83,6 @@ export const navItems: NavItem[] = [
   { id: 'waste-tracker', labelKey: 'nav.wasteTracker', icon: Trash2, adminOnly: true },
   { id: 'recipe-scaling', labelKey: 'nav.recipeScaling', icon: Scale3d, adminOnly: true },
   { id: 'compliance', labelKey: 'nav.compliance', icon: ShieldCheck, adminOnly: true },
+  { id: 'audit-log', labelKey: 'nav.auditLog', icon: ShieldAlert, adminOnly: true },
   { id: 'settings', labelKey: 'nav.settings', icon: Settings, adminOnly: true },
 ]

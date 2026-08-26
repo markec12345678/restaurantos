@@ -53,7 +53,11 @@ export function deepToNumbers<T>(val: T): T {
   if (Array.isArray(val)) {
     return val.map(deepToNumbers) as T
   }
-  if (val instanceof Date || val instanceof Map || val instanceof Set || val instanceof Buffer || ArrayBuffer.isView(val)) {
+  // FIX WORKFLOW-46: Date → ISO string (Zod response sheme pričakujejo string, ne Date)
+  if (val instanceof Date) {
+    return val.toISOString() as T
+  }
+  if (val instanceof Map || val instanceof Set || val instanceof Buffer || ArrayBuffer.isView(val)) {
     return val
   }
   if (typeof val === 'object') {

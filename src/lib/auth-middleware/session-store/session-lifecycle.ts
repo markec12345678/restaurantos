@@ -44,9 +44,10 @@ export async function createSession(employee: {
         employeeId: employee.id,
         role: employee.role,
         permissions: JSON.stringify(employee.permissions),
-        createdAt: BigInt(now),
-        expiresAt: BigInt(now + SESSION_TTL_MS),
-        absoluteExpiry: BigInt(now + 24 * 60 * 60 * 1000),
+        // FIX WORKFLOW-45: prej BigInt(now) — sedaj DateTime (Date object)
+        createdAt: new Date(now),
+        expiresAt: new Date(now + SESSION_TTL_MS),
+        absoluteExpiry: new Date(now + 24 * 60 * 60 * 1000),
         ipAddress: ipAddress || '',
         userAgent: userAgent || '',
       },
@@ -85,22 +86,21 @@ export async function verifyToken(token: string): Promise<Session | null> {
     if (!dbSession) return null
 
     const now = Date.now()
-    const expiresAt = Number(dbSession.expiresAt)
-    const absoluteExpiry = Number(dbSession.absoluteExpiry)
+    // FIX WORKFLOW-45: prej Number(BigInt) — sedaj DateTime → number (ms)
+    const expiresAt = dbSession.expiresAt instanceof Date ? dbSession.expiresAt.getTime() : Number(dbSession.expiresAt)
+    const absoluteExpiry = dbSession.absoluteExpiry instanceof Date ? dbSession.absoluteExpiry.getTime() : Number(dbSession.absoluteExpiry)
 
     if (expiresAt < now || absoluteExpiry < now) {
-      // Seja je potekla — izbriši iz DB
       await db.session.deleteMany({ where: { token } }).catch(() => {})
       return null
     }
 
-    // Rekonstruiraj session objekt
     const reconstructed: Session = {
       token: dbSession.token,
       employeeId: dbSession.employeeId,
       role: dbSession.role,
       permissions: JSON.parse(dbSession.permissions || '[]'),
-      createdAt: Number(dbSession.createdAt),
+      createdAt: dbSession.createdAt instanceof Date ? dbSession.createdAt.getTime() : Number(dbSession.createdAt),
       expiresAt,
       absoluteExpiry,
     }

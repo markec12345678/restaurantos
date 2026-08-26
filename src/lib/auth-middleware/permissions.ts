@@ -10,11 +10,13 @@ import { PUBLIC_GET_ROUTES, ROUTE_PERMISSIONS } from './constants'
  * Preveri ali ruta zahteva avtentikacijo
  */
 export function isPublicRoute(pathname: string): boolean {
-  // FIX HIGH: Javne rute so javne SAMO za GET — POST/PUT/DELETE zahtevajo avtentikacijo
+  // FIX HIGH: Javne rute so javne SAMO za GET — POST/PUT/DELETE zahtevajo avtentikacije
   // /api/auth je izjema — login POST je dovoljen brez tokena
   if (pathname.startsWith('/api/auth')) return true
   if (pathname.startsWith('/api/public')) return true
   if (pathname.startsWith('/api/feedback-public')) return true // Javni QR kiosk za mnenja
+  // FIX WORKFLOW-49: /api/setup je javen (GET in POST) — first-run inicializacija
+  if (pathname.startsWith('/api/setup')) return true
   return PUBLIC_GET_ROUTES.some(route => pathname.startsWith(route))
 }
 
