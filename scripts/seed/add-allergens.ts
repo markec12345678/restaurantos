@@ -31,7 +31,9 @@ const ALLERGEN_RULES: Array<{ keywords: string[], allergens: number[] }> = [
   { keywords: ['pica', 'pizza', 'testo', 'testenin', 'špaget', 'njok', 'makaron', 'rezanc', 'kruh', 'palačink', 'burger', 'bun', 'dough', 'bread', 'pancake', 'pasta', 'noodle', 'flour', 'cake', 'torta', 'tart', 'piškot', 'cookie', 'biscuit', 'crust', 'prelijc', 'strudelj', 'strudel', 'pita', 'krof', 'donut', 'waffle', 'vafl', 'knedl', 'cmok', 'žemja', 'kifla', 'croissant'], allergens: [1] },
   
   // 3 — Jajca
-  { keywords: ['jajce', 'jajca', 'jajčn', 'omeleta', 'fritaja', 'palačink', 'pancake', 'cmok', 'knedl', 'šnicle', 'dunajska', 'pariška', 'paniran', 'ocvrt', 'battered', 'egg', 'mayon', 'majone', 'tartar', 'holandez', 'hollandais', 'custard', 'krema', 'pudding', 'zabaione', 'tiramisu', 'panna cotta', 'creme', 'souffle', 'meringue', 'bešamel', 'bechamel'], allergens: [3, 7] },
+  { keywords: ['jajce', 'jajca', 'jajčn', 'omeleta', 'fritaja', 'palačink', 'pancake', 'cmok', 'knedl', 'šnicle', 'dunajska', 'pariška', 'paniran', 'ocvrt', 'battered', 'egg', 'mayon', 'majone', 'tartar', 'holandez', 'hollandais', 'custard', 'krema', 'pudding', 'zabaione', 'tiramisu', 'creme', 'souffle', 'meringue', 'bešamel', 'bechamel'], allergens: [3, 7] },
+  // FIX AUDIT: Panna cotta ne vsebuje jajc — vsebuje mleko (7) in želatino
+  { keywords: ['panna cotta'], allergens: [7] },
   
   // 4 — Ribe
   { keywords: ['riba', 'ribj', 'ribe', 'losos', 'tuna', 'oslič', 'brancin', 'orada', 'postrv', 'sardel', 'sardina', 'inčun', 'inčuni', 'skuša', 'bakalar', 'ribež', 'fish', 'salmon', 'tuna', 'cod', 'trout', 'sardine', 'anchovy', 'mackerel', 'herring', 'caviar', 'ikre'], allergens: [4] },

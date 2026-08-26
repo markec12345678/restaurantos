@@ -35,6 +35,27 @@ export async function POST(req: Request) {
 
     const menuItemsData = getMenuItemsData(cats, mods)
 
+    // FIX AUDIT: Pravilno nastavi DDV stopnjo glede na kategorijo
+    // Hrana in brezalkoholne pijače = 9.5%, alkohol = 22%
+    const alcoholCategories = ['Vina', 'Bela vina', 'Rdeča vina', 'Rosé vina', 'Penine', 'Pivo', 'Točeno pivo',
+      'Craft piva', 'Brezalk. pivo', 'Žgane pijače', 'Destilati', 'Likerji', 'Likersko vino', 'Gin', 'Viski',
+      'Tuja vina', 'Penine']
+    const nonAlcoholCategories = ['Tople napitke', 'Gazirane pijače', 'Sokovi', 'Vode']
+
+    for (const item of menuItemsData) {
+      if (item.vatRate === undefined) {
+        const catName = cats[item.categoryId]?.name || ''
+        if (alcoholCategories.some(c => catName.includes(c))) {
+          item.vatRate = 22.0
+        } else if (nonAlcoholCategories.some(c => catName.includes(c))) {
+          item.vatRate = 9.5
+        } else {
+          // Hrana = 9.5%
+          item.vatRate = 9.5
+        }
+      }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma MenuItem return type with dynamic fields
     const menuItems: any[] = []
     for (const itemData of menuItemsData) {

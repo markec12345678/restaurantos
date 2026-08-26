@@ -17,15 +17,30 @@ export async function seedDemoData(menuItems: { id: string; price: number; vatRa
   )
 
   // ============================================
-  // ZAPOSLENI
+  // ZAPOSLENI — PIN hashiran z bcrypt (FIX AUDIT: prej plaintext)
   // ============================================
+  const bcrypt = await import('bcryptjs')
+  const crypto = await import('crypto')
+  const nextauthSecret = process.env.NEXTAUTH_SECRET || 'fallback-secret-change-me'
+  const hashPin = async (pin: string) => {
+    const hash = await bcrypt.hash(pin, 10)
+    const lookup = crypto.createHmac('sha256', nextauthSecret).update(pin).digest('hex')
+    return { pin: hash, pinLookup: lookup }
+  }
+
+  const emp1Pin = await hashPin('1234')
+  const emp2Pin = await hashPin('5678')
+  const emp3Pin = await hashPin('9012')
+  const emp4Pin = await hashPin('3456')
+  const emp5Pin = await hashPin('7890')
+
   const employees = await Promise.all([
-    db.employee.create({ data: { name: 'Ana Novak', email: 'ana@restaurant.com', phone: '040-123-456', role: 'admin', status: 'active', pin: '1234' } }),
-    db.employee.create({ data: { name: 'Marko Horvat', email: 'marko@restaurant.com', phone: '041-234-567', role: 'manager', status: 'active', pin: '5678' } }),
-    db.employee.create({ data: { name: 'Maja Kovač', email: 'maja@restaurant.com', phone: '042-345-678', role: 'staff', status: 'active', pin: '9012' } }),
-    db.employee.create({ data: { name: 'Luka Zupan', email: 'luka@restaurant.com', phone: '043-456-789', role: 'chef', status: 'active', pin: '3456' } }),
-    db.employee.create({ data: { name: 'Eva Krajnc', email: 'eva@restaurant.com', phone: '044-567-890', role: 'staff', status: 'active', pin: '7890' } }),
-    db.employee.create({ data: { name: 'Peter Mlakar', email: 'peter@restaurant.com', phone: '045-678-901', role: 'chef', status: 'inactive', pin: '' } }),
+    db.employee.create({ data: { name: 'Ana Novak', email: 'ana@restaurant.com', phone: '040-123-456', role: 'admin', status: 'active', ...emp1Pin } }),
+    db.employee.create({ data: { name: 'Marko Horvat', email: 'marko@restaurant.com', phone: '041-234-567', role: 'manager', status: 'active', ...emp2Pin } }),
+    db.employee.create({ data: { name: 'Maja Kovač', email: 'maja@restaurant.com', phone: '042-345-678', role: 'staff', status: 'active', ...emp3Pin } }),
+    db.employee.create({ data: { name: 'Luka Zupan', email: 'luka@restaurant.com', phone: '043-456-789', role: 'chef', status: 'active', ...emp4Pin } }),
+    db.employee.create({ data: { name: 'Eva Krajnc', email: 'eva@restaurant.com', phone: '044-567-890', role: 'staff', status: 'active', ...emp5Pin } }),
+    db.employee.create({ data: { name: 'Peter Mlakar', email: 'peter@restaurant.com', phone: '045-678-901', role: 'chef', status: 'inactive', pin: '', pinLookup: '' } }),
   ])
 
   // ============================================
