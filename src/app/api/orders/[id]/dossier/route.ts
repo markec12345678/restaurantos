@@ -53,7 +53,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           appliedDiscount: { select: { name: true, type: true, amount: true } },
           payments: {
             include: {
-              giftCard: { select: { id: true, code: true } } as any,
+              giftCard: { select: { id: true, cardNumber: true } } as any,
               loyaltyAccount: { select: { id: true, customerName: true } },
               alternatePaymentType: { select: { name: true, code: true } },
             },

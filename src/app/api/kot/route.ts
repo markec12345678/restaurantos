@@ -10,6 +10,7 @@ import { db } from '@/lib/db'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
+import { getNextCounter } from '@/lib/counters'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
@@ -90,10 +91,14 @@ export async function POST(req: Request) {
       tableNumber = table?.number
     }
 
+    // Pridobi številko KOT iz counterja
+    const kotNumber = await getNextCounter('kotNumber')
+
     // Ustvari KOT dokument
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const kot = await (db.kotDocument as any).create({
       data: {
+        kotNumber,
         orderId: data.orderId,
         type: data.type,
         itemsJson: data.itemsJson,

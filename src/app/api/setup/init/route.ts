@@ -147,6 +147,7 @@ async function seedCoreData() {
   await db.counter.upsert({ where: { name: 'orderNumber' }, create: { id: 'counter-order', name: 'orderNumber', value: 0 }, update: {} })
   await db.counter.upsert({ where: { name: 'receiptNumber' }, create: { id: 'counter-receipt', name: 'receiptNumber', value: 0 }, update: {} })
   await db.counter.upsert({ where: { name: 'checkNumber' }, create: { id: 'counter-check', name: 'checkNumber', value: 0 }, update: {} })
+  await db.counter.upsert({ where: { name: 'kotNumber' }, create: { id: 'counter-kot', name: 'kotNumber', value: 0 }, update: {} })
 
   for (const [code, name, type] of [
     ['1010', 'Blagajna', 'asset'],
@@ -162,5 +163,51 @@ async function seedCoreData() {
       create: { id: `coa-${code}`, code, name, accountType: type, isActive: true, sortOrder: parseInt(code) },
       update: { name, accountType: type },
     })
+  }
+
+  // Ustvari osnovne kategorije in artikle da je sistem takoj uporaben
+  const menu = await db.menu.create({ data: { name: 'Glavni meni', icon: '🍽️', color: '#f59e0b', sortOrder: 0, isActive: true } })
+
+  const catFood = await db.category.create({ data: { name: 'Topli napitki', icon: '☕', color: '#8B4513', sortOrder: 0, menuId: menu.id } })
+  const catDrinks = await db.category.create({ data: { name: 'Brezalkoholne pijače', icon: '🥤', color: '#3b82f6', sortOrder: 1, menuId: menu.id } })
+  const catMain = await db.category.create({ data: { name: 'Glavne jedi', icon: '🍽️', color: '#ef4444', sortOrder: 2, menuId: menu.id } })
+  const catDesserts = await db.category.create({ data: { name: 'Sladice', icon: '🍰', color: '#ec4899', sortOrder: 3, menuId: menu.id } })
+
+  // Osnovni artikli z pravilnimi DDV stopnjami in slikami
+  const sampleItems = [
+    { name: 'Espresso', price: 1.50, vat: 22, cat: catFood, img: '/menu-images/topli-napitki/kava-espresso.png', allergens: '' },
+    { name: 'Cappuccino', price: 2.00, vat: 22, cat: catFood, img: '/menu-images/topli-napitki/cappuccino.png', allergens: '7' },
+    { name: 'Bela kava', price: 2.20, vat: 22, cat: catFood, img: '/menu-images/topli-napitki/bela-kava.png', allergens: '7' },
+    { name: 'Coca-Cola', price: 2.50, vat: 22, cat: catDrinks, img: '/menu-images/gazirane-pijace/coca-cola.png', allergens: '' },
+    { name: 'Coca-Cola Zero', price: 2.50, vat: 22, cat: catDrinks, img: '/menu-images/gazirane-pijace/coca-cola-zero.png', allergens: '' },
+    { name: 'Fanta', price: 2.50, vat: 22, cat: catDrinks, img: '/menu-images/gazirane-pijace/fanta.png', allergens: '' },
+    { name: 'Sprite', price: 2.50, vat: 22, cat: catDrinks, img: '/menu-images/gazirane-pijace/sprite.png', allergens: '' },
+    { name: 'Jabolčni sok', price: 2.80, vat: 9.5, cat: catDrinks, img: '/menu-images/sokovi/jabolcni-sok.png', allergens: '' },
+    { name: 'Dunajski zrezek', price: 13.90, vat: 9.5, cat: catMain, img: '/menu-images/glavne-jedi/dunajski-zrezek.png', allergens: '1,3,7' },
+    { name: 'Ljubljanski zrezek', price: 14.90, vat: 9.5, cat: catMain, img: '/menu-images/glavne-jedi/ljubljanski-zrezek.png', allergens: '1,3,7' },
+    { name: 'Goveji golaž', price: 12.90, vat: 9.5, cat: catMain, img: '/menu-images/glavne-jedi/goveji-golaz.png', allergens: '1,7' },
+    { name: 'Pizza Margherita', price: 8.90, vat: 9.5, cat: catMain, img: '/menu-images/pizze/margerita.png', allergens: '1,7' },
+    { name: 'Špageti Bolognese', price: 10.90, vat: 9.5, cat: catMain, img: '/menu-images/testenine-njoki/bolognese.png', allergens: '1' },
+    { name: 'Cezarjeva solata', price: 9.90, vat: 9.5, cat: catMain, img: '/menu-images/solate/cezarjeva.png', allergens: '7,10' },
+    { name: 'Panna cotta', price: 4.50, vat: 9.5, cat: catDesserts, img: '/menu-images/sladice/panna-cotta.png', allergens: '7' },
+    { name: 'Tiramisu', price: 5.00, vat: 9.5, cat: catDesserts, img: '/menu-images/sladice/tiramisu.png', allergens: '1,3,7' },
+    { name: 'Sladoled (porcija)', price: 3.50, vat: 9.5, cat: catDesserts, img: '/menu-images/sladice/sladoled-porcija.png', allergens: '7' },
+  ]
+
+  for (let i = 0; i < sampleItems.length; i++) {
+    const item = sampleItems[i]
+    await db.menuItem.create({
+      data: {
+        name: item.name,
+        description: '',
+        price: item.price,
+        vatRate: item.vat,
+        categoryId: item.cat.id,
+        image: item.img,
+        allergens: item.allergens,
+        isAvailable: true,
+        sortOrder: i,
+      },
+    }).catch(() => {}) // ignore duplicates
   }
 }
