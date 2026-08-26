@@ -462,6 +462,9 @@ model Order {
   checks          Check[]
   receipt         Receipt[]
   kotDocuments    KotDocument[]   // URY Mosaic-style KOT lifecycle
+  // --- Ghost kitchen: virtual brand ---
+  virtualBrandId  String?
+  virtualBrand    VirtualBrand? @relation(fields: [virtualBrandId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Multi-location ---
   locationId      String?
   location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -1211,6 +1214,7 @@ model Location {
   taxRates         TaxRate[]
   guestFeedbacks   GuestFeedback[]
   journalEntries   JournalEntry[]   // FIX issue #31: multi-location accounting
+  virtualBrands    VirtualBrand[]   // Ghost kitchen hub
 
   @@index([code])
   @@index([isActive])
@@ -2438,4 +2442,37 @@ model KotDocument {
   @@index([status])
   @@index([createdAt])
   @@index([employeeId])
+}
+
+// ============================================
+// VIRTUAL BRAND / GHOST KITCHEN — Multi-brand mode
+// Ena fizična kuhinja, več virtualnih blagovnih znamk (ghost kitchen hub)
+// ============================================
+
+model VirtualBrand {
+  id              String   @id @default(cuid())
+  name            String                        // "Burger Lab", "Pizza Express", "Sushi Bar"
+  code            String   @unique              // Kratka koda: "BL", "PE", "SB"
+  description     String   @default("")
+  logo            String   @default("")
+  color           String   @default("#f59e0b")  // Barva za KDS prikaz
+  isActive        Boolean  @default(true)
+  // --- Povezana lokacija (ghost kitchen) ---
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Nastavitve ---
+  ownMenu         Boolean  @default(true)       // Ali ima lasten meni ali deli z glavnim
+  ownPricing      Boolean  @default(true)       // Ali ima lastne cene
+  orderPrefix     String   @default("")          // Prefix za naročila (BL-001, PE-001)
+  // --- Dostava ---
+  deliveryEnabled Boolean  @default(true)
+  pickupEnabled   Boolean  @default(true)
+  // --- Relations ---
+  orders          Order[]                         // Povezana naročila
+  // --- Meta ---
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([locationId])
 }
