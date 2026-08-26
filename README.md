@@ -12,7 +12,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
 [![Languages](https://img.shields.io/badge/i18n-5_languages-blue?style=flat-square)](./messages/)
 [![FURS](https://img.shields.io/badge/FURS-Certified-red?style=flat-square)](./src/app/api/furs/)
-[![Tests](https://img.shields.io/badge/Unit_Tests-158_pass-brightgreen?style=flat-square)](./vitest.config.ts)
+[![Tests](https://img.shields.io/badge/Unit_Tests-191_pass-brightgreen?style=flat-square)](./vitest.config.ts)
 [![E2E Tests](https://img.shields.io/badge/E2E_Tests-23_pass-brightgreen?style=flat-square)](./tests/e2e/)
 [![TypeCheck](https://img.shields.io/badge/TypeCheck-0_errors-brightgreen?style=flat-square)](./tsconfig.json)
 [![Security Audit](https://img.shields.io/badge/Security_Audit-Complete-success?style=flat-square)](./AUDIT-REPORT.md)
@@ -47,6 +47,15 @@ Sistem pokriva vse vidike restavratorskega poslovanja — od naročanja in plač
 - **📄 Export poročil** — CSV, PDF, Excel (XLSX), eDavki XML za FURS predajo
 - **📱 PWA** — Namestitev na domači zaslon (Add to Home Screen), offline delovanje
 - **🔍 Audit Log Viewer** — Revizijski dnevnik UI za admin (PCI DSS + FURS skladnost)
+- **🚨 Operational Red Flags** — Real-time alerti: zakasnela naročila, neodprti računi, nizka zaloga, nefiskalizirani računi (URY Mosaic-style)
+- **🕐 Mealtimes Scheduling** — Artikel dostopen samo ob določenih dneh/časih (TastyIgniter-style)
+- **📊 GL/TB/BS/P&L** — General Ledger, Trial Balance, Balance Sheet, Profit & Loss poročila (POSR/URY-style)
+- **🔔 Web Push Notifications** — Obvestila o novih naročilih, pripravljenih artiklih, nizki zalogi
+- **🛵 Bolt Food Delivery** — Webhook integracija z Bolt Food (HMAC-signed, idempotent)
+- **📧 Scheduled Email Reports** — Avtomatska dnevna/tedenska poročila po emailu (Vercel Cron)
+- **🔐 FURS JWT Fix** — Pravilen RSA-SHA256 JWT podpis za produkcijo (base64url encoding)
+- **💰 Loyalty Fraud Prevention** — Server-side validacija vrednosti točk proti znesku plačila
+- **💳 Refund Reversal** — Popolno reverziranje gift card, loyalty, check/order status ob povračilu
 
 ---
 
@@ -84,7 +93,7 @@ Glej [SETUP-GUIDE.md](./SETUP-GUIDE.md) za podrobna navodila.
 |---|---|
 | **Next.js 16.1.x** | Full-stack framework (App Router, Server Components, API Routes) |
 | **TypeScript 5** | Tipovno varna koda po vsem projektu (strict mode) |
-| **Prisma ORM 5.x** | Dostop do baze s **76 modeli**, Decimal za valute, driverAdapters |
+| **Prisma ORM 5.x** | Dostop do baze s **78 modeli**, Decimal za valute, driverAdapters |
 | **PostgreSQL / PGlite** | PGlite (embedded, dev) / PostgreSQL (cloud, produkcija — Supabase/Neon/Railway) |
 | **Tailwind CSS 4** | Sodobno oblikovanje z utility-first pristopom |
 | **shadcn/ui** | UI komponente (Radix UI + Tailwind CSS) |
@@ -449,12 +458,13 @@ restaurantos/
 |---|---|
 | **[AUDIT-REPORT.md](./AUDIT-REPORT.md)** | 🆕 Celoviti varnostni audit (40 findingov, 40 popravkov, PR #30–#55) |
 | **[SECURITY.md](./SECURITY.md)** | Varnostna politika + implementirani varnostni ukrepi |
+| **[SETUP-GUIDE.md](./SETUP-GUIDE.md)** | 🆕 Navodila za namestitev (ena lokacija + multi-lokacija) |
 | **[DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md)** | Vercel deploy + PWA/KDS/natakar nastavitev |
 | **[AUDIT.md](./AUDIT.md)** | Varnostni in arhitekturni audit (zgodnji) |
 | **[FEATURES-AUDIT.md](./FEATURES-AUDIT.md)** | Revizija funkcij vs profesionalni POS |
 | **[COMPETITIVE-ANALYSIS.md](./COMPETITIVE-ANALYSIS.md)** | Primerjava s 12 POS sistemov |
 | **[ADVANCED-FEATURES-COMPARISON.md](./ADVANCED-FEATURES-COMPARISON.md)** | 10 cutting-edge funkcij konkurence |
-| **[E2E-TEST-REPORT.md](./E2E-TEST-REPORT.md)** | 96 E2E testov (100% pass) |
+| **[AUDIT-I18N-REPORT.md](./AUDIT-I18N-REPORT.md)** | 🆕 Audit prevodov (630 ključev × 5 jezikov) |
 | **[CHANGELOG.md](./CHANGELOG.md)** | Zgodovina sprememb |
 
 ---

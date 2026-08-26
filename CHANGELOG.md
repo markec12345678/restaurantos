@@ -1,5 +1,63 @@
 # Changelog — RestaurantOS
 
+## [Unreleased] — 2026-08-27
+
+### Konkurenčne funkcije + kritični popravki
+
+#### Dodano
+- **Operational Red Flags Dashboard** (URY Mosaic-style) — `GET /api/operational-alerts`
+  - 8 tipov alertov: zakasnela naročila, KOT ni začet, neodprti računi, preveč preklicov, nizka zaloga, nefiskalizirani računi, predolge izmene, predolgo zasedene mize
+  - Severity: critical / warning / info
+- **Mealtimes Scheduling** (TastyIgniter-style) — `MealtimeRule` model
+  - Per-item availability: dnevi v tednu + časovno okno (zajtrk 6-11h, nedeljska pečenka)
+- **GL/TB/BS/P&L Reports** (POSR/URY-style)
+  - `generateProfitLoss()` — Prihodki - Stroški = Čisti dobiček + marža %
+  - `generateBalanceSheet()` — Aktiva = Obveze + Kapital + isBalanced
+  - `generateGeneralLedger()` — Vse transakcije po kontih z datumom
+  - API: `GET /api/accounting/{profit-loss, balance-sheet, general-ledger}`
+- **Web Push Notifications** — `POST/DELETE /api/push/subscribe`, `GET /api/push/vapid-key`
+  - notifyNewOrder, notifyItemReady, notifyDeliveryOrder, notifyLowStock
+  - VAPID konfiguracija, PushSubscription model
+- **Bolt Food Delivery Webhook** — `POST /api/delivery/webhook/bolt`
+  - HMAC-SHA256 signature verification (timing-safe)
+  - Zod validacija, idempotentnost, rate limiting
+- **Scheduled Email Reports** — `POST /api/scheduled-emails/{create,process}`
+  - Vercel Cron (vsakih 15 minut)
+  - PDF attachment, multi-recipient, idempotentno
+
+#### Kritični popravki
+- **BUG-FURS-1**: JWT signature base64url double-encoding — blokiral FURS v produkciji
+- **BUG-PAY-1**: Refund brez reversal side-effects — gift card/loyalty/check nedosledni
+- **BUG-LOY-1**: Loyalty points value ni validiran server-side — fraud (1 točka = €1000)
+- **DDV popravki**: Hrana 9.5% (prej 22%), alkohol 22%
+- **Panna cotta alergen**: odstranjeno jajce [3], pustljeno mleko [7]
+- **PIN varnost**: bcrypt hash + HMAC pinLookup (prej plaintext v demo-data)
+- **JSON syntax**: trailing comma v vseh 5 prevodnih datotekah
+- **Slike artiklov**: 106/106 pravilno mapiranih (prej 4/106)
+
+#### Spremenjeno
+- Schema: 78 modelov (dodan MealtimeRule, PushSubscription, JournalEntry.locationId)
+- Setup Wizard: `/setup` z izbiro ena/več lokacij
+- ExportReport: izbira formata (CSV/PDF/Excel/eDavki XML)
+- AuditLogViewer: revizijski dnevnik UI za admin
+- PWA Install Prompt komponenta
+- deepToNumbers: Date → ISO string
+- Session: BigInt → DateTime (PGlite compatibility)
+- FURS ByteString: em-dash v headerjih zamenjan z navadnim dash
+
+#### Testiranje
+- TypeCheck: 0 napak v `src/`
+- Vitest: 191/191 zelenih
+- Playwright E2E: 23/24 zelenih (setup + workflow)
+- JSON veljavnost: 5/5 prevodnih datotek
+
+#### Primerjava s konkurenco
+- POSR: AI napovedi, offline-first, internal GL → delno prevzeto (GL/TB/BS/P&L)
+- TastyIgniter: Online ordering, mealtimes → prevzeto (mealtimes scheduling)
+- URY Mosaic: KOT lifecycle, operational red flags → prevzeto (operational alerts)
+
+---
+
 ## [Unreleased] — 2026-08-26
 
 ### Workflow povezovanje + setup wizard + PWA
