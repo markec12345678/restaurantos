@@ -68,6 +68,12 @@ export async function getFursToken(config: FursConfig): Promise<string | null> {
     const base64url = (data: string) =>
       Buffer.from(data).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 
+    // FIX BUG-FURS-1: Signature je že Buffer — ne sme se pretvarjati v string nato nazaj v base64.
+    // Prej: base64url(signature.toString('base64')) — DOUBLE encoding! (base64 → string → base64)
+    // Sedaj: direktno base64url encoding iz Buffer-ja (pravilno za JWT RSA-SHA256 signature)
+    const base64urlBuffer = (buf: Buffer) =>
+      buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+
     const headerB64 = base64url(JSON.stringify(jwtHeader))
     const payloadB64 = base64url(JSON.stringify(jwtPayload))
     const signInput = `${headerB64}.${payloadB64}`
@@ -76,7 +82,8 @@ export async function getFursToken(config: FursConfig): Promise<string | null> {
     const signer = crypto.createSign('RSA-SHA256')
     signer.update(signInput)
     const signature = signer.sign(privateKey)
-    const signatureB64 = base64url(signature.toString('base64'))
+    // FIX BUG-FURS-1: uporabi base64urlBuffer (direktno iz Buffer) namesto base64url (ki pričakuje string)
+    const signatureB64 = base64urlBuffer(signature)
 
     const jwt = `${signInput}.${signatureB64}`
 

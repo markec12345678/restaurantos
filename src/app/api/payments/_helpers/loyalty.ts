@@ -29,6 +29,18 @@ export async function handleLoyaltyPointsDeduction(
     throw new Error('Ni dovolj točk na zvestobnem računu')
   }
 
+  // FIX BUG-LOY-1: Validiraj vrednost točk proti znesku plačila — prepreči fraud
+  // (1 točka = 0.01 EUR po defaultu; prepreči da 1 točka plača 1000 EUR)
+  const settings = await tx.restaurantSettings.findFirst({ where: { isActive: true } })
+  const pointsValue = settings?.loyaltyPointsValue ? toNum(settings.loyaltyPointsValue) : 0.01
+  const maxPayableAmount = round2(data.loyaltyPointsUsed * pointsValue)
+  if (toNum(data.amount) > maxPayableAmount) {
+    throw new Error(
+      `Znesek plačila (${toNum(data.amount).toFixed(2)} EUR) presega vrednost točk ` +
+      `(${data.loyaltyPointsUsed} točk × ${pointsValue} EUR = ${maxPayableAmount.toFixed(2)} EUR)`
+    )
+  }
+
   // FIX: Uporabi atomic decrement namesto read-then-write — prepreči race condition
   const updateResult = await tx.loyaltyAccount.updateMany({
     where: { id: data.loyaltyAccountId, pointsBalance: { gte: data.loyaltyPointsUsed } },
