@@ -461,6 +461,7 @@ model Order {
   courses         Course[]
   checks          Check[]
   receipt         Receipt[]
+  kotDocuments    KotDocument[]   // URY Mosaic-style KOT lifecycle
   // --- Multi-location ---
   locationId      String?
   location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -701,6 +702,7 @@ model Employee {
   orders       Order[]    @relation("OrderEmployee")
   postedJournalEntries JournalEntry[] @relation("PostedJournalEntries")
   pushSubscriptions PushSubscription[] @relation("PushSubscriptions")
+  kotDocuments KotDocument[] @relation("KotDocuments")
   // --- Multi-location ---
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -2394,4 +2396,46 @@ model PushSubscription {
   @@index([employeeId])
   @@index([endpoint])
   @@index([isActive])
+}
+
+// ============================================
+// KOT (Kitchen Order Ticket) — URY Mosaic-style
+// Eksplicitni dokument za vsako spremembo v kuhinji
+// Tipi: original, modified, partially_cancelled, cancelled
+// Barvno kodiranje na KDS: white=original, blue=takeaway, orange=modified, red=cancelled
+// ============================================
+
+model KotDocument {
+  id              String   @id @default(cuid())
+  kotNumber       Int                          // Sekvenčna številka KOT
+  orderId         String
+  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  type            String   @default("original") // original, modified, partially_cancelled, cancelled
+  // --- Vsebina KOT (snapshot ob trenutku izdaje) ---
+  itemsJson       String   @default("[]")       // JSON: [{name, qty, notes, station}]
+  orderNotes      String   @default("")
+  tableNumber     Int?
+  orderType       String   @default("dine-in")  // dine-in, takeaway, delivery
+  // --- Status ---
+  status          String   @default("pending")  // pending, preparing, ready, served, cancelled
+  // --- Časovne oznake ---
+  firedAt         DateTime?
+  readyAt         DateTime?
+  servedAt        DateTime?
+  cancelledAt     DateTime?
+  // --- Kdo je izdal/spremenil ---
+  employeeId      String?
+  employee        Employee? @relation("KotDocuments", fields: [employeeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  cancelReason    String   @default("")
+  // --- Povezava s prejšnjim KOT (za modified/cancelled) ---
+  previousKotId   String?
+  // --- Meta ---
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@index([employeeId])
 }
