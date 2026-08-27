@@ -143,7 +143,7 @@ globalThis.__wsVerifyToken = verifyWsToken
  * @param {string} type - Tip dogodka
  * @param {any} payload - Podatki dogodka
  */
-function broadcastEvent(type, payload) {
+function broadcastEvent(type, payload, channels = null) {
   const message = JSON.stringify({
     type,
     payload,
@@ -153,6 +153,13 @@ function broadcastEvent(type, payload) {
   let sentCount = 0
   for (const client of connectedClients) {
     if (client.readyState === 1) { // WebSocket.OPEN
+      // Če so specificirani channeli, preveri subscription
+      if (channels && channels.length > 0) {
+        const subscribed = client.__subscribedChannels
+        if (!subscribed || !channels.some(ch => subscribed.has(ch))) {
+          continue // client ni subscriben na ta channel
+        }
+      }
       try {
         client.send(message)
         sentCount++
@@ -164,12 +171,17 @@ function broadcastEvent(type, payload) {
   }
 
   if (dev && sentCount > 0) {
-    console.log(`[WS] Oddano: ${type} → ${sentCount} odjemalcev`)
+    console.log(`[WS] Oddano: ${type} → ${sentCount} odjemalcev${channels ? ` (channels: ${channels.join(',')})` : ''}`)
   }
 }
 
 // Expose broadcast za uporabo v API-jih
 globalThis.__wsBroadcast = broadcastEvent
+
+// Helper za outbox-specific broadcast (samo subscribers)
+globalThis.__wsBroadcastOutbox = function(payload) {
+  broadcastEvent('OUTBOX_UPDATE', payload, ['outbox'])
+}
 
 /**
  * Preveri povezave in odstrani nepovezane odjemalce
@@ -376,6 +388,27 @@ app.prepare().then(() => {
           ws.__clientType = msg.payload?.clientType || 'unknown'
           ws.__clientName = msg.payload?.clientName || ''
           console.log(`[WS] Klient identificiran: ${ws.__clientType} (${ws.__clientName})`)
+        }
+
+        // OUTBOX subscription — client želi prejemati outbox updates
+        if (msg.type === 'SUBSCRIBE_OUTBOX') {
+          ws.__subscribedChannels = ws.__subscribedChannels || new Set()
+          ws.__subscribedChannels.add('outbox')
+          ws.send(JSON.stringify({
+            type: 'SUBSCRIPTION_CONFIRMED',
+            payload: { channel: 'outbox' },
+            timestamp: new Date().toISOString(),
+          }))
+          console.log(`[WS] Client ${ws.__employeeId || 'unknown'} subscribed to outbox`)
+          return
+        }
+
+        // Unsubscribe
+        if (msg.type === 'UNSUBSCRIBE_OUTBOX') {
+          if (ws.__subscribedChannels) {
+            ws.__subscribedChannels.delete('outbox')
+          }
+          return
         }
 
         // FIX MEDIUM: Per-message rate limiting — prepreči flooding

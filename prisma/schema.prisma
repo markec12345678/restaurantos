@@ -885,6 +885,8 @@ model InventoryItem {
   transactions    StockTransaction[]
   recipeItems     RecipeItem[]
   purchaseOrderItems PurchaseOrderItem[]
+  // --- AI Predictive Ordering ---
+  reorderRule     ReorderRule?
   // --- Multi-location ---
   locationId      String?
   locationRel     Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -1719,6 +1721,38 @@ model PurchaseOrderItem {
   @@index([inventoryItemId])
   @@index([status])
   @@index([purchaseOrderId, status]) // FIX: Pogosta poizvedba — pridobi postavke naročila po statusu
+}
+
+// ============================================
+// REORDER RULE — Avtomatska pravila naročanja
+// ============================================
+// Definira kdaj in koliko avtomatsko naročiti za posamezni artikel.
+// Uporablja se v povezavi z AI forecast-om in StockTransaction zgodovino.
+// ============================================
+model ReorderRule {
+  id              String   @id @default(cuid())
+  inventoryItemId String   @unique
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Trigger ---
+  triggerType     String   @default("min_qty")     // "min_qty", "forecast_7d", "forecast_14d", "manual"
+  triggerThreshold Decimal  @default(0)             // Količina ali dni do izpraznitve
+  // --- Količina naročila ---
+  orderQuantity   Decimal  @default(0)              // Koliko naročiti
+  orderUnit       String   @default("pcs")
+  // --- Dobavitelj ---
+  preferredSupplierId String?
+  // --- Lead time ---
+  leadTimeDays    Int      @default(2)              // Koliko dni traja dostava
+  // --- Status ---
+  isActive        Boolean  @default(true)
+  lastTriggeredAt DateTime?
+  lastOrderId     String?                           // Zadnji PO ID
+  // --- Meta ---
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([triggerType])
 }
 
 // ============================================

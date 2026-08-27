@@ -147,6 +147,9 @@ export async function markOutboxSent(eventId: string, response?: unknown) {
       ...(response ? { payload: { sent: true, response } as unknown as never } : {}),
     },
   })
+
+  // Broadcast preko WebSocket-a (real-time update)
+  broadcastOutboxUpdate()
 }
 
 // 5. OZNAČI kot neuspešno + exponential backoff
@@ -170,6 +173,9 @@ export async function markOutboxFailed(eventId: string, error: string) {
       nextRetryAt: isDead ? null : nextRetryAt,
     },
   })
+
+  // Broadcast preko WebSocket-a (real-time update)
+  broadcastOutboxUpdate()
 
   if (isDead) {
     logger.error('Outbox', `Event ${eventId} premaknjen v dead_letter (max attempts ${event.maxAttempts}): ${error}`)
@@ -381,3 +387,56 @@ export async function processOutboxBatch(limit = BATCH_SIZE): Promise<{
 
 // 10. EXPORT za testing
 export { MAX_ATTEMPTS, BACKOFF_BASE_MS, BACKOFF_MAX_MS, BATCH_SIZE }
+
+// 11. WS BROADCAST helper — pošlje outbox update vsem subscribers
+// Throttle: vsaj 2s med broadcasti (prepreči flooding pri batch processing)
+let lastBroadcastAt = 0
+let broadcastPending = false
+
+async function broadcastOutboxUpdate() {
+  const now = Date.now()
+  if (now - lastBroadcastAt < 2000) {
+    // Throttle — če je že broadcast v zadnjih 2s, schedule-aj za 2s kasneje
+    if (!broadcastPending) {
+      broadcastPending = true
+      setTimeout(() => {
+        broadcastPending = false
+        broadcastOutboxUpdate()
+      }, 2000)
+    }
+    return
+  }
+  lastBroadcastAt = now
+
+  try {
+    const stats = await getOutboxStats()
+
+    // Pridobi nedavne failures za notification
+    const recentFailures = await db.outboxEvent.findMany({
+      where: {
+        status: { in: ['failed', 'dead_letter'] },
+        updatedAt: { gte: new Date(now - 5 * 60 * 1000) }, // zadnjih 5 min
+      },
+      select: {
+        id: true,
+        target: true,
+        eventType: true,
+        lastError: true,
+        attempts: true,
+        createdAt: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 10,
+    })
+
+    const payload = { stats, recentFailures }
+
+    // Pošlji preko WebSocket-a (če je na voljo)
+    const broadcastOutbox = (globalThis as unknown as { __wsBroadcastOutbox?: (payload: unknown) => void }).__wsBroadcastOutbox
+    if (broadcastOutbox) {
+      broadcastOutbox(payload)
+    }
+  } catch (err) {
+    logger.warn('Outbox', `WS broadcast failed: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
