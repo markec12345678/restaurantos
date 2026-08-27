@@ -1222,6 +1222,7 @@ model Location {
   journalEntries   JournalEntry[]   // FIX issue #31: multi-location accounting
   virtualBrands    VirtualBrand[]   // Ghost kitchen hub
   devices          DeviceRegistry[] // FIX: Offline-first POS device tracking
+  videoAnalytics   VideoAnalyticsSession[] // FIX: Video analytics per location
 
   @@index([code])
   @@index([isActive])
@@ -2744,4 +2745,133 @@ model WalletPayment {
   @@index([walletType, status])
   @@index([transactionId])
   @@index([createdAt])
+}
+
+// ============================================
+// QUICKBOOKS ONLINE — OAuth + Sync state
+// ============================================
+// Za sinhronizacijo z QuickBooks Online (USA trg).
+// OAuth 2.0 z refresh token, sync state per entiteta.
+// ============================================
+model QuickBooksSync {
+  id                String   @id @default(cuid())
+  // --- OAuth credentials (encrypted) ---
+  accessToken       String   @default("")        // Encrypted access token
+  refreshToken      String   @default("")        // Encrypted refresh token
+  realmId           String   @unique             // QBO company ID
+  companyId         String   @default("")        // QBO company name
+  // --- Token metadata ---
+  accessTokenExpiresAt DateTime?
+  refreshTokenExpiresAt DateTime?
+  // --- Sync state ---
+  lastSyncAt        DateTime?
+  lastSyncStatus    String   @default("never")   // never, success, failed, partial
+  lastSyncError     String   @default("")
+  // --- Entity sync tracking ---
+  lastCustomerSync  DateTime?
+  lastPaymentSync   DateTime?
+  lastInvoiceSync   DateTime?
+  lastJournalSync   DateTime?
+  // --- Status ---
+  isActive          Boolean  @default(true)
+  // --- Meta ---
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([lastSyncAt])
+}
+
+// ============================================
+// QUICKBOOKS SYNC LOG — audit trail
+// ============================================
+model QuickBooksSyncLog {
+  id                String   @id @default(cuid())
+  syncId            String                          // Reference to QuickBooksSync
+  // --- Kaj ---
+  entityType        String                          // customer, payment, invoice, journal, vendor
+  entityId          String                          // Lokalni ID
+  qbEntityId        String?                         // QBO ID (če uspešno sinhronizirano)
+  // --- Status ---
+  status            String   @default("pending")   // pending, success, failed, skipped
+  action            String   @default("create")    // create, update, delete, query
+  // --- Napaka ---
+  errorCode         String   @default("")
+  errorMessage      String   @default("")
+  // --- Payload (debug) ---
+  requestPayload    Json?
+  responsePayload   Json?
+  // --- Čas ---
+  syncedAt          DateTime?
+  createdAt         DateTime @default(now())
+
+  @@index([syncId])
+  @@index([entityType, status])
+  @@index([entityId])
+  @@index([createdAt])
+}
+
+// ============================================
+// VIDEO ANALYTICS — Šetenje gostov in heat maps
+// ============================================
+// Za analizo prometa v restavraciji (kamera-based).
+// V produkciji: ML model za person detection.
+// ============================================
+model VideoAnalyticsSession {
+  id                String   @id @default(cuid())
+  // --- Kamera ---
+  cameraId          String                          // ID kamere
+  cameraName        String   @default("")
+  locationId        String?
+  location          Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Seja ---
+  startedAt         DateTime @default(now())
+  endedAt           DateTime?
+  // --- Statistika ---
+  peopleIn          Int      @default(0)            // Št. ljudi ki je vstopilo
+  peopleOut         Int      @default(0)            // Št. ljudi ki je izstopilo
+  currentOccupancy  Int      @default(0)            // Trenutna zasedenost
+  peakOccupancy     Int      @default(0)            // Najvišja zasedenost
+  // --- Heat map ---
+  heatmapData       Json?                            // {x, y, intensity}[]
+  // --- Status ---
+  status            String   @default("active")     // active, paused, stopped
+  // --- Meta ---
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([cameraId])
+  @@index([locationId])
+  @@index([startedAt])
+}
+
+// ============================================
+// BLOCKCHAIN AUDIT — Tamper-evident audit trail
+// ============================================
+// Za FURS/PCI compliance — vsaka kritična transakcija
+// je zabeležena z hash chain (podobno kot AuditLog).
+// ============================================
+model BlockchainAuditEntry {
+  id                String   @id @default(cuid())
+  // --- Chain ---
+  blockNumber       Int      @unique               // Sequence number
+  previousHash      String                          // Hash prejšnjega bloka
+  currentHash       String                          // Hash tega bloka
+  // --- Vsebina ---
+  entityType        String                          // order, payment, refund, void, cash_shift
+  entityId          String                          // ID entitete
+  action            String                          // create, update, delete, void, refund
+  // --- Podatki ---
+  payload           Json                            // Celotni podatki
+  // --- Podpis ---
+  signature         String   @default("")           // Digitalni podpis (HMAC ali RSA)
+  // --- Čas ---
+  timestamp         DateTime @default(now())
+  // --- Miner (kdo je ustvaril blok) ---
+  minerId           String?                         // Employee ID ali system
+
+  @@index([blockNumber])
+  @@index([entityType, entityId])
+  @@index([timestamp])
+  @@index([currentHash])
 }
