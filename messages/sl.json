@@ -699,6 +699,8 @@
   "nav.recipeScaling": "Raztegovanje receptov",
   "nav.compliance": "Skladnost s predpisi",
   "nav.walletPayment": "Wallet plačila",
+  "nav.fraudDetection": "Fraud detekcija",
+  "nav.laborReports": "Labor poročila",
   "nav.outbox": "Outbox",
   "nav.ghostKitchen": "Ghost Kitchen",
   "nav.conflicts": "Konflikti",

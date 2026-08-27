@@ -1139,6 +1139,8 @@ model RestaurantSettings {
   currency          String   @default("EUR")
   locale            String   @default("sl-SI")
   country           String   @default("SI")         // Država poslovanja: SI, HR, IT, AT, DE
+  // --- API Security (service-to-service auth) ---
+  apiKeys           String   @default("[]")          // JSON: API ključi za cron/integrations (hashed)
   // --- Auto-gratuity ---
   autoGratuityEnabled   Boolean @default(false)       // Ali je auto-gratuiteta vklopljena
   autoGratuityPercent   Decimal  @default(10.00)  // Odstotek avto-gratuigete  // FIX: Decimal za odstotek

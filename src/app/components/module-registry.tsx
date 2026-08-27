@@ -85,6 +85,8 @@ const OutboxDashboard = dynamic(() => import('@/components/pos/OutboxDashboard')
 const GhostKitchenHub = dynamic(() => import('@/components/pos/GhostKitchenHub').then(m => ({ default: m.GhostKitchenHub })), { ssr: false, loading: () => loadingFallback })
 const ConflictResolutionDashboard = dynamic(() => import('@/components/pos/ConflictResolutionDashboard').then(m => ({ default: m.ConflictResolutionDashboard })), { ssr: false, loading: () => loadingFallback })
 const WalletPaymentTerminal = dynamic(() => import('@/components/pos/WalletPaymentTerminal').then(m => ({ default: m.WalletPaymentTerminal })), { ssr: false, loading: () => loadingFallback })
+const FraudDetectionDashboard = dynamic(() => import('@/components/pos/FraudDetectionDashboard').then(m => ({ default: m.FraudDetectionDashboard })), { ssr: false, loading: () => loadingFallback })
+const LaborReportsDashboard = dynamic(() => import('@/components/pos/LaborReportsDashboard').then(m => ({ default: m.LaborReportsDashboard })), { ssr: false, loading: () => loadingFallback })
 // Default exports
 const GuestManager = dynamic(() => import('@/components/pos/GuestManager').then(m => ({ default: m.GuestManager })), { ssr: false, loading: () => loadingFallback })
 const FoodCostCalculator = dynamic(() => import('@/components/pos/food-cost/FoodCostCalculator'), { ssr: false, loading: () => loadingFallback })
@@ -158,6 +160,8 @@ export const moduleComponents: Record<string, ComponentType> = {
   'ghost-kitchen': GhostKitchenHub,
   'conflicts': ConflictResolutionDashboard,
   'wallet-payment': WalletPaymentTerminal,
+  'fraud-detection': FraudDetectionDashboard,
+  'labor-reports': LaborReportsDashboard,
   settings: SettingsManager,
 }
 

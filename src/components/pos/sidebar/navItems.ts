@@ -88,5 +88,7 @@ export const navItems: NavItem[] = [
   { id: 'ghost-kitchen', labelKey: 'nav.ghostKitchen', icon: ChefHat, permission: 'view_reports' },
   { id: 'conflicts', labelKey: 'nav.conflicts', icon: GitBranch, adminOnly: true },
   { id: 'wallet-payment', labelKey: 'nav.walletPayment', icon: Nfc, permission: 'manage_cash' },
+  { id: 'fraud-detection', labelKey: 'nav.fraudDetection', icon: ShieldAlert, adminOnly: true },
+  { id: 'labor-reports', labelKey: 'nav.laborReports', icon: Calendar, permission: 'view_reports' },
   { id: 'settings', labelKey: 'nav.settings', icon: Settings, adminOnly: true },
 ]
