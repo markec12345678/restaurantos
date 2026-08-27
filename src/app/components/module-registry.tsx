@@ -80,6 +80,11 @@ const RecipeScaling = dynamic(() => import('@/components/pos/RecipeScaling').the
 const ComplianceDashboard = dynamic(() => import('@/components/pos/ComplianceDashboard').then(m => ({ default: m.ComplianceDashboard })), { ssr: false, loading: () => loadingFallback })
 // FIX WORKFLOW-50: AuditLogViewer — revizijski dnevnik za admin (PCI DSS + FURS)
 const AuditLogViewer = dynamic(() => import('@/components/pos/AuditLogViewer').then(m => ({ default: m.AuditLogViewer })), { ssr: false, loading: () => loadingFallback })
+// FIX 2025: Outbox monitoring + Ghost Kitchen Hub + Conflict Resolution
+const OutboxDashboard = dynamic(() => import('@/components/pos/OutboxDashboard').then(m => ({ default: m.OutboxDashboard })), { ssr: false, loading: () => loadingFallback })
+const GhostKitchenHub = dynamic(() => import('@/components/pos/GhostKitchenHub').then(m => ({ default: m.GhostKitchenHub })), { ssr: false, loading: () => loadingFallback })
+const ConflictResolutionDashboard = dynamic(() => import('@/components/pos/ConflictResolutionDashboard').then(m => ({ default: m.ConflictResolutionDashboard })), { ssr: false, loading: () => loadingFallback })
+const WalletPaymentTerminal = dynamic(() => import('@/components/pos/WalletPaymentTerminal').then(m => ({ default: m.WalletPaymentTerminal })), { ssr: false, loading: () => loadingFallback })
 // Default exports
 const GuestManager = dynamic(() => import('@/components/pos/GuestManager').then(m => ({ default: m.GuestManager })), { ssr: false, loading: () => loadingFallback })
 const FoodCostCalculator = dynamic(() => import('@/components/pos/food-cost/FoodCostCalculator'), { ssr: false, loading: () => loadingFallback })
@@ -149,6 +154,10 @@ export const moduleComponents: Record<string, ComponentType> = {
   'recipe-scaling': RecipeScaling,
   'compliance': ComplianceDashboard,
   'audit-log': AuditLogViewer,
+  'outbox': OutboxDashboard,
+  'ghost-kitchen': GhostKitchenHub,
+  'conflicts': ConflictResolutionDashboard,
+  'wallet-payment': WalletPaymentTerminal,
   settings: SettingsManager,
 }
 

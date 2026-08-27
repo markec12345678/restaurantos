@@ -698,5 +698,9 @@
   "nav.wasteTracker": "Tracciamento Sprechi",
   "nav.recipeScaling": "Scala Ricette",
   "nav.compliance": "Conformità Normativa",
+  "nav.walletPayment": "Pagamenti Wallet",
+  "nav.outbox": "Outbox",
+  "nav.ghostKitchen": "Ghost Kitchen",
+  "nav.conflicts": "Conflitti",
   "nav.auditLog": "Registro Audit"
 }

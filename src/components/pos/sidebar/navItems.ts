@@ -10,7 +10,7 @@ import {
   Calculator, ClipboardList, Factory, Plug, MapPin, CalendarClock, Layers,
   MessageSquare, Target, FileText, HandCoins, Navigation, Timer, Trophy, Bell,
   ShieldAlert, Receipt, ClipboardCheck, BellRing, PieChart, Activity, Table2,
-  CookingPot, Scale, Star, Trash2, Scale3d, Store, ShieldCheck, BookOpen,
+  CookingPot, Scale, Star, Trash2, Scale3d, Store, ShieldCheck, BookOpen, GitBranch, Nfc,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -84,5 +84,9 @@ export const navItems: NavItem[] = [
   { id: 'recipe-scaling', labelKey: 'nav.recipeScaling', icon: Scale3d, adminOnly: true },
   { id: 'compliance', labelKey: 'nav.compliance', icon: ShieldCheck, adminOnly: true },
   { id: 'audit-log', labelKey: 'nav.auditLog', icon: ShieldAlert, adminOnly: true },
+  { id: 'outbox', labelKey: 'nav.outbox', icon: Activity, adminOnly: true },
+  { id: 'ghost-kitchen', labelKey: 'nav.ghostKitchen', icon: ChefHat, permission: 'view_reports' },
+  { id: 'conflicts', labelKey: 'nav.conflicts', icon: GitBranch, adminOnly: true },
+  { id: 'wallet-payment', labelKey: 'nav.walletPayment', icon: Nfc, permission: 'manage_cash' },
   { id: 'settings', labelKey: 'nav.settings', icon: Settings, adminOnly: true },
 ]

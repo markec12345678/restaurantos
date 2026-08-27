@@ -698,5 +698,9 @@
   "nav.wasteTracker": "Praćenje otpada",
   "nav.recipeScaling": "Skaliranje recepata",
   "nav.compliance": "Usklađenost s propisima",
+  "nav.walletPayment": "Wallet plaćanja",
+  "nav.outbox": "Outbox",
+  "nav.ghostKitchen": "Ghost Kitchen",
+  "nav.conflicts": "Sukobi",
   "nav.auditLog": "Revizijski dnevnik"
 }
