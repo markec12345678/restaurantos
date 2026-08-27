@@ -24,6 +24,7 @@ export async function GET(req: Request) {
     const status = searchParams.get('status')
     const type = searchParams.get('type')
     const paymentStatus = searchParams.get('paymentStatus')
+    const virtualBrandId = searchParams.get('virtualBrandId')
     // FIX: Paginacija — prepreči nalaganje 100.000+ zapisov
     const rawLimit = parseInt(searchParams.get('limit') || '100')
     const rawOffset = parseInt(searchParams.get('offset') || '0')
@@ -34,6 +35,7 @@ export async function GET(req: Request) {
     if (status) where.status = status
     if (type) where.type = type
     if (paymentStatus) where.paymentStatus = paymentStatus
+    if (virtualBrandId) where.virtualBrandId = virtualBrandId
 
     const [orders, total] = await Promise.all([
       db.order.findMany({
@@ -43,6 +45,7 @@ export async function GET(req: Request) {
         skip: offset,
         include: {
           table: true,
+          virtualBrand: { select: { id: true, name: true, code: true, color: true } },
           orderItems: { include: { menuItem: { include: { prepStation: true, category: { include: { menu: true } } } } } },  // FIX FASE 2: prepStation za DB-driven KDS routing
         },
       }),
