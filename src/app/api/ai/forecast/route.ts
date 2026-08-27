@@ -1,9 +1,13 @@
 // ============================================
 // POST /api/ai/forecast — AI napoved prometa
 // ============================================
-// Uporablja zgodovinske podatke za napoved prihodnjega prometa
-// Algorithm: weighted moving average + day-of-week + trend
-// (Po raziskavi 2025 do 50% boljša natančnost z AI forecasting)
+// Uporablja novo forecast engine (src/lib/forecast) z:
+//   - linearna regresija (math pravilna)
+//   - moving average (weighted)
+//   - day-of-week povprečje
+//   - ensemble (utežena kombinacija vseh)
+//
+// Po raziskavi 2025 do 50% boljša natančnost z AI forecasting.
 // ============================================
 
 import { NextResponse } from 'next/server'
@@ -12,11 +16,13 @@ import { toNum, round2 } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
+import { autoForecast, type ForecastMethod, type TimeSeriesPoint } from '@/lib/forecast'
 
 export const dynamic = 'force-dynamic'
 
 const forecastSchema = z.object({
   days: z.number().int().min(1).max(30).default(7), // Koliko dni naprej
+  method: z.enum(['auto', 'linear_regression', 'moving_average', 'day_of_week', 'ensemble']).default('auto'),
 })
 
 export async function POST(req: Request) {
@@ -24,8 +30,8 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'view_reports' })
     if (authResult.error) return authResult.error
 
-    const body = await req.json().catch(() => ({ days: 7 }))
-    const { days } = forecastSchema.parse(body)
+    const body = await req.json().catch(() => ({ days: 7, method: 'auto' }))
+    const { days, method } = forecastSchema.parse(body)
 
     // Pridobi zadnjih 90 dni zgodovine (za vzpostavitev pattern-a)
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
@@ -49,7 +55,7 @@ export async function POST(req: Request) {
       })
     }
 
-    // Agregiraj po dnevih
+    // Agregiraj po dnevih v TimeSeriesPoint[]
     const dailyData: Record<string, { revenue: number; orders: number; tips: number; items: Record<string, number> }> = {}
     for (const order of historicalOrders) {
       if (!order.paidAt) continue
@@ -63,41 +69,29 @@ export async function POST(req: Request) {
       }
     }
 
-    // Izračunaj povprečje po dnevih v tednu
-    const dayOfWeekAverages: Array<{ revenue: number; orders: number; tips: number }> = Array(7).fill(0).map(() => ({ revenue: 0, orders: 0, tips: 0 }))
-    const dayOfWeekCounts: number[] = Array(7).fill(0)
-
-    for (const [dateStr, data] of Object.entries(dailyData)) {
-      const dayOfWeek = new Date(dateStr).getDay()
-      dayOfWeekAverages[dayOfWeek].revenue += data.revenue
-      dayOfWeekAverages[dayOfWeek].orders += data.orders
-      dayOfWeekAverages[dayOfWeek].tips += data.tips
-      dayOfWeekCounts[dayOfWeek]++
-    }
-
-    for (let i = 0; i < 7; i++) {
-      if (dayOfWeekCounts[i] > 0) {
-        dayOfWeekAverages[i].revenue /= dayOfWeekCounts[i]
-        dayOfWeekAverages[i].orders /= dayOfWeekCounts[i]
-        dayOfWeekAverages[i].tips /= dayOfWeekCounts[i]
-      }
-    }
-
-    // Izračunaj trend (zadnjih 14 dni vs predhodnih 14 dni)
+    // Pretvori v TimeSeriesPoint[] (sortirano po datumu)
     const sortedDates = Object.keys(dailyData).sort()
-    const last14Days = sortedDates.slice(-14)
-    const prev14Days = sortedDates.slice(-28, -14)
+    const revenueSeries: TimeSeriesPoint[] = sortedDates.map(date => ({
+      period: date,
+      value: dailyData[date].revenue,
+    }))
+    const ordersSeries: TimeSeriesPoint[] = sortedDates.map(date => ({
+      period: date,
+      value: dailyData[date].orders,
+    }))
+    const tipsSeries: TimeSeriesPoint[] = sortedDates.map(date => ({
+      period: date,
+      value: dailyData[date].tips,
+    }))
 
-    const last14Avg = last14Days.length > 0
-      ? last14Days.reduce((s, d) => s + dailyData[d].revenue, 0) / last14Days.length
-      : 0
-    const prev14Avg = prev14Days.length > 0
-      ? prev14Days.reduce((s, d) => s + dailyData[d].revenue, 0) / prev14Days.length
-      : last14Avg
-
-    const trendMultiplier = prev14Avg > 0 ? last14Avg / prev14Avg : 1.0
+    // Uporabi novo forecast engine
+    const preferredMethod = method === 'auto' ? undefined : method as ForecastMethod
+    const revenueForecast = autoForecast(revenueSeries, days, preferredMethod)
+    const ordersForecast = autoForecast(ordersSeries, days, preferredMethod)
+    const tipsForecast = autoForecast(tipsSeries, days, preferredMethod)
 
     // Generiraj napoved za naslednjih N dni
+    const dayNames = ['Nedelja', 'Ponedeljek', 'Torek', 'Sreda', 'Četrtek', 'Petek', 'Sobota']
     const forecast: Array<{
       date: string
       dayOfWeek: string
@@ -107,28 +101,20 @@ export async function POST(req: Request) {
       confidence: 'high' | 'medium' | 'low'
     }> = []
 
-    const dayNames = ['Nedelja', 'Ponedeljek', 'Torek', 'Sreda', 'Četrtek', 'Petek', 'Sobota']
-
-    for (let i = 1; i <= days; i++) {
-      const forecastDate = new Date(Date.now() + i * 24 * 60 * 60 * 1000)
-      const dayOfWeek = forecastDate.getDay()
-      const avg = dayOfWeekAverages[dayOfWeek]
-
-      // Uporabi povprečje za ta dan v tednu × trend
-      const predictedRevenue = round2(avg.revenue * trendMultiplier)
-      const predictedOrders = Math.round(avg.orders * trendMultiplier)
-      const predictedTips = round2(avg.tips * trendMultiplier)
-
-      // Zaupanje: višje če imamo več zgodovinskih podatkov za ta dan
-      const confidence = dayOfWeekCounts[dayOfWeek] >= 4 ? 'high' : dayOfWeekCounts[dayOfWeek] >= 2 ? 'medium' : 'low'
+    for (let i = 0; i < days; i++) {
+      const forecastDate = new Date(Date.now() + (i + 1) * 24 * 60 * 60 * 1000)
+      const dow = forecastDate.getDay()
+      const revValue = revenueForecast.forecast[i]?.value || 0
+      const ordValue = ordersForecast.forecast[i]?.value || 0
+      const tipValue = tipsForecast.forecast[i]?.value || 0
 
       forecast.push({
         date: forecastDate.toISOString().split('T')[0],
-        dayOfWeek: dayNames[dayOfWeek],
-        predictedRevenue,
-        predictedOrders,
-        predictedTips,
-        confidence,
+        dayOfWeek: dayNames[dow],
+        predictedRevenue: round2(revValue),
+        predictedOrders: Math.round(ordValue),
+        predictedTips: round2(tipValue),
+        confidence: revenueForecast.confidence,
       })
     }
 
@@ -160,19 +146,27 @@ export async function POST(req: Request) {
     const totalPredictedRevenue = forecast.reduce((s, f) => s + f.predictedRevenue, 0)
     const totalPredictedOrders = forecast.reduce((s, f) => s + f.predictedOrders, 0)
 
+    // Trend iz linear regresije (slope > 0 = growing)
+    const slope = revenueForecast.slope || 0
+    const trendPercentage = revenueSeries.length > 0 && revenueSeries[0].value > 0
+      ? round2((slope / (revenueSeries.reduce((s, p) => s + p.value, 0) / revenueSeries.length)) * 100)
+      : 0
+
     return NextResponse.json({
       forecast,
       summary: {
         totalPredictedRevenue: round2(totalPredictedRevenue),
         totalPredictedOrders,
         avgDailyRevenue: round2(totalPredictedRevenue / days),
-        trend: trendMultiplier > 1.05 ? 'growing' : trendMultiplier < 0.95 ? 'declining' : 'stable',
-        trendPercentage: round2((trendMultiplier - 1) * 100),
+        trend: slope > 0.5 ? 'growing' : slope < -0.5 ? 'declining' : 'stable',
+        trendPercentage,
         historicalDays: sortedDates.length,
-        confidence: sortedDates.length >= 30 ? 'high' : sortedDates.length >= 14 ? 'medium' : 'low',
+        confidence: revenueForecast.confidence,
+        method: revenueForecast.method,
+        metrics: revenueForecast.metrics,
       },
       topItemsForecast,
-      insights: generateInsights(forecast, trendMultiplier, sortedDates.length),
+      insights: generateInsights(forecast, slope, sortedDates.length, revenueForecast),
     })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/ai/forecast', 'Napaka pri napovedi prometa')
@@ -181,8 +175,9 @@ export async function POST(req: Request) {
 
 function generateInsights(
   forecast: Array<{ dayOfWeek: string; predictedRevenue: number; predictedOrders: number; confidence: string }>,
-  trend: number,
-  historicalDays: number
+  slope: number,
+  historicalDays: number,
+  forecastResult: { method: string; confidenceNote: string; metrics?: { mape?: number; rmse?: number } },
 ): string[] {
   const insights: string[] = []
 
@@ -192,21 +187,36 @@ function generateInsights(
     insights.push(`📊 Najboljši dan v napovedi: ${bestDay.dayOfWeek} s pričakovanim prometom ${bestDay.predictedRevenue.toFixed(2)}€`)
   }
 
-  // Trend
-  if (trend > 1.1) {
-    insights.push(`📈 Trend prometa je naraščajoč (+${((trend - 1) * 100).toFixed(1)}%) — razmislite o dodatnem osebju`)
-  } else if (trend < 0.9) {
-    insights.push(`📉 Trend prometa je padajoč (${((trend - 1) * 100).toFixed(1)}%) — preverite sezonske vzorce`)
+  // Trend iz slope
+  if (slope > 0.5) {
+    insights.push(`📈 Trend prometa je naraščajoč (slope=${slope.toFixed(2)}) — razmislite o dodatnem osebju`)
+  } else if (slope < -0.5) {
+    insights.push(`📉 Trend prometa je padajoč (slope=${slope.toFixed(2)}) — preverite sezonske vzorce`)
   } else {
-    insights.push(`➡️ Trend prometa je stabilen`)
+    insights.push(`➡️ Trend prometa je stabilen (slope=${slope.toFixed(2)})`)
   }
 
-  // Zaupanje
+  // Confidence
   if (historicalDays < 14) {
     insights.push(`⚠️ Nizko zaupanje — potrebno vsaj 14 dni zgodovine za boljšo napoved`)
   } else if (historicalDays >= 30) {
     insights.push(`✅ Visoko zaupanje — napoved temelji na ${historicalDays} dneh zgodovine`)
   }
+
+  // Metrika natančnosti (MAPE)
+  if (forecastResult.metrics?.mape !== undefined) {
+    const mape = forecastResult.metrics.mape
+    if (mape < 10) {
+      insights.push(`🎯 Model natančnost: MAPE=${mape.toFixed(1)}% (odlična)`)
+    } else if (mape < 20) {
+      insights.push(`🎯 Model natančnost: MAPE=${mape.toFixed(1)}% (dobra)`)
+    } else {
+      insights.push(`🎯 Model natančnost: MAPE=${mape.toFixed(1)}% (potrebna izboljšava)`)
+    }
+  }
+
+  // Metoda
+  insights.push(`🔧 Uporabljena metoda: ${forecastResult.method}`)
 
   // Staffing suggestion
   const busyDays = forecast.filter(f => f.predictedOrders > 30)
