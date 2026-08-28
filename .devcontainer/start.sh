@@ -1,26 +1,31 @@
 #!/bin/bash
-# Start dev server in background
-echo "[start] Starting RestaurantOS dev server..."
-npm run dev &
+echo "START $(date)" > /tmp/start-status.txt
+cd /workspaces/restaurantos
 
-# Wait for server to be ready
-sleep 25
-echo "[start] Waiting for compile..."
+# Start dev server
+echo "Starting dev server..." >> /tmp/start-status.txt
+nohup npm run dev > /tmp/dev.log 2>&1 &
+DEV_PID=$!
+echo "Dev PID: $DEV_PID" >> /tmp/start-status.txt
 
-# Try to make port public using gh CLI (pre-installed in codespace)
-if command -v gh &> /dev/null; then
-  echo "[start] Making port 3000 public via gh CLI..."
-  gh codespace ports visibility 3000:public -c "$CODESPACE_NAME" 2>/dev/null || true
-fi
+# Wait for compile
+sleep 40
+echo "Wait done" >> /tmp/start-status.txt
 
-# Alternative: use curl to make port public via GitHub API
-if [ -n "$GITHUB_TOKEN" ]; then
-  echo "[start] Making port 3000 public via API..."
-  curl -s -X PATCH \
-    -H "Authorization: token $GITHUB_TOKEN" \
-    -H "Accept: application/vnd.github+json" \
-    "https://api.github.com/user/codespaces/$CODESPACE_NAME/ports/3000" \
-    -d '{"visibility":"public"}' 2>/dev/null || true
-fi
+# Check if server is up
+HTTP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/ 2>&1)
+echo "HTTP: $HTTP" >> /tmp/start-status.txt
 
-echo "[start] Done. Dev server should be running on port 3000."
+# Copy status to repo so we can read it via API
+cp /tmp/start-status.txt /workspaces/restaurantos/.devcontainer/start-status.txt
+cp /tmp/dev.log /workspaces/restaurantos/.devcontainer/dev.log
+
+# Auto-commit (uses codespace's GITHUB_TOKEN)
+cd /workspaces/restaurantos
+git config user.email "codespace@restaurantos.local"
+git config user.name "Codespace Bot"
+git add .devcontainer/start-status.txt .devcontainer/dev.log
+git commit -m "chore: codespace status update" 2>/dev/null || true
+git push origin HEAD 2>/dev/null || true
+
+echo "DONE" >> /tmp/start-status.txt

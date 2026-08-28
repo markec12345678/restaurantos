@@ -5,16 +5,11 @@
   "portsAttributes": {
     "3000": {
       "label": "RestaurantOS POS",
-      "onAutoForward": "openBrowser",
+      "onAutoForward": "notify",
       "visibility": "public"
     }
   },
   "postCreateCommand": "npm install --no-audit --no-fund && cp .env.example .env && sed -i 's/WEBAUTHN_ENABLED=\"false\"/WEBAUTHN_ENABLED=\"true\"/' .env && npx prisma generate && node scripts/init-pglite.mjs",
   "postStartCommand": "bash .devcontainer/start.sh",
-  "waitFor": "postCreateCommand",
-  "customizations": {
-    "vscode": {
-      "extensions": ["ms-vscode.vscode-typescript-next"]
-    }
-  }
+  "waitFor": "postCreateCommand"
 }
