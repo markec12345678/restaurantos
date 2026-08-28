@@ -189,7 +189,7 @@ Ti finding-i zahtevajo spremembo Prisma sheme ali arhitekturno odločitev:
 - **#41** 0 enumov — 20+ status polj so prosto-besedilni String-i
 - **#42** Dokumentacija trdi "22 IndexedDB trgovin" — dejansko 2
 - **#43** ✅ FIXED (PR #64) — 9+ soft reference String polj bi morala biti FK do Employee — dodani FK na 4 modele (Order.cancelledById, StaffShift.createdById, PurchaseOrder.requestedById + approvedById) z backward compat soft ref; helper `resolveEmployeeRef/syncEmployeeRef/getEmployeeRefStats` za migracijo + 13 testov
-- **#44** 3 paralelni i18n sistemi — konsolidacija potrebna
+- **#44** ✅ FIXED (PR #65) — 3 paralelni i18n sistemi (next-intl messages, src/lib/i18n, src/i18n/request.ts) — novo centralni `tTranslate(key, locale)` proxy z 3-stopenjskim fallback (nextIntl > legacy > key); `getI18nStats()` migracijski dashboard z števci + recommendations
 
 ---
 
