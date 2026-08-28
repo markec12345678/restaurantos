@@ -7,59 +7,84 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    env:
+      PGLITE_DATA_DIR: /tmp/pglite-data
+      WEBAUTHN_ENABLED: 'true'
+      NEXTAUTH_SECRET: test-secret-12345
+      RECEIPT_TOKEN_SECRET: test-receipt-12345
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
       - run: npm install --no-audit --no-fund
-      - run: cp .env.example .env && sed -i 's/WEBAUTHN_ENABLED="false"/WEBAUTHN_ENABLED="true"/' .env && sed -i 's/NEXTAUTH_SECRET="change-me.*"/NEXTAUTH_SECRET="test-secret-12345"/' .env && sed -i 's/RECEIPT_TOKEN_SECRET="change-me.*"/RECEIPT_TOKEN_SECRET="test-receipt-12345"/' .env
+      - run: cp .env.example .env
       - run: npx prisma generate
       - run: node scripts/init-pglite.mjs
       - run: npx tsc --noEmit
       - run: npm run verify
       - run: NODE_OPTIONS=--max-old-space-size=4096 npm run build
-      - run: node .next/standalone/server.js &
-      - run: sleep 5
+      - name: Start server
+        run: |
+          node .next/standalone/server.js &
+          sleep 8
       - name: Test endpoints
         run: |
-          echo "=== HOMEPAGE ==="
-          curl -s -o /dev/null -w "HTTP %{http_code}\n" http://localhost:3000/
-          echo ""
-          echo "=== CSP HEADER ==="
-          curl -s -I http://localhost:3000/ | grep -i "content-security-policy" || echo "NO CSP"
-          echo ""
-          echo "=== PAGE TITLE ==="
-          curl -s http://localhost:3000/ | grep -o '<title>[^<]*</title>' || echo "NO TITLE"
-          echo ""
-          echo "=== SKIP-TO-CONTENT ==="
-          curl -s http://localhost:3000/ | grep -o 'skip-to-content[^"]*' | head -1 || echo "NOT FOUND"
-          echo ""
-          echo "=== WEBAUTHN ==="
-          curl -s -w "\nHTTP %{http_code}\n" http://localhost:3000/api/auth/webauthn
-          echo ""
-          echo "=== DB HEALTH ==="
-          curl -s -w "\nHTTP %{http_code}\n" http://localhost:3000/api/system/db-health
-          echo ""
-          echo "=== PIN LOGIN 0000 ==="
-          curl -s -X POST -H "Content-Type: application/json" -d '{"pin":"0000"}' http://localhost:3000/api/auth | head -c 300
-          echo ""
-          echo "=== PIN LOGIN 1234 ==="
-          curl -s -X POST -H "Content-Type: application/json" -d '{"pin":"1234"}' http://localhost:3000/api/auth | head -c 300
-      - name: Post results to PR
+          echo "## Live App Test Results" > /tmp/results.md
+          echo "" >> /tmp/results.md
+          
+          echo "### Homepage" >> /tmp/results.md
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/)
+          echo "- HTTP: $HTTP" >> /tmp/results.md
+          
+          echo "" >> /tmp/results.md
+          echo "### CSP Header" >> /tmp/results.md
+          CSP=$(curl -s -I http://localhost:3000/ 2>&1 | grep -i "content-security-policy" | head -1)
+          echo "- \`$CSP\`" >> /tmp/results.md
+          
+          echo "" >> /tmp/results.md
+          echo "### Page Title" >> /tmp/results.md
+          TITLE=$(curl -s http://localhost:3000/ | grep -o '<title>[^<]*</title>')
+          echo "- $TITLE" >> /tmp/results.md
+          
+          echo "" >> /tmp/results.md
+          echo "### Skip-to-content" >> /tmp/results.md
+          SKIP=$(curl -s http://localhost:3000/ | grep -o 'skip-to-content' | head -1)
+          echo "- Found: $SKIP" >> /tmp/results.md
+          
+          echo "" >> /tmp/results.md
+          echo "### WebAuthn Endpoint" >> /tmp/results.md
+          WEB=$(curl -s -w "\nHTTP %{http_code}" http://localhost:3000/api/auth/webauthn 2>&1)
+          echo '```' >> /tmp/results.md
+          echo "$WEB" >> /tmp/results.md
+          echo '```' >> /tmp/results.md
+          
+          echo "" >> /tmp/results.md
+          echo "### DB Health" >> /tmp/results.md
+          DB=$(curl -s -w "\nHTTP %{http_code}" http://localhost:3000/api/system/db-health 2>&1)
+          echo '```' >> /tmp/results.md
+          echo "$DB" >> /tmp/results.md
+          echo '```' >> /tmp/results.md
+          
+          echo "" >> /tmp/results.md
+          echo "### PIN Login (0000)" >> /tmp/results.md
+          LOGIN=$(curl -s -X POST -H "Content-Type: application/json" -d '{"pin":"0000"}' http://localhost:3000/api/auth 2>&1)
+          echo '```' >> /tmp/results.md
+          echo "$LOGIN" | head -c 300 >> /tmp/results.md
+          echo '```' >> /tmp/results.md
+          
+          echo "" >> /tmp/results.md
+          echo "### PIN Login (1234)" >> /tmp/results.md
+          LOGIN2=$(curl -s -X POST -H "Content-Type: application/json" -d '{"pin":"1234"}' http://localhost:3000/api/auth 2>&1)
+          echo '```' >> /tmp/results.md
+          echo "$LOGIN2" | head -c 300 >> /tmp/results.md
+          echo '```' >> /tmp/results.md
+          
+          cat /tmp/results.md
+      - name: Post to PR
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RESULTS=$(echo "## Live App Test Results ($(date -u '+%Y-%m-%d %H:%M UTC'))
-
-          ✅ npm install — success
-          ✅ prisma generate — success
-          ✅ init-pglite — success
-          ✅ tsc typecheck — 0 errors
-          ✅ verify script — 29/29 PASS
-          ✅ npm build — success
-
-          See full logs in Actions tab")
-          gh pr comment 68 --body "$RESULTS" || true
+          gh pr comment 68 --body "$(cat /tmp/results.md)" || echo "PR comment skipped"
