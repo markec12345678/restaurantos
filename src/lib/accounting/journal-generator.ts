@@ -6,6 +6,7 @@ import { logger } from "@/lib/logger"
 
 import { db } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
+import { resolveAccountCode } from './chart-of-accounts'
 
 // Slovenski kontni načrt (poenostavljen za restavracije)
 export const ACCOUNTS = {
@@ -53,6 +54,13 @@ export async function generateJournalForPayment(
     const tip = toNum(payment.tipAmount)
     const netSales = total - tip
 
+    // ISSUE #38: Resolve ChartOfAccount FK za vsako vrstico (validacija + denormalizacija)
+    const [resolvedSales, resolvedPayment, resolvedTips] = await Promise.all([
+      resolveAccountCode(salesAccount.code),
+      resolveAccountCode(paymentAccount.code),
+      tip > 0 ? resolveAccountCode(ACCOUNTS.TIPS.code) : Promise.resolve(null),
+    ])
+
     // Številka vnosa: JE-YYYY-NNNNNN
     const year = new Date().getFullYear()
     const count = await db.journalEntry.count({ where: { entryNumber: { startsWith: `JE-${year}-` } } })
@@ -76,9 +84,10 @@ export async function generateJournalForPayment(
           create: [
             // Debet: banka/blagajna (prejmemo denar)
             {
-              accountCode: paymentAccount.code,
-              accountName: paymentAccount.name,
-              accountType: paymentAccount.type,
+              accountCode: resolvedPayment.accountCode,
+              chartOfAccountCode: resolvedPayment.chartOfAccountCode,
+              accountName: resolvedPayment.accountName,
+              accountType: resolvedPayment.accountType,
               debit: total,
               credit: 0,
               description: `Prejem ${payment.type} — plačilo #${order.orderNumber}`,
@@ -87,19 +96,21 @@ export async function generateJournalForPayment(
             },
             // Kredit: promet (brez napitnine)
             {
-              accountCode: salesAccount.code,
-              accountName: salesAccount.name,
-              accountType: salesAccount.type,
+              accountCode: resolvedSales.accountCode,
+              chartOfAccountCode: resolvedSales.chartOfAccountCode,
+              accountName: resolvedSales.accountName,
+              accountType: resolvedSales.accountType,
               debit: 0,
               credit: netSales,
               description: `Promet ${order.type} — naročilo #${order.orderNumber}`,
               locationId: order.locationId || null,
             },
             // Kredit: napitnine (če > 0)
-            ...(tip > 0 ? [{
-              accountCode: ACCOUNTS.TIPS.code,
-              accountName: ACCOUNTS.TIPS.name,
-              accountType: ACCOUNTS.TIPS.type,
+            ...(tip > 0 && resolvedTips ? [{
+              accountCode: resolvedTips.accountCode,
+              chartOfAccountCode: resolvedTips.chartOfAccountCode,
+              accountName: resolvedTips.accountName,
+              accountType: resolvedTips.accountType,
               debit: 0,
               credit: tip,
               description: `Napitnina — naročilo #${order.orderNumber}`,

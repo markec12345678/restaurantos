@@ -181,7 +181,7 @@ Ti finding-i zahtevajo spremembo Prisma sheme ali arhitekturno odločitev:
 - **#35** ✅ FIXED (PR #59) — `GuestVisit` hash chain je bil delno implementiran (helper + API ruta sta obstajala), dodani: 14 unit testov + nov admin audit endpoint `GET /api/audit/guest-visit-integrity` (EU 852/2004 skladnost)
 - **#36** `Shift` vs `StaffShift` prekrivanje ~80% — združitev potrebna
 - **#37** `RestaurantSettings` FURS polja dupllicirajo `Location` FURS polja
-- **#38** Ni `ChartOfAccounts` modela — `JournalLine.accountCode` je prosto-besedilen
+- **#38** ✅ FIXED (PR #61) — Ni `ChartOfAccounts` modela — `JournalLine` sedaj ima optional FK `chartOfAccountCode → ChartOfAccount.code` + helper `resolveAccountCode()` za validacijo + backward compat (legacy prosto-besedilne kode še delujejo)
 - **#39** ✅ FIXED (PR #57) — In-memory rate limit + WebAuthn challenge stores ne skalirajo čez replike — implementiran CacheAdapter pattern (MemoryCacheAdapter default, RedisCacheAdapter za multi-replica)
 
 ### LOW

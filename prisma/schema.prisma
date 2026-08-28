@@ -2390,6 +2390,10 @@ model ChartOfAccount {
   parentId    String?                       // Hierarhija: 7000 → 7000.01 (subkonta)
   parent      ChartOfAccount?  @relation("AccountHierarchy", fields: [parentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   subAccounts ChartOfAccount[]  @relation("AccountHierarchy")
+  // ISSUE #38: JournalLine FK reference (enastranska — JournalLine.accountCode še vedno
+  // dovoljuje prosto-besedilne kode za backward compat, ampak chartOfAccountCode relacija
+  // vzpostavi FK kadar je koda veljavna)
+  journalLines JournalLine[] @relation("JournalLineAccountCode")
   isActive    Boolean  @default(true)
   description String   @default("")
   sortOrder   Int      @default(0)
@@ -2407,6 +2411,11 @@ model JournalLine {
   journalEntry   JournalEntry  @relation(fields: [journalEntryId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ne briši knjigovodske postavke
   // --- Konto ---
   accountCode    String                     // Kontni načrt (npr. 7000=Promet, 2600=DDV, 1000=Banka, 1010=Blagajna)
+  // ISSUE #38: Optional FK na ChartOfAccount.code — omogoča referenčno integriteto
+  // (prej je bil accountCode prosto-besedilen String — nobena garancija da koda obstaja)
+  // Optional da ohrani backward compat (legacy JournalLine z nepoznanimi kodami še deluje)
+  chartOfAccountCode String?
+  chartOfAccount    ChartOfAccount? @relation("JournalLineAccountCode", fields: [chartOfAccountCode], references: [code], onDelete: NoAction, onUpdate: Cascade)
   accountName    String                     // Ime konta
   accountType    String                     // asset, liability, equity, revenue, expense
   // --- Zneski (double-entry: vsaj 2 vrstici, debiti == krediti) ---
@@ -2425,6 +2434,7 @@ model JournalLine {
   @@index([accountType])
   @@index([accountCode, accountType])
   @@index([locationId])  // ISSUE #31: filter po lokaciji na JournalLine nivoju
+  @@index([chartOfAccountCode])  // ISSUE #38: FK lookup na ChartOfAccount
 }
 
 // ============================================
