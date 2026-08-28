@@ -173,7 +173,7 @@ Ti finding-i zahtevajo spremembo Prisma sheme ali arhitekturno odločitev:
 
 ### HIGH
 - **#31** ✅ FIXED (PR #58) — Accounting modeli (JournalEntry, JournalLine, AP, AR) nimajo `locationId` — multi-tenant accounting implementiran (JournalLine.locationId denormaliziran; AP/AR.locationId + Location relation; trial-balance/GL/P&L/balance-sheet sprejemajo `?locationId=` filter)
-- **#32** `Subscription` (SaaS tenant root) je osirotel — noben model ne referencira `subscriptionId`
+- **#32** ✅ FIXED (PR #60) — `Subscription` (SaaS tenant root) je osirotel — sedaj `Location.subscriptionId` + `Subscription.locations[]` relacija + `getSubscriptionContext()` helper + 12 testov
 - **#33** `OrderItem.modifiersJson` + 20 drugih JSON-as-String polj — potrebujejo normalizacijo
 **#34** ✅ FIXED (PR #56) — CSP dovoljuje `'unsafe-inline'` za scripts  — nonce-based CSP implementiran (18 bajtov/144-bit per-request)
 

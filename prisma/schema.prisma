@@ -1172,6 +1172,11 @@ model Location {
   name            String                             // "Glavna restavracija", "Filiala Ljubljana", "Pop-up Maribor"
   code            String   @unique                    // Kratka koda: "HQ", "LJU", "MB"
   type            String   @default("restaurant")     // restaurant, food_truck, pop_up, cloud_kitchen, bar
+  // ISSUE #32: SaaS tenant root — Location pripada subscription (multi-tenant SaaS)
+  // Nullable da ohrani backward compat: obstoječe lokacije brez subscription-a še delujejo
+  // (single-tenant deploy). V multi-tenant deploy mora vsaka lokacija imeti subscriptionId.
+  subscriptionId  String?
+  subscription    Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   address         String   @default("")
   city            String   @default("")
   postCode        String   @default("")
@@ -1233,6 +1238,7 @@ model Location {
   @@index([code])
   @@index([isActive])
   @@index([type])
+  @@index([subscriptionId])  // ISSUE #32: multi-tenant SaaS poizvedbe po subscription
 }
 
 // ============================================
@@ -2024,6 +2030,9 @@ model Subscription {
 
   // Relacije
   invoices          SubscriptionInvoice[]
+  // ISSUE #32: SaaS tenant root — vsi podatki so vezani na subscription.
+  // Pravzaprav: Location je najboljši "anchor" — en subscription ima N lokacij.
+  locations         Location[]
 
   @@index([email])
   @@index([status])

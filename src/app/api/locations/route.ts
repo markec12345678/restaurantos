@@ -25,10 +25,13 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const isActive = searchParams.get('isActive')
     const type = searchParams.get('type')
+    // ISSUE #32: opcijsko filtriranje po subscription (multi-tenant SaaS)
+    const subscriptionId = searchParams.get('subscriptionId')
 
     const where: Record<string, unknown> = {}
     if (isActive !== null) where.isActive = isActive === 'true'
     if (type) where.type = type
+    if (subscriptionId) where.subscriptionId = subscriptionId
 
     const locations = await db.location.findMany({
       where,
@@ -71,6 +74,8 @@ const createLocationSchema = z.object({
   name: z.string().min(1, 'Ime je obvezno').max(200),
   code: z.string().min(1, 'Koda je obvezna').max(20).regex(/^[A-Z0-9_-]+$/, 'Koda mora vsebovati samo velike črke, številke, _ ali -'),
   type: z.enum(['restaurant', 'food_truck', 'pop_up', 'cloud_kitchen', 'bar']).default('restaurant'),
+  // ISSUE #32: SaaS tenant root — poveži z subscription (opcijsko za single-tenant)
+  subscriptionId: z.string().nullable().optional(),
   address: z.string().max(500).default(''),
   city: z.string().max(200).default(''),
   postCode: z.string().max(20).default(''),
@@ -106,7 +111,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Lokacija s kodo "${data.code}" že obstaja` }, { status: 409 })
     }
 
-    const location = await db.location.create({ data })
+    const location = await db.location.create({
+      data: {
+        ...data,
+        // ISSUE #32: eksplicitno nastavi subscriptionId ( Lahko null za single-tenant)
+        subscriptionId: data.subscriptionId || null,
+      },
+    })
 
     // FIX SECURITY: maskiraj fursCertPassword + fursCertPath v odgovoru
     return NextResponse.json(maskLocationSecrets(location), { status: 201 })
