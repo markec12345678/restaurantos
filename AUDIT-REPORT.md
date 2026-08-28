@@ -185,7 +185,7 @@ Ti finding-i zahtevajo spremembo Prisma sheme ali arhitekturno odločitev:
 - **#39** ✅ FIXED (PR #57) — In-memory rate limit + WebAuthn challenge stores ne skalirajo čez replike — implementiran CacheAdapter pattern (MemoryCacheAdapter default, RedisCacheAdapter za multi-replica)
 
 ### LOW
-- **#40** Prisma provider mismatch (schema=postgresql, migration_lock=sqlite)
+- **#40** ✅ FIXED (PR #66) — Prisma provider mismatch — `migration_lock.toml` je že popravljen (postgresql), ampak `.env.example` je imel SQLite path (`file:./db/custom.db`) kar je neveljavno za postgresql schema. Sedaj: pravilna dokumentacija (PGlite za dev, external postgresql za prod), nov `validateDatabaseConfig()` helper z `detectProvider` + `maskDatabaseUrl`, nov admin endpoint `GET /api/system/db-health` + 18 testov
 - **#41** 0 enumov — 20+ status polj so prosto-besedilni String-i
 - **#42** Dokumentacija trdi "22 IndexedDB trgovin" — dejansko 2
 - **#43** ✅ FIXED (PR #64) — 9+ soft reference String polj bi morala biti FK do Employee — dodani FK na 4 modele (Order.cancelledById, StaffShift.createdById, PurchaseOrder.requestedById + approvedById) z backward compat soft ref; helper `resolveEmployeeRef/syncEmployeeRef/getEmployeeRefStats` za migracijo + 13 testov
