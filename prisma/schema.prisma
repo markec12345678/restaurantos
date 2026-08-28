@@ -448,7 +448,9 @@ model Order {
   // --- Preklic/Storno metapodatki ---
   cancelReason    String     @default("")   // Razlog za preklic/storno
   cancelledAt     DateTime?                 // Kdaj je bilo preklicano/stornirano
-  cancelledBy     String     @default("")   // Kdo je preklical (employeeId ali ime)
+  cancelledBy     String     @default("")   // ⚠️ ISSUE #43 @deprecated: Kdo je preklical (employeeId ali ime) — soft ref
+  cancelledById   String?                   // ISSUE #43: FK do Employee (pravi reference)
+  cancelledByEmp  Employee?  @relation("OrderCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // --- Razknjiževanje zaloge (prepreči dvojno razknjiževanje) ---
   inventoryDeducted Boolean   @default(false) // Ali je bila zaloga že razknjižena
   // --- Čas plačila ---
@@ -710,6 +712,11 @@ model Employee {
   kotDocuments KotDocument[] @relation("KotDocuments")
   // --- WebAuthn/FIDO2 biometric credentials ( Touch ID, Face ID, Windows Hello ) ---
   biometricCredentials BiometricCredential[]
+  // --- ISSUE #43: Soft ref → FK back-relations (4 nova) ---
+  cancelledOrders Order[] @relation("OrderCancelledBy")
+  createdStaffShifts StaffShift[] @relation("StaffShiftCreatedBy")
+  requestedPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderRequestedBy")
+  approvedPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderApprovedBy")
   // --- Multi-location ---
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -1432,7 +1439,9 @@ model StaffShift {
   actualEnd       DateTime?
   breakMinutes    Int      @default(0)
   // --- Avtor ---
-  createdBy       String?
+  createdBy       String?   // ⚠️ ISSUE #43 @deprecated: soft ref — uporabljaj createdById
+  createdById     String?  // ISSUE #43: FK do Employee (pravi reference)
+  createdByEmp    Employee? @relation("StaffShiftCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -1699,8 +1708,12 @@ model PurchaseOrder {
   deliveryAddress String   @default("")
   deliveryNotes   String   @default("")
   // --- Interna ---
-  requestedBy     String   @default("")         // Kdo je naročil
-  approvedBy      String   @default("")         // Kdo je odobril
+  requestedBy     String   @default("")   // ⚠️ ISSUE #43 @deprecated: soft ref — uporabljaj requestedById
+  requestedById   String?                  // ISSUE #43: FK do Employee (pravi reference)
+  requestedByEmp  Employee? @relation("PurchaseOrderRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  approvedBy      String   @default("")   // ⚠️ ISSUE #43 @deprecated: soft ref — uporabljaj approvedById
+  approvedById    String?                 // ISSUE #43: FK do Employee (pravi reference)
+  approvedByEmp   Employee? @relation("PurchaseOrderApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // --- Multi-location (FIX: nabava je za zalogo lokacije) ---
   locationId      String?
   location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
