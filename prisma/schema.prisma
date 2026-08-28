@@ -1126,6 +1126,11 @@ model RestaurantSettings {
   taxId             String   @default("")           // ID za DDV (SIxxxxxxxxx)
   registerNumber    String   @default("BLG-001")    // Številka blagajne
   // --- FURS certifikat ---
+  // ⚠️ ISSUE #37 @deprecated: FURS konfiguracija je sedaj na Location modelu
+  // (per-lokacija). Ta polja se uporabljajo samo kot fallback v buildFursConfigFromSettings()
+  // za single-tenant backward compat. V multi-tenant deploy mora vsaka lokacija
+  // imeti svoj premisesId + fursCertPath + fursCertPassword v Location modelu.
+  // Načrtovano odstranjevanje: v1.0.0 release (po migration period).
   fursCertPath      String   @default("")
   fursCertPassword  String   @default("")
   fursEnvironment   String   @default("test")
