@@ -6,6 +6,15 @@
 // in se avtomatsko ponovno pošljejo FURS-u ob vzpostavitvi povezave.
 // ============================================
 
+// ISSUE #42: dokumentacija o dejanskem številu IndexedDB trgovin.
+// Aplikacija ima TOČNO 2 IndexedDB trgovini (v isti bazi):
+//   1. pendingOrders   — naročila iz kioska/QR-ja ko ni povezave
+//   2. pendingReceipts — FURS računi ko ni povezave (ta modul)
+// Stara verzija README je trdila "22 trgovin" — to je bilo napačno.
+// Stvar je popravljena; tu je referenca za prihodnje developerje.
+export const INDEXEDDB_STORES = ['pendingOrders', 'pendingReceipts'] as const
+export const INDEXEDDB_STORE_COUNT = INDEXEDDB_STORES.length // = 2
+
 const DB_NAME = 'restaurantos-furs-queue'
 const DB_VERSION = 1
 const STORE_NAME = 'pendingReceipts'
