@@ -96,11 +96,56 @@ export function useOrderPanelMutations() {
       if (!res.ok) throw new Error('Failed to update order')
       return res.json()
     },
-    onSuccess: () => {
-      toast.success('Status naročila posodobljen')
+    // ⚡ OPTIMISTIC UPDATE — uporabnik vidi takojšen status change
+    // (prej je čakal na server response + cache invalidation)
+    onMutate: async ({ id, status }) => {
+      // Cancel outgoing refetches da ne override-a optimistic update
+      await queryClient.cancelQueries({ queryKey: queryKeys.orders.all })
+
+      // Snapshot previous value za rollback
+      const previousOrders = queryClient.getQueryData(queryKeys.orders.all)
+
+      // Optimistically update vseh order listov
+      queryClient.setQueriesData(
+        { queryKey: queryKeys.orders.all },
+        (old: unknown) => {
+          if (!old || typeof old !== 'object') return old
+          // Različni formati: { orders: [...] } ali [...]
+          const updateOrder = (order: unknown) => {
+            if (order && typeof order === 'object' && 'id' in order) {
+              const o = order as { id?: string; status?: string } & Record<string, unknown>
+              return o.id === id ? { ...o, status } : o
+            }
+            return order
+          }
+          if (Array.isArray(old)) {
+            return old.map(updateOrder)
+          }
+          if (old && typeof old === 'object' && 'orders' in old) {
+            const data = old as { orders: unknown[] }
+            return { ...data, orders: Array.isArray(data.orders) ? data.orders.map(updateOrder) : data.orders }
+          }
+          return old
+        },
+      )
+
+      return { previousOrders }
+    },
+    onError: (_err, _vars, context) => {
+      // Rollback na previous state
+      if (context?.previousOrders) {
+        queryClient.setQueryData(queryKeys.orders.all, context.previousOrders)
+      }
+      toast.error('Napaka pri posodobitvi statusa — sprememba razveljavljena')
+    },
+    onSettled: () => {
+      // Vedno refetch da sinhroniziramo s serverjem
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.tables.all })
+    },
+    onSuccess: () => {
+      toast.success('Status naročila posodobljen')
     },
   })
 

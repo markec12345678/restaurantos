@@ -5,6 +5,7 @@ import { Sidebar } from '@/components/pos/sidebar/Sidebar'
 import { KioskBar } from '@/components/pos/KioskBar'
 import { HappyHourBanner } from '@/components/pos/HappyHourBanner'
 import { GlobalNotifications } from '@/components/pos/GlobalNotifications'
+import { CommandPalette } from '@/components/pos/command-palette/CommandPalette'
 import { useMemo } from 'react'
 import { useModulePrefetch } from '@/lib/use-module-prefetch'
 import { moduleComponents, AIAssistant } from '@/app/components/module-registry'
@@ -65,6 +66,8 @@ export default function POSPage() {
       </div>
       <GlobalNotifications />
       <AIAssistant />
+      {/* Command Palette (Cmd+K / Ctrl+K) — hitra navigacija + akcije */}
+      <CommandPalette />
       {/* PWA install prompt — prikaže se ko brskalnik dovoljuje namestitev */}
       <PwaInstallPrompt />
     </div>

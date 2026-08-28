@@ -273,3 +273,50 @@ html {
   clip: auto;
   white-space: nowrap;
 }
+
+/* WCAG 2.2 (2.4.11 Focus Appearance) — vedno viden focus obroč.
+ * :focus-visible se sproži samo pri keyboard navigaciji (ne mouse click),
+ * tako da ne moti miškinh uporabnikov. */
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Izklopi outline za miškin click (samo keyboard focus je viden) */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* WCAG 2.2 (2.5.8 Target Size Minimum) — vsi interaktivni elementi ≥24×24px.
+ * Na mobilnih že velja 44×44px (touch-manipulation), tu dodajamo še mouse/desktop. */
+@media (pointer: fine) {
+  button:not(.touch-manipulation):not(.icon-only-large),
+  a:not(.touch-manipulation):not(.icon-only-large),
+  [role="button"]:not(.touch-manipulation):not(.icon-only-large) {
+    min-height: 24px;
+    min-width: 24px;
+  }
+}
+
+/* WCAG 2.2 (3.2.6 Consistent Help) — help link vedno na istem mestu */
+.help-link {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 1000;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: transform 150ms ease;
+}
+
+.help-link:hover {
+  transform: scale(1.05);
+}
