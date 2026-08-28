@@ -1,6 +1,13 @@
 // ============================================
 // Error fallback sub-component
+// A11Y FIX (WCAG 1.4.3, 1.4.6): refaktoriran z uporabo shadcn design tokene
+// (prej inline stili z hardcoded barvami — ne dark-mode aware).
 // ============================================
+
+import { AlertCircle, RefreshCw, RotateCcw } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 interface ErrorFallbackProps {
   error: Error | null
@@ -27,93 +34,52 @@ export function ErrorFallback({
     <div
       role="alert"
       aria-live="assertive"
-      style={{
-        padding: 24,
-        maxWidth: 560,
-        margin: '40px auto',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        background: '#fef2f2',
-        borderRadius: 12,
-        border: '1px solid #fecaca',
-        textAlign: 'center',
-      }}
+      className="mx-auto my-10 max-w-xl"
     >
-      <div style={{ fontSize: 36, marginBottom: 8, lineHeight: 1 }} aria-hidden="true">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
-      </div>
+      <Card className="border-destructive/30">
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10" aria-hidden="true">
+            <AlertCircle className="h-7 w-7 text-destructive" />
+          </div>
+          <CardTitle className="text-destructive">
+            Napaka v {contextLabel}
+          </CardTitle>
+          <CardDescription>
+            Prišlo je do nepričakovane napake. Poskusite znova ali ponastavite modul.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {retryCount > 1 && (
+            <p className="text-center text-sm text-muted-foreground">
+              Ponovni poskus {retryCount}/{maxRetries}
+              {exhausted && ' — doseženih maksimalnih poskusov'}
+            </p>
+          )}
 
-      <h3 style={{ color: '#dc2626', margin: '0 0 8px 0', fontSize: 18 }}>
-        Napaka v {contextLabel}
-      </h3>
+          {isDev && error && (
+            <Alert variant="destructive">
+              <AlertDescription>
+                <pre className="overflow-auto max-h-32 text-xs whitespace-pre-wrap font-mono">
+                  {error.message}
+                </pre>
+              </AlertDescription>
+            </Alert>
+          )}
 
-      <p style={{ color: '#7f1d1d', margin: '0 0 6px 0', fontSize: 14 }}>
-        Prišlo je do nepričakovane napake. Poskusite znova ali ponastavite modul.
-      </p>
-
-      {retryCount > 1 && (
-        <p style={{ color: '#991b1b', margin: '0 0 16px 0', fontSize: 13, opacity: 0.8 }}>
-          Ponovni poskus {retryCount}/{maxRetries}
-          {exhausted && ' — doseženih maksimalnih poskusov'}
-        </p>
-      )}
-
-      {isDev && error && (
-        <pre
-          style={{
-            background: '#fff',
-            padding: 12,
-            borderRadius: 8,
-            overflow: 'auto',
-            fontSize: 11,
-            textAlign: 'left',
-            margin: '0 0 16px 0',
-            maxHeight: 120,
-            border: '1px solid #e5e7eb',
-            color: '#374151',
-          }}
-        >
-          {error.message}
-        </pre>
-      )}
-
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-        {!exhausted && (
-          <button
-            onClick={onRetry}
-            style={{
-              padding: '8px 20px',
-              background: '#3b82f6',
-              color: 'white',
-              border: 'none',
-              borderRadius: 8,
-              cursor: 'pointer',
-              fontSize: 14,
-              fontWeight: 500,
-            }}
-          >
-            Poskusi znova
-          </button>
-        )}
-        <button
-          onClick={onReset}
-          style={{
-            padding: '8px 20px',
-            background: exhausted ? '#dc2626' : '#6b7280',
-            color: 'white',
-            border: 'none',
-            borderRadius: 8,
-            cursor: 'pointer',
-            fontSize: 14,
-            fontWeight: 500,
-          }}
-        >
-          Ponastavi modul
-        </button>
-      </div>
+          <div className="flex flex-wrap justify-center gap-2">
+            {!exhausted && (
+              <Button onClick={onRetry} variant="default">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Poskusi znova
+              </Button>
+            )}
+            <Button onClick={onReset} variant={exhausted ? 'destructive' : 'secondary'}>
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Ponastavi modul
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

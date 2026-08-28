@@ -50,14 +50,14 @@ export default function POSPage() {
       {kioskMode ? (
         <div className="flex flex-col flex-1 overflow-hidden">
           <KioskBar />
-          <main className="flex-1 overflow-hidden">
+          <main id="main-content" className="flex-1 overflow-hidden" tabIndex={-1}>
             <ActiveModuleView activeModule={activeModule} ActiveComponent={ActiveComponent} />
           </main>
         </div>
       ) : (
         <>
           <Sidebar />
-          <main className="flex-1 overflow-hidden">
+          <main id="main-content" className="flex-1 overflow-hidden" tabIndex={-1}>
             <ActiveModuleView activeModule={activeModule} ActiveComponent={ActiveComponent} />
           </main>
         </>

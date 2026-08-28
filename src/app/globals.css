@@ -206,3 +206,70 @@ html {
     padding-right: env(safe-area-inset-right);
   }
 }
+
+/* A11Y FIX (WCAG 2.3.3): prefers-reduced-motion — upoštevaj nastavitev uporabnika.
+ * Animatorno občutljivi uporabniki (vestibularni problemi) lahko izklopijo animacije.
+ * Ta blok mora biti za vsemi drugimi animacijskimi definicijami da prevlada. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+    /* Framer Motion + pulse-dot bodo praktično instant */
+  }
+
+  /* Izklopi hover efekte ki skalirajo (lahko povzročajo motion sickness) */
+  .hover\:scale-105:hover,
+  .hover\:scale-110:hover {
+    transform: none !important;
+  }
+
+  /* Izklopi pulse animacijo (KDS OrderCard isDanger alert) */
+  .animate-pulse,
+  .animate-ping,
+  .animate-bounce,
+  .animate-spin {
+    animation: none !important;
+  }
+}
+
+/* A11Y FIX: skip-to-content link — keyboard uporabniki preskočijo sidebar/header */
+.skip-to-content {
+  position: absolute;
+  top: -100px;
+  left: 0;
+  z-index: 9999;
+  padding: 12px 20px;
+  background: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  text-decoration: none;
+  font-weight: 600;
+  border-radius: 0 0 8px 0;
+  transition: top 150ms ease;
+}
+
+.skip-to-content:focus {
+  top: 0;
+  outline: 3px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* Screen reader only — vizualno skrito, a vidno za screen readerje */
+.sr-only-focusable:focus {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  width: auto;
+  height: auto;
+  padding: 12px 20px;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  border: 2px solid hsl(var(--primary));
+  border-radius: 8px;
+  z-index: 9999;
+  clip: auto;
+  white-space: nowrap;
+}

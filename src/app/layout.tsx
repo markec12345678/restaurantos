@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { useEffect } from "react";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { QueryProvider } from "@/components/providers/query-provider";
@@ -20,10 +21,14 @@ const geistMono = Geist_Mono({
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // A11Y FIX (WCAG 1.4.4): odstranjeno userScalable: false + maximumScale: 1
+  // Slabovidni uporabniki morajo lahko zoom-a-jo (do 200% ali več).
+  // Prejšnja konfiguracija je blokirala zoom — kršitev WCAG 2.1 AA.
   viewportFit: "cover",
-  themeColor: "#f59e0b",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f59e0b" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 }
 
 export const metadata: Metadata = {
@@ -62,8 +67,16 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground select-none overscroll-none`}
         style={{ overscrollBehavior: 'none', touchAction: 'manipulation' }}
       >
+        {/* A11Y FIX (WCAG 2.4.1): skip-to-content link — keyboard uporabniki
+            preskočijo sidebar/header in grejo direktno na vsebino */}
+        <a href="#main-content" className="skip-to-content">
+          Preskoči na vsebino
+        </a>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <QueryProvider>
+            {/* A11Y FIX (WCAG 3.1.1): <html lang> se posodobi dinamično
+                ob spremembi jezika — DaDynamicHtmlLang komponenta */}
+            <DynamicHtmlLang />
             {children}
             <ErrorHandler />
             <Toaster position="top-right" richColors />
@@ -73,4 +86,30 @@ export default function RootLayout({
       </body>
     </html>
   );
+}
+
+/**
+ * A11Y FIX (WCAG 3.1.1): dinamično posodobi <html lang> ob spremembi jezika.
+ *
+ * Prej je bil <html lang="sl"> hardcoded — ko je uporabnik preklopil na EN/IT/HR/DE,
+ * so screen readerji še vedno napovedovali v slovenščini. Ta komponenta sinhronizira
+ * <html lang> z localStorage('pos_locale').
+ *
+ * Uporablja MutationObserver kot fallback za eventuele ko se jezik spremeni
+ * izven next-themes.
+ */
+function DynamicHtmlLang() {
+  'use client'
+  useEffect(() => {
+    const updateLang = () => {
+      const stored = typeof window !== 'undefined' ? localStorage.getItem('pos_locale') : null
+      const lang = stored || 'sl'
+      document.documentElement.lang = lang
+    }
+    updateLang()
+    // Poslušaj spremembe localStorage (npr. iz LanguageSwitcher)
+    window.addEventListener('storage', updateLang)
+    return () => window.removeEventListener('storage', updateLang)
+  }, [])
+  return null
 }

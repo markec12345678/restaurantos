@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import Image from 'next/image'
 import { ChevronRight, ImageIcon, ShieldAlert } from 'lucide-react'
 import type { MenuItemType, StockInfoType } from './types'
 import { safeToFixed, safeNum } from '@/lib/safe-format'
@@ -89,20 +90,25 @@ export const MenuItemCard = memo(function MenuItemCard({
       {/* Image */}
       <div className="w-full aspect-square bg-muted/40 relative overflow-hidden">
         {item.image ? (
-          <img
+          <Image
             src={item.image}
             alt={item.name}
-            className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-200 ${isOutOfStock ? 'grayscale' : ''}`}
-            onError={(e) => {
-              const target = e.target as HTMLImageElement
-              target.style.display = 'none'
-              const fallback = target.nextElementSibling as HTMLElement | null
-              if (fallback) fallback.style.display = 'flex'
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+            className={`object-cover group-hover:scale-105 transition-transform duration-200 ${isOutOfStock ? 'grayscale' : ''}`}
+            onError={() => {
+              // Skrij <Image> in prikaži fallback (lahko isti element)
+              const imgEl = document.getElementById(`img-${item.id}`)
+              const fbEl = document.getElementById(`fallback-${item.id}`)
+              if (imgEl) imgEl.style.display = 'none'
+              if (fbEl) fbEl.style.display = 'flex'
             }}
+            id={`img-${item.id}`}
           />
         ) : null}
         {/* Fallback: colored circle with first letter of item name */}
         <div
+          id={`fallback-${item.id}`}
           className="absolute inset-0 flex items-center justify-center"
           style={{ display: item.image ? 'none' : 'flex', background: `linear-gradient(135deg, ${stringToColor(item.name)}, ${stringToColor(item.name + 'x')})` }}
         >
