@@ -12,15 +12,15 @@ const securityHeaders = [
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
   // HSTS — vsili HTTPS v produkciji (1 leto, includeSubDomains, preload)
   { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
-  // CSP — fallback za statične datoteke (middleware nastavi bolj restriktivno per-request)
-  // FIX: Prej je bilo tukaj 'unsafe-eval' in http://localhost:* — dev artifacti v produkciji.
-  // 'unsafe-inline' za scripts je še vedno potreben ker Next.js injecta inline hydration script.
-  // TODO (issue #34): implementiraj nonce-based CSP in odstrani 'unsafe-inline' za scripts.
+  // CSP — fallback za statične datoteke (middleware nastavi bolj restriktivno per-request z nonce)
+  // FIX issue #34: 'unsafe-inline' za scripts ODSTRANJEN — middleware sedaj generira
+  // per-request nonce in ga injektira v CSP. Next.js avtomatsko najde nonce v CSP
+  // headerju in ga doda vsem lastnim <script> tag-om (hydration + bootstrap).
   {
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      "script-src 'self'",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",
       "font-src 'self' https://fonts.gstatic.com data:",

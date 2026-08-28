@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Store } from 'lucide-react'
+import { Store, Fingerprint } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import type { PinLoginProps } from './pin-login/constants'
 import { usePinLogin } from './pin-login/usePinLogin'
@@ -11,6 +11,8 @@ import { usePinLogin } from './pin-login/usePinLogin'
 // Lazy-loaded podkomponente
 const PinDisplay = dynamic(() => import('./pin-login/PinDisplay').then(m => ({ default: m.PinDisplay })), { ssr: false })
 const PinKeypad = dynamic(() => import('./pin-login/PinKeypad').then(m => ({ default: m.PinKeypad })), { ssr: false })
+// Lazy-load BiometricLogin — samo ko je uporabljen (izogiba loading simplewebauthn/browser pri SSR)
+const BiometricLogin = dynamic(() => import('@/components/auth/BiometricLogin').then(m => ({ default: m.BiometricLogin })), { ssr: false })
 
 // Re-export auth utilities from sub-directory
 export {
@@ -66,6 +68,10 @@ export const PinLogin = memo(function PinLogin({ onLogin, onSkip }: PinLoginProp
             disabled={loginMutation.isPending || pin.length < 4}
             firstDigitRef={firstDigitRef}
           />
+          {/* Biometrična prijava (Touch ID / Face ID / Windows Hello) — prikaže se samo če je WebAuthn omogočen */}
+          <div className="pt-2">
+            <BiometricLogin onLogin={onLogin} variant="outline" size="default" className="w-full" />
+          </div>
           {/* Preskoči gumb */}
           {onSkip && (
             <div className="text-center pt-2">

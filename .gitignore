@@ -106,3 +106,6 @@ suspected_icons.json
 # Local dev scratch files
 1
 *.scratch
+.env
+.env.local
+/home/z/my-project/pglite-data

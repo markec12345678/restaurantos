@@ -708,6 +708,8 @@ model Employee {
   postedJournalEntries JournalEntry[] @relation("PostedJournalEntries")
   pushSubscriptions PushSubscription[] @relation("PushSubscriptions")
   kotDocuments KotDocument[] @relation("KotDocuments")
+  // --- WebAuthn/FIDO2 biometric credentials ( Touch ID, Face ID, Windows Hello ) ---
+  biometricCredentials BiometricCredential[]
   // --- Multi-location ---
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -2289,6 +2291,41 @@ model Session {
   @@index([employeeId])
   @@index([expiresAt])
   @@index([employeeId, expiresAt])  // Iskanje aktivnih sej za zaposlenega
+}
+
+// ============================================
+// WEBAUTHN (FIDO2) — Biometric credentials
+// Enostranska vrata od PIN prijave → Touch ID / Face ID / Windows Hello.
+// En zaposleni lahko ima več registriranih authenticatorjev (npr. telefon + laptop).
+// ============================================
+
+model BiometricCredential {
+  id            String   @id @default(cuid())
+  // WebAuthn credential ID (base64url-encoded, ~16-1023 bajtov).
+  // @unique preprečuje, da bi dva zaposlena registrirala isti ključ (YubiKey sharing).
+  credentialId  String   @unique
+  employeeId    String
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // SPKI public key (base64url) — za verifyAuthenticationResponse().
+  publicKey     String
+  // Counter za zaščito pred kloniranjem authenticatorja (FIDO2 spec §6.1).
+  // Če naslednji assertion pride z nižjim/enačim counterjem → sum kloniranja.
+  counter       Int      @default(0)
+  // Transports (internal/usb/nfc/ble/hybrid/smart-card) — JSON array.
+  transports    String   @default("[]")
+  // Bitflag ali besedilna oznaka vrste naprave (platform | cross-platform).
+  deviceType    String   @default("")
+  // Ali je authenticator backt-up (FIDO2 attestation bit). true → Multi-Device Credential.
+  backed        Boolean  @default(false)
+  // Uporabniško ime za prikaz ("MacBook Pro Marko").
+  nickname      String   @default("")
+  // Zadnja uporaba (za audit + brisanje nedejavnih ključev).
+  lastUsedAt    DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([employeeId])
+  @@index([credentialId])
 }
 
 // ============================================
