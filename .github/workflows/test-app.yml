@@ -1,0 +1,104 @@
+name: Test RestaurantOS App
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/webauthn-csp-security
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install deps
+        run: npm install --no-audit --no-fund
+
+      - name: Setup .env
+        run: |
+          cp .env.example .env
+          sed -i 's/WEBAUTHN_ENABLED="false"/WEBAUTHN_ENABLED="true"/' .env
+          sed -i 's/NEXTAUTH_SECRET="change-me-to-a-long-random-string"/NEXTAUTH_SECRET="test-secret-12345"/' .env
+          sed -i 's/RECEIPT_TOKEN_SECRET="change-me-to-another-random-string"/RECEIPT_TOKEN_SECRET="test-receipt-12345"/' .env
+
+      - name: Generate Prisma + init PGlite
+        run: |
+          npx prisma generate
+          node scripts/init-pglite.mjs
+
+      - name: TypeCheck
+        run: npx tsc --noEmit
+
+      - name: Run verify script
+        run: npm run verify
+
+      - name: Build production
+        run: npm run build
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: Start production server
+        run: |
+          node .next/standalone/server.js &
+          sleep 5
+          echo "Server started"
+
+      - name: Test homepage
+        run: |
+          echo "=== Testing homepage ==="
+          HTTP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/)
+          echo "Homepage HTTP: $HTTP"
+          echo "Homepage status: $HTTP" > /tmp/test-results.txt
+
+          echo ""
+          echo "=== Testing CSP header ==="
+          CSP=$(curl -s -I http://localhost:3000/ | grep -i "content-security-policy" || echo "NO CSP HEADER")
+          echo "CSP: $CSP" >> /tmp/test-results.txt
+
+          echo ""
+          echo "=== Testing WebAuthn endpoint ==="
+          WEB_HTTP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/auth/webauthn)
+          echo "WebAuthn HTTP: $WEB_HTTP" >> /tmp/test-results.txt
+
+          echo ""
+          echo "=== Testing DB health ==="
+          DB_HTTP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/system/db-health)
+          echo "DB Health HTTP: $DB_HTTP" >> /tmp/test-results.txt
+
+          echo ""
+          echo "=== Testing PIN login (0000) ==="
+          LOGIN_RES=$(curl -s -X POST -H "Content-Type: application/json" -d '{"pin":"0000"}' http://localhost:3000/api/auth)
+          echo "Login response: $(echo $LOGIN_RES | head -c 200)" >> /tmp/test-results.txt
+
+          echo ""
+          echo "=== Testing PIN login (1234) ==="
+          LOGIN_RES2=$(curl -s -X POST -H "Content-Type: application/json" -d '{"pin":"1234"}' http://localhost:3000/api/auth)
+          echo "Login (1234) response: $(echo $LOGIN_RES2 | head -c 200)" >> /tmp/test-results.txt
+
+          echo ""
+          echo "=== Page title ==="
+          TITLE=$(curl -s http://localhost:3000/ | grep -o '<title>[^<]*</title>' || echo "NO TITLE")
+          echo "Title: $TITLE" >> /tmp/test-results.txt
+
+          echo ""
+          echo "=== Skip-to-content ==="
+          SKIP=$(curl -s http://localhost:3000/ | grep -o 'skip-to-content' || echo "NOT FOUND")
+          echo "Skip-to-content: $SKIP" >> /tmp/test-results.txt
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: /tmp/test-results.txt
+
+      - name: Post results to PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat /tmp/test-results.txt
+          echo ""
+          gh pr comment 68 --body "$(cat /tmp/test-results.txt)" || true
