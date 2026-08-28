@@ -10,6 +10,6 @@
     }
   },
   "postCreateCommand": "npm install --no-audit --no-fund && cp .env.example .env && sed -i 's/WEBAUTHN_ENABLED=\"false\"/WEBAUTHN_ENABLED=\"true\"/' .env && npx prisma generate && node scripts/init-pglite.mjs",
-  "postStartCommand": "bash .devcontainer/start.sh",
+  "postStartCommand": "cd /workspaces/restaurantos && nohup npm run dev > /tmp/dev.log 2>&1 & sleep 45 && curl -s -o /dev/null -w 'HTTP %{http_code}' http://localhost:3000/ > /tmp/http-status.txt && gh codespace ports visibility 3000:public -c $CODESPACE_NAME 2>/dev/null; echo DONE > /tmp/start-done.txt",
   "waitFor": "postCreateCommand"
 }
