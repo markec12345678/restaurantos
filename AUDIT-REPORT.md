@@ -178,7 +178,7 @@ Ti finding-i zahtevajo spremembo Prisma sheme ali arhitekturno odločitev:
 **#34** ✅ FIXED (PR #56) — CSP dovoljuje `'unsafe-inline'` za scripts  — nonce-based CSP implementiran (18 bajtov/144-bit per-request)
 
 ### MEDIUM
-- **#35** `GuestVisit` hash chain še ni implementiran (schema ima stolpce, koda jih ne polne)
+- **#35** ✅ FIXED (PR #59) — `GuestVisit` hash chain je bil delno implementiran (helper + API ruta sta obstajala), dodani: 14 unit testov + nov admin audit endpoint `GET /api/audit/guest-visit-integrity` (EU 852/2004 skladnost)
 - **#36** `Shift` vs `StaffShift` prekrivanje ~80% — združitev potrebna
 - **#37** `RestaurantSettings` FURS polja dupllicirajo `Location` FURS polja
 - **#38** Ni `ChartOfAccounts` modela — `JournalLine.accountCode` je prosto-besedilen
