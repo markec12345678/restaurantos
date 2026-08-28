@@ -94,6 +94,32 @@ RestaurantOS uporablja večplastno varnostno arhitekturo:
 - **Counter-based number generation** za orderNumber, apNumber, arNumber (prej `count+1`; glej PR #30)
 - **Idempotent payments** z `idempotencyKey` (fast-path + P2002 race-path + DB unique)
 
+### Audit & Diagnostic API endpoints (admin-only)
+
+Ti endpoint-i so dodani za varnostni monitoring in diagnosticiranje:
+
+| Endpoint | Opis | PR |
+|---|---|---|
+| `GET /api/system/db-health` | Preveri veljavnost DATABASE_URL konfiguracije (provider mismatch detection) | #66 |
+| `GET /api/furs/config-source?locationId=xxx` | Diagnostika odkod FURS certifikat prihaja (Location/Settings/env) | #62 |
+| `GET /api/audit/guest-visit-integrity` | Preveri integriteto GuestVisit hash verige (EU 852/2004) | #59 |
+| `GET /api/auth/webauthn/credentials` | Seznam registriranih biometričnih poverilnic | #55 |
+
+### Multi-tenant SaaS izolacija (PR #60, #58)
+
+- **Subscription → Location hierarhija** — `Location.subscriptionId` FK
+- **`getSubscriptionContext()`** helper za tenant-aware poizvedbe
+- **`canAccessLocation()`** preveri lastništvo lokacije
+- **Accounting multi-tenant** — `locationId` na JournalLine, AP, AR + report filterji
+- **FURS per-location** — vsaka lokacija ima svoj certifikat + premisesId
+
+### Type safety layer (PR #68, #69, #61, #64)
+
+- **14 TS enumov** (OrderStatus, PaymentStatus, AccountType, itd.) z 14 type-guards
+- **25 JSON typed parserjev** za JSON-as-String polja (parseOrderItemModifiers, itd.)
+- **ChartOfAccount FK** na JournalLine z `resolveAccountCode()` validacijo
+- **4 nova Employee FK** (cancelledById, createdById, requestedById, approvedById) z `resolveEmployeeRef()` migracijskim helperjem
+
 ## 🔐 Credential Hygiene
 
 - `.env` je v `.gitignore` (lokacije: `.env`, `.env*.local`, `.env.production.local`)

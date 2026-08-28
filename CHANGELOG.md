@@ -1,5 +1,132 @@
 # Changelog — RestaurantOS
 
+## [Security Hardening 2026-08-28] — 11 audit issuejev zaprtih
+
+### Varnostne izboljšave (Critical)
+
+#### WebAuthn/FIDO2 biometric login (Issue #34, PR #55)
+- **@simplewebauthn/server v11** integracija z ES256/RS256/EdDSA podporo
+- **Pravo kriptografsko preverjanje podpisa** (prej samo clientData.challenge)
+- **FIDO2 §6.1 counter** zaščita proti kloniranju authenticator-ja
+- **One-shot challenge store** — atomarno brisanje (replay defense)
+- **Rate limit 5/IP/min** za WebAuthn login + register
+- **4 API rute**: GET/POST `/api/auth/webauthn`, GET/POST `/api/auth/webauthn/register`, GET `/api/auth/webauthn/credentials`, DELETE `/api/auth/webauthn/credentials/[id]`
+- **2 frontend komponenti**: `BiometricLogin` (gumb na PIN login), `BiometricManager` (admin upravljanje)
+- **31 novih testov**
+
+#### CSP nonce-based (Issue #34, PR #56)
+- **`unsafe-inline` odstranjen** iz `script-src` (produkcija)
+- **Per-request nonce** (18 bajtov / 144-bit entropy) generiran v Edge middleware
+- **Next.js avtomatsko injektira** nonce v vse `<script>` tag-e
+- `unsafe-eval` ostaja samo v dev (za HMR)
+- 18 novih testov
+
+### Multi-tenant arhitektura
+
+#### Accounting multi-tenant (Issue #31, PR #58)
+- `JournalLine.locationId` denormalizirano za hitre poizvedbe
+- `AccountsPayable.locationId` + Location relation + index
+- `AccountsReceivable.locationId` + Location relation + index
+- 4 API report rute (Trial Balance, P&L, Balance Sheet, GL) sprejemajo `?locationId=` filter
+- 9 novih testov
+
+#### SaaS tenant root (Issue #32, PR #60)
+- `Location.subscriptionId` + `Subscription.locations[]` relacija
+- `getSubscriptionContext()` helper z auto-detection
+- `canAccessLocation()` za lastništvo preverjanje
+- 12 novih testov
+
+#### FURS config resolver (Issue #37, PR #62)
+- `getFursConfig(locationId?)` z 4-stopenjskim fallback:
+  1. Location z locationId (multi-tenant)
+  2. Prva aktivna Location (auto-detect)
+  3. RestaurantSettings (deprecated)
+  4. env spremenljivke
+- Nov admin endpoint `GET /api/furs/config-source`
+- @deprecated na RestaurantSettings FURS poljih
+- 13 novih testov
+
+### Type safety izboljšave
+
+#### Centralized TS enums (Issue #41, PR #68)
+- **14 TS const objects**: OrderStatus, OrderType, PaymentStatus, ShiftStatus, AccountType, SubscriptionPlan, FursEnvironment, itd.
+- **14 type-guards** (isOrderStatus, isPaymentStatus, itd.) — catch typo-je pri API input
+- `ORDER_STATUS_LABELS` (slovenski UI prevodi)
+- `getEnumStats()` migracijski dashboard
+- 39 novih testov
+
+#### JSON-as-String typed helpers (Issue #33, PR #69)
+- **25 inventariziranih JSON polj** v `JSON_FIELDS` array
+- **11 typed parserjev**: parseOrderItemModifiers, parsePermissions, parseAllergens, parseDeliveryDays, parseVatBreakdown, itd.
+- **2 type-guards**: isOrderItemModifier, isPermission
+- `safeJsonParse(json, fallback)` — never throws
+- `getJsonFieldStats()` migracijski dashboard
+- 48 novih testov
+
+#### ChartOfAccount FK (Issue #38, PR #61)
+- `JournalLine.chartOfAccountCode` optional FK na `ChartOfAccount.code`
+- `resolveAccountCode()` helper z validacijo + backward compat
+- `validateAccountCodes()` bulk validacija
+- 12 novih testov
+
+#### Soft ref → FK (Issue #43, PR #64)
+- 4 nova FK polja: Order.cancelledById, StaffShift.createdById, PurchaseOrder.requestedById + approvedById
+- `resolveEmployeeRef(softRef)` — prepozna employeeId/email/PIN/ime
+- `syncEmployeeRef()` — sinhronizira soft ref + FK
+- `getEmployeeRefStats()` migracijski dashboard
+- 13 novih testov
+
+### Performance + Scalability
+
+#### CacheAdapter pattern (Issue #39, PR #57)
+- **MemoryCacheAdapter** (default, single-instance)
+- **RedisCacheAdapter** (multi-replica, ioredis lazy-loaded)
+- Factory `getCacheAdapter()` izbere glede na `REDIS_URL`
+- WebAuthn challenge store + rate limit uporabljata adapter
+- `checkRateLimitAsync()` + sync `checkRateLimit()` wrapper (52 call sites ohranjena)
+- 20 novih testov
+
+### Audit + Compliance
+
+#### GuestVisit hash chain (Issue #35, PR #59)
+- 14 unit testov za existing `createGuestVisitWithChain`
+- Nov admin endpoint `GET /api/audit/guest-visit-integrity`
+- Audit log `GUEST_VISIT_INTEGRITY_CHECK`
+
+#### Shift/StaffShift unified (Issue #36, PR #63)
+- `getUnifiedShifts(filter)` — paralelna query oba modela
+- `getShiftSourceStats()` — migracijski dashboard (0-100%)
+- @deprecated komentar na Shift model
+- 15 novih testov
+
+### Developer experience
+
+#### DB config validator (Issue #40, PR #66)
+- `validateDatabaseConfig()` z `detectProvider` + `maskDatabaseUrl`
+- Nov admin endpoint `GET /api/system/db-health`
+- `.env.example` popravljen (SQLite path odstranjen)
+- 18 novih testov
+
+#### i18n consolidation (Issue #44, PR #65)
+- `tTranslate(key, locale)` centralni proxy z 3-stopenjskim fallback
+- `getI18nStats()` migracijski dashboard z recommendations
+- 21 novih testov
+
+#### IndexedDB store count (Issue #42, PR #67)
+- `INDEXEDDB_STORES = ['pendingOrders', 'pendingReceipts']` as const
+- `INDEXEDDB_STORE_COUNT = 2` (code-locked)
+- 4 novi testi
+
+### Skupna statistika
+- **+287 novih testov** (537 → 824, +53%)
+- **0 TypeScript napak**
+- **11/11 audit issuejev zaprtih** (Issues #31-#44)
+- **3 nove dependencies**: @simplewebauthn/server, @simplewebauthn/browser, ioredis
+- **8 novih API rute**
+- **18 novih datotek**
+
+---
+
 ## [Unreleased] — 2026-08-28
 
 ### FURS compliance + POS 2026 raziskava + finalni popravki
