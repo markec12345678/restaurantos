@@ -1,31 +1,38 @@
 #!/bin/bash
-echo "START $(date)" > /tmp/start-status.txt
+exec > /tmp/start-status.txt 2>&1
+echo "=== Codespace Status Report ==="
+echo "Date: $(date)"
+echo "Node: $(node -v)"
+echo "Dir: $(pwd)"
+
 cd /workspaces/restaurantos
 
 # Start dev server
-echo "Starting dev server..." >> /tmp/start-status.txt
+echo ""
+echo "=== Starting npm run dev ==="
 nohup npm run dev > /tmp/dev.log 2>&1 &
-DEV_PID=$!
-echo "Dev PID: $DEV_PID" >> /tmp/start-status.txt
+echo "PID: $!"
 
 # Wait for compile
-sleep 40
-echo "Wait done" >> /tmp/start-status.txt
+echo "Waiting 45s..."
+sleep 45
 
-# Check if server is up
+# Check
+echo ""
+echo "=== Server check ==="
 HTTP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/ 2>&1)
-echo "HTTP: $HTTP" >> /tmp/start-status.txt
+echo "HTTP: $HTTP"
 
-# Copy status to repo so we can read it via API
-cp /tmp/start-status.txt /workspaces/restaurantos/.devcontainer/start-status.txt
-cp /tmp/dev.log /workspaces/restaurantos/.devcontainer/dev.log
+echo ""
+echo "=== Dev log (last 10 lines) ==="
+tail -10 /tmp/dev.log
 
-# Auto-commit (uses codespace's GITHUB_TOKEN)
-cd /workspaces/restaurantos
-git config user.email "codespace@restaurantos.local"
-git config user.name "Codespace Bot"
-git add .devcontainer/start-status.txt .devcontainer/dev.log
-git commit -m "chore: codespace status update" 2>/dev/null || true
-git push origin HEAD 2>/dev/null || true
+# Post status as PR comment using gh CLI (pre-authenticated in codespace)
+echo ""
+echo "=== Posting to PR #68 ==="
+gh pr comment 68 --body "$(cat /tmp/start-status.txt)" 2>&1 || echo "PR comment failed"
 
-echo "DONE" >> /tmp/start-status.txt
+# Also make port public
+echo ""
+echo "=== Making port public ==="
+gh codespace ports visibility 3000:public -c "$CODESPACE_NAME" 2>&1 || echo "Port visibility failed"
