@@ -15,10 +15,13 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
+    // ISSUE #31: opcijsko filtriranje po lokaciji za multi-tenant accounting
+    const locationId = searchParams.get('locationId')
 
     const result = await generateTrialBalance(
       dateFrom ? new Date(dateFrom) : undefined,
-      dateTo ? new Date(dateTo + 'T23:59:59') : undefined
+      dateTo ? new Date(dateTo + 'T23:59:59') : undefined,
+      locationId || undefined,
     )
 
     return NextResponse.json(result)

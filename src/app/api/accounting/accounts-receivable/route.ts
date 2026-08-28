@@ -21,6 +21,8 @@ const createArSchema = z.object({
   vatAmount: z.number().min(0).default(0),
   totalAmount: z.number().min(0),
   notes: z.string().max(1000).default(''),
+  // ISSUE #31: multi-tenant AR — opcijsko poveži z lokacijo
+  locationId: z.string().nullable().optional(),
 })
 
 export const dynamic = 'force-dynamic'
@@ -32,8 +34,11 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
+    // ISSUE #31: opcijsko filtriranje po lokaciji za multi-tenant accounting
+    const locationId = searchParams.get('locationId')
     const where: Record<string, unknown> = {}
     if (status) where.status = status
+    if (locationId) where.locationId = locationId
 
     const rawLimit = parseInt(searchParams.get('limit') || '100')
     const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
@@ -43,6 +48,8 @@ export async function GET(req: Request) {
         where,
         orderBy: { dueDate: 'asc' },
         take: limit,
+        // ISSUE #31: vključi lokacijo v odgovor
+        include: { location: { select: { id: true, name: true, code: true } } },
       }),
       db.accountsReceivable.count({ where }),
     ])
@@ -106,7 +113,10 @@ export async function POST(req: Request) {
         totalAmount: data.totalAmount,
         notes: data.notes,
         status: 'open',
+        // ISSUE #31: shrani locationId če je podan
+        locationId: data.locationId || null,
       },
+      include: { location: { select: { id: true, name: true, code: true } } },
     })
 
     return NextResponse.json(deepToNumbers(ar), { status: 201 })

@@ -1222,6 +1222,10 @@ model Location {
   taxRates         TaxRate[]
   guestFeedbacks   GuestFeedback[]
   journalEntries   JournalEntry[]   // FIX issue #31: multi-location accounting
+  // NOTE: JournalLine.locationId je denormalizirano polje BREZ relacije (samo za hitre poizvedbe)
+  // Source of truth je JournalEntry.locationId; JournalLine samo kopira za performanco
+  accountsPayables AccountsPayable[] // ISSUE #31: multi-tenant AP
+  accountsReceivables AccountsReceivable[] // ISSUE #31: multi-tenant AR
   virtualBrands    VirtualBrand[]   // Ghost kitchen hub
   devices          DeviceRegistry[] // FIX: Offline-first POS device tracking
   videoAnalytics   VideoAnalyticsSession[] // FIX: Video analytics per location
@@ -2401,6 +2405,9 @@ model JournalLine {
   credit         Decimal       @default(0)  // FIX: Decimal za valuto
   // --- Opis ---
   description    String        @default("")
+  // --- Multi-location (issue #31): denormalizirano iz JournalEntry za hitre poizvedbe ---
+  // Source of truth je JournalEntry.locationId; tu je samo za optimizacijo (brez JOIN-a)
+  locationId     String?                    // ISSUE #31: denormalizirano za multi-tenant poizvedbe
   // --- Meta ---
   createdAt      DateTime      @default(now())
 
@@ -2408,6 +2415,7 @@ model JournalLine {
   @@index([accountCode])
   @@index([accountType])
   @@index([accountCode, accountType])
+  @@index([locationId])  // ISSUE #31: filter po lokaciji na JournalLine nivoju
 }
 
 // ============================================
@@ -2433,6 +2441,9 @@ model AccountsPayable {
   // --- Status ---
   status          String     @default("open")   // open, partial, paid, overdue, cancelled
   paidAt          DateTime?
+  // --- Multi-location (issue #31): AP pripada specifični lokaciji ---
+  locationId      String?
+  location        Location?  @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Meta ---
   notes           String     @default("")
   createdAt       DateTime   @default(now())
@@ -2442,6 +2453,7 @@ model AccountsPayable {
   @@index([status])
   @@index([dueDate])
   @@index([status, dueDate])  // Aging report: open/overdue po datumu
+  @@index([locationId])  // ISSUE #31: multi-tenant AP poizvedbe
 }
 
 // ============================================
@@ -2470,6 +2482,9 @@ model AccountsReceivable {
   // --- Status ---
   status          String     @default("open")   // open, partial, paid, overdue, cancelled
   paidAt          DateTime?
+  // --- Multi-location (issue #31): AR pripada specifični lokaciji ---
+  locationId      String?
+  location        Location?  @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Meta ---
   notes           String     @default("")
   createdAt       DateTime   @default(now())
@@ -2479,6 +2494,7 @@ model AccountsReceivable {
   @@index([dueDate])
   @@index([status, dueDate])
   @@index([customerTaxId])
+  @@index([locationId])  // ISSUE #31: multi-tenant AR poizvedbe
 }
 
 // ============================================

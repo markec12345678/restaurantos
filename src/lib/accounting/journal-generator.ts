@@ -82,6 +82,8 @@ export async function generateJournalForPayment(
               debit: total,
               credit: 0,
               description: `Prejem ${payment.type} — plačilo #${order.orderNumber}`,
+              // ISSUE #31: denormalizirano na JournalLine za hitre poizvedbe
+              locationId: order.locationId || null,
             },
             // Kredit: promet (brez napitnine)
             {
@@ -91,6 +93,7 @@ export async function generateJournalForPayment(
               debit: 0,
               credit: netSales,
               description: `Promet ${order.type} — naročilo #${order.orderNumber}`,
+              locationId: order.locationId || null,
             },
             // Kredit: napitnine (če > 0)
             ...(tip > 0 ? [{
@@ -100,6 +103,7 @@ export async function generateJournalForPayment(
               debit: 0,
               credit: tip,
               description: `Napitnina — naročilo #${order.orderNumber}`,
+              locationId: order.locationId || null,
             }] : []),
           ],
         },
@@ -115,7 +119,7 @@ export async function generateJournalForPayment(
 }
 
 /** Trial Balance — seštevek debet/kredit po kontih za obdobje */
-export async function generateTrialBalance(dateFrom?: Date, dateTo?: Date) {
+export async function generateTrialBalance(dateFrom?: Date, dateTo?: Date, locationId?: string) {
   const where: Record<string, unknown> = { status: 'posted' }
   if (dateFrom || dateTo) {
     const dateFilter: Record<string, Date> = {}
@@ -123,6 +127,8 @@ export async function generateTrialBalance(dateFrom?: Date, dateTo?: Date) {
     if (dateTo) dateFilter.lte = dateTo
     where.date = dateFilter
   }
+  // ISSUE #31: opcijsko filtriranje po lokaciji (multi-tenant accounting)
+  if (locationId) where.locationId = locationId
 
   const lines = await db.journalLine.findMany({
     where: { journalEntry: where },
@@ -160,7 +166,7 @@ export async function generateTrialBalance(dateFrom?: Date, dateTo?: Date) {
 // Prihodki - Stroški = Čisti dobiček
 // ============================================
 
-export async function generateProfitLoss(dateFrom?: Date, dateTo?: Date) {
+export async function generateProfitLoss(dateFrom?: Date, dateTo?: Date, locationId?: string) {
   const where: Record<string, unknown> = { status: 'posted' }
   if (dateFrom || dateTo) {
     const dateFilter: Record<string, Date> = {}
@@ -168,6 +174,8 @@ export async function generateProfitLoss(dateFrom?: Date, dateTo?: Date) {
     if (dateTo) dateFilter.lte = dateTo
     where.date = dateFilter
   }
+  // ISSUE #31: opcijsko filtriranje po lokaciji (multi-tenant accounting)
+  if (locationId) where.locationId = locationId
 
   const lines = await db.journalLine.findMany({
     where: { journalEntry: where },
@@ -222,11 +230,13 @@ export async function generateProfitLoss(dateFrom?: Date, dateTo?: Date) {
 // Aktiva = Obveze + Kapital
 // ============================================
 
-export async function generateBalanceSheet(dateTo?: Date) {
+export async function generateBalanceSheet(dateTo?: Date, locationId?: string) {
   const where: Record<string, unknown> = { status: 'posted' }
   if (dateTo) {
     where.date = { lte: dateTo }
   }
+  // ISSUE #31: opcijsko filtriranje po lokaciji (multi-tenant accounting)
+  if (locationId) where.locationId = locationId
 
   const lines = await db.journalLine.findMany({
     where: { journalEntry: where },
@@ -285,7 +295,7 @@ export async function generateBalanceSheet(dateTo?: Date) {
 // Vse transakcije po kontih z datumom in opisom
 // ============================================
 
-export async function generateGeneralLedger(dateFrom?: Date, dateTo?: Date) {
+export async function generateGeneralLedger(dateFrom?: Date, dateTo?: Date, locationId?: string) {
   const where: Record<string, unknown> = { status: 'posted' }
   if (dateFrom || dateTo) {
     const dateFilter: Record<string, Date> = {}
@@ -293,6 +303,8 @@ export async function generateGeneralLedger(dateFrom?: Date, dateTo?: Date) {
     if (dateTo) dateFilter.lte = dateTo
     where.date = dateFilter
   }
+  // ISSUE #31: opcijsko filtriranje po lokaciji (multi-tenant accounting)
+  if (locationId) where.locationId = locationId
 
   const entries = await db.journalEntry.findMany({
     where,

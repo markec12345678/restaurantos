@@ -18,6 +18,8 @@ const createApSchema = z.object({
   vatAmount: z.number().min(0).default(0),
   totalAmount: z.number().min(0),
   notes: z.string().max(1000).default(''),
+  // ISSUE #31: multi-tenant AP — opcijsko poveži z lokacijo
+  locationId: z.string().nullable().optional(),
 })
 
 export const dynamic = 'force-dynamic'
@@ -30,10 +32,13 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const supplierId = searchParams.get('supplierId')
     const status = searchParams.get('status')
+    // ISSUE #31: opcijsko filtriranje po lokaciji za multi-tenant accounting
+    const locationId = searchParams.get('locationId')
 
     const where: Record<string, unknown> = {}
     if (supplierId) where.supplierId = supplierId
     if (status) where.status = status
+    if (locationId) where.locationId = locationId
 
     const rawLimit = parseInt(searchParams.get('limit') || '100')
     const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
@@ -43,7 +48,11 @@ export async function GET(req: Request) {
         where,
         orderBy: { dueDate: 'asc' },
         take: limit,
-        include: { supplier: { select: { id: true, name: true, code: true } } },
+        include: {
+          supplier: { select: { id: true, name: true, code: true } },
+          // ISSUE #31: vključi lokacijo v odgovor
+          location: { select: { id: true, name: true, code: true } },
+        },
       }),
       db.accountsPayable.count({ where }),
     ])
@@ -107,8 +116,13 @@ export async function POST(req: Request) {
         totalAmount: data.totalAmount,
         notes: data.notes,
         status: 'open',
+        // ISSUE #31: shrani locationId če je podan
+        locationId: data.locationId || null,
       },
-      include: { supplier: { select: { name: true } } },
+      include: {
+        supplier: { select: { name: true } },
+        location: { select: { id: true, name: true, code: true } },
+      },
     })
 
     return NextResponse.json(deepToNumbers(ap), { status: 201 })
