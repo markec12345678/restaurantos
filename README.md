@@ -12,7 +12,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](./LICENSE)
 [![Languages](https://img.shields.io/badge/i18n-5_languages-blue?style=flat-square)](./messages/)
 [![FURS](https://img.shields.io/badge/FURS-Certified-red?style=flat-square)](./src/app/api/furs/)
-[![Tests](https://img.shields.io/badge/Unit_Tests-191_pass-brightgreen?style=flat-square)](./vitest.config.ts)
+[![Tests](https://img.shields.io/badge/Unit_Tests-824_pass-brightgreen?style=flat-square)](./vitest.config.ts)
 [![E2E Tests](https://img.shields.io/badge/E2E_Tests-23_pass-brightgreen?style=flat-square)](./tests/e2e/)
 [![TypeCheck](https://img.shields.io/badge/TypeCheck-0_errors-brightgreen?style=flat-square)](./tsconfig.json)
 [![Security Audit](https://img.shields.io/badge/Security_Audit-Complete-success?style=flat-square)](./AUDIT-REPORT.md)
@@ -491,6 +491,7 @@ restaurantos/
 | Faza 5 | 1 | Multi-level recipes, auto-AP, Z-report email, DDV by location, HACCP crypto |
 | Faza 6 | 1 | UBL/PEPPOL, AI Voice, IoT, Deliverect, WebAuthn, Kiosk, 7shifts |
 | QR | 1 | QR naročanje na mizi (generator, auto-occupied, KDS badge) |
+| **Security Hardening** | **15** | **11 audit issuejev zaprtih: WebAuthn/FIDO2, CSP nonce, multi-tenant SaaS, CacheAdapter (Redis), 14 TS enums, 25 JSON typed parsers, ChartOfAccount FK, Employee FK, hash chain audit, FURS per-location, DB health validator** |
 | Docs | 3 | Spec compliance, advanced features, deployment guide |
 
 ---
@@ -512,6 +513,45 @@ restaurantos/
 - **Secrets masking** — vsi gesli/ključi maskirani v API odgovorih
 - **SSRF zaščita** — outbound webhooks zavračajo interne naslove
 - **FURS ZOI fail-fast** — produkcija vrže napako če certifikat manjka
+
+---
+
+## 🏗️ Arhitekturne izboljšave (Security Hardening 2026-08-28)
+
+### Multi-tenant SaaS arhitektura
+- **Subscription → Location hierarhija** — `Location.subscriptionId` FK (PR #60)
+- **`getSubscriptionContext()`** helper za tenant-aware poizvedbe
+- **`canAccessLocation()`** preveri lastništvo lokacije
+- **Accounting multi-tenant** — `locationId` na JournalLine, AP, AR + 4 report filterji (PR #58)
+- **FURS per-location** — vsaka lokacija ima svoj certifikat + premisesId (PR #62)
+
+### Multi-replica production ready (CacheAdapter pattern)
+- **MemoryCacheAdapter** (default, dev/single-instance)
+- **RedisCacheAdapter** (multi-replica, ioredis lazy-loaded) — PR #57
+- **Factory** `getCacheAdapter()` izbere glede na `REDIS_URL`
+- WebAuthn challenge store + rate limit uporabljata adapter
+- Atomic INCR na Redis za multi-replica rate limiting
+
+### Type safety layer
+- **14 TS enumov** z 14 type-guards (OrderStatus, PaymentStatus, AccountType, itd.) — PR #68
+- **25 JSON typed parserjev** za JSON-as-String polja (parseOrderItemModifiers, parsePermissions, itd.) — PR #69
+- **ChartOfAccount FK** na JournalLine z `resolveAccountCode()` validacijo (PR #61)
+- **4 nova Employee FK** (cancelledById, createdById, requestedById, approvedById) z `resolveEmployeeRef()` migracijskim helperjem (PR #64)
+
+### Audit & Diagnostic API endpoints (admin-only)
+
+| Endpoint | Opis |
+|---|---|
+| `GET /api/system/db-health` | Preveri veljavnost DATABASE_URL konfiguracije |
+| `GET /api/furs/config-source?locationId=xxx` | Diagnostika odkod FURS certifikat prihaja |
+| `GET /api/audit/guest-visit-integrity` | Preveri integriteto GuestVisit hash verige |
+| `GET /api/auth/webauthn/credentials` | Seznam registriranih biometričnih poverilnic |
+
+### Performance
+- **next/image** za slikovno optimizacijo (AVIF/WebP, ~70% manj prenesenih slik)
+- **Prisma `$transaction`** za atomicne operacije (53+ call sites)
+- **In-memory rate limit cache** z automatskim cleanup (60s interval)
+- **One-shot WebAuthn challenge** — atomarno brisanje preprečuje replay attack
 
 > 📋 Glej [AUDIT-REPORT.md](./AUDIT-REPORT.md) za celovito poročilo o varnostnem auditu (40 findingov, 40 popravkov).
 
