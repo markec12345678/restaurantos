@@ -179,7 +179,7 @@ Ti finding-i zahtevajo spremembo Prisma sheme ali arhitekturno odločitev:
 
 ### MEDIUM
 - **#35** ✅ FIXED (PR #59) — `GuestVisit` hash chain je bil delno implementiran (helper + API ruta sta obstajala), dodani: 14 unit testov + nov admin audit endpoint `GET /api/audit/guest-visit-integrity` (EU 852/2004 skladnost)
-- **#36** `Shift` vs `StaffShift` prekrivanje ~80% — združitev potrebna
+- **#36** ✅ FIXED (PR #63) — `Shift` vs `StaffShift` prekrivanje ~80% — novo `getUnifiedShifts()` helper združi oba v skupen `UnifiedShift` format; `Shift` model @deprecated z migracijskim planom; `getShiftSourceStats()` za migracijski dashboard
 - **#37** ✅ FIXED (PR #62) — `RestaurantSettings` FURS polja duplikat `Location` FURS polj — novo centralni `getFursConfig(locationId?)` resolver z 4-stopenjskim fallback (Location → RestaurantSettings → env → error); @deprecated komentarji na RestaurantSettings FURS poljih; nov admin endpoint `GET /api/furs/config-source` za diagnostiko
 - **#38** ✅ FIXED (PR #61) — Ni `ChartOfAccounts` modela — `JournalLine` sedaj ima optional FK `chartOfAccountCode → ChartOfAccount.code` + helper `resolveAccountCode()` za validacijo + backward compat (legacy prosto-besedilne kode še delujejo)
 - **#39** ✅ FIXED (PR #57) — In-memory rate limit + WebAuthn challenge stores ne skalirajo čez replike — implementiran CacheAdapter pattern (MemoryCacheAdapter default, RedisCacheAdapter za multi-replica)

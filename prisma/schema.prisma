@@ -760,6 +760,11 @@ model EmployeeJob {
   @@index([jobId])  // FIX: FK index — "kateri zaposleni imajo to delovno mesto?"
 }
 
+// ⚠️ ISSUE #36 @deprecated: Uporabljaj StaffShift model namesto Shift.
+// StaffShift je bolj bogat (shiftType, role, actualStart/End, confirmedAt, createdBy)
+// in je primarni model za razporejanje osebja. Shift se ohranja za backward
+// compat — getUnifiedShifts() helper združi oba v skupen format.
+// Načrtovano odstranjevanje: v1.0.0 release (po migration period).
 model Shift {
   id         String   @id @default(cuid())
   employeeId String
