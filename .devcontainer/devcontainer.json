@@ -1,0 +1,19 @@
+{
+  "name": "RestaurantOS",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:24",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "RestaurantOS",
+      "onAutoForward": "openBrowser",
+      "visibility": "public"
+    }
+  },
+  "postCreateCommand": "npm install --no-audit --no-fund && cp .env.example .env && npx prisma generate && node scripts/init-pglite.mjs",
+  "waitFor": "postCreateCommand",
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-vscode.vscode-typescript-next"]
+    }
+  }
+}
