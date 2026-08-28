@@ -22,7 +22,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:coverage": "vitest run --coverage",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify": "npx tsx scripts/verify-features.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -125,6 +126,7 @@
     "pm2": "^7.0.1",
     "prisma": "^5.22.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.12",
     "tw-animate-css": "^1.3.5",
     "typescript": "^5",
     "vitest": "^4.1.10"

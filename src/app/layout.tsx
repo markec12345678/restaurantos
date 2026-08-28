@@ -1,12 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { useEffect } from "react";
 import "./globals.css";
 import { Toaster } from "sonner";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { RegisterSW } from "@/components/register-sw";
 import { ErrorHandler } from "@/components/error-handler";
+import { DynamicHtmlLang } from "@/components/DynamicHtmlLang";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -75,7 +75,7 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <QueryProvider>
             {/* A11Y FIX (WCAG 3.1.1): <html lang> se posodobi dinamično
-                ob spremembi jezika — DaDynamicHtmlLang komponenta */}
+                ob spremembi jezika — DynamicHtmlLang komponenta */}
             <DynamicHtmlLang />
             {children}
             <ErrorHandler />
@@ -86,30 +86,4 @@ export default function RootLayout({
       </body>
     </html>
   );
-}
-
-/**
- * A11Y FIX (WCAG 3.1.1): dinamično posodobi <html lang> ob spremembi jezika.
- *
- * Prej je bil <html lang="sl"> hardcoded — ko je uporabnik preklopil na EN/IT/HR/DE,
- * so screen readerji še vedno napovedovali v slovenščini. Ta komponenta sinhronizira
- * <html lang> z localStorage('pos_locale').
- *
- * Uporablja MutationObserver kot fallback za eventuele ko se jezik spremeni
- * izven next-themes.
- */
-function DynamicHtmlLang() {
-  'use client'
-  useEffect(() => {
-    const updateLang = () => {
-      const stored = typeof window !== 'undefined' ? localStorage.getItem('pos_locale') : null
-      const lang = stored || 'sl'
-      document.documentElement.lang = lang
-    }
-    updateLang()
-    // Poslušaj spremembe localStorage (npr. iz LanguageSwitcher)
-    window.addEventListener('storage', updateLang)
-    return () => window.removeEventListener('storage', updateLang)
-  }, [])
-  return null
 }
