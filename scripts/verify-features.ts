@@ -22,8 +22,8 @@ import { validateDatabaseConfig } from '@/lib/db-config-validator'
 import { INDEXEDDB_STORES, INDEXEDDB_STORE_COUNT } from '@/lib/offline-furs'
 
 // Setup test environment
-process.env.WEBAUTHN_ENABLED = 'true'
-process.env.NODE_ENV = 'development'
+;(process.env as Record<string, string>).WEBAUTHN_ENABLED = 'true'
+;(process.env as Record<string, string>).NODE_ENV = 'development'
 
 interface TestResult {
   test: string
