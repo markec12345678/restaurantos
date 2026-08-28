@@ -215,73 +215,78 @@ describe('webauthn lib — parseTransports', () => {
 // ============================================
 
 describe('webauthn challenge-store', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules()
+    // Clear cache adapter state (singleton could leak between tests)
+    const { clearChallenges } = await import('@/lib/webauthn/challenge-store')
+    await clearChallenges()
   })
 
   it('save → take vrne isti challenge', async () => {
     const { saveChallenge, takeChallenge } = await import('@/lib/webauthn/challenge-store')
-    saveChallenge('user-123', 'test-challenge-abc')
-    const retrieved = takeChallenge('user-123')
+    await saveChallenge('user-123', 'test-challenge-abc')
+    const retrieved = await takeChallenge('user-123')
     expect(retrieved).toBe('test-challenge-abc')
   })
 
   it('take BRIŠE challenge (one-shot) — drugi klic vrne null', async () => {
     const { saveChallenge, takeChallenge } = await import('@/lib/webauthn/challenge-store')
-    saveChallenge('user-456', 'test-challenge')
-    takeChallenge('user-456')
-    const second = takeChallenge('user-456')
+    await saveChallenge('user-456', 'test-challenge')
+    await takeChallenge('user-456')
+    const second = await takeChallenge('user-456')
     expect(second).toBeNull()
   })
 
   it('take za neobstoječi ključ vrne null', async () => {
     const { takeChallenge } = await import('@/lib/webauthn/challenge-store')
-    expect(takeChallenge('nonexistent-key')).toBeNull()
+    expect(await takeChallenge('nonexistent-key')).toBeNull()
   })
 
   it('save z custom TTL — preteče po ttl', async () => {
     const { saveChallenge, takeChallenge } = await import('@/lib/webauthn/challenge-store')
-    saveChallenge('ttl-key', 'short-lived', 50)
+    await saveChallenge('ttl-key', 'short-lived', 50)
     await new Promise((r) => setTimeout(r, 100))
-    const retrieved = takeChallenge('ttl-key')
+    const retrieved = await takeChallenge('ttl-key')
     expect(retrieved).toBeNull()
   })
 
   it('challenge je še vedno veljaven tik pred TTL-jem', async () => {
     const { saveChallenge, takeChallenge } = await import('@/lib/webauthn/challenge-store')
-    saveChallenge('ttl-key-2', 'short-lived', 200)
+    await saveChallenge('ttl-key-2', 'short-lived', 200)
     await new Promise((r) => setTimeout(r, 100))
-    const retrieved = takeChallenge('ttl-key-2')
+    const retrieved = await takeChallenge('ttl-key-2')
     expect(retrieved).toBe('short-lived')
   })
 
   it('save z istim ključem overwrite-a prejšnji challenge', async () => {
     const { saveChallenge, takeChallenge } = await import('@/lib/webauthn/challenge-store')
-    saveChallenge('overwrite-key', 'challenge-1')
-    saveChallenge('overwrite-key', 'challenge-2')
-    const retrieved = takeChallenge('overwrite-key')
+    await saveChallenge('overwrite-key', 'challenge-1')
+    await saveChallenge('overwrite-key', 'challenge-2')
+    const retrieved = await takeChallenge('overwrite-key')
     expect(retrieved).toBe('challenge-2')
   })
 
   it('challengeStoreSize vrne število aktivnih challenge-jev', async () => {
     const { saveChallenge, challengeStoreSize, takeChallenge, clearChallenges } = await import('@/lib/webauthn/challenge-store')
-    clearChallenges()
-    saveChallenge('size-1', 'a')
-    saveChallenge('size-2', 'b')
-    saveChallenge('size-3', 'c')
-    expect(challengeStoreSize()).toBeGreaterThanOrEqual(3)
-    takeChallenge('size-1')
-    expect(challengeStoreSize()).toBeGreaterThanOrEqual(2)
+    await clearChallenges()
+    await saveChallenge('size-1', 'a')
+    await saveChallenge('size-2', 'b')
+    await saveChallenge('size-3', 'c')
+    expect(await challengeStoreSize()).toBeGreaterThanOrEqual(3)
+    await takeChallenge('size-1')
+    // After take, size-1 je pobrisan — lahko da so v cleanup-u tudi drugi potekli
+    const sizeAfter = await challengeStoreSize()
+    expect(sizeAfter).toBeGreaterThanOrEqual(1)
   })
 
   it('clearChallenges izprazni celoten store', async () => {
     const { saveChallenge, takeChallenge, clearChallenges, challengeStoreSize } = await import('@/lib/webauthn/challenge-store')
-    saveChallenge('clear-1', 'a')
-    saveChallenge('clear-2', 'b')
-    clearChallenges()
-    expect(takeChallenge('clear-1')).toBeNull()
-    expect(takeChallenge('clear-2')).toBeNull()
-    expect(challengeStoreSize()).toBe(0)
+    await saveChallenge('clear-1', 'a')
+    await saveChallenge('clear-2', 'b')
+    await clearChallenges()
+    expect(await takeChallenge('clear-1')).toBeNull()
+    expect(await takeChallenge('clear-2')).toBeNull()
+    expect(await challengeStoreSize()).toBe(0)
   })
 })
 

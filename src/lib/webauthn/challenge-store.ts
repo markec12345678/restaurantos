@@ -1,49 +1,26 @@
 // ============================================
 // WEBAUTHN CHALLENGE STORE
 //
-// In-memory store za WebAuthn challenge-je z automatskim TTL.
-// Vsak challenge je vezan na employeeId (registration) ali sessionKey (login).
+// Per-request nonce za WebAuthn login/register.
 //
-// ⚠️ Issue #39: V multi-replica deploymentu (Vercel/Render) to NE deluje
-// pravilno — challenge se ustvari na repliki A, request pride na repliko B.
-// Za produkcijo potrebujemo Redis adapter (naslednja faza).
+// ✅ Issue #39 FIXED: zdaj uporablja CacheAdapter (Memory ali Redis)
+//   - Single-instance deploy (default): MemoryCacheAdapter
+//   - Multi-replica deploy (Vercel/Render/ECS): nastavi REDIS_URL
 // ============================================
 
-interface ChallengeEntry {
-  challenge: string
-  expiresAt: number
-}
+import { getCacheAdapter } from '@/lib/cache'
 
-const store = new Map<string, ChallengeEntry>()
-
-const CLEANUP_INTERVAL_MS = 60_000
-const DEFAULT_TTL_MS = 5 * 60 * 1000 // 5 minut — FIDO2 spec priporoča 5 minutni timeout
-
-let cleanupTimer: NodeJS.Timeout | null = null
-
-function ensureCleanup() {
-  if (cleanupTimer) return
-  if (typeof setInterval === 'undefined') return
-  cleanupTimer = setInterval(() => {
-    const now = Date.now()
-    for (const [key, entry] of store) {
-      if (entry.expiresAt < now) store.delete(key)
-    }
-  }, CLEANUP_INTERVAL_MS)
-  if (cleanupTimer && typeof cleanupTimer.unref === 'function') {
-    cleanupTimer.unref()
-  }
-}
+const DEFAULT_TTL_MS = 5 * 60 * 1000 // 5 minut — FIDO2 spec priporoča
 
 /**
  * Shrani challenge za določen ključ.
  */
-export function saveChallenge(key: string, challenge: string, ttlMs: number = DEFAULT_TTL_MS): void {
-  ensureCleanup()
-  store.set(key, {
-    challenge,
-    expiresAt: Date.now() + ttlMs,
-  })
+export async function saveChallenge(
+  key: string,
+  challenge: string,
+  ttlMs: number = DEFAULT_TTL_MS,
+): Promise<void> {
+  await getCacheAdapter().set(key, challenge, ttlMs)
 }
 
 /**
@@ -52,28 +29,23 @@ export function saveChallenge(key: string, challenge: string, ttlMs: number = DE
  * Atomarnost: challenge je porabljen takoj ko je prebrana — tudi če
  * verifyAssertion() spodleti, challenge je NEUPORABLJIV (preprečuje replay).
  */
-export function takeChallenge(key: string): string | null {
-  const entry = store.get(key)
-  if (!entry) return null
-
-  store.delete(key)
-
-  if (entry.expiresAt < Date.now()) {
-    return null
-  }
-  return entry.challenge
+export async function takeChallenge(key: string): Promise<string | null> {
+  const value = await getCacheAdapter().take(key)
+  // CacheValue je string | number — WebAuthn challenge je vedno string
+  if (value === null) return null
+  return String(value)
 }
 
 /**
  * Število aktivnih challenge-jev (za debug).
  */
-export function challengeStoreSize(): number {
-  return store.size
+export async function challengeStoreSize(): Promise<number> {
+  return await getCacheAdapter().size()
 }
 
 /**
  * Počisti vse challenge-je (samo za teste).
  */
-export function clearChallenges(): void {
-  store.clear()
+export async function clearChallenges(): Promise<void> {
+  await getCacheAdapter().clear()
 }

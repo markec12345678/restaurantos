@@ -80,7 +80,7 @@ export async function GET(req: Request) {
     const options = await buildRegistrationOptions(employeeId, employee.name, existingCreds)
     const config = getWebAuthnConfig()
 
-    saveChallenge(`register:${employeeId}`, options.challenge)
+    await saveChallenge(`register:${employeeId}`, options.challenge)
 
     const res = NextResponse.json({
       options,
@@ -144,7 +144,7 @@ export async function POST(req: Request) {
     )
   }
 
-  const expectedChallenge = takeChallenge(`register:${employeeId}`)
+  const expectedChallenge = await takeChallenge(`register:${employeeId}`)
   if (!expectedChallenge) {
     return NextResponse.json(
       {

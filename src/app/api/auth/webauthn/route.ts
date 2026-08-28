@@ -52,7 +52,7 @@ export async function GET(req: Request) {
     const config = getWebAuthnConfig()
 
     const sessionKey = crypto.randomUUID()
-    saveChallenge(sessionKey, options.challenge)
+    await saveChallenge(sessionKey, options.challenge)
 
     const res = NextResponse.json({
       options,
@@ -105,7 +105,7 @@ export async function POST(req: Request) {
     )
   }
 
-  const expectedChallenge = takeChallenge(sessionKey)
+  const expectedChallenge = await takeChallenge(sessionKey)
   if (!expectedChallenge) {
     return NextResponse.json(
       {

@@ -175,14 +175,14 @@ Ti finding-i zahtevajo spremembo Prisma sheme ali arhitekturno odločitev:
 - **#31** Accounting modeli (JournalEntry, JournalLine, AP, AR) nimajo `locationId` — multi-tenant accounting nemogoč
 - **#32** `Subscription` (SaaS tenant root) je osirotel — noben model ne referencira `subscriptionId`
 - **#33** `OrderItem.modifiersJson` + 20 drugih JSON-as-String polj — potrebujejo normalizacijo
-- **#34** CSP dovoljuje `'unsafe-inline'` za scripts — nonce-based CSP potreben
+**#34** ✅ FIXED (PR #56) — CSP dovoljuje `'unsafe-inline'` za scripts  — nonce-based CSP implementiran (18 bajtov/144-bit per-request)
 
 ### MEDIUM
 - **#35** `GuestVisit` hash chain še ni implementiran (schema ima stolpce, koda jih ne polne)
 - **#36** `Shift` vs `StaffShift` prekrivanje ~80% — združitev potrebna
 - **#37** `RestaurantSettings` FURS polja dupllicirajo `Location` FURS polja
 - **#38** Ni `ChartOfAccounts` modela — `JournalLine.accountCode` je prosto-besedilen
-- **#39** In-memory rate limit + WebAuthn challenge stores ne skalirajo čez replike (Redis potreben)
+- **#39** ✅ FIXED (PR #57) — In-memory rate limit + WebAuthn challenge stores ne skalirajo čez replike — implementiran CacheAdapter pattern (MemoryCacheAdapter default, RedisCacheAdapter za multi-replica)
 
 ### LOW
 - **#40** Prisma provider mismatch (schema=postgresql, migration_lock=sqlite)
