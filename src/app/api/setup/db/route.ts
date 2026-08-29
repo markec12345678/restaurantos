@@ -1,63 +1,29 @@
 import { NextResponse } from 'next/server'
+import { db } from '@/lib/db'
 
 export async function GET() {
   try {
-    // Use Prisma's internal API to push schema
-    // This doesn't need npx or the CLI binary
-    const { execSync } = await import('child_process')
+    // Test DB connection
+    const testResult = await db.$queryRaw`SELECT 1 as test`
     
-    // Try to find prisma in different locations
-    const possiblePaths = [
-      '/var/task/node_modules/.bin/prisma',
-      './node_modules/.bin/prisma',
-      process.cwd() + '/node_modules/.bin/prisma',
-    ]
-    
-    let prismaBin = null
-    const fs = await import('fs')
-    for (const p of possiblePaths) {
-      try {
-        if (fs.existsSync(p)) {
-          prismaBin = p
-          break
-        }
-      } catch {}
-    }
-    
-    if (!prismaBin) {
-      // Alternative: use Prisma's programmatic API
-      // Import the schema engine directly
-      const output = execSync(
-        'node -e "const{PrismaClient}=require(\'@prisma/client\');const c=new PrismaClient();c.\$executeRawUnsafe(\'SELECT 1\').then(r=>{console.log(\'DB connection OK\');process.exit(0)}).catch(e=>{console.error(e.message);process.exit(1)})"',
-        { timeout: 30000, env: process.env, cwd: process.cwd() }
-      ).toString()
-      
-      return NextResponse.json({
-        success: true,
-        method: 'direct connection test',
-        output: output.substring(0, 500),
-        message: 'DB connection works. Need to create tables manually.'
-      })
-    }
-    
-    const output = execSync(`"${prismaBin}" db push --accept-data-loss`, {
-      timeout: 120000,
-      env: process.env,
-      cwd: process.cwd(),
-    }).toString()
+    // Check what tables exist
+    const tables = await db.$queryRaw`
+      SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename
+    ` as Array<{ tablename: string }>
     
     return NextResponse.json({
       success: true,
-      method: 'prisma CLI',
-      output: output.substring(0, 1000),
-      message: 'All tables created in Neon PostgreSQL'
+      connection: 'OK',
+      tableCount: tables.length,
+      tables: tables.map(t => t.tablename).slice(0, 20),
+      message: tables.length > 0 
+        ? `${tables.length} tables exist. Missing tables need manual creation.`
+        : 'No tables exist. Need to run prisma db push.',
     })
   } catch (error: unknown) {
-    const err = error as { stdout?: string; stderr?: string; message: string }
     return NextResponse.json({
       success: false,
-      error: err.message?.substring(0, 300),
-      stdout: err.stdout?.substring(0, 500) || '',
+      error: error instanceof Error ? error.message.substring(0, 300) : 'Unknown error',
     }, { status: 500 })
   }
 }
