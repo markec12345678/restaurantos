@@ -27,15 +27,22 @@ export const OrderItemsSection = memo(function OrderItemsSection({
   orderId,
   onVoidItem,
 }: OrderItemsSectionProps) {
+  // FIX TypeError: t?.filter — orderItems je lahko undefined ali objekt
+  const items = Array.isArray(orderItems) ? orderItems : []
   return (
     <div className="space-y-2">
       <p className="text-sm font-semibold">Artikli</p>
-      {(orderItems || []).map((oi: OrderItemType) => (
+      {items.map((oi: OrderItemType) => {
+        // FIX: oi.menuItem je lahko undefined — uporabi optional chaining in fallback
+        const menuItem = oi?.menuItem as { image?: string; name?: string } | undefined
+        const menuItemName = menuItem?.name || 'Artikel'
+        const menuItemImage = menuItem?.image
+        return (
         <div key={oi.id} className={`flex items-start justify-between text-sm py-1 gap-2 ${oi.voided ? 'opacity-40 line-through' : ''}`}>
           <div className="flex items-start gap-2 flex-1">
-            {oi.menuItem.image ? (
+            {menuItemImage ? (
               <div className="w-9 h-9 rounded-md overflow-hidden flex-shrink-0 relative">
-                <Image src={oi.menuItem.image} alt={oi.menuItem.name} fill sizes="36px" className="object-cover" />
+                <Image src={menuItemImage} alt={menuItemName} fill sizes="36px" className="object-cover" />
               </div>
             ) : (
               <div className="w-9 h-9 rounded-md bg-muted flex-shrink-0 flex items-center justify-center">
@@ -44,7 +51,7 @@ export const OrderItemsSection = memo(function OrderItemsSection({
             )}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-medium">{oi.quantity}x {oi.menuItem.name}</span>
+                <span className="font-medium">{oi.quantity}x {menuItemName}</span>
                 <Badge variant="outline" className={`text-[10px] h-4 capitalize ${oi.voided ? 'bg-red-100 text-red-800' : ''}`}>{oi.voided ? 'VOID' : oi.status}</Badge>
               </div>
               {oi.modifiersJson && (() => {
@@ -79,7 +86,7 @@ export const OrderItemsSection = memo(function OrderItemsSection({
                 onClick={() => {
                   onVoidItem({
                     id: oi.id,
-                    name: oi.menuItem.name,
+                    name: menuItemName,
                     quantity: oi.quantity,
                     price: oi.price,
                     vatRate: oi.vatRate || 22.0,
@@ -94,7 +101,8 @@ export const OrderItemsSection = memo(function OrderItemsSection({
             )}
           </div>
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 })

@@ -27,7 +27,10 @@ export const ActiveModuleView = memo(function ActiveModuleView({ activeModule, A
         transition={{ duration: 0.12 }}
         className="h-full"
       >
-        <ErrorBoundary context={`POS:${activeModule}`} maxRetries={3}>
+        {/* FIX: key na ErrorBoundary da se reinicializira ko se modul spremeni.
+            Prej je ErrorBoundary obdržal error state iz prejšnjega modula
+            (npr. POS:orders error prikazan v POS:menu). */}
+        <ErrorBoundary key={activeModule} context={`POS:${activeModule}`} maxRetries={3}>
           <ActiveComponent />
         </ErrorBoundary>
       </motion.div>

@@ -66,7 +66,7 @@ export const ByItemsTab = memo(function ByItemsTab({
             const assignedGuest = guestAssignments[oi.id] || 0
             return (
               <div key={oi.id} className="flex items-center justify-between py-1.5 px-2.5 rounded-lg bg-muted/50 text-sm">
-                <span className="flex-1 truncate">{oi.quantity}x {oi.menuItem.name}</span>
+                <span className="flex-1 truncate">{oi.quantity}x {oi.menuItem?.name || 'Artikel'}</span>
                 <span className="text-xs text-muted-foreground mr-2">€{safeToFixed(oi.price * oi.quantity, 2)}</span>
                 <div className="flex gap-1">
                   {/* FIX MEDIUM: Dinamični gumbi za goste glede na splitCount */}
@@ -83,7 +83,7 @@ export const ByItemsTab = memo(function ByItemsTab({
                             return next
                           })
                         }}
-                        aria-label={`Dodeli ${oi.menuItem.name} gostu ${guestNum}`}
+                        aria-label={`Dodeli ${oi.menuItem?.name || 'artikel'} gostu ${guestNum}`}
                         aria-pressed={assignedGuest === guestNum}
                         className={cn('w-6 h-6 rounded-full text-[9px] font-bold flex items-center justify-center transition-all touch-manipulation',
                           assignedGuest === guestNum ? cn(guestColors[gi % guestColors.length], 'text-white scale-110') : 'bg-muted text-muted-foreground hover:bg-accent'
