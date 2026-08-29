@@ -1,10 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { usePOSStore } from '@/lib/store'
 import { usePOSShortcuts } from '@/lib/use-pos-shortcuts'
-import { authFetch } from '@/components/pos/PinLogin'
+import { authFetch, getAuthToken } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import type { StockInfoType } from './types'
 import type { OrderType } from './OrderList'
@@ -24,6 +24,30 @@ export function useOrderPanel() {
     editingOrderId, setEditingOrderId, editingOrderNumber, setEditingOrderNumber,
     appliedDiscountId, setAppliedDiscountId, diningOptionId, setDiningOptionId,
   } = usePOSStore()
+
+  // FIX BUG #1: Spremljaj ali je uporabnik prijavljen — omogoča/onemogoča poizvedbe
+  const [authToken, setAuthTokenState] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+
+  useEffect(() => {
+    const updateToken = () => setAuthTokenState(getAuthToken())
+    updateToken()
+    // Poslušaj auth-expired in login dogodke
+    window.addEventListener('pos:auth-expired', updateToken)
+    window.addEventListener('pos:auth-changed', updateToken)
+    return () => {
+      window.removeEventListener('pos:auth-expired', updateToken)
+      window.removeEventListener('pos:auth-changed', updateToken)
+    }
+  }, [])
+
+  // FIX BUG #1: Ko se token spremeni (login/logout), invalidiraj vse cache-e
+  // da preprečimo prikaz null podatkov pred-pomnjenih pred prijavo
+  useEffect(() => {
+    if (authToken) {
+      queryClient.invalidateQueries()
+    }
+  }, [authToken, queryClient])
 
   // Lokalno stanje
   const [customerName, setCustomerName] = useState('')
@@ -60,59 +84,82 @@ export function useOrderPanel() {
     onEscape: () => { /* Escape is handled inside MenuBrowser */ },
   })
 
+  // FIX BUG #1: Vse poizvedbe so onemogočene, dokler ni auth tokena.
+  // To preprečuje, da bi se null/error predpomnilo kot podatke.
+  // Prav tako authFetch VŽI vrže napako na non-OK response (ni treba if(!res.ok))
+  const enabled = !!authToken
+
   // Podatki
   const { data: menus, isLoading: menusLoading } = useQuery({
     queryKey: queryKeys.menus.all,
-    queryFn: async () => { const res = await authFetch('/api/menus'); if (!res.ok) return []; const json = await res.json(); return Array.isArray(json) ? json : [] },
+    enabled,
+    queryFn: async () => {
+      const res = await authFetch('/api/menus')
+      const json = await res.json()
+      return Array.isArray(json) ? json : []
+    },
+    // FIX BUG #1: Naj se podatki samodejno osvežijo, ko postanejo stale
+    staleTime: 0,
   })
   const { data: menuItems, isLoading: menuLoading } = useQuery({
     queryKey: queryKeys.menuItems.all,
-    queryFn: async () => { const res = await authFetch('/api/menu-items'); if (!res.ok) return []; const json = await res.json(); return Array.isArray(json) ? json : (json.menuItems ?? json.items ?? []) },
+    enabled,
+    queryFn: async () => {
+      const res = await authFetch('/api/menu-items')
+      const json = await res.json()
+      return Array.isArray(json) ? json : (json.menuItems ?? json.items ?? [])
+    },
+    staleTime: 0,
   })
-  const { data: tables } = useQuery({
+  const { data: tables, isLoading: tablesLoading } = useQuery({
     queryKey: queryKeys.tables.all,
-    queryFn: async () => { const res = await authFetch('/api/tables'); if (!res.ok) return []; const json = await res.json(); return Array.isArray(json) ? json : (json.tables ?? []) },
+    enabled,
+    queryFn: async () => {
+      const res = await authFetch('/api/tables')
+      const json = await res.json()
+      return Array.isArray(json) ? json : (json.tables ?? [])
+    },
+    staleTime: 0,
   })
   const { data: orders, isLoading: ordersLoading } = useQuery({
     queryKey: queryKeys.orders.byStatus(orderListTab),
+    enabled,
     queryFn: async () => {
       const params = new URLSearchParams()
       if (orderListTab !== 'all') params.set('status', orderListTab)
       const res = await authFetch(`/api/orders?${params}`)
-      if (!res.ok) return []
       const json = await res.json()
       return Array.isArray(json) ? json : (json.orders ?? [])
     },
+    staleTime: 0,
   })
   const { data: discounts } = useQuery({
     queryKey: ['discounts-active'],
+    enabled,
     queryFn: async () => {
       const res = await authFetch('/api/discounts')
-      if (!res.ok) return []
       const json = await res.json()
       const all = Array.isArray(json) ? json : (json.discounts ?? [])
       return all.filter((d: { isActive: boolean }) => d.isActive)
     },
+    staleTime: 0,
   })
   const { data: diningOptions } = useQuery({
     queryKey: queryKeys.diningOptions.all,
+    enabled,
     queryFn: async () => {
       const res = await authFetch('/api/configuration/dining-options')
-      if (!res.ok) return []
       const json = await res.json().catch(() => [])
       return Array.isArray(json) ? json : (json.diningOptions ?? [])
     },
+    staleTime: 0,
   })
   const { data: menuStockMap } = useQuery<Record<string, StockInfoType>>({
     queryKey: queryKeys.inventory.menuStock,
+    enabled,
     queryFn: async () => {
-      try {
-        const res = await authFetch('/api/inventory/menu-stock')
-        if (!res.ok) return {}
-        return res.json()
-      } catch {
-        return {}
-      }
+      const res = await authFetch('/api/inventory/menu-stock')
+      return res.json()
     },
     refetchInterval: 30000,
     staleTime: 20000,
@@ -144,7 +191,7 @@ export function useOrderPanel() {
     voidItem, setVoidItem, stornoOrder, setStornoOrder,
     clearCartConfirm, setClearCartConfirm, lastAddedId, setLastAddedId, shortcutsOpen, setShortcutsOpen,
     menus, menusLoading, menuItems, menuLoading,
-    tables, orders, ordersLoading, discounts, diningOptions, menuStockMap,
+    tables, tablesLoading, orders, ordersLoading, discounts, diningOptions, menuStockMap,
     subtotal, vatBreakdown, totalTax, total,
     placeOrderMutation, updateOrderStatusMutation,
     ...handlers, handleVoided, handleStornoComplete, handleAddToOrder, handleExitEditing,

@@ -39,7 +39,9 @@ export function useMenuBrowserLogic({
     return menuItems?.filter(
       (item: MenuItemType) => {
         // FIX: Check multiple paths for menuId — category.menu.id, menuId field, or skip filter
-        const itemMenuId = (item as Record<string, unknown>).menuId as string | undefined
+        // FIX BUG #2: Cast through unknown first — MenuItemType nima index signature-ja
+        const itemWithMenuId = item as unknown as { menuId?: string }
+        const itemMenuId = itemWithMenuId.menuId
         const categoryMenuId = item.category?.menu?.id
         // If we can't determine the menu, show the item (don't hide it)
         const matchesMenu = !resolvedMenuId || 

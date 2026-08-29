@@ -103,6 +103,9 @@ export function setAuthToken(token: string | null) {
       localStorage.removeItem('pos_auth_token')
       localStorage.removeItem('pos_token')
     }
+    // FIX BUG #1: Obvesti komponente, da se je auth token spremenil
+    // (npr. ob login/logout) — da lahko React Query invalidate-a cache
+    window.dispatchEvent(new CustomEvent('pos:auth-changed'))
   }
 }
 

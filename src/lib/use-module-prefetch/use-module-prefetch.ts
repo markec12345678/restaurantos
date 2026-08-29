@@ -6,7 +6,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { authFetch } from '@/components/pos/PinLogin'
+import { authFetch, getAuthToken } from '@/components/pos/PinLogin'
 import { setPrefetchPhase } from '@/components/pos/pin-login/usePinAuth'
 import { logger } from '@/lib/logger'
 import { modulePrefetchMap } from './config'
@@ -21,10 +21,12 @@ import type { ModuleName } from './config'
  * 3. Za vsako konfiguracijo pokliče `queryClient.prefetchQuery()`
  * 4. Podatki so na voljo v predpomnilniku, ko se komponenta montira
  *
- * Prednosti:
- * - Uporabnik ne čaka na nalaganje podatkov ob preklopu modula
- * - React Query samodejno upravlja s predpomnilnikom (gcTime, staleTime)
- * - Ne vpliva na delovanje, če prefetch odpove — komponenta naloži podatke sama
+ * FIX BUG #1 (Table dropdown prazen): Če uporabnik ni prijavljen (ni auth tokena),
+ * prefetch se preskoči. Prej je bil cache vrednosti `null`, kar je React Query
+ * obravnaval kot veljaven rezultat — zato UI ni nikoli naložil tabel/meni artiklov.
+ *
+ * FIX: Tudi če authFetch vrže napako (npr. 401), se napaka re-throw-a, da
+ * React Query ne shrani napačnega rezultata v predpomnilnik.
  *
  * @param activeModule - Trenutno aktivni modul iz Zustand store-a
  */
@@ -35,6 +37,14 @@ export function useModulePrefetch(activeModule: ModuleName): void {
   useEffect(() => {
     const configs = modulePrefetchMap[activeModule]
     if (!configs || configs.length === 0) return
+
+    // FIX BUG #1: Preskoči prefetch, če uporabnik ni prijavljen — drugače
+    // bi se null/error predpomnilo kot podatke in blokiralo dejansko nalaganje
+    const token = getAuthToken()
+    if (!token) {
+      logger.debug('Prefetch', `Preskakujem prefetch za ${activeModule} — uporabnik ni prijavljen`)
+      return
+    }
 
     setPrefetchPhase(true)
     for (const config of configs) {
@@ -50,22 +60,23 @@ export function useModulePrefetch(activeModule: ModuleName): void {
         queryKey: config.queryKeys as unknown[],
         queryFn: async () => {
           if (!config.endpoint) return null
-          try {
-            const res = await authFetch(config.endpoint)
-            if (!res.ok) return null
-            return res.json()
-          } catch (error: unknown) {
-            // Prefetch napake ne motijo uporabnika — tiho zabeleži
-            logger.warn('Prefetch', `Napaka pri prefetch za ${activeModule}`, { error: error instanceof Error ? error.message : String(error) })
-            return null
-          }
+          // FIX BUG #1: authFetch VŽI vrže napako na non-OK response.
+          // Re-throw da React Query označi cache kot error (ne kot podatke).
+          // Komponenta bo ob mount-u samodejno ponovno poskusila.
+          const res = await authFetch(config.endpoint)
+          return res.json()
         },
-        // Uporabi krajši staleTime za prefetch — če uporabnik ne odpre modula, se cache hitro počisti
-        staleTime: 60 * 1000, // 1 minuta
-      }).catch(() => {
-        // Tiho ignoriraj prefetch napake — ne vplivajo na uporabnika
+        // FIX BUG #1: Krajši staleTime (10s) — prej 60s je blokiralo refetch
+        // Ko uporabnik odpre modul, naj se podatki hitro osvežijo
+        staleTime: 10 * 1000, // 10 sekund
+      }).catch((error: unknown) => {
+        // FIX BUG #1: Tiho ignoriraj prefetch napake — ne vplivajo na uporabnika
+        // (komponenta bo ob mount-u samostojno poskusila ponovno)
+        logger.debug('Prefetch', `Prefetch neuspešen za ${activeModule} (normalno pred prijavo)`, {
+          error: error instanceof Error ? error.message : String(error),
+        })
       })
     }
-  setPrefetchPhase(false)
-    }, [activeModule, queryClient])
+    setPrefetchPhase(false)
+  }, [activeModule, queryClient])
 }

@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Users } from 'lucide-react'
+import { Users, Loader2 } from 'lucide-react'
 
 // ============================================
 // TIPI
@@ -32,6 +32,10 @@ export const OrderTypeBar = memo(function OrderTypeBar({
   tables,
   diningOptions,
 }: OrderTypeBarProps) {
+  // FIX BUG #1: Filter mize, ki so na voljo ali zasedene — te lahko izbere uporabnik
+  const availableTables = tables?.filter((t) => t.status === 'available' || t.status === 'occupied') || []
+  const tablesLoading = !tables // Ni naložen (undefined) — prikaži loading
+
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30 flex-shrink-0">
       <Select value={orderType} onValueChange={setOrderType}>
@@ -61,18 +65,26 @@ export const OrderTypeBar = memo(function OrderTypeBar({
         </Select>
       )}
       {orderType === 'dine-in' && (
-        <Select value={selectedTable || ''} onValueChange={setSelectedTable}>
+        <Select value={selectedTable || ''} onValueChange={setSelectedTable} disabled={tablesLoading}>
           <SelectTrigger className="w-36 h-8 text-xs">
-            <SelectValue placeholder="Izberi mizo" />
+            <SelectValue placeholder={tablesLoading ? 'Nalagam mize...' : 'Izberi mizo'} />
           </SelectTrigger>
           <SelectContent>
-            {tables?.filter((t) => t.status === 'available' || t.status === 'occupied').map((table) => (
+            {availableTables.length === 0 && !tablesLoading && (
+              <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                Ni razpoložljivih miz
+              </div>
+            )}
+            {availableTables.map((table) => (
               <SelectItem key={table.id} value={table.id}>
                 Miza {table.number} ({table.capacity} mest)
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
+      )}
+      {tablesLoading && orderType === 'dine-in' && (
+        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
       )}
       {selectedTable && orderType === 'dine-in' && (
         <Badge variant="outline" className="text-xs h-6">
