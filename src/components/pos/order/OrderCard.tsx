@@ -34,6 +34,9 @@ export const OrderCard = memo(function OrderCard({
   order, statusColors, statusLabels, nextStatus, paymentStatusLabels, paymentStatusColors,
   isStatusUpdatePending, onOrderClick, onUpdateOrderStatus, onPayOrder, onPrintReceipt, onStornoOrder, onAddToOrder,
 }: OrderCardProps) {
+  // FIX TypeError: t?.filter is not a function — order.orderItems je lahko undefined
+  // če API vrača partial podatke ali če order prihaja iz drugačnega vira.
+  const orderItems = Array.isArray(order?.orderItems) ? order.orderItems : []
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-4 space-y-3">
@@ -54,13 +57,13 @@ export const OrderCard = memo(function OrderCard({
           {order.table && <p className="text-muted-foreground">Miza {order.table.number}</p>}
         </div>
         <div className="space-y-1">
-          {order.orderItems.slice(0, 3).map(oi => (
+          {orderItems.slice(0, 3).map(oi => (
             <div key={oi.id} className="flex justify-between text-sm">
-              <span>{oi.quantity}x {oi.menuItem.name}</span>
+              <span>{oi.quantity}x {oi.menuItem?.name || 'Artikel'}</span>
               <span>€{(oi.price * oi.quantity).toFixed(2)}</span>
             </div>
           ))}
-          {order.orderItems.length > 3 && <p className="text-xs text-muted-foreground">+{order.orderItems.length - 3} artiklov več</p>}
+          {orderItems.length > 3 && <p className="text-xs text-muted-foreground">+{orderItems.length - 3} artiklov več</p>}
         </div>
         <Separator />
         <div className="flex items-center justify-between">

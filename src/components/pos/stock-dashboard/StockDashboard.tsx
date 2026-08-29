@@ -31,7 +31,10 @@ export const StockDashboard = memo(function StockDashboard() {
     queryFn: async () => {
       const res = await authFetch('/api/inventory')
       if (!res.ok) return []
-      return res.json()
+      const json = await res.json()
+      // FIX TypeError: m?.map is not a function — API vrača { items: [...] }, ne [...]
+      // Prej: return res.json() — vrnilo je objekt, potem list.filter je crash-al.
+      return Array.isArray(json) ? json : (json.items ?? [])
     },
     refetchInterval: 30000,
     staleTime: 20000,

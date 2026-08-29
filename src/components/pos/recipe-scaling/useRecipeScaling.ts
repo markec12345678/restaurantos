@@ -31,19 +31,27 @@ export function useRecipeScaling() {
         ? recipesData
         : (recipesData?.recipes ?? recipesData?.items ?? [])
 
+      // FIX TypeError: r is not iterable — /api/inventory vrača { items: [...] }, ne [...]
+      // Prej: invData?.find?.(...) — find ne obstaja na objektu, vrne undefined (varno)
+      // Ampak r.ingredients || r.items je lahko nepričakovanega tipa (objekt namesto array)
+      // ko JSON.parse vrne objekt. Array.isArray zagotovi varnost.
+      const invArray: InventoryItemRow[] = Array.isArray(invData) ? invData : (invData?.items ?? [])
+
       const mappedRecipes: Recipe[] = recipesArray.map((r: RecipeRow) => {
-        const ingredients: RecipeIngredient[] = (r.ingredients || r.items || []).map((ing: RecipeIngredientRow) => {
-          const invItem = invData?.find?.((i: InventoryItemRow) => i.id === ing.inventoryItemId)
+        const rawIngredients = r.ingredients || r.items || []
+        // FIX: Array.isArray zagotovi da je ingredients vedno array
+        const ingredients = (Array.isArray(rawIngredients) ? rawIngredients : []).map((ing: RecipeIngredientRow): RecipeIngredient => {
+          const invItem = invArray.find((i: InventoryItemRow) => i.id === ing.inventoryItemId)
           const costPerUnit = invItem?.costPerUnit || ing.costPerUnit || ing.unitCost || 0
           const quantity = ing.quantity || 0
 
           return {
             id: ing.id || `ing-${Math.random()}`,
-            name: ing.name || ing.itemName || invItem?.name || 'Sestavina',
+            name: String(ing.name || ing.itemName || invItem?.name || 'Sestavina'),
             quantity,
-            unit: ing.unit || invItem?.unit || 'kg',
-            costPerUnit,
-            totalCost: Math.round(quantity * costPerUnit * 100) / 100,
+            unit: String(ing.unit || invItem?.unit || 'kg'),
+            costPerUnit: Number(costPerUnit) || 0,
+            totalCost: Math.round(quantity * (Number(costPerUnit) || 0) * 100) / 100,
           }
         })
 

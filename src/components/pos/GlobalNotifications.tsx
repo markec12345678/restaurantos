@@ -54,7 +54,10 @@ export const GlobalNotifications = memo(function GlobalNotifications() {
       try {
         const res = await authFetch('/api/inventory')
         if (!res.ok) return { count: 0, items: [] }
-        const items = await res.json()
+        const json = await res.json()
+        // FIX TypeError: m?.map is not a function — API vrača { items: [...] }, ne [...]
+        // Prej: const items = await res.json() — items je bil objekt, items.filter je crash-al
+        const items = Array.isArray(json) ? json : (json.items ?? [])
         const lowItems = items.filter((i: { quantity: number; minQuantity: number }) => i.quantity <= i.minQuantity)
         return { count: lowItems.length, items: lowItems.slice(0, 3) }
       } catch {

@@ -27,11 +27,15 @@ export const ItemsTabGrid = memo(function ItemsTabGrid({
   onDeleteItem,
   onToggleAvailability,
 }: ItemsTabGridViewProps) {
+  // FIX TypeError: b?.filter is not a function — filteredItems je lahko undefined
+  const items = Array.isArray(filteredItems) ? filteredItems : []
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-      {filteredItems.map((item) => {
+      {items.map((item) => {
         const cat = categories?.find((c) => c.id === item.categoryId)
-        const itemModGroups = (item.modifierGroups as { modifierGroup: { name: string } }[]) || []
+        // FIX: Array.isArray preverba za modifierGroups
+        const rawModGroups = item.modifierGroups as { modifierGroup: { name: string } }[] | undefined
+        const itemModGroups = Array.isArray(rawModGroups) ? rawModGroups : []
         return (
           <Card key={item.id as string} className={`hover:shadow-md transition-shadow overflow-hidden ${!item.isAvailable ? 'opacity-60' : ''}`}>
             <div className="w-full aspect-[16/9] bg-muted/50 relative overflow-hidden">

@@ -101,7 +101,7 @@ export const ItemsTab = memo(function ItemsTab({
           onToggleAvailability={onToggleAvailability}
         />
       )}
-      {filteredItems.length === 0 && !isLoading && (
+      {(Array.isArray(filteredItems) ? filteredItems : []).length === 0 && !isLoading && (
         <p className="text-center py-12 text-muted-foreground">Ni najdenih artiklov</p>
       )}
     </>

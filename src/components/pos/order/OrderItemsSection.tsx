@@ -50,7 +50,10 @@ export const OrderItemsSection = memo(function OrderItemsSection({
               {oi.modifiersJson && (() => {
                 try {
                   const mods = JSON.parse(oi.modifiersJson)
-                  if (mods.length > 0) return (
+                  // FIX TypeError: mods.map is not a function — mods je lahko objekt namesto array
+                  // če je modifiersJson shranjen kot "{}" namesto "[]"
+                  if (!Array.isArray(mods) || mods.length === 0) return null
+                  return (
                     <div className="flex flex-wrap gap-0.5 mt-0.5">
                       {mods.map((m: { name: string; price: number }, mi: number) => (
                         <Badge key={mi} variant="outline" className="text-[9px] h-3.5 px-1 py-0">{m.name}{m.price > 0 ? ` +€${safeToFixed(m.price, 2)}` : ''}</Badge>

@@ -27,11 +27,16 @@ export const ItemsTabList = memo(function ItemsTabList({
   onDeleteItem,
   onToggleAvailability,
 }: ItemsTabListViewProps) {
+  // FIX TypeError: b?.filter is not a function — filteredItems in itemModGroups
+  // sta lahko undefined če query vrne nepričakovan format
+  const items = Array.isArray(filteredItems) ? filteredItems : []
   return (
     <div className="space-y-2">
-      {filteredItems.map((item) => {
+      {items.map((item) => {
         const cat = categories?.find((c) => c.id === item.categoryId)
-        const itemModGroups = (item.modifierGroups as { modifierGroup: { name: string } }[]) || []
+        // FIX: Array.isArray preverba za modifierGroups
+        const rawModGroups = item.modifierGroups as { modifierGroup: { name: string } }[] | undefined
+        const itemModGroups = Array.isArray(rawModGroups) ? rawModGroups : []
         return (
           <div key={item.id as string} className={`flex items-center justify-between p-3 rounded-lg border bg-card ${!item.isAvailable ? 'opacity-60' : ''}`}>
             <div className="flex items-center gap-3">
