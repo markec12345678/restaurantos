@@ -88,7 +88,14 @@ export function useReceiptMutations({
     },
     onError: (err: Error) => {
       setVerifying(false)
-      toast.error(`Napaka pri overjanju: ${err.message}`)
+      // FIX NAPAKA 5 (HTTP 403): Če uporabnik nima admin dovoljenja za FURS,
+      // prikaži jasno sporočilo namesto generične napake.
+      const msg = err.message.toLowerCase()
+      if (msg.includes('dovoljen') || msg.includes('403') || msg.includes('forbidden')) {
+        toast.warning('FURS overjanje zahteva admin dovoljenje. Račun lahko overite kasneje.', { duration: 5000 })
+      } else {
+        toast.error(`Napaka pri overjanju: ${err.message}`)
+      }
     },
   })
 

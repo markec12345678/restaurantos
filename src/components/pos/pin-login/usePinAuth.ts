@@ -149,13 +149,20 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
   
   if (!response.ok) {
     let errorMessage = `Napaka ${response.status}`
+    let errorBody: { error?: string } | null = null
     try {
-      const errorData = await response.json()
-      errorMessage = errorData.error || errorMessage
+      errorBody = await response.json()
+      errorMessage = errorBody?.error || errorMessage
     } catch {
       // JSON parsanje neuspešno
     }
-    throw new Error(errorMessage)
+    // FIX NAPAKA 5 (HTTP 403/500): Vključi status kodo v error message
+    // da lahko komponente ujamejo specifične napake (npr. 403, 500)
+    const error = new Error(errorMessage)
+    // Dodaj status kodo kot property za lažje ujemanje v onError handlers
+    Object.defineProperty(error, 'status', { value: response.status, enumerable: false })
+    Object.defineProperty(error, 'statusText', { value: response.statusText, enumerable: false })
+    throw error
   }
   return response
 }

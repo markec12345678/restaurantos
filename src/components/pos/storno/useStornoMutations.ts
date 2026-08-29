@@ -26,13 +26,28 @@ export function useStornoMutations(
         ? customReason
         : STORNO_REASONS.find(r => r.id === selectedReason)?.name
 
-      const fursRes = await authFetch('/api/furs', {
-        method: 'PUT',
-        body: JSON.stringify({ orderId: order.id, reason: reasonText, reasonCode: selectedReason }),
-      })
-
-      if (!fursRes.ok) {
-        toast.warning('FURS storno ni uspel, naročilo posodobljeno ročno')
+      // FIX NAPAKA 5 (HTTP 403): FURS storno zahteva admin dovoljenje.
+      // Če uporabnik ni admin (403), storno delaj brez FURS (ročno).
+      // authFetch vrže napako na non-OK response, zato ujamemo v try/catch.
+      let fursResult: { success?: boolean; message?: string } | null = null
+      try {
+        const fursRes = await authFetch('/api/furs', {
+          method: 'PUT',
+          body: JSON.stringify({ orderId: order.id, reason: reasonText, reasonCode: selectedReason }),
+        })
+        fursResult = await fursRes.json()
+      } catch (err) {
+        // FIX NAPAKA 5: Ujemi 403 error (uporabnik nima admin dovoljenja)
+        const errWithStatus = err as Error & { status?: number }
+        const errStatus = errWithStatus.status
+        const errMsg = err instanceof Error ? err.message : 'Napaka'
+        toast.warning(
+          errStatus === 403
+            ? 'FURS overjanje zahteva admin dovoljenje. Storno brez FURS.'
+            : `FURS storno ni uspel (${errMsg}). Naročilo posodobljeno ročno.`,
+          { duration: 5000 }
+        )
+        // Nadaljuj z ročnim stornom
         const orderRes = await authFetch(`/api/orders/${order.id}`, {
           method: 'PUT',
           body: JSON.stringify({
@@ -41,11 +56,10 @@ export function useStornoMutations(
           }),
         })
         if (!orderRes.ok) throw new Error('Napaka pri rocnem storniranju naročila')
-        toast.warning('Storno izveden brez FURS overjanja — račun mora biti overjen kasneje', { duration: 5000 })
         return { success: true, message: 'Storno izveden brez FURS overjanja', isSimulation: true }
       }
 
-      return fursRes.json()
+      return fursResult
     },
     onSuccess: (result) => {
       toast.success(result?.message || 'Storno račun uspešno ustvarjen')
