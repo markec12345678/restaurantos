@@ -33,7 +33,10 @@ export const ByItemsTab = memo(function ByItemsTab({
   processPaymentIsPending,
   onPayByItems,
 }: ByItemsTabProps) {
-  const orderTotal = order.total
+  // FIX TypeError: t?.filter is not a function — order.orderItems je lahko undefined
+  // če API vrača partial podatke ali če je order prišel iz drugačnega vira.
+  const orderItems = Array.isArray(order?.orderItems) ? order.orderItems : []
+  const orderTotal = order?.total ?? 0
 
   return (
     <div className="space-y-3">
@@ -44,7 +47,7 @@ export const ByItemsTab = memo(function ByItemsTab({
         <div className="flex gap-1.5 mb-2">
           {Array.from({ length: Math.max(splitCount, 2) }).map((_, i) => {
             const guestNum = i + 1
-            const guestTotal = order.orderItems
+            const guestTotal = orderItems
               .filter(oi => guestAssignments[oi.id] === guestNum)
               .reduce((sum, oi) => sum + oi.price * oi.quantity, 0)
             return (
@@ -59,7 +62,7 @@ export const ByItemsTab = memo(function ByItemsTab({
         </div>
         {/* Items list with guest assignment */}
         <div className="space-y-1 max-h-48 overflow-y-auto">
-          {order.orderItems.map(oi => {
+          {orderItems.map(oi => {
             const assignedGuest = guestAssignments[oi.id] || 0
             return (
               <div key={oi.id} className="flex items-center justify-between py-1.5 px-2.5 rounded-lg bg-muted/50 text-sm">
@@ -98,7 +101,7 @@ export const ByItemsTab = memo(function ByItemsTab({
       <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-xs">
         {Array.from({ length: Math.max(splitCount, 2) }).map((_, i) => {
           const guestNum = i + 1
-          const guestItems = order.orderItems.filter(oi => guestAssignments[oi.id] === guestNum)
+          const guestItems = orderItems.filter(oi => guestAssignments[oi.id] === guestNum)
           const guestTotal = guestItems.reduce((sum, oi) => sum + oi.price * oi.quantity, 0)
           return (
             <div key={guestNum} className="flex justify-between">
@@ -114,7 +117,7 @@ export const ByItemsTab = memo(function ByItemsTab({
         </div>
         {(() => {
           const assigned = Object.keys(guestAssignments).length
-          const total = order.orderItems.length
+          const total = orderItems.length
           return assigned < total ? (
             <p className="text-amber-600 font-medium" role="status" aria-live="polite">Dodeli še {total - assigned} od {total} artiklov</p>
           ) : null
@@ -122,7 +125,7 @@ export const ByItemsTab = memo(function ByItemsTab({
       </div>
       <Button
         className="w-full h-12 text-base font-bold"
-        disabled={processPaymentIsPending || isProcessing || Object.keys(guestAssignments).length < order.orderItems.length}
+        disabled={processPaymentIsPending || isProcessing || Object.keys(guestAssignments).length < orderItems.length}
         onClick={onPayByItems}
       >
         {processPaymentIsPending ? 'Obdelujem...' : (

@@ -88,7 +88,14 @@ export async function handlePostOrder(
 
     // Posodobi mizo znotraj transakcije
     if (data.tableId && data.type === 'dine-in') {
-      await tx.table.update({ where: { id: data.tableId }, data: { status: 'occupied' } })
+      // FIX 500: Preveri ali miza obstaja preden jo posodobi.
+      // Prej: tx.table.update({ where: { id: data.tableId } }) je vrnil P2025
+      // če miza ne obstaja (npr. izbrisan medtem ko je bila v košarici).
+      const tableExists = await tx.table.findUnique({ where: { id: data.tableId }, select: { id: true } })
+      if (tableExists) {
+        await tx.table.update({ where: { id: data.tableId }, data: { status: 'occupied' } })
+      }
+      // Če miza ne obstaja, ignoriramo — naročilo se ustvari brez mize
     }
 
     return newOrder

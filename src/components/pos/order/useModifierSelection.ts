@@ -29,10 +29,19 @@ export function useModifierSelection({
     if (stockInfo?.status === 'low') {
       toast.warning(`Nizka zaloga: "${item.name}"`, { description: `Na voljo samo ${stockInfo.available} servisov.` })
     }
-    if (item.modifierGroups?.length > 0) {
+    // FIX: Preveri ali artikel dejansko ima modifierGroups z vsaj enim modifierjem.
+    // Prej: if (item.modifierGroups?.length > 0) — to je odprlo dialog tudi za prazne skupine
+    // (modifierGroup brez modifiers). Uporabnik je moral klikniti "Potrdi" za nič.
+    // Sedaj: dialog se odpre samo če vsaj ena skupina ima vsaj 1 modifier.
+    const hasAvailableModifiers = item.modifierGroups?.some(
+      mg => mg.modifierGroup?.modifiers && mg.modifierGroup.modifiers.length > 0
+    ) ?? false
+
+    if (hasAvailableModifiers) {
       setModifierDialogItem(item)
       setSelectedModifiers(new Map())
     } else {
+      // Artikel brez modifierjev (ali s praznimi skupinami) — direktno v košarico
       onAddToCart({ id: item.id, name: item.name, price: item.price, categoryId: item.categoryId, image: item.image })
       onSetLastAddedId(item.id)
       setTimeout(() => onSetLastAddedId(null), 500)
