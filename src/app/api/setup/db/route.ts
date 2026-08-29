@@ -7,27 +7,20 @@ export async function GET() {
   try {
     await db.$queryRaw`SELECT 1`
     
-    // Get existing tables
-    const existing = await db.$queryRaw`
-      SELECT tablename FROM pg_tables WHERE schemaname = 'public'
-    ` as Array<{ tablename: string }>
-    
-    if (true) {
-      // Create missing tables
-      const sqlPath = path.join(process.cwd(), 'prisma', 'schema.sql')
-      let sql = ''
-      try { sql = readFileSync(sqlPath, 'utf8') } catch {}
-      
-      if (sql) {
-        const statements = sql.split(';').filter(s => s.trim().length > 0)
-        for (const stmt of statements) {
-          try { await db.$executeRawUnsafe(stmt + ';') } catch {}
-        }
+    // Create missing tables
+    const sqlPath = path.join(process.cwd(), 'prisma', 'schema.sql')
+    let sql = ''
+    try { sql = readFileSync(sqlPath, 'utf8') } catch {}
+    if (sql) {
+      const statements = sql.split(';').filter(s => s.trim().length > 0)
+      for (const stmt of statements) {
+        try { await db.$executeRawUnsafe(stmt + ';') } catch {}
       }
     }
     
-    // FIX: Add missing columns that were added after initial schema
+    // Add ALL missing columns — comprehensive list
     const alterStatements = [
+      // Order
       'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "firedAt" TIMESTAMP(3)',
       'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "cancelReason" TEXT NOT NULL DEFAULT \'\'',
       'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "cancelledAt" TIMESTAMP(3)',
@@ -37,16 +30,39 @@ export async function GET() {
       'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "paidAt" TIMESTAMP(3)',
       'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "deliveryInfoId" TEXT',
       'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "paymentStatus" TEXT NOT NULL DEFAULT \'unpaid\'',
+      'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "virtualBrandId" TEXT',
+      'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "diningOptionId" TEXT',
+      'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "appliedDiscountId" TEXT',
+      // OrderItem
       'ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "chartOfAccountCode" TEXT',
+      'ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "courseId" TEXT',
+      'ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "appliedDiscountId" TEXT',
+      'ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "voidReasonId" TEXT',
+      // JournalLine
       'ALTER TABLE "JournalLine" ADD COLUMN IF NOT EXISTS "chartOfAccountCode" TEXT',
       'ALTER TABLE "JournalLine" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
+      // AP/AR
       'ALTER TABLE "AccountsPayable" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
       'ALTER TABLE "AccountsReceivable" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
+      // Location
       'ALTER TABLE "Location" ADD COLUMN IF NOT EXISTS "subscriptionId" TEXT',
-      'ALTER TABLE "BiometricCredential" ADD COLUMN IF NOT EXISTS "id" TEXT NOT NULL',
+      // Employee
+      'ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
+      // StaffShift
       'ALTER TABLE "StaffShift" ADD COLUMN IF NOT EXISTS "createdById" TEXT',
+      // PurchaseOrder
       'ALTER TABLE "PurchaseOrder" ADD COLUMN IF NOT EXISTS "requestedById" TEXT',
       'ALTER TABLE "PurchaseOrder" ADD COLUMN IF NOT EXISTS "approvedById" TEXT',
+      // JournalEntry
+      'ALTER TABLE "JournalEntry" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
+      'ALTER TABLE "JournalEntry" ADD COLUMN IF NOT EXISTS "postedById" TEXT',
+      // Session
+      'ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "absoluteExpiry" TIMESTAMP(3)',
+      // MenuItem
+      'ALTER TABLE "MenuItem" ADD COLUMN IF NOT EXISTS "menuId" TEXT',
+      // Table
+      'ALTER TABLE "Table" ADD COLUMN IF NOT EXISTS "revenueCenterId" TEXT',
+      'ALTER TABLE "Table" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
     ]
     
     let added = 0
@@ -65,7 +81,7 @@ export async function GET() {
       success: true,
       tableCount: afterTables.length,
       columnsAdded: added,
-      message: `${afterTables.length} tables, ${added} columns added (including firedAt)`,
+      message: `${afterTables.length} tables, ${added} columns added`,
     })
   } catch (error: unknown) {
     return NextResponse.json({
