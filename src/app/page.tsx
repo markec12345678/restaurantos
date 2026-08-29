@@ -15,6 +15,8 @@ import { ActiveModuleView } from '@/app/components/active-module-view'
 import { SetupRedirect } from '@/components/setup/setup-redirect'
 import { PwaInstallPrompt } from '@/components/pwa/pwa-install-prompt'
 
+export const dynamic = "force-dynamic"
+
 export default function POSPage() {
   const { activeModule, kioskMode } = usePOSStore()
   const ActiveComponent = useMemo(() => moduleComponents[activeModule] || moduleComponents['orders'], [activeModule])

@@ -18,6 +18,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const dynamic = "force-dynamic"
+
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
