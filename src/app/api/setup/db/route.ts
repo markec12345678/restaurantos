@@ -18,9 +18,8 @@ export async function GET() {
       }
     }
     
-    // Add ALL missing columns — comprehensive list
+    // Add ALL missing columns
     const alterStatements = [
-      // Order
       'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "firedAt" TIMESTAMP(3)',
       'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "cancelReason" TEXT NOT NULL DEFAULT \'\'',
       'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "cancelledAt" TIMESTAMP(3)',
@@ -33,11 +32,17 @@ export async function GET() {
       'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "virtualBrandId" TEXT',
       'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "diningOptionId" TEXT',
       'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "appliedDiscountId" TEXT',
+      'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "revenueCenterId" TEXT',
       // OrderItem
       'ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "chartOfAccountCode" TEXT',
       'ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "courseId" TEXT',
       'ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "appliedDiscountId" TEXT',
       'ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "voidReasonId" TEXT',
+      'ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "firedAt" TIMESTAMP(3)',
+      'ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT \'pending\'',
+      'ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "menuItemName" TEXT NOT NULL DEFAULT \'\'',
+      'ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "vatRate" DECIMAL NOT NULL DEFAULT 22',
+      'ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "vatAmount" DECIMAL NOT NULL DEFAULT 0',
       // JournalLine
       'ALTER TABLE "JournalLine" ADD COLUMN IF NOT EXISTS "chartOfAccountCode" TEXT',
       'ALTER TABLE "JournalLine" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
@@ -60,9 +65,12 @@ export async function GET() {
       'ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "absoluteExpiry" TIMESTAMP(3)',
       // MenuItem
       'ALTER TABLE "MenuItem" ADD COLUMN IF NOT EXISTS "menuId" TEXT',
+      'ALTER TABLE "MenuItem" ADD COLUMN IF NOT EXISTS "prepStationId" TEXT',
       // Table
       'ALTER TABLE "Table" ADD COLUMN IF NOT EXISTS "revenueCenterId" TEXT',
       'ALTER TABLE "Table" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
+      // Category
+      'ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "menuId" TEXT',
     ]
     
     let added = 0
@@ -81,7 +89,7 @@ export async function GET() {
       success: true,
       tableCount: afterTables.length,
       columnsAdded: added,
-      message: `${afterTables.length} tables, ${added} columns added`,
+      message: `${afterTables.length} tables, ${added} columns added (incl OrderItem.firedAt)`,
     })
   } catch (error: unknown) {
     return NextResponse.json({
