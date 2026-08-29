@@ -16,6 +16,17 @@ export function useKDSWebSocket(
   const [wsConnected, setWsConnected] = useState(false)
 
   useEffect(() => {
+    // FIX NAPAKA 3: Na Vercelu WebSocket /ws ne obstaja — preskoči povezovanje.
+    // Prepreči neskončne 404 errorje v konzoli + nesmiselne reconnect poskuse.
+    const isVercel = typeof window !== 'undefined' && (
+      window.location.hostname.endsWith('.vercel.app') ||
+      process.env.NEXT_PUBLIC_WS_DISABLED === 'true'
+    )
+    if (isVercel) {
+      // Polling bo prevzel osveževanje podatkov (glej useQuery refetchInterval)
+      return
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsUrl = `${protocol}//${window.location.host}/ws`
     let ws: WebSocket | null = null
@@ -70,13 +81,35 @@ export function useKDSSession() {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [now, setNow] = useState(Date.now())
 
-  // Obnovi sejo
+  // FIX NAPAKA 8: Obnovi sejo — preveri več storage ključev za kompatibilnost
+  // z glavno aplikacijo (pos_auth_user) in starejšimi sejami (pos_employee)
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('pos_employee')
-      if (stored) {
-        const emp = JSON.parse(stored)
-        if (emp?.id && emp?.name && emp?.role) setEmployee(emp)
+      // Poskusi najprej pos_employee (KDS-specifična seja)
+      const storedKds = localStorage.getItem('pos_employee')
+      if (storedKds) {
+        const emp = JSON.parse(storedKds)
+        if (emp?.id && emp?.name && emp?.role) {
+          setEmployee(emp)
+          return
+        }
+      }
+      // FIX NAPAKA 8: Če uporabnik ni prijavljen v KDS, poskusi uporabiti sejo
+      // iz glavne aplikacije (pos_auth_user) — omogoči seamless prehod iz POS → KDS
+      const storedAuth = localStorage.getItem('pos_auth_user') || sessionStorage.getItem('pos_auth_user')
+      if (storedAuth) {
+        const authUser = JSON.parse(storedAuth)
+        if (authUser?.id && authUser?.name && authUser?.role) {
+          // Konvertiraj AuthUser v KDS employee format
+          const kdsEmployee = {
+            id: authUser.id,
+            name: authUser.name,
+            role: authUser.role,
+          }
+          // Shrani tudi v pos_employee za prihodnje obiske
+          localStorage.setItem('pos_employee', JSON.stringify(kdsEmployee))
+          setEmployee(kdsEmployee)
+        }
       }
     } catch {
       // Poškodovani podatki v localStorage — ignoriraj in zahtevaj ponovno prijavo

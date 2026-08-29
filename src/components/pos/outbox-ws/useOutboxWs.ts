@@ -51,8 +51,16 @@ export function useOutboxWs(options: UseOutboxWsOptions = {}) {
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const seenFailuresRef = useRef<Set<string>>(new Set())
 
+  // FIX NAPAKA 3: Na Vercelu WebSocket /ws ne deluje — onemogoči auto-reconnect
+  // da ne dobivamo neskončnih 404 error-jev v konzoli.
+  const isVercel = typeof window !== 'undefined' && (
+    window.location.hostname.endsWith('.vercel.app') ||
+    process.env.NEXT_PUBLIC_WS_DISABLED === 'true'
+  )
+
   const connect = useCallback(() => {
-    if (!enabled || !token) return
+    // FIX NAPAKA 3: Preskoči povezovanje na Vercelu
+    if (isVercel || !enabled || !token) return
     if (wsRef.current?.readyState === WebSocket.OPEN) return
 
     try {
@@ -98,15 +106,16 @@ export function useOutboxWs(options: UseOutboxWsOptions = {}) {
       ws.onclose = () => {
         setIsConnected(false)
         wsRef.current = null
-        // Auto-reconnect po 5 sekundah
-        if (enabled) {
+        // Auto-reconnect po 5 sekundah — samo če nismo na Vercelu
+        // FIX NAPAKA 3: prepreči neskončne reconnect poskuse na Vercelu
+        if (enabled && !isVercel) {
           reconnectTimeoutRef.current = setTimeout(connect, 5000)
         }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Neznana napaka')
     }
-  }, [enabled, token, onStatsUpdate, onNewFailure])
+  }, [enabled, token, onStatsUpdate, onNewFailure, isVercel])
 
   useEffect(() => {
     connect()

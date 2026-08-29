@@ -16,6 +16,15 @@ export function useWaiterWebSocket(
   const [wsConnected, setWsConnected] = useState(false)
 
   useEffect(() => {
+    // FIX NAPAKA 3: Na Vercelu WebSocket /ws ne obstaja — preskoči povezovanje
+    const isVercel = typeof window !== 'undefined' && (
+      window.location.hostname.endsWith('.vercel.app') ||
+      process.env.NEXT_PUBLIC_WS_DISABLED === 'true'
+    )
+    if (isVercel) {
+      return
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsUrl = `${protocol}//${window.location.host}/ws`
     let ws: WebSocket | null = null

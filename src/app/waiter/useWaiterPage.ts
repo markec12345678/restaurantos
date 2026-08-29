@@ -38,13 +38,31 @@ export function useWaiterPage(): WaiterPageState {
     return () => { timeoutRefs.current.forEach(clearTimeout) }
   }, [])
 
-  // Obnovi sejo
+  // FIX NAPAKA 8: Obnovi sejo — preveri več storage ključev
+  // za kompatibilnost z glavno aplikacijo (pos_auth_user)
   useEffect(() => {
     try {
       const stored = localStorage.getItem('pos_employee')
       if (stored) {
         const emp = JSON.parse(stored)
-        if (emp?.id && emp?.name && emp?.role) setEmployee(emp)
+        if (emp?.id && emp?.name && emp?.role) {
+          setEmployee(emp)
+          return
+        }
+      }
+      // FIX NAPAKA 8: Poskusi uporabiti sejo iz glavne aplikacije (pos_auth_user)
+      const storedAuth = localStorage.getItem('pos_auth_user') || sessionStorage.getItem('pos_auth_user')
+      if (storedAuth) {
+        const authUser = JSON.parse(storedAuth)
+        if (authUser?.id && authUser?.name && authUser?.role) {
+          const waiterEmployee = {
+            id: authUser.id,
+            name: authUser.name,
+            role: authUser.role,
+          }
+          localStorage.setItem('pos_employee', JSON.stringify(waiterEmployee))
+          setEmployee(waiterEmployee)
+        }
       }
     } catch { /* Poškodovani podatki — zahtevaj ponovno prijavo */ }
   }, [])
@@ -66,7 +84,10 @@ export function useWaiterPage(): WaiterPageState {
   const { data: ordersData, isLoading, refetch } = useQuery({
     queryKey: queryKeys.orders.waiter,
     queryFn: async () => {
+      // FIX NAPAKA 8: Preveri več token ključev za kompatibilnost z glavno aplikacijo
       const token = localStorage.getItem('pos_token')
+        || localStorage.getItem('pos_auth_token')
+        || sessionStorage.getItem('pos_auth_token')
       const headers: Record<string, string> = {}
       if (token) headers.Authorization = `Bearer ${token}`
       const statuses = ['pending', 'in-progress', 'ready']

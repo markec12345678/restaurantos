@@ -32,9 +32,12 @@ export const OrderTypeBar = memo(function OrderTypeBar({
   tables,
   diningOptions,
 }: OrderTypeBarProps) {
-  // FIX BUG #1: Filter mize, ki so na voljo ali zasedene — te lahko izbere uporabnik
-  const availableTables = tables?.filter((t) => t.status === 'available' || t.status === 'occupied') || []
-  const tablesLoading = !tables // Ni naložen (undefined) — prikaži loading
+  // FIX BUG #1 + NAPAKA 2: Filter mize, ki so na voljo ali zasedene — te lahko izbere uporabnik
+  // Array.isArray check prepreči TypeError: t?.filter is not a function, če bi API
+  // vrnil napačen tip (npr. null ali object namesto array)
+  const tablesArray = Array.isArray(tables) ? tables : []
+  const availableTables = tablesArray.filter((t) => t.status === 'available' || t.status === 'occupied')
+  const tablesLoading = !Array.isArray(tables) // Ni naložen — prikaži loading
 
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30 flex-shrink-0">
@@ -89,7 +92,7 @@ export const OrderTypeBar = memo(function OrderTypeBar({
       {selectedTable && orderType === 'dine-in' && (
         <Badge variant="outline" className="text-xs h-6">
           <Users className="h-3 w-3 mr-1" />
-          Miza {tables?.find((t) => t.id === selectedTable)?.number}
+          Miza {tablesArray.find((t) => t.id === selectedTable)?.number}
         </Badge>
       )}
     </div>
