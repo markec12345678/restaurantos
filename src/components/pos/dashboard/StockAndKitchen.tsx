@@ -112,13 +112,22 @@ export const StockAndKitchen = memo(function StockAndKitchen({
                   <div className="text-xs text-muted-foreground mb-2">
                     {typeLabels[order.type] || order.type}
                     {order.type === 'dine-in' && order.table ? ` · Miza ${order.table.number}` : ''}
-                    {' · '}{format(new Date(order.createdAt), 'HH:mm')}
+                    {/* FIX RangeError: Invalid time value — order.createdAt je lahko undefined */}
+                    {' · '}{(() => {
+                      if (!order.createdAt) return '—'
+                      try {
+                        const d = new Date(order.createdAt)
+                        if (isNaN(d.getTime())) return '—'
+                        return format(d, 'HH:mm')
+                      } catch { return '—' }
+                    })()}
                   </div>
                   <div className="space-y-1">
-                    {order.orderItems.map((oi) => (
+                    {/* FIX TypeError: t?.filter — order.orderItems je lahko undefined */}
+                    {(Array.isArray(order?.orderItems) ? order.orderItems : []).map((oi) => (
                       <div key={oi.id} className="flex items-center gap-2 text-sm">
                         <span className={`h-1.5 w-1.5 rounded-full ${oi.status === 'ready' ? 'bg-emerald-500' : oi.status === 'preparing' ? 'bg-blue-500' : 'bg-yellow-500'}`}><span className="sr-only">{oi.status === 'ready' ? 'Pripravljeno' : oi.status === 'preparing' ? 'V pripravi' : 'Čakajoče'}</span></span>
-                        <span>{oi.quantity}x {oi.menuItem.name}</span>
+                        <span>{oi.quantity}x {oi.menuItem?.name || 'Artikel'}</span>
                       </div>
                     ))}
                   </div>

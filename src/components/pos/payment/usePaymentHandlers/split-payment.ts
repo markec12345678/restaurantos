@@ -40,7 +40,8 @@ export async function executeSplitPayment({
       method: 'POST',
       body: JSON.stringify({
         orderId: order.id,
-        orderItemIds: order.orderItems.map(oi => oi.id),
+        // FIX TypeError: t?.filter — order.orderItems je lahko undefined
+        orderItemIds: (Array.isArray(order?.orderItems) ? order.orderItems : []).map(oi => oi.id),
       }),
     })
     if (!checkRes.ok) throw new Error('Napaka pri ustvarjanju čeka')

@@ -36,11 +36,12 @@ export const OnlineOrderDetailDialog = memo(function OnlineOrderDetailDialog({
               <div><span className="font-medium">Tip:</span> {order.type}</div>
               <div><span className="font-medium">Plačilo:</span> {order.paymentMethod} ({order.paymentStatus})</div>
             </div>
-            {order.orderItems.length > 0 && (
+            {/* FIX TypeError: t?.filter — order.orderItems je lahko undefined */}
+            {(Array.isArray(order?.orderItems) ? order.orderItems : []).length > 0 && (
               <div>
                 <span className="font-medium">Artikli:</span>
                 <ul className="mt-1 space-y-1">
-                  {order.orderItems.map((item) => (
+                  {(Array.isArray(order?.orderItems) ? order.orderItems : []).map((item) => (
                     <li key={item.id} className="flex justify-between">
                       <span>{item.quantity}x {item.menuItemId}</span>
                       <span>€{safeToFixed(item.price * item.quantity, 2)}</span>

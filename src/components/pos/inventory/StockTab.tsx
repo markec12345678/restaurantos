@@ -58,12 +58,13 @@ export const StockTab = memo(function StockTab({
             <SelectValue placeholder="Vse kategorije" />
           </SelectTrigger>
           <SelectContent>
-            {invCategories.map(c => (
+            {/* FIX TypeError: m?.map — invCategories je lahko undefined */}
+            {(Array.isArray(invCategories) ? invCategories : []).map(c => (
               <SelectItem key={c} value={c}>{categoryLabels[c] || c}</SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Badge variant="outline" className="text-xs">{filteredItems.length} artiklov</Badge>
+        <Badge variant="outline" className="text-xs">{(Array.isArray(filteredItems) ? filteredItems : []).length} artiklov</Badge>
       </div>
 
       {isLoading ? (
@@ -72,7 +73,8 @@ export const StockTab = memo(function StockTab({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filteredItems.map((item) => (
+          {/* FIX TypeError: m?.map — filteredItems je lahko undefined */}
+          {(Array.isArray(filteredItems) ? filteredItems : []).map((item) => (
             <StockItemCard
               key={item.id}
               item={item}

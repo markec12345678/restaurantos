@@ -47,9 +47,10 @@ export const OrderSummarySection = memo(function OrderSummarySection({
       </div>
       <Separator />
       <div className="space-y-0.5">
-        {orderItems.map(oi => (
+        {/* FIX TypeError: t?.filter — orderItems je lahko undefined */}
+        {(Array.isArray(orderItems) ? orderItems : []).map(oi => (
           <div key={oi.id} className="flex justify-between text-xs text-muted-foreground">
-            <span>{oi.quantity}x {oi.menuItem.name}</span>
+            <span>{oi.quantity}x {oi.menuItem?.name || 'Artikel'}</span>
             <span>€{safeToFixed(oi.price * oi.quantity, 2)}</span>
           </div>
         ))}

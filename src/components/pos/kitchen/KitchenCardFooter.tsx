@@ -15,7 +15,9 @@ export const KitchenCardFooter = memo(function KitchenCardFooter({
   order: EnrichedOrder
   onOrderStatusChange: (_orderId: string, _status: string) => void
 }) {
-  const servedCount = order.orderItems.filter(oi => oi.status === 'served').length
+  // FIX TypeError: t?.filter — order.orderItems je lahko undefined
+  const orderItems = Array.isArray(order?.orderItems) ? order.orderItems : []
+  const servedCount = orderItems.filter(oi => oi.status === 'served').length
   const completedCount = order.readyCount + servedCount
 
   return (
@@ -30,7 +32,7 @@ export const KitchenCardFooter = memo(function KitchenCardFooter({
           aria-valuemax={order.totalItems}
           aria-label={`Napredek: ${completedCount} od ${order.totalItems} artiklov končanih`}
         >
-          {order.orderItems.map((item, i) => (
+          {orderItems.map((item, i) => (
             <div
               key={i}
               className={`h-2 w-6 rounded-full transition-colors ${

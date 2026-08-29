@@ -72,13 +72,22 @@ export const TableOrdersDialog = memo(function TableOrdersDialog({
                     </div>
                     <div className="text-xs text-muted-foreground">
                       <Clock className="h-3 w-3 inline mr-1" />
-                      {format(new Date(order.createdAt), 'HH:mm')}
+                      {/* FIX RangeError: Invalid time value — order.createdAt je lahko undefined */}
+                      {(() => {
+                        if (!order.createdAt) return '—'
+                        try {
+                          const d = new Date(order.createdAt)
+                          if (isNaN(d.getTime())) return '—'
+                          return format(d, 'HH:mm')
+                        } catch { return '—' }
+                      })()}
                       {order.customerName && ` · ${order.customerName}`}
                     </div>
                     <div className="space-y-1">
-                      {order.orderItems.map(oi => (
+                      {/* FIX TypeError: t?.filter — order.orderItems je lahko undefined */}
+                      {(Array.isArray(order?.orderItems) ? order.orderItems : []).map(oi => (
                         <div key={oi.id} className="flex justify-between text-sm">
-                          <span>{oi.quantity}x {oi.menuItem.name}</span>
+                          <span>{oi.quantity}x {oi.menuItem?.name || 'Artikel'}</span>
                           <span className="text-muted-foreground">€{safeToFixed(oi.price * oi.quantity, 2)}</span>
                         </div>
                       ))}
