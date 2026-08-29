@@ -1,25 +1,31 @@
 import { NextResponse } from 'next/server'
-import { execSync } from 'child_process'
+import { exec } from 'child_process'
+import { promisify } from 'util'
 
-export const dynamic = 'force-dynamic'
+const execAsync = promisify(exec)
 
-// GET /api/setup/db — Run prisma db push to create all tables in Neon
 export async function GET() {
   try {
-    const output = execSync('npx prisma db push --accept-data-loss', {
-      encoding: 'utf8',
-      timeout: 60000,
+    // Run prisma db push using the DATABASE_URL from env
+    const { stdout, stderr } = await execAsync('npx prisma db push --accept-data-loss', {
+      timeout: 120000,
       env: process.env,
+      cwd: process.cwd(),
     })
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Database tables created',
-      output: output.substring(0, 500) 
+    
+    return NextResponse.json({
+      success: true,
+      message: 'Database tables created in Neon PostgreSQL',
+      stdout: stdout.substring(0, 1000),
+      stderr: stderr.substring(0, 500),
     })
   } catch (error: unknown) {
-    return NextResponse.json({ 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error',
+    const err = error as { stdout?: string; stderr?: string; message: string }
+    return NextResponse.json({
+      success: false,
+      error: err.message,
+      stdout: err.stdout?.substring(0, 500) || '',
+      stderr: err.stderr?.substring(0, 500) || '',
     }, { status: 500 })
   }
 }
