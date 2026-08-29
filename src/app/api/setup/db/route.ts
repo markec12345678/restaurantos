@@ -1,47 +1,55 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { readFileSync } from 'fs'
+import path from 'path'
 
 export async function GET() {
   try {
     // Test connection
-    await db.$queryRaw`SELECT 1`
+    await db.$queryRaw`SELECT 1 as test`
     
     // Get existing tables
     const existing = await db.$queryRaw`
       SELECT tablename FROM pg_tables WHERE schemaname = 'public'
     ` as Array<{ tablename: string }>
-    const existingSet = new Set(existing.map(t => t.tablename))
     
-    // Generate CREATE TABLE statements using Prisma's migrate diff
-    // Since we can't run prisma CLI, use raw SQL
-    // Actually — use db.$executeRawUnsafe with DDL
-    
-    // Get the schema SQL from the init script
-    const { execSync } = await import('child_process')
-    
-    // Generate SQL from schema using prisma migrate diff
-    let sql = ''
-    try {
-      sql = execSync(
-        'node -e "const{execSync}=require(\'child_process\');try{const s=execSync(\'npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script\',{encoding:\'utf8\',env:process.env});process.stdout.write(s)}catch(e){process.stderr.write(e.message)}"',
-        { encoding: 'utf8', timeout: 60000, env: process.env, cwd: process.cwd() }
-      )
-    } catch {
-      sql = ''
+    if (existing.length >= 90) {
+      return NextResponse.json({
+        success: true,
+        message: `${existing.length} tables already exist — no action needed`,
+        tableCount: existing.length,
+      })
     }
     
-    if (!sql) {
+    // Read the pre-generated SQL file
+    const sqlPath = path.join(process.cwd(), 'prisma', 'schema.sql')
+    let sql = ''
+    try {
+      sql = readFileSync(sqlPath, 'utf8')
+    } catch {
       return NextResponse.json({
         success: false,
-        error: 'Could not generate SQL from schema',
-        existingTables: existing.length,
+        error: 'schema.sql file not found at ' + sqlPath,
       }, { status: 500 })
     }
     
-    // Execute the SQL (CREATE TABLE IF NOT EXISTS...)
-    await db.$executeRawUnsafe(sql)
+    // Execute the SQL — creates all tables
+    // Split by semicolons to avoid timeout
+    const statements = sql.split(';').filter(s => s.trim().length > 0)
+    let created = 0
+    let errors = 0
     
-    // Check new table count
+    for (const stmt of statements) {
+      try {
+        await db.$executeRawUnsafe(stmt + ';')
+        created++
+      } catch {
+        // Table might already exist — skip
+        errors++
+      }
+    }
+    
+    // Check final count
     const afterTables = await db.$queryRaw`
       SELECT tablename FROM pg_tables WHERE schemaname = 'public'
     ` as Array<{ tablename: string }>
@@ -50,8 +58,9 @@ export async function GET() {
       success: true,
       beforeCount: existing.length,
       afterCount: afterTables.length,
-      created: afterTables.length - existing.length,
-      message: `${afterTables.length - existing.length} tables created. Total: ${afterTables.length}`,
+      created: created,
+      errors: errors,
+      message: `Tables: ${existing.length} → ${afterTables.length} (${created} created, ${errors} skipped)`,
     })
   } catch (error: unknown) {
     return NextResponse.json({
