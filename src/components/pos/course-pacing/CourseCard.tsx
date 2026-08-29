@@ -27,7 +27,9 @@ export const CourseCard = memo(function CourseCard({
   onFire,
   onReady,
 }: CourseCardProps) {
-  const config = STATUS_CONFIG[course.status]
+  const config = STATUS_CONFIG[course.status] || STATUS_CONFIG.waiting || { bg: '', color: '', label: '' }
+  // FIX TypeError: course.items in item.modifiers sta lahko undefined
+  const courseItems = Array.isArray(course?.items) ? course.items : []
 
   return (
     <div
@@ -43,7 +45,7 @@ export const CourseCard = memo(function CourseCard({
           <span className={config.color}>{STATUS_ICONS[course.status]}</span>
           <span className="font-semibold text-sm">{course.name}</span>
           <Badge variant="outline" className="text-[9px] h-4">
-            {course.items.length} {course.items.length === 1 ? 'artikel' : 'artiklov'}
+            {courseItems.length} {courseItems.length === 1 ? 'artikel' : 'artiklov'}
           </Badge>
           {course.status === 'firing' && (
             <Badge className="bg-orange-500 text-white text-[10px] h-5 animate-pulse">
@@ -83,34 +85,38 @@ export const CourseCard = memo(function CourseCard({
 
       {/* Items */}
       <div className="space-y-1 ml-6">
-        {course.items.map(item => (
-          <div key={item.id} className="flex items-center gap-2 text-sm">
-            <span className="font-bold">{item.quantity}x</span>
-            <span className={item.status === 'served' ? 'line-through text-muted-foreground' : ''}>
-              {item.name}
-            </span>
-            {item.modifiers.length > 0 && (
-              <div className="flex gap-0.5">
-                {item.modifiers.map((m, i) => (
-                  <Badge key={i} variant="outline" className="text-[9px] h-4 px-1">
-                    {m}
-                  </Badge>
-                ))}
-              </div>
-            )}
-            {item.notes && (
-              <span className="text-[10px] text-amber-600 italic">{item.notes}</span>
-            )}
-            <span className={`ml-auto text-[10px] ${
-              item.status === 'served' ? 'text-gray-500' :
-              item.status === 'ready' ? 'text-emerald-500' :
-              item.status === 'preparing' ? 'text-blue-500' :
-              'text-yellow-500'
-            }`}>
-              {item.status === 'served' ? '✓' : item.status === 'ready' ? '✓' : item.status === 'preparing' ? '⏳' : '○'}
-            </span>
-          </div>
-        ))}
+        {courseItems.map(item => {
+          // FIX: item.modifiers je lahko undefined
+          const modifiers = Array.isArray(item?.modifiers) ? item.modifiers : []
+          return (
+            <div key={item.id} className="flex items-center gap-2 text-sm">
+              <span className="font-bold">{item.quantity}x</span>
+              <span className={item.status === 'served' ? 'line-through text-muted-foreground' : ''}>
+                {item.name}
+              </span>
+              {modifiers.length > 0 && (
+                <div className="flex gap-0.5">
+                  {modifiers.map((m, i) => (
+                    <Badge key={i} variant="outline" className="text-[9px] h-4 px-1">
+                      {m}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              {item.notes && (
+                <span className="text-[10px] text-amber-600 italic">{item.notes}</span>
+              )}
+              <span className={`ml-auto text-[10px] ${
+                item.status === 'served' ? 'text-gray-500' :
+                item.status === 'ready' ? 'text-emerald-500' :
+                item.status === 'preparing' ? 'text-blue-500' :
+                'text-yellow-500'
+              }`}>
+                {item.status === 'served' ? '✓' : item.status === 'ready' ? '✓' : item.status === 'preparing' ? '⏳' : '○'}
+              </span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

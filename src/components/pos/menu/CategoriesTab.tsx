@@ -15,16 +15,21 @@ export const CategoriesTab = memo(function CategoriesTab({
   categories,
   onAddCategory,
 }: CategoriesTabProps) {
+  // FIX TypeError: b?.filter is not a function — categories in menus sta lahko
+  // objekti (API vrača {items:[...]}) ne array-i. Optional chaining ne pompri
+  // ker objekti nimajo .filter metode.
+  const menusArray = Array.isArray(menus) ? menus : []
+  const categoriesArray = Array.isArray(categories) ? categories : []
   return (
     <>
       <Button onClick={onAddCategory}>
         <Plus className="h-4 w-4 mr-2" />
         Dodaj kategorijo
       </Button>
-      {menus?.map((menu) => {
-        const menuCategories = categories?.filter((c) =>
+      {menusArray.map((menu) => {
+        const menuCategories = categoriesArray.filter((c) =>
           (c.menu?.id || c.menuId) === menu.id
-        ) || []
+        )
         return (
           <div key={menu.id} className="space-y-3">
             <div className="flex items-center gap-2">
@@ -44,7 +49,7 @@ export const CategoriesTab = memo(function CategoriesTab({
                     </div>
                     <div className="flex-1">
                       <p className="font-medium">{cat.name}</p>
-                      <p className="text-xs text-muted-foreground">{(cat.menuItems as unknown[])?.length || 0} artiklov</p>
+                      <p className="text-xs text-muted-foreground">{Array.isArray(cat.menuItems) ? cat.menuItems.length : 0} artiklov</p>
                     </div>
                   </CardContent>
                 </Card>

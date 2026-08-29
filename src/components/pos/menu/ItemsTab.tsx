@@ -53,7 +53,7 @@ export const ItemsTab = memo(function ItemsTab({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Vsi meniji</SelectItem>
-            {menus?.map((m) => (
+            {(Array.isArray(menus) ? menus : []).map((m) => (
               <SelectItem key={m.id} value={m.id}>{m.icon} {m.name}</SelectItem>
             ))}
           </SelectContent>
@@ -64,9 +64,11 @@ export const ItemsTab = memo(function ItemsTab({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Vse kategorije</SelectItem>
-            {categories?.filter((c) => filterMenu === 'all' || c.menu?.id === filterMenu).map((cat) => (
-              <SelectItem key={cat.id} value={cat.id}>{cat.icon} {cat.name}</SelectItem>
-            ))}
+            {(Array.isArray(categories) ? categories : [])
+              .filter((c) => filterMenu === 'all' || c.menu?.id === filterMenu)
+              .map((cat) => (
+                <SelectItem key={cat.id} value={cat.id}>{cat.icon} {cat.name}</SelectItem>
+              ))}
           </SelectContent>
         </Select>
         <div className="flex border rounded-md">

@@ -137,16 +137,17 @@ export const RecipeDetailPanel = memo(function RecipeDetailPanel({
       </Card>
 
       {/* Navodila */}
-      {recipe.instructions.length > 0 && (
+      {/* FIX TypeError: r is not iterable — recipe.instructions je lahko undefined */}
+      {(Array.isArray(recipe?.instructions) ? recipe.instructions : []).length > 0 && (
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center gap-2">
+            <CardTitle className="sm flex items-center gap-2">
               <ChefHat className="h-4 w-4" /> Navodila za pripravo
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {recipe.instructions.map((step, idx) => (
+              {(Array.isArray(recipe?.instructions) ? recipe.instructions : []).map((step, idx) => (
                 <div key={idx} className="flex items-start gap-3">
                   <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
                     {idx + 1}

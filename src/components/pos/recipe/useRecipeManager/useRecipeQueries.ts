@@ -41,7 +41,12 @@ export function useRecipeQueries() {
     },
   })
 
-  const sortedInventoryItems = useMemo(() => inventoryItems ? [...inventoryItems].sort((a, b) => a.name.localeCompare(b.name)) : [], [inventoryItems])
+  // FIX TypeError: r is not iterable — inventoryItems je lahko objekt (API vrača {items:[...]})
+  // [...inventoryItems] crash-a če inventoryItems ni iterabilen
+  const sortedInventoryItems = useMemo(() => {
+    const arr = Array.isArray(inventoryItems) ? inventoryItems : []
+    return [...arr].sort((a, b) => a.name.localeCompare(b.name))
+  }, [inventoryItems])
 
   return { recipes, menuItems, inventoryItems, sortedInventoryItems }
 }

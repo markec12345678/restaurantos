@@ -22,15 +22,20 @@ export function useCoursePacing() {
       if (!res.ok) throw new Error('Failed')
       const kdsData = await res.json()
 
-      const pacedOrders: PacedOrder[] = kdsData.orders.map((order: OrderRow) => {
+      const pacedOrders: PacedOrder[] = (kdsData?.orders || []).map((order: OrderRow) => {
         const courseMap: Record<string, CourseItem[]> = {}
 
-        ;(order.orderItems || []).forEach((item: OrderItemRow) => {
+        // FIX TypeError: order.orderItems je lahko undefined — Array.isArray guard
+        const orderItems = Array.isArray(order?.orderItems) ? order.orderItems : []
+        orderItems.forEach((item: OrderItemRow) => {
           const menuItem = item.menuItem as { name: string; category?: { menu?: { name: string } } } | undefined
           const courseId = classifyItem(menuItem?.name || '')
           if (!courseMap[courseId]) courseMap[courseId] = []
           const modifiers = (() => {
-            try { return JSON.parse((item.modifiersJson as string) || '[]') } catch { return [] }
+            try {
+              const parsed = JSON.parse((item.modifiersJson as string) || '[]')
+              return Array.isArray(parsed) ? parsed : []
+            } catch { return [] }
           })()
           courseMap[courseId].push({
             id: item.id, name: menuItem?.name || '', quantity: item.quantity,
@@ -58,6 +63,9 @@ export function useCoursePacing() {
           id: order.id, orderNumber: order.orderNumber,
           tableNumber: orderTable?.number || null, tableName: orderTable?.area || null,
           customerName: (order.customerName as string) || '', orderType: order.type,
+          // FIX RangeError: Invalid time value — order.createdAt je obvezno polje
+          // PacedOrder interface, ampak prej ni bilo nastavljeno v return-u!
+          createdAt: (order.createdAt as string) || new Date().toISOString(),
           courses, currentCourseIndex, pacing: 'manual' as const, avgGapMinutes: 12,
         }
       })

@@ -15,6 +15,9 @@ export const MenusTab = memo(function MenusTab({
   categories,
   onAddMenu,
 }: MenusTabProps) {
+  // FIX TypeError: b?.filter is not a function — categories in menus sta lahko objekti
+  const menusArray = Array.isArray(menus) ? menus : []
+  const categoriesArray = Array.isArray(categories) ? categories : []
   return (
     <>
       <Button onClick={onAddMenu}>
@@ -22,10 +25,10 @@ export const MenusTab = memo(function MenusTab({
         Dodaj meni
       </Button>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-        {menus?.map((menu) => {
-          const menuCategories = categories?.filter((c) =>
+        {menusArray.map((menu) => {
+          const menuCategories = categoriesArray.filter((c) =>
             (c.menu?.id || c.menuId) === menu.id
-          ) || []
+          )
           return (
             <Card key={menu.id} className="hover:shadow-md transition-shadow">
               <CardContent className="p-6 space-y-3">
