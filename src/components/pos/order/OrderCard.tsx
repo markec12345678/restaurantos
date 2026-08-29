@@ -37,13 +37,24 @@ export const OrderCard = memo(function OrderCard({
   // FIX TypeError: t?.filter is not a function — order.orderItems je lahko undefined
   // če API vrača partial podatke ali če order prihaja iz drugačnega vira.
   const orderItems = Array.isArray(order?.orderItems) ? order.orderItems : []
+  // FIX RangeError: Invalid time value — order.createdAt je lahko undefined
+  const formatTime = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return '—'
+    try {
+      const d = new Date(dateStr)
+      if (isNaN(d.getTime())) return '—'
+      return format(d, 'MMM dd, HH:mm')
+    } catch {
+      return '—'
+    }
+  }
   return (
     <Card className="hover:shadow-md transition-shadow">
       <CardContent className="p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div>
             <p className="font-semibold">#{order.orderNumber}</p>
-            <p className="text-xs text-muted-foreground">{format(new Date(order.createdAt), 'MMM dd, HH:mm')}</p>
+            <p className="text-xs text-muted-foreground">{formatTime(order.createdAt)}</p>
           </div>
           <div className="flex gap-1 flex-wrap">
             <Badge variant="outline" className={statusColors[order.status] || ''}>{statusLabels[order.status] || order.status}</Badge>

@@ -13,6 +13,8 @@ interface MarginTableProps {
 }
 
 export const MarginTable = memo(function MarginTable({ data }: MarginTableProps) {
+  // FIX TypeError: p?.map is not a function — data je lahko undefined
+  const rows = Array.isArray(data) ? data : []
   return (
     <Card>
       <CardContent className="p-0">
@@ -30,7 +32,7 @@ export const MarginTable = memo(function MarginTable({ data }: MarginTableProps)
               </tr>
             </thead>
             <tbody>
-              {data.map(item => (
+              {rows.map(item => (
                 <tr key={item.id} className={`border-b hover:bg-accent/30 transition-colors ${!item.hasRecipe ? 'opacity-60' : ''}`}>
                   <td className="p-3">
                     <div className="flex items-center gap-2">
@@ -63,7 +65,7 @@ export const MarginTable = memo(function MarginTable({ data }: MarginTableProps)
             </tbody>
           </table>
         </div>
-        {data.length === 0 && (
+        {rows.length === 0 && (
           <p className="text-center py-8 text-muted-foreground">Ni najdenih artiklov</p>
         )}
       </CardContent>

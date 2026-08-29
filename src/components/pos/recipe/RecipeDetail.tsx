@@ -93,12 +93,13 @@ export const RecipeDetail = memo(function RecipeDetail({
         <Separator />
 
         {/* Seznam sestavin */}
-        {selectedRecipes.length > 0 ? (
+        {/* FIX TypeError: p?.map is not a function — selectedRecipes je lahko undefined */}
+        {(Array.isArray(selectedRecipes) ? selectedRecipes : []).length > 0 ? (
           <div className="space-y-2">
             <h4 className="text-sm font-semibold flex items-center gap-2">
-              <Package className="h-4 w-4" /> Sestavine ({selectedRecipes.length})
+              <Package className="h-4 w-4" /> Sestavine ({(Array.isArray(selectedRecipes) ? selectedRecipes : []).length})
             </h4>
-            {selectedRecipes.map(recipe => (
+            {(Array.isArray(selectedRecipes) ? selectedRecipes : []).map(recipe => (
               <div key={recipe.id} className="flex items-center justify-between p-3 rounded-lg border hover:shadow-sm transition-shadow">
                 <div className="flex items-center gap-3">
                   <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted">

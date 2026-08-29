@@ -67,7 +67,18 @@ export const OrderDetailDialog = memo(function OrderDetailDialog({
               )}
               {Boolean(detailOrder?.cancelledAt) && (
                 <p className="text-xs text-red-600/70 dark:text-red-400/70">
-                  Preklicano: {format(new Date(detailOrder?.cancelledAt || ''), 'dd.MM.yyyy HH:mm')}
+                  Preklicano: {(() => {
+                    // FIX RangeError: Invalid time value
+                    const dt = detailOrder?.cancelledAt
+                    if (!dt) return '—'
+                    try {
+                      const d = new Date(dt)
+                      if (isNaN(d.getTime())) return '—'
+                      return format(d, 'dd.MM.yyyy HH:mm')
+                    } catch {
+                      return '—'
+                    }
+                  })()}
                 </p>
               )}
               {Boolean(detailOrder?.cancelledBy) && (

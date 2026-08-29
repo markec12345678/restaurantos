@@ -12,9 +12,15 @@ import { safeToFixed, safeNum } from '@/lib/safe-format'
 export const ModifiersTab = memo(function ModifiersTab({
   modifierGroups,
 }: ModifiersTabProps) {
+  // FIX TypeError: b?.filter is not a function — modifierGroups je lahko undefined
+  const groups = Array.isArray(modifierGroups) ? modifierGroups : []
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      {modifierGroups?.map((mg: ModifierGroupData) => (
+      {groups.map((mg: ModifierGroupData) => {
+        // FIX: Array.isArray za mg.modifiers in mg.menuItems
+        const modifiers = Array.isArray(mg.modifiers) ? mg.modifiers : []
+        const menuItems = Array.isArray(mg.menuItems) ? mg.menuItems : []
+        return (
         <Card key={mg.id} className="hover:shadow-md transition-shadow">
           <CardContent className="p-4 space-y-3">
             <div className="flex items-center justify-between">
@@ -26,21 +32,21 @@ export const ModifiersTab = memo(function ModifiersTab({
                   {!mg.required && mg.minSelect === 0 && <Badge variant="secondary" className="text-[9px] h-4 px-1">Izbirno</Badge>}
                 </div>
               </div>
-              <Badge variant="outline">{mg.modifiers.length} opcij</Badge>
+              <Badge variant="outline">{modifiers.length} opcij</Badge>
             </div>
             <div className="space-y-1">
-              {mg.modifiers.map((mod) => (
+              {modifiers.map((mod) => (
                 <div key={mod.id} className="flex items-center justify-between py-1 px-2 rounded bg-muted/50 text-sm">
                   <span>{mod.name}</span>
                   {mod.price > 0 && <span className="text-primary font-medium">+€{safeToFixed(mod.price, 2)}</span>}
                 </div>
               ))}
             </div>
-            {mg.menuItems.length > 0 && (
+            {menuItems.length > 0 && (
               <div className="pt-2 border-t">
                 <p className="text-xs text-muted-foreground mb-1">Uporabljeno pri:</p>
                 <div className="flex flex-wrap gap-0.5">
-                  {mg.menuItems.map((mi) => (
+                  {menuItems.map((mi) => (
                     <Badge key={mi.menuItem.id} variant="outline" className="text-[9px] h-4 px-1">
                       {mi.menuItem.name}
                     </Badge>
@@ -50,7 +56,8 @@ export const ModifiersTab = memo(function ModifiersTab({
             )}
           </CardContent>
         </Card>
-      ))}
+        )
+      })}
     </div>
   )
 })

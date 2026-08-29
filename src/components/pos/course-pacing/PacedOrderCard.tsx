@@ -15,6 +15,22 @@ export const PacedOrderCard = memo(function PacedOrderCard({
   onFireCourse,
   onReadyCourse,
 }: PacedOrderCardProps) {
+  // FIX RangeError: Invalid time value — order.createdAt je lahko undefined/null
+  // Prej: format(new Date(order.createdAt), 'HH:mm') je crash-al.
+  // Sedaj: varno formatiranje s preverbo veljavnosti datuma.
+  const formatTime = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return '—'
+    try {
+      const d = new Date(dateStr)
+      // Preveri ali je datum veljaven (NaN check)
+      if (isNaN(d.getTime())) return '—'
+      return format(d, 'HH:mm')
+    } catch {
+      return '—'
+    }
+  }
+  // FIX TypeError: t?.filter — order.courses je lahko undefined
+  const courses = Array.isArray(order?.courses) ? order.courses : []
   return (
     <Card className="overflow-hidden">
       {/* Order header */}
@@ -32,17 +48,17 @@ export const PacedOrderCard = memo(function PacedOrderCard({
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-muted-foreground">
-            {format(new Date(order.createdAt), 'HH:mm')}
+            {formatTime(order.createdAt)}
           </span>
           <Badge variant="outline" className="text-[9px]">
-            {order.courses.filter(c => c.status === 'served').length}/{order.courses.length} jedi
+            {courses.filter(c => c.status === 'served').length}/{courses.length} jedi
           </Badge>
         </div>
       </div>
 
       {/* Course progress bar */}
       <div className="flex h-2">
-        {order.courses.map((course, idx) => (
+        {courses.map((course, idx) => (
           <div
             key={course.id}
             className={`flex-1 transition-colors ${
@@ -58,10 +74,10 @@ export const PacedOrderCard = memo(function PacedOrderCard({
 
       {/* Course cards */}
       <CardContent className="p-3 space-y-2">
-        {order.courses.map((course, courseIdx) => {
+        {courses.map((course, courseIdx) => {
           const isCurrentCourse = courseIdx === order.currentCourseIndex
           const canFire = course.status === 'waiting' && (
-            courseIdx === 0 || order.courses[courseIdx - 1]?.status === 'served' || order.courses[courseIdx - 1]?.status === 'ready'
+            courseIdx === 0 || courses[courseIdx - 1]?.status === 'served' || courses[courseIdx - 1]?.status === 'ready'
           )
           const canMarkReady = course.status === 'firing' || course.status === 'preparing'
 
