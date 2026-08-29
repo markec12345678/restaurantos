@@ -3,7 +3,6 @@ import crypto from 'crypto'
 import { logger } from './logger'
 
 // FIX VERCEL: Prisma.Decimal.toJSON() returns string on PostgreSQL.
-// Override to return number so frontend gets numbers (not Decimal objects).
 import { Prisma } from '@prisma/client'
 if (Prisma.Decimal.prototype) {
   (Prisma.Decimal.prototype as unknown as Record<string, unknown>).toJSON = function(this: { toNumber: () => number }) { return this.toNumber() }
@@ -15,13 +14,21 @@ const globalForPrisma = globalThis as unknown as {
 }
 
 function createPrismaClientSync(): PrismaClient {
-  const dbUrl = process.env.DATABASE_URL || ''
+  // FIX: Check DATABASE_URL first, then POSTGRES_URL (Neon sets both)
+  const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || ''
   const isExternalPostgres = dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://')
 
   if (isExternalPostgres) {
-    logger.info('DB', 'Povezujem se na zunanji PostgreSQL')
+    // Log masked URL for debugging
+    const maskedUrl = dbUrl.replace(/(postgresql|postgres):\/\/([^:]+):([^@]+)@/, '$1://$2:****@')
+    logger.info('DB', `Povezujem se na zunanji PostgreSQL: ${maskedUrl.substring(0, 60)}...`)
     return new PrismaClient({
       log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+      datasources: {
+        db: {
+          url: dbUrl,
+        },
+      },
     })
   }
 
@@ -32,8 +39,7 @@ function createPrismaClientSync(): PrismaClient {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { PrismaPGlite } = require('pglite-prisma-adapter') as { PrismaPGlite: new (client: unknown, options?: { schema?: string }) => unknown }
 
-    const dataDir = process.env.PGLITE_DATA_DIR || '/home/z/my-project/pglite-data'
-    // FIX: Uporabi obstoječo PGlite instanco, če obstaja (prepreči WASM crash)
+    const dataDir = process.env.PGLITE_DATA_DIR || '/tmp/pglite-data'
     let pglite = globalForPrisma.__pgliteInstance as { waitReady: () => Promise<void> } & unknown
     if (!pglite) {
       pglite = new PGlite(dataDir)
@@ -41,7 +47,6 @@ function createPrismaClientSync(): PrismaClient {
     }
     const adapter = new PrismaPGlite(pglite)
 
-    // FIX WORKFLOW-44: pglite-prisma-adapter 0.3.0 ne serializira BigInt pravilno
     const proto = Object.getPrototypeOf(adapter)
     if (proto && typeof proto.performIO === 'function') {
       const originalPerformIO = proto.performIO
@@ -72,7 +77,6 @@ export const db =
     return client
   })()
 
-// PostgreSQL ima vedno WAL vklopljen (no-op za backward kompatibilnost)
 let walModeInitialized = false
 export async function enableWalMode(): Promise<void> {
   if (walModeInitialized) return
