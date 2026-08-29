@@ -19,7 +19,31 @@ export const PUBLIC_GET_ROUTES = [
 ]
 
 // Zahtevana dovoljenja za posamezne rute
+// FIX NAPAKA 5 (HTTP 403): Star beginsWith matching je blokiral natakarje dostop
+// do bistvenih konfiguracijskih podatkov (dining-options, alt-payment-types, void-reasons).
+// Sedaj so specifične pod-poti navedene eksplicitno z nižjimi dovoljenji.
 export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
+  // ═══════════════════════════════════════════
+  // SPECIFIČNE POD-POTI /api/configuration/[tab]
+  // Bistvene za prodajo — dostopne z take_orders
+  // ═══════════════════════════════════════════
+  '/api/configuration/dining-options': ['take_orders'],     // Način postrežbe
+  '/api/configuration/alt-payment-types': ['take_orders'],  // Alternativna plačila (potrebno za PaymentDialog)
+  '/api/configuration/price-groups': ['take_orders'],       // Ceniki (prikaz cen artiklov)
+  '/api/configuration/void-reasons': ['take_orders'],       // Razlogi za storno (VoidItemDialog)
+  '/api/configuration/no-sale-reasons': ['take_orders'],   // Razlogi no-sale (CashRegister)
+  '/api/configuration/service-charges': ['take_orders'],   // Servisne postavke (dodajanje k naročilu)
+  '/api/configuration/prep-stations': ['take_orders'],     // Kuhinjske postaje (KDS routing)
+  '/api/configuration/sales-categories': ['take_orders'],   // Prodajne kategorije (analitika)
+  '/api/configuration/revenue-centers': ['take_orders'],    // Prihodkovni centri (multi-location)
+  '/api/configuration/discounts': ['apply_discounts'],     // Popusti
+  '/api/configuration/printers': ['admin'],                // Tiskalniki (admin-only)
+  '/api/configuration/tax-rates': ['admin'],                // DDV stopnje (admin-only)
+  '/api/configuration': ['admin'],                          // General config (vsi podatki) — admin only
+
+  // ═══════════════════════════════════════════
+  // OSNOVNE API RUTE
+  // ═══════════════════════════════════════════
   '/api/orders': ['take_orders'],
   '/api/payments': ['take_orders', 'manage_cash'],
   '/api/receipts': ['take_orders', 'manage_cash'],
@@ -30,11 +54,11 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/api/employees': ['manage_employees'],
   '/api/loyalty': ['take_orders'],
   '/api/gift-cards': ['take_orders'],
-  '/api/guests': ['take_orders'],           // FIX: Dodana pot za goste CRM
-  '/api/reservations': ['take_orders'],     // FIX: Dodana pot za rezervacije
-  '/api/waitlist': ['take_orders'],         // FIX: Dodana pot za čakalno vrsto
-  '/api/suppliers': ['manage_inventory'],   // FIX: Dodana pot za dobavitelje
-  '/api/purchase-orders': ['manage_inventory'], // FIX: Dodana pot za nabavna naročila
+  '/api/guests': ['take_orders'],
+  '/api/reservations': ['take_orders'],
+  '/api/waitlist': ['take_orders'],
+  '/api/suppliers': ['manage_inventory'],
+  '/api/purchase-orders': ['manage_inventory'],
   '/api/dashboard': ['view_reports'],
   '/api/reports': ['view_reports'],
   '/api/cash-register': ['manage_cash'],
@@ -66,22 +90,22 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/api/categories': ['take_orders'],
   '/api/menu-items': ['take_orders'],
   '/api/modifier-groups': ['take_orders'],
-  '/api/configuration': ['admin'],
-  '/api/integrations': ['admin'],            // Integration API — povezave z zunanjimi sistemi
-  '/api/subscription': ['admin'],            // SaaS naročnina — upravljanje paketov
-  '/api/delivery-zones': ['take_orders'],    // Cone dostave — upravljanje con
-  '/api/opening-hours': ['take_orders'],     // Delovni čas — urniki lokacij
-  '/api/locations': ['take_orders'],         // Lokacije — multi-location podpora
-  // FIX HIGH: Manjkajoče rute v ROUTE_PERMISSIONS
-  '/api/delivery-tracking': ['take_orders'], // GPS sledenje voznikom
-  '/api/tip-pool': ['manage_cash'],          // Razdelitev napitnin
-  '/api/daily-checklist': ['admin'],         // HACCP checklist
-  '/api/order-items': ['take_orders'],       // Upravljanje postavk naročil
-  '/api/staff-performance': ['manage_employees'], // Performanse zaposlenih
-  '/api/stock/check': ['manage_inventory'],  // Preverjanje zaloge
-  '/api/end-of-day': ['manage_cash'],        // Zaključek dneva
-  '/api/z-report': ['manage_cash'],          // Z-poročilo
-  '/api/digital-receipt': ['take_orders'],   // Digitalni račun
-  '/api/expenses': ['manage_cash'],          // Stroški
-  '/api/feedback-public': [],                // Javni feedback (auth required, no special perm)
+  '/api/integrations': ['admin'],
+  '/api/subscription': ['admin'],
+  '/api/delivery-zones': ['take_orders'],
+  '/api/opening-hours': ['take_orders'],
+  '/api/locations': ['take_orders'],
+  '/api/delivery-tracking': ['take_orders'],
+  '/api/tip-pool': ['manage_cash'],
+  // FIX NAPAKA 5 (HTTP 403): daily-checklist je viden natakarjem v sidebar (permission: take_orders),
+  // ampak je prej zahteval 'admin'. HACCP checklist se uporablja v dnevni rutini natakarjev.
+  '/api/daily-checklist': ['take_orders'],
+  '/api/order-items': ['take_orders'],
+  '/api/staff-performance': ['manage_employees'],
+  '/api/stock/check': ['manage_inventory'],
+  '/api/end-of-day': ['manage_cash'],
+  '/api/z-report': ['manage_cash'],
+  '/api/digital-receipt': ['take_orders'],
+  '/api/expenses': ['manage_cash'],
+  '/api/feedback-public': [],
 }

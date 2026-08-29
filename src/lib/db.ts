@@ -22,11 +22,26 @@ function createPrismaClientSync(): PrismaClient {
     // Log masked URL for debugging
     const maskedUrl = dbUrl.replace(/(postgresql|postgres):\/\/([^:]+):([^@]+)@/, '$1://$2:****@')
     logger.info('DB', `Povezujem se na zunanji PostgreSQL: ${maskedUrl.substring(0, 60)}...`)
+
+    // FIX NAPAKA 5 (HTTP 503): Neon free plan ima omejen connection pool (5 povezav).
+    // Vercel serverless lahko vzporedno proži več API klicev — brez connection_limit
+    // hitro pride do izčrpanja povezav (timeout → 503).
+    // - connection_limit=1: vsaka serverless function naj uporabi 1 povezavo
+    // - connection_timeout=10: počakaj 10s na povezavo pred timeout
+    // - pgbouncer=true: uporabi PgBouncer connection pooler (Neon podpira)
+    let optimizedUrl = dbUrl
+    if (!dbUrl.includes('connection_limit') && !dbUrl.includes('pgbouncer')) {
+      const separator = dbUrl.includes('?') ? '&' : '?'
+      // FIX: Neon priporoča connection_limit=1 za serverless + pgbouncer=true
+      // (na Neon free planu je pooler na voljo privzeto)
+      optimizedUrl = `${dbUrl}${separator}connection_limit=1&connection_timeout=10&pool_timeout=10`
+    }
+
     return new PrismaClient({
       log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
       datasources: {
         db: {
-          url: dbUrl,
+          url: optimizedUrl,
         },
       },
     })

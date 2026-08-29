@@ -38,35 +38,39 @@ export async function GET(req: Request) {
     today.setHours(0, 0, 0, 0)
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
-
-    // ─── OSNOVNA AGREGACIJA ────────────────────────────────
-    const agg = await fetchTodayAggregation(today, tomorrow)
-
-    // ─── MIZE, ZALOGA, ZADNJA NAROČILA ─────────────────────
-    const { activeTables, totalTables, lowStockItems, recentOrders } = await fetchTablesStockRecent()
-
-    // ─── TEDENSKA PORABA ────────────────────────────────────
     const sevenDaysAgo = new Date()
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-    const dailyRevenue = await computeWeeklyRevenue(sevenDaysAgo)
 
-    // ─── ANALITIKA ──────────────────────────────────────────
-    const analytics = await fetchAnalyticsBreakdowns(today, tomorrow)
+    // FIX NAPAKA 5 (HTTP 503): Prej so bili query-ji izvedeni ZAPOREDNO (8x await),
+    // kar je lahko trajalo 8-16s in preseglo Vercel Hobby 10s timeout.
+    // Sedaj izvajamo Vzporedno z Promise.all — skupni čas je max(query), ne vsota.
+    // fursShiftCogs je odvisen od agg.todayRevenue, zato mora počakati na prvi batch.
 
-    // ─── POVPREČNI ČAKALNI ČAS ─────────────────────────────
-    const avgWaitMinutes = await computeAvgWaitTime(today, tomorrow)
+    // ─── PRVI BATCH (vsi neodvisni query-ji vzporedno) ────────
+    const [
+      agg,
+      tablesStockRecent,
+      dailyRevenue,
+      analytics,
+      avgWaitMinutes,
+      wowComparison,
+      heatmapData,
+      guestAnalytics,
+    ] = await Promise.all([
+      fetchTodayAggregation(today, tomorrow),
+      fetchTablesStockRecent(),
+      computeWeeklyRevenue(sevenDaysAgo),
+      fetchAnalyticsBreakdowns(today, tomorrow),
+      computeAvgWaitTime(today, tomorrow),
+      computeWowComparison(today),
+      computeHeatmapData(),
+      fetchGuestAnalytics(),
+    ])
 
-    // ─── FURS, IZMENA, COGS ─────────────────────────────────
+    // ─── DRUGI BATCH (odvisen od agg.todayRevenue) ───────────
     const fursShiftCogs = await fetchFursShiftCogs(today, tomorrow, agg.todayRevenue)
 
-    // ─── WOW PRIMERJAVA ─────────────────────────────────────
-    const wowComparison = await computeWowComparison(today)
-
-    // ─── HEATMAP ────────────────────────────────────────────
-    const heatmapData = await computeHeatmapData()
-
-    // ─── GOSTI ──────────────────────────────────────────────
-    const guestAnalytics = await fetchGuestAnalytics()
+    const { activeTables, totalTables, lowStockItems, recentOrders } = tablesStockRecent
 
     const responseBody = {
       todayRevenue: agg.todayRevenue,
