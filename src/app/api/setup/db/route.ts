@@ -12,7 +12,7 @@ export async function GET() {
       SELECT tablename FROM pg_tables WHERE schemaname = 'public'
     ` as Array<{ tablename: string }>
     
-    if (existing.length < 90) {
+    if (true) {
       // Create missing tables
       const sqlPath = path.join(process.cwd(), 'prisma', 'schema.sql')
       let sql = ''
