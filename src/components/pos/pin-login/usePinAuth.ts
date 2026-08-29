@@ -18,6 +18,14 @@ export function getCurrentUser() {
       currentUser = JSON.parse(stored)
       return currentUser
     }
+    // FIX: Preveri tudi localStorage (persistence across tabs)
+    const localStored = localStorage.getItem('pos_auth_user')
+    if (localStored) {
+      currentUser = JSON.parse(localStored)
+      // Migriraj v sessionStorage
+      sessionStorage.setItem('pos_auth_user', localStored)
+      return currentUser
+    }
   } catch {
     // sessionStorage ni na voljo
   }
@@ -28,19 +36,23 @@ export function setCurrentUser(user: AuthUser | null) {
   currentUser = user
   if (typeof window !== 'undefined') {
     if (user) {
-      sessionStorage.setItem('pos_auth_user', JSON.stringify(user))
+      const json = JSON.stringify(user)
+      sessionStorage.setItem('pos_auth_user', json)
+      // FIX: Shrani tudi v localStorage za persistence across tabs/sessions
+      localStorage.setItem('pos_auth_user', json)
     } else {
       sessionStorage.removeItem('pos_auth_user')
       sessionStorage.removeItem('pos_auth_token')
       localStorage.removeItem('pos_auth_user')
       localStorage.removeItem('pos_auth_token')
+      localStorage.removeItem('pos_token')
     }
   }
 }
 
 export function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null
-  // FIX: Preveri tudi localStorage 'pos_token' (uporablja se v POS prijavi)
+  // FIX: Preveri sessionStorage, nato localStorage, nato global
   try {
     const stored = sessionStorage.getItem('pos_auth_token')
     if (stored) {
@@ -50,15 +62,29 @@ export function getAuthToken(): string | null {
   } catch {
     // sessionStorage ni na voljo
   }
-  // FIX: Preveri localStorage 'pos_token' (glavni POS login shrani tu)
+  // FIX: Preveri localStorage (persistence across page reloads)
   try {
-    const localStorageToken = localStorage.getItem('pos_token')
+    const localStorageToken = localStorage.getItem('pos_auth_token')
     if (localStorageToken) {
       authToken = localStorageToken
+      // Migriraj v sessionStorage
+      sessionStorage.setItem('pos_auth_token', localStorageToken)
       return authToken
     }
   } catch {
     // localStorage ni na voljo
+  }
+  // FIX: Preveri tudi 'pos_token' key (kompatibilnost)
+  try {
+    const altToken = localStorage.getItem('pos_token')
+    if (altToken) {
+      authToken = altToken
+      sessionStorage.setItem('pos_auth_token', altToken)
+      localStorage.setItem('pos_auth_token', altToken)
+      return authToken
+    }
+  } catch {
+    // ignore
   }
   return authToken
 }
@@ -67,12 +93,24 @@ export function setAuthToken(token: string | null) {
   authToken = token
   if (typeof window !== 'undefined') {
     if (token) {
+      // FIX: Shrani v OBE storage (sessionStorage + localStorage)
       sessionStorage.setItem('pos_auth_token', token)
+      localStorage.setItem('pos_auth_token', token)
+      // FIX: Shrani tudi pod 'pos_token' za backward compat
+      localStorage.setItem('pos_token', token)
     } else {
       sessionStorage.removeItem('pos_auth_token')
       localStorage.removeItem('pos_auth_token')
+      localStorage.removeItem('pos_token')
     }
   }
+}
+
+// FIX: Flag da preprečimo clear token med prefetch (pred login)
+let isPrefetchPhase = false
+
+export function setPrefetchPhase(active: boolean) {
+  isPrefetchPhase = active
 }
 
 export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
@@ -97,11 +135,15 @@ export async function authFetch(url: string, options: RequestInit = {}): Promise
     }
   }
   const response = await fetch(url, { ...options, headers })
-  if (response.status === 401) {
+  
+  // FIX: Ne clear token na 401 med prefetch fazo (pred login)
+  // Samo clear če imamo že token in dobimo 401 (expired session)
+  if (response.status === 401 && token && !isPrefetchPhase) {
     setAuthToken(null)
     setCurrentUser(null)
     window.dispatchEvent(new CustomEvent('pos:auth-expired'))
   }
+  
   if (!response.ok) {
     let errorMessage = `Napaka ${response.status}`
     try {

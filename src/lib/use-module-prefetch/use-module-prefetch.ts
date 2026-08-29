@@ -7,6 +7,7 @@
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { authFetch } from '@/components/pos/PinLogin'
+import { setPrefetchPhase } from '@/components/pos/pin-login/usePinAuth'
 import { logger } from '@/lib/logger'
 import { modulePrefetchMap } from './config'
 import type { ModuleName } from './config'
@@ -35,6 +36,7 @@ export function useModulePrefetch(activeModule: ModuleName): void {
     const configs = modulePrefetchMap[activeModule]
     if (!configs || configs.length === 0) return
 
+    setPrefetchPhase(true)
     for (const config of configs) {
       const cacheKey = JSON.stringify(config.queryKeys)
 
@@ -64,5 +66,6 @@ export function useModulePrefetch(activeModule: ModuleName): void {
         // Tiho ignoriraj prefetch napake — ne vplivajo na uporabnika
       })
     }
-  }, [activeModule, queryClient])
+  setPrefetchPhase(false)
+    }, [activeModule, queryClient])
 }
