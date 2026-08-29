@@ -10,6 +10,8 @@ import { computeFinancialMetrics } from './_helpers-compute'
 
 
 export const dynamic = 'force-dynamic'
+// FIX NAPAKA 5 (HTTP 503): Finančna poročila izvedejo obsežne agregacijske query-je.
+export const maxDuration = 45
 
 export async function GET(req: Request) {
   try {

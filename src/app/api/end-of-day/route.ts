@@ -13,6 +13,9 @@ import { fetchEodData, computeEodMetrics, closeShift } from './_helpers'
 
 
 export const dynamic = 'force-dynamic'
+// FIX NAPAKA 5 (HTTP 503): EOD izvede obsežne agregacijske query-je;
+// povečamo timeout da preprečimo 503 na Vercelu.
+export const maxDuration = 45
 
 export async function GET(req: Request) {
   try {

@@ -9,6 +9,8 @@ import { handlePostOrder } from './_helpers/post-handler'
 
 
 export const dynamic = 'force-dynamic'
+// FIX NAPAKA 5 (HTTP 503): Orders z orderItems include je lahko počasen pri velikih bazah.
+export const maxDuration = 30
 
 export async function GET(req: Request) {
   try {

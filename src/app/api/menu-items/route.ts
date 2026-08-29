@@ -13,6 +13,8 @@ const createMenuItemWithModifiersSchema = createMenuItemSchema.extend({
 })
 
 export const dynamic = 'force-dynamic'
+// FIX NAPAKA 5 (HTTP 503): Menu-items z modifierGroups include je lahko počasen.
+export const maxDuration = 30
 
 export async function GET(request: Request) {
   try {

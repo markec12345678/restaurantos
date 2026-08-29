@@ -30,7 +30,9 @@ export const OrdersTab = memo(function OrdersTab({ orders, onMarkServed, getElap
     <div className="p-3 space-y-2">
       {orders.map(order => {
         const isExpanded = expandedOrder === order.id
-        const readyItems = order.items.filter(i => i.status === 'ready')
+        // FIX WAITER CRASH: order.items je lahko undefined če API ne vrača include-a
+        const orderItems = Array.isArray(order.items) ? order.items : []
+        const readyItems = orderItems.filter(i => i.status === 'ready')
         const elapsed = getElapsed(order.firedAt)
         const statusColor = order.status === 'ready' ? 'bg-emerald-500' : order.status === 'in-progress' ? 'bg-blue-500' : order.status === 'pending' ? 'bg-orange-500' : 'bg-muted'
 
@@ -46,7 +48,7 @@ export const OrdersTab = memo(function OrdersTab({ orders, onMarkServed, getElap
                     {order.table && <span className="text-sm font-black px-2 py-0.5 rounded bg-primary/15 text-primary">Miza {order.table.number}</span>}
                     {order.type === 'TAKEOUT' && <ShoppingBag className="w-3.5 h-3.5 text-blue-500" />}
                   </div>
-                  <p className="text-xs text-muted-foreground">{order.employee.name} · {order.items.length} artiklov</p>
+                  <p className="text-xs text-muted-foreground">{order.employee?.name || '—'} · {orderItems.length} artiklov</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -62,7 +64,7 @@ export const OrdersTab = memo(function OrdersTab({ orders, onMarkServed, getElap
 
             {isExpanded && (
               <div className="px-4 pb-3 space-y-1.5 border-t pt-2">
-                {order.items.map(item => (
+                {orderItems.map(item => (
                   <div key={item.id} className={cn(
                     'flex items-center justify-between py-1.5 px-2.5 rounded-lg text-sm',
                     item.status === 'ready' && 'bg-emerald-50 dark:bg-emerald-950/30',

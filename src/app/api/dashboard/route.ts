@@ -19,6 +19,10 @@ import { fetchAnalyticsBreakdowns } from './_helpers-analytics'
 
 
 export const dynamic = 'force-dynamic'
+// FIX NAPAKA 5 (HTTP 503): Dashboard izvede 8+ zaporednih query-jev;
+// na Vercel Hobby planu je default limit 10s. Povečamo na 30s (max za Pro plan,
+// varno za Hobby čeprav Vercel rezidualno omeji). Prepreči timeout 503.
+export const maxDuration = 30
 
 export async function GET(req: Request) {
   try {

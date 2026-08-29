@@ -94,7 +94,32 @@ export function useWaiterPage(): WaiterPageState {
       const results = await Promise.all(
         statuses.map(s => fetch(`/api/orders?status=${encodeURIComponent(s)}`, { headers }).then(r => r.json()))
       )
-      return results.flatMap(r => r.orders || []) as Order[]
+      // FIX WAITER CRASH: API vrača Prisma 'orderItems' (ne 'items').
+      // Mapiraj v format, ki ga pričakuje waiter komponente (Order.items).
+      // Prav tako normaliziraj menuItem → ime in employee → {id, name}
+      const rawOrders = results.flatMap(r => r.orders || [])
+      return rawOrders.map((o: Record<string, unknown>) => {
+        const orderItems = Array.isArray(o.orderItems) ? o.orderItems : (Array.isArray(o.items) ? o.items : [])
+        // Mapiraj vsak orderItem da ima 'name' polje (iz menuItem.menuItemName)
+        const mappedItems = orderItems.map((item: Record<string, unknown>) => ({
+          id: String(item.id ?? ''),
+          name: String(item.menuItemName ?? (item.menuItem as { name?: string } | undefined)?.name ?? 'Neznan artikel'),
+          quantity: Number(item.quantity ?? 1),
+          status: String(item.status ?? 'pending'),
+          price: Number(item.price ?? 0),
+          notes: (item.notes as string) || null,
+          station: null,
+          course: 0,
+          modifiers: [],
+        }))
+        return {
+          ...o,
+          items: mappedItems,
+          employee: o.employee
+            ? { id: String((o.employee as { id: string }).id), name: String((o.employee as { name?: string }).name ?? '—') }
+            : { id: '', name: '—' },
+        } as unknown as Order
+      }) as Order[]
     },
     refetchInterval: 10000,
     enabled: !!employee,
@@ -102,7 +127,14 @@ export function useWaiterPage(): WaiterPageState {
 
   const allOrders = ordersData || []
   const myOrders = employee ? allOrders.filter(o => o.employee?.id === employee.id) : []
-  const ordersWithReady = allOrders.filter(o => o.items.some(i => i.status === 'ready') && !['completed', 'cancelled'].includes(o.status))
+  // FIX WAITER CRASH: o.items je lahko undefined če API ne vrne include-a.
+  // Prej: o.items.some(...) → TypeError: Cannot read properties of undefined (reading 'some')
+  // Sedaj: Array.isArray(o.items) ? o.items.some(...) : false
+  const ordersWithReady = allOrders.filter(o =>
+    Array.isArray(o.items) &&
+    o.items.some(i => i.status === 'ready') &&
+    !['completed', 'cancelled'].includes(o.status)
+  )
 
   const { handleMarkServed } = useWaiterActions(allOrders)
 

@@ -83,8 +83,10 @@ export const ReadyTab = memo(function ReadyTab({ notifications, orders, onAcknow
 
       {/* Naročila s pripravljenimi artikli */}
       {orders.filter(o => !notifications.some(n => n.orderId === o.id)).map(order => {
-        const readyItems = order.items.filter(i => i.status === 'ready')
-        const pendingItems = order.items.filter(i => !['ready', 'cancelled', 'served'].includes(i.status))
+        // FIX WAITER CRASH: order.items je lahko undefined — Array.isArray preverba
+        const orderItems = Array.isArray(order.items) ? order.items : []
+        const readyItems = orderItems.filter(i => i.status === 'ready')
+        const pendingItems = orderItems.filter(i => !['ready', 'cancelled', 'served'].includes(i.status))
         return (
           <div key={order.id} className="rounded-xl border bg-card p-4 space-y-2">
             <div className="flex items-center justify-between">
