@@ -5,6 +5,7 @@
       "schedule": "0 2 * * *"
     }
   ],
+  "buildCommand": "next build && npx prisma db push --accept-data-loss",
   "headers": [
     {
       "source": "/(.*)",
