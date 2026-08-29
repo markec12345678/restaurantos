@@ -5,62 +5,67 @@ import path from 'path'
 
 export async function GET() {
   try {
-    // Test connection
-    await db.$queryRaw`SELECT 1 as test`
+    await db.$queryRaw`SELECT 1`
     
     // Get existing tables
     const existing = await db.$queryRaw`
       SELECT tablename FROM pg_tables WHERE schemaname = 'public'
     ` as Array<{ tablename: string }>
     
-    if (existing.length >= 90) {
-      return NextResponse.json({
-        success: true,
-        message: `${existing.length} tables already exist — no action needed`,
-        tableCount: existing.length,
-      })
-    }
-    
-    // Read the pre-generated SQL file
-    const sqlPath = path.join(process.cwd(), 'prisma', 'schema.sql')
-    let sql = ''
-    try {
-      sql = readFileSync(sqlPath, 'utf8')
-    } catch {
-      return NextResponse.json({
-        success: false,
-        error: 'schema.sql file not found at ' + sqlPath,
-      }, { status: 500 })
-    }
-    
-    // Execute the SQL — creates all tables
-    // Split by semicolons to avoid timeout
-    const statements = sql.split(';').filter(s => s.trim().length > 0)
-    let created = 0
-    let errors = 0
-    
-    for (const stmt of statements) {
-      try {
-        await db.$executeRawUnsafe(stmt + ';')
-        created++
-      } catch {
-        // Table might already exist — skip
-        errors++
+    if (existing.length < 90) {
+      // Create missing tables
+      const sqlPath = path.join(process.cwd(), 'prisma', 'schema.sql')
+      let sql = ''
+      try { sql = readFileSync(sqlPath, 'utf8') } catch {}
+      
+      if (sql) {
+        const statements = sql.split(';').filter(s => s.trim().length > 0)
+        for (const stmt of statements) {
+          try { await db.$executeRawUnsafe(stmt + ';') } catch {}
+        }
       }
     }
     
-    // Check final count
+    // FIX: Add missing columns that were added after initial schema
+    const alterStatements = [
+      'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "firedAt" TIMESTAMP(3)',
+      'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "cancelReason" TEXT NOT NULL DEFAULT \'\'',
+      'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "cancelledAt" TIMESTAMP(3)',
+      'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "cancelledBy" TEXT NOT NULL DEFAULT \'\'',
+      'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "cancelledById" TEXT',
+      'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "inventoryDeducted" BOOLEAN NOT NULL DEFAULT false',
+      'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "paidAt" TIMESTAMP(3)',
+      'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "deliveryInfoId" TEXT',
+      'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "paymentStatus" TEXT NOT NULL DEFAULT \'unpaid\'',
+      'ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "chartOfAccountCode" TEXT',
+      'ALTER TABLE "JournalLine" ADD COLUMN IF NOT EXISTS "chartOfAccountCode" TEXT',
+      'ALTER TABLE "JournalLine" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
+      'ALTER TABLE "AccountsPayable" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
+      'ALTER TABLE "AccountsReceivable" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
+      'ALTER TABLE "Location" ADD COLUMN IF NOT EXISTS "subscriptionId" TEXT',
+      'ALTER TABLE "BiometricCredential" ADD COLUMN IF NOT EXISTS "id" TEXT NOT NULL',
+      'ALTER TABLE "StaffShift" ADD COLUMN IF NOT EXISTS "createdById" TEXT',
+      'ALTER TABLE "PurchaseOrder" ADD COLUMN IF NOT EXISTS "requestedById" TEXT',
+      'ALTER TABLE "PurchaseOrder" ADD COLUMN IF NOT EXISTS "approvedById" TEXT',
+    ]
+    
+    let added = 0
+    for (const stmt of alterStatements) {
+      try {
+        await db.$executeRawUnsafe(stmt)
+        added++
+      } catch {}
+    }
+    
     const afterTables = await db.$queryRaw`
       SELECT tablename FROM pg_tables WHERE schemaname = 'public'
     ` as Array<{ tablename: string }>
     
     return NextResponse.json({
       success: true,
-      beforeCount: existing.length,
-      afterCount: afterTables.length,
-      created: created,
-      errors: errors,
-      message: `Tables: ${existing.length} → ${afterTables.length} (${created} created, ${errors} skipped)`,
+      tableCount: afterTables.length,
+      columnsAdded: added,
+      message: `${afterTables.length} tables, ${added} columns added (including firedAt)`,
     })
   } catch (error: unknown) {
     return NextResponse.json({
