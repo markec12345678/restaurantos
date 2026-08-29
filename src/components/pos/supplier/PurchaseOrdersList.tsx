@@ -18,7 +18,9 @@ interface PurchaseOrdersListProps {
 }
 
 export const PurchaseOrdersList = memo(function PurchaseOrdersList({ orders }: PurchaseOrdersListProps) {
-  if (orders.length === 0) {
+  // FIX TypeError: e.map is not a function — orders je lahko undefined ali objekt
+  const orderList = Array.isArray(orders) ? orders : []
+  if (orderList.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-3">
         <FileText className="h-12 w-12 opacity-20" />
@@ -29,7 +31,7 @@ export const PurchaseOrdersList = memo(function PurchaseOrdersList({ orders }: P
 
   return (
     <div className="space-y-2">
-      {orders.map(po => (
+      {orderList.map(po => (
         <Card key={po.id}>
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
@@ -40,15 +42,34 @@ export const PurchaseOrdersList = memo(function PurchaseOrdersList({ orders }: P
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-bold text-sm font-mono">{po.poNumber}</span>
-                    <Badge variant="outline" className={`text-[9px] h-5 px-1.5 ${poStatusColors[po.status]}`}>
-                      {poStatusLabels[po.status]}
+                    <Badge variant="outline" className={`text-[9px] h-5 px-1.5 ${poStatusColors[po.status] || ''}`}>
+                      {poStatusLabels[po.status] || po.status}
                     </Badge>
                   </div>
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1"><Truck className="h-3 w-3" />{po.supplier?.name || 'Neznan'}</span>
-                    <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{format(new Date(po.orderDate), 'd. MMM yyyy')}</span>
+                    {/* FIX RangeError: Invalid time value — po.orderDate je lahko undefined */}
+                    <span className="flex items-center gap-1">
+                      <Calendar className="h-3 w-3" />
+                      {(() => {
+                        if (!po.orderDate) return '—'
+                        try {
+                          const d = new Date(po.orderDate)
+                          if (isNaN(d.getTime())) return '—'
+                          return format(d, 'd. MMM yyyy')
+                        } catch { return '—' }
+                      })()}
+                    </span>
                     {po.expectedDate && (
-                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" />Pričakovano: {format(new Date(po.expectedDate), 'd. MMM yyyy')}</span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />Pričakovano: {(() => {
+                          try {
+                            const d = new Date(po.expectedDate)
+                            if (isNaN(d.getTime())) return '—'
+                            return format(d, 'd. MMM yyyy')
+                          } catch { return '—' }
+                        })()}
+                      </span>
                     )}
                   </div>
                   <div className="flex items-center gap-4 mt-2">

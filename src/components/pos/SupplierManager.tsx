@@ -45,7 +45,9 @@ export const SupplierManager = memo(function SupplierManager() {
       const res = await authFetch(`/api/suppliers${params}`)
       if (!res.ok) return []
       const json = await res.json()
-      return json.suppliers ?? []
+      // FIX TypeError: e.map is not a function — zagotovi da je vedno array
+      const list = json.suppliers ?? json ?? []
+      return Array.isArray(list) ? list : []
     },
   })
 
@@ -55,7 +57,9 @@ export const SupplierManager = memo(function SupplierManager() {
       const res = await authFetch('/api/purchase-orders')
       if (!res.ok) return []
       const json = await res.json()
-      return json.orders ?? json.purchaseOrders ?? []
+      // FIX TypeError: e.map is not a function — zagotovi da je vedno array
+      const list = json.orders ?? json.purchaseOrders ?? json ?? []
+      return Array.isArray(list) ? list : []
     },
   })
 

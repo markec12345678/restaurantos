@@ -29,15 +29,19 @@ export function useInventoryAlerts() {
     try {
       // Naloži zaloge
       const invRes = await authFetch('/api/inventory')
-      const invData = await invRes.json()
+      const invDataRaw = await invRes.json()
+      // FIX TypeError: e.map is not a function — invData je lahko { items: [...] }
+      const invData = Array.isArray(invDataRaw) ? invDataRaw : (invDataRaw?.items ?? [])
       // Naloži dobavitelje
       const supRes = await authFetch('/api/suppliers')
-      const supData = await supRes.json()
+      const supDataRaw = await supRes.json()
+      // FIX: supData je lahko { suppliers: [...] }
+      const supData = Array.isArray(supDataRaw) ? supDataRaw : (supDataRaw?.suppliers ?? [])
       // Naloži nabavna naročila za izračun dnevne porabe
       const poRes = await authFetch('/api/purchase-orders')
       const _poData = await poRes.json()
       // Zgradi alerte
-      const alertList: InventoryAlert[] = (invData || []).map((item: InventoryItemRow) => {
+      const alertList: InventoryAlert[] = (Array.isArray(invData) ? invData : []).map((item: InventoryItemRow) => {
         const currentStock = (item.currentStock as number) || item.quantity || 0
         const minStock = (item.minStock as number) || item.minQuantity || 0
         const dailyUsage = (item.dailyUsage as number) || Math.max(1, Math.floor(minStock * 0.3))
@@ -49,7 +53,7 @@ export function useInventoryAlerts() {
           severity = 'warning'
         }
         // FIX HIGH: Shrani tako supplier ID (za API klice) kot ime (za prikaz)
-        const supplierObj = supData?.find?.((s: SupplierRow) => s.id === item.supplierId)
+        const supplierObj = supData.find((s: SupplierRow) => s.id === item.supplierId)
         const supplierId = supplierObj?.id || item.supplierId || null
         const supplierName = supplierObj?.name || null
         const suggestedOrderQty = Math.max(minStock * 3 - currentStock, minStock)

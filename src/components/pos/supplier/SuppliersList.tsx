@@ -27,7 +27,10 @@ export const SuppliersList = memo(function SuppliersList({
   onEdit,
   onCreatePO,
 }: SuppliersListProps) {
-  if (suppliers.length === 0) {
+  // FIX TypeError: e.map is not a function — suppliers je lahko undefined ali objekt
+  // API /api/suppliers lahko vrača { suppliers: [...] } namesto [...]
+  const supplierList = Array.isArray(suppliers) ? suppliers : []
+  if (supplierList.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-3">
         <Truck className="h-12 w-12 opacity-20" />
@@ -39,7 +42,7 @@ export const SuppliersList = memo(function SuppliersList({
 
   return (
     <div className="space-y-2">
-      {suppliers.map(supplier => (
+      {supplierList.map(supplier => (
         <Card key={supplier.id} className={`transition-all ${expandedId === supplier.id ? 'ring-2 ring-primary/30' : ''}`}>
           <CardContent className="p-4">
             {/* Osnovni podatki */}

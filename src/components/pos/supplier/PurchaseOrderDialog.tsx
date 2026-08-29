@@ -104,7 +104,8 @@ export const PurchaseOrderDialog = memo(function PurchaseOrderDialog({
               <Select value={supplierId} onValueChange={setSupplierId}>
                 <SelectTrigger className="h-9 text-sm" id="po-supplier" autoFocus><SelectValue placeholder="Izberi dobavitelja" /></SelectTrigger>
                 <SelectContent>
-                  {suppliers.filter(s => s.isActive).map(s => (
+                  {/* FIX TypeError: e.map is not a function — suppliers je lahko objekt */}
+                  {(Array.isArray(suppliers) ? suppliers : []).filter(s => s.isActive).map(s => (
                     <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                   ))}
                 </SelectContent>

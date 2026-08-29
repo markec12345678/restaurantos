@@ -33,7 +33,11 @@ export const VendorScorecard = memo(function VendorScorecard() {
       const supData = await supRes.json()
       const poData = await poRes.json()
 
-      const scored = computeSupplierScores(supData, poData)
+      // FIX TypeError: e.map is not a function — zagotovi array format
+      const supList = Array.isArray(supData) ? supData : (supData?.suppliers ?? [])
+      const poList = Array.isArray(poData) ? poData : (poData?.orders ?? poData?.purchaseOrders ?? [])
+
+      const scored = computeSupplierScores(supList, poList)
       setSuppliers(scored)
     } catch {
       toast.error('Napaka pri nalaganju ocen dobaviteljev')
