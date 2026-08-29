@@ -38,7 +38,14 @@ export function useMenuBrowserLogic({
   const filteredMenuItems = useMemo(() => {
     return menuItems?.filter(
       (item: MenuItemType) => {
-        const matchesMenu = !resolvedMenuId || item.category?.menu?.id === resolvedMenuId
+        // FIX: Check multiple paths for menuId — category.menu.id, menuId field, or skip filter
+        const itemMenuId = (item as Record<string, unknown>).menuId as string | undefined
+        const categoryMenuId = item.category?.menu?.id
+        // If we can't determine the menu, show the item (don't hide it)
+        const matchesMenu = !resolvedMenuId || 
+          (itemMenuId === resolvedMenuId) ||
+          (categoryMenuId === resolvedMenuId) ||
+          (!itemMenuId && !categoryMenuId) // No menu info → show it
         const matchesCategory = activeCategory === 'all' || item.categoryId === activeCategory
         const matchesSuperGroup = activeSuperGroup === 'all' ||
           superGroups.some(sg => sg.id === activeSuperGroup && sg.categoryIds.includes(item.categoryId))
