@@ -38,75 +38,99 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         supplierId: id,
         supplierName: supplier.name,
         totalScore: 0,
-        metrics: {
-          onTimeDelivery: 0,
-          quality: 0,
-          price: 0,
-        },
-        stats: {
-          totalPOs: 0,
-          receivedPOs: 0,
-          partialPOs: 0,
-          cancelledPOs: 0,
-          totalValue: 0,
-        },
+        metrics: { onTimeDelivery: 0, quality: 0, price: 0 },
+        stats: { totalPOs: 0, receivedPOs: 0, partialPOs: 0, cancelledPOs: 0, totalValue: 0 },
       })
     }
 
-    // Izračunaj metrike
+    // Osnovne statistike
     const receivedPOs = purchaseOrders.filter(po => po.status === 'received').length
     const partialPOs = purchaseOrders.filter(po => po.status === 'partial').length
     const cancelledPOs = purchaseOrders.filter(po => po.status === 'cancelled').length
+    const draftPOs = purchaseOrders.filter(po => po.status === 'draft').length
     const totalValue = purchaseOrders.reduce((sum, po) => sum + toNum(po.totalAmount), 0)
 
-    // Točnost dostave: koliko PO-jev je bilo popolnoma prejetih
+    // Točnost dostave: koliko % vseh PO-jev je bilo popolnoma prejetih
     const onTimeDelivery = totalPOs > 0 ? Math.round((receivedPOs / totalPOs) * 100) : 0
 
+    // ─────────────────────────────────────────────────────────────
     // FIX Bug #3 (Critical): Quality se je povečevala kljub delnemu prejemu.
     //
-    // PRAVI VZROK (prej zamudjen): Draft PO-ji (z 0 prejetih postavk) so
-    // zniževali totalReceivedQty/totalOrderedQty ratio. Ko je uporabnik
-    // ustvaril nov PO in ga delno prejel (0→7 od 10), se je totalReceivedQty
-    // povečal — kar je povečalo fillRate in s tem quality.
+    // PRAVI VZROK (končno): Prejšnja kalkulacija je uporabljala "overall
+    // fillRate" = totalReceivedQty / totalOrderedQty. Ko je nov prejem
+    // (npr. 27/30 = 90%) imel višji fill rate od dosedanjega povprečja
+    // (32.8%), je dodajanje tega prejema POVEČALO overall fillRate —
+    // kar je napačno povečalo quality.
     //
-    // POPRAVEK: Izključi draft PO-je iz quality kalkulacije.
-    // Samo PO-ji ki so bili oddani (submitted/approved/partial/received)
-    // se upoštevajo pri quality oceni. Draft PO-ji še niso poslani
-    // dobavitelju — ne morejo vplivati na quality.
-    const activePOs = purchaseOrders.filter(po =>
-      po.status === 'submitted' || po.status === 'approved' ||
+    // NOVA KALKULACIJA: Quality = odstotek PREJETIH PO-jev BREZ shortage.
+    //
+    // "Prejeti PO-ji" = PO-ji s statusom 'partial' ali 'received'
+    //   (vsaj nekaj blaga je bilo dejansko prejetega).
+    // "Brez shortage" = VSE postavke v PO-ju imajo
+    //   quantityReceived >= quantityOrdered.
+    //
+    // Quality = (PO-ji brez shortage / vsi prejeti PO-ji) × 100
+    //
+    // Ta formula GARANTIRA da quality VEDNO pade ko je nov shortage:
+    // - Nov shortage PO → števec brez shortage ostane enak,
+    //   števec vseh prejetih +1 → ratio PADE. ✅
+    // - Nov PO brez shortage → oba števca +1 → ratio OSTANE/RASTE. ✅
+    // ─────────────────────────────────────────────────────────────
+
+    // Samo PO-ji pri katerih je bil dejanssko izveden prejem (partial ali received)
+    const receivedPOList = purchaseOrders.filter(po =>
       po.status === 'partial' || po.status === 'received'
     )
 
-    // Quality: fill rate + completeness (samo za aktivne PO-je, ne draft)
+    const totalReceivedPOCount = receivedPOList.length
+
+    // Preštej koliko od teh PO-jev je bilo prejetih BREZ shortage
+    // (vse postavke popolnoma prejete)
+    let posWithoutShortage = 0
+    let posWithShortage = 0
+    let totalShortageQty = 0
+
+    for (const po of receivedPOList) {
+      if (!Array.isArray(po.items) || po.items.length === 0) continue
+      let hasShortage = false
+      for (const item of po.items) {
+        const ordered = toNum(item.quantityOrdered)
+        const received = toNum(item.quantityReceived)
+        if (ordered > 0 && received < ordered) {
+          hasShortage = true
+          totalShortageQty += (ordered - received)
+        }
+      }
+      if (hasShortage) {
+        posWithShortage++
+      } else {
+        posWithoutShortage++
+      }
+    }
+
+    // Quality = odstotek prejetih PO-jev brez shortage
+    const quality = totalReceivedPOCount > 0
+      ? Math.round((posWithoutShortage / totalReceivedPOCount) * 100)
+      : 0
+
+    // Sekundarna metrika: fill rate (za referenco, ne vpliva na quality)
     let totalReceivedQty = 0
     let totalOrderedQty = 0
-    let fullyReceivedItems = 0
-    let totalItems = 0
-    for (const po of activePOs) {
+    for (const po of receivedPOList) {
       if (!Array.isArray(po.items)) continue
       for (const item of po.items) {
         const ordered = toNum(item.quantityOrdered)
         const received = toNum(item.quantityReceived)
         if (ordered > 0) {
           totalOrderedQty += ordered
-          totalReceivedQty += Math.min(received, ordered) // Ne preseži naročenega
-          totalItems++
-          if (received >= ordered) {
-            fullyReceivedItems++
-          }
+          totalReceivedQty += Math.min(received, ordered)
         }
       }
     }
-    // Fill rate: koliko % naročene količine je bilo prejete (shortage zmanjša)
     const fillRate = totalOrderedQty > 0 ? Math.round((totalReceivedQty / totalOrderedQty) * 100) : 0
-    // Popolnost: koliko % postavk je bilo popolnoma prejetih (brez shortage)
-    const completeness = totalItems > 0 ? Math.round((fullyReceivedItems / totalItems) * 100) : 0
-    // Quality = povprečje fill rate in completeness (obe kaznujeta shortage)
-    const quality = Math.round((fillRate + completeness) / 2)
 
     // Cena: placeholder (potrebuje benchmark podatke)
-    const price = 75 // Default ocena brez benchmark podatkov
+    const price = 75
 
     // Skupna ocena (uteženo povprečje)
     const totalScore = Math.round(onTimeDelivery * 0.4 + quality * 0.35 + price * 0.25)
@@ -120,19 +144,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         quality,
         price,
         fillRate,
-        completeness,
       },
       stats: {
         totalPOs,
         receivedPOs,
         partialPOs,
         cancelledPOs,
-        draftPOs: purchaseOrders.filter(po => po.status === 'draft').length,
+        draftPOs,
         totalValue: Math.round(totalValue * 100) / 100,
+        // Debug podatki za quality kalkulacijo
+        receivedPOCount: totalReceivedPOCount,
+        posWithoutShortage,
+        posWithShortage,
+        totalShortageQty: Math.round(totalShortageQty * 100) / 100,
         totalOrderedQty: Math.round(totalOrderedQty * 100) / 100,
         totalReceivedQty: Math.round(totalReceivedQty * 100) / 100,
-        activeItemsCount: totalItems,
-        fullyReceivedItems,
       },
     })
   } catch (error: unknown) {
