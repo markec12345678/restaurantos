@@ -49,7 +49,20 @@ export async function GET(req: Request) {
       db.purchaseOrder.count({ where }),
     ])
 
-    return NextResponse.json({ orders: deepToNumbers(orders), total, limit, offset })
+    // FIX BUG-PO-4 & BUG-PO-5: Dodaj 'name' in 'quantity' alias-e za boljšo
+    // kompatibilnost s frontend komponentami ki pričakujejo ta polja.
+    const enrichedOrders = deepToNumbers(orders).map((po: Record<string, unknown>) => ({
+      ...po,
+      items: Array.isArray(po.items) ? po.items.map((item: Record<string, unknown>) => ({
+        ...item,
+        // FIX BUG-PO-4: 'name' alias za 'description' (nekateri UI komponente pričakujejo name)
+        name: item.name || item.description || '',
+        // FIX BUG-PO-5: 'quantity' alias za 'quantityOrdered' (standardizacija)
+        quantity: item.quantity ?? item.quantityOrdered ?? 0,
+      })) : [],
+    }))
+
+    return NextResponse.json({ orders: enrichedOrders, total, limit, offset })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/purchase-orders', 'Napaka pri pridobivanju nabavnih naročil')
   }

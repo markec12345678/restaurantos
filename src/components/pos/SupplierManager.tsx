@@ -5,14 +5,14 @@
 // Toast POS standard — Dobavitelji, ceniki, nabavna naročila
 // ============================================
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import { Truck, FileText, Plus } from 'lucide-react'
-import { useState, memo } from 'react'
+import { useState, memo, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import type { SupplierType } from './supplier/constants'
 import { useSupplierMutations } from './supplier/useSupplierMutations'
@@ -32,10 +32,20 @@ export const SupplierManager = memo(function SupplierManager() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState<SupplierType | null>(null)
   const [expandedSupplier, setExpandedSupplier] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
   // Nabavna naročila dialog
   const [poDialogOpen, setPoDialogOpen] = useState(false)
   const [selectedSupplierForPO, setSelectedSupplierForPO] = useState<string>('')
+
+  // FIX BUG-PO-3: refetch POs ko uporabnik preklopi na nabavna naročila tab
+  const handleTabChange = useCallback((tab: string) => {
+    setActiveTab(tab)
+    if (tab === 'purchase-orders') {
+      // Invalidate da pridobi sveže podatke
+      queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all })
+    }
+  }, [queryClient])
 
   // Podatki
   const { data: suppliers, isLoading } = useQuery({
@@ -107,7 +117,7 @@ export const SupplierManager = memo(function SupplierManager() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col overflow-hidden">
         <div className="px-4 pt-2 flex-shrink-0">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="suppliers" className="gap-1.5 text-xs">

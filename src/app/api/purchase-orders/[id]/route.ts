@@ -87,6 +87,57 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
 }
 
+// PATCH - Delna posodobitev (npr. samo status: draft → submitted)
+// FIX BUG-PO-1: Prej ni bilo PATCH metode — frontend je dobil 405 Method Not Allowed
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
+    if (authResult.error) return authResult.error
+
+    const { id } = await params
+
+    const { data: body, error: validationError } = await validateRequest(req, purchaseOrderUpdateSchema)
+    if (validationError) return validationError
+
+    // Prevzem blaga — posodobi zalogo (v transakciji)
+    if (body.action === 'receive' && body.receivedItems && body.receivedItems.length > 0) {
+      return await handleReceiveAction(id, body.receivedItems, authResult.session?.employeeId)
+    }
+
+    const existing = await db.purchaseOrder.findUnique({ where: { id } })
+    if (!existing) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
+
+    // State machine validacija
+    if (body.status && body.status !== existing.status) {
+      const allowed = VALID_PO_TRANSITIONS[existing.status] || []
+      if (!allowed.includes(body.status)) {
+        return NextResponse.json({
+          error: `Neveljaven prehod statusa: ${existing.status} → ${body.status}`,
+          allowedTransitions: allowed,
+        }, { status: 400 })
+      }
+    }
+
+    const updateData: Record<string, unknown> = {}
+    if (body.status) updateData.status = body.status
+    if (body.expectedDate) updateData.expectedDate = new Date(body.expectedDate)
+    if (body.notes !== undefined) updateData.notes = body.notes
+    if (body.approvedBy) updateData.approvedBy = body.approvedBy
+    if (body.deliveryAddress !== undefined) updateData.deliveryAddress = body.deliveryAddress
+    if (body.deliveryNotes !== undefined) updateData.deliveryNotes = body.deliveryNotes
+
+    const po = await db.purchaseOrder.update({
+      where: { id },
+      data: updateData,
+      include: { supplier: true, items: { include: { inventoryItem: true } } },
+    })
+
+    return NextResponse.json(deepToNumbers(po))
+  } catch (error: unknown) {
+    return handleApiError(error, 'PATCH /api/purchase-orders/[id]', 'Napaka pri posodabljanju naročila')
+  }
+}
+
 
 // FIX F5-9: Pošlji email obvestilo dobavitelju o nabavnem naročilu
 async function sendEmailIfConfigured(supplierId: string, poNumber: string): Promise<void> {
