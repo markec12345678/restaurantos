@@ -6,8 +6,9 @@
 // AccountsPayable (obveznost do dobavitelja).
 //
 // Prav tako posodobi status PO-ja: partial (delno) ali received (popolnoma).
+// FIX: Ustvari AuditLog za vsak prejem (revizijski dnevnik).
 
-import { db } from '@/lib/db'
+import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { deepToNumbers, toNum, round2, greaterThanOrEqual, isPositive, multiply } from '@/lib/decimal'
@@ -151,6 +152,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
       return { po: finalPo, allReceived, anyPartial }
     })
+
+    // FIX: Ustvari AuditLog za revizijski dnevnik (zunanje transakcijo)
+    try {
+      await createAuditLog({
+        userId: authResult.session?.employeeId,
+        action: 'PURCHASE_ORDER_RECEIVED',
+        entityType: 'PurchaseOrder',
+        entityId: id,
+        details: {
+          poNumber: po.poNumber,
+          supplier: po.supplier?.name || 'Neznan',
+          status: result.po.status,
+          itemsReceived: body.receivedItems.map((ri: { itemId: string; quantityReceived: number }) => ({
+            itemId: ri.itemId,
+            quantity: ri.quantityReceived,
+          })),
+          allReceived: result.allReceived,
+        },
+      })
+    } catch {
+      // Audit log napaka ne sme blokirati prejema blaga
+    }
 
     return NextResponse.json({
       success: true,

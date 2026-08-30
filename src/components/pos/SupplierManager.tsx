@@ -168,7 +168,10 @@ export const SupplierManager = memo(function SupplierManager() {
             {poLoading ? (
               <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>
             ) : (
-              <PurchaseOrdersList orders={purchaseOrders || []} />
+              <PurchaseOrdersList
+                orders={purchaseOrders || []}
+                onRefresh={() => queryClient.invalidateQueries({ queryKey: queryKeys.purchaseOrders.all })}
+              />
             )}
           </TabsContent>
         )}
