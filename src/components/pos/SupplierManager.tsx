@@ -145,27 +145,34 @@ export const SupplierManager = memo(function SupplierManager() {
           </TabsList>
         </div>
 
-        <TabsContent value="suppliers" className="flex-1 overflow-y-auto p-4 custom-scrollbar mt-0">
-          {isLoading ? (
-            <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-28 rounded-lg" />)}</div>
-          ) : (
-            <SuppliersList
-              suppliers={suppliers || []}
-              expandedId={expandedSupplier}
-              onToggleExpand={(id) => setExpandedSupplier(expandedSupplier === id ? null : id)}
-              onEdit={(s) => { setEditingSupplier(s); setDialogOpen(true) }}
-              onCreatePO={(supplierId) => { setSelectedSupplierForPO(supplierId); setPoDialogOpen(true) }}
-            />
-          )}
-        </TabsContent>
+        {/* FIX BUG-PO-3: Radix Tabs 'hidden' attribute se ne uporabi pravilno ko je parent
+            flex container — oba TabsContent panela sta bila vidna hkrati.
+            Rešitev: uporabi conditional rendering namesto Radix built-in show/hide. */}
+        {activeTab === 'suppliers' && (
+          <TabsContent value="suppliers" className="flex-1 overflow-y-auto p-4 custom-scrollbar mt-0">
+            {isLoading ? (
+              <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-28 rounded-lg" />)}</div>
+            ) : (
+              <SuppliersList
+                suppliers={suppliers || []}
+                expandedId={expandedSupplier}
+                onToggleExpand={(id) => setExpandedSupplier(expandedSupplier === id ? null : id)}
+                onEdit={(s) => { setEditingSupplier(s); setDialogOpen(true) }}
+                onCreatePO={(supplierId) => { setSelectedSupplierForPO(supplierId); setPoDialogOpen(true) }}
+              />
+            )}
+          </TabsContent>
+        )}
 
-        <TabsContent value="purchase-orders" className="flex-1 overflow-y-auto p-4 custom-scrollbar mt-0">
-          {poLoading ? (
-            <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>
-          ) : (
-            <PurchaseOrdersList orders={purchaseOrders || []} />
-          )}
-        </TabsContent>
+        {activeTab === 'purchase-orders' && (
+          <TabsContent value="purchase-orders" className="flex-1 overflow-y-auto p-4 custom-scrollbar mt-0">
+            {poLoading ? (
+              <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>
+            ) : (
+              <PurchaseOrdersList orders={purchaseOrders || []} />
+            )}
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Dialog za dobavitelja */}
