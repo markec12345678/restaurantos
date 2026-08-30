@@ -63,20 +63,27 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const onTimeDelivery = totalPOs > 0 ? Math.round((receivedPOs / totalPOs) * 100) : 0
 
     // FIX Bug #3 (Critical): Quality se je povečevala kljub delnemu prejemu.
-    // Prej: quality = (popolnoma prejete postavke / vse postavke) * 100
-    //   — to se je lahko povečalo kadar je nova postavka prejela nekaj (0→4 od 5),
-    //   ker so druge postavke bile prej 0 in sedaj niso več "0 prejeto".
-    //   Ampak 4/5 ni "popolnoma prejeto" — to je SHORTAGE.
     //
-    // Sedaj: quality = (skupna prejeta količina / skupna naročena količina) * 100
-    //   — to je "fill rate" ki pravilno KAZNUJE shortage.
-    //   Primer: 4/5 prejeto = 80% quality (ne 0% kot prej, ampak tudi ne 100%).
-    //   Če je shortage (4 namesto 5), quality pade z 100% na 80%.
+    // PRAVI VZROK (prej zamudjen): Draft PO-ji (z 0 prejetih postavk) so
+    // zniževali totalReceivedQty/totalOrderedQty ratio. Ko je uporabnik
+    // ustvaril nov PO in ga delno prejel (0→7 od 10), se je totalReceivedQty
+    // povečal — kar je povečalo fillRate in s tem quality.
+    //
+    // POPRAVEK: Izključi draft PO-je iz quality kalkulacije.
+    // Samo PO-ji ki so bili oddani (submitted/approved/partial/received)
+    // se upoštevajo pri quality oceni. Draft PO-ji še niso poslani
+    // dobavitelju — ne morejo vplivati na quality.
+    const activePOs = purchaseOrders.filter(po =>
+      po.status === 'submitted' || po.status === 'approved' ||
+      po.status === 'partial' || po.status === 'received'
+    )
+
+    // Quality: fill rate + completeness (samo za aktivne PO-je, ne draft)
     let totalReceivedQty = 0
     let totalOrderedQty = 0
     let fullyReceivedItems = 0
     let totalItems = 0
-    for (const po of purchaseOrders) {
+    for (const po of activePOs) {
       if (!Array.isArray(po.items)) continue
       for (const item of po.items) {
         const ordered = toNum(item.quantityOrdered)
@@ -112,7 +119,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         onTimeDelivery,
         quality,
         price,
-        // Dodatne metrike za transparentnost
         fillRate,
         completeness,
       },
@@ -121,9 +127,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         receivedPOs,
         partialPOs,
         cancelledPOs,
+        draftPOs: purchaseOrders.filter(po => po.status === 'draft').length,
         totalValue: Math.round(totalValue * 100) / 100,
         totalOrderedQty: Math.round(totalOrderedQty * 100) / 100,
         totalReceivedQty: Math.round(totalReceivedQty * 100) / 100,
+        activeItemsCount: totalItems,
+        fullyReceivedItems,
       },
     })
   } catch (error: unknown) {
