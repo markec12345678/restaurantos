@@ -133,7 +133,7 @@ export const SupplierManager = memo(function SupplierManager() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col overflow-hidden">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 flex flex-col overflow-hidden" data-active-tab={activeTab}>
         <div className="px-4 pt-2 flex-shrink-0">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="suppliers" className="gap-1.5 text-xs">
@@ -147,9 +147,10 @@ export const SupplierManager = memo(function SupplierManager() {
 
         {/* FIX BUG-PO-3: Radix Tabs 'hidden' attribute se ne uporabi pravilno ko je parent
             flex container — oba TabsContent panela sta bila vidna hkrati.
-            Rešitev: uporabi conditional rendering namesto Radix built-in show/hide. */}
-        {activeTab === 'suppliers' && (
-          <TabsContent value="suppliers" className="flex-1 overflow-y-auto p-4 custom-scrollbar mt-0">
+            Rešitev: uporabi conditional rendering namesto Radix built-in show/hide.
+            DEBUG: dodan data-debug-active za diagnostiko v DevTools. */}
+        {activeTab === 'suppliers' ? (
+          <TabsContent value="suppliers" className="flex-1 overflow-y-auto p-4 custom-scrollbar mt-0" data-debug-active="suppliers">
             {isLoading ? (
               <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-28 rounded-lg" />)}</div>
             ) : (
@@ -162,10 +163,8 @@ export const SupplierManager = memo(function SupplierManager() {
               />
             )}
           </TabsContent>
-        )}
-
-        {activeTab === 'purchase-orders' && (
-          <TabsContent value="purchase-orders" className="flex-1 overflow-y-auto p-4 custom-scrollbar mt-0">
+        ) : (
+          <TabsContent value="purchase-orders" className="flex-1 overflow-y-auto p-4 custom-scrollbar mt-0" data-debug-active="purchase-orders">
             {poLoading ? (
               <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>
             ) : (
