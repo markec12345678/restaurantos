@@ -1,13 +1,20 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useState, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { format } from 'date-fns'
+import { toast } from 'sonner'
+import { ArrowLeftRight } from 'lucide-react'
 import type { OrderType } from './OrderList'
 import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { authFetch } from '@/components/pos/PinLogin'
+import { useQueryClient } from '@tanstack/react-query'
+import { queryKeys } from '@/lib/query-keys'
 
 // Lazy-loaded podkomponenta
 const OrderItemsSection = dynamic(() => import('./OrderItemsSection').then(m => ({ default: m.OrderItemsSection })), { ssr: false })
@@ -37,6 +44,52 @@ export const OrderDetailDialog = memo(function OrderDetailDialog({
   paymentStatusColors,
   onVoidItem,
 }: OrderDetailDialogProps) {
+  const queryClient = useQueryClient()
+  const [showTransfer, setShowTransfer] = useState(false)
+  const [transferTableId, setTransferTableId] = useState('')
+  const [tables, setTables] = useState<Array<{ id: string; number: number; capacity: number; status: string }>>([])
+  const [isTransferring, setIsTransferring] = useState(false)
+
+  const loadTables = useCallback(async () => {
+    try {
+      const res = await authFetch('/api/tables')
+      if (!res.ok) return
+      const json = await res.json()
+      const arr = Array.isArray(json) ? json : (json.tables ?? [])
+      // FIX: OrderType nima tableId direktno — uporabi detailOrder.table?.number za primerjavo
+      const currentTableNumber = (detailOrder as { table?: { number?: number } })?.table?.number
+      setTables(arr.filter((t: { id: string; status: string; number?: number }) =>
+        t.status === 'available' && t.number !== currentTableNumber
+      ))
+    } catch {
+      // ignore
+    }
+  }, [detailOrder])
+
+  const handleTransfer = useCallback(async () => {
+    if (!detailOrder || !transferTableId) return
+    setIsTransferring(true)
+    try {
+      const res = await authFetch(`/api/orders/${detailOrder.id}/transfer`, {
+        method: 'POST',
+        body: JSON.stringify({ newTableId: transferTableId }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Napaka pri prenosu')
+      }
+      toast.success('Naročilo preneseno na drugo mizo')
+      queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.tables.all })
+      setShowTransfer(false)
+      setTransferTableId('')
+      setDetailOrder(null)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Napaka pri prenosu')
+    } finally {
+      setIsTransferring(false)
+    }
+  }, [detailOrder, transferTableId, queryClient, setDetailOrder])
   return (
     <Dialog open={!!detailOrder} onOpenChange={(open) => !open && setDetailOrder(null)}>
       <DialogContent className="max-w-lg" tabIndex={-1}>
@@ -118,6 +171,47 @@ export const OrderDetailDialog = memo(function OrderDetailDialog({
             {Number(detailOrder?.discount || 0) > 0 && <div className="flex justify-between text-emerald-600"><span>Popust</span><span>-€{safeToFixed(detailOrder?.discount || 0, 2)}</span></div>}
             <div className="flex justify-between font-bold"><span>Skupaj</span><span>€{safeToFixed(detailOrder?.total || 0, 2)}</span></div>
           </div>
+
+          {/* Prenesi na drugo mizo — samo za dine-in naročila ki niso plačana */}
+          {detailOrder?.type === 'dine-in' && (detailOrder as { tableId?: string })?.tableId && detailOrder?.paymentStatus !== 'paid' && detailOrder?.status !== 'cancelled' && (
+            <div className="pt-2 border-t">
+              {showTransfer ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground">Izberi ciljno mizo:</p>
+                  <Select
+                    value={transferTableId}
+                    onValueChange={setTransferTableId}
+                    onOpenChange={(open) => { if (open) loadTables() }}
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Izberi prosto mizo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tables.map(t => (
+                        <SelectItem key={t.id} value={t.id}>
+                          Miza {t.number} ({t.capacity} mest)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="flex-1" onClick={() => { setShowTransfer(false); setTransferTableId('') }}>
+                      Prekliči
+                    </Button>
+                    <Button size="sm" className="flex-1" onClick={handleTransfer} disabled={!transferTableId || isTransferring}>
+                      <ArrowLeftRight className="h-3.5 w-3.5 mr-1" />
+                      {isTransferring ? 'Prenos...' : 'Prenesi'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button variant="outline" size="sm" className="w-full" onClick={() => setShowTransfer(true)}>
+                  <ArrowLeftRight className="h-3.5 w-3.5 mr-1" />
+                  Prenesi na drugo mizo
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
