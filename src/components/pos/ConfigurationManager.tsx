@@ -29,7 +29,17 @@ export const ConfigurationManager = memo(function ConfigurationManager() {
 
   const { data: items, isLoading } = useQuery<ConfigItem[]>({
     queryKey: queryKeys.configuration.byTab(activeTab),
-    queryFn: async () => { const res = await authFetch(currentTabDef.apiBase); if (!res.ok) return []; return res.json() },
+    queryFn: async () => {
+      const res = await authFetch(currentTabDef.apiBase)
+      if (!res.ok) return []
+      const json = await res.json()
+      // FIX Configuration crash: API vrača { taxRates: [...] } / { diningOptions: [...] } format
+      // Prej: return res.json() — vrnil objekt, potem items.filter() je crash-al
+      if (Array.isArray(json)) return json
+      // Poišči prvi array v objektu (taxRates, diningOptions, priceGroups, etc.)
+      const arrayVal = Object.values(json).find(v => Array.isArray(v))
+      return Array.isArray(arrayVal) ? arrayVal : []
+    },
   })
 
   const createMutation = useMutation({
