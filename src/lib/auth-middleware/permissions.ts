@@ -40,5 +40,10 @@ export function hasPermission(session: Session, requiredPerms: Permission[]): bo
   if (session.role === 'admin') return true
   if (session.role === 'manager' && !requiredPerms.includes('admin')) return true
   if (requiredPerms.length === 0) return true
-  return requiredPerms.every(perm => session.permissions.includes(perm))
+  // FIX: If user has ANY of the required perms (OR logic, not AND)
+  // Prej: requiredPerms.every() — uporabnik je moral imeti VSA dovoljenja
+  // Sedaj: requiredPerms.some() — uporabnik mora imeti ENO od dovoljenj
+  // To omogoča npr. '/api/inventory/transactions' z ['view_reports', 'manage_inventory']
+  // kjer admin (ki ima view_reports) lahko dostopa
+  return requiredPerms.some(perm => session.permissions.includes(perm))
 }

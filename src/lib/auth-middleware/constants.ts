@@ -102,7 +102,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/api/daily-checklist': ['take_orders'],
   '/api/order-items': ['take_orders'],
   '/api/staff-performance': ['manage_employees'],
-  '/api/stock/check': ['manage_inventory'],
+  '/api/stock/check': ['take_orders'], // FIX: natakarji morajo lahko preverjati zalogo
+  '/api/inventory/transactions': ['view_reports', 'manage_inventory'], // FIX: Admin in manager morajo videti transakcije
   '/api/end-of-day': ['manage_cash'],
   '/api/z-report': ['manage_cash'],
   '/api/digital-receipt': ['take_orders'],
