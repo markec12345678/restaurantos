@@ -21,7 +21,8 @@ interface PurchaseOrderDialogProps {
   onClose: () => void
   suppliers: SupplierType[]
   selectedSupplierId: string
-  inventoryItems: unknown[]
+  // FIX BUG-PO-6: inventoryItems naj bo pravi tip, ne unknown[]
+  inventoryItems: Array<{ id: string; name: string; unit?: string; costPerUnit?: number }>
   onSave: (_data: Record<string, unknown>) => void
 }
 
@@ -30,14 +31,15 @@ export const PurchaseOrderDialog = memo(function PurchaseOrderDialog({
   onClose,
   suppliers,
   selectedSupplierId,
-  inventoryItems: _inventoryItems,
+  inventoryItems,
   onSave,
 }: PurchaseOrderDialogProps) {
   const [supplierId, setSupplierId] = useState(selectedSupplierId)
   const [expectedDate, setExpectedDate] = useState('')
   const [notes, setNotes] = useState('')
+  // FIX BUG-PO-6: Dodaj inventoryItemId v vsako postavko
   const [items, setItems] = useState<POItemDraft[]>([
-    { description: '', quantityOrdered: 1, unit: 'kos', unitPrice: 0, vatRate: 22 },
+    { description: '', quantityOrdered: 1, unit: 'kos', unitPrice: 0, vatRate: 22, inventoryItemId: null },
   ])
 
   const handleOpenChange = (isOpen: boolean) => {
@@ -45,21 +47,21 @@ export const PurchaseOrderDialog = memo(function PurchaseOrderDialog({
       setSupplierId(selectedSupplierId)
       setExpectedDate('')
       setNotes('')
-      setItems([{ description: '', quantityOrdered: 1, unit: 'kos', unitPrice: 0, vatRate: 22 }])
+      setItems([{ description: '', quantityOrdered: 1, unit: 'kos', unitPrice: 0, vatRate: 22, inventoryItemId: null }])
     } else {
       onClose()
     }
   }
 
   const addItem = () => {
-    setItems([...items, { description: '', quantityOrdered: 1, unit: 'kos', unitPrice: 0, vatRate: 22 }])
+    setItems([...items, { description: '', quantityOrdered: 1, unit: 'kos', unitPrice: 0, vatRate: 22, inventoryItemId: null }])
   }
 
   const removeItem = (idx: number) => {
     setItems(items.filter((_, i) => i !== idx))
   }
 
-  const updateItem = (idx: number, field: string, value: string | number) => {
+  const updateItem = (idx: number, field: string, value: string | number | null) => {
     const updated = [...items]
     updated[idx] = { ...updated[idx], [field]: value }
     setItems(updated)
@@ -83,7 +85,16 @@ export const PurchaseOrderDialog = memo(function PurchaseOrderDialog({
       supplierId,
       expectedDate: expectedDate || undefined,
       notes,
-      items: items.filter(i => i.description),
+      // FIX BUG-PO-6: Posreduj inventoryItemId za vsako postavko
+      // Brez tega receive endpoint ne more posodobiti zaloge
+      items: items.filter(i => i.description).map(i => ({
+        description: i.description,
+        quantityOrdered: i.quantityOrdered,
+        unit: i.unit,
+        unitPrice: i.unitPrice,
+        vatRate: i.vatRate,
+        inventoryItemId: i.inventoryItemId || null,
+      })),
     })
   }
 
@@ -131,6 +142,7 @@ export const PurchaseOrderDialog = memo(function PurchaseOrderDialog({
                 item={item}
                 idx={idx}
                 canRemove={items.length > 1}
+                inventoryItems={(Array.isArray(inventoryItems) ? inventoryItems : []) as Array<{ id: string; name: string; unit?: string; costPerUnit?: number }>}
                 onUpdate={updateItem}
                 onRemove={removeItem}
               />

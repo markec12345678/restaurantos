@@ -71,16 +71,32 @@ export const SupplierManager = memo(function SupplierManager() {
       const list = json.orders ?? json.purchaseOrders ?? json ?? []
       return Array.isArray(list) ? list : []
     },
+    // FIX BUG-PO-3: refetch na tab switch + stalno osveževanje
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    staleTime: 0, // Vedno osveži ko je komponenta mount-ana
   })
 
   const { data: inventoryItems } = useQuery({
+    // FIX BUG-PO-3 & BUG-PO-6: Prej je bil ?distinctCategories=true ki vrača samo
+    // kategorije (string[]), ne inventory item-e. PurchaseOrderDialog ne more
+    // ponuditi izbire inventory item-a ker dobi napačne podatke.
     queryKey: ['inventory-brief'],
     queryFn: async () => {
-      const res = await authFetch('/api/inventory?distinctCategories=true')
+      const res = await authFetch('/api/inventory')
       if (!res.ok) return []
       const json = await res.json()
-      return Array.isArray(json) ? json : []
+      // Pridobi vse inventory item-e (ne samo kategorije)
+      const list = Array.isArray(json) ? json : (json.items ?? [])
+      // Vrati samo potrebna polja za PO dialog
+      return (Array.isArray(list) ? list : []).map((item: Record<string, unknown>) => ({
+        id: String(item.id ?? ''),
+        name: String(item.name ?? 'Neznan artikel'),
+        unit: String(item.unit ?? 'kos'),
+        costPerUnit: Number(item.costPerUnit ?? 0),
+      }))
     },
+    staleTime: 60000, // 1 minuta cache
   })
 
   // Mutacije
