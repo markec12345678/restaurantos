@@ -75,24 +75,33 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             where: { id: poItem.inventoryItemId },
           })
           if (invItem) {
+            // FIX Bug #1 (Medium): Floating point precision — zaokroži vrednosti na 2 decimalke
+            // prej: quantity: receivedItem.quantityReceived (lahko 9.999999999999998)
+            // sedaj: round2(receivedItem.quantityReceived) = 10
+            const receivedQty = round2(receivedItem.quantityReceived)
+
             // Atomic increment — prepreči race condition
             const updatedInv = await tx.inventoryItem.update({
               where: { id: invItem.id },
               data: {
-                quantity: { increment: receivedItem.quantityReceived },
+                quantity: { increment: receivedQty },
                 lastRestocked: new Date(),
               },
             })
+            // Zdaj lahko preberemo posodobljeno količino
+            const newQty = round2(toNum(updatedInv.quantity))
+            const prevQty = round2(newQty - receivedQty)
+
             // Ustvari zalogo transakcijo
             await tx.stockTransaction.create({
               data: {
                 inventoryItemId: invItem.id,
                 type: 'procurement',
-                quantity: receivedItem.quantityReceived,
-                previousQty: toNum(updatedInv.quantity) - receivedItem.quantityReceived,
-                newQty: toNum(updatedInv.quantity),
-                costPerUnit: poItem.unitPrice,
-                totalCost: round2(multiply(receivedItem.quantityReceived, poItem.unitPrice)),
+                quantity: receivedQty,
+                previousQty: prevQty,
+                newQty: newQty,
+                costPerUnit: round2(toNum(poItem.unitPrice)),
+                totalCost: round2(multiply(receivedQty, poItem.unitPrice)),
                 reason: `Prejem ${po.poNumber}`,
                 supplierDoc: po.poNumber,
                 employeeName: authResult.session?.employeeId || '',

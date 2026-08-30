@@ -28,7 +28,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       include: { supplier: true, items: { include: { inventoryItem: true } } },
     })
     if (!po) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
-    return NextResponse.json(deepToNumbers(po))
+    // FIX Bug #4: Dodaj 'name' in 'quantity' alias-e za items (konsistentno z GET /api/purchase-orders)
+    const poData = deepToNumbers(po) as Record<string, unknown>
+    const items = Array.isArray(poData.items) ? poData.items.map((item: Record<string, unknown>) => ({
+      ...item,
+      name: item.name || item.description || '',
+      quantity: item.quantity ?? item.quantityOrdered ?? 0,
+    })) : []
+    return NextResponse.json({ ...poData, items })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/purchase-orders/[id]', 'Napaka pri pridobivanju naročila')
   }

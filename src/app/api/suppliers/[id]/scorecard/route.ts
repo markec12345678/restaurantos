@@ -62,12 +62,41 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // Točnost dostave: koliko PO-jev je bilo popolnoma prejetih
     const onTimeDelivery = totalPOs > 0 ? Math.round((receivedPOs / totalPOs) * 100) : 0
 
-    // Kakovost: koliko postavk je bilo prejetih brez delnih prejemov
-    const totalItems = purchaseOrders.reduce((sum, po) => sum + (Array.isArray(po.items) ? po.items.length : 0), 0)
-    const fullyReceivedItems = purchaseOrders.reduce((sum, po) => {
-      return sum + (Array.isArray(po.items) ? po.items.filter(i => toNum(i.quantityReceived) >= toNum(i.quantityOrdered) && toNum(i.quantityOrdered) > 0).length : 0)
-    }, 0)
-    const quality = totalItems > 0 ? Math.round((fullyReceivedItems / totalItems) * 100) : 0
+    // FIX Bug #3 (Critical): Quality se je povečevala kljub delnemu prejemu.
+    // Prej: quality = (popolnoma prejete postavke / vse postavke) * 100
+    //   — to se je lahko povečalo kadar je nova postavka prejela nekaj (0→4 od 5),
+    //   ker so druge postavke bile prej 0 in sedaj niso več "0 prejeto".
+    //   Ampak 4/5 ni "popolnoma prejeto" — to je SHORTAGE.
+    //
+    // Sedaj: quality = (skupna prejeta količina / skupna naročena količina) * 100
+    //   — to je "fill rate" ki pravilno KAZNUJE shortage.
+    //   Primer: 4/5 prejeto = 80% quality (ne 0% kot prej, ampak tudi ne 100%).
+    //   Če je shortage (4 namesto 5), quality pade z 100% na 80%.
+    let totalReceivedQty = 0
+    let totalOrderedQty = 0
+    let fullyReceivedItems = 0
+    let totalItems = 0
+    for (const po of purchaseOrders) {
+      if (!Array.isArray(po.items)) continue
+      for (const item of po.items) {
+        const ordered = toNum(item.quantityOrdered)
+        const received = toNum(item.quantityReceived)
+        if (ordered > 0) {
+          totalOrderedQty += ordered
+          totalReceivedQty += Math.min(received, ordered) // Ne preseži naročenega
+          totalItems++
+          if (received >= ordered) {
+            fullyReceivedItems++
+          }
+        }
+      }
+    }
+    // Fill rate: koliko % naročene količine je bilo prejete (shortage zmanjša)
+    const fillRate = totalOrderedQty > 0 ? Math.round((totalReceivedQty / totalOrderedQty) * 100) : 0
+    // Popolnost: koliko % postavk je bilo popolnoma prejetih (brez shortage)
+    const completeness = totalItems > 0 ? Math.round((fullyReceivedItems / totalItems) * 100) : 0
+    // Quality = povprečje fill rate in completeness (obe kaznujeta shortage)
+    const quality = Math.round((fillRate + completeness) / 2)
 
     // Cena: placeholder (potrebuje benchmark podatke)
     const price = 75 // Default ocena brez benchmark podatkov
@@ -83,6 +112,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         onTimeDelivery,
         quality,
         price,
+        // Dodatne metrike za transparentnost
+        fillRate,
+        completeness,
       },
       stats: {
         totalPOs,
@@ -90,6 +122,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         partialPOs,
         cancelledPOs,
         totalValue: Math.round(totalValue * 100) / 100,
+        totalOrderedQty: Math.round(totalOrderedQty * 100) / 100,
+        totalReceivedQty: Math.round(totalReceivedQty * 100) / 100,
       },
     })
   } catch (error: unknown) {
