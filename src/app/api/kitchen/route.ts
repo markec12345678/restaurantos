@@ -33,7 +33,14 @@ export async function GET(req: Request) {
       include: {
         table: true,
         orderItems: {
-          include: { menuItem: true },
+          include: {
+            menuItem: {
+              include: {
+                prepStation: { select: { id: true, name: true, type: true } },
+                category: { select: { id: true, name: true, menu: { select: { id: true, name: true } } } },
+              },
+            },
+          },
           orderBy: { createdAt: 'asc' },
         },
       },

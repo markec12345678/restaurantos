@@ -28,24 +28,29 @@ export const KitchenOrderCard = memo(function KitchenOrderCard({
   viewMode: 'cards' | 'list'
   stationFilter?: 'all' | 'kuhinja' | 'sank'
 }) {
-  // FIX: Group items by category — food items together, drinks together
-  // Prej: filter by oi.menuItem?.category?.menu?.name === 'Hrana'
-  // To NI delovalo ker je menu.name lahko 'Glavni meni' (ne 'Hrana'/'Pijača')
-  // Sedaj: preverja ali je kategorija v 'pijača' kategorijah, sodeč po imenu
-  const drinkCategoryNames = ['Pijača', 'Piva', 'Vina', 'Žgane pijače', 'Topli napitki', 'Sokovi', 'Gazirane pijače', 'Vode', 'Breza', 'Brezalkoholne pijače', 'Penine in Šampanjci', 'Bela Vina', 'Rosé Vino', 'Rdeča Vina', 'Tuja Vina', 'Likersko Vino']
-  const foodItems = (order.orderItems || []).filter(oi => {
-    const catName = oi.menuItem?.category?.name || ''
-    const menuName = oi.menuItem?.category?.menu?.name || ''
-    // Če je eksplicitno 'Hrana' ali če ni v drink seznamu → hrana
-    return menuName === 'Hrana' || !drinkCategoryNames.some(d => catName.includes(d) || menuName.includes(d))
+  // FIX PrepStation routing: Filtriraj artikle po prepStation.type namesto
+  // po category/menu imenu. Prej je bil filter po 'Hrana'/'Pijača' kar ni
+  // delovalo ker menu.name je 'Glavni meni'.
+  // Sedaj: preverja menuItem.prepStation.type:
+  // - 'kitchen' → kuhinjski artikli (kuhinja filter)
+  // - 'bar' → šank artikli (šank filter)
+  // - če prepStation ni nastavljen, fallback na category ime
+  const allItems = Array.isArray(order.orderItems) ? order.orderItems : []
+
+  const foodItems = allItems.filter(oi => {
+    const stationType = (oi.menuItem as { prepStation?: { type?: string } })?.prepStation?.type
+    const stationName = (oi.menuItem as { prepStation?: { name?: string } })?.prepStation?.name
+    // Če ima prepStation.type='kitchen' ali če ni nastavljen → kuhinja
+    return stationType === 'kitchen' || (!stationType && stationName !== 'Bar')
   })
-  const drinkItems = (order.orderItems || []).filter(oi => {
-    const catName = oi.menuItem?.category?.name || ''
-    const menuName = oi.menuItem?.category?.menu?.name || ''
-    return drinkCategoryNames.some(d => catName.includes(d) || menuName.includes(d))
+  const drinkItems = allItems.filter(oi => {
+    const stationType = (oi.menuItem as { prepStation?: { type?: string } })?.prepStation?.type
+    const stationName = (oi.menuItem as { prepStation?: { name?: string } })?.prepStation?.name
+    // Če ima prepStation.type='bar' ali prepStation.name='Bar' → šank
+    return stationType === 'bar' || stationName === 'Bar'
   })
 
-  // Filtriraj glede na postajo (kuhinja = samo hrana, šank = samo pijača)
+  // Filtriraj glede na postajo
   const displayFoodItems = stationFilter === 'sank' ? [] : foodItems
   const displayDrinkItems = stationFilter === 'kuhinja' ? [] : drinkItems
 
