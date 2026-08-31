@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 
 export const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
   'pending': ['in-progress', 'cancelled'],
-  'in-progress': ['ready', 'cancelled'],
+  'in-progress': ['ready', 'completed', 'cancelled'],
   'ready': ['completed', 'cancelled'],
   'completed': [], // Completed orders CANNOT change status (one-way)
   'cancelled': [],  // Cancelled orders CANNOT be revived

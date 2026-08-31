@@ -59,6 +59,18 @@ export async function updateCheckAndOrderStatus(
       where: { id: orderId },
       data: orderUpdateData,
     })
+
+    // FIX: Avtomatsko posodobi order.status na 'completed' ko je plačilo popolno
+    // Prej: order.status je ostal 'ready' tudi po plačilu
+    if (allPaid) {
+      const order = await tx.order.findUnique({ where: { id: orderId }, select: { status: true } })
+      if (order && (order.status === 'ready' || order.status === 'in-progress')) {
+        await tx.order.update({
+          where: { id: orderId },
+          data: { status: 'completed' },
+        })
+      }
+    }
   } else if (updatedCheck?.paymentStatus === 'partial') {
     // Partial plačilo — posodobi order status na partial če ni že
     const order = await tx.order.findUnique({ where: { id: orderId } })
