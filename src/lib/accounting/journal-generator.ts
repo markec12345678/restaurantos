@@ -198,9 +198,11 @@ export async function generateProfitLoss(dateFrom?: Date, dateTo?: Date, locatio
   const sections: {
     revenue: { accounts: AccountEntry[]; total: number }
     expense: { accounts: AccountEntry[]; total: number }
+    cogs: { accounts: AccountEntry[]; total: number }
   } = {
     revenue: { accounts: [], total: 0 },
     expense: { accounts: [], total: 0 },
+    cogs: { accounts: [], total: 0 },
   }
 
   const accountMap: Record<string, { code: string; name: string; type: string; debit: number; credit: number }> = {}
@@ -222,15 +224,53 @@ export async function generateProfitLoss(dateFrom?: Date, dateTo?: Date, locatio
     } else if (acc.type === 'expense') {
       sections.expense.accounts.push(entry)
       sections.expense.total += balance
+    } else if (acc.type === 'cogs' || acc.type === 'cost_of_goods' || acc.code?.startsWith('5')) {
+      sections.cogs.accounts.push(entry)
+      sections.cogs.total += balance
     }
   }
 
-  const netProfit = sections.revenue.total - sections.expense.total
+  // FIX: Pridobi COGS iz StockTransaction (type='sale') če journal entries ne vsebujejo COGS
+  // To je fallback — avtomatska razknjižba zaloge ob prodaji ustvari StockTransaction z
+  // totalCost poljem, ampak ne ustvari vedno journal entry. Zato direktno agregiramo.
+  if (sections.cogs.total === 0) {
+    const stockWhere: Record<string, unknown> = { type: 'sale' }
+    if (dateFrom || dateTo) {
+      const dateFilter: Record<string, Date> = {}
+      if (dateFrom) dateFilter.gte = dateFrom
+      if (dateTo) dateFilter.lte = dateTo
+      stockWhere.createdAt = dateFilter
+    }
+
+    const cogsResult = await db.stockTransaction.aggregate({
+      where: stockWhere,
+      _sum: { totalCost: true },
+      _count: true,
+    })
+
+    const cogsTotal = toNum(cogsResult._sum.totalCost)
+    if (cogsTotal > 0) {
+      sections.cogs.accounts.push({
+        code: '5000',
+        name: 'COGS — Stroški prodane robe',
+        type: 'cogs',
+        debit: cogsTotal,
+        credit: 0,
+        balance: cogsTotal,
+      })
+      sections.cogs.total = cogsTotal
+    }
+  }
+
+  const totalExpenses = sections.expense.total + sections.cogs.total
+  const netProfit = sections.revenue.total - totalExpenses
 
   return {
     period: { from: dateFrom?.toISOString() || null, to: dateTo?.toISOString() || null },
     revenue: sections.revenue,
+    cogs: sections.cogs,
     expenses: sections.expense,
+    totalExpenses,
     netProfit,
     margin: sections.revenue.total > 0 ? (netProfit / sections.revenue.total) * 100 : 0,
   }
