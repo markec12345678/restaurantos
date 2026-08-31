@@ -12,6 +12,32 @@ import { handleFireAction, handleItemStatusUpdate, performOrderSoftDelete } from
 
 export const dynamic = 'force-dynamic'
 
+// FIX Bug #2: Dodan GET method — prej samo PUT/PATCH/DELETE (405 za GET)
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    if (authResult.error) return authResult.error
+
+    const { id } = await params
+    const order = await db.order.findUnique({
+      where: { id },
+      include: {
+        table: true,
+        orderItems: {
+          include: {
+            menuItem: { include: { category: { include: { menu: true } } } },
+          },
+        },
+      },
+    })
+    if (!order) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
+    return NextResponse.json(deepToNumbers(order))
+  } catch (error: unknown) {
+    return handleApiError(error, 'GET /api/orders/[id]', 'Napaka pri pridobivanju naročila')
+  }
+}
+
+// PUT — Posodobi naročilo (status, paymentStatus, itd.)
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return handlePutOrder(req, params)
 }
