@@ -28,13 +28,22 @@ export const KitchenOrderCard = memo(function KitchenOrderCard({
   viewMode: 'cards' | 'list'
   stationFilter?: 'all' | 'kuhinja' | 'sank'
 }) {
-  // Group items by category (food items together, drinks together)
-  const foodItems = (order.orderItems || []).filter(oi =>
-    oi.menuItem?.category?.menu?.name === 'Hrana'
-  )
-  const drinkItems = (order.orderItems || []).filter(oi =>
-    oi.menuItem?.category?.menu?.name === 'Pijača'
-  )
+  // FIX: Group items by category — food items together, drinks together
+  // Prej: filter by oi.menuItem?.category?.menu?.name === 'Hrana'
+  // To NI delovalo ker je menu.name lahko 'Glavni meni' (ne 'Hrana'/'Pijača')
+  // Sedaj: preverja ali je kategorija v 'pijača' kategorijah, sodeč po imenu
+  const drinkCategoryNames = ['Pijača', 'Piva', 'Vina', 'Žgane pijače', 'Topli napitki', 'Sokovi', 'Gazirane pijače', 'Vode', 'Breza', 'Brezalkoholne pijače', 'Penine in Šampanjci', 'Bela Vina', 'Rosé Vino', 'Rdeča Vina', 'Tuja Vina', 'Likersko Vino']
+  const foodItems = (order.orderItems || []).filter(oi => {
+    const catName = oi.menuItem?.category?.name || ''
+    const menuName = oi.menuItem?.category?.menu?.name || ''
+    // Če je eksplicitno 'Hrana' ali če ni v drink seznamu → hrana
+    return menuName === 'Hrana' || !drinkCategoryNames.some(d => catName.includes(d) || menuName.includes(d))
+  })
+  const drinkItems = (order.orderItems || []).filter(oi => {
+    const catName = oi.menuItem?.category?.name || ''
+    const menuName = oi.menuItem?.category?.menu?.name || ''
+    return drinkCategoryNames.some(d => catName.includes(d) || menuName.includes(d))
+  })
 
   // Filtriraj glede na postajo (kuhinja = samo hrana, šank = samo pijača)
   const displayFoodItems = stationFilter === 'sank' ? [] : foodItems
