@@ -1,6 +1,6 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useEffect } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Users, Loader2 } from 'lucide-react'
@@ -38,6 +38,20 @@ export const OrderTypeBar = memo(function OrderTypeBar({
   const tablesArray = Array.isArray(tables) ? tables : []
   const availableTables = tablesArray.filter((t) => t.status === 'available' || t.status === 'occupied')
   const tablesLoading = !Array.isArray(tables) // Ni naložen — prikaži loading
+
+  // FIX: Auto-izberi prvo prosto mizo ko uporabnik izbere "dine-in"
+  // Prej: uporabnik je moral ročno klikniti dropdown in izbrati mizo.
+  // Če ni izbral, selectedTable je bil null → naročilo brez mize.
+  // Sedaj: ko orderType = 'dine-in' in mize so naložene in ni izbrane mize,
+  // samodejno izberi prvo prosto mizo.
+  useEffect(() => {
+    if (orderType === 'dine-in' && !selectedTable && availableTables.length > 0) {
+      const firstAvailable = availableTables.find(t => t.status === 'available')
+      if (firstAvailable) {
+        setSelectedTable(firstAvailable.id)
+      }
+    }
+  }, [orderType, selectedTable, availableTables, setSelectedTable])
 
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30 flex-shrink-0">
