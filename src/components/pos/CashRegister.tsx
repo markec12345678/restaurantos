@@ -48,7 +48,9 @@ export const CashRegister = memo(function CashRegister() {
     queryFn: async () => {
       const res = await authFetch('/api/employees')
       if (!res.ok) throw new Error('Napaka pri nalaganju zaposlenih')
-      return res.json()
+      const json = await res.json()
+      // FIX: API vrača { employees: [...] } format — ekstrahiraj array
+      return Array.isArray(json) ? json : (json.employees ?? [])
     },
   })
 

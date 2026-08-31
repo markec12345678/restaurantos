@@ -51,7 +51,7 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/api/tables': ['take_orders'],
   '/api/discounts': ['apply_discounts'],
   '/api/inventory': ['manage_inventory'],
-  '/api/employees': ['manage_employees'],
+  '/api/employees': ['manage_employees', 'manage_cash'], // FIX: CashRegister potrebuje seznam zaposlenih za "Odpri izmeno" dialog
   '/api/loyalty': ['take_orders'],
   '/api/gift-cards': ['take_orders'],
   '/api/guests': ['take_orders'],
