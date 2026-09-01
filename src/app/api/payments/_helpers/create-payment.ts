@@ -67,13 +67,18 @@ export async function handleCreatePayment(
   employeeId: string | null | undefined,
 ) {
   // ─── IDEMPOTENCY: Fast path ───────────────────────────────────────────────
-  // Če idempotencyKey že obstaja v bazi, vrni obstoječi rezultat takoj.
-  // Ne ustvarjaj novega plačila, ne vrni napake — klient vidi isto transakcijo.
-  if (data.idempotencyKey) {
-    const existing = await findExistingPaymentByIdempotencyKey(data.idempotencyKey)
-    if (existing) {
-      return NextResponse.json(deepToNumbers(existing), { status: 200 })
-    }
+  // FIX Bug #2 (CRITICAL): Prej je bil idempotencyKey.optional() v Zod shemi
+  // kar pomeni da če klient ne pošlje key-ja, je data.idempotencyKey undefined.
+  // Potem if (data.idempotencyKey) skip-ne check in gre direktno v create.
+  //
+  // POPRAVEK: Avtomatsko generiraj idempotencyKey če klient ne pošlje.
+  // To zagotavlja da VSA plačila imajo idempotencyKey za deduplikacijo.
+  const idempotencyKey = data.idempotencyKey || `auto-${data.checkId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
+  // Preveri ali plačilo z tem idempotencyKey že obstaja
+  const existing = await findExistingPaymentByIdempotencyKey(idempotencyKey)
+  if (existing) {
+    return NextResponse.json(deepToNumbers(existing), { status: 200 })
   }
 
   // Preveri check
@@ -96,7 +101,7 @@ export async function handleCreatePayment(
     loyaltyAccountId: data.loyaltyAccountId ?? null,
     loyaltyPointsUsed: data.loyaltyPointsUsed ?? 0,
     employeeId: data.employeeId ?? employeeId ?? null,
-    idempotencyKey: data.idempotencyKey ?? null,
+    idempotencyKey: idempotencyKey,
   }
 
   try {
@@ -129,7 +134,7 @@ export async function handleCreatePayment(
           loyaltyPointsUsed: paymentInput.loyaltyPointsUsed,
           status: 'completed',
           employeeId: paymentInput.employeeId ?? undefined,
-          idempotencyKey: paymentInput.idempotencyKey ?? undefined,
+          idempotencyKey: idempotencyKey,
         },
       })
 
@@ -168,8 +173,8 @@ export async function handleCreatePayment(
     // Brez te veje bi klient videl "Napaka pri ustvarjanju plačila" (500), čeprav je
     // plačilo dejansko uspelo. Natakar bi lahko mislil, da plačilo ni uspelo, in
     // poskusil znova z novim ključem → pravo dvojno plačilo.
-    if (data.idempotencyKey && isUniqueConstraintViolation(error)) {
-      const existing = await findExistingPaymentByIdempotencyKey(data.idempotencyKey)
+    if (idempotencyKey && isUniqueConstraintViolation(error)) {
+      const existing = await findExistingPaymentByIdempotencyKey(idempotencyKey)
       if (existing) {
         return NextResponse.json(deepToNumbers(existing), { status: 200 })
       }
