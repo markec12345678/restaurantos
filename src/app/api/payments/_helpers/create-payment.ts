@@ -114,8 +114,10 @@ export async function handleCreatePayment(
     // kar fizično zaklene vrstico dokler transakcija ne konča.
     const result = await db.$transaction(async (tx) => {
       // FIX: SELECT FOR UPDATE na check-u — fizično zaklene vrstico
-      const lockedCheck = await tx.$queryRaw<Array<{ id: string; total: Prisma.Decimal; payment_status: string }>>`
-        SELECT id, total, payment_status FROM "Check" WHERE id = ${data.checkId} FOR UPDATE
+      // FIX: Prisma uporablja camelCase column names brez @map — "paymentStatus" ne "payment_status"
+      // FIX: "Check" je SQL keyword — potrebuje dvojne narekovaje
+      const lockedCheck = await tx.$queryRaw<Array<{ id: string; total: Prisma.Decimal; paymentStatus: string }>>`
+        SELECT id, total, "paymentStatus" FROM "Check" WHERE id = ${data.checkId} FOR UPDATE
       `
       if (!lockedCheck || lockedCheck.length === 0) {
         throw new Error('CHECK_NOT_FOUND')
@@ -131,7 +133,7 @@ export async function handleCreatePayment(
       const remainingAmount = subtract(checkTotal, totalPaidSoFar)
 
       // FIX: Preveri ali je ček že plačan
-      if (lockedCheck[0].payment_status === 'paid') {
+      if (lockedCheck[0].paymentStatus === 'paid') {
         throw new Error(`ALREADY_PAID:${toNum(checkTotal).toFixed(2)}`)
       }
 
