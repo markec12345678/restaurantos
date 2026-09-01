@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server'
 
 import type { Session, Permission } from './types'
 import { SESSION_TTL_MS } from './constants'
-import { verifyToken, syncSessionToWs } from './session-store'
+import { verifyToken, syncSessionToWs, destroySession } from './session-store'
 import { db } from '../db'
 import { isPublicRoute, getRequiredPermissions, hasPermission } from './permissions'
 
@@ -65,6 +65,35 @@ export async function requireAuth(
       session: null,
       error: NextResponse.json(
         { error: 'Neveljaven ali potekel žeton. Prosimo, prijavite se ponovno.' },
+        { status: 401 }
+      ),
+    }
+  }
+
+  // FIX SECURITY: Dodatno preverjanje statusa zaposlenega direktno v requireAuth
+  // (ne zanašaj se samo na verifyToken — dvojna zaščita)
+  try {
+    const emp = await db.employee.findUnique({
+      where: { id: session.employeeId },
+      select: { status: true },
+    })
+    if (!emp || emp.status !== 'active') {
+      // Uniči sejo
+      destroySession(token)
+      return {
+        session: null,
+        error: NextResponse.json(
+          { error: 'Dostop zavrnjen — račun ni več aktiven.' },
+          { status: 401 }
+        ),
+      }
+    }
+  } catch {
+    // DB napaka — fail-closed
+    return {
+      session: null,
+      error: NextResponse.json(
+        { error: 'Napaka pri preverjanju dostopa.' },
         { status: 401 }
       ),
     }
