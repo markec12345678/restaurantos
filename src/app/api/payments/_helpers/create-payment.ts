@@ -105,16 +105,37 @@ export async function handleCreatePayment(
   }
 
   try {
-    // FIX Bug #1 (CRITICAL): Race condition — Serializable isolation level
-    // prepreči vzporedne plačila na isti ček. Prej je READ COMMITTED
-    // dovolil 10 vzporednih plačil ker vsi so prebrali paidSoFar=0.
+    // FIX Bug #1 (CRITICAL): Race condition — SELECT FOR UPDATE pattern
+    // Serializable isolation level na Neon/PostgreSQL ne zagotavlja dovolj
+    // močne zaščite pri aggregate() queries. Potrebno je eksplicitno
+    // zakleniti check vrstico pred branjem paidSoFar.
+    //
+    // Rešitev: Uporabi $queryRaw za SELECT ... FOR UPDATE na check-u,
+    // kar fizično zaklene vrstico dokler transakcija ne konča.
     const result = await db.$transaction(async (tx) => {
+      // FIX: SELECT FOR UPDATE na check-u — fizično zaklene vrstico
+      const lockedCheck = await tx.$queryRaw<Array<{ id: string; total: Prisma.Decimal; payment_status: string }>>`
+        SELECT id, total, payment_status FROM "Check" WHERE id = ${data.checkId} FOR UPDATE
+      `
+      if (!lockedCheck || lockedCheck.length === 0) {
+        throw new Error('CHECK_NOT_FOUND')
+      }
+
+      // Sedaj ko imamo lock, preberi paidSoFar (drugi requesti čakajo)
       const paidSoFar = await tx.payment.aggregate({
         where: { checkId: data.checkId, status: 'completed' },
         _sum: { amount: true },
       })
       const totalPaidSoFar = paidSoFar._sum.amount ?? new Prisma.Decimal(0)
-      const remainingAmount = subtract(check.total, totalPaidSoFar)
+      const checkTotal = lockedCheck[0].total
+      const remainingAmount = subtract(checkTotal, totalPaidSoFar)
+
+      // FIX: Preveri ali je ček že plačan
+      if (lockedCheck[0].payment_status === 'paid') {
+        throw new Error(`ALREADY_PAID:${toNum(checkTotal).toFixed(2)}`)
+      }
+
+      // Preveri overpayment
       if (greaterThan(data.amount, add(remainingAmount, 0.01))) {
         throw new Error(`OVERPAYMENT:${data.amount.toFixed(2)}:${toNum(remainingAmount).toFixed(2)}`)
       }
@@ -140,13 +161,12 @@ export async function handleCreatePayment(
 
       await handleGiftCardDeduction(tx, paymentInput, check.orderId)
       await handleLoyaltyPointsDeduction(tx, paymentInput, check.orderId)
-      await updateCheckAndOrderStatus(tx, data.checkId, check.total, check.orderId)
+      await updateCheckAndOrderStatus(tx, data.checkId, checkTotal, check.orderId)
       await handleLoyaltyEarn(tx, paymentInput, check.orderId)
 
       return payment
     }, {
-      // FIX Bug #1: Serializable isolation level — prepreči race condition
-      timeout: 10000,
+      timeout: 15000,
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     })
 
@@ -192,6 +212,27 @@ export async function handleCreatePayment(
         return NextResponse.json(
           { error: `Znesek plačila (${parts[1] || '0.00'} EUR) presega preostali znesek čeka (${parts[2] || '0.00'} EUR)` },
           { status: 400 }
+        )
+      }
+      // FIX: ALREADY_PAID — ček je že plačan (race condition)
+      if (error.message.includes('ALREADY_PAID')) {
+        return NextResponse.json(
+          { error: `Ček je že popolnoma plačan (${error.message.split(':')[1] || '0.00'} EUR)` },
+          { status: 409 }
+        )
+      }
+      // FIX: CHECK_NOT_FOUND — ček ne obstaja (race condition z delete)
+      if (error.message.includes('CHECK_NOT_FOUND')) {
+        return NextResponse.json(
+          { error: 'Ček ni najden ali je bil izbrisan' },
+          { status: 404 }
+        )
+      }
+      // FIX: Serialization failure — PostgreSQL P2034 (serialization conflict)
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+        return NextResponse.json(
+          { error: 'Plačilo je v obdelavi — poskusite znova čez nekaj sekund' },
+          { status: 409 }
         )
       }
     }
