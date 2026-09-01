@@ -47,6 +47,36 @@ export async function handlePutOrder(req: Request, params: Promise<{ id: string 
     if (data.tip !== undefined) updateData.tip = data.tip
     if (data.totalWithTip !== undefined) updateData.totalWithTip = data.totalWithTip
 
+    // FIX Test 9.2: Aplikacija popusta na obstoječe naročilo
+    if (data.discount !== undefined || data.appliedDiscountId !== undefined) {
+      const oldSubtotal = toNum(existingOrder.subtotal)
+      const newDiscount = data.discount !== undefined ? Math.min(data.discount, oldSubtotal) : toNum(existingOrder.discount)
+      const newSubtotal = oldSubtotal - newDiscount
+
+      // Preračunaj DDV: vsaka postavka ima svojo vatRate, popust se porazdeli proporcionalno
+      let newTax = 0
+      for (const item of existingOrder.orderItems) {
+        if (item.voided) continue
+        const itemSubtotal = toNum(item.price) * item.quantity
+        const proportion = oldSubtotal > 0 ? itemSubtotal / oldSubtotal : 0
+        const itemDiscount = newDiscount * proportion
+        const taxableAmount = itemSubtotal - itemDiscount
+        const vatRate = toNum(item.vatRate)
+        newTax += taxableAmount * (vatRate / 100)
+      }
+      newTax = Math.round(newTax * 100) / 100
+
+      const newTotal = newSubtotal + newTax
+
+      updateData.discount = newDiscount
+      updateData.tax = newTax
+      updateData.total = newTotal
+      updateData.totalWithTip = newTotal + toNum(existingOrder.tip)
+      if (data.appliedDiscountId !== undefined) {
+        updateData.appliedDiscountId = data.appliedDiscountId || null
+      }
+    }
+
     if (data.status === 'cancelled') {
       updateData.cancelledAt = new Date()
       if (!data.cancelledBy && authResult.session) {

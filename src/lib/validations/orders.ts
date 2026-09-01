@@ -46,6 +46,9 @@ export const updateOrderSchema = z.object({
   // FIX: Allow tip and totalWithTip from PaymentDialog (set during payment processing)
   tip: z.number().min(0).optional(),
   totalWithTip: z.number().min(0).optional(),
+  // FIX Test 9.2: Dodan discount in appliedDiscountId za aplikacijo popusta na obstoječe naročilo
+  discount: z.number().min(0).optional(),
+  appliedDiscountId: z.string().nullable().optional(),
 })
 
 export const addOrderItemsSchema = z.object({
