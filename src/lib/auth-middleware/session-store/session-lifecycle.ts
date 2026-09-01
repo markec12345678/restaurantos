@@ -122,6 +122,16 @@ export async function verifyToken(token: string): Promise<Session | null> {
       sessions.delete(token)
       return null
     }
+    // FIX SECURITY: Preveri status zaposlenega TUDI za cached sessions!
+    // Prejšnja koda je preskočila isEmployeeActive() check za in-memory cache,
+    // kar je pomenilo da terminiran zaposleni še vedno lahko dostopa do API-jev
+    // če je seja v cache-u (npr. isti Vercel serverless instance).
+    const isActive = await isEmployeeActive(session.employeeId)
+    if (!isActive) {
+      sessions.delete(token)
+      await db.session.deleteMany({ where: { token } }).catch(() => {})
+      return null
+    }
     return session
   }
 
