@@ -69,6 +69,21 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // FIX SECURITY v4: Triple-check statusa zaposlenega DIREKTNO v POST handler
+    // Ne zanašaj se samo na requireAuth — dodaj še direkten DB check tukaj
+    if (authResult.session?.employeeId) {
+      const emp = await db.employee.findUnique({
+        where: { id: authResult.session.employeeId },
+        select: { status: true, name: true },
+      })
+      if (!emp || emp.status !== 'active') {
+        return NextResponse.json(
+          { error: `Dostop zavrnjen — ${emp?.name || 'račun'} ni več aktiven (status: ${emp?.status || 'not_found'})` },
+          { status: 401, headers: { 'X-Auth-Check': 'v4-direct' } }
+        )
+      }
+    }
+
     return await handlePostOrder(req, authResult as { session?: { employeeId?: string } | null })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/orders', 'Napaka pri ustvarjanju naročila')
