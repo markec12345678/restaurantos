@@ -118,7 +118,12 @@ export async function handleCreatePayment(
       // Rešitev: pg_advisory_xact_lock — transaction-level lock ki deluje
       // ne glede na connection pooling. Lock se avtomatsko sprosti ob
       // commit/rollback.
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${data.checkId}))`
+      //
+      // FIX BUG (500 error): Prej je bil uporabljen $queryRaw, ki pričakuje
+      // result set. pg_advisory_xact_lock() vrača void — Prisma 5.x ne zna
+      // deserialize-ati void return type in vrže 500 napako.
+      // $executeRaw je pravilen choice za funkcije ki ne vračajo podatkov.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${data.checkId}))`
 
       // Preberi check (brez FOR UPDATE — advisory lock že ščiti)
       const checkRow = await tx.check.findUnique({
@@ -173,7 +178,10 @@ export async function handleCreatePayment(
 
       return payment
     }, {
-      timeout: 15000,
+      // FIX: Zmanjšan timeout iz 15s na 8s — Vercel Hobby plan ima 10s function
+      // timeout. Če transakcija traja dlje kot 8s, prekinemo da klient dobi
+      // razumljivo napako (409 retry) namesto Vercel 504 gateway timeout.
+      timeout: 8000,
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     })
 
@@ -242,7 +250,17 @@ export async function handleCreatePayment(
           { status: 409 }
         )
       }
+      // FIX: Transaction timeout — P2028 (transakcija je trajala predolgo)
+      // Tipično se zgodi ko veliko vzporednih plačil čaka na advisory lock.
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2028') {
+        return NextResponse.json(
+          { error: 'Plačilo se obdeluje — prosimo poskusite znova' },
+          { status: 409 }
+        )
+      }
     }
+    // FIX: Dodatno logiranje za debug — če pride do sem, imamo nepričakovano napako
+    logger.error('PAYMENT', '[CREATE] Nepričakovana napaka pri ustvarjanju plačila:', error)
     return handleApiError(error, 'POST /api/payments', 'Napaka pri ustvarjanju plačila')
   }
 }
