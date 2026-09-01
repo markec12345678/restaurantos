@@ -11,41 +11,45 @@ import { sessions, syncSessionToWs, loadSessionsFromDb } from './session-cache'
 
 // FIX SECURITY: Cache za status zaposlenega — prepreči DA je terminiran zaposleni
 // še vedno lahko dostopa do API-jev do poteka seje (do 8h!).
-// Cache je 60s — če admin terminira zaposlenega, bo seja prenehala veljati v 60s.
+// Cache je 30s — če admin terminira zaposlenega, bo seja prenehala veljati v 30s.
+// FIX: Zmanjšan z 60s na 30s za hitrejši odziv na terminacijo.
 const employeeStatusCache = new Map<string, { status: string; checkedAt: number }>()
-const EMPLOYEE_STATUS_CACHE_TTL_MS = 60 * 1000 // 60 sekund
+const EMPLOYEE_STATUS_CACHE_TTL_MS = 30 * 1000 // 30 sekund
 
 /**
- * Preveri ali je zaposleni še vedno aktiven (s 60s cache-om)
+ * Preveri ali je zaposleni še vedno aktiven (s 30s cache-om)
  * FIX SECURITY: preverja tudi ali je zaposleni še vedno 'active'.
  * Prejšnja koda je preverjala samo TTL seje — če je admin terminiral
  * zaposleni (DELETE /api/employees/[id] nastavi status='terminated'),
  * je obstoječa seja še vedno veljala do 8h (sliding TTL) / 24h (absolute).
- * Sedaj preverjamo status zaposlenega s 60s cache-om.
+ * Sedaj preverjamo status zaposlenega s 30s cache-om.
+ *
+ * FIX: Prej je bil fail-open (return true ob DB napaki). To je varnostna
+ * luknja — če DB ni dosegljiv, terminiran zaposleni še vedno lahko dostopa.
+ * Sedaj je fail-closed (return false) za terminirane, ampak fail-open samo
+ * če DB query vrže napako (ne če je status='terminated').
  */
 async function isEmployeeActive(employeeId: string): Promise<boolean> {
-  // Preveri cache
+  // Preveri cache (30s TTL)
   const cached = employeeStatusCache.get(employeeId)
   if (cached && Date.now() - cached.checkedAt < EMPLOYEE_STATUS_CACHE_TTL_MS) {
     return cached.status === 'active'
   }
 
-  // Preveri v bazi
-  try {
-    const employee = await db.employee.findUnique({
-      where: { id: employeeId },
-      select: { status: true },
-    })
-    if (!employee) {
-      employeeStatusCache.set(employeeId, { status: 'not_found', checkedAt: Date.now() })
-      return false
-    }
-    employeeStatusCache.set(employeeId, { status: employee.status, checkedAt: Date.now() })
-    return employee.status === 'active'
-  } catch {
-    // DB napaka — fail-open (dovoli dostop, da ne blokiramo celotnega sistema)
-    return true
+  // Preveri v bazi — BREZ try/catch fail-open!
+  // Če DB query vrže napako, naj se request fail-a (500) namesto dovoliti dostop.
+  const employee = await db.employee.findUnique({
+    where: { id: employeeId },
+    select: { status: true },
+  })
+
+  if (!employee) {
+    employeeStatusCache.set(employeeId, { status: 'not_found', checkedAt: Date.now() })
+    return false
   }
+
+  employeeStatusCache.set(employeeId, { status: employee.status, checkedAt: Date.now() })
+  return employee.status === 'active'
 }
 
 /**
@@ -144,7 +148,6 @@ export async function verifyToken(token: string): Promise<Session | null> {
     if (!dbSession) return null
 
     const now = Date.now()
-    // FIX WORKFLOW-45: prej Number(BigInt) — sedaj DateTime → number (ms)
     const expiresAt = dbSession.expiresAt instanceof Date ? dbSession.expiresAt.getTime() : Number(dbSession.expiresAt)
     const absoluteExpiry = dbSession.absoluteExpiry instanceof Date ? dbSession.absoluteExpiry.getTime() : Number(dbSession.absoluteExpiry)
 
@@ -170,16 +173,14 @@ export async function verifyToken(token: string): Promise<Session | null> {
       absoluteExpiry,
     }
 
-    // Shrani v cache za prihodnje klice v isti request
     sessions.set(token, reconstructed)
     return reconstructed
-  } catch {
-    // DB napaka — poskusi loadSessionsFromDb kot fallback
-    await loadSessionsFromDb()
-    const fallbackSession = sessions.get(token)
-    if (fallbackSession && fallbackSession.expiresAt >= Date.now() && fallbackSession.absoluteExpiry >= Date.now()) {
-      return fallbackSession
-    }
+  } catch (dbError) {
+    // FIX SECURITY: DB napaka — NE dovoli dostopa (fail-closed)!
+    // Prejšnja koda je naredila loadSessionsFromDb() in vrnila session
+    // BREZ preverjanja isEmployeeActive() — kar je varnostna luknja.
+    // Če DB ni dosegljiv, naj vsi APIji vrnejo 500 (ne 401 z session).
+    logger.error('AUTH', 'DB napaka v verifyToken:', dbError instanceof Error ? dbError.message : String(dbError))
     return null
   }
 }
