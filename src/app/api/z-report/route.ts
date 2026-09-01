@@ -29,7 +29,9 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   try {
-    const authResult = await requireAuth(req, { permission: 'view_reports' })
+    // FIX Bug #3 (HIGH): IDOR — natakar ne sme videti Z-reportov
+    // Prej: view_reports (ki ga ima natakar) — sedaj: manage_cash
+    const authResult = await requireAuth(req, { permission: 'manage_cash' })
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)

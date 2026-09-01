@@ -100,6 +100,9 @@ export async function handleCreatePayment(
   }
 
   try {
+    // FIX Bug #1 (CRITICAL): Race condition — Serializable isolation level
+    // prepreči vzporedne plačila na isti ček. Prej je READ COMMITTED
+    // dovolil 10 vzporednih plačil ker vsi so prebrali paidSoFar=0.
     const result = await db.$transaction(async (tx) => {
       const paidSoFar = await tx.payment.aggregate({
         where: { checkId: data.checkId, status: 'completed' },
@@ -136,6 +139,10 @@ export async function handleCreatePayment(
       await handleLoyaltyEarn(tx, paymentInput, check.orderId)
 
       return payment
+    }, {
+      // FIX Bug #1: Serializable isolation level — prepreči race condition
+      timeout: 10000,
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     })
 
     await postPaymentProcessing(result.id, paymentInput, check.orderId, employeeId ?? undefined)
