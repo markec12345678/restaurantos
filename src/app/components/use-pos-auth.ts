@@ -28,8 +28,18 @@ export function usePOSAuth() {
           })
           if (res.ok) {
             setAuthUser(stored)
+          } else if (res.status === 401) {
+            // FIX SECURITY: 401 = session ni veljavna (potekla ali terminiran)
+            // NE dovoli offline mode — počisti in zahtevaj ponovno prijavo
+            setCurrentUser(null)
+            sessionStorage.removeItem('pos_auth_user')
+            sessionStorage.removeItem('pos_auth_token')
+            localStorage.removeItem('pos_auth_user')
+            localStorage.removeItem('pos_auth_token')
           } else {
-            // Žeton ni veljaven — počisti in prikaži prijavo
+            // 500 ali druga napaka — server je nedosegljiv
+            // FIX: Prej je bil setAuthUser(stored) — dovolil dostop tudi
+            // terminiranemu zaposlenemu. Sedaj: zahtevaj ponovno prijavo.
             setCurrentUser(null)
             sessionStorage.removeItem('pos_auth_user')
             sessionStorage.removeItem('pos_auth_token')
@@ -37,8 +47,10 @@ export function usePOSAuth() {
             localStorage.removeItem('pos_auth_token')
           }
         } catch {
-          // Napaka omrežja — dovoli vpisano uporabnika (offline način)
-          setAuthUser(stored)
+          // Napaka omrežja — NE dovoli offline mode za varnost
+          // FIX: Prej je bil setAuthUser(stored) — varnostna luknja.
+          // Če server ni dosegljiv, naj uporabnik ponovno vpiše PIN.
+          setCurrentUser(null)
         }
       }
       setAuthChecked(true)

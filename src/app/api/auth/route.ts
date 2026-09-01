@@ -82,8 +82,11 @@ export async function GET(req: Request) {
 
     return NextResponse.json(responseData)
   } catch (error: unknown) {
+    // FIX SECURITY: Če verifyToken vrže napako (npr. DB napaka v isEmployeeActive),
+    // ne vračaj 500 z authEnabled=false — to bi klient dojel kot "offline mode"
+    // in dovolil dostop. Vrani 401 (session ni veljaven).
     logger.error('API', 'Auth status error:', error)
-    return NextResponse.json({ authEnabled: false, authenticated: false }, { status: 500 })
+    return NextResponse.json({ authenticated: false, authEnabled: true, error: 'Session validation failed' }, { status: 401 })
   }
 }
 
