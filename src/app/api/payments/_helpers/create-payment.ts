@@ -113,29 +113,34 @@ export async function handleCreatePayment(
     // Rešitev: Uporabi $queryRaw za SELECT ... FOR UPDATE na check-u,
     // kar fizično zaklene vrstico dokler transakcija ne konča.
     const result = await db.$transaction(async (tx) => {
-      // FIX: SELECT FOR UPDATE na check-u — fizično zaklene vrstico
-      // FIX: Prisma uporablja camelCase column names brez @map — "paymentStatus" ne "payment_status"
-      // FIX: "Check" je SQL keyword — potrebuje dvojne narekovaje
-      const lockedCheck = await tx.$queryRaw<Array<{ id: string; total: Prisma.Decimal; paymentStatus: string }>>`
-        SELECT id, total, "paymentStatus" FROM "Check" WHERE id = ${data.checkId} FOR UPDATE
-      `
-      if (!lockedCheck || lockedCheck.length === 0) {
+      // FIX: Neon uses PgBouncer in transaction mode — SELECT FOR UPDATE
+      // ne deluje pravilno ker vsak statement je lahko na drugi povezavi.
+      // Rešitev: pg_advisory_xact_lock — transaction-level lock ki deluje
+      // ne glede na connection pooling. Lock se avtomatsko sprosti ob
+      // commit/rollback.
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${data.checkId}))`
+
+      // Preberi check (brez FOR UPDATE — advisory lock že ščiti)
+      const checkRow = await tx.check.findUnique({
+        where: { id: data.checkId },
+        select: { id: true, total: true, paymentStatus: true, orderId: true },
+      })
+      if (!checkRow) {
         throw new Error('CHECK_NOT_FOUND')
       }
 
-      // Sedaj ko imamo lock, preberi paidSoFar (drugi requesti čakajo)
+      // Preveri ali je ček že plačan
+      if (checkRow.paymentStatus === 'paid') {
+        throw new Error(`ALREADY_PAID:${toNum(checkRow.total).toFixed(2)}`)
+      }
+
+      // Preberi paidSoFar (drugi requesti čakajo na advisory lock)
       const paidSoFar = await tx.payment.aggregate({
         where: { checkId: data.checkId, status: 'completed' },
         _sum: { amount: true },
       })
       const totalPaidSoFar = paidSoFar._sum.amount ?? new Prisma.Decimal(0)
-      const checkTotal = lockedCheck[0].total
-      const remainingAmount = subtract(checkTotal, totalPaidSoFar)
-
-      // FIX: Preveri ali je ček že plačan
-      if (lockedCheck[0].paymentStatus === 'paid') {
-        throw new Error(`ALREADY_PAID:${toNum(checkTotal).toFixed(2)}`)
-      }
+      const remainingAmount = subtract(checkRow.total, totalPaidSoFar)
 
       // Preveri overpayment
       if (greaterThan(data.amount, add(remainingAmount, 0.01))) {
@@ -163,7 +168,7 @@ export async function handleCreatePayment(
 
       await handleGiftCardDeduction(tx, paymentInput, check.orderId)
       await handleLoyaltyPointsDeduction(tx, paymentInput, check.orderId)
-      await updateCheckAndOrderStatus(tx, data.checkId, checkTotal, check.orderId)
+      await updateCheckAndOrderStatus(tx, data.checkId, checkRow.total, checkRow.orderId)
       await handleLoyaltyEarn(tx, paymentInput, check.orderId)
 
       return payment
