@@ -65,6 +65,19 @@ export async function GET() {
       'ALTER TABLE "Course" ADD COLUMN IF NOT EXISTS "orderId" TEXT',
       'ALTER TABLE "Course" ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT \'pending\'',
       'ALTER TABLE "Course" ADD COLUMN IF NOT EXISTS "firedAt" TIMESTAMP(3)',
+      // FIX Test 3.3: RestaurantSettings manjkajoči stolpci
+      'ALTER TABLE "RestaurantSettings" ADD COLUMN IF NOT EXISTS "apiKeys" TEXT NOT NULL DEFAULT \'[]\'',
+      'ALTER TABLE "RestaurantSettings" ADD COLUMN IF NOT EXISTS "fursCertPath" TEXT',
+      'ALTER TABLE "RestaurantSettings" ADD COLUMN IF NOT EXISTS "fursCertPassword" TEXT',
+      'ALTER TABLE "RestaurantSettings" ADD COLUMN IF NOT EXISTS "fursEnvironment" TEXT NOT NULL DEFAULT \'test\'',
+      'ALTER TABLE "RestaurantSettings" ADD COLUMN IF NOT EXISTS "premisesId" TEXT',
+      'ALTER TABLE "RestaurantSettings" ADD COLUMN IF NOT EXISTS "registerNumber" TEXT NOT NULL DEFAULT \'BLG-001\'',
+      // Receipt manjkajoči stolpci (FURS fiscal verification)
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "fiscalStatus" TEXT NOT NULL DEFAULT \'pending\'',
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "fiscalVerified" BOOLEAN NOT NULL DEFAULT false',
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "verificationDate" TIMESTAMP(3)',
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "zoi" TEXT',
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "eor" TEXT',
     ]
     
     let added = 0
