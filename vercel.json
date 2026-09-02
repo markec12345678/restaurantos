@@ -1,7 +1,7 @@
 {
   "crons": [
     { "path": "/api/scheduled-emails/process", "schedule": "0 2 * * *" },
-    { "path": "/api/cron/outbox", "schedule": "*/5 * * * *" }
+    { "path": "/api/cron/outbox", "schedule": "0 3 * * *" }
   ],
   "headers": [{"source": "/(.*)", "headers": [{"key": "X-Content-Type-Options", "value": "nosniff"}, {"key": "X-Frame-Options", "value": "SAMEORIGIN"}, {"key": "Referrer-Policy", "value": "strict-origin-when-cross-origin"}]}]
 }
