@@ -146,7 +146,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         const checkTotal = toNum(payment.check.total)
 
         let checkStatus = 'paid'
-        if (netPaid <= 0) checkStatus = 'unpaid'
+        if (netPaid <= 0) checkStatus = 'storno' // FIX Test 4.2: fully refunded → storno (not unpaid)
         else if (netPaid < checkTotal) checkStatus = 'partial'
 
         await tx.check.update({
