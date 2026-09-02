@@ -47,6 +47,24 @@ export function applySecurityHeaders(
   response.headers.set('Cross-Origin-Opener-Policy', 'same-origin')
   response.headers.set('Cross-Origin-Resource-Policy', 'same-origin')
 
+  // FIX Test 7.3/Production: CORS konfiguracija
+  // Same-origin by default. Dovoli samo lasten domeni.
+  // Za cross-origin API access (npr. mobilna aplikacija) dodaj dovoljene origine v ALLOWED_ORIGINS.
+  const origin = _request.headers.get('origin')
+  const ALLOWED_ORIGINS = [
+    process.env.NEXT_PUBLIC_APP_URL, // https://restaurantos.app
+    'http://localhost:3000', // dev
+  ].filter(Boolean) as string[]
+
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    response.headers.set('Access-Control-Allow-Origin', origin)
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-ID, X-Offline-Sync, X-Offline-Created-At')
+    response.headers.set('Access-Control-Allow-Credentials', 'true')
+    response.headers.set('Access-Control-Max-Age', '86400') // 24h preflight cache
+    response.headers.set('Vary', 'Origin')
+  }
+
   // Content-Security-Policy — nonce-based (Issue #34)
   const isDev = process.env.NODE_ENV === 'development'
   const scriptSrc = isDev
