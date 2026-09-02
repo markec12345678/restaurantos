@@ -38,6 +38,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       const openOrders = await tx.order.count({
         where: {
           paymentStatus: { in: ['unpaid', 'partial'] },
+          // FIX Test 4.2: Exclude cancelled orders — they have status='cancelled' but
+          // paymentStatus may still be 'unpaid' (cancel doesn't auto-update paymentStatus)
+          status: { not: 'cancelled' },
           createdAt: { gte: shift.openedAt },
           ...(shift.locationId ? { locationId: shift.locationId } : {}),
         },
