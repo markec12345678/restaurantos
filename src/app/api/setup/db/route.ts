@@ -33,6 +33,8 @@ export async function GET() {
       'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "diningOptionId" TEXT',
       'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "appliedDiscountId" TEXT',
       'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "revenueCenterId" TEXT',
+      // FIX CRITICAL (Test 3.2): Idempotency key za preprečevanje duplikatov
+      'ALTER TABLE "Order" ADD COLUMN IF NOT EXISTS "idempotencyKey" TEXT',
       'ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "chartOfAccountCode" TEXT',
       'ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "courseId" TEXT',
       'ALTER TABLE "OrderItem" ADD COLUMN IF NOT EXISTS "appliedDiscountId" TEXT',
