@@ -27,6 +27,8 @@ export async function GET(req: Request) {
     const type = searchParams.get('type')
     const paymentStatus = searchParams.get('paymentStatus')
     const virtualBrandId = searchParams.get('virtualBrandId')
+    // FIX Test 7.3: Cross-branch access parameter — super-admin can filter by specific locationId
+    const requestedLocationId = searchParams.get('locationId') || searchParams.get('branchId')
     // FIX: Paginacija — prepreči nalaganje 100.000+ zapisov
     const rawLimit = parseInt(searchParams.get('limit') || '100')
     const rawOffset = parseInt(searchParams.get('offset') || '0')
@@ -44,6 +46,31 @@ export async function GET(req: Request) {
     // Admin (locationId=null) vidi vse lokacije
     if (authResult.session?.locationId) {
       where.locationId = authResult.session.locationId
+    } else if (requestedLocationId) {
+      // FIX Test 7.3: Super-admin explicitly filtering by a specific branch
+      // This is a cross-branch access — audit log it
+      where.locationId = requestedLocationId
+
+      // Audit log cross-branch access
+      try {
+        const { createAuditLog } = await import('@/lib/db')
+        const clientIp = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown'
+        await createAuditLog({
+          userId: authResult.session?.employeeId,
+          action: 'CROSS_BRANCH_ACCESS',
+          entityType: 'Order',
+          details: {
+            requestedLocationId,
+            sessionLocationId: null, // super-admin has null
+            endpoint: 'GET /api/orders',
+            filterParams: { status, type, paymentStatus },
+          },
+          ipAddress: clientIp,
+        })
+      } catch (auditErr) {
+        // Audit log failure should not block the request
+        logger.warn('AUDIT', 'Failed to log cross-branch access:', auditErr)
+      }
     }
 
     const [orders, total] = await Promise.all([
