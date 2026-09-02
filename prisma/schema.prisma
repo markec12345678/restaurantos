@@ -1267,6 +1267,10 @@ model Location {
   virtualBrands    VirtualBrand[]   // Ghost kitchen hub
   devices          DeviceRegistry[] // FIX: Offline-first POS device tracking
   videoAnalytics   VideoAnalyticsSession[] // FIX: Video analytics per location
+  // FIX Test 7.2: Multi-tenant isolation back-relations
+  receipts         Receipt[]
+  loyaltyAccounts  LoyaltyAccount[]
+  giftCards        GiftCard[]
 
   @@index([code])
   @@index([isActive])
