@@ -28,6 +28,7 @@ const getArg = (name) => {
 
 const BASE_URL = getArg('base-url') || 'http://localhost:3000'
 const PIN = getArg('pin') || '1234'
+const TOKEN = getArg('token')  // lahko podaš direktno token če si ga prej dobil
 const DIRECT = args.includes('--direct')
 
 const PASS = '\x1b[32m✓ PASS\x1b[0m'
@@ -67,16 +68,31 @@ async function apiCall(path, method = 'GET', body = null) {
 
 async function authenticate() {
   console.log('\n=== Authenticating ===')
+
+  // Če je token podan preko CLI, uporabi ga direktno
+  if (TOKEN) {
+    sessionToken = TOKEN
+    console.log(`  Using provided token: ${TOKEN.substring(0, 20)}...`)
+    // Quick verify
+    const res = await apiCall('/api/auth')
+    if (res.ok) {
+      await check('Token valid (provided via CLI)', true)
+      return true
+    } else {
+      await check('Token valid (provided via CLI)', false, `status ${res.status}`)
+      return false
+    }
+  }
+
   const res = await apiCall('/api/auth', 'POST', { pin: PIN })
 
   if (!res.ok) {
-    await check('Authentication', false, `status ${res.status}`)
+    await check('Authentication', false, `status ${res.status} — ${res.json?.error || ''}`)
     return false
   }
 
   sessionToken = res.json?.token || res.json?.sessionToken
   if (!sessionToken && res.json?.employeeId) {
-    // Some auth flows return cookie
     sessionToken = res.json.employeeId
   }
 
@@ -123,7 +139,7 @@ async function checkOutboxQueue() {
 async function checkJournalEntries() {
   console.log('\n=== 2. Double-Entry Journal Verification ===')
 
-  const res = await apiCall('/api/accounting/journal?limit=50&sort=desc')
+  const res = await apiCall('/api/accounting/journal-entries?limit=50&sort=desc')
   if (!res.ok) {
     await check('Journal endpoint available', false, `status ${res.status}`)
     return
@@ -139,12 +155,18 @@ async function checkJournalEntries() {
   const unbalancedExamples = []
 
   for (const entry of entries.slice(0, 50)) {
-    // Pridobi lines za vsak entry
-    const linesRes = await apiCall(`/api/accounting/journal/${entry.id}`)
-    if (!linesRes.ok) continue
+    // Entries already include 'lines' from the API
+    const lines = entry.lines || []
 
-    const lines = linesRes.json?.lines || linesRes.json?.data || []
-    if (lines.length === 0) continue
+    if (lines.length === 0) {
+      // Lines not included — try fetching the specific entry
+      const linesRes = await apiCall(`/api/accounting/journal-entries/${entry.id}`)
+      if (!linesRes.ok) continue
+      const detail = linesRes.json?.entry || linesRes.json
+      const fetchedLines = detail?.lines || linesRes.json?.lines || []
+      if (fetchedLines.length === 0) continue
+      lines.push(...fetchedLines)
+    }
 
     // Double-entry pravilo: vsota debitov == vsota kreditov
     const totalDebit = lines.reduce((s, l) => s + Number(l.debit || 0), 0)
@@ -170,7 +192,7 @@ async function checkJournalEntries() {
   await check(
     'All journal entries balanced (debit == credit)',
     unbalancedCount === 0,
-    `balanced: ${balancedCount}, unbalanced: ${unbalancedCount}`
+    `balanced: ${balancedCount}, unbalanced: ${unbalancedCount}, skipped: ${entries.length - balancedCount - unbalancedCount}`
   )
 
   if (unbalancedExamples.length > 0) {
