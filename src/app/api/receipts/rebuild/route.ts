@@ -29,20 +29,18 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
-    // Get all receipts with empty vatBreakdown
+    // Get all receipts — we'll check vatBreakdown in JS since Prisma doesn't allow null for non-null field
     const receipts = await db.receipt.findMany({
-      where: {
-        OR: [
-          { vatBreakdown: '' },
-          { vatBreakdown: '{}' },
-          { vatBreakdown: null as never },
-        ],
-      },
-      select: { id: true, receiptNumber: true, orderId: true },
+      select: { id: true, receiptNumber: true, orderId: true, vatBreakdown: true },
       take: 1000,
     })
 
-    if (receipts.length === 0) {
+    // Filter to those with empty/null/{} vatBreakdown
+    const receiptsToUpdate = receipts.filter(r =>
+      !r.vatBreakdown || r.vatBreakdown === '' || r.vatBreakdown === '{}'
+    )
+
+    if (receiptsToUpdate.length === 0) {
       return NextResponse.json({
         success: true,
         message: 'Vsi receipts že imajo vatBreakdown',
@@ -55,7 +53,7 @@ export async function POST(req: Request) {
     let failed = 0
     const errors: string[] = []
 
-    for (const receipt of receipts) {
+    for (const receipt of receiptsToUpdate) {
       try {
         // Get order with items
         const order = await db.order.findUnique({
@@ -106,7 +104,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      processed: receipts.length,
+      processed: receiptsToUpdate.length,
       updated,
       failed,
       ...(errors.length > 0 ? { errors: errors.slice(0, 10) } : {}),
