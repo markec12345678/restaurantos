@@ -13,6 +13,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
+import { hashPinLookup } from '@/lib/pin-lookup'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
@@ -32,10 +33,12 @@ export async function POST() {
     if (existing) {
       // Reset PIN to 5555 če že obstaja
       const hashedPin = await bcrypt.hash('5555', 10)
+      const pinLookup = hashPinLookup('5555')
       await db.employee.update({
         where: { id: existing.id },
         data: {
           pin: hashedPin,
+          ...(pinLookup ? { pinLookup } : {}),
           role: 'admin',
           locationId: null,
           status: 'active',
@@ -54,11 +57,13 @@ export async function POST() {
 
     // Ustvari novega super-admin
     const hashedPin = await bcrypt.hash('5555', 10)
+    const pinLookup = hashPinLookup('5555')
     const superAdmin = await db.employee.create({
       data: {
         name: 'Super Admin',
         email: 'superadmin@restaurantos.local',
         pin: hashedPin,
+        ...(pinLookup ? { pinLookup } : {}),
         role: 'admin',
         status: 'active',
         locationId: null, // null = vidi vse lokacije
