@@ -10,7 +10,6 @@
     "dev:ws": "node server.js",
     "postbuild": "node scripts/copy-standalone.mjs",
     "build": "next build",
-    "vercel-build": "prisma db push --accept-data-loss && next build",
     "start": "bun .next/standalone/server.js",
     "start:ws": "NODE_ENV=production node server.js",
     "lint": "eslint .",
