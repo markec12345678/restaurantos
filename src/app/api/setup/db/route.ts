@@ -78,6 +78,8 @@ export async function GET() {
       'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "verificationDate" TIMESTAMP(3)',
       'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "zoi" TEXT',
       'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "eor" TEXT',
+      // FIX Test 4.2: CashRegisterShift.totalRefunds — vsota vračil v Z-report
+      'ALTER TABLE "CashRegisterShift" ADD COLUMN IF NOT EXISTS "totalRefunds" DECIMAL NOT NULL DEFAULT 0',
     ]
     
     let added = 0

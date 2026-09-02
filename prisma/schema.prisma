@@ -862,6 +862,7 @@ model CashRegisterShift {
   totalDiscounts    Decimal   @default(0) // Skupni popusti  // FIX: Decimal za valuto
   totalTips         Decimal   @default(0) // Skupne napitnine  // FIX: Decimal za valuto
   totalVoided       Decimal   @default(0) // Skupaj poničenih zneskov  // FIX: Decimal za valuto
+  totalRefunds      Decimal   @default(0) // FIX Test 4.2: Skupaj vračil (refundAmount vsota)
   cashDifference    Decimal   @default(0) // Razlika (dejansko - pričakovano)  // FIX: Decimal za valuto
   notes             String   @default("")      // Opombe ob zaključku
   // --- Multi-location ---

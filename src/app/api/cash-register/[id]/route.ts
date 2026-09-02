@@ -63,8 +63,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           checks: {
             select: {
               payments: {
-                where: { status: 'completed' },
-                select: { type: true, amount: true, tipAmount: true },
+                // FIX Test 4.2: Vključi tudi refunded plačila (status='refunded') — refundAmount se upošteva
+                where: { status: { in: ['completed', 'refunded'] } },
+                select: { type: true, amount: true, tipAmount: true, refundAmount: true, status: true },
               },
             },
           },
@@ -84,10 +85,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
       // FIX CRITICAL: Izračunaj po ACTUAL plačilih (uporabi payments iz checkov)
       const allPayments = paidOrders.flatMap(o => o.checks.flatMap(c => c.payments))
-      const cashSales = allPayments.filter(p => p.type === 'cash').reduce((sum, p) => sum + toNum(p.amount), 0)
-      const cardSales = allPayments.filter(p => p.type === 'card').reduce((sum, p) => sum + toNum(p.amount), 0)
-      const mobileSales = allPayments.filter(p => p.type === 'mobile').reduce((sum, p) => sum + toNum(p.amount), 0)
-      const alternateSales = allPayments.filter(p => ['voucher', 'loyalty', 'giftcard', 'alternate'].includes(p.type)).reduce((sum, p) => sum + toNum(p.amount), 0)
+      // FIX Test 4.2: Upoštevaj refundAmount — delna/popolna vračila zmanjšajo cashSales
+      // Prej: cashSales = vsota amount (ignorirala refunds)
+      // Sedaj: cashSales = vsota (amount - refundAmount) za vsako plačilo
+      const netPaymentAmount = (p: { amount: unknown; refundAmount?: unknown }) =>
+        Math.max(0, toNum(p.amount) - toNum(p.refundAmount || 0))
+
+      const cashSales = allPayments.filter(p => p.type === 'cash').reduce((sum, p) => sum + netPaymentAmount(p), 0)
+      const cardSales = allPayments.filter(p => p.type === 'card').reduce((sum, p) => sum + netPaymentAmount(p), 0)
+      const mobileSales = allPayments.filter(p => p.type === 'mobile').reduce((sum, p) => sum + netPaymentAmount(p), 0)
+      const alternateSales = allPayments.filter(p => ['voucher', 'loyalty', 'giftcard', 'alternate'].includes(p.type)).reduce((sum, p) => sum + netPaymentAmount(p), 0)
 
       // FIX CASH-06 MEDIUM: Split plačila
       const ordersWithMultiplePayments = paidOrders.filter(o => {
@@ -96,10 +103,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       })
       const splitPayments = ordersWithMultiplePayments.length
 
-      const totalSales = allPayments.reduce((sum, p) => sum + toNum(p.amount), 0)
+      // FIX Test 4.2: totalSales uporablja NET zneske (po vračilih)
+      const totalSales = allPayments.reduce((sum, p) => sum + netPaymentAmount(p), 0)
       const totalDiscounts = paidOrders.reduce((sum, o) => sum + toNum(o.discount), 0)
       const totalTips = allPayments.reduce((sum, p) => sum + toNum(p.tipAmount), 0)
       const totalVoided = stornoOrders.reduce((sum, o) => sum + Math.abs(toNum(o.total)), 0)
+      // FIX Test 4.2: totalRefunds — vsota vseh refundAmount (za Z-report prikaz)
+      const totalRefunds = allPayments.reduce((sum, p) => sum + toNum(p.refundAmount || 0), 0)
       const totalOrders = paidOrders.length
       const cashTips = allPayments.filter(p => p.type === 'cash').reduce((sum, p) => sum + toNum(p.tipAmount), 0)
       const expectedCash = toNum(shift.startingCash) + cashSales + cashTips
@@ -125,6 +135,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           // FIX MEDIUM: Vedno uporabi IZRAČUNANE napitnine iz plačil — NE dovoli ročnega prepisa
           totalTips,
           totalVoided,
+          totalRefunds, // FIX Test 4.2: vsota vračil za Z-report
           cashDifference,
           notes: data.notes || '',
         },
