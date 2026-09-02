@@ -12,6 +12,7 @@ export interface MatchedEmployee {
   email: string | null
   role: string
   pin: string
+  locationId?: string | null  // FIX Test 7.1: Multi-tenant isolation
   jobs: Array<{
     isPrimary: boolean
     job: { id: string; name: string; permissions: string; basePayRate: unknown }
@@ -133,6 +134,7 @@ export async function buildAuthResponse(matchedEmployee: MatchedEmployee) {
     id: matchedEmployee.id,
     role: matchedEmployee.role,
     permissions,
+    locationId: matchedEmployee.locationId,  // FIX Test 7.1: scope session to location
   })
 
   return {

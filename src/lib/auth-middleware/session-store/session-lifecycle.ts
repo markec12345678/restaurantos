@@ -68,6 +68,7 @@ export async function createSession(employee: {
   id: string
   role: string
   permissions: string[]
+  locationId?: string | null  // FIX Test 7.1: Multi-tenant isolation
 }, ipAddress?: string, userAgent?: string): Promise<string> {
   const token = crypto.randomBytes(32).toString('hex')
   const now = Date.now()
@@ -80,6 +81,7 @@ export async function createSession(employee: {
     createdAt: now,
     expiresAt: now + SESSION_TTL_MS,
     absoluteExpiry: now + 24 * 60 * 60 * 1000,
+    locationId: employee.locationId || null,  // FIX Test 7.1: scope session to location
   }
 
   sessions.set(token, session)

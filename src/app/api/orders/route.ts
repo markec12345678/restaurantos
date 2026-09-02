@@ -39,6 +39,13 @@ export async function GET(req: Request) {
     if (paymentStatus) where.paymentStatus = paymentStatus
     if (virtualBrandId) where.virtualBrandId = virtualBrandId
 
+    // FIX Test 7.1: Multi-tenant isolation — filtriraj po session.locationId
+    // Če uporabnik ima locationId (non-admin), prikaži samo naročila iz te lokacije
+    // Admin (locationId=null) vidi vse lokacije
+    if (authResult.session?.locationId) {
+      where.locationId = authResult.session.locationId
+    }
+
     const [orders, total] = await Promise.all([
       db.order.findMany({
         where,
