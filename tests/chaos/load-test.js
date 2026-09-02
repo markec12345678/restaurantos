@@ -183,12 +183,12 @@ export default function (data) {
       if (!ok && isDbError(res)) dbErrors.add(1)
     })
   } else if (op < 0.7) {
-    // 30% — GET /api/menu (popular)
-    group('GET /api/menu', () => {
-      const res = makeRequest('GET', '/api/menu')
+    // 30% — GET /api/menu-items (popular)
+    group('GET /api/menu-items', () => {
+      const res = makeRequest('GET', '/api/menu-items')
       const ok = check(res, {
-        'menu 200': (r) => r.status === 200,
-        'menu has items': (r) => r.body && r.body.length > 0,
+        'menu-items 200': (r) => r.status === 200,
+        'menu-items has items': (r) => r.body && r.body.length > 0,
       })
       if (!ok && isDbError(res)) dbErrors.add(1)
     })
