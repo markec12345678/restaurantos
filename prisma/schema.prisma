@@ -412,6 +412,9 @@ model Table {
 model Order {
   id              String     @id @default(cuid())
   orderNumber     Int        @unique
+  // FIX CRITICAL (Test 3.2): Idempotency key za preprečevanje duplikatov pri offline/retry
+  // Brez tega bi React Query retry ustvaril duplikat naročila.
+  idempotencyKey  String?  @unique
   // --- Toast: Dining Option ---
   diningOptionId  String?
   diningOption    DiningOption? @relation(fields: [diningOptionId], references: [id], onDelete: SetNull, onUpdate: SetNull)

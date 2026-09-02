@@ -3,12 +3,30 @@
 import { db } from '@/lib/db'
 import { toNum, deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { getNextCounter } from '@/lib/counters'
 import { createOrderSchema } from '@/lib/validations'
 import { checkStockAvailability } from '@/lib/stock-deduction'
 import { validateRequest } from '@/lib/api-utils'
 import { buildOrderItemsData, calculateOrderTotals, validateMenuItems } from './order-items'
 import { handleStockDeduction, handlePostCreationEffects } from './stock'
+
+// FIX CRITICAL (Test 3.2): Poišči obstoječe naročilo po idempotencyKey
+// Če klient pošlje isti idempotencyKey 2× (double-click, React Query retry,
+// network reconnect), vrni obstoječi rezultat namesto da ustvarimo duplikat.
+async function findExistingOrderByIdempotencyKey(idempotencyKey: string) {
+  return db.order.findFirst({
+    where: { idempotencyKey },
+    include: {
+      table: true,
+      orderItems: { include: { menuItem: true } },
+    },
+  })
+}
+
+function isUniqueConstraintViolation(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002'
+}
 
 export async function handlePostOrder(
   req: Request,
@@ -17,6 +35,18 @@ export async function handlePostOrder(
   // FIX H-01: Validiraj vnos z Zod + omejitev velikosti bodyja (1 MB) + samodejna sanatizacija
   const { data, error: validationError } = await validateRequest(req, createOrderSchema, { maxBodySize: 1024 * 1024 })
   if (validationError) return validationError
+
+  // FIX CRITICAL (Test 3.2): Idempotency — če idempotencyKey ni podan, ga avtomatsko generiraj.
+  // To zagotavlja da VSA naročila imajo idempotencyKey za deduplikacijo.
+  // Klient lahko pošlje svoj key (npr. cart-session-id + timestamp), ali pa ga mi generiramo.
+  const idempotencyKey = data.idempotencyKey ||
+    `auto-order-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
+  // FIX CRITICAL (Test 3.2): Fast path — če naročilo z tem idempotencyKey že obstaja, ga vrni
+  const existing = await findExistingOrderByIdempotencyKey(idempotencyKey)
+  if (existing) {
+    return NextResponse.json(deepToNumbers(existing), { status: 200 })
+  }
 
   // FIX 1: Atomic counter — prepreči race condition
   const orderNumber = await getNextCounter('orderNumber')
@@ -51,40 +81,44 @@ export async function handlePostOrder(
   const { totalTax, totalDiscountAmount, total } = calculateOrderTotals(orderItemsData, subtotal)
 
   // FIX BUG-02: Ustvari naročilo in posodobi mizo v eni transakciji
-  const order = await db.$transaction(async (tx) => {
-    const newOrder = await tx.order.create({
-      data: {
-        orderNumber,
-        type: data.type,
-        status: 'pending',
-        tableId: data.tableId || null,
-        diningOptionId: data.diningOptionId || null,
-        revenueCenterId: data.revenueCenterId || null,
-        customerName: data.customerName,
-        customerPhone: data.customerPhone,
-        customerEmail: data.customerEmail || '', // FIX MEDIUM: Shrani e-pošto stranke
-        subtotal,
-        tax: totalTax,
-        discount: totalDiscountAmount,
-        total,
-        tip: toNum(data.tip),
-        totalWithTip: total + toNum(data.tip),
-        paymentStatus: 'unpaid',
-        paymentMethod: '',
-        notes: data.notes,
-        employeeId: data.employeeId || authSession.session?.employeeId || null,
-        inventoryDeducted: false,
-        orderItems: {
-          // OrderItemData matches unchecked create input
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        create: orderItemsData as any,
+  // FIX CRITICAL (Test 3.2): Dodan idempotencyKey v create + try-catch za P2002 (unique violation)
+  let order
+  try {
+    order = await db.$transaction(async (tx) => {
+      const newOrder = await tx.order.create({
+        data: {
+          orderNumber,
+          idempotencyKey, // FIX Test 3.2: unikatni ključ za deduplikacijo
+          type: data.type,
+          status: 'pending',
+          tableId: data.tableId || null,
+          diningOptionId: data.diningOptionId || null,
+          revenueCenterId: data.revenueCenterId || null,
+          customerName: data.customerName,
+          customerPhone: data.customerPhone,
+          customerEmail: data.customerEmail || '', // FIX MEDIUM: Shrani e-pošto stranke
+          subtotal,
+          tax: totalTax,
+          discount: totalDiscountAmount,
+          total,
+          tip: toNum(data.tip),
+          totalWithTip: total + toNum(data.tip),
+          paymentStatus: 'unpaid',
+          paymentMethod: '',
+          notes: data.notes,
+          employeeId: data.employeeId || authSession.session?.employeeId || null,
+          inventoryDeducted: false,
+          orderItems: {
+            // OrderItemData matches unchecked create input
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          create: orderItemsData as any,
+          },
         },
-      },
-      include: {
-        table: true,
-        orderItems: { include: { menuItem: true } },
-      },
-    })
+        include: {
+          table: true,
+          orderItems: { include: { menuItem: true } },
+        },
+      })
 
     // Posodobi mizo znotraj transakcije
     if (data.tableId && data.type === 'dine-in') {
@@ -98,8 +132,20 @@ export async function handlePostOrder(
       // Če miza ne obstaja, ignoriramo — naročilo se ustvari brez mize
     }
 
-    return newOrder
-  })
+      return newOrder
+    })
+  } catch (error: unknown) {
+    // FIX CRITICAL (Test 3.2): Race path — če sta 2 vzporedna requesta z istim idempotencyKey
+    // in oba preverita "existing" preden prvi commit-ne, bo drugi dobil P2002 (unique violation).
+    // V tem primeru poiščemo obstoječi rezultat in ga vrnemo (200, ne 500).
+    if (isUniqueConstraintViolation(error)) {
+      const existing = await findExistingOrderByIdempotencyKey(idempotencyKey)
+      if (existing) {
+        return NextResponse.json(deepToNumbers(existing), { status: 200 })
+      }
+    }
+    throw error
+  }
 
   // ─── SAMODEJNO RAZKNJIŽEVANJE ZALOGE OB ODDAJI NAROČILA ───
   const { stockDeducted } = await handleStockDeduction(

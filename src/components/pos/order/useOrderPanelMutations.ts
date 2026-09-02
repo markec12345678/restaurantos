@@ -49,6 +49,10 @@ export function useOrderPanelMutations() {
       const res = await authFetch('/api/orders', {
         method: 'POST',
         body: JSON.stringify({
+          // FIX CRITICAL (Test 3.2): Idempotency key — prepreči duplikate pri retry/reconnect
+          // Generiramo iz cart vsebine + timestamp-a. Če React Query retry-a request,
+          // bo klient poslal isti key in server vrne obstoječi Order ID (200, ne 201).
+          idempotencyKey: `cart-${cart.map(i => `${i.id}:${i.quantity}`).join('-')}-${Date.now()}`,
           type: orderType,
           tableId: orderType === 'dine-in' ? selectedTable : null,
           diningOptionId: diningOptionId || undefined,

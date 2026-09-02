@@ -32,6 +32,10 @@ export const createOrderSchema = z.object({
   discount: z.number().min(0).max(100000, 'Popust ne more preseči 100.000').default(0),
   tip: z.number().min(0).max(100000, 'Napitnina ne more preseči 100.000').default(0),
   orderItems: z.array(createOrderItemSchema).min(1, 'Naročilo mora vsebovati vsaj en artikel'),
+  // FIX CRITICAL (Test 3.2): Idempotency key za preprečevanje duplikatov pri offline/retry
+  // Scenarij: natakar naroči artikel, network pade, React Query retry-a request.
+  // Brez idempotencyKey se ustvari duplikat. Z idempotencyKey dobimo isti Order ID.
+  idempotencyKey: z.string().max(100).optional(),
 })
 
 export const updateOrderSchema = z.object({
