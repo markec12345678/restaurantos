@@ -88,7 +88,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       // FIX Test 4.2: Upoštevaj refundAmount — delna/popolna vračila zmanjšajo cashSales
       // Prej: cashSales = vsota amount (ignorirala refunds)
       // Sedaj: cashSales = vsota (amount - refundAmount) za vsako plačilo
-      const netPaymentAmount = (p: { amount: unknown; refundAmount?: unknown }) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const netPaymentAmount = (p: any) =>
         Math.max(0, toNum(p.amount) - toNum(p.refundAmount || 0))
 
       const cashSales = allPayments.filter(p => p.type === 'cash').reduce((sum, p) => sum + netPaymentAmount(p), 0)
