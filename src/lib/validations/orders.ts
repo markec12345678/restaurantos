@@ -53,10 +53,15 @@ export const updateOrderSchema = z.object({
   // FIX Test 9.2: Dodan discount in appliedDiscountId za aplikacijo popusta na obstoječe naročilo
   discount: z.number().min(0).optional(),
   appliedDiscountId: z.string().nullable().optional(),
+  // FIX Test 6.3: Optimistic locking — klient pošlje updatedAt od kdaj je bral order.
+  // Če se ne ujema s server-side updatedAt, pomeni da je drug uporabnik spremenil order.
+  expectedUpdatedAt: z.string().datetime().optional(),
 })
 
 export const addOrderItemsSchema = z.object({
   orderItems: z.array(createOrderItemSchema).min(1, 'Dodajte vsaj en artikel'),
+  // FIX Test 6.3: Optimistic locking za add-items
+  expectedUpdatedAt: z.string().datetime().optional(),
 })
 
 // ============================================

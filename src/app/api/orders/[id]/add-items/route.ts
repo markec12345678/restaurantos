@@ -37,6 +37,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
     }
 
+    // FIX Test 6.3: Optimistic locking — preveri da order ni bil spremenjen
+    if (data.expectedUpdatedAt) {
+      const clientUpdatedAt = new Date(data.expectedUpdatedAt).getTime()
+      const serverUpdatedAt = new Date(order.updatedAt).getTime()
+      if (Math.abs(clientUpdatedAt - serverUpdatedAt) > 1000) {
+        return NextResponse.json({
+          error: 'Naročilo je bilo spremenjeno s strani drugega uporabnika. Osvežite in poskusite znova.',
+          conflict: true,
+          serverUpdatedAt: order.updatedAt.toISOString(),
+          clientUpdatedAt: data.expectedUpdatedAt,
+          currentStatus: order.status,
+          currentPaymentStatus: order.paymentStatus,
+        }, { status: 409 })
+      }
+    }
+
     if (order.status === 'completed' || order.status === 'cancelled') {
       return NextResponse.json({ error: 'Naročilo je že zaključeno ali preklicano' }, { status: 400 })
     }

@@ -32,6 +32,23 @@ export async function handlePutOrder(req: Request, params: Promise<{ id: string 
       return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
     }
 
+    // FIX Test 6.3: Optimistic locking — preveri da order ni bil spremenjen od kdaj je klient bral
+    // Če je expectedUpdatedAt podan in se ne ujema s server-side updatedAt, vrni 409 Conflict
+    if (data.expectedUpdatedAt) {
+      const clientUpdatedAt = new Date(data.expectedUpdatedAt).getTime()
+      const serverUpdatedAt = new Date(existingOrder.updatedAt).getTime()
+      if (Math.abs(clientUpdatedAt - serverUpdatedAt) > 1000) { // 1s tolerance za clock drift
+        return NextResponse.json({
+          error: 'Naročilo je bilo spremenjeno s strani drugega uporabnika. Osvežite in poskusite znova.',
+          conflict: true,
+          serverUpdatedAt: existingOrder.updatedAt.toISOString(),
+          clientUpdatedAt: data.expectedUpdatedAt,
+          currentStatus: existingOrder.status,
+          currentPaymentStatus: existingOrder.paymentStatus,
+        }, { status: 409 })
+      }
+    }
+
     const transitionError = validateOrderTransitions(existingOrder, data)
     if (transitionError) return transitionError
 
