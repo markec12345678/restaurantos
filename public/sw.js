@@ -5,7 +5,7 @@
 // FIX MEDIUM: Cache version auto-incremented — change version when deploying
 // ============================================
 
-const CACHE_VERSION = 'v8' // Increment this when deploying new code
+const CACHE_VERSION = 'v9' // Increment this when deploying new code
 const CACHE_NAME = `restos-pos-${CACHE_VERSION}`
 const STATIC_CACHE = `restos-static-${CACHE_VERSION}`
 const API_CACHE = `restos-api-${CACHE_VERSION}`
@@ -314,7 +314,7 @@ async function refreshCacheEntry(request, cacheName) {
 // BACKGROUND SYNC — Posodobi cache ko je spet online
 // ============================================
 self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-pending-orders') {
+  if (event.tag === 'sync-pending-orders' || event.tag === 'offline-order-sync') {
     event.waitUntil(syncPendingOrders())
   }
 
@@ -374,10 +374,16 @@ async function syncPendingOrders() {
         headers['X-Offline-Sync'] = 'true'
         headers['X-Offline-Created-At'] = String(order.createdAt || Date.now())
 
+        // FIX Test 6.1: Podpri novo strukturo z orderData + idempotencyKey
+        const bodyData = order.orderData || order.data
+        if (order.idempotencyKey && bodyData) {
+          bodyData.idempotencyKey = order.idempotencyKey
+        }
+
         const response = await fetch('/api/orders', {
           method: 'POST',
           headers,
-          body: JSON.stringify(order.data),
+          body: JSON.stringify(bodyData),
         })
 
         if (response.ok) {

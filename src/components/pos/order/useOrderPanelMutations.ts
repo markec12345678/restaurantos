@@ -1,12 +1,19 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { usePOSStore } from '@/lib/store'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import type { OrderType } from './OrderList'
+import {
+  enqueueOrder,
+  isOnline,
+  registerOrderBackgroundSync,
+  startSyncPolling,
+  getPendingCount,
+} from '@/lib/offline-orders'
 
 // ============================================
 // HOOK: Mutacije in callbacki za OrderPanel
@@ -23,6 +30,41 @@ export function useOrderPanelMutations() {
     orderType, selectedTable, taxRate,
   } = usePOSStore()
 
+  // FIX Test 6.1: Zaženi offline sync polling ko je komponenta mountan
+  useEffect(() => {
+    // Registriraj Background Sync
+    registerOrderBackgroundSync()
+
+    // Začni polling fallback (vsake 5s)
+    const stopPolling = startSyncPolling(authFetch)
+
+    // Preveri pending orders ob mountu
+    getPendingCount().then(count => {
+      if (count > 0) {
+        toast.info(`${count} naročil čaka na sinhronizacijo`)
+      }
+    })
+
+    // Sync ko pride online
+    const handleOnline = () => {
+      console.log('[OfflineQueue] Network restored — syncing pending orders')
+      import('@/lib/offline-orders').then(({ syncPendingOrders }) => {
+        syncPendingOrders(authFetch).then(result => {
+          if (result.succeeded > 0) {
+            toast.success(`${result.succeeded} naročil sinhroniziranih`)
+            queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
+          }
+        })
+      })
+    }
+    window.addEventListener('online', handleOnline)
+
+    return () => {
+      stopPolling()
+      window.removeEventListener('online', handleOnline)
+    }
+  }, [queryClient])
+
   const placeOrderMutation = useMutation({
     mutationFn: async (params: {
       customerName: string
@@ -30,6 +72,44 @@ export function useOrderPanelMutations() {
       orderNotes: string
     }) => {
       const cappedDiscount = Math.min(discount, usePOSStore.getState().cartSubtotal())
+
+      // FIX Test 6.1: Če je offline, shrani v IndexedDB queue
+      if (!isOnline() && !editingOrderId) {
+        const idempotencyKey = `cart-${cart.map(i => `${i.id}:${i.quantity}`).join('-')}-${Date.now()}`
+        const orderData = {
+          type: orderType,
+          tableId: orderType === 'dine-in' ? selectedTable : null,
+          diningOptionId: diningOptionId || null,
+          customerName: params.customerName,
+          customerPhone: params.customerPhone,
+          discount: cappedDiscount,
+          appliedDiscountId: appliedDiscountId || null,
+          taxRate,
+          notes: params.orderNotes,
+          orderItems: cart.map(item => ({
+            menuItemId: item.id,
+            quantity: item.quantity,
+            price: item.price,
+            notes: item.notes,
+            modifiersJson: JSON.stringify(item.modifiers.map(m => ({ name: m.name, price: m.price, modifierGroupName: m.modifierGroupName }))),
+          })),
+        }
+
+        const queued = await enqueueOrder({
+          id: `offline-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+          idempotencyKey,
+          orderData,
+          createdAt: Date.now(),
+        })
+
+        if (queued) {
+          // Registriraj Background Sync da se bo poslal ko povezava pride
+          await registerOrderBackgroundSync()
+          return { offline: true, idempotencyKey }
+        }
+        // Če IndexedDB ni na voljo, poskusi direktno (bo failalo)
+      }
+
       if (editingOrderId) {
         const res = await authFetch(`/api/orders/${editingOrderId}/add-items`, {
           method: 'POST',
@@ -75,7 +155,9 @@ export function useOrderPanelMutations() {
       return res.json()
     },
     onSuccess: (data) => {
-      if (editingOrderId) {
+      if (data?.offline) {
+        toast.info('Naročilo shranjeno offline — poslano bo ko povezava pride nazaj')
+      } else if (editingOrderId) {
         toast.success(`Artikli dodani k naročilu #${editingOrderNumber}!`)
       } else {
         toast.success('Naročilo uspešno oddano! Plačaj in natisni račun.')
