@@ -31,10 +31,11 @@ export async function GET(req: Request) {
     const startDate = new Date(dateFrom)
     const endDate = new Date(dateTo + 'T23:59:59')
 
-    // Pridobi vse račune v obdobju (izdani računi)
-    const receipts = await db.receipt.findMany({
+    // FIX Test 4.3: Filter by order.paidAt (not receipt.createdAt) for reconciliation with VAT report
+    // Prej: createdAt filter je povzročal mismatch z VAT report (ki uporablja paidAt)
+    // Sedaj: queryamo vse receipts in filtriramo po order.paidAt v aplikaciji
+    const allReceipts = await db.receipt.findMany({
       where: {
-        createdAt: { gte: startDate, lte: endDate },
         isStorno: false,
       },
       include: {
@@ -44,22 +45,33 @@ export async function GET(req: Request) {
             type: true,
             paymentMethod: true,
             paymentStatus: true,
+            paidAt: true,
           },
         },
       },
       orderBy: { receiptNumber: 'asc' },
     })
 
-    // Pridobi storno račune
-    const stornos = await db.receipt.findMany({
+    // Filter by order.paidAt (fall back to receipt.createdAt if paidAt is null)
+    const receipts = allReceipts.filter(r => {
+      const dateToCheck = r.order?.paidAt || r.createdAt
+      return dateToCheck >= startDate && dateToCheck <= endDate
+    })
+
+    // Pridobi storno račune (isti filter)
+    const allStornos = await db.receipt.findMany({
       where: {
-        createdAt: { gte: startDate, lte: endDate },
         isStorno: true,
       },
       include: {
-        order: { select: { orderNumber: true, type: true, paymentMethod: true, paymentStatus: true } },
+        order: { select: { orderNumber: true, type: true, paymentMethod: true, paymentStatus: true, paidAt: true } },
       },
       orderBy: { receiptNumber: 'asc' },
+    })
+
+    const stornos = allStornos.filter(r => {
+      const dateToCheck = r.order?.paidAt || r.createdAt
+      return dateToCheck >= startDate && dateToCheck <= endDate
     })
 
     // Pridobi nastavitve
