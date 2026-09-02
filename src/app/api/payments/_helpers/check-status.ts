@@ -60,11 +60,17 @@ export async function updateCheckAndOrderStatus(
       data: orderUpdateData,
     })
 
-    // FIX: Avtomatsko posodobi order.status na 'completed' ko je plačilo popolno
-    // Prej: order.status je ostal 'ready' tudi po plačilu
+    // FIX BUG (chaos test): 12 paid orderjev ni bilo v statusu 'completed'.
+    // Prejšnja koda je preverjala samo `ready` ali `in-progress`, ampak
+    // orderji so lahko tudi v `pending` (takeaway plačilo pred fired) ali
+    // drugih statusih. Blacklist pristop je bolj robusten: vsak order ki
+    // NI `completed` in NI `cancelled` mora preiti v `completed` ko je plačan.
+    //
+    // Predhodna logika: if (order.status === 'ready' || order.status === 'in-progress')
+    // Nova logika: if (order.status !== 'completed' && order.status !== 'cancelled')
     if (allPaid) {
       const order = await tx.order.findUnique({ where: { id: orderId }, select: { status: true } })
-      if (order && (order.status === 'ready' || order.status === 'in-progress')) {
+      if (order && order.status !== 'completed' && order.status !== 'cancelled') {
         await tx.order.update({
           where: { id: orderId },
           data: { status: 'completed' },
