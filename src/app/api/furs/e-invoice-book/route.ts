@@ -34,10 +34,14 @@ export async function GET(req: Request) {
     // FIX Test 4.3: Filter by order.paidAt (not receipt.createdAt) for reconciliation with VAT report
     // Prej: createdAt filter je povzročal mismatch z VAT report (ki uporablja paidAt)
     // Sedaj: queryamo vse receipts in filtriramo po order.paidAt v aplikaciji
+    // FIX Test 7.2: Multi-tenant isolation
+    const receiptWhere: Record<string, unknown> = { isStorno: false }
+    if (authResult.session?.locationId) {
+      receiptWhere.locationId = authResult.session.locationId
+    }
+
     const allReceipts = await db.receipt.findMany({
-      where: {
-        isStorno: false,
-      },
+      where: receiptWhere,
       include: {
         order: {
           select: {

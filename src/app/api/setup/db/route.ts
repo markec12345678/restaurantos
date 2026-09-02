@@ -90,6 +90,10 @@ export async function GET() {
       'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT NOT NULL DEFAULT \'\'',
       // FIX Test 4.2: CashRegisterShift.totalRefunds — vsota vračil v Z-report
       'ALTER TABLE "CashRegisterShift" ADD COLUMN IF NOT EXISTS "totalRefunds" DECIMAL NOT NULL DEFAULT 0',
+      // FIX Test 7.2: Multi-tenant isolation — locationId za Receipt, LoyaltyAccount, GiftCard
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
+      'ALTER TABLE "LoyaltyAccount" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
+      'ALTER TABLE "GiftCard" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
     ]
     
     let added = 0

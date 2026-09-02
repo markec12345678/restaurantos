@@ -14,7 +14,14 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // FIX Test 7.2: Multi-tenant isolation
+    const tableWhere: Record<string, unknown> = {}
+    if (authResult.session?.locationId) {
+      tableWhere.locationId = authResult.session.locationId
+    }
+
     const tables = await db.table.findMany({
+      where: tableWhere,
       orderBy: { number: 'asc' },
       include: { orders: { where: { status: { in: ['pending', 'in-progress', 'ready'] } }, take: 1 } },
     })

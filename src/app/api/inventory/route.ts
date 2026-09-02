@@ -37,6 +37,10 @@ export async function GET(req: Request) {
 
     // Zgradi filtrirne pogoje in pridobi artikle
     const { where, fetchAll, limit, offset } = buildFilterConditions(searchParams)
+    // FIX Test 7.2: Multi-tenant isolation
+    if (authResult.session?.locationId) {
+      where.locationId = authResult.session.locationId
+    }
     const lowStock = searchParams.get('lowStock')
     const response = await getItemsWithMeta(where, fetchAll, limit, offset, lowStock)
 

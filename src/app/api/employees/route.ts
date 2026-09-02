@@ -28,6 +28,10 @@ export async function GET(req: Request) {
     const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
     const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
     const where: Record<string, unknown> = {}
+    // FIX Test 7.2: Multi-tenant isolation — filtriraj po session.locationId
+    if (authResult.session?.locationId) {
+      where.locationId = authResult.session.locationId
+    }
     if (role) where.role = role
     // FIX MEDIUM: Privzeto izključi odpuščene zaposlene, razen če izrecno zahtevani
     if (status) {

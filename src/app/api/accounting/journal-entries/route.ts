@@ -21,6 +21,10 @@ export async function GET(req: Request) {
     const locationId = searchParams.get('locationId')
 
     const where: Record<string, unknown> = {}
+    // FIX Test 7.2: Multi-tenant isolation — filtriraj po session.locationId
+    if (authResult.session?.locationId) {
+      where.locationId = authResult.session.locationId
+    }
     if (referenceType) where.referenceType = referenceType
     if (locationId) where.locationId = locationId
     if (dateFrom || dateTo) {

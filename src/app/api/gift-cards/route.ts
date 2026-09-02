@@ -24,6 +24,10 @@ export async function GET(req: Request) {
     const cardNumber = searchParams.get('cardNumber')
 
     const where: Record<string, unknown> = {}
+    // FIX Test 7.2: Multi-tenant isolation — filtriraj po session.locationId
+    if (authResult.session?.locationId) {
+      where.locationId = authResult.session.locationId
+    }
     if (status) where.status = status
     if (cardNumber) where.cardNumber = cardNumber
 

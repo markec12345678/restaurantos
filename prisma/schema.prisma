@@ -1005,10 +1005,14 @@ model Receipt {
   printedAt         DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  // FIX Test 7.2: Multi-tenant isolation
+  locationId        String?
+  location          Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([orderId])
   @@index([fiscalVerified])
   @@index([createdAt])
+  @@index([locationId]) // FIX Test 7.2: Multi-tenant filter index
   // FIX SCHEMA-04 HIGH: Compound index za isStorno+orderId — findFirst({orderId, isStorno: false}) v 5+ mestih
   @@index([orderId, isStorno])
   // FIX SCHEMA-04 MEDIUM: Index za fiscalStatus — batch processing unfiscalized receipts
@@ -1045,6 +1049,10 @@ model LoyaltyAccount {
   @@index([isActive])
   // FIX: tier — filtriranje po nivoju zvestobe (bronze, silver, gold, platinum)
   @@index([tier])
+  // FIX Test 7.2: Multi-tenant isolation
+  locationId        String?
+  location          Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  @@index([locationId])
 }
 
 model LoyaltyTransaction {
@@ -1095,9 +1103,13 @@ model GiftCard {
   payments        Payment[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  // FIX Test 7.2: Multi-tenant isolation
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@index([expiresAt])
   @@index([status])
+  @@index([locationId]) // FIX Test 7.2: Multi-tenant filter index
 }
 
 model GiftCardTransaction {

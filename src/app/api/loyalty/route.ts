@@ -24,6 +24,10 @@ export async function GET(req: Request) {
     const customerPhone = searchParams.get('customerPhone')
 
     const where: Record<string, unknown> = {}
+    // FIX Test 7.2: Multi-tenant isolation — filtriraj po session.locationId
+    if (authResult.session?.locationId) {
+      where.locationId = authResult.session.locationId
+    }
     if (tier) where.tier = tier
     if (isActive !== null) where.isActive = isActive === 'true'
     if (customerPhone) where.customerPhone = customerPhone
