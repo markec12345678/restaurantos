@@ -3,7 +3,9 @@
 import { NextResponse } from 'next/server'
 
 export const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
-  'pending': ['in-progress', 'cancelled'],
+  // FIX: 'pending' → 'completed' dovoljen (takeaway plačilo pred fired)
+  // Scenarij: stranka plača takoj (takeaway/delivery) brez prejšnjega fired
+  'pending': ['in-progress', 'completed', 'cancelled'],
   'in-progress': ['ready', 'completed', 'cancelled'],
   'ready': ['completed', 'cancelled'],
   'completed': [], // Completed orders CANNOT change status (one-way)
