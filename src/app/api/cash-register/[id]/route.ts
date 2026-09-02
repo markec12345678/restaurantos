@@ -51,9 +51,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
       // FIX CASH-04 HIGH: Prepreči double-counting storno naročil
       // FIX CRITICAL: Dodaj locationId filter — brez tega se pri več lokacijah prikažejo naročila iz VSEH lokacij
+      // FIX Test 4.2: Vključi tudi 'storno' orderje — refundani orderji imajo paymentStatus='storno'
+      // Prejšnja koda je iskala samo 'paid' orderje, zato refundana plačila niso bila vključena v totalRefunds.
       const paidOrders = await tx.order.findMany({
         where: {
-          paymentStatus: 'paid',
+          paymentStatus: { in: ['paid', 'storno'] },
           paidAt: { gte: shift.openedAt },
           ...(shift.locationId ? { locationId: shift.locationId } : {}),
         },
