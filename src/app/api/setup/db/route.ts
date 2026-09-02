@@ -78,6 +78,16 @@ export async function GET() {
       'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "verificationDate" TIMESTAMP(3)',
       'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "zoi" TEXT',
       'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "eor" TEXT',
+      // FIX Test 4.3: Receipt.vatBreakdown — JSON string z DDV razčlenitvijo
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "vatBreakdown" TEXT NOT NULL DEFAULT \'{}\'',
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "subtotal" DECIMAL NOT NULL DEFAULT 0',
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "totalVat" DECIMAL NOT NULL DEFAULT 0',
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "total" DECIMAL NOT NULL DEFAULT 0',
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "tip" DECIMAL NOT NULL DEFAULT 0',
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "receiptNumber" INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "isStorno" BOOLEAN NOT NULL DEFAULT false',
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "isCopy" BOOLEAN NOT NULL DEFAULT false',
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT NOT NULL DEFAULT \'\'',
       // FIX Test 4.2: CashRegisterShift.totalRefunds — vsota vračil v Z-report
       'ALTER TABLE "CashRegisterShift" ADD COLUMN IF NOT EXISTS "totalRefunds" DECIMAL NOT NULL DEFAULT 0',
     ]
