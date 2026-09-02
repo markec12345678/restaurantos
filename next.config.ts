@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { withSentryConfig } from '@sentry/nextjs';
+import { withSentryConfig } from '@sentry/nextjs/config';
 
 // NOTE: Večina varnostnih headerjev se nastavi v `src/lib/middleware/security-headers.ts`
 // (middleware teče na vsakem zahtevku in prevlada nad statičnimi headers tukaj).
@@ -74,6 +74,4 @@ export default withSentryConfig(nextConfig, {
   sourcemaps: {
     deleteSourcemapsAfterUpload: true,
   },
-  // Tree-shake Sentry in production
-  treeShaking: true,
 });
