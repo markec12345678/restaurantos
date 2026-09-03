@@ -1,4 +1,4 @@
-import { PRIVACY_POLICY_MD } from './content'
+import { PRIVACY_POLICY_MD } from '../_content'
 
 export const dynamic = 'force-dynamic'
 

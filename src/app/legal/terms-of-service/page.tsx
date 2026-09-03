@@ -1,4 +1,4 @@
-import { TERMS_OF_SERVICE_MD } from './content'
+import { TERMS_OF_SERVICE_MD } from '../_content'
 
 export const dynamic = 'force-dynamic'
 
