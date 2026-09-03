@@ -48,11 +48,17 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: true, // FIX: Omogoči strict mode za boljšo kakovost kode
   // next/image: optimizacija slik (WebP/AVIF konverzija, responsive sizing, lazy loading)
-  // Vse slike so lokalne v /public/menu-images/ — ni treba nastavljati remotePatterns.
+  // FIX: Dodan remotePatterns za auto-image lookup (OpenFoodFacts, TheMealDB, TheCocktailDB)
   images: {
     formats: ['image/avif', 'image/webp'],
     // Dovoli optimizacijo slik do 2MB (default 1MB je premajhen za nekatere menijske slike)
     minimumCacheTTL: 60 * 60 * 24, // 1 dan
+    remotePatterns: [
+      { protocol: 'https', hostname: 'images.openfoodfacts.org' },
+      { protocol: 'https', hostname: 'www.themealdb.com' },
+      { protocol: 'https', hostname: 'www.thecocktaildb.com' },
+      { protocol: 'https', hostname: 'foodish-api.com' },
+    ],
   },
   headers() {
     return [

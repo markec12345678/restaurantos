@@ -15,11 +15,22 @@ import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { hashPinLookup } from '@/lib/pin-lookup'
 import { logger } from '@/lib/logger'
+import { checkRateLimit, getClientIp, SEED_LIMIT } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST() {
+export async function POST(req: Request) {
   try {
+    // FIX Code Review: Rate limiting — prepreči zlorabo
+    const ip = getClientIp(req)
+    const rl = checkRateLimit('setup-super-admin', ip, SEED_LIMIT)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Preveč zahtevkov. Poskusite znova kasneje.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 3600000) / 1000)) } }
+      )
+    }
+
     // Preveri ali super-admin že obstaja
     const existing = await db.employee.findFirst({
       where: {
