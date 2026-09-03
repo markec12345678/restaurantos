@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/providers/theme-provider";
 import { RegisterSW } from "@/components/register-sw";
 import { ErrorHandler } from "@/components/error-handler";
 import { DynamicHtmlLang } from "@/components/DynamicHtmlLang";
+import { CookieConsent } from "@/components/pos/legal/CookieConsent";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -83,6 +84,7 @@ export default function RootLayout({
             <ErrorHandler />
             <Toaster position="top-right" richColors />
             <RegisterSW />
+            <CookieConsent />
           </QueryProvider>
         </ThemeProvider>
       </body>
