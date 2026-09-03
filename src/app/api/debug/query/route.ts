@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAuth } from '@/lib/auth-middleware'
 
-export async function GET() {
+export async function GET(req: Request) {
+  // FIX Code Review: Dodan admin auth — prej je bil brez auth!
+  const authResult = await requireAuth(req, { permission: 'admin' })
+  if (authResult.error) return authResult.error
+
   const results: Record<string, unknown> = {}
   
   // Test 1: Order findMany without include

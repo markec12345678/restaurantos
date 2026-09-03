@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
 
-export async function GET() {
+export async function GET(req: Request) {
+  // FIX Code Review: Dodan admin auth — prej je bil brez auth!
+  const authResult = await requireAuth(req, { permission: 'admin' })
+  if (authResult.error) return authResult.error
+
   const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL || ''
   const masked = dbUrl.replace(/([^:]+):\/\/([^:]+):([^@]+)@/, '$1://$2:****@')
   
