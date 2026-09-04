@@ -137,6 +137,8 @@ async function main() {
   // 5. Natakar A tries to add Cola (using stale updatedAt=T1)
   console.log('\n=== Step 5: Natakar A tries to add Cola (stale updatedAt=T1) ===')
   console.log('  (Simulates offline sync — Natakar A has old data)')
+  console.log('  Waiting 2s to exceed 1s tolerance...')
+  await new Promise(r => setTimeout(r, 2000))
 
   const addColaRes = await apiCall(`/api/orders/${orderId}/add-items`, 'POST', {
     orderItems: [{

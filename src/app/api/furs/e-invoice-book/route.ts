@@ -62,11 +62,16 @@ export async function GET(req: Request) {
       return dateToCheck >= startDate && dateToCheck <= endDate
     })
 
-    // Pridobi storno račune (isti filter)
+    // Pridobi storno račune (isti filter — vključno z locationId izolacijo)
+    // FIX: Prej storno query ni imel locationId filtra — multi-tenant isolation bug
+    const stornoWhere: Record<string, unknown> = { isStorno: true }
+    if (authResult.session?.locationId) {
+      stornoWhere.locationId = authResult.session.locationId
+    }
+    if (locationId) stornoWhere.locationId = locationId
+
     const allStornos = await db.receipt.findMany({
-      where: {
-        isStorno: true,
-      },
+      where: stornoWhere,
       include: {
         order: { select: { orderNumber: true, type: true, paymentMethod: true, paymentStatus: true, paidAt: true } },
       },

@@ -100,6 +100,7 @@ export async function GET(req: Request) {
       avgWaitMinutes,
       // FURS & Blagajna
       fursStatus: fursShiftCogs.fursStatus,
+      pendingReceipts: fursShiftCogs.fursStatus.todayUnverified, // FIX Test 3.3: alias za enostavnejši dostop
       activeShift: fursShiftCogs.activeShift,
       // Stroški
       todayCogs: fursShiftCogs.todayCogs,

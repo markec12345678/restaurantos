@@ -124,7 +124,7 @@ async function main() {
   // Get audit logs
   const auditRes = await apiCall('/api/audit?limit=10', 'GET', superAdminToken)
   if (auditRes.ok) {
-    const auditData = auditRes.json?.auditLogs || auditRes.json?.data || auditRes.json || []
+    const auditData = auditRes.json?.auditLogs || auditRes.json?.logs || auditRes.json?.data || auditRes.json || []
     const auditLogs = Array.isArray(auditData) ? auditData : []
 
     // Find CROSS_BRANCH_ACCESS entries

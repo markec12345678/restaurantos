@@ -166,10 +166,19 @@ async function testXSS() {
 
 // ─── HIGH TESTS ─────────────────────────────────────────────────
 
-async function testRateLimiting() {
-  console.log('\n=== HIGH: Rate Limiting ===')
+async function testCspAndRateLimiting() {
+  console.log('\n=== HIGH: CSP + Rate Limiting ===')
+
+  // 0. CSP header check (Issue #34 FIXED — no unsafe-inline)
+  const cspRes = await fetch(`${BASE_URL}/api/health`)
+  const cspHeader = cspRes.headers.get('content-security-policy') || ''
+  const hasUnsafeInline = cspHeader.includes("'unsafe-inline'")
+  const hasNonce = cspHeader.includes('nonce-')
+  addResult(HIGH, 'CSP has no unsafe-inline (Issue #34)', !hasUnsafeInline, hasUnsafeInline ? 'FAIL: unsafe-inline present' : `nonce-based: ${hasNonce}`)
 
   // 1. Auth rate limit (5 poskusov na 15 min)
+  // NOTE: Brez Redis (Vercel serverless) rate limit deluje samo znotraj ene instance.
+  // Z Redis deluje cross-instance (multi-replica safe).
   let authBlocked = false
   let auth429Count = 0
   for (let i = 0; i < 10; i++) {
@@ -330,7 +339,7 @@ async function main() {
   await testSQLi()
   await testAuthBypass()
   await testXSS()
-  await testRateLimiting()
+  await testCspAndRateLimiting()
   await testCSRF()
   await testInfoDisclosure()
 
