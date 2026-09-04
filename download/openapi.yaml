@@ -1,0 +1,653 @@
+openapi: 3.1.0
+info:
+  title: RestaurantOS API
+  version: 1.0.0
+  description: |
+    RESTful API za RestaurantOS - POS sistem za restavracije z FURS potrjevanjem,
+    offline delovanjem in multi-tenant arhitekturo.
+
+    ## Avtentikacija
+    Vsi zaščiteni endpointi zahtevajo Bearer token v Authorization header-ju.
+    Token pridobite prek POST /api/auth z employee ID in PIN.
+
+    ## Rate Limiting
+    - 60 req/min (authenticated)
+    - 20 req/min (public)
+    - 5 req/15min (auth attempts)
+
+    ## Base URL
+    - Produkcija: https://restaurantos.app/api
+    - Staging: https://restaurantos-staging.vercel.app/api
+  contact:
+    name: RestaurantOS API Support
+    email: api-support@restaurantos.app
+    url: https://github.com/markec12345678/restaurantos
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://restaurantos.app/api
+    description: Produkcija
+  - url: https://restaurantos-staging.vercel.app/api
+    description: Staging
+  - url: http://localhost:3000/api
+    description: Lokalni razvoj
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token pridobljen prek POST /api/auth
+
+  schemas:
+    Error:
+      type: object
+      required: [error, code]
+      properties:
+        error:
+          type: string
+          description: Človeku berljivo sporočilo
+        code:
+          type: string
+          description: Strojni error kod
+        details:
+          type: object
+          additionalProperties: true
+        requestId:
+          type: string
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+        number:
+          type: string
+        tableId:
+          type: string
+        tableNumber:
+          type: integer
+        status:
+          type: string
+          enum: [open, paid, cancelled, storno]
+        total:
+          type: number
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        employeeId:
+          type: string
+        locationId:
+          type: string
+        fursZoi:
+          type: string
+          nullable: true
+        fursEor:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: string
+        menuItemId:
+          type: string
+        name:
+          type: string
+        quantity:
+          type: integer
+        price:
+          type: number
+        modifiers:
+          type: array
+          items:
+            type: string
+        notes:
+          type: string
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+        orderId:
+          type: string
+        method:
+          type: string
+          enum: [cash, card, gift_card]
+        amount:
+          type: number
+        status:
+          type: string
+          enum: [pending, completed, failed, refunded]
+        gatewayTransactionId:
+          type: string
+          nullable: true
+        fursZoi:
+          type: string
+        fursEor:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    Employee:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        pin:
+          type: string
+          description: Hashed (bcrypt + HMAC)
+        role:
+          type: string
+          enum: [waiter, cook, manager, admin, super_admin]
+        locationId:
+          type: string
+        email:
+          type: string
+          nullable: true
+        active:
+          type: boolean
+
+    AuthResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        employee:
+          $ref: '#/components/schemas/Employee'
+        token:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+
+tags:
+  - name: Auth
+    description: Avtentikacija
+  - name: Orders
+    description: Naročila
+  - name: Payments
+    description: Plačila
+  - name: FURS
+    description: Davčno potrjevanje
+  - name: Menu
+    description: Meniji in artikli
+  - name: Tables
+    description: Mize
+  - name: Reports
+    description: Poročila
+  - name: Inventory
+    description: Zaloge
+  - name: Employees
+    description: Uporabniki
+  - name: PWA
+    description: Push notifications
+  - name: Audit
+    description: Audit log
+
+paths:
+  /auth:
+    post:
+      tags: [Auth]
+      summary: Prijava uporabnika
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employeeId, pin]
+              properties:
+                employeeId:
+                  type: string
+                pin:
+                  type: string
+                  pattern: '^[0-9]{4}$'
+      responses:
+        '200':
+          description: Uspešna prijava
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Neveljaven PIN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit presežen (5 poskusov/15min)
+
+  /orders:
+    get:
+      tags: [Orders]
+      summary: Seznam naročil
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, paid, cancelled, all]
+        - name: locationId
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Seznam naročil
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+    post:
+      tags: [Orders]
+      summary: Ustvari novo naročilo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tableId, items]
+              properties:
+                tableId:
+                  type: string
+                items:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      menuItemId:
+                        type: string
+                      quantity:
+                        type: integer
+                      modifiers:
+                        type: array
+                        items:
+                          type: string
+                      notes:
+                        type: string
+                locationId:
+                  type: string
+                type:
+                  type: string
+                  enum: [dine_in, takeaway, delivery]
+      responses:
+        '201':
+          description: Naročilo ustvarjeno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          description: Neveljavni parametri
+        '409':
+          description: Miza že zasedena
+
+  /orders/{id}:
+    get:
+      tags: [Orders]
+      summary: Pridobi naročilo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Naročilo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          description: Naročilo ne obstaja
+    put:
+      tags: [Orders]
+      summary: Posodobi naročilo (optimistic lock)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                items:
+                  type: array
+                status:
+                  type: string
+                updatedAt:
+                  type: string
+                  format: date-time
+                  description: Za optimistic lock
+      responses:
+        '200':
+          description: Posodobljeno
+        '409':
+          description: Optimistic lock conflict
+
+  /payments:
+    post:
+      tags: [Payments]
+      summary: Ustvari plačilo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, method, amount]
+              properties:
+                orderId:
+                  type: string
+                method:
+                  type: string
+                  enum: [cash, card, gift_card]
+                amount:
+                  type: number
+                receivedAmount:
+                  type: number
+                tip:
+                  type: number
+      responses:
+        '201':
+          description: Plačilo ustvarjeno
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+
+  /payments/stripe-intent:
+    post:
+      tags: [Payments]
+      summary: Ustvari Stripe PaymentIntent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, currency, orderId]
+              properties:
+                amount:
+                  type: integer
+                  description: V centih (4990 = 49.90 EUR)
+                currency:
+                  type: string
+                  default: eur
+                orderId:
+                  type: string
+                locationId:
+                  type: string
+      responses:
+        '200':
+          description: PaymentIntent ustvarjen
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  clientSecret:
+                    type: string
+                  paymentIntentId:
+                    type: string
+                  status:
+                    type: string
+
+  /furs:
+    get:
+      tags: [FURS]
+      summary: FURS status
+      responses:
+        '200':
+          description: FURS konfiguracija in status
+    post:
+      tags: [FURS]
+      summary: Pošlji račun FURS-u za potrjevanje
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [orderId, invoiceNumber, taxNumber]
+              properties:
+                orderId:
+                  type: string
+                invoiceNumber:
+                  type: string
+                taxNumber:
+                  type: string
+                premisesId:
+                  type: string
+                invoiceAmount:
+                  type: number
+      responses:
+        '200':
+          description: FURS potrjen
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  zoi:
+                    type: string
+                  eor:
+                    type: string
+        '503':
+          description: FURS nedosegljiv (offline mode aktiviran)
+
+  /furs/cert-upload:
+    post:
+      tags: [FURS]
+      summary: Upload .p12 certifikata
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                cert:
+                  type: string
+                  format: binary
+                password:
+                  type: string
+                environment:
+                  type: string
+                  enum: [test, production]
+      responses:
+        '200':
+          description: Certifikat naložen
+        '400':
+          description: Neveljaven certifikat ali geslo
+
+  /menu-items:
+    get:
+      tags: [Menu]
+      summary: Seznam artiklov
+      parameters:
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Seznam artiklov
+
+  /tables:
+    get:
+      tags: [Tables]
+      summary: Seznam miz
+      responses:
+        '200':
+          description: Seznam miz
+
+  /dashboard:
+    get:
+      tags: [Reports]
+      summary: Dashboard metrike
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Dashboard podatki
+
+  /inventory:
+    get:
+      tags: [Inventory]
+      summary: Seznam zalog
+      responses:
+        '200':
+          description: Seznam zalog
+
+  /employees:
+    get:
+      tags: [Employees]
+      summary: Seznam uporabnikov
+      responses:
+        '200':
+          description: Seznam uporabnikov
+    post:
+      tags: [Employees]
+      summary: Ustvari uporabnika
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, pin, role]
+              properties:
+                name:
+                  type: string
+                pin:
+                  type: string
+                  pattern: '^[0-9]{4}$'
+                role:
+                  type: string
+                locationId:
+                  type: string
+      responses:
+        '201':
+          description: Uporabnik ustvarjen
+
+  /push/subscribe:
+    post:
+      tags: [PWA]
+      summary: Subscribe na push notifications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint, keys]
+              properties:
+                endpoint:
+                  type: string
+                keys:
+                  type: object
+                  properties:
+                    p256dh:
+                      type: string
+                    auth:
+                      type: string
+      responses:
+        '200':
+          description: Subscription shranjen
+
+  /audit-log:
+    get:
+      tags: [Audit]
+      summary: Pridobi audit log
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: action
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Audit log vnosi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                  total:
+                    type: integer
+                  chainValid:
+                    type: boolean
