@@ -16,12 +16,12 @@
 [![Sentry](https://img.shields.io/badge/Sentry-Monitoring-362D59?style=flat-square&logo=sentry)](https://sentry.io/)
 
 [![FURS](https://img.shields.io/badge/FURS-Certified-3c7a50?style=flat-square)]()
-[![PWA](https://img.shields.io/badge/PWA-Offline--first-5A0FC8?style=flat-square&logo=pwa)]()
+[![PWA](https://img.shields.io/badge/PWA-Offline--capable-5A0FC8?style=flat-square&logo=pwa)]()
 [![i18n](https://img.shields.io/badge/i18n-5%20languages-86702b?style=flat-square)]()
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Production-ready POS sistem za restavracije z FURS potrjevanjem, offline delovanjem in multi-tenant arhitekturo.
+> Pilot-ready POS sistem za restavracije z FURS potrjevanjem, offline delovanjem in multi-tenant arhitekturo. (3 HIGH odprte težave — glej [Known Issues](docs/KNOWN_ISSUES.md))
 
 ---
 
@@ -53,7 +53,7 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 - **[RestaurantOS-API-Dokumentacija.pdf](download/RestaurantOS-API-Dokumentacija.pdf)** (31 strani, 0.29 MB) - REST API dokumentacija z 60+ dokumentiranimi endpointi, request/response primeri, error handling, rate limiting
 - **[openapi.yaml](download/openapi.yaml)** - OpenAPI 3.1 specifikacija za SDK generacijo (Swagger, Postman, codegen)
 - **[RestaurantOS-Developer-Guide.pdf](download/RestaurantOS-Developer-Guide.pdf)** (21 strani, 0.26 MB) - onboarding za nove developerje: setup okolja (30 min), arhitektura, kodni standardi (TypeScript/React/API), testiranje, contribution workflow, deployment
-- **[RestaurantOS-Security-Audit.pdf](download/RestaurantOS-Security-Audit.pdf)** (22 strani, 0.28 MB) - celovit varnostni audit z A++ oceno: OWASP Top 10 (10/10 PASS), GDPR (16 členov), PCI-DSS (SAQ-A), avtentikacija, audit log, incident response, security roadmap
+- **[RestaurantOS-Security-Audit.pdf](download/RestaurantOS-Security-Audit.pdf)** (22 strani, 0.28 MB) - zgodovinski varnostni audit (A++ → superseded, glej [Known Issues](docs/KNOWN_ISSUES.md) za trenutno A- oceno)
 - **[RestaurantOS-Database-Schema.pdf](download/RestaurantOS-Database-Schema.pdf)** (23 strani, 0.27 MB) - dokumentacija 94 Prisma modelov v 10 modulih: polja, tipi, relacije, indeksi, multi-tenant izolacija, ER diagrami, query optimization
 - **[RestaurantOS-Go-To-Market-Strategy.pdf](download/RestaurantOS-Go-To-Market-Strategy.pdf)** (20 strani, 0.28 MB) - komercialni načrt: tržna analiza (TAM/SAM/SOM), 5 paketov (29-199 EUR), 8 prodajnih kanalov, sales funnel, 12-tedenski content koledar, KPI matrika, tveganja, milniki
 - **[restaurantos-postman-collection.json](download/restaurantos-postman-collection.json)** - Postman v2.1 collection z 30+ API request-i, auto-token extraction in test scripts za API testiranje
@@ -117,9 +117,9 @@ bun run dev
 | **Zaloga** | Inventory management, HACCP, recepti, purchase orders | ✅ |
 | **Računovodstvo** | Trial Balance, P&L, Balance Sheet, Journal Entries | ✅ |
 | **Z-Report** | Zapiranje izmene z gotovinskim usklajevanjem | ✅ |
-| **Multi-tenant** | Branch isolation z locationId (8 tabel) | ✅ |
+| **Multi-tenant** | Branch isolation z locationId (30+ modelov, glej [Known Issues](docs/KNOWN_ISSUES.md)) | ✅ |
 | **Offline** | IndexedDB queue + Background Sync | ✅ |
-| **PWA** | Service Worker, offline-first, installable | ⏳ P0-3 |
+| **PWA** | Service Worker, offline-capable, installable (push TBD) | ⏳ P0-3 |
 | **Plačilni gateway** | Stripe/SumUp integracija | ⏳ P0-2 |
 | **Loyalty** | Program zvestobe strank | ⏳ P1 |
 | **Rezervacije** | Spletna rezervacija miz | ⏳ P1 |
@@ -131,7 +131,7 @@ bun run dev
 - **Rate limiting**: Auth 5/15min, API 60/min, Public 20/min
 - **PIN hashiranje**: bcrypt (10 rounds) + HMAC-SHA256
 - **Audit log**: Chain hash (SHA-256, nepopravljiv)
-- **Multi-tenant isolation**: locationId scoping (8 tabel)
+- **Multi-tenant isolation**: locationId scoping (30+ modelov, glej [Known Issues](docs/KNOWN_ISSUES.md))
 - **Idempotency**: Orders + Payments (preprečuje duplikate)
 - **Optimistic locking**: updatedAt conflict detection (409)
 - **SSRF zaščita**: Allow-list za zunanje URL-je
@@ -254,7 +254,7 @@ src/
 | Document | Description |
 |----------|-------------|
 | [Architecture](docs/ARCHITECTURE.md) | System diagram, modules, security layers, key flows |
-| [Code Review Report](docs/CODE-REVIEW-REPORT.md) | 85 deep checks, 11 fixes, A++ security score |
+| [Code Review Report](docs/CODE-REVIEW-REPORT.md) | 85 deep checks, 11 fixes, A- security score (historical A++) |
 | [Changelog](CHANGELOG.md) | v1.0.0 release notes — all features and fixes |
 | [Contributing](CONTRIBUTING.md) | How to contribute — setup, code style, PR process |
 | [Security Policy](SECURITY.md) | Vulnerability reporting, OWASP Top 10 status |

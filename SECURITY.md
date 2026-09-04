@@ -21,7 +21,7 @@ Glej [Known Issues](docs/KNOWN_ISSUES.md) za celoten pregled in načrt reševanj
 - **PIN hashiranje**: bcrypt (10 rounds) + HMAC-SHA256 pinLookup
 - **Session**: triple-check (verifyToken + isEmployeeActive + direct DB), fail-closed
 - **Audit log**: SHA-256 chain hash (nepopravljiv) + verify endpoint
-- **Multi-tenant isolation**: locationId scoping na 8 tabelah
+- **Multi-tenant isolation**: locationId scoping na 30+ modelih (glej [Known Issues](docs/KNOWN_ISSUES.md) za seznam)
 - **Idempotency**: Orders + Payments (idempotencyKey @unique)
 - **Optimistic locking**: expectedUpdatedAt → 409 Conflict
 - **SSRF protection**: 8 IP range checks
@@ -87,5 +87,5 @@ Cenimo odgovorno razkritje. Po objavi popravka bomo priznali prispevale (če že
 
 ---
 
-*Last updated: 2026-09-04*  
-*Security review: 85 checks, A++ score*
+*Last updated: 2026-09-05*  
+*Security review: 85 checks, A- score — current review (see [Known Issues](docs/KNOWN_ISSUES.md))*

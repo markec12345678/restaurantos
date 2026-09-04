@@ -49,12 +49,13 @@ export async function checkRateLimitAsync(
 /**
  * SYNC wrapper okoli async implementacije.
  *
- * ⚠️ Performance opozorilo: ta funkcija blokira Node.js event loop dokler
- * async operacija ni končana. Za MemoryCacheAdapter je to v redu (sinhron
- * Map.set/get). Za RedisCacheAdapter je to suboptimalno — v produkciji
- * s Redis raje uporabi checkRateLimitAsync() z await.
+ * 🔴 VARNOSTNA NAPAKA: ta funkcija FAIL-OPEN ko je Redis adapter aktiven.
+ * Sync funkcija ne more počakati na async Promise — while loop takoj break-a.
+ * Rezultat: request je dovoljen BREZ rate limit preverjanja.
  *
- * V prihodnosti bomo vse call site-e prepisali na async — sledi.
+ * NE UPORABLJAJ v production API-jih z Redis. Uporabljaj checkRateLimitAsync().
+ *
+ * TODO (P0-1): Migriraj vse 52 call-site-e na checkRateLimitAsync() z await.
  */
 export function checkRateLimit(
   storeKey: string,
@@ -74,7 +75,8 @@ export function checkRateLimit(
     return syncIncrementForMemoryAdapter(cache, key, config)
   }
 
-  // Za Redis — blokiramo dokler ni končano (suboptimalno ampak deluje)
+  // Za Redis — sync path ne more await-ati, while loop takoj break-a
+  // 🔴 FAIL-OPEN: request dovoljen brez rate limit preverjanja
   // To je fallback; v prihodnje prepričaj vse call site-e da uporabljajo async
   let result: { allowed: boolean; retryAfterMs?: number; remaining?: number } | null = null
   let error: Error | null = null

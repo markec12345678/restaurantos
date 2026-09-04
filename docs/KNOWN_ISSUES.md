@@ -1,6 +1,6 @@
 # Known Issues — RestaurantOS v1.0.0
 
-**Datum:** September 2025  
+**Datum:** September 2026  
 **Status:** Aktivno spremljanje  
 **Realna varnostna ocena:** A- (ne A+ ali A+++)  
 **Realna splošna ocena:** 8.6/10 — pilot-ready with known risks
