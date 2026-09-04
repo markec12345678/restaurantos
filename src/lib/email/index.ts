@@ -5,6 +5,7 @@
 import nodemailer from 'nodemailer'
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
+import { ensureDecrypted } from '@/lib/crypto/secrets'
 
 interface EmailConfig {
   smtpHost: string
@@ -37,7 +38,7 @@ async function getEmailConfig(): Promise<EmailConfig | null> {
     smtpHost: settings.emailSmtpHost,
     smtpPort: settings.emailSmtpPort,
     smtpUser: settings.emailSmtpUser,
-    smtpPassword: settings.emailSmtpPassword,
+    smtpPassword: ensureDecrypted(settings.emailSmtpPassword || ''),
     fromAddress: settings.emailFromAddress || settings.email || 'noreply@restaurant.com',
   }
 }

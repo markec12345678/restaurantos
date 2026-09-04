@@ -20,6 +20,7 @@
 import { db } from '@/lib/db'
 import type { FursConfig } from '@/lib/furs'
 import { NextResponse } from 'next/server'
+import { ensureDecrypted } from '@/lib/crypto/secrets'
 
 export interface FursConfigResult {
   /** Pripravljen FursConfig (ali null če manjkajo obvezna polja) */
@@ -98,7 +99,7 @@ export async function getFursConfig(locationId?: string | null): Promise<FursCon
         deviceIp: '',
         environment: (location.fursEnvironment === 'production' ? 'production' : 'test') as FursConfig['environment'],
         certPath: location.fursCertPath || undefined,
-        certPassword: location.fursCertPassword || undefined,
+        certPassword: ensureDecrypted(location.fursCertPassword || '') || undefined,
       },
       source: 'location',
       locationId: location.id,
@@ -140,7 +141,7 @@ export async function getFursConfig(locationId?: string | null): Promise<FursCon
         deviceIp: '',
         environment: (settings.fursEnvironment === 'production' ? 'production' : 'test') as FursConfig['environment'],
         certPath: settings.fursCertPath || undefined,
-        certPassword: settings.fursCertPassword || undefined,
+        certPassword: ensureDecrypted(settings.fursCertPassword || '') || undefined,
       },
       source: 'restaurant-settings',
       locationId: location?.id || null,

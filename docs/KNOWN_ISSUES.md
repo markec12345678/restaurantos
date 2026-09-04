@@ -2,8 +2,8 @@
 
 **Datum:** September 2026  
 **Status:** Aktivno spremljanje  
-**Realna varnostna ocena:** A (ne A- — #39 je fixed, 2 HIGH odprti)  
-**Realna splošna ocena:** 8.7/10 — pilot-ready with known risks
+**Realna varnostna ocena:** A (1 HIGH odprt, 3 fixed)  
+**Realna splošna ocena:** 8.8/10 — pilot-ready with known risks
 
 ---
 
@@ -13,7 +13,7 @@ README je bil prej označen z "A+++", kar je bilo **pretirano**. Po globokem pre
 
 ---
 
-## HIGH severity (2 odprte, 2 fixed)
+## HIGH severity (1 odprta, 3 fixed)
 
 ### #34 — CSP `unsafe-inline` za styles v production
 - **Status:** ✅ FIXED (commit b750ee70)
@@ -35,19 +35,24 @@ README je bil prej označen z "A+++", kar je bilo **pretirano**. Po globokem pre
 - **Problem:** `Location.subscriptionId` je `String?` (nullable). V multi-tenant SaaS mora biti obvezen.
 - **Načrt:** Migration + backfill + API validacija
 
-### #46 — Secrets shranjeni v DB brez encryption-at-rest (NOVO)
-- **Status:** 🔴 Odprt (P1, Q1 2026)
-- **Problem:** `RestaurantSettings.emailSmtpPassword` je plaintext `String`. Schema komentira "naj bo encrypted v produkciji" ampak to ni implementirano. Enako za `apiKeys` (JSON string z hashed API ključi, a sam JSON je plaintext).
-- **Prizadeti secreti:**
-  - `RestaurantSettings.emailSmtpPassword` — plaintext SMTP geslo
-  - `RestaurantSettings.apiKeys` — JSON z API ključi
-  - `Location.fursCertPassword` — plaintext FURS cert geslo
-- **Načrt:**
-  1. Implementiraj `encrypt()` / `decrypt()` z AES-256-GCM
-  2. Encryption key iz environment variable (ENCRYPTION_KEY)
-  3. Migration: encrypt obstoječe plaintext secret-e
-  4. Application layer: vedno `decrypt()` pred uporabo
-- **Tveganje:** Kompromis baze = izpostavljeni SMTP, FURS, API credentials
+### #46 — Secrets shranjeni v DB brez encryption-at-rest
+- **Status:** ✅ FIXED (P0-2, commit v tem PR)
+- **Problem:** `RestaurantSettings.emailSmtpPassword` in druge plaintext skrivnosti shranjene v DB.
+- **Popravek:**
+  1. ✅ `src/lib/crypto/secrets.ts` — central AES-256-GCM encrypt/decrypt modul
+  2. ✅ Format: `enc:v1:{IV}:{authTag}:{ciphertext}` z integrity verification
+  3. ✅ ENCRYPTION_KEY iz environment variable (nikoli v DB/Git/logs)
+  4. ✅ ENCRYPTION_KEY_VERSION za key rotation support
+  5. ✅ Read path: `ensureDecrypted()` v FURS config-resolver, email service, webhook engine
+  6. ✅ Write path: `ensureEncrypted()` pred shranjevanjem (idempotent)
+  7. ✅ Migration script: `scripts/migrate-encrypt-secrets.ts`
+  8. ✅ 8 testov: round-trip, tamper, wrong key, no plaintext in output, idempotent, empty, detection, key gen
+  9. ✅ .env.example posodobljen z ENCRYPTION_KEY navodili
+- **Prizadeti polja (vsa decryptana v read path):**
+  - Location.fursCertPassword → ensureDecrypted v config-resolver.ts
+  - RestaurantSettings.fursCertPassword → ensureDecrypted v config-resolver.ts
+  - RestaurantSettings.emailSmtpPassword → ensureDecrypted v email/index.ts
+  - Webhook.secret → ensureDecrypted v webhook-engine/retry.ts in trigger.ts
 
 ---
 

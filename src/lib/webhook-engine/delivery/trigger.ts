@@ -12,6 +12,7 @@ import {
 } from '../types'
 import { deliverWebhook } from './deliver'
 import { isInternalUrl } from './ssrf'
+import { ensureDecrypted } from '@/lib/crypto/secrets'
 
 /**
  * Sproži webhook dogodek — poišče vse aktivne webhooke za ta dogodek
@@ -86,7 +87,8 @@ async function deliverAndLog(
     return
   }
 
-  const signature = signPayload(payloadStr, webhook.secret)
+  const decryptedSecret = ensureDecrypted(webhook.secret)
+  const signature = signPayload(payloadStr, decryptedSecret)
 
   // Ustvari log vnose pred dostavo
   const delivery = await db.webhookDelivery.create({
@@ -102,7 +104,7 @@ async function deliverAndLog(
   })
 
   // Dostavi
-  const result = await deliverWebhook(webhook.url, payloadStr, signature, webhook.secret)
+  const result = await deliverWebhook(webhook.url, payloadStr, signature, decryptedSecret)
 
   if (result.success) {
     // Uspešna dostava

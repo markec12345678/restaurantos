@@ -6,6 +6,7 @@
 import { db } from '@/lib/db'
 import { deliverWebhook } from './delivery'
 import { RETRY_DELAYS_MS } from './types'
+import { ensureDecrypted } from '@/lib/crypto/secrets'
 
 /**
  * Obdela vse webhooke, ki čakajo na ponovni poskus
@@ -49,7 +50,7 @@ export async function processRetryQueue(): Promise<{
       webhook.url,
       delivery.payload,
       delivery.signature,
-      webhook.secret
+      ensureDecrypted(webhook.secret)
     )
 
     processed++
