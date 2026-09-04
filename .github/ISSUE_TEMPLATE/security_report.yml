@@ -1,0 +1,21 @@
+name: 🔒 Security Report
+description: Prijavi varnostno ranljivost (non-critical)
+labels: ["security"]
+body:
+  - type: textarea
+    id: vulnerability
+    attributes:
+      label: Opis ranljivosti
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Vpliv
+      description: Kaj lahko napadalec stori?
+    validations:
+      required: true
+  - type: textarea
+    id: mitigation
+    attributes:
+      label: Predlagana mitigacija

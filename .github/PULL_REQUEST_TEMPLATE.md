@@ -1,54 +1,26 @@
-<!--
-RestaurantOS — Pull Request Template
-Izpolni spodnja polja pred odpiranjem PR-ja.
--->
+## 📝 Opis sprememb
 
-## 📝 Opis spremembe
+Kaj ta PR naredi?
 
-<!-- Kratek opis, KAJ ta PR naredi in ZAKAJ -->
+## 🔗 Povezani Issues
 
-## 🔗 Povezani issue
+Fixes #
 
-<!-- Npr. "Closes #123" ali "Refs #456". Če ni issue-ja, izpiši "Ni povezanega issue-ja". -->
+## 🧪 Testiranje
 
-## 🧪 Sprememba tipa
+- [ ] `bun run lint` pass-a
+- [ ] `bun run typecheck` pass-a
+- [ ] `bun run test` pass-a
+- [ ] Ročno testirano na dev
 
-Označi z `x` kar velja:
+## 📸 Screenshot (če je UI sprememba)
 
-- [ ] 🐛 Bug fix (ne-zlomljiva sprememba, ki popravlja problem)
-- [ ] ✨ New feature (ne-zlomljiva sprememba, ki doda funkcionalnost)
-- [ ] 💥 Breaking change (sprememba, ki lahko zlomi obstoječe delovanje)
-- [ ] 🔒 Security fix (sprememba, ki popravlja varnostno ranljivost)
-- [ ] 📚 Dokumentacija
-- [ ] ♻️ Refaktoriranje (brez funkcijske spremembe)
-- [ ] ⚡ Performance
-- [ ] 🧪 Testi
-- [ ] 🔧 CI/CD
-- [ ] 🏗️ Infrastruktura
+## 🔒 Varnostni checklist
 
-## ✅ Checklist
+- [ ] Novi API endpointi imajo `requireAuth()`
+- [ ] Novi API endpointi imajo rate limiting (če so občutljivi)
+- [ ] Input validacija z Zod
+- [ ] Ni hardcoded secrets
+- [ ] Ni `console.log` v produkciji
 
-Preden odpreš PR, potrdi:
-
-- [ ] Koda sledi [CONTRIBUTING.md](../CONTRIBUTING.md) smernicam
-- [ ] `bun run lint` gre skozi brez novih warningov
-- [ ] `bun run typecheck` gre skozi brez napak
-- [ ] `bun run test` gre skozi (vsi obstoječi + novi testi)
-- [ ] Sprememba je testirana lokalno
-- [ ] Nimam commit-ovanih skrivnosti (`.env`, certifikatov, API ključev)
-- [ ] Če sem dodal dependency, je dodan v `package.json` in pojasnjen v PR opisu
-- [ ] Če gre za FURS spremembo, sem preveril, da ZOI/EOR še vedno delujejo
-
-## 📸 Screenshot / Demo (če je relevantno)
-
-<!-- Za UI spremembe prilepi screenshot ali GIF -->
-
-## 🔍 Dodatne informacije
-
-<!-- Karkoli, kar reviewer-ji morajo vedeti: known issues, follow-up TODOs, migration notes -->
-
-## 🤖 AI Assistant Acknowledgement (če velja)
-
-- [ ] Ta PR je bil ustvarjen s pomočjo AI assistant-ja
-- [ ] Kodo sem pregledal in razumem vse spremembe
-- [ ] Nobena skrivnost ni bila prilepljena v AI klepet
+## 📋 Dodatne opombe

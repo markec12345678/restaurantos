@@ -1,56 +1,48 @@
----
 name: 🐛 Bug Report
-about: Prijavi napako v RestaurantOS
-title: "[BUG] "
-labels: ["bug", "triage"]
-assignees:
-  - markec12345678
----
-
-## 🐛 Opis napake
-
-<!-- Kratek, jasen opis, kaj je narobe -->
-
-## 🔄 Koraki za reprodukcijo
-
-1.
-2.
-3.
-
-## ✅ Pričakovano obnašanje
-
-<!-- Kaj bi se moralo zgoditi -->
-
-## ❌ Dejansko obnašanje
-
-<!-- Kaj se dejansko zgodi -->
-
-## 📸 Screenshot / Log
-
-<!-- Če je relevantno, prilepi screenshot ali error log -->
-
-## 🖥️ Okolje
-
-- **RestaurantOS verzija:** (commit SHA ali tag — `git rev-parse HEAD`)
-- **Browser:** (npr. Chrome 120, Safari 17)
-- **OS:** (npr. Ubuntu 22.04, macOS 14)
-- **Node.js:** (`node --version`)
-- **Baza:** (SQLite / PostgreSQL, verzija)
-- **FURS okolje:** (test / production / simulacija)
-
-## 📋 Dodatne informacije
-
-<!-- Karkoli, kar bi lahko pomagalo pri diagnosticiranju -->
-
-## 🔍 Ali vpliva na FURS davčno potrjevanje?
-
-- [ ] Da — računi se ne potrjujejo
-- [ ] Delno — nekateri računi padajo
-- [ ] Ne — FURS deluje normalno
-
-## 🔒 Ali napaka vpliva na varnost?
-
-- [ ] Da — morebitna razkritja podatkov
-- [ ] Ne
-
-(Če je odgovor "Da", **prosimo, da ne prijavljaš javno** — glej [SECURITY.md](../SECURITY.md) za responsible disclosure.)
+description: Prijavi napako v RestaurantOS
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Opis napake
+      description: Jasen in jedrnat opis napake.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Koraki za reprodukcijo
+      placeholder: |
+        1. Pojdi v '...'
+        2. Klikni na '...'
+        3. Vidim napako
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: URL (če je spletna napaka)
+      placeholder: https://restaurantos-...vercel.app/...
+  - type: dropdown
+    id: module
+    attributes:
+      label: Modul
+      options:
+        - POS (naročila)
+        - KDS (kuhinja)
+        - Waiter (natakar)
+        - Plačila (Payments)
+        - FURS (davčno potrjevanje)
+        - Zaloga (Inventory)
+        - Računovodstvo (Accounting)
+        - Multi-tenant
+        - Offline
+        - Drugo
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logi / Error sporočilo
+      render: shell
