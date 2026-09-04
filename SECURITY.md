@@ -87,5 +87,5 @@ Cenimo odgovorno razkritje. Po objavi popravka bomo priznali prispevale (če že
 
 ---
 
-*Last updated: 2026-09-05*  
+*Last updated: 2026-09-04*  
 *Security review: 85 checks, A- score — current review (see [Known Issues](docs/KNOWN_ISSUES.md))*

@@ -36,7 +36,7 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 | **FURS certifikat** | ✅ | ❌ | ❌ | ❌ | ✅ (zastarelo) |
 | **Multi-tenant** | ✅ (30 tabel z locationId, glej [Known Issues](docs/KNOWN_ISSUES.md)) | ✅ | ✅ | ✅ | ❌ |
 | **5 jezikov** | ✅ sl/en/it/hr/de | ❌ | ❌ | Delno | ❌ |
-| **Varnost (A+)** | ✅ 0 XSS/SQLi | ✅ | ✅ | ✅ | ❌ |
+| **Varnost (A-)** | ✅ 0 XSS/SQLi | ✅ | ✅ | ✅ | ❌ |
 | **Mobilna PWA** | ⏳ P0-3 | ✅ Native | ✅ Native | ⚠ Slaba | ❌ |
 
 ### 📄 Deliverables
@@ -124,7 +124,7 @@ bun run dev
 | **Loyalty** | Program zvestobe strank | ⏳ P1 |
 | **Rezervacije** | Spletna rezervacija miz | ⏳ P1 |
 
-## 🔒 Varnost (A+ ocena)
+## 🔒 Varnost (A- ocena)
 
 - **CSP** z nonce injection (XSS zaščita)
 - **HSTS** z preload (HTTPS enforcement)
