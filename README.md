@@ -1,12 +1,20 @@
 # RestaurantOS v1.0.0
 
+[![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Security: A++](https://img.shields.io/badge/Security-A%2B%2B-brightgreen)](SECURITY.md)
+[![E2E: 96.6%](https://img.shields.io/badge/E2E_Tests-96.6%25-blue)](docs/CODE-REVIEW-REPORT.md)
+[![Code Review: 85 checks](https://img.shields.io/badge/Code_Review-85_checks-success)](docs/CODE-REVIEW-REPORT.md)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org)
+[![Prisma](https://img.shields.io/badge/Prisma-ORM-blue)](https://prisma.io)
+[![Vercel](https://img.shields.io/badge/Vercel-Deployed-black)](https://vercel.com)
+
 Production-ready POS sistem za restavracije z FURS potrjevanjem, offline delovanjem in multi-tenant arhitekturo.
 
 ## 🚀 Hitri začetek
 
 ### Demo
-- **URL:** https://restaurantos-oqa3h4ru3-robertpezdirc12-designs-projects.vercel.app
-- **Landing page:** https://restaurantos-oqa3h4ru3-robertpezdirc12-designs-projects.vercel.app/landing
+- **URL:** https://restaurantos-gusytmvqe-robertpezdirc12-designs-projects.vercel.app
+- **Landing page:** https://restaurantos-gusytmvqe-robertpezdirc12-designs-projects.vercel.app/landing
 - **Admin PIN:** `1234`
 - **Super-admin PIN:** `5555`
 
@@ -139,12 +147,18 @@ src/
 
 ## 📄 Dokumentacija
 
-- [Production Launch Checklist](docs/PRODUCTION-LAUNCH-CHECKLIST.md)
-- [Privacy Policy](docs/PRIVACY-POLICY.md)
-- [Terms of Service](docs/TERMS-OF-SERVICE.md)
-- [E2E Test Results](docs/E2E-TEST-RESULTS.md)
-- [Chaos Test 3.1](docs/TEST-3.2-WEBSOCKET-DISCONNECT.md)
-- [FURS Test 3.3](docs/TEST-3.3-FURS-DOWN.md)
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/ARCHITECTURE.md) | System diagram, modules, security layers, key flows |
+| [Code Review Report](docs/CODE-REVIEW-REPORT.md) | 85 deep checks, 11 fixes, A++ security score |
+| [Changelog](CHANGELOG.md) | v1.0.0 release notes — all features and fixes |
+| [Contributing](CONTRIBUTING.md) | How to contribute — setup, code style, PR process |
+| [Security Policy](SECURITY.md) | Vulnerability reporting, OWASP Top 10 status |
+| [Code of Conduct](CODE_OF_CONDUCT.md) | Community standards |
+| [Client Onboarding](docs/CLIENT-ONBOARDING-GUIDE.md) | Navodila za stranko — setup, dnevno delo, FURS |
+| [Production Launch](docs/PRODUCTION-LAUNCH-CHECKLIST.md) | 4-korakni launch plan |
+| [Privacy Policy](docs/PRIVACY-POLICY.md) | GDPR politika zasebnosti |
+| [Terms of Service](docs/TERMS-OF-SERVICE.md) | Pogoji uporabe |
 
 ## 📜 Licenca
 
@@ -155,3 +169,4 @@ MIT License — prosto uporabljajte, spreminjajte in distribuirajte.
 - **GitHub:** https://github.com/markec12345678/restaurantos
 - **Release v1.0.0:** https://github.com/markec12345678/restaurantos/releases/tag/v1.0.0
 - **Email:** info@restaurantos.app
+- **Security:** security@restaurantos.app
