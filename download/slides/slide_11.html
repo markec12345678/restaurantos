@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8">
+<title>Roadmap 12 mesecev</title>
+<link rel="stylesheet" href="global.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+  .prio-card { background:#fff; border:1px solid var(--border); border-radius:6px; padding:18px 20px; position:relative; overflow:hidden; }
+  .prio-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:5px; }
+  .prio-p0::before { background:#9b4a43; }
+  .prio-p1::before { background:#a98846; }
+  .prio-p2::before { background:#426990; }
+  .prio-tag { font-family:var(--font-num); font-size:10px; letter-spacing:1.5px; padding:3px 8px; border-radius:3px; font-weight:600; }
+  .tag-p0 { background:rgba(155,74,67,.12); color:#9b4a43; }
+  .tag-p1 { background:rgba(169,136,70,.15); color:#8a6a2c; }
+  .tag-p2 { background:rgba(66,105,144,.12); color:#3a5a7e; }
+  .item-pill { display:inline-block; font-size:11px; color:var(--text); background:var(--card-soft); border-radius:3px; padding:3px 8px; margin:2px 4px 2px 0; }
+  .invest-num { font-family:var(--font-num); font-weight:700; color:var(--accent); font-size:22px; line-height:1; }
+  .ghost-num { position:absolute; right:-12px; bottom:-32px; font-family:var(--font-heading); font-weight:900; font-size:140px; color:rgba(104,95,70,.05); line-height:1; pointer-events:none; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-chip">ROADMAP · 12 MESECEV</div>
+
+  <!-- Header -->
+  <div style="margin-top:34px;">
+    <h1 class="slide-title">Roadmap za 12 mesecev &mdash; 3 prioritete</h1>
+    <h2 class="slide-subtitle">P0 (kritično), P1 (visoko), P2 (srednje)</h2>
+    <div class="divider"></div>
+  </div>
+
+  <!-- Gantt chart -->
+  <div style="margin-top:14px; background:#fff; border:1px solid var(--border); border-radius:6px; padding:10px 14px 6px 14px;">
+    <img src="../../scripts/charts/roadmap_gantt.png" alt="Gantt diagram roadmap 12 mesecev" style="width:100%; max-height:300px; object-fit:contain; display:block;">
+  </div>
+
+  <!-- 3 priority cards -->
+  <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-top:14px;">
+
+    <div class="prio-card prio-p0">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <span class="prio-tag tag-p0">P0 &middot; KRITIČNO</span>
+        <span class="font-num text-muted" style="font-size:11px;">0&ndash;3 mes.</span>
+      </div>
+      <div style="font-family:var(--font-heading); font-weight:700; font-size:15px; color:var(--text); margin-bottom:6px;">Temelji komercializacije</div>
+      <div style="margin-bottom:8px;">
+        <span class="item-pill">FURS</span><span class="item-pill">Plačila</span><span class="item-pill">PWA</span><span class="item-pill">Sentry</span><span class="item-pill">Domena</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-end; padding-top:8px; border-top:1px dashed var(--border);">
+        <div>
+          <div style="font-size:10px; letter-spacing:1px; color:var(--text-muted); text-transform:uppercase;">5 itemov</div>
+          <div class="invest-num">~30k EUR</div>
+        </div>
+        <i class="material-icons" style="color:#9b4a43; font-size:22px;">priority_high</i>
+      </div>
+      <div class="ghost-num">01</div>
+    </div>
+
+    <div class="prio-card prio-p1">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <span class="prio-tag tag-p1">P1 &middot; VISOKO</span>
+        <span class="font-num text-muted" style="font-size:11px;">3&ndash;6 mes.</span>
+      </div>
+      <div style="font-family:var(--font-heading); font-weight:700; font-size:15px; color:var(--text); margin-bottom:6px;">Rast &amp; konkurenčnost</div>
+      <div style="margin-bottom:8px;">
+        <span class="item-pill">Mobile dash</span><span class="item-pill">KDS</span><span class="item-pill">Spletne naročilne</span><span class="item-pill">Loyalty</span><span class="item-pill">Design system</span><span class="item-pill">Rezervacije</span><span class="item-pill">AI napovedi</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-end; padding-top:8px; border-top:1px dashed var(--border);">
+        <div>
+          <div style="font-size:10px; letter-spacing:1px; color:var(--text-muted); text-transform:uppercase;">7 itemov</div>
+          <div class="invest-num">~50k EUR</div>
+        </div>
+        <i class="material-icons" style="color:#a98846; font-size:22px;">trending_up</i>
+      </div>
+      <div class="ghost-num">02</div>
+    </div>
+
+    <div class="prio-card prio-p2">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <span class="prio-tag tag-p2">P2 &middot; SREDNJE</span>
+        <span class="font-num text-muted" style="font-size:11px;">6&ndash;12 mes.</span>
+      </div>
+      <div style="font-family:var(--font-heading); font-weight:700; font-size:15px; color:var(--text); margin-bottom:6px;">Širitev &amp; EU</div>
+      <div style="margin-bottom:8px;">
+        <span class="item-pill">AI napredni</span><span class="item-pill">Catering</span><span class="item-pill">Multi-currency</span><span class="item-pill">White-label</span><span class="item-pill">Integracije</span><span class="item-pill">EU davki</span><span class="item-pill">Native app</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-end; padding-top:8px; border-top:1px dashed var(--border);">
+        <div>
+          <div style="font-size:10px; letter-spacing:1px; color:var(--text-muted); text-transform:uppercase;">8 itemov</div>
+          <div class="invest-num">~70k EUR</div>
+        </div>
+        <i class="material-icons" style="color:#426990; font-size:22px;">public</i>
+      </div>
+      <div class="ghost-num">03</div>
+    </div>
+
+  </div>
+
+  <div class="slide-footer">
+    <span>RestaurantOS &middot; 2025</span>
+    <span>Stran 11 / 14</span>
+  </div>
+
+  <aside data-notes class="hidden">
+    - Gantt diagram prikazuje zaporedje in prekrivanje P0/P1/P2 aktivnosti skozi 12 mesecev.
+    - P0 (30k EUR) je nujen predpogoj za kakršnokoli komercializacijo &mdash; brez FURS in plačil prodaja ne more teči.
+    - P1 (50k EUR) odpira konkurenčne funkcije (KDS, mobilne nadzorne plošče, AI napovedi) in dohiteva Toast/Square.
+    - P2 (70k EUR) širi v EU: multi-currency, white-label, native aplikacija za prihodnost.
+    - Skupna investicija 150k EUR, razporejena po prioriteto &mdash; pojasnitev na naslednji strani (ROI).
+  </aside>
+</div>
+</body>
+</html>

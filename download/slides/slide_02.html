@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8">
+<title>RestaurantOS — Agenda</title>
+<link rel="stylesheet" href="global.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+  .slide { padding: 56px 72px; }
+  .agenda-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    padding: 16px 20px 16px 22px;
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+    transition: none;
+    height: 100%;
+  }
+  .agenda-num {
+    font-family: var(--font-num);
+    font-size: 30px;
+    font-weight: 600;
+    color: var(--accent);
+    line-height: 1;
+    letter-spacing: -1px;
+    flex-shrink: 0;
+    width: 44px;
+  }
+  .agenda-title {
+    font-family: var(--font-heading);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.2;
+  }
+  .agenda-desc {
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.45;
+    margin-top: 6px;
+  }
+  .agenda-icon {
+    color: var(--primary);
+    opacity: 0.5;
+    font-size: 18px !important;
+    margin-top: 4px;
+    flex-shrink: 0;
+  }
+  .ghost-rail {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    background: rgba(209,201,179,0.4);
+    transform: translateX(-50%);
+  }
+</style>
+</head>
+<body>
+<div class="slide">
+  <!-- Header -->
+  <div style="display:flex; justify-content:space-between; align-items:flex-end; padding-bottom:24px; border-bottom:1px solid var(--border);">
+    <div>
+      <div style="font-family:var(--font-num); font-size:11px; letter-spacing:2.5px; color:var(--accent); text-transform:uppercase; display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+        <span style="width:24px; height:1px; background:var(--accent);"></span>
+        <span>Poglavje 01 · Predstavitev</span>
+      </div>
+      <h1 class="slide-title" style="font-family:var(--font-heading); font-size:48px; font-weight:800; line-height:1; color:var(--text); letter-spacing:-1px;">Agenda</h1>
+      <h2 style="font-family:var(--font-body); font-size:18px; font-weight:400; color:var(--text-muted); margin-top:8px;">Potek predstavitve — šest poglavij v štirinajstih straneh</h2>
+    </div>
+    <div style="font-family:var(--font-num); font-size:11px; letter-spacing:2px; color:var(--text-muted); text-transform:uppercase; text-align:right; line-height:1.6;">
+      <div>September 2025</div>
+      <div style="color:var(--accent);">06 točk · 14 strani</div>
+    </div>
+  </div>
+
+  <!-- Agenda grid 2x3 -->
+  <div style="margin-top:28px; display:grid; grid-template-columns: 1fr 1fr; gap: 16px 20px;">
+    <!-- 01 -->
+    <div class="agenda-card">
+      <div class="agenda-num">01</div>
+      <div style="flex:1;">
+        <div class="agenda-title">Tržna priložnost</div>
+        <div class="agenda-desc">Globalni trg 18,7 milijard USD, slovenski vhod v globalni POS prostor.</div>
+      </div>
+      <i class="material-icons agenda-icon">trending_up</i>
+    </div>
+    <!-- 02 -->
+    <div class="agenda-card">
+      <div class="agenda-num">02</div>
+      <div style="flex:1;">
+        <div class="agenda-title">RestaurantOS danes</div>
+        <div class="agenda-desc">Tehnični pregled in trenutno stanje produkta v1.0.0.</div>
+      </div>
+      <i class="material-icons agenda-icon">memory</i>
+    </div>
+    <!-- 03 -->
+    <div class="agenda-card">
+      <div class="agenda-num">03</div>
+      <div style="flex:1;">
+        <div class="agenda-title">Tekmovalni pas</div>
+        <div class="agenda-desc">11 tekmencev v 6 kategorijah — Toast, Square, Lightspeed in slovenski igralci.</div>
+      </div>
+      <i class="material-icons agenda-icon">groups</i>
+    </div>
+    <!-- 04 -->
+    <div class="agenda-card">
+      <div class="agenda-num">04</div>
+      <div style="flex:1;">
+        <div class="agenda-title">Vizualna primerjava</div>
+        <div class="agenda-desc">UI, design system in UX flow — kje smo pred, kje za.</div>
+      </div>
+      <i class="material-icons agenda-icon">palette</i>
+    </div>
+    <!-- 05 -->
+    <div class="agenda-card">
+      <div class="agenda-num">05</div>
+      <div style="flex:1;">
+        <div class="agenda-title">Cenovni model</div>
+        <div class="agenda-desc">TCO primerjava in value proposition proti globalnim igralcem.</div>
+      </div>
+      <i class="material-icons agenda-icon">payments</i>
+    </div>
+    <!-- 06 -->
+    <div class="agenda-card">
+      <div class="agenda-num">06</div>
+      <div style="flex:1;">
+        <div class="agenda-title">Roadmap & investicija</div>
+        <div class="agenda-desc">P0/P1/P2 prioritete za naslednjih 12 mesecev in potreben budget.</div>
+      </div>
+      <i class="material-icons agenda-icon">route</i>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="slide-footer">
+    <span>RestaurantOS · Investitor Pitch · 2025</span>
+    <span>Stran 2 / 14</span>
+  </div>
+
+  <aside data-notes class="hidden">
+    • Hitro prehod skozi 6 poglavij — poudari, da je agenda razdeljena v analizo in akcijo.
+    • Povej, da bo Q&A na koncu, naj shranjujejo vprašanja.
+    • Poudari: zadnje poglavje (Roadmap & investicija) je ključno za odločitev.
+  </aside>
+</div>
+</body>
+</html>

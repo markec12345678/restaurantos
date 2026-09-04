@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8">
+<title>RestaurantOS · SWOT analiza</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<link rel="stylesheet" href="global.css">
+<style>
+  .swot-cell { border-radius:6px; padding:18px 20px; display:flex; flex-direction:column; position:relative; overflow:hidden; }
+  .swot-head { display:flex; align-items:center; gap:10px; }
+  .swot-tag { font-family:var(--font-num); font-size:10px; letter-spacing:1.8px; font-weight:600; padding:3px 9px; border-radius:3px; }
+  .swot-title { font-family:var(--font-heading); font-size:18px; font-weight:800; line-height:1; }
+  .swot-list { margin-top:12px; display:flex; flex-direction:column; gap:7px; flex:1; }
+  .swot-list li { display:flex; gap:9px; align-items:flex-start; font-size:12.5px; line-height:1.4; color:var(--text); }
+  .swot-list li .material-icons { font-size:15px; flex-shrink:0; margin-top:1px; }
+
+  /* Strengths - green */
+  .swot-s { background:#eaf3ee; border:1px solid #c8dccf; }
+  .swot-s .swot-tag { background:rgba(60,122,80,.18); color:#2d5e3d; }
+  .swot-s .swot-title { color:#2d5e3d; }
+  .swot-s .material-icons { color:#3c7a50; }
+
+  /* Weaknesses - red */
+  .swot-w { background:#f5e8e7; border:1px solid #e2cdc9; }
+  .swot-w .swot-tag { background:rgba(155,74,67,.18); color:#7a3530; }
+  .swot-w .swot-title { color:#7a3530; }
+  .swot-w .material-icons { color:#9b4a43; }
+
+  /* Opportunities - blue */
+  .swot-o { background:#e9eff5; border:1px solid #c5d3e2; }
+  .swot-o .swot-tag { background:rgba(66,105,144,.18); color:#2f4f72; }
+  .swot-o .swot-title { color:#2f4f72; }
+  .swot-o .material-icons { color:#426990; }
+
+  /* Threats - orange */
+  .swot-t { background:#f5ede1; border:1px solid #e0d0b3; }
+  .swot-t .swot-tag { background:rgba(134,112,43,.20); color:#6a581d; }
+  .swot-t .swot-title { color:#6a581d; }
+  .swot-t .material-icons { color:#86702b; }
+
+  .swot-axis { position:absolute; font-family:var(--font-num); font-size:9px; letter-spacing:1.5px; color:var(--text-muted); text-transform:uppercase; }
+  .quadrant-icon { width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+  .quadrant-icon .material-icons { font-size:20px; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-chip">07 · SWOT ANALIZA</div>
+
+  <div class="mt-10 flex items-end justify-between">
+    <div>
+      <h1 class="slide-title">SWOT analiza RestaurantOS</h1>
+      <h2 class="slide-subtitle">Strateški pregled prednosti, slabosti, priložnosti in groženj</h2>
+    </div>
+    <div class="flex items-center gap-3 mb-1">
+      <span class="pill">Notranje · S + W</span>
+      <span class="pill pill-dark">Zunanje · O + T</span>
+    </div>
+  </div>
+
+  <!-- 2x2 grid -->
+  <div class="grid grid-cols-2 gap-4 mt-6" style="height:482px;">
+    <!-- Strengths -->
+    <div class="swot-cell swot-s">
+      <div class="swot-head">
+        <div class="quadrant-icon" style="background:rgba(60,122,80,.18);"><i class="material-icons">trending_up</i></div>
+        <div>
+          <div class="swot-tag">S · STRENGTHS</div>
+          <div class="swot-title">Močne točke</div>
+        </div>
+      </div>
+      <ul class="swot-list">
+        <li><i class="material-icons">verified</i><span><b>FURS-certificiran</b> Next.js POS — edini v Sloveniji na modernem stacku</span></li>
+        <li><i class="material-icons">layers</i><span><b>Multi-tenant arhitektura</b> z 8-tabelno izolacijo in audit logom</span></li>
+        <li><i class="material-icons">shield</i><span><b>A++ varnost</b> — 0 XSS, 0 SQLi, 0 uhajanj ključev</span></li>
+        <li><i class="material-icons">language</i><span><b>5 jezikov</b> (sl/en/it/hr/de) z lokalizacijo davkov</span></li>
+        <li><i class="material-icons">savings</i><span><b>49 EUR/mes</b> — 4× ceneje od Toast, 2× od Square</span></li>
+      </ul>
+    </div>
+
+    <!-- Weaknesses -->
+    <div class="swot-cell swot-w">
+      <div class="swot-head">
+        <div class="quadrant-icon" style="background:rgba(155,74,67,.18);"><i class="material-icons">trending_down</i></div>
+        <div>
+          <div class="swot-tag">W · WEAKNESSES</div>
+          <div class="swot-title">Šibke točke</div>
+        </div>
+      </div>
+      <ul class="swot-list">
+        <li><i class="material-icons">credit_card_off</i><span><b>Brez plačilnega gateway-a</b> (Stripe/SumUp) — 5-koračni UX</span></li>
+        <li><i class="material-icons">phone_iphone</i><span><b>Brez mobilne aplikacije</b> (PWA) — le responsivna stran</span></li>
+        <li><i class="material-icons">restaurant_menu</i><span><b>Brez KDS</b> (Kitchen Display System) za kuhinjo</span></li>
+        <li><i class="material-icons">groups</i><span><b>Majhna baza uporabnikov</b> — še brez referenčnih strank</span></li>
+        <li><i class="material-icons">loyalty</i><span><b>Brez loyalty programa</b> za povratne goste</span></li>
+      </ul>
+    </div>
+
+    <!-- Opportunities -->
+    <div class="swot-cell swot-o">
+      <div class="swot-head">
+        <div class="quadrant-icon" style="background:rgba(66,105,144,.18);"><i class="material-icons">explore</i></div>
+        <div>
+          <div class="swot-tag">O · OPPORTUNITIES</div>
+          <div class="swot-title">Priložnosti</div>
+        </div>
+      </div>
+      <ul class="swot-list">
+        <li><i class="material-icons">storefront</i><span><b>Slovenski trg 25.000+ restavracij</b> kot naravni vhodni trg</span></li>
+        <li><i class="material-icons">public</i><span><b>Širitev v EU</b> — Italija in Hrvaška kot prvi cilji</span></li>
+        <li><i class="material-icons">hub</i><span><b>White-label SaaS</b> za distributerje opreme</span></li>
+        <li><i class="material-icons">insights</i><span><b>AI napovedi prodaje</b> za zaloge in osebje</span></li>
+        <li><i class="material-icons">qr_code_2</i><span><b>QR meni + spletna naročila</b> kot dodaten paket</span></li>
+      </ul>
+    </div>
+
+    <!-- Threats -->
+    <div class="swot-cell swot-t">
+      <div class="swot-head">
+        <div class="quadrant-icon" style="background:rgba(134,112,43,.20);"><i class="material-icons">warning_amber</i></div>
+        <div>
+          <div class="swot-tag">T · THREATS</div>
+          <div class="swot-title">Grožnje</div>
+        </div>
+      </div>
+      <ul class="swot-list">
+        <li><i class="material-icons">flight_land</i><span><b>Toast vstop v EU trg</b> (lahko 2026)</span></li>
+        <li><i class="material-icons">gavel</i><span><b>FURS spremembe predpisov</b> lahko zahtevajo recertifikacijo</span></li>
+        <li><i class="material-icons">code</i><span><b>Open-source POS</b> konkurenca (Floreant, uniCenta)</span></li>
+        <li><i class="material-icons">business_center</i><span><b>Microsoft/Google</b> vstop v vertikalo POS</span></li>
+        <li><i class="material-icons">trending_down</i><span><b>Gospodarska recesija</b> krči IT proračune restavracij</span></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <span>RestaurantOS · 2025</span>
+    <span>Stran 7 / 14</span>
+  </div>
+
+  <aside data-notes class="hidden">
+    - Notranje prednosti (S) so tehnične in cenovne — FURS + multi-tenant + 5 jezikov + 4× ceneje.
+    - Šibkosti (W) so vse produktno odpravljive v 6 mesecih: plačila, PWA, KDS, loyalty.
+    - Priložnosti (O) so organske: 25k SI restavracij + EU širitev + white-label + AI.
+    - Grožnje (T) vodijo k odločitvi: premakni se hitro, preden Toast pride v EU (2026?).
+    - Strategija: S × O — uporabi FURS prednost za hitro zasedbo SI trga v 12 mesecih.
+  </aside>
+</div>
+</body>
+</html>

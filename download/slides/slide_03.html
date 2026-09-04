@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8">
+<title>RestaurantOS — Tržna priložnost</title>
+<link rel="stylesheet" href="global.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+  .slide { padding: 48px 72px 64px; }
+  .big-stat-num {
+    font-family: var(--font-num);
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 0.95;
+    letter-spacing: -2px;
+  }
+  .big-stat-label {
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-top: 12px;
+    line-height: 1.4;
+  }
+  .big-stat-unit {
+    font-family: var(--font-num);
+    font-size: 18px;
+    color: var(--primary);
+    font-weight: 500;
+    margin-left: 6px;
+  }
+  .insight-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    padding: 18px 20px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  .insight-num {
+    font-family: var(--font-num);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    font-weight: 600;
+  }
+  .insight-title {
+    font-family: var(--font-heading);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.25;
+    margin-top: 6px;
+  }
+  .insight-desc {
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-top: 10px;
+  }
+  .stat-cell { padding: 0 22px; }
+  .stat-cell:first-child { padding-left: 0; }
+  .stat-cell:last-child { padding-right: 0; }
+  .stat-divider { width: 1px; background: var(--border); }
+</style>
+</head>
+<body>
+<div class="slide">
+  <!-- Header -->
+  <div style="display:flex; justify-content:space-between; align-items:flex-start; padding-bottom:18px; border-bottom:1px solid var(--border);">
+    <div style="max-width: 820px;">
+      <div style="font-family:var(--font-num); font-size:11px; letter-spacing:2.5px; color:var(--accent); text-transform:uppercase; display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+        <span style="width:24px; height:1px; background:var(--accent);"></span>
+        <span>Poglavje 01 · Trg</span>
+      </div>
+      <h1 style="font-family:var(--font-heading); font-size:34px; font-weight:800; line-height:1.1; color:var(--text); letter-spacing:-0.5px;">Trg 18,7 milijard USD z 9,8 % letno rastjo</h1>
+      <h2 style="font-family:var(--font-body); font-size:16px; font-weight:400; color:var(--text-muted); margin-top:8px; line-height:1.4;">Slovenski vhod v globalni restavracijski POS trg — naravni vlak za RestaurantOS.</h2>
+    </div>
+    <div style="text-align:right; font-family:var(--font-num); font-size:10px; letter-spacing:2px; color:var(--text-muted); text-transform:uppercase; line-height:1.6; padding-top:6px;">
+      <div>Vir: Statista 2025</div>
+      <div style="color:var(--accent);">TAM · SAM · SOM</div>
+    </div>
+  </div>
+
+  <!-- 4 big stats row -->
+  <div style="margin-top:24px; display:flex; align-items:stretch;">
+    <div class="stat-cell" style="flex:1;">
+      <div class="big-stat-num" style="font-size:64px;">18,7<span class="big-stat-unit">Mrd USD</span></div>
+      <div class="big-stat-label">Globalni trg 2025</div>
+    </div>
+    <div class="stat-divider" data-decor></div>
+    <div class="stat-cell" style="flex:1;">
+      <div class="big-stat-num" style="font-size:64px;">9,8<span class="big-stat-unit">% CAGR</span></div>
+      <div class="big-stat-label">Letna rast 2025–2030</div>
+    </div>
+    <div class="stat-divider" data-decor></div>
+    <div class="stat-cell" style="flex:1;">
+      <div class="big-stat-num" style="font-size:64px;">25.000<span class="big-stat-unit">+</span></div>
+      <div class="big-stat-label">Slovenskih restavracij</div>
+    </div>
+    <div class="stat-divider" data-decor></div>
+    <div class="stat-cell" style="flex:1;">
+      <div class="big-stat-num" style="font-size:64px;">87<span class="big-stat-unit">%</span></div>
+      <div class="big-stat-label">Novih implementacij v oblaku</div>
+    </div>
+  </div>
+
+  <!-- 3 insights -->
+  <div style="margin-top:28px; display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px;">
+    <div class="insight-card">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div class="insight-num">01 · Cloud-first</div>
+        <i class="material-icons" style="font-size:20px; color:var(--accent); opacity:0.8;">cloud_queue</i>
+      </div>
+      <div class="insight-title">On-premise izgublja 8 % na leto</div>
+      <div class="insight-desc">87 % novih implementacij v oblaku — RestaurantOS je od prvega dne arhitekturno cloud-native, multi-tenant.</div>
+    </div>
+    <div class="insight-card">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div class="insight-num">02 · AI integracije</div>
+        <i class="material-icons" style="font-size:20px; color:var(--accent); opacity:0.8;">auto_graph</i>
+      </div>
+      <div class="insight-title">64 % restavracij načrtuje AI napovedi</div>
+      <div class="insight-desc">V 18 mesecih — naravna podaljška trenutne arhitekture in P2 prioriteta na roadmap-u.</div>
+    </div>
+    <div class="insight-card">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div class="insight-num">03 · FURS zahteva</div>
+        <i class="material-icons" style="font-size:20px; color:var(--accent); opacity:0.8;">verified_user</i>
+      </div>
+      <div class="insight-title">Slovenski trg je naravni vlak</div>
+      <div class="insight-desc">Globalni igralci (Toast, Square, Lightspeed) nimajo FURS — RestaurantOS je edini moderni Next.js POS z certifikacijo.</div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="slide-footer">
+    <span>RestaurantOS · 2025</span>
+    <span>Stran 3 / 14</span>
+  </div>
+
+  <aside data-notes class="hidden">
+    • Trg 18,7 Mrd USD — poudari, da je slovenski trg (25k restavracij) dovolj SOM za 12-mesečni cilj.
+    • Cloud-first (87 %) pomeni, da smo arhitekturno na pravi strani trenda.
+    • FURS je ključna regulatorna ovira za globalne igralce — to je naš naravni vlak.
+    • AI napovedi (64 %) so P2 prioriteta, ne takojšnja.
+  </aside>
+</div>
+</body>
+</html>

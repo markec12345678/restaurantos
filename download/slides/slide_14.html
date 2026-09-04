@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8">
+<title>Zaključek & naslednji koraki</title>
+<link rel="stylesheet" href="global.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+  .quote-block { background:#fff; border:1px solid var(--border); border-radius:8px; padding:32px 40px 28px 40px; position:relative; overflow:hidden; }
+  .quote-mark { position:absolute; top:-12px; left:18px; font-family:var(--font-heading); font-size:140px; line-height:1; color:rgba(134,112,43,.18); font-weight:900; pointer-events:none; }
+  .quote-text { font-family:var(--font-heading); font-size:21px; line-height:1.5; color:var(--text); font-weight:500; font-style:italic; padding-left:48px; }
+  .quote-attr { font-family:var(--font-num); font-size:11px; letter-spacing:1.5px; color:var(--accent); text-transform:uppercase; margin-top:14px; padding-left:48px; }
+  .next-step { background:#fff; border:1px solid var(--border); border-radius:6px; padding:14px 16px; display:flex; gap:12px; align-items:flex-start; position:relative; }
+  .next-step::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--accent); }
+  .step-icon { width:36px; height:36px; border-radius:6px; background:rgba(134,112,43,.12); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .step-icon i { color:var(--accent); font-size:20px; }
+  .step-num { font-family:var(--font-num); font-size:10px; letter-spacing:1.5px; color:var(--text-muted); text-transform:uppercase; }
+  .step-title { font-family:var(--font-heading); font-weight:700; font-size:14px; color:var(--text); line-height:1.3; margin-top:2px; }
+  .step-desc { font-size:11px; color:var(--text-muted); line-height:1.4; margin-top:4px; }
+  .contact-strip { display:flex; justify-content:space-between; align-items:center; padding-top:10px; border-top:1px solid var(--border); }
+  .ghost-bg { position:absolute; right:-60px; top:60px; font-family:var(--font-heading); font-weight:900; font-size:280px; color:rgba(104,95,70,.04); line-height:1; pointer-events:none; letter-spacing:-10px; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="ghost-bg" data-decor aria-hidden="true">14</div>
+  <div class="slide-chip">ZAKLJUČEK &middot; NASLEDNJI KORAKI</div>
+
+  <!-- Header -->
+  <div style="margin-top:34px;">
+    <h1 class="slide-title">RestaurantOS je pripravljen za komercializacijo</h1>
+    <h2 class="slide-subtitle">S pravimi investicijami lahko postane vodilni POS v Sloveniji in začne EU širitev</h2>
+    <div class="divider"></div>
+  </div>
+
+  <!-- Quote -->
+  <div class="quote-block" style="margin-top:18px;">
+    <span class="quote-mark">&ldquo;</span>
+    <p class="quote-text">RestaurantOS je tehnično superior nad slovenskimi tekmeci in cenovno konkurenčen globalnim. Z implementacijo P0 prioritete v naslednjih 3 mesecih lahko v 12 mesecih postane vodilni POS v Sloveniji.</p>
+    <div class="quote-attr">&mdash; Povzetek analize</div>
+  </div>
+
+  <!-- 3 next steps -->
+  <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-top:18px;">
+    <div class="next-step">
+      <div class="step-icon"><i class="material-icons">picture_as_pdf</i></div>
+      <div>
+        <div class="step-num">NASLEDNJI KORAK 01</div>
+        <div class="step-title">Pregled PDF poročila</div>
+        <div class="step-desc">46 strani podrobne analize na voljo</div>
+      </div>
+    </div>
+    <div class="next-step">
+      <div class="step-icon"><i class="material-icons">groups</i></div>
+      <div>
+        <div class="step-num">NASLEDNJI KORAK 02</div>
+        <div class="step-title">Sestanek z ekipo</div>
+        <div class="step-desc">Predstavitev P0 implementacijskega načrta</div>
+      </div>
+    </div>
+    <div class="next-step">
+      <div class="step-icon"><i class="material-icons">account_balance_wallet</i></div>
+      <div>
+        <div class="step-num">NASLEDNJI KORAK 03</div>
+        <div class="step-title">Odobritev proračuna</div>
+        <div class="step-desc">150k EUR za 12 mesecev (1.5 FTE)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contact strip -->
+  <div class="contact-strip" style="margin-top:18px;">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <i class="material-icons" style="color:var(--accent); font-size:18px;">mail</i>
+      <span style="font-size:13px; color:var(--text);">Kontakt: <span style="font-weight:600;">RestaurantOS Team</span></span>
+    </div>
+    <div style="font-family:var(--font-heading); font-style:italic; font-size:15px; color:var(--accent); font-weight:500;">Hvala za vaš čas</div>
+  </div>
+
+  <div class="slide-footer">
+    <span>RestaurantOS &middot; Investitor Pitch &middot; 2025</span>
+    <span>Stran 14 / 14</span>
+  </div>
+
+  <aside data-notes class="hidden">
+    - Poudarite glavno sporočilo citata: tehnično superior + cenovno konkurenčen = naravni kandidat za vodilni slovenski POS.
+    - P0 prioriteta v 3 mesecih (FURS, plačila, PWA) je pogoj za doseg 200 strank v 12 mesecih.
+    - Tri naslednje akcije so strukturirane kot odločitvena pot: pregled gradiva &rarr; sestanek &rarr; odobritev proračuna.
+    - 150k EUR za 12 mesecev = 1,5 FTE ekipo (podprto s ROI analizo s strani 12).
+    - Zahvalite se za čas in odprite prostor za vprašanja &mdash; 46-stransko PDF poročilo je na voljo za podrobno preučitev.
+  </aside>
+</div>
+</body>
+</html>

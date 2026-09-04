@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8">
+<title>Strateška priporočila</title>
+<link rel="stylesheet" href="global.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+  .action-card { background:#fff; border:1px solid var(--border); border-radius:8px; padding:24px 22px 20px 22px; position:relative; overflow:hidden; height:100%; display:flex; flex-direction:column; }
+  .action-card .accent-strip { position:absolute; top:0; left:0; right:0; height:5px; }
+  .a1 .accent-strip { background:#9b4a43; }
+  .a2 .accent-strip { background:#a98846; }
+  .a3 .accent-strip { background:#426990; }
+  .action-num { font-family:var(--font-heading); font-weight:900; font-size:64px; line-height:1; letter-spacing:-2px; }
+  .a1 .action-num { color:rgba(155,74,67,.18); }
+  .a2 .action-num { color:rgba(169,136,70,.22); }
+  .a3 .action-num { color:rgba(66,105,144,.18); }
+  .action-title { font-family:var(--font-heading); font-weight:700; font-size:18px; color:var(--text); line-height:1.25; margin-top:8px; }
+  .action-list { list-style:none; padding:0; margin:12px 0 0 0; }
+  .action-list li { font-size:12px; line-height:1.55; color:var(--text); padding-left:18px; position:relative; margin-bottom:4px; }
+  .action-list li::before { content:''; position:absolute; left:0; top:9px; width:6px; height:6px; border-radius:50%; background:var(--accent); }
+  .meta-row { display:flex; justify-content:space-between; align-items:center; margin-top:auto; padding-top:12px; border-top:1px dashed var(--border); }
+  .meta-label { font-size:9px; letter-spacing:1.2px; color:var(--text-muted); text-transform:uppercase; }
+  .meta-value { font-family:var(--font-num); font-size:12px; font-weight:600; color:var(--primary); margin-top:2px; }
+  .status-pill { display:inline-block; font-size:10px; padding:3px 8px; border-radius:3px; font-family:var(--font-num); letter-spacing:0.5px; margin-top:6px; }
+  .s1 { background:rgba(155,74,67,.12); color:#9b4a43; }
+  .s2 { background:rgba(169,136,70,.18); color:#8a6a2c; }
+  .s3 { background:rgba(66,105,144,.12); color:#3a5a7e; }
+  .deadline-box { background:var(--card-soft); border-radius:4px; padding:8px 10px; margin-top:10px; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-chip">PRIPOROČILA &middot; Q4 2025</div>
+
+  <!-- Header -->
+  <div style="margin-top:34px;">
+    <h1 class="slide-title">3 ključne akcije za naslednje 3 mesece</h1>
+    <h2 class="slide-subtitle">Kritične iniciative za odklepanje komercializacije</h2>
+    <div class="divider"></div>
+  </div>
+
+  <!-- 3 action cards -->
+  <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px; margin-top:20px; height:430px;">
+
+    <!-- Action 01 -->
+    <div class="action-card a1">
+      <div class="accent-strip"></div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div class="action-num">01</div>
+        <i class="material-icons" style="color:#9b4a43; font-size:28px; margin-top:8px;">verified</i>
+      </div>
+      <div class="action-title">FURS produkcijska certifikacija</div>
+      <ul class="action-list">
+        <li>Prenesi <span style="font-family:var(--font-num);">.p12</span> certifikat od FURS</li>
+        <li>Testiraj v FURS testnem okolju</li>
+        <li>Pridobi produkcijsko dovoljenje</li>
+      </ul>
+      <div class="deadline-box">
+        <div class="meta-label">Rok</div>
+        <div class="meta-value" style="color:#9b4a43;">6 tednov &middot; oktober 2025</div>
+        <div class="meta-label" style="margin-top:6px;">Lastnik</div>
+        <div class="meta-value">Tech Lead</div>
+      </div>
+      <div class="meta-row">
+        <div class="status-pill s1">STATUS: BLOKIRA KOMERCIALIZACIJO</div>
+      </div>
+    </div>
+
+    <!-- Action 02 -->
+    <div class="action-card a2">
+      <div class="accent-strip"></div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div class="action-num">02</div>
+        <i class="material-icons" style="color:#a98846; font-size:28px; margin-top:8px;">credit_card</i>
+      </div>
+      <div class="action-title">Stripe plačilni gateway</div>
+      <ul class="action-list">
+        <li>Vzpostavi Stripe račun (EU)</li>
+        <li>Implementiraj checkout API</li>
+        <li>Dodaj UI za kartična plačila</li>
+      </ul>
+      <div class="deadline-box">
+        <div class="meta-label">Rok</div>
+        <div class="meta-value" style="color:#8a6a2c;">8 tednov &middot; november 2025</div>
+        <div class="meta-label" style="margin-top:6px;">Lastnik</div>
+        <div class="meta-value">Senior Fullstack Dev</div>
+      </div>
+      <div class="meta-row">
+        <div class="status-pill s2">STATUS: ODPRAVI GLAVNO UX VRZEL</div>
+      </div>
+    </div>
+
+    <!-- Action 03 -->
+    <div class="action-card a3">
+      <div class="accent-strip"></div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div class="action-num">03</div>
+        <i class="material-icons" style="color:#426990; font-size:28px; margin-top:8px;">phone_iphone</i>
+      </div>
+      <div class="action-title">Mobilna PWA aplikacija</div>
+      <ul class="action-list">
+        <li>Service Worker za offline</li>
+        <li>IndexedDB za lokalno shranjevanje</li>
+        <li>Push notifications</li>
+      </ul>
+      <div class="deadline-box">
+        <div class="meta-label">Rok</div>
+        <div class="meta-value" style="color:#3a5a7e;">12 tednov &middot; december 2025</div>
+        <div class="meta-label" style="margin-top:6px;">Lastnik</div>
+        <div class="meta-value">Frontend Lead</div>
+      </div>
+      <div class="meta-row">
+        <div class="status-pill s3">STATUS: KONKURENCA TOAST/SQUARE</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="slide-footer">
+    <span>RestaurantOS &middot; 2025</span>
+    <span>Stran 13 / 14</span>
+  </div>
+
+  <aside data-notes class="hidden">
+    - Te tri akcije so P0-1, P0-2 in P0-3 iz roadmapa &mdash; izvedljive vzporedno znotraj 12-tedenskega sprinta.
+    - Akcija 01 (FURS) je najvišja prioriteta: brez nje prodaja sploh ne more teči, formalno blokira vso komercializacijo.
+    - Akcija 02 (Stripe) odpravi glavno UX vrzel iz strani 10 &mdash; 5-koračni UX flow postane 3-koračni.
+    - Akcija 03 (PWA) dohiti Toast/Square v mobilni izkušnji &mdash; ključno za lastnike restavracij, ki delajo na terenu.
+    - Vse tri akcije skupaj predstavljajo ~30k EUR investicije (P0 sklop) in odpirajo pot k 200 strankam v 12 mesecih.
+  </aside>
+</div>
+</body>
+</html>

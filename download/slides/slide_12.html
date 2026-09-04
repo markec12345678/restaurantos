@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8">
+<title>Investicija & ROI</title>
+<link rel="stylesheet" href="global.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+  .big-stat { background:#fff; border:1px solid var(--border); border-radius:6px; padding:18px 22px; position:relative; overflow:hidden; }
+  .big-stat::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--accent); }
+  .big-num { font-family:var(--font-num); font-weight:700; font-size:54px; color:var(--accent); line-height:1; letter-spacing:-1px; }
+  .big-label { font-size:12px; color:var(--text-muted); margin-top:8px; line-height:1.35; }
+  .roi-table { width:100%; border-collapse:separate; border-spacing:0; font-size:13px; }
+  .roi-table th { background:var(--primary); color:#fff; padding:9px 12px; text-align:left; font-weight:600; font-size:11px; letter-spacing:1px; text-transform:uppercase; }
+  .roi-table th:first-child { border-top-left-radius:4px; }
+  .roi-table th:last-child { border-top-right-radius:4px; }
+  .roi-table td { padding:9px 12px; border-bottom:1px solid var(--border); background:#fff; font-family:var(--font-num); }
+  .roi-table tr:nth-child(even) td { background:var(--card-soft); }
+  .roi-table td:first-child { font-weight:600; color:var(--text); font-family:var(--font-body); }
+  .roi-table tr.highlight td { background:rgba(134,112,43,.12); font-weight:700; color:var(--accent); }
+  .roi-table tr.highlight td:first-child { color:var(--accent); }
+  .callout { background:#1d1c1a; color:#f3f2f1; border-radius:6px; padding:14px 20px; display:flex; align-items:center; gap:14px; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-chip">INVESTICIJA &middot; ROI</div>
+
+  <!-- Header -->
+  <div style="margin-top:34px;">
+    <h1 class="slide-title">Investicija 150k EUR, ROI v 18 mesecih</h1>
+    <h2 class="slide-subtitle">Cilj: 200+ slovenskih lokacij + 100 EU lokacij v 12 mesecih</h2>
+    <div class="divider"></div>
+  </div>
+
+  <!-- 3 big numbers -->
+  <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-top:8px;">
+    <div class="big-stat">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span class="big-num">150k</span>
+        <span class="font-num text-primary" style="font-size:18px; font-weight:600;">EUR</span>
+      </div>
+      <div class="big-label">Skupna investicija 12 mesecev (1.5 FTE ekipa)</div>
+    </div>
+    <div class="big-stat">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span class="big-num">200+</span>
+        <span class="font-num text-muted" style="font-size:13px;">lokacij</span>
+      </div>
+      <div class="big-label">Slovenskih lokacij v 12 mesecih (cilj)</div>
+    </div>
+    <div class="big-stat">
+      <div style="display:flex; align-items:baseline; gap:8px;">
+        <span class="big-num">18</span>
+        <span class="font-num text-primary" style="font-size:18px; font-weight:600;">mesecev</span>
+      </div>
+      <div class="big-label">ROI break-even</div>
+    </div>
+  </div>
+
+  <!-- ROI table -->
+  <div style="margin-top:18px;">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;">
+      <div style="font-family:var(--font-heading); font-weight:700; font-size:16px; color:var(--text);">Projekcija prihodkov (49 EUR/mes/stranka)</div>
+      <div class="pill">PRIHONEK &middot; POVPREČNO 49 EUR/MES/STRANKA</div>
+    </div>
+    <table class="roi-table">
+      <thead>
+        <tr>
+          <th>Obdobje</th>
+          <th>Stranke</th>
+          <th>Mesečni prihodek</th>
+          <th>Skupni prihodek</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Mesec 3</td><td>10</td><td>490 EUR/mes</td><td>1.470 EUR</td></tr>
+        <tr><td>Mesec 6</td><td>50</td><td>2.450 EUR/mes</td><td>14.700 EUR</td></tr>
+        <tr><td>Mesec 9</td><td>100</td><td>4.900 EUR/mes</td><td>44.100 EUR</td></tr>
+        <tr class="highlight"><td>Mesec 12</td><td>200</td><td>9.800 EUR/mes</td><td>103.000 EUR</td></tr>
+        <tr><td>Mesec 18</td><td>350</td><td>17.150 EUR/mes</td><td>206.000 EUR</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Callout -->
+  <div class="callout" style="margin-top:14px;">
+    <i class="material-icons" style="color:var(--accent-light); font-size:26px;">trending_up</i>
+    <div style="font-size:13px; line-height:1.45;">
+      <span style="color:var(--accent-light); font-family:var(--font-num); font-size:11px; letter-spacing:1.5px; text-transform:uppercase;">Break-even</span><br>
+      <span style="font-weight:500;">Mesec 14 &mdash; 200 strank &times; 49 EUR = 9.800 EUR/mes, pokrije 1.5 FTE ekipo</span>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <span>RestaurantOS &middot; 2025</span>
+    <span>Stran 12 / 14</span>
+  </div>
+
+  <aside data-notes class="hidden">
+    - 150k EUR pokrije 1.5 FTE ekipo za 12 mesecev &mdash; razdeljeno na P0/P1/P2 investicije iz prejšnje strani.
+    - Cilj 200+ slovenskih lokacij v 12 mesecih je realen ob predpostavki 49 EUR/mes/stranka in 5-novi stranki/teden.
+    - ROI break-even v mesecu 14 &mdash; dva meseca po investicijskem obdobju, ko mesečni prihodek (9.800 EUR) pokrije tekoče stroške ekipe.
+    - Mesec 18: 350 strank in 206.000 EUR skupnega prihodka pomeni 1,37x povračilo investicije.
+    - Poudarite: predpostavka je le slovenski trg &mdash; EU širitev (P2) znatno pospeši ROI.
+  </aside>
+</div>
+</body>
+</html>

@@ -1,0 +1,43 @@
+/* RestaurantOS Investor Deck - Global Stylesheet */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Serif:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --bg: #f3f2f1; --bg-dark: #1d1c1a;
+  --primary: #685f46; --primary-light: #7d7354;
+  --accent: #86702b; --accent-light: #d1c9b3;
+  --text: #1d1c1a; --text-muted: #8a8881;
+  --border: #d1c9b3; --card: #ffffff; --card-soft: #eeedea;
+  --success: #3c7a50; --warning: #a98846; --error: #9b4a43; --info: #426990;
+  --font-heading: 'Noto Serif', serif; --font-body: 'Inter', sans-serif; --font-num: 'JetBrains Mono', monospace;
+  --fs-display: 72px; --fs-h1: 48px; --fs-h2: 32px; --fs-h3: 22px;
+  --fs-body: 16px; --fs-small: 13px; --fs-micro: 11px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1280px; height: 720px; font-family: var(--font-body); color: var(--text); background: var(--bg); -webkit-font-smoothing: antialiased; }
+.slide { width: 1280px; height: 720px; position: relative; overflow: hidden; background: var(--bg); padding: 56px 72px; }
+.text-accent { color: var(--accent); } .text-primary { color: var(--primary); } .text-muted { color: var(--text-muted); }
+.text-white { color: #fff; } .text-success { color: var(--success); } .text-error { color: var(--error); }
+.bg-dark { background: var(--bg-dark); } .bg-primary { background: var(--primary); } .bg-accent { background: var(--accent); }
+.bg-card { background: var(--card); } .bg-card-soft { background: var(--card-soft); }
+.font-num { font-family: var(--font-num); font-feature-settings: 'tnum'; }
+.font-heading { font-family: var(--font-heading); }
+.slide-chip { position: absolute; top: 32px; left: 72px; display: flex; align-items: center; gap: 10px; font-family: var(--font-num); font-size: 11px; font-weight: 500; letter-spacing: 2px; color: var(--primary); text-transform: uppercase; }
+.slide-chip::before { content: ''; width: 24px; height: 2px; background: var(--accent); }
+.slide-footer { position: absolute; bottom: 28px; left: 72px; right: 72px; display: flex; justify-content: space-between; font-family: var(--font-num); font-size: 10px; color: var(--text-muted); letter-spacing: 1.5px; text-transform: uppercase; padding-top: 14px; border-top: 1px solid var(--border); }
+h1.slide-title { font-family: var(--font-heading); font-size: var(--fs-h1); font-weight: 800; line-height: 1.1; color: var(--text); letter-spacing: -0.5px; }
+h2.slide-subtitle { font-family: var(--font-body); font-size: var(--fs-h3); font-weight: 400; color: var(--text-muted); line-height: 1.4; margin-top: 12px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 4px; padding: 20px; }
+.card-soft { background: var(--card-soft); border-radius: 4px; padding: 20px; }
+.stat-num { font-family: var(--font-num); font-weight: 700; color: var(--accent); line-height: 1; }
+.accent-bar { border-left: 4px solid var(--accent); padding-left: 16px; }
+.divider { width: 60px; height: 3px; background: var(--accent); margin: 14px 0; }
+.pill { display: inline-block; padding: 4px 12px; border: 1px solid var(--border); border-radius: 100px; font-family: var(--font-num); font-size: 10px; letter-spacing: 1.5px; color: var(--primary); text-transform: uppercase; background: rgba(255,255,255,0.6); }
+.pill-dark { background: var(--primary); color: #fff; border-color: var(--primary); }
+table.compare { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.compare th { background: var(--primary); color: #fff; padding: 8px 10px; text-align: left; font-weight: 600; font-size: 12px; }
+table.compare td { padding: 8px 10px; border-bottom: 1px solid var(--border); background: #fff; }
+table.compare tr:nth-child(even) td { background: var(--card-soft); }
+table.compare td:first-child { font-weight: 600; }
+.bar-track { background: var(--card-soft); height: 8px; border-radius: 100px; position: relative; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--accent); border-radius: 100px; }
+.hidden { display: none; }

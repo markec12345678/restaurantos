@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8">
+<title>RestaurantOS · Vizualna primerjava</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<link rel="stylesheet" href="global.css">
+<style>
+  .chart-frame { background:#ffffff; border:1px solid var(--border); border-radius:6px; padding:14px 16px; display:flex; flex-direction:column; }
+  .chart-cap { font-family:var(--font-num); font-size:10px; letter-spacing:1.4px; color:var(--text-muted); text-transform:uppercase; margin-top:8px; }
+  .insight-card { background:#ffffff; border:1px solid var(--border); border-radius:6px; padding:14px 16px; position:relative; }
+  .insight-card .head { display:flex; align-items:center; gap:10px; }
+  .insight-icon { width:32px; height:32px; border-radius:6px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .insight-num { font-family:var(--font-num); font-size:11px; letter-spacing:1.6px; color:var(--accent); font-weight:600; }
+  .insight-title { font-family:var(--font-heading); font-size:15px; font-weight:700; color:var(--text); line-height:1.25; margin-top:2px; }
+  .insight-body { font-size:12.5px; color:var(--text-muted); line-height:1.45; margin-top:6px; }
+  .score-pill { font-family:var(--font-num); font-size:11px; font-weight:600; padding:2px 8px; border-radius:3px; }
+  .score-pill.lead { background:rgba(60,122,80,.12); color:var(--success); }
+  .score-pill.mid  { background:rgba(134,112,43,.14); color:var(--accent); }
+  .score-pill.gap  { background:rgba(155,74,67,.12); color:var(--error); }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-chip">08 · VIZUALNA PRIMERJAVA</div>
+
+  <div class="mt-10 flex items-end justify-between">
+    <div>
+      <h1 class="slide-title">Vizualna zrelost — ocene po 6 dimenzijah</h1>
+      <h2 class="slide-subtitle">RestaurantOS v srednjem segmentu, a pred slovenskimi tekmeci</h2>
+    </div>
+    <div class="flex items-center gap-2 mb-1">
+      <span class="pill">Lestvica 0–10</span>
+      <span class="pill pill-dark">n = 11 tekmencev</span>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-12 gap-6 mt-6" style="height:476px;">
+    <!-- LEFT 65% - chart -->
+    <div class="col-span-8 chart-frame">
+      <div class="flex items-baseline justify-between mb-2">
+        <div>
+          <div class="font-num text-[10px] tracking-[1.6px] uppercase text-[color:var(--accent)] font-semibold">Slika 8.1</div>
+          <div class="font-heading text-[15px] font-bold text-[color:var(--text)]">Vizualna zrelost po 6 dimenzijah</div>
+        </div>
+        <div class="flex items-center gap-3 text-[11px] text-[color:var(--text-muted)]">
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm" style="background:var(--accent)"></span>RestaurantOS</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm" style="background:var(--primary)"></span>Toast</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm" style="background:var(--text-muted)"></span>SI povprečje</span>
+        </div>
+      </div>
+      <div class="flex-1 flex items-center justify-center">
+        <img src="../../scripts/charts/visual_score.png" alt="Stolpični diagram vizualnih ocen po 6 dimenzijah za RestaurantOS, Toast in slovensko povprečje" style="width:100%; max-height:400px; object-fit:contain;">
+      </div>
+      <div class="chart-cap">Vir: interna ocena · 6 dimenzij: tipografija, barva, postavitev, mikro-animacije, mobilna izkušnja, doslednost</div>
+    </div>
+
+    <!-- RIGHT 35% - 3 insights -->
+    <div class="col-span-4 flex flex-col gap-3">
+      <div class="font-num text-[10px] tracking-[1.6px] uppercase text-[color:var(--primary)] font-semibold flex items-center gap-2">
+        <span class="w-6 h-px bg-[color:var(--accent)]"></span>KLJUČNE UGOTOVITVE
+      </div>
+
+      <div class="insight-card">
+        <div class="head">
+          <div class="insight-icon" style="background:rgba(60,122,80,.14);"><i class="material-icons" style="color:var(--success); font-size:18px;">workspace_premium</i></div>
+          <div class="flex-1">
+            <div class="insight-num">01 · TOAST VODI</div>
+            <div class="insight-title">8,9/10 povprečje</div>
+          </div>
+          <span class="score-pill lead">8,9</span>
+        </div>
+        <div class="insight-body">Najmočnejši v <b>mikro-animacijah</b> (9,5) in doslednosti (9,2). Zlati standard za vizualno zrelost v POS kategoriji.</div>
+      </div>
+
+      <div class="insight-card">
+        <div class="head">
+          <div class="insight-icon" style="background:rgba(134,112,43,.16);"><i class="material-icons" style="color:var(--accent); font-size:18px;">trending_up</i></div>
+          <div class="flex-1">
+            <div class="insight-num">02 · ROS NAD SI POVPREČJEM</div>
+            <div class="insight-title">8,0 vs slovensko 6,2</div>
+          </div>
+          <span class="score-pill mid">8,0 / 6,2</span>
+        </div>
+        <div class="insight-body">ROS za <b>+1,8 točke</b> prekaça slovensko povprečje (EdiPlug, Racuni.com, IRIS). Tipografija in barva (8,5) vodita.</div>
+      </div>
+
+      <div class="insight-card">
+        <div class="head">
+          <div class="insight-icon" style="background:rgba(155,74,67,.14);"><i class="material-icons" style="color:var(--error); font-size:18px;">phone_iphone</i></div>
+          <div class="flex-1">
+            <div class="insight-num">03 · MOBILNA ŠIBKA</div>
+            <div class="insight-title">7,0 vs Toast 9,0</div>
+          </div>
+          <span class="score-pill gap">−2,0</span>
+        </div>
+        <div class="insight-body">Mobilna izkušnja edina pod 8,0. <b>P0-3 (PWA, 12 tednov)</b> jo bo dvignil na 8,5+ in zapolnil primanjkljaj.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <span>RestaurantOS · 2025</span>
+    <span>Stran 8 / 14</span>
+  </div>
+
+  <aside data-notes class="hidden">
+    - Toast vodi vizualno z 8,9/10 — referenčni standard, še posebej v mikro-animacijah.
+    - ROS 8,0/10 prekače slovensko povprečje 6,2 — prednost pred EdiPlug, Racuni.com, IRIS.
+    - Edina šibka dimenzija: mobilna izkušnja (7,0 vs Toast 9,0) — odpravlja jo P0-3 v 12 tednih.
+    - Sklep: vizualno smo konkurenčni globalnim, ne pa še v mobilnem kanalu.
+    - Po P0-3 implementaciji pričakujemo skupno oceno 8,4+ in pariteto s Square.
+  </aside>
+</div>
+</body>
+</html>

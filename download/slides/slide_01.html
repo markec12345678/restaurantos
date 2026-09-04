@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8">
+<title>RestaurantOS — Naslovnica</title>
+<link rel="stylesheet" href="global.css">
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<style>
+  body { background: #1d1c1a; }
+  .slide.cover { background: #1d1c1a; color: #f3f2f1; padding: 0; }
+  .accent-rail { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #86702b; }
+  .cover-chip { font-family: var(--font-num); font-size: 11px; letter-spacing: 3px; color: #d1c9b3; text-transform: uppercase; display: inline-flex; align-items: center; gap: 14px; }
+  .cover-chip::before { content: ''; width: 32px; height: 1px; background: #86702b; }
+  .cover-title { font-family: var(--font-heading); font-size: 92px; font-weight: 900; line-height: 0.92; letter-spacing: -2.5px; color: #f3f2f1; }
+  .cover-sub { font-family: var(--font-body); font-size: 22px; color: #d1c9b3; line-height: 1.45; font-weight: 300; }
+  .stat-num-cover { font-family: var(--font-num); font-size: 56px; font-weight: 700; color: #86702b; line-height: 1; letter-spacing: -1.5px; }
+  .stat-label-cover { font-family: var(--font-body); font-size: 11px; color: #b5b0a3; text-transform: uppercase; letter-spacing: 1.8px; margin-top: 10px; line-height: 1.4; }
+  .meta-bottom { font-family: var(--font-num); font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; color: #8a8881; }
+  .ghost-numeral { position: absolute; right: -60px; bottom: -180px; font-family: var(--font-heading); font-size: 560px; font-weight: 900; color: rgba(134,112,43,0.06); line-height: 1; pointer-events: none; user-select: none; }
+  .stat-divider { width: 1px; background: rgba(209,201,179,0.18); }
+  .corner-mark { position: absolute; top: 56px; right: 72px; font-family: var(--font-num); font-size: 10px; letter-spacing: 2px; color: #8a8881; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+  .corner-mark .dot { width: 6px; height: 6px; border-radius: 50%; background: #86702b; }
+</style>
+</head>
+<body>
+<div class="slide cover">
+  <div class="accent-rail" data-decor aria-hidden="true"></div>
+  <div class="ghost-numeral" data-decor aria-hidden="true">R</div>
+
+  <!-- Top chip -->
+  <div style="position:absolute; top:64px; left:108px;">
+    <span class="cover-chip">Benchmark 2025 · Investor Pitch</span>
+  </div>
+
+  <!-- Corner mark top right -->
+  <div class="corner-mark">
+    <span class="dot"></span>
+    <span>ROS · Internal Deck</span>
+  </div>
+
+  <!-- Left column - hero -->
+  <div style="position:absolute; top:200px; left:108px; width:640px;">
+    <h1 class="cover-title">Restaurant<br>OS</h1>
+    <div style="width:64px; height:3px; background:#86702b; margin: 32px 0 24px;"></div>
+    <p class="cover-sub">Tekmovalna analiza in vizualni<br>benchmark slovenskega POS trga.</p>
+  </div>
+
+  <!-- Right column - 2x2 stats -->
+  <div style="position:absolute; top:200px; right:72px; width:380px;">
+    <div style="font-family: var(--font-num); font-size: 10px; letter-spacing: 2.5px; color:#8a8881; text-transform:uppercase; margin-bottom:24px; display:flex; align-items:center; gap:10px;">
+      <span style="width:18px; height:1px; background:#86702b;"></span>
+      <span>Številke analize</span>
+    </div>
+    <div style="display:grid; grid-template-columns: 1fr 1px 1fr; gap: 28px 24px;">
+      <div>
+        <div class="stat-num-cover">11</div>
+        <div class="stat-label-cover">Tekmencev<br>analiziranih</div>
+      </div>
+      <div class="stat-divider" data-decor></div>
+      <div>
+        <div class="stat-num-cover">100+</div>
+        <div class="stat-label-cover">Funkcij<br>v matriki</div>
+      </div>
+      <div>
+        <div class="stat-num-cover">46</div>
+        <div class="stat-label-cover">Stran globine<br>analize</div>
+      </div>
+      <div class="stat-divider" data-decor></div>
+      <div>
+        <div class="stat-num-cover">4×</div>
+        <div class="stat-label-cover">Ceneje od<br>Toast</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom meta -->
+  <div style="position:absolute; bottom:0; left:108px; right:72px; height:60px; border-top:1px solid rgba(209,201,179,0.18); display:flex; align-items:center; justify-content:space-between;">
+    <div class="meta-bottom">September 2025 · Internal Analysis</div>
+    <div class="meta-bottom">RestaurantOS v1.0.0</div>
+  </div>
+
+  <aside data-notes class="hidden">
+    • Pozdrav investitorjev in predstavitev ekipe (1 min).
+    • Poudari: 11 tekmencev v 3 kategorijah, 100+ funkcij v matriki.
+    • Vodilni naglas: 4× ceneje od Toast, 46-stranaliza podpira trditev.
+    • Napoved trajanja: ~25 minut predstavitve + 15 minut Q&A.
+    • Cilj: odobritev 150k EUR investicije za 12 mesecev.
+  </aside>
+</div>
+</body>
+</html>

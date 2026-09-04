@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8">
+<title>RestaurantOS · Funkcijska matrika</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<link rel="stylesheet" href="global.css">
+<style>
+  .insight-card { background:#ffffff; border:1px solid var(--border); border-radius:6px; padding:16px 18px; position:relative; }
+  .insight-card::before { content:''; position:absolute; left:0; top:14px; bottom:14px; width:3px; background:var(--accent); border-radius:0 3px 3px 0; }
+  .insight-num { font-family:var(--font-num); font-size:11px; letter-spacing:1.8px; color:var(--accent); font-weight:600; }
+  .insight-title { font-family:var(--font-heading); font-size:17px; font-weight:700; color:var(--text); line-height:1.25; margin-top:4px; }
+  .insight-body { font-size:13px; color:var(--text-muted); line-height:1.45; margin-top:6px; }
+  .score-chip { font-family:var(--font-num); font-size:11px; font-weight:600; padding:2px 8px; border-radius:3px; background:var(--card-soft); color:var(--primary); }
+  .score-chip.lead { background:rgba(60,122,80,.12); color:var(--success); }
+  .score-chip.gap { background:rgba(155,74,67,.12); color:var(--error); }
+  .chart-frame { background:#ffffff; border:1px solid var(--border); border-radius:6px; padding:14px 16px; }
+  .chart-cap { font-family:var(--font-num); font-size:10px; letter-spacing:1.4px; color:var(--text-muted); text-transform:uppercase; margin-top:8px; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-chip">06 · FUNKCIJSKA MATRIKA</div>
+
+  <div class="mt-10">
+    <h1 class="slide-title">Radarska primerjava funkcionalne pokritosti</h1>
+    <h2 class="slide-subtitle">RestaurantOS vs Toast, Square, Lightspeed po 6 kategorijah</h2>
+  </div>
+
+  <div class="grid grid-cols-12 gap-7 mt-7" style="height:478px;">
+    <!-- LEFT 60% - chart -->
+    <div class="col-span-7 chart-frame flex flex-col">
+      <div class="flex items-baseline justify-between mb-2">
+        <div>
+          <div class="font-num text-[10px] tracking-[1.6px] uppercase text-[color:var(--accent)] font-semibold">Slika 6.1</div>
+          <div class="font-heading text-[15px] font-bold text-[color:var(--text)]">Pokritost po 6 funkcionalnih osjah</div>
+        </div>
+        <div class="flex items-center gap-3 text-[11px] text-[color:var(--text-muted)]">
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm" style="background:var(--accent)"></span>RestaurantOS</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm" style="background:var(--primary)"></span>Toast</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm" style="background:var(--primary-light)"></span>Square</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm" style="background:var(--text-muted)"></span>Lightspeed</span>
+        </div>
+      </div>
+      <div class="flex-1 flex items-center justify-center">
+        <img src="../../scripts/charts/feature_radar.png" alt="Radarski diagram funkcionalne pokritosti RestaurantOS vs Toast, Square, Lightspeed" style="width:100%; max-height:410px; object-fit:contain;">
+      </div>
+      <div class="chart-cap">Vir: interna analiza · lestvica 0–10 · 6 kategorij · n=11 tekmencev</div>
+    </div>
+
+    <!-- RIGHT 40% - 3 insights -->
+    <div class="col-span-5 flex flex-col gap-3">
+      <div class="font-num text-[10px] tracking-[1.6px] uppercase text-[color:var(--primary)] font-semibold flex items-center gap-2">
+        <span class="w-6 h-px bg-[color:var(--accent)]"></span>KLJUČNE UGOTOVITVE
+      </div>
+
+      <div class="insight-card pl-5">
+        <div class="flex items-center justify-between">
+          <div class="insight-num">01 · MULTI-TENANT LIDER</div>
+          <span class="score-chip lead">ROS 9.5 / Toast 9.0</span>
+        </div>
+        <div class="insight-title">Multi-tenant arhitektura vodi</div>
+        <div class="insight-body">RestaurantOS dosega 9.5/10 v multi-tenant izolaciji z 8-tabelno arhitekturo, Toast le 9.0. Edini slovenski POS s pravo SaaS izolacijo.</div>
+      </div>
+
+      <div class="insight-card pl-5">
+        <div class="flex items-center justify-between">
+          <div class="insight-num">02 · VEČJEZIČNOST MOČNA</div>
+          <span class="score-chip lead">ROS 9.0 / Toast 5.0</span>
+        </div>
+        <div class="insight-title">5 jezikov podprto v jedru</div>
+        <div class="insight-body">ROS 9.0/10 za sl/en/it/hr/de z lokalizacijo davkov. Toast le 5.0/10 — prevod je dodaten paket, kar otežuje EU širitev.</div>
+      </div>
+
+      <div class="insight-card pl-5">
+        <div class="flex items-center justify-between">
+          <div class="insight-num">03 · PLAČILA GLAVNA VRZEL</div>
+          <span class="score-chip gap">ROS 0.0 / Toast 9.5</span>
+        </div>
+        <div class="insight-title">Brez plačilnega gateway-a</div>
+        <div class="insight-body">ROS 0/10 za integrirana plačila (Stripe/SumUp). Toast 9.5/10. P0-2 v roadmapu odpravlja vrzel v 8 tednih.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <span>RestaurantOS · 2025</span>
+    <span>Stran 6 / 14</span>
+  </div>
+
+  <aside data-notes class="hidden">
+    - Poudari: ROS vodi v multi-tenant in večjezičnosti — dve osi, ki definirata SaaS POS.
+    - Opozori na plačilno vrzel: 0/10 je blokator za prodajo, rešuje ga P0-2 (8 tednov).
+    - Toast zmaga v plačilih, mobilni izkušnji in KDS — tri vrzeli, ki jih naslavljamo v naslednjih treh slide-ih.
+    - Lightspeed in Square blizu Toastu v plačilih, a šibki v večjezičnosti.
+    - Skupni seštevek: ROS zmaga v 2/6 kategorijah, izenačen v 1, zaostaja v 3.
+  </aside>
+</div>
+</body>
+</html>

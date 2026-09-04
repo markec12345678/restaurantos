@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8">
+<title>RestaurantOS · Cenovni položaj</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+<link rel="stylesheet" href="global.css">
+<style>
+  .chart-frame { background:#ffffff; border:1px solid var(--border); border-radius:6px; padding:14px 16px; display:flex; flex-direction:column; }
+  .chart-cap { font-family:var(--font-num); font-size:10px; letter-spacing:1.4px; color:var(--text-muted); text-transform:uppercase; margin-top:8px; }
+  .price-row { display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:6px; border:1px solid var(--border); background:#fff; }
+  .price-row.lead { background:rgba(60,122,80,.06); border-color:#c8dccf; }
+  .price-row .label { font-family:var(--font-num); font-size:10px; letter-spacing:1.4px; color:var(--text-muted); text-transform:uppercase; }
+  .price-row .name { font-family:var(--font-heading); font-size:14px; font-weight:700; color:var(--text); margin-top:1px; }
+  .price-row .num { font-family:var(--font-num); font-size:22px; font-weight:700; line-height:1; }
+  .price-row .badge { font-family:var(--font-num); font-size:10px; font-weight:600; padding:3px 8px; border-radius:3px; }
+  .price-bar { flex:1; height:6px; border-radius:100px; background:var(--card-soft); overflow:hidden; position:relative; }
+  .price-bar > span { display:block; height:100%; border-radius:100px; }
+  .strategy-card { background:var(--bg-dark); color:#fff; border-radius:6px; padding:14px 16px; }
+  .strategy-card .label { font-family:var(--font-num); font-size:10px; letter-spacing:1.6px; color:var(--accent-light); text-transform:uppercase; }
+  .strategy-card .body { font-size:13px; line-height:1.45; margin-top:6px; color:#ecebe7; }
+  .strategy-card .formula { font-family:var(--font-num); font-size:13px; color:#fff; margin-top:6px; padding:6px 10px; background:rgba(255,255,255,.08); border-radius:4px; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="slide-chip">09 · CENOVNI POLOŽAJ</div>
+
+  <div class="mt-10 flex items-end justify-between">
+    <div>
+      <h1 class="slide-title">4× ceneje od Toast, 2× ceneje od Square</h1>
+      <h2 class="slide-subtitle">TCO za 3 leta — skupni lastniški strošek</h2>
+    </div>
+    <div class="flex items-center gap-2 mb-1">
+      <span class="pill">3-letni TCO</span>
+      <span class="pill pill-dark">EUR · brez DDV</span>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-12 gap-6 mt-6" style="height:476px;">
+    <!-- LEFT 65% - chart -->
+    <div class="col-span-8 chart-frame">
+      <div class="flex items-baseline justify-between mb-2">
+        <div>
+          <div class="font-num text-[10px] tracking-[1.6px] uppercase text-[color:var(--accent)] font-semibold">Slika 9.1</div>
+          <div class="font-heading text-[15px] font-bold text-[color:var(--text)]">TCO za 3 leta — primerjava 6 tekmencev</div>
+        </div>
+        <div class="text-[11px] text-[color:var(--text-muted)]">Vir: ceniki 2025 · 1 lokacija</div>
+      </div>
+      <div class="flex-1 flex items-center justify-center">
+        <img src="../../scripts/charts/tco_3yr.png" alt="Stolpični diagram TCO za 3 leta — primerjava RestaurantOS, Toast, Square, Lightspeed, EdiPlug, Racuni.com" style="width:100%; max-height:400px; object-fit:contain;">
+      </div>
+      <div class="chart-cap">Vključuje: mesečna licenca + transakcijske stroške + onboarding · 3-letno obdobje</div>
+    </div>
+
+    <!-- RIGHT 35% - value prop -->
+    <div class="col-span-4 flex flex-col gap-3">
+      <div class="font-num text-[10px] tracking-[1.6px] uppercase text-[color:var(--primary)] font-semibold flex items-center gap-2">
+        <span class="w-6 h-px bg-[color:var(--accent)]"></span>VALUE PROPOSITION
+      </div>
+
+      <div class="price-row lead">
+        <div class="flex-1">
+          <div class="label">ROS · TCO 3 leta</div>
+          <div class="name">RestaurantOS</div>
+          <div class="price-bar mt-2"><span style="width:25.9%; background:var(--success);"></span></div>
+        </div>
+        <div class="text-right">
+          <div class="num text-[color:var(--success)]">2.200 €</div>
+          <div class="badge" style="background:rgba(60,122,80,.16); color:var(--success);">BASELINE</div>
+        </div>
+      </div>
+
+      <div class="price-row">
+        <div class="flex-1">
+          <div class="label">Square · TCO 3 leta</div>
+          <div class="name">Square POS</div>
+          <div class="price-bar mt-2"><span style="width:63.5%; background:var(--primary);"></span></div>
+        </div>
+        <div class="text-right">
+          <div class="num text-[color:var(--primary)]">5.400 €</div>
+          <div class="badge" style="background:rgba(104,95,70,.14); color:var(--primary);">2,5× dražje</div>
+        </div>
+      </div>
+
+      <div class="price-row">
+        <div class="flex-1">
+          <div class="label">Toast · TCO 3 leta</div>
+          <div class="name">Toast POS</div>
+          <div class="price-bar mt-2"><span style="width:100%; background:var(--error);"></span></div>
+        </div>
+        <div class="text-right">
+          <div class="num text-[color:var(--error)]">8.500 €</div>
+          <div class="badge" style="background:rgba(155,74,67,.14); color:var(--error);">4× dražje</div>
+        </div>
+      </div>
+
+      <div class="strategy-card">
+        <div class="label">Cenovna strategija</div>
+        <div class="body">Freemium SaaS model s treh-stopenjsko strukturo:</div>
+        <div class="formula">49 €/mes + 2,5 % + 0,10 € / transakcija</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="slide-footer">
+    <span>RestaurantOS · 2025</span>
+    <span>Stran 9 / 14</span>
+  </div>
+
+  <aside data-notes class="hidden">
+    - ROS TCO 2.200 EUR za 3 leta — 4× ceneje od Toast (8.500 EUR), 2,5× od Square (5.400 EUR).
+    - Cenovna strategija: 49 EUR/mes osnovna licenca + 2,5 % + 0,10 EUR na transakcijo — poravnano z gostinskim modelom.
+    - Squaresse in Toast zahtevata večletne pogodbe z lock-in; ROS omogoča mesečno odpoved.
+    - Ekonomska ovira za preklop: prihravek 6.300 EUR/3leta financira trimesečni onboarding nove stranke.
+    - Cilj: ohraniti 49 EUR/mes kot "anchor price" — konkurenca Toast/Square ga ne more zasesti brez odpovedi globalne cene.
+  </aside>
+</div>
+</body>
+</html>
