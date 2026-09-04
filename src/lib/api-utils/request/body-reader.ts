@@ -47,6 +47,19 @@ export async function readAndParseBody(
     }
   }
 
+  // FIX DEEP 66: Preveri Content-Type header (prepreči CSRF z multipart/form-data)
+  const contentType = req.headers.get('content-type') || ''
+  if (!contentType.includes('application/json') && !contentType.includes('text/plain') && contentType !== '') {
+    logger.warn('API', `Zavrnjen Content-Type: ${contentType}`)
+    return {
+      data: null,
+      error: NextResponse.json(
+        { error: 'Content-Type mora biti application/json' },
+        { status: 415 }
+      ),
+    }
+  }
+
   // 2. Preberi body z omejitvijo branjem
   let bodyText: string
   try {
