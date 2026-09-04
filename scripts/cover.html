@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8">
+<title>RestaurantOS - Tekmovalna analiza</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=Noto+Serif:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  @page { size: 794px 1123px; margin: 0; }
+  html, body { margin: 0; padding: 0; width: 794px; height: 1123px; background: #f3f2f1; font-family: 'Inter', 'Noto Serif', sans-serif; color: #1d1c1a; }
+  .cover-page { position: relative; width: 794px; height: 1123px; background: #f3f2f1; overflow: visible; }
+  .layer-1 { position: absolute; inset: 0; z-index: 1; overflow: hidden;
+    background-image: linear-gradient(to right, rgba(104,95,70,0.04) 1px, transparent 1px), linear-gradient(to bottom, rgba(104,95,70,0.04) 1px, transparent 1px);
+    background-size: 50px 50px; }
+  .layer-2 { position: absolute; inset: 0; z-index: 2; }
+  .anchor-line { position: absolute; left: 95px; top: 112px; width: 6px; height: 899px; background: #685f46; }
+  .corner-mark-tl, .corner-mark-tr, .corner-mark-bl, .corner-mark-br { position: absolute; width: 24px; height: 24px; }
+  .corner-mark-tl { top: 56px; left: 56px; border-top: 2px solid #86702b; border-left: 2px solid #86702b; }
+  .corner-mark-tr { top: 56px; right: 56px; border-top: 2px solid #86702b; border-right: 2px solid #86702b; }
+  .corner-mark-bl { bottom: 56px; left: 56px; border-bottom: 2px solid #86702b; border-left: 2px solid #86702b; }
+  .corner-mark-br { bottom: 56px; right: 56px; border-bottom: 2px solid #86702b; border-right: 2px solid #86702b; }
+  .stat-pill { position: absolute; top: 145px; right: 56px; display: flex; gap: 18px; align-items: center; padding: 8px 16px; border: 1px solid #d1c9b3; background: rgba(255,255,255,0.6); font-family: 'JetBrains Mono', monospace; font-size: 10px; letter-spacing: 1.5px; color: #685f46; text-transform: uppercase; }
+  .stat-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: #3c7a50; }
+  .layer-3 { position: absolute; inset: 0; z-index: 3; padding: 0; }
+  .kicker { top: 168px; position: absolute; left: 155px; right: 80px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; letter-spacing: 3px; color: #685f46; opacity: 0.7; text-transform: uppercase; }
+  .hero-title { position: absolute; top: 270px; left: 155px; right: 80px; font-family: 'Noto Serif', serif; font-size: 56px; font-weight: 900; line-height: 1.15; color: #1d1c1a; letter-spacing: -1px; }
+  .hero-title .accent-word { color: #86702b; font-style: italic; font-weight: 700; }
+  .hero-title .small-cap { display: block; font-size: 28px; font-weight: 500; color: #685f46; letter-spacing: 0; margin-top: 6px; }
+  .summary { position: absolute; top: 545px; left: 155px; width: 480px; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 1.7; color: #1d1c1a; opacity: 0.85; font-weight: 400; }
+  .summary strong { color: #86702b; font-weight: 600; }
+  .stats-row { position: absolute; top: 740px; left: 155px; right: 80px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border-top: 1px solid #d1c9b3; border-bottom: 1px solid #d1c9b3; padding: 16px 0; }
+  .stat-cell { border-right: 1px solid #d1c9b3; padding: 0 12px; }
+  .stat-cell:last-child { border-right: none; }
+  .stat-cell .num { font-family: 'Noto Serif', serif; font-size: 32px; font-weight: 900; color: #86702b; line-height: 1; margin-bottom: 4px; }
+  .stat-cell .lbl { font-family: 'Inter', sans-serif; font-size: 9px; letter-spacing: 1.5px; color: #8a8881; text-transform: uppercase; font-weight: 500; }
+  .competitor-tags { position: absolute; top: 880px; left: 155px; right: 80px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { font-family: 'JetBrains Mono', monospace; font-size: 9px; padding: 4px 10px; border: 1px solid #d1c9b3; background: rgba(255,255,255,0.5); color: #685f46; letter-spacing: 1px; text-transform: uppercase; }
+  .tag.highlight { background: #685f46; color: #fff; border-color: #685f46; }
+  .meta { position: absolute; top: 990px; left: 155px; right: 80px; display: flex; justify-content: space-between; align-items: flex-end; }
+  .meta .left { font-family: 'Inter', sans-serif; font-size: 11px; color: #1d1c1a; line-height: 1.5; }
+  .meta .left .label { font-size: 9px; color: #8a8881; letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 2px; display: block; }
+  .meta .left .value { font-weight: 600; color: #1d1c1a; font-size: 13px; }
+  .meta .right { text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #8a8881; letter-spacing: 1.5px; text-transform: uppercase; }
+  .ghost-num { position: absolute; top: 80px; right: 95px; font-family: 'Noto Serif', serif; font-size: 160px; font-weight: 900; color: #86702b; opacity: 0.04; line-height: 0.8; z-index: 1; }
+</style>
+</head>
+<body>
+<div class="cover-page">
+  <div class="layer-1"></div>
+  <div class="ghost-num">11</div>
+  <div class="layer-2">
+    <div class="anchor-line"></div>
+    <div class="corner-mark-tl"></div>
+    <div class="corner-mark-tr"></div>
+    <div class="corner-mark-bl"></div>
+    <div class="corner-mark-br"></div>
+    <div class="stat-pill"><div class="dot"></div><span>BENCHMARK 2025 · v1.0</span></div>
+  </div>
+  <div class="layer-3">
+    <div class="kicker">TEKMOVALNA ANALIZA · BENCHMARK · 2025</div>
+    <div class="hero-title">Restaurant<span class="accent-word">OS</span>
+      <span class="small-cap">Globoka primerjava s TOP 11 tekmeci</span>
+    </div>
+    <div class="summary">Analiza <strong>100+ funkcij</strong> v šestih kategorijah, vizualni benchmark (UI screenshots, design system, UX flow) in cenovna primerjava z globalnimi vodji (Toast, Square, Lightspeed, Clover) ter slovenskimi tekmeci (EdiPlug, Racuni.com, IRIS). Vključuje SWOT analizo in roadmapo za naslednjih <strong>12 mesecev</strong>.</div>
+    <div class="stats-row">
+      <div class="stat-cell"><div class="num">11</div><div class="lbl">Tekmencev</div></div>
+      <div class="stat-cell"><div class="num">100+</div><div class="lbl">Funkcij</div></div>
+      <div class="stat-cell"><div class="num">6</div><div class="lbl">Kategorij</div></div>
+      <div class="stat-cell"><div class="num">3</div><div class="lbl">Vizualne dim.</div></div>
+    </div>
+    <div class="competitor-tags">
+      <span class="tag highlight">RestaurantOS</span>
+      <span class="tag">Toast</span><span class="tag">Square</span><span class="tag">Lightspeed</span>
+      <span class="tag">Clover</span><span class="tag">TouchBistro</span><span class="tag">Lavu</span>
+      <span class="tag">GloriaFood</span><span class="tag">Shopify POS</span><span class="tag">EdiPlug</span>
+      <span class="tag">Racuni.com</span><span class="tag">IRIS</span>
+    </div>
+    <div class="meta">
+      <div class="left"><span class="label">Pripravljeno</span><span class="value">September 2025</span></div>
+      <div class="right">RestaurantOS · v1.0.0 · Internal Analysis</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
