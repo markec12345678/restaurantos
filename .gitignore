@@ -86,9 +86,9 @@ agent-ctx/
 worklog*.md
 worklog*.json
 
-# Upload / download scratch directories
+# Upload scratch directory (download/ contains committed deliverables)
 upload/
-download/
+!download/
 
 # Skill packages (external tooling)
 skills/
