@@ -127,7 +127,7 @@ export async function handlePostOrder(
       // če miza ne obstaja (npr. izbrisan medtem ko je bila v košarici).
       const tableExists = await tx.table.findUnique({ where: { id: data.tableId }, select: { id: true } })
       if (tableExists) {
-        await tx.table.update({ where: { id: data.tableId }, data: { status: 'occupied' } })
+        await tx.table.updateMany({ where: { id: data.tableId, status: { in: ["available", "occupied"] } }, data: { status: "occupied" } })
       }
       // Če miza ne obstaja, ignoriramo — naročilo se ustvari brez mize
     }

@@ -11,6 +11,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { checkRateLimit, getClientIp, AI_ASSISTANT_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
@@ -25,6 +26,8 @@ export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'view_reports' })
     if (authResult.error) return authResult.error
+    const rl = checkRateLimit('ai-nl-query', getClientIp(req), AI_ASSISTANT_LIMIT)
+    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error

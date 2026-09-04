@@ -6,13 +6,14 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
+import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { isSmsConfigured, sendSms, type SmsMessage } from '@/lib/sms'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
 
 const sendSchema = z.object({
-  to: z.string().min(6, 'Telefonska številka je obvezna'),
+  to: z.string().min(6, "Telefonska številka je obvezna").regex(/^[+]?[0-9]{6,15}$/, "Telefonska številka mora biti v E.164 formatu (npr. +38641234567)"),
   body: z.string().min(1, 'Sporočilo je obvezno').max(1600, 'Sporočilo ne sme preseči 1600 znakov'),
   type: z.enum(['reservation', 'order_ready', 'loyalty', 'marketing', 'transactional']).default('transactional'),
 })
@@ -21,6 +22,8 @@ export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
+    const rl = checkRateLimit('sms', getClientIp(req), AUTHENTICATED_LIMIT)
+    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
     return NextResponse.json({
       configured: isSmsConfigured(),
@@ -36,6 +39,8 @@ export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
+    const rl = checkRateLimit('sms', getClientIp(req), AUTHENTICATED_LIMIT)
+    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error
