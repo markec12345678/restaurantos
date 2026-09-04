@@ -2,173 +2,137 @@
 
 **Datum:** September 2025  
 **Status:** Aktivno spremljanje  
-**Realna varnostna ocena:** A+ (ne A+++)
+**Realna varnostna ocena:** A- (ne A+ ali A+++)  
+**Realna splošna ocena:** 8.6/10 — pilot-ready with known risks
 
 ---
 
 ## ⚠️ Pomembno
 
-README in Security Audit sta bila prej označena z "A+++", kar je bilo **pretirano**. GitHub Issue tracker kaže 4 HIGH in 4 MEDIUM odprte težave, ki jih je treba urediti pred pravo produkcijsko uporabo. Realna ocena je **A+** (dobra, a ne popolna).
+README je bil prej označen z "A+++", kar je bilo **pretirano**. Po globokem pregledu dejanske kode (ne samo povzetka) je realna ocena **A-** z 3 HIGH odprtimi težavami in 6 MEDIUM odprtimi težavami, ter dodatnimi arhitekturnimi vprašanji.
 
 ---
 
-## HIGH severity (4 odprte)
+## HIGH severity (3 odprte, 1 fixed)
 
 ### #34 — CSP `unsafe-inline` za styles v production
-- **Status:** ✅ FIXED (commit v tem PR)
-- **Problem:** `style-src` je vseboval `'unsafe-inline'`, kar omogoča XSS preko inline stilov
-- **Popravek:** `style-src` sedaj uporablja per-request nonce (enako kot `script-src`). Popolnoma odstranjen `'unsafe-inline'` iz vseh CSP direktiv (middleware + next.config.ts fallback)
-- **Datotke:** `src/lib/middleware/security-headers.ts`, `next.config.ts`
+- **Status:** ✅ FIXED (commit b750ee70)
+- **Problem:** `style-src` je vseboval `'unsafe-inline'`
+- **Popravek:** `style-src` sedaj uporablja per-request nonce
+
+### #39 — Rate-limit FAIL-OPEN v produkciji z Redis
+- **Status:** 🔴 NI REŠEN (prej napačno označen kot FIXED)
+- **Problem:** `checkRateLimit()` je sync funkcija, ki kliče async `cache.increment()`. Če je Redis adapter aktiven, async rezultat ni takoj na voljo → **FAIL-OPEN** (dovoli request brez rate limit). To je varnostna napaka.
+- **Koda:** `src/lib/rate-limit/core.ts` vrstica 108: `return { allowed: true }` ko Redis ne odgovori
+- **Popravek (P1, Q1 2026):**
+  1. Migriraj vse 52 sync call-site-e na `checkRateLimitAsync()` z `await`
+  2. Odstrani sync `checkRateLimit()` ali označi kot `@deprecated`
+  3. MemoryCacheAdapter naj implementira async interface
+  4. Preveri da noben production path ne fail-open
+- **Tveganje:** Brez pravilnega rate limit-a so brute-force in DDoS napadi možni
 
 ### #32 — Subscription (SaaS tenant root) je opcijski
-- **Status:** 🔄 Načrtovano (P1, Q1 2026)
-- **Problem:** `Location.subscriptionId` je `String?` (opcijsko). V multi-tenant SaaS mora biti obvezen — vsaka lokacija mora imeti subscription
-- **Načrt:** 
-  1. Dodaj migration: `subscriptionId String` (obvezno)
-  2. Backfill: ustvari "default" subscription za obstoječe lokacije
-  3. Posodobi API: pri ustvarjanju Location zahtevaj subscriptionId
-- **Tveganje:** Brez obveznega subscriptionId ne moremo zaračunavati po lokacijah
+- **Status:** 🔴 Odprt (P1, Q1 2026)
+- **Problem:** `Location.subscriptionId` je `String?` (nullable). V multi-tenant SaaS mora biti obvezen.
+- **Načrt:** Migration + backfill + API validacija
 
-### #31 — Accounting modeli imajo opcijski locationId
-- **Status:** 🔄 Načrtovano (P1, Q1 2026)
-- **Problem:** `JournalEntry.locationId` in `JournalLine.locationId` sta `String?` (opcijsko). Multi-tenant računovodstvo ne deluje pravilno — nekatere transakcije "plavajo" brez lokacije
+### #46 — Secrets shranjeni v DB brez encryption-at-rest (NOVO)
+- **Status:** 🔴 Odprt (P1, Q1 2026)
+- **Problem:** `RestaurantSettings.emailSmtpPassword` je plaintext `String`. Schema komentira "naj bo encrypted v produkciji" ampak to ni implementirano. Enako za `apiKeys` (JSON string z hashed API ključi, a sam JSON je plaintext).
+- **Prizadeti secreti:**
+  - `RestaurantSettings.emailSmtpPassword` — plaintext SMTP geslo
+  - `RestaurantSettings.apiKeys` — JSON z API ključi
+  - `Location.fursCertPassword` — plaintext FURS cert geslo
 - **Načrt:**
-  1. Dodaj migration: `locationId String` (obvezno) na JournalEntry in JournalLine
-  2. Backfill: assign obstoječe vnose na prvo aktivno lokacijo
-  3. API: pri ustvarjanju JournalEntry zahtevaj locationId
-  4. ChartOfAccount ostaja brez locationId (globalni kontni plan — pravilno)
-- **Tveganje:** Brez obveznega locationId so poročila po lokacijah nepopolna
+  1. Implementiraj `encrypt()` / `decrypt()` z AES-256-GCM
+  2. Encryption key iz environment variable (ENCRYPTION_KEY)
+  3. Migration: encrypt obstoječe plaintext secret-e
+  4. Application layer: vedno `decrypt()` pred uporabo
+- **Tveganje:** Kompromis baze = izpostavljeni SMTP, FURS, API credentials
+
+---
+
+## MEDIUM severity (6 odprtih)
+
+### #31 — Accounting modeli imajo opcijsni locationId
+- **Status:** 🔄 Odprt (P1, Q1 2026)
+- **Problem:** `JournalEntry.locationId` in `JournalLine.locationId` sta `String?`. Možen inconsistency: `JournalLine.locationId != JournalEntry.locationId`.
+- **Rešitev:** Ali (A) odstrani JournalLine.locationId in JOIN na JournalEntry, ali (B) NOT NULL + application invariant
 
 ### #33 — 20+ JSON-as-String polj namesto Prisma `Json` tipa
-- **Status:** 🔄 Načrtovano (P2, Q2 2026)
-- **Problem:** Polja kot `OrderItem.modifiersJson`, `MenuItem.allergens`, `Guest.dietaryPrefs` itd. uporabljajo `String @default("[]")` namesto `Json` tipa. To pomeni:
-  - Ni type safety (JSON parse errorji ob runtime)
-  - Ni DB-level validacije
-  - Težje query-anje (WHERE na JSON vsebini)
-- **Prizadeta polja (20+):**
-  - `OrderItem.modifiersJson`, `KotDocument.itemsJson`
-  - `MealtimeRule.daysOfWeek`, `HappyHourSchedule.daysOfWeek`
-  - `MenuItem.allergens`, `MenuItem.dietaryPrefs`
-  - `Guest.allergens`, `Guest.dietaryPrefs`, `Guest.dislikes`, `Guest.favoriteItems`
-  - `DeliveryZone.postCodes`, `DeliveryZone.cities`
-  - `Webhook.events`, `IntegrationLog.details`
-  - `Supplier.deliveryDays`, `Discount.appliesToIds`
-  - `RestaurantSettings.apiKeys`, `RestaurantSettings.emailReportRecipients`
+- **Status:** 🔄 Odprt (P2, Q2 2026)
+
+### #45 — Inconsistent tenant scope across 30+ location-linked models (NOVO)
+- **Status:** 🔄 Odprt (HIGH/MEDIUM, P1 Q1 2026)
+- **Problem:** README pravi "8 tabel z locationId", a dejansko je **30 modelov** z `locationId String?`. Nekateri so pravilno nullable (globalni kontni plan), drugi bi morali biti obvezni. Ni jasno definirano kateri modeli so tenant-scoped in kateri globalni.
 - **Načrt:**
-  1. Migration: spremeni `String @default("[]")` → `Json @default("[]")` 
-  2. Data migration: parse obstoječe JSON stringe v pravi Json
-  3. Posodobi vse read/write call site-e (odstrani `JSON.parse()` / `JSON.stringify()`)
-  4. Dodaj Zod validacijo za JSON strukturo
-
----
-
-## MEDIUM severity (4 odprte)
-
-### #39 — In-memory rate-limit in WebAuthn challenge storage
-- **Status:** 🔄 Načrtovano (P1, Q1 2026)
-- **Problem:** `rate-limit/core.ts` uporablja `new Map()` za shranjevanje. Na Vercel (serverless) je vsak API klic v novi funkciji — Map je vedno prazen. Enako za `session-cache.ts` in WebAuthn challenge storage.
-- **Posledica:** Rate limiting ne deluje pravilno v produkciji (vsak klic začne s prazno Map). WebAuthn challenge-i se izgubijo med klici.
-- **Načrt:**
-  1. Implementiraj Redis adapter (Upstash Redis — free tier, serverless-friendly)
-  2. Zamenjaj `MemoryCacheAdapter` z `RedisCacheAdapter` v rate-limit
-  3. WebAuthn challenge-i shranjuj v Redis z 5-minutno TTL
-  4. Session cache: ohrani DB-backed (že delno implementirano v `session-lifecycle.ts`)
-- **Workaround (trenutno):** DB-backed session check (že implementirano), FURS rate limit se zanaša na audit log
+  1. Sistematičen audit vseh 30 modelov z locationId
+  2. Klasificiraj: obvezni tenant-scoped vs. globalni vs. opcijski
+  3. Za obvezne: migration NOT NULL + API validacija
+  4. Dokumentiraj tenant scope v ARCHITECTURE.md
 
 ### #37 — Podvojeni FURS fields (RestaurantSettings vs Location)
-- **Status:** 🔄 Načrtovano (P2, Q2 2026)
-- **Problem:** `RestaurantSettings` ima `fursCertPath`, `fursCertPassword`, `fursEnvironment` — duplikat `Location` polj. Config resolver (`config-resolver.ts`) obstaja z 4-nivojskim fallback, a polja so še vedno podvojena.
-- **Načrt:**
-  1. Označi RestaurantSettings FURS polja kot `@deprecated`
-  2. Migration: kopiraj vrednosti iz RestaurantSettings → Location (za single-tenant deploy)
-  3. Odstrani FURS polja iz RestaurantSettings (breaking change — major version bump)
-  4. Posodobi config-resolver: odstrani RestaurantSettings fallback
-- **Workaround (trenutno):** Config resolver uporablja Location first, RestaurantSettings samo kot fallback
+- **Status:** 🔄 Odprt (P2, Q2 2026)
 
 ### #36 — Shift vs StaffShift ~80% overlap
-- **Status:** 🔄 Načrtovano (P2, Q2 2026)
-- **Problem:** `Shift` in `StaffShift` modela imata ~80% enakih polj (employeeId, date, startTime, endTime, status, locationId, notes). To povzroča zmedo in duplikacijo logike.
-- **Načrt:**
-  1. Izberi `StaffShift` kot primarni (ima več funkcij: shiftType, role, confirmedAt)
-  2. Migration: premakni podatke iz Shift → StaffShift
-  3. Odstrani `Shift` model
-  4. Posodobi vse API-je in UI, ki referencirajo Shift
-  5. `getUnifiedShifts()` helper lahko odstranimo
-- **Workaround (trenutno):** `getUnifiedShifts()` helper združi oba modela v skupen format
+- **Status:** 🔄 Odprt (P2, Q2 2026)
 
 ### #35 — Hash chain polja na GuestVisit in TipDistribution niso populirana
-- **Status:** 🔄 Načrtovano (P1, Q1 2026)
-- **Problem:** `GuestVisit` in `TipDistribution` imata `previousHash` in `chainHash` polja (za kriptografsko zaščito po EU 852/2004), a se nikoli ne polnita (default `""`).
-- **Načrt:**
-  1. Ustvari utility `computeChainHash()` v `src/lib/audit/chain-hash.ts`
-  2. Pri ustvarjanju GuestVisit/TipDistribution: izračunaj chainHash iz prejšnjega vnosa
-  3. Backfill: izračunaj chainHash za obstoječe zapise
-  4. Dodaj verify endpoint (podobno kot audit log)
-- **Tveganje:** Brez chain hash so GuestVisit/TipDistribution podatki lahko nepopravljeni (brez detekcije)
+- **Status:** 🔄 Odprt (P1, Q1 2026)
+- **Problem:** `previousHash` in `chainHash` polja obstajajo a so vedno `""`.
+- **Pravna referenca popravljena:** Prej je dokumentacija napačno sklicevala na "EU 852/2004" (uredba o higieni živil). To NI pravna podlaga za hash chain. Pravilno: "tamper-evident audit trail" brez specifične pravne reference.
 
 ---
 
-## LOW severity (3 odprte, dokumentirane)
+## REZERVACIJE — Overlap problem (NOVO)
 
-### #43 — 9+ soft reference String polj bi morala biti FK do Employee
-- **Status:** 📝 Dokumentirano (P3)
-- **Problem:** Polja kot `JournalEntry.postedBy` so `String?` namesto FK do Employee
-- **Popravek:** `postedById String?` + FK relacija (že delno implementirano za JournalEntry)
-
-### #41 — 0 enumov, 20+ status/type polj so free-text String
-- **Status:** 📝 Dokumentirano (P3)
-- **Problem:** Polja kot `Order.status`, `Payment.status` so `String` namesto enum
-- **Popravek:** Prisma `enum` tip (ali `as const` union tipi v TypeScript)
-
-### #44 — 3 vzporedni i18n sistemi — konsolidiraj v next-intl
-- **Status:** 📝 Dokumentirano (P3)
-- **Problem:** next-intl + custom JSON translations + hardcoded slovenščina
-- **Popravek:** Migracija vsega na next-intl (glej ADR-012)
+### #47 — Reservation overlap ni preprečen na DB nivoju (NOVO)
+- **Status:** 🔄 Odprt (MEDIUM, P1 Q1 2026)
+- **Problem:** `Reservation` ima `@@unique([tableId, dateTime])` ki prepreči duplikat (ista miza, isti čas), a NE prepreči **overlap-a**:
+  - Rezervacija 1: Miza 5, 19:00, trajanje 120 min (19:00-21:00)
+  - Rezervacija 2: Miza 5, 20:00, trajanje 120 min (20:00-22:00)
+  - Obe sta unikatni (različen dateTime), a se prekrivata!
+- **Popravek:**
+  1. Application-level: `handleCreateReservation()` naj preveri overlap (mora že delati, a ni garantiran)
+  2. DB-level: PostgreSQL `EXCLUDE` constraint z `tsrange` za preprečevanje overlap-a
+  3. Race condition: transaction + `SELECT ... FOR UPDATE` ali `SERIALIZABLE` isolation
+- **Tveganje:** Dvojna rezervacija mize v produkciji
 
 ---
 
-## DOKUMENTACIJSKE NESKLANDNOSTI (2 odprte)
+## DOKUMENTACIJSKE NESKLADNOSTI
 
-### KDS paradoks — implementiran a označen kot "P1 načrtovan"
-- **Status:** ✅ FIXED v tem commit-u (README posodobljen)
-- **Problem:** README je KDS označeval kot "⏳ P1" (načrtovan), a KDS je **polno implementiran**:
-  - `src/app/kds/` — celoten KDS UI (KDSOrderGrid, OrderCard, KDSHeader, KDSLogin, ElapsedTimer, sound alerts)
-  - `src/app/api/kitchen/` — API rute (GET active orders, matrix)
-  - `src/lib/websocket-client/use-kitchen-websocket/` — real-time WebSocket z auto-reconnect
-  - `src/components/pos/kitchen/` in `src/components/pos/kitchen-station/` — komponente
-  - Features: grid/list view, station filter (kitchen/bar/pastry/grill), bump orders, recall, fullscreen, sound, elapsed timers
-  - Prisma: `firedAt` za timing, `PrepStation` model, `type` field za postaje
-- **Popravek:** README posodobljen — KDS status spremenjen iz "⏳ P1" v "✅", roadmap P1-2 označen kot `[x]`
+### README competitive table — A+++ → A+ (FIXED)
+- **Status:** ✅ FIXED v tem commit-u
 
-### Test rezultati — 5 odprtih testov (ne "production-perfect")
-- **Status:** 📝 Dokumentirano
-- **Problem:** README je trdil "144/149 PASS (96.6%)" brez pripombe o 5 odprtih testih. To je dober rezultat, a ne "production-perfect".
-- **5 odprtih testov:**
-  1. **FURS Server Down: 5/6** — 1 test faila (FURS recovery scenario)
-  2. **Offline Conflict: 8/9** — 1 test faila (conflict resolution edge case)
-  3. **Shared Resources: 39/40** — 1 test faila (multi-tenant isolation edge case)
-  4. **Super-admin: 9/10** — 1 test faila (cross-branch audit log)
-  5. **Security HIGH: 2/4** — 2 testa failata (povezani z #34 CSP ki je sedaj FIXED, in #39 rate-limit)
-- **Popravek:** README posodobljen z linkom na Known Issues, ocena spremenjena iz "production-perfect" v "96.6% PASS — 5 odprtih"
-- **Realna ocena:** 8.7/10 (dober, a ne popoln)
+### KDS paradoks (FIXED)
+- **Status:** ✅ FIXED — KDS je implementiran, README posodobljen
+
+### Security Audit PDF — A++ (zastarelo)
+- **Status:** 📝 PDF označi kot "Historical audit — superseded by current security review"
+- README link še vedno pravi "A++ security score" — posodobiti opis
+
+### PWA vs Offline zmeda
+- **Status:** 📝 README pravi "Offline ✅" in "PWA ⏳" — to je lahko zavajujoče
+- Pojasnilo: Offline infrastruktura (IndexedDB, SW cache) deluje, a popoln PWA (installable, push notifications) še ni produkcijsko-ready
+
+### Admin PIN objavljen v README (FIXED)
+- **Status:** ✅ FIXED — PIN-i sedaj opozorijo da so samo za demo
 
 ---
 
-## Zaključek
+## Priporočeni Hardening Sprint (P0)
 
-RestaurantOS v1.0.0 je **produkciji-pripravljen za pilot stranke** (1-3 lokacije, single-tenant). Za pravi multi-tenant SaaS (10+ strank, več lokacij) morajo biti rešene HIGH težave (#32, #31) in MEDIUM #39 (Redis rate-limit).
+**Cilj:** 0 HIGH odprtih, 149/149 E2E PASS, tenant isolation audit.
 
-**Realna ocena:** 8.7/10 — dober produkt z znanimi izboljšavami, a ne "production-perfect".
+1. **P0-1:** #39 Rate-limit → async-only (1 teden)
+2. **P0-2:** #46 Secrets encryption (3 dni)
+3. **P0-3:** #32 Subscription obvezen (2 dni)
+4. **P0-4:** #31 Accounting locationId invariant (3 dni)
+5. **P0-5:** #45 Tenant scope audit (1 teden)
+6. **P0-6:** #47 Reservation overlap (2 dni)
+7. **P0-7:** #35 Hash chain populacija (1 teden)
 
-**Priporočeni vrstni red popravkov:**
-1. ✅ #34 CSP (FIXED)
-2. ✅ KDS dokumentacijska neskladnost (FIXED — README posodobljen)
-3. P1: #35 Hash chain (1 teden)
-4. P1: #39 Redis rate-limit (1 teden)
-5. P1: #32 Subscription obvezen (3 dni)
-6. P1: #31 Accounting locationId obvezen (3 dni)
-7. P2: #33 JSON-as-string → Json (2 tedna)
-8. P2: #37 FURS duplikati (3 dni)
-9. P2: #36 Shift merge (1 teden)
+**Skupni napor:** ~5 tednov z 1 FTE za vse P0 popravke.
 
-**Skupni napor:** ~6 tednov z 1 FTE za vse HIGH + MEDIUM popravke.
+Po P0: Security re-audit → če 0 HIGH → E2E 149/149 → tenant isolation audit → REAL pilot.

@@ -2,16 +2,17 @@
 // RATE LIMITER — CORE LOGIKA
 // Preverjanje omejitev, pridobivanje IP naslova
 //
-// ✅ Issue #39 FIXED: zdaj uporablja CacheAdapter (Memory ali Redis)
-//   - Multi-replica deploy: inkrementi so atomični na Redis strani
-//   - Single-instance deploy: MemoryCacheAdapter (default, ni overhead)
+// ⚠️ Issue #39 NI POPOLNOMA REŠEN:
+//   - MemoryCacheAdapter deluje sinhrono (Map.set/get) — OK za single-instance
+//   - RedisCacheAdapter zahteva async, a sync wrapper FAIL-OPEN (dovoli request)
+//   - V produkciji z Redis: uporabljaj checkRateLimitAsync() z await
+//   - Vsi production API call-site-i morajo biti migrirani na async
 //
-// API kompatibilnost: checkRateLimit() ostane SYNC funkcija da ne rabimo
-// prepisovati 52 obstoječih call site-ov. Sync wrapper kliče async
-// implementacijo in vrača rezultat — saj MemoryCacheAdapter je v praksi
-// sinhron (Map.set/get so sync). Za Redis bodo call site-i morali await-ati
-// v prihodnosti, a za zdaj to deluje tudi z Redis (sinhrona funkcija kliče
-// async in se zaklene dokler ni končano).
+// TODO (P1, Q1 2026):
+//   1. Migriraj vse 52 sync call-site-e na checkRateLimitAsync()
+//   2. Odstrani sync checkRateLimit() (ali označi kot @deprecated)
+//   3. MemoryCacheAdapter naj implementira async interface (enak kot Redis)
+//   4. Preveri da noben production path ne fail-open
 // ============================================
 
 import type { RateLimitConfig } from './presets'
@@ -101,10 +102,10 @@ export function checkRateLimit(
 
   if (error) throw error
   if (result === null) {
-    // Fallback — če sync path ni deloval (Redis async)
-    // V produkciji z Redis moraš uporabiti checkRateLimitAsync()
-    // Za zdaj dovolimo request (fail-open) — logiraj opozorilo
-    console.warn('[rate-limit] sync checkRateLimit called with Redis adapter — falling back to allow. Use checkRateLimitAsync() instead.')
+    // 🔴 FAIL-OPEN: če sync path ni deloval (Redis async), dovolimo request
+    // To je VARNOSTNA NAPAKA v produkciji z Redis — vsi call-site-i morajo
+    // uporabljati checkRateLimitAsync() namesto sync checkRateLimit()
+    console.error('[rate-limit] 🔴 FAIL-OPEN: sync checkRateLimit called with Redis adapter. Request allowed but rate limit NOT enforced. Migrate to checkRateLimitAsync().')
     return { allowed: true, remaining: config.maxRequests - 1 }
   }
 

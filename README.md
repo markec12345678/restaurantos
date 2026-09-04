@@ -2,7 +2,7 @@
 
 [![Version](https://img.shields.io/badge/version-1.0.0-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases/tag/v1.0.0)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
-[![Security](https://img.shields.io/badge/security-A%2B-86702b?style=flat-square)](SECURITY.md)
+[![Security](https://img.shields.io/badge/security-A--86702b?style=flat-square)](docs/KNOWN_ISSUES.md)
 [![E2E Tests](https://img.shields.io/badge/E2E-96.6%25%20PASS-3c7a50?style=flat-square)](docs/CODE-REVIEW-REPORT.md)
 [![Code Review](https://img.shields.io/badge/code%20review-85%20checks-86702b?style=flat-square)](docs/CODE-REVIEW-REPORT.md)
 
@@ -34,9 +34,9 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 | **Mesečna cena** | 49 EUR | 165 EUR | 0-54 EUR | 89-169 EUR | 35 EUR |
 | **TCO 3 leta** | 2.200 EUR | 8.500 EUR | 5.400 EUR | 6.800 EUR | 1.800 EUR |
 | **FURS certifikat** | ✅ | ❌ | ❌ | ❌ | ✅ (zastarelo) |
-| **Multi-tenant** | ✅ (8 tabel) | ✅ | ✅ | ✅ | ❌ |
+| **Multi-tenant** | ✅ (30 tabel z locationId, glej [Known Issues](docs/KNOWN_ISSUES.md)) | ✅ | ✅ | ✅ | ❌ |
 | **5 jezikov** | ✅ sl/en/it/hr/de | ❌ | ❌ | Delno | ❌ |
-| **Varnost (A+++)** | ✅ 0 XSS/SQLi | ✅ | ✅ | ✅ | ❌ |
+| **Varnost (A+)** | ✅ 0 XSS/SQLi | ✅ | ✅ | ✅ | ❌ |
 | **Mobilna PWA** | ⏳ P0-3 | ✅ Native | ✅ Native | ⚠ Slaba | ❌ |
 
 ### 📄 Deliverables
@@ -65,8 +65,9 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 
 - **4x ceneje od Toast**, 2x ceneje od Square pri primerljivi funkcionalnosti
 - **Edini FURS-certificiran Next.js POS** na slovenskem trgu
-- **A+ varnostna ocena** (0 XSS/SQLi, 0密钥泄露, CSP nonce-based) — glej [Known Issues](docs/KNOWN_ISSUES.md) za 7 odprtih arhitekturnih izboljšav
-- **3 kritične vrzeli** za odpravo v 6 mesecih: plačilni gateway, PWA, KDS
+- **A- varnostna ocena** (0 XSS/SQLi, CSP nonce-based, a 3 HIGH odprte težave) — glej [Known Issues](docs/KNOWN_ISSUES.md) za celoten pregled
+- **8.6/10 realna ocena** — pilot-ready with known risks (ne "production-ready")
+- **3 kritične vrzeli** za odpravo: plačilni gateway (P0-2), PWA (P0-3), rate-limit fail-open (#39)
 
 ---
 
@@ -75,8 +76,9 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 ### Demo
 - **URL:** https://restaurantos-gusytmvqe-robertpezdirc12-designs-projects.vercel.app
 - **Landing page:** https://restaurantos-gusytmvqe-robertpezdirc12-designs-projects.vercel.app/landing
-- **Admin PIN:** `1234`
-- **Super-admin PIN:** `5555`
+- **Admin PIN:** Glej `.env.example` (DEMO_ADMIN_PIN) — **nikoli ne uporabljaj 1234 v produkciji**
+- **Super-admin PIN:** Glej `.env.example` (DEMO_SUPERADMIN_PIN) — **nikoli ne uporabljaj 5555 v produkciji**
+- ⚠️ PIN-i `1234` in `5555` so samo za demo/seed okolje. Produkcija mora imeti unikatne, močne PIN-e.
 
 ### Namestitev (lokalno)
 
@@ -146,7 +148,7 @@ bun run dev
 | Tabel v bazi | 94 |
 | Jezikov | 5 (sl, en, it, hr, de) |
 | E2E testov PASS | 144/149 (96.6%) — 5 odprtih, glej [Known Issues](docs/KNOWN_ISSUES.md) |
-| Varnostna ocena | A+ (glej [Known Issues](docs/KNOWN_ISSUES.md)) |
+| Varnostna ocena | A- (3 HIGH odprte, glej [Known Issues](docs/KNOWN_ISSUES.md)) |
 | Koda (vrstice) | 63.389 |
 | Odvisnosti | 99 |
 
