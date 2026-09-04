@@ -8,7 +8,7 @@
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { checkRateLimit, getClientIp, FEEDBACK_PUBLIC_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, FEEDBACK_PUBLIC_LIMIT } from '@/lib/rate-limit'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
@@ -26,7 +26,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: Request) {
   // FIX CRITICAL: Rate limiting — skupni modul
   const clientIp = getClientIp(req)
-  const rateCheck = checkRateLimit('feedback-public', clientIp, FEEDBACK_PUBLIC_LIMIT)
+  const rateCheck = await checkRateLimitAsync('feedback-public', clientIp, FEEDBACK_PUBLIC_LIMIT)
   if (!rateCheck.allowed) {
     return NextResponse.json(
       { error: 'Preveč zahtev. Poskusite znova čez minuto.' },

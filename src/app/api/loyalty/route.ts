@@ -5,14 +5,14 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createLoyaltySchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
-import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
-    const rl = checkRateLimit('loyalty', getClientIp(req), AUTHENTICATED_LIMIT)
+    const rl = await checkRateLimitAsync('loyalty', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
     // FIX C-07: Zahtevaj avtentikacijo za zvestobne račune
@@ -60,7 +60,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
-    const rl = checkRateLimit('loyalty', getClientIp(req), AUTHENTICATED_LIMIT)
+    const rl = await checkRateLimitAsync('loyalty', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
     // FIX C-07: Zahtevaj avtentikacijo za ustvarjanje zvestobnega računa

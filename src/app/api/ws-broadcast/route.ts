@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { logger } from '@/lib/logger'
-import { checkRateLimit, getClientIp, WS_BROADCAST_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, WS_BROADCAST_LIMIT } from '@/lib/rate-limit'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 
     // FIX: Omejitev hitrosti — prepreči hitro zaporedje WS dogodkov
     const ip = getClientIp(req)
-    const rateLimit = checkRateLimit('ws-broadcast', ip, WS_BROADCAST_LIMIT)
+    const rateLimit = await checkRateLimitAsync('ws-broadcast', ip, WS_BROADCAST_LIMIT)
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { error: 'Preveč zahtevkov' },

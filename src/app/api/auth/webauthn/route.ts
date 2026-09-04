@@ -7,7 +7,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { createSession } from '@/lib/auth-middleware'
-import { checkRateLimit, getClientIp, LOGIN_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, LOGIN_LIMIT } from '@/lib/rate-limit'
 import { parseJsonBody } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
 import {
@@ -38,7 +38,7 @@ export async function GET(req: Request) {
   }
 
   const clientIp = getClientIp(req)
-  const rateCheck = checkRateLimit('webauthn-challenge', clientIp, LOGIN_LIMIT)
+  const rateCheck = await checkRateLimitAsync('webauthn-challenge', clientIp, LOGIN_LIMIT)
   if (!rateCheck.allowed) {
     const retryMin = Math.ceil((rateCheck.retryAfterMs || 900000) / 60000)
     return NextResponse.json(
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
   }
 
   const clientIp = getClientIp(req)
-  const rateCheck = checkRateLimit('webauthn-login', clientIp, LOGIN_LIMIT)
+  const rateCheck = await checkRateLimitAsync('webauthn-login', clientIp, LOGIN_LIMIT)
   if (!rateCheck.allowed) {
     const retryMin = Math.ceil((rateCheck.retryAfterMs || 900000) / 60000)
     return NextResponse.json(

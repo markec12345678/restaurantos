@@ -11,7 +11,7 @@ import { loadCertificatePrivateKey, generateZOI, verifyInvoiceWithFURS, type Fur
 import { buildFursConfigFromSettings } from '../build-config'
 import { parseVatBreakdown } from '../../shared'
 import { logger } from '@/lib/logger'
-import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { parseJsonBody, validateBody } from '@/lib/api-utils'
 import { fursStornoSchema } from '@/lib/validations'
 
@@ -31,7 +31,7 @@ export interface StornoValidationResult {
 
 // Validiraj zahtevo in pridobi podatke, pošlji na FURS
 export async function validateAndSubmitStorno(req: Request): Promise<StornoValidationResult | Response> {
-  const rl = checkRateLimit('furs', getClientIp(req), AUTHENTICATED_LIMIT)
+  const rl = await checkRateLimitAsync('furs', getClientIp(req), AUTHENTICATED_LIMIT)
   if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
   const authResult = await requireAuth(req, { permission: 'admin' })

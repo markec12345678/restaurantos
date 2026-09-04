@@ -12,8 +12,8 @@
 // V dev okolju (brez REDIS_URL): MemoryCacheAdapter (default)
 // V produkciji z REDIS_URL: RedisCacheAdapter (multi-replica safe)
 //
-// Issue #39: končana. WebAuthn challenge store + rate limit sta sedaj
-// environment-aware — ne rabimo prepisovati kode ko gre v multi-replica.
+// Issue #39 FIXED: checkRateLimitAsync() je fail-closed (Redis down → reject)
+// WebAuthn challenge store + rate limit sta sedaj environment-aware.
 // ============================================
 
 import type { CacheAdapter } from './adapter'

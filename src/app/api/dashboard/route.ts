@@ -1,7 +1,7 @@
 
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
-import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, validateApiResponse } from '@/lib/api-utils'
 import { dashboardResponseSchema } from '@/lib/validations'
 import { logger } from '@/lib/logger'
@@ -27,7 +27,7 @@ export const maxDuration = 30
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
-    const rl = checkRateLimit('dashboard', getClientIp(req), AUTHENTICATED_LIMIT)
+    const rl = await checkRateLimitAsync('dashboard', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
     // FIX C-07: Zahtevaj avtentikacijo za dashboard

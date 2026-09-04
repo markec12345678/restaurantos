@@ -4,7 +4,7 @@
 // ============================================
 
 import { NextResponse } from 'next/server'
-import { checkRateLimit, getClientIp, RateLimitConfig, AUTHENTICATED_LIMIT } from './rate-limit'
+import { checkRateLimitAsync, getClientIp, RateLimitConfig, AUTHENTICATED_LIMIT } from './rate-limit'
 import { logger } from './logger'
 
 /** Tip za Next.js API route handler */
@@ -50,7 +50,7 @@ export function withRateLimit(handler: HandlerFn, options?: WithRateLimitOptions
     const storeKey = options?.storeKey ?? `api:${url.pathname}`
 
     const clientIp = getClientIp(req)
-    const result = checkRateLimit(storeKey, clientIp, limit)
+    const result = await checkRateLimitAsync(storeKey, clientIp, limit)
 
     if (!result.allowed) {
       // Rate limit presežen — vrni 429 z ustreznimi glavami

@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
-import { checkRateLimit, getClientIp, AI_ASSISTANT_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, AI_ASSISTANT_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { z } from 'zod'
 import { SYSTEM_PROMPT, gatherDataContext, generateFallbackResponse } from './_helpers'
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
 
     // FIX: Omejitev hitrosti — AI klici stanejo denar, prepreči zlorabo
     const ip = getClientIp(req)
-    const rateLimit = checkRateLimit('ai-assistant', ip, AI_ASSISTANT_LIMIT)
+    const rateLimit = await checkRateLimitAsync('ai-assistant', ip, AI_ASSISTANT_LIMIT)
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { error: 'Preveč zahtevkov. Poskusite znova čez nekaj časa.' },

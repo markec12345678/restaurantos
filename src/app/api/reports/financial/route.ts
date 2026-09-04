@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateReportDateRange } from '@/lib/validations'
-import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
 import { calcDateRange, fetchFinancialData } from './_helpers-queries'
 import { computeFinancialMetrics } from './_helpers-compute'
@@ -16,7 +16,7 @@ export const maxDuration = 45
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
-    const rl = checkRateLimit('reports-financial', getClientIp(req), AUTHENTICATED_LIMIT)
+    const rl = await checkRateLimitAsync('reports-financial', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
     // FIX CRITICAL: Zahtevaj avtentikacijo za dostop do finančnih podatkov

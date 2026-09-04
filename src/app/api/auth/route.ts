@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyToken, destroySession } from '@/lib/auth-middleware'
 import { loginSchema, authResponseSchema, authStatusResponseSchema } from '@/lib/validations'
-import { checkRateLimit, getClientIp, LOGIN_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, LOGIN_LIMIT } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { generateCsrfToken } from '@/lib/csrf'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
 
     // Rate limiting
     const clientIp = getClientIp(req)
-    const rateCheck = checkRateLimit('auth-login', clientIp, LOGIN_LIMIT)
+    const rateCheck = await checkRateLimitAsync('auth-login', clientIp, LOGIN_LIMIT)
     if (!rateCheck.allowed) {
       const retryMin = Math.ceil((rateCheck.retryAfterMs || 900000) / 60000)
       return NextResponse.json(

@@ -2,13 +2,13 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { readFileSync } from 'fs'
 import path from 'path'
-import { checkRateLimit, getClientIp, SEED_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, SEED_LIMIT } from '@/lib/rate-limit'
 
 export async function GET(req: Request) {
   try {
     // FIX Code Review: Rate limiting — prepreči zlorabo
     const ip = getClientIp(req)
-    const rl = checkRateLimit('setup-db', ip, SEED_LIMIT)
+    const rl = await checkRateLimitAsync('setup-db', ip, SEED_LIMIT)
     if (!rl.allowed) {
       return NextResponse.json(
         { error: 'Preveč zahtevkov. Poskusite znova kasneje.' },

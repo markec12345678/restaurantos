@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
-import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { printRequestSchema, handleOrderPrint, handleReceiptPrint, handleTestPrint } from './_helpers'
 
 
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
   // Rate limiting — prepreči zlorabo API-ja
-  const rl = checkRateLimit('print', getClientIp(req), AUTHENTICATED_LIMIT)
+  const rl = await checkRateLimitAsync('print', getClientIp(req), AUTHENTICATED_LIMIT)
   if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
   // FIX C-07: Zahtevaj avtentikacijo za tiskanje

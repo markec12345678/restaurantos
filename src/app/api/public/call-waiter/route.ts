@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { z } from 'zod'
 import { getAppUrl } from '@/lib/utils'
-import { checkRateLimit, getClientIp, CALL_WAITER_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, CALL_WAITER_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
 const callWaiterSchema = z.object({
@@ -21,7 +21,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: Request) {
   // FIX CRITICAL: Rate limiting
   const clientIp = getClientIp(req)
-  const rateCheck = checkRateLimit('call-waiter', clientIp, CALL_WAITER_LIMIT)
+  const rateCheck = await checkRateLimitAsync('call-waiter', clientIp, CALL_WAITER_LIMIT)
   if (!rateCheck.allowed) {
     return NextResponse.json(
       { error: 'Preveč klicev. Poskusite znova čez nekaj minut.' },

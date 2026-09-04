@@ -11,7 +11,7 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
-import { checkRateLimit, getClientIp, SEED_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, SEED_LIMIT } from '@/lib/rate-limit'
 import { createBeverageInventory } from './helpers/create-beverage-inventory'
 import { createFoodInventory } from './helpers/create-food-inventory'
 import { buildSpiritsRecipes } from './helpers/build-spirits-recipes'
@@ -26,7 +26,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
-    const rl = checkRateLimit('seed-norms', getClientIp(req), SEED_LIMIT)
+    const rl = await checkRateLimitAsync('seed-norms', getClientIp(req), SEED_LIMIT)
     if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
     const authResult = await requireAuth(req, { permission: 'admin' })

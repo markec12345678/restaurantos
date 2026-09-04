@@ -13,7 +13,7 @@
 import crypto from 'crypto'
 import { NextResponse } from 'next/server'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
-import { checkRateLimit, getClientIp, IOT_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, IOT_LIMIT } from '@/lib/rate-limit'
 import { createHaccpEntryWithChain } from '@/lib/haccp-chain'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
   try {
     // SECURITY: Rate limit + API key
     const clientIp = getClientIp(req)
-    const rateCheck = checkRateLimit('iot-readings', clientIp, IOT_LIMIT)
+    const rateCheck = await checkRateLimitAsync('iot-readings', clientIp, IOT_LIMIT)
     if (!rateCheck.allowed) {
       return NextResponse.json(
         { error: 'Preveč zahtevkov' },

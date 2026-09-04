@@ -8,7 +8,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { checkRateLimit, getClientIp, PUBLIC_ORDER_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, PUBLIC_ORDER_LIMIT } from '@/lib/rate-limit'
 import { toNum } from '@/lib/decimal'
 import { logger } from '@/lib/logger'
 import { handleRouteError, validateRequest } from '@/lib/api-utils'
@@ -28,7 +28,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: Request) {
   // FIX CRITICAL: Rate limiting — uporabi skupni modul
   const clientIp = getClientIp(req)
-  const rateCheck = checkRateLimit('public-order', clientIp, PUBLIC_ORDER_LIMIT)
+  const rateCheck = await checkRateLimitAsync('public-order', clientIp, PUBLIC_ORDER_LIMIT)
   if (!rateCheck.allowed) {
     return NextResponse.json(
       { error: 'Preveč naročil. Poskusite znova čez nekaj minut.' },

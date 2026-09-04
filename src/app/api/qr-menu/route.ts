@@ -4,7 +4,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { checkRateLimit, getClientIp, PUBLIC_MENU_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, PUBLIC_MENU_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
 
 
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request) {
   // FIX CRITICAL: Rate limiting
   const clientIp = getClientIp(req)
-  const rateCheck = checkRateLimit('qr-menu', clientIp, PUBLIC_MENU_LIMIT)
+  const rateCheck = await checkRateLimitAsync('qr-menu', clientIp, PUBLIC_MENU_LIMIT)
   if (!rateCheck.allowed) {
     return NextResponse.json(
       { error: 'Preveč zahtevkov. Poskusite znova čez nekaj sekund.' },

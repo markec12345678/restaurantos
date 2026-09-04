@@ -10,7 +10,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
-import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { validateFursConfig, checkFursConnectivity } from '@/lib/furs'
 import { buildFursConfigFromSettings } from './helpers/build-config'
 import { verifyInvoice } from './helpers/verify-invoice'
@@ -24,7 +24,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
-    const rl = checkRateLimit('furs', getClientIp(req), AUTHENTICATED_LIMIT)
+    const rl = await checkRateLimitAsync('furs', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
     const authResult = await requireAuth(req, { permission: 'admin' })

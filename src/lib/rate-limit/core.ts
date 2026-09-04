@@ -2,17 +2,15 @@
 // RATE LIMITER — CORE LOGIKA
 // Preverjanje omejitev, pridobivanje IP naslova
 //
-// ⚠️ Issue #39 NI POPOLNOMA REŠEN:
-//   - MemoryCacheAdapter deluje sinhrono (Map.set/get) — OK za single-instance
-//   - RedisCacheAdapter zahteva async, a sync wrapper FAIL-OPEN (dovoli request)
-//   - V produkciji z Redis: uporabljaj checkRateLimitAsync() z await
-//   - Vsi production API call-site-i morajo biti migrirani na async
+// ✅ Issue #39 FIXED (P0-1):
+//   - checkRateLimitAsync() je FAIL-CLOSED: če Redis odpove, request je ZAVRNJEN
+//   - Sync checkRateLimit() je @deprecated — ne uporabljaj v production
+//   - Vsi production API call-site-i migrirani na await checkRateLimitAsync()
 //
-// TODO (P1, Q1 2026):
-//   1. Migriraj vse 52 sync call-site-e na checkRateLimitAsync()
-//   2. Odstrani sync checkRateLimit() (ali označi kot @deprecated)
-//   3. MemoryCacheAdapter naj implementira async interface (enak kot Redis)
-//   4. Preveri da noben production path ne fail-open
+// Fail-closed logika:
+//   - MemoryCacheAdapter: vedno deluje (sinhrono, brez Redis)
+//   - RedisCacheAdapter: če Redis odpove → { allowed: false } (NE allowed: true)
+//   - To pomeni: napaka v infrastrukturi ne more omogočiti brute-force napada
 // ============================================
 
 import type { RateLimitConfig } from './presets'
@@ -20,7 +18,12 @@ import { getCacheAdapter } from '@/lib/cache'
 
 /**
  * Async implementacija — kliče CacheAdapter (Memory ali Redis).
- * Uporablja se v with-rate-limit.ts (kjer imamo async context).
+ *
+ * ✅ FAIL-CLOSED: če cache.increment() vrne napako (Redis nedosegljiv),
+ * request je ZAVRNJEN (allowed: false). To preprečuje brute-force napade
+* tudi ko Redis odpove.
+ *
+ * To je edina funkcija, ki se sme uporabljati v production API-jih.
  */
 export async function checkRateLimitAsync(
   storeKey: string,
@@ -30,88 +33,62 @@ export async function checkRateLimitAsync(
   const cache = getCacheAdapter()
   const key = `rate-limit:${storeKey}:${clientIp}`
 
-  const result = await cache.increment(key, config.windowMs, config.maxRequests)
+  try {
+    const result = await cache.increment(key, config.windowMs, config.maxRequests)
 
-  if (result.count > config.maxRequests) {
+    if (result.count > config.maxRequests) {
+      return {
+        allowed: false,
+        retryAfterMs: result.retryAfterMs,
+        remaining: 0,
+      }
+    }
+
+    return {
+      allowed: true,
+      remaining: result.remaining,
+    }
+  } catch (error) {
+    // 🔴 FAIL-CLOSED: če cache (Redis) odpove, ZAVRNEMO request
+    // To je pravilno varnostno držo: "if we can't verify the rate limit, reject"
+    console.error('[rate-limit] 🔴 FAIL-CLOSED: cache.increment() failed — rejecting request', error)
     return {
       allowed: false,
-      retryAfterMs: result.retryAfterMs,
+      retryAfterMs: config.windowMs,
       remaining: 0,
     }
-  }
-
-  return {
-    allowed: true,
-    remaining: result.remaining,
   }
 }
 
 /**
- * SYNC wrapper okoli async implementacije.
+ * @deprecated NE UPORABLJAJ — uporabljaj checkRateLimitAsync() z await.
  *
- * 🔴 VARNOSTNA NAPAKA: ta funkcija FAIL-OPEN ko je Redis adapter aktiven.
- * Sync funkcija ne more počakati na async Promise — while loop takoj break-a.
- * Rezultat: request je dovoljen BREZ rate limit preverjanja.
+ * Ta sync funkcija FAIL-CLOSED ko je Redis adapter aktiven (prej je bila FAIL-OPEN,
+ * kar je bila varnostna napaka #39). Sedaj zavrne request namesto da ga dovoli.
  *
- * NE UPORABLJAJ v production API-jih z Redis. Uporabljaj checkRateLimitAsync().
+ * MemoryCacheAdapter (dev/single-instance): deluje sinhrono, brez problema.
+ * RedisCacheAdapter (production): ne more sinhrono await-ati → FAIL-CLOSED.
  *
- * TODO (P0-1): Migriraj vse 52 call-site-e na checkRateLimitAsync() z await.
+ * Vsi production call-site-i so migrirani na `await checkRateLimitAsync()`.
+ * Ta funkcija ostaja samo za backward compat in bo odstranjena v v2.0.
  */
 export function checkRateLimit(
   storeKey: string,
   clientIp: string,
   config: RateLimitConfig
 ): { allowed: boolean; retryAfterMs?: number; remaining?: number } {
-  // Pridobi cache adapter
   const cache = getCacheAdapter()
   const key = `rate-limit:${storeKey}:${clientIp}`
 
-  // Za MemoryCacheAdapter lahko dostopamo do internal store-a sinhrono
-  // To naredimo tako da kličemo increment in "deasync"-amo
-  // Najenostavneje: use deasync ali pa direkt dostop do Map
-  // Alternativa: pripravimo sync quick-path za MemoryCacheAdapter
+  // MemoryCacheAdapter: sync fast-path (deluje pravilno)
   if (cache.name === 'memory') {
-    // Sync fast-path za MemoryCacheAdapter
     return syncIncrementForMemoryAdapter(cache, key, config)
   }
 
-  // Za Redis — sync path ne more await-ati, while loop takoj break-a
-  // 🔴 FAIL-OPEN: request dovoljen brez rate limit preverjanja
-  // To je fallback; v prihodnje prepričaj vse call site-e da uporabljajo async
-  let result: { allowed: boolean; retryAfterMs?: number; remaining?: number } | null = null
-  let error: Error | null = null
-
-  cache.increment(key, config.windowMs, config.maxRequests)
-    .then((r) => {
-      if (r.count > config.maxRequests) {
-        result = { allowed: false, retryAfterMs: r.retryAfterMs, remaining: 0 }
-      } else {
-        result = { allowed: true, remaining: r.remaining }
-      }
-    })
-    .catch((e) => { error = e })
-
-  // Čakaj dokler async operacija ni končana (sync await pattern)
-  // Cache adapter je sinhron za Memory, za Redis bo blokiralo event loop
-  // a bo delovalo pravilno
-  const start = Date.now()
-  while (result === null && error === null && Date.now() - start < 5000) {
-    // V Node.js ne moremo sync await-ati Promise-a brez deasync
-    // Workaround: uporabi Atomics.wait če je Worker thread
-    // Za Node.js main thread: break out in 0ms (bo delovalo za Memory)
-    break
-  }
-
-  if (error) throw error
-  if (result === null) {
-    // 🔴 FAIL-OPEN: če sync path ni deloval (Redis async), dovolimo request
-    // To je VARNOSTNA NAPAKA v produkciji z Redis — vsi call-site-i morajo
-    // uporabljati checkRateLimitAsync() namesto sync checkRateLimit()
-    console.error('[rate-limit] 🔴 FAIL-OPEN: sync checkRateLimit called with Redis adapter. Request allowed but rate limit NOT enforced. Migrate to checkRateLimitAsync().')
-    return { allowed: true, remaining: config.maxRequests - 1 }
-  }
-
-  return result
+  // RedisCacheAdapter: sync path ne more await-ati → FAIL-CLOSED
+  // Prej je bilo FAIL-OPEN (allowed: true) — to je bila varostna napaka #39
+  console.error('[rate-limit] 🔴 FAIL-CLOSED: sync checkRateLimit() called with Redis adapter — rejecting. Use checkRateLimitAsync() instead.')
+  return { allowed: false, retryAfterMs: config.windowMs, remaining: 0 }
 }
 
 /**

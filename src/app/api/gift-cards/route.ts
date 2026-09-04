@@ -5,7 +5,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createGiftCardSchema } from '@/lib/validations'
 import { isPositive, deepToNumbers } from '@/lib/decimal'
 import { logger } from '@/lib/logger'
-import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
-    const rl = checkRateLimit('gift-cards', getClientIp(req), AUTHENTICATED_LIMIT)
+    const rl = await checkRateLimitAsync('gift-cards', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
     // FIX C-07: Zahtevaj avtentikacijo za darilne kartice
@@ -59,7 +59,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
-    const rl = checkRateLimit('gift-cards', getClientIp(req), AUTHENTICATED_LIMIT)
+    const rl = await checkRateLimitAsync('gift-cards', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
     // FIX C-07: Zahtevaj avtentikacijo za ustvarjanje darilne kartice

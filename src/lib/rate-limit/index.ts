@@ -4,7 +4,7 @@
 // Prepreči zlorabo javnih API-jev (QR naročanje, povratne informacije, itd.)
 // ============================================
 
-export { checkRateLimit, getClientIp } from './core'
+export { checkRateLimit, checkRateLimitAsync, getClientIp } from './core'
 export type { RateLimitConfig } from './presets'
 export {
   PUBLIC_ORDER_LIMIT,

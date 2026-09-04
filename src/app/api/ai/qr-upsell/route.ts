@@ -4,7 +4,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { logger } from '@/lib/logger'
 import { toNum } from '@/lib/decimal'
-import { checkRateLimit, getClientIp, AI_UPSELL_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, AI_UPSELL_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
 import {
   HOUR_MAP,
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
 
     // FIX: Omejitev hitrosti — AI upsell klici stanejo denar
     const ip = getClientIp(req)
-    const rateLimit = checkRateLimit('ai-upsell', ip, AI_UPSELL_LIMIT)
+    const rateLimit = await checkRateLimitAsync('ai-upsell', ip, AI_UPSELL_LIMIT)
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { suggestions: [], error: 'Preveč zahtevkov. Poskusite znova čez nekaj časa.' },

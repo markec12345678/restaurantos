@@ -5,7 +5,7 @@ import { toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
-import { checkRateLimit, getClientIp, KIOSK_LIMIT, PUBLIC_MENU_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, KIOSK_LIMIT, PUBLIC_MENU_LIMIT } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
   // FIX SECURITY: dodaj rate limit na GET (menu fetch) — prejšnja koda ni bila
   // omejena, napadalec je lahko z metal DB poizvedbami in izčrpal povezave.
   // Kiosk tipično naloži meni ob zagonu, 30 req/min je več kot dovolj.
-  const rl = checkRateLimit('kiosk-menu', getClientIp(req), PUBLIC_MENU_LIMIT)
+  const rl = await checkRateLimitAsync('kiosk-menu', getClientIp(req), PUBLIC_MENU_LIMIT)
   if (!rl.allowed) {
     return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429 })
   }
@@ -64,7 +64,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo kioska
-    const rl = checkRateLimit('kiosk-order', getClientIp(req), KIOSK_LIMIT)
+    const rl = await checkRateLimitAsync('kiosk-order', getClientIp(req), KIOSK_LIMIT)
     if (!rl.allowed) {
       return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429 })
     }

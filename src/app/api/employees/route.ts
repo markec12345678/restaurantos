@@ -4,7 +4,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createEmployeeSchema } from '@/lib/validations'
 import { logger } from '@/lib/logger'
-import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import bcrypt from 'bcryptjs'
 import { hashPinLookup, pinLookupEnabled } from '@/lib/pin-lookup'
@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
-    const rl = checkRateLimit('employees', getClientIp(req), AUTHENTICATED_LIMIT)
+    const rl = await checkRateLimitAsync('employees', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
     // FIX C-07: Zahtevaj avtentikacijo za seznam zaposlenih
     const authResult = await requireAuth(req, { permission: 'manage_employees' })
@@ -84,7 +84,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
-    const rl = checkRateLimit('employees', getClientIp(req), AUTHENTICATED_LIMIT)
+    const rl = await checkRateLimitAsync('employees', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
     // FIX C-05: Zahtevaj avtentikacijo
     const authResult = await requireAuth(req, { permission: 'manage_employees' })

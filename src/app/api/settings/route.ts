@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateSettingsSchema } from '@/lib/validations'
-import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
-    const rl = checkRateLimit('settings', getClientIp(req), AUTHENTICATED_LIMIT)
+    const rl = await checkRateLimitAsync('settings', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
     // FIX AUTH: Zahtevaj avtentikacijo tudi za GET — poslovni podatki niso javni
@@ -63,7 +63,7 @@ export async function GET(req: Request) {
 export async function PUT(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
-    const rl = checkRateLimit('settings', getClientIp(req), AUTHENTICATED_LIMIT)
+    const rl = await checkRateLimitAsync('settings', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
     // FIX BUG 11: Zahtevaj admin avtentikacijo za spreminjanje nastavitev

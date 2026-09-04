@@ -11,7 +11,7 @@ import { getNextCounter } from '@/lib/counters'
 import { emitOrderCreated } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
 import { toNum, round2, sumBy } from '@/lib/decimal'
-import { checkRateLimit, getClientIp, DELIVERY_WEBHOOK_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, DELIVERY_WEBHOOK_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
 import { broadcastWSEvent } from '@/lib/websocket-client'
 import {
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   try {
     // Rate limit za Bolt webhook
     const ip = getClientIp(req)
-    const rateLimit = checkRateLimit('bolt-webhook', ip, DELIVERY_WEBHOOK_LIMIT)
+    const rateLimit = await checkRateLimitAsync('bolt-webhook', ip, DELIVERY_WEBHOOK_LIMIT)
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { error: 'Preveč zahtevkov' },

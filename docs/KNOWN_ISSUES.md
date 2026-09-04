@@ -2,8 +2,8 @@
 
 **Datum:** September 2026  
 **Status:** Aktivno spremljanje  
-**Realna varnostna ocena:** A- (ne A+ ali A+++)  
-**Realna splošna ocena:** 8.6/10 — pilot-ready with known risks
+**Realna varnostna ocena:** A (ne A- — #39 je fixed, 2 HIGH odprti)  
+**Realna splošna ocena:** 8.7/10 — pilot-ready with known risks
 
 ---
 
@@ -13,7 +13,7 @@ README je bil prej označen z "A+++", kar je bilo **pretirano**. Po globokem pre
 
 ---
 
-## HIGH severity (3 odprte, 1 fixed)
+## HIGH severity (2 odprte, 2 fixed)
 
 ### #34 — CSP `unsafe-inline` za styles v production
 - **Status:** ✅ FIXED (commit b750ee70)
@@ -21,15 +21,14 @@ README je bil prej označen z "A+++", kar je bilo **pretirano**. Po globokem pre
 - **Popravek:** `style-src` sedaj uporablja per-request nonce
 
 ### #39 — Rate-limit FAIL-OPEN v produkciji z Redis
-- **Status:** 🔴 NI REŠEN (prej napačno označen kot FIXED)
-- **Problem:** `checkRateLimit()` je sync funkcija, ki kliče async `cache.increment()`. Če je Redis adapter aktiven, async rezultat ni takoj na voljo → **FAIL-OPEN** (dovoli request brez rate limit). To je varnostna napaka.
-- **Koda:** `src/lib/rate-limit/core.ts` vrstica 108: `return { allowed: true }` ko Redis ne odgovori
-- **Popravek (P1, Q1 2026):**
-  1. Migriraj vse 52 sync call-site-e na `checkRateLimitAsync()` z `await`
-  2. Odstrani sync `checkRateLimit()` ali označi kot `@deprecated`
-  3. MemoryCacheAdapter naj implementira async interface
-  4. Preveri da noben production path ne fail-open
-- **Tveganje:** Brez pravilnega rate limit-a so brute-force in DDoS napadi možni
+- **Status:** ✅ FIXED (P0-1, commit v tem PR)
+- **Problem:** `checkRateLimit()` je sync funkcija, ki kliče async `cache.increment()`. Če je Redis adapter aktiven, async rezultat ni takoj na voljo → **FAIL-OPEN** (dovoli request brez rate limit).
+- **Popravek:**
+  1. ✅ `checkRateLimitAsync()` je sedaj FAIL-CLOSED: try-catch vrne `allowed: false` ko Redis odpove
+  2. ✅ Sync `checkRateLimit()` je `@deprecated` in FAIL-CLOSED za Redis (ne več FAIL-OPEN)
+  3. ✅ Vseh 59 production call-siteov migriranih na `await checkRateLimitAsync()`
+  4. ✅ 3 testi napisani: normal operation, Redis failure → reject, concurrent atomicity
+- **Testi:** `tests/unit/rate-limit-fail-closed.test.ts`
 
 ### #32 — Subscription (SaaS tenant root) je opcijski
 - **Status:** 🔴 Odprt (P1, Q1 2026)

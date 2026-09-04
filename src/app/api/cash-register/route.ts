@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { emitEvent } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
-import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleRouteError, handleApiError, validateRequest } from '@/lib/api-utils'
 import { openShiftSchema, calculateLiveStats, openShift } from './_helpers'
 
@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
-    const rl = checkRateLimit('cash-register', getClientIp(req), AUTHENTICATED_LIMIT)
+    const rl = await checkRateLimitAsync('cash-register', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
     // FIX C-07: Zahtevaj avtentikacijo za blagajno
@@ -60,7 +60,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
-    const rl = checkRateLimit('cash-register', getClientIp(req), AUTHENTICATED_LIMIT)
+    const rl = await checkRateLimitAsync('cash-register', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
     // FIX C-07: Zahtevaj avtentikacijo za odpiranje izmene

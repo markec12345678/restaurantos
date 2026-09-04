@@ -8,7 +8,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateReportDateRange } from '@/lib/validations'
-import { checkRateLimit, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
 import { fetchEodData, computeEodMetrics, computeCategoryBreakdown, enrichEmployeeNames } from './_helpers'
 import { handleEodPost, handleEodPostError } from './_helpers/post-handler'
@@ -21,7 +21,7 @@ export const maxDuration = 45
 export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
-    const rl = checkRateLimit('reports-eod', getClientIp(req), AUTHENTICATED_LIMIT)
+    const rl = await checkRateLimitAsync('reports-eod', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
     const authResult = await requireAuth(req, { permission: 'view_reports' })
@@ -78,7 +78,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
-    const rl = checkRateLimit('reports-eod', getClientIp(req), AUTHENTICATED_LIMIT)
+    const rl = await checkRateLimitAsync('reports-eod', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
     const authResult = await requireAuth(req, { permission: 'admin' })

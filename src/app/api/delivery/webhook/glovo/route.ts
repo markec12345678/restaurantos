@@ -11,7 +11,7 @@ import { getNextCounter } from '@/lib/counters'
 import { emitOrderCreated } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
 import { toNum, multiply, round2, sumBy } from '@/lib/decimal'
-import { checkRateLimit, getClientIp, DELIVERY_WEBHOOK_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, DELIVERY_WEBHOOK_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
 import {
   GLOVO_SIGNATURE_HEADER,
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   try {
     // FIX: Rate limit za Glovo webhook — prepreči ponovne pošiljanke (replay attacks)
     const ip = getClientIp(req)
-    const rateLimit = checkRateLimit('glovo-webhook', ip, DELIVERY_WEBHOOK_LIMIT)
+    const rateLimit = await checkRateLimitAsync('glovo-webhook', ip, DELIVERY_WEBHOOK_LIMIT)
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { error: 'Preveč zahtevkov' },
