@@ -2,7 +2,7 @@
 <html lang="sl">
 <head>
 <meta charset="UTF-8">
-<title>RestaurantOS - Developer Guide</title>
+<title>RestaurantOS - CI/CD Pipeline & DevOps</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;900&family=Noto+Serif:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   @page { size: 794px 1123px; margin: 0; }
@@ -22,10 +22,10 @@
   .stat-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: #426990; }
   .layer-3 { position: absolute; inset: 0; z-index: 3; padding: 0; }
   .kicker { top: 168px; position: absolute; left: 155px; right: 80px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 500; letter-spacing: 3px; color: #685f46; opacity: 0.7; text-transform: uppercase; }
-  .hero-title { position: absolute; top: 270px; left: 155px; right: 80px; font-family: 'Noto Serif', serif; font-size: 50px; font-weight: 900; line-height: 1.15; color: #1d1c1a; letter-spacing: -1px; }
+  .hero-title { position: absolute; top: 270px; left: 155px; right: 80px; font-family: 'Noto Serif', serif; font-size: 44px; font-weight: 900; line-height: 1.15; color: #1d1c1a; letter-spacing: -1px; }
   .hero-title .accent-word { color: #86702b; font-style: italic; font-weight: 700; }
   .hero-title .small-cap { display: block; font-size: 22px; font-weight: 500; color: #685f46; letter-spacing: 0; margin-top: 6px; }
-  .summary { position: absolute; top: 540px; left: 155px; width: 480px; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 1.7; color: #1d1c1a; opacity: 0.85; font-weight: 400; }
+  .summary { position: absolute; top: 530px; left: 155px; width: 480px; font-family: 'Inter', sans-serif; font-size: 15px; line-height: 1.7; color: #1d1c1a; opacity: 0.85; font-weight: 400; }
   .summary strong { color: #86702b; font-weight: 600; }
   .stats-row { position: absolute; top: 740px; left: 155px; right: 80px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border-top: 1px solid #d1c9b3; border-bottom: 1px solid #d1c9b3; padding: 16px 0; }
   .stat-cell { border-right: 1px solid #d1c9b3; padding: 0 12px; }
@@ -43,28 +43,28 @@
 <body>
 <div class="cover-page">
   <div class="layer-1"></div>
-  <div class="ghost-num">DEV</div>
+  <div class="ghost-num">CI</div>
   <div class="layer-2">
     <div class="anchor-line"></div>
     <div class="corner-mark-tl"></div><div class="corner-mark-tr"></div>
     <div class="corner-mark-bl"></div><div class="corner-mark-br"></div>
-    <div class="stat-pill"><div class="dot"></div><span>DEVELOPER GUIDE · ONBOARDING</span></div>
+    <div class="stat-pill"><div class="dot"></div><span>CI/CD PIPELINE · DEVOPS</span></div>
   </div>
   <div class="layer-3">
-    <div class="kicker">RAZVOJNI VODIČ · ZA NOVE DEVELOPERJE</div>
-    <div class="hero-title">Developer <span class="accent-word">Guide</span>
-      <span class="small-cap">Setup, standardi, contribution, testing</span>
+    <div class="kicker">CI/CD PIPELINE · GITHUB ACTIONS · VERCEL</div>
+    <div class="hero-title">CI/CD <span class="accent-word">Pipeline</span>
+      <span class="small-cap">GitHub Actions, Vercel, Docker, DevOps</span>
     </div>
-    <div class="summary">Popoln vodič za nove developerje v RestaurantOS ekipi. Vsebuje: <strong>setup okolja (30 min)</strong>, arhitekturo in strukturo projekta, kodne standarde (TypeScript, React, API), testiranje (unit, integration, E2E), contribution workflow (branching, commits, PR) in deployment postopke.</div>
+    <div class="summary">Dokumentacija CI/CD pipeline-a z <strong>4 GitHub Actions workflow-i</strong> (lint, typecheck, build, test), Vercel auto-deploy (3 environment-i), Docker multi-stage build, branch protection, secret management, monitoring integracija (Sentry), rollback procedure in <strong>DevOps best practices</strong>.</div>
     <div class="stats-row">
-      <div class="stat-cell"><div class="num">9</div><div class="lbl">Sekcij</div></div>
-      <div class="stat-cell"><div class="num">30</div><div class="lbl">Min do setup</div></div>
-      <div class="stat-cell"><div class="num">12</div><div class="lbl">PR checklist</div></div>
-      <div class="stat-cell"><div class="num">10+</div><div class="lbl">Kodni standardi</div></div>
+      <div class="stat-cell"><div class="num">4</div><div class="lbl">Workflow-i</div></div>
+      <div class="stat-cell"><div class="num">3</div><div class="lbl">CI job-i</div></div>
+      <div class="stat-cell"><div class="num">2</div><div class="lbl">Cron jobs</div></div>
+      <div class="stat-cell"><div class="num">15</div><div class="lbl">Min pipeline</div></div>
     </div>
     <div class="meta">
       <div class="left"><span class="label">Pripravljeno</span><span class="value">September 2025</span></div>
-      <div class="right">RestaurantOS · v1.0.0 · Engineering</div>
+      <div class="right">RestaurantOS · v1.0.0 · DevOps</div>
     </div>
   </div>
 </div>
