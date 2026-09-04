@@ -7,9 +7,10 @@
 | v1.0.x  | ✅ Active |
 | < v1.0  | ❌ EOL    |
 
-## 🔒 Security Score: A++
+## 🔒 Security Score: A+
 
-RestaurantOS v1.0.0 je temeljito pregledan z 85 globokimi preverjanji.
+RestaurantOS v1.0.0 je temeljito pregledan z 85 globokimi preverjanji.  
+**Realna ocena: A+** (ne A+++) — glej [Known Issues](docs/KNOWN_ISSUES.md) za 7 odprtih arhitekturnih izboljšav.
 
 ### Security Measures
 

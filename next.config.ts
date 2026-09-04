@@ -14,15 +14,14 @@ const securityHeaders = [
   // HSTS — vsili HTTPS v produkciji (1 leto, includeSubDomains, preload)
   { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
   // CSP — fallback za statične datoteke (middleware nastavi bolj restriktivno per-request z nonce)
-  // FIX issue #34: 'unsafe-inline' za scripts ODSTRANJEN — middleware sedaj generira
-  // per-request nonce in ga injektira v CSP. Next.js avtomatsko najde nonce v CSP
-  // headerju in ga doda vsem lastnim <script> tag-om (hydration + bootstrap).
+  // FIX issue #34 (del 2): 'unsafe-inline' popolnoma odstranjen iz style-src
+  // Middleware doda per-request nonce za script-src IN style-src
   {
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
       "script-src 'self'",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "style-src 'self' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",
       "font-src 'self' https://fonts.gstatic.com data:",
       "connect-src 'self' ws: wss: https:",

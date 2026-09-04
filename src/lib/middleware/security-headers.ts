@@ -1,7 +1,8 @@
 // ============================================
 // VARNOSTNI HEADERS ZA MIDDLEWARE
 // - Content-Security-Policy: prepreči XSS in injiciranje skript
-//   ✅ Issue #34 končan: nonce-based CSP (odstranjen 'unsafe-inline' za scripts)
+//   ✅ Issue #34: nonce-based CSP (odstranjen 'unsafe-inline' za scripts)
+//   ✅ Issue #34 (popravek 2): nonce-based CSP za styles (odstranjen 'unsafe-inline' za styles)
 // - Strict-Transport-Security: vsili HTTPS
 // - X-Frame-Options: prepreči clickjacking
 // - X-Content-Type-Options: prepreči MIME sniffing
@@ -66,15 +67,19 @@ export function applySecurityHeaders(
   }
 
   // Content-Security-Policy — nonce-based (Issue #34)
+  // FIX: nonce za script-src IN style-src — 'unsafe-inline' popolnoma odstranjen
   const isDev = process.env.NODE_ENV === 'development'
   const scriptSrc = isDev
     ? `script-src 'self' 'unsafe-eval' ${nonceDirective}`
     : `script-src 'self' ${nonceDirective}`
+  // FIX Issue #34 (del 2): style-src zdaj uporablja nonce namesto 'unsafe-inline'
+  // Tailwind CSS 4 + Radix UI delujeta z nonce, ker Next.js injektira nonce v style tag-e
+  const styleSrc = `style-src 'self' ${nonceDirective} https://fonts.googleapis.com`
 
   const cspHeader = [
     "default-src 'self'",
     scriptSrc,
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    styleSrc,
     "font-src 'self' https://fonts.gstatic.com data:",
     "img-src 'self' data: blob: https:",
     "connect-src 'self' ws: wss: https:",

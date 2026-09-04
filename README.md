@@ -2,7 +2,7 @@
 
 [![Version](https://img.shields.io/badge/version-1.0.0-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases/tag/v1.0.0)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
-[![Security](https://img.shields.io/badge/security-A%2B%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
+[![Security](https://img.shields.io/badge/security-A%2B-86702b?style=flat-square)](SECURITY.md)
 [![E2E Tests](https://img.shields.io/badge/E2E-96.6%25%20PASS-3c7a50?style=flat-square)](docs/CODE-REVIEW-REPORT.md)
 [![Code Review](https://img.shields.io/badge/code%20review-85%20checks-86702b?style=flat-square)](docs/CODE-REVIEW-REPORT.md)
 
@@ -65,7 +65,7 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 
 - **4x ceneje od Toast**, 2x ceneje od Square pri primerljivi funkcionalnosti
 - **Edini FURS-certificiran Next.js POS** na slovenskem trgu
-- **A+++ varnostna ocena** (0 XSS, 0 SQLi, 0密钥泄露)
+- **A+ varnostna ocena** (0 XSS/SQLi, 0密钥泄露, CSP nonce-based) — glej [Known Issues](docs/KNOWN_ISSUES.md) za 7 odprtih arhitekturnih izboljšav
 - **3 kritične vrzeli** za odpravo v 6 mesecih: plačilni gateway, PWA, KDS
 
 ---
