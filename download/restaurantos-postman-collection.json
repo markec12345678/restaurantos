@@ -1,0 +1,598 @@
+{
+  "info": {
+    "name": "RestaurantOS API",
+    "_postman_id": "restaurantos-api-collection-v1",
+    "description": "RestaurantOS v1.0.0 - REST API Collection\n\nBase URL: https://restaurantos.app/api\nStaging: https://restaurantos-staging.vercel.app/api\nLocal: http://localhost:3000/api\n\nAuthentication: Bearer JWT token (obtained via POST /api/auth)\n\nSetup:\n1. Set {{base_url}} variable to your environment\n2. Set {{auth_token}} variable after login\n3. All authenticated requests use Bearer token automatically\n\nDocumentation: https://github.com/markec12345678/restaurantos/blob/main/download/RestaurantOS-API-Dokumentacija.pdf",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "restaurantos"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000/api", "type": "string" },
+    { "key": "auth_token", "value": "", "type": "string" },
+    { "key": "employee_id", "value": "test-admin", "type": "string" },
+    { "key": "pin", "value": "1111", "type": "string" },
+    { "key": "order_id", "value": "", "type": "string" },
+    { "key": "payment_id", "value": "", "type": "string" },
+    { "key": "location_id", "value": "", "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{auth_token}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "description": "Avtentikacija - PIN based login z Bearer JWT token",
+      "item": [
+        {
+          "name": "Login (PIN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/auth", "host": ["{{base_url}}"], "path": ["auth"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employeeId\": \"{{employee_id}}\",\n  \"pin\": \"{{pin}}\"\n}"
+            },
+            "description": "Prijava z employee ID in PIN. Vrne JWT token (veljaven 8 ur).\n\nTest PINs:\n- test-admin / 1111 (admin)\n- test-waiter / 0000 (natakar)\n- 1234 (admin production)\n- 5555 (super-admin)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.token) {",
+                  "    pm.collectionVariables.set('auth_token', json.token);",
+                  "    pm.collectionVariables.set('location_id', json.employee.locationId);",
+                  "    console.log('Token saved:', json.token.substring(0, 20) + '...');",
+                  "}",
+                  "pm.test('Login successful', function() {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.token).to.be.a('string');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/auth/logout", "host": ["{{base_url}}"], "path": ["auth", "logout"] },
+            "description": "Odjava - invalidira trenutni token."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": ["pm.collectionVariables.set('auth_token', '');"],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "description": "Upravljanje naročil - CRUD, transfer, optimistic lock",
+      "item": [
+        {
+          "name": "List Orders",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/orders?limit=20&offset=0&status=open",
+              "host": ["{{base_url}}"],
+              "path": ["orders"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "offset", "value": "0" },
+                { "key": "status", "value": "open" }
+              ]
+            },
+            "description": "Pridobi seznam naročil z paginacijo in filter-i."
+          }
+        },
+        {
+          "name": "Get Order by ID",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/orders/{{order_id}}", "host": ["{{base_url}}"], "path": ["orders", "{{order_id}}"] },
+            "description": "Pridobi posamezno naročilo z vsemi podrobnostmi (items, payments, FURS)."
+          }
+        },
+        {
+          "name": "Create Order",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/orders", "host": ["{{base_url}}"], "path": ["orders"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tableId\": \"cltable1\",\n  \"items\": [\n    {\n      \"menuItemId\": \"clitem123\",\n      \"quantity\": 2,\n      \"modifiers\": [],\n      \"notes\": \"Brez čebule\"\n    }\n  ],\n  \"locationId\": \"{{location_id}}\",\n  \"type\": \"dine_in\"\n}"
+            },
+            "description": "Ustvari novo naročilo. Vrne 201 z order ID (shranjen v order_id variable)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.id) {",
+                  "    pm.collectionVariables.set('order_id', json.id);",
+                  "    console.log('Order ID saved:', json.id);",
+                  "}",
+                  "pm.test('Order created', function() {",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "    pm.expect(json.id).to.be.a('string');",
+                  "    pm.expect(json.status).to.equal('open');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Order (optimistic lock)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/orders/{{order_id}}", "host": ["{{base_url}}"], "path": ["orders", "{{order_id}}"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"open\",\n  \"updatedAt\": \"\"\n}"
+            },
+            "description": "Posodobi naročilo. Zahteva updatedAt (optimistic lock). Če se ne ujema, vrne 409 Conflict."
+          }
+        },
+        {
+          "name": "Transfer Order (new table)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/orders/{{order_id}}/transfer", "host": ["{{base_url}}"], "path": ["orders", "{{order_id}}", "transfer"] },
+            "body": { "mode": "raw", "raw": "{\n  \"newTableId\": \"cltable8\"\n}" },
+            "description": "Prenese naročilo na drugo mizo."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "description": "Plačila - gotovina, kartica (Stripe), refund",
+      "item": [
+        {
+          "name": "Create Payment (Cash)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/payments", "host": ["{{base_url}}"], "path": ["payments"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{order_id}}\",\n  \"method\": \"cash\",\n  \"amount\": 25.00,\n  \"receivedAmount\": 30.00,\n  \"tip\": 0.00\n}"
+            },
+            "description": "Ustvari gotovinsko plačilo. Vrne 201 z FURS ZOI in EOR (če je FURS aktiven)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "if (json.id) pm.collectionVariables.set('payment_id', json.id);",
+                  "pm.test('Payment created', function() {",
+                  "    pm.expect(pm.response.code).to.equal(201);",
+                  "    pm.expect(json.status).to.equal('completed');",
+                  "    pm.expect(json.fursZoi).to.be.a('string');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Stripe PaymentIntent",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/payments/stripe-intent", "host": ["{{base_url}}"], "path": ["payments", "stripe-intent"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 4990,\n  \"currency\": \"eur\",\n  \"orderId\": \"{{order_id}}\",\n  \"locationId\": \"{{location_id}}\",\n  \"metadata\": {\n    \"tableNumber\": \"5\",\n    \"waiterName\": \"Janez\"\n  }\n}"
+            },
+            "description": "Ustvari Stripe PaymentIntent za kartično plačilo.\n\nAmount je v centih: 4990 = 49.90 EUR.\n\nTest kartice:\n- 4242 4242 4242 4242 (uspeh)\n- 4000 0000 0000 9995 (insufficient funds)\n- 4000 0027 6000 3184 (3DS required)"
+          }
+        },
+        {
+          "name": "Get Payment by ID",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/payments/{{payment_id}}", "host": ["{{base_url}}"], "path": ["payments", "{{payment_id}}"] }
+          }
+        },
+        {
+          "name": "Refund Payment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/payments/{{payment_id}}/refund", "host": ["{{base_url}}"], "path": ["payments", "{{payment_id}}", "refund"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": null,\n  \"reason\": \"customer_request\"\n}"
+            },
+            "description": "Refund plačila. amount=null za polni refund, ali specificiraj znesek za delni."
+          }
+        },
+        {
+          "name": "List Payment Gateways (health)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/payment-gateways?health=1",
+              "host": ["{{base_url}}"],
+              "path": ["payment-gateways"],
+              "query": [{ "key": "health", "value": "1" }]
+            },
+            "description": "Pridobi seznam plačilnih gateway-ov z health status."
+          }
+        }
+      ]
+    },
+    {
+      "name": "FURS",
+      "description": "FURS - davčno potrjevanje računov (ZDDV-1)",
+      "item": [
+        {
+          "name": "FURS Status",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/furs", "host": ["{{base_url}}"], "path": ["furs"] },
+            "description": "Preveri FURS povezavo in konfiguracijo."
+          }
+        },
+        {
+          "name": "FURS Cert Status",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/furs/cert-status", "host": ["{{base_url}}"], "path": ["furs", "cert-status"] },
+            "description": "Preveri veljavnost FURS certifikata (datum poteka, issuer)."
+          }
+        },
+        {
+          "name": "Verify Invoice (FURS)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/furs", "host": ["{{base_url}}"], "path": ["furs"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": \"{{order_id}}\",\n  \"invoiceNumber\": \"2025-001\",\n  \"issueDateTime\": \"2025-09-04T11:05:00Z\",\n  \"taxNumber\": \"SI12345678\",\n  \"premisesId\": \"PE123\",\n  \"electronicDeviceId\": \"BLAG1\",\n  \"invoiceAmount\": 49.90,\n  \"paymentAmount\": 50.00,\n  \"taxes\": [\n    { \"rate\": 22, \"base\": 30.00, \"tax\": 6.60 },\n    { \"rate\": 9.5, \"base\": 13.30, \"tax\": 1.26 }\n  ]\n}"
+            },
+            "description": "Pošlji račun FURS-u za davčno potrjevanje. Vrne ZOI (32-znakovni MD5) in EOR (UUID)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "pm.test('FURS verified', function() {",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.zoi).to.match(/^[a-f0-9]{32}$/);",
+                  "    pm.expect(json.eor).to.be.a('string');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload FURS Certificate (.p12)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{base_url}}/furs/cert-upload", "host": ["{{base_url}}"], "path": ["furs", "cert-upload"] },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "cert", "type": "file", "src": [], "description": ".p12 certifikat (max 100KB)" },
+                { "key": "password", "value": "cert-password", "type": "text" },
+                { "key": "environment", "value": "test", "type": "text", "description": "test | production" },
+                { "key": "locationId", "value": "{{location_id}}", "type": "text" }
+              ]
+            },
+            "description": "Upload .p12 FURS certifikata. Podpira multipart/form-data.\n\nP0-1 implementacija (glej Tech Spec)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Menu & Items",
+      "description": "Meniji, artikli, kategorije, modifikatorji",
+      "item": [
+        {
+          "name": "List Menus",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/menus", "host": ["{{base_url}}"], "path": ["menus"] }
+          }
+        },
+        {
+          "name": "List Menu Items",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/menu-items?active=true&includeModifiers=true",
+              "host": ["{{base_url}}"],
+              "path": ["menu-items"],
+              "query": [
+                { "key": "active", "value": "true" },
+                { "key": "includeModifiers", "value": "true" },
+                { "key": "categoryId", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Menu Item",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/menu-items", "host": ["{{base_url}}"], "path": ["menu-items"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Pizza Margherita\",\n  \"nameEn\": \"Margherita Pizza\",\n  \"price\": 12.00,\n  \"categoryId\": \"clcat1\",\n  \"taxRate\": 22,\n  \"allergens\": [\"gluten\", \"milk\"],\n  \"description\": \"Klasična italijanska pizza\",\n  \"preparationTime\": 15,\n  \"active\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "List Categories",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/categories", "host": ["{{base_url}}"], "path": ["categories"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tables",
+      "description": "Mize in sektorji",
+      "item": [
+        {
+          "name": "List Tables",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/tables?locationId={{location_id}}", "host": ["{{base_url}}"], "path": ["tables"], "query": [{ "key": "locationId", "value": "{{location_id}}" }] }
+          }
+        },
+        {
+          "name": "Generate QR Codes (batch)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tables/qr-batch", "host": ["{{base_url}}"], "path": ["tables", "qr-batch"] },
+            "body": { "mode": "raw", "raw": "{\n  \"tableIds\": [\"cltab1\", \"cltab2\", \"cltab3\"],\n  \"format\": \"png\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dashboard & Reports",
+      "description": "Dashboard metrike in poročila",
+      "item": [
+        {
+          "name": "Dashboard (today)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/dashboard?date=2025-09-04", "host": ["{{base_url}}"], "path": ["dashboard"], "query": [{ "key": "date", "value": "2025-09-04" }] },
+            "description": "Današnje metrike: promet, naročila, AOV, top artikli, načini plačila."
+          }
+        },
+        {
+          "name": "Daily Report",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/reports/daily?date=2025-09-04", "host": ["{{base_url}}"], "path": ["reports", "daily"], "query": [{ "key": "date", "value": "2025-09-04" }] }
+          }
+        },
+        {
+          "name": "Employee Report",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/reports/employees?dateFrom=2025-09-01&dateTo=2025-09-04",
+              "host": ["{{base_url}}"],
+              "path": ["reports", "employees"],
+              "query": [
+                { "key": "dateFrom", "value": "2025-09-01" },
+                { "key": "dateTo", "value": "2025-09-04" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Close Cash Register (Z-Report)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/cash-register/close", "host": ["{{base_url}}"], "path": ["cash-register", "close"] },
+            "body": { "mode": "raw", "raw": "{\n  \"locationId\": \"{{location_id}}\",\n  \"closingAmount\": 542.50,\n  \"countedCash\": 540.00,\n  \"notes\": \"Manjka 2.50 EUR\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inventory",
+      "description": "Zaloge, dobavitelji, nabava",
+      "item": [
+        {
+          "name": "List Inventory",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/inventory?locationId={{location_id}}", "host": ["{{base_url}}"], "path": ["inventory"], "query": [{ "key": "locationId", "value": "{{location_id}}" }] }
+          }
+        },
+        {
+          "name": "Restock (dopolnitev)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/inventory/restock", "host": ["{{base_url}}"], "path": ["inventory", "restock"] },
+            "body": { "mode": "raw", "raw": "{\n  \"itemId\": \"clinv1\",\n  \"quantity\": 10.0,\n  \"cost\": 25.00,\n  \"supplierId\": \"clsup1\",\n  \"note\": \"Tedenska dobava\"\n}" }
+          }
+        },
+        {
+          "name": "Adjust (korekcija/inventura)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/inventory/adjust", "host": ["{{base_url}}"], "path": ["inventory", "adjust"] },
+            "body": { "mode": "raw", "raw": "{\n  \"itemId\": \"clinv1\",\n  \"newQuantity\": 23.0,\n  \"reason\": \"inventura\",\n  \"note\": \"Manjka 2.5 kg\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Employees",
+      "description": "Uporabniki - CRUD, reset PIN, vloge",
+      "item": [
+        {
+          "name": "List Employees",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/employees?locationId={{location_id}}", "host": ["{{base_url}}"], "path": ["employees"], "query": [{ "key": "locationId", "value": "{{location_id}}" }] }
+          }
+        },
+        {
+          "name": "Create Employee",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/employees", "host": ["{{base_url}}"], "path": ["employees"] },
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ana Horvat\",\n  \"pin\": \"4444\",\n  \"role\": \"waiter\",\n  \"locationId\": \"{{location_id}}\",\n  \"email\": \"ana@restaurant.com\",\n  \"phone\": \"+38641234567\"\n}" }
+          }
+        },
+        {
+          "name": "Reset PIN",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/employees/{{employee_id}}/reset-pin", "host": ["{{base_url}}"], "path": ["employees", "{{employee_id}}", "reset-pin"] },
+            "body": { "mode": "raw", "raw": "{\n  \"newPin\": \"5555\"\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "PWA & Push",
+      "description": "Push notifications - subscribe, send",
+      "item": [
+        {
+          "name": "Subscribe to Push",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/push/subscribe", "host": ["{{base_url}}"], "path": ["push", "subscribe"] },
+            "body": { "mode": "raw", "raw": "{\n  \"endpoint\": \"https://fcm.googleapis.com/fcm/send/abc123\",\n  \"keys\": {\n    \"p256dh\": \"BNa...\",\n    \"auth\": \"abc...\"\n  },\n  \"expirationTime\": null\n}" }
+          }
+        },
+        {
+          "name": "Send Push Notification",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/push/send", "host": ["{{base_url}}"], "path": ["push", "send"] },
+            "body": { "mode": "raw", "raw": "{\n  \"employeeId\": \"{{employee_id}}\",\n  \"title\": \"Novo naročilo\",\n  \"body\": \"Miza 5 - 2x Pizza\",\n  \"data\": {\n    \"url\": \"/orders/{{order_id}}\",\n    \"orderId\": \"{{order_id}}\"\n  }\n}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Audit Log",
+      "description": "Chain hash audit log - nepopravljiv",
+      "item": [
+        {
+          "name": "Get Audit Log",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/audit-log?from=2025-09-01&to=2025-09-04",
+              "host": ["{{base_url}}"],
+              "path": ["audit-log"],
+              "query": [
+                { "key": "from", "value": "2025-09-01" },
+                { "key": "to", "value": "2025-09-04" }
+              ]
+            },
+            "description": "Pridobi audit log vnose z datumskim filtrom."
+          }
+        },
+        {
+          "name": "Verify Audit Chain",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/audit-log/verify", "host": ["{{base_url}}"], "path": ["audit-log", "verify"] },
+            "description": "Verificiraj integriteto chain hash audit log-a (SHA-256). Super-admin only."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var json = pm.response.json();",
+                  "pm.test('Chain valid', function() {",
+                  "    pm.expect(json.valid).to.be.true;",
+                  "    pm.expect(json.totalEntries).to.be.a('number');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "description": "Sistemski health check",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"] },
+            "description": "Sistemski health check. Brez avtentikacije.\n\nPričakovan response:\n{ status: 'ok', db: 'connected', sentry: 'configured', version: '1.0.0' }"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Health OK', function() {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(pm.response.json().status).to.equal('ok');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

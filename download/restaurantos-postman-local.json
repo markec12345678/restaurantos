@@ -1,0 +1,13 @@
+{
+  "name": "RestaurantOS - Local",
+  "values": [
+    { "key": "base_url", "value": "http://localhost:3000/api", "enabled": true },
+    { "key": "auth_token", "value": "", "enabled": true },
+    { "key": "employee_id", "value": "test-admin", "enabled": true },
+    { "key": "pin", "value": "1111", "enabled": true },
+    { "key": "order_id", "value": "", "enabled": true },
+    { "key": "payment_id", "value": "", "enabled": true },
+    { "key": "location_id", "value": "", "enabled": true }
+  ],
+  "_postman_variable_scope": "environment"
+}

@@ -1,0 +1,13 @@
+{
+  "name": "RestaurantOS - Production",
+  "values": [
+    { "key": "base_url", "value": "https://restaurantos.app/api", "enabled": true },
+    { "key": "auth_token", "value": "", "enabled": true },
+    { "key": "employee_id", "value": "", "enabled": true },
+    { "key": "pin", "value": "", "enabled": true },
+    { "key": "order_id", "value": "", "enabled": true },
+    { "key": "payment_id", "value": "", "enabled": true },
+    { "key": "location_id", "value": "", "enabled": true }
+  ],
+  "_postman_variable_scope": "environment"
+}
