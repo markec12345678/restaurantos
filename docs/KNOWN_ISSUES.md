@@ -127,18 +127,48 @@ README in Security Audit sta bila prej označena z "A+++", kar je bilo **pretira
 
 ---
 
+## DOKUMENTACIJSKE NESKLANDNOSTI (2 odprte)
+
+### KDS paradoks — implementiran a označen kot "P1 načrtovan"
+- **Status:** ✅ FIXED v tem commit-u (README posodobljen)
+- **Problem:** README je KDS označeval kot "⏳ P1" (načrtovan), a KDS je **polno implementiran**:
+  - `src/app/kds/` — celoten KDS UI (KDSOrderGrid, OrderCard, KDSHeader, KDSLogin, ElapsedTimer, sound alerts)
+  - `src/app/api/kitchen/` — API rute (GET active orders, matrix)
+  - `src/lib/websocket-client/use-kitchen-websocket/` — real-time WebSocket z auto-reconnect
+  - `src/components/pos/kitchen/` in `src/components/pos/kitchen-station/` — komponente
+  - Features: grid/list view, station filter (kitchen/bar/pastry/grill), bump orders, recall, fullscreen, sound, elapsed timers
+  - Prisma: `firedAt` za timing, `PrepStation` model, `type` field za postaje
+- **Popravek:** README posodobljen — KDS status spremenjen iz "⏳ P1" v "✅", roadmap P1-2 označen kot `[x]`
+
+### Test rezultati — 5 odprtih testov (ne "production-perfect")
+- **Status:** 📝 Dokumentirano
+- **Problem:** README je trdil "144/149 PASS (96.6%)" brez pripombe o 5 odprtih testih. To je dober rezultat, a ne "production-perfect".
+- **5 odprtih testov:**
+  1. **FURS Server Down: 5/6** — 1 test faila (FURS recovery scenario)
+  2. **Offline Conflict: 8/9** — 1 test faila (conflict resolution edge case)
+  3. **Shared Resources: 39/40** — 1 test faila (multi-tenant isolation edge case)
+  4. **Super-admin: 9/10** — 1 test faila (cross-branch audit log)
+  5. **Security HIGH: 2/4** — 2 testa failata (povezani z #34 CSP ki je sedaj FIXED, in #39 rate-limit)
+- **Popravek:** README posodobljen z linkom na Known Issues, ocena spremenjena iz "production-perfect" v "96.6% PASS — 5 odprtih"
+- **Realna ocena:** 8.7/10 (dober, a ne popoln)
+
+---
+
 ## Zaključek
 
 RestaurantOS v1.0.0 je **produkciji-pripravljen za pilot stranke** (1-3 lokacije, single-tenant). Za pravi multi-tenant SaaS (10+ strank, več lokacij) morajo biti rešene HIGH težave (#32, #31) in MEDIUM #39 (Redis rate-limit).
 
+**Realna ocena:** 8.7/10 — dober produkt z znanimi izboljšavami, a ne "production-perfect".
+
 **Priporočeni vrstni red popravkov:**
-1. ✅ #34 CSP (FIXED v tem commit-u)
-2. P1: #35 Hash chain (1 teden)
-3. P1: #39 Redis rate-limit (1 teden)
-4. P1: #32 Subscription obvezen (3 dni)
-5. P1: #31 Accounting locationId obvezen (3 dni)
-6. P2: #33 JSON-as-string → Json (2 tedna)
-7. P2: #37 FURS duplikati (3 dni)
-8. P2: #36 Shift merge (1 teden)
+1. ✅ #34 CSP (FIXED)
+2. ✅ KDS dokumentacijska neskladnost (FIXED — README posodobljen)
+3. P1: #35 Hash chain (1 teden)
+4. P1: #39 Redis rate-limit (1 teden)
+5. P1: #32 Subscription obvezen (3 dni)
+6. P1: #31 Accounting locationId obvezen (3 dni)
+7. P2: #33 JSON-as-string → Json (2 tedna)
+8. P2: #37 FURS duplikati (3 dni)
+9. P2: #36 Shift merge (1 teden)
 
 **Skupni napor:** ~6 tednov z 1 FTE za vse HIGH + MEDIUM popravke.

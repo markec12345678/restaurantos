@@ -109,7 +109,7 @@ bun run dev
 | Modul | Opis | Status |
 |-------|------|:---:|
 | **POS** | Sprejemanje naročil, mize, plačila, popusti | ✅ |
-| **KDS** | Kitchen Display System z WebSocket | ⏳ P1 |
+| **KDS** | Kitchen Display System z WebSocket, station filter, sound, bump | ✅ |
 | **Waiter** | Natakar interfejs z real-time posodobitvami | ✅ |
 | **FURS** | Davčno potrjevanje računov (ZDDV-1), storno, e-invoice book | ✅ |
 | **Zaloga** | Inventory management, HACCP, recepti, purchase orders | ✅ |
@@ -122,7 +122,7 @@ bun run dev
 | **Loyalty** | Program zvestobe strank | ⏳ P1 |
 | **Rezervacije** | Spletna rezervacija miz | ⏳ P1 |
 
-## 🔒 Varnost (A+++ ocena)
+## 🔒 Varnost (A+ ocena)
 
 - **CSP** z nonce injection (XSS zaščita)
 - **HSTS** z preload (HTTPS enforcement)
@@ -145,8 +145,8 @@ bun run dev
 | Prisma modelov | 92 |
 | Tabel v bazi | 94 |
 | Jezikov | 5 (sl, en, it, hr, de) |
-| E2E testov PASS | 144/149 (96.6%) |
-| Varnostna ocena | A+++ |
+| E2E testov PASS | 144/149 (96.6%) — 5 odprtih, glej [Known Issues](docs/KNOWN_ISSUES.md) |
+| Varnostna ocena | A+ (glej [Known Issues](docs/KNOWN_ISSUES.md)) |
 | Koda (vrstice) | 63.389 |
 | Odvisnosti | 99 |
 
@@ -219,7 +219,7 @@ src/
 
 ### P1 - Visoko (3-6 mesecev)
 - [ ] P1-1: Mobile-responsive dashboard
-- [ ] P1-2: Kitchen Display System (KDS) v2
+- [x] P1-2: Kitchen Display System (KDS) ✅ Implementirano (WebSocket, station filter, sound, bump, fullscreen)
 - [ ] P1-3: Spletne naročilne forme na domeni
 - [ ] P1-4: Loyalty program
 - [ ] P1-5: Formalni design system (Storybook)
