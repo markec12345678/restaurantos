@@ -1,525 +1,88 @@
-# Changelog — RestaurantOS
-
-## [Security Hardening 2026-08-28] — 11 audit issuejev zaprtih
-
-### Varnostne izboljšave (Critical)
-
-#### WebAuthn/FIDO2 biometric login (Issue #34, PR #55)
-- **@simplewebauthn/server v11** integracija z ES256/RS256/EdDSA podporo
-- **Pravo kriptografsko preverjanje podpisa** (prej samo clientData.challenge)
-- **FIDO2 §6.1 counter** zaščita proti kloniranju authenticator-ja
-- **One-shot challenge store** — atomarno brisanje (replay defense)
-- **Rate limit 5/IP/min** za WebAuthn login + register
-- **4 API rute**: GET/POST `/api/auth/webauthn`, GET/POST `/api/auth/webauthn/register`, GET `/api/auth/webauthn/credentials`, DELETE `/api/auth/webauthn/credentials/[id]`
-- **2 frontend komponenti**: `BiometricLogin` (gumb na PIN login), `BiometricManager` (admin upravljanje)
-- **31 novih testov**
-
-#### CSP nonce-based (Issue #34, PR #56)
-- **`unsafe-inline` odstranjen** iz `script-src` (produkcija)
-- **Per-request nonce** (18 bajtov / 144-bit entropy) generiran v Edge middleware
-- **Next.js avtomatsko injektira** nonce v vse `<script>` tag-e
-- `unsafe-eval` ostaja samo v dev (za HMR)
-- 18 novih testov
-
-### Multi-tenant arhitektura
-
-#### Accounting multi-tenant (Issue #31, PR #58)
-- `JournalLine.locationId` denormalizirano za hitre poizvedbe
-- `AccountsPayable.locationId` + Location relation + index
-- `AccountsReceivable.locationId` + Location relation + index
-- 4 API report rute (Trial Balance, P&L, Balance Sheet, GL) sprejemajo `?locationId=` filter
-- 9 novih testov
-
-#### SaaS tenant root (Issue #32, PR #60)
-- `Location.subscriptionId` + `Subscription.locations[]` relacija
-- `getSubscriptionContext()` helper z auto-detection
-- `canAccessLocation()` za lastništvo preverjanje
-- 12 novih testov
-
-#### FURS config resolver (Issue #37, PR #62)
-- `getFursConfig(locationId?)` z 4-stopenjskim fallback:
-  1. Location z locationId (multi-tenant)
-  2. Prva aktivna Location (auto-detect)
-  3. RestaurantSettings (deprecated)
-  4. env spremenljivke
-- Nov admin endpoint `GET /api/furs/config-source`
-- @deprecated na RestaurantSettings FURS poljih
-- 13 novih testov
-
-### Type safety izboljšave
-
-#### Centralized TS enums (Issue #41, PR #68)
-- **14 TS const objects**: OrderStatus, OrderType, PaymentStatus, ShiftStatus, AccountType, SubscriptionPlan, FursEnvironment, itd.
-- **14 type-guards** (isOrderStatus, isPaymentStatus, itd.) — catch typo-je pri API input
-- `ORDER_STATUS_LABELS` (slovenski UI prevodi)
-- `getEnumStats()` migracijski dashboard
-- 39 novih testov
-
-#### JSON-as-String typed helpers (Issue #33, PR #69)
-- **25 inventariziranih JSON polj** v `JSON_FIELDS` array
-- **11 typed parserjev**: parseOrderItemModifiers, parsePermissions, parseAllergens, parseDeliveryDays, parseVatBreakdown, itd.
-- **2 type-guards**: isOrderItemModifier, isPermission
-- `safeJsonParse(json, fallback)` — never throws
-- `getJsonFieldStats()` migracijski dashboard
-- 48 novih testov
-
-#### ChartOfAccount FK (Issue #38, PR #61)
-- `JournalLine.chartOfAccountCode` optional FK na `ChartOfAccount.code`
-- `resolveAccountCode()` helper z validacijo + backward compat
-- `validateAccountCodes()` bulk validacija
-- 12 novih testov
-
-#### Soft ref → FK (Issue #43, PR #64)
-- 4 nova FK polja: Order.cancelledById, StaffShift.createdById, PurchaseOrder.requestedById + approvedById
-- `resolveEmployeeRef(softRef)` — prepozna employeeId/email/PIN/ime
-- `syncEmployeeRef()` — sinhronizira soft ref + FK
-- `getEmployeeRefStats()` migracijski dashboard
-- 13 novih testov
-
-### Performance + Scalability
-
-#### CacheAdapter pattern (Issue #39, PR #57)
-- **MemoryCacheAdapter** (default, single-instance)
-- **RedisCacheAdapter** (multi-replica, ioredis lazy-loaded)
-- Factory `getCacheAdapter()` izbere glede na `REDIS_URL`
-- WebAuthn challenge store + rate limit uporabljata adapter
-- `checkRateLimitAsync()` + sync `checkRateLimit()` wrapper (52 call sites ohranjena)
-- 20 novih testov
-
-### Audit + Compliance
-
-#### GuestVisit hash chain (Issue #35, PR #59)
-- 14 unit testov za existing `createGuestVisitWithChain`
-- Nov admin endpoint `GET /api/audit/guest-visit-integrity`
-- Audit log `GUEST_VISIT_INTEGRITY_CHECK`
-
-#### Shift/StaffShift unified (Issue #36, PR #63)
-- `getUnifiedShifts(filter)` — paralelna query oba modela
-- `getShiftSourceStats()` — migracijski dashboard (0-100%)
-- @deprecated komentar na Shift model
-- 15 novih testov
-
-### Developer experience
-
-#### DB config validator (Issue #40, PR #66)
-- `validateDatabaseConfig()` z `detectProvider` + `maskDatabaseUrl`
-- Nov admin endpoint `GET /api/system/db-health`
-- `.env.example` popravljen (SQLite path odstranjen)
-- 18 novih testov
-
-#### i18n consolidation (Issue #44, PR #65)
-- `tTranslate(key, locale)` centralni proxy z 3-stopenjskim fallback
-- `getI18nStats()` migracijski dashboard z recommendations
-- 21 novih testov
-
-#### IndexedDB store count (Issue #42, PR #67)
-- `INDEXEDDB_STORES = ['pendingOrders', 'pendingReceipts']` as const
-- `INDEXEDDB_STORE_COUNT = 2` (code-locked)
-- 4 novi testi
-
-### Skupna statistika
-- **+287 novih testov** (537 → 824, +53%)
-- **0 TypeScript napak**
-- **11/11 audit issuejev zaprtih** (Issues #31-#44)
-- **3 nove dependencies**: @simplewebauthn/server, @simplewebauthn/browser, ioredis
-- **8 novih API rute**
-- **18 novih datotek**
-
----
-
-## [Unreleased] — 2026-08-28
-
-### FURS compliance + POS 2026 raziskava + finalni popravki
-
-#### Dodano
-- **FURS Certificate Lifecycle Monitor** — `GET /api/furs/cert-status`
-  - Preverja stanje certifikata, opozori pred potekom (60 dni)
-  - FURS rotacija certifikatov sep 2025 — 8000 poteklo
-  - Preverja nepotrjene račune (1h warning, 48h ZDDV-1 critical)
-- **E-Invoice Book Reporting** — `GET /api/furs/e-invoice-book`
-  - Knjiga računov za FURS predajo (zakonska obveznost od 1. julija 2025)
-  - JSON + CSV export z DDV razčlenitvijo, ZOI, EOR
-- **MealtimeRule** — `src/lib/mealtimes.ts` + menu API filtering
-  - `isItemAvailableNow()` — preverja ali je artikel dostopen ob trenutnem času
-  - `?checkMealtimes=true` in `?hideUnavailable=1` query parametri
-- **KOT Document Lifecycle** (URY Mosaic-style) — `KotDocument` model + `GET/POST /api/kot`
-  - 4 tipi: original, modified, partially_cancelled, cancelled
-  - Avtomatsko kreiran ob `handleFireAction`
-- **Order Dossier** (POSR-style) — `GET /api/orders/[id]/dossier`
-  - Celovita časovnica: order → KOT → items → voids → payments → receipts → FURS → audit
-- **Operational Red Flags** (URY Mosaic-style) — `GET /api/operational-alerts`
-  - 8 tipov alertov z severity (critical/warning/info)
-- **GL/TB/BS/P&L Reports** (POSR/URY-style) — 3 novi API endpointi
-  - `generateProfitLoss()`, `generateBalanceSheet()`, `generateGeneralLedger()`
-- **Web Push Notifications** — `POST/DELETE /api/push/subscribe`, `GET /api/push/vapid-key`
-- **Bolt Food Webhook** — HMAC-SHA256 verification, idempotent, rate-limited
-- **Scheduled Email Reports** — Vercel Cron (vsakih 15 minut), PDF attachment
-
-#### Kritični popravki
-- **Skip-login bypass** — odstranjen onSkip (kdorkoli je lahko videl POS)
-- **DDV lookup** — cats[item.categoryId] iskal UUID v friendly-name mapi → categoryIdToName Map
-- **KOT auto-create** — handleFireAction zdaj avtomatsko ustvari KOT dokument
-- **Vercel Cron auth** — CRON_SECRET bypass dodan
-- **Bolt webhook DDV** — hardcoded 22% → pravilen DDV iz menuItem.vatRate
-- **FURS JWT** — base64url double-encoding popravljen (blokiral produkcijo)
-- **Refund reversal** — gift card/loyalty/check/order status reverziranje
-- **Loyalty fraud** — server-side validacija vrednosti točk
-- **P&L report** — hardcoded konstante → API fetch
-- **console.log → logger** v 5 produkcijkih datotekah
-- **scripts/seed tsc napake** — 0 napak (prvič popolnoma čisto!)
-
-#### Spletna raziskava (22 iskanj, 220 virov)
-- Offline-first z transactional outbox = dominantni pattern 2025
-- FURS cert rotacija + e-invoice book = zakonska obveznost
-- ViDA e-invoicing vstopil v veljavo 29. junija 2026
-- AI forecasting do 50% boljša natančnost
-- NFC tap-to-pay baseline, QR order-and-pay standard (40% prefer)
-- Ghost kitchens potrebujejo unified POS + KDS + delivery hub
-
-#### Testiranje
-- TypeCheck: **0 napak** (popolnoma čisto!)
-- Vitest: 191/191 zelenih
-- Praktični testi: vse funkcije delujejo end-to-end
-- Prisma: 79 modelov
-
----
-
-## [Unreleased] — 2026-08-27
-
-### Konkurenčne funkcije + kritični popravki
-
-#### Dodano
-- **Operational Red Flags Dashboard** (URY Mosaic-style) — `GET /api/operational-alerts`
-  - 8 tipov alertov: zakasnela naročila, KOT ni začet, neodprti računi, preveč preklicov, nizka zaloga, nefiskalizirani računi, predolge izmene, predolgo zasedene mize
-  - Severity: critical / warning / info
-- **Mealtimes Scheduling** (TastyIgniter-style) — `MealtimeRule` model
-  - Per-item availability: dnevi v tednu + časovno okno (zajtrk 6-11h, nedeljska pečenka)
-- **GL/TB/BS/P&L Reports** (POSR/URY-style)
-  - `generateProfitLoss()` — Prihodki - Stroški = Čisti dobiček + marža %
-  - `generateBalanceSheet()` — Aktiva = Obveze + Kapital + isBalanced
-  - `generateGeneralLedger()` — Vse transakcije po kontih z datumom
-  - API: `GET /api/accounting/{profit-loss, balance-sheet, general-ledger}`
-- **Web Push Notifications** — `POST/DELETE /api/push/subscribe`, `GET /api/push/vapid-key`
-  - notifyNewOrder, notifyItemReady, notifyDeliveryOrder, notifyLowStock
-  - VAPID konfiguracija, PushSubscription model
-- **Bolt Food Delivery Webhook** — `POST /api/delivery/webhook/bolt`
-  - HMAC-SHA256 signature verification (timing-safe)
-  - Zod validacija, idempotentnost, rate limiting
-- **Scheduled Email Reports** — `POST /api/scheduled-emails/{create,process}`
-  - Vercel Cron (vsakih 15 minut)
-  - PDF attachment, multi-recipient, idempotentno
-
-#### Kritični popravki
-- **BUG-FURS-1**: JWT signature base64url double-encoding — blokiral FURS v produkciji
-- **BUG-PAY-1**: Refund brez reversal side-effects — gift card/loyalty/check nedosledni
-- **BUG-LOY-1**: Loyalty points value ni validiran server-side — fraud (1 točka = €1000)
-- **DDV popravki**: Hrana 9.5% (prej 22%), alkohol 22%
-- **Panna cotta alergen**: odstranjeno jajce [3], pustljeno mleko [7]
-- **PIN varnost**: bcrypt hash + HMAC pinLookup (prej plaintext v demo-data)
-- **JSON syntax**: trailing comma v vseh 5 prevodnih datotekah
-- **Slike artiklov**: 106/106 pravilno mapiranih (prej 4/106)
-
-#### Spremenjeno
-- Schema: 78 modelov (dodan MealtimeRule, PushSubscription, JournalEntry.locationId)
-- Setup Wizard: `/setup` z izbiro ena/več lokacij
-- ExportReport: izbira formata (CSV/PDF/Excel/eDavki XML)
-- AuditLogViewer: revizijski dnevnik UI za admin
-- PWA Install Prompt komponenta
-- deepToNumbers: Date → ISO string
-- Session: BigInt → DateTime (PGlite compatibility)
-- FURS ByteString: em-dash v headerjih zamenjan z navadnim dash
-
-#### Testiranje
-- TypeCheck: 0 napak v `src/`
-- Vitest: 191/191 zelenih
-- Playwright E2E: 23/24 zelenih (setup + workflow)
-- JSON veljavnost: 5/5 prevodnih datotek
-
-#### Primerjava s konkurenco
-- POSR: AI napovedi, offline-first, internal GL → delno prevzeto (GL/TB/BS/P&L)
-- TastyIgniter: Online ordering, mealtimes → prevzeto (mealtimes scheduling)
-- URY Mosaic: KOT lifecycle, operational red flags → prevzeto (operational alerts)
-
----
-
-## [Unreleased] — 2026-08-26
-
-### Workflow povezovanje + setup wizard + PWA
-
-#### Dodano
-- **Setup Wizard** (`/setup`) — first-run konfiguracija z izbiro ene ali več lokacij
-  - `GET /api/setup/status` — preveri ali je sistem inicializiran
-  - `POST /api/setup/init` — ustvari admin + lokacijo + FURS + core podatke (davki, konti)
-  - `SetupRedirect` komponenta — samodejna preusmeritev na `/setup`
-- **PGlite (embedded PostgreSQL)** — deluje brez Dockerja/root dostopa
-  - `db.ts` z `PrismaPGlite` adapterjem (singleton instanca)
-  - `scripts/init-pglite.mjs` — inicializacija baze iz Prisma sheme
-  - `scripts/seed-e2e-pglite.mjs` — seed testnih podatkov
-- **PWA Install Prompt** — namestitev na domači zaslon (Add to Home Screen)
-- **AuditLogViewer** — revizijski dnevnik UI za admin (PCI DSS + FURS skladnost)
-  - Filtriranje po akciji, entiteti, uporabniku, datumu
-  - Paginacija, CSV export, hash chain integrity check
-- **ExportReport z izbiro formata** — CSV, PDF, Excel (XLSX), eDavki XML
-- **WebSocket centralni broadcast** — `broadcastWSEvent` (in-process + HTTP fallback)
-- **Server-side receipt creation** — avtomatska fiskalizacija po plačilu (neodvisno od klienta)
-
-#### Spremenjeno
-- **Schema popravki:**
-  - `Order.firedAt` — čas pošiljanja v kuhinjo (KDS timer)
-  - `Order.employee` — FK relacija do Employee (prej samo soft-FK)
-  - `OrderItem.firedAt` — per-item urgency timer
-  - `Session.createdAt/expiresAt/absoluteExpiry` — BigInt → DateTime (PGlite compat)
-  - `ChartOfAccount` model — ponovno dodan (bil izgubljen)
-  - `HaccpEntry` — dodani FK-ji za Employee, OrderItem, MenuItem (EU 852/2004)
-  - `JournalLine.chartOfAccount` — FK na ChartOfAccount.code (issue #38)
-- **`deepToNumbers`** — Date → ISO string (Zod response sheme)
-- **`handle-fire-action.ts`** — zapiše firedAt na Order in OrderItem
-- **Dashboard analytics** — vsi groupBy uporabljajo paidAt (ne createdAt)
-- **EOD** — preverja odprta naročila pred zaprtjem (forceClose opcija)
-- **Reservations/Waitlist** — sinhronizirajo Table.status (reserved/occupied/available)
-- **Permissions** — menu-items, categories, tables zahtevajo manage_inventory
-- **FURS ByteString fix** — em-dash v X-Fiscal-Warning headerjih zamenjan z navadnim dash
-
-#### Testiranje
-- **TypeCheck:** 0 napak v `src/`
-- **Vitest:** 158/158 testov zelenih
-- **Playwright E2E:** 23/24 testov zelenih (setup + workflow)
-  - Setup Wizard: 8/8 zelenih
-  - Natakar workflow: 8/8 zelenih
-  - Kuhar workflow: 3/3 zelenih
-  - Lastnik workflow: 10/10 zelenih
-
----
-
-## [Security Audit 2026-08-25] — Varnostni audit + 40 popravkov
-
-### Povzetek
-Celovit varnostni audit je identificiral 40 finding-ov. Vsi so bili popravljani
-preko 14 PR-ov (#30–#57). Podrobnosti v [AUDIT-REPORT.md](./AUDIT-REPORT.md).
-
-### 🔴 Kritične ranljivosti (PR #30)
-- **WebAuthn bypass** — `verifyAssertion()` ni preverjal podpisa; route onemogočen
-- **Receipt token forgery** — DJB2 (32-bit) zamenjan z HMAC-SHA256; token obvezen
-- **IoT readings brez auth** — dodan `X-IoT-Api-Key` header + fail-closed
-- **HACCP hash chain race** — `createHaccpEntryWithChain()` z `$transaction`
-- **FURS ZOI silent fallback** — fail-fast v produkciji ko certifikat manjka
-- **Race conditions** — `count+1` → atomski `counter.upsert` (kiosk, AP, AR)
-
-### 🔴 Secrets masking (PR #45, #48, #50, #51)
-- `pin` / `pinLookup` — maskirano v vseh employees API odgovorih
-- `fursCertPassword` / `fursCertPath` — maskirano v locations + settings
-- `emailSmtpPassword` — maskirano v settings
-- webhook `secret` — maskirano v vseh webhooks API odgovorih
-- integration `apiKey` / `apiSecret` — maskirano v vseh integrations API odgovorih
-- Centralni `src/lib/secret-masks.ts` z `maskLocationSecrets()` + `maskWebhookSecret()`
-
-### 🔴 Session invalidation (PR #53)
-- `verifyToken()` preverja `employee.status === 'active'` s 60s cache
-- Terminiran zaposleni izgubi dostop v 60s (prej do 8h)
-
-### 🟠 Hardening (PR #45, #46)
-- CSP cleanup (`unsafe-eval` odstranjen iz produkcije)
-- X-Frame-Options konsistenten (SAMEORIGIN)
-- COOP/CORP dodan v middleware
-- TipDistribution hash chain implementiran
-- `FURS_ALLOW_SIMULATION` default `false`
-- `broadcastWS` logira napake (ne tiho pogoltne)
-- Kiosk GET rate limit + POST race fix
-- Paginacija za recipes, categories, notifications
-- AI voice-order rate limit
-- Mrtva CSRF koda dokumentirana
-- Mrtvi i18n provider izbrisan (113 LOC)
-
-### 🟠 Performance (PR #47, #49, #50, #46)
-- `next/image` migracija (10 komponent, AVIF/WebP, ~70% manj slik)
-- `menu-items/bulk-import` — `createMany` v `$transaction`
-- `notifications send-batch` — `createAuditLogsBatch` (1 transakcija)
-- Paginacija za recipes, categories, notifications
-
-### 🟠 UX (PR #48, #49)
-- Zod validacija za `/reserve` (ime, telefon, email, partySize)
-- Zod validacija za `/order` DetailsStep (delivery + takeout)
-- Error display z `aria-invalid`, `role="alert"`, `inputMode`
-
-### 🧪 Testi (PR #52)
-- SSRF protection testi (30+ primerov, AWS/GCP/Azure metadata)
-- PIN lookup HMAC testi (collision-free za vseh 10.000 PINov)
-
-### 📝 Dokumentacija (PR #54, #55, #56, #57)
-- `AUDIT-REPORT.md` — celoviti varnostni audit (40 findingov, 40 popravkov)
-- `SECURITY.md` — posodobljen z natančnim post-audit statusom
-- `README.md` — sinhroniziran z dejanskim stanjem (22→2 IndexedDB, WebAuthn experimental, integrations status, statistika)
-- Vsi `.md` dokumenti — popravljene zastarele trditve ("22 trgovin", "najnaprednejši", "WebAuthn biometric")
-
-### 📋 Schema (PR #58)
-- `prisma/schema.prisma` — dodana dokumentacija načrtovanih enum-ov (issue #41)
-
-### Novi env vars
-- `IOT_API_KEY` — obvezen za IoT readings
-- `RECEIPT_TOKEN_SECRET` — obvezen za digitalne račune (HMAC-SHA256)
-- `WEBAUTHN_ENABLED` — opt-in experimental WebAuthn (default: false)
-- `FURS_ALLOW_SIMULATION` — default spremenjen iz `true` v `false`
-
-### Breaking changes
-1. WebAuthn login onemogočen privzeto (vrne 503)
-2. Digitalni račun zahteva `?t=<token>` parameter
-3. IoT readings zahtevajo `X-IoT-Api-Key` header
-4. FURS v produkciji zahteva certifikat (ne tiho fallback)
-5. `FURS_ALLOW_SIMULATION` default `false`
-
-### Priporočila po merge-u
-- Rotiraj: `NEXTAUTH_SECRET`, `RECEIPT_TOKEN_SECRET`, `FURS_CERT_PASSWORD`, `EMAIL_SMTP_PASSWORD`, webhook secrets, integration keys
-- Merge vrstni red: PR #50 najprej (centralni secret-masks.ts)
-- Za multi-instance: dodaj Redis za rate limiting (issue #39)
-
----
-
-## [Unreleased] — 2026-06-17
-
-### Commit 1: `e4c7040` — Profesionalni cleanup (repo higiena)
-
-#### Spremenjeno
-- **`.gitignore`** — celovit (98 vrstic): `.next/`, `db/*.db`, `*.tsbuildinfo`, `.env`,
-  `certs/`, `worklog*.md`, `agent-ctx/`, `upload/`, `download/`, scratch audit JSONs
-- **`.env.example`** — dokumentira vseh 20 env spremenljivk (DATABASE_URL, GEMINI_API_KEY,
-  FURS_*, NEXTAUTH_SECRET, RECEIPT_TOKEN_SECRET, TERMINAL_*, WEBHOOK_SECRET, ...)
-- **`tsconfig.json`** — dodan `data/`, `mini-services/` v exclude
-- **`eslint.config.mjs`** — počiščene zastarele poti, dodan `data/**` v ignores
-- **`package.json`** — dodan `engines: { node: ">=18.0.0" }`
-- **`README.md`** — posodobljeno strukturno drevo, varnostna opozorila, FURS cert korak,
-  nova "Repo higiena" sekcija
-
-#### Struktura
-- **118 JSON datotek** premaknjenih iz korena v `data/{menus,search,api-dumps,slovenian,audit,misc}/`
-- **35 skript** premaknjenih v `scripts/{images,seed,ops}/`
-- **`data/README.md`** + **`scripts/README.md`** dodani za dokumentacijo map
-- **`certs/.gitkeep`** dodan (za FURS certifikate)
-
-#### Varnost
-- **`.env`** untrackan (vseboval pot do baze — sedaj gitignored)
-- **`.next/`** untrackan (build artefakti)
-- **`db/custom.db`** + journal untrackan (baza)
-- **`tsconfig.tsbuildinfo`** + `next-env.d.ts` untrackana
-- **`worklog*.md`** (295 KB) + **`agent-ctx/`** untrackana (dev logs)
-- **`upload/`**, **`download/`** untrackana (scratch dirs)
-- 7 regenerabilnih audit JSON-ov untrackanih
-
----
-
-### Commit 2: `abd9382` — 4 kritični varnostni popravki
-
-#### Varnost
-- **`/api/payments` GET** — dodan `requireAuth({ permission: 'take_orders' })`
-  (prej brez auth — vsakdo je lahko izčrpal tabelo plačil)
-- **`Employee.pin`** — dodan `@unique` (prej duplikatni PINi omogočali impersonacijo)
-- **`AuditLog` hash veriga** — dodan `previousHash` polje (prej nepopolna veriga,
-  nepreverljiva za revizijo)
-- **`Payment → Check`** — `onDelete: Cascade` → `Restrict` (prej brisanje čeka
-  tiho pobrisalo plačila)
-
-#### Dokumentacija
-- **`AUDIT.md`** — celovito varnostno poročilo (231 vrstic)
-
----
-
-### Commit 3: `061ec55` — Schema hardening (B–E)
-
-#### B. Kaskade Cascade → Restrict (7 relacij)
-- `Shift.employee`, `TimeEntry.employee`, `StaffShift.employee`
-- `StockTransaction.inventoryItem`
-- `LoyaltyTransaction.loyaltyAccount`
-- `GiftCardTransaction.giftCard`
-- `GuestVisit.guest`
-- (varno ker app koda uporablja soft-delete preko `status` polj)
-- Seed helperji posodobljeni (child-first deletion order)
-
-#### C. `locationId` na 6 modelih (multi-location)
-- `HaccpEntry` (EU 852/2004 legalno — per-lokacija HACCP)
-- `Shift`, `TimeEntry`, `PurchaseOrder`, `TaxRate`, `GuestFeedback`
-- Vsi nullable + `SetNull` — backward compatible
-
-#### D. 4 `@unique` omejitve
-- `LoyaltyAccount.customerPhone` (prepreči duplikatne prijave)
-- `Supplier.code` (duplikatne kode prelomijo poročila)
-- `Location.premisesId` (FURS premises ID unikaten)
-- `Reservation [tableId, dateTime]` (prepreči dvojno rezervacijo)
-
-#### E. PIN lookup optimizacija (O(n) → O(1))
-- Novo `Employee.pinLookup String? @unique` polje
-- `pinLookup = HMAC-SHA256(NEXTAUTH_SECRET, pin)` (prepreči rainbow table)
-- Nova `src/lib/pin-lookup.ts` helper
-- `verifyPin()` O(1) `findUnique({pinLookup})` z backward-compatible fallback
-- POST duplicate-check O(1), DELETE termination počisti pinLookup
-- Avtomatska migracija ob prvi prijavi starih plaintext-PIN zaposlenih
-
-#### Dokumentacija
-- **`AUDIT.md`** — popravljena soft-delete sekcija (že implementiran preko status polj)
-- Nova sekcija "Implementirana priporočila" z B–E podrobnostmi
-
----
-
-### Commit 4: `1835673` — E2E runtime popravki
-
-#### Runtime
-- **`Session` model** — `createdAt`/`expiresAt`/`absoluteExpiry` `Int` → `BigInt`
-  (Date.now() ms preseže 32-bitni SQLite INT → overflow crash)
-- **`session-lifecycle.ts`** — `BigInt()` konverzija pri pisanju v DB
-- **`session-cache.ts`** — `Number()` pri branju + `BigInt()` v queryjih
-- **`auth/_helpers.ts`** — `Number(basePayRate)` v auth responsu
-  (Prisma Decimal → number za Zod validacijo)
-
-#### Testiranje
-- Nova `scripts/seed/e2e-seed.mjs` (admin 1234, staff 0000, 12 miz, 8 artiklov)
-
----
-
-### Commit 5: (ta commit) — E2E dokumentacija
-
-#### Dokumentacija
-- **`E2E-TEST-REPORT.md`** — celovito E2E poročilo (227 vrstic, 96 testov, 100% pass)
-- **`CHANGELOG.md`** — ta changelog
-
----
-
-## 📊 Skupni rezultat
-
-| Metrika | Vrednost |
-|---|---|
-| Commiti | 5 |
-| Datotek spremenjenih | 15+ |
-| Vrstic dodanih | ~500+ |
-| Kritični varnostni popravki | 6 |
-| Schema izboljšave | 17 (7 kaskad + 6 locationId + 4 unique) |
-| API modulov testiranih | 55+ (100% pass) |
-| E2E testov | 96 (100% pass) |
-| Runtime napake | 0 |
-
-## ✅ Preverjanja
-
-- `prisma validate` — schema valid ✓
-- `tsc --noEmit` — 0 tipnih napak ✓
-- `eslint` — 0 napak/opozoril ✓
-- `Agent Browser` — login, dashboard, moduli, mobile ✓
-- `curl API` — 96/96 testov pass ✓
-- `WebSocket` — server.js deluje ✓
-- `FURS` — ZOI generiran, simulacijski mode ✓
-- `Hash chain` — konzistentna ✓
-- `Rate limiting` — deluje ✓
-- `Idempotency` — deluje ✓
-
-## 🔧 Po mergu
-
-1. **Prekliči GitHub token** `ghp_************************************grB`
-2. **Ustvari PR**: https://github.com/markec12345678/restaurantos/pull/new/chore/professional-cleanup
-3. **Po mergu**:
-   ```bash
-   git pull && bun install
-   # Preveri duplikate pred db:push (glej AUDIT.md sekcija D)
-   bun run db:push --accept-data-loss  # Int→BigInt recreates Session columns
-   bun run db:generate
-   bun run lint
-   ```
-4. **Nastavi `.env`** (glej `.env.example`):
-   - `NEXTAUTH_SECRET` (za PIN lookup O(1))
-   - `GEMINI_API_KEY` (za AI funkcije)
-   - `FURS_CERT_PATH` + `FURS_CERT_PASSWORD` (za davčno potrjevanje)
+# Changelog
+
+All notable changes to RestaurantOS are documented in this file.
+
+## [v1.0.0] — 2026-09-04
+
+### 🎉 Production Release
+
+### Added
+- **POS System** — complete order management with tables, takeout, delivery
+- **KDS** — Kitchen Display System with WebSocket real-time updates
+- **Waiter Interface** — mobile-optimized order management
+- **FURS/ZDDV-1** — Slovenian tax authority compliance (ZOI, EOR, QR, storno)
+- **Offline-First PWA** — IndexedDB queue + Background Sync (orders + FURS)
+- **Multi-Tenant** — locationId isolation on 8 tables, super-admin, cross-branch audit
+- **Accounting** — double-entry journal, Trial Balance, P&L, Balance Sheet, Z-Report
+- **Payment System** — pg_advisory_xact_lock, idempotency, refunds, gift cards, loyalty
+- **Inventory** — stock deduction, HACCP hash chain (EU 852/2004), recipes, purchase orders
+- **AI Modules** — forecasting, voice ordering, staff scheduler, NL query, QR upsell
+- **Delivery** — Glovo, Wolt, Bolt webhook integration with HMAC signatures
+- **Auto-Image Lookup** — OpenFoodFacts + TheMealDB + TheCocktailDB
+- **Landing Page** — professional SaaS design with animations, pricing, FAQ
+- **Legal Pages** — GDPR Privacy Policy, Terms of Service, Cookie Consent banner
+- **Sentry** — error tracking + performance + session replay
+- **i18n** — 5 languages (Slovenian, English, Italian, Croatian, German)
+- **WebAuthn/FIDO2** — biometric login support
+- **Blockchain Audit** — tamper-evident SHA-256 hash chain
+- **Video Analytics** — people counting (no PII stored)
+- **Carbon Footprint** — sustainability tracking
+- **Push Notifications** — VAPID web push
+
+### Security
+- CSP with nonce injection (no 'unsafe-inline')
+- HSTS with preload (1 year)
+- CORS whitelist (NEXT_PUBLIC_APP_URL)
+- Rate limiting: LOGIN (5/15min), API (60/min), AI (10/min), SMS (60/min), SEED (3/hour)
+- PIN: bcrypt (10 rounds) + HMAC-SHA256 pinLookup
+- Session: triple-check (verifyToken + isEmployeeActive + direct DB), fail-closed
+- Audit log: SHA-256 chain hash (nepopravljiv)
+- SSRF protection: 8 IP range checks
+- Content-Type validation (415 on non-JSON)
+- Body size limit: 1MB
+- Zod input validation on all endpoints
+- String sanitization (XSS prevention)
+- Webhook signatures: HMAC-SHA256 (Glovo/Wolt/Bolt)
+- Docker: multi-stage, non-root (USER nextjs)
+- CI/CD: gitleaks secret scanning, dependabot
+
+### Fixed (from E2E testing + code review)
+- Payment 500 error ($queryRaw → $executeRaw for pg_advisory_xact_lock)
+- Race condition: 6/10 → 1/10 concurrent payments
+- Idempotency: auto-generate idempotencyKey if not provided
+- Session invalidation: fail-closed (was fail-open)
+- 12 paid orders stuck in wrong status (check-status.ts blacklist)
+- /api/health endpoint added
+- Outbox cron job in vercel.json
+- pending → completed transition allowed (takeaway)
+- Refund: fully refunded → storno (not unpaid)
+- Z-Report: cashSales = net (amount - refundAmount)
+- FURS e-invoice-book: filter by order.paidAt (not receipt.createdAt)
+- Order idempotency: @unique + fast path + P2002 race path
+- Optimistic locking: expectedUpdatedAt → 409 Conflict
+- Debug endpoints: requireAuth(admin) (was public!)
+- Setup endpoints: rate limiting (was unlimited)
+- Sentry instrumentation.ts (was missing)
+- Next.js remotePatterns for auto-image
+- AI endpoints: rate limiting (3 were missing)
+- SMS: rate limiting + E.164 validation
+- Table occupied: race condition fix (updateMany with status filter)
+- Audit chain verify endpoint
+- Content-Type validation (415)
+- .env.example: 22 missing env vars added
+- 4 unused dependencies removed
+
+### Test Results
+- 144/149 E2E tests PASS (96.6%)
+- 85 deep code review checks
+- 11 issues fixed
+- Security score: A++
+- Financial reconciliation: €0.00 diff
+
+### Tech Stack
+- Next.js 16 (Turbopack), React 19, TypeScript 5
+- Prisma ORM, PostgreSQL (Neon)
+- Tailwind CSS 4, Radix UI
+- Vercel (hosting), Sentry (monitoring)
+- Service Worker v9, IndexedDB
+- next-intl (i18n), Zod (validation)
