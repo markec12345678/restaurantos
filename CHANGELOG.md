@@ -2,6 +2,73 @@
 
 All notable changes to RestaurantOS are documented in this file.
 
+## [v1.0.1] — 2026-09-05 — P0-C1..C5 Security Hardening
+
+### 🔒 Security Hardening Series (11 commits, 896/896 tests, A+ rating)
+
+### P0-C1: IDOR Cross-Tenant Protection
+- **Fixed:** 8 IDOR-vulnerable endpoints (orders GET/PUT/PATCH/DELETE/add-items/transfer, payments PUT/refund)
+- **Pattern:** `findUnique({where:{id}})` → `findFirst({where:{id, locationId: session.locationId}})`
+- **Tests:** 16 regression tests (`tests/unit/security/idor-cross-tenant.test.ts`)
+
+### P0-C2: Tenant Scope Helper
+- **Added:** `resolveTenantLocationId()` helper with structured result (Tagged Union, not magic string)
+- **Fixed:** 22 endpoints with `?locationId` bypass vulnerability
+- **Feature:** Fail-closed for regular user without `session.locationId` (403, not unscoped query)
+- **Tests:** 21 helper tests (`tests/unit/security/tenant-scope-helper.test.ts`)
+
+### P0-C3A: FURS/Receipts → Location Source of Truth
+- **Fixed:** 13 FURS/receipt call-sites reading global `RestaurantSettings` instead of per-location config
+- **Critical:** ZOI signing now uses correct certifikat/taxId/premisesId per receipt's location
+- **Added:** `getRestaurantInfoForLocation(locationId)` helper
+- **Tests:** 12 FURS cross-tenant tests (`tests/unit/security/furs-cross-tenant.test.ts`)
+
+### P0-C3B: Remaining Settings Call-Sites
+- **Fixed:** 9 additional settings call-sites (webhook, email, loyalty, card-terminal, public menu)
+- **Feature:** Public menu auto-detect first active location (backward compat)
+
+### P0-C4: Classification + Migrations
+- **Added:** `docs/P0-C4-CLASSIFICATION.md` — 30 models classified (24 TENANT_REQUIRED, 5 OPTIONAL, 0 GLOBAL)
+- **Added:** New `ApiKey` model with `subscriptionId` FK (multi-tenant API key isolation)
+- **Added:** Location fields: `loyaltyEnabled`, `loyaltyPointsPerEuro`, `loyaltyPointsValue`, `emailReportRecipients`, `emailEnabled`
+- **Added:** `Webhook.locationId` + filter activated in `triggerWebhook()`
+- **Added:** Migration package: backfill + NOT NULL + FK for 24 models (`scripts/p0-c4-*.mjs`)
+
+### P0-C5: API Key Table Migration
+- **Fixed:** API keys migrated from `RestaurantSettings.apiKeys` (global JSON) to `ApiKey` table
+- **Feature:** `verifyApiKey()` now returns `subscriptionId` for tenant scoping
+- **Added:** Backfill script (`scripts/p0-c5-backfill-apikeys.mjs`)
+
+### E2E + Infrastructure
+- **Added:** `tests/e2e/multi-tenant-security.spec.ts` — 30 E2E security tests for P0-C1..C5
+- **Added:** `scripts/init-e2e-db.mjs` — PGlite initialization with schema + seed
+- **Added:** `docs/E2E-TEST-PLAN.md` — 149/149 target plan
+- **Added:** `docs/PRODUCTION-DEPLOYMENT-RUNBOOK.md` — 6-phase deployment guide
+
+### CI/CD
+- **Added:** `unit-tests` job (896+ Vitest tests including security)
+- **Added:** `e2e-security` job (30 Playwright security tests)
+
+### Bug Fixes
+- **Fixed:** Crypto PREFIX trailing colon bug (`enc:v1:` → `enc:v1`) — encrypted format had 6 parts instead of 5
+- **Fixed:** Rate-limit mock module cache issue (added `vi.resetModules()`)
+- **Fixed:** CSP nonce test assertion (style-src now nonce-based, not unsafe-inline)
+- **Fixed:** Accounting mock missing `stockTransaction.aggregate`
+
+### Documentation
+- **Updated:** `SECURITY.md` — A- → A+ rating
+- **Updated:** `docs/KNOWN_ISSUES.md` — complete rewrite with P0-C1..C5 results
+- **Updated:** `README.md` — badges and competitive table updated
+
+### Stats
+- **896/896 tests pass** (100% pass rate)
+- **0 HIGH** open vulnerabilities
+- **49 security tests** (16 IDOR + 21 helper + 12 FURS)
+- **30 E2E security tests** ready for staging
+- **0 typecheck errors**, **0 lint errors**
+
+---
+
 ## [v1.0.0] — 2026-09-04
 
 ### 🎉 Production Release
