@@ -47,9 +47,16 @@ export async function PUT(
       )
     }
 
-    // 404 CHECK: Verify payment exists before updating
-    const existingPayment = await db.payment.findUnique({
-      where: { id },
+    // FIX P0-C1 CRIT-3: IDOR — tenant isolation na PUT payment
+    // Prej: findUnique({ where: { id } }) — kakršen koli ID je dovolil refund/void
+    // Sedaj: findFirst z order.locationId filter — tenant A ne more refundirati tenant B
+    // Payment nima lastnega locationId — gre prek Order relation
+    const isSuperAdmin = authResult.session?.role === 'super_admin'
+    const paymentWhere = isSuperAdmin
+      ? { id }
+      : { id, order: { locationId: authResult.session?.locationId } }
+    const existingPayment = await db.payment.findFirst({
+      where: paymentWhere,
       include: {
         check: true,
         giftCard: true,

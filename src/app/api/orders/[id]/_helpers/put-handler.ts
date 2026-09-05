@@ -23,8 +23,13 @@ export async function handlePutOrder(req: Request, params: Promise<{ id: string 
     const { data, error: validationError } = validateBody(updateOrderSchema, bodyResult.data)
     if (validationError) return validationError
 
-    const existingOrder = await db.order.findUnique({
-      where: { id },
+    // FIX P0-C1 CRIT-2: IDOR — tenant isolation na PUT (update)
+    // Prej: findUnique({ where: { id } }) — kakršen koli ID je dovolil posodobitev
+    // Sedaj: findFirst z locationId filter — tenant A ne more modificirati tenant B
+    const isSuperAdmin = authResult.session?.role === 'super_admin'
+    const existingWhere = isSuperAdmin ? { id } : { id, locationId: authResult.session?.locationId }
+    const existingOrder = await db.order.findFirst({
+      where: existingWhere,
       include: { orderItems: true, deliveryInfo: true },
     })
 

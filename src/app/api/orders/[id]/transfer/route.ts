@@ -29,17 +29,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
     const { newTableId } = parseResult.data
 
-    // Pridobi naročilo
-    const order = await db.order.findUnique({
-      where: { id },
+    // FIX P0-C1: IDOR — tenant isolation na transfer
+    const isSuperAdminTransfer = authResult.session?.role === 'super_admin'
+    const transferWhere = isSuperAdminTransfer ? { id } : { id, locationId: authResult.session?.locationId }
+    const order = await db.order.findFirst({
+      where: transferWhere,
       include: { table: true },
     })
     if (!order) {
       return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
     }
 
-    // Preveri da novo mizo obstaja
-    const newTable = await db.table.findUnique({ where: { id: newTableId } })
+    // Preveri da novo mizo obstaja (tudi z locationId check)
+    const newTableWhere = isSuperAdminTransfer
+      ? { id: newTableId }
+      : { id: newTableId, locationId: authResult.session?.locationId }
+    const newTable = await db.table.findFirst({ where: newTableWhere })
     if (!newTable) {
       return NextResponse.json({ error: 'Ciljna miza ni najdena' }, { status: 404 })
     }

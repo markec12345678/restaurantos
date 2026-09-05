@@ -29,8 +29,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const { amount, reason, employeeId } = refundSchema.parse(body)
 
-    const payment = await db.payment.findUnique({
-      where: { id },
+    // FIX P0-C1: IDOR — tenant isolation na refund
+    const isSuperAdminRefund = authResult.session?.role === 'super_admin'
+    const refundWhere = isSuperAdminRefund
+      ? { id }
+      : { id, order: { locationId: authResult.session?.locationId } }
+    const payment = await db.payment.findFirst({
+      where: refundWhere,
       include: {
         check: { include: { order: true } },
         giftCard: true,

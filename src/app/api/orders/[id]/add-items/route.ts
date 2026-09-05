@@ -27,9 +27,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const { data, error: validationError } = validateBody(addOrderItemsSchema, bodyResult.data)
     if (validationError) return validationError
 
-    // Pridobi obstoječe naročilo
-    const order = await db.order.findUnique({
-      where: { id },
+    // FIX P0-C1: IDOR — tenant isolation na add-items
+    const isSuperAdminAdd = authResult.session?.role === 'super_admin'
+    const addWhere = isSuperAdminAdd ? { id } : { id, locationId: authResult.session?.locationId }
+    const order = await db.order.findFirst({
+      where: addWhere,
       include: { orderItems: { include: { menuItem: true } }, table: true },
     })
 
@@ -101,9 +103,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       // WS ni na voljo — ni kritično
     }
 
-    // Pridobi posodobljeno naročilo
-    const updatedOrder = await db.order.findUnique({
-      where: { id },
+    // FIX P0-C1: IDOR — tenant isolation tudi na return query
+    const updatedOrder = await db.order.findFirst({
+      where: addWhere,
       include: {
         table: true,
         orderItems: { include: { menuItem: true } },
