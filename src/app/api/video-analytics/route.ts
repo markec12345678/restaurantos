@@ -2,7 +2,7 @@
 // /api/video-analytics — Camera analytics
 // ============================================
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
 import {
@@ -23,8 +23,14 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
-    const locationId = searchParams.get('locationId') || undefined
     const history = searchParams.get('history') === '1'
+
+    // FIX P0-C2: Centralni tenant scope resolver — fail-closed, no ?locationId bypass
+    const scope = resolveTenantLocationId(authResult.session, searchParams, {
+      endpoint: 'GET /api/video-analytics',
+    })
+    if (!scope.ok) return scope.error
+    const locationId = scope.locationId ?? undefined
 
     if (history) {
       const dateFrom = searchParams.get('dateFrom')

@@ -6,7 +6,7 @@
 // ============================================
 
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId } from '@/lib/auth-middleware'
 import { validateReportDateRange } from '@/lib/validations'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
@@ -37,11 +37,14 @@ export async function GET(req: Request) {
     const dayStart = new Date(date + 'T00:00:00.000Z')
     const dayEnd = new Date(date + 'T23:59:59.999Z')
 
-    // FIX EOD-1 HIGH: Dodaj locationId filter
-    const locationId = searchParams.get('locationId')
+    // FIX P0-C2: Centralni tenant scope resolver — fail-closed, no ?locationId bypass
+    const scope = resolveTenantLocationId(authResult.session, searchParams, {
+      endpoint: 'GET /api/reports/eod',
+    })
+    if (!scope.ok) return scope.error
 
     // ─── VSE NEODVISNE POIZVEDBE VZPOREDNO ───
-    const rawData = await fetchEodData(dayStart, dayEnd, locationId)
+    const rawData = await fetchEodData(dayStart, dayEnd, scope.locationId ?? null)
 
     // ─── IZRAČUNI METRIKE ───
     const metrics = computeEodMetrics(rawData)

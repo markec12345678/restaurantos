@@ -31,11 +31,22 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const locationId = searchParams.get('locationId')
 
-    // Pridobi meni (samo aktivni artikli)
+    // FIX P0-C2: API key auth nima session.locationId — zato mora biti ?locationId OBAVEZEN
+    // TO-DO (P0-C4): Dodaj `allowedLocationIds` na ApiKey model, da API key omejimo na specifične lokacije.
+    // Zaenkrat: če locationId ni podan, vrni 400 (ne vračaj vseh artiklov vseh lokacij).
+    if (!locationId) {
+      return NextResponse.json(
+        { error: 'locationId parameter is required for mobile menu access' },
+        { status: 400 },
+      )
+    }
+
+    // Pridobi meni (samo aktivni artikli za specifično lokacijo)
+    // FIX: MenuItem nima lastnega locationId — scoping prek category.menu.locationId
     const menuItems = await db.menuItem.findMany({
       where: {
         isAvailable: true,
-        ...(locationId ? { locationId } : {}),
+        category: { menu: { locationId } },
       },
       select: {
         id: true,

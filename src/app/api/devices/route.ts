@@ -9,7 +9,7 @@
 // ============================================
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
 
@@ -31,11 +31,17 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
-    const locationId = searchParams.get('locationId')
 
-    const where: Record<string, unknown> = {}
+    // FIX P0-C2: Centralni tenant scope resolver — fail-closed, no ?locationId bypass
+    const scope = resolveTenantLocationId(authResult.session, searchParams, {
+      endpoint: 'GET /api/devices',
+    })
+    if (!scope.ok) return scope.error
+
+    const where: Record<string, unknown> = {
+      ...tenantScopeToWhere(scope),
+    }
     if (status) where.status = status
-    if (locationId) where.locationId = locationId
 
     // Označi naprave kot offline, če niso bile vidne >5min
     const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000)

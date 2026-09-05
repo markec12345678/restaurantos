@@ -7,7 +7,7 @@
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
 import { Prisma } from '@prisma/client'
 import { logger } from '@/lib/logger'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
@@ -27,7 +27,14 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const rawLimit = parseInt(searchParams.get('limit') || '200')
     const limit = Math.min(Number.isNaN(rawLimit) ? 200 : rawLimit, 500)
-    const where = buildShiftsWhere(searchParams)
+
+    // FIX P0-C2: Centralni tenant scope resolver — fail-closed, no ?locationId bypass
+    const scope = resolveTenantLocationId(authResult.session, searchParams, {
+      endpoint: 'GET /api/staff-shifts',
+    })
+    if (!scope.ok) return scope.error
+
+    const where = buildShiftsWhere(searchParams, tenantScopeToWhere(scope))
 
     const shifts = await db.staffShift.findMany({
       where,

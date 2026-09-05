@@ -2,7 +2,7 @@
 import { db } from '@/lib/db'
 import { toNum, deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
 import { emitEvent } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
@@ -23,11 +23,16 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'manage_cash' })
     if (authResult.error) return authResult.error
 
-    // FIX HIGH: Get currently open shift with location filtering
+    // FIX P0-C2: Centralni tenant scope resolver — fail-closed, no ?locationId bypass
+    // Prej: 2× bypass (aktivna izmena + recent izmene)
     const { searchParams } = new URL(req.url)
-    const locationId = searchParams.get('locationId')
-    const shiftWhere: Record<string, unknown> = { status: 'open' }
-    if (locationId) shiftWhere.locationId = locationId
+    const scope = resolveTenantLocationId(authResult.session, searchParams, {
+      endpoint: 'GET /api/cash-register',
+    })
+    if (!scope.ok) return scope.error
+    const tenantWhere = tenantScopeToWhere(scope)
+
+    const shiftWhere: Record<string, unknown> = { status: 'open', ...tenantWhere }
 
     const activeShift = await db.cashRegisterShift.findFirst({
       where: shiftWhere,
@@ -41,9 +46,7 @@ export async function GET(req: Request) {
     }
 
     // Get recent closed shifts
-    // FIX BUG-6 MEDIUM: Dodaj locationId filter — brez tega se prikažejo izmene vseh lokacij
-    const recentShiftsWhere: Record<string, unknown> = { status: 'closed' }
-    if (locationId) recentShiftsWhere.locationId = locationId
+    const recentShiftsWhere: Record<string, unknown> = { status: 'closed', ...tenantWhere }
     const recentShifts = await db.cashRegisterShift.findMany({
       where: recentShiftsWhere,
       orderBy: { closedAt: 'desc' },

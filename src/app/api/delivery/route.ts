@@ -2,7 +2,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId } from '@/lib/auth-middleware'
 import { createDeliverySchema } from '@/lib/validations'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
@@ -22,12 +22,17 @@ export async function GET(req: Request) {
     const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
     const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
 
+    // FIX P0-C2: Centralni tenant scope resolver — fail-closed, no ?locationId bypass
+    // DeliveryInfo nima lastnega locationId — scoping prek order.locationId
+    const scope = resolveTenantLocationId(authResult.session, searchParams, {
+      endpoint: 'GET /api/delivery',
+    })
+    if (!scope.ok) return scope.error
+
     const where: Record<string, unknown> = {}
     if (status) where.status = status
-    // FIX DELIVERY-1 MEDIUM: Dodaj locationId filter — brez tega se prikažejo dostave iz VSEH lokacij
-    const locationId = searchParams.get('locationId')
-    if (locationId) {
-      where.order = { locationId }
+    if (scope.locationId) {
+      where.order = { locationId: scope.locationId }
     }
 
     const [deliveries, total] = await Promise.all([

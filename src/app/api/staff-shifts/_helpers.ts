@@ -49,15 +49,20 @@ export function calculateShiftHours(startTime: string, endTime: string): number 
 }
 
 // Zgradi where filter za GET poizvedbe
-export function buildShiftsWhere(searchParams: URLSearchParams): Record<string, unknown> {
+// FIX P0-C2: tenantWhere je obvezen parameter — prepreči ?locationId bypass
+// Klicatelj mora najprej klicati resolveTenantLocationId() in posredovati rezultat.
+export function buildShiftsWhere(
+  searchParams: URLSearchParams,
+  tenantWhere: { locationId?: string } = {},
+): Record<string, unknown> {
   const startDate = searchParams.get('startDate')
   const endDate = searchParams.get('endDate')
   const employeeId = searchParams.get('employeeId')
-  const locationId = searchParams.get('locationId')
   const status = searchParams.get('status')
   const shiftType = searchParams.get('shiftType')
 
-  const where: Record<string, unknown> = {}
+  // FIX P0-C2: Začni z tenant scope (session.locationId avtoritativen za regular user)
+  const where: Record<string, unknown> = { ...tenantWhere }
 
   if (startDate && endDate) {
     const start = new Date(startDate)
@@ -72,7 +77,6 @@ export function buildShiftsWhere(searchParams: URLSearchParams): Record<string, 
   }
 
   if (employeeId) where.employeeId = employeeId
-  if (locationId) where.locationId = locationId
   if (status) where.status = status
   if (shiftType) where.shiftType = shiftType
 

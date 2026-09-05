@@ -2,7 +2,7 @@
 import { db } from '@/lib/db'
 import { deepToNumbers, toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
@@ -34,11 +34,17 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
-    // ISSUE #31: opcijsko filtriranje po lokaciji za multi-tenant accounting
-    const locationId = searchParams.get('locationId')
-    const where: Record<string, unknown> = {}
+
+    // FIX P0-C2: Centralni tenant scope resolver — fail-closed, no ?locationId bypass
+    const scope = resolveTenantLocationId(authResult.session, searchParams, {
+      endpoint: 'GET /api/accounting/accounts-receivable',
+    })
+    if (!scope.ok) return scope.error
+
+    const where: Record<string, unknown> = {
+      ...tenantScopeToWhere(scope),
+    }
     if (status) where.status = status
-    if (locationId) where.locationId = locationId
 
     const rawLimit = parseInt(searchParams.get('limit') || '100')
     const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
@@ -113,8 +119,15 @@ export async function POST(req: Request) {
         totalAmount: data.totalAmount,
         notes: data.notes,
         status: 'open',
-        // ISSUE #31: shrani locationId če je podan
-        locationId: data.locationId || null,
+        // FIX P0-C2: Body locationId je dovoljen samo za admin/super_admin.
+        // Regular user: uporabi session.locationId (avtoritativen).
+        locationId: (() => {
+          const sessionLoc = authResult.session?.locationId ?? null
+          const isAdmin = authResult.session?.role === 'admin' || authResult.session?.role === 'super_admin'
+          if (sessionLoc) return sessionLoc
+          if (isAdmin && data.locationId) return data.locationId
+          return null
+        })(),
       },
       include: { location: { select: { id: true, name: true, code: true } } },
     })

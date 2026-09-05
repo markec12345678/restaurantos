@@ -13,7 +13,7 @@
 // ============================================
 
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { isFursConfigured, getFursConfigSource } from '@/lib/furs/config-resolver'
 
@@ -25,10 +25,16 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const url = new URL(req.url)
-    const locationId = url.searchParams.get('locationId')
 
-    const source = await getFursConfigSource(locationId)
-    const configured = await isFursConfigured(locationId)
+    // FIX P0-C2: Centralni tenant scope resolver — admin only, ampak še vedno uporablja resolver
+    // Admin brez session.locationId lahko specifiče ?locationId za cross-branch diagnostic
+    const scope = resolveTenantLocationId(authResult.session, url.searchParams, {
+      endpoint: 'GET /api/furs/config-source',
+    })
+    if (!scope.ok) return scope.error
+
+    const source = await getFursConfigSource(scope.locationId ?? undefined)
+    const configured = await isFursConfigured(scope.locationId ?? undefined)
 
     return NextResponse.json({
       ...source,

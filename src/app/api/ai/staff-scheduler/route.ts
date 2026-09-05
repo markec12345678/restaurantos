@@ -15,7 +15,7 @@
 // ============================================
 
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId } from '@/lib/auth-middleware'
 import { checkRateLimitAsync, getClientIp, AI_ASSISTANT_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
@@ -39,7 +39,12 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}))
     const input = schedulerSchema.parse(body)
 
-    const result = await generateSchedule(input)
+    // FIX P0-C2: Override body locationId z avtoritativnim session.locationId za regular user
+    const sessionLoc = authResult.session?.locationId ?? null
+    const isAdmin = authResult.session?.role === 'admin' || authResult.session?.role === 'super_admin'
+    const effectiveLocationId = sessionLoc ?? (isAdmin ? input.locationId : undefined)
+
+    const result = await generateSchedule({ ...input, locationId: effectiveLocationId })
 
     return NextResponse.json({
       success: true,
@@ -59,9 +64,14 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const startDate = searchParams.get('startDate') || new Date().toISOString().split('T')[0]
     const days = Math.min(parseInt(searchParams.get('days') || '7', 10), 14)
-    const locationId = searchParams.get('locationId') || undefined
 
-    const result = await generateSchedule({ startDate, days, locationId, dryRun: true })
+    // FIX P0-C2: Centralni tenant scope resolver — fail-closed, no ?locationId bypass
+    const scope = resolveTenantLocationId(authResult.session, searchParams, {
+      endpoint: 'GET /api/ai/staff-scheduler',
+    })
+    if (!scope.ok) return scope.error
+
+    const result = await generateSchedule({ startDate, days, locationId: scope.locationId ?? undefined, dryRun: true })
 
     return NextResponse.json({
       success: true,

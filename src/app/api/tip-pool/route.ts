@@ -6,7 +6,7 @@
 import { db } from '@/lib/db'
 import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import {
 
@@ -29,9 +29,16 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const date = searchParams.get('date')
     const status = searchParams.get('status')
-    const locationId = searchParams.get('locationId')
 
-    const where: Record<string, unknown> = {}
+    // FIX P0-C2: Centralni tenant scope resolver — fail-closed, no ?locationId bypass
+    const scope = resolveTenantLocationId(authResult.session, searchParams, {
+      endpoint: 'GET /api/tip-pool',
+    })
+    if (!scope.ok) return scope.error
+
+    const where: Record<string, unknown> = {
+      ...tenantScopeToWhere(scope),
+    }
     if (date) {
       const d = new Date(date)
       const start = new Date(d.getFullYear(), d.getMonth(), d.getDate())
@@ -39,7 +46,6 @@ export async function GET(req: Request) {
       where.date = { gte: start, lt: end }
     }
     if (status) where.status = status
-    if (locationId) where.locationId = locationId
 
     const pools = await db.tipPool.findMany({
       where,

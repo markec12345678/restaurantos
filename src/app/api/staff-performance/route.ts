@@ -4,7 +4,7 @@
 // Napitnine, povprečni čas strežbe, obračun miz, upsell
 // ============================================
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import {
 
@@ -24,10 +24,15 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url)
     const period = searchParams.get('period') || 'today'
-    const locationId = searchParams.get('locationId')
+
+    // FIX P0-C2: Centralni tenant scope resolver — fail-closed, no ?locationId bypass
+    const scope = resolveTenantLocationId(authResult.session, searchParams, {
+      endpoint: 'GET /api/staff-performance',
+    })
+    if (!scope.ok) return scope.error
 
     const { startDate, now } = getDateRange(period)
-    const rawData = await fetchPerformanceData(startDate, locationId)
+    const rawData = await fetchPerformanceData(startDate, scope.locationId ?? null)
     const performanceData = computeEmployeePerformance(rawData)
 
     calculatePerformanceScores(performanceData)

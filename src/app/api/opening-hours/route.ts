@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
@@ -35,9 +35,14 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const url = new URL(req.url)
-    const locationId = url.searchParams.get('locationId')
 
-    const where = locationId ? { locationId } : {}
+    // FIX P0-C2: Centralni tenant scope resolver — fail-closed, no ?locationId bypass
+    const scope = resolveTenantLocationId(authResult.session, url.searchParams, {
+      endpoint: 'GET /api/opening-hours',
+    })
+    if (!scope.ok) return scope.error
+
+    const where = tenantScopeToWhere(scope)
     const hours = await db.openingHours.findMany({
       where,
       orderBy: { dayOfWeek: 'asc' },
