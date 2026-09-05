@@ -29,8 +29,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const { amount, reason, employeeId } = refundSchema.parse(body)
 
-    const payment = await db.payment.findUnique({
-      where: { id },
+    // FIX P0-C1 (IDOR): findUnique → findFirst z check.order.locationId scope (cross-tenant zaščita)
+    // Payment nima lastnega locationId — scoping prek Check → Order relation
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const payment = await db.payment.findFirst({
+      where: {
+        id,
+        ...(sessionLocationId
+          ? { check: { order: { locationId: sessionLocationId } } }
+          : {}),
+      },
       include: {
         check: { include: { order: true } },
         giftCard: true,

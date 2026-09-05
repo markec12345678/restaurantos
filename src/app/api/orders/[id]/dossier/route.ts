@@ -21,10 +21,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (authResult.error) return authResult.error
 
     // Pridobi vse povezane podatke v vzporednih poizvedbah
+    // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const orderScope = sessionLocationId ? { locationId: sessionLocationId } : {}
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [orderAny, checksAny, receiptsAny, kotDocumentsAny, auditLogsAny] = await Promise.all([
-      db.order.findUnique({
-        where: { id },
+      db.order.findFirst({
+        where: { id, ...orderScope },
         include: {
           table: { select: { id: true, number: true, area: true } },
           employee: { select: { id: true, name: true } },

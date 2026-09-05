@@ -28,8 +28,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (validationError) return validationError
 
     // Pridobi obstoječe naročilo
-    const order = await db.order.findUnique({
-      where: { id },
+    // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const order = await db.order.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
       include: { orderItems: { include: { menuItem: true } }, table: true },
     })
 
@@ -102,8 +104,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     // Pridobi posodobljeno naročilo
-    const updatedOrder = await db.order.findUnique({
-      where: { id },
+    // FIX P0-C1 (IDOR): Tudi za vračanje posodobljenega naročila uporabi locationId scope
+    const updatedOrder = await db.order.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
       include: {
         table: true,
         orderItems: { include: { menuItem: true } },

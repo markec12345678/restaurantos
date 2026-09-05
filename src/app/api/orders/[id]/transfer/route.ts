@@ -30,8 +30,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const { newTableId } = parseResult.data
 
     // Pridobi naročilo
-    const order = await db.order.findUnique({
-      where: { id },
+    // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const order = await db.order.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
       include: { table: true },
     })
     if (!order) {
@@ -39,7 +41,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     // Preveri da novo mizo obstaja
-    const newTable = await db.table.findUnique({ where: { id: newTableId } })
+    // FIX P0-C1 (IDOR): Ciljna miza mora biti v isti lokaciji kot uporabnik
+    const newTable = await db.table.findFirst({
+      where: { id: newTableId, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
     if (!newTable) {
       return NextResponse.json({ error: 'Ciljna miza ni najdena' }, { status: 404 })
     }

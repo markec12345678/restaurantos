@@ -48,8 +48,16 @@ export async function PUT(
     }
 
     // 404 CHECK: Verify payment exists before updating
-    const existingPayment = await db.payment.findUnique({
-      where: { id },
+    // FIX P0-C1 (IDOR): findUnique → findFirst z check.order.locationId scope (cross-tenant zaščita)
+    // Payment nima lastnega locationId — scoping prek Check → Order relation
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existingPayment = await db.payment.findFirst({
+      where: {
+        id,
+        ...(sessionLocationId
+          ? { check: { order: { locationId: sessionLocationId } } }
+          : {}),
+      },
       include: {
         check: true,
         giftCard: true,

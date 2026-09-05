@@ -23,6 +23,9 @@ export async function GET(req: Request) {
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
     const format = searchParams.get('format') || 'json' // json | xml | csv
+    // Super-admin override: lahko specificira locationId za cross-tenant view
+    // Regular user: uporabi session.locationId (avtoritativen)
+    const requestedLocationId = searchParams.get('locationId')
 
     if (!dateFrom || !dateTo) {
       return NextResponse.json({ error: 'dateFrom in dateTo sta obvezna' }, { status: 400 })
@@ -68,7 +71,9 @@ export async function GET(req: Request) {
     if (authResult.session?.locationId) {
       stornoWhere.locationId = authResult.session.locationId
     }
-    if (locationId) stornoWhere.locationId = locationId
+    // Super-admin override (samo če je super_admin in specificira requestedLocationId)
+    const isSuperAdmin = authResult.session?.role === 'super_admin'
+    if (requestedLocationId && isSuperAdmin) stornoWhere.locationId = requestedLocationId
 
     const allStornos = await db.receipt.findMany({
       where: stornoWhere,

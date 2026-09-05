@@ -23,8 +23,10 @@ export async function handlePutOrder(req: Request, params: Promise<{ id: string 
     const { data, error: validationError } = validateBody(updateOrderSchema, bodyResult.data)
     if (validationError) return validationError
 
-    const existingOrder = await db.order.findUnique({
-      where: { id },
+    // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existingOrder = await db.order.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
       include: { orderItems: true, deliveryInfo: true },
     })
 
@@ -161,8 +163,9 @@ export async function handlePutOrder(req: Request, params: Promise<{ id: string 
       })
     }
 
-    const updatedOrder = await db.order.findUnique({
-      where: { id },
+    // FIX P0-C1 (IDOR): Tudi za vračanje posodobljenega naročila uporabi locationId scope
+    const updatedOrder = await db.order.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
       include: { table: true, orderItems: { include: { menuItem: true } } },
     })
 

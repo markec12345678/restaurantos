@@ -13,14 +13,16 @@ import { handleFireAction, handleItemStatusUpdate, performOrderSoftDelete } from
 export const dynamic = 'force-dynamic'
 
 // FIX Bug #2: Dodan GET method — prej samo PUT/PATCH/DELETE (405 za GET)
+// FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
     const { id } = await params
-    const order = await db.order.findUnique({
-      where: { id },
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const order = await db.order.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
       include: {
         table: true,
         orderItems: {
@@ -58,7 +60,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     if (patchData.action === 'item_status') {
       const { itemId, status } = patchData
-      const order = await db.order.findUnique({ where: { id } })
+      // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
+      const sessionLocationId = authResult.session?.locationId ?? undefined
+      const order = await db.order.findFirst({
+        where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      })
       if (!order) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
 
       const result = await handleItemStatusUpdate(id, itemId, status, order)
@@ -67,6 +73,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     if (patchData.action === 'fire') {
+      // FIX P0-C1 (IDOR): Preveri locationId scope pred fire akcijo
+      const sessionLocationId = authResult.session?.locationId ?? undefined
+      const orderForFire = await db.order.findFirst({
+        where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+        select: { id: true },
+      })
+      if (!orderForFire) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
       return await handleFireAction(id)
     }
 
@@ -77,6 +90,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 }
 
 // DELETE — Soft delete
+// FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
@@ -84,8 +98,9 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
-    const order = await db.order.findUnique({
-      where: { id },
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const order = await db.order.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
       include: { receipt: true },
     })
 
