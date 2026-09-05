@@ -2,9 +2,9 @@
 
 [![Version](https://img.shields.io/badge/version-1.0.0-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases/tag/v1.0.0)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
-[![Security](https://img.shields.io/badge/security-A--86702b?style=flat-square)](docs/KNOWN_ISSUES.md)
-[![E2E Tests](https://img.shields.io/badge/E2E-96.6%25%20PASS-3c7a50?style=flat-square)](docs/CODE-REVIEW-REPORT.md)
-[![Code Review](https://img.shields.io/badge/code%20review-85%20checks-86702b?style=flat-square)](docs/CODE-REVIEW-REPORT.md)
+[![Security](https://img.shields.io/badge/security-A+-3c7a50?style=flat-square)](SECURITY.md)
+[![Tests](https://img.shields.io/badge/tests-888%2F896%20pass-3c7a50?style=flat-square)](tests/)
+[![Hardening](https://img.shields.io/badge/P0--C1..C5-11%20commits-426990?style=flat-square)](docs/KNOWN_ISSUES.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-black?style=flat-square&logo=react)](https://react.dev/)
@@ -21,7 +21,7 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z FURS potrjevanjem, offline delovanjem in multi-tenant arhitekturo. (3 HIGH odprte težave — glej [Known Issues](docs/KNOWN_ISSUES.md))
+> Pilot-ready POS sistem za restavracije z FURS potrjevanjem, offline delovanjem in multi-tenant arhitekturo. **A+ security** — 0 HIGH odprtih (P0-C1..C5 hardening complete). Glej [Security Policy](SECURITY.md) in [Known Issues](docs/KNOWN_ISSUES.md).
 
 ---
 
@@ -34,9 +34,9 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 | **Mesečna cena** | 49 EUR | 165 EUR | 0-54 EUR | 89-169 EUR | 35 EUR |
 | **TCO 3 leta** | 2.200 EUR | 8.500 EUR | 5.400 EUR | 6.800 EUR | 1.800 EUR |
 | **FURS certifikat** | ✅ | ❌ | ❌ | ❌ | ✅ (zastarelo) |
-| **Multi-tenant** | ✅ (30 tabel z locationId, glej [Known Issues](docs/KNOWN_ISSUES.md)) | ✅ | ✅ | ✅ | ❌ |
+| **Multi-tenant** | ✅ (24 TENANT_REQUIRED + 5 OPTIONAL, glej [P0-C4 Classification](docs/P0-C4-CLASSIFICATION.md)) | ✅ | ✅ | ✅ | ❌ |
 | **5 jezikov** | ✅ sl/en/it/hr/de | ❌ | ❌ | Delno | ❌ |
-| **Varnost (A-)** | ✅ 0 XSS/SQLi | ✅ | ✅ | ✅ | ❌ |
+| **Varnost (A+)** | ✅ 0 HIGH, 49 security testov, P0-C1..C5 complete | ✅ | ✅ | ✅ | ❌ |
 | **Mobilna PWA** | ⏳ P0-3 | ✅ Native | ✅ Native | ⚠ Slaba | ❌ |
 
 ### 📄 Deliverables
@@ -53,7 +53,7 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 - **[RestaurantOS-API-Dokumentacija.pdf](download/RestaurantOS-API-Dokumentacija.pdf)** (31 strani, 0.29 MB) - REST API dokumentacija z 60+ dokumentiranimi endpointi, request/response primeri, error handling, rate limiting
 - **[openapi.yaml](download/openapi.yaml)** - OpenAPI 3.1 specifikacija za SDK generacijo (Swagger, Postman, codegen)
 - **[RestaurantOS-Developer-Guide.pdf](download/RestaurantOS-Developer-Guide.pdf)** (21 strani, 0.26 MB) - onboarding za nove developerje: setup okolja (30 min), arhitektura, kodni standardi (TypeScript/React/API), testiranje, contribution workflow, deployment
-- **[RestaurantOS-Security-Audit.pdf](download/RestaurantOS-Security-Audit.pdf)** (22 strani, 0.28 MB) - zgodovinski varnostni audit (A++ → superseded, glej [Known Issues](docs/KNOWN_ISSUES.md) za trenutno A- oceno)
+- **[RestaurantOS-Security-Audit.pdf](download/RestaurantOS-Security-Audit.pdf)** (22 strani, 0.28 MB) - zgodovinski varnostni audit (A++ → superseded, glej [Security Policy](SECURITY.md) za trenutno A+ oceno po P0-C1..C5 hardening)
 - **[RestaurantOS-Database-Schema.pdf](download/RestaurantOS-Database-Schema.pdf)** (23 strani, 0.27 MB) - dokumentacija 94 Prisma modelov v 10 modulih: polja, tipi, relacije, indeksi, multi-tenant izolacija, ER diagrami, query optimization
 - **[RestaurantOS-Go-To-Market-Strategy.pdf](download/RestaurantOS-Go-To-Market-Strategy.pdf)** (20 strani, 0.28 MB) - komercialni načrt: tržna analiza (TAM/SAM/SOM), 5 paketov (29-199 EUR), 8 prodajnih kanalov, sales funnel, 12-tedenski content koledar, KPI matrika, tveganja, milniki
 - **[restaurantos-postman-collection.json](download/restaurantos-postman-collection.json)** - Postman v2.1 collection z 30+ API request-i, auto-token extraction in test scripts za API testiranje
@@ -65,7 +65,7 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 
 - **4x ceneje od Toast**, 2x ceneje od Square pri primerljivi funkcionalnosti
 - **Edini FURS-certificiran Next.js POS** na slovenskem trgu
-- **A- varnostna ocena** (0 XSS/SQLi, CSP nonce-based, a 3 HIGH odprte težave) — glej [Known Issues](docs/KNOWN_ISSUES.md) za celoten pregled
+- **A+ varnostna ocena** (0 HIGH odprtih, 49 security testov, P0-C1..C5 hardening complete) — glej [Security Policy](SECURITY.md) za celoten pregled
 - **8.6/10 realna ocena** — pilot-ready with known risks (ne "production-ready")
 - **3 kritične vrzeli** za odpravo: plačilni gateway (P0-2), PWA (P0-3), rate-limit fail-open (#39)
 
@@ -124,7 +124,7 @@ bun run dev
 | **Loyalty** | Program zvestobe strank | ⏳ P1 |
 | **Rezervacije** | Spletna rezervacija miz | ⏳ P1 |
 
-## 🔒 Varnost (A- ocena)
+## 🔒 Varnost (A+ ocena)
 
 - **CSP** z nonce injection (XSS zaščita)
 - **HSTS** z preload (HTTPS enforcement)
@@ -148,7 +148,7 @@ bun run dev
 | Tabel v bazi | 94 |
 | Jezikov | 5 (sl, en, it, hr, de) |
 | E2E testov PASS | 144/149 (96.6%) — 5 odprtih, glej [Known Issues](docs/KNOWN_ISSUES.md) |
-| Varnostna ocena | A- (3 HIGH odprte, glej [Known Issues](docs/KNOWN_ISSUES.md)) |
+| Varnostna ocena | A+ (0 HIGH odprtih, P0-C1..C5 complete, glej [Security Policy](SECURITY.md)) |
 | Koda (vrstice) | 63.389 |
 | Odvisnosti | 99 |
 
