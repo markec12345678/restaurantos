@@ -307,6 +307,7 @@ CREATE TABLE "Table" (
 CREATE TABLE "Order" (
     "id" TEXT NOT NULL,
     "orderNumber" INTEGER NOT NULL,
+    "idempotencyKey" TEXT,
     "diningOptionId" TEXT,
     "type" TEXT NOT NULL DEFAULT 'dine-in',
     "status" TEXT NOT NULL DEFAULT 'pending',
@@ -569,6 +570,7 @@ CREATE TABLE "CashRegisterShift" (
     "totalDiscounts" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "totalTips" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "totalVoided" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "totalRefunds" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "cashDifference" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "notes" TEXT NOT NULL DEFAULT '',
     "locationId" TEXT,
@@ -668,6 +670,7 @@ CREATE TABLE "Receipt" (
     "printedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "locationId" TEXT,
 
     CONSTRAINT "Receipt_pkey" PRIMARY KEY ("id")
 );
@@ -684,6 +687,7 @@ CREATE TABLE "LoyaltyAccount" (
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "locationId" TEXT,
 
     CONSTRAINT "LoyaltyAccount_pkey" PRIMARY KEY ("id")
 );
@@ -715,6 +719,7 @@ CREATE TABLE "GiftCard" (
     "expiresAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "locationId" TEXT,
 
     CONSTRAINT "GiftCard_pkey" PRIMARY KEY ("id")
 );
@@ -803,6 +808,11 @@ CREATE TABLE "Location" (
     "locale" TEXT NOT NULL DEFAULT 'sl-SI',
     "isOpen" BOOLEAN NOT NULL DEFAULT false,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "loyaltyEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "loyaltyPointsPerEuro" INTEGER NOT NULL DEFAULT 1,
+    "loyaltyPointsValue" DECIMAL(65,30) NOT NULL DEFAULT 0.01,
+    "emailReportRecipients" TEXT NOT NULL DEFAULT '[]',
+    "emailEnabled" BOOLEAN NOT NULL DEFAULT false,
     "latitude" DOUBLE PRECISION,
     "longitude" DOUBLE PRECISION,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -879,6 +889,7 @@ CREATE TABLE "Webhook" (
     "secret" TEXT NOT NULL DEFAULT '',
     "lastTriggered" TIMESTAMP(3),
     "failureCount" INTEGER NOT NULL DEFAULT 0,
+    "locationId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -1864,6 +1875,24 @@ CREATE TABLE "BlockchainAuditEntry" (
     CONSTRAINT "BlockchainAuditEntry_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "ApiKey" (
+    "id" TEXT NOT NULL,
+    "subscriptionId" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "keyPrefix" TEXT NOT NULL,
+    "keyHash" TEXT NOT NULL,
+    "scopes" TEXT NOT NULL DEFAULT '[]',
+    "rateLimit" INTEGER NOT NULL DEFAULT 60,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "lastUsedAt" TIMESTAMP(3),
+    "expiresAt" TIMESTAMP(3),
+    "createdBy" TEXT,
+
+    CONSTRAINT "ApiKey_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE INDEX "Menu_locationId_idx" ON "Menu"("locationId");
 
@@ -1995,6 +2024,9 @@ CREATE UNIQUE INDEX "Table_number_locationId_key" ON "Table"("number", "location
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Order_orderNumber_key" ON "Order"("orderNumber");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Order_idempotencyKey_key" ON "Order"("idempotencyKey");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Order_deliveryInfoId_key" ON "Order"("deliveryInfoId");
@@ -2270,6 +2302,9 @@ CREATE INDEX "Receipt_fiscalVerified_idx" ON "Receipt"("fiscalVerified");
 CREATE INDEX "Receipt_createdAt_idx" ON "Receipt"("createdAt");
 
 -- CreateIndex
+CREATE INDEX "Receipt_locationId_idx" ON "Receipt"("locationId");
+
+-- CreateIndex
 CREATE INDEX "Receipt_orderId_isStorno_idx" ON "Receipt"("orderId", "isStorno");
 
 -- CreateIndex
@@ -2289,6 +2324,9 @@ CREATE INDEX "LoyaltyAccount_isActive_idx" ON "LoyaltyAccount"("isActive");
 
 -- CreateIndex
 CREATE INDEX "LoyaltyAccount_tier_idx" ON "LoyaltyAccount"("tier");
+
+-- CreateIndex
+CREATE INDEX "LoyaltyAccount_locationId_idx" ON "LoyaltyAccount"("locationId");
 
 -- CreateIndex
 CREATE INDEX "LoyaltyTransaction_loyaltyAccountId_idx" ON "LoyaltyTransaction"("loyaltyAccountId");
@@ -2316,6 +2354,9 @@ CREATE INDEX "GiftCard_expiresAt_idx" ON "GiftCard"("expiresAt");
 
 -- CreateIndex
 CREATE INDEX "GiftCard_status_idx" ON "GiftCard"("status");
+
+-- CreateIndex
+CREATE INDEX "GiftCard_locationId_idx" ON "GiftCard"("locationId");
 
 -- CreateIndex
 CREATE INDEX "GiftCardTransaction_giftCardId_idx" ON "GiftCardTransaction"("giftCardId");
@@ -2385,6 +2426,9 @@ CREATE INDEX "Webhook_isActive_idx" ON "Webhook"("isActive");
 
 -- CreateIndex
 CREATE INDEX "Webhook_lastTriggered_idx" ON "Webhook"("lastTriggered");
+
+-- CreateIndex
+CREATE INDEX "Webhook_locationId_idx" ON "Webhook"("locationId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Counter_name_key" ON "Counter"("name");
@@ -3013,6 +3057,21 @@ CREATE INDEX "BlockchainAuditEntry_timestamp_idx" ON "BlockchainAuditEntry"("tim
 -- CreateIndex
 CREATE INDEX "BlockchainAuditEntry_currentHash_idx" ON "BlockchainAuditEntry"("currentHash");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "ApiKey_keyHash_key" ON "ApiKey"("keyHash");
+
+-- CreateIndex
+CREATE INDEX "ApiKey_subscriptionId_idx" ON "ApiKey"("subscriptionId");
+
+-- CreateIndex
+CREATE INDEX "ApiKey_keyHash_idx" ON "ApiKey"("keyHash");
+
+-- CreateIndex
+CREATE INDEX "ApiKey_isActive_idx" ON "ApiKey"("isActive");
+
+-- CreateIndex
+CREATE INDEX "ApiKey_expiresAt_idx" ON "ApiKey"("expiresAt");
+
 -- AddForeignKey
 ALTER TABLE "Menu" ADD CONSTRAINT "Menu_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE SET NULL ON UPDATE SET NULL;
 
@@ -3182,7 +3241,16 @@ ALTER TABLE "RecipeItem" ADD CONSTRAINT "RecipeItem_parentRecipeItemId_fkey" FOR
 ALTER TABLE "Receipt" ADD CONSTRAINT "Receipt_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 -- AddForeignKey
+ALTER TABLE "Receipt" ADD CONSTRAINT "Receipt_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "LoyaltyAccount" ADD CONSTRAINT "LoyaltyAccount_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "LoyaltyTransaction" ADD CONSTRAINT "LoyaltyTransaction_loyaltyAccountId_fkey" FOREIGN KEY ("loyaltyAccountId") REFERENCES "LoyaltyAccount"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "GiftCard" ADD CONSTRAINT "GiftCard_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "GiftCardTransaction" ADD CONSTRAINT "GiftCardTransaction_giftCardId_fkey" FOREIGN KEY ("giftCardId") REFERENCES "GiftCard"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -3198,6 +3266,9 @@ ALTER TABLE "OpeningHours" ADD CONSTRAINT "OpeningHours_locationId_fkey" FOREIGN
 
 -- AddForeignKey
 ALTER TABLE "HaccpEntry" ADD CONSTRAINT "HaccpEntry_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE SET NULL ON UPDATE SET NULL;
+
+-- AddForeignKey
+ALTER TABLE "Webhook" ADD CONSTRAINT "Webhook_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "StaffShift" ADD CONSTRAINT "StaffShift_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -3330,4 +3401,7 @@ ALTER TABLE "DeviceRegistry" ADD CONSTRAINT "DeviceRegistry_locationId_fkey" FOR
 
 -- AddForeignKey
 ALTER TABLE "VideoAnalyticsSession" ADD CONSTRAINT "VideoAnalyticsSession_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE SET NULL ON UPDATE SET NULL;
+
+-- AddForeignKey
+ALTER TABLE "ApiKey" ADD CONSTRAINT "ApiKey_subscriptionId_fkey" FOREIGN KEY ("subscriptionId") REFERENCES "Subscription"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
