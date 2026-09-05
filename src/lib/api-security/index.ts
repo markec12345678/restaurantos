@@ -10,26 +10,16 @@
 //   - Audit trail kdo je klical kaj
 //   - Enostavna rotacija (revoke + reissue)
 //
-// ⚠️ P0-C3B KNOWN LIMITATION (TODO P0-C4):
-// API ključi so trenutno shranjeni v RestaurantSettings.apiKeys (JSON array) —
-// to je GLOBAL keystore brez tenant isolation. V multi-tenant SaaS setupu:
-//   - Tenant A cron key lahko dostopa do Tenant B podatkov
-//   - Scopes so globalne, ne per-tenant
-// Pravilna rešitev (P0-C4): Nova tabela `ApiKey` z `subscriptionId` relacijo:
-//   model ApiKey {
-//     id              String   @id @default(cuid())
-//     subscriptionId  String
-//     name            String
-//     keyPrefix       String
-//     keyHash         String   @unique
-//     scopes          String   @default("[]")  // JSON
-//     rateLimit       Int      @default(60)
-//     isActive        Boolean  @default(true)
-//     ...
-//   }
-// verifyApiKey() naj vrne tudi tenant context (subscriptionId), da klicatelj
-// lahko scope-a vse nadaljne query-je.
-// Dokler ni migrirano: to deluje samo za single-tenant deploy.
+// ⚠️ P0-C5 MIGRATED (September 2026):
+// API ključi so sedaj shranjeni v ApiKey tabeli (ne RestaurantSettings.apiKeys JSON).
+// ApiKey tabela ima subscriptionId FK za multi-tenant isolation — Tenant A key
+// ne more dostopati do Tenant B podatkov.
+//
+// verifyApiKey() zdaj vrača tudi subscriptionId — klicatelj ga lahko uporabi
+// za scope vseh nadaljnih query-jev.
+//
+// Backfill: scripts/p0-c5-backfill-apikeys.mjs migrira obstoječe ključe.
+// RestaurantSettings.apiKeys ostaja kot fallback (grace period 30 dni).
 // ============================================
 
 import { db } from '@/lib/db'
@@ -74,6 +64,29 @@ const HASH_ALGORITHM = 'sha256'
 
 // --- Glavne funkcije ---
 
+// FIX P0-C5: Vse funkcije sedaj uporabljajo ApiKey tabelo (ne RestaurantSettings.apiKeys JSON).
+// ApiKey tabela ima subscriptionId FK za multi-tenant isolation.
+// Backfill: scripts/p0-c5-backfill-apikeys.mjs migrira obstoječe ključe.
+
+// Helper: pridobi ali kreiraj default Subscription (single-tenant compat)
+async function getOrCreateDefaultSubscriptionId(): Promise<string> {
+  const existing = await db.subscription.findFirst({ select: { id: true } })
+  if (existing) return existing.id
+
+  // Kreiraj default Subscription (single-tenant compat)
+  const sub = await db.subscription.create({
+    data: {
+      companyName: 'Default Company',
+      email: 'admin@default.test',
+      plan: 'professional',
+      status: 'active',
+    },
+    select: { id: true },
+  })
+  logger.info('ApiSecurity', `Created default Subscription: ${sub.id}`)
+  return sub.id
+}
+
 // 1. GENERIRAJ nov API key
 export async function createApiKey(input: CreateApiKeyInput): Promise<CreatedApiKey> {
   // Generiraj random key
@@ -84,44 +97,49 @@ export async function createApiKey(input: CreateApiKeyInput): Promise<CreatedApi
   const keyHash = hashKey(plainKey)
   const keyPrefix = plainKey.substring(0, 12) // "posr_xxxxxxxx"
 
-  // Shrani v DB (uporabimo RestaurantSettings kot key-value store)
-  const existing = await db.restaurantSettings.findFirst()
-  if (!existing) {
-    throw new Error('RestaurantSettings ne obstaja — kreirajte najprej')
-  }
+  // Pridobi subscription (multi-tenant root)
+  const subscriptionId = await getOrCreateDefaultSubscriptionId()
 
-  const apiKeysJson = (existing as { apiKeys?: string }).apiKeys || '[]'
-  const apiKeys: ApiKey[] = JSON.parse(apiKeysJson)
-
-  const newKey: ApiKey = {
-    id: crypto.randomUUID(),
-    name: input.name,
-    keyPrefix,
-    keyHash,
-    scopes: input.scopes,
-    rateLimit: input.rateLimit || 60, // default 60 req/min
-    isActive: true,
-    createdAt: new Date(),
-    expiresAt: input.expiresAt,
-    createdBy: input.createdBy,
-  }
-
-  apiKeys.push(newKey)
-
-  await db.restaurantSettings.update({
-    where: { id: existing.id },
-    data: { apiKeys: JSON.stringify(apiKeys) } as never,
+  // Shrani v ApiKey tabelo
+  const newKey = await db.apiKey.create({
+    data: {
+      subscriptionId,
+      name: input.name,
+      keyPrefix,
+      keyHash,
+      scopes: JSON.stringify(input.scopes),
+      rateLimit: input.rateLimit || 60,
+      isActive: true,
+      expiresAt: input.expiresAt,
+      createdBy: input.createdBy,
+    },
   })
 
-  logger.info('ApiSecurity', `Created API key ${newKey.name} (${keyPrefix}...)`)
+  // Convert to ApiKey interface (scopes back to array)
+  const apiKeyResult: ApiKey = {
+    id: newKey.id,
+    name: newKey.name,
+    keyPrefix: newKey.keyPrefix,
+    keyHash: newKey.keyHash,
+    scopes: JSON.parse(newKey.scopes || '[]'),
+    rateLimit: newKey.rateLimit,
+    isActive: newKey.isActive,
+    createdAt: newKey.createdAt,
+    lastUsedAt: newKey.lastUsedAt || undefined,
+    expiresAt: newKey.expiresAt || undefined,
+    createdBy: newKey.createdBy || undefined,
+  }
 
-  return { ...newKey, plainKey }
+  logger.info('ApiSecurity', `Created API key ${newKey.name} (${keyPrefix}...) for subscription ${subscriptionId}`)
+
+  return { ...apiKeyResult, plainKey }
 }
 
 // 2. VERIFICIRAJ API key iz request headerja
 export async function verifyApiKey(authHeader: string | null): Promise<{
   valid: boolean
   apiKey?: ApiKey
+  subscriptionId?: string
   error?: string
 }> {
   if (!authHeader) {
@@ -137,41 +155,63 @@ export async function verifyApiKey(authHeader: string | null): Promise<{
   const plainKey = match[1]
   const keyHash = hashKey(plainKey)
 
-  // Pridobi vse ključe
-  const settings = await db.restaurantSettings.findFirst()
-  if (!settings) {
-    return { valid: false, error: 'Nastavitve ne obstajajo' }
-  }
+  // FIX P0-C5: Preberi iz ApiKey tabele (ne RestaurantSettings JSON)
+  const dbKey = await db.apiKey.findUnique({
+    where: { keyHash },
+    select: {
+      id: true,
+      subscriptionId: true,
+      name: true,
+      keyPrefix: true,
+      keyHash: true,
+      scopes: true,
+      rateLimit: true,
+      isActive: true,
+      createdAt: true,
+      lastUsedAt: true,
+      expiresAt: true,
+      createdBy: true,
+    },
+  })
 
-  const apiKeysJson = (settings as { apiKeys?: string }).apiKeys || '[]'
-  const apiKeys: ApiKey[] = JSON.parse(apiKeysJson)
-
-  // Najdi ujemajoči ključ
-  const apiKey = apiKeys.find((k) => k.keyHash === keyHash)
-  if (!apiKey) {
+  if (!dbKey) {
     return { valid: false, error: 'Neveljaven API ključ' }
   }
 
   // Preveri status
-  if (!apiKey.isActive) {
+  if (!dbKey.isActive) {
     return { valid: false, error: 'API ključ je deaktiviran' }
   }
 
   // Preveri potek
-  if (apiKey.expiresAt && new Date() > apiKey.expiresAt) {
+  if (dbKey.expiresAt && new Date() > dbKey.expiresAt) {
     return { valid: false, error: 'API ključ je potekel' }
   }
 
   // Posodobi lastUsedAt (non-blocking)
-  apiKey.lastUsedAt = new Date()
-  await db.restaurantSettings.update({
-    where: { id: settings.id },
-    data: { apiKeys: JSON.stringify(apiKeys) } as never,
+  await db.apiKey.update({
+    where: { id: dbKey.id },
+    data: { lastUsedAt: new Date() },
   }).catch(() => {
     // Non-critical
   })
 
-  return { valid: true, apiKey }
+  const apiKey: ApiKey = {
+    id: dbKey.id,
+    name: dbKey.name,
+    keyPrefix: dbKey.keyPrefix,
+    keyHash: dbKey.keyHash,
+    scopes: JSON.parse(dbKey.scopes || '[]'),
+    rateLimit: dbKey.rateLimit,
+    isActive: dbKey.isActive,
+    createdAt: dbKey.createdAt,
+    lastUsedAt: dbKey.lastUsedAt || undefined,
+    expiresAt: dbKey.expiresAt || undefined,
+    createdBy: dbKey.createdBy || undefined,
+  }
+
+  // FIX P0-C5: vrni tudi subscriptionId za tenant scoping
+  return { valid: true, apiKey, subscriptionId: dbKey.subscriptionId }
 }
 
 // 3. PREVERI ali key ima določen scope
@@ -181,82 +221,105 @@ export function hasScope(apiKey: ApiKey, scope: string): boolean {
 }
 
 // 4. LIST vseh ključev (brez hash-a)
-export async function listApiKeys(): Promise<Array<Omit<ApiKey, 'keyHash'>>> {
-  const settings = await db.restaurantSettings.findFirst()
-  if (!settings) return []
+export async function listApiKeys(subscriptionId?: string): Promise<Array<Omit<ApiKey, 'keyHash'>>> {
+  const keys = await db.apiKey.findMany({
+    where: subscriptionId ? { subscriptionId } : {},
+    select: {
+      id: true,
+      name: true,
+      keyPrefix: true,
+      scopes: true,
+      rateLimit: true,
+      isActive: true,
+      createdAt: true,
+      lastUsedAt: true,
+      expiresAt: true,
+      createdBy: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  })
 
-  const apiKeysJson = (settings as { apiKeys?: string }).apiKeys || '[]'
-  const apiKeys: ApiKey[] = JSON.parse(apiKeysJson)
-
-  // Odstrani keyHash iz response-a
-  return apiKeys.map(({ keyHash: _keyHash, ...rest }) => rest)
+  return keys.map(k => ({
+    id: k.id,
+    name: k.name,
+    keyPrefix: k.keyPrefix,
+    scopes: JSON.parse(k.scopes || '[]'),
+    rateLimit: k.rateLimit,
+    isActive: k.isActive,
+    createdAt: k.createdAt,
+    lastUsedAt: k.lastUsedAt || undefined,
+    expiresAt: k.expiresAt || undefined,
+    createdBy: k.createdBy || undefined,
+  }))
 }
 
 // 5. REVOKE API key
 export async function revokeApiKey(keyId: string): Promise<boolean> {
-  const settings = await db.restaurantSettings.findFirst()
-  if (!settings) return false
-
-  const apiKeysJson = (settings as { apiKeys?: string }).apiKeys || '[]'
-  const apiKeys: ApiKey[] = JSON.parse(apiKeysJson)
-
-  const key = apiKeys.find((k) => k.id === keyId)
-  if (!key) return false
-
-  key.isActive = false
-
-  await db.restaurantSettings.update({
-    where: { id: settings.id },
-    data: { apiKeys: JSON.stringify(apiKeys) } as never,
+  const result = await db.apiKey.updateMany({
+    where: { id: keyId, isActive: true },
+    data: { isActive: false },
   })
-
-  logger.info('ApiSecurity', `Revoked API key ${key.name} (${key.keyPrefix}...)`)
-  return true
+  if (result.count > 0) {
+    logger.info('ApiSecurity', `Revoked API key ${keyId}`)
+    return true
+  }
+  return false
 }
 
 // 6. DELETE API key (popolnoma)
 export async function deleteApiKey(keyId: string): Promise<boolean> {
-  const settings = await db.restaurantSettings.findFirst()
-  if (!settings) return false
-
-  const apiKeysJson = (settings as { apiKeys?: string }).apiKeys || '[]'
-  const apiKeys: ApiKey[] = JSON.parse(apiKeysJson)
-
-  const filtered = apiKeys.filter((k) => k.id !== keyId)
-  if (filtered.length === apiKeys.length) return false
-
-  await db.restaurantSettings.update({
-    where: { id: settings.id },
-    data: { apiKeys: JSON.stringify(filtered) } as never,
+  const result = await db.apiKey.deleteMany({
+    where: { id: keyId },
   })
-
-  return true
+  return result.count > 0
 }
 
 // 7. ROTATE API key (revoke stari + kreiraj novi z istimi scopes)
 export async function rotateApiKey(keyId: string): Promise<CreatedApiKey | null> {
-  const settings = await db.restaurantSettings.findFirst()
-  if (!settings) return null
+  const oldKey = await db.apiKey.findUnique({
+    where: { id: keyId },
+    select: { name: true, scopes: true, rateLimit: true, expiresAt: true, createdBy: true, subscriptionId: true },
+  })
 
-  const apiKeysJson = (settings as { apiKeys?: string }).apiKeys || '[]'
-  const apiKeys: ApiKey[] = JSON.parse(apiKeysJson)
-
-  const oldKey = apiKeys.find((k) => k.id === keyId)
   if (!oldKey) return null
 
-  // Kreiraj novi z istimi nastavitvami
-  const newKey = await createApiKey({
-    name: oldKey.name + ' (rotated)',
-    scopes: oldKey.scopes,
-    rateLimit: oldKey.rateLimit,
-    expiresAt: oldKey.expiresAt,
-    createdBy: oldKey.createdBy,
+  // Kreiraj novi z istimi nastavitvami in subscriptionId
+  const randomBytes = crypto.randomBytes(KEY_LENGTH)
+  const plainKey = KEY_PREFIX + randomBytes.toString('hex')
+  const keyHash = hashKey(plainKey)
+  const keyPrefix = plainKey.substring(0, 12)
+
+  const newKey = await db.apiKey.create({
+    data: {
+      subscriptionId: oldKey.subscriptionId,
+      name: oldKey.name + ' (rotated)',
+      keyPrefix,
+      keyHash,
+      scopes: oldKey.scopes,
+      rateLimit: oldKey.rateLimit,
+      isActive: true,
+      expiresAt: oldKey.expiresAt,
+      createdBy: oldKey.createdBy,
+    },
   })
 
   // Revoke stari
   await revokeApiKey(keyId)
 
-  return newKey
+  return {
+    id: newKey.id,
+    name: newKey.name,
+    keyPrefix: newKey.keyPrefix,
+    keyHash: newKey.keyHash,
+    scopes: JSON.parse(newKey.scopes || '[]'),
+    rateLimit: newKey.rateLimit,
+    isActive: newKey.isActive,
+    createdAt: newKey.createdAt,
+    lastUsedAt: newKey.lastUsedAt || undefined,
+    expiresAt: newKey.expiresAt || undefined,
+    createdBy: newKey.createdBy || undefined,
+    plainKey,
+  }
 }
 
 // --- Helper funkcije ---
