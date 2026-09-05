@@ -2,7 +2,7 @@
 import { db } from '@/lib/db'
 import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 
 
@@ -17,16 +17,18 @@ export async function GET(req: Request) {
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
     const referenceType = searchParams.get('referenceType')
-    // FIX issue #31: opcijsko filtriranje po lokaciji za multi-location accounting
-    const locationId = searchParams.get('locationId')
 
-    const where: Record<string, unknown> = {}
-    // FIX Test 7.2: Multi-tenant isolation — filtriraj po session.locationId
-    if (authResult.session?.locationId) {
-      where.locationId = authResult.session.locationId
+    // FIX P0-C2: Centralni tenant scope resolver — fail-closed, no ?locationId bypass
+    // Prej: `if (locationId) where.locationId = locationId` je prepisal session filter!
+    const scope = resolveTenantLocationId(authResult.session, searchParams, {
+      endpoint: 'GET /api/accounting/journal-entries',
+    })
+    if (!scope.ok) return scope.error
+
+    const where: Record<string, unknown> = {
+      ...tenantScopeToWhere(scope),
     }
     if (referenceType) where.referenceType = referenceType
-    if (locationId) where.locationId = locationId
     if (dateFrom || dateTo) {
       const dateFilter: Record<string, Date> = {}
       if (dateFrom) dateFilter.gte = new Date(dateFrom)

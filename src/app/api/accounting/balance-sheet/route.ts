@@ -1,6 +1,6 @@
 // GET /api/accounting/balance-sheet
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { generateBalanceSheet } from '@/lib/accounting/journal-generator'
 
@@ -13,12 +13,15 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url)
     const dateTo = searchParams.get('dateTo')
-    // ISSUE #31: opcijsko filtriranje po lokaciji za multi-tenant accounting
-    const locationId = searchParams.get('locationId')
+    // FIX P0-C2: Centralni tenant scope resolver — fail-closed, no ?locationId bypass
+    const scope = resolveTenantLocationId(authResult.session, searchParams, {
+      endpoint: 'GET /api/accounting/balance-sheet',
+    })
+    if (!scope.ok) return scope.error
 
     const result = await generateBalanceSheet(
       dateTo ? new Date(dateTo + 'T23:59:59') : undefined,
-      locationId || undefined,
+      scope.locationId ?? undefined,
     )
 
     return NextResponse.json(result)

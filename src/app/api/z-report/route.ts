@@ -10,7 +10,7 @@ import { sendZReportEmail, isEmailEnabled, getReportRecipients } from '@/lib/ema
 import { fetchReportData, generateReportPdf } from '@/app/api/reports/export/_helpers'
 import { round2, deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, handleRouteError, validateRequest } from '@/lib/api-utils'
 import { calculateReportStats, buildReportData } from './_helpers'
@@ -37,9 +37,16 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const date = searchParams.get('date')
     const status = searchParams.get('status')
-    const locationId = searchParams.get('locationId')
 
-    const where: Record<string, unknown> = {}
+    // FIX P0-C2: Centralni tenant scope resolver — fail-closed, no ?locationId bypass
+    const scope = resolveTenantLocationId(authResult.session, searchParams, {
+      endpoint: 'GET /api/z-report',
+    })
+    if (!scope.ok) return scope.error
+
+    const where: Record<string, unknown> = {
+      ...tenantScopeToWhere(scope),
+    }
     if (date) {
       const d = new Date(date)
       const start = new Date(d.getFullYear(), d.getMonth(), d.getDate())
@@ -47,7 +54,6 @@ export async function GET(req: Request) {
       where.reportDate = { gte: start, lt: end }
     }
     if (status) where.status = status
-    if (locationId) where.locationId = locationId
 
     const reports = await db.zReport.findMany({
       where,
@@ -70,7 +76,23 @@ export async function POST(req: Request) {
     const { data, error: validationError } = await validateRequest(req, generateZReportSchema)
     if (validationError) return validationError
 
-    const { date, locationId, actualCash, notes, finalize } = data
+    const { date, locationId: bodyLocationId, actualCash, notes, finalize } = data
+
+    // FIX P0-C2: Body locationId je dovoljen samo za admin/super_admin.
+    // Regular user: ignoriraj body locationId, uporabi session.locationId (avtoritativen).
+    // Admin brez session.locationId (super admin): lahko uporabi body locationId.
+    // Admin z session.locationId: uporabi session.locationId (admin restricted to location).
+    const sessionLocationId = authResult.session?.locationId ?? null
+    const isAdmin = authResult.session?.role === 'admin' || authResult.session?.role === 'super_admin'
+    const effectiveLocationId = sessionLocationId ?? (isAdmin ? bodyLocationId : null)
+    // Fail-closed: regular user brez session.locationId = data integrity issue
+    if (!sessionLocationId && !isAdmin) {
+      return NextResponse.json(
+        { error: 'Vaš račun nima dodeljene lokacije. Kontaktirajte administratorja.' },
+        { status: 403 },
+      )
+    }
+    const locationId = effectiveLocationId ?? undefined
 
     // Datumski obseg
     const d = new Date(date)
