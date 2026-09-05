@@ -17,9 +17,6 @@ export async function GET(req: Request) {
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
     const referenceType = searchParams.get('referenceType')
-    // FIX issue #31: opcijsko filtriranje po lokaciji za multi-location accounting
-    const locationId = searchParams.get('locationId')
-
     const where: Record<string, unknown> = {}
     // FIX Test 7.2: Multi-tenant isolation — filtriraj po session.locationId
     // FIX Authorization: request locationId lahko uporabi samo super_admin
