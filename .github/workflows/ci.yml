@@ -142,15 +142,23 @@ jobs:
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: false
 
   # ───────────────────────────────────────────
+<<<<<<< HEAD
   # Job 4: Unit tests (Vitest — 896+ tests including security)
   # ───────────────────────────────────────────
   unit-tests:
     name: Unit Tests (896+)
+=======
+  # Job 4: Unit tests (Vitest)
+  # ───────────────────────────────────────────
+  unit-tests:
+    name: Unit Tests
+>>>>>>> 77d9f113e7bc0e4f92194a9ef520b5296e2e6bb3
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: quality
     env:
       DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci?schema=public"
+<<<<<<< HEAD
       NEXTAUTH_SECRET: "ci-test-secret-do-not-use-in-prod"
       ENCRYPTION_KEY: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       ENCRYPTION_KEY_VERSION: "ci-v1"
@@ -195,6 +203,26 @@ jobs:
       ENCRYPTION_KEY: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
       FURS_ALLOW_SIMULATION: "true"
       NODE_ENV: "test"
+=======
+      NEXTAUTH_SECRET: "ci-test-secret"
+      FURS_ENV: "test"
+      FURS_ALLOW_SIMULATION: "true"
+      ENCRYPTION_KEY: "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2"
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+>>>>>>> 77d9f113e7bc0e4f92194a9ef520b5296e2e6bb3
     steps:
       - uses: actions/checkout@v4
 
@@ -214,6 +242,7 @@ jobs:
       - name: Generate Prisma client
         run: bunx prisma generate
 
+<<<<<<< HEAD
       - name: Initialize PGlite database
         run: node scripts/init-e2e-db.mjs
 
@@ -242,3 +271,18 @@ jobs:
           path: |
             test-results/
             playwright-report/
+=======
+      - name: Push schema to PostgreSQL
+        run: bunx prisma db push --skip-generate
+
+      - name: Run unit tests
+        run: bun run test
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-coverage
+          path: coverage/
+          retention-days: 7
+>>>>>>> 77d9f113e7bc0e4f92194a9ef520b5296e2e6bb3

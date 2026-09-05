@@ -160,6 +160,7 @@ export abstract class BasePaymentGateway implements PaymentGateway {
   verifyWebhookSignature(payload: string, signature: string): boolean {
     const secret = this.config.webhookSecret as string | undefined
     if (!secret) return false
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const crypto = require('crypto')
     const expected = crypto.createHmac('sha256', secret).update(payload).digest('hex')
     return expected === signature.replace(/^sha256=/, '')

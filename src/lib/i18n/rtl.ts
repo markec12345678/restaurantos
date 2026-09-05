@@ -24,6 +24,7 @@ export function useRtlSupport(locale: string) {
 
   useEffect(() => {
     const rtl = direction === 'rtl'
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsRtl(rtl)
 
     // Nastavi dir attribute na <html>

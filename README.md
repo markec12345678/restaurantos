@@ -15,7 +15,7 @@
 [![Vercel](https://img.shields.io/badge/Vercel-Hosted-black?style=flat-square&logo=vercel)](https://vercel.com/)
 [![Sentry](https://img.shields.io/badge/Sentry-Monitoring-362D59?style=flat-square&logo=sentry)](https://sentry.io/)
 
-[![FURS](https://img.shields.io/badge/FURS-Certified-3c7a50?style=flat-square)]()
+[![FURS](https://img.shields.io/badge/FURS-Ready_(cert_pending)-a98846?style=flat-square)]()
 [![PWA](https://img.shields.io/badge/PWA-Offline--capable-5A0FC8?style=flat-square&logo=pwa)]()
 [![i18n](https://img.shields.io/badge/i18n-5%20languages-86702b?style=flat-square)]()
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
@@ -33,8 +33,13 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 |-----------|:---:|:---:|:---:|:---:|:---:|
 | **Mesečna cena** | 49 EUR | 165 EUR | 0-54 EUR | 89-169 EUR | 35 EUR |
 | **TCO 3 leta** | 2.200 EUR | 8.500 EUR | 5.400 EUR | 6.800 EUR | 1.800 EUR |
+<<<<<<< HEAD
 | **FURS certifikat** | ✅ | ❌ | ❌ | ❌ | ✅ (zastarelo) |
 | **Multi-tenant** | ✅ (24 TENANT_REQUIRED + 5 OPTIONAL, glej [P0-C4 Classification](docs/P0-C4-CLASSIFICATION.md)) | ✅ | ✅ | ✅ | ❌ |
+=======
+| **FURS certifikat** | ⏳ Pending | ❌ | ❌ | ❌ | ✅ (zastarelo) |
+| **Multi-tenant** | ✅ (30 tabel z locationId, glej [Known Issues](docs/KNOWN_ISSUES.md)) | ✅ | ✅ | ✅ | ❌ |
+>>>>>>> 77d9f113e7bc0e4f92194a9ef520b5296e2e6bb3
 | **5 jezikov** | ✅ sl/en/it/hr/de | ❌ | ❌ | Delno | ❌ |
 | **Varnost (A+)** | ✅ 0 HIGH, 49 security testov, P0-C1..C5 complete | ✅ | ✅ | ✅ | ❌ |
 | **Mobilna PWA** | ⏳ P0-3 | ✅ Native | ✅ Native | ⚠ Slaba | ❌ |
@@ -64,10 +69,15 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 ### Ključne ugotovitve
 
 - **4x ceneje od Toast**, 2x ceneje od Square pri primerljivi funkcionalnosti
+<<<<<<< HEAD
 - **Edini FURS-certificiran Next.js POS** na slovenskem trgu
 - **A+ varnostna ocena** (0 HIGH odprtih, 49 security testov, P0-C1..C5 hardening complete) — glej [Security Policy](SECURITY.md) za celoten pregled
+=======
+- **FURS-ready Next.js POS** (certifikat pending — glej [Production Launch Checklist](docs/PRODUCTION-LAUNCH-CHECKLIST.md))
+- **A- varnostna ocena** (0 XSS/SQLi, CSP nonce-based, a 3 HIGH odprte težave) — glej [Known Issues](docs/KNOWN_ISSUES.md) za celoten pregled
+>>>>>>> 77d9f113e7bc0e4f92194a9ef520b5296e2e6bb3
 - **8.6/10 realna ocena** — pilot-ready with known risks (ne "production-ready")
-- **3 kritične vrzeli** za odpravo: plačilni gateway (P0-2), PWA (P0-3), rate-limit fail-open (#39)
+- **3 kritične vrzeli** za odpravo: plačilni gateway (P0-2), PWA (P0-3), FURS certifikacija (P0-4)
 
 ---
 
@@ -113,7 +123,7 @@ bun run dev
 | **POS** | Sprejemanje naročil, mize, plačila, popusti | ✅ |
 | **KDS** | Kitchen Display System z WebSocket, station filter, sound, bump | ✅ |
 | **Waiter** | Natakar interfejs z real-time posodobitvami | ✅ |
-| **FURS** | Davčno potrjevanje računov (ZDDV-1), storno, e-invoice book | ✅ |
+| **FURS** | Davčno potrjevanje računov (ZDDV-1), storno, e-invoice book | ⏳ Cert pending |
 | **Zaloga** | Inventory management, HACCP, recepti, purchase orders | ✅ |
 | **Računovodstvo** | Trial Balance, P&L, Balance Sheet, Journal Entries | ✅ |
 | **Z-Report** | Zapiranje izmene z gotovinskim usklajevanjem | ✅ |
