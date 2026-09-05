@@ -265,20 +265,32 @@ jobs:
         env:
           NODE_OPTIONS: --max-old-space-size=6144  # ⬆️ Povečano z 4096 na 6144 MB
 
-      - name: Install wait-on for server health check
-        run: npm install wait-on --no-save
-
-      - name: Start production server
+      - name: Start production server and wait for health
         run: |
           nohup node .next/standalone/server.js > server.log 2>&1 &
           echo "Waiting for server to be ready..."
-          npx wait-on http://localhost:3000/api/health --timeout 60000
-          echo "Server is ready"
+          # FIX: Use curl loop instead of wait-on (wait-on corrupts node_modules)
+          for i in $(seq 1 60); do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Server is ready (attempt $i, HTTP $HTTP_CODE)"
+              break
+            fi
+            echo "  Attempt $i: HTTP $HTTP_CODE, waiting 2s..."
+            sleep 2
+          done
+          # Final check
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/health 2>/dev/null || echo "000")
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ Server failed to start. server.log:"
+            cat server.log
+            exit 1
+          fi
         env:
           PORT: 3000
 
       - name: Run E2E security tests
-        run: bunx playwright test tests/e2e/multi-tenant-security.spec.ts --project=chromium --reporter=verbose
+        run: bunx playwright test tests/e2e/multi-tenant-security.spec.ts --project=chromium --reporter=list
 
       - name: Stop production server
         if: always()
