@@ -22,11 +22,16 @@ export async function GET(req: Request) {
 
     const where: Record<string, unknown> = {}
     // FIX Test 7.2: Multi-tenant isolation — filtriraj po session.locationId
-    if (authResult.session?.locationId) {
+    // FIX Authorization: request locationId lahko uporabi samo super_admin
+    const isSuperAdmin = authResult.session?.role === 'super_admin'
+    const requestedLocationId = searchParams.get('locationId')
+
+    if (isSuperAdmin && requestedLocationId) {
+      where.locationId = requestedLocationId
+    } else if (authResult.session?.locationId) {
       where.locationId = authResult.session.locationId
     }
     if (referenceType) where.referenceType = referenceType
-    if (locationId) where.locationId = locationId
     if (dateFrom || dateTo) {
       const dateFilter: Record<string, Date> = {}
       if (dateFrom) dateFilter.gte = new Date(dateFrom)

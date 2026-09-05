@@ -35,8 +35,18 @@ export async function GET(req: Request) {
     // Prej: createdAt filter je povzročal mismatch z VAT report (ki uporablja paidAt)
     // Sedaj: queryamo vse receipts in filtriramo po order.paidAt v aplikaciji
     // FIX Test 7.2: Multi-tenant isolation
+    // FIX: locationId iz requesta lahko uporabi samo super_admin; navadni uporabnik
+    // ima avtoritativen session.locationId ki ga ne more prepisati
     const receiptWhere: Record<string, unknown> = { isStorno: false }
-    if (authResult.session?.locationId) {
+
+    // Super-admin lahko izbere katero koli lokacijo (ali vse)
+    const requestedLocationIdRegular = searchParams.get('locationId')
+    const isSuperAdminRegular = authResult.session?.role === 'super_admin'
+
+    if (isSuperAdminRegular && requestedLocationIdRegular) {
+      receiptWhere.locationId = requestedLocationIdRegular
+    } else if (authResult.session?.locationId) {
+      // Navadni uporabnik — session.locationId je avtoritativen
       receiptWhere.locationId = authResult.session.locationId
     }
 
@@ -64,11 +74,22 @@ export async function GET(req: Request) {
 
     // Pridobi storno račune (isti filter — vključno z locationId izolacijo)
     // FIX: Prej storno query ni imel locationId filtra — multi-tenant isolation bug
+    // FIX: locationId iz requesta lahko uporabi samo super_admin; navadni uporabnik
+    // ima avtoritativen session.locationId ki ga ne more prepisati
     const stornoWhere: Record<string, unknown> = { isStorno: true }
-    if (authResult.session?.locationId) {
+
+    // Super-admin lahko izbere katero koli lokacijo (ali vse)
+    const requestedLocationId = searchParams.get('locationId')
+    const isSuperAdmin = authResult.session?.role === 'super_admin'
+
+    if (isSuperAdmin && requestedLocationId) {
+      // Super-admin izbere specifično lokacijo
+      stornoWhere.locationId = requestedLocationId
+    } else if (authResult.session?.locationId) {
+      // Navadni uporabnik — session.locationId je avtoritativen (ne more prepisati)
       stornoWhere.locationId = authResult.session.locationId
     }
-    if (locationId) stornoWhere.locationId = locationId
+    // Če je super_admin in ni podan requestedLocationId, vidi vse lokacije
 
     const allStornos = await db.receipt.findMany({
       where: stornoWhere,
