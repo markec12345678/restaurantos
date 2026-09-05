@@ -29,16 +29,26 @@ export async function GET(req: Request) {
     }
 
     const { searchParams } = new URL(req.url)
-    const locationId = searchParams.get('locationId')
+    let locationId = searchParams.get('locationId')
 
-    // FIX P0-C2: API key auth nima session.locationId — zato mora biti ?locationId OBAVEZEN
-    // TO-DO (P0-C4): Dodaj `allowedLocationIds` na ApiKey model, da API key omejimo na specifične lokacije.
-    // Zaenkrat: če locationId ni podan, vrni 400 (ne vračaj vseh artiklov vseh lokacij).
+    // FIX P0-C2/C3B: API key auth nima session.locationId.
+    // Prej: obvezen ?locationId (vrnil 400) — restriktivno za single-tenant.
+    // Sedaj: če locationId manjka, auto-detect prvo aktivno lokacijo (single-tenant compat).
+    // V multi-tenant: API key moral vedno podati ?locationId.
+    // TO-DO (P0-C5): Dodaj `allowedLocationIds` na ApiKey model za strict enforcement.
     if (!locationId) {
-      return NextResponse.json(
-        { error: 'locationId parameter is required for mobile menu access' },
-        { status: 400 },
-      )
+      const firstActive = await db.location.findFirst({
+        where: { isActive: true },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+      })
+      if (!firstActive) {
+        return NextResponse.json(
+          { error: 'No active location found. Specify ?locationId parameter.' },
+          { status: 400 },
+        )
+      }
+      locationId = firstActive.id
     }
 
     // Pridobi meni (samo aktivni artikli za specifično lokacijo)

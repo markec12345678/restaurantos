@@ -62,7 +62,8 @@ for (const [id, name, rate, code] of [
 console.log('[seed] ✅ TaxRates seedan')
 
 // 5. Menu + Category + MenuItems
-await pg.query(`INSERT INTO "Menu" (id, name, icon, color, "sortOrder", "isActive", "createdAt", "updatedAt") VALUES ($1,$2,$3,$4,0,true,NOW(),NOW()) ON CONFLICT (id) DO NOTHING`, ['menu-1', 'Test Menu', '🍽️', '#f59e0b'])
+// FIX P0-C3B: Menu mora imeti locationId (per-lokacija) za pravilen multi-tenant prikaz
+await pg.query(`INSERT INTO "Menu" (id, name, icon, color, "sortOrder", "isActive", "locationId", "createdAt", "updatedAt") VALUES ($1,$2,$3,$4,0,true,$5,NOW(),NOW()) ON CONFLICT (id) DO UPDATE SET "locationId" = $5`, ['menu-1', 'Test Menu', '🍽️', '#f59e0b', 'loc-1'])
 await pg.query(`INSERT INTO "Category" (id, name, icon, color, "sortOrder", "menuId", "createdAt", "updatedAt") VALUES ($1,$2,$3,$4,0,$5,NOW(),NOW()) ON CONFLICT (id) DO NOTHING`, ['cat-1', 'Test Kategorija', '🍽️', '#f59e0b', 'menu-1'])
 
 for (const [id, name, price, vat] of [
@@ -75,7 +76,8 @@ for (const [id, name, price, vat] of [
 console.log('[seed] ✅ Menu, Category, 3 artikli seedani')
 
 // 6. Table
-await pg.query(`INSERT INTO "Table" (id, number, capacity, status, area, "posX", "posY", width, height, shape, rotation, "createdAt", "updatedAt") VALUES ($1,1,4,'available','main',10,10,8,10,'round',0,NOW(),NOW()) ON CONFLICT DO NOTHING`, ['table-1'])
+// FIX P0-C3B: Table mora imeti locationId (mize so fizično na lokaciji)
+await pg.query(`INSERT INTO "Table" (id, number, capacity, status, area, "posX", "posY", width, height, shape, rotation, "locationId", "createdAt", "updatedAt") VALUES ($1,1,4,'available','main',10,10,8,10,'round',0,$2,NOW(),NOW()) ON CONFLICT (id) DO UPDATE SET "locationId" = $2`, ['table-1', 'loc-1'])
 console.log('[seed] ✅ Miza 1 seedana')
 
 // 7. Counters

@@ -25,15 +25,25 @@ export async function GET(req: Request) {
 
   try {
     const { searchParams } = new URL(req.url)
-    const locationId = searchParams.get('locationId')
+    let locationId = searchParams.get('locationId')
 
-    // FIX P0-C3B: Public endpoint brez session — ?locationId je obvezen
-    // Prej: menu.findMany({where:{isActive:true}}) je vrnil menije VSEH lokacij mešano
+    // FIX P0-C3B: ?locationId je opcijsen za backward compat.
+    // Prej: bil je obvezen (vrnil 400) — ampak to bi razbilo QR menu frontend.
+    // Sedaj: če locationId manjka, auto-detect prvo aktivno lokacijo (single-tenant compat).
+    // V multi-tenant: frontend mora vedno podati ?locationId (URL parameter iz QR kode).
     if (!locationId) {
-      return NextResponse.json(
-        { error: 'locationId parameter is required' },
-        { status: 400 },
-      )
+      const firstActive = await db.location.findFirst({
+        where: { isActive: true },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+      })
+      if (!firstActive) {
+        return NextResponse.json(
+          { error: 'No active location found. Specify ?locationId parameter.' },
+          { status: 400 },
+        )
+      }
+      locationId = firstActive.id
     }
 
     const menus = await db.menu.findMany({
