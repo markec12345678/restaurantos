@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { getTerminalConfig, checkTerminalStatus, processTerminalPayment } from './_helpers'
 import type { PaymentRequest } from './_helpers'
+import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 
 
 // ============================================
@@ -23,8 +24,14 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
-    const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
-    const terminalConfig = getTerminalConfig(settings)
+    // FIX P0-C3B: Pridobi terminal config iz Location (vezano na session.locationId)
+    // Prej: settings.findFirst({isActive:true}) — globalni singleton
+    // terminalId (registerNumber) in merchantId (businessId) se razlikujeta med lokacijami
+    const info = await getRestaurantInfoForLocation(authResult.session?.locationId)
+    const terminalConfig = getTerminalConfig({
+      registerNumber: info.registerNumber,
+      businessId: info.businessId,
+    })
     const status = await checkTerminalStatus(terminalConfig)
 
     return NextResponse.json({
@@ -68,8 +75,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Naročilo je preklicano — plačilo ni mogoče' }, { status: 400 })
     }
 
-    const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
-    const terminalConfig = getTerminalConfig(settings)
+    // FIX P0-C3B: Pridobi terminal config iz Location (vezano na order.locationId)
+    // Prej: settings.findFirst({isActive:true}) — globalni singleton
+    const info = await getRestaurantInfoForLocation(order.locationId)
+    const terminalConfig = getTerminalConfig({
+      registerNumber: info.registerNumber,
+      businessId: info.businessId,
+    })
 
     // FIX HIGH: Preveri, da test provider ni na voljo v produkciji
     if (terminalConfig.provider === 'test' && process.env.NODE_ENV === 'production') {

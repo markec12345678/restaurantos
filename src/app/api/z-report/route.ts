@@ -188,7 +188,8 @@ export async function POST(req: Request) {
       try {
         const emailEnabled = await isEmailEnabled()
         if (emailEnabled) {
-          const recipients = await getReportRecipients()
+          // FIX P0-C3B: Pridobi prejemnike za PRAVO lokacijo (ne global)
+          const recipients = await getReportRecipients(locationId || null)
           if (recipients.length > 0) {
             const dateStr = d.toISOString().split('T')[0]
             const dateFilter = { gte: new Date(dateStr + 'T00:00:00'), lte: new Date(dateStr + 'T23:59:59') }

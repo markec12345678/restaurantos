@@ -4,6 +4,7 @@
 // Vrne celoten meni s kategorijami in alergeni za prikaz na telefonu
 // Optimizirano za mobilne naprave - minimalni podatki za hitrost
 // FIX CRITICAL: Rate limiting za preprečitev zlorabe
+// FIX P0-C3B: ?locationId je obvezen (public endpoint brez session)
 // =====================================================================
 
 import { db } from '@/lib/db'
@@ -11,6 +12,7 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { checkRateLimitAsync, getClientIp, PUBLIC_MENU_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
+import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 
 
 export const dynamic = 'force-dynamic'
@@ -27,8 +29,20 @@ export async function GET(req: Request) {
   }
 
   try {
+    const { searchParams } = new URL(req.url)
+    const locationId = searchParams.get('locationId')
+
+    // FIX P0-C3B: Public endpoint brez session — ?locationId je obvezen
+    // Prej: menu.findMany({where:{isActive:true}}) + table.findMany brez filtra = mešanje lokacij
+    if (!locationId) {
+      return NextResponse.json(
+        { error: 'locationId parameter is required' },
+        { status: 400 },
+      )
+    }
+
     const menus = await db.menu.findMany({
-      where: { isActive: true },
+      where: { isActive: true, locationId },
       select: {
         id: true,
         name: true,
@@ -91,23 +105,23 @@ export async function GET(req: Request) {
       orderBy: { sortOrder: 'asc' }
     })
 
-    const settings = await db.restaurantSettings.findFirst({
-      select: {
-        id: true,
-        name: true,
-        address: true,
-        phone: true,
-        email: true,
-        web: true,
-        currency: true,
-        locale: true,
-        country: true,
-      }
-    })
+    // FIX P0-C3B: Pridobi branding iz Location (vezano na locationId)
+    const info = await getRestaurantInfoForLocation(locationId)
+    const settings = {
+      id: info.locationId || '',
+      name: info.name,
+      address: info.address,
+      phone: info.phone,
+      email: '',
+      web: '',
+      currency: info.currency,
+      locale: info.locale,
+      country: 'SI',
+    }
 
-    // Pridobi razpoložljive mize za informacijo
+    // FIX P0-C3B: Pridobi razpoložljive mize SAMO za to lokacijo
     const tables = await db.table.findMany({
-      where: { status: 'available' },
+      where: { status: 'available', locationId },
       select: { id: true, number: true, capacity: true }
     })
 

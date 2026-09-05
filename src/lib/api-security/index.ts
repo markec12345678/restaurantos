@@ -9,6 +9,27 @@
 //   - Rate limiting per key
 //   - Audit trail kdo je klical kaj
 //   - Enostavna rotacija (revoke + reissue)
+//
+// ⚠️ P0-C3B KNOWN LIMITATION (TODO P0-C4):
+// API ključi so trenutno shranjeni v RestaurantSettings.apiKeys (JSON array) —
+// to je GLOBAL keystore brez tenant isolation. V multi-tenant SaaS setupu:
+//   - Tenant A cron key lahko dostopa do Tenant B podatkov
+//   - Scopes so globalne, ne per-tenant
+// Pravilna rešitev (P0-C4): Nova tabela `ApiKey` z `subscriptionId` relacijo:
+//   model ApiKey {
+//     id              String   @id @default(cuid())
+//     subscriptionId  String
+//     name            String
+//     keyPrefix       String
+//     keyHash         String   @unique
+//     scopes          String   @default("[]")  // JSON
+//     rateLimit       Int      @default(60)
+//     isActive        Boolean  @default(true)
+//     ...
+//   }
+// verifyApiKey() naj vrne tudi tenant context (subscriptionId), da klicatelj
+// lahko scope-a vse nadaljne query-je.
+// Dokler ni migrirano: to deluje samo za single-tenant deploy.
 // ============================================
 
 import { db } from '@/lib/db'

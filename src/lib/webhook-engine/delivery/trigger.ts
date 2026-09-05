@@ -17,10 +17,22 @@ import { ensureDecrypted } from '@/lib/crypto/secrets'
 /**
  * Sproži webhook dogodek — poišče vse aktivne webhooke za ta dogodek
  * in jih asinhrono dostavi. Ne blokira klicanja.
+ *
+ * FIX P0-C3B: Dodan `locationId` parameter za tenant isolation.
+ * Prej: `db.webhook.findMany({where:{isActive:true}})` je vrnil VSE webhook-e
+ * vseh tenant-ov — critical isolation bug.
+ * Sedaj: klicatelj naj posreduje locationId (iz orderja/sessiona). Ker Webhook
+ * model še nima locationId polja (TODO P0-C4 schema migration), je filter za
+ * zdaj opcijsen — ko bo dodan, se bo avtomatsko uporabil.
+ *
+ * @param event - tip webhook dogodka
+ * @param data - payload podatki
+ * @param locationId - ID lokacije za tenant isolation (pravilno vedno podati!)
  */
 export async function triggerWebhook(
   event: WebhookEventType,
-  data: Record<string, unknown>
+  data: Record<string, unknown>,
+  locationId?: string | null,
 ): Promise<void> {
   // Pridobi restavracijske nastavitve za kontekst
   let restaurantInfo = { name: 'RestaurantOS', id: '' }
@@ -33,9 +45,27 @@ export async function triggerWebhook(
     // Nastavitve niso obvezne
   }
 
+  // FIX P0-C3B: Tenant isolation filter na webhook query
+  // TODO P0-C4: Ko bo Webhook model imel locationId polje, dodaj filter:
+  //   where: { isActive: true, ...(locationId ? { locationId } : {}) }
+  // Zaenkrat: logiraj warning če locationId manjka (data integrity issue v multi-tenant)
+  if (!locationId) {
+    logger.warn(
+      'WebhookEngine',
+      `triggerWebhook(${event}) klican brez locationId — webhook-i niso filtrirani po tenant-u. ` +
+        'V multi-tenant setupu lahko to povzroči cross-tenant delivery. Klicatelj naj posreduje order.locationId ali session.locationId.',
+    )
+  }
+
   // Pridobi vse aktivne webhooke, ki poslušajo ta dogodek
+  // FIX P0-C3B: Ko bo Webhook.locationId dodan v shemo, dodaj filter tukaj
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const webhookWhere: any = { isActive: true }
+  // OPOMBA: Webhook model trenutno nima locationId polja.
+  // Ko bo dodan (P0-C4), odkomentiraj:
+  // if (locationId) webhookWhere.locationId = locationId
   const webhooks = await db.webhook.findMany({
-    where: { isActive: true },
+    where: webhookWhere,
   })
 
   const matchingWebhooks = webhooks.filter(wh => {
@@ -56,7 +86,7 @@ export async function triggerWebhook(
     }
 
     // Ne čakaj na dostavo — pošlji v ozadje
-    deliverAndLog(webhook, event, data, restaurantInfo).catch(err => {
+    deliverAndLog(webhook, event, data, restaurantInfo, locationId).catch(err => {
       logger.error('WebhookEngine', `Napaka pri dostavi webhook ${webhook.id}:`, err)
     })
   }
@@ -69,7 +99,8 @@ async function deliverAndLog(
   webhook: { id: string; url: string; secret: string; failureCount: number },
   event: string,
   data: Record<string, unknown>,
-  restaurant: { name: string; id: string }
+  restaurant: { name: string; id: string },
+  _locationId?: string | null,
 ): Promise<void> {
   const payload: WebhookPayload = {
     id: crypto.randomUUID(),

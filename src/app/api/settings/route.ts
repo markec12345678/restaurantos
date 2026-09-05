@@ -1,5 +1,18 @@
 
 // GET /api/settings — Pridobi nastavitve restavracije
+//
+// ⚠️ P0-C3B KNOWN LIMITATION (TODO P0-C4):
+// RestaurantSettings je GLOBAL singleton (matična družba config). V multi-tenant
+// SaaS setupu meša global in per-tenant polja:
+//   - GLOBAL (pravilno tukaj): SMTP, loyalty rules, auto-gratuity, allergen filter
+//   - PER-LOCATION (migrirano v P0-C3A): FURS cert, premisesId, registerNumber,
+//     businessId, taxId, name, address — zdaj na Location modelu
+//   - TODO P0-C4: API keys → nova ApiKey tabela z subscriptionId
+// Pravilna arhitektura (P0-C4): razcepi v 3 endpointe:
+//   1. /api/settings (global: SMTP, loyalty, gratuity, allergen)
+//   2. /api/locations/[id]/settings (per-location: FURS, terminal, branding)
+//   3. /api/api-keys (per-subscription: API key management)
+// Dokler ni razcepljeno: ta endpoint ostaja za single-tenant admin upravljanje.
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'

@@ -16,4 +16,9 @@ export interface PaymentInput {
   loyaltyPointsUsed: number
   employeeId: string | null
   idempotencyKey: string | null
+  // FIX P0-C3B: locationId za tenant-scoped loyalty config
+  // Klicatelj naj posreduje order.locationId (ali session.locationId za cash payments)
+  // TODO P0-C4: Ko bo Location model imel loyalty polja (loyaltyEnabled, pointsPerEuro, pointsValue),
+  // bomo prebrali iz Location namesto RestaurantSettings.
+  locationId?: string | null
 }

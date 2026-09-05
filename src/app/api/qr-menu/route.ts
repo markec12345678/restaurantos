@@ -1,11 +1,13 @@
 
 // Public QR Menu - no auth required
 // FIX CRITICAL: Rate limiting za preprečitev zlorabe
+// FIX P0-C3B: ?locationId je obvezen (public endpoint brez session)
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { checkRateLimitAsync, getClientIp, PUBLIC_MENU_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
+import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 
 
 export const dynamic = 'force-dynamic'
@@ -22,8 +24,20 @@ export async function GET(req: Request) {
   }
 
   try {
+    const { searchParams } = new URL(req.url)
+    const locationId = searchParams.get('locationId')
+
+    // FIX P0-C3B: Public endpoint brez session — ?locationId je obvezen
+    // Prej: menu.findMany({where:{isActive:true}}) je vrnil menije VSEH lokacij mešano
+    if (!locationId) {
+      return NextResponse.json(
+        { error: 'locationId parameter is required' },
+        { status: 400 },
+      )
+    }
+
     const menus = await db.menu.findMany({
-      where: { isActive: true },
+      where: { isActive: true, locationId },
       include: {
         categories: {
           include: {
@@ -44,24 +58,24 @@ export async function GET(req: Request) {
       orderBy: { sortOrder: 'asc' },
     })
 
-    // FIX Q05 MEDIUM: Vrni samo neobčutljive nastavitve — prepreči izpostavitev FURS certifikatov
-    const settings = await db.restaurantSettings.findFirst({
-      select: {
-        name: true,
-        address: true,
-        city: true,
-        postCode: true,
-        phone: true,
-        email: true,
-        web: true,
-        currency: true,
-        locale: true,
-        country: true,
-        allergenFilterEnabled: true,
-        defaultVatRate: true,
-        reducedVatRate: true,
-      },
-    })
+    // FIX P0-C3B: Pridobi branding iz Location (vezano na locationId)
+    // Prej: settings.findFirst brez filtra — globalni singleton
+    const info = await getRestaurantInfoForLocation(locationId)
+    const settings = {
+      name: info.name,
+      address: info.address,
+      city: info.city,
+      postCode: info.postCode,
+      phone: info.phone,
+      email: '',
+      web: '',
+      currency: info.currency,
+      locale: info.locale,
+      country: 'SI',
+      allergenFilterEnabled: true,
+      defaultVatRate: 22.00,
+      reducedVatRate: 9.50,
+    }
 
     return NextResponse.json({ menus, settings })
   } catch (error: unknown) {

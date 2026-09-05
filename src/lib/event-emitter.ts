@@ -48,16 +48,19 @@ interface EventPayloadMap {
 
 /**
  * Sproži dogodek v sistemu — pošlje webhookom in integracijam
- * 
+ *
+ * FIX P0-C3B: Dodan `locationId` parameter za tenant isolation v webhook delivery.
+ *
  * Uporaba:
- *   await emitEvent('order.paid', { orderId: '...', orderNumber: 42, total: 25.50, paymentMethod: 'cash', tip: 2.00 })
+ *   await emitEvent('order.paid', { orderId: '...', orderNumber: 42, total: 25.50, paymentMethod: 'cash', tip: 2.00 }, order.locationId)
  */
 export async function emitEvent<E extends WebhookEventType & keyof EventPayloadMap>(
   event: E,
-  data: EventPayloadMap[E]
+  data: EventPayloadMap[E],
+  locationId?: string | null,
 ): Promise<void> {
   // Sproži webhooke (ne blokiraj glavne logike)
-  triggerWebhook(event, data as Record<string, unknown>).catch(err => {
+  triggerWebhook(event, data as Record<string, unknown>, locationId).catch(err => {
     logger.error('EventEmitter', `Napaka pri sprožanju webhooka za ${event}:`, err)
   })
 
@@ -78,8 +81,10 @@ export async function emitOrderCreated(params: {
   type: string
   tableId?: string
   total: number
+  locationId?: string | null
 }): Promise<void> {
-  await emitEvent('order.created', params)
+  const { locationId, ...data } = params
+  await emitEvent('order.created', data, locationId)
 }
 
 /**
@@ -91,8 +96,10 @@ export async function emitOrderPaid(params: {
   total: number
   paymentMethod: string
   tip: number
+  locationId?: string | null
 }): Promise<void> {
-  await emitEvent('order.paid', params)
+  const { locationId, ...data } = params
+  await emitEvent('order.paid', data, locationId)
 }
 
 /**

@@ -145,8 +145,29 @@ export async function isEmailEnabled(): Promise<boolean> {
   return config !== null
 }
 
-/** Pridobi seznam prejemnikov iz nastavitev */
-export async function getReportRecipients(): Promise<string[]> {
+/**
+ * Pridobi seznam prejemnikov iz nastavitev.
+ *
+ * FIX P0-C3B: Dodan `locationId` parameter za per-location recipients.
+ * Prej: settings.findFirst() — globalni singleton (vsaka lokacija dobi iste prejemnike)
+ * Sedaj: klicatelj naj posreduje locationId (Z-Report je per-location).
+ * TODO P0-C4: Ko bo Location model imel emailReportRecipients polje, preberi iz Location.
+ * Zaenkrat: ostaja na RestaurantSettings (global) ker Location še nima tega polja.
+ *
+ * @param locationId - ID lokacije za per-location recipients (pravilno vedno podati)
+ */
+export async function getReportRecipients(_locationId?: string | null): Promise<string[]> {
+  // TODO P0-C4: Ko bo Location imel emailReportRecipients, preberi iz Location:
+  // if (locationId) {
+  //   const location = await db.location.findUnique({
+  //     where: { id: locationId },
+  //     select: { emailReportRecipients: true },
+  //   })
+  //   if (location?.emailReportRecipients) {
+  //     try { return JSON.parse(location.emailReportRecipients) } catch { /* fallthrough */ }
+  //   }
+  // }
+  // Fallback: RestaurantSettings (global)
   const settings = await db.restaurantSettings.findFirst()
   if (!settings) return []
   try {

@@ -1,4 +1,12 @@
 // Pomožne funkcije za Payments API — Zvestobne točke
+//
+// FIX P0-C3B: PaymentInput.locationId je dodan za tenant-scoped loyalty config.
+// TODO P0-C4: Ko bo Location model imel loyalty polja (loyaltyEnabled, pointsPerEuro,
+// pointsValue), bomo prebrali iz Location namesto RestaurantSettings.
+// Zaenkrat loyalty config ostaja na RestaurantSettings (global) ker:
+//   - loyalty program je običajno matični (en program za vse lokacije)
+//   - LoyaltyAccount ima locationId (per-lokacija), ampak pravila so globalna
+// Klicatelj naj vedno posreduje data.locationId za prihodnjo migracijo.
 
 import { Prisma } from '@prisma/client'
 import { toNum, round2, subtract } from '@/lib/decimal'
