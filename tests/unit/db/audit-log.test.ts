@@ -35,7 +35,12 @@ vi.mock('@prisma/client', () => ({
 // Override global mock-a iz tests/setup.ts — uporabi PRAVO implementacijo
 // (ki bo uporabila naš mock-ani PrismaClient)
 vi.mock('@/lib/db', async (importOriginal) => {
-  return await importOriginal<typeof import('@/lib/db')>()
+  const original = await importOriginal<typeof import('@/lib/db')>()
+  return {
+    ...original,
+    // Suppress logger errors that create unhandled rejections in error-simulation tests
+    logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+  }
 })
 
 // Import PO mock-ih

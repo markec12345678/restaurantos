@@ -17,6 +17,7 @@ vi.mock('@/lib/db', () => ({
   db: {
     journalLine: { findMany: mockJournalLineFindMany },
     journalEntry: { findMany: mockJournalEntryFindMany },
+    stockTransaction: { aggregate: vi.fn().mockResolvedValue({ _sum: { totalCost: 0 } }) },
   },
   createAuditLog: vi.fn().mockResolvedValue(undefined),
 }))

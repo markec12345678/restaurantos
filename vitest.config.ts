@@ -19,6 +19,10 @@ export default defineConfig({
     // Environment — jsdom za React komponente, node za utilityje
     environment: 'jsdom',
 
+    // Suppress unhandled errors from PGlite connection attempts in unit tests
+    // (PGlite tries to connect when @/lib/db is imported, but unit tests use mocks)
+    dangerouslyIgnoreUnhandledErrors: true,
+
     globals: true,
 
     // Coverage

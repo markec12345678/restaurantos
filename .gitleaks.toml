@@ -1,0 +1,11 @@
+# Gitleaks configuration — allowlist for CI test values
+# These are test-only values that are intentionally public in CI workflow files
+
+[allowlist]
+  description = "CI test values that are not real secrets"
+  paths = [
+    '''\.github/workflows/.*\.yml''',
+  ]
+  regexes = [
+    '''ENCRYPTION_KEY.*a1b2c3d4''',
+  ]

@@ -49,14 +49,20 @@ describe('Issue #46: Secrets Encryption (AES-256-GCM)', () => {
   describe('Test 2: Tampered ciphertext → failure', () => {
     it('should throw on tampered ciphertext', () => {
       const encrypted = encrypt('SecretData')
-      const tampered = encrypted.slice(0, -1) + (encrypted.slice(-1) === 'A' ? 'B' : 'A')
+      const parts = encrypted.split(':')
+      // Tamper ciphertext (4th part) — change last 2 chars
+      const cipher = parts[4]
+      parts[4] = cipher.slice(0, -2) + (cipher.slice(-2) === 'AA' ? 'BB' : 'AA')
+      const tampered = parts.join(':')
       expect(() => decrypt(tampered)).toThrow()
     })
 
     it('should throw on tampered authTag', () => {
       const encrypted = encrypt('SecretData')
       const parts = encrypted.split(':')
-      parts[3] = parts[3].slice(0, -1) + (parts[3].slice(-1) === 'A' ? 'B' : 'A')
+      // Tamper authTag (3rd part) — change last 2 chars
+      const tag = parts[3]
+      parts[3] = tag.slice(0, -2) + (tag.slice(-2) === 'AA' ? 'BB' : 'AA')
       const tampered = parts.join(':')
       expect(() => decrypt(tampered)).toThrow()
     })

@@ -133,7 +133,9 @@ describe('applySecurityHeaders — CSP nonce generation', () => {
     expect(scriptSrc).not.toContain("'unsafe-inline'")
     expect(scriptSrc).not.toContain("'unsafe-eval'")
     const styleSrc = csp.split(';').map((d) => d.trim()).find((d) => d.startsWith('style-src')) || ''
-    expect(styleSrc).toContain("'unsafe-inline'")
+    // FIX Issue #34: style-src ne sme vsebovati 'unsafe-inline' (nonce-based)
+    expect(styleSrc).not.toContain("'unsafe-inline'")
+    expect(styleSrc).toContain("'nonce-")
     expect(result.nonce.length).toBeGreaterThanOrEqual(24)
   })
 
