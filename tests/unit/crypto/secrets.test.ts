@@ -49,14 +49,26 @@ describe('Issue #46: Secrets Encryption (AES-256-GCM)', () => {
   describe('Test 2: Tampered ciphertext → failure', () => {
     it('should throw on tampered ciphertext', () => {
       const encrypted = encrypt('SecretData')
-      const tampered = encrypted.slice(0, -1) + (encrypted.slice(-1) === 'A' ? 'B' : 'A')
+      const parts = encrypted.split(':')
+      // Tamper sredino ciphertext-a (ne zadnjega znaka ki je lahko '=' padding)
+      const ct = parts[4]
+      if (ct.length > 2) {
+        const midIdx = Math.floor(ct.length / 2)
+        parts[4] = ct.slice(0, midIdx) + (ct[midIdx] === 'A' ? 'B' : 'A') + ct.slice(midIdx + 1)
+      }
+      const tampered = parts.join(':')
       expect(() => decrypt(tampered)).toThrow()
     })
 
     it('should throw on tampered authTag', () => {
       const encrypted = encrypt('SecretData')
       const parts = encrypted.split(':')
-      parts[3] = parts[3].slice(0, -1) + (parts[3].slice(-1) === 'A' ? 'B' : 'A')
+      // Tamper sredino authTag-a (ne zadnjega znaka ki je lahko '=' padding)
+      const tag = parts[3]
+      if (tag.length > 2) {
+        const midIdx = Math.floor(tag.length / 2)
+        parts[3] = tag.slice(0, midIdx) + (tag[midIdx] === 'A' ? 'B' : 'A') + tag.slice(midIdx + 1)
+      }
       const tampered = parts.join(':')
       expect(() => decrypt(tampered)).toThrow()
     })

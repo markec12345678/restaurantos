@@ -8,15 +8,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 // Mock @/lib/db preden importamo generator — vi.hoisted zaradi vitest hoisting-a
-const { mockJournalLineFindMany, mockJournalEntryFindMany } = vi.hoisted(() => ({
+const { mockJournalLineFindMany, mockJournalEntryFindMany, mockStockTransactionAggregate } = vi.hoisted(() => ({
   mockJournalLineFindMany: vi.fn(),
   mockJournalEntryFindMany: vi.fn(),
+  mockStockTransactionAggregate: vi.fn().mockResolvedValue({ _sum: { totalCost: 0 } }),
 }))
 
 vi.mock('@/lib/db', () => ({
   db: {
     journalLine: { findMany: mockJournalLineFindMany },
     journalEntry: { findMany: mockJournalEntryFindMany },
+    stockTransaction: { aggregate: mockStockTransactionAggregate },
   },
   createAuditLog: vi.fn().mockResolvedValue(undefined),
 }))

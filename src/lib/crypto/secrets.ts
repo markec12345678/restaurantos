@@ -27,7 +27,7 @@ const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 12 // GCM standard: 12 bytes (96 bits)
 const AUTH_TAG_LENGTH = 16 // GCM standard: 16 bytes (128 bits)
 const KEY_LENGTH = 32 // 256 bits
-const PREFIX = 'enc:v1:' // Format prefix za identifikacijo encrypted vrednosti
+const PREFIX = 'enc:v1' // Format prefix za identifikacijo encrypted vrednosti (brez trailing colon — join doda ':')
 const ENCODING = 'base64' as const
 
 // ============================================

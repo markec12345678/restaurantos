@@ -52,6 +52,8 @@ describe('Issue #39: Rate Limit Fail-Closed', () => {
 
   describe('Test 2: Cache failure → FAIL-CLOSED', () => {
     it('should REJECT request when cache.increment() throws (Redis down)', async () => {
+      // FIX: Reset module cache before mocking so dynamic import gets fresh module
+      vi.resetModules()
       // Mock getCacheAdapter to return a broken adapter
       vi.doMock('@/lib/cache', () => ({
         getCacheAdapter: () => ({
@@ -79,6 +81,7 @@ describe('Issue #39: Rate Limit Fail-Closed', () => {
     })
 
     it('should NOT allow brute-force when Redis is down', async () => {
+      vi.resetModules()
       vi.doMock('@/lib/cache', () => ({
         getCacheAdapter: () => ({
           name: 'redis-broken',

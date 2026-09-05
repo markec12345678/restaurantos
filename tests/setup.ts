@@ -5,6 +5,11 @@
 import { vi, afterAll } from 'vitest'
 import { TextEncoder, TextDecoder } from 'util'
 
+// FIX P0-C5: Set ENCRYPTION_KEY before any module imports (for crypto/secrets tests)
+process.env.ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'a'.repeat(64)
+process.env.ENCRYPTION_KEY_VERSION = process.env.ENCRYPTION_KEY_VERSION || 'test-v1'
+process.env.NODE_ENV = 'test'
+
 // Next.js server components pričakujejo TextEncoder/TextDecoder
 if (typeof globalThis.TextEncoder === 'undefined') {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,6 +46,8 @@ vi.mock('@/lib/db', () => ({
         deleteMany: vi.fn(),
         updateMany: vi.fn(),
         createMany: vi.fn(),
+        aggregate: vi.fn(),
+        groupBy: vi.fn(),
       }
     },
   }),
