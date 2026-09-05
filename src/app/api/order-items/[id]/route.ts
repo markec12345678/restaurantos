@@ -34,8 +34,18 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     // === VOID OPERACIJA ===
     if (data.voided === true) {
-      const existingItem = await db.orderItem.findUnique({ where: { id } })
-      if (existingItem?.voided) {
+      // FIX P0-C1 (IDOR): findUnique → findFirst z order.locationId scope
+      const sessionLocationId = authResult.session?.locationId ?? undefined
+      const existingItem = await db.orderItem.findFirst({
+        where: {
+          id,
+          ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}),
+        },
+      })
+      if (!existingItem) {
+        return NextResponse.json({ error: 'Artikel ni najden' }, { status: 404 })
+      }
+      if (existingItem.voided) {
         return NextResponse.json({ error: 'Artikel je že bil voidan' }, { status: 409 })
       }
       updateData.voided = true

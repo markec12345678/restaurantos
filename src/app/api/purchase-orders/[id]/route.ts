@@ -23,8 +23,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (authResult.error) return authResult.error
 
     const { id } = await params
-    const po = await db.purchaseOrder.findUnique({
-      where: { id },
+    // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const po = await db.purchaseOrder.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
       include: { supplier: true, items: { include: { inventoryItem: true } } },
     })
     if (!po) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
@@ -60,7 +62,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     // Navadna posodobitev
-    const existing = await db.purchaseOrder.findUnique({ where: { id } })
+    // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.purchaseOrder.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
     if (!existing) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
 
     // FIX HIGH: State machine validacija za status — prepreči neveljavne prehode
