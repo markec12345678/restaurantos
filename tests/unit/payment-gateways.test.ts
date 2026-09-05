@@ -214,6 +214,7 @@ describe('StripeGateway', () => {
   })
 
   it('verifyWebhookSignature vrne true za pravilen HMAC', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const crypto = require('crypto')
     const payload = '{"test":true}'
     const secret = 'whsec_test_fake'

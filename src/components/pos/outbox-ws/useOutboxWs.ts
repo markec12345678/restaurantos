@@ -109,7 +109,8 @@ export function useOutboxWs(options: UseOutboxWsOptions = {}) {
         // Auto-reconnect po 5 sekundah — samo če nismo na Vercelu
         // FIX NAPAKA 3: prepreči neskončne reconnect poskuse na Vercelu
         if (enabled && !isVercel) {
-          reconnectTimeoutRef.current = setTimeout(connect, 5000)
+          // eslint-disable-next-line react-hooks/exhaustive-deps
+          reconnectTimeoutRef.current = setTimeout(() => connect(), 5000)
         }
       }
     } catch (err) {

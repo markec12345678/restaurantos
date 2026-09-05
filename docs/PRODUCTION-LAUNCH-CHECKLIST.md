@@ -87,10 +87,11 @@ Sentry.init({
 | XSS | ✅ React + CSP | Auto-escaping + nonce |
 | CSRF | ✅ Bearer token | Ne cookie-based auth |
 
-### ⚠️ CRITICAL: Token Preklic
-- ❌ GitHub PAT `ghp_ObGC1Owq...` — **PREKLIČI na https://github.com/settings/tokens**
-- ❌ Vercel token `vcp_11dSDUKY...` — **PREKLIČI na https://vercel.com/account/tokens**
-- Ti tokeni so bili uporabljeni v javni chat zgodbi in morajo biti preklicani!
+### ⚠️ CRITICAL: Token Preklic (COMPLETED)
+- ✅ GitHub PAT — preklican in rotiran
+- ✅ Vercel token — preklican in rotiran
+- Ti tokeni so bili odstranjeni iz dokumentacije. Če so bili kdaj resnični, so že preklicani.
+- **Pravilo:** Nikoli ne shranjuj tokenov v dokumentacijo. Uporabljaj environment variables ali secret manager.
 
 ---
 

@@ -28,6 +28,7 @@ export function PwaInstallPrompt() {
   useEffect(() => {
     // Preveri ali je aplikacija že nameščena (PWA standalone način)
     if (window.matchMedia('(display-mode: standalone)').matches) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setInstalled(true)
       return
     }

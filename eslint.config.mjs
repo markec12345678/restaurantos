@@ -83,7 +83,12 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-console": "off",
   },
 }, {
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills/**", "data/**", "server.js", "ecosystem.config.js"]
+  ignores: [
+    "node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts",
+    "examples/**", "skills/**", "data/**", "server.js", "ecosystem.config.js",
+    "scripts/*.cjs", // CommonJS scripts use require() — not part of Next.js app
+    "public/sw.js", // Service Worker — separate execution context
+  ]
 }];
 
 export default eslintConfig;
