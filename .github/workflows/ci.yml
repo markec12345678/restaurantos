@@ -186,15 +186,29 @@ jobs:
   e2e-security:
     name: E2E Security Tests (30)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30  # ⬆️ Povečano z 15 na 30 minut
     needs: [build, unit-tests]
     env:
-      DATABASE_URL: ""
-      PGLITE_DATA_DIR: /tmp/pglite-data
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci?schema=public"  # ⬅️ PostgreSQL namesto PGlite
       NEXTAUTH_SECRET: "ci-test-secret-do-not-use-in-prod"
       ENCRYPTION_KEY: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ENCRYPTION_KEY_VERSION: "ci-v1"
       FURS_ALLOW_SIMULATION: "true"
       NODE_ENV: "test"
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -214,8 +228,34 @@ jobs:
       - name: Generate Prisma client
         run: bunx prisma generate
 
-      - name: Initialize PGlite database
-        run: node scripts/init-e2e-db.mjs
+      - name: Push schema to PostgreSQL
+        run: bunx prisma db push --skip-generate
+
+      - name: Seed test data
+        run: |
+          # Seed admin user + location + menu for E2E tests
+          node -e "
+          const { PrismaClient } = require('@prisma/client');
+          const bcrypt = require('bcryptjs');
+          const crypto = require('crypto');
+          const db = new PrismaClient();
+          (async () => {
+            const pin = '1111';
+            const pinHash = await bcrypt.hash(pin, 10);
+            const pinLookup = crypto.createHmac('sha256', process.env.NEXTAUTH_SECRET).update(pin).digest('hex');
+            await db.employee.upsert({ where: { email: 'admin@e2e.test' }, update: { pin: pinHash, pinLookup }, create: { id: 'test-admin', name: 'Test Admin', email: 'admin@e2e.test', role: 'admin', status: 'active', pin: pinHash, pinLookup, hireDate: new Date() } });
+            await db.location.upsert({ where: { code: 'HQ' }, update: {}, create: { id: 'loc-1', name: 'Test Restavracija', code: 'HQ', type: 'restaurant', address: 'Testna 1', city: 'Ljubljana', postCode: '1000', country: 'SI', businessId: '12345678', taxId: 'SI12345678', registerNumber: 'TEST01', fursEnvironment: 'test', isActive: true } });
+            await db.restaurantSettings.upsert({ where: { id: 'rs-1' }, update: {}, create: { id: 'rs-1', name: 'Test Restaurant', address: 'Testna 1', postCode: '1000', city: 'Ljubljana', businessId: '12345678', taxId: 'SI12345678', registerNumber: 'TEST01', fursEnvironment: 'test', isActive: true } });
+            const menu = await db.menu.upsert({ where: { id: 'menu-1' }, update: {}, create: { id: 'menu-1', name: 'Test Menu', locationId: 'loc-1', isActive: true } });
+            const cat = await db.category.upsert({ where: { id: 'cat-1' }, update: {}, create: { id: 'cat-1', name: 'Test Kategorija', menuId: 'menu-1' } });
+            for (const [id, name, price, vat] of [['mi-1','Test Kava',1.50,22.0],['mi-2','Test Pizza',8.90,9.5],['mi-3','Test Solata',5.50,9.5]]) {
+              await db.menuItem.upsert({ where: { id }, update: {}, create: { id, name, description: '', price, image: '', isAvailable: true, sortOrder: 0, vatRate: vat, categoryId: 'cat-1' } });
+            }
+            await db.table.upsert({ where: { id: 'table-1' }, update: {}, create: { id: 'table-1', number: 1, capacity: 4, status: 'available', area: 'main', posX: 10, posY: 10, width: 8, height: 10, shape: 'round', rotation: 0, locationId: 'loc-1' } });
+            console.log('Seed complete');
+            await db.\$disconnect();
+          })().catch(e => { console.error(e); process.exit(1); });
+          "
 
       - name: Install Playwright browsers
         run: bunx playwright install --with-deps chromium
@@ -223,16 +263,32 @@ jobs:
       - name: Build Next.js
         run: bun run build
         env:
-          NODE_OPTIONS: --max-old-space-size=4096
+          NODE_OPTIONS: --max-old-space-size=6144  # ⬆️ Povečano z 4096 na 6144 MB
+
+      - name: Install wait-on for server health check
+        run: npm install -g wait-on
 
       - name: Start production server
         run: |
-          node .next/standalone/server.js &
-          sleep 10
-          echo "Server started"
+          nohup node .next/standalone/server.js > server.log 2>&1 &
+          echo "Waiting for server to be ready..."
+          wait-on http://localhost:3000/api/health --timeout 60000
+          echo "Server is ready"
+        env:
+          PORT: 3000
 
       - name: Run E2E security tests
         run: bunx playwright test tests/e2e/multi-tenant-security.spec.ts --project=chromium --reporter=verbose
+
+      - name: Stop production server
+        if: always()
+        run: |
+          pkill -f "node .next/standalone/server.js" || true
+          echo "Server stopped"
+
+      - name: Upload server logs on failure
+        if: failure()
+        run: cat server.log
 
       - name: Upload test results
         if: always()
@@ -242,3 +298,4 @@ jobs:
           path: |
             test-results/
             playwright-report/
+            server.log

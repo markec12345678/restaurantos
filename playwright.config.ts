@@ -47,13 +47,14 @@ export default defineConfig({
   ],
 
   // ── Avtomatski zagon dev strežnika ─────────────
+  // FIX: Povečan timeout iz 120s na 180s za bolj zanesljiv zagon v CI
   webServer: process.env.CI
-    ? undefined
+    ? undefined  // V CI uporabljamo standalone server (ne webServer)
     : {
         command: 'npm run dev',
-        url: BASE_URL,
+        url: `${BASE_URL}/api/health`,  // FIX: Health endpoint namesto root
         reuseExistingServer: true,
-        timeout: 120_000,
+        timeout: 180_000,  // ⬆️ Povečano z 120_000 na 180_000 (3 minute)
         env: {
           DATABASE_URL: '',
           PGLITE_DATA_DIR: '/home/z/my-project/pglite-e2e-data',
