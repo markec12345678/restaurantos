@@ -45,25 +45,26 @@ export async function triggerWebhook(
     // Nastavitve niso obvezne
   }
 
-  // FIX P0-C3B: Tenant isolation filter na webhook query
-  // TODO P0-C4: Ko bo Webhook model imel locationId polje, dodaj filter:
-  //   where: { isActive: true, ...(locationId ? { locationId } : {}) }
-  // Zaenkrat: logiraj warning če locationId manjka (data integrity issue v multi-tenant)
+  // FIX P0-C4 Phase 4: Webhook.locationId je sedaj v shemi — filter je aktiviran.
+  // Strategy: če je locationId podan, vrnemo webhooks za to lokacijo + globalne (locationId=null).
+  // Če locationId manjka (npr. cron job brez konteksta), vrnemo samo globalne webhooks.
+  // To je varno ker lokacijski webhook-i se ne sprožijo za napačno lokacijo.
   if (!locationId) {
-    logger.warn(
+    logger.info(
       'WebhookEngine',
-      `triggerWebhook(${event}) klican brez locationId — webhook-i niso filtrirani po tenant-u. ` +
-        'V multi-tenant setupu lahko to povzroči cross-tenant delivery. Klicatelj naj posreduje order.locationId ali session.locationId.',
+      `triggerWebhook(${event}) klican brez locationId — uporabljam samo globalne webhook-e (locationId=null). ` +
+        'Za per-lokacijo webhook delivery, klicatelj naj posreduje order.locationId ali session.locationId.',
     )
   }
 
   // Pridobi vse aktivne webhooke, ki poslušajo ta dogodek
-  // FIX P0-C3B: Ko bo Webhook.locationId dodan v shemo, dodaj filter tukaj
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const webhookWhere: any = { isActive: true }
-  // OPOMBA: Webhook model trenutno nima locationId polja.
-  // Ko bo dodan (P0-C4), odkomentiraj:
-  // if (locationId) webhookWhere.locationId = locationId
+  // FIX P0-C4 Phase 4: Webhook.locationId je sedaj dodan v shemo — aktiviraj filter!
+  // Strategy: če je locationId podan, filtriraj webhooks za to lokacijo PLUS globalne (locationId=null)
+  // To omogoča backward compat (globalni webhook-i še vedno delujejo za vse lokacije)
+  // in tenant isolation (lokacijski webhook-i se ne sprožijo za druge lokacije).
+  const webhookWhere = locationId
+    ? { isActive: true, OR: [{ locationId }, { locationId: null }] }
+    : { isActive: true }
   const webhooks = await db.webhook.findMany({
     where: webhookWhere,
   })

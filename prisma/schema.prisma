@@ -1231,6 +1231,15 @@ model Location {
   locale          String   @default("sl-SI")
   isOpen          Boolean  @default(false)            // Ali je lokacija trenutno odprta
   isActive        Boolean  @default(true)
+  // P0-C4 Phase 3: Per-location loyalty & email config
+  // Prej (P0-C3B): ta polja so bila samo na RestaurantSettings (global singleton).
+  // Sedaj: per-lokacija (lahko se razlikujejo — npr. filiala ima drugačen loyalty program).
+  // Fallback: če location polja niso nastavljena (prazni), uporabi RestaurantSettings (global).
+  loyaltyEnabled        Boolean  @default(false)
+  loyaltyPointsPerEuro  Int      @default(1)
+  loyaltyPointsValue    Decimal  @default(0.01)
+  emailReportRecipients String   @default("[]")        // JSON: ["knjigovodja@racunovodja.si"]
+  emailEnabled          Boolean  @default(false)        // Per-lokacija email (override global)
   // --- Koordinate ---
   latitude        Float?
   longitude       Float?
@@ -1271,6 +1280,8 @@ model Location {
   receipts         Receipt[]
   loyaltyAccounts  LoyaltyAccount[]
   giftCards        GiftCard[]
+  // P0-C4 Phase 4: Webhook per-lokacija (nullable za backward compat)
+  webhooks         Webhook[]
 
   @@index([code])
   @@index([isActive])
@@ -1386,6 +1397,11 @@ model Webhook {
   secret      String   @default("") // Za podpisovanje payloada
   lastTriggered DateTime?
   failureCount Int     @default(0)
+  // P0-C4 Phase 4: Tenant isolation — webhook je vezan na lokacijo
+  // Prej: findMany({where:{isActive:true}}) je vrnil VSE webhook-e vseh tenant-ov
+  // Sedaj: webhook je per-lokacija (nullable za backward compat — globalni webhook-i ostanejo)
+  locationId  String?
+  location    Location? @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   // --- Relations ---
   deliveries  WebhookDelivery[]
   createdAt   DateTime @default(now())
@@ -1393,6 +1409,7 @@ model Webhook {
 
   @@index([isActive])
   @@index([lastTriggered])
+  @@index([locationId])
 }
 
 // ============================================
@@ -2076,6 +2093,8 @@ model Subscription {
   // ISSUE #32: SaaS tenant root — vsi podatki so vezani na subscription.
   // Pravzaprav: Location je najboljši "anchor" — en subscription ima N lokacij.
   locations         Location[]
+  // P0-C4 Phase 2: API keys pripadajo subscription (multi-tenant isolation)
+  apiKeys           ApiKey[]
 
   @@index([email])
   @@index([status])
@@ -2989,4 +3008,48 @@ model BlockchainAuditEntry {
   @@index([entityType, entityId])
   @@index([timestamp])
   @@index([currentHash])
+}
+
+// ============================================
+// API KEY (P0-C4 Phase 2) — Service-to-service auth s tenant isolation
+// ============================================
+// Nadomešča RestaurantSettings.apiKeys (JSON array) ki je bil GLOBAL keystore
+// brez tenant isolation (Tenant A key je lahko dostopal do Tenant B podatkov).
+//
+// P0-C4 rešitev: vsak API key pripada Subscription (multi-tenant SaaS root).
+// verifyApiKey() vrne subscriptionId, ki ga klicatelj uporabi za scope vseh
+// nadaljnih query-jev.
+//
+// Migracija (TODO po P0-C4 Phase 2):
+//   1. Backfill: preberi RestaurantSettings.apiKeys JSON, za vsak key kreiraj
+//      ApiKey row z subscriptionId = prva Subscription (single-tenant compat)
+//   2. Update verifyApiKey() da bere iz ApiKey tabele (ne RestaurantSettings)
+//   3. Po grace period (30 dni): drop RestaurantSettings.apiKeys column
+// ============================================
+
+model ApiKey {
+  id              String   @id @default(cuid())
+  // --- Tenant root (P0-C4: multi-tenant isolation) ---
+  subscriptionId  String
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Identity ---
+  name            String                          // "Cron worker", "External integration X"
+  keyPrefix       String                          // Prvih 12 znakov (za identifikacijo: "posr_xxxxxxxx")
+  keyHash         String   @unique                // SHA-256 hash (nikoli ne shranjujemo plain key)
+  // --- Authorization ---
+  scopes          String   @default("[]")         // JSON: ["read:orders", "write:orders", "admin"]
+  rateLimit       Int      @default(60)            // requests per minute
+  // --- Status ---
+  isActive        Boolean  @default(true)
+  // --- Čas ---
+  createdAt       DateTime @default(now())
+  lastUsedAt      DateTime?
+  expiresAt       DateTime?
+  // --- Created by ---
+  createdBy       String?                          // Employee ID (admin who created the key)
+
+  @@index([subscriptionId])
+  @@index([keyHash])
+  @@index([isActive])
+  @@index([expiresAt])
 }

@@ -148,25 +148,33 @@ export async function isEmailEnabled(): Promise<boolean> {
 /**
  * Pridobi seznam prejemnikov iz nastavitev.
  *
- * FIX P0-C3B: Dodan `locationId` parameter za per-location recipients.
- * Prej: settings.findFirst() — globalni singleton (vsaka lokacija dobi iste prejemnike)
- * Sedaj: klicatelj naj posreduje locationId (Z-Report je per-location).
- * TODO P0-C4: Ko bo Location model imel emailReportRecipients polje, preberi iz Location.
- * Zaenkrat: ostaja na RestaurantSettings (global) ker Location še nima tega polja.
+ * FIX P0-C4 Phase 3: Location.emailReportRecipients je sedaj v shemi — aktiviran!
+ * Strategy:
+ *   1. Če je locationId podan: preberi iz Location (per-lokacija recipients)
+ *   2. Fallback: RestaurantSettings (global) za single-tenant backward compat
  *
  * @param locationId - ID lokacije za per-location recipients (pravilno vedno podati)
  */
 export async function getReportRecipients(_locationId?: string | null): Promise<string[]> {
-  // TODO P0-C4: Ko bo Location imel emailReportRecipients, preberi iz Location:
-  // if (locationId) {
-  //   const location = await db.location.findUnique({
-  //     where: { id: locationId },
-  //     select: { emailReportRecipients: true },
-  //   })
-  //   if (location?.emailReportRecipients) {
-  //     try { return JSON.parse(location.emailReportRecipients) } catch { /* fallthrough */ }
-  //   }
-  // }
+  // FIX P0-C4 Phase 3: Location.emailReportRecipients je sedaj v shemi — aktiviraj!
+  // Strategy: če je locationId podan, preberi iz Location (per-lokacija recipients).
+  // Fallback: RestaurantSettings (global) za single-tenant backward compat.
+  if (_locationId) {
+    const location = await db.location.findUnique({
+      where: { id: _locationId },
+      select: { emailReportRecipients: true },
+    })
+    if (location?.emailReportRecipients) {
+      try {
+        const recipients = JSON.parse(location.emailReportRecipients)
+        if (Array.isArray(recipients) && recipients.length > 0) {
+          return recipients
+        }
+      } catch {
+        // Neveljaven JSON — fallthrough na global
+      }
+    }
+  }
   // Fallback: RestaurantSettings (global)
   const settings = await db.restaurantSettings.findFirst()
   if (!settings) return []
