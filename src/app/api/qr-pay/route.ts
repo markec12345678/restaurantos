@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
@@ -104,13 +105,12 @@ export async function POST(req: Request) {
     }
 
     // Pridobi restavracija info
-    const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
-    if (settings) {
-      result.restaurant = {
-        name: settings.name,
-        address: `${settings.address}, ${settings.postCode} ${settings.city}`,
-        taxId: settings.taxId,
-      }
+    // FIX P0-C3A: Pridobi iz Location (vezano na order.locationId) namesto globalnih settings
+    const info = await getRestaurantInfoForLocation(check.order.locationId)
+    result.restaurant = {
+      name: info.name || 'RestaurantOS',
+      address: `${info.address}, ${info.postCode} ${info.city}`.trim(),
+      taxId: info.taxId,
     }
 
     logger.info('QR-PAY', `QR pay session ustvarjen za ček #${check.checkNumber} (token: ${sessionToken.slice(0, 8)}...)`)
@@ -160,7 +160,8 @@ export async function GET(req: Request) {
     }
 
     const check = unpaidChecks[0]
-    const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
+    // FIX P0-C3A: Pridobi iz Location (vezano na order.locationId) namesto globalnih settings
+    const info = await getRestaurantInfoForLocation(check.order.locationId)
 
     const items = check.order.orderItems.map(oi => ({
       name: oi.menuItem?.name || oi.menuItemName || 'Artikel',
@@ -187,9 +188,9 @@ export async function GET(req: Request) {
         items,
       },
       restaurant: {
-        name: settings?.name || 'RestaurantOS',
-        address: settings ? `${settings.address}, ${settings.postCode} ${settings.city}` : '',
-        taxId: settings?.taxId || '',
+        name: info.name || 'RestaurantOS',
+        address: `${info.address}, ${info.postCode} ${info.city}`.trim(),
+        taxId: info.taxId || '',
       },
       paymentMethods: ['cash', 'card', 'apple-pay', 'google-pay'],
     })

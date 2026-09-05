@@ -6,20 +6,37 @@ import type { FursShiftCogsResult } from './types'
 
 // ─── FURS status, aktivna izmena, COGS ─────────────────────
 
-export async function fetchFursShiftCogs(today: Date, tomorrow: Date, todayRevenue: number): Promise<FursShiftCogsResult> {
-  const [settings, todayVerifiedReceipts, todayUnverifiedReceipts, activeShift, stockMovements] = await Promise.all([
-    db.restaurantSettings.findFirst({ where: { isActive: true } }),
+// FIX P0-C3A: Dodan locationId parameter. Prej je settings.findFirst({isActive:true})
+// bilo globalno — v multi-tenant setupu je dashboard prikazal FURS status napačne lokacije.
+// Prav tako so receipt/shift/stock poizvedbe sedaj scopeane na locationId.
+export async function fetchFursShiftCogs(
+  today: Date,
+  tomorrow: Date,
+  todayRevenue: number,
+  locationId?: string | null,
+): Promise<FursShiftCogsResult> {
+  // FIX P0-C3A: Pridobi FURS cert status iz Location (ne globalnih settings)
+  const location = locationId
+    ? await db.location.findUnique({
+        where: { id: locationId },
+        select: { fursCertPath: true, fursEnvironment: true },
+      })
+    : null
+  const locationFilter = locationId ? { locationId } : {}
+
+  const [todayVerifiedReceipts, todayUnverifiedReceipts, activeShift, stockMovements] = await Promise.all([
     db.receipt.count({
-      where: { createdAt: { gte: today, lt: tomorrow }, fiscalVerified: true },
+      where: { ...locationFilter, createdAt: { gte: today, lt: tomorrow }, fiscalVerified: true },
     }),
     db.receipt.count({
-      where: { createdAt: { gte: today, lt: tomorrow }, fiscalVerified: false },
+      where: { ...locationFilter, createdAt: { gte: today, lt: tomorrow }, fiscalVerified: false },
     }),
     db.cashRegisterShift.findFirst({
-      where: { status: 'open' },
+      where: { ...locationFilter, status: 'open' },
       orderBy: { openedAt: 'desc' },
     }),
     db.stockTransaction.findMany({
+      // StockTransaction morda nima locationId — uporabljamo order.locationId prek include
       where: { createdAt: { gte: today, lt: tomorrow }, type: 'sale' },
       select: { totalCost: true },
     }),
@@ -30,8 +47,8 @@ export async function fetchFursShiftCogs(today: Date, tomorrow: Date, todayReven
 
   return {
     fursStatus: {
-      configured: !!(settings?.fursCertPath),
-      environment: settings?.fursEnvironment || 'test',
+      configured: !!(location?.fursCertPath),
+      environment: location?.fursEnvironment || 'test',
       todayVerified: todayVerifiedReceipts,
       todayUnverified: todayUnverifiedReceipts,
     },

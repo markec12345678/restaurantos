@@ -68,7 +68,8 @@ export async function GET(req: Request) {
     ])
 
     // ─── DRUGI BATCH (odvisen od agg.todayRevenue) ───────────
-    const fursShiftCogs = await fetchFursShiftCogs(today, tomorrow, agg.todayRevenue)
+    // FIX P0-C3A: Prenos session.locationId za pravilno FURS status prikaz
+    const fursShiftCogs = await fetchFursShiftCogs(today, tomorrow, agg.todayRevenue, authResult.session?.locationId)
 
     const { activeTables, totalTables, lowStockItems, recentOrders } = tablesStockRecent
 

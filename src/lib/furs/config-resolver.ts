@@ -21,6 +21,7 @@ import { db } from '@/lib/db'
 import type { FursConfig } from '@/lib/furs'
 import { NextResponse } from 'next/server'
 import { ensureDecrypted } from '@/lib/crypto/secrets'
+import { logger } from '@/lib/logger'
 
 export interface FursConfigResult {
   /** Pripravljen FursConfig (ali null če manjkajo obvezna polja) */
@@ -121,8 +122,9 @@ export async function getFursConfig(locationId?: string | null): Promise<FursCon
 
   if (settings && settings.fursCertPath) {
     // ⚠️ ISSUE #37: deprecated path — admin naj nastavi FURS na Location nivoju
-    console.warn(
-      '[furs] Uporabljam RestaurantSettings FURS konfiguracijo (deprecated). ' +
+    logger.warn(
+      'furs',
+      'Uporabljam RestaurantSettings FURS konfiguracijo (deprecated). ' +
         'Prosimo, nastavite FURS certifikat na Location nivoju za multi-tenant podporo.',
     )
 
@@ -214,5 +216,154 @@ export async function getFursConfigSource(locationId?: string | null): Promise<{
   return {
     source: result.source,
     locationId: result.locationId,
+  }
+}
+
+// ============================================
+// RESTAURANT INFO RESOLVER — Per-location business identity
+//
+// P0-C3A: Naslednje polja so bila prej brana iz RestaurantSettings
+// (ki je single-tenant globalna konfiguracija):
+//   - name, address, postCode, city, phone
+//   - businessId, taxId, registerNumber
+//   - currency, locale
+//
+// V multi-tenant postavitvi morajo vsi ti podatki prihajati iz Location,
+// ker se lahko razlikujejo med lokacijami (npr. filiala z lastno davčno št.).
+//
+// Ta helper centralizira logiko in omogoča fallback na RestaurantSettings
+// samo za single-tenant backward compat (z warning).
+// ============================================
+
+export interface RestaurantInfo {
+  name: string
+  address: string
+  postCode: string
+  city: string
+  phone: string
+  businessId: string
+  taxId: string
+  registerNumber: string
+  currency: string
+  locale: string
+  /** Vir podatkov (za diagnosticiranje) */
+  source: 'location' | 'restaurant-settings'
+  /** ID uporabljene lokacije (ali null če fallback) */
+  locationId: string | null
+}
+
+/**
+ * Pridobi poslovne podatke (name, address, taxId, businessId, registerNumber, currency, locale)
+ * za določeno lokacijo.
+ *
+ * Logika:
+ * 1. Če je podan locationId → preberi iz Location (source of truth)
+ * 2. Če locationId manjka ali Location ne obstaja → fallback na RestaurantSettings (single-tenant)
+ *
+ * @param locationId - ID lokacije. Če manjka, fallback na RestaurantSettings.
+ *
+ * @example
+ * // Pravilna uporaba v receipt handler:
+ * const order = await db.order.findUnique({ where: { id }, include: { ... } })
+ * const info = await getRestaurantInfoForLocation(order.locationId)
+ * // info.name, info.taxId, info.businessId, ... so iz prave lokacije
+ */
+export async function getRestaurantInfoForLocation(
+  locationId?: string | null,
+): Promise<RestaurantInfo> {
+  // 1. Poskusi Location (source of truth)
+  if (locationId) {
+    const location = await db.location.findUnique({
+      where: { id: locationId },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        postCode: true,
+        city: true,
+        phone: true,
+        businessId: true,
+        taxId: true,
+        registerNumber: true,
+        currency: true,
+        locale: true,
+      },
+    })
+
+    if (location) {
+      return {
+        name: location.name || '',
+        address: location.address || '',
+        postCode: location.postCode || '',
+        city: location.city || '',
+        phone: location.phone || '',
+        businessId: location.businessId || '',
+        taxId: location.taxId || '',
+        registerNumber: location.registerNumber || '',
+        currency: location.currency || 'EUR',
+        locale: location.locale || 'sl-SI',
+        source: 'location',
+        locationId: location.id,
+      }
+    }
+  }
+
+  // 2. Fallback na RestaurantSettings (single-tenant backward compat)
+  // ⚠️ P0-C3A: deprecated v multi-tenant — admin naj nastavi podatke na Location nivoju
+  const settings = await db.restaurantSettings.findFirst({
+    where: { isActive: true },
+    select: {
+      name: true,
+      address: true,
+      postCode: true,
+      city: true,
+      phone: true,
+      businessId: true,
+      taxId: true,
+      registerNumber: true,
+      currency: true,
+      locale: true,
+    },
+  })
+
+  if (settings) {
+    if (locationId) {
+      // Warning samo če je bil locationId podan ampak Location ni najden — data integrity issue
+      logger.warn(
+        'restaurant-info',
+        `Location ${locationId} ni najdena — fallback na RestaurantSettings. ` +
+          'Prosimo, nastavite poslovne podatke na Location nivoju za multi-tenant podporo.',
+      )
+    }
+    return {
+      name: settings.name || '',
+      address: settings.address || '',
+      postCode: settings.postCode || '',
+      city: settings.city || '',
+      phone: settings.phone || '',
+      businessId: settings.businessId || '',
+      taxId: settings.taxId || '',
+      registerNumber: settings.registerNumber || 'BLG-001',
+      currency: settings.currency || 'EUR',
+      locale: settings.locale || 'sl-SI',
+      source: 'restaurant-settings',
+      locationId: null,
+    }
+  }
+
+  // 3. Edge case: nobena konfiguracija ne obstaja
+  return {
+    name: '',
+    address: '',
+    postCode: '',
+    city: '',
+    phone: '',
+    businessId: '',
+    taxId: '',
+    registerNumber: 'BLG-001',
+    currency: 'EUR',
+    locale: 'sl-SI',
+    source: 'restaurant-settings',
+    locationId: null,
   }
 }

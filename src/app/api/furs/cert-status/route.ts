@@ -26,9 +26,26 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Ni nastavitev restavracije' }, { status: 400 })
     }
 
-    const certPath = settings.fursCertPath || process.env.FURS_CERT_PATH || ''
-    const certPassword = settings.fursCertPassword || process.env.FURS_CERT_PASSWORD || ''
-    const environment = settings.fursEnvironment || process.env.FURS_ENV || 'test'
+    // FIX P0-C3A: Pridobi FURS cert podatke iz Location (vezano na session.locationId)
+    // Prej: vedno settings (globalno) — v multi-tenant setupu prikaz napačne lokacije
+    const sessionLocId = authResult.session?.locationId
+    let certPath = settings.fursCertPath
+    let certPassword = settings.fursCertPassword
+    let environment = settings.fursEnvironment
+    if (sessionLocId) {
+      const location = await db.location.findUnique({
+        where: { id: sessionLocId },
+        select: { fursCertPath: true, fursCertPassword: true, fursEnvironment: true },
+      })
+      if (location) {
+        if (location.fursCertPath) certPath = location.fursCertPath
+        if (location.fursCertPassword) certPassword = location.fursCertPassword
+        if (location.fursEnvironment) environment = location.fursEnvironment
+      }
+    }
+    certPath = certPath || process.env.FURS_CERT_PATH || ''
+    certPassword = certPassword || process.env.FURS_CERT_PASSWORD || ''
+    environment = environment || process.env.FURS_ENV || 'test'
 
     // Preveri ali certifikat obstaja
     let certExists = false

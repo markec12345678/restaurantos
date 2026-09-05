@@ -5,6 +5,7 @@ import { toNum } from '@/lib/decimal'
 import { generateReceipt, type ReceiptPrintData } from '@/lib/escpos'
 import { generateFursQRContent } from '@/lib/furs'
 import { findPrinter, getPrinterModel, sendToPrinter } from './printer-utils'
+import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 
 /** Pripravi podatke in natisne račun */
 export async function handleReceiptPrint(orderId: string, printerId: string | undefined, authSession: { employeeId?: string; employeeName?: string } | null) {
@@ -32,7 +33,9 @@ export async function handleReceiptPrint(orderId: string, printerId: string | un
   if (!printer) {
     return { error: 'Noben blagajnski tiskalnik ni na voljo', printed: false }
   }
-  const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
+  // FIX P0-C3A: Pridobi poslovne podatke iz Location (vezano na order.locationId)
+  // Prej: settings.findFirst({isActive:true}) — globalno, v multi-tenant napačna lokacija
+  const info = await getRestaurantInfoForLocation(order.locationId)
 
   const vatBreakdown = (() => {
     try { return JSON.parse(receipt.vatBreakdown || '{}') } catch { return {} }
@@ -46,15 +49,15 @@ export async function handleReceiptPrint(orderId: string, printerId: string | un
   const receiptPrintData: ReceiptPrintData = {
     orderNumber: order.orderNumber,
     receiptNumber: receipt.receiptNumber,
-    businessName: settings?.name || 'RestaurantOS',
-    businessAddress: settings?.address || '',
-    businessCity: settings?.city || '',
-    businessPostCode: settings?.postCode || '',
-    businessPhone: settings?.phone || '',
-    businessId: settings?.businessId || '',
-    taxId: settings?.taxId || '',
-    registerId: settings?.registerNumber || 'BLG-001',
-    premisesId: receipt.registerId || settings?.businessId || '',
+    businessName: info.name || 'RestaurantOS',
+    businessAddress: info.address || '',
+    businessCity: info.city || '',
+    businessPostCode: info.postCode || '',
+    businessPhone: info.phone || '',
+    businessId: info.businessId || '',
+    taxId: info.taxId || '',
+    registerId: info.registerNumber || 'BLG-001',
+    premisesId: receipt.registerId || info.businessId || '',
     zoi: receipt.zoi,
     eor: receipt.eor,
     isSimulation: !receipt.fiscalVerified,
@@ -82,12 +85,12 @@ export async function handleReceiptPrint(orderId: string, printerId: string | un
       zoi: receipt.zoi,
       totalAmount: toNum(receipt.total),
       issueDateTime: receipt.createdAt,
-      taxId: settings?.taxId || '',
-      businessId: settings?.businessId || '',
-      registerId: settings?.registerNumber || 'BLG-001',
-      premisesId: receipt.registerId || settings?.businessId || '',
+      taxId: info.taxId || '',
+      businessId: info.businessId || '',
+      registerId: info.registerNumber || 'BLG-001',
+      premisesId: receipt.registerId || info.businessId || '',
     }) : undefined,
-    receiptFooter: settings?.receiptFooter || undefined,
+    receiptFooter: undefined,
     operatorName: ((authSession as unknown) as { employeeName?: string })?.employeeName || authSession?.employeeId || undefined,
     tableNumber: order.table?.number ?? null,
     orderType: order.type,

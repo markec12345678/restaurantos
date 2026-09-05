@@ -5,11 +5,10 @@
 // ============================================
 
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateReportDateRange } from '@/lib/validations'
 import { handleApiError } from '@/lib/api-utils'
-import { db } from '@/lib/db'
+import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 import {
   generateOrdersCsv, generateItemsCsv, generateVatCsv,
   generateEmployeesCsv, generateShiftsCsv, generateInventoryCsv,
@@ -76,15 +75,15 @@ export async function GET(req: Request) {
     // Za te formate uporabimo orders tip (popoln promet z DDV razčlenitvijo)
     const data = await fetchReportData(dateFilter)
 
-    // Pridobi davčno številko in ime iz RestaurantSettings (za XML)
+    // Pridobi davčno številko in ime iz Location (za XML)
+    // FIX P0-C3A: Prej je bil `findFirst()` BREZ where filtra — vrne naključni record!
+    // Sedaj uporablja getRestaurantInfoForLocation z session.locationId.
     let taxNumber = ''
     let taxpayerName = 'RestaurantOS'
     if (format === 'xml') {
-      const settings = await db.restaurantSettings.findFirst()
-      if (settings) {
-        taxNumber = settings.taxId || settings.registerNumber || ''
-        taxpayerName = settings.name || 'RestaurantOS'
-      }
+      const info = await getRestaurantInfoForLocation(authResult.session?.locationId)
+      taxNumber = info.taxId || info.registerNumber || ''
+      taxpayerName = info.name || 'RestaurantOS'
     }
 
     if (format === 'pdf') {

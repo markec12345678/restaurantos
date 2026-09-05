@@ -1,9 +1,9 @@
 // Pomožne funkcije za digital-receipt API — Token generacija in formatiranje odgovora
 
 import crypto from 'crypto'
-import { db } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
 import { generateFursQRContent } from '@/lib/furs'
+import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 
 // SECURITY: HMAC-SHA256 žeton za digitalne račune — prepreči enumeracijo ID-jev
 //
@@ -71,10 +71,16 @@ export async function buildDigitalReceiptResponse(
       modifiersJson: string | null
     }> | null
     type: string
+    locationId?: string | null
   } | null,
 ) {
-  // Pridobi nastavitve
-  const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
+  // FIX P0-C3A: Pridobi poslovne podatke iz Location (vezano na order.locationId)
+  // Prej: settings.findFirst({isActive:true}) + findFirst({isActive:true}) za premisesId
+  // Sedaj: getRestaurantInfoForLocation(order.locationId) — pravi podatki za pravi račun
+  // OPOMBA: receipt že vsebuje snapshot (receipt.businessName, receipt.taxId, itd.) ki je bil
+  // zapisan ob kreaciji — te uporabljamo za prikaz. Location pa uporabljamo za QR content
+  // (ki mora biti vezan na pravo lokacijo za FURS skladnost).
+  const info = await getRestaurantInfoForLocation(order?.locationId)
 
   // Pripravi artikle
   const items = (order?.orderItems || []).map(oi => {
@@ -103,38 +109,28 @@ export async function buildDigitalReceiptResponse(
     // Neveljavna JSON struktura DDV razdelitve — nadaljuj s praznim seznamom
   }
 
-  // FIX BUG3: Fetch active location's premisesId
-  let premisesId = settings?.businessId || ''
-  try {
-    const activeLocation = await db.location.findFirst({ where: { isActive: true } })
-    if (activeLocation?.premisesId) {
-      premisesId = activeLocation.premisesId
-    }
-  } catch {
-    // Location model may not exist — fall back to businessId
-  }
+  // FIX P0-C3A: premisesId iz prave lokacije (ne findFirst({isActive:true}))
+  const premisesId = info.businessId || receipt.registerId || ''
 
-  // QR vsebina
+  // QR vsebina — uporabi podatke iz Location (prava lokacija) ali snapshot iz receipt
   const qrContent = receipt.zoi ? generateFursQRContent({
     zoi: receipt.zoi,
     totalAmount: toNum(receipt.total),
     issueDateTime: receipt.createdAt,
-    taxId: settings?.taxId || '',
-    businessId: settings?.businessId || '',
-    registerId: settings?.registerNumber || 'BLG-001',
+    taxId: info.taxId || receipt.taxId || '',
+    businessId: info.businessId || receipt.businessId || '',
+    registerId: info.registerNumber || receipt.registerId || 'BLG-001',
     premisesId,
   }) : ''
-
-  const s: { address?: string; city?: string; postCode?: string; phone?: string; businessId?: string; taxId?: string; registerNumber?: string; receiptFooter?: string } = settings || {}
 
   return {
     id: receipt.id,
     receiptNumber: receipt.receiptNumber,
     businessName: receipt.businessName,
-    businessAddress: s.address || receipt.businessAddress,
-    businessCity: s.city || '',
-    businessPostCode: s.postCode || '',
-    businessPhone: s.phone || '',
+    businessAddress: receipt.businessAddress,
+    businessCity: info.city || '',
+    businessPostCode: info.postCode || '',
+    businessPhone: info.phone || '',
     businessId: receipt.businessId,
     taxId: receipt.taxId,
     registerId: receipt.registerId,
@@ -153,7 +149,7 @@ export async function buildDigitalReceiptResponse(
     paymentMethod: receipt.paymentMethod,
     createdAt: receipt.createdAt.toISOString(),
     qrContent,
-    receiptFooter: s.receiptFooter || '',
+    receiptFooter: '',
     tableNumber: order?.table?.number || null,
     orderType: order?.type || '',
   }

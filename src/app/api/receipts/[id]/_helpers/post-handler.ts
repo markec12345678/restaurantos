@@ -7,6 +7,7 @@ import { createReceiptSchema, receiptCreatedResponseSchema } from '@/lib/validat
 import { parseJsonBody, validateBody, validateApiResponse } from '@/lib/api-utils'
 import { toNum, round2, deepToNumbers } from '@/lib/decimal'
 import { generateZOIPlaceholder, MINIMAL_SETTINGS, calculateVatBreakdownForReceipt } from './index'
+import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 
 export async function handlePostReceipt(
   req: Request,
@@ -40,9 +41,23 @@ export async function handlePostReceipt(
     return NextResponse.json(deepToNumbers(existing))
   }
 
-  // Pridobi nastavitve
-  const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
-  const s2 = settings || MINIMAL_SETTINGS
+  // FIX P0-C3A: Pridobi poslovne podatke iz Location (vezano na order.locationId)
+  // Prej: settings.findFirst({isActive:true}) — globalno, v multi-tenant napačna lokacija
+  // Sedaj: getRestaurantInfoForLocation(order.locationId) — pravi podatki za pravi račun
+  // Ti podatki se snapshotnejo v Receipt row in trajno ostanejo v bazi.
+  const info = await getRestaurantInfoForLocation(order.locationId)
+  // Fallback na MINIMAL_SETTINGS če Location ne obstaja in settings tudi ne
+  const s2 = info.source === 'location' || info.businessId || info.taxId
+    ? {
+        name: info.name || MINIMAL_SETTINGS.name,
+        address: info.address || MINIMAL_SETTINGS.address,
+        postCode: info.postCode || MINIMAL_SETTINGS.postCode,
+        city: info.city || MINIMAL_SETTINGS.city,
+        businessId: info.businessId || MINIMAL_SETTINGS.businessId,
+        taxId: info.taxId || MINIMAL_SETTINGS.taxId,
+        registerNumber: info.registerNumber || MINIMAL_SETTINGS.registerNumber,
+      }
+    : MINIMAL_SETTINGS
 
   // Izračunaj DDV razdelitev (strežniško — edini vir resnice)
   const totalDiscount = toNum(order.discount)
@@ -59,6 +74,7 @@ export async function handlePostReceipt(
       data: {
         receiptNumber,
         orderId: id,
+        // FIX P0-C3A: snapshot poslovnih podatkov iz PRAVE lokacije (ne globalnih settings)
         businessName: s2.name,
         businessAddress: `${s2.address}, ${s2.postCode} ${s2.city}`,
         businessId: s2.businessId,

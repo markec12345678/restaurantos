@@ -6,6 +6,7 @@ import { parseJsonBody, handleApiError, validateApiResponse } from '@/lib/api-ut
 import { deepToNumbers } from '@/lib/decimal'
 import { buildReceiptPreview } from './_route-helpers'
 import { handlePostReceipt } from './_helpers/post-handler'
+import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 
 
 // GET /api/receipts/[id] — Generiraj račun s predogledom (ZDDV-1 skladen)
@@ -33,8 +34,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
     }
 
-    // Pridobi nastavitve restavracije
-    const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
+    // FIX P0-C3A: Pridobi poslovne podatke iz Location (vezano na order.locationId)
+    // Prej: settings.findFirst({isActive:true}) — globalno, v multi-tenant napačna lokacija
+    const info = await getRestaurantInfoForLocation(order.locationId)
+    // Pretvori v format, ki ga pričakuje buildReceiptPreview (podobno RestaurantSettings)
+    const settings = {
+      name: info.name,
+      address: info.address,
+      postCode: info.postCode,
+      city: info.city,
+      phone: info.phone,
+      email: '',
+      businessId: info.businessId,
+      taxId: info.taxId,
+      registerNumber: info.registerNumber,
+      receiptFooter: '',
+    }
 
     // Preveri če že obstaja račun
     const existingReceipt = await db.receipt.findFirst({ where: { orderId: id, isStorno: false } })

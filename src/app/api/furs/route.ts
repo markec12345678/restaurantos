@@ -41,10 +41,12 @@ export async function GET(req: Request) {
       })
     }
 
-    const config = await buildFursConfigFromSettings(settings)
+    // FIX P0-C3A: Pridobi FURS config vezan na session.locationId (ne globalno!)
+    // Prej: buildFursConfigFromSettings(settings) je uporabil findFirst({isActive:true})
+    const config = await buildFursConfigFromSettings(settings, authResult.session?.locationId)
     const validation = validateFursConfig(config)
     const hasCert = !!(settings.fursCertPath && settings.fursCertPassword)
-    const environment = settings.fursEnvironment || 'test'
+    const environment = config.environment || settings.fursEnvironment || 'test'
 
     // Preveri povezljivost s FURS strežnikom
     const connectivity = await checkFursConnectivity(environment as 'test' | 'production')

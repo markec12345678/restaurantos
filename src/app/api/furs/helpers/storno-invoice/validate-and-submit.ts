@@ -66,8 +66,12 @@ export async function validateAndSubmitStorno(req: Request): Promise<StornoValid
 
   // FIX MEDIUM: Preveri, da je originalni račun davčno overjen
   if (!receipt.fiscalVerified) {
-    const settingsCheck = await db.restaurantSettings.findFirst({ where: { isActive: true } })
-    const env = settingsCheck?.fursEnvironment || 'test'
+    // FIX P0-C3A: preveri fursEnvironment za PRAVO lokacijo (ne globalno)
+    const orderForEnv = existingOrder || await db.order.findUnique({ where: { id: orderId } })
+    const locationForEnv = orderForEnv?.locationId
+      ? await db.location.findUnique({ where: { id: orderForEnv.locationId }, select: { fursEnvironment: true } })
+      : null
+    const env = locationForEnv?.fursEnvironment || 'test'
     if (env === 'production') {
       return NextResponse.json({
         error: 'Račun ni davčno overjen — storno ni mogoč v produkciji. Najprej overite račun pri FURS.',
@@ -81,10 +85,13 @@ export async function validateAndSubmitStorno(req: Request): Promise<StornoValid
   if (!settings) {
     return NextResponse.json({ error: 'Ni nastavitev restavracije — storno ni mogoč' }, { status: 400 })
   }
-  if (!settings.businessId || !settings.taxId) {
-    return NextResponse.json({ error: 'Manjkajo poslovni podatki (matična št., DDV ID) — storno ni mogoč' }, { status: 400 })
+  // FIX P0-C3A: Pridobi FURS config vezan na order.locationId (ne globalno!)
+  // Prej: buildFursConfigFromSettings(settings) je uporabil findFirst({isActive:true})
+  const orderForConfig = existingOrder || await db.order.findUnique({ where: { id: orderId } })
+  const config = await buildFursConfigFromSettings(settings, orderForConfig?.locationId)
+  if (!config.businessId || !config.taxId) {
+    return NextResponse.json({ error: 'Manjkajo poslovni podatki (matična št., DDV ID) za to lokacijo — storno ni mogoč' }, { status: 400 })
   }
-  const config = await buildFursConfigFromSettings(settings)
 
   // Atomna številka storno računa
   const stornoNumber = await getNextReceiptNumber()

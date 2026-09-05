@@ -62,7 +62,10 @@ export async function validateAndFetchData(req: Request): Promise<VerifyValidati
     return NextResponse.json({ error: 'Račun ni najden - najprej ustvarite račun' }, { status: 400 })
   }
 
-  const config = await buildFursConfigFromSettings(settings)
+  // FIX P0-C3A: Pridobi FURS config vezan na order.locationId (ne globalno!)
+  // Prej: buildFursConfigFromSettings(settings) je uporabil findFirst({isActive:true})
+  // kar je v multi-tenant setupu pomenilo Tenant A certifikat za Tenant B račun.
+  const config = await buildFursConfigFromSettings(settings, order.locationId)
 
   return { order, receipt, settings, config, authResult }
 }
@@ -79,8 +82,10 @@ export async function submitToFurs(
     : undefined
 
   // Generiraj ZOI
+  // FIX P0-C3A: taxId in premisesId prihajata iz config (ki je vezan na order.locationId)
+  // Prej: settings.taxId (globalno) je lahko pripadal napačni lokaciji
   const zoi = generateZOI({
-    taxId: settings.taxId,
+    taxId: config.taxId || settings.taxId,
     invoiceNumber: receipt.receiptNumber,
     issueDateTime: receipt.createdAt,
     totalAmount: toNum(receipt.total),

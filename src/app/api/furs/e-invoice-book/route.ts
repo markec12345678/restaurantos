@@ -11,6 +11,7 @@ import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
+import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 
 export const dynamic = 'force-dynamic'
 
@@ -88,16 +89,27 @@ export async function GET(req: Request) {
       return dateToCheck >= startDate && dateToCheck <= endDate
     })
 
-    // Pridobi nastavitve
-    const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
+    // FIX P0-C3A: Pridobi poslovne podatke iz Location (vezano na session.locationId)
+    // Prej: settings.findFirst({isActive:true}) — globalno, v multi-tenant napačna lokacija
+    // OPOMBA: receipti so že filtrirani po session.locationId (P0-C2 fix), zato je pravilno
+    // da tudi izdajateljevi podatki prihajajo iz iste lokacije.
+    const sessionLocId = authResult.session?.locationId
+    const isAdminRole = authResult.session?.role === 'admin' || authResult.session?.role === 'super_admin'
+    // Super admin brez locationId: uporabi requestedLocationId ali prvo aktivno lokacijo
+    let infoLocationId = sessionLocId
+    if (!infoLocationId && isAdminRole && requestedLocationId) {
+      infoLocationId = requestedLocationId
+    }
+    const info = await getRestaurantInfoForLocation(infoLocationId)
 
     // Zgradi knjigo računov
     const issuedInvoices = receipts.map(r => ({
       zaporednaStevilka: r.receiptNumber,
       stevilkaRacuna: r.receiptNumber.toString().padStart(6, '0'),
       datumIzdaje: new Date(r.createdAt).toISOString().split('T')[0],
-      davcnaStevilkaIzdajatelja: settings?.taxId || '',
-      nazivIzdajatelja: settings?.name || '',
+      // FIX P0-C3A: uporabi snapshot iz receipta (zapisan ob kreaciji) ali Location info
+      davcnaStevilkaIzdajatelja: r.taxId || info.taxId || '',
+      nazivIzdajatelja: r.businessName || info.name || '',
       zoi: r.zoi,
       eor: r.eor || '',
       davcnoPotrjeno: r.fiscalVerified,
@@ -121,8 +133,8 @@ export async function GET(req: Request) {
       zaporednaStevilka: r.receiptNumber,
       stevilkaRacuna: r.receiptNumber.toString().padStart(6, '0'),
       datumIzdaje: new Date(r.createdAt).toISOString().split('T')[0],
-      davcnaStevilkaIzdajatelja: settings?.taxId || '',
-      nazivIzdajatelja: settings?.name || '',
+      davcnaStevilkaIzdajatelja: r.taxId || info.taxId || '',
+      nazivIzdajatelja: r.businessName || info.name || '',
       zoi: r.zoi,
       eor: r.eor || '',
       davcnoPotrjeno: r.fiscalVerified,
@@ -152,11 +164,11 @@ export async function GET(req: Request) {
       davcnoPotrjeni: allInvoices.filter(r => r.davcnoPotrjeno).length,
       nepotrjeni: allInvoices.filter(r => !r.davcnoPotrjeno).length,
       izdajatelj: {
-        naziv: settings?.name || '',
-        davcnaStevilka: settings?.taxId || '',
-        matičnaStevilka: settings?.businessId || '',
-        naslov: `${settings?.address || ''}, ${settings?.postCode || ''} ${settings?.city || ''}`,
-        registerId: settings?.registerNumber || '',
+        naziv: info.name || '',
+        davcnaStevilka: info.taxId || '',
+        matičnaStevilka: info.businessId || '',
+        naslov: `${info.address || ''}, ${info.postCode || ''} ${info.city || ''}`.trim(),
+        registerId: info.registerNumber || '',
       },
     }
 
