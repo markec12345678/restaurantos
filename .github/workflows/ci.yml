@@ -266,13 +266,13 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=6144  # ⬆️ Povečano z 4096 na 6144 MB
 
       - name: Install wait-on for server health check
-        run: npm install -g wait-on
+        run: npm install wait-on --no-save
 
       - name: Start production server
         run: |
           nohup node .next/standalone/server.js > server.log 2>&1 &
           echo "Waiting for server to be ready..."
-          wait-on http://localhost:3000/api/health --timeout 60000
+          npx wait-on http://localhost:3000/api/health --timeout 60000
           echo "Server is ready"
         env:
           PORT: 3000
