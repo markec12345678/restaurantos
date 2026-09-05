@@ -16,6 +16,7 @@
 
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationId } from '@/lib/auth-middleware/tenant-scope'
 import { checkRateLimitAsync, getClientIp, AI_ASSISTANT_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
@@ -59,7 +60,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const startDate = searchParams.get('startDate') || new Date().toISOString().split('T')[0]
     const days = Math.min(parseInt(searchParams.get('days') || '7', 10), 14)
-    const locationId = searchParams.get('locationId') || undefined
+    const locationId = resolveTenantLocationId(authResult, searchParams) ?? undefined
 
     const result = await generateSchedule({ startDate, days, locationId, dryRun: true })
 

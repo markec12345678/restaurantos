@@ -14,6 +14,7 @@
 
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationId } from '@/lib/auth-middleware/tenant-scope'
 import { handleApiError } from '@/lib/api-utils'
 import { isFursConfigured, getFursConfigSource } from '@/lib/furs/config-resolver'
 
@@ -25,7 +26,7 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const url = new URL(req.url)
-    const locationId = url.searchParams.get('locationId')
+    const locationId = resolveTenantLocationId(authResult, url.searchParams)
 
     const source = await getFursConfigSource(locationId)
     const configured = await isFursConfigured(locationId)

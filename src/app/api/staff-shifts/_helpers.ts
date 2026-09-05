@@ -1,5 +1,6 @@
 // Pomožne funkcije za Staff Shifts API
 
+import { resolveTenantLocationId } from '@/lib/auth-middleware/tenant-scope'
 import { z } from 'zod'
 
 // Zod validacijska shema za kreiranje izmene
@@ -49,11 +50,13 @@ export function calculateShiftHours(startTime: string, endTime: string): number 
 }
 
 // Zgradi where filter za GET poizvedbe
-export function buildShiftsWhere(searchParams: URLSearchParams): Record<string, unknown> {
+export function buildShiftsWhere(searchParams: URLSearchParams, authResult?: { session?: { role?: string | null; locationId?: string | null } | null }): Record<string, unknown> {
   const startDate = searchParams.get('startDate')
   const endDate = searchParams.get('endDate')
   const employeeId = searchParams.get('employeeId')
-  const locationId = searchParams.get('locationId')
+  const isSuperAdmin = authResult?.session?.role === 'super_admin'
+  const requestedLocationId = searchParams.get('locationId')
+  const locationId = isSuperAdmin ? requestedLocationId : (authResult?.session?.locationId ?? requestedLocationId)
   const status = searchParams.get('status')
   const shiftType = searchParams.get('shiftType')
 

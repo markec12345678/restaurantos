@@ -5,6 +5,7 @@
 // ============================================
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationId } from '@/lib/auth-middleware/tenant-scope'
 import { handleApiError } from '@/lib/api-utils'
 import {
 
@@ -24,7 +25,7 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url)
     const period = searchParams.get('period') || 'today'
-    const locationId = searchParams.get('locationId')
+    const locationId = resolveTenantLocationId(authResult, searchParams)
 
     const { startDate, now } = getDateRange(period)
     const rawData = await fetchPerformanceData(startDate, locationId)

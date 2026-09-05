@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationId } from '@/lib/auth-middleware/tenant-scope'
 import { createDeliverySchema } from '@/lib/validations'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
@@ -25,7 +26,7 @@ export async function GET(req: Request) {
     const where: Record<string, unknown> = {}
     if (status) where.status = status
     // FIX DELIVERY-1 MEDIUM: Dodaj locationId filter — brez tega se prikažejo dostave iz VSEH lokacij
-    const locationId = searchParams.get('locationId')
+    const locationId = resolveTenantLocationId(authResult, searchParams)
     if (locationId) {
       where.order = { locationId }
     }

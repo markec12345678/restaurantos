@@ -3,6 +3,7 @@
 // ============================================
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationId } from '@/lib/auth-middleware/tenant-scope'
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
 import {
@@ -23,7 +24,7 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
-    const locationId = searchParams.get('locationId') || undefined
+    const locationId = resolveTenantLocationId(authResult, searchParams) || undefined
     const history = searchParams.get('history') === '1'
 
     if (history) {

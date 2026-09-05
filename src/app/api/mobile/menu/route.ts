@@ -1,3 +1,4 @@
+import { resolveTenantLocationId } from '@/lib/auth-middleware/tenant-scope'
 // ============================================
 // /api/mobile/menu — Mobile-friendly menu
 // ============================================
@@ -29,6 +30,7 @@ export async function GET(req: Request) {
     }
 
     const { searchParams } = new URL(req.url)
+    // Mobile API uses API key auth — locationId from query (API key scoped separately)
     const locationId = searchParams.get('locationId')
 
     // Pridobi meni (samo aktivni artikli)

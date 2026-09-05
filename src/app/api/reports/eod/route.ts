@@ -7,6 +7,7 @@
 
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationId } from '@/lib/auth-middleware/tenant-scope'
 import { validateReportDateRange } from '@/lib/validations'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
@@ -38,7 +39,7 @@ export async function GET(req: Request) {
     const dayEnd = new Date(date + 'T23:59:59.999Z')
 
     // FIX EOD-1 HIGH: Dodaj locationId filter
-    const locationId = searchParams.get('locationId')
+    const locationId = resolveTenantLocationId(authResult, searchParams)
 
     // ─── VSE NEODVISNE POIZVEDBE VZPOREDNO ───
     const rawData = await fetchEodData(dayStart, dayEnd, locationId)

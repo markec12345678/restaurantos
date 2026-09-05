@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { deepToNumbers, toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationId } from '@/lib/auth-middleware/tenant-scope'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
@@ -33,7 +34,7 @@ export async function GET(req: Request) {
     const supplierId = searchParams.get('supplierId')
     const status = searchParams.get('status')
     // ISSUE #31: opcijsko filtriranje po lokaciji za multi-tenant accounting
-    const locationId = searchParams.get('locationId')
+    const locationId = resolveTenantLocationId(authResult, searchParams ?? null)
 
     const where: Record<string, unknown> = {}
     if (supplierId) where.supplierId = supplierId

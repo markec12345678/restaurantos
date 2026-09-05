@@ -42,13 +42,13 @@ export async function GET(req: Request) {
     if (paymentStatus) where.paymentStatus = paymentStatus
     if (virtualBrandId) where.virtualBrandId = virtualBrandId
 
-    // FIX Test 7.1: Multi-tenant isolation — filtriraj po session.locationId
-    // Če uporabnik ima locationId (non-admin), prikaži samo naročila iz te lokacije
-    // Admin (locationId=null) vidi vse lokacije
-    if (authResult.session?.locationId) {
+    // FIX P0-C2: Explicit super_admin check (prej impliciten prek session.locationId null)
+    const isSuperAdmin = authResult.session?.role === 'super_admin'
+    if (!isSuperAdmin && authResult.session?.locationId) {
+      // Regular user — session.locationId is authoritative
       where.locationId = authResult.session.locationId
-    } else if (requestedLocationId) {
-      // FIX Test 7.3: Super-admin explicitly filtering by a specific branch
+    } else if (isSuperAdmin && requestedLocationId) {
+      // Super admin explicitly filtering by a specific branch
       // This is a cross-branch access — audit log it
       where.locationId = requestedLocationId
 

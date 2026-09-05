@@ -10,6 +10,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationId } from '@/lib/auth-middleware/tenant-scope'
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
 
@@ -31,7 +32,7 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status')
-    const locationId = searchParams.get('locationId')
+    const locationId = resolveTenantLocationId(authResult, searchParams ?? null)
 
     const where: Record<string, unknown> = {}
     if (status) where.status = status

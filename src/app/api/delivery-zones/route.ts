@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationId } from '@/lib/auth-middleware/tenant-scope'
 import { z } from 'zod'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
@@ -36,7 +37,7 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const url = new URL(req.url)
-    const locationId = url.searchParams.get('locationId')
+    const locationId = resolveTenantLocationId(authResult, url.searchParams)
 
     const where = locationId ? { locationId } : {}
     const zones = await db.deliveryZone.findMany({

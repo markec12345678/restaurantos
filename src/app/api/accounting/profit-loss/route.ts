@@ -1,6 +1,7 @@
 // GET /api/accounting/profit-loss
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationId } from '@/lib/auth-middleware/tenant-scope'
 import { handleApiError } from '@/lib/api-utils'
 import { generateProfitLoss } from '@/lib/accounting/journal-generator'
 
@@ -15,7 +16,7 @@ export async function GET(req: Request) {
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
     // ISSUE #31: opcijsko filtriranje po lokaciji za multi-tenant accounting
-    const locationId = searchParams.get('locationId')
+    const locationId = resolveTenantLocationId(authResult, searchParams)
 
     const result = await generateProfitLoss(
       dateFrom ? new Date(dateFrom) : undefined,

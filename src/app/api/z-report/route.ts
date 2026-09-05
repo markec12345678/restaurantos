@@ -11,6 +11,7 @@ import { fetchReportData, generateReportPdf } from '@/app/api/reports/export/_he
 import { round2, deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationId } from '@/lib/auth-middleware/tenant-scope'
 import { z } from 'zod'
 import { handleApiError, handleRouteError, validateRequest } from '@/lib/api-utils'
 import { calculateReportStats, buildReportData } from './_helpers'
@@ -37,7 +38,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const date = searchParams.get('date')
     const status = searchParams.get('status')
-    const locationId = searchParams.get('locationId')
+    const locationId = resolveTenantLocationId(authResult, searchParams ?? null)
 
     const where: Record<string, unknown> = {}
     if (date) {

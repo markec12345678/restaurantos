@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { toNum, deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationId } from '@/lib/auth-middleware/tenant-scope'
 import { emitEvent } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
@@ -25,7 +26,7 @@ export async function GET(req: Request) {
 
     // FIX HIGH: Get currently open shift with location filtering
     const { searchParams } = new URL(req.url)
-    const locationId = searchParams.get('locationId')
+    const locationId = resolveTenantLocationId(authResult, searchParams ?? null)
     const shiftWhere: Record<string, unknown> = { status: 'open' }
     if (locationId) shiftWhere.locationId = locationId
 
