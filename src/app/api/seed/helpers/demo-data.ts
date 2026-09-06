@@ -102,6 +102,7 @@ export async function seedDemoData(menuItems: { id: string; price: number; vatRa
           startTime: emp.role === 'chef' ? '07:00' : '09:00',
           endTime: emp.role === 'chef' ? '15:00' : '17:00',
           status: i === 0 ? 'completed' : 'scheduled',
+          locationId,
         },
       })
     }
