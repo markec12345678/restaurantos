@@ -148,19 +148,22 @@ export class RedisCacheAdapter implements CacheAdapter {
     const c = await this.client()
     const k = this.k(key)
 
-    // Atomarni INCR + EXPIRE
-    // Pattern: INCR key, če je vrednost == 1 (prvi zahtevek), EXPIRE key windowMs
-    // Pozor: INCR + EXPIRE ni povsem atomarna — v primeru process crash-a med njima
-    // lahko key ostane brez TTL. Za robustnost bi lahko uporabili Lua script,
-    // a za naš use case (rate limit z 5-min oknom) je to dovolj dobro.
-    const count = await c.incr(k)
-    if (count === 1) {
-      // Prvi zahtevek v oknu — set TTL (sekunde, zaokroženo gor)
-      await c.expire(k, Math.ceil(windowMs / 1000))
-    }
-
-    // Preberi TTL da izračunamo retryAfterMs
-    const ttlSeconds = await c.ttl(k)
+    // FIX: Uporabi Lua script za pravo atomarnost (INCR + EXPIRE v eni operaciji)
+    // Prej: INCR + EXPIRE sta bila ločena — če proces crashne med njima,
+    // key ostane brez TTL (memory leak v Redisu).
+    // Sedaj: Lua script izvede INCR in EXPIRE atomarno na Redis strani.
+    const luaScript = `
+      local count = redis.call('INCR', KEYS[1])
+      if count == 1 then
+        redis.call('EXPIRE', KEYS[1], ARGV[1])
+      end
+      local ttl = redis.call('TTL', KEYS[1])
+      return {count, ttl}
+    `
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result = await (c as any).eval(luaScript, 1, k, Math.ceil(windowMs / 1000))
+    const count = result[0]
+    const ttlSeconds = result[1]
     const retryAfterMs = ttlSeconds > 0 ? ttlSeconds * 1000 : windowMs
 
     return {

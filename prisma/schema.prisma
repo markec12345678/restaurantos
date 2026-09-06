@@ -691,7 +691,7 @@ model DeliveryInfo {
 model Employee {
   id        String   @id @default(cuid())
   name      String
-  email     String   @unique
+  email     String   @unique  // TODO multi-tenant: spremeni v @@unique([email, locationId]) — trenutno globalno unikatno preprečuje isti email v različnih lokacijah
   phone     String   @default("")
   role      String   @default("staff")
   status    String   @default("active")
@@ -2352,10 +2352,8 @@ model Session {
   token           String   @unique              // Bearer token (64 hex znakov)
   employeeId      String                        // ID zaposlenega
   role            String                        // admin, manager, staff
-  permissions     String   @default("[]")       // JSON array: ["take_orders", "void_items", ...]
-  // FIX WORKFLOW-45: prej BigInt — ne deluje s pglite-prisma-adapter (BigInt se
-  // serializira kot float, PostgreSQL ga zavrne). DateTime (TIMESTAMP) shrani
-  // ms-precision nativno in je prava izbiba za seje.
+  permissions     String   @default("[]")       // JSON array: ["take_orders", "void_item", ...]
+  // DateTime (TIMESTAMP) — ms-precision nativno, prava izbira za seje.
   createdAt       DateTime  @default(now())
   expiresAt       DateTime
   absoluteExpiry  DateTime                      // Absolutni maksimum (24h)

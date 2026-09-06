@@ -109,3 +109,5 @@ suspected_icons.json
 .env
 .env.local
 /home/z/my-project/pglite-data
+FORCE_DEPLOY.txt
+FORCE_DEPLOY2.txt
