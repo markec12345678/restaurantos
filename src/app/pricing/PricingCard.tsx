@@ -14,7 +14,8 @@ interface PricingCardProps {
 }
 
 export const PricingCard = memo(function PricingCard({ plan, annual }: PricingCardProps) {
-  const monthlyPrice = annual ? Math.round(plan.price * 0.8) : plan.price
+  const isCustom = plan.price < 0
+  const monthlyPrice = isCustom ? 0 : (annual ? Math.round(plan.price * 0.8) : plan.price)
   return (
     <div className={`relative bg-white rounded-2xl border-2 ${plan.popular ? plan.borderColor : 'border-gray-100'} shadow-lg ${plan.popular ? 'shadow-amber-200/50 scale-105' : ''} overflow-hidden`}>
       {plan.popular && (
@@ -30,9 +31,19 @@ export const PricingCard = memo(function PricingCard({ plan, annual }: PricingCa
         </div>
         <p className="text-sm text-gray-500 mb-4">{plan.description}</p>
         <div className="mb-6">
-          <span className="text-4xl font-bold">€{monthlyPrice}</span>
-          <span className="text-gray-500 text-sm">/mesec</span>
-          {annual && <p className="text-xs text-green-600 mt-1">Prihranek €{safeToFixed(plan.price * 12 - monthlyPrice * 12, 0)}/leto</p>}
+          {isCustom ? (
+            <>
+              <span className="text-3xl font-bold">Po ponudbi</span>
+              <p className="text-xs text-gray-500 mt-1">Volume discounts na voljo</p>
+            </>
+          ) : (
+            <>
+              <span className="text-4xl font-bold">€{monthlyPrice}</span>
+              <span className="text-gray-500 text-sm">/mesec</span>
+              {annual && monthlyPrice > 0 && <p className="text-xs text-green-600 mt-1">Prihranek €{safeToFixed(plan.price * 12 - monthlyPrice * 12, 0)}/leto</p>}
+              {monthlyPrice === 0 && <p className="text-xs text-green-600 mt-1">Brezplačno za vedno (AGPL-3.0)</p>}
+            </>
+          )}
         </div>
         <ul className="space-y-2.5 mb-6">
           {plan.features.map((f, i) => (
@@ -49,11 +60,15 @@ export const PricingCard = memo(function PricingCard({ plan, annual }: PricingCa
         <button className={`w-full py-3 rounded-xl font-semibold transition ${
           plan.popular
             ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:from-amber-600 hover:to-orange-700 shadow-lg shadow-amber-500/30'
+            : isCustom
+            ? 'bg-gradient-to-r from-purple-600 to-indigo-700 text-white hover:from-purple-700 hover:to-indigo-800'
             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
         }`}>
-          Začni 14-dnevni preizkus
+          {isCustom ? 'Kontaktiraj prodajo' : (plan.price === 0 ? 'Začni brezplačno' : 'Začni 14-dnevni preizkus')}
         </button>
-        <p className="text-xs text-center text-gray-400 mt-2">Brez kreditne kartice • Prekliči kadarkoli</p>
+        <p className="text-xs text-center text-gray-400 mt-2">
+          {isCustom ? 'sales@restaurantos.app' : 'Brez kreditne kartice • Prekliči kadarkoli'}
+        </p>
       </div>
     </div>
   )
