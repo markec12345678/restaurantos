@@ -60,10 +60,10 @@ export async function GET(req: Request) {
         heatmapData,
         guestAnalytics,
       ] = await Promise.all([
-        fetchTodayAggregation(today, tomorrow).catch(() => ({ todayRevenue: 0, todayTips: 0, todayTax: 0, todayDiscount: 0, totalOrders: 0 })),
+        fetchTodayAggregation(today, tomorrow).catch(() => ({ todayRevenue: 0, todayTips: 0, todayTax: 0, todayDiscount: 0, totalOrders: 0, completedOrders: 0, cancelledOrders: 0, avgOrderValue: 0, pendingOrders: 0, inProgressOrders: 0, readyOrders: 0 })),
         fetchTablesStockRecent().catch(() => ({ activeTables: 0, totalTables: 0, lowStockItems: [], recentOrders: [] })),
         computeWeeklyRevenue(sevenDaysAgo).catch(() => []),
-        fetchAnalyticsBreakdowns(today, tomorrow).catch(() => ({})),
+        fetchAnalyticsBreakdowns(today, tomorrow).catch(() => ({ categoryBreakdown: [], hourlyBreakdown: [], vatBreakdown: [], paymentMethodBreakdown: [], orderTypeBreakdown: [], topSellingItems: [], employeeBreakdown: [] })),
         computeAvgWaitTime(today, tomorrow).catch(() => 0),
         computeWowComparison(today).catch(() => ({})),
         computeHeatmapData().catch(() => []),
