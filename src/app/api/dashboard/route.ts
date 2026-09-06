@@ -2,9 +2,8 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
-import { handleApiError, validateApiResponse } from '@/lib/api-utils'
-import { dashboardResponseSchema } from '@/lib/validations'
-import { logger } from '@/lib/logger'
+import { handleApiError } from '@/lib/api-utils'
+import { deepToNumbers } from '@/lib/decimal'
 import {
   fetchTodayAggregation,
   fetchTablesStockRecent,
