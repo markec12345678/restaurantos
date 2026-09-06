@@ -36,26 +36,33 @@ export async function POST(req: Request) {
     const menuItemsData = getMenuItemsData(cats, mods)
 
     // FIX AUD-01: Pravilno nastavi DDV stopnjo glede na kategorijo
-    // cats je keyed by friendly name (npr. "belaVina"), ne by UUID.
-    // Item.categoryId je UUID, zato moramo poiskati ime kategorije drugače.
+    // FIX: Uporabljamo exact match (case-insensitive) namesto includes() —
+    // includes() je krhko: "Bela vina" bi se ujemalo z "Ne-bela vina" če bi obstajala.
     const alcoholCategoryNames = ['Bela vina', 'Rdeča vina', 'Rosé vina', 'Penine', 'Točeno pivo',
       'Pivo', 'Craft piva', 'Brezalk. pivo', 'Žgane pijače', 'Destilati', 'Likerji',
       'Likersko vino', 'Gin', 'Viski', 'Tuja vina', 'Mešane pijače']
     const nonAlcoholCategoryNames = ['Topli napitki', 'Gazirane pijače', 'Sokovi', 'Vode', 'Naravni sokovi']
 
-    // Zgradi lookup: categoryId → categoryName
+    // Zgradi lookup: categoryId → categoryName (en poizvedba, ne N)
     const allCategories = await db.category.findMany({ select: { id: true, name: true } })
-    const categoryIdToName = new Map(allCategories.map(c => [c.id, c.name]))
+    const categoryIdToName = new Map(allCategories.map(c => [c.id, c.name.toLowerCase()]))
+
+    // Normaliziraj sezname za hitro iskanje (Set za O(1) lookup)
+    const alcoholSet = new Set(alcoholCategoryNames.map(n => n.toLowerCase()))
+    const nonAlcoholSet = new Set(nonAlcoholCategoryNames.map(n => n.toLowerCase()))
 
     for (const item of menuItemsData) {
       if (item.vatRate === undefined) {
         const catName = categoryIdToName.get(item.categoryId) || ''
-        if (alcoholCategoryNames.some(c => catName.toLowerCase().includes(c.toLowerCase()))) {
-          item.vatRate = 22.0
-        } else if (nonAlcoholCategoryNames.some(c => catName.toLowerCase().includes(c.toLowerCase()))) {
-          item.vatRate = 9.5
+        // FIX: Exact match (case-insensitive) namesto fragile includes()
+        if (alcoholSet.has(catName)) {
+          item.vatRate = 22.0  // Alkohol = 22% DDV (SI)
+        } else if (nonAlcoholSet.has(catName)) {
+          item.vatRate = 9.5   // Brezalkoholne pijače = 9.5% DDV (SI)
         } else {
-          // Hrana = 9.5%
+          // Hrana = 9.5% DDV (SI) — default za vse nepijačne kategorije
+          // Opomba: embalaža in storitve bi morale imeti 22%, a se v seedu
+          // ne uporabljajo kot menu item-i (so konfiguracijski podatki)
           item.vatRate = 9.5
         }
       }
