@@ -156,6 +156,19 @@ export async function POST(req: Request) {
     logger.info('Wolt', `Novo naročilo #${order.orderNumber} iz Wolta`)
     return NextResponse.json({ status: 'accepted', orderId: order.id, orderNumber: order.orderNumber })
   } catch (error: unknown) {
+    // FIX P4: Če je inventory deduction failnil (INSUFFICIENT_STOCK), pošlji
+    // 409 Conflict nazaj Woltu da ve da order ni bil sprejet.
+    if (error instanceof Error && error.message.startsWith('INSUFFICIENT_STOCK:')) {
+      logger.error('Wolt', `Order zavrnjen — nezadostna zaloga: ${error.message}`)
+      return NextResponse.json(
+        {
+          status: 'rejected',
+          error: 'Insufficient stock — order cannot be fulfilled',
+          detail: error.message,
+        },
+        { status: 409 },
+      )
+    }
     return handleApiError(error, 'POST /api/delivery/webhook/wolt', 'Napaka pri obdelavi Wolt naročila')
   }
 }

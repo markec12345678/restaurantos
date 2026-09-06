@@ -16,6 +16,9 @@ const orderSchema = z.object({
   tableId: z.string().optional(),
   customerName: z.string().max(100).default('Mobile Order'),
   customerPhone: z.string().max(50).optional(),
+  // FIX P4 (audit 2026-09-06): Idempotency key za preprečitev duplikatov pri
+  // double-click ali network retry. Brez tega se lahko isti order ustvari dvakrat.
+  idempotencyKey: z.string().max(100).optional(),
   items: z.array(z.object({
     menuItemId: z.string().min(1),
     quantity: z.number().int().min(1).max(99),
@@ -74,6 +77,9 @@ export async function GET(req: Request) {
 
 // POST — ustvari mobilno naročilo
 export async function POST(req: Request) {
+  // FIX P4: `input` je deklariran zunaj try da je dostopen v catch bloku
+  // za idempotency key lookup pri P2002 unique constraint violation.
+  let input: z.infer<typeof orderSchema> | undefined
   try {
     const authHeader = req.headers.get('authorization')
     const apiKeyResult = await verifyApiKey(authHeader)
@@ -86,7 +92,26 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json().catch(() => ({}))
-    const input = orderSchema.parse(body)
+    input = orderSchema.parse(body)
+
+    // FIX P4: Idempotency check — če idempotencyKey obstaja, preveri ali je
+    // order s tem ključem že ustvarjen. Če da, vrni obstoječi (200, ne 201).
+    if (input.idempotencyKey) {
+      const existing = await db.order.findFirst({
+        where: { idempotencyKey: input.idempotencyKey },
+        include: { orderItems: true },
+      })
+      if (existing) {
+        return NextResponse.json({
+          success: true,
+          orderId: existing.id,
+          orderNumber: existing.orderNumber,
+          total: toNum(existing.total),
+          estimatedReadyTime: new Date(new Date(existing.createdAt).getTime() + 15 * 60 * 1000).toISOString(),
+          idempotentReplay: true, // klient ve da je to replay
+        }, { status: 200 })
+      }
+    }
 
     // Pridobi meni artikle za validacijo + cene
     const menuItemIds = input.items.map((i) => i.menuItemId)
@@ -108,7 +133,7 @@ export async function POST(req: Request) {
 
     // Izračunaj total
     let total = 0
-    const orderItems = input.items.map((item) => {
+    const orderItemsData = input.items.map((item) => {
       const mi = menuItems.find((m) => m.id === item.menuItemId)!
       const lineTotal = toNum(mi.price) * item.quantity
       total += lineTotal
@@ -123,24 +148,32 @@ export async function POST(req: Request) {
       }
     })
 
-    // Ustvari naročilo
-    const order = await db.order.create({
-      data: {
-        type: input.tableId ? 'dine_in' : 'takeaway',
-        tableId: input.tableId || null,
-        status: 'pending',
-        paymentStatus: 'unpaid',
-        subtotal: total,
-        tax: total * 0.22,
-        total: total * 1.22,
-        notes: `Mobile order from ${input.customerName}${input.customerPhone ? ` (${input.customerPhone})` : ''}`,
-        orderItems: {
-          create: orderItems,
+    // FIX P4: Uporabi $transaction za order.create — če klic failne med
+    // order.create in orderItems.create, ostane order brez postavk (inconsistent).
+    // Prisma nested create je sicer atomic, ampak izrecna transakcija je boljša
+    // za future-proofing (če dodamo side effects kot inventory deduction).
+    // input je zagotovo definiran tukaj — orderSchema.parse bi vržo napako če bi failal
+    const validatedInput = input!
+    const order = await db.$transaction(async (tx) => {
+      return tx.order.create({
+        data: {
+          type: validatedInput.tableId ? 'dine_in' : 'takeaway',
+          tableId: validatedInput.tableId || null,
+          status: 'pending',
+          paymentStatus: 'unpaid',
+          subtotal: total,
+          tax: total * 0.22,
+          total: total * 1.22,
+          notes: `Mobile order from ${validatedInput.customerName}${validatedInput.customerPhone ? ` (${validatedInput.customerPhone})` : ''}`,
+          idempotencyKey: validatedInput.idempotencyKey || null,
+          orderItems: {
+            create: orderItemsData,
+          },
+        } as never,
+        include: {
+          orderItems: true,
         },
-      } as never,
-      include: {
-        orderItems: true,
-      },
+      })
     })
 
     // Proži event za KDS
@@ -155,6 +188,25 @@ export async function POST(req: Request) {
       estimatedReadyTime: new Date(Date.now() + 15 * 60 * 1000).toISOString(), // 15 min ETA
     }, { status: 201 })
   } catch (err) {
+    // FIX P4: P2002 = unique constraint violation na idempotencyKey —
+    // vzporedni request je medtem ustvaril order z istim ključem.
+    // Vrni obstoječi (race condition resolve).
+    if (err && typeof err === 'object' && 'code' in err && err.code === 'P2002' && input?.idempotencyKey) {
+      const existing = await db.order.findFirst({
+        where: { idempotencyKey: input.idempotencyKey },
+        include: { orderItems: true },
+      })
+      if (existing) {
+        return NextResponse.json({
+          success: true,
+          orderId: existing.id,
+          orderNumber: existing.orderNumber,
+          total: toNum(existing.total),
+          estimatedReadyTime: new Date(new Date(existing.createdAt).getTime() + 15 * 60 * 1000).toISOString(),
+          idempotentReplay: true,
+        }, { status: 200 })
+      }
+    }
     return handleApiError(err, 'mobile/order POST')
   }
 }

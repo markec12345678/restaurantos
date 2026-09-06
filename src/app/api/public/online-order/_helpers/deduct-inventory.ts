@@ -1,7 +1,14 @@
 // Pomožne funkcije za online naročila — Zmanjšanje zaloge
+//
+// FIX P4 (audit 2026-09-06): Ko updateMany vrne count=0 (nezadostna zaloga),
+// se operacija prej tiho preskočila — order je bil ustvarjen, zaloga pa NI
+// bila odbita. Sedaj: throw INSUFFICIENT_STOCK error, ki ga caller ulovi
+// in zavrne order (transakcija roll-back-a order.create).
+//
 
 import { db } from '@/lib/db'
 import { toNum, type DecimalLike } from '@/lib/decimal'
+import { logger } from '@/lib/logger'
 
 export async function deductInventory(
   tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
@@ -37,6 +44,22 @@ export async function deductInventory(
             reason: `Online naročilo #${nextOrderNumber}`, orderId: newOrderId,
           },
         })
+      } else {
+        // FIX P4: Nezadostna zaloga — throw da se transakcija roll-back-a
+        await tx.stockTransaction.create({
+          data: {
+            inventoryItemId: recipe.inventoryItem.id, type: 'sale', quantity: 0,
+            previousQty: toNum(currentInvItem.quantity), newQty: toNum(currentInvItem.quantity),
+            costPerUnit: toNum(currentInvItem.costPerUnit), totalCost: 0,
+            reason: `POSKUS PRODAJE (nezadostna zaloga) - Online naročilo #${nextOrderNumber}`,
+            orderId: newOrderId,
+          },
+        })
+        logger.error(
+          'ONLINE_ORDER',
+          `Nezadostna zaloga za artikel ${item.menuItemId} pri online order #${nextOrderNumber}: potrebno ${deductQty.toFixed(2)}, na voljo ${toNum(currentInvItem.quantity).toFixed(2)}`,
+        )
+        throw new Error(`INSUFFICIENT_STOCK:potrebno ${deductQty.toFixed(2)}, na voljo ${toNum(currentInvItem.quantity).toFixed(2)}`)
       }
     }
   }

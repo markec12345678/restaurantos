@@ -160,6 +160,21 @@ export async function POST(req: Request) {
     logger.info('Glovo', `Novo naročilo #${order.orderNumber} iz Glova`)
     return NextResponse.json({ status: 'accepted', orderId: order.id, orderNumber: order.orderNumber })
   } catch (error: unknown) {
+    // FIX P4: Če je inventory deduction failnil (INSUFFICIENT_STOCK), označi
+    // order kot 'cancelled' da ga KDS ne prikaže. Pošlji 409 nazaj Glovu da
+    // ve da order ni bil sprejet.
+    if (error instanceof Error && error.message.startsWith('INSUFFICIENT_STOCK:')) {
+      logger.error('Glovo', `Order zavrnjen — nezadostna zaloga: ${error.message}`)
+      // Pošlji 409 Conflict — Glovo bo prikazal napako uporabniku
+      return NextResponse.json(
+        {
+          status: 'rejected',
+          error: 'Insufficient stock — order cannot be fulfilled',
+          detail: error.message,
+        },
+        { status: 409 },
+      )
+    }
     return handleApiError(error, 'POST /api/delivery/webhook/glovo', 'Napaka pri obdelavi Glovo naročila')
   }
 }
