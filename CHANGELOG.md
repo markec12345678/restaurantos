@@ -4,7 +4,7 @@ All notable changes to RestaurantOS are documented in this file.
 
 ## [v1.0.1] — 2026-09-05 — P0-C1..C5 Security Hardening
 
-### 🔒 Security Hardening Series (11 commits, 896/896 tests, A+ rating)
+### 🔒 Security Hardening Series (20+ commits, 901/901 tests, CI 5/5 green, A+ rating)
 
 ### P0-C1: IDOR Cross-Tenant Protection
 - **Fixed:** 8 IDOR-vulnerable endpoints (orders GET/PUT/PATCH/DELETE/add-items/transfer, payments PUT/refund)
@@ -61,10 +61,11 @@ All notable changes to RestaurantOS are documented in this file.
 - **Updated:** `README.md` — badges and competitive table updated
 
 ### Stats
-- **896/896 tests pass** (100% pass rate)
+- **901/901 tests pass** (100% pass rate)
+- **CI 5/5 green** (quality + build + security + unit-tests + e2e-security)
 - **0 HIGH** open vulnerabilities
-- **49 security tests** (16 IDOR + 21 helper + 12 FURS)
-- **30 E2E security tests** ready for staging
+- **54 security tests** (16 IDOR + 21 helper + 12 FURS + 5 idor-regression)
+- **30 E2E security tests** — all passing in CI
 - **0 typecheck errors**, **0 lint errors**
 
 ---

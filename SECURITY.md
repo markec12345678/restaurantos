@@ -27,7 +27,7 @@ Glej [Known Issues](docs/KNOWN_ISSUES.md) za celoten pregled in [P0-C4 Classific
 | P0-C4 P5 | NOT NULL migration package (24 modelov) | — |
 | P0-C5 | ApiKey table migration (subscriptionId) | — |
 
-**Skupno:** 49 security testov, 888 unit testov, 0 typecheck errors, 0 lint errors.
+**Skupno:** 54 security testov, 901 unit testov, CI 5/5 green, 0 typecheck errors, 0 lint errors.
 
 ### Security Measures
 

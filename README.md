@@ -1,10 +1,11 @@
-# RestaurantOS v1.0.0
+# RestaurantOS v1.0.1
 
-[![Version](https://img.shields.io/badge/version-1.0.0-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases/tag/v1.0.0)
+[![Version](https://img.shields.io/badge/version-1.0.1-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A+-3c7a50?style=flat-square)](SECURITY.md)
-[![Tests](https://img.shields.io/badge/tests-888%2F896%20pass-3c7a50?style=flat-square)](tests/)
-[![Hardening](https://img.shields.io/badge/P0--C1..C5-11%20commits-426990?style=flat-square)](docs/KNOWN_ISSUES.md)
+[![CI](https://img.shields.io/badge/CI-5%2F5%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
+[![Tests](https://img.shields.io/badge/tests-901%2F901%20pass-3c7a50?style=flat-square)](tests/)
+[![Hardening](https://img.shields.io/badge/P0--C1..C5-complete-426990?style=flat-square)](docs/KNOWN_ISSUES.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-black?style=flat-square&logo=react)](https://react.dev/)
@@ -36,7 +37,7 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 | **FURS certifikat** | ⏳ Ready (cert pending) | ❌ | ❌ | ❌ | ✅ (zastarelo) |
 | **Multi-tenant** | ✅ (24 TENANT_REQUIRED + 5 OPTIONAL, glej [P0-C4 Classification](docs/P0-C4-CLASSIFICATION.md)) | ✅ | ✅ | ✅ | ❌ |
 | **5 jezikov** | ✅ sl/en/it/hr/de | ❌ | ❌ | Delno | ❌ |
-| **Varnost (A+)** | ✅ 0 HIGH, 49 security testov, P0-C1..C5 complete | ✅ | ✅ | ✅ | ❌ |
+| **Varnost (A+)** | ✅ 0 HIGH, 54 security testov, CI 5/5 green, P0-C1..C5 complete | ✅ | ✅ | ✅ | ❌ |
 | **Mobilna PWA** | ⏳ P0-3 | ✅ Native | ✅ Native | ⚠ Slaba | ❌ |
 
 ### 📄 Deliverables
