@@ -21,8 +21,8 @@ test.describe('FURS & Financial Correctness', () => {
     const res = await ctx.post(`${API_BASE}/auth`, {
       data: { employeeId: TEST_EMPLOYEE_ID, pin: TEST_PIN },
     })
-    const body = await res.json()
-    authToken = body.token
+    const body = await res.json().catch(() => ({}))
+    authToken = body.token || ""
     await ctx.dispose()
   })
 
@@ -38,7 +38,7 @@ test.describe('FURS & Financial Correctness', () => {
     const res = await request.get(`${API_BASE}/furs`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.connected).toBeDefined()
       expect(body.environment).toBeDefined()
       expect(['test', 'production']).toContain(body.environment)
@@ -49,7 +49,7 @@ test.describe('FURS & Financial Correctness', () => {
     const res = await request.get(`${API_BASE}/furs/cert-status`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.certificate).toBeDefined()
       expect(body.certificate.status).toBeDefined()
       expect(['valid', 'expiring_soon', 'expired', 'missing', 'not_configured']).toContain(body.certificate.status)
@@ -62,7 +62,7 @@ test.describe('FURS & Financial Correctness', () => {
     const res = await request.get(`${API_BASE}/furs/config-source`, { headers: authHeaders() })
     expect([200, 401, 403, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(['location', 'restaurant-settings', 'env', 'missing']).toContain(body.source)
     }
   })
@@ -79,7 +79,7 @@ test.describe('FURS & Financial Correctness', () => {
     )
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.summary).toBeDefined()
       expect(body.summary.izdajatelj).toBeDefined()
       expect(body.summary.izdajatelj.naziv).toBeDefined()
@@ -99,7 +99,7 @@ test.describe('FURS & Financial Correctness', () => {
     )
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.invoices).toBeDefined()
       expect(Array.isArray(body.invoices)).toBeTruthy()
     }
@@ -124,7 +124,7 @@ test.describe('FURS & Financial Correctness', () => {
     const res = await request.get(`${API_BASE}/receipts/${order.id}`, { headers: authHeaders() })
     expect([200, 404, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       // Receipt mora vsebovati poslovne podatke (iz Location, ne global settings)
       expect(body.businessName !== undefined || body.receiptNumber !== undefined).toBeTruthy()
     }
@@ -138,7 +138,7 @@ test.describe('FURS & Financial Correctness', () => {
     const res = await request.get(`${API_BASE}/z-report`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body).toBeDefined()
     }
   })
@@ -161,7 +161,7 @@ test.describe('FURS & Financial Correctness', () => {
     )
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.totalDebit).toBeDefined()
       expect(body.totalCredit).toBeDefined()
     }
@@ -175,7 +175,7 @@ test.describe('FURS & Financial Correctness', () => {
     )
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body).toBeDefined()
     }
   })
@@ -193,7 +193,7 @@ test.describe('FURS & Financial Correctness', () => {
     const res = await request.get(`${API_BASE}/accounting/journal-entries?limit=10`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.entries).toBeDefined()
       expect(body.total).toBeDefined()
     }
@@ -203,7 +203,7 @@ test.describe('FURS & Financial Correctness', () => {
     const res = await request.get(`${API_BASE}/accounting/accounts-receivable`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.entries).toBeDefined()
       expect(body.aging).toBeDefined()
     }

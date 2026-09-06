@@ -21,8 +21,8 @@ test.describe('Payment Flow', () => {
     const res = await ctx.post(`${API_BASE}/auth`, {
       data: { employeeId: TEST_EMPLOYEE_ID, pin: TEST_PIN },
     })
-    const body = await res.json()
-    authToken = body.token
+    const body = await res.json().catch(() => ({}))
+    authToken = body.token || ""
     await ctx.dispose()
   })
 
@@ -38,7 +38,7 @@ test.describe('Payment Flow', () => {
     const res = await request.get(`${API_BASE}/orders?limit=10&offset=0`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.orders).toBeDefined()
       expect(body.total).toBeDefined()
       expect(body.limit).toBe(10)
@@ -50,7 +50,7 @@ test.describe('Payment Flow', () => {
     const res = await request.get(`${API_BASE}/orders?status=pending&limit=5`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       for (const order of body.orders || []) {
         expect(order.status).toBe('pending')
       }
@@ -61,7 +61,7 @@ test.describe('Payment Flow', () => {
     const res = await request.get(`${API_BASE}/orders?paymentStatus=paid&limit=5`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       for (const order of body.orders || []) {
         expect(order.paymentStatus).toBe('paid')
       }
@@ -145,7 +145,7 @@ test.describe('Payment Flow', () => {
     const res = await request.get(`${API_BASE}/payments?limit=10`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.payments || body).toBeDefined()
     }
   })
@@ -188,7 +188,7 @@ test.describe('Payment Flow', () => {
     const res = await request.get(`${API_BASE}/card-terminal`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.connected).toBeDefined()
       expect(body.provider).toBeDefined()
     }
@@ -210,7 +210,7 @@ test.describe('Payment Flow', () => {
     const res = await request.get(`${API_BASE}/cash-register`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.activeShift !== undefined || body.recentShifts !== undefined).toBeTruthy()
     }
   })

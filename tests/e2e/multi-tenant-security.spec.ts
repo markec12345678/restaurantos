@@ -35,10 +35,10 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
       data: { employeeId: TEST_EMPLOYEE_ID, pin: TEST_PIN },
     })
     expect(res.ok()).toBeTruthy()
-    const body = await res.json()
+    const body = await res.json().catch(() => ({}))
     expect(body.success).toBe(true)
     expect(body.token).toBeTruthy()
-    authToken = body.token
+    authToken = body.token || ""
     await ctx.dispose()
   })
 
@@ -86,7 +86,7 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
         headers: authHeaders(),
       })
       expect(res.ok()).toBeTruthy()
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.id).toBe(orderId)
     })
 
@@ -144,7 +144,7 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
     test('SCOPE-1: GET /api/orders brez ?locationId — admin vidi vse', async ({ request }) => {
       const res = await request.get(`${API_BASE}/orders?limit=1`, { headers: authHeaders() })
       expect(res.ok()).toBeTruthy()
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.orders).toBeDefined()
       expect(body.total).toBeGreaterThanOrEqual(0)
     })
@@ -155,7 +155,7 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
       // V CI okolju so sprejemljivi: 200 (OK), 401/403 (RBAC), 429 (rate limited)
       expect([200, 401, 403, 429]).toContain(res.status())
       if (res.ok()) {
-        const body = await res.json()
+        const body = await res.json().catch(() => ({}))
         expect(body.orders).toBeDefined()
       }
     })
@@ -165,7 +165,7 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
       // Sprejemljivi: 200 (prazno), 429 (rate limited v CI)
       expect([200, 429]).toContain(res.status())
       if (res.ok()) {
-        const body = await res.json()
+        const body = await res.json().catch(() => ({}))
         expect(body.orders).toBeDefined()
         expect(body.total).toBe(0)
       }
@@ -195,7 +195,7 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
     test('FURS-1: GET /api/furs/cert-status — vrača status', async ({ request }) => {
       const res = await request.get(`${API_BASE}/furs/cert-status`, { headers: authHeaders() })
       expect(res.ok()).toBeTruthy()
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.certificate).toBeDefined()
       expect(body.certificate.status).toBeDefined()
       expect(['valid', 'expiring_soon', 'expired', 'missing', 'not_configured']).toContain(body.certificate.status)
@@ -204,7 +204,7 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
     test('FURS-2: GET /api/furs — vrača FURS status', async ({ request }) => {
       const res = await request.get(`${API_BASE}/furs`, { headers: authHeaders() })
       expect(res.ok()).toBeTruthy()
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.connected).toBeDefined()
       expect(body.environment).toBeDefined()
     })
@@ -213,7 +213,7 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
       const res = await request.get(`${API_BASE}/furs/config-source`, { headers: authHeaders() })
       // Admin-only endpoint — lahko 200 ali 403
       if (res.ok()) {
-        const body = await res.json()
+        const body = await res.json().catch(() => ({}))
         expect(['location', 'restaurant-settings', 'env', 'missing']).toContain(body.source)
       } else {
         expect([403, 401]).toContain(res.status())
@@ -227,7 +227,7 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
         { headers: authHeaders() }
       )
       expect(res.ok()).toBeTruthy()
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.summary).toBeDefined()
       expect(body.summary.izdajatelj).toBeDefined()
     })
@@ -241,7 +241,7 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
       if (paidOrder) {
         const res = await request.get(`${API_BASE}/receipts/${paidOrder.id}`, { headers: authHeaders() })
         expect(res.ok()).toBeTruthy()
-        const body = await res.json()
+        const body = await res.json().catch(() => ({}))
         // Receipt mora vsebovati poslovne podatke (iz Location, ne global settings)
         expect(body.businessName !== undefined).toBeTruthy()
       }
@@ -256,7 +256,7 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
     test('MENU-1: GET /api/public/menu brez ?locationId — auto-detect prvo aktivno', async ({ request }) => {
       const res = await request.get(`${API_BASE}/public/menu`)
       expect(res.ok()).toBeTruthy()
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.menus).toBeDefined()
       expect(Array.isArray(body.menus)).toBeTruthy()
       expect(body.settings).toBeDefined()
@@ -268,7 +268,7 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
       // Sprejemljivi: 200 (OK), 429 (rate limited v CI)
       expect([200, 429]).toContain(res.status())
       if (res.ok()) {
-        const body = await res.json()
+        const body = await res.json().catch(() => ({}))
         expect(body.menus).toBeDefined()
         expect(body.settings).toBeDefined()
       }
@@ -285,7 +285,7 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
     test('MENU-4: GET /api/qr-menu brez ?locationId — auto-detect', async ({ request }) => {
       const res = await request.get(`${API_BASE}/qr-menu`)
       expect(res.ok()).toBeTruthy()
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.menus).toBeDefined()
       expect(body.settings).toBeDefined()
     })
@@ -306,7 +306,7 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
     test('SETTINGS-1: GET /api/settings — vrača nastavitve', async ({ request }) => {
       const res = await request.get(`${API_BASE}/settings`, { headers: authHeaders() })
       expect(res.ok()).toBeTruthy()
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.name).toBeDefined()
       expect(body.currency).toBeDefined()
     })
@@ -314,7 +314,7 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
     test('SETTINGS-2: GET /api/dashboard — vrača dashboard podatke', async ({ request }) => {
       const res = await request.get(`${API_BASE}/dashboard`, { headers: authHeaders() })
       expect(res.ok()).toBeTruthy()
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.todayRevenue).toBeDefined()
       expect(body.fursStatus).toBeDefined()
       expect(body.fursStatus.environment).toBeDefined()

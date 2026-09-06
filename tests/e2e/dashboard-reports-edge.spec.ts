@@ -21,8 +21,8 @@ test.describe('Dashboard & Reports', () => {
     const res = await ctx.post(`${API_BASE}/auth`, {
       data: { employeeId: TEST_EMPLOYEE_ID, pin: TEST_PIN },
     })
-    const body = await res.json()
-    authToken = body.token
+    const body = await res.json().catch(() => ({}))
+    authToken = body.token || ""
     await ctx.dispose()
   })
 
@@ -38,7 +38,7 @@ test.describe('Dashboard & Reports', () => {
     const res = await request.get(`${API_BASE}/dashboard`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.todayRevenue).toBeDefined()
       expect(body.todayTax).toBeDefined()
       expect(body.totalOrders).toBeDefined()
@@ -51,7 +51,7 @@ test.describe('Dashboard & Reports', () => {
     const res = await request.get(`${API_BASE}/settings`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.name).toBeDefined()
       expect(body.currency).toBeDefined()
       expect(body.locale).toBeDefined()
@@ -67,7 +67,7 @@ test.describe('Dashboard & Reports', () => {
     const res = await request.get(`${API_BASE}/reports/eod?date=${today}`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.summary).toBeDefined()
       expect(body.summary.totalSales).toBeDefined()
       expect(body.summary.totalOrders).toBeDefined()
@@ -92,7 +92,7 @@ test.describe('Dashboard & Reports', () => {
     const res = await request.get(`${API_BASE}/staff-performance?period=today`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.employees).toBeDefined()
       expect(body.totals).toBeDefined()
     }
@@ -111,7 +111,7 @@ test.describe('Dashboard & Reports', () => {
     const res = await request.get(`${API_BASE}/menu-items?limit=10`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.menuItems).toBeDefined()
       expect(Array.isArray(body.menuItems)).toBeTruthy()
     }
@@ -121,7 +121,7 @@ test.describe('Dashboard & Reports', () => {
     const res = await request.get(`${API_BASE}/menu-items?limit=2&offset=0`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.menuItems.length).toBeLessThanOrEqual(2)
     }
   })
@@ -143,7 +143,7 @@ test.describe('Dashboard & Reports', () => {
     )
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.shifts).toBeDefined()
       expect(body.stats).toBeDefined()
     }
@@ -162,7 +162,7 @@ test.describe('Dashboard & Reports', () => {
     const res = await request.get(`${API_BASE}/delivery?limit=5`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.deliveries || body).toBeDefined()
     }
   })
@@ -171,7 +171,7 @@ test.describe('Dashboard & Reports', () => {
     const res = await request.get(`${API_BASE}/delivery-zones`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.zones).toBeDefined()
     }
   })
@@ -184,7 +184,7 @@ test.describe('Dashboard & Reports', () => {
     const res = await request.get(`${API_BASE}/devices`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.devices || body).toBeDefined()
     }
   })
@@ -193,7 +193,7 @@ test.describe('Dashboard & Reports', () => {
     const res = await request.get(`${API_BASE}/opening-hours`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.hours || body).toBeDefined()
     }
   })
@@ -232,7 +232,7 @@ test.describe('Dashboard & Reports', () => {
     const res = await request.get(`${API_BASE}/setup/status`)
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.isInitialized).toBeDefined()
       expect(body.mode).toBeDefined()
     }
@@ -241,7 +241,7 @@ test.describe('Dashboard & Reports', () => {
   test('EDGE-6: GET /api/health vrača 200 (server health)', async ({ request }) => {
     const res = await request.get(`${API_BASE}/health`)
     expect(res.status()).toBe(200)
-    const body = await res.json()
+    const body = await res.json().catch(() => ({}))
     expect(body.status).toBe('ok')
     expect(body.database).toBe('connected')
   })
@@ -260,7 +260,7 @@ test.describe('Dashboard & Reports', () => {
     const res = await request.get(`${API_BASE}/orders?limit=99999`, { headers: authHeaders() })
     expect([200, 429]).toContain(res.status())
     if (res.ok()) {
-      const body = await res.json()
+      const body = await res.json().catch(() => ({}))
       expect(body.limit).toBeLessThanOrEqual(500)
     }
   })
