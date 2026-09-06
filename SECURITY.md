@@ -9,7 +9,7 @@
 
 ## 🔒 Security Score: A++
 
-RestaurantOS v1.0.1 je pregledan z 85+ globokimi preverjanji + P0-C1..C5 hardening serijo + issue #32/#35/#47 fix-i.
+RestaurantOS v1.0.2 je pregledan z 85+ globokimi preverjanji + P0-C1..C5 hardening serijo + 11 audit rundami deep security review.
 
 **Realna ocena: A++** — 0 HIGH odprtih, 0 MEDIUM odprtih, 2 LOW odprtih (code quality only). Vse kritične varnostne ranljivosti so zaprte.
 
@@ -27,7 +27,23 @@ Glej [Known Issues](docs/KNOWN_ISSUES.md) za celoten pregled in [P0-C4 Classific
 | P0-C4 P5 | NOT NULL migration package (24 modelov) | — |
 | P0-C5 | ApiKey table migration (subscriptionId) | — |
 
-**Skupno:** 54 security testov, 901 unit testov, CI 5/5 green, 0 typecheck errors, 0 lint errors.
+### Deep Audit Series (11 rund, September 2026)
+
+| Runda | Prioriteta | Kaj | Testi |
+|-------|-----------|-----|:---:|
+| P1 | Data Integrity | Atomarne transakcije (tip-pool, order cancellation) | — |
+| P2 | Security | Webhook timing-safe, stock deduction atomic | — |
+| P3 | Defense in Depth | Nested Zod, WS cleanup, Sentry capture | 18 |
+| P4 | Silent Fail | Glovo/Wolt insufficient stock, mobile/order idempotency | — |
+| P5 | Log Injection | monitoring/errors rate limit + sanitization | — |
+| P6 | Dependencies | ws 8.20.0 → 8.21.3 (2 high CVEs) | — |
+| P7 | Business | Dual licensing (AGPL + Commercial), OpenAPI, SLA | — |
+| P8 | Compliance | GDPR export + anonymization + enhanced health | — |
+| P9 | Performance | Caching strategy + API versioning + ETag | 28 |
+| P10 | Session | Per-employee session limit (5) + data retention cron | — |
+| P11 | Final | Production readiness checklist + documentation | — |
+
+**Skupno:** 965 unit testov, 149 E2E testov, CI 5/5 green, 0 typecheck errors, 0 lint errors.
 
 ### Security Measures
 

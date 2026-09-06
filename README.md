@@ -262,6 +262,7 @@ src/
 | [Code of Conduct](CODE_OF_CONDUCT.md) | Community standards |
 | [Client Onboarding](docs/CLIENT-ONBOARDING-GUIDE.md) | Navodila za stranko — setup, dnevno delo, FURS |
 | [Production Launch](docs/PRODUCTION-LAUNCH-CHECKLIST.md) | 4-korakni launch plan |
+| [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md) | Final checklist — 11 audit rounds, go-live plan |
 | [Privacy Policy](docs/PRIVACY-POLICY.md) | GDPR politika zasebnosti |
 | [Terms of Service](docs/TERMS-OF-SERVICE.md) | Pogoji uporabe |
 | [SLA](docs/SLA.md) | Service Level Agreement — 99.5% uptime, response times, service credits |
