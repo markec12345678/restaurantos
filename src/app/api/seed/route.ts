@@ -86,6 +86,12 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, message: 'Podatki so bili uspešno naloženi s slovensko ponudbo, vinsko kartico in konfiguracijo' })
   } catch (error: unknown) {
-    return handleApiError(error, 'POST /api/seed', 'Napaka pri nalaganju podatkov')
+    // FIX: Return detailed error message for debugging
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    logger.error('API', 'Seed error:', errorMsg)
+    return NextResponse.json(
+      { error: 'Napaka pri nalaganju podatkov', detail: errorMsg.substring(0, 500) },
+      { status: 500 }
+    )
   }
 }
