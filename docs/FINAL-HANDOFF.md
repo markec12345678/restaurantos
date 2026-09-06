@@ -105,6 +105,24 @@ node scripts/p0-c6-apply-subscription.mjs --apply # Backfill + NOT NULL + FK
 
 ## 6. Staging Deployment Checklist
 
+### Quick Start (Automated)
+
+```bash
+# One command — runs all 6 phases automatically
+chmod +x scripts/staging-deploy.sh
+./scripts/staging-deploy.sh
+```
+
+The script automates:
+1. Environment setup + dependency install
+2. Database initialization (PostgreSQL + schema + seed)
+3. Build + server start + health check + auth verification
+4. E2E tests (149 tests)
+5. Migration packages (interactive confirmation)
+6. Post-migration verification
+
+### Manual Step-by-Step
+
 ```bash
 # 1. Clone + install
 git clone https://github.com/markec12345678/restaurantos.git
