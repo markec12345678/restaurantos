@@ -112,8 +112,9 @@ Vsa kritična varnostna ranljivosti so zaprte v P0-C1 do P0-C5 hardening seriji:
 - **Vpliv:** Ni varnostna težava — arhitekturni dolg.
 
 ### #35 — Hash chain polja na GuestVisit in TipDistribution niso populirana
-- **Status:** 🔄 Odprt (LOW, P1 Q1 2026)
-- **Problem:** `previousHash` in `chainHash` polja obstajajo a so vedno `""`.
+- **Status:** ✅ FIXED (createGuestVisitWithChain + createTipDistributionWithChain)
+- **Problem:** `previousHash` in `chainHash` polja so obstajala a so bila vedno `""`.
+- **Popravek:** Implementirana `src/lib/guest-visit-chain.ts` in `src/lib/tip-distribution-chain.ts` — transakcijsko varno pisanje s SHA-256 hash verigo. Klicatelja (`/api/guests/[id]/visits` in `/api/tip-pool/_helpers/`) uporabljata te funkcije.
 
 ### #47 — Reservation overlap ni preprečen na DB nivoju
 - **Status:** ✅ FIXED (application-level overlap check)
@@ -138,13 +139,13 @@ Vsa kritična varnostna ranljivosti so zaprte v P0-C1 do P0-C5 hardening seriji:
 | P0-C4 Phase 1-4 (ApiKey, Location fields, Webhook) | HIGH | ✅ FIXED |
 | P0-C4 Phase 5 (NOT NULL migration package) | HIGH | ✅ FIXED (pripravljen) |
 | P0-C5 ApiKey table migration | CRITICAL | ✅ FIXED |
+| #35 Hash chain empty | MEDIUM | ✅ FIXED |
+| #47 Reservation overlap | MEDIUM | ✅ FIXED |
 | #32 Subscription nullable | MEDIUM | 🔄 OPEN (po pilotu) |
-| #47 Reservation overlap | MEDIUM | 🔄 OPEN (po pilotu) |
-| #35 Hash chain empty | MEDIUM | 🔄 OPEN (po pilotu) |
 | #33 JSON-as-String | LOW | 🔄 OPEN (code quality) |
 | #36 Shift/StaffShift overlap | LOW | 🔄 OPEN (arhitektura) |
 
-**Skupaj:** 0 HIGH odprtih, 3 MEDIUM odprtih (vse po pilotu), 2 LOW odprtih (code quality).
+**Skupaj:** 0 HIGH odprtih, 1 MEDIUM odprt (#32 — po pilotu), 2 LOW odprtih (code quality).
 
 ---
 
