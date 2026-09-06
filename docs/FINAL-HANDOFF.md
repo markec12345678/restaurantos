@@ -1,21 +1,34 @@
 # RestaurantOS v1.0.1 — Final Handoff Document
 
 **Datum:** 5. september 2026
-**Status:** Production-ready (A++ security, CI 5/5 green, 1050 testov)
+**Status:** Production LIVE on Vercel (A++ security, CI 5/5 green, 1050 testov)
 **Repository:** https://github.com/markec12345678/restaurantos
 **Release:** https://github.com/markec12345678/restaurantos/releases/tag/v1.0.1
+**Production URL:** https://restaurantos-535vah8sv-robertpezdirc12-designs-projects.vercel.app
 
 ---
 
 ## 1. Executive Summary
 
-RestaurantOS v1.0.1 je popolnoma hardenan POS sistem za restavracije z:
+RestaurantOS v1.0.1 je **LIVE na Vercel production** z:
 - **A++ varnostno oceno** (0 HIGH, 0 MEDIUM, 2 LOW odprtih težav)
 - **1050 testov** (901 unit + 149 E2E) — vsi zeleni v CI
 - **5-job CI pipeline** (quality + build + security + unit-tests + e2e-security)
 - **Multi-tenant isolation** z 24 TENANT_REQUIRED modeli
-- **FURS-ready** (certifikat pending — pridobitev na eDavki portal)
-- **3 migration pakete** pripravljene za staging aplikacijo
+- **Production database:** Neon PostgreSQL (3 employees, 1 location, multi-tenant mode)
+- **3 migration pakete** pripravljene za aplikacijo
+
+### Production Verification (2026-09-06)
+
+```
+✅ Health:        200 — DB connected (Neon PostgreSQL)
+✅ Setup:         200 — multi-tenant mode, 3 employees, 1 location
+✅ Public Menu:   200 — <1s response
+✅ Auth (invalid): 401 — proper error (RBAC working)
+✅ FURS/Dashboard/Orders (no auth): 401 — protected
+✅ Homepage:       200 — "RestaurantOS - Prodajna točka"
+✅ CSP Header:     nonce-based (not unsafe-inline)
+```
 
 ---
 
