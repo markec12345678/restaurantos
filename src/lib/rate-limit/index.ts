@@ -27,4 +27,5 @@ export {
   WS_BROADCAST_LIMIT,
   SEED_LIMIT,
   AUTHENTICATED_LIMIT,
+  MONITORING_LIMIT,
 } from './presets'

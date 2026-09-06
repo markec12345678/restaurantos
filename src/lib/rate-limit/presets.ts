@@ -133,3 +133,11 @@ export const IOT_LIMIT: RateLimitConfig = {
   maxRequests: 60,
   windowMs: 60 * 1000,
 }
+
+/** FIX P5 (audit 2026-09-06): Client error monitoring — 10 poročil na minuto
+ * Preprečuje log injection DoS (napadalec spam-a fake error reports da
+ * preplavi Vercel logs ali izčrpa Sentry quota). */
+export const MONITORING_LIMIT: RateLimitConfig = {
+  maxRequests: 10,
+  windowMs: 60 * 1000,
+}
