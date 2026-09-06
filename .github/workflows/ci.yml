@@ -183,15 +183,14 @@ jobs:
         run: bunx vitest run tests/unit/security/ --reporter=verbose
 
   # ───────────────────────────────────────────
-  # Job 5: E2E security tests (Playwright — 30 security tests)
+  # Job 5: E2E tests (Playwright — 149 tests)
   # ───────────────────────────────────────────
-  # NOTE: Full 149 E2E tests run on staging (requires proper auth setup).
-  # CI runs only multi-tenant-security.spec.ts (30 tests) which validates
-  # P0-C1..C5 hardening and is already CI-green.
+  # FIX: pinLookup now reads NEXTAUTH_SECRET at call time (not module load)
+  # This fixes auth in CI standalone build where env vars are baked at build time.
   e2e-security:
-    name: E2E Security Tests (30)
+    name: E2E Tests (149)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     needs: [build, unit-tests]
     env:
       DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci?schema=public"  # ⬅️ PostgreSQL namesto PGlite
@@ -294,8 +293,8 @@ jobs:
         env:
           PORT: 3000
 
-      - name: Run E2E security tests (30 tests — P0-C1..C5 validation)
-        run: bunx playwright test tests/e2e/multi-tenant-security.spec.ts --project=chromium --reporter=list
+      - name: Run E2E tests (149 tests — security + payment + FURS + dashboard + edge)
+        run: bunx playwright test --project=chromium --reporter=list
 
       - name: Stop production server
         if: always()
