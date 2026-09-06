@@ -1,13 +1,20 @@
 // ============================================
 // Pomožne funkcije za odbitje zaloge — dodani artikli
 // ============================================
+//
+// FIX P2 (audit 2026-09-06): Atomic preprečitev negative stock z updateMany
+// + WHERE clause (enak pattern kot deduct-direct.ts in deduct-recipe.ts).
+//
 
-import { toNum, round2, multiply, add } from '../decimal'
+import { toNum, round2, multiply, subtract } from '../decimal'
 import type { StockDeductionItem, StockDeductionResult } from './types'
+import { Prisma } from '@prisma/client'
+
+type TransactionClient = Prisma.TransactionClient
 
 // Odbitje za receptne sestavine (RecipeItem)
 export async function deductRecipeItems(
-  tx: Parameters<Parameters<typeof import('../db').db.$transaction>[0]>[0],
+  tx: TransactionClient,
   item: StockDeductionItem,
   orderNumber: number,
   orderId: string,
@@ -28,26 +35,49 @@ export async function deductRecipeItems(
       continue
     }
 
-    const updatedItem = await tx.inventoryItem.update({ where: { id: invItem.id }, data: { quantity: { decrement: qtyToDeduct } } })
-    const previousQty = toNum(add(updatedItem.quantity, qtyToDeduct))
-    let newQty = toNum(updatedItem.quantity)
+    const previousQty = toNum(invItem.quantity)
 
-    let actualDeducted = qtyToDeduct
-    if (newQty < 0) {
-      actualDeducted = round2(add(qtyToDeduct, newQty))
-      await tx.inventoryItem.update({ where: { id: invItem.id }, data: { quantity: 0 } })
-      newQty = 0
-    }
-
-    await tx.stockTransaction.create({
-      data: {
-        inventoryItemId: invItem.id, type: 'sale', quantity: -actualDeducted, previousQty, newQty,
-        costPerUnit: invItem.costPerUnit, totalCost: round2(multiply(-actualDeducted, invItem.costPerUnit)),
-        reason: `Dodano k naročilu #${orderNumber}`, orderId,
-      },
+    // FIX P2: Atomic preprečitev negative stock
+    const updateResult = await tx.inventoryItem.updateMany({
+      where: { id: invItem.id, quantity: { gte: qtyToDeduct } },
+      data: { quantity: { decrement: qtyToDeduct } },
     })
 
-    result.deducted.push({ inventoryItemId: invItem.id, name: invItem.name, quantityDeducted: qtyToDeduct, previousQty, newQty, method: 'recipe' })
+    let actualDeducted = qtyToDeduct
+    let newQty: number
+
+    if (updateResult.count === 0) {
+      actualDeducted = 0
+      newQty = previousQty
+      result.errors.push({
+        inventoryItemId: invItem.id,
+        name: invItem.name,
+        error: `Premalo zaloge za "${invItem.name}" — na voljo: ${previousQty}, potrebno: ${qtyToDeduct}`,
+      })
+      result.success = false
+
+      await tx.stockTransaction.create({
+        data: {
+          inventoryItemId: invItem.id, type: 'sale', quantity: 0, previousQty, newQty: previousQty,
+          costPerUnit: invItem.costPerUnit, totalCost: 0,
+          reason: `POSKUS PRODAJE (nezadostna zaloga) - naročilo #${orderNumber}`, orderId,
+        },
+      })
+    } else {
+      const updatedItem = await tx.inventoryItem.findUnique({ where: { id: invItem.id }, select: { quantity: true } })
+      newQty = toNum(updatedItem?.quantity ?? subtract(previousQty, qtyToDeduct))
+      actualDeducted = qtyToDeduct
+
+      await tx.stockTransaction.create({
+        data: {
+          inventoryItemId: invItem.id, type: 'sale', quantity: -actualDeducted, previousQty, newQty,
+          costPerUnit: invItem.costPerUnit, totalCost: round2(multiply(-actualDeducted, invItem.costPerUnit)),
+          reason: `Dodano k naročilu #${orderNumber}`, orderId,
+        },
+      })
+    }
+
+    result.deducted.push({ inventoryItemId: invItem.id, name: invItem.name, quantityDeducted: actualDeducted, previousQty, newQty, method: 'recipe' })
 
     if (newQty <= toNum(invItem.minQuantity)) {
       result.lowStockAlerts.push({ inventoryItemId: invItem.id, name: invItem.name, currentQty: newQty, minQty: toNum(invItem.minQuantity) })
@@ -57,7 +87,7 @@ export async function deductRecipeItems(
 
 // Odbitje za direktno 1:1 povezavo InventoryItem↔MenuItem
 export async function deductDirectItem(
-  tx: Parameters<Parameters<typeof import('../db').db.$transaction>[0]>[0],
+  tx: TransactionClient,
   item: StockDeductionItem,
   orderNumber: number,
   orderId: string,
@@ -70,26 +100,49 @@ export async function deductDirectItem(
   const unitsPerServing = 1 / toNum(invItem.servingsPerUnit)
   const totalUnitsToDeduct = Math.round(item.quantity * unitsPerServing * 10000) / 10000
 
-  const updatedItem = await tx.inventoryItem.update({ where: { id: invItem.id }, data: { quantity: { decrement: totalUnitsToDeduct } } })
-  const previousQty = toNum(add(updatedItem.quantity, totalUnitsToDeduct))
-  let newQty = toNum(updatedItem.quantity)
+  const previousQty = toNum(invItem.quantity)
 
-  let actualDeducted = totalUnitsToDeduct
-  if (newQty < 0) {
-    actualDeducted = round2(add(totalUnitsToDeduct, newQty))
-    await tx.inventoryItem.update({ where: { id: invItem.id }, data: { quantity: 0 } })
-    newQty = 0
-  }
-
-  await tx.stockTransaction.create({
-    data: {
-      inventoryItemId: invItem.id, type: 'sale', quantity: -actualDeducted, previousQty, newQty,
-      costPerUnit: invItem.costPerUnit, totalCost: round2(multiply(-actualDeducted, invItem.costPerUnit)),
-      reason: `Dodano k naročilu #${orderNumber}`, orderId,
-    },
+  // FIX P2: Atomic preprečitev negative stock
+  const updateResult = await tx.inventoryItem.updateMany({
+    where: { id: invItem.id, quantity: { gte: totalUnitsToDeduct } },
+    data: { quantity: { decrement: totalUnitsToDeduct } },
   })
 
-  result.deducted.push({ inventoryItemId: invItem.id, name: invItem.name, quantityDeducted: totalUnitsToDeduct, previousQty, newQty, method: 'direct' })
+  let actualDeducted = totalUnitsToDeduct
+  let newQty: number
+
+  if (updateResult.count === 0) {
+    actualDeducted = 0
+    newQty = previousQty
+    result.errors.push({
+      inventoryItemId: invItem.id,
+      name: invItem.name,
+      error: `Premalo zaloge za "${invItem.name}" — na voljo: ${previousQty}, potrebno: ${totalUnitsToDeduct}`,
+    })
+    result.success = false
+
+    await tx.stockTransaction.create({
+      data: {
+        inventoryItemId: invItem.id, type: 'sale', quantity: 0, previousQty, newQty: previousQty,
+        costPerUnit: invItem.costPerUnit, totalCost: 0,
+        reason: `POSKUS PRODAJE (nezadostna zaloga) - naročilo #${orderNumber}`, orderId,
+      },
+    })
+  } else {
+    const updatedItem = await tx.inventoryItem.findUnique({ where: { id: invItem.id }, select: { quantity: true } })
+    newQty = toNum(updatedItem?.quantity ?? subtract(previousQty, totalUnitsToDeduct))
+    actualDeducted = totalUnitsToDeduct
+
+    await tx.stockTransaction.create({
+      data: {
+        inventoryItemId: invItem.id, type: 'sale', quantity: -actualDeducted, previousQty, newQty,
+        costPerUnit: invItem.costPerUnit, totalCost: round2(multiply(-actualDeducted, invItem.costPerUnit)),
+        reason: `Dodano k naročilu #${orderNumber}`, orderId,
+      },
+    })
+  }
+
+  result.deducted.push({ inventoryItemId: invItem.id, name: invItem.name, quantityDeducted: actualDeducted, previousQty, newQty, method: 'direct' })
 
   if (newQty <= toNum(invItem.minQuantity)) {
     result.lowStockAlerts.push({ inventoryItemId: invItem.id, name: invItem.name, currentQty: newQty, minQty: toNum(invItem.minQuantity) })

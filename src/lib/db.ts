@@ -113,10 +113,25 @@ interface AuditLogEntry {
   terminalId?: string
 }
 
-export async function createAuditLog(entry: AuditLogEntry): Promise<void> {
+// Prisma's official transaction client type — accepted as optional `tx` param
+// so audit log writes can be embedded inside an outer transaction.
+type AuditTxClient = import('@prisma/client').Prisma.TransactionClient
+
+/**
+ * Zapiše revizijski dnevnik s hash verigo (PCI DSS + FURS zahteva).
+ *
+ * FIX (P1 audit 2026-09-06): Če je `tx` podan, uporabi obstoječo transakcijo
+ * (omogoča atomarno pisanje skupaj z drugimi operacijami — npr. brisanje
+ * tip distribucij + kreiranje novih + audit log v eni transakciji).
+ * Če `tx` NI podan, odpre svojo lastno transakcijo (backward compat).
+ *
+ * Hash veriga (previousHash + chainHash) se vedno bere znotraj iste transakcije
+ * kot write — s tem zagotovimo konsistentno stanje verige tudi pod concurrency.
+ */
+export async function createAuditLog(entry: AuditLogEntry, tx?: AuditTxClient): Promise<void> {
   try {
-    await db.$transaction(async (tx) => {
-      const lastLog = await tx.auditLog.findFirst({
+    const runInside = async (client: AuditTxClient) => {
+      const lastLog = await client.auditLog.findFirst({
         orderBy: { timestamp: 'desc' },
         select: { chainHash: true },
       })
@@ -128,7 +143,7 @@ export async function createAuditLog(entry: AuditLogEntry): Promise<void> {
       ].join('|')
       const chainHash = crypto.createHash('sha256').update(hashPayload).digest('hex')
 
-      await tx.auditLog.create({
+      await client.auditLog.create({
         data: {
           userId: entry.userId || null,
           action: entry.action,
@@ -141,7 +156,13 @@ export async function createAuditLog(entry: AuditLogEntry): Promise<void> {
           chainHash,
         },
       })
-    })
+    }
+
+    if (tx) {
+      await runInside(tx)
+    } else {
+      await db.$transaction(runInside)
+    }
   } catch (error: unknown) {
     logger.error('DB', 'Napaka pri pisanju revizijskega dnevnika:', error)
   }

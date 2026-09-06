@@ -1,9 +1,16 @@
 // Poizvedbe za napitnine in persistenca
+//
+// FIX P1 (audit 2026-09-06): persistTipPoolWithDistributions je sedaj zavita
+// v $transaction — prej so bile operacije (tipPool.upsert + deleteMany +
+// createTipDistributionWithChain) ločene, kar je pomenilo da pri crash-u
+// lahko ostanejo partial distribucije.
+//
 
 import { db } from '@/lib/db'
 import { sumBy, toNum } from '@/lib/decimal'
 import type { Distribution } from './schemas'
 import { createTipDistributionWithChain } from '@/lib/tip-distribution-chain'
+import { Prisma } from '@prisma/client'
 
 export interface DayTipsResult {
   payments: { tipAmount: Parameters<typeof toNum>[0]; type: string }[]
@@ -47,25 +54,49 @@ export async function persistTipPoolWithDistributions(
   },
   distributions: Distribution[]
 ): Promise<string> {
-  const pool = existing
-    ? await db.tipPool.update({ where: { id: existing.id }, data: poolData })
-    : await db.tipPool.create({ data: poolData })
+  // FIX P1: Vse mutacije v eni transakciji — atomarno.
+  // Če je existing pool že 'paid', ne dovolimo override-a.
+  // Če katerakoli operacija failne, se celotna transakcija roll-back-a.
+  return db.$transaction(async (tx) => {
+    // Optimistic lock: če existing pool obstaja, preveri da ni bil medtem
+    // preklican ali izplačan
+    if (existing) {
+      const current = await tx.tipPool.findUnique({
+        where: { id: existing.id },
+        select: { status: true },
+      })
+      if (!current) {
+        throw new Error('POOL_DELETED')
+      }
+      if (current.status === 'paid') {
+        throw new Error('ALREADY_PAID')
+      }
+    }
 
-  // Izbriši stare distribucije in ustvari nove
-  // FIX SECURITY (issue #35): uporabi createTipDistributionWithChain za hash verigo
-  // (prejšnja createMany() ni nastavila previousHash/chainHash — lažna integriteta)
-  await db.tipDistribution.deleteMany({ where: { tipPoolId: pool.id } })
-  await createTipDistributionWithChain(
-    distributions.map(d => ({
-      tipPoolId: pool.id,
-      employeeId: d.employeeId,
-      employeeName: d.employeeName,
-      hoursWorked: d.hoursWorked,
-      points: d.points,
-      amount: d.amount,
-      status: 'pending' as const,
-    }))
-  )
+    const pool = existing
+      ? await tx.tipPool.update({ where: { id: existing.id }, data: poolData })
+      : await tx.tipPool.create({ data: poolData })
 
-  return pool.id
+    // Izbriši stare distribucije in ustvari nove ZNOTRAJ transakcije
+    // FIX SECURITY (issue #35): uporabi createTipDistributionWithChain za hash verigo
+    // (prejšnja createMany() ni nastavila previousHash/chainHash — lažna integriteta)
+    await tx.tipDistribution.deleteMany({ where: { tipPoolId: pool.id } })
+    await createTipDistributionWithChain(
+      distributions.map(d => ({
+        tipPoolId: pool.id,
+        employeeId: d.employeeId,
+        employeeName: d.employeeName,
+        hoursWorked: d.hoursWorked,
+        points: d.points,
+        amount: d.amount,
+        status: 'pending' as const,
+      })),
+      tx, // ← predamo outer tx
+    )
+
+    return pool.id
+  }, {
+    isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    timeout: 10000,
+  })
 }

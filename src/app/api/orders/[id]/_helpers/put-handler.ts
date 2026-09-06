@@ -1,4 +1,12 @@
 // PUT handler za posodabljanje naročila
+//
+// FIX P1 (audit 2026-09-06): Za status='cancelled' in status='completed' je
+// sedaj order.updateMany + handleOrderCancellation zavito v eno $transaction.
+// Prej: order.updateMany (optimistic lock) je bil ločen od stranskih učinkov
+// (returnStockForOrder, createAuditLog) — če je returnStockForOrder failnil,
+// je bil order že "cancelled" v DB, ampak zaloge niso bile vrnjene.
+// Sedaj: atomarno — ali uspe vse ali pa nič.
+//
 
 import { db, createAuditLog } from '@/lib/db'
 import { toNum, deepToNumbers } from '@/lib/decimal'
@@ -9,6 +17,7 @@ import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { validateOrderTransitions } from './transitions'
 import { broadcastWS, handleOrderCompletion, handleOrderCancellation } from './order-actions'
 import { emitOrderWebhooks } from '../webhooks'
+import { Prisma } from '@prisma/client'
 
 export async function handlePutOrder(req: Request, params: Promise<{ id: string }>) {
   try {
@@ -125,42 +134,87 @@ export async function handlePutOrder(req: Request, params: Promise<{ id: string 
       customerName: existingOrder.customerName,
     }, data)
 
-    // Optimistic locking
-    const updateResult = await db.order.updateMany({
-      where: { id, status: existingOrder.status },
-      data: updateData,
-    })
-
-    if (updateResult.count === 0) {
-      return NextResponse.json({
-        error: 'Naročilo je bilo medtem spremenjeno. Osvežite stran in poskusite znova.',
-      }, { status: 409 })
-    }
-
-    if (data.status === 'in-progress') {
-      await db.orderItem.updateMany({
-        where: { orderId: id, status: 'pending' },
-        data: { status: 'preparing' },
-      })
-    }
-
-    if (data.status === 'completed') {
-      await handleOrderCompletion(id, existingOrder)
-    }
-
+    // FIX P1 (audit 2026-09-06): Za cancellation je order.updateMany + handleOrderCancellation
+    // zavito v eno $transaction — atomarno. Če returnStockForOrder failne,
+    // se tudi order.updateMany roll-back-a (order ostane active).
     if (data.status === 'cancelled') {
-      await handleOrderCancellation(id, existingOrder, data.cancelReason, authResult.session?.employeeId)
-    } else if (data.status) {
-      await createAuditLog({
-        userId: authResult.session?.employeeId,
-        action: 'UPDATE_ORDER_STATUS',
-        entityType: 'Order',
-        entityId: id,
-        details: { orderNumber: existingOrder.orderNumber, newStatus: data.status },
+      try {
+        await db.$transaction(async (tx) => {
+          // Optimistic locking znotraj transakcije
+          const updateResult = await tx.order.updateMany({
+            where: { id, status: existingOrder.status },
+            data: updateData,
+          })
+
+          if (updateResult.count === 0) {
+            throw new Error('OPTIMISTIC_LOCK_FAILED')
+          }
+
+          // Vsi stranski učinki znotraj iste transakcije
+          await handleOrderCancellation(
+            id,
+            {
+              tableId: existingOrder.tableId,
+              orderNumber: existingOrder.orderNumber,
+              inventoryDeducted: existingOrder.inventoryDeducted,
+            },
+            data.cancelReason,
+            authResult.session?.employeeId,
+            tx, // ← predamo outer tx
+          )
+        }, {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          timeout: 15000,
+        })
+      } catch (error: unknown) {
+        if (error instanceof Error && error.message === 'OPTIMISTIC_LOCK_FAILED') {
+          return NextResponse.json({
+            error: 'Naročilo je bilo medtem spremenjeno. Osvežite stran in poskusite znova.',
+          }, { status: 409 })
+        }
+        // P2034: Serialization conflict — drug uporabnik je hkrati spremenil isti order
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+          return NextResponse.json({
+            error: 'Naročilo je bilo medtem spremenjeno. Poskusite znova čez nekaj sekund.',
+          }, { status: 409 })
+        }
+        throw error
+      }
+    } else {
+      // Ostali statusi (in-progress, completed, itd.) — uporabi originalno logiko
+      // z updateMany + ločenimi stranskimi učinki
+      const updateResult = await db.order.updateMany({
+        where: { id, status: existingOrder.status },
+        data: updateData,
       })
-      broadcastWS('ORDER_UPDATED', {
-        orderId: id, orderNumber: existingOrder.orderNumber, newStatus: data.status,
-      })
+
+      if (updateResult.count === 0) {
+        return NextResponse.json({
+          error: 'Naročilo je bilo medtem spremenjeno. Osvežite stran in poskusite znova.',
+        }, { status: 409 })
+      }
+
+      if (data.status === 'in-progress') {
+        await db.orderItem.updateMany({
+          where: { orderId: id, status: 'pending' },
+          data: { status: 'preparing' },
+        })
+      }
+
+      if (data.status === 'completed') {
+        await handleOrderCompletion(id, existingOrder)
+      } else if (data.status) {
+        await createAuditLog({
+          userId: authResult.session?.employeeId,
+          action: 'UPDATE_ORDER_STATUS',
+          entityType: 'Order',
+          entityId: id,
+          details: { orderNumber: existingOrder.orderNumber, newStatus: data.status },
+        })
+        broadcastWS('ORDER_UPDATED', {
+          orderId: id, orderNumber: existingOrder.orderNumber, newStatus: data.status,
+        })
+      }
     }
 
     // FIX P0-C1 (IDOR): Tudi za vračanje posodobljenega naročila uporabi locationId scope

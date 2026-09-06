@@ -11,10 +11,21 @@
 // kot `createAuditLog` v src/lib/db.ts in `createHaccpEntryWithChain` v
 // src/lib/haccp-chain.ts na veji security/critical-fixes).
 //
+// FIX (P1 audit 2026-09-06): Dodan optional `tx` parameter, da se lahko
+// ta funkcija kliče ZNOTRAJ outer transakcije (npr. v tip-pool PUT handler-ju
+// kjer deleteMany + create + tipPool.update + auditLog morajo biti atomarni).
+// Če `tx` ni podan, odpre svojo lastno transakcijo (backward compat).
+//
 
 import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
+import { Prisma } from '@prisma/client'
+
+// Prisma's official transaction client type — what `db.$transaction(async (tx) => ...)`
+// passes to the callback. We accept this as optional param so callers can
+// embed hash-chain writes inside an outer transaction.
+type TransactionClient = Prisma.TransactionClient
 
 export interface TipDistributionChainEntry {
   tipPoolId: string
@@ -33,18 +44,32 @@ export interface TipDistributionChainEntry {
  * sprejmemo array in zapišemo zaporedno znotraj ene transakcije — vsak vnos
  * referencira chainHash prejšnjega.
  *
+ * FIX (P1 audit 2026-09-06): Če je `tx` podan, uporabi obstoječo transakcijo
+ * (omogoča atomarno sestavljanje z drugimi operacijami — npr. brisanje starih
+ * distribucij + kreiranje novih + posodobitev pool statusa v eni transakciji).
+ * Če `tx` NI podan, odpre svojo lastno transakcijo (backward compat).
+ *
  * Uporaba:
- *   const ids = await createTipDistributionWithChain([
- *     { tipPoolId, employeeId, employeeName, hoursWorked, points, amount, status: 'pending' },
- *     ...
- *   ])
+ *   // Brez tx (samostojna transakcija):
+ *   const ids = await createTipDistributionWithChain([...])
+ *
+ *   // Znotraj outer transakcije (atomarno z drugimi operacijami):
+ *   await db.$transaction(async (tx) => {
+ *     await tx.tipDistribution.deleteMany({ where: { tipPoolId } })
+ *     await createTipDistributionWithChain(entries, tx)
+ *     await tx.tipPool.update({ where: { id: tipPoolId }, data: { status: 'distributed' } })
+ *   })
  */
-export async function createTipDistributionWithChain(entries: TipDistributionChainEntry[]): Promise<string[]> {
+export async function createTipDistributionWithChain(
+  entries: TipDistributionChainEntry[],
+  tx?: TransactionClient,
+): Promise<string[]> {
   if (entries.length === 0) return []
 
-  return db.$transaction(async (tx) => {
+  // Če je tx podan, uporabi njega; sicer odpre svojo lastno transakcijo.
+  const runInside = async (client: TransactionClient) => {
     // Pridobi zadnji chainHash ZNOTRAJ transakcije
-    const lastEntry = await tx.tipDistribution.findFirst({
+    const lastEntry = await client.tipDistribution.findFirst({
       orderBy: { createdAt: 'desc' },
       select: { chainHash: true },
     })
@@ -64,7 +89,7 @@ export async function createTipDistributionWithChain(entries: TipDistributionCha
       ].join('|')
       const chainHash = crypto.createHash('sha256').update(hashPayload).digest('hex')
 
-      const created = await tx.tipDistribution.create({
+      const created = await client.tipDistribution.create({
         data: {
           tipPoolId: entry.tipPoolId,
           employeeId: entry.employeeId,
@@ -83,7 +108,12 @@ export async function createTipDistributionWithChain(entries: TipDistributionCha
     }
 
     return createdIds
-  })
+  }
+
+  if (tx) {
+    return runInside(tx)
+  }
+  return db.$transaction(runInside)
 }
 
 /**
