@@ -78,26 +78,80 @@ export async function handleCreateReservation(
     }
   }
 
-  // Ustvari rezervacijo
-  const reservation = await db.reservation.create({
-    data: {
-      customerName: data.customerName,
-      customerPhone: data.customerPhone,
-      customerEmail: data.customerEmail,
-      tableId: data.tableId || null,
-      dateTime: new Date(data.dateTime),
-      partySize: data.partySize,
-      duration: data.duration,
-      status: 'confirmed',
-      notes: data.notes,
-      specialRequests: data.specialRequests,
-      source: data.source,
-      confirmedAt: new Date(),
-      employeeId: employeeId || null,
-    },
-    include: {
-      table: { select: { id: true, number: true, capacity: true, area: true } },
-    },
+  // FIX #3: Race condition — wrap overlap check + create v transakcijo
+  // Prej: SELECT (overlap check) in INSERT (create) sta bila ločena —
+  // dva sočasna requesta lahko oba opravita overlap check in oba kreirata rezervacijo.
+  // Sedaj: $transaction s SERIALIZABLE isolationLevel atomarno izvede check + create.
+  const reservation = await db.$transaction(async (tx) => {
+    if (data.tableId) {
+      const table = await tx.table.findUnique({ where: { id: data.tableId } })
+      if (!table) {
+        throw { error: 'Miza ne obstaja', status: 404 }
+      }
+      if (table.capacity < data.partySize) {
+        throw { error: `Miza ${table.number} ima kapaciteto ${table.capacity}, premajhna za ${data.partySize} oseb`, status: 400 }
+      }
+
+      const reservationStart = new Date(data.dateTime)
+      const reservationEnd = new Date(reservationStart.getTime() + data.duration * 60000)
+
+      const dayStart = new Date(reservationStart)
+      dayStart.setHours(0, 0, 0, 0)
+      dayStart.setDate(dayStart.getDate() - 1)
+      const dayEnd = new Date(reservationStart)
+      dayEnd.setHours(23, 59, 59, 999)
+      dayEnd.setDate(dayEnd.getDate() + 1)
+
+      const existingReservations = await tx.reservation.findMany({
+        where: {
+          tableId: data.tableId,
+          status: { in: ['confirmed', 'seated'] },
+          dateTime: { gte: dayStart, lte: dayEnd },
+        },
+      })
+
+      for (const existing of existingReservations) {
+        const existingStart = new Date(existing.dateTime)
+        const existingEnd = new Date(existingStart.getTime() + (existing.duration || 120) * 60000)
+        if (reservationStart < existingEnd && reservationEnd > existingStart) {
+          throw {
+            error: `Miza ${table.number} je že rezervirana od ${existingStart.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })} do ${existingEnd.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })}`,
+            status: 409,
+          }
+        }
+      }
+    }
+
+    return tx.reservation.create({
+      data: {
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        customerEmail: data.customerEmail,
+        tableId: data.tableId || null,
+        dateTime: new Date(data.dateTime),
+        partySize: data.partySize,
+        duration: data.duration,
+        status: 'confirmed',
+        notes: data.notes,
+        specialRequests: data.specialRequests,
+        source: data.source,
+        confirmedAt: new Date(),
+        employeeId: employeeId || null,
+      },
+      include: {
+        table: { select: { id: true, number: true, capacity: true, area: true } },
+      },
+    })
+  }, {
+    isolationLevel: 'Serializable',
+  }).catch(err => {
+    // Re-throw structured errors
+    if (err && typeof err === 'object' && 'error' in err) throw err
+    // Prisma serialization error — concurrent reservation won
+    if (err && typeof err === 'object' && 'code' in err && err.code === 'P2034') {
+      throw { error: 'Rezervacija ni mogoča — drug uporabnik je rezerviral to mizo v istem trenutku. Poskusite znova.', status: 409 }
+    }
+    throw err
   })
 
   // Audit log

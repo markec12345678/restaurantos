@@ -488,7 +488,6 @@ model Order {
   @@index([type]) // Index for order type filtering
   // FIX SCHEMA-10: Dodatni composite indexes za Order — najpogostejše poizvedbe
   @@index([status, createdAt])  // KDS: aktivna naročila po času (pending, preparing, itd.)
-  @@index([createdAt, status])  // Dashboard: današnja naročila po statusu
   @@index([diningOptionId])     // FIX: FK index — poizvedbe po načinu strežbe
   @@index([revenueCenterId])    // FIX: FK index — poizvedbe po centru prihodkov
   @@index([guestId])            // FIX: FK index — CRM poizvedbe: "naročila gosta"
