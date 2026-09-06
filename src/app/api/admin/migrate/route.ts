@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     const results: Array<{ phase: string; status: string; details: string }> = []
 
     // ═══════════════════════════════════════════════════
-    // Phase 0: Add missing Location columns (P0-C4 Phase 3)
+    // Phase 0: Add missing columns (P0-C4 Phase 3 + Phase 4)
     // ═══════════════════════════════════════════════════
     const locationColumns = [
       { name: 'loyaltyEnabled', type: 'BOOLEAN DEFAULT false' },
@@ -56,11 +56,26 @@ export async function POST(req: Request) {
       { name: 'emailEnabled', type: 'BOOLEAN DEFAULT false' },
     ]
 
+    // Also add Webhook.locationId (P0-C4 Phase 4)
+    const webhookColumns = [
+      { name: 'locationId', type: 'TEXT' },
+    ]
+
     let columnsAdded = 0
     for (const col of locationColumns) {
       try {
         await db.$executeRawUnsafe(
           `ALTER TABLE "Location" ADD COLUMN IF NOT EXISTS "${col.name}" ${col.type}`
+        )
+        columnsAdded++
+      } catch {
+        // Column may already exist — skip
+      }
+    }
+    for (const col of webhookColumns) {
+      try {
+        await db.$executeRawUnsafe(
+          `ALTER TABLE "Webhook" ADD COLUMN IF NOT EXISTS "${col.name}" ${col.type}`
         )
         columnsAdded++
       } catch {

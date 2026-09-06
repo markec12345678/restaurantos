@@ -87,7 +87,7 @@ export async function seedAllConfig() {
   ])
   // Webhooks — generiramo naključen secret če WEBHOOK_SECRET ni nastavljen
   const webhookSecret = process.env.WEBHOOK_SECRET || (() => { const b = new Uint8Array(32); crypto.getRandomValues(b); return `whsec_${Array.from(b, x => x.toString(16).padStart(2, '0')).join('')}` })()
-  await db.webhook.create({ data: { name: 'Test webhook', url: 'https://hooks.example.com/pos', events: 'order.created,order.completed,payment.received', isActive: false, secret: webhookSecret } })
+  await db.webhook.create({ data: { name: 'Test webhook', url: 'https://hooks.example.com/pos', events: 'order.created,order.completed,payment.received', isActive: false, secret: webhookSecret } }).catch(() => {})
   // Jobs
   await Promise.all([
     db.job.create({ data: { name: 'Natakar', code: 'WAIT', basePayRate: 9.50, overtimeRate: 14.25, permissions: JSON.stringify(['take_orders', 'void_items', 'apply_discounts']) } }),
