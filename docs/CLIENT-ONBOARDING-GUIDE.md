@@ -219,4 +219,4 @@ URL: https://restaurantos-oqa3h4ru3-robertpezdirc12-designs-projects.vercel.app
 ---
 
 *RestaurantOS v1.0.0 — Production Ready*  
-*© 2026 MIT License*
+*© 2026 RestaurantOS — Dual License (AGPL-3.0 + Commercial). Glej [LICENSE](../LICENSE).*

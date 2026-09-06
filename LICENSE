@@ -1,21 +1,99 @@
-MIT License
+RestaurantOS — Dual License
+============================
 
-Copyright (c) 2024-2026 RestaurantOS
+Copyright (c) 2024-2026 RestaurantOS. All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This software is dual-licensed. You may choose either license below
+depending on your use case.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+────────────────────────────────────────────────────────────────
+OPTION 1: GNU Affero General Public License v3.0 (AGPL-3.0)
+────────────────────────────────────────────────────────────────
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+Free for personal use, educational projects, and open-source
+contributions. If you modify and deploy this software as a network
+service, you MUST publish your modified source code under AGPL-3.0.
+
+This ensures that any improvements made to RestaurantOS benefit the
+entire community. The full text of AGPL-3.0 is available at:
+https://www.gnu.org/licenses/agpl-3.0.txt
+
+Use AGPL-3.0 if:
+  ✓ You are using RestaurantOS for personal or educational purposes
+  ✓ You are building an open-source project and will share your
+    modifications under AGPL-3.0
+  ✓ You are contributing back to the RestaurantOS project
+
+────────────────────────────────────────────────────────────────
+OPTION 2: Commercial License
+────────────────────────────────────────────────────────────────
+
+Required for any use that does not comply with AGPL-3.0, including:
+
+  • Closed-source / proprietary products
+  • SaaS offerings (hosted RestaurantOS for paying customers)
+  • White-label solutions (rebranded RestaurantOS)
+  • Enterprise deployments with custom modifications
+  • Distribution without source code disclosure
+
+PRICING (effective 2026-09-06):
+
+  ┌─────────────────────┬───────────────────────────┬───────────────┐
+  │ Plan                │ Price                     │ Use Case      │
+  ├─────────────────────┼───────────────────────────┼───────────────┤
+  │ Per-Location SaaS   │ €200/location/month       │ Single        │
+  │                     │                           │ restaurant    │
+  ├─────────────────────┼───────────────────────────┼───────────────┤
+  │ Chain License       │ €2,000/month (up to 20    │ Multi-location│
+  │                     │ locations)                │ chains        │
+  ├─────────────────────┼───────────────────────────┼───────────────┤
+  │ One-Time Perpetual  │ €120,000 one-time         │ Self-hosted   │
+  │                     │ (1 location, 5 years)     │ enterprise    │
+  ├─────────────────────┼───────────────────────────┼───────────────┤
+  │ Enterprise          │ Custom (volume discounts) │ 50+ locations │
+  │                     │                           │ + SLA + support│
+  └─────────────────────┴───────────────────────────┴───────────────┘
+
+Commercial license includes:
+  • Source code without AGPL-3.0 copyleft obligation
+  • Priority technical support (24h response, SLA available)
+  • Custom feature development
+  • White-label branding removal
+  • FURS / Stripe production integration assistance
+  • Data migration services
+  • On-site training (Slovenia / EU)
+
+CONTACT:
+  Email:    sales@restaurantos.app
+  Web:      https://restaurantos.app/pricing
+  Phone:    +386 X XXX XX XXX (Slovenia)
+
+────────────────────────────────────────────────────────────────
+ATTRIBUTION
+────────────────────────────────────────────────────────────────
+
+RestaurantOS incorporates open-source components under their
+respective licenses:
+
+  • Next.js (MIT) — https://nextjs.org
+  • Prisma (Apache-2.0) — https://prisma.io
+  • Radix UI (MIT) — https://radix-ui.com
+  • Tailwind CSS (MIT) — https://tailwindcss.com
+  • Zod (MIT) — https://zod.dev
+
+Full attributions: /public/THIRD-PARTY-LICENSES.txt
+
+────────────────────────────────────────────────────────────────
+ENFORCEMENT
+────────────────────────────────────────────────────────────────
+
+Unauthorized commercial use without a valid Commercial License
+constitutes copyright infringement and will be pursued under
+applicable laws, including but not limited to:
+
+  • Slovenian Copyright Act (ZASP)
+  • EU Directive 2009/24/EC on the legal protection of computer programs
+  • United States Digital Millennium Copyright Act (DMCA)
+
+For license inquiries, compliance questions, or to purchase a
+Commercial License, contact: sales@restaurantos.app

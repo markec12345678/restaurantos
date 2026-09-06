@@ -86,7 +86,7 @@
 31. ✅ Transaction rollback — throw → $transaction rollback
 32. ✅ Env exposure — health returns minimal
 33. ✅ Docker — multi-stage, non-root, alpine
-34. ✅ License — MIT
+34. ✅ License — Dual (AGPL-3.0 + Commercial)
 35. ✅ Dockerfile — 4-stage, USER nextjs
 36. ✅ CI/CD — 4 workflows, gitleaks
 37. ✅ Package.json — Node >=18, 16 scripts

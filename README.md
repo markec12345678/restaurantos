@@ -1,7 +1,7 @@
 # RestaurantOS v1.0.1
 
 [![Version](https://img.shields.io/badge/version-1.0.1-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
-[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-5%2F5%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
 [![Tests](https://img.shields.io/badge/tests-901%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
@@ -264,6 +264,9 @@ src/
 | [Production Launch](docs/PRODUCTION-LAUNCH-CHECKLIST.md) | 4-korakni launch plan |
 | [Privacy Policy](docs/PRIVACY-POLICY.md) | GDPR politika zasebnosti |
 | [Terms of Service](docs/TERMS-OF-SERVICE.md) | Pogoji uporabe |
+| [SLA](docs/SLA.md) | Service Level Agreement — 99.5% uptime, response times, service credits |
+| [OpenAPI Spec](openapi.yaml) | OpenAPI 3.1 specifikacija za SDK generacijo (Swagger, Postman) |
+| [Demo Seed](scripts/seed-demo.mjs) | Demo environment seed script — 3 employees, 15 tables, 20 menu items |
 | [Tekmovalna analiza PDF](download/RestaurantOS-Tekmovalna-analiza.pdf) | 47-strani globoka analiza 11 tekmencev |
 | [Investor Pitch PPT](download/RestaurantOS-Investor-Pitch.pptx) | 14-slidov predstavitev za investitorje |
 
@@ -273,7 +276,23 @@ Glej [CONTRIBUTING.md](CONTRIBUTING.md) za smernice o prispevanju.
 
 ## 📜 Licenca
 
-MIT License — prosto uporabljajte, spreminjajte in distribuirajte.
+**Dual Licensing** — izberite eno od dveh licenc:
+
+### Option 1: AGPL-3.0 (Open Source)
+Brezplačno za osebno uporabo in open-source projekte. Če modificirate
+in deployate kot mrežno storitev, MORAte objaviti svojo source kodo
+pod AGPL-3.0.
+
+### Option 2: Commercial License (€200/location/month)
+Zahtevana za:
+- Closed-source / proprietary produkte
+- SaaS ponudbe
+- White-label rešitve
+- Enterprise deployments
+
+Glej [LICENSE](LICENSE) za podrobnosti in cene.
+
+Kontakt: sales@restaurantos.app
 
 ## 📞 Kontakt
 

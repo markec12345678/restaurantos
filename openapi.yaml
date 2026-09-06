@@ -1,0 +1,1001 @@
+openapi: 3.1.0
+info:
+  title: RestaurantOS API
+  version: 1.0.1
+  description: |
+    Production-grade POS system API for restaurants.
+
+    ## Authentication
+    All endpoints (except public ones) require a Bearer token obtained via
+    `POST /api/auth` (PIN-based login).
+
+    ## Rate Limiting
+    - Authenticated: 60 req/min
+    - Login: 5 attempts / 15 min
+    - Public (orders, menu): 5-30 req/min
+    - Rate-limited endpoints return `429` with `Retry-After` header.
+
+    ## Multi-tenant
+    All data is scoped to `locationId`. Admin users can access all locations;
+    regular users are restricted to their session's location.
+
+    ## Idempotency
+    Payment and order creation support `idempotencyKey` to prevent duplicates
+    on network retry. Send the same key twice → returns the original response.
+
+    ## Webhooks
+    Configure outbound webhooks at `/api/webhooks`. Payloads are HMAC-SHA256
+    signed. Verify with `timingSafeEqual` (not `===`) to prevent timing attacks.
+
+    ## FURS Compliance
+    Slovenian fiscal cash register integration (ZOI, EOR, daily close).
+    Requires FURS certificate obtained from eDavki portal.
+
+  contact:
+    name: RestaurantOS
+    email: api@restaurantos.app
+    url: https://restaurantos.app
+  license:
+    name: Dual (AGPL-3.0 + Commercial)
+    url: https://github.com/markec12345678/restaurantos/blob/main/LICENSE
+
+servers:
+  - url: https://restaurantos-theta.vercel.app
+    description: Production
+  - url: http://localhost:3000
+    description: Development
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Authentication
+    description: PIN-based login and session management
+  - name: Orders
+    description: Order lifecycle (create, update, cancel, transfer)
+  - name: Payments
+    description: Payment processing (cash, card, wallet, split)
+  - name: Employees
+    description: Employee management and shifts
+  - name: Inventory
+    description: Stock tracking, adjustments, recipes
+  - name: Reservations
+    description: Table reservations and waitlist
+  - name: Menu
+    description: Menu items, categories, modifiers
+  - name: Reports
+    description: EOD reports, Z-reports, financial exports
+  - name: FURS
+    description: Slovenian fiscal compliance (ZOI, EOR, daily close)
+  - name: Webhooks
+    description: Outbound webhook configuration and delivery logs
+  - name: Public
+    description: Public endpoints (QR ordering, online ordering, kiosk)
+
+paths:
+  # ─── Authentication ──────────────────────────────────────────
+  /api/auth:
+    post:
+      tags: [Authentication]
+      summary: Login with PIN
+      description: Authenticate employee with 4-digit PIN. Returns session token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pin]
+              properties:
+                pin:
+                  type: string
+                  pattern: '^\d{4,20}$'
+                  example: "1234"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+
+    get:
+      tags: [Authentication]
+      summary: Check auth status
+      description: Returns current session info or CSRF token (with ?csrf=1).
+      security: []
+      parameters:
+        - name: csrf
+          in: query
+          schema:
+            type: string
+            enum: ['1']
+          description: Generate CSRF token instead of checking auth status
+      responses:
+        '200':
+          description: Auth status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthStatusResponse'
+
+    delete:
+      tags: [Authentication]
+      summary: Logout (destroy session)
+      responses:
+        '200':
+          description: Session destroyed
+
+  # ─── Orders ──────────────────────────────────────────────────
+  /api/orders:
+    get:
+      tags: [Orders]
+      summary: List orders
+      description: Returns paginated list of orders with order items, menu items, prep stations.
+      parameters:
+        - $ref: '#/components/parameters/StatusFilter'
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [dine-in, takeout, delivery]
+        - name: paymentStatus
+          in: query
+          schema:
+            type: string
+            enum: [unpaid, partial, paid, storno]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Paginated list of orders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+
+    post:
+      tags: [Orders]
+      summary: Create order
+      description: |
+        Creates a new order with order items. Supports idempotency key
+        to prevent duplicates on network retry.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '409':
+          description: Idempotency conflict or optimistic lock failure
+
+  /api/orders/{id}:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    get:
+      tags: [Orders]
+      summary: Get order by ID
+      responses:
+        '200':
+          description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Orders]
+      summary: Update order (status, payment, cancellation)
+      description: |
+        Updates order status with optimistic locking. Cancellation is atomic —
+        if stock return fails, the entire operation rolls back.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrderRequest'
+      responses:
+        '200':
+          description: Order updated
+        '409':
+          description: Optimistic lock conflict (order was modified by another user)
+
+  /api/orders/{id}/add-items:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    post:
+      tags: [Orders]
+      summary: Add items to existing order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddOrderItemsRequest'
+      responses:
+        '200':
+          description: Items added
+
+  /api/orders/{id}/transfer:
+    parameters:
+      - $ref: '#/components/parameters/OrderId'
+    post:
+      tags: [Orders]
+      summary: Transfer order to different table
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newTableId]
+              properties:
+                newTableId:
+                  type: string
+      responses:
+        '200':
+          description: Order transferred
+
+  # ─── Payments ────────────────────────────────────────────────
+  /api/payments:
+    get:
+      tags: [Payments]
+      summary: List payments
+      responses:
+        '200':
+          description: List of payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+
+    post:
+      tags: [Payments]
+      summary: Process payment
+      description: |
+        Processes a payment with idempotency protection. Uses advisory lock
+        on the check to prevent double-spend. Supports cash, card, mobile,
+        voucher, loyalty, giftcard, and alternate payment types.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+      responses:
+        '201':
+          description: Payment processed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '409':
+          description: Already paid, overpayment, or serialization conflict
+        '404':
+          description: Check not found
+
+  /api/payments/{id}/refund:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Payments]
+      summary: Refund payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount:
+                  type: number
+                  format: float
+                  minimum: 0.01
+                reason:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Refund processed
+
+  # ─── Employees ───────────────────────────────────────────────
+  /api/employees:
+    get:
+      tags: [Employees]
+      summary: List employees
+      responses:
+        '200':
+          description: List of employees (PIN masked as '****')
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  employees:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Employee'
+                  total:
+                    type: integer
+
+    post:
+      tags: [Employees]
+      summary: Create employee
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEmployeeRequest'
+      responses:
+        '201':
+          description: Employee created
+        '409':
+          description: Email already exists
+
+  # ─── Inventory ───────────────────────────────────────────────
+  /api/inventory/adjust:
+    put:
+      tags: [Inventory]
+      summary: Batch stock adjustment
+      description: |
+        Atomically adjusts stock for multiple items. Uses `updateMany` with
+        `WHERE quantity >= deductQty` to prevent negative stock. Failed
+        items (insufficient stock) are logged as audit transactions.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchAdjustRequest'
+      responses:
+        '200':
+          description: Batch processed (check `skipped` array for failures)
+
+  # ─── Reservations ────────────────────────────────────────────
+  /api/reservations:
+    get:
+      tags: [Reservations]
+      summary: List reservations
+      responses:
+        '200':
+          description: List of reservations
+
+    post:
+      tags: [Reservations]
+      summary: Create reservation
+      description: |
+        Creates a reservation with overlap detection. Uses `$transaction`
+        with Serializable isolation to prevent double-booking the same table.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReservationRequest'
+      responses:
+        '201':
+          description: Reservation created
+        '409':
+          description: Table already reserved for this time slot
+
+  # ─── Menu ────────────────────────────────────────────────────
+  /api/menu-items:
+    get:
+      tags: [Menu]
+      summary: List menu items
+      responses:
+        '200':
+          description: List of menu items
+
+  /api/public/menu:
+    get:
+      tags: [Public]
+      summary: Public menu (for QR ordering)
+      security: []
+      responses:
+        '200':
+          description: Public menu (only available items)
+
+  # ─── Reports ─────────────────────────────────────────────────
+  /api/reports/export:
+    get:
+      tags: [Reports]
+      summary: Export financial report (PDF/XML)
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [pdf, xml, csv]
+            default: pdf
+      responses:
+        '200':
+          description: Report file
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  # ─── FURS ────────────────────────────────────────────────────
+  /api/furs:
+    get:
+      tags: [FURS]
+      summary: FURS fiscalization status
+      description: Returns count of unfiscalized receipts and FURS connection status.
+      responses:
+        '200':
+          description: FURS status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  environment:
+                    type: string
+                    enum: [test, production]
+                  unfiscalizedCount:
+                    type: integer
+                  lastFiscalization:
+                    type: string
+                    format: date-time
+
+  /api/furs/verify:
+    post:
+      tags: [FURS]
+      summary: Batch verify receipts with FURS
+      description: Sends unfiscalized receipts to FURS for verification (EOR assignment).
+      responses:
+        '200':
+          description: Verification results
+
+  # ─── Webhooks ────────────────────────────────────────────────
+  /api/webhooks:
+    get:
+      tags: [Webhooks]
+      summary: List configured webhooks
+      responses:
+        '200':
+          description: List of webhooks
+
+    post:
+      tags: [Webhooks]
+      summary: Create webhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWebhookRequest'
+      responses:
+        '201':
+          description: Webhook created
+
+  # ─── Public Endpoints ────────────────────────────────────────
+  /api/public/online-order:
+    post:
+      tags: [Public]
+      summary: Submit online order (public)
+      security: []
+      description: |
+        Public endpoint for online ordering. Rate-limited to 5 orders per
+        2 minutes per IP. Inventory is deducted atomically — if stock is
+        insufficient, the order is rejected with 409 Conflict.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnlineOrderRequest'
+      responses:
+        '201':
+          description: Order accepted
+        '409':
+          description: Insufficient stock
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: hex
+      description: |
+        64-character hex token obtained from `POST /api/auth`.
+        Send as `Authorization: Bearer <token>`.
+
+  parameters:
+    OrderId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Order ID (CUID)
+
+    StatusFilter:
+      name: status
+      in: query
+      schema:
+        type: string
+        enum: [pending, in-progress, ready, completed, cancelled]
+
+  responses:
+    Unauthorized:
+      description: Authentication required or invalid
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    RateLimited:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            description: Seconds until retry is allowed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        detail:
+          type: string
+          description: Stack trace (dev only)
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: 64-char hex session token
+        employee:
+          $ref: '#/components/schemas/Employee'
+        role:
+          type: string
+        locationId:
+          type: string
+          nullable: true
+
+    AuthStatusResponse:
+      type: object
+      properties:
+        authenticated:
+          type: boolean
+        authEnabled:
+          type: boolean
+        employee:
+          $ref: '#/components/schemas/Employee'
+
+    Employee:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [admin, manager, waiter, cook, cashier]
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+        pin:
+          type: string
+          description: Always masked as '****' in responses
+        locationId:
+          type: string
+          nullable: true
+
+    CreateEmployeeRequest:
+      type: object
+      required: [name, pin, role]
+      properties:
+        name:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        pin:
+          type: string
+          pattern: '^\d{4,20}$'
+        role:
+          type: string
+          enum: [admin, manager, waiter, cook, cashier]
+        status:
+          type: string
+          enum: [active, inactive]
+          default: active
+
+    Order:
+      type: object
+      properties:
+        id:
+          type: string
+        orderNumber:
+          type: integer
+        type:
+          type: string
+          enum: [dine-in, takeout, delivery]
+        status:
+          type: string
+          enum: [pending, in-progress, ready, completed, cancelled]
+        paymentStatus:
+          type: string
+          enum: [unpaid, partial, paid, storno]
+        subtotal:
+          type: number
+        tax:
+          type: number
+        total:
+          type: number
+        tableId:
+          type: string
+          nullable: true
+        employeeId:
+          type: string
+          nullable: true
+        orderItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    OrderItem:
+      type: object
+      properties:
+        id:
+          type: string
+        menuItemId:
+          type: string
+        menuItemName:
+          type: string
+        quantity:
+          type: integer
+        price:
+          type: number
+        vatRate:
+          type: number
+        status:
+          type: string
+          enum: [pending, fired, preparing, ready, served, voided, cancelled]
+        modifiersJson:
+          type: string
+          description: JSON array of {name, price, quantity, modifierGroupId}
+
+    CreateOrderRequest:
+      type: object
+      required: [orderItems]
+      properties:
+        type:
+          type: string
+          enum: [dine-in, takeout, delivery]
+          default: dine-in
+        tableId:
+          type: string
+          nullable: true
+        customerName:
+          type: string
+        orderItems:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/CreateOrderItemInput'
+        idempotencyKey:
+          type: string
+          maxLength: 100
+          description: Prevents duplicate orders on network retry
+
+    CreateOrderItemInput:
+      type: object
+      required: [menuItemId, quantity]
+      properties:
+        menuItemId:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 99
+        notes:
+          type: string
+          maxLength: 500
+        modifiersJson:
+          type: string
+          description: |
+            JSON array of modifiers. Validated with strict Zod schema:
+            - name: 1-100 chars
+            - price: -1000 to 10000
+            - quantity: 1-99 (optional)
+            - modifierGroupId: max 100 chars (optional)
+            - Max 10000 chars total
+            - .strict() rejects unknown fields
+
+    UpdateOrderRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, in-progress, ready, completed, cancelled]
+        paymentStatus:
+          type: string
+          enum: [unpaid, partial, paid, storno]
+        cancelReason:
+          type: string
+          maxLength: 500
+        tip:
+          type: number
+          minimum: 0
+        expectedUpdatedAt:
+          type: string
+          format: date-time
+          description: Optimistic locking — client sends last-known updatedAt
+
+    AddOrderItemsRequest:
+      type: object
+      required: [orderItems]
+      properties:
+        orderItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreateOrderItemInput'
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+        checkId:
+          type: string
+        amount:
+          type: number
+        tipAmount:
+          type: number
+        type:
+          type: string
+          enum: [cash, card, mobile, voucher, loyalty, giftcard, alternate]
+        status:
+          type: string
+          enum: [completed, refunded, voided]
+        cardType:
+          type: string
+        cardLast4:
+          type: string
+        authorizationCode:
+          type: string
+        idempotencyKey:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CreatePaymentRequest:
+      type: object
+      required: [checkId, amount, type]
+      properties:
+        checkId:
+          type: string
+        amount:
+          type: number
+          minimum: 0.01
+        tipAmount:
+          type: number
+          minimum: 0
+          default: 0
+        type:
+          type: string
+          enum: [cash, card, mobile, voucher, loyalty, giftcard, alternate]
+        cardType:
+          type: string
+        cardLast4:
+          type: string
+        authorizationCode:
+          type: string
+        giftCardId:
+          type: string
+        loyaltyAccountId:
+          type: string
+        loyaltyPointsUsed:
+          type: integer
+          minimum: 0
+        idempotencyKey:
+          type: string
+          description: Prevents double-spend on network retry
+
+    BatchAdjustRequest:
+      type: object
+      required: [items, type]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [inventoryItemId, quantity]
+            properties:
+              inventoryItemId:
+                type: string
+              quantity:
+                type: number
+                minimum: 0.01
+              reason:
+                type: string
+                maxLength: 500
+        type:
+          type: string
+          enum: [write-off, adjustment, return]
+        reason:
+          type: string
+          maxLength: 500
+        employeeName:
+          type: string
+
+    CreateReservationRequest:
+      type: object
+      required: [customerName, dateTime, partySize]
+      properties:
+        customerName:
+          type: string
+          maxLength: 100
+        customerPhone:
+          type: string
+        customerEmail:
+          type: string
+          format: email
+        tableId:
+          type: string
+          nullable: true
+        dateTime:
+          type: string
+          format: date-time
+        partySize:
+          type: integer
+          minimum: 1
+        duration:
+          type: integer
+          default: 120
+          description: Duration in minutes
+        notes:
+          type: string
+        source:
+          type: string
+          enum: [walk_in, phone, website, app]
+          default: walk_in
+
+    OnlineOrderRequest:
+      type: object
+      required: [items, customerName]
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [menuItemId, quantity]
+            properties:
+              menuItemId:
+                type: string
+              quantity:
+                type: integer
+                minimum: 1
+        customerName:
+          type: string
+        customerPhone:
+          type: string
+        orderType:
+          type: string
+          enum: [delivery, pickup]
+        deliveryAddress:
+          type: string
+        paymentMethod:
+          type: string
+          enum: [cash, card, wallet]
+
+    CreateWebhookRequest:
+      type: object
+      required: [url, events]
+      properties:
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+            enum:
+              - order.created
+              - order.paid
+              - order.cancelled
+              - receipt.created
+              - daily.close
+              - stock.low
+              - shift.started
+              - shift.ended
+        secret:
+          type: string
+          description: HMAC-SHA256 signing secret (auto-generated if omitted)
+        locationId:
+          type: string
+          nullable: true
+          description: Scope to location (null = global)
