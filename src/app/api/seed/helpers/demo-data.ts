@@ -42,13 +42,14 @@ export async function seedDemoData(menuItems: { id: string; price: number; vatRa
   const emp4Pin = await hashPin('3456')
   const emp5Pin = await hashPin('7890')
 
+  // FIX: Use upsert instead of create — employee emails may already exist (setup wizard)
   const employees = await Promise.all([
-    db.employee.create({ data: { name: 'Ana Novak', email: 'ana@restaurant.com', phone: '040-123-456', role: 'admin', status: 'active', ...emp1Pin } }),
-    db.employee.create({ data: { name: 'Marko Horvat', email: 'marko@restaurant.com', phone: '041-234-567', role: 'manager', status: 'active', ...emp2Pin } }),
-    db.employee.create({ data: { name: 'Maja Kovač', email: 'maja@restaurant.com', phone: '042-345-678', role: 'staff', status: 'active', ...emp3Pin } }),
-    db.employee.create({ data: { name: 'Luka Zupan', email: 'luka@restaurant.com', phone: '043-456-789', role: 'chef', status: 'active', ...emp4Pin } }),
-    db.employee.create({ data: { name: 'Eva Krajnc', email: 'eva@restaurant.com', phone: '044-567-890', role: 'staff', status: 'active', ...emp5Pin } }),
-    db.employee.create({ data: { name: 'Peter Mlakar', email: 'peter@restaurant.com', phone: '045-678-901', role: 'chef', status: 'inactive', pin: '', pinLookup: '' } }),
+    db.employee.upsert({ where: { email: 'ana@restaurant.com' }, update: { ...emp1Pin }, create: { name: 'Ana Novak', email: 'ana@restaurant.com', phone: '040-123-456', role: 'admin', status: 'active', ...emp1Pin } }),
+    db.employee.upsert({ where: { email: 'marko@restaurant.com' }, update: { ...emp2Pin }, create: { name: 'Marko Horvat', email: 'marko@restaurant.com', phone: '041-234-567', role: 'manager', status: 'active', ...emp2Pin } }),
+    db.employee.upsert({ where: { email: 'maja@restaurant.com' }, update: { ...emp3Pin }, create: { name: 'Maja Kovač', email: 'maja@restaurant.com', phone: '042-345-678', role: 'staff', status: 'active', ...emp3Pin } }),
+    db.employee.upsert({ where: { email: 'luka@restaurant.com' }, update: { ...emp4Pin }, create: { name: 'Luka Zupan', email: 'luka@restaurant.com', phone: '043-456-789', role: 'chef', status: 'active', ...emp4Pin } }),
+    db.employee.upsert({ where: { email: 'eva@restaurant.com' }, update: { ...emp5Pin }, create: { name: 'Eva Krajnc', email: 'eva@restaurant.com', phone: '044-567-890', role: 'staff', status: 'active', ...emp5Pin } }),
+    db.employee.upsert({ where: { email: 'peter@restaurant.com' }, update: {}, create: { name: 'Peter Mlakar', email: 'peter@restaurant.com', phone: '045-678-901', role: 'chef', status: 'inactive', pin: '', pinLookup: '' } }),
   ])
 
   // ============================================
