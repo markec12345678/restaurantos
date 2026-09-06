@@ -13,6 +13,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { checkRateLimitAsync, getClientIp, PUBLIC_MENU_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
+import { withCache, withETag, CachePresets } from '@/lib/middleware/cache-headers'
 
 
 export const dynamic = 'force-dynamic'
@@ -136,12 +137,20 @@ export async function GET(req: Request) {
       select: { id: true, number: true, capacity: true }
     })
 
-    return NextResponse.json({
+    const responseBody = {
       menus,
       settings,
       availableTables: tables.length,
       timestamp: new Date().toISOString(),
-    })
+    }
+
+    // FIX P9: Cache public menu — 5min CDN cache + ETag za 304 Not Modified
+    // Menu se redko spreminja (admin edit), ampak gostje pogosto refreshajo
+    const response = withCache(
+      NextResponse.json(responseBody),
+      CachePresets.PUBLIC_SHORT
+    )
+    return withETag(req, response, responseBody)
 
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/public/menu', 'Napaka pri pridobivanju menija')
