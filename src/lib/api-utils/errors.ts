@@ -5,6 +5,23 @@
 import { NextResponse } from 'next/server'
 import { logger } from '../logger'
 
+// FIX P3 (audit 2026-09-06): Lazy-load Sentry da ne crash-a če @sentry/nextjs
+// ni nameščen ali če SENTRY_DSN ni nastavljen. V production z SENTRY_DSN
+// se napake avtomatsko pošiljajo v Sentry.
+let sentryCaptureAvailable = false
+let sentryCapture: ((_err: unknown) => void) | null = null
+try {
+  // Dynamic require — deluje samo če je @sentry/nextjs nameščen
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const Sentry = require('@sentry/nextjs')
+  if (typeof Sentry.captureException === 'function') {
+    sentryCapture = Sentry.captureException
+    sentryCaptureAvailable = true
+  }
+} catch {
+  // @sentry/nextjs ni nameščen — Sentry integracija onemogočena
+}
+
 /**
  * Preveri, ali je napaka known business error (napaka iz poslovne logike)
  * in vrne ustrezen odgovor, če se ujema.
@@ -81,6 +98,17 @@ export function handleApiError(
 ): NextResponse {
   const message = error instanceof Error ? error.message : String(error)
   logger.error(context, userMessage, { error: message, stack: error instanceof Error ? error.stack : undefined })
+
+  // FIX P3 (audit 2026-09-06): Pošlji napako v Sentry za production error tracking.
+  // Samo za 5xx napake (4xx so client errors — ne rabimo Sentry-ja).
+  // Business errors (4xx) se ne pošiljajo — to bi ustvarilo prevelik volumen.
+  if (sentryCaptureAvailable && sentryCapture && statusCode >= 500) {
+    try {
+      sentryCapture(error)
+    } catch {
+      // Sentry capture failed — ne pustimo da vpliva na response
+    }
+  }
 
   // V produkciji ne razkrivamo internih podrobnosti napake
   const isDev = process.env.NODE_ENV !== 'production'

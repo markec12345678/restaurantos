@@ -119,30 +119,62 @@ export async function PUT(req: Request) {
           skipped.push({ inventoryItemId: entry.inventoryItemId, reason: 'Količina mora biti pozitivna' })
           continue
         }
-        const _newQty = Math.max(0, toNum(previousQty) - deductQty)
-        const txQuantity = -deductQty
-        const totalCost = round2(multiply(deductQty, item.costPerUnit))
-        // FIX CRITICAL: Use atomic decrement instead of direct set — prevents race condition
-        const updated = await tx.inventoryItem.update({
-          where: { id: entry.inventoryItemId },
+
+        // FIX P3 (audit 2026-09-06): Atomic preprečitev negative stock.
+        // Prej: `decrement` + clamp-to-0 (če gre v negativo, popravi na 0).
+        // Problem: race condition — dva sočasna zahtevka lahko oba gresta v negativo
+        // preden drugi clamp-a. Tudi: tih over-sell je dovoljen brez opozorila.
+        // Sedaj: updateMany z WHERE quantity >= deductQty. Če ni dovolj zaloge,
+        // se update ne zgodi (count=0) in zabeležimo napako.
+        const updateResult = await tx.inventoryItem.updateMany({
+          where: {
+            id: entry.inventoryItemId,
+            quantity: { gte: deductQty }, // ← atomarni check
+          },
           data: { quantity: { decrement: deductQty } },
+        })
+
+        if (updateResult.count === 0) {
+          // Ni dovolj zaloge — zabeležimo napako, NE gremo v negativo
+          skipped.push({
+            inventoryItemId: entry.inventoryItemId,
+            reason: `Premalo zaloge za "${item.name}" — na voljo: ${toNum(previousQty)}, potrebno: ${deductQty}`,
+          })
+
+          // Zabeležimo poskus (za audit)
+          await tx.stockTransaction.create({
+            data: {
+              inventoryItemId: entry.inventoryItemId,
+              type: data.type,
+              quantity: 0, // ni bilo odbito
+              previousQty: toNum(previousQty),
+              newQty: toNum(previousQty), // nespremenjeno
+              costPerUnit: item.costPerUnit,
+              totalCost: 0,
+              reason: `POSKUS (nezadostna zaloga): ${data.reason || entry.reason || ''}`.slice(0, 500),
+              note: entry.note || '',
+              employeeName: data.employeeName || authResult.session?.employeeId || '',
+            },
+          })
+          continue
+        }
+
+        // Uspešno odbito — preberemo novo stanje
+        const updated = await tx.inventoryItem.findUnique({
+          where: { id: entry.inventoryItemId },
           include: { menuItem: true },
         })
-        // Clamp to 0 if quantity went negative
-        const actualNewQty = Math.max(0, toNum(updated.quantity))
-        if (toNum(updated.quantity) < 0) {
-          await tx.inventoryItem.update({
-            where: { id: entry.inventoryItemId },
-            data: { quantity: 0 },
-          })
-        }
+        const newQty = toNum(updated?.quantity ?? 0)
+        const totalCost = round2(multiply(deductQty, item.costPerUnit))
+        const txQuantity = -deductQty
+
         const transaction = await tx.stockTransaction.create({
           data: {
             inventoryItemId: entry.inventoryItemId,
             type: data.type,
             quantity: txQuantity,
             previousQty: toNum(previousQty),
-            newQty: actualNewQty,
+            newQty,
             costPerUnit: item.costPerUnit,
             totalCost,
             reason: data.reason || entry.reason || '',
@@ -150,7 +182,7 @@ export async function PUT(req: Request) {
             employeeName: data.employeeName || authResult.session?.employeeId || '',
           },
         })
-        processed.push({ updated, transaction })
+        processed.push({ updated: updated as Record<string, unknown>, transaction: transaction as unknown as Record<string, unknown> })
       }
       return { processed, skipped }
     })
