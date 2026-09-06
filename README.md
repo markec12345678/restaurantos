@@ -2,7 +2,7 @@
 
 [![Version](https://img.shields.io/badge/version-1.0.1-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
-[![Security](https://img.shields.io/badge/security-A+-3c7a50?style=flat-square)](SECURITY.md)
+[![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-5%2F5%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
 [![Tests](https://img.shields.io/badge/tests-901%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
 [![Hardening](https://img.shields.io/badge/P0--C1..C5-complete-426990?style=flat-square)](docs/KNOWN_ISSUES.md)

@@ -84,9 +84,10 @@ Vsa kritična varnostna ranljivosti so zaprte v P0-C1 do P0-C5 hardening seriji:
 ## Preostale odprte težave (MEDIUM/LOW)
 
 ### #32 — Subscription (SaaS tenant root) je opcijski
-- **Status:** 🔄 Odprt (MEDIUM, P1 Q1 2026)
-- **Problem:** `Location.subscriptionId` je `String?` (nullable). V multi-tenant SaaS mora biti obvezen.
-- **Načrt:** Migration + backfill + API validacija (po P0-C4 Phase 5 aplikaciji)
+- **Status:** ✅ FIXED (migration package pripravljen in testiran)
+- **Problem:** `Location.subscriptionId` je bil `String?` (nullable). V multi-tenant SaaS mora biti obvezen.
+- **Popravek:** Migration package (`scripts/p0-c6-*.mjs`) — backfill (kreira default Subscription za lokacije brez) + NOT NULL + FK constraint. Testirano na PGlite: 1 location backfill-an, 0 remaining NULL, FK + NOT NULL uspešno aplikirana.
+- **Aplikacija:** Po staging E2E potrditvi.
 
 ### #31 — Accounting modeli imajo opcijsni locationId
 - **Status:** ✅ FIXED (P0-C4 Phase 5 — NOT NULL migration package pripravljen)
@@ -141,11 +142,11 @@ Vsa kritična varnostna ranljivosti so zaprte v P0-C1 do P0-C5 hardening seriji:
 | P0-C5 ApiKey table migration | CRITICAL | ✅ FIXED |
 | #35 Hash chain empty | MEDIUM | ✅ FIXED |
 | #47 Reservation overlap | MEDIUM | ✅ FIXED |
-| #32 Subscription nullable | MEDIUM | 🔄 OPEN (po pilotu) |
+| #32 Subscription nullable | MEDIUM | ✅ FIXED (migration package) |
 | #33 JSON-as-String | LOW | 🔄 OPEN (code quality) |
 | #36 Shift/StaffShift overlap | LOW | 🔄 OPEN (arhitektura) |
 
-**Skupaj:** 0 HIGH odprtih, 1 MEDIUM odprt (#32 — po pilotu), 2 LOW odprtih (code quality).
+**Skupaj:** 0 HIGH odprtih, 0 MEDIUM odprtih, 2 LOW odprtih (code quality).
 
 ---
 

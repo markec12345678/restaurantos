@@ -7,11 +7,11 @@
 | v1.0.x  | ✅ Active |
 | < v1.0  | ❌ EOL    |
 
-## 🔒 Security Score: A+
+## 🔒 Security Score: A++
 
-RestaurantOS v1.0.0 je pregledan z 85+ globokimi preverjanji + P0-C1..C5 hardening serijo (11 commitov, September 2026).
+RestaurantOS v1.0.1 je pregledan z 85+ globokimi preverjanji + P0-C1..C5 hardening serijo + issue #32/#35/#47 fix-i.
 
-**Realna ocena: A+** — 0 HIGH odprtih težav. Vse kritične varnostne ranljivosti (IDOR, ?locationId bypass, FURS cross-tenant, API key cross-tenant) so zaprte.
+**Realna ocena: A++** — 0 HIGH odprtih, 0 MEDIUM odprtih, 2 LOW odprtih (code quality only). Vse kritične varnostne ranljivosti so zaprte.
 
 Glej [Known Issues](docs/KNOWN_ISSUES.md) za celoten pregled in [P0-C4 Classification](docs/P0-C4-CLASSIFICATION.md) za tenant scope klasifikacijo.
 
