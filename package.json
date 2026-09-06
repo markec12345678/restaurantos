@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.7",
-    "@hookform/resolvers": "^5.1.1",
+    "@hookform/resolvers": "^5.9.1",
     "@prisma/client": "^5.22.0",
     "@prisma/driver-adapter-utils": "^7.10.0",
     "@radix-ui/react-accordion": "^1.2.11",
