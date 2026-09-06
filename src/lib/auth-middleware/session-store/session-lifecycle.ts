@@ -6,7 +6,7 @@ import crypto from 'crypto'
 import { db } from '../../db'
 import { logger } from '../../logger'
 import type { Session } from '../types'
-import { SESSION_TTL_MS } from '../constants'
+import { SESSION_TTL_MS, MAX_SESSIONS_PER_EMPLOYEE } from '../constants'
 import { sessions, syncSessionToWs, loadSessionsFromDb } from './session-cache'
 
 // FIX SECURITY: Cache za status zaposlenega — prepreči DA je terminiran zaposleni
@@ -70,6 +70,27 @@ export async function createSession(employee: {
   permissions: string[]
   locationId?: string | null  // FIX Test 7.1: Multi-tenant isolation
 }, ipAddress?: string, userAgent?: string): Promise<string> {
+  // FIX P10: Per-employee session limit — prepreči session flooding.
+  // Če ima uporabnik že MAX_SESSIONS_PER_EMPLOYEE aktivnih sej, uniči
+  // najstarejšo (LRU eviction). Tipičen scenarij: uporabnik prijavi na
+  // 5 naprav, 6. prijava avtomatsko uniči 1. sejo.
+  const employeeSessions = [...sessions.entries()]
+    .filter(([_token, s]) => s.employeeId === employee.id)
+    .sort((a, b) => a[1].createdAt - b[1].createdAt)
+
+  if (employeeSessions.length >= MAX_SESSIONS_PER_EMPLOYEE) {
+    const toEvict = employeeSessions.slice(0, employeeSessions.length - MAX_SESSIONS_PER_EMPLOYEE + 1)
+    for (const [oldToken, _session] of toEvict) {
+      sessions.delete(oldToken)
+      try {
+        await db.session.deleteMany({ where: { token: oldToken } })
+      } catch {
+        // DB delete fail — session je že odstranjena iz memory
+      }
+    }
+    logger.info('AUTH', `Session limit eviction: ${toEvict.length} old sessions removed for employee ${employee.id}`)
+  }
+
   const token = crypto.randomBytes(32).toString('hex')
   const now = Date.now()
 

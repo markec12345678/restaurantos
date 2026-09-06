@@ -8,6 +8,12 @@ import type { Permission } from './types'
 export const SESSION_TTL_MS = 8 * 60 * 60 * 1000 // 8 ur
 export const MAX_SESSIONS = 500 // Prepreči pomnilniško puščanje — omejitev sej
 
+// FIX P10 (audit 2026-09-06): Per-employee session limit.
+// Preprečuje session flooding attack — napadalec (ali legitimni uporabnik)
+// ne more ustvariti 100 aktivnih sej za isti račun. Ko se doseže limit,
+// se najstarejša seja avtomatsko uniči (LRU eviction).
+export const MAX_SESSIONS_PER_EMPLOYEE = 5
+
 // Rute, ki ne zahtevajo avtentikacijo (SAMO za GET zahtevke!)
 // FIX HIGH: POST/PUT/DELETE na teh rutah ZAHTEVAJO avtentikacijo
 export const PUBLIC_GET_ROUTES = [
