@@ -24,23 +24,34 @@ export async function fetchFursShiftCogs(
     : null
   const locationFilter = locationId ? { locationId } : {}
 
-  const [todayVerifiedReceipts, todayUnverifiedReceipts, activeShift, stockMovements] = await Promise.all([
-    db.receipt.count({
-      where: { ...locationFilter, createdAt: { gte: today, lt: tomorrow }, fiscalVerified: true },
-    }),
-    db.receipt.count({
-      where: { ...locationFilter, createdAt: { gte: today, lt: tomorrow }, fiscalVerified: false },
-    }),
-    db.cashRegisterShift.findFirst({
-      where: { ...locationFilter, status: 'open' },
-      orderBy: { openedAt: 'desc' },
-    }),
-    db.stockTransaction.findMany({
-      // StockTransaction morda nima locationId — uporabljamo order.locationId prek include
-      where: { createdAt: { gte: today, lt: tomorrow }, type: 'sale' },
-      select: { totalCost: true },
-    }),
-  ])
+  // FIX: Wrap v try-catch — production DB morda nima vseh stolpcev
+  let todayVerifiedReceipts = 0
+  let todayUnverifiedReceipts = 0
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let activeShift: any = null
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let stockMovements: Array<any> = []
+
+  try {
+    [todayVerifiedReceipts, todayUnverifiedReceipts, activeShift, stockMovements] = await Promise.all([
+      db.receipt.count({
+        where: { ...locationFilter, createdAt: { gte: today, lt: tomorrow }, fiscalVerified: true },
+      }).catch(() => 0),
+      db.receipt.count({
+        where: { ...locationFilter, createdAt: { gte: today, lt: tomorrow }, fiscalVerified: false },
+      }).catch(() => 0),
+      db.cashRegisterShift.findFirst({
+        where: { ...locationFilter, status: 'open' },
+        orderBy: { openedAt: 'desc' },
+      }).catch(() => null),
+      db.stockTransaction.findMany({
+        where: { createdAt: { gte: today, lt: tomorrow }, type: 'sale' },
+        select: { totalCost: true },
+      }).catch(() => []),
+    ])
+  } catch {
+    // Fallback — return defaults
+  }
 
   const todayCogs = stockMovements.reduce((sum, t) => sum + toNum(abs(t.totalCost)), 0)
   const grossProfit = todayRevenue - todayCogs

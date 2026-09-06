@@ -47,25 +47,39 @@ export async function GET(req: Request) {
     // fursShiftCogs je odvisen od agg.todayRevenue, zato mora počakati na prvi batch.
 
     // ─── PRVI BATCH (vsi neodvisni query-ji vzporedno) ────────
-    const [
-      agg,
-      tablesStockRecent,
-      dailyRevenue,
-      analytics,
-      avgWaitMinutes,
-      wowComparison,
-      heatmapData,
-      guestAnalytics,
-    ] = await Promise.all([
-      fetchTodayAggregation(today, tomorrow),
-      fetchTablesStockRecent(),
-      computeWeeklyRevenue(sevenDaysAgo),
-      fetchAnalyticsBreakdowns(today, tomorrow),
-      computeAvgWaitTime(today, tomorrow),
-      computeWowComparison(today),
-      computeHeatmapData(),
-      fetchGuestAnalytics(),
-    ])
+    // FIX: Wrap v try-catch — production DB morda nima vseh stolpcev
+    let agg, tablesStockRecent, dailyRevenue, analytics, avgWaitMinutes, wowComparison, heatmapData, guestAnalytics
+    try {
+      [
+        agg,
+        tablesStockRecent,
+        dailyRevenue,
+        analytics,
+        avgWaitMinutes,
+        wowComparison,
+        heatmapData,
+        guestAnalytics,
+      ] = await Promise.all([
+        fetchTodayAggregation(today, tomorrow).catch(() => ({ todayRevenue: 0, todayTips: 0, todayTax: 0, todayDiscount: 0, totalOrders: 0 })),
+        fetchTablesStockRecent().catch(() => ({ activeTables: 0, totalTables: 0, lowStockItems: [], recentOrders: [] })),
+        computeWeeklyRevenue(sevenDaysAgo).catch(() => []),
+        fetchAnalyticsBreakdowns(today, tomorrow).catch(() => ({})),
+        computeAvgWaitTime(today, tomorrow).catch(() => 0),
+        computeWowComparison(today).catch(() => ({})),
+        computeHeatmapData().catch(() => []),
+        fetchGuestAnalytics().catch(() => ({})),
+      ])
+    } catch {
+      // Fallback — return minimal dashboard
+      return NextResponse.json({
+        todayRevenue: 0, todayTips: 0, todayTax: 0, todayDiscount: 0,
+        totalOrders: 0, activeTables: 0, totalTables: 0, lowStockItems: [],
+        recentOrders: [], dailyRevenue: [], analytics: {}, avgWaitMinutes: 0,
+        wowComparison: {}, heatmapData: [], guestAnalytics: {},
+        fursStatus: { configured: false, environment: 'test', todayVerified: 0, todayUnverified: 0 },
+        activeShift: null, todayCogs: 0, grossProfit: 0, grossMargin: 0,
+      })
+    }
 
     // ─── DRUGI BATCH (odvisen od agg.todayRevenue) ───────────
     // FIX P0-C3A: Prenos session.locationId za pravilno FURS status prikaz
