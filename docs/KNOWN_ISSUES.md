@@ -116,9 +116,10 @@ Vsa kritična varnostna ranljivosti so zaprte v P0-C1 do P0-C5 hardening seriji:
 - **Problem:** `previousHash` in `chainHash` polja obstajajo a so vedno `""`.
 
 ### #47 — Reservation overlap ni preprečen na DB nivoju
-- **Status:** 🔄 Odprt (MEDIUM, P1 Q1 2026)
+- **Status:** ✅ FIXED (application-level overlap check)
 - **Problem:** `@@unique([tableId, dateTime])` prepreči duplikat a NE prepreči overlap-a.
-- **Popravek:** PostgreSQL `EXCLUDE` constraint z `tsrange` (po pilotu).
+- **Popravek:** Application-level overlap check z datumskim oknom (±1 dan) in časovnim intervalom (start < existingEnd AND end > existingStart). Error message prikazuje časovni interval obstoječe rezervacije.
+- **TODO:** Za DB-level zaščito (race condition) dodaj PostgreSQL EXCLUDE constraint z `tstzrange` (zahteva `btree_gist` extension).
 
 ---
 

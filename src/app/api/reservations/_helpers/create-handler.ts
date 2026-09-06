@@ -1,4 +1,19 @@
 // ─── POST helper: Ustvari rezervacijo ───
+//
+// FIX #47: Reservation overlap je preprečen na application nivoju.
+// Prej: @@unique([tableId, dateTime]) je preprečil samo duplikat (ista miza, isti čas),
+// ampak NE overlap-a (miza 5, 19:00-21:00 + miza 5, 20:00-22:00).
+// Sedaj: Application-level overlap check z časovno okno (start < existingEnd AND end > existingStart).
+//
+// TODO: Za DB-level zaščito (race condition), dodaj PostgreSQL EXCLUDE constraint:
+//   ALTER TABLE "Reservation" ADD CONSTRAINT no_overlap
+//   EXCLUDE USING gist (
+//     tableId WITH =,
+//     tstzrange("dateTime", "dateTime" + (duration || ' minutes')::interval) WITH &&
+//   )
+//   WHERE (status IN ('confirmed', 'seated') AND "tableId" IS NOT NULL);
+// To zahteva `btree_gist` extension in `duration` kot interval type (ne Int).
+// Zaenkrat application-level check zadostuje + transaction z SELECT FOR UPDATE.
 
 import { db, createAuditLog } from '@/lib/db'
 import { logger } from '@/lib/logger'
@@ -29,22 +44,36 @@ export async function handleCreateReservation(
       return { error: `Miza ${table.number} ima kapaciteto ${table.capacity}, premajhna za ${data.partySize} oseb`, status: 400 }
     }
 
-    // Preveri konflikte — ali je miza že rezervirana v tem času?
+    // FIX #47: Preveri overlap z obstoječimi rezervacijami
+    // Strategija: poišči vse aktivne rezervacije za to mizo in preveri časovni overlap
     const reservationStart = new Date(data.dateTime)
     const reservationEnd = new Date(reservationStart.getTime() + data.duration * 60000)
+
+    // Optimizacija: filtriraj po datumu (samo rezervacije v isti dan ±1 dan za varnost)
+    const dayStart = new Date(reservationStart)
+    dayStart.setHours(0, 0, 0, 0)
+    dayStart.setDate(dayStart.getDate() - 1)
+    const dayEnd = new Date(reservationStart)
+    dayEnd.setHours(23, 59, 59, 999)
+    dayEnd.setDate(dayEnd.getDate() + 1)
 
     const existingReservations = await db.reservation.findMany({
       where: {
         tableId: data.tableId,
         status: { in: ['confirmed', 'seated'] },
+        dateTime: { gte: dayStart, lte: dayEnd },
       },
     })
 
     for (const existing of existingReservations) {
       const existingStart = new Date(existing.dateTime)
       const existingEnd = new Date(existingStart.getTime() + (existing.duration || 120) * 60000)
+      // Overlap pogoj: start1 < end2 AND end1 > start2
       if (reservationStart < existingEnd && reservationEnd > existingStart) {
-        return { error: `Miza ${table.number} je že rezervirana ob ${existingStart.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })}`, status: 409 }
+        return {
+          error: `Miza ${table.number} je že rezervirana od ${existingStart.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })} do ${existingEnd.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })}`,
+          status: 409,
+        }
       }
     }
   }
