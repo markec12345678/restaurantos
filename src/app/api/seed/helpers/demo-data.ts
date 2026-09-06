@@ -6,13 +6,21 @@ import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
 
 export async function seedDemoData(menuItems: { id: string; price: number; vatRate: number }[]) {
+  // FIX P0-C4: Get first active location for TENANT_REQUIRED models
+  const firstLocation = await db.location.findFirst({
+    where: { isActive: true },
+    select: { id: true },
+    orderBy: { createdAt: 'asc' },
+  })
+  const locationId = firstLocation?.id || 'loc-1'
+
   // ============================================
   // MIZE
   // ============================================
   const tableAreas = ['main', 'main', 'main', 'main', 'main', 'patio', 'patio', 'patio', 'bar', 'bar', 'bar', 'private', 'private', 'main', 'patio']
   const tables = await Promise.all(
     tableAreas.map((area, i) =>
-      db.table.create({ data: { number: i + 1, capacity: [2, 4, 4, 6, 8, 4, 4, 2, 2, 2, 2, 8, 10, 4, 6][i], status: 'available', area } })
+      db.table.create({ data: { number: i + 1, capacity: [2, 4, 4, 6, 8, 4, 4, 2, 2, 2, 2, 8, 10, 4, 6][i], status: 'available', area, locationId } })
     )
   )
 
@@ -144,7 +152,7 @@ export async function seedDemoData(menuItems: { id: string; price: number; vatRa
           orderNumber,
           type,
           status,
-          tableId,
+          tableId, locationId,
           customerName: customerNames[Math.floor(Math.random() * customerNames.length)],
           customerPhone: '',
           subtotal: round2(subtotal),

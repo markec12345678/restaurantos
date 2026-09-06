@@ -4,9 +4,17 @@ import { db } from '@/lib/db'
 // SEED: Menus & Categories
 // ============================================
 export async function seedMenusAndCategories() {
+  // FIX P0-C4: Menu.locationId is NOT NULL — get first active location
+  const firstLocation = await db.location.findFirst({
+    where: { isActive: true },
+    select: { id: true },
+    orderBy: { createdAt: 'asc' },
+  })
+  const locationId = firstLocation?.id || 'loc-1'
+
   const [foodMenu, drinksMenu] = await Promise.all([
-    db.menu.create({ data: { name: 'Hrana', icon: '🍽️', color: '#f59e0b', sortOrder: 0 } }),
-    db.menu.create({ data: { name: 'Pijača', icon: '🥤', color: '#3b82f6', sortOrder: 1 } }),
+    db.menu.create({ data: { name: 'Hrana', icon: '🍽️', color: '#f59e0b', sortOrder: 0, locationId } }),
+    db.menu.create({ data: { name: 'Pijača', icon: '🥤', color: '#3b82f6', sortOrder: 1, locationId } }),
   ])
 
   const [hladnePredjedi, toplePredjedi, juhe, glavneJedi, testenine, rizote, kalamari, ribjeJedi, solate, pizza, burgerji, vegetarijanske, palacinke, sladice, outroskeJedi, malice, priloge, omake] = await Promise.all([
