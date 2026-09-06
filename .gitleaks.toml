@@ -1,11 +1,16 @@
-# Gitleaks configuration — allowlist for CI test values
+# Gitleaks configuration — allowlist for CI test values and revoked token fragments
 # These are test-only values that are intentionally public in CI workflow files
 
 [allowlist]
-  description = "CI test values that are not real secrets"
+  description = "CI test values and revoked token fragments that are not real secrets"
   paths = [
     '''\.github/workflows/.*\.yml''',
   ]
   regexes = [
     '''ENCRYPTION_KEY.*a1b2c3d4''',
+    # Revoked token fragments (partial, already rotated — safe to allowlist)
+    # These appear in old documentation commits and cannot be removed without
+    # rewriting git history (which would break v1.0.0 and v1.0.1 release tags)
+    '''ghp_ObGC1Owq\.\.\.''',
+    '''vcp_11dSDUKY\.\.\.''',
   ]
