@@ -46,6 +46,35 @@ export async function POST(req: Request) {
     const results: Array<{ phase: string; status: string; details: string }> = []
 
     // ═══════════════════════════════════════════════════
+    // Phase 0: Add missing Location columns (P0-C4 Phase 3)
+    // ═══════════════════════════════════════════════════
+    const locationColumns = [
+      { name: 'loyaltyEnabled', type: 'BOOLEAN DEFAULT false' },
+      { name: 'loyaltyPointsPerEuro', type: 'INTEGER DEFAULT 1' },
+      { name: 'loyaltyPointsValue', type: 'DECIMAL DEFAULT 0.01' },
+      { name: 'emailReportRecipients', type: 'TEXT DEFAULT \'[]\'' },
+      { name: 'emailEnabled', type: 'BOOLEAN DEFAULT false' },
+    ]
+
+    let columnsAdded = 0
+    for (const col of locationColumns) {
+      try {
+        await db.$executeRawUnsafe(
+          `ALTER TABLE "Location" ADD COLUMN IF NOT EXISTS "${col.name}" ${col.type}`
+        )
+        columnsAdded++
+      } catch {
+        // Column may already exist — skip
+      }
+    }
+
+    results.push({
+      phase: 'Phase 0: Location columns',
+      status: columnsAdded > 0 ? 'applied' : 'skipped',
+      details: `${columnsAdded} columns ensured (loyaltyEnabled, loyaltyPointsPerEuro, loyaltyPointsValue, emailReportRecipients, emailEnabled)`,
+    })
+
+    // ═══════════════════════════════════════════════════
     // Phase 1: P0-C4 — Backfill NULL locationId
     // ═══════════════════════════════════════════════════
     const modelsToBackfill = [
