@@ -83,7 +83,16 @@ export async function GET(req: Request) {
 
     // ─── DRUGI BATCH (odvisen od agg.todayRevenue) ───────────
     // FIX P0-C3A: Prenos session.locationId za pravilno FURS status prikaz
-    const fursShiftCogs = await fetchFursShiftCogs(today, tomorrow, agg.todayRevenue, authResult.session?.locationId)
+    // FIX: Wrap v try-catch — fetchFursShiftCogs morda faila na manjkajočih stolpcih
+    let fursShiftCogs
+    try {
+      fursShiftCogs = await fetchFursShiftCogs(today, tomorrow, agg.todayRevenue, authResult.session?.locationId)
+    } catch {
+      fursShiftCogs = {
+        fursStatus: { configured: false, environment: 'test', todayVerified: 0, todayUnverified: 0 },
+        activeShift: null, todayCogs: 0, grossProfit: 0, grossMargin: 0,
+      }
+    }
 
     const { activeTables, totalTables, lowStockItems, recentOrders } = tablesStockRecent
 
