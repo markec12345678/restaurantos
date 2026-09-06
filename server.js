@@ -112,6 +112,26 @@ setInterval(() => {
   }
 }, 60000)
 
+// FIX P3 (audit 2026-09-06): Periodično čiščenje potekelih WS sej.
+// Prej: wsSessions Map je bila cleaned-up samo ob verifyWsToken klicu.
+// Če uporabnik odjavi/zapre browser brez eksplicitnega logout-a, session
+// ostane v Map-u dokler nekdo ne poskusi uporabiti ta token.
+// Sedaj: vsakih 5 minut iteriramo čez vse sessions in izbrišemo potekle.
+const WS_SESSION_CLEANUP_INTERVAL = 5 * 60 * 1000 // 5 minut
+setInterval(() => {
+  const now = Date.now()
+  let cleanedCount = 0
+  for (const [token, session] of wsSessions) {
+    if (session.expiresAt < now || session.absoluteExpiry < now) {
+      wsSessions.delete(token)
+      cleanedCount++
+    }
+  }
+  if (cleanedCount > 0 && dev) {
+    console.log(`[WS] Cleanup: izbrisanih ${cleanedCount} potekelih sej (active: ${wsSessions.size})`)
+  }
+}, WS_SESSION_CLEANUP_INTERVAL)
+
 /**
  * Preveri veljavnost Bearer tokena za WS povezavo
  * Token se preverja iz: 1) query parametra ?token=xxx  2) AUTH sporočila

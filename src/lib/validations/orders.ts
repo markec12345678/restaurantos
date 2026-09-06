@@ -9,14 +9,58 @@ import { cuid, positiveNumber } from './shared'
 // NAROČILA (Orders)
 // ============================================
 
+// FIX P3 (audit 2026-09-06): Nested validacija za OrderItem.modifiersJson.
+// Prej: modifiersJson je bil samo preverjen kot "parseable JSON" — vsebina
+// ni bila validirana. Napadalec lahko pošlje:
+//   - Ogromne stringe (DoS)
+//   - Negativne cene (finančne napake na računu)
+//   - Neveljavne modifierGroupId (XSS v KDS prikazu)
+//   - Poljubne strukture, ki zlomijo JSON.parse v drugih delih kode
+//
+// Sedaj: modifiersJson je strict Zod validiran array z omejitvami.
+// Če klient pošlje neveljaven modifier, dobi 400 z natančnim sporočilom.
+//
+// Backward-compat: če modifiersJson manjka, default = '[]' (prazen array).
+// Če je JSON valid ampak ne ustreza shemi, vržemo Zod napako.
+const orderItemModifierSchema = z.object({
+  name: z.string().min(1, 'Ime modifierja je obvezno').max(100, 'Ime modifierja ne sme preseči 100 znakov'),
+  price: z.number().min(-1000, 'Cena modifierja ne more biti pod -1000').max(10000, 'Cena modifierja ne more preseči 10.000'),
+  quantity: z.number().int().min(1, 'Količina modifierja mora biti vsaj 1').max(99, 'Količina modifierja ne more preseči 99').optional(),
+  modifierGroupId: z.string().max(100).optional(),
+}).strict() // strict() — zavrne nepoznana polja (prepreči injection)
+
+// Validacija modifiersJson: string → parse → validiraj vsak modifier → vrni originalni string
+// Uporablja superRefine da ohranja input type (string) in doda validacijo vsebine
+const modifiersJsonSchema = z.string().max(10000, 'modifiersJson ne sme preseči 10.000 znakov').default('[]').superRefine((val, ctx) => {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(val)
+  } catch {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'modifiersJson mora biti veljaven JSON',
+    })
+    return
+  }
+  // Validiraj vsebino z Zod
+  const result = z.array(orderItemModifierSchema).safeParse(parsed)
+  if (!result.success) {
+    for (const issue of result.error.issues) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Neveljaven modifier: ${issue.message}`,
+        path: ['modifiersJson'],
+      })
+    }
+  }
+})
+
 export const createOrderItemSchema = z.object({
   menuItemId: cuid,
   quantity: z.number().int().min(1, 'Količina mora biti vsaj 1').max(99, 'Količina ne more preseči 99'),
   price: positiveNumber.optional(), // FIX HIGH: Price je opcijski — strežnik uporabi ceno iz baze (edini vir resnice)
   notes: z.string().max(500, 'Opombe ne smejo preseči 500 znakov').default(''),
-  modifiersJson: z.string().default('[]').refine(val => {
-    try { JSON.parse(val); return true } catch { return false }
-  }, 'modifiersJson mora biti veljaven JSON'),
+  modifiersJson: modifiersJsonSchema,
 })
 
 export const createOrderSchema = z.object({
