@@ -131,6 +131,71 @@ All notable changes to RestaurantOS are documented in this file.
 
 ---
 
+## [v1.0.3] — 2026-09-07 — Design Polish + Self-Service Settings + UX
+
+### 🎨 Design Polish + Self-Service Settings Series (rounds P12-P17, 965 tests)
+
+### P12: Design Improvements — Square/Toast-inspired UI
+- **Added:** Micro-interactions (`.btn-press`, `.card-lift`, `fade-in-up`, `pulse-glow`)
+- **Added:** Negative space improvements (KDS padding px-3→px-4, py-2→py-3)
+- **Added:** Color-coded status badges (KDS timer: green/amber/red with pulse glow)
+- **Added:** Loading shimmer animation, smooth scrollbars
+- **Redesigned:** `ElapsedTimer` with `variant` prop (badge | text)
+
+### P13: UX Polish — Table Gradients + Empty States + Keyboard Shortcuts
+- **Updated:** Table status colors — gradient backgrounds (emerald, amber, blue, gray)
+- **Added:** `EmptyState` reusable component (icon + title + description + action)
+- **Added:** `KeyboardShortcutsDialog` — 20+ shortcuts in 5 categories (trigger: `?`)
+- **Added:** Status dot glow shadows
+
+### P14: Self-Service Settings — AI + Integrations + Email
+- **Added:** AI tab (Gemini API key, AI forecasts, AI assistant, voice ordering)
+- **Added:** Integrations tab (Stripe, Twilio, Glovo, Wolt, e-Računi, Webhooks)
+- **Added:** Email tab (SMTP, sender, recipients, test email)
+- **Updated:** SettingsManager: 5 → 8 tabs (grid-cols-5 → grid-cols-8)
+- **Updated:** Settings API — integration fields stored in `apiKeys` JSON column
+- **Added:** Zod validation for all new fields
+- **Security:** All secrets masked in responses, status flags (hasGeminiKey, hasStripe, etc.)
+
+### P15: ETag Caching + Notification Center
+- **Added:** ETag on `/api/menu-items`, `/api/tables`, `/api/configuration` (4 total with P9)
+- **Added:** `NotificationCenter` component — real-time WebSocket notifications
+  - 5 notification types (success, warning, error, info, order)
+  - Bell icon with unread badge counter
+  - Dropdown panel with mark-read/clear-all/dismiss
+  - WS connection status indicator
+
+### P16: Keyboard Shortcut Handlers
+- **Added:** `KeyboardShortcutsHandler` — renderless component with actual handlers
+  - Ctrl+1-5: Module navigation (POS, KDS, Tables, Cash, Dashboard)
+  - Ctrl+N: New order, Ctrl+P: Pay, Ctrl+B: Bump, Ctrl+D: Add items, Ctrl+V: Void
+  - Event-driven pattern (dispatches CustomEvent on window)
+  - Haptic feedback on each shortcut
+
+### P17: Landing Page Polish + CSS Effects
+- **Updated:** Landing page stats (965 tests, 230+ API, 16 audit rounds, 0 HIGH)
+- **Updated:** Pricing aligned with dual licensing (Starter €0 AGPL, Pro €200/loc/mo)
+- **Added:** CSS effects: `.module-enter`, `.glass`, `.gradient-text-*`, `.btn-glow`
+- **Updated:** Version badge v1.0.0 → v1.0.2
+
+### Setup Progress Indicator
+- **Added:** `SetupProgress` on Dashboard — shows which settings are configured
+  - Progress bar (X/Y = Z%)
+  - 8 checklist items with status icons (✓ ⚠ ✗)
+  - Critical warning for missing FURS/Email
+  - Success message when 100% configured
+
+### FURS Environment
+- **Set:** `FURS_ENVIRONMENT=test` on Vercel production
+- **Verified:** FURS test mode active (no certificate required)
+
+### Test Coverage
+- **965 unit tests** (up from 937)
+- **149 E2E tests** (unchanged)
+- All tests pass: 965/965
+
+---
+
 ## [v1.0.1] — 2026-09-05 — P0-C1..C5 Security Hardening
 
 ### 🔒 Security Hardening Series (65+ commits, 901 unit + 149 E2E tests, CI 5/5 green, A++ rating, Production LIVE)
