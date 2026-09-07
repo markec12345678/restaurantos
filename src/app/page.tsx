@@ -7,6 +7,7 @@ import { HappyHourBanner } from '@/components/pos/HappyHourBanner'
 import { GlobalNotifications } from '@/components/pos/GlobalNotifications'
 import { CommandPalette } from '@/components/pos/command-palette/CommandPalette'
 import { KeyboardShortcutsDialog } from '@/components/pos/keyboard-shortcuts/KeyboardShortcutsDialog'
+import { KeyboardShortcutsHandler } from '@/components/pos/keyboard-shortcuts/KeyboardShortcutsHandler'
 import { NotificationCenter } from '@/components/pos/notification-center/NotificationCenter'
 import { useMemo } from 'react'
 import { useModulePrefetch } from '@/lib/use-module-prefetch'
@@ -76,6 +77,8 @@ export default function POSPage() {
       <CommandPalette />
       {/* Keyboard Shortcuts Dialog (? ali Ctrl+/) — prikaz vseh bližnjic */}
       <KeyboardShortcutsDialog />
+      {/* Keyboard Shortcuts Handler — dejanski handler-ji za Ctrl+1-5, N, P, B, D, V */}
+      <KeyboardShortcutsHandler />
       {/* PWA install prompt — prikaže se ko brskalnik dovoljuje namestitev */}
       <PwaInstallPrompt />
     </div>
