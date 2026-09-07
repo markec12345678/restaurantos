@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Settings, Building2, Shield, Receipt, Percent, Globe,
+  Sparkles, Plug, Mail,
   Save,
 } from 'lucide-react'
 import { memo } from 'react'
@@ -17,6 +18,9 @@ const CompanyTab = dynamic(() => import('./settings/CompanyTab').then(m => ({ de
 const TaxTab = dynamic(() => import('./settings/TaxTab').then(m => ({ default: m.TaxTab })), { ssr: false })
 const FursTab = dynamic(() => import('./settings/FursTab').then(m => ({ default: m.FursTab })), { ssr: false })
 const ReceiptTab = dynamic(() => import('./settings/ReceiptTab').then(m => ({ default: m.ReceiptTab })), { ssr: false })
+const AiTab = dynamic(() => import('./settings/AiTab').then(m => ({ default: m.AiTab })), { ssr: false })
+const IntegrationsTab = dynamic(() => import('./settings/IntegrationsTab').then(m => ({ default: m.IntegrationsTab })), { ssr: false })
+const EmailTab = dynamic(() => import('./settings/EmailTab').then(m => ({ default: m.EmailTab })), { ssr: false })
 const SettingsStatusBar = dynamic(() => import('./settings/SettingsStatusBar').then(m => ({ default: m.SettingsStatusBar })), { ssr: false })
 
 // ============================================
@@ -70,7 +74,7 @@ export const SettingsManager = memo(function SettingsManager() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="country" className="gap-1.5">
             <Globe className="h-3.5 w-3.5" /> Država
           </TabsTrigger>
@@ -85,6 +89,15 @@ export const SettingsManager = memo(function SettingsManager() {
           </TabsTrigger>
           <TabsTrigger value="receipt" className="gap-1.5">
             <Receipt className="h-3.5 w-3.5" /> Račun
+          </TabsTrigger>
+          <TabsTrigger value="ai" className="gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" /> AI
+          </TabsTrigger>
+          <TabsTrigger value="integrations" className="gap-1.5">
+            <Plug className="h-3.5 w-3.5" /> Integracije
+          </TabsTrigger>
+          <TabsTrigger value="email" className="gap-1.5">
+            <Mail className="h-3.5 w-3.5" /> Email
           </TabsTrigger>
         </TabsList>
 
@@ -133,6 +146,30 @@ export const SettingsManager = memo(function SettingsManager() {
         {/* TAB: NOGA RAČUNA */}
         <TabsContent value="receipt" className="space-y-4 mt-4">
           <ReceiptTab
+            form={form}
+            updateField={updateField}
+          />
+        </TabsContent>
+
+        {/* TAB: AI NASTAVITVE */}
+        <TabsContent value="ai" className="space-y-4 mt-4">
+          <AiTab
+            form={form}
+            updateField={updateField}
+          />
+        </TabsContent>
+
+        {/* TAB: INTEGRACIJE */}
+        <TabsContent value="integrations" className="space-y-4 mt-4">
+          <IntegrationsTab
+            form={form}
+            updateField={updateField}
+          />
+        </TabsContent>
+
+        {/* TAB: EMAIL / SMTP */}
+        <TabsContent value="email" className="space-y-4 mt-4">
+          <EmailTab
             form={form}
             updateField={updateField}
           />
