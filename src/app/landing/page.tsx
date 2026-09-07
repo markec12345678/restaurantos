@@ -42,11 +42,11 @@ function useScrollReveal() {
 
 // ═══ Data ═══
 const stats = [
-  { value: 94, suffix: '', label: 'tabel v bazi', icon: Database },
+  { value: 965, suffix: '', label: 'unit testov', icon: Database },
   { value: 439, suffix: '', label: 'artiklov menija', icon: ShoppingBag },
-  { value: 152, suffix: '', label: 'API endpointov', icon: Terminal },
-  { value: 97, suffix: '%', label: 'varnostna ocena', icon: Shield },
-  { value: 144, suffix: '/149', label: 'E2E testov PASS', icon: Check },
+  { value: 230, suffix: '+', label: 'API endpointov', icon: Terminal },
+  { value: 16, suffix: '', label: 'audit rund', icon: Shield },
+  { value: 0, suffix: '', label: 'HIGH ranljivosti', icon: Check },
   { value: 0, suffix: '.00€', label: 'financial diff', icon: TrendingUp },
 ]
 
@@ -130,30 +130,29 @@ const pricing = [
     name: 'Starter',
     price: '0€',
     period: '/mesec',
-    desc: 'Za majhne restavracije in testiranje',
+    desc: 'AGPL-3.0 open source — brezplačno za vedno',
     features: [
-      'Vercel Hobby (10s timeout)',
-      'Neon free tier (0.5 GB)',
-      'FURS simulacijski način',
       '1 lokacija',
-      'Email podpora',
+      'FURS test mode (simulacija)',
+      'QR meni za goste',
+      'Offline PWA + IndexedDB',
+      'Community podpora (GitHub)',
     ],
     cta: 'Začni brezplačno',
     highlight: false,
   },
   {
-    name: 'Pro',
-    price: '20€',
-    period: '/mesec',
-    desc: 'Za produkcijo z FURS potrjevanjem',
+    name: 'Professional',
+    price: '200€',
+    period: '/lokacija/mesec',
+    desc: 'Commercial license — za pravi produksijski POS',
     features: [
-      'Vercel Pro (60s timeout)',
-      'Neon Scale (10 GB)',
+      'Vse iz Starter +',
+      'Commercial license (no AGPL)',
       'FURS produkcija (.p12 cert)',
-      '1-min cron (outbox sync)',
-      'Multi-tenant (več lokacij)',
-      'Sentry error tracking',
-      'Priority podpora',
+      'AI napovedi + asistent',
+      'Stripe, Glovo, Wolt integracije',
+      'Priority podpora (24h)',
     ],
     cta: 'Začni 14-dnevni trial',
     highlight: true,
@@ -163,15 +162,14 @@ const pricing = [
     name: 'Enterprise',
     price: 'Po dogovoru',
     period: '',
-    desc: 'Za verige in franšize',
+    desc: 'Za verige in franšize (50+ lokacij)',
     features: [
-      'Dedicated infrastructure',
-      'Neon Scale-out (100+ GB)',
-      'Custom SLA (99.9% uptime)',
-      'Unlimited lokacij',
-      'Stripe Terminal integracija',
+      'Neomejene lokacije',
+      'SLA 99.9% uptime',
+      'Dedicated podpora (24/7 P1)',
       'Custom integrations',
-      '24/7 telefon podpora',
+      'White-label možnost',
+      'On-site namestitev',
     ],
     cta: 'Kontakt za demo',
     highlight: false,
@@ -250,7 +248,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center font-bold text-gray-900">R</div>
             <span className="font-bold text-lg">RestaurantOS</span>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-medium">v1.0.0</span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-medium">v1.0.2</span>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm text-gray-400">
             <a href="#features" className="hover:text-white transition">Funkcije</a>
@@ -269,7 +267,7 @@ export default function LandingPage() {
         <div className="max-w-5xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gray-800/50 border border-gray-700 text-sm text-gray-400 mb-8">
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            Production Ready · 144/149 E2E testov PASS
+            Production Ready · 965 testov · 16 audit rund · A++ varnost
           </div>
 
           <h1 className="text-5xl sm:text-7xl font-black mb-6 leading-tight">
@@ -283,15 +281,15 @@ export default function LandingPage() {
           </h1>
 
           <p className="text-lg sm:text-xl text-gray-400 mb-10 max-w-3xl mx-auto leading-relaxed">
-            FURS potrjevanje, offline delovanje, multi-tenant arhitektura in
+            FURS potrjevanje, offline delovanje, AI napovedi, multi-tenant arhitektura in
             računovodstvo z <span className="text-amber-400 font-semibold">€0.00 razliko</span>.
-            Vse v enem sistemu.
+            Vse v enem sistemu — <span className="text-emerald-400 font-semibold">dual licensing</span> (AGPL + Commercial).
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Link
               href="/"
-              className="group flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-gray-900 rounded-xl font-bold text-lg transition shadow-2xl shadow-amber-500/30 hover:scale-105"
+              className="group flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-gray-900 rounded-xl font-bold text-lg transition shadow-2xl shadow-amber-500/30 hover:scale-105 btn-glow"
             >
               Zaženi demo
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition" />
