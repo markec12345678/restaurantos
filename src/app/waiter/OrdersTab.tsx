@@ -27,7 +27,7 @@ export const OrdersTab = memo(function OrdersTab({ orders, onMarkServed, getElap
   }
 
   return (
-    <div className="p-3 space-y-2">
+    <div className="p-3 space-y-2.5">
       {orders.map(order => {
         const isExpanded = expandedOrder === order.id
         // FIX WAITER CRASH: order.items je lahko undefined če API ne vrača include-a
@@ -35,30 +35,41 @@ export const OrdersTab = memo(function OrdersTab({ orders, onMarkServed, getElap
         const readyItems = orderItems.filter(i => i.status === 'ready')
         const elapsed = getElapsed(order.firedAt)
         const statusColor = order.status === 'ready' ? 'bg-emerald-500' : order.status === 'in-progress' ? 'bg-blue-500' : order.status === 'pending' ? 'bg-orange-500' : 'bg-muted'
+        const isUrgent = elapsed >= 25
+        const isWarning = elapsed >= 15 && !isUrgent
 
         return (
-          <div key={order.id} className="rounded-xl border bg-card overflow-hidden">
+          <div key={order.id} className={cn(
+            'rounded-xl border bg-card overflow-hidden transition-all duration-200 animate-fade-in-up card-lift',
+            isUrgent && 'border-red-300 shadow-red-100',
+            isWarning && !isUrgent && 'border-amber-300',
+          )}>
             <button onClick={() => setExpandedOrder(isExpanded ? null : order.id)}
-              className="w-full flex items-center justify-between px-4 py-3 touch-manipulation min-h-[56px]">
+              className="w-full flex items-center justify-between px-4 py-3.5 touch-manipulation min-h-[56px] btn-press">
               <div className="flex items-center gap-3">
-                <div className={cn('w-2 h-8 rounded-full', statusColor)} />
+                <div className={cn('w-2.5 h-9 rounded-full transition-colors', statusColor)} />
                 <div className="text-left">
                   <div className="flex items-center gap-2">
                     <span className="font-bold">#{order.orderNumber}</span>
                     {order.table && <span className="text-sm font-black px-2 py-0.5 rounded bg-primary/15 text-primary">Miza {order.table.number}</span>}
                     {order.type === 'TAKEOUT' && <ShoppingBag className="w-3.5 h-3.5 text-blue-500" />}
                   </div>
-                  <p className="text-xs text-muted-foreground">{order.employee?.name || '—'} · {orderItems.length} artiklov</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{order.employee?.name || '—'} · {orderItems.length} artiklov</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 {readyItems.length > 0 && (
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                  <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 animate-fade-in-up">
                     {readyItems.length} pripravljenih
                   </span>
                 )}
-                <span className="text-xs text-muted-foreground">{elapsed}min</span>
-                <ChevronRight className={cn('w-4 h-4 transition-transform', isExpanded && 'rotate-90')} />
+                <span className={cn(
+                  'text-xs font-bold tabular-nums px-2 py-1 rounded-md',
+                  isUrgent ? 'bg-red-100 text-red-700' : isWarning ? 'bg-amber-100 text-amber-700' : 'text-muted-foreground'
+                )}>
+                  {elapsed}min
+                </span>
+                <ChevronRight className={cn('w-4 h-4 transition-transform duration-200 text-muted-foreground', isExpanded && 'rotate-90')} />
               </div>
             </button>
 

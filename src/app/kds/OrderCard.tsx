@@ -36,10 +36,10 @@ export const OrderCard = memo(function OrderCard({
   }
   return (
     <div className={cn(
-      'relative rounded-xl border-2 overflow-hidden transition-all shadow-md flex flex-col',
+      'relative rounded-xl border-2 overflow-hidden transition-all duration-300 shadow-md flex flex-col animate-fade-in-up card-lift',
       allReady ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20' :
-      isDanger ? 'border-red-500 bg-red-50/50 dark:bg-red-950/20 animate-pulse' :
-      isWarning ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/20' :
+      isDanger ? 'border-red-500 bg-red-50/50 dark:bg-red-950/20 animate-pulse-glow-red' :
+      isWarning ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/20 animate-pulse-glow-amber' :
       'border-border bg-card',
       order.priority && 'ring-2 ring-orange-500 ring-offset-2'
     )}>
@@ -49,16 +49,16 @@ export const OrderCard = memo(function OrderCard({
           QR
         </div>
       )}
-      {/* Glava */}
+      {/* Glava — več negativnega prostora (Square-inspired) */}
       <div className={cn(
-        'flex items-center justify-between px-3 py-2 text-white font-bold text-sm',
+        'flex items-center justify-between px-4 py-3 text-white font-bold text-sm',
         allReady ? 'bg-emerald-600' :
         isDanger ? 'bg-red-600' :
         isWarning ? 'bg-amber-600' :
         'bg-orange-600'
       )}>
-        <div className="flex items-center gap-2">
-          <span className="text-lg font-black">#{order.orderNumber}</span>
+        <div className="flex items-center gap-2.5">
+          <span className="text-lg font-black">{order.orderNumber}</span>
           {order.table && (
             <span className="bg-white/20 px-2 py-0.5 rounded text-xs font-bold">
               Miza {order.table.number}
@@ -67,15 +67,15 @@ export const OrderCard = memo(function OrderCard({
           <span className="text-xs opacity-80">{typeLabels[order.type] || order.type}</span>
         </div>
         <div className="flex items-center gap-2">
-          <Clock className="w-3.5 h-3.5" />
+          <Clock className="w-3.5 h-3.5 opacity-70" />
           <ElapsedTimer startTime={order.firedAt} />
         </div>
       </div>
-      {/* Artikli */}
-      <div className="flex-1 px-3 py-2 space-y-1 overflow-y-auto">
+      {/* Artikli — več padding-a in spacing-a */}
+      <div className="flex-1 px-3 py-3 space-y-2 overflow-y-auto smooth-scroll">
         {preparingItems.map(item => (
           <div key={item.id}
-            className="flex items-center justify-between py-1.5 px-2.5 rounded-lg bg-white dark:bg-card border text-sm cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-colors touch-manipulation min-h-[44px]"
+            className="flex items-center justify-between py-2 px-3 rounded-lg bg-white dark:bg-card border text-sm cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-all duration-150 touch-manipulation min-h-[44px] btn-press"
             onClick={() => onBumpItem(order.id, item.id)}
           >
             <div className="flex-1 min-w-0">
@@ -95,13 +95,13 @@ export const OrderCard = memo(function OrderCard({
                 const list = allergens.split(',').map(a => a.trim()).filter(Boolean)
                 if (list.length === 0) return null
                 return (
-                  <div className="ml-7 text-xs text-red-700 dark:text-red-400 font-bold flex items-center gap-1 bg-red-100 dark:bg-red-950/40 px-1.5 py-0.5 rounded-md w-fit">
+                  <div className="ml-7 mt-1 text-xs text-red-700 dark:text-red-400 font-bold flex items-center gap-1 bg-red-100 dark:bg-red-950/40 px-1.5 py-0.5 rounded-md w-fit">
                     <AlertTriangle className="w-3 h-3" /> ALERGENI: {list.join(', ')}
                   </div>
                 )
               })()}
               {item.notes && (
-                <div className="ml-7 text-xs text-orange-600 font-semibold flex items-center gap-1">
+                <div className="ml-7 mt-1 text-xs text-orange-600 font-semibold flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" /> {item.notes}
                 </div>
               )}
@@ -113,7 +113,7 @@ export const OrderCard = memo(function OrderCard({
         ))}
         {readyItems.map(item => (
           <div key={item.id}
-            className="flex items-center justify-between py-1.5 px-2.5 rounded-lg bg-emerald-100 dark:bg-emerald-950/40 text-sm cursor-pointer hover:bg-emerald-200 transition-colors touch-manipulation min-h-[44px]"
+            className="flex items-center justify-between py-2 px-3 rounded-lg bg-emerald-100 dark:bg-emerald-950/40 text-sm cursor-pointer hover:bg-emerald-200 transition-all duration-150 touch-manipulation min-h-[44px] btn-press"
             onClick={() => onBumpItem(order.id, item.id)}
           >
             <div className="flex-1 min-w-0">
@@ -126,8 +126,8 @@ export const OrderCard = memo(function OrderCard({
           </div>
         ))}
       </div>
-      {/* Spodnja vrstica */}
-      <div className="px-3 py-2 border-t flex items-center justify-between bg-muted/30">
+      {/* Spodnja vrstica — več padding-a */}
+      <div className="px-4 py-3 border-t flex items-center justify-between bg-muted/30">
         <div className="text-xs text-muted-foreground">
           {order.employee?.name || '—'}
           {order.notes && <span className="ml-2 text-orange-600 font-semibold">★ {order.notes}</span>}
@@ -135,10 +135,10 @@ export const OrderCard = memo(function OrderCard({
         <button
           onClick={() => onBump(order.id)}
           className={cn(
-            'px-4 py-2 rounded-lg font-bold text-sm transition-all active:scale-95 touch-manipulation min-h-[44px]',
+            'px-5 py-2 rounded-lg font-bold text-sm transition-all duration-150 active:scale-95 touch-manipulation min-h-[44px] btn-press',
             allReady
-              ? 'bg-emerald-500 text-white hover:bg-emerald-600'
-              : 'bg-orange-500 text-white hover:bg-orange-600'
+              ? 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm'
+              : 'bg-orange-500 text-white hover:bg-orange-600 shadow-sm'
           )}
         >
           {allReady ? '✓ BUMP' : 'BUMP vse'}
