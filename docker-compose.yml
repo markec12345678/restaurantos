@@ -1,0 +1,92 @@
+# ============================================
+# RestaurantOS — Docker Compose (self-hosted)
+# ============================================
+# Za self-hosted deployment brez Vercel/Neon.
+# Vključuje: PostgreSQL + Redis + RestaurantOS
+#
+# Uporaba:
+#   1. Kopiraj .env.example v .env
+#   2. Spremeni DATABASE_URL v: postgresql://restaurantos:password@db:5432/restaurantos
+//   3. Zaženi: docker compose up -d
+//   4. Odpri: http://localhost:3000
+// ============================================
+
+services:
+  # ─── PostgreSQL Database ─────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: restaurantos-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: restaurantos
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_DB: restaurantos
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U restaurantos"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis Cache (optional) ─────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: restaurantos-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── RestaurantOS App ───────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: restaurantos-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database — poveže na docker postgres
+      DATABASE_URL: postgresql://restaurantos:${DB_PASSWORD:-changeme}@db:5432/restaurantos?schema=public
+
+      # Auth
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-this-in-production}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+
+      # Redis
+      REDIS_URL: redis://redis:6379
+
+      # FURS (test privzeto)
+      FURS_ALLOW_SIMULATION: ${FURS_ALLOW_SIMULATION:-true}
+      FURS_ENVIRONMENT: ${FURS_ENVIRONMENT:-test}
+
+      # Sentry (optional)
+      SENTRY_DSN: ${SENTRY_DSN:-}
+
+      # App
+      NODE_ENV: production
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    ports:
+      - "3000:3000"
+    volumes:
+      - app_uploads:/app/upload
+      - app_public:/app/public
+
+volumes:
+  db_data:
+  redis_data:
+  app_uploads:
+  app_public:
