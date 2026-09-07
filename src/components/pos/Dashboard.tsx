@@ -21,6 +21,7 @@ const HeatmapSection = dynamic(() => import('./dashboard/HeatmapSection').then((
 const BreakdownSection = dynamic(() => import('./dashboard/BreakdownSection').then((m) => m.BreakdownSection), { ssr: false })
 const RecentActivity = dynamic(() => import('./dashboard/RecentActivity').then((m) => m.RecentActivity), { ssr: false })
 const StockAndKitchen = dynamic(() => import('./dashboard/StockAndKitchen').then((m) => m.StockAndKitchen), { ssr: false })
+const SetupProgress = dynamic(() => import('./setup-progress/SetupProgress').then((m) => m.SetupProgress), { ssr: false })
 
 export const Dashboard = memo(function Dashboard() {
   const { setActiveModule } = usePOSStore()
@@ -94,6 +95,9 @@ export const Dashboard = memo(function Dashboard() {
         <StatsCard title="Bruto dobiček" value={`€${safeToFixed(data?.grossProfit || 0, 2)}`} subtitle={(data?.grossMargin || 0) > 0 ? `Marža: ${data?.grossMargin}%` : undefined} icon={PiggyBank} trend={(data?.grossMargin || 0) > 50 ? 'up' : 'down'} />
         <StatsCard title="FURS overjeno" value={data?.fursStatus?.todayVerified || 0} subtitle={(data?.fursStatus?.todayUnverified || 0) > 0 ? `${data?.fursStatus?.todayUnverified} brez overjanja` : 'Vse overjeno'} icon={Shield} trend={(data?.fursStatus?.todayUnverified || 0) === 0 ? 'up' : 'down'} />
       </div>
+
+      {/* Setup Progress — pokazuje kaj je nastavljeno, kaj manjka */}
+      <SetupProgress />
 
       {/* WoW primerjava */}
       <WoWComparison wow={computed.wow} wowChartData={computed.wowChartData} />
