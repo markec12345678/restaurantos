@@ -59,6 +59,18 @@ export async function GET(req: Request) {
     // - fursCertPassword, fursCertPath: FURS certifikat (že maskirano prej)
     // - emailSmtpPassword: SMTP geslo za pošiljanje email poročil (prej leakano!)
     const { fursCertPassword, fursCertPath, emailSmtpPassword, ...safeSettings } = settings
+
+    // FIX P14: Preberi AI/integration nastavitve iz apiKeys JSON field
+    let integrationSettings: Record<string, unknown> = {}
+    try {
+      const apiKeysRaw = JSON.parse(settings.apiKeys || '{}')
+      if (typeof apiKeysRaw === 'object' && !Array.isArray(apiKeysRaw)) {
+        integrationSettings = apiKeysRaw
+      }
+    } catch {
+      // apiKeys ni valid JSON — ignore
+    }
+
     return NextResponse.json({
       ...safeSettings,
       fursCertPassword: fursCertPassword ? '••••••' : '',
@@ -66,6 +78,21 @@ export async function GET(req: Request) {
       hasFursCert: !!(fursCertPath && fursCertPassword), // Povej samo ali obstaja
       emailSmtpPassword: emailSmtpPassword ? '••••••' : '',
       hasEmailConfig: !!(emailSmtpPassword && settings.emailSmtpUser),
+      // Integration nastavitve (maskiraj gesla/tokene)
+      ...integrationSettings,
+      stripeSecretKey: integrationSettings.stripeSecretKey ? '••••••' : '',
+      twilioAuthToken: integrationSettings.twilioAuthToken ? '••••••' : '',
+      geminiApiKey: integrationSettings.geminiApiKey ? '••••••' : '',
+      glovoWebhookSecret: integrationSettings.glovoWebhookSecret ? '••••••' : '',
+      woltWebhookSecret: integrationSettings.woltWebhookSecret ? '••••••' : '',
+      eracuniApiToken: integrationSettings.eracuniApiToken ? '••••••' : '',
+      // Status flagi (ne razkrivajo vrednosti)
+      hasGeminiKey: !!integrationSettings.geminiApiKey,
+      hasStripe: !!(integrationSettings.stripePublishableKey && integrationSettings.stripeSecretKey),
+      hasTwilio: !!(integrationSettings.twilioAccountSid && integrationSettings.twilioAuthToken),
+      hasGlovo: !!integrationSettings.glovoWebhookSecret,
+      hasWolt: !!integrationSettings.woltWebhookSecret,
+      hasEracuni: !!integrationSettings.eracuniApiToken,
     })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/settings', 'Napaka pri pridobivanju nastavitev')
@@ -152,18 +179,79 @@ export async function PUT(req: Request) {
         delete updateData.emailSmtpPassword // Ohrani staro če ni ekspliciten _clear
       }
 
+      // FIX P14: Izvleci AI in integracijska polja — ta ne obstajajo kot Prisma kolone.
+      // Shranjujejo se v `apiKeys` JSON polje (ki že obstaja v DB).
+      const integrationFields = [
+        'geminiApiKey', 'aiForecastEnabled', 'aiAssistantEnabled', 'aiVoiceOrderEnabled',
+        'stripePublishableKey', 'stripeSecretKey', 'stripeWebhookSecret',
+        'twilioAccountSid', 'twilioAuthToken', 'twilioPhoneNumber',
+        'glovoWebhookSecret', 'woltWebhookSecret',
+        'eracuniApiToken', 'eracuniApiUrl',
+      ]
+      const integrationData: Record<string, unknown> = {}
+      for (const field of integrationFields) {
+        if (field in updateData) {
+          integrationData[field] = (updateData as Record<string, unknown>)[field]
+          delete (updateData as Record<string, unknown>)[field] // Odstrani iz Prisma update-a
+        }
+      }
+
+      // FIX: emailSmtpPort je sedaj z.coerce.number() v Zod — avtomatska pretvorba
+
+      // Če imamo integration podatke, jih zlij v apiKeys JSON
+      if (Object.keys(integrationData).length > 0) {
+        // Preberi obstoječi apiKeys JSON
+        let existingApiKeys: unknown
+        try { existingApiKeys = JSON.parse(settings.apiKeys || '{}') } catch { existingApiKeys = {} }
+        const existingIntegrations = (typeof existingApiKeys === 'object' && existingApiKeys !== null && !Array.isArray(existingApiKeys))
+          ? existingApiKeys as Record<string, unknown>
+          : {}
+        const mergedIntegrations = { ...existingIntegrations, ...integrationData }
+        ;(updateData as Record<string, unknown>).apiKeys = JSON.stringify(mergedIntegrations)
+      }
+
       settings = await db.restaurantSettings.update({
         where: { id: settings.id },
-        data: updateData,
+        data: updateData as typeof updateData & { apiKeys?: string },
       })
     }
 
     // FIX SECURITY: Ne izpostavi gesel v odgovoru (fursCertPassword + emailSmtpPassword)
-    const { fursCertPassword, emailSmtpPassword, ...safeSettings } = settings
+    const { fursCertPassword, emailSmtpPassword, fursCertPath, ...safeSettings } = settings
+
+    // FIX P14: Preberi AI/integration nastavitve iz apiKeys JSON field
+    let integrationSettings: Record<string, unknown> = {}
+    try {
+      const apiKeysRaw = JSON.parse(settings.apiKeys || '{}')
+      if (typeof apiKeysRaw === 'object' && !Array.isArray(apiKeysRaw)) {
+        integrationSettings = apiKeysRaw
+      }
+    } catch {
+      // apiKeys ni valid JSON — ignore
+    }
+
     return NextResponse.json({
       ...safeSettings,
       fursCertPassword: fursCertPassword ? '••••••' : '',
+      fursCertPath: fursCertPath ? '••••••' : '',
+      hasFursCert: !!(fursCertPath && fursCertPassword),
       emailSmtpPassword: emailSmtpPassword ? '••••••' : '',
+      hasEmailConfig: !!(emailSmtpPassword && settings.emailSmtpUser),
+      // Integration nastavitve (maskiraj gesla/tokene)
+      ...integrationSettings,
+      stripeSecretKey: integrationSettings.stripeSecretKey ? '••••••' : '',
+      twilioAuthToken: integrationSettings.twilioAuthToken ? '••••••' : '',
+      geminiApiKey: integrationSettings.geminiApiKey ? '••••••' : '',
+      glovoWebhookSecret: integrationSettings.glovoWebhookSecret ? '••••••' : '',
+      woltWebhookSecret: integrationSettings.woltWebhookSecret ? '••••••' : '',
+      eracuniApiToken: integrationSettings.eracuniApiToken ? '••••••' : '',
+      // Status flagi (ne razkrivajo vrednosti)
+      hasGeminiKey: !!integrationSettings.geminiApiKey,
+      hasStripe: !!(integrationSettings.stripePublishableKey && integrationSettings.stripeSecretKey),
+      hasTwilio: !!(integrationSettings.twilioAccountSid && integrationSettings.twilioAuthToken),
+      hasGlovo: !!integrationSettings.glovoWebhookSecret,
+      hasWolt: !!integrationSettings.woltWebhookSecret,
+      hasEracuni: !!integrationSettings.eracuniApiToken,
     })
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/settings', 'Napaka pri posodabljanju nastavitev')
