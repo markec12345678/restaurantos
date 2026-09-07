@@ -90,7 +90,7 @@ jobs:
           echo "Skip-to-content: $SKIP" >> /tmp/test-results.txt
 
       - name: Upload results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: /tmp/test-results.txt
