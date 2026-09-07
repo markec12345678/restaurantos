@@ -6,6 +6,7 @@ import { KioskBar } from '@/components/pos/KioskBar'
 import { HappyHourBanner } from '@/components/pos/HappyHourBanner'
 import { GlobalNotifications } from '@/components/pos/GlobalNotifications'
 import { CommandPalette } from '@/components/pos/command-palette/CommandPalette'
+import { KeyboardShortcutsDialog } from '@/components/pos/keyboard-shortcuts/KeyboardShortcutsDialog'
 import { useMemo } from 'react'
 import { useModulePrefetch } from '@/lib/use-module-prefetch'
 import { moduleComponents, AIAssistant } from '@/app/components/module-registry'
@@ -70,6 +71,8 @@ export default function POSPage() {
       <AIAssistant />
       {/* Command Palette (Cmd+K / Ctrl+K) — hitra navigacija + akcije */}
       <CommandPalette />
+      {/* Keyboard Shortcuts Dialog (? ali Ctrl+/) — prikaz vseh bližnjic */}
+      <KeyboardShortcutsDialog />
       {/* PWA install prompt — prikaže se ko brskalnik dovoljuje namestitev */}
       <PwaInstallPrompt />
     </div>

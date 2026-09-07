@@ -42,20 +42,20 @@ export interface TableOrderData {
 
 // --- Konstante ---
 
-/** Barve miz glede na status */
+/** Barve miz glede na status — Toast-inspired z gradient backgrounds */
 export const statusColors: Record<string, string> = {
-  available: 'bg-emerald-100 border-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-800',
-  occupied: 'bg-red-100 border-red-300 dark:bg-red-900/30 dark:border-red-800',
-  reserved: 'bg-yellow-100 border-yellow-300 dark:bg-yellow-900/30 dark:border-yellow-800',
-  cleaning: 'bg-gray-100 border-gray-300 dark:bg-gray-800/50 dark:border-gray-700',
+  available: 'bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-400 dark:from-emerald-950/40 dark:to-emerald-900/20 dark:border-emerald-700 hover:shadow-emerald-200/50',
+  occupied: 'bg-gradient-to-br from-amber-50 to-amber-100 border-amber-400 dark:from-amber-950/40 dark:to-amber-900/20 dark:border-amber-700 hover:shadow-amber-200/50',
+  reserved: 'bg-gradient-to-br from-blue-50 to-blue-100 border-blue-400 dark:from-blue-950/40 dark:to-blue-900/20 dark:border-blue-700 hover:shadow-blue-200/50',
+  cleaning: 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-300 dark:from-gray-800/50 dark:to-gray-900/30 dark:border-gray-600 hover:shadow-gray-200/50',
 }
 
-/** Pike statusa mize */
+/** Pike statusa mize — z glow efektom */
 export const statusDot: Record<string, string> = {
-  available: 'bg-emerald-500',
-  occupied: 'bg-red-500',
-  reserved: 'bg-yellow-500',
-  cleaning: 'bg-gray-400',
+  available: 'bg-emerald-500 shadow-sm shadow-emerald-500/50',
+  occupied: 'bg-amber-500 shadow-sm shadow-amber-500/50',
+  reserved: 'bg-blue-500 shadow-sm shadow-blue-500/50',
+  cleaning: 'bg-gray-400 shadow-sm',
 }
 
 /** Oznake območij — slovenščina */
