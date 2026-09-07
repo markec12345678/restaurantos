@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { configPostSchema, allowedFields, modelMap, coerceFieldTypes } from './_helpers'
+import { withETag } from '@/lib/middleware/cache-headers'
 
 
 // FIX CRITICAL: Zahtevaj avtentikacijo za GET — konfiguracija vsebuje
@@ -45,7 +46,7 @@ export async function GET(req: Request) {
       db.discount.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, type: true, amount: true, appliesTo: true, triggerType: true, isActive: true, sortOrder: true } }),
     ])
 
-    return NextResponse.json({
+    const responseBody = {
       taxRates,
       diningOptions,
       revenueCenters,
@@ -58,7 +59,9 @@ export async function GET(req: Request) {
       alternatePaymentTypes,
       printers,
       discounts,
-    })
+    }
+    // FIX P15: ETag za configuration — konfiguracija se redko spreminja
+    return withETag(req, NextResponse.json(responseBody), responseBody)
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/configuration', 'Failed to fetch configuration')
   }

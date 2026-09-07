@@ -5,6 +5,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createTableSchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { withETag } from '@/lib/middleware/cache-headers'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,9 @@ export async function GET(req: Request) {
       orderBy: { number: 'asc' },
       include: { orders: { where: { status: { in: ['pending', 'in-progress', 'ready'] } }, take: 1 } },
     })
-    return NextResponse.json(deepToNumbers(tables))
+    const responseBody = deepToNumbers(tables)
+    // FIX P15: ETag za tables — mize se redko spreminjajo
+    return withETag(req, NextResponse.json(responseBody), responseBody)
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/tables', 'Napaka pri pridobivanju miz')
   }

@@ -7,6 +7,7 @@ import { HappyHourBanner } from '@/components/pos/HappyHourBanner'
 import { GlobalNotifications } from '@/components/pos/GlobalNotifications'
 import { CommandPalette } from '@/components/pos/command-palette/CommandPalette'
 import { KeyboardShortcutsDialog } from '@/components/pos/keyboard-shortcuts/KeyboardShortcutsDialog'
+import { NotificationCenter } from '@/components/pos/notification-center/NotificationCenter'
 import { useMemo } from 'react'
 import { useModulePrefetch } from '@/lib/use-module-prefetch'
 import { moduleComponents, AIAssistant } from '@/app/components/module-registry'
@@ -69,6 +70,8 @@ export default function POSPage() {
       </div>
       <GlobalNotifications />
       <AIAssistant />
+      {/* Notification Center — real-time obvestila iz WebSocket-a */}
+      <NotificationCenter />
       {/* Command Palette (Cmd+K / Ctrl+K) — hitra navigacija + akcije */}
       <CommandPalette />
       {/* Keyboard Shortcuts Dialog (? ali Ctrl+/) — prikaz vseh bližnjic */}

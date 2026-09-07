@@ -7,6 +7,7 @@ import { createMenuItemSchema } from '@/lib/validations'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { isItemAvailableNow } from '@/lib/mealtimes'
+import { withETag } from '@/lib/middleware/cache-headers'
 
 const createMenuItemWithModifiersSchema = createMenuItemSchema.extend({
   modifierGroupIds: z.array(z.string().min(1)).default([]),
@@ -99,7 +100,9 @@ export async function GET(request: Request) {
           .filter((item) => !hideUnavailable || item.isAvailable)
       : itemsRaw
 
-    return NextResponse.json({ menuItems: deepToNumbers(items), total, limit, offset })
+    const responseBody = { menuItems: deepToNumbers(items), total, limit, offset }
+    // FIX P15: ETag za menu-items — prepreči redundantne DB query-je
+    return withETag(request, NextResponse.json(responseBody), responseBody)
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/menu-items', 'Failed to fetch menu items')
   }
