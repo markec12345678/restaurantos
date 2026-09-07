@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="UTF-8">
+<title>RestaurantOS — Vizualna primerjava najlepših POS vmesnikov</title>
+<style>
+@page { size: 210mm 297mm; margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  font-family: 'Noto Sans SC', 'Inter', -apple-system, sans-serif;
+  background: #ffffff;
+  color: #1a1a2e;
+  width: 210mm;
+}
+.page {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 20mm 18mm;
+  page-break-after: always;
+  position: relative;
+}
+.page:last-child { page-break-after: auto; }
+
+/* Cover */
+.cover {
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #2d5a87 100%);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  min-height: 297mm;
+  padding: 40mm 25mm;
+}
+.cover h1 {
+  font-size: 38pt;
+  font-weight: 800;
+  margin-bottom: 10mm;
+  letter-spacing: -1px;
+  line-height: 1.2;
+}
+.cover .subtitle {
+  font-size: 14pt;
+  font-weight: 400;
+  opacity: 0.9;
+  margin-bottom: 25mm;
+  line-height: 1.6;
+}
+.cover .badge {
+  display: inline-block;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.3);
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 10pt;
+  margin-bottom: 15mm;
+}
+.cover .meta {
+  font-size: 10pt;
+  opacity: 0.7;
+  line-height: 1.8;
+}
+
+h2 {
+  font-size: 20pt;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 5mm;
+  padding-bottom: 3mm;
+  border-bottom: 3px solid #2d5a87;
+}
+h3 {
+  font-size: 13pt;
+  font-weight: 600;
+  color: #1e3a5f;
+  margin: 5mm 0 3mm 0;
+}
+p {
+  font-size: 10pt;
+  line-height: 1.6;
+  margin-bottom: 3mm;
+  color: #333;
+}
+
+/* Gallery grid */
+.gallery {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5mm;
+  margin: 4mm 0;
+}
+.gallery-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.gallery-item img {
+  width: 100%;
+  height: 65mm;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+}
+.gallery-item .label {
+  padding: 2mm 3mm;
+  font-size: 9pt;
+  font-weight: 600;
+  color: #1e3a5f;
+  background: #f1f5f9;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* Single large screenshot */
+.screenshot-large {
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin: 3mm 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.screenshot-caption {
+  font-size: 9pt;
+  color: #64748b;
+  text-align: center;
+  margin-top: 1mm;
+  margin-bottom: 4mm;
+}
+
+/* Design rating */
+.rating-box {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-left: 5px solid #2d5a87;
+  padding: 5mm;
+  border-radius: 0 8px 8px 0;
+  margin: 4mm 0;
+}
+.rating-box h3 { margin-top: 0; color: #0f172a; }
+
+.stars {
+  font-size: 16pt;
+  letter-spacing: 2px;
+}
+.star-full { color: #f59e0b; }
+.star-half { color: #f59e0b; opacity: 0.5; }
+.star-empty { color: #cbd5e1; }
+
+/* Comparison table */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 4mm 0;
+  font-size: 9pt;
+}
+th {
+  background: #1e3a5f;
+  color: white;
+  padding: 2.5mm;
+  text-align: left;
+  font-weight: 600;
+}
+td {
+  padding: 2mm 2.5mm;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: top;
+}
+tr:nth-child(even) td { background: #f8fafc; }
+
+/* Winner badge */
+.winner {
+  display: inline-block;
+  background: #16a34a;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 8pt;
+  font-weight: 700;
+}
+
+.footer {
+  position: absolute;
+  bottom: 8mm;
+  left: 18mm;
+  right: 18mm;
+  font-size: 8pt;
+  color: #94a3b8;
+  text-align: center;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 2mm;
+}
+
+/* Side-by-side comparison */
+.side-by-side {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4mm;
+  margin: 4mm 0;
+}
+.side-by-side .col {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.side-by-side .col-header {
+  background: #f1f5f9;
+  padding: 2mm 3mm;
+  font-weight: 700;
+  font-size: 10pt;
+  text-align: center;
+  border-bottom: 1px solid #e2e8f0;
+}
+.side-by-side .col-header.winner-header {
+  background: #16a34a;
+  color: white;
+}
+.side-by-side img {
+  width: 100%;
+  height: 70mm;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+}
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="page cover">
+  <div class="badge">Vizualna analiza designa 2026</div>
+  <h1>Najlepši POS vmesniki<br>na svetu</h1>
+  <div class="subtitle">
+    Kateri POS sistemi imajo najboljši design?<br>
+    Primerjava Toast, Square, Lightspeed in RestaurantOS
+  </div>
+  <div class="meta">
+    RestaurantOS v1.0.2 — Vizualna primerjava<br>
+    7. september 2026
+  </div>
+</div>
+
+<!-- DESIGN RANKING -->
+<div class="page">
+  <h2>Design ranking — najlepši POS vmesniki</h2>
+  <p>
+    Po analizi stotin screenshotov iz produktne dokumentacije, G2, Capterra
+    in YouTube reviewov smo ocenili design kvaliteto vseh večjih POS sistemov.
+    Kriteriji: modernost, čistost, tipografija, barvna paleta, uporabniška
+    izkušnja, organizacija informacij in mobilna optimizacija.
+  </p>
+
+  <table>
+    <tr>
+      <th>#</th>
+      <th>POS sistem</th>
+      <th>Design ocena</th>
+      <th>Najboljša lastnost</th>
+      <th>Šibka točka</th>
+    </tr>
+    <tr>
+      <td><strong>1</strong></td>
+      <td><strong>Square</strong></td>
+      <td><span class="stars"><span class="star-full">★★★★★</span></span></td>
+      <td>Minimalistični design, čista tipografija</td>
+      <td>Preglednost pri veliko artiklih</td>
+    </tr>
+    <tr>
+      <td><strong>2</strong></td>
+      <td><strong>Toast</strong></td>
+      <td><span class="stars"><span class="star-full">★★★★</span><span class="star-half">★</span></span></td>
+      <td>Barvno kodiranje statusov, KDS izgled</td>
+      <td>Dashboard je prenatrpan</td>
+    </tr>
+    <tr>
+      <td><strong>3</strong></td>
+      <td><strong>Lightspeed</strong></td>
+      <td><span class="stars"><span class="star-full">★★★★</span><span class="star-empty">★</span></span></td>
+      <td>Premium izgled, elegantna tipografija</td>
+      <td>Zastarela mobilna aplikacija</td>
+    </tr>
+    <tr>
+      <td><strong>4</strong></td>
+      <td><strong>RestaurantOS</strong></td>
+      <td><span class="stars"><span class="star-full">★★★★</span><span class="star-empty">★</span></span></td>
+      <td>5 jezikov, FURS integracija, PWA</td>
+      <td>Manj vizualnih efektov kot Square</td>
+    </tr>
+    <tr>
+      <td><strong>5</strong></td>
+      <td><strong>TouchBistro</strong></td>
+      <td><span class="stars"><span class="star-full">★★★</span><span class="star-empty">★★</span></span></td>
+      <td>Preprost iPad vmesnik</td>
+      <td>Zastarel design, šibka tipografija</td>
+    </tr>
+    <tr>
+      <td><strong>6</strong></td>
+      <td><strong>Clover</strong></td>
+      <td><span class="stars"><span class="star-full">★★★</span><span class="star-empty">★★</span></span></td>
+      <td>Funkcionalen, dober na strojni opremi</td>
+      <td>Zastarel dizajn, počasen na starejši opremi</td>
+    </tr>
+  </table>
+
+  <div class="rating-box">
+    <h3>Zakaj Square zmaga v designu?</h3>
+    <p>
+      Square ima najbolj moderen, minimalističen design z dosledno uporabo
+      negativnega prostora, čiste tipografije in omejene barvne palelete.
+      Njihov "less is more" pristop omogoča hitro navigacijo brez kognitivne
+      obremenitve. Vendar — Square <strong>ni na voljo v Sloveniji</strong> in
+      nima FURS potrjevanja, kar je kritično za slovenski trg.
+    </p>
+  </div>
+
+  <div class="footer">RestaurantOS — Vizualna primerjava najlepših POS vmesnikov — Stran 2</div>
+</div>
+
+<!-- SQUARE - #1 -->
+<div class="page">
+  <h2>#1 Square — najlepši POS design</h2>
+  <p>
+    Square je absolutni zmagovalec v design kvaliteti. Njihov vmesnik je
+    optimalen primer minimalističnega designa z maksimalno funkcionalnostjo.
+    Uporabljajo omejeno barvno paleto (črna, bela, ena poudarna barva),
+    dosledno tipografijo in veliko negativnega prostora.
+  </p>
+
+  <img src="square-beautiful-1.png" class="screenshot-large" style="height: 85mm; object-fit: cover;">
+  <div class="screenshot-caption">Square for Restaurants — prodajni zaslon (vir: Square)</div>
+
+  <h3>Design prednosti Square</h3>
+  <p>
+    <strong>1. Minimalizem:</strong> Samo esencialne informacije na zaslonu.
+    Brez odvračajočih elementov, kar omogoča hitro delo natakarjev.
+  </p>
+  <p>
+    <strong>2. Tipografija:</strong> Custom Square Sans font z odlično
+    berljivostjo. Hierarhija: 24pt naslovi, 16pt besedilo, 12pt oznake.
+  </p>
+  <p>
+    <strong>3. Barvna paleta:</strong> Monokromatska z eno poudarno barvo
+    (zelena za potrditve, rdeča za napake). Brez vizualnega šuma.
+  </p>
+  <p>
+    <strong>4. Mikro-interakcije:</strong> Subtilne animacije ob kliku,
+    hover efekti in gladki prehodi med zasloni.
+  </p>
+
+  <div class="footer">RestaurantOS — Vizualna primerjava najlepših POS vmesnikov — Stran 3</div>
+</div>
+
+<!-- SQUARE GALLERY -->
+<div class="page">
+  <h3>Square — dodatni screenshoti</h3>
+
+  <div class="gallery">
+    <div class="gallery-item">
+      <img src="square-beautiful-2.jpeg">
+      <div class="label">Square Online Ordering</div>
+    </div>
+    <div class="gallery-item">
+      <img src="square-kds-1.jpg">
+      <div class="label">Square KDS (kuhinjski zaslon)</div>
+    </div>
+  </div>
+
+  <p style="margin-top: 5mm;">
+    Square KDS je zgled za ostale sisteme — čiste kartice z naročili,
+    barvno kodiranje prioritete (rumena = čaka, zelena = v pripravi,
+    rdeča = zakasnelo), in timer ki spremeni barvo ko čas teče.
+  </p>
+
+  <h3>Zakaj Square izgleda tako dobro</h3>
+  <p>
+    Square ima lastno design ekipo (Jack Dorsey, soustanovitelj Twitterja,
+    je tudi soustanovitelj Squarea). Njihov design system je dokumentiran
+    in javno dostopen na design.squareup.com. Uporabljajo atomic design
+    methodology z 200+ komponentami.
+  </p>
+
+  <div class="footer">RestaurantOS — Vizualna primerjava najlepših POS vmesnikov — Stran 4</div>
+</div>
+
+<!-- TOAST - #2 -->
+<div class="page">
+  <h2>#2 Toast — najboljši za restavracije</h2>
+  <p>
+    Toast je na drugem mestu po designu, ampak je prvi po specializaciji
+    za restavracije. Njihov vmesnik je optimiziran za hitro delo v
+    gostinstvu z barvnim kodiranjem statusov in hitrimi bližnjicami.
+  </p>
+
+  <img src="toast-beautiful-1.png" class="screenshot-large" style="height: 85mm; object-fit: cover;">
+  <div class="screenshot-caption">Toast POS — prodajni zaslon z mizami (vir: Toast POS)</div>
+
+  <h3>Design prednosti Toast</h3>
+  <p>
+    <strong>1. Barvno kodiranje:</strong> Vsaka miza ima barvo glede na status
+    (zelena = prosta, rumena = zasedena, rdeča = čaka na plačilo). To omogoča
+    hitro orientacijo v stalnici.
+  </p>
+  <p>
+    <strong>2. KDS design:</strong> Toast KDS je najboljši v industriji —
+    velike čitljive kartice, timer z barvno spremembo, in "bump" funkcija
+    za hitro odstranjevanje končanih naročil.
+  </p>
+  <p>
+    <strong>3. Hitre akcije:</strong> Vse pogoste akcije (void, split, transfer)
+    so dostopne z 1 klikom, brez navigacije skozi menije.
+  </p>
+
+  <div class="footer">RestaurantOS — Vizualna primerjava najlepših POS vmesnikov — Stran 5</div>
+</div>
+
+<!-- TOAST GALLERY -->
+<div class="page">
+  <h3>Toast — dodatni screenshoti</h3>
+
+  <div class="gallery">
+    <div class="gallery-item">
+      <img src="toast-beautiful-2.png">
+      <div class="label">Toast — mize in tloris</div>
+    </div>
+    <div class="gallery-item">
+      <img src="toast-kds-1.png">
+      <div class="label">Toast KDS — kuhinjski zaslon</div>
+    </div>
+  </div>
+
+  <p style="margin-top: 5mm;">
+    Toast KDS je zlati standard za kuhinjske zaslone. Vsako naročilo je
+    prikazano kot kartica z: miza, natakar, čas naročila, artikli z
+    modifikatorji, in timer ki spremeni barvo (zelena → rumena → rdeča).
+    Kuharji "bumpajo" končana naročila z enim klikom.
+  </p>
+
+  <h3>Toast design slabosti</h3>
+  <p>
+    Toast dashboard je preveč natrpan z grafikoni in Metrikami, kar lahko
+    zamoti osredotočenost. Njihova mobilna aplikacija je šibka v primerjavi
+    z desktop verzijo. Barvna paleta je preveč "gostinska" (oranžna in
+    rjava) kar je lahko odvračajoče za fine dining.
+  </p>
+
+  <div class="footer">RestaurantOS — Vizualna primerjava najlepših POS vmesnikov — Stran 6</div>
+</div>
+
+<!-- LIGHTSPEED - #3 -->
+<div class="page">
+  <h2>#3 Lightspeed — premium in eleganten</h2>
+  <p>
+    Lightspeed ima najbolj "premium" izgled od vseh sistemov. Njihov design
+    je eleganten in moden, z motivom za fine dining in verige restavracij.
+    Tipografija je izpopolnjena, barvna paleta je sofisticirana.
+  </p>
+
+  <img src="lightspeed-beautiful-1.jpg" class="screenshot-large" style="height: 85mm; object-fit: cover;">
+  <div class="screenshot-caption">Lightspeed Restaurant — prodajni zaslon (vir: Flash)</div>
+
+  <h3>Design prednosti Lightspeed</h3>
+  <p>
+    <strong>1. Premium tipografija:</strong> Uporabljajo SF Pro in Inter
+    fonte z odlično hierarhijo. Besedilo je berljivo tudi na manjših zaslonih.
+  </p>
+  <p>
+    <strong>2. Sofisticirana paleta:</strong> Nevtralne barve (siva, bela,
+    temno modra) z diskretnimi poudarki. Idealno za fine dining in
+    luksuzne restavracije.
+  </p>
+  <p>
+    <strong>3. CRM integracija:</strong> Gost profili so lepo prikazani z
+    alergeni, preferencami in zgodovino obiskov — vse v enem preglednem
+    zaslonu.
+  </p>
+
+  <div class="footer">RestaurantOS — Vizualna primerjava najlepših POS vmesnikov — Stran 7</div>
+</div>
+
+<!-- LIGHTSPEED GALLERY -->
+<div class="page">
+  <h3>Lightspeed — dodatni screenshoti</h3>
+
+  <div class="gallery">
+    <div class="gallery-item">
+      <img src="lightspeed-beautiful-2.png">
+      <div class="label">Lightspeed — nadzorna plošča</div>
+    </div>
+    <div class="gallery-item">
+      <img src="lightspeed-1.jpg">
+      <div class="label">Lightspeed — mize in naročila</div>
+    </div>
+  </div>
+
+  <p style="margin-top: 5mm;">
+    Lightspeed dashboard je najbolj informativen med vsemi sistemi — prikazuje
+    real-time prodajo, popularne artikle, povprečni čas strežbe in napotitve
+    osebja. Vendar je lahko preveč kompleksen za manjše restavracije.
+  </p>
+
+  <h3>Lightspeed design slabosti</h3>
+  <p>
+    Lightspeedova mobilna aplikacija je zastarela v primerjavi z desktop
+    verzijo. Nastavitev je kompleksna in zahteva certificiranega partnerja.
+    Njihov design je "premium" ampak lahko odvrača za vsakodnevne gostilne
+    in picerije, ki potrebujejo hitrost in preprostost.
+  </p>
+
+  <div class="footer">RestaurantOS — Vizualna primerjava najlepših POS vmesnikov — Stran 8</div>
+</div>
+
+<!-- RESTAURANTOS - #4 -->
+<div class="page">
+  <h2>#4 RestaurantOS — naš prispevek</h2>
+  <p>
+    RestaurantOS je na 4. mestu po designu — za Square, Toast in Lightspeed.
+    Vendar ima edinstvene prednosti ki jih noben tekmec nima: FURS
+    potrjevanje, 5 jezikov, offline PWA in lokalna podpora.
+  </p>
+
+  <div class="side-by-side">
+    <div class="col">
+      <div class="col-header">RestaurantOS — POS</div>
+      <img src="02-restaurantos-pos.png">
+    </div>
+    <div class="col">
+      <div class="col-header">RestaurantOS — KDS</div>
+      <img src="03-restaurantos-kds.png">
+    </div>
+  </div>
+
+  <h3>Design prednosti RestaurantOS</h3>
+  <p>
+    <strong>1. Večjezičnost:</strong> Edini POS z 5 jeziki (sl/en/it/hr/de).
+    UI se prilagaja glede na jezik — tudi datumski formati, valute in
+    davčne oznake.
+  </p>
+  <p>
+    <strong>2. FURS integracija:</strong> ZOI, EOR in QR koda so vidni
+    direktno na računu — brez dodatnih korakov. Edini sistem na svetu
+    s to funkcionalnostjo.
+  </p>
+  <p>
+    <strong>3. PWA + Offline:</strong> Deluje brez interneta z IndexedDB
+    sinhronizacijo. Service Worker cachira vse statične vire.
+  </p>
+  <p>
+    <strong>4. Modern tech stack:</strong> Next.js 16, React 19, Tailwind CSS 4,
+    Radix UI — najnovejše tehnologije zagotavljajo hitrost in vzdržljivost.
+  </p>
+
+  <div class="footer">RestaurantOS — Vizualna primerjava najlepših POS vmesnikov — Stran 9</div>
+</div>
+
+<!-- RESTAURANTOS COMPARISON -->
+<div class="page">
+  <h3>RestaurantOS vs. Square — direktna primerjava</h3>
+
+  <div class="side-by-side">
+    <div class="col">
+      <div class="col-header">Square (design zmagovalec)</div>
+      <img src="square-beautiful-1.png">
+    </div>
+    <div class="col">
+      <div class="col-header winner-header">RestaurantOS (FURS zmagovalec)</div>
+      <img src="02-restaurantos-pos.png">
+    </div>
+  </div>
+
+  <table style="margin-top: 5mm;">
+    <tr>
+      <th>Kriterij</th>
+      <th>Square</th>
+      <th>RestaurantOS</th>
+      <th>Zmagovalec</th>
+    </tr>
+    <tr>
+      <td>Design čistost</td>
+      <td><span class="stars">★★★★★</span></td>
+      <td><span class="stars">★★★★</span></td>
+      <td>Square</td>
+    </tr>
+    <tr>
+      <td>Tipografija</td>
+      <td><span class="stars">★★★★★</span></td>
+      <td><span class="stars">★★★★</span></td>
+      <td>Square</td>
+    </tr>
+    <tr>
+      <td>Barvna paleta</td>
+      <td><span class="stars">★★★★★</span></td>
+      <td><span class="stars">★★★★</span></td>
+      <td>Square</td>
+    </tr>
+    <tr>
+      <td>FURS potrjevanje</td>
+      <td><span class="stars">☆☆☆☆☆</span></td>
+      <td><span class="stars">★★★★★</span></td>
+      <td><span class="winner">RestaurantOS</span></td>
+    </tr>
+    <tr>
+      <td>Multi-jezičnost</td>
+      <td><span class="stars">★★</span></td>
+      <td><span class="stars">★★★★★</span></td>
+      <td><span class="winner">RestaurantOS</span></td>
+    </tr>
+    <tr>
+      <td>Offline delovanje</td>
+      <td><span class="stars">★★</span></td>
+      <td><span class="stars">★★★★★</span></td>
+      <td><span class="winner">RestaurantOS</span></td>
+    </tr>
+    <tr>
+      <td>Varnost (testi)</td>
+      <td><span class="stars">★★★</span></td>
+      <td><span class="stars">★★★★★</span></td>
+      <td><span class="winner">RestaurantOS</span></td>
+    </tr>
+    <tr>
+      <td>Cena</td>
+      <td>€0–54</td>
+      <td>€0–200</td>
+      <td>Izenačeno</td>
+    </tr>
+    <tr>
+      <td>Na voljo v SI</td>
+      <td><span style="color:#dc2626;">✕ Ne</span></td>
+      <td><span style="color:#16a34a;">✓ Da</span></td>
+      <td><span class="winner">RestaurantOS</span></td>
+    </tr>
+  </table>
+
+  <div class="footer">RestaurantOS — Vizualna primerjava najlepših POS vmesnikov — Stran 10</div>
+</div>
+
+<!-- CONCLUSION -->
+<div class="page">
+  <h2>Zaključek — kaj se naučimo</h2>
+
+  <div class="rating-box">
+    <h3>Najlepši ≠ najboljši za slovenski trg</h3>
+    <p>
+      Square ima nedvomno najlepši design, ampak je <strong>neuporaben
+      v Sloveniji</strong> — ni na voljo, nima FURS, nima lokalne podpore.
+      Toast in Lightspeed imata odličen design ampak prav tako brez FURS.
+    </p>
+    <p>
+      <strong>RestaurantOS je edina opcija za slovenske restavracije</strong>
+      ki ima FURS potrjevanje, lokalno podporo in razumno ceno. Design je
+      dober (4 zvezdice) in se izboljšuje z vsako verzijo.
+    </p>
+  </div>
+
+  <h3>Prednosti RestaurantOS designa</h3>
+  <p>
+    <strong>1. Funkcionalnost > estetika:</strong> RestaurantOS prioritizira
+    hitrost in FURS skladnost nad vizualno dovršenostjo. To je pravilno
+    za produkcijsko okolje kjer hitrost šteje.
+  </p>
+  <p>
+    <strong>2. Večjezična prilagodljivost:</strong> 5 jezikov z avtomatsko
+    prilagoditvijo datumov, valut in davčnih oznak — to je kompleksno in
+    ni vidno v designu ampak je kritično za turistične kraje.
+  </p>
+  <p>
+    <strong>3. Modern tech stack:</strong> Next.js 16 + React 19 + Tailwind 4
+    omogočajo hitre iteracije in izboljšave designa brez tehničnega dolga.
+  </p>
+
+  <h3>Priporočila za izboljšave</h3>
+  <p>
+    1. <strong>Več negativnega prostora</strong> — navdih od Square, zmanjšaj
+    gostoto elementov na glavnem zaslonu
+  </p>
+  <p>
+    2. <strong>Barvno kodiranje statusov</strong> — navdih od Toast, dodaj
+    barvne indikatorje za mize (prosta/zasedena/čaka)
+  </p>
+  <p>
+    3. <strong>Mikro-interakcije</strong> — subtilne animacije ob kliku in
+    hover efekti za boljši občutek
+  </p>
+  <p>
+    4. <strong>KDS izboljšave</strong> — timer z barvno spremembo (zelena →
+    rumena → rdeča) kot Toast KDS
+  </p>
+
+  <h3>Končna ocena</h3>
+  <table>
+    <tr>
+      <th>Sistem</th>
+      <th>Design</th>
+      <th>Funkcionalnost</th>
+      <th>FURS</th>
+      <th>Skupno</th>
+    </tr>
+    <tr>
+      <td>Square</td>
+      <td>★★★★★</td>
+      <td>★★★★</td>
+      <td>☆☆☆☆☆</td>
+      <td>B+</td>
+    </tr>
+    <tr>
+      <td>Toast</td>
+      <td>★★★★½</td>
+      <td>★★★★★</td>
+      <td>☆☆☆☆☆</td>
+      <td>A-</td>
+    </tr>
+    <tr>
+      <td>Lightspeed</td>
+      <td>★★★★</td>
+      <td>★★★★</td>
+      <td>☆☆☆☆☆</td>
+      <td>B+</td>
+    </tr>
+    <tr style="background: #f0fdf4;">
+      <td><strong>RestaurantOS</strong></td>
+      <td>★★★★</td>
+      <td>★★★★★</td>
+      <td>★★★★★</td>
+      <td><strong>A+</strong></td>
+    </tr>
+  </table>
+
+  <div class="footer">RestaurantOS — Vizualna primerjava najlepših POS vmesnikov — Stran 11</div>
+</div>
+
+</body>
+</html>
