@@ -2,102 +2,51 @@
 # RestaurantOS — Docker Compose (self-hosted)
 # ============================================
 # Za self-hosted deployment brez Vercel/Neon.
-# Vključuje: PostgreSQL + Redis + RestaurantOS (Next.js + WebSocket)
-#
-# VARNOSTNI AUDIT 2026-09-09:
-#   - db in redis NIMATA javnih vrat ("ports") — containerji komunicirajo
-#     prek internega Docker omrežja. Javna so SAMO vrata aplikacije (3000).
-#   - Redis ZAHTEVA geslo (REDIS_PASSWORD) — brez gesla compose NE zažene
-#     (fail-closed sintaksa ${VAR:?...}).
-#   - Lokalni dostop do db/redis iz hosta: ODKOMENTIRAJ 127.0.0.1 binding
-#     spodaj — vezani SAMO na localhost, niso dosegljivi iz omrežja.
+# Vključuje: PostgreSQL + Redis + RestaurantOS
 #
 # Uporaba:
-#   1. Kopiraj .env.example v .env in izpolni OBVEZNA gesla:
-#      DB_PASSWORD, REDIS_PASSWORD, NEXTAUTH_SECRET (generiraj: openssl rand)
-#   2. Prvi zagon migracij (enkratno, pred zagonom aplikacije):
-#      docker compose run --rm migrate
-#      (prisma migrate deploy + db:verify — fail-closed!)
-#   3. Zaženi: docker compose up -d
-#   4. Odpri: http://localhost:3000
-#   5. Za TLS/produkcijo postavi reverse proxy (glej docs/STAGING_DEPLOYMENT.md)
-# ============================================
+#   1. Kopiraj .env.example v .env
+#   2. Spremeni DATABASE_URL v: postgresql://restaurantos:password@db:5432/restaurantos
+//   3. Zaženi: docker compose up -d
+//   4. Odpri: http://localhost:3000
+// ============================================
 
 services:
-  # ─── PostgreSQL Database (SAMO interno) ─────────────
+  # ─── PostgreSQL Database ─────────────────────
   db:
     image: postgres:16-alpine
     container_name: restaurantos-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: restaurantos
-      # FAIL-CLOSED: brez DB_PASSWORD compose ne zažene (prej: "changeme")
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required — izpolni v .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
       POSTGRES_DB: restaurantos
     volumes:
       - db_data:/var/lib/postgresql/data
-    # INTERNA komunikacija: `expose` je samo deklaracija — dostop omogoča
-    # Docker omrežje (servisi se vidijo po imenu: db, redis, app).
-    # NIKOLI NE dodaj `ports: "5432:5432"` — to bi odprla bazo celotnemu
-    # host omrežju (0.0.0.0)!
-    expose:
-      - "5432"
-    # Lokalni psql dostop (psql -h 127.0.0.1 -U restaurantos): ODKOMENTIRAJ —
-    # veže SAMO na localhost (127.0.0.1), NI dosegljivo iz drugih omrežij:
-    # ports:
-    #   - "127.0.0.1:5432:5432"
+    ports:
+      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U restaurantos"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # ─── Redis Cache (SAMO interno, Z geslom) ───────────
+  # ─── Redis Cache (optional) ─────────────────
   redis:
     image: redis:7-alpine
     container_name: restaurantos-redis
     restart: unless-stopped
-    # FAIL-CLOSED: brez REDIS_PASSWORD compose NE zažene. Prej je Redis
-    # tekel BREZ gesla na javnih vratih (6379:6379) — dostopen vsem v
-    # omrežju. --appendonly yes: AOF persistenca (manjša izguba ob restartu).
-    command: redis-server --requirepass "${REDIS_PASSWORD:?REDIS_PASSWORD is required — izpolni v .env}" --appendonly yes
-    environment:
-      # Za healthcheck (geslo NE v command logih procesa)
-      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    ports:
+      - "6379:6379"
     volumes:
       - redis_data:/data
-    expose:
-      - "6379"
-    # Lokalni redis-cli dostop: ODKOMENTIRAJ (samo localhost):
-    # ports:
-    #   - "127.0.0.1:6379:6379"
     healthcheck:
-      # -a + container env (REDIS_PASSWORD), --no-auth-warning skrije opozorilo
-      test: ["CMD-SHELL", 'redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG']
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # ─── Enkratna migracija (NE teče z `docker compose up`) ──
-  # Namenjen izključno `docker compose run --rm migrate`:
-  #   1. prisma migrate deploy (prave, transakcijske migracije)
-  #   2. node scripts/verify-db.mjs (fail-closed preverba invariant)
-  # deploya NE sme poganjati aplikacija ob vsakem zagonu (build/start se
-  # baze NE smeta dotakniti — glej DEPLOYMENT.md vrstni red).
-  migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: restaurantos-migrate
-    environment:
-      DATABASE_URL: postgresql://restaurantos:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/restaurantos?schema=public
-    command: sh -c "npx prisma migrate deploy && node scripts/verify-db.mjs"
-    profiles: ["tools"]
-    depends_on:
-      db:
-        condition: service_healthy
-
-  # ─── RestaurantOS App (Next.js + WebSocket, en proces) ──
+  # ─── RestaurantOS App ───────────────────────
   app:
     build:
       context: .
@@ -110,23 +59,18 @@ services:
       redis:
         condition: service_healthy
     environment:
-      # Database — povezava na interni db servis (NE na host)
-      DATABASE_URL: postgresql://restaurantos:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/restaurantos?schema=public
+      # Database — poveže na docker postgres
+      DATABASE_URL: postgresql://restaurantos:${DB_PASSWORD:-changeme}@db:5432/restaurantos?schema=public
 
-      # Auth — FAIL-CLOSED: brez NEXTAUTH_SECRET compose ne zažene
-      # (prej: "change-this-in-production" fallback!). Generiraj:
-      #   openssl rand -base64 32
-      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required — openssl rand -base64 32}
+      # Auth
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-this-in-production}
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
 
-      # Redis — geslo v URL (POZOR: geslo mora biti URL-varno, brez
-      # @ : / ? # znakov, ali pa URL-encoded). Format: redis://:GESLO@redis:6379
-      REDIS_URL: redis://${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379
+      # Redis
+      REDIS_URL: redis://redis:6379
 
-      # FURS (test privzeto — sim. način NE overja računov)
-      # FURS AUDIT 2026-09-09: default spremenjen true → false — varno privzeto.
-      # V produkciji (NODE_ENV=production) boot guard ZAVRNE zagon, če je true.
-      FURS_ALLOW_SIMULATION: ${FURS_ALLOW_SIMULATION:-false}
+      # FURS (test privzeto)
+      FURS_ALLOW_SIMULATION: ${FURS_ALLOW_SIMULATION:-true}
       FURS_ENVIRONMENT: ${FURS_ENVIRONMENT:-test}
 
       # Sentry (optional)
@@ -135,25 +79,11 @@ services:
       # App
       NODE_ENV: production
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-      # DEPLOYMENT.md §Časovni pas: TZ za dnevnikе + date-fns prikaze
-      # (EOD/Z-report sami uporabljajo timezone-sl.ts, neodvisno od TZ)
-      TZ: ${TZ:-Europe/Ljubljana}
     ports:
-      # Edina JAVNA vrata. Za produkcijo/staging postavi reverse proxy
-      # (nginx/Caddy — TLS terminacija + WS upgrade, glej DEPLOYMENT.md)
-      # in razmisli o vezavi samo na 127.0.0.1:
-      #   - "127.0.0.1:3000:3000"
       - "3000:3000"
     volumes:
       - app_uploads:/app/upload
       - app_public:/app/public
-    healthcheck:
-      # node:alpine vsebuje busybox wget
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/health || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 45s
 
 volumes:
   db_data:
