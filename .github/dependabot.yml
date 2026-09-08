@@ -48,6 +48,14 @@ updates:
       # Next.js major verzije zahtevajo ročno migracijo
       - dependency-name: "next"
         update-types: ["version-update:semver-major"]
+      # Next.js 16.2+: Vercel adapter (CLI 59.x) pri novem build-phases API
+      # pričakuje .next/next-server.js.nft.json pred onBuildComplete hookom,
+      # Next pa ga na Vercelu ne zapiše → produkcijski build pada (ENOENT).
+      # Odklepamo, ko Vercel popravi adapter ali ko gremo na novo build pot.
+      - dependency-name: "next"
+        versions: [">=16.2.0"]
+      - dependency-name: "eslint-config-next"
+        versions: [">=16.2.0"]
       # React major verzije (19 → 20+) zahtevajo ročno testiranje
       - dependency-name: "react"
         update-types: ["version-update:semver-major"]
