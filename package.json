@@ -82,7 +82,7 @@
     "node-cron": "^4.3.0",
     "nodemailer": "^10.0.0",
     "pagedjs": "^0.4.3",
-    "pdfkit": "^0.19.1",
+    "pdfkit": "^0.20.2",
     "pglite-prisma-adapter": "^0.3.0",
     "qrcode": "^1.5.4",
     "radix-ui": "^1.6.7",
