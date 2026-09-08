@@ -33,8 +33,12 @@ export async function PUT(
 
     const data = result.data
 
-    // Preveri, da webhook obstaja
-    const existing = await db.webhook.findUnique({ where: { id } })
+    // Preveri, da webhook obstaja (FIX IDOR: findUnique → findFirst z locationId scope
+    // — location-scoped admin ne more urejati webhookov tuje lokacije/tenanta)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.webhook.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
     if (!existing) {
       return NextResponse.json({ error: 'Webhook ni najden' }, { status: 404 })
     }
@@ -69,7 +73,15 @@ export async function DELETE(
   try {
     const { id } = await params
 
-    await db.webhook.delete({ where: { id } })
+    // FIX IDOR (tenant scope): izbriši SAMO webhook znotraj session lokacije
+    // (super admin z locationId=null vidi vse)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const deleted = await db.webhook.deleteMany({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
+    if (deleted.count === 0) {
+      return NextResponse.json({ error: 'Webhook ni najden' }, { status: 404 })
+    }
 
     return NextResponse.json({ success: true })
   } catch (error: unknown) {

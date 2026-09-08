@@ -15,7 +15,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const { id } = await params
 
     // Preveri da PO obstaja
-    const po = await db.purchaseOrder.findUnique({ where: { id }, select: { id: true, poNumber: true } })
+    // FIX IDOR (tenant scope): dnevnik SAMO za naročilo znotraj session lokacije
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const po = await db.purchaseOrder.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      select: { id: true, poNumber: true },
+    })
     if (!po) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
 
     // Pridobi audit log vnose za ta PO

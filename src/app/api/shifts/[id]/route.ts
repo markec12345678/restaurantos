@@ -22,7 +22,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (validationError) return validationError
 
     // FIX MEDIUM: Preveri da izmena obstaja pred posodobitvijo
-    const existing = await db.shift.findUnique({ where: { id } })
+    // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.shift.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
     if (!existing) {
       return NextResponse.json({ error: 'Izmena ni najdena' }, { status: 404 })
     }
@@ -58,7 +62,11 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const { id } = await params
 
     // FIX: Preveri da izmena obstaja pred brisanjem
-    const shift = await db.shift.findUnique({ where: { id } })
+    // FIX IDOR (tenant scope): prekliči SAMO izmeno znotraj session lokacije
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const shift = await db.shift.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
     if (!shift) {
       return NextResponse.json({ error: 'Izmena ni najdena' }, { status: 404 })
     }

@@ -35,8 +35,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const { data: body, error: validationError } = await validateRequest(req, receiveSchema)
     if (validationError) return validationError
 
-    const po = await db.purchaseOrder.findUnique({
-      where: { id },
+    // FIX IDOR (tenant scope): prevzemi SAMO naročilo znotraj session lokacije
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const po = await db.purchaseOrder.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
       include: { items: true, supplier: true },
     })
     if (!po) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })

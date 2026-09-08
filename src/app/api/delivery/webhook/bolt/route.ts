@@ -207,6 +207,8 @@ export async function POST(req: Request) {
       orderNumber: order.orderNumber,
       type: 'delivery',
       source: 'bolt',
+      // FIX MULTI-TENANT: locationId za per-location WS filtriranje (KDS ne vidi tujih lokacij)
+      locationId: order.locationId ?? null,
     })
 
     logger.info('Bolt', `✅ Sprejeto Bolt naročilo ${data.order_id} → #${order.orderNumber} (${data.items.length} artiklov, ${total}€)`)

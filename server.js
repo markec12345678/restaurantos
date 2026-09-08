@@ -170,6 +170,15 @@ function broadcastEvent(type, payload, channels = null) {
     timestamp: new Date().toISOString(),
   })
 
+  // FIX MULTI-TENANT: če payload vsebuje locationId, dostavi SAMO klientom te
+  // lokacije (in super adminom z __locationId=null). Klienti lokacije A tako
+  // NE vidijo dogodkov lokacije B (npr. NEW_ORDER tuje filiale na KDS).
+  // Dogodki brez locationId v payloadu ostanejo globalni (backward compat).
+  const payloadLocationId =
+    payload && typeof payload === 'object' && 'locationId' in payload
+      ? (payload.locationId ?? null)
+      : undefined
+
   let sentCount = 0
   for (const client of connectedClients) {
     if (client.readyState === 1) { // WebSocket.OPEN
@@ -178,6 +187,13 @@ function broadcastEvent(type, payload, channels = null) {
         const subscribed = client.__subscribedChannels
         if (!subscribed || !channels.some(ch => subscribed.has(ch))) {
           continue // client ni subscriben na ta channel
+        }
+      }
+      // Per-location filtriranje (FIX MULTI-TENANT)
+      if (payloadLocationId !== undefined) {
+        const clientLocationId = client.__locationId ?? null
+        if (clientLocationId !== null && clientLocationId !== payloadLocationId) {
+          continue // klient je scope-an na drugo lokacijo — preskoči
         }
       }
       try {
@@ -337,6 +353,8 @@ app.prepare().then(() => {
     if (isAuthenticated) {
       ws.__employeeId = session.employeeId
       ws.__role = session.role
+      // FIX MULTI-TENANT: shraniti session locationId za per-location broadcast filtriranje
+      ws.__locationId = session.locationId ?? null
       connectedClients.add(ws)
       console.log(`[WS] Avtenticirana povezava: ${clientIp} (${session.role}:${session.employeeId}) — skupaj: ${connectedClients.size}`)
     } else {
@@ -372,6 +390,8 @@ app.prepare().then(() => {
           ws.__session = authSession
           ws.__employeeId = authSession.employeeId
           ws.__role = authSession.role
+          // FIX MULTI-TENANT: shraniti session locationId za per-location broadcast filtriranje
+          ws.__locationId = authSession.locationId ?? null
           connectedClients.add(ws)
 
           if (authTimeout) {

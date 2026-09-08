@@ -26,7 +26,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (validationError) return validationError
 
     // FIX HIGH: Preveri, da zaposleni obstaja pred posodobitvijo
-    const existing = await db.employee.findUnique({ where: { id } })
+    // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope
+    // (manager lokacije A ne more urejati zaposlenih lokacije B)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.employee.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
     if (!existing) {
       return NextResponse.json({ error: 'Zaposleni ni najden' }, { status: 404 })
     }
@@ -89,6 +94,16 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     // FIX C-05: Zahtevaj avtentikacijo
     const authResult = await requireAuth(req, { permission: 'manage_employees' })
     if (authResult.error) return authResult.error
+
+    // FIX IDOR (tenant scope): terminiraj SAMO zaposlenega znotraj session lokacije
+    // (manager lokacije A ne more terminirati zaposlenega lokacije B)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.employee.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
+    if (!existing) {
+      return NextResponse.json({ error: 'Zaposleni ni najden' }, { status: 404 })
+    }
 
     // Preveri, če ima zaposleni aktivne časovne vnose
     const activeTimeEntries = await db.timeEntry.count({

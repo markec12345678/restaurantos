@@ -68,6 +68,8 @@ export async function handleFireAction(id: string) {
   broadcastWSEvent('ORDER_FIRED', {
     orderId: id,
     orderNumber: orderForBroadcast?.orderNumber,
+    // FIX MULTI-TENANT: locationId za per-location WS filtriranje (KDS ne vidi tujih lokacij)
+    locationId: orderForBroadcast?.locationId ?? null,
     firedAt: now.toISOString(),
   })
 

@@ -34,7 +34,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       role: z.string().max(50).optional(),
       notes: z.string().max(500).optional(),
       status: z.enum(['scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show']).optional(),
-      locationId: z.string().nullable().optional(),
+      // FIX IDOR: locationId ODSTRANJEN iz dovoljenih polj — tenant pripadnost
+      // NE sme prihajati iz request bodyja (server določa iz sessiona).
+      // Zod z.object() default strip-a neznana polja → locationId iz bodyja se ignorira.
     })
     const { data: patchData, error: patchError } = patchSchema.safeParse(body)
     if (patchError) {
@@ -43,7 +45,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     const safeData: Record<string, unknown> = { ...patchData }
 
-    const existing = await db.staffShift.findUnique({ where: { id } })
+    // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope
+    // (manager lokacije A ne more urejati izmen lokacije B)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.staffShift.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
     if (!existing) {
       return NextResponse.json({ error: 'Izmena ni najdena' }, { status: 404 })
     }
@@ -86,8 +93,10 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     const { id } = await params
 
-    const existing = await db.staffShift.findUnique({
-      where: { id },
+    // FIX IDOR (tenant scope): izbriši SAMO izmeno znotraj session lokacije
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.staffShift.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
       include: { employee: { select: { name: true } } },
     })
     if (!existing) {

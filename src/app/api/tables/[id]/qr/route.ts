@@ -18,7 +18,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (authResult.error) return authResult.error
 
     const { id } = await params
-    const table = await db.table.findUnique({ where: { id }, select: { id: true, number: true, area: true } })
+    // FIX IDOR (tenant scope): QR kodo generiraj SAMO za mizo session lokacije
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const table = await db.table.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      select: { id: true, number: true, area: true },
+    })
     if (!table) return NextResponse.json({ error: 'Miza ni najdena' }, { status: 404 })
 
     // Generiraj URL za QR naročanje

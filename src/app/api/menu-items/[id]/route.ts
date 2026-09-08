@@ -17,7 +17,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (authResult.error) return authResult.error
 
     // 404 check before update
-    const existing = await db.menuItem.findUnique({ where: { id } })
+    // FIX IDOR (tenant scope): najdi SAMO artikel, ki pripada session lokaciji
+    // (veriga: MenuItem → Category → Menu → locationId)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.menuItem.findFirst({
+      where: {
+        id,
+        ...(sessionLocationId
+          ? { category: { menu: { locationId: sessionLocationId } } }
+          : {}),
+      },
+    })
     if (!existing) {
       return NextResponse.json({ error: 'Menu item not found' }, { status: 404 })
     }
@@ -87,7 +97,17 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     if (authResult.error) return authResult.error
 
     // 404 check before delete
-    const existing = await db.menuItem.findUnique({ where: { id } })
+    // FIX IDOR (tenant scope): izbriši SAMO artikel, ki pripada session lokaciji
+    // (veriga: MenuItem → Category → Menu → locationId)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.menuItem.findFirst({
+      where: {
+        id,
+        ...(sessionLocationId
+          ? { category: { menu: { locationId: sessionLocationId } } }
+          : {}),
+      },
+    })
     if (!existing) {
       return NextResponse.json({ error: 'Menu item not found' }, { status: 404 })
     }

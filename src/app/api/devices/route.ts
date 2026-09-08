@@ -68,17 +68,47 @@ export async function GET(req: Request) {
 // POST — registracija ali heartbeat (upsert)
 export async function POST(req: Request) {
   try {
-    // Heartbeat je dovoljen tudi brez auth (device se javi ob bootu)
-    // ampak z API key-jem v headerju
+    // FIX SECURITY (fail-closed): prej je bila avtentikacija pogojna — če
+    // DEVICE_API_KEY NI bil nastavljen, je POST deloval BREZ katerekoli
+    // avtentikacije (anonimna registracija naprave!). Sedaj:
+    //   - DEVICE_API_KEY nastavljen + ustrezen key → trusted device heartbeat
+    //   - sicer → admin session (obvezno)
     const apiKey = req.headers.get('x-device-api-key')
     const expectedKey = process.env.DEVICE_API_KEY
-    if (expectedKey && apiKey !== expectedKey) {
+    let session: import('@/lib/auth-middleware').Session | null = null
+    if (expectedKey && apiKey === expectedKey) {
+      // Trusted device (skupni ključ) — brez sessiona; locationId se validira na obstoj
+    } else {
       const authResult = await requireAuth(req, { permission: 'admin' })
       if (authResult.error) return authResult.error
+      session = authResult.session ?? null
     }
 
     const body = await req.json().catch(() => ({}))
     const input = registerSchema.parse(body)
+
+    // FIX IDOR (tenant scope): locationId iz bodyja NI avtoritativen —
+    //   - admin z session.locationId → prisiljena session lokacija
+    //   - super admin (session z locationId=null) → lahko določi locationId
+    //   - device heartbeat (skupni ključ, brez sessiona) → locationId se
+    //     validira na obstoj aktivne lokacije (naprava ne more registrirati
+    //     neveljavne/tuje lokacije na slepo)
+    const sessionLoc = session?.locationId ?? null
+    let resolvedLocationId: string | null = input.locationId ?? null
+    if (sessionLoc) {
+      resolvedLocationId = sessionLoc
+    } else if (!session && resolvedLocationId) {
+      const loc = await db.location.findUnique({
+        where: { id: resolvedLocationId },
+        select: { id: true, isActive: true },
+      })
+      if (!loc || !loc.isActive) {
+        return NextResponse.json(
+          { error: 'Neveljavna ali neaktivna lokacija za registracijo naprave' },
+          { status: 400 },
+        )
+      }
+    }
 
     const device = await db.deviceRegistry.upsert({
       where: { deviceId: input.deviceId },
@@ -86,7 +116,7 @@ export async function POST(req: Request) {
         deviceId: input.deviceId,
         name: input.name,
         type: input.type,
-        locationId: input.locationId,
+        locationId: resolvedLocationId,
         appVersion: input.appVersion,
         status: 'online',
         lastSeenAt: new Date(),
@@ -94,7 +124,7 @@ export async function POST(req: Request) {
       update: {
         name: input.name,
         type: input.type,
-        locationId: input.locationId,
+        locationId: resolvedLocationId,
         appVersion: input.appVersion,
         status: 'online',
         lastSeenAt: new Date(),
@@ -117,7 +147,15 @@ export async function DELETE(req: Request) {
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id je obvezen' }, { status: 400 })
 
-    await db.deviceRegistry.delete({ where: { id } })
+    // FIX IDOR (tenant scope): izbriši SAMO napravo znotraj session lokacije
+    // (super admin z locationId=null vidi vse)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const deleted = await db.deviceRegistry.deleteMany({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
+    if (deleted.count === 0) {
+      return NextResponse.json({ error: 'Naprava ni najdena' }, { status: 404 })
+    }
     return NextResponse.json({ success: true })
   } catch (err) {
     return handleApiError(err, 'devices DELETE')

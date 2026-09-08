@@ -27,7 +27,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const { data, error: validationError } = validateBody(updateReservationSchema, bodyResult.data)
     if (validationError) return validationError
 
-    const existing = await db.reservation.findUnique({ where: { id } })
+    // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope
+    // (natakar lokacije A ne more urejati rezervacij lokacije B)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.reservation.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
     if (!existing) {
       return NextResponse.json({ error: 'Rezervacija ne obstaja' }, { status: 404 })
     }
@@ -132,7 +137,11 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     const { id } = await params
 
-    const existing = await db.reservation.findUnique({ where: { id } })
+    // FIX IDOR (tenant scope): prekliči SAMO rezervacijo znotraj session lokacije
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.reservation.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
     if (!existing) {
       return NextResponse.json({ error: 'Rezervacija ne obstaja' }, { status: 404 })
     }

@@ -47,6 +47,21 @@ export async function DELETE(
       { status: 403 }
     )
   }
+  // FIX IDOR (tenant scope): location-scoped upravitelj (manage_employees) sme
+  // brisati SAMO poverilnice zaposlenih svoje lokacije (super admin z
+  // locationId=null dostopa do vseh)
+  if (isAdmin && session.locationId) {
+    const owner = await db.employee.findUnique({
+      where: { id: credential.employeeId },
+      select: { locationId: true },
+    })
+    if (owner?.locationId !== session.locationId) {
+      return NextResponse.json(
+        { error: 'Nimate dovoljenja za izbris te poverilnice.' },
+        { status: 403 }
+      )
+    }
+  }
 
   try {
     const deleted = await deleteCredential(credential.credentialId, credential.employeeId)

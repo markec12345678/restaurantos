@@ -24,7 +24,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const { data, error: validationError } = validateBody(updateInventorySchema, bodyResult.data)
     if (validationError) return validationError
 
-    const existing = await db.inventoryItem.findUnique({ where: { id } })
+    // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope (cross-tenant zaščita)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.inventoryItem.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
     if (!existing) {
       return NextResponse.json({ error: 'Artikel zaloge ni najden' }, { status: 404 })
     }
@@ -118,7 +122,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const { data, error: validationError } = validateBody(updateInventorySchema, bodyResult.data)
     if (validationError) return validationError
 
-    const existing = await db.inventoryItem.findUnique({ where: { id } })
+    // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope (cross-tenant zaščita)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.inventoryItem.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
     if (!existing) {
       return NextResponse.json({ error: 'Artikel zaloge ni najden' }, { status: 404 })
     }

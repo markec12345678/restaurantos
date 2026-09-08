@@ -29,7 +29,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const body = result.data
 
     // FIX HIGH: Preveri, da course obstaja
-    const existing = await db.course.findUnique({ where: { id } })
+    // FIX IDOR (tenant scope): najdi SAMO course, ki pripada session lokaciji
+    // (veriga: Course → Order → locationId)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.course.findFirst({
+      where: { id, ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}) },
+    })
     if (!existing) {
       return NextResponse.json({ error: 'Course ni najden' }, { status: 404 })
     }
@@ -123,7 +128,11 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const { id } = await params
 
     // FIX HIGH: Preveri, da course obstaja
-    const existing = await db.course.findUnique({ where: { id } })
+    // FIX IDOR (tenant scope): izbriši SAMO course znotraj session lokacije
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.course.findFirst({
+      where: { id, ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}) },
+    })
     if (!existing) {
       return NextResponse.json({ error: 'Course ni najden' }, { status: 404 })
     }

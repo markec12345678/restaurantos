@@ -23,8 +23,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const { data, error: validationError } = validateBody(updateTableSchema, bodyResult.data)
     if (validationError) return validationError
 
-    // Preveri, da miza obstaja
-    const existing = await db.table.findUnique({ where: { id } })
+    // Preveri, da miza obstaja (FIX IDOR: findUnique → findFirst z locationId scope)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.table.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
     if (!existing) {
       return NextResponse.json({ error: 'Miza ni najdena' }, { status: 404 })
     }
@@ -66,8 +69,10 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
-    const table = await db.table.findUnique({
-      where: { id },
+    // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope (cross-tenant zaščita)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const table = await db.table.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
       include: { orders: { where: { status: { in: ['pending', 'in-progress', 'ready'] } } } },
     })
 

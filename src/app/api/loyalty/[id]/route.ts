@@ -21,7 +21,11 @@ export async function PUT(
     // FIX H-01: Validiraj vnos z Zod
     const { data, error: validationError } = validateBody(updateLoyaltySchema, bodyResult.data)
     if (validationError) return validationError
-    const existing = await db.loyaltyAccount.findUnique({ where: { id } })
+    // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope (cross-tenant zaščita)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.loyaltyAccount.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
     if (!existing) {
       return NextResponse.json({ error: 'Zvestobni račun ni najden' }, { status: 404 })
     }
@@ -105,11 +109,14 @@ export async function PUT(
       }
       return account
     })
-    // Re-fetch z transakcijami
-    const account = await db.loyaltyAccount.findUnique({
-      where: { id },
+    // Re-fetch z transakcijami (FIX IDOR: tudi tukaj locationId scope)
+    const account = await db.loyaltyAccount.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
       include: { transactions: { orderBy: { createdAt: 'desc' }, take: 10 } },
     })
+    if (!account) {
+      return NextResponse.json({ error: 'Zvestobni račun ni najden' }, { status: 404 })
+    }
     return NextResponse.json(deepToNumbers(account))
   } catch (error: unknown) {
     return handleRouteError(error, 'PUT /api/loyalty/[id]', [

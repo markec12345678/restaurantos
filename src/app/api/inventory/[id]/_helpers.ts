@@ -13,8 +13,10 @@ export async function handleDeleteInventory(req: Request, id: string) {
     const authResult = await requireAuth(req, { permission: 'manage_inventory' })
     if (authResult.error) return authResult.error
 
-    const item = await db.inventoryItem.findUnique({
-      where: { id },
+    // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope (cross-tenant zaščita)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const item = await db.inventoryItem.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
       include: { transactions: true },
     })
 

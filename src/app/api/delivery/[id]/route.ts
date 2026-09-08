@@ -26,8 +26,14 @@ export async function PUT(
     if (validationError) return validationError
 
     // FIX D-03 HIGH: Uporabi transakcijo za preprečitev race condition na status prehodih
+    // FIX IDOR (tenant scope): dostava je rešena prek verige DeliveryInfo → Order → locationId
+    // (natakar lokacije A ne more spreminjati dostav lokacije B; dostave brez
+    // povezanega naročila (order=null) so dostopne samo super adminu z locationId=null)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
     const delivery = await db.$transaction(async (tx) => {
-      const existing = await tx.deliveryInfo.findUnique({ where: { id } })
+      const existing = await tx.deliveryInfo.findFirst({
+        where: { id, ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}) },
+      })
       if (!existing) {
         throw new Error('DELIVERY_NOT_FOUND')
       }
