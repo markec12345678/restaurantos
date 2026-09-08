@@ -64,8 +64,13 @@ export async function loadSessionsFromDb(): Promise<void> {
             expiresAt: toMs(dbSession.expiresAt),
             absoluteExpiry: toMs(dbSession.absoluteExpiry),
           }
+          // FIX SECURITY: dbSession.token je ZDAJ SHA-256 hash — konsistentno
+          // s hash-ključanimi pomnilniškimi sejami (glej token-hash.ts).
+          // WS sinhronizacije tu NAMENOMA ni: WS store zahteva PLAINTEXT
+          // ključ (verifyWsToken), hash pa ga ni mogoče rekonstruirati iz
+          // DB. WS store se napolni z živimi tokeni ob prvem API klicu
+          // (requireAuth → syncSessionToWs) po ponovnem zagonu.
           sessions.set(dbSession.token, session)
-          syncSessionToWs(dbSession.token, session)
         } catch {
           // Skip invalid sessions
         }
@@ -109,6 +114,8 @@ setInterval(async () => {
 
   if (expiredTokens.length > 0) {
     try {
+      // FIX SECURITY: expiredTokens so pomnilniški ključi = že SHA-256
+      // hashi — direktno uporabni v where in (brez dodatnega hashanja)
       await db.session.deleteMany({
         where: { token: { in: expiredTokens } }
       })

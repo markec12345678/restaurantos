@@ -7,7 +7,8 @@ import { db } from '../../db'
 import { logger } from '../../logger'
 import type { Session } from '../types'
 import { SESSION_TTL_MS, MAX_SESSIONS_PER_EMPLOYEE } from '../constants'
-import { sessions, syncSessionToWs, loadSessionsFromDb } from './session-cache'
+import { sessions, syncSessionToWs } from './session-cache'
+import { hashSessionToken } from './token-hash'
 
 // FIX SECURITY: Cache za status zaposlenega — prepreči DA je terminiran zaposleni
 // še vedno lahko dostopa do API-jev do poteka seje (do 8h!).
@@ -92,10 +93,13 @@ export async function createSession(employee: {
   }
 
   const token = crypto.randomBytes(32).toString('hex')
+  // FIX SECURITY: v pomnilniku in DB je samo SHA-256 hash tokena —
+  // plain token se vrne klientu in nikjer ne persistira.
+  const tokenHash = hashSessionToken(token)
   const now = Date.now()
 
   const session: Session = {
-    token,
+    token: tokenHash,
     employeeId: employee.id,
     role: employee.role,
     permissions: employee.permissions,
@@ -105,9 +109,10 @@ export async function createSession(employee: {
     locationId: employee.locationId || null,  // FIX Test 7.1: scope session to location
   }
 
-  sessions.set(token, session)
+  sessions.set(tokenHash, session)
 
-  // Sinhroniziraj z WS session store
+  // Sinhroniziraj z WS session store (PLAINTEXT ključ — WS avtentikacija
+  // ne bere DB; glej token-hash.ts)
   syncSessionToWs(token, session)
 
   // FIX VERCEL: AWAIT DB write — na serverless moramo počakati da seja pride v DB
@@ -115,7 +120,7 @@ export async function createSession(employee: {
   try {
     await db.session.create({
       data: {
-        token,
+        token: tokenHash,
         employeeId: employee.id,
         role: employee.role,
         permissions: JSON.stringify(employee.permissions),
@@ -138,15 +143,19 @@ export async function createSession(employee: {
  * Preveri veljavnost tokena in vrne sejo
  */
 export async function verifyToken(token: string): Promise<Session | null> {
+  // FIX SECURITY: pomnilniški cache in DB sta ključana po SHA-256 hashu
+  // tokena (plain token nikjer ni persistiran — glej token-hash.ts)
+  const tokenHash = hashSessionToken(token)
+
   // 1. Preveri in-memory cache (hitro)
-  const session = sessions.get(token)
+  const session = sessions.get(tokenHash)
   if (session) {
     if (session.expiresAt < Date.now()) {
-      sessions.delete(token)
+      sessions.delete(tokenHash)
       return null
     }
     if (session.absoluteExpiry < Date.now()) {
-      sessions.delete(token)
+      sessions.delete(tokenHash)
       return null
     }
     // FIX SECURITY: Preveri status zaposlenega TUDI za cached sessions!
@@ -155,8 +164,8 @@ export async function verifyToken(token: string): Promise<Session | null> {
     // če je seja v cache-u (npr. isti Vercel serverless instance).
     const isActive = await isEmployeeActive(session.employeeId)
     if (!isActive) {
-      sessions.delete(token)
-      await db.session.deleteMany({ where: { token } }).catch(() => {})
+      sessions.delete(tokenHash)
+      await db.session.deleteMany({ where: { token: tokenHash } }).catch(() => {})
       return null
     }
     return session
@@ -166,7 +175,7 @@ export async function verifyToken(token: string): Promise<Session | null> {
   // Na Vercelu je vsak API klic v novi serverless funkciji — in-memory Map je vedno prazen!
   try {
     const dbSession = await db.session.findUnique({
-      where: { token },
+      where: { token: tokenHash },
     })
     if (!dbSession) return null
 
@@ -175,19 +184,19 @@ export async function verifyToken(token: string): Promise<Session | null> {
     const absoluteExpiry = dbSession.absoluteExpiry instanceof Date ? dbSession.absoluteExpiry.getTime() : Number(dbSession.absoluteExpiry)
 
     if (expiresAt < now || absoluteExpiry < now) {
-      await db.session.deleteMany({ where: { token } }).catch(() => {})
+      await db.session.deleteMany({ where: { token: tokenHash } }).catch(() => {})
       return null
     }
 
     // FIX SECURITY: preveri status zaposlenega tudi za DB sessions
     const isActive = await isEmployeeActive(dbSession.employeeId)
     if (!isActive) {
-      await db.session.deleteMany({ where: { token } }).catch(() => {})
+      await db.session.deleteMany({ where: { token: tokenHash } }).catch(() => {})
       return null
     }
 
     const reconstructed: Session = {
-      token: dbSession.token,
+      token: tokenHash,
       employeeId: dbSession.employeeId,
       role: dbSession.role,
       permissions: JSON.parse(dbSession.permissions || '[]'),
@@ -196,7 +205,7 @@ export async function verifyToken(token: string): Promise<Session | null> {
       absoluteExpiry,
     }
 
-    sessions.set(token, reconstructed)
+    sessions.set(tokenHash, reconstructed)
     return reconstructed
   } catch (dbError) {
     // FIX SECURITY: DB napaka — NE dovoli dostopa (fail-closed)!
@@ -212,7 +221,8 @@ export async function verifyToken(token: string): Promise<Session | null> {
  * Uniči sejo (odjava)
  */
 export function destroySession(token: string): void {
-  sessions.delete(token)
+  // FIX SECURITY: pomnilnik po hashu; WS store po plaintext ključu
+  sessions.delete(hashSessionToken(token))
   syncSessionToWs(token, null)
-  db.session.deleteMany({ where: { token } }).catch(() => {})
+  db.session.deleteMany({ where: { token: hashSessionToken(token) } }).catch(() => {})
 }

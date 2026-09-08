@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server'
 import type { Session, Permission } from './types'
 import { SESSION_TTL_MS } from './constants'
 import { verifyToken, syncSessionToWs, destroySession } from './session-store'
+import { hashSessionToken } from './session-store/token-hash'
 import { db } from '../db'
 import { isPublicRoute, getRequiredPermissions, hasPermission } from './permissions'
 
@@ -121,8 +122,9 @@ export async function requireAuth(
   // Persistiraj podaljšano sejo v SQLite
   // Persistiraj podaljšano sejo v PostgreSQL
   // FIX WORKFLOW-45: expiresAt je v aplikaciji number (Unix ms), v DB pa DateTime
+  // FIX SECURITY: DB lookup po SHA-256 hashu (plain token ni persistiran)
   db.session.updateMany({
-    where: { token },
+    where: { token: hashSessionToken(token) },
     data: { expiresAt: new Date(session.expiresAt) },
   }).catch(() => {})
 

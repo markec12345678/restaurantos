@@ -2354,7 +2354,7 @@ model DeliveryTracking {
 
 model Session {
   id              String   @id @default(cuid())
-  token           String   @unique              // Bearer token (64 hex znakov)
+  token           String   @unique              // SHA-256 hash Bearer tokena (64 hex) — plain token se nikjer ne persistira (FIX SECURITY)
   employeeId      String                        // ID zaposlenega
   role            String                        // admin, manager, staff
   permissions     String   @default("[]")       // JSON array: ["take_orders", "void_item", ...]

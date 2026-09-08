@@ -160,7 +160,7 @@ export async function GET(req: Request) {
       return NextResponse.json({
         status: 'error',
         timestamp: new Date().toISOString(),
-        version: process.env.APP_VERSION || '1.0.4',
+        version: process.env.APP_VERSION || '1.0.5',
         database: dbCheck,
       }, { status: 503 })
     }
@@ -181,7 +181,7 @@ export async function GET(req: Request) {
       return NextResponse.json({
         status: allOk ? 'ok' : (hasWarnings ? 'degraded' : 'error'),
         timestamp: new Date().toISOString(),
-        version: process.env.APP_VERSION || '1.0.4',
+        version: process.env.APP_VERSION || '1.0.5',
         environment: process.env.NODE_ENV || 'development',
         uptime: process.uptime ? `${Math.floor(process.uptime())}s` : undefined,
         checks,
@@ -192,7 +192,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
-      version: process.env.APP_VERSION || '1.0.4',
+      version: process.env.APP_VERSION || '1.0.5',
       database: 'connected',
     }, { status: 200 })
 
@@ -201,7 +201,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       status: 'error',
       timestamp: new Date().toISOString(),
-      version: process.env.APP_VERSION || '1.0.4',
+      version: process.env.APP_VERSION || '1.0.5',
       database: 'disconnected',
       error: error instanceof Error ? error.message : 'Unknown error',
     }, { status: 503 })
