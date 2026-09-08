@@ -9,6 +9,7 @@ import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/api-utils'
 import { verifyApiKey } from '@/lib/api-security'
 import { toNum } from '@/lib/decimal'
+import { parseAllergens } from '@/lib/json-fields'
 
 export const dynamic = 'force-dynamic'
 
@@ -107,7 +108,11 @@ export async function GET(req: Request) {
         description: item.description,
         price: toNum(item.price),
         image: item.image,
-        allergens: JSON.parse(item.allergens || '[]'),
+        // P1-9 FIX (KRITIČNO): MenuItem.allergens je v bazi CSV format
+        // ("1,3,7") — prej JSON.parse je vržel SyntaxError → 500 na CELEM
+        // mobile meniju ob prvem artiklu z alergeni! Toleranten parser
+        // podpira CSV + JSON format.
+        allergens: parseAllergens(item.allergens),
       })
     }
 

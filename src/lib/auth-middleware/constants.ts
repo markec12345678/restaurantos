@@ -5,8 +5,43 @@
 
 import type { Permission } from './types'
 
-export const SESSION_TTL_MS = 8 * 60 * 60 * 1000 // 8 ur
+export const SESSION_TTL_MS = 8 * 60 * 60 * 1000 // 8 ur (idle — podaljšuje se ob aktivnosti v requireAuth)
 export const MAX_SESSIONS = 500 // Prepreči pomnilniško puščanje — omejitev sej
+
+// ============================================
+// P1-12: PIN POLITIKA (auth hardening)
+// ============================================
+// Novi PIN-i zahtevajo 6+ mest in ne smejo biti šibki (sekvence/ponovitve).
+// LOGIN dovoli legacy 4-mestne PIN-e (migracijska kompatibilnost — obstoječi
+// zaposleni se lahko prijavijo; admin jih rotira prek employees PUT).
+export const PIN_MIN_LENGTH = 6
+export const PIN_LOGIN_LEGACY_MIN = 4 // login-only: obstoječi 4-mestni PIN-i
+export const PIN_MAX_LENGTH = 20
+
+/** P1-12: šibki PIN-i, ki se ZAVRNEJO ob nastavitvi (create/update/setup) */
+export const WEAK_PINS = new Set([
+  '000000', '111111', '222222', '333333', '444444', '555555', '666666',
+  '777777', '888888', '999999', '123123', '121212', '112233',
+  '123456', '234567', '345678', '456789', '567890', '654321',
+  '987654', '876543', '765432', '6543210', '012345', '101010',
+  // legacy 4-mestne sekvence (če bi jih kdaj poskusili nastaviti znova)
+  '0000', '1111', '2222', '3333', '4444', '5555', '6666', '7777', '8888',
+  '9999', '1234', '2345', '3456', '4567', '5678', '6789', '7890',
+  '4321', '9876', '1212', '2121', '6969', '1004', '2000',
+])
+
+/**
+ * P1-12: PIN lockout — koliko neuspelih poskusov pred zaklep (per-PIN,
+ * ključ = HMAC-SHA256(PIN), torej per-zaposleni brez razkritja PIN-a)
+ */
+export const PIN_LOCKOUT_THRESHOLD = 5
+/** P1-12: trajanje zaklepa po prekoračitvi praga */
+export const PIN_LOCKOUT_MS = 15 * 60 * 1000 // 15 minut
+/** P1-12: progresivni delay — min(count * 250ms, max) pred 401 odgovorom */
+export const PIN_PROGRESSIVE_DELAY_MAX_MS = 4000
+
+/** P1-12: bcrypt cost factor — povišan z 10 na 12 (2^12 ≈ 250ms/hash) */
+export const BCRYPT_ROUNDS = 12
 
 // FIX P10 (audit 2026-09-06): Per-employee session limit.
 // Preprečuje session flooding attack — napadalec (ali legitimni uporabnik)

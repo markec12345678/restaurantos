@@ -3,13 +3,17 @@
 // ============================================
 
 import { z } from 'zod'
+import { PIN_LOGIN_LEGACY_MIN } from '@/lib/auth-middleware/constants'
 
 // ============================================
 // AUTH
 // ============================================
 
+// P1-12: LOGIN dopušča legacy 4-mestne PIN-e (migracijska kompatibilnost —
+// obstoječi zaposleni se lahko prijavijo; admin jih rotira prek employees
+// POST/PUT, kjer v veljavnosti novih PIN-i zahtevajo 6+ mest).
 export const loginSchema = z.object({
-  pin: z.string().min(4, 'PIN mora imeti vsaj 4 števke').max(20).regex(/^\d+$/, 'PIN mora vsebovati samo številke'),
+  pin: z.string().min(PIN_LOGIN_LEGACY_MIN, `PIN mora imeti vsaj ${PIN_LOGIN_LEGACY_MIN} števke`).max(20).regex(/^\d+$/, 'PIN mora vsebovati samo številke'),
 })
 
 // ============================================

@@ -13,6 +13,7 @@ import {
 import { deliverWebhook } from './deliver'
 import { isInternalUrl } from './ssrf'
 import { ensureDecrypted } from '@/lib/crypto/secrets'
+import { parseWebhookEvents } from '@/lib/json-fields'
 
 /**
  * Sproži webhook dogodek — poišče vse aktivne webhooke za ta dogodek
@@ -70,12 +71,8 @@ export async function triggerWebhook(
   })
 
   const matchingWebhooks = webhooks.filter(wh => {
-    try {
-      const events: string[] = JSON.parse(wh.events || '[]')
-      return events.includes(event)
-    } catch {
-      return false
-    }
+    // P1-9: Zod-validiran parser dogodkov (brez gologa JSON.parse)
+    return parseWebhookEvents(wh.events).some(e => e === event)
   })
 
   // Za vsak ujemajoč webhook — dostavi asinhrono

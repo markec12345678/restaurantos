@@ -710,6 +710,9 @@ model Employee {
   // --- Toast: PIN za prijavo v POS ---
   pin       String   @unique @default("") // FIX SECURITY: 4-mestni PIN za hitro prijavo — @unique prepreči duplikate (impersonacijo)
   pinLookup String?  @unique // FIX PERF: HMAC-SHA256(NEXTAUTH_SECRET, pin) za O(1) iskanje pri prijavi (pin ostane bcrypt-hashiran za varno primerjavo)
+  // P1-11: Različica sej zaposlenega — ob PIN spremembi, vlogi ali statusu se
+  // poviša; vse seje s stare različico takoj postanejo neveljavne (revocation).
+  sessionVersion Int @default(0)
   // --- Relations ---
   shifts       Shift[]
   staffShifts  StaffShift[]
@@ -2382,6 +2385,9 @@ model Session {
   employeeId      String                        // ID zaposlenega
   role            String                        // admin, manager, staff
   permissions     String   @default("[]")       // JSON array: ["take_orders", "void_item", ...]
+  // P1-11: Različica Employee.sessionVersion ob prijavi — če se poviša
+  // (PIN/role/status sprememba), seja takoj postane neveljavna.
+  sessionVersion  Int      @default(0)
   // DateTime (TIMESTAMP) — ms-precision nativno, prava izbira za seje.
   createdAt       DateTime  @default(now())
   expiresAt       DateTime

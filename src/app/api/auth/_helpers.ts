@@ -5,6 +5,8 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { createSession } from '@/lib/auth-middleware'
 import { hashPinLookup, pinLookupEnabled } from '@/lib/pin-lookup'
+import { BCRYPT_ROUNDS } from '@/lib/auth-middleware/constants'
+import { parsePermissions } from '@/lib/json-fields'
 
 export interface MatchedEmployee {
   id: string
@@ -41,7 +43,9 @@ export async function verifyPin(data: { pin: string }): Promise<MatchedEmployee 
           return null // pinLookup matchal, bcrypt ne — nekonsistenca, zavrni
         }
         // Plaintext PIN — migriraj na bcrypt hash + pinLookup
-        const hashedPin = await bcrypt.hash(emp.pin, 10)
+        // P1-12: BCRYPT_ROUNDS (12) namesto hardkodiranega 10 — ~250ms/hash,
+        // offline brute-force 4096× počasnejši od cost 10
+        const hashedPin = await bcrypt.hash(emp.pin, BCRYPT_ROUNDS)
         await db.employee.update({ where: { id: emp.id }, data: { pin: hashedPin, pinLookup: lookup } })
         return emp as unknown as MatchedEmployee
       }
@@ -72,7 +76,8 @@ export async function verifyPin(data: { pin: string }): Promise<MatchedEmployee 
       inputBuffer.copy(paddedInput)
       pinMatches = crypto.timingSafeEqual(paddedPin, paddedInput)
       if (pinMatches) {
-        const hashedPin = await bcrypt.hash(emp.pin, 10)
+        // P1-12: BCRYPT_ROUNDS (12) — enak cost kot vse ostale poti
+        const hashedPin = await bcrypt.hash(emp.pin, BCRYPT_ROUNDS)
         // FIX: ob migraciji zapiši tudi pinLookup za prihodnje O(1) iskanje
         await db.employee.update({
           where: { id: emp.id },
@@ -117,15 +122,14 @@ export async function buildAuthStatusResponse(session: Awaited<ReturnType<typeof
   }
 }
 
-export async function buildAuthResponse(matchedEmployee: MatchedEmployee) {
+export async function buildAuthResponse(matchedEmployee: MatchedEmployee, ipAddress?: string, userAgent?: string) {
+  // P1-9: varna permissions parse — Job.permissions je JSON-as-String;
+  // parsePermissions filtrira neveljavne vnose namesto raw JSON.parse
   const allPermissions: string[] = []
   const primaryJob = matchedEmployee.jobs.find(j => j.isPrimary)?.job || matchedEmployee.jobs[0]?.job
 
   for (const ej of matchedEmployee.jobs) {
-    try {
-      const perms = JSON.parse(ej.job.permissions || '[]')
-      allPermissions.push(...perms)
-    } catch { /* ignore */ }
+    allPermissions.push(...parsePermissions(ej.job.permissions))
   }
 
   const permissions = [...new Set(allPermissions)]
@@ -135,7 +139,7 @@ export async function buildAuthResponse(matchedEmployee: MatchedEmployee) {
     role: matchedEmployee.role,
     permissions,
     locationId: matchedEmployee.locationId,  // FIX Test 7.1: scope session to location
-  })
+  }, ipAddress, userAgent)
 
   return {
     success: true,

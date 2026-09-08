@@ -15,7 +15,7 @@ export {
 export type { TenantScopeResult } from './tenant-scope'
 
 // Upravljanje sej
-export { createSession, verifyToken, destroySession, invalidateEmployeeStatusCache } from './session-store'
+export { createSession, verifyToken, destroySession, invalidateEmployeeStatusCache, revokeEmployeeSessions } from './session-store'
 
 // Middleware funkciji
 export { requireAuth, optionalAuth } from './middleware'

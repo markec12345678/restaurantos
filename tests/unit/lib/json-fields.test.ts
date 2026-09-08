@@ -19,6 +19,7 @@ import { describe, it, expect } from 'vitest'
 import {
   safeJsonParse,
   safeJsonSerialize,
+  safeParseJson,
   parseOrderItemModifiers,
   serializeOrderItemModifiers,
   parsePermissions,
@@ -32,6 +33,11 @@ import {
   parseIntegrationConfig,
   isOrderItemModifier,
   isPermission,
+  parsePrintRules,
+  parseDaysOfWeek,
+  JSON_FIELD_VERSION,
+  detectPayloadVersion,
+  migrateJsonPayload,
   JSON_FIELDS,
   getJsonFieldStats,
 } from '@/lib/json-fields'
@@ -326,5 +332,176 @@ describe('getJsonFieldStats — migracijski dashboard', () => {
   it('modelsAffected >= 10 (veliko modelov)', () => {
     const stats = getJsonFieldStats()
     expect(stats.modelsAffected).toBeGreaterThanOrEqual(10)
+  })
+})
+
+// ════════════════════════════════════════════════════════════════
+// P1-9 RAZŠIRITEV — Zod validacija, tolerantni parserji, verzioniranje
+// ════════════════════════════════════════════════════════════════
+
+describe('P1-9: safeParseJson — vzorec schema.parse(JSON.parse(value))', () => {
+  const numberArray = (arr: unknown[]) => arr.every((n) => typeof n === 'number')
+
+  it('veljaven JSON + veljavna struktura → podatki', () => {
+    // mini shema: array števil
+    const result = safeParseJson(
+      { safeParse: (v: unknown) => (Array.isArray(v) && numberArray(v as unknown[]) ? { success: true, data: v as number[] } : { success: false, error: null }) },
+      '[1,2,3]',
+      [],
+    )
+    expect(result).toEqual([1, 2, 3])
+  })
+
+  it('veljaven JSON ampak napačna struktura → fallback', () => {
+    const result = safeParseJson(
+      { safeParse: (v: unknown) => (Array.isArray(v) && numberArray(v as unknown[]) ? { success: true, data: v as number[] } : { success: false, error: null }) },
+      '{"a":1}',
+      [],
+    )
+    expect(result).toEqual([])
+  })
+
+  it('malformed JSON → fallback (nikoli throw)', () => {
+    expect(() => safeParseJson({ safeParse: () => ({ success: true, data: null }) }, 'ne-veljaven{', null)).not.toThrow()
+  })
+})
+
+describe('P1-9: parseAllergens — CSV fallback (MenuItem legacy format)', () => {
+  it('CSV "1,3,7" se normalizira v array (mobile menu fix)', () => {
+    expect(parseAllergens('1,3,7')).toEqual(['1', '3', '7'])
+  })
+
+  it('CSV z neveljavnimi vnosi se filtrira', () => {
+    expect(parseAllergens('1,abc,15,,7')).toEqual(['1', '7'])
+  })
+
+  it('prazen string → [] (MenuItem default)', () => {
+    expect(parseAllergens('')).toEqual([])
+  })
+
+  it('JSON array ostane JSON array', () => {
+    expect(parseAllergens('["1","3"]')).toEqual(['1', '3'])
+  })
+})
+
+describe('P1-9: parseDaysOfWeek — [1..7]', () => {
+  it('parsira veljavne dneve', () => {
+    expect(parseDaysOfWeek('[1,2,3,4,5]')).toEqual([1, 2, 3, 4, 5])
+  })
+
+  it('filtrira neveljavne dneve (0.5, 8, string)', () => {
+    expect(parseDaysOfWeek('[1,0.5,8,"2",7]')).toEqual([1, 7])
+  })
+
+  it('malformed JSON → [] (nikoli throw — happy-hour route fix)', () => {
+    expect(parseDaysOfWeek('neveljaven')).toEqual([])
+    expect(parseDaysOfWeek(null)).toEqual([])
+  })
+})
+
+describe('P1-9: parsePrintRules — Printer.printRules', () => {
+  it('parsira veljavna pravila', () => {
+    const json = JSON.stringify([
+      { type: 'order', prepStationId: 'ps-1' },
+      { type: 'receipt', port: 9100 },
+    ])
+    expect(parsePrintRules(json)).toEqual([
+      { type: 'order', prepStationId: 'ps-1' },
+      { type: 'receipt', port: 9100 },
+    ])
+  })
+
+  it('izloči element brez type (neveljaven)', () => {
+    const json = JSON.stringify([{ type: 'order' }, { prepStationId: 'x' }, { port: 1 }])
+    expect(parsePrintRules(json)).toEqual([{ type: 'order' }])
+  })
+
+  it('malformed JSON → [] (printer routing ne sesuje)', () => {
+    expect(parsePrintRules('{broken')).toEqual([])
+  })
+})
+
+describe('P1-9: parseVatBreakdown — Receipt format {"22": {base, vat}}', () => {
+  it('sprejme Receipt format z objekti (FURS fiskalni podatek)', () => {
+    const json = JSON.stringify({ '22': { base: 10.0, vat: 2.2 }, '9.5': { base: 5.0, vat: 0.475 } })
+    const result = parseVatBreakdown(json)
+    expect(result['22']).toEqual({ base: 10.0, vat: 2.2 })
+    expect(result['9.5']).toEqual({ base: 5.0, vat: 0.475 })
+  })
+
+  it('sprejme tudi čisti number format (Order)', () => {
+    const result = parseVatBreakdown(JSON.stringify({ '22': 12.34 }))
+    expect(result['22']).toBe(12.34)
+  })
+
+  it('malformed JSON → {} (digital-receipt / receipt-print fix)', () => {
+    expect(parseVatBreakdown('ni-json')).toEqual({})
+  })
+
+  it('array format → {} (ne-object)', () => {
+    expect(parseVatBreakdown('[1,2]')).toEqual({})
+  })
+
+  it('per-entry filter: neveljaven entry ne uniči veljavnih', () => {
+    const json = JSON.stringify({ '22': 10, 'abc': 5, '9.5': { base: 1, vat: 0.095 } })
+    const result = parseVatBreakdown(json)
+    expect(Object.keys(result)).toEqual(['22', '9.5'])
+  })
+})
+
+describe('P1-9: verzioniranje JSON payload-ov', () => {
+  it('JSON_FIELD_VERSION = 1 (trenutni format)', () => {
+    expect(JSON_FIELD_VERSION).toBe(1)
+  })
+
+  it('detectPayloadVersion: brez envelope-a → 1', () => {
+    expect(detectPayloadVersion([1, 2])).toBe(1)
+    expect(detectPayloadVersion({ a: 1 })).toBe(1)
+    expect(detectPayloadVersion('string')).toBe(1)
+  })
+
+  it('detectPayloadVersion: {"version": 2} → 2', () => {
+    expect(detectPayloadVersion({ version: 2 })).toBe(2)
+    expect(detectPayloadVersion({ version: 3, items: [] })).toBe(3)
+  })
+
+  it('migrateJsonPayload: verzija 1 → identity migracija', () => {
+    const result = migrateJsonPayload([1, 2], { 1: (raw) => (raw as number[]) })
+    expect(result).toEqual([1, 2])
+  })
+
+  it('migrateJsonPayload: V2 format se migrira na V1', () => {
+    // simulacija: prihodnja sprememba doda envelope
+    const v2Payload = { version: 2, items: [{ name: 'Sir', price: 1.5 }] }
+    const result = migrateJsonPayload(v2Payload, {
+      2: (raw) => (raw as { items: unknown[] }).items,
+    })
+    expect(result).toEqual([{ name: 'Sir', price: 1.5 }])
+  })
+
+  it('migrateJsonPayload: neznana verzija → throw (fail-safe nadzorovano)', () => {
+    expect(() =>
+      migrateJsonPayload({ version: 99 }, { 1: (raw) => raw }),
+    ).toThrow(/Neznana verzija/)
+  })
+})
+
+describe('P1-9: parseOrderItemModifiers — per-element filter', () => {
+  it('izloči pokvarjen element, ohrani veljavne (finančni podatki!)', () => {
+    const json = JSON.stringify([
+      { name: 'Sir', price: 1.5 },
+      { name: 'Brez cene' }, // manjka price → neveljaven
+      { price: 2 }, // manjka name → neveljaven
+      { name: 'Slanina', price: 2, quantity: 2, id: 'mod-1', modifierGroupId: 'mg-1' },
+    ])
+    const result = parseOrderItemModifiers(json)
+    expect(result).toHaveLength(2)
+    expect(result[0]).toEqual({ name: 'Sir', price: 1.5 })
+    expect(result[1]).toEqual({ name: 'Slanina', price: 2, quantity: 2, id: 'mod-1', modifierGroupId: 'mg-1' })
+  })
+
+  it('id polje preživi parse (server-side DB price lookup potrebuje)', () => {
+    const result = parseOrderItemModifiers(JSON.stringify([{ id: 'mod-7', name: 'Ekstra', price: 0.5 }]))
+    expect(result[0].id).toBe('mod-7')
   })
 })

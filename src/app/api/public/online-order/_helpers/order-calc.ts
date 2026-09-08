@@ -3,6 +3,7 @@
 import { db } from '@/lib/db'
 import { toNum, calcVat, type DecimalLike } from '@/lib/decimal'
 import { logger } from '@/lib/logger'
+import { parseOrderItemModifiers } from '@/lib/json-fields'
 
 // ─── Izračunaj cene artiklov iz strežniških podatkov ───
 export interface OrderItemCalc {
@@ -25,9 +26,8 @@ export async function calculateOrderItems(
     const qty = item.quantity
     // FIX HIGH: Dodaj ceno modifikatorjev k subtotal
     let modifierTotal = 0
-    const parsedModifiers: Array<{ name?: string; price?: number; id?: string }> = (() => {
-      try { return JSON.parse(item.modifiersJson || '[]') } catch { return [] }
-    })()
+    // P1-9: Zod-validiran parser — cene se vedno znova preberejo iz DB (spodaj)
+    const parsedModifiers: Array<{ name?: string; price?: number; id?: string }> = parseOrderItemModifiers(item.modifiersJson)
 
     // FIX CRITICAL: Fetch modifier prices from DB — do NOT trust client prices (price tampering)
     const modifierIds = parsedModifiers.filter(m => m.id).map(m => m.id as string)

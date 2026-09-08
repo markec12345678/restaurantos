@@ -1,11 +1,12 @@
 // Sinhronizacija z e-Računi
 
 import { toNum } from '@/lib/decimal'
+import { parseIntegrationConfig } from '@/lib/json-fields'
 import type { IntegrationBase, SyncResult } from './types'
 
 export async function syncEracuni(integration: IntegrationBase): Promise<SyncResult> {
   const baseUrl = integration.baseUrl || 'https://www.e-racuni.com'
-  const config = JSON.parse(integration.config || '{}')
+  const config = parseIntegrationConfig(integration.config)
 
   try {
     // Pridobi nepotrjene račune za sinhronizacijo

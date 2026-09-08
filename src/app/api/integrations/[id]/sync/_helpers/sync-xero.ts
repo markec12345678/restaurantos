@@ -4,6 +4,7 @@
 // ============================================
 
 import { db } from '@/lib/db'
+import { parseIntegrationConfig } from '@/lib/json-fields'
 import { toNum, round2 } from '@/lib/decimal'
 import { ACCOUNTS } from '@/lib/accounting/journal-generator'
 import type { SyncResult } from './types'
@@ -39,7 +40,7 @@ export async function syncXero(integration: {
   config: string
 }): Promise<SyncResult> {
   try {
-    const config: XeroConfig = JSON.parse(integration.config || '{}')
+    const config: XeroConfig = parseIntegrationConfig(integration.config) as unknown as XeroConfig
     if (!config.tenantId || !integration.apiKey) {
       return { success: false, statusCode: 0, responseData: '{}', error: 'Manjka tenantId ali OAuth access token' }
     }

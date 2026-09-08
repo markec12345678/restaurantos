@@ -7,6 +7,7 @@
 // ============================================
 
 import { NextResponse } from 'next/server'
+import { safeJsonParse } from '@/lib/json-fields'
 import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
@@ -119,8 +120,9 @@ export async function GET(req: Request) {
       znesekDDV: round2(toNum(r.totalVat)),
       skupniZnesek: round2(toNum(r.total)),
       napitnina: round2(toNum(r.tip)),
-      // DDV razčlenitev
-      ddvRazčlenitev: JSON.parse(r.vatBreakdown || '[]'),
+      // P1-9: varna parse — pokvarjen vatBreakdown string ne sesuje celotne
+      // knjige izdanih računov (prej: JSON.parse throw → 500 na vseh računih)
+      ddvRazčlenitev: safeJsonParse<unknown>(r.vatBreakdown, []),
       // Plačilo
       nacinPlacila: r.paymentMethod || r.order?.paymentMethod || '',
       vrstaNarocila: r.order?.type || '',
@@ -143,7 +145,7 @@ export async function GET(req: Request) {
       znesekDDV: round2(toNum(r.totalVat)),
       skupniZnesek: round2(toNum(r.total)),
       napitnina: round2(toNum(r.tip)),
-      ddvRazčlenitev: JSON.parse(r.vatBreakdown || '[]'),
+      ddvRazčlenitev: safeJsonParse<unknown>(r.vatBreakdown, []),
       nacinPlacila: r.paymentMethod || '',
       vrstaNarocila: r.order?.type || '',
       jeStorno: true,

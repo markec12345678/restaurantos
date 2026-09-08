@@ -5,6 +5,7 @@ import { Prisma } from '@prisma/client'
 import { toNum, calcVat, type DecimalLike } from '@/lib/decimal'
 import { logger } from '@/lib/logger'
 import { wsBroadcastEvent } from '@/lib/ws-server-broadcast'
+import { parseOrderItemModifiers } from '@/lib/json-fields'
 
 // ─── Izračunaj cene artiklov iz strežniških podatkov (NE zaupaj klientu!) ───
 export interface OrderItemData {
@@ -39,9 +40,9 @@ export async function calculateOrderItems(
 
     const qty = item.quantity
     let modifierTotal = 0
-    const parsedModifiers: Array<{ id?: string; name?: string; price?: number }> = (() => {
-      try { return JSON.parse(item.modifiersJson || '[]') } catch { return [] }
-    })()
+    // P1-9: Zod-validiran parser — cene modifierjev se vedno znova preberejo
+    // iz DB (spodaj) tako da klient ne more vatati cene;
+    const parsedModifiers: Array<{ id?: string; name?: string; price?: number }> = parseOrderItemModifiers(item.modifiersJson)
 
     // FIX CRITICAL: Fetch modifier prices from DB — do NOT trust client prices (price tampering)
     const modifierIds = parsedModifiers.filter(m => m.id).map(m => m.id as string)

@@ -1,6 +1,7 @@
 // Sinhronizacija z računovodstvom
 
 import { toNum, round2 } from '@/lib/decimal'
+import { parseIntegrationConfig } from '@/lib/json-fields'
 import type { SyncResult } from './types'
 
 export async function syncAccounting(integration: {
@@ -14,7 +15,7 @@ export async function syncAccounting(integration: {
   }
 
   try {
-    const config = JSON.parse(integration.config || '{}')
+    const config = parseIntegrationConfig(integration.config)
 
     // Pridobi dnevno poročilo
     const { db: dbClient } = await import('@/lib/db')

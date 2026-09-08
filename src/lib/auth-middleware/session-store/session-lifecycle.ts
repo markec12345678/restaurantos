@@ -9,6 +9,7 @@ import type { Session } from '../types'
 import { SESSION_TTL_MS, MAX_SESSIONS_PER_EMPLOYEE } from '../constants'
 import { sessions, syncSessionToWs } from './session-cache'
 import { hashSessionToken } from './token-hash'
+import { parsePermissions } from '@/lib/json-fields'
 
 // FIX SECURITY: Cache za status zaposlenega — prepreči DA je terminiran zaposleni
 // še vedno lahko dostopa do API-jev do poteka seje (do 8h!).
@@ -22,58 +23,36 @@ import { hashSessionToken } from './token-hash'
 // globalne (bypass multi-tenant izolacije na WS), (b) resolveTenantLocationId
 // bi rednim uporabnikom vrnil 403. Sedaj obogatimo sejo iz Employee zapisa
 // (avtoritativni vir, svež v 30s — sledi tudi prenosom zaposlenega).
-const employeeStatusCache = new Map<string, { status: string; locationId: string | null; checkedAt: number }>()
+//
+// P1-11: cache vsebuje tudi sessionVersion — ob PIN/vlogi/status spremembi
+// se različica poviša in vse stare seje takoj nehajo veljati.
+const employeeStatusCache = new Map<string, { status: string; locationId: string | null; sessionVersion: number; checkedAt: number }>()
 const EMPLOYEE_STATUS_CACHE_TTL_MS = 30 * 1000 // 30 sekund
 
 /**
- * Pridobi kontekst zaposlenega (status + lokacija) iz baze s 30s cache-om.
- * Uporablja se za preverjanje aktivnosti in obogatitev sej z locationId.
+ * Pridobi kontekst zaposlenega (status + lokacija + verzija sej) iz baze s 30s cache-om.
+ * Uporablja se za preverjanje aktivnosti, obogatitev sej z locationId in
+ * primerjavo sessionVersion (P1-11 revokacija).
  */
-async function getEmployeeContext(employeeId: string): Promise<{ status: string; locationId: string | null }> {
+async function getEmployeeContext(employeeId: string): Promise<{ status: string; locationId: string | null; sessionVersion: number }> {
   // Preveri cache (30s TTL)
   const cached = employeeStatusCache.get(employeeId)
   if (cached && Date.now() - cached.checkedAt < EMPLOYEE_STATUS_CACHE_TTL_MS) {
-    return { status: cached.status, locationId: cached.locationId }
+    return { status: cached.status, locationId: cached.locationId, sessionVersion: cached.sessionVersion }
   }
 
   const employee = await db.employee.findUnique({
     where: { id: employeeId },
-    select: { status: true, locationId: true },
+    select: { status: true, locationId: true, sessionVersion: true },
   })
 
   if (!employee) {
-    employeeStatusCache.set(employeeId, { status: 'not_found', locationId: null, checkedAt: Date.now() })
-    return { status: 'not_found', locationId: null }
+    employeeStatusCache.set(employeeId, { status: 'not_found', locationId: null, sessionVersion: -1, checkedAt: Date.now() })
+    return { status: 'not_found', locationId: null, sessionVersion: -1 }
   }
 
-  employeeStatusCache.set(employeeId, { status: employee.status, locationId: employee.locationId ?? null, checkedAt: Date.now() })
-  return { status: employee.status, locationId: employee.locationId ?? null }
-}
-
-/**
- * Preveri ali je zaposleni še vedno aktiven (s 30s cache-om)
- * FIX SECURITY: preverja tudi ali je zaposleni še vedno 'active'.
- * Prejšnja koda je preverjala samo TTL seje — če je admin terminiral
- * zaposleni (DELETE /api/employees/[id] nastavi status='terminated'),
- * je obstoječa seja še vedno veljala do 8h (sliding TTL) / 24h (absolute).
- * Sedaj preverjamo status zaposlenega s 30s cache-om.
- *
- * FIX: Prej je bil fail-open (return true ob DB napaki). To je varnostna
- * luknja — če DB ni dosegljiv, terminiran zaposleni še vedno lahko dostopa.
- * Sedaj je fail-closed (return false) za terminirane, ampak fail-open samo
- * če DB query vrže napako (ne če je status='terminated').
- */
-async function isEmployeeActive(employeeId: string): Promise<boolean> {
-  // Preveri cache (30s TTL)
-  const cached = employeeStatusCache.get(employeeId)
-  if (cached && Date.now() - cached.checkedAt < EMPLOYEE_STATUS_CACHE_TTL_MS) {
-    return cached.status === 'active'
-  }
-
-  // Preveri v bazi — BREZ try/catch fail-open!
-  // Če DB query vrže napako, naj se request fail-a (500) namesto dovoliti dostop.
-  const ctx = await getEmployeeContext(employeeId)
-  return ctx.status === 'active'
+  employeeStatusCache.set(employeeId, { status: employee.status, locationId: employee.locationId ?? null, sessionVersion: employee.sessionVersion ?? 0, checkedAt: Date.now() })
+  return { status: employee.status, locationId: employee.locationId ?? null, sessionVersion: employee.sessionVersion ?? 0 }
 }
 
 /**
@@ -83,6 +62,50 @@ async function isEmployeeActive(employeeId: string): Promise<boolean> {
 export function invalidateEmployeeStatusCache(employeeId: string): void {
   employeeStatusCache.delete(employeeId)
   logger.info('AUTH', `Invalidiran status cache za zaposlenega ${employeeId}`)
+}
+
+/**
+ * P1-11: Revociraj VSE seje zaposlenega — dvorazlični pristop:
+ *   1. Poviša Employee.sessionVersion (vse prihodnje verifyToken primerjave
+ *      ponesrejo → seja neveljavna; deluje tudi med instancami, ker je
+ *      verzija v DB, ne v pomnilniku)
+ *   2. Takoj pobriše DB seje + pomnilniške seje (hitra pot)
+ *
+ * Pokliči jo ob: PIN spremembi, vlogi/status spremembi, spremembi dovoljenj
+ * job-a zaposlenega. Vrne št. uničenih sej (za audit).
+ */
+export async function revokeEmployeeSessions(employeeId: string, reason: string): Promise<number> {
+  let destroyed = 0
+  try {
+    const removed = await db.session.deleteMany({ where: { employeeId } })
+    destroyed += removed.count
+  } catch (err: unknown) {
+    logger.warn('AUTH', `Napaka pri brisanju DB sej za ${employeeId}:`, err instanceof Error ? err.message : String(err))
+  }
+
+  // Pomnilniške seje (hash ključi) — version bump jih ubije tudi na drugih
+  // instancah, tukaj jih počistimo takoj na tej
+  for (const [key, s] of [...sessions.entries()]) {
+    if (s.employeeId === employeeId) {
+      sessions.delete(key)
+      destroyed++
+    }
+  }
+
+  try {
+    await db.employee.update({
+      where: { id: employeeId },
+      data: { sessionVersion: { increment: 1 } },
+    })
+  } catch (err: unknown) {
+    logger.warn('AUTH', `Napaka pri povišanju sessionVersion za ${employeeId}:`, err instanceof Error ? err.message : String(err))
+  }
+
+  // Počisti statusni cache, da se sprememba takoj vidi
+  employeeStatusCache.delete(employeeId)
+
+  logger.info('AUTH', `Revocirane seje za zaposlenega ${employeeId} (${reason}): ${destroyed}`)
+  return destroyed
 }
 
 /**
@@ -121,6 +144,21 @@ export async function createSession(employee: {
   const tokenHash = hashSessionToken(token)
   const now = Date.now()
 
+  // P1-11: različica sej zaposlenega ob prijavi — primerja se z
+  // Employee.sessionVersion pri vsakem verifyToken (PIN/vloga/status
+  // sprememba → takojšnja revokacija). Brišemo izjemno redko (login).
+  let sessionVersion = 0
+  try {
+    const emp = await db.employee.findUnique({
+      where: { id: employee.id },
+      select: { sessionVersion: true },
+    })
+    sessionVersion = emp?.sessionVersion ?? 0
+  } catch {
+    // Vercel: če query pade, je sessionVersion 0 — verifyToken DB pot bo
+    // prav tako padla, zato to ni varnostna luknja (fail-closed drugje)
+  }
+
   const session: Session = {
     token: tokenHash,
     employeeId: employee.id,
@@ -130,6 +168,7 @@ export async function createSession(employee: {
     expiresAt: now + SESSION_TTL_MS,
     absoluteExpiry: now + 24 * 60 * 60 * 1000,
     locationId: employee.locationId || null,  // FIX Test 7.1: scope session to location
+    sessionVersion,
   }
 
   sessions.set(tokenHash, session)
@@ -147,6 +186,7 @@ export async function createSession(employee: {
         employeeId: employee.id,
         role: employee.role,
         permissions: JSON.stringify(employee.permissions),
+        sessionVersion,
         // FIX WORKFLOW-45: prej BigInt(now) — sedaj DateTime (Date object)
         createdAt: new Date(now),
         expiresAt: new Date(now + SESSION_TTL_MS),
@@ -185,8 +225,15 @@ export async function verifyToken(token: string): Promise<Session | null> {
     // Prejšnja koda je preskočila isEmployeeActive() check za in-memory cache,
     // kar je pomenilo da terminiran zaposleni še vedno lahko dostopa do API-jev
     // če je seja v cache-u (npr. isti Vercel serverless instance).
-    const isActive = await isEmployeeActive(session.employeeId)
-    if (!isActive) {
+    const ctx = await getEmployeeContext(session.employeeId)
+    if (ctx.status !== 'active') {
+      sessions.delete(tokenHash)
+      await db.session.deleteMany({ where: { token: tokenHash } }).catch(() => {})
+      return null
+    }
+    // P1-11: sessionVersion mismatch → revocirana seja (PIN/vloga/status/
+    // dovoljenja so se spremenili po prijavi). -1 = employee izbrisan.
+    if (typeof session.sessionVersion === 'number' && session.sessionVersion !== ctx.sessionVersion) {
       sessions.delete(tokenHash)
       await db.session.deleteMany({ where: { token: tokenHash } }).catch(() => {})
       return null
@@ -195,7 +242,6 @@ export async function verifyToken(token: string): Promise<Session | null> {
     // (loadSessionsFromDb po restartu), locationId NI imajo. null je VELJAVNA
     // vrednost (super admin) — obogatimo SAMO undefined!
     if (session.locationId === undefined) {
-      const ctx = await getEmployeeContext(session.employeeId)
       session.locationId = ctx.locationId
     }
     return session
@@ -226,11 +272,20 @@ export async function verifyToken(token: string): Promise<Session | null> {
       return null
     }
 
+    // P1-11: sessionVersion mismatch → seja je bila revocirana (PIN/vloga/
+    // status/dovoljenja spremenjeni po prijavi). Stolpec default 0 = backward
+    // kompatibilen z zgodovinskimi sejami pred uvedbojo verzij.
+    const sessionVersion = dbSession.sessionVersion ?? 0
+    if (employeeContext.sessionVersion >= 0 && sessionVersion !== employeeContext.sessionVersion) {
+      await db.session.deleteMany({ where: { token: tokenHash } }).catch(() => {})
+      return null
+    }
+
     const reconstructed: Session = {
       token: tokenHash,
       employeeId: dbSession.employeeId,
       role: dbSession.role,
-      permissions: JSON.parse(dbSession.permissions || '[]'),
+      permissions: parsePermissions(dbSession.permissions),
       createdAt: dbSession.createdAt instanceof Date ? dbSession.createdAt.getTime() : Number(dbSession.createdAt),
       expiresAt,
       absoluteExpiry,
@@ -239,6 +294,7 @@ export async function verifyToken(token: string): Promise<Session | null> {
       // regular user na Vercelu (cold start) brez lokacije → 403, WS klient
       // pa obravnavan kot globalen (bypass per-location filtra).
       locationId: employeeContext.locationId,
+      sessionVersion,
     }
 
     sessions.set(tokenHash, reconstructed)
@@ -256,9 +312,9 @@ export async function verifyToken(token: string): Promise<Session | null> {
 /**
  * Uniči sejo (odjava)
  */
-export function destroySession(token: string): void {
+export async function destroySession(token: string): Promise<void> {
   // FIX SECURITY: pomnilnik po hashu; WS store po plaintext ključu
   sessions.delete(hashSessionToken(token))
   syncSessionToWs(token, null)
-  db.session.deleteMany({ where: { token: hashSessionToken(token) } }).catch(() => {})
+  await db.session.deleteMany({ where: { token: hashSessionToken(token) } }).catch(() => {})
 }

@@ -7,6 +7,7 @@ import { db } from '../../db'
 import { logger } from '../../logger'
 import type { Session } from '../types'
 import { MAX_SESSIONS } from '../constants'
+import { parsePermissions } from '@/lib/json-fields'
 
 // Pomnilniški cache sej
 export const sessions = new Map<string, Session>()
@@ -59,7 +60,7 @@ export async function loadSessionsFromDb(): Promise<void> {
             token: dbSession.token,
             employeeId: dbSession.employeeId,
             role: dbSession.role,
-            permissions: JSON.parse(dbSession.permissions || '[]'),
+            permissions: parsePermissions(dbSession.permissions),
             createdAt: toMs(dbSession.createdAt),
             expiresAt: toMs(dbSession.expiresAt),
             absoluteExpiry: toMs(dbSession.absoluteExpiry),

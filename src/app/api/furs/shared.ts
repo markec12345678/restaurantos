@@ -5,6 +5,15 @@
 // se bodo računi razlikovali med batch in single verify
 // ============================================
 
+// P1-9: Zod validacija entries — neveljavne stopnje/osnove se FILTRIRAJO
+// (prej: NaN rate ali neštevilska osnova bi se tiho zapisala v FURS XML!)
+import { z } from 'zod'
+
+const vatEntrySchema = z.object({
+  base: z.number().optional(),
+  vat: z.number().optional(),
+})
+
 /**
  * Razčleni vatBreakdown JSON niz v strukturo za FURS overitev
  * Format v bazi: {"22": {"base": 10.0, "vat": 2.2}, "9.5": {"base": 5.0, "vat": 0.475}}
@@ -19,12 +28,22 @@ export function parseVatBreakdown(
   fallbackVatRate?: number
 ): Array<{ rate: number; baseAmount: number; vatAmount: number }> {
   try {
-    const parsed = JSON.parse(vatBreakdownStr || '{}')
-    const result = Object.entries(parsed).map(([rate, amounts]) => ({
-      rate: Number(rate),
-      baseAmount: (amounts as { base: number; vat: number }).base || 0,
-      vatAmount: (amounts as { base: number; vat: number }).vat || 0,
-    }))
+    const parsed: unknown = JSON.parse(vatBreakdownStr || '{}')
+    // P1-9: validiraj strukturo {stopnja: {base, vat}} — neveljavni vnosi
+    // (npr. null, string vrednosti, NaN stopnje) se preskočijo
+    const result = (parsed && typeof parsed === 'object' ? Object.entries(parsed as Record<string, unknown>) : [])
+      .map(([rate, amounts]) => {
+        const rateNum = Number(rate)
+        if (!Number.isFinite(rateNum)) return null
+        const validated = vatEntrySchema.safeParse(amounts)
+        if (!validated.success) return null
+        return {
+          rate: rateNum,
+          baseAmount: validated.data.base || 0,
+          vatAmount: validated.data.vat || 0,
+        }
+      })
+      .filter((e): e is { rate: number; baseAmount: number; vatAmount: number } => e !== null)
 
     // Če je vatBreakdown prazen ali brez veljavnih postavk, generiraj fallback
     if (result.length === 0 && fallbackTotal && fallbackTotal > 0) {

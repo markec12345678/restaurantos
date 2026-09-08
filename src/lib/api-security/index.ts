@@ -23,6 +23,7 @@
 // ============================================
 
 import { db } from '@/lib/db'
+import { parseStringArray } from '@/lib/json-fields'
 import { logger } from '@/lib/logger'
 import crypto from 'crypto'
 
@@ -121,7 +122,7 @@ export async function createApiKey(input: CreateApiKeyInput): Promise<CreatedApi
     name: newKey.name,
     keyPrefix: newKey.keyPrefix,
     keyHash: newKey.keyHash,
-    scopes: JSON.parse(newKey.scopes || '[]'),
+    scopes: parseStringArray(newKey.scopes),
     rateLimit: newKey.rateLimit,
     isActive: newKey.isActive,
     createdAt: newKey.createdAt,
@@ -201,7 +202,7 @@ export async function verifyApiKey(authHeader: string | null): Promise<{
     name: dbKey.name,
     keyPrefix: dbKey.keyPrefix,
     keyHash: dbKey.keyHash,
-    scopes: JSON.parse(dbKey.scopes || '[]'),
+    scopes: parseStringArray(dbKey.scopes),
     rateLimit: dbKey.rateLimit,
     isActive: dbKey.isActive,
     createdAt: dbKey.createdAt,
@@ -243,7 +244,7 @@ export async function listApiKeys(subscriptionId?: string): Promise<Array<Omit<A
     id: k.id,
     name: k.name,
     keyPrefix: k.keyPrefix,
-    scopes: JSON.parse(k.scopes || '[]'),
+    scopes: parseStringArray(k.scopes),
     rateLimit: k.rateLimit,
     isActive: k.isActive,
     createdAt: k.createdAt,
@@ -311,7 +312,7 @@ export async function rotateApiKey(keyId: string): Promise<CreatedApiKey | null>
     name: newKey.name,
     keyPrefix: newKey.keyPrefix,
     keyHash: newKey.keyHash,
-    scopes: JSON.parse(newKey.scopes || '[]'),
+    scopes: parseStringArray(newKey.scopes),
     rateLimit: newKey.rateLimit,
     isActive: newKey.isActive,
     createdAt: newKey.createdAt,

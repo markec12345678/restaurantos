@@ -5,6 +5,7 @@ import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
+import { PIN_MIN_LENGTH, WEAK_PINS, BCRYPT_ROUNDS } from '@/lib/auth-middleware/constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,7 +13,8 @@ const setupSchema = z.object({
   mode: z.enum(['single', 'multi']).default('single'),
   adminName: z.string().min(2, 'Ime admina je obvezno').max(100),
   adminEmail: z.string().email('Veljaven e-poštni naslov je obvezen'),
-  adminPin: z.string().length(4, 'PIN mora biti 4 mesta').regex(/^\d{4}$/, 'PIN mora vsebovati samo številke'),
+  // P1-12: novi PIN-i 6+ mest + šibki PIN-i zavrnjeni spodaj v handler-ju
+  adminPin: z.string().min(PIN_MIN_LENGTH, `PIN mora imeti vsaj ${PIN_MIN_LENGTH} števk`).max(20).regex(/^\d+$/, 'PIN mora vsebovati samo številke'),
   locationName: z.string().min(2, 'Ime lokacije je obvezno').max(100),
   locationCode: z.string().min(2, 'Koda lokacije je obvezna').max(10).toUpperCase(),
   locationAddress: z.string().max(200).default(''),
@@ -48,8 +50,17 @@ export async function POST(req: Request) {
       )
     }
 
+    // P1-12: šibki PIN-i (sekvence/ponovitve) se zavrnejo tudi pri setup-u
+    if (WEAK_PINS.has(data.adminPin)) {
+      return NextResponse.json(
+        { error: 'PIN je preveč predvidljiv (šibek). Izberite naključnejši PIN.' },
+        { status: 400 }
+      )
+    }
+
     // 1. Admin
-    const pinHash = await bcrypt.hash(data.adminPin, 10)
+    // P1-12: BCRYPT_ROUNDS (12) namesto 10
+    const pinHash = await bcrypt.hash(data.adminPin, BCRYPT_ROUNDS)
     const nextauthSecret = process.env.NEXTAUTH_SECRET || 'fallback-secret-change-me'
     const pinLookup = crypto.createHmac('sha256', nextauthSecret).update(data.adminPin).digest('hex')
 

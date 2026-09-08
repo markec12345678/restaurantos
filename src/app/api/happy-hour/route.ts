@@ -6,6 +6,7 @@ import { createHappyHourSchema } from '@/lib/validations'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
+import { parseDaysOfWeek } from '@/lib/json-fields'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +28,8 @@ export async function GET(req: Request) {
     const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
 
     const activeSchedules = schedules.filter((s) => {
-      const days: number[] = JSON.parse(s.daysOfWeek || '[]')
+      // P1-9: Zod-validiran parser — pokvarjen JSON ne sesuje GET happy-hour
+      const days: number[] = parseDaysOfWeek(s.daysOfWeek)
       if (!days.includes(currentDay)) return false
       if (currentTime < s.startTime || currentTime >= s.endTime) return false
       if (s.validFrom && now < s.validFrom) return false

@@ -17,6 +17,7 @@ import {
   getWebAuthnConfig,
 } from '@/lib/webauthn'
 import { saveChallenge, takeChallenge } from '@/lib/webauthn/challenge-store'
+import { parsePermissions } from '@/lib/json-fields'
 import { findCredential, updateCounterAfterUse } from '@/lib/webauthn/db-helpers'
 import { createAuditLog } from '@/lib/db'
 import type { AuthenticationResponseJSON } from '@simplewebauthn/server'
@@ -158,10 +159,8 @@ export async function POST(req: Request) {
 
   const allPermissions: string[] = []
   for (const ej of employee.jobs) {
-    try {
-      const perms = JSON.parse(ej.job.permissions || '[]')
-      allPermissions.push(...perms)
-    } catch { /* ignore */ }
+    // P1-9: Zod-validiran parser (Job.permissions — varnostno relevantno)
+    allPermissions.push(...parsePermissions(ej.job.permissions))
   }
   const permissions = [...new Set(allPermissions)]
 

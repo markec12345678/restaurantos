@@ -4,6 +4,7 @@ import crypto from 'crypto'
 import { toNum } from '@/lib/decimal'
 import { generateFursQRContent } from '@/lib/furs'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
+import { parseOrderItemModifiers, parseVatBreakdown } from '@/lib/json-fields'
 
 // SECURITY: HMAC-SHA256 žeton za digitalne račune — prepreči enumeracijo ID-jev
 //
@@ -84,8 +85,8 @@ export async function buildDigitalReceiptResponse(
 
   // Pripravi artikle
   const items = (order?.orderItems || []).map(oi => {
-    let modifiers: Array<{ name: string; price: number }> = []
-    try { modifiers = JSON.parse(oi.modifiersJson || '[]') } catch { modifiers = [] }
+    // P1-9: Zod-validiran parser (vpliva na prikaz postavk digitalnega računa)
+    const modifiers: Array<{ name: string; price: number }> = parseOrderItemModifiers(oi.modifiersJson)
 
     return {
       name: oi.menuItem?.name || 'Neznan artikel',
@@ -97,16 +98,11 @@ export async function buildDigitalReceiptResponse(
     }
   })
 
-  // DDV po stopnjah
+  // DDV po stopnjah — P1-9: Zod-validiran tolerant parser (številka ali {base, vat})
   const vatBreakdown: Array<{ rate: number; base: number; vat: number }> = []
-  try {
-    const parsed = JSON.parse(receipt.vatBreakdown as string || '{}')
-    for (const [rate, amounts] of Object.entries(parsed)) {
-      const a = amounts as { base: number; vat: number }
-      vatBreakdown.push({ rate: Number(rate), base: a.base, vat: a.vat })
-    }
-  } catch {
-    // Neveljavna JSON struktura DDV razdelitve — nadaljuj s praznim seznamom
+  for (const [rate, amounts] of Object.entries(parseVatBreakdown(receipt.vatBreakdown as string))) {
+    const a = typeof amounts === 'number' ? { base: amounts, vat: 0 } : amounts
+    vatBreakdown.push({ rate: Number(rate), base: Number(a?.base ?? 0), vat: Number(a?.vat ?? 0) })
   }
 
   // FIX P0-C3A: premisesId iz prave lokacije (ne findFirst({isActive:true}))

@@ -1,7 +1,8 @@
 
 // FIX CRITICAL: Dovoljene vrednosti za permissions — prepreči injection admin dovoljenja
-import { db } from '@/lib/db'
-import { requireAuth } from '@/lib/auth-middleware'
+import { db, createAuditLog } from '@/lib/db'
+import { parsePermissions } from '@/lib/json-fields'
+import { requireAuth, revokeEmployeeSessions } from '@/lib/auth-middleware'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
@@ -48,14 +49,11 @@ export async function PUT(
     if (validationError) return validationError
 
     // FIX CRITICAL: Samo admin lahko dodeli admin dovoljenje delovnemu mestu
+    // P1-9: Zod-validiran parser (brez gologa JSON.parse)
     if (data.permissions !== undefined) {
-      try {
-        const perms: string[] = JSON.parse(data.permissions)
-        if (perms.includes('admin') && authResult.session?.role !== 'admin') {
-          return NextResponse.json({ error: 'Samo administrator lahko dodeli admin dovoljenje delovnemu mestu.' }, { status: 403 })
-        }
-      } catch {
-        // Already validated by Zod — safe to ignore
+      const perms: string[] = parsePermissions(data.permissions)
+      if (perms.includes('admin') && authResult.session?.role !== 'admin') {
+        return NextResponse.json({ error: 'Samo administrator lahko dodeli admin dovoljenje delovnemu mestu.' }, { status: 403 })
       }
     }
 
@@ -76,6 +74,29 @@ export async function PUT(
       },
     })
 
+    // P1-11: če so se dovoljenja (ali aktivnost) spremenila, imajo obstoječe
+    // seje zaposlenih s tem delovnim mestom ZASTAREL permissions snapshot
+    // (velja do 8h). Revociraj seje vseh dotičnih zaposlenih → POS zahteva
+    // ponovno prijavo z novimi dovoljenji.
+    const permissionsChanged = data.permissions !== undefined
+    const activationChanged = data.isActive !== undefined
+    if (permissionsChanged || activationChanged) {
+      const affected = await db.employeeJob.findMany({
+        where: { jobId: id },
+        select: { employeeId: true },
+      })
+      for (const ej of affected) {
+        await revokeEmployeeSessions(ej.employeeId, 'job-permissions-changed').catch(() => {})
+      }
+      await createAuditLog({
+        userId: authResult.session?.employeeId,
+        action: 'JOB_PERMISSIONS_CHANGED',
+        entityType: 'Job',
+        entityId: id,
+        details: { affectedEmployees: affected.length, permissions: data.permissions, isActive: data.isActive },
+      }).catch(() => {})
+    }
+
     return NextResponse.json(deepToNumbers(job))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/jobs/[id]', 'Napaka pri posodabljanju delovnega mesta')
@@ -92,8 +113,16 @@ export async function DELETE(
 
     const { id } = await params
 
-    // Delete related employee-job assignments first
-    await db.employeeJob.deleteMany({ where: { jobId: id } })
+    // P1-11: pred brisanjem preveri ali ima job še dodeljene zaposlene —
+    // brisanje pobriše EmployeeJob povezave (cascade), zaposleni pa bi ostali
+    // brez delovnega mesta oz. dovoljenj. Zavrni, dokler so zadolžitve aktivne.
+    const assigned = await db.employeeJob.count({ where: { jobId: id } })
+    if (assigned > 0) {
+      return NextResponse.json(
+        { error: `Delovno mesto ima ${assigned} dodeljenih zaposlenih — najprej jim dodelite drugo delovno mesto.` },
+        { status: 400 }
+      )
+    }
 
     await db.job.delete({ where: { id } })
 

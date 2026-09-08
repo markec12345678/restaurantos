@@ -1,6 +1,7 @@
 // Izračuni za račune — postavke, DDV razdelitev
 
 import { toNum, round2, multiply, divide } from '@/lib/decimal'
+import { parseOrderItemModifiers } from '@/lib/json-fields'
 import type { ReceiptItemCalc, VatBreakdownEntry, ReceiptOrderItemInput, VatCalcOrderItemInput } from './types'
 
 // ─── Izračunaj postavke računa (za GET predogled) ───
@@ -11,10 +12,9 @@ export function buildReceiptItems(
   return orderItems
     .filter(oi => !oi.voided)
     .map(oi => {
-      let modifiers: { name: string; price?: number }[] = []
-      try {
-        modifiers = JSON.parse(oi.modifiersJson || '[]')
-      } catch { /* empty */ }
+      // P1-9: Zod-validiran parser namesto raw JSON.parse — modifiersJson
+      // je finančni podatek (vpliva na ceno postavke)
+      const modifiers: { name: string; price?: number }[] = parseOrderItemModifiers(oi.modifiersJson)
 
       const vatRate = toNum(oi.vatRate) || toNum(oi.menuItem?.vatRate) || 22.0
       // FIX MEDIUM: Vključi ceno modifikatorjev v skupno ceno artikla

@@ -16,6 +16,9 @@ export interface Session {
   // Če je null, uporabnik vidi vse lokacije (admin/superuser)
   // Če je nastavljen, API-ji filtrirajo podatke po tej lokaciji
   locationId?: string | null
+  // P1-11: Employee.sessionVersion ob prijavi — mismatch = takojšnja
+  // revokacija (PIN sprememba / vloga / status / dovoljenja).
+  sessionVersion?: number
 }
 
 export type Permission =

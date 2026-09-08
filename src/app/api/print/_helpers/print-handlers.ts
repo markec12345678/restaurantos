@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { generateKitchenOrder, generateTestPrint, type KitchenOrderPrintData } from '@/lib/escpos'
 import { findPrinter, getPrinterModel, sendToPrinter } from './printer-utils'
 import { handleReceiptPrint } from './receipt-print'
+import { parseOrderItemModifiers } from '@/lib/json-fields'
 
 // ============================================
 // PRINT HANDLERS
@@ -39,9 +40,7 @@ export async function handleOrderPrint(orderId: string, printerId?: string) {
       .map(oi => ({
         quantity: oi.quantity,
         name: oi.menuItem.name,
-        modifiers: (() => {
-          try { return JSON.parse(oi.modifiersJson || '[]') } catch { return [] }
-        })(),
+        modifiers: parseOrderItemModifiers(oi.modifiersJson),
         notes: oi.notes || undefined,
         category: oi.menuItem.category?.name,
       })),

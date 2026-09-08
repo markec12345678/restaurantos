@@ -8,6 +8,7 @@ import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rat
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import bcrypt from 'bcryptjs'
 import { hashPinLookup, pinLookupEnabled } from '@/lib/pin-lookup'
+import { WEAK_PINS, BCRYPT_ROUNDS } from '@/lib/auth-middleware/constants'
 
 export const dynamic = 'force-dynamic'
 
@@ -93,9 +94,17 @@ export async function POST(req: Request) {
     const { data, error: validationError } = await validateRequest(req, createEmployeeSchema)
     if (validationError) return validationError
     // FIX C-04 + FIX PERF: Hash PIN z bcrypt + zapiši pinLookup za O(1) iskanje
+    // P1-12: 6+ mest (schema), šibki PIN-i zavrnjeni, bcrypt cost 12
     let hashedPin = ''
     let pinLookup = ''
-    if (data.pin && data.pin.length >= 4) {
+    if (data.pin) {
+      // Šibki PIN-i (sekvence/ponovitve — 123456, 111111 ...) se zavrnejo
+      if (WEAK_PINS.has(data.pin)) {
+        return NextResponse.json(
+          { error: 'PIN je preveč predvidljiv (šibek). Izberite naključnejši PIN.' },
+          { status: 400 }
+        )
+      }
       // FIX PERF: O(1) duplicate check preko pinLookup (prej O(n) findMany + N x bcrypt.compare)
       if (pinLookupEnabled()) {
         pinLookup = hashPinLookup(data.pin)
@@ -124,7 +133,8 @@ export async function POST(req: Request) {
           }
         }
       }
-      hashedPin = await bcrypt.hash(data.pin, 10)
+      // P1-12: BCRYPT_ROUNDS (12) namesto 10 — ~250ms/hash
+      hashedPin = await bcrypt.hash(data.pin, BCRYPT_ROUNDS)
     }
     // FIX CRITICAL: Samo admin lahko ustvari novega admin zaposlenega — prepreči privilege escalation
     if (data.role === 'admin' && authResult.session?.role !== 'admin') {

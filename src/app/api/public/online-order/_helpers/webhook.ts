@@ -2,17 +2,14 @@
 
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
+import { parseWebhookEvents } from '@/lib/json-fields'
 
 // ─── Async webhook trigger — ne blokiraj odziva ───
 export async function triggerWebhookAsync(event: string, payload: Record<string, unknown>) {
   try {
     const webhooks = await db.webhook.findMany({ where: { isActive: true } })
-    const matchingWebhooks = webhooks.filter(wh => {
-      try {
-        const events: string[] = JSON.parse(wh.events)
-        return events.includes(event)
-      } catch { return false }
-    })
+    // P1-9: Zod-validiran parser dogodkov (brez gologa JSON.parse)
+    const matchingWebhooks = webhooks.filter(wh => parseWebhookEvents(wh.events).some(e => e === event))
 
     for (const webhook of matchingWebhooks) {
       await db.webhookDelivery.create({

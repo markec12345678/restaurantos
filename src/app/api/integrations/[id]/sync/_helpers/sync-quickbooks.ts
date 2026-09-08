@@ -4,6 +4,7 @@
 // ============================================
 
 import { db } from '@/lib/db'
+import { parseIntegrationConfig } from '@/lib/json-fields'
 import { toNum, round2 } from '@/lib/decimal'
 import { ACCOUNTS } from '@/lib/accounting/journal-generator'
 import type { SyncResult } from './types'
@@ -48,7 +49,7 @@ export async function syncQuickBooks(integration: {
   config: string
 }): Promise<SyncResult> {
   try {
-    const config: QuickBooksConfig = JSON.parse(integration.config || '{}')
+    const config: QuickBooksConfig = parseIntegrationConfig(integration.config) as unknown as QuickBooksConfig
     if (!config.realmId || !integration.apiKey) {
       return { success: false, statusCode: 0, responseData: '{}', error: 'Manjka realmId ali OAuth access token' }
     }

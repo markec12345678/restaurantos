@@ -4,6 +4,7 @@
 
 import { z } from 'zod'
 import { cuid } from './shared'
+import { PIN_MIN_LENGTH } from '@/lib/auth-middleware/constants'
 
 // ============================================
 // ZAPOSLENI (Employees)
@@ -15,7 +16,10 @@ export const createEmployeeSchema = z.object({
   phone: z.string().max(30).default(''),
   role: z.enum(['admin', 'manager', 'staff', 'kitchen']).default('staff'),
   status: z.enum(['active', 'inactive', 'terminated']).default('active'),
-  pin: z.string().min(4, 'PIN mora imeti vsaj 4 števke').max(20).regex(/^\d+$/, 'PIN mora vsebovati samo številke').optional(),
+  // P1-12: novi PIN-i zahtevajo 6+ mest (šibki PIN-i se zavrnejo v route —
+  // WEAK_PINS seznam v auth-middleware/constants). Login dopušča legacy
+  // 4-mestne PIN-e (PIN_LOGIN_LEGACY_MIN).
+  pin: z.string().min(PIN_MIN_LENGTH, `PIN mora imeti vsaj ${PIN_MIN_LENGTH} števk`).max(20).regex(/^\d+$/, 'PIN mora vsebovati samo številke').optional(),
   hireDate: z.string().optional(),
   jobId: z.string().optional(),
   payRate: z.number().min(0).optional(),
@@ -27,7 +31,12 @@ export const updateEmployeeSchema = z.object({
   phone: z.string().max(30).optional(),
   role: z.enum(['admin', 'manager', 'staff', 'kitchen']).optional(),
   status: z.enum(['active', 'inactive', 'terminated']).optional(),
-  pin: z.string().min(4).max(20).optional(),
+  // P1-12: samo ob prisotnosti (undefined = brez spremembe PIN-a);
+  // prazen string ('') = odstrani PIN (dovoljeno)
+  pin: z.union([
+    z.literal(''),
+    z.string().min(PIN_MIN_LENGTH).max(20).regex(/^\d+$/, 'PIN mora vsebovati samo številke'),
+  ]).optional(),
   hireDate: z.string().optional(),
 })
 

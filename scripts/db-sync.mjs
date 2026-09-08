@@ -220,6 +220,13 @@ const statements = [
        RAISE NOTICE 'P1-6: Receipt ima % NULL locationId vrstic — SET NOT NULL preskočen', (SELECT COUNT(*) FROM "Receipt" WHERE "locationId" IS NULL);
      END IF;
    END $$;`,
+  // ════════════════════════════════════════════════════════════════
+  // P1-11 AUTH HARDENING (v1.0.12): sessionVersion — revokacija sej ob
+  // PIN spremembi, vlogi ali statusu zaposlenega. Stolpca sta varovalki:
+  // existing vrstice dobijo default 0 (vse obstoječe seje ostanejo veljavne).
+  // ════════════════════════════════════════════════════════════════
+  'ALTER TABLE "Employee" ADD COLUMN IF NOT EXISTS "sessionVersion" INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "sessionVersion" INTEGER NOT NULL DEFAULT 0',
 ]
 
 // Neon serverless: ena povezava, kratek timeout (enak vzorcu kot src/lib/db.ts)

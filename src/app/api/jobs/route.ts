@@ -1,6 +1,7 @@
 
 // Zod validacija za kreiranje delovnega mesta
 import { db } from '@/lib/db'
+import { parsePermissions } from '@/lib/json-fields'
 import { requireAuth } from '@/lib/auth-middleware'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
@@ -58,14 +59,11 @@ export async function POST(req: Request) {
     if (validationError) return validationError
 
     // FIX CRITICAL: Samo admin lahko dodeli admin dovoljenje delovnemu mestu
+    // P1-9: Zod-validiran parser (brez gologa JSON.parse)
     if (data.permissions) {
-      try {
-        const perms: string[] = JSON.parse(data.permissions)
-        if (perms.includes('admin') && authResult.session?.role !== 'admin') {
-          return NextResponse.json({ error: 'Samo administrator lahko dodeli admin dovoljenje delovnemu mestu.' }, { status: 403 })
-        }
-      } catch {
-        // Invalid JSON — already validated by Zod
+      const perms: string[] = parsePermissions(data.permissions)
+      if (perms.includes('admin') && authResult.session?.role !== 'admin') {
+        return NextResponse.json({ error: 'Samo administrator lahko dodeli admin dovoljenje delovnemu mestu.' }, { status: 403 })
       }
     }
 

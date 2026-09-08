@@ -1,11 +1,13 @@
-import { db } from '@/lib/db'
+import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, revokeEmployeeSessions } from '@/lib/auth-middleware'
 import { updateEmployeeSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import bcrypt from 'bcryptjs'
 import { invalidateEmployeeStatusCache } from '@/lib/auth-middleware/session-store'
+import { hashPinLookup, pinLookupEnabled } from '@/lib/pin-lookup'
+import { WEAK_PINS, BCRYPT_ROUNDS } from '@/lib/auth-middleware/constants'
 
 
 export const dynamic = 'force-dynamic'
@@ -57,13 +59,52 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (data.status !== undefined) updateData.status = data.status
     if (data.hireDate !== undefined) updateData.hireDate = new Date(data.hireDate)
 
-    // FIX C-04: Hash PIN pred shranjevanjem
+    // P1-12: PIN hardening pri posodobitvi — 6+ mest, šibki PIN-i zavrnjeni,
+    // pinLookup se POSODOBI skupaj z PIN-om (prej se je oslabil in zaposleni
+    // NI VEČ MOGEL prijaviti z novim PIN-om — kritični bug), PIN se ne more
+    // podvojiti pri drugem zaposlenem (409).
+    let pinChanged = false
     if (data.pin !== undefined) {
-      if (data.pin && data.pin.length >= 4 && !data.pin.startsWith('$2')) {
-        updateData.pin = await bcrypt.hash(data.pin, 10)
+      if (data.pin && !data.pin.startsWith('$2')) {
+        // Šibki PIN-i (sekvence/ponovitve) se zavrnejo
+        if (WEAK_PINS.has(data.pin)) {
+          return NextResponse.json(
+            { error: 'PIN je preveč predvidljiv (šibek). Izberite naključnejši PIN.' },
+            { status: 400 }
+          )
+        }
+
+        // P1-12: prepreči duplikat PIN-a (O(1) prek pinLookup; bcrypt fallback)
+        if (pinLookupEnabled()) {
+          const newLookup = hashPinLookup(data.pin)
+          if (newLookup) {
+            const duplicate = await db.employee.findFirst({
+              where: { pinLookup: newLookup, status: 'active', id: { not: id } },
+              select: { id: true },
+            })
+            if (duplicate) {
+              return NextResponse.json(
+                { error: 'PIN je že v uporabi pri drugem zaposlenem. Izberite drug PIN.' },
+                { status: 409 }
+              )
+            }
+          }
+        }
+
+        updateData.pin = await bcrypt.hash(data.pin, BCRYPT_ROUNDS)
+        // KRITIČNI FIX: posodobi pinLookup — O(1) iskanje pri prijavi
+        // uporablja pinLookup in bi drugače našlo zaposlenega po STAREM pin-u
+        const newLookup = pinLookupEnabled() ? hashPinLookup(data.pin) : null
+        updateData.pinLookup = newLookup || null
+        pinChanged = true
       } else if (data.pin === '') {
         updateData.pin = ''
+        updateData.pinLookup = null // odstrani tudi lookup (PIN je odstranjen)
+        pinChanged = true
       }
+      // data.pin.startsWith('$2') = obstoječi bcrypt hash poslan nazaj — ignoriraj
+      // (PIN se ni spremenil; klient ne bi smel pošiljati hash-a, ampak je
+      // backward-kompatibilnost varna — hash se ne zapiše kot PIN)
     }
 
     const employee = await db.employee.update({
@@ -71,10 +112,32 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       data: updateData,
     })
 
-    // FIX SECURITY: invalidiraj status cache če se je status spremenil
-    // (terminiran zaposleni ne sme več dostopati do API-jev)
-    if (data.status !== undefined && data.status !== existing.status) {
-      invalidateEmployeeStatusCache(id)
+    // ── P1-11: revokacija sej ob varnostno-relevantnih spremembah ──
+    // PIN sprememba → vsi stari žetoni takoj neveljavni (kompromitiran PIN
+    //   ne omogoča že ustvarjenih sej)
+    // Role sprememba → permissions snapshot v seji je zastarel
+    // Status sprememba (inactive/terminated) → dostop takoj prekinjen
+    const roleChanged = data.role !== undefined && data.role !== existing.role
+    const statusChanged = data.status !== undefined && data.status !== existing.status
+    if (pinChanged || roleChanged || statusChanged) {
+      const reasons: string[] = []
+      if (pinChanged) reasons.push('pin')
+      if (roleChanged) reasons.push('role')
+      if (statusChanged) reasons.push('status')
+      const reason = reasons.join('+')
+
+      // FIX SECURITY: invalidiraj status cache (takojšen učinek statusa)
+      if (statusChanged) invalidateEmployeeStatusCache(id)
+
+      const revokedCount = await revokeEmployeeSessions(id, `employee-update:${reason}`)
+
+      await createAuditLog({
+        userId: authResult.session?.employeeId,
+        action: pinChanged ? 'EMPLOYEE_PIN_CHANGED' : 'EMPLOYEE_SECURITY_UPDATE',
+        entityType: 'Employee',
+        entityId: id,
+        details: { reason, revokedSessions: revokedCount, newRole: data.role, newStatus: data.status },
+      }).catch(() => {})
     }
 
     // FIX SECURITY: nikoli ne vračaj `pinLookup` (HMAC) klientu — lahko bi ga
@@ -126,6 +189,18 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     // FIX SECURITY: invalidiraj status cache — terminiran zaposleni ne sme
     // več dostopati do API-jev z obstoječo sejo (ki je še veljavna do 8h).
     invalidateEmployeeStatusCache(id)
+
+    // P1-11: revociraj VSE seje terminiranega zaposlenega (briše DB seje +
+    // poviša sessionVersion → takojšen učinek tudi na drugih instancah)
+    const revokedCount = await revokeEmployeeSessions(id, 'employee-terminated')
+
+    await createAuditLog({
+      userId: authResult.session?.employeeId,
+      action: 'EMPLOYEE_TERMINATED',
+      entityType: 'Employee',
+      entityId: id,
+      details: { revokedSessions: revokedCount },
+    }).catch(() => {})
 
     // FIX SECURITY: izloči pinLookup iz odgovora (enako kot PUT)
     const { pinLookup: _pinLookup, ...safeEmployee } = employee
