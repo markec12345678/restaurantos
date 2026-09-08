@@ -41,6 +41,27 @@ const statements = [
    END $$;`,
   // ── FIX AUDIT: OutboxEvent.response — ločeno polje za odziv procesorja ──
   'ALTER TABLE "OutboxEvent" ADD COLUMN IF NOT EXISTS "response" JSONB',
+  // ── P0-C4 Phase 3: Location loyalty + email config (per-lokacija) ──
+  // Shema (schema.prisma/schema.sql) te stolpce že ima; ta DDL zagotavlja, da
+  // jih ima TUDI produkcjska Neon baza (admin/migrate je ročen — db-sync je
+  // avtomatska varovalka proti shema-drift ob vsakem deployu).
+  'ALTER TABLE "Location" ADD COLUMN IF NOT EXISTS "loyaltyEnabled" BOOLEAN DEFAULT false',
+  'ALTER TABLE "Location" ADD COLUMN IF NOT EXISTS "loyaltyPointsPerEuro" INTEGER DEFAULT 1',
+  'ALTER TABLE "Location" ADD COLUMN IF NOT EXISTS "loyaltyPointsValue" DECIMAL(65,30) DEFAULT 0.01',
+  'ALTER TABLE "Location" ADD COLUMN IF NOT EXISTS "emailReportRecipients" TEXT DEFAULT \'[]\'',
+  'ALTER TABLE "Location" ADD COLUMN IF NOT EXISTS "emailEnabled" BOOLEAN DEFAULT false',
+  // ── P0-C4 Phase 4: Webhook.locationId (tenant isolation filter) ──
+  // Webhook engine že filtrira po locationId — če stolpec manjka, BI vsak
+  // trigger padel ob zagonu (Prisma client ga pričakuje po generate).
+  'ALTER TABLE "Webhook" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
+  'CREATE INDEX IF NOT EXISTS "Webhook_locationId_idx" ON "Webhook"("locationId")',
+  `DO $$ BEGIN
+     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Webhook_locationId_fkey') THEN
+       ALTER TABLE "Webhook" ADD CONSTRAINT "Webhook_locationId_fkey"
+       FOREIGN KEY ("locationId") REFERENCES "Location"("id")
+       ON DELETE CASCADE ON UPDATE CASCADE;
+     END IF;
+   END $$;`,
 ]
 
 // Neon serverless: ena povezava, kratek timeout (enak vzorcu kot src/lib/db.ts)

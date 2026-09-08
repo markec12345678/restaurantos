@@ -82,9 +82,10 @@ export async function handleCreatePayment(
   }
 
   // Preveri check
+  // FIX P0-C4: vključi order.locationId — loyalty config se rešuje per-lokacija
   const check = await db.check.findUnique({
     where: { id: data.checkId },
-    select: { id: true, total: true, orderId: true },
+    select: { id: true, total: true, orderId: true, order: { select: { locationId: true } } },
   })
   if (!check) return NextResponse.json({ error: 'Ček ni najden' }, { status: 404 })
 
@@ -102,6 +103,9 @@ export async function handleCreatePayment(
     loyaltyPointsUsed: data.loyaltyPointsUsed ?? 0,
     employeeId: data.employeeId ?? employeeId ?? null,
     idempotencyKey: idempotencyKey,
+    // FIX P0-C4: posreduj order.locationId — resolveLoyaltyConfig() ga uporabi
+    // za per-location loyalty (Location override → RestaurantSettings fallback)
+    locationId: check.order?.locationId ?? null,
   }
 
   try {
