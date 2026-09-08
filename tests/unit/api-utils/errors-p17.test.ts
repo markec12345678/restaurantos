@@ -85,8 +85,7 @@ describe('handleApiError — P1-17 izboljšave', () => {
   // ── produkcija ne razkriva internals ──
 
   it('v produkciji NE razkrije error.message niti stack sledi', async () => {
-    const prevEnv = process.env.NODE_ENV
-    process.env.NODE_ENV = 'production'
+    vi.stubEnv('NODE_ENV', 'production')
     try {
       const response = handleApiError(
         new Error('PrismaClientValidationError: WHERE role=hacker'),
@@ -98,7 +97,7 @@ describe('handleApiError — P1-17 izboljšave', () => {
       expect(body.detail).toBeUndefined()
       expect(JSON.stringify(body)).not.toContain('PrismaClientValidationError')
     } finally {
-      process.env.NODE_ENV = prevEnv
+      vi.unstubAllEnvs()
     }
   })
 
