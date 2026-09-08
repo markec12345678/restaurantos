@@ -60,7 +60,7 @@ export async function createOnlineOrder(input: CreateOnlineOrderInput) {
         paymentMethod: paymentMethod === 'cash' ? 'gotovina' : paymentMethod === 'card' ? 'kartica' : 'mobilno',
         paymentStatus: 'unpaid', paidAt: null,
         diningOptionId: diningOption!.id, deliveryInfoId,
-        inventoryDeducted: false, locationId: locationId || null,
+        inventoryDeducted: false, locationId,
         orderItems: { create: orderItemsData },
       },
       include: { orderItems: true },

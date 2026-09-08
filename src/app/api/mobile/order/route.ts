@@ -155,6 +155,9 @@ export async function POST(req: Request) {
     if (!orderLocationId) {
       orderLocationId = await resolveDefaultLocationId()
     }
+    if (!orderLocationId) {
+      return NextResponse.json({ error: 'Ni nastavljene lokacije — kontaktirajte podporo' }, { status: 400 })
+    }
 
     // P1-7: per-lokacijsko številčenje + FIX: idempotencyKey vedno prisoten
     // (prej: samo če ga klient pošlje — retry brez ključa je ustvaril duplikat)

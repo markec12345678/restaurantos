@@ -82,6 +82,9 @@ export async function POST(req: Request) {
     // P1-7: per-lokacijsko številčenje — QR miza pripada lokaciji mize (resolvedLocationId);
     // fallback na privzeto lokacijo, če miza nima nastavljene (dedične mize)
     const qrLocationId = resolvedLocationId || await resolveDefaultLocationId()
+    if (!qrLocationId) {
+      return NextResponse.json({ error: 'QR naročanje ni nastavljeno — kontaktirajte osebje' }, { status: 400 })
+    }
     let nextOrderNumber: number
     try {
       nextOrderNumber = await getNextOrderNumber(qrLocationId)

@@ -89,6 +89,9 @@ export async function POST(req: Request) {
     } else {
       onlineLocationId = await resolveDefaultLocationId()
     }
+    if (!onlineLocationId) {
+      return NextResponse.json({ error: 'Restavracija trenutno ne sprejema spletnih naročil' }, { status: 400 })
+    }
 
     // Generiraj številko naročila
     // FIX Q04 MEDIUM: Če counter ne deluje, VRNI NAPAKO namesto neatomskega fallbacka

@@ -20,6 +20,9 @@ export async function POST(req: Request) {
     const tables = await db.table.findMany()
     // P1-6/P1-7: seed naročila dobijo lokacijo + per-lokacijsko številčenje
     const seedLocationId = await resolveDefaultLocationId()
+    if (!seedLocationId) {
+      return NextResponse.json({ error: 'Ni lokacije — poženi setup/init najprej' }, { status: 400 })
+    }
 
     if (menuItems.length === 0) {
       return NextResponse.json({ error: 'No menu items found. Seed data first.' }, { status: 400 })

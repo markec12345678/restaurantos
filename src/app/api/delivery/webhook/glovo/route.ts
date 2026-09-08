@@ -82,7 +82,12 @@ export async function POST(req: Request) {
     }
 
     // Ustvari naročilo v RestaurantOS
+    // P1-6: lokacija je obvezna — brez nje 503 (platforma retry-a; naročilo NE sme
+    // biti tiho izgubljeno brez tenant konteksta)
     const webhookLocationId = await resolveDefaultLocationId()
+    if (!webhookLocationId) {
+      return NextResponse.json({ status: 'error', message: 'Ni nastavljene lokacije' }, { status: 503 })
+    }
     const orderNumber = await getNextOrderNumber(webhookLocationId)
     const deliveryAddress = [
       glovoOrder.delivery_address?.street,
@@ -120,7 +125,7 @@ export async function POST(req: Request) {
         paidAt: glovoOrder.payment?.method ? new Date() : null,
         notes: `GLOVO:${glovoOrder.order_id}${glovoOrder.comment ? ' | ' + glovoOrder.comment : ''}`,
         inventoryDeducted: false,
-        ...(webhookLocationId ? { location: { connect: { id: webhookLocationId } } } : {}),
+        location: { connect: { id: webhookLocationId } },
         orderItems: { create: orderItems },
         deliveryInfo: {
           create: {

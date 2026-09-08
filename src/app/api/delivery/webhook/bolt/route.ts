@@ -125,7 +125,12 @@ export async function POST(req: Request) {
     const total = round2(subtotalNum + deliveryFee)
 
     // Ustvari naročilo
+    // P1-6: lokacija je obvezna — brez nje 503 (platforma retry-a; naročilo NE sme
+    // biti tiho izgubljeno brez tenant konteksta)
     const webhookLocationId = await resolveDefaultLocationId()
+    if (!webhookLocationId) {
+      return NextResponse.json({ status: 'error', message: 'Ni nastavljene lokacije' }, { status: 503 })
+    }
     const orderNumber = await getNextOrderNumber(webhookLocationId)
 
     const order = await db.order.create({
@@ -148,7 +153,7 @@ export async function POST(req: Request) {
         totalWithTip: total,
         paymentStatus: 'paid', // Bolt plača vnaprej
         paymentMethod: 'card', // Bolt vedno kartično
-        ...(webhookLocationId ? { location: { connect: { id: webhookLocationId } } } : {}),
+        location: { connect: { id: webhookLocationId } },
         deliveryInfo: {
           create: {
             address: data.delivery_address,

@@ -337,7 +337,7 @@ CREATE TABLE "Order" (
     "paidAt" TIMESTAMP(3),
     "deliveryInfoId" TEXT,
     "virtualBrandId" TEXT,
-    "locationId" TEXT,
+    "locationId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -670,7 +670,7 @@ CREATE TABLE "Receipt" (
     "printedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
-    "locationId" TEXT,
+    "locationId" TEXT NOT NULL,
 
     CONSTRAINT "Receipt_pkey" PRIMARY KEY ("id")
 );
@@ -3147,7 +3147,7 @@ ALTER TABLE "Order" ADD CONSTRAINT "Order_deliveryInfoId_fkey" FOREIGN KEY ("del
 ALTER TABLE "Order" ADD CONSTRAINT "Order_virtualBrandId_fkey" FOREIGN KEY ("virtualBrandId") REFERENCES "VirtualBrand"("id") ON DELETE SET NULL ON UPDATE SET NULL;
 
 -- AddForeignKey
-ALTER TABLE "Order" ADD CONSTRAINT "Order_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE SET NULL ON UPDATE SET NULL;
+ALTER TABLE "Order" ADD CONSTRAINT "Order_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "OrderItem" ADD CONSTRAINT "OrderItem_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -3240,7 +3240,7 @@ ALTER TABLE "RecipeItem" ADD CONSTRAINT "RecipeItem_parentRecipeItemId_fkey" FOR
 ALTER TABLE "Receipt" ADD CONSTRAINT "Receipt_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE RESTRICT ON UPDATE RESTRICT;
 
 -- AddForeignKey
-ALTER TABLE "Receipt" ADD CONSTRAINT "Receipt_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "Receipt" ADD CONSTRAINT "Receipt_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "LoyaltyAccount" ADD CONSTRAINT "LoyaltyAccount_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE SET NULL ON UPDATE CASCADE;

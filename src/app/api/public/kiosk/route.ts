@@ -101,7 +101,11 @@ export async function POST(req: Request) {
     const { totalTax: tax, total } = calculateOrderTotals(orderItemsData, subtotal)
 
     // P1-6: kiosk naprava stoji na lokaciji — resolucija (single-tenant fallback)
+    // Brez lokacije: ZAVRNI (naročilo brez lokacije bi bilo tiho izgubljeno za tenant poizvedbe)
     const kioskLocationId = await resolveDefaultLocationId()
+    if (!kioskLocationId) {
+      return NextResponse.json({ error: 'Kiosk ni nastavljen — kontaktirajte osebje' }, { status: 400 })
+    }
 
     // P1-7: per-lokacijsko številčenje naročil (self-init iz MAX)
     const nextOrderNumber = await getNextOrderNumber(kioskLocationId)

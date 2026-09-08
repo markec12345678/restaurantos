@@ -201,6 +201,25 @@ const statements = [
   'ALTER TABLE "AccountsPayable" ALTER COLUMN "totalAmount" TYPE DECIMAL(12,2)',
   'ALTER TABLE "AccountsPayable" ALTER COLUMN "paidAmount" TYPE DECIMAL(12,2)',
   'ALTER TABLE "AccountsReceivable" ALTER COLUMN "paidAmount" TYPE DECIMAL(12,2)',
+  // ── P1-6 HARDENING (drugi korak, po tem ko je koda v1.0.10+ živa):
+  // Order/Receipt.locationId → NOT NULL — SAMO če 0 NULL vrstic (varovano).
+  // Koda od v1.0.10 vedno zapisuje locationId; backfill zgoraj je počistil zgodovino.
+  // Če NULL ostanejo (npr. vrstice nastale v build-oknu prejšnjega deploya), se
+  // constraint preskoči in logira — nikoli ne prelomi deploya.
+  `DO $$ BEGIN
+     IF (SELECT COUNT(*) FROM "Order" WHERE "locationId" IS NULL) = 0 THEN
+       ALTER TABLE "Order" ALTER COLUMN "locationId" SET NOT NULL;
+     ELSE
+       RAISE NOTICE 'P1-6: Order ima % NULL locationId vrstic — SET NOT NULL preskočen', (SELECT COUNT(*) FROM "Order" WHERE "locationId" IS NULL);
+     END IF;
+   END $$;`,
+  `DO $$ BEGIN
+     IF (SELECT COUNT(*) FROM "Receipt" WHERE "locationId" IS NULL) = 0 THEN
+       ALTER TABLE "Receipt" ALTER COLUMN "locationId" SET NOT NULL;
+     ELSE
+       RAISE NOTICE 'P1-6: Receipt ima % NULL locationId vrstic — SET NOT NULL preskočen', (SELECT COUNT(*) FROM "Receipt" WHERE "locationId" IS NULL);
+     END IF;
+   END $$;`,
 ]
 
 // Neon serverless: ena povezava, kratek timeout (enak vzorcu kot src/lib/db.ts)

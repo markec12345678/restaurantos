@@ -478,8 +478,11 @@ model Order {
   virtualBrandId  String?
   virtualBrand    VirtualBrand? @relation(fields: [virtualBrandId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Multi-location ---
-  locationId      String?
-  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // P1-6 (obvezen): naročilo VEDNO pripada lokaciji (koda resolvia vse poteh;
+  // db-sync varovano SET NOT NULL). onDelete: Restrict — lokacija z naročili se
+  // ne sme izbrisati (fiskalna integriteta); uporabi deaktivacijo (isActive=false).
+  locationId      String
+  location        Location  @relation(fields: [locationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
 
@@ -1021,9 +1024,11 @@ model Receipt {
   printedAt         DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
-  // FIX Test 7.2: Multi-tenant isolation
-  locationId        String?
-  location          Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  // FIX Test 7.2 → P1-6 (obvezen): račun pripada lokaciji naročila (fiskalna veriga).
+  // onDelete: Restrict — fiskalni zapisi (FURS 10-letna hramba) se NE smejo izbrisati
+  // s pobrisanjem lokacije; lokacijo deaktiviraj (isActive=false).
+  locationId        String
+  location          Location  @relation(fields: [locationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([orderId])
   @@index([fiscalVerified])

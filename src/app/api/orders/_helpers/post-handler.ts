@@ -33,7 +33,7 @@ export interface PostOrderAuthSession {
 async function resolveOrderLocationId(
   tableId: string | null | undefined,
   sessionLocationId: string | null | undefined,
-): Promise<{ ok: true; locationId: string | null } | { ok: false; error: string }> {
+): Promise<{ ok: true; locationId: string } | { ok: false; error: string }> {
   let tableLocationId: string | null = null
   if (tableId) {
     const table = await db.table.findUnique({
@@ -50,7 +50,12 @@ async function resolveOrderLocationId(
   const locationId = sessionLoc || tableLocationId
   if (locationId) return { ok: true, locationId }
 
+  // P1-6: lokacija je OBVEZNA — brez nje naročilo ne sme biti ustvarjeno
+  // (setup čarovnik jo ustvari; drugače jasen 400 namesto tiho izgubljenega zapisa)
   const fallback = await resolveDefaultLocationId()
+  if (!fallback) {
+    return { ok: false, error: 'Ni nastavljene lokacije — najprej konfigurirajte lokacijo (setup)' }
+  }
   return { ok: true, locationId: fallback }
 }
 

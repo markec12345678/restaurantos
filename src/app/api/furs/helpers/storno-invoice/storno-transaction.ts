@@ -50,6 +50,8 @@ export async function executeStornoTransaction(
         isCopy: false,
         isStorno: true,
         stornoOf: originalReceipt.receiptNumber,
+        // P1-6: storno račun pripada isti lokaciji kot original (fiskalna veriga)
+        locationId: originalReceipt.locationId,
       },
     })
 

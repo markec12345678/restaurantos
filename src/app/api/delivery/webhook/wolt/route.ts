@@ -82,7 +82,12 @@ export async function POST(req: Request) {
     }
 
     // Ustvari naročilo v RestaurantOS
+    // P1-6: lokacija je obvezna — brez nje 503 (platforma retry-a; naročilo NE sme
+    // biti tiho izgubljeno brez tenant konteksta)
     const webhookLocationId = await resolveDefaultLocationId()
+    if (!webhookLocationId) {
+      return NextResponse.json({ status: 'error', message: 'Ni nastavljene lokacije' }, { status: 503 })
+    }
     const orderNumber = await getNextOrderNumber(webhookLocationId)
     const deliveryAddress = woltOrder.delivery?.location?.formatted_address || ''
     const recipientName = woltOrder.delivery?.recipient?.name || 'Wolt gost'
@@ -116,7 +121,7 @@ export async function POST(req: Request) {
         paidAt: woltOrder.payment?.method ? new Date() : null,
         notes: `WOLT:${woltOrder.order_id}${woltOrder.notes ? ' | ' + woltOrder.notes : ''}`,
         inventoryDeducted: false,
-        ...(webhookLocationId ? { location: { connect: { id: webhookLocationId } } } : {}),
+        location: { connect: { id: webhookLocationId } },
         orderItems: { create: orderItems },
         deliveryInfo: {
           create: {
