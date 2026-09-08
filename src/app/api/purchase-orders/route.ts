@@ -11,7 +11,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createPurchaseOrderSchema } from '@/lib/validations'
 import { getNextCounter } from '@/lib/counters'
-import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,10 +30,8 @@ export async function GET(req: Request) {
     if (supplierId) where.supplierId = supplierId
 
     // FIX MEDIUM: Paginacija z NaN varnostjo
-    const rawLimit = parseInt(searchParams.get('limit') || '50')
-    const rawOffset = parseInt(searchParams.get('offset') || '0')
-    const limit = Math.min(Number.isNaN(rawLimit) ? 50 : rawLimit, 500)
-    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
+    // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
+    const { limit, offset } = parsePaginationParams(searchParams)
 
     const [orders, total] = await Promise.all([
       db.purchaseOrder.findMany({

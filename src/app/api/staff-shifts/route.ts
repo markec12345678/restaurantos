@@ -10,7 +10,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
 import { Prisma } from '@prisma/client'
 import { logger } from '@/lib/logger'
-import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { createStaffShiftSchema, checkTimeOverlap, buildShiftsWhere, computeShiftStats } from './_helpers'
 
 
@@ -25,8 +25,8 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
-    const rawLimit = parseInt(searchParams.get('limit') || '200')
-    const limit = Math.min(Number.isNaN(rawLimit) ? 200 : rawLimit, 500)
+    // P1-16: centralna pagination validacija (limit max, search dolžina)
+    const { limit } = parsePaginationParams(searchParams)
 
     // FIX P0-C2: Centralni tenant scope resolver — fail-closed, no ?locationId bypass
     const scope = resolveTenantLocationId(authResult.session, searchParams, {

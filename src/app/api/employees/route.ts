@@ -5,7 +5,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createEmployeeSchema } from '@/lib/validations'
 import { logger } from '@/lib/logger'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
-import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import bcrypt from 'bcryptjs'
 import { hashPinLookup, pinLookupEnabled } from '@/lib/pin-lookup'
 import { WEAK_PINS, BCRYPT_ROUNDS } from '@/lib/auth-middleware/constants'
@@ -23,11 +23,19 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const role = searchParams.get('role')
     const status = searchParams.get('status')
+    // P1-16: enum validacija query filtrov — prej je neveljavna vrednost
+    // (npr. ?role=hacker) povzročila PrismaClientValidationError → 500
+    const VALID_ROLES = ['admin', 'manager', 'staff'] as const
+    const VALID_STATUSES = ['active', 'inactive', 'terminated'] as const
+    if (role && !VALID_ROLES.includes(role as (typeof VALID_ROLES)[number])) {
+      return NextResponse.json({ error: 'Neveljavna vrednost role' }, { status: 400 })
+    }
+    if (status && !VALID_STATUSES.includes(status as (typeof VALID_STATUSES)[number])) {
+      return NextResponse.json({ error: 'Neveljavna vrednost status' }, { status: 400 })
+    }
     // FIX HIGH: Paginacija za zaposlene — prepreči nalaganje vseh zaposlenih z relacijami
-    const rawLimit = parseInt(searchParams.get('limit') || '100')
-    const rawOffset = parseInt(searchParams.get('offset') || '0')
-    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
-    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
+    // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
+    const { limit, offset } = parsePaginationParams(searchParams)
     const where: Record<string, unknown> = {}
     // FIX Test 7.2: Multi-tenant isolation — filtriraj po session.locationId
     if (authResult.session?.locationId) {

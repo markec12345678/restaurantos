@@ -2,7 +2,7 @@ import { db } from '@/lib/db'
 import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
-import { handleApiError } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams } from '@/lib/api-utils'
 import { handlePostCheck } from './_helpers/post-handler'
 
 
@@ -23,10 +23,8 @@ export async function GET(req: Request) {
     if (paymentStatus) where.paymentStatus = paymentStatus
 
     // FIX HIGH: Paginacija za čeke — prepreči nalaganje tisočih zapisov
-    const rawLimit = parseInt(searchParams.get('limit') || '100')
-    const rawOffset = parseInt(searchParams.get('offset') || '0')
-    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
-    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
+    // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
+    const { limit, offset } = parsePaginationParams(searchParams)
 
     const [checks, total] = await Promise.all([
       db.check.findMany({

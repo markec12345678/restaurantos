@@ -465,6 +465,93 @@ export async function getPendingCount(): Promise<number> {
   return (await getProcessableOrders()).length
 }
 
+/**
+ * P1-15/P1-16 (admin UI): vnosi, ki čakajo ROČNI PREGLED — CONFLICT,
+ * MANUAL_REVIEW (zadržani namensko) + FAILED/EXPIRED (revizijska zgodovina).
+ * Živa vrsta (PENDING/RETRY/PROCESSING) NI vključena — vidna ločeno.
+ */
+export async function getReviewOrders(): Promise<PendingOrder[]> {
+  const all = await getAllOrders()
+  return all.filter(o =>
+    o.status === 'CONFLICT' ||
+    o.status === 'MANUAL_REVIEW' ||
+    o.status === 'FAILED' ||
+    o.status === 'EXPIRED'
+  )
+}
+
+/** Število vnosov, ki čakajo ročni pregled (CONFLICT + MANUAL_REVIEW). */
+export async function getReviewCount(): Promise<number> {
+  const all = await getAllOrders()
+  return all.filter(o => o.status === 'CONFLICT' || o.status === 'MANUAL_REVIEW').length
+}
+
+/**
+ * P1-15 (admin UI): ponovno pošlji EN vnos (ročni retry iz preglednega
+ * panela). Uporabi isti POST /api/orders kanal + idempotencyKey, z
+ * enakim resolveSyncFailure prehodom kot samodejni sync.
+ */
+export async function syncSingleOrder(
+  id: string,
+  authFetch: (url: string, options: RequestInit) => Promise<Response>,
+): Promise<{ ok: boolean; status: OfflineOpStatus | 'SYNCED'; httpStatus: number | null; message: string }> {
+  const db = await openDB()
+  if (!db) return { ok: false, status: 'FAILED', httpStatus: null, message: 'IndexedDB ni na voljo' }
+
+  const entry = normalizeEntry(await new Promise<unknown>((resolve) => {
+    try {
+      const tx = db.transaction(STORE_NAME, 'readonly')
+      const req = tx.objectStore(STORE_NAME).get(id)
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => resolve(null)
+    } catch {
+      resolve(null)
+    }
+  }))
+  if (!entry) return { ok: false, status: 'FAILED', httpStatus: null, message: 'Vnos ni najden' }
+
+  await markOrderProcessing(entry.id)
+
+  let httpStatus: number | null = null
+  let ok = false
+  let json: { id?: string } | null = null
+  try {
+    const res = await authFetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...entry.orderData,
+        idempotencyKey: entry.idempotencyKey,
+      }),
+    })
+    httpStatus = res.status
+    ok = res.ok
+    if (ok) json = await res.json().catch(() => null)
+  } catch {
+    httpStatus = null
+    ok = false
+  }
+
+  if (ok) {
+    await dequeueOrder(entry.id)
+    console.log(`[OfflineQueue] Manual retry synced: ${entry.idempotencyKey} → ${json?.id}`)
+    return { ok: true, status: 'SYNCED', httpStatus, message: 'Sinhronizirano' }
+  }
+
+  const outcome = resolveSyncFailure(httpStatus, entry.retryCount, Date.now() - entry.createdAt)
+  if (outcome.status === 'PENDING') {
+    // 401 — avtentikacija potekla; vnos ostane PENDING (ne šteje poskusa)
+    await markOrderStatus(entry.id, 'PENDING')
+    return { ok: false, status: 'PENDING', httpStatus, message: 'Seja je potekla — ponovno se prijavite' }
+  }
+
+  const errorText = httpStatus === null
+    ? 'Omrežna napaka (ni odgovora)'
+    : `HTTP ${httpStatus}`
+  await markOrderStatus(entry.id, outcome.status, `${errorText}: ${outcome.reason}`)
+  return { ok: false, status: outcome.status, httpStatus, message: `${errorText}: ${outcome.reason}` }
+}
+
 /** Statistika po statusih (za UI/audit — npr. prikaz CONFLICT za ročni pregled). */
 export async function getQueueStats(): Promise<Record<OfflineOpStatus, number>> {
   const all = await getAllOrders()

@@ -10,6 +10,7 @@ import { useState, useEffect, useMemo, useCallback, memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { useQuery } from '@tanstack/react-query'
 import { hasPermission, authFetch } from '@/components/pos/PinLogin'
+import { useOfflineQueueReviewCount } from '@/components/pos/offline-queue/useOfflineQueue'
 import { UserIndicator } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import { useSidebarHoverPrefetch } from '@/lib/use-module-prefetch'
@@ -70,6 +71,10 @@ export const Sidebar = memo(function Sidebar() {
 
   const activeOrderCount = (ordersData?.pendingCount || 0) + (ordersData?.inProgressCount || 0)
 
+  // P1-15/P1-16: badge števca offline konfliktov (CONFLICT/MANUAL_REVIEW)
+  // na navigacijski stavki 'offline-queue' — IndexedDB, per-napraka
+  const { data: offlineReviewCount } = useOfflineQueueReviewCount()
+
   return (
     <>
       {sidebarOpen && (<div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setSidebarOpen(false)} aria-hidden="true" />)}
@@ -90,6 +95,7 @@ export const Sidebar = memo(function Sidebar() {
           visibleNavItems={visibleNavItems}
           activeModule={activeModule}
           activeOrderCount={activeOrderCount}
+          offlineReviewCount={offlineReviewCount ?? 0}
           onModuleClick={(id) => { setActiveModule(id); setSidebarOpen(false) }}
           onModuleHover={onModuleHover}
         />

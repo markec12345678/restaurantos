@@ -6,7 +6,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createShiftSchema } from '@/lib/validations'
 import { emitEvent } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
-import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,10 +33,8 @@ export async function GET(req: Request) {
     }
 
     // FIX HIGH: Paginacija za izmene
-    const rawLimit = parseInt(searchParams.get('limit') || '100')
-    const rawOffset = parseInt(searchParams.get('offset') || '0')
-    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
-    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
+    // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
+    const { limit, offset } = parsePaginationParams(searchParams)
 
     const [shifts, total] = await Promise.all([
       db.shift.findMany({

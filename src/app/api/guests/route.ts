@@ -9,7 +9,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createGuestSchema } from '@/lib/validations'
 import { emitEvent } from '@/lib/event-emitter'
-import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
@@ -21,15 +21,10 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
-    const search = searchParams.get('search') || ''
     const vipOnly = searchParams.get('vip') === 'true'
-    // FIX HIGH: Varno parsanje limit/offset z NaN zaščito
-    const rawLimit = parseInt(searchParams.get('limit') || '50')
-    const rawOffset = parseInt(searchParams.get('offset') || '0')
-
-    // FIX C-02: Omeji limit za preprečevanje DoS + NaN varnost
-    const safeLimit = Math.min(Math.max(Number.isNaN(rawLimit) ? 50 : rawLimit, 1), 200)
-    const safeOffset = Math.max(Number.isNaN(rawOffset) ? 0 : rawOffset, 0)
+    // FIX HIGH + P1-16: centralna pagination validacija — search max 100 znakov,
+    // limit max 100 (prej 200), offset varno
+    const { limit: safeLimit, offset: safeOffset, search } = parsePaginationParams(searchParams, { defaultLimit: 50 })
 
     const where: Record<string, unknown> = {}
 

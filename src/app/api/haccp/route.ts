@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createHaccpSchema, haccpUpdateSchema } from '@/lib/validations'
-import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { createHaccpEntryWithChain } from '@/lib/haccp-chain'
 
 export const dynamic = 'force-dynamic'
@@ -35,10 +35,8 @@ export async function GET(req: Request) {
     }
 
     // FIX MEDIUM: Paginacija za HACCP vnose — prepreči nalaganje vseh zapisov
-    const rawLimit = parseInt(searchParams.get('limit') || '200')
-    const rawOffset = parseInt(searchParams.get('offset') || '0')
-    const limit = Math.min(Number.isNaN(rawLimit) ? 200 : rawLimit, 1000)
-    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
+    // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
+    const { limit, offset } = parsePaginationParams(searchParams)
 
     const [entries, total] = await Promise.all([
       db.haccpEntry.findMany({

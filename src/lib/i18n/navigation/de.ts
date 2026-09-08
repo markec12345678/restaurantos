@@ -64,6 +64,7 @@ export const navDe: Record<string, string> = {
   'nav.outbox': 'Outbox-Überwachung',
   'nav.ghostKitchen': 'Ghost Kitchen',
   'nav.conflicts': 'Konflikte',
+  'nav.offlineQueue': 'Offline-Warteschlange',
   'nav.walletPayment': 'Wallet-Zahlung',
   'nav.fraudDetection': 'Betrugserkennung',
   'nav.laborReports': 'Personalberichte',

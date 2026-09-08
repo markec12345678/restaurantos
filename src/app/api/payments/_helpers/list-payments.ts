@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db'
 import { deepToNumbers } from '@/lib/decimal'
-import { validateApiResponse } from '@/lib/api-utils'
+import { parsePaginationParams, validateApiResponse } from '@/lib/api-utils'
 import { paymentsListResponseSchema } from '@/lib/validations'
 import { NextResponse } from 'next/server'
 
@@ -27,10 +27,8 @@ export async function handleListPayments(req: Request, sessionLocationId?: strin
   }
 
   // Paginacija
-  const rawLimit = parseInt(searchParams.get('limit') || '100')
-  const rawOffset = parseInt(searchParams.get('offset') || '0')
-  const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
-  const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
+    // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
+    const { limit, offset } = parsePaginationParams(searchParams)
 
   const [payments, total] = await Promise.all([
     db.payment.findMany({

@@ -2,7 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
-import { handleApiError } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams } from '@/lib/api-utils'
 
 
 // ============================================
@@ -22,7 +22,8 @@ export async function GET(
     const { id } = await params
     const { searchParams } = new URL(req.url)
 
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200)
+    // P1-16: centralna pagination validacija (limit max, search dolžina)
+    const { limit } = parsePaginationParams(searchParams, { defaultLimit: 50 })
     const offset = parseInt(searchParams.get('offset') || '0')
     const status = searchParams.get('status')
     const action = searchParams.get('action')

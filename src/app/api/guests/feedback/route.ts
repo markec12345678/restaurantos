@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createGuestFeedbackSchema } from '@/lib/validations'
-import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
+import { handleApiError, parseJsonBody, parsePaginationParams, validateBody } from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +23,8 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url)
     const rating = searchParams.get('rating')
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200)
+    // P1-16: centralna pagination validacija (limit max, search dolžina)
+    const { limit } = parsePaginationParams(searchParams, { defaultLimit: 50 })
 
     const where: Record<string, unknown> = {}
     if (rating) {

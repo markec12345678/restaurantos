@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
-import { handleApiError } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams } from '@/lib/api-utils'
 
 
 export const dynamic = 'force-dynamic'
@@ -36,10 +36,8 @@ export async function GET(req: Request) {
       where.date = dateFilter
     }
 
-    const rawLimit = parseInt(searchParams.get('limit') || '100')
-    const rawOffset = parseInt(searchParams.get('offset') || '0')
-    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
-    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
+    // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
+    const { limit, offset } = parsePaginationParams(searchParams)
 
     const [entries, total] = await Promise.all([
       db.journalEntry.findMany({

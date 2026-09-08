@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { deepToNumbers, toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
-import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 
@@ -46,8 +46,8 @@ export async function GET(req: Request) {
     }
     if (status) where.status = status
 
-    const rawLimit = parseInt(searchParams.get('limit') || '100')
-    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
+    // P1-16: centralna pagination validacija (limit max, search dolžina)
+    const { limit } = parsePaginationParams(searchParams)
 
     const [entries, total] = await Promise.all([
       db.accountsReceivable.findMany({

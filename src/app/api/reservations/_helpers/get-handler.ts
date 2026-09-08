@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { parsePaginationParams } from '@/lib/api-utils'
 
 export async function handleGetReservations(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -9,10 +10,8 @@ export async function handleGetReservations(req: Request) {
   const status = searchParams.get('status') || ''
   const upcoming = searchParams.get('upcoming') === 'true'
   // FIX MEDIUM: Paginacija za rezervacije z NaN varnostjo
-  const rawLimit = parseInt(searchParams.get('limit') || '100')
-  const rawOffset = parseInt(searchParams.get('offset') || '0')
-  const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
-  const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
+    // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
+    const { limit, offset } = parsePaginationParams(searchParams)
 
   const where: Record<string, unknown> = {}
 

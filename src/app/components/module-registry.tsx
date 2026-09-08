@@ -84,6 +84,8 @@ const AuditLogViewer = dynamic(() => import('@/components/pos/AuditLogViewer').t
 const OutboxDashboard = dynamic(() => import('@/components/pos/OutboxDashboard').then(m => ({ default: m.OutboxDashboard })), { ssr: false, loading: () => loadingFallback })
 const GhostKitchenHub = dynamic(() => import('@/components/pos/GhostKitchenHub').then(m => ({ default: m.GhostKitchenHub })), { ssr: false, loading: () => loadingFallback })
 const ConflictResolutionDashboard = dynamic(() => import('@/components/pos/ConflictResolutionDashboard').then(m => ({ default: m.ConflictResolutionDashboard })), { ssr: false, loading: () => loadingFallback })
+// P1-15/P1-16: Offline queue pregled konfliktov (IndexedDB, per-naprava)
+const OfflineQueueDashboard = dynamic(() => import('@/components/pos/offline-queue/OfflineQueueDashboard').then(m => ({ default: m.OfflineQueueDashboard })), { ssr: false, loading: () => loadingFallback })
 const WalletPaymentTerminal = dynamic(() => import('@/components/pos/WalletPaymentTerminal').then(m => ({ default: m.WalletPaymentTerminal })), { ssr: false, loading: () => loadingFallback })
 const FraudDetectionDashboard = dynamic(() => import('@/components/pos/FraudDetectionDashboard').then(m => ({ default: m.FraudDetectionDashboard })), { ssr: false, loading: () => loadingFallback })
 const LaborReportsDashboard = dynamic(() => import('@/components/pos/LaborReportsDashboard').then(m => ({ default: m.LaborReportsDashboard })), { ssr: false, loading: () => loadingFallback })
@@ -159,6 +161,7 @@ export const moduleComponents: Record<string, ComponentType> = {
   'outbox': OutboxDashboard,
   'ghost-kitchen': GhostKitchenHub,
   'conflicts': ConflictResolutionDashboard,
+  'offline-queue': OfflineQueueDashboard,
   'wallet-payment': WalletPaymentTerminal,
   'fraud-detection': FraudDetectionDashboard,
   'labor-reports': LaborReportsDashboard,

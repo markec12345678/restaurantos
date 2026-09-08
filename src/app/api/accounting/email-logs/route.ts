@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
-import { handleApiError } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams } from '@/lib/api-utils'
 
 
 export const dynamic = 'force-dynamic'
@@ -21,8 +21,8 @@ export async function GET(req: Request) {
     if (status) where.status = status
     if (reportType) where.reportType = reportType
 
-    const rawLimit = parseInt(searchParams.get('limit') || '50')
-    const limit = Math.min(Number.isNaN(rawLimit) ? 50 : rawLimit, 200)
+    // P1-16: centralna pagination validacija (limit max, search dolžina)
+    const { limit } = parsePaginationParams(searchParams)
 
     const [logs, total] = await Promise.all([
       db.scheduledEmailLog.findMany({

@@ -64,6 +64,7 @@ export const navEn: Record<string, string> = {
   'nav.outbox': 'Outbox Monitor',
   'nav.ghostKitchen': 'Ghost Kitchen',
   'nav.conflicts': 'Conflicts',
+  'nav.offlineQueue': 'Offline Queue',
   'nav.walletPayment': 'Wallet Payment',
   'nav.fraudDetection': 'Fraud Detection',
   'nav.laborReports': 'Labor Reports',

@@ -9,6 +9,8 @@ interface SidebarNavProps {
   visibleNavItems: NavItem[]
   activeModule: string
   activeOrderCount: number
+  /** P1-15/P1-16: število offline konfliktov (CONFLICT/MANUAL_REVIEW) za badge */
+  offlineReviewCount?: number
   onModuleClick: (_id: string) => void
   onModuleHover: (_id: string) => void
 }
@@ -17,6 +19,7 @@ export const SidebarNav = memo(function SidebarNav({
   visibleNavItems,
   activeModule,
   activeOrderCount,
+  offlineReviewCount = 0,
   onModuleClick,
   onModuleHover,
 }: SidebarNavProps) {
@@ -49,6 +52,12 @@ export const SidebarNav = memo(function SidebarNav({
             {item.id === 'kitchen' && activeOrderCount > 0 && (
               <span className="ml-auto flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-orange-500 text-white text-[9px] font-bold px-1" aria-label={`${activeOrderCount} v pripravi`}>
                 {activeOrderCount}
+              </span>
+            )}
+            {/* P1-15/P1-16: offline konflikti čakajo ročni pregled — rdeč badge */}
+            {item.id === 'offline-queue' && offlineReviewCount > 0 && (
+              <span className="ml-auto flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1 animate-pulse" aria-label={`${offlineReviewCount} offline vnosov za ročni pregled`}>
+                {offlineReviewCount}
               </span>
             )}
           </button>

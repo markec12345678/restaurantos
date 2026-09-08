@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { toNum, deepToNumbers, round2, multiply } from '@/lib/decimal'
-import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
+import { handleApiError, parseJsonBody, parsePaginationParams, validateBody, BULK_MAX_LIMIT } from '@/lib/api-utils'
 import { z } from 'zod'
 
 
@@ -33,10 +33,9 @@ export async function GET(req: Request) {
     const fromDate = searchParams.get('from')
     const toDate = searchParams.get('to')
     // FIX: Varno parsanje z NaN fallback
-    const rawLimit = parseInt(searchParams.get('limit') || '100')
-    const rawOffset = parseInt(searchParams.get('offset') || '0')
-    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
-    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
+    // P1-16: centralna pagination validacija — maxLimit 500 (BULK) je utemeljen:
+    // zgodovina zaloge se izvozi/analizira kot blok (prej clamp 500)
+    const { limit, offset } = parsePaginationParams(searchParams, { maxLimit: BULK_MAX_LIMIT })
 
     const where: Record<string, unknown> = {}
     if (inventoryItemId) where.inventoryItemId = inventoryItemId

@@ -65,6 +65,7 @@ export const navSl: Record<string, string> = {
   'nav.outbox': 'Outbox nadzor',
   'nav.ghostKitchen': 'Ghost Kitchen',
   'nav.conflicts': 'Konflikti',
+  'nav.offlineQueue': 'Offline vrsta',
   'nav.walletPayment': 'Plačilo z denarnico',
   'nav.fraudDetection': 'Zaznavanje prevare',
   'nav.laborReports': 'Poročila o delu',

@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createSupplierSchema } from '@/lib/validations'
-import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +21,8 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
-    const search = searchParams.get('search') || ''
+    // P1-16: search omejen na 100 znakov (glej pagination.ts)
+    const search = (searchParams.get('search') || '').slice(0, 100)
     const activeOnly = searchParams.get('active') !== 'false'
 
     const where: Record<string, unknown> = {}
@@ -36,10 +37,8 @@ export async function GET(req: Request) {
     }
 
     // FIX MEDIUM: Paginacija za dobavitelje — prepreči nalaganje vseh zapisov
-    const rawLimit = parseInt(searchParams.get('limit') || '100')
-    const rawOffset = parseInt(searchParams.get('offset') || '0')
-    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
-    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
+    // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
+    const { limit, offset } = parsePaginationParams(searchParams)
 
     const [suppliers, total] = await Promise.all([
       db.supplier.findMany({

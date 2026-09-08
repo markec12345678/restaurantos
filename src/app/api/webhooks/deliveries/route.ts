@@ -4,7 +4,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { processRetryQueue } from '@/lib/webhook-engine'
 
-import { handleApiError } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams } from '@/lib/api-utils'
 
 // ============================================
 // GET /api/webhooks/deliveries — Seznam dostav webhookov
@@ -19,7 +19,8 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
 
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200)
+    // P1-16: centralna pagination validacija (limit max, search dolžina)
+    const { limit } = parsePaginationParams(searchParams, { defaultLimit: 50 })
     const offset = parseInt(searchParams.get('offset') || '0')
     const webhookId = searchParams.get('webhookId')
     const event = searchParams.get('event')

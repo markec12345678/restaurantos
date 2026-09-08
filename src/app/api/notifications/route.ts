@@ -8,7 +8,7 @@ import { db, createAuditLog, createAuditLogsBatch } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
-import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { sendNotificationSchema, sendBatchSchema, simulateSend, parseDetails } from './_helpers'
 
 
@@ -23,10 +23,8 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status') || 'all'
-    const rawLimit = parseInt(searchParams.get('limit') || '50')
-    const rawOffset = parseInt(searchParams.get('offset') || '0')
-    const limit = Math.min(Number.isNaN(rawLimit) ? 50 : rawLimit, 200)
-    const offset = Math.max(Number.isNaN(rawOffset) ? 0 : rawOffset, 0)
+    // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
+    const { limit, offset } = parsePaginationParams(searchParams, { defaultLimit: 50 })
 
     const where: Record<string, unknown> = {
       action: { in: ['NOTIFICATION_SENT', 'NOTIFICATION_FAILED', 'NOTIFICATION_QUEUED'] },

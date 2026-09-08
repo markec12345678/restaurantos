@@ -16,7 +16,7 @@
 import { ordersKeys, kitchenKeys, menusKeys, categoriesKeys, menuItemsKeys, modifierGroupsKeys, tablesKeys, employeesKeys, shiftsKeys, jobsKeys } from './orders-menu-staff'
 import { inventoryKeys, cashRegisterKeys, endOfDayKeys, reportsKeys, dashboardKeys, reservationsKeys } from './inventory-cash-reports'
 import { altPaymentsKeys, checksKeys, giftCardsKeys, loyaltyKeys, tipPoolKeys, configurationKeys } from './payments-loyalty-config'
-import { deliveryKeys, locationsKeys, suppliersKeys, purchaseOrdersKeys, haccpKeys, fursKeys, receiptKeys, zReportKeys, authKeys, webhooksKeys, integrationsKeys, expensesKeys, feedbackKeys, dailyChecklistKeys, discountsKeys, diningOptionsKeys, voidReasonsKeys, recipesKeys, subscriptionKeys, waitlistKeys, notificationsKeys, menuEngineeringKeys, menuItemNutritionKeys, recentOrders7dKeys } from './delivery-misc'
+import { deliveryKeys, locationsKeys, suppliersKeys, purchaseOrdersKeys, haccpKeys, fursKeys, receiptKeys, zReportKeys, authKeys, webhooksKeys, integrationsKeys, expensesKeys, feedbackKeys, dailyChecklistKeys, discountsKeys, diningOptionsKeys, voidReasonsKeys, recipesKeys, subscriptionKeys, waitlistKeys, notificationsKeys, menuEngineeringKeys, menuItemNutritionKeys, recentOrders7dKeys, offlineQueueKeys } from './delivery-misc'
 
 export const queryKeys = {
   // ---- Naročila ----
@@ -88,6 +88,8 @@ export const queryKeys = {
   subscription: subscriptionKeys,
   waitlist: waitlistKeys,
   notifications: notificationsKeys,
+  // ---- Offline queue (P1-15: konflikti za ročni pregled) ----
+  offlineQueue: offlineQueueKeys,
   menuEngineering: menuEngineeringKeys,
   menuItemNutrition: menuItemNutritionKeys,
   recentOrders7d: recentOrders7dKeys,

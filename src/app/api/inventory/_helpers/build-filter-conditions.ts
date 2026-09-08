@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { parsePaginationParams, BULK_MAX_LIMIT } from '@/lib/api-utils'
 
 // ============================================
 // Inventory API helpers — filter conditions
@@ -14,12 +15,11 @@ export function buildFilterConditions(searchParams: URLSearchParams): {
   const category = searchParams.get('category')
   const location = searchParams.get('location')
   const lowStock = searchParams.get('lowStock')
-  const search = searchParams.get('search')
 
-  const rawLimit = parseInt(searchParams.get('limit') || '500')
-  const rawOffset = parseInt(searchParams.get('offset') || '0')
-  const limit = Math.min(Number.isNaN(rawLimit) ? 500 : rawLimit, 2000)
-  const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
+  // P1-16: centralna pagination validacija — search se reže na 100 znakov,
+  // limit max 500 (BULK — skladiščni dashboard nalaga celoten seznam artiklov,
+  // prej neuveljavljen clamp 2000)
+  const { limit, offset, search } = parsePaginationParams(searchParams, { defaultLimit: BULK_MAX_LIMIT, maxLimit: BULK_MAX_LIMIT })
 
   const andConditions: Record<string, unknown>[] = []
 

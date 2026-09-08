@@ -4,7 +4,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-middleware'
-import { handleApiError } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams } from '@/lib/api-utils'
 import { z } from 'zod'
 import {
   initiateWalletPayment,
@@ -41,7 +41,8 @@ export async function GET(req: Request) {
     const status = searchParams.get('status')
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 200)
+    // P1-16: centralna pagination validacija (limit max, search dolžina)
+    const { limit } = parsePaginationParams(searchParams, { defaultLimit: 50 })
 
     if (stats) {
       const from = dateFrom ? new Date(dateFrom) : undefined

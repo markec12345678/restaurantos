@@ -9,7 +9,7 @@ import {
   Brain, LayoutGrid, Calendar, UserCircle, Sparkles,
   Calculator, ClipboardList, Factory, Plug, MapPin, CalendarClock, Layers,
   MessageSquare, Target, FileText, HandCoins, Navigation, Timer, Trophy, Bell,
-  ShieldAlert, Receipt, ClipboardCheck, BellRing, PieChart, Activity, Table2,
+  ShieldAlert, Receipt, ClipboardCheck, BellRing, PieChart, Activity, Table2, CloudOff,
   CookingPot, Scale, Star, Trash2, Scale3d, Store, ShieldCheck, BookOpen, GitBranch, Nfc,
 } from 'lucide-react'
 
@@ -87,6 +87,7 @@ export const navItems: NavItem[] = [
   { id: 'outbox', labelKey: 'nav.outbox', icon: Activity, adminOnly: true },
   { id: 'ghost-kitchen', labelKey: 'nav.ghostKitchen', icon: ChefHat, permission: 'view_reports' },
   { id: 'conflicts', labelKey: 'nav.conflicts', icon: GitBranch, adminOnly: true },
+  { id: 'offline-queue', labelKey: 'nav.offlineQueue', icon: CloudOff, adminOnly: true },
   { id: 'wallet-payment', labelKey: 'nav.walletPayment', icon: Nfc, permission: 'manage_cash' },
   { id: 'fraud-detection', labelKey: 'nav.fraudDetection', icon: ShieldAlert, adminOnly: true },
   { id: 'labor-reports', labelKey: 'nav.laborReports', icon: Calendar, permission: 'view_reports' },

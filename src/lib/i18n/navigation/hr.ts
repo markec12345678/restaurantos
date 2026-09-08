@@ -64,6 +64,7 @@ export const navHr: Record<string, string> = {
   'nav.outbox': 'Nadzor Outbox',
   'nav.ghostKitchen': 'Ghost Kitchen',
   'nav.conflicts': 'Konflikti',
+  'nav.offlineQueue': 'Offline red',
   'nav.walletPayment': 'Plaćanje novčanikom',
   'nav.fraudDetection': 'Otkrivanje prijevara',
   'nav.laborReports': 'Izvještaji o radu',

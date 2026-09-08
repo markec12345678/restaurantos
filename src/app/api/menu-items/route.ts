@@ -5,7 +5,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createMenuItemSchema } from '@/lib/validations'
 import { z } from 'zod'
-import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { handleApiError, validateRequest, parsePaginationParams, BULK_MAX_LIMIT } from '@/lib/api-utils'
 import { isItemAvailableNow } from '@/lib/mealtimes'
 import { withETag } from '@/lib/middleware/cache-headers'
 
@@ -25,8 +25,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const categoryId = searchParams.get('categoryId')
     const menuId = searchParams.get('menuId')
-    const limitParam = searchParams.get('limit')
-    const offsetParam = searchParams.get('offset')
+
     const simple = searchParams.get('simple') // Skip heavy includes when true
     // AUD-10: omogoči MealtimeRule filtriranje (?checkMealtimes=true).
     // Ko je true, se artikli z ne-ujemajočimi pravili označijo z isAvailable=false
@@ -42,8 +41,10 @@ export async function GET(request: Request) {
     }
 
     // FIX PERF: Paginacija + optional simple mode (brez modifierGroups za hitrejši response)
-    const limit = Math.min(Number.isNaN(parseInt(limitParam || '')) ? 500 : parseInt(limitParam || ''), 500)
-    const offset = Number.isNaN(parseInt(offsetParam || '')) ? 0 : parseInt(offsetParam || '')
+    // P1-16: centralna pagination validacija — maxLimit 500 (BULK) je utemeljen,
+    // ker POS meni browser naloži CELOTEN jedilnik naenkrat (tudi nutrition calc
+    // in AI priporočila pridobivajo celoten meni z limit=500)
+    const { limit, offset } = parsePaginationParams(searchParams, { defaultLimit: BULK_MAX_LIMIT, maxLimit: BULK_MAX_LIMIT })
 
     // AUD-10: dodaj mealtimeRules v include, da lahko filtriramo po dnevu/času
     const include = (simple === 'true'

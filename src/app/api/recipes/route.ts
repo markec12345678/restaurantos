@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-middleware'
 import { logger } from '@/lib/logger'
-import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
+import { handleApiError, parseJsonBody, parsePaginationParams, validateBody } from '@/lib/api-utils'
 
 const createRecipeSchema = z.object({
   menuItemId: z.string().min(1, 'menuItemId je obvezen'),
@@ -36,10 +36,8 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const menuItemId = searchParams.get('menuItemId')
     const inventoryItemId = searchParams.get('inventoryItemId')
-    const rawLimit = parseInt(searchParams.get('limit') || '200')
-    const rawOffset = parseInt(searchParams.get('offset') || '0')
-    const limit = Math.min(Number.isNaN(rawLimit) ? 200 : rawLimit, 500)
-    const offset = Math.max(Number.isNaN(rawOffset) ? 0 : rawOffset, 0)
+    // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
+    const { limit, offset } = parsePaginationParams(searchParams)
 
     const where: Record<string, unknown> = {}
     if (menuItemId) where.menuItemId = menuItemId

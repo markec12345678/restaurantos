@@ -66,6 +66,14 @@ export async function generateJournalForPayment(
     const count = await db.journalEntry.count({ where: { entryNumber: { startsWith: `JE-${year}-` } } })
     const entryNumber = `JE-${year}-${String(count + 1).padStart(6, '0')}`
 
+    // P1-18 (idempotenca): če vnos za to plačilo ŽE obstaja (retry klica),
+    // ne ustvari duplikata — vračamo obstoječi ID.
+    const existing = await db.journalEntry.findFirst({
+      where: { reference: paymentId, referenceType: 'payment' },
+      select: { id: true },
+    })
+    if (existing) return existing.id
+
     // Ustvari knjigovodski vnos z vrsticami (double-entry)
     const entry = await db.journalEntry.create({
       data: {
@@ -125,6 +133,142 @@ export async function generateJournalForPayment(
     return entry.id
   } catch (error) {
     logger.error("CONSOLE", '[Journal] Napaka pri generiranju vnosa:', error)
+    return null
+  }
+}
+
+/** Prisma transakcijski klient (interaktivni callback parameter) */
+type PrismaTx = Parameters<Parameters<typeof db.$transaction>[0]>[0]
+
+/** Vhod za generateJournalForRefund — vrednosti priskrbi refund transakcija. */
+export interface RefundJournalInput {
+  paymentId: string
+  /** Znesek TEGA vračila (ne kumulativ!) */
+  refundAmount: number
+  /** Kumulativen refund znesek PO tem vračilu (idempotenčni ključ) */
+  cumulativeRefundAmount: number
+  /** Delež napitnine tega vračila (refundRatio × payment.tipAmount) */
+  tipPortion: number
+  orderType: string
+  orderNumber: number | string
+  customerName: string
+  paymentType: string
+  locationId: string | null
+  employeeId?: string | null
+  reason?: string
+}
+
+/**
+ * P1-18: Knjigovodska reverza (storno vnos) ob vračilu plačila.
+ *
+ * KLICATI ZNOTRAJ refund $transaction — tako so "refund in accounting
+ * reversal" ATOMARNA (specifikacija P1-18: "Če jedna operacija uspije,
+ * druga pa pade, ne smije ostati napol zapisan poslovni proces").
+ *
+ * Double-entry reverza (obrnjene strani glede na plačilni vnos):
+ *   Debet:  promet  (razveljavimo prihodek za refundani del)
+ *   Debet:  napitnine (če je tip del vračila)
+ *   Kredit: banka/blagajna (izplačamo denar nazaj)
+ *
+ * Idempotenca: reference = `refund:{paymentId}:{cumulative}` — advisory
+ * lock na refundu serializira kumulativni znesek → enoličen za vsak
+ * refund dogodek; duplikat klic preskoči create in vrne obstoječi ID.
+ */
+export async function generateJournalForRefund(
+  tx: PrismaTx,
+  input: RefundJournalInput,
+): Promise<string | null> {
+  try {
+    const reference = `refund:${input.paymentId}:${input.cumulativeRefundAmount.toFixed(2)}`
+
+    // Idempotenca — duplikat (retry) preskočimo
+    const existing = await tx.journalEntry.findFirst({
+      where: { reference, referenceType: 'refund' },
+      select: { id: true },
+    })
+    if (existing) return existing.id
+
+    const netRefund = Math.max(input.refundAmount - input.tipPortion, 0)
+
+    const salesAccount = input.orderType === 'delivery'
+      ? ACCOUNTS.SALES_DELIVERY
+      : input.orderType === 'takeout'
+      ? ACCOUNTS.SALES_TAKEOUT
+      : ACCOUNTS.SALES_DINEIN
+    const paymentAccount = input.paymentType === 'cash' ? ACCOUNTS.CASH : ACCOUNTS.BANK
+
+    // resolveAccountCode je read-only poizvedba po kontnem načrtu — varno
+    // jo naredimo prek globalnega db klienta tudi znotraj tx callbacka
+    // (kontni načret se z refund operacijo NE spreminja).
+    const [resolvedSales, resolvedPayment, resolvedTips] = await Promise.all([
+      resolveAccountCode(salesAccount.code),
+      resolveAccountCode(paymentAccount.code),
+      input.tipPortion > 0 ? resolveAccountCode(ACCOUNTS.TIPS.code) : Promise.resolve(null),
+    ])
+
+    const year = new Date().getFullYear()
+    const count = await tx.journalEntry.count({ where: { entryNumber: { startsWith: `JE-${year}-` } } })
+    const entryNumber = `JE-${year}-${String(count + 1).padStart(6, '0')}`
+
+    const entry = await tx.journalEntry.create({
+      data: {
+        entryNumber,
+        date: new Date(),
+        reference,
+        referenceType: 'refund',
+        description: `Reverza vračila #${input.orderNumber} — ${input.customerName || 'Gost'} (${input.paymentType})${input.reason ? `: ${input.reason}` : ''}`,
+        source: 'auto-refund',
+        status: 'posted',
+        postedAt: new Date(),
+        postedBy: input.employeeId || null,
+        locationId: input.locationId || null,
+        lines: {
+          create: [
+            // Debet: promet (razveljavimo prihodek)
+            {
+              accountCode: resolvedSales.accountCode,
+              chartOfAccountCode: resolvedSales.chartOfAccountCode,
+              accountName: resolvedSales.accountName,
+              accountType: resolvedSales.accountType,
+              debit: netRefund,
+              credit: 0,
+              description: `Reverza prometa ${input.orderType} — vračilo #${input.orderNumber}`,
+              locationId: input.locationId || null,
+            },
+            // Debet: napitnine (če je del vračila)
+            ...(input.tipPortion > 0 && resolvedTips ? [{
+              accountCode: resolvedTips.accountCode,
+              chartOfAccountCode: resolvedTips.chartOfAccountCode,
+              accountName: resolvedTips.accountName,
+              accountType: resolvedTips.accountType,
+              debit: input.tipPortion,
+              credit: 0,
+              description: `Reverza napitnine — vračilo #${input.orderNumber}`,
+              locationId: input.locationId || null,
+            }] : []),
+            // Kredit: banka/blagajna (vrnimo denar)
+            {
+              accountCode: resolvedPayment.accountCode,
+              chartOfAccountCode: resolvedPayment.chartOfAccountCode,
+              accountName: resolvedPayment.accountName,
+              accountType: resolvedPayment.accountType,
+              debit: 0,
+              credit: input.refundAmount,
+              description: `Izplačilo vračila (${input.paymentType}) — vračilo #${input.orderNumber}`,
+              locationId: input.locationId || null,
+            },
+          ],
+        },
+      },
+      include: { lines: true },
+    })
+
+    return entry.id
+  } catch (error) {
+    // Napaka journal-a NE sme ponesreči refunda denarja — logiramo in
+    // nadaljujemo (knjigovodska vrzel je vidna v reviziji; vračilo denarja
+    // je poslovno kritičnejše). Vrna null — klicnik ve da JE ni nastal.
+    logger.error('JOURNAL', 'Reverza vračila ni bila ustvarjena:', error)
     return null
   }
 }

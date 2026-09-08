@@ -107,3 +107,14 @@ export const menuItemNutritionKeys = {
 export const recentOrders7dKeys = {
   all: ['recent-orders-7d'] as const,
 }
+
+// ============================================
+// OFFLINE QUEUE (P1-15/P1-16) — IndexedDB vrsta na NAPRAVI
+// Konflikti (CONFLICT/MANUAL_REVIEW) čakajo ročni pregled.
+// ============================================
+export const offlineQueueKeys = {
+  all: ['offline-queue'] as const,
+  entries: ['offline-queue', 'entries'] as const,
+  stats: ['offline-queue', 'stats'] as const,
+  reviewCount: ['offline-queue', 'review-count'] as const,
+}

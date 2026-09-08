@@ -2,6 +2,41 @@
 
 All notable changes to RestaurantOS are documented in this file.
 
+## [v1.0.14] — 2026-09-09 — P1 Security Audit (16/17/18) + Offline Conflict Admin UI
+
+### 🔒 P1-16: Request Validation (centralna pagination validacija)
+
+- **Added:** `src/lib/api-utils/pagination.ts` — `parsePaginationParams()` helper: limit max 100 (spec), offset >= 0, search reže na 100 znakov, hard cap 500 za utemeljene bulk rute
+- **Changed:** 38 API rut migriranih z raztresenimi inline parserji (clamp 200–2000) na centralni helper — enoten limit/spomnilka: PAGINATION_MAX_LIMIT=100, BULK_MAX_LIMIT=500 (orders/menu-items/inventory utemeljeno: poročila + POS meni)
+- **Fixed:** `GET /api/employees` — enum validacija `role`/`status` query filtrov (prej neveljavna vrednost → PrismaClientValidationError → 500)
+- **Fixed:** `GET /api/guests`, `GET /api/suppliers` — search niz omejen na 100 znakov
+- **Audit:** mass assignment — employees POST/PU (updateData eksplicitna izbira polj), sync POST (conflictData v namensko JSON polje, admin-only): NI ranljivosti; `data: req.body` vzorec v kodi ne obstaja
+
+### 🔒 P1-17: Error Handling (standardiziran format + requestId)
+
+- **Fixed:** `handleApiError` — ZodError sedaj 400 VALIDATION_ERROR s seznamom polj (prej 500 "Napaka na strežniku" — rute s `schema.parse()` so validacijske napake vračale kot strežniške!)
+- **Added:** `code` (VALIDATION_ERROR/INTERNAL_ERROR) + `requestId` v telesu odgovora + `X-Request-Id` header (nazaj-kompatibilno: `error` ostane string)
+- **Added:** strukturiran log: requestId, statusCode, errorCode, meta {userId, locationId, latencyMs} (spec: request ID, user ID, location ID, route, latency, status, error code)
+- **Audit:** secret-masks (certifikati/tokeni) že na mestu; monitoring/errors že sanitiziran; prod stack/SQL/secrets leakage: NI (dev-only detail)
+
+### 🔒 P1-18: Transakcije (refund + accounting reversal)
+
+- **Added:** `generateJournalForRefund()` — knjigovodska reverza vračila (double-entry: debet promet/napitnine, kredit blagajna/banka) ZNOTRAJ refund `$transaction` (advisory lock) — spec: "refund in accounting reversal" atomarna
+- **Added:** idempotenca refund JE (reference=`refund:{paymentId}:{kumulativa}` — advisory lock serializira) + `generateJournalForPayment` dedup (prej retry ustvaril duplikat vnos)
+- **Audit transakcij:** order+items ✅, check+payment ✅ (advisory lock), receipt+številčenje ✅ (tx), inventory+stockMovement ✅ (tx + inventoryDeducted flag), FURS outbox idempotenten ✅, shift close ✅, Z-report upsert+finalized ✅, offline sync idempotencyKey ✅ — edina vrzel bila refund reversal (odprta zgoraj)
+
+### 🖥️ Admin UI: Offline Queue Dashboard (CONFLICT/MANUAL_REVIEW)
+
+- **Added:** `src/components/pos/offline-queue/OfflineQueueDashboard.tsx` — pregled offline vrste (IndexedDB, per-napraka): statistika, filtri (za pregled/konflikti/ročni pregled/vse), detail dialog s P1-14 metapodatki + payload JSON, lastError prikaz
+- **Added:** Akciji "Ponovno pošlji" (syncSingleOrder — isti idempotencyKey kanal + resolveSyncFailure prehodi) in "Odpusti" (potrditveni dialog z razlogom → dequeue + audit zapis na strežniku)
+- **Added:** `POST /api/audit` — ročni revizijski vpisi (admin-only, Zod validacija, 1MB limit)
+- **Added:** Navigacija "Offline vrsta" (adminOnly) + rdeč pulsirajoč badge s številom konfliktov v sidebarju; i18n v 5 jezikih (sl/en/it/hr/de)
+- **Added:** React Query hooki (`useOfflineQueueEntries/Stats/ReviewCount`) z refetch na SW sporočila + online event
+
+### Testni nabor
+
+- 1249/1249 (prej 1197; +52: pagination 23, P1-17 error handling 10, refund journal 9, offline review queue 10 — z minimalnim IndexedDB polyfillom)
+
 ## [v1.0.2] — 2026-09-06 — Deep Audit + Business Value
 
 ### 🎯 Deep Audit Series (6 rounds, 937 tests, dual licensing, OpenAPI, SLA)

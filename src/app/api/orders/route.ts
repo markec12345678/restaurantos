@@ -4,7 +4,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
-import { handleApiError } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams, BULK_MAX_LIMIT } from '@/lib/api-utils'
 import { handlePostOrder } from './_helpers/post-handler'
 
 
@@ -28,10 +28,10 @@ export async function GET(req: Request) {
     const paymentStatus = searchParams.get('paymentStatus')
     const virtualBrandId = searchParams.get('virtualBrandId')
     // FIX: Paginacija — prepreči nalaganje 100.000+ zapisov
-    const rawLimit = parseInt(searchParams.get('limit') || '100')
-    const rawOffset = parseInt(searchParams.get('offset') || '0')
-    const limit = Math.min(Number.isNaN(rawLimit) ? 100 : rawLimit, 500)
-    const offset = Number.isNaN(rawOffset) ? 0 : rawOffset
+    // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
+    // P1-16: maxLimit 500 (BULK) — utemeljen bulk/report scenarij: poslovna
+    // poročila (P&L, AI priporočila) pridobijo plačana naročila z limit=500
+    const { limit, offset } = parsePaginationParams(searchParams, { maxLimit: BULK_MAX_LIMIT })
 
     // FIX P0-C2: Centralni tenant scope resolver — fail-closed za regular user brez locationId
     // Prejšnja koda je imela bypass: regular user z locationId=null je lahko poslal ?locationId=loc-b

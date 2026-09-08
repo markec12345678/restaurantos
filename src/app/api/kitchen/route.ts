@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 
-import { handleApiError } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams } from '@/lib/api-utils'
 
 // GET /api/kitchen — Active orders for kitchen display
 export const dynamic = 'force-dynamic'
@@ -18,8 +18,8 @@ export async function GET(req: Request) {
 
     // FIX MEDIUM: Paginacija za KDS — prepreči nalaganje preveč naročil
     const { searchParams } = new URL(req.url)
-    const rawLimit = parseInt(searchParams.get('limit') || '50')
-    const limit = Math.min(Number.isNaN(rawLimit) ? 50 : rawLimit, 200)
+    // P1-16: centralna pagination validacija (limit max, search dolžina)
+    const { limit } = parsePaginationParams(searchParams, { defaultLimit: 50 })
 
     const orders = await db.order.findMany({
       where: {

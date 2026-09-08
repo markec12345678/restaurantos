@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createCategorySchema } from '@/lib/validations'
-import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,10 +16,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const menuId = searchParams.get('menuId')
     const includeItems = searchParams.get('includeItems') !== 'false' // default true
-    const rawLimit = parseInt(searchParams.get('limit') || '200')
-    const rawOffset = parseInt(searchParams.get('offset') || '0')
-    const limit = Math.min(Number.isNaN(rawLimit) ? 200 : rawLimit, 500)
-    const offset = Math.max(Number.isNaN(rawOffset) ? 0 : rawOffset, 0)
+    // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
+    const { limit, offset } = parsePaginationParams(searchParams)
 
     const where = menuId ? { menuId } : {}
     const [categories, total] = await Promise.all([

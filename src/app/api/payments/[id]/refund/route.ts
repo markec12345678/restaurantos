@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
+import { generateJournalForRefund } from '@/lib/accounting/journal-generator'
 import { z } from 'zod'
 
 const refundSchema = z.object({
@@ -210,15 +211,43 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         },
       })
 
-      return updatedPayment
+      // 8. P1-18: knjigovodska reverza (accounting reversal) v ISTI transakciji
+      // kot refund — specifikacija: "refund in accounting reversal" morata biti
+      // atomarna. Prej je refund pustil plačilni JE netaknjen (knjigovodstvo je
+      // kazalo prihodek, ki je bil dejansko vrnjen).
+      // Idempotentna (reference = refund:paymentId:kumulativa) — duplikat
+      // preskoči create. Napaka journal-a NE vrže refunda (vračilo denarja je
+      // poslovno kritičnejše od knjigovodske vrstice; vrzel je vidna v log-u).
+      const order = payment.check?.order
+      let journalEntryId: string | null = null
+      try {
+        journalEntryId = await generateJournalForRefund(tx, {
+          paymentId: id,
+          refundAmount: amount,
+          cumulativeRefundAmount: newRefundAmount,
+          tipPortion: round2(toNum(payment.tipAmount) * refundRatio),
+          orderType: order?.type ?? 'dine-in',
+          orderNumber: order?.orderNumber ?? '',
+          customerName: order?.customerName ?? '',
+          paymentType: payment.type,
+          locationId: order?.locationId ?? null,
+          employeeId: employeeId || authResult.session?.employeeId || null,
+          reason: reason || undefined,
+        })
+      } catch (journalErr) {
+        // Ne prekini refunda — glej komentar v generateJournalForRefund
+        logger.error('REFUND', 'Accounting reversal ni uspel (refund ostaja veljaven):', journalErr)
+      }
+
+      return { payment: updatedPayment, journalEntryId }
     })
 
     return NextResponse.json({
       success: true,
-      payment: { ...updated, refundAmount: toNum(updated.refundAmount) },
+      payment: { ...updated.payment, refundAmount: toNum(updated.payment.refundAmount) },
       refundAmount: amount,
       totalRefunded: currentRefunded + amount,
-      fullyRefunded: toNum(updated.refundAmount) >= toNum(payment.amount),
+      fullyRefunded: toNum(updated.payment.refundAmount) >= toNum(payment.amount),
     })
   } catch (error: unknown) {
     // PAYMENT AUDIT: specifične napake iz zaklenjene transakcije → 4xx
