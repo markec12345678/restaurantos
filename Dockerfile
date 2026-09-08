@@ -5,7 +5,7 @@
 # Run:   docker run -p 3000:3000 -v $(pwd)/db:/app/db restaurantos
 # ============================================
 
-FROM node:20-alpine AS base
+FROM node:26-alpine AS base
 
 # Install dependencies only when needed
 FROM base AS deps

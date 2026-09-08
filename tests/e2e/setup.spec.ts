@@ -18,7 +18,7 @@ test.describe('Setup Wizard', () => {
     }
     expect(lastRes?.ok()).toBeTruthy()
 
-    const body = await lastRes!.json()
+    const body = (await lastRes!.json()) as Record<string, unknown>
     expect(body).toHaveProperty('isInitialized')
     expect(body).toHaveProperty('mode')
     expect(body).toHaveProperty('hasEmployees')
@@ -27,7 +27,7 @@ test.describe('Setup Wizard', () => {
     expect(body).toHaveProperty('counts')
     expect(body).toHaveProperty('multiLocationReady')
     expect(body).toHaveProperty('databaseUrl')
-    expect(['single', 'multi']).toContain(body.mode)
+    expect(['single', 'multi']).toContain(String(body.mode))
 
     await ctx.dispose()
   })
@@ -90,7 +90,7 @@ test.describe('Setup Wizard', () => {
       await new Promise(r => setTimeout(r, 2000))
     }
     expect(lastRes?.ok()).toBeTruthy()
-    const body = await lastRes!.json()
+    const body = (await lastRes!.json()) as Record<string, unknown>
     expect(body.isInitialized).toBe(true)
     expect(body.hasEmployees).toBe(true)
     expect(body.hasLocations).toBe(true)

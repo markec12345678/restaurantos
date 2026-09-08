@@ -84,7 +84,7 @@ export const WoWComparison = memo(function WoWComparison({ wow, wowChartData }: 
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="day" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
-                <Tooltip formatter={(value: number, name: string) => [`€${safeToFixed(value, 2)}`, name]} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
+                <Tooltip formatter={(value, name) => [`€${safeToFixed(Number(value ?? 0), 2)}`, String(name)]} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="Ta teden" fill="oklch(0.7 0.15 55)" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Prejšnji teden" fill="oklch(0.6 0.1 250)" radius={[4, 4, 0, 0]} opacity={0.6} />

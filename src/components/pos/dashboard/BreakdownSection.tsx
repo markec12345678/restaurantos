@@ -32,7 +32,7 @@ export const BreakdownSection = memo(function BreakdownSection({
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="label" tick={{ fontSize: 10 }} />
                 <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `€${v}`} />
-                <Tooltip formatter={(value: number) => [`€${safeToFixed(value, 2)}`, 'Prihodek']} />
+                <Tooltip formatter={(value) => [`€${safeToFixed(Number(value ?? 0), 2)}`, 'Prihodek']} />
                 <Line type="monotone" dataKey="revenue" stroke="oklch(0.7 0.15 55)" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>

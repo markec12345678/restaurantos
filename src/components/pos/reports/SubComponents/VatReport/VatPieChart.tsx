@@ -34,13 +34,13 @@ export const VatPieChart = memo(function VatPieChart({ vatBreakdown, vatColors }
                 cx="50%"
                 cy="50%"
                 outerRadius={80}
-                label={({ label, percent }: { label: string; percent: number }) => `${label} ${safeToFixed(percent * 100, 0)}%`}
+                label={({ name, percent }) => `${String(name ?? '')} ${safeToFixed((percent ?? 0) * 100, 0)}%`}
               >
                 {filteredData.map((vr, index) => (
                   <Cell key={`cell-${index}`} fill={vatColors[String(vr.rate)] || PIE_COLORS[index % PIE_COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value: number) => [`€${safeToFixed(value, 2)}`, 'Znesek z DDV']} />
+              <Tooltip formatter={(value) => [`€${safeToFixed(Number(value ?? 0), 2)}`, 'Znesek z DDV']} />
             </PieChart>
           </ResponsiveContainer>
         </div>

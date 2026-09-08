@@ -66,7 +66,7 @@ export function EmployeeReport() {
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
                 <YAxis type="category" dataKey="employeeName" width={120} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(value: number) => [`€${safeToFixed(value, 2)}`, 'Prihodek']} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
+                <Tooltip formatter={(value) => [`€${safeToFixed(Number(value ?? 0), 2)}`, 'Prihodek']} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
                 <Bar dataKey="totalRevenue" fill="oklch(0.7 0.15 55)" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>

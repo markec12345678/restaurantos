@@ -75,7 +75,7 @@ export const OverviewTab = memo(function OverviewTab({
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                     <XAxis dataKey="date" tickFormatter={(v) => format(new Date(v), 'MMM dd')} tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
-                    <Tooltip formatter={(value: number) => [`€${safeToFixed(value, 2)}`, 'Prihodek']} labelFormatter={(label) => format(new Date(label), 'MMM dd, yyyy')} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
+                    <Tooltip formatter={(value) => [`€${safeToFixed(Number(value ?? 0), 2)}`, 'Prihodek']} labelFormatter={(label) => format(new Date(label as string | number), 'MMM dd, yyyy')} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
                     <Line type="monotone" dataKey="revenue" stroke="oklch(0.7 0.15 55)" strokeWidth={2} dot={{ fill: 'oklch(0.7 0.15 55)', r: 4 }} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -94,7 +94,7 @@ export const OverviewTab = memo(function OverviewTab({
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                       <XAxis type="number" tick={{ fontSize: 11 }} />
                       <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 11 }} />
-                      <Tooltip formatter={(value: number) => [value, 'Količina']} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
+                      <Tooltip formatter={(value) => [Number(value ?? 0), 'Količina']} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
                       <Bar dataKey="quantity" fill="oklch(0.7 0.15 55)" radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -109,12 +109,12 @@ export const OverviewTab = memo(function OverviewTab({
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={salesData?.typeBreakdown || []} dataKey="revenue" nameKey="type" cx="50%" cy="50%" outerRadius={80} label={({ type, percent }: { type: string; percent: number }) => `${orderTypeLabels[type] || type} ${safeToFixed(percent * 100, 0)}%`}>
+                      <Pie data={salesData?.typeBreakdown || []} dataKey="revenue" nameKey="type" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${orderTypeLabels[String(name ?? '')] || String(name ?? '')} ${safeToFixed((percent ?? 0) * 100, 0)}%`}>
                         {(salesData?.typeBreakdown || []).map((_entry: unknown, index: number) => (
                           <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(value: number) => [`€${safeToFixed(value, 2)}`, 'Prihodek']} />
+                      <Tooltip formatter={(value) => [`€${safeToFixed(Number(value ?? 0), 2)}`, 'Prihodek']} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
