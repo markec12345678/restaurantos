@@ -12,6 +12,7 @@
 // ============================================
 
 import type { ZodType } from 'zod'
+import { isPermissionName } from '@/lib/auth-middleware/permission-matrix'
 import {
   orderItemModifierSchema,
   printRuleSchema,
@@ -40,8 +41,8 @@ export type {
 /** ModifierGroup.transports */
 export type ModifierTransport = 'ble' | 'cable' | 'hybrid' | 'internal' | 'nfc' | 'smart-card' | 'usb'
 
-/** Job.permissions — RBAC permissions */
-export type Permission = 'admin' | 'manage_employees' | 'manage_cash' | 'manage_inventory' | 'take_orders' | 'void_items' | 'apply_discounts' | 'view_reports'
+/** Job.permissions — RBAC permissions (P1-13: iz centralne matrike) */
+export type Permission = import('@/lib/auth-middleware/permission-matrix').PermissionName
 
 /** Session.permissions — isto kot Job.permissions */
 export type SessionPermission = Permission
@@ -271,11 +272,7 @@ export function isOrderItemModifier(value: unknown): value is OrderItemModifier 
 }
 
 export function isPermission(value: string): value is Permission {
-  const valid: Permission[] = [
-    'admin', 'manage_employees', 'manage_cash', 'manage_inventory',
-    'take_orders', 'void_items', 'apply_discounts', 'view_reports',
-  ]
-  return valid.includes(value as Permission)
+  return isPermissionName(value)
 }
 
 // ────────────────────────────────────────────

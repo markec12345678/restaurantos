@@ -71,7 +71,8 @@ export async function POST(req: Request) {
     const adminJob = await db.job.create({
       data: {
         name: 'Administrator', code: 'ADMIN', basePayRate: 0, overtimeRate: 0,
-        permissions: JSON.stringify(['take_orders', 'void_item', 'apply_discounts', 'manage_cash', 'manage_inventory', 'manage_employees', 'view_reports', 'admin']),
+        // P1-13: 'void_items' (množina — usklajeno s centralno matriko) + manage_accounting
+        permissions: JSON.stringify(['take_orders', 'void_items', 'apply_discounts', 'manage_cash', 'manage_inventory', 'manage_employees', 'manage_accounting', 'view_reports', 'admin']),
         isActive: true, sortOrder: 0,
       },
     })

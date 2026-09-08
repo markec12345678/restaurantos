@@ -333,8 +333,15 @@ self.addEventListener('sync', (event) => {
  * FIX: Podpora za auth token — preberi iz IndexedDB če je na voljo
  * FIX: Omejitev na 20 naročil na poskus — prepreči preobremenitev strežnika
  * FIX HIGH: Obravnavaj potekel token (401) — obvesti klienta, ne izbriši naročila
- * FIX HIGH: Obravnavaj konflikte (409) — zastareli ceniki, spremenjena zaloga
  * FIX MEDIUM: TTL za čakajoča naročila — zavrzi naročila starejša od 24h
+ *
+ * P1-14/P1-15 (2026-09-09) — statusi in domenska pravila (usklajeno z
+ * src/lib/offline-orders/sync-status.ts):
+ *   - procesiraj SAMO PENDING / RETRY (backoff) / zastareli PROCESSING (>5 min)
+ *   - 409 → CONFLICT: zadrži vnos (ROČNI PREGLED) — prej IZBRISAL podatke!
+ *   - 4xx trajne napake → MANUAL_REVIEW: zadrži vnos
+ *   - 5x retry → MANUAL_REVIEW (ne izbriši!) — ročni pregled
+ *   - brisanje SAMO ob: uspehu (SYNCED), TTL > 24h (EXPIRED)
  */
 async function syncPendingOrders() {
   try {
@@ -348,10 +355,39 @@ async function syncPendingOrders() {
 
     // FIX: Omejitev na 20 naročil na poskus — prepreči preobremenitev strežnika
     const now = Date.now()
-    const MAX_AGE_MS = 24 * 60 * 60 * 1000 // 24 ur
+    const MAX_AGE_MS = 24 * 60 * 60 * 1000 // 24 ur (P1-14: QUEUE_TTL)
+    const PROCESSING_STALE_MS = 5 * 60 * 1000 // P1-15: zapuščen PROCESSING
     let authExpired = false
 
+    // P1-14: normalizacija statusa (starejše verzije = lowercase)
+    const normalizeStatus = (raw) => {
+      const upper = String(raw || 'pending').toUpperCase()
+      return ['PENDING', 'PROCESSING', 'SYNCED', 'RETRY', 'FAILED', 'CONFLICT', 'MANUAL_REVIEW', 'EXPIRED'].includes(upper)
+        ? upper
+        : 'PENDING'
+    }
+
     const ordersToSync = orders.filter(order => {
+      const status = normalizeStatus(order.status)
+
+      // Živa vrsta: samo PENDING, RETRY in zastareli PROCESSING
+      if (status === 'PENDING') {
+        // nadaljuj
+      } else if (status === 'RETRY') {
+        // backoff: attempts × 30s (max 5 min) — preprosta aproksimacija zadnjega poskusa
+        const last = order.lastAttemptAt || order.createdAt || 0
+        const backoff = Math.min(Math.max(order.retryCount || order.attempts || 1, 1) * 30000, 300000)
+        if (now - last < backoff) return false
+      } else if (status === 'PROCESSING') {
+        // P1-15: aplikacija se je zaprla sredi synca → po 5 minah ponovno
+        const last = order.lastAttemptAt || order.createdAt || 0
+        if (now - last < PROCESSING_STALE_MS) return false
+      } else {
+        // SYNCED/FAILED/CONFLICT/MANUAL_REVIEW/EXPIRED — ne procesiraj
+        // (SYNCED/FAILED/EXPIRED počisti page-side cleanup po retencijskih pravilih)
+        return false
+      }
+
       // FIX MEDIUM: Zavrzi naročila starejša od 24h
       const age = now - (order.createdAt || 0)
       if (age > MAX_AGE_MS) {
@@ -365,6 +401,10 @@ async function syncPendingOrders() {
 
     for (const order of ordersToSync) {
       try {
+        // P1-15: oznaka PROCESSING + lastAttemptAt — če SW umre sredi pošiljanja,
+        // naslednji poskus (page polling ali SW) po 5 minah vnos samodejno pobere
+        markPendingOrderStatus(db, order.id, 'PROCESSING')
+
         const headers = { 'Content-Type': 'application/json' }
         // Če ima order shranjen token, ga uporabi
         if (order.authToken) {
@@ -392,25 +432,37 @@ async function syncPendingOrders() {
         } else if (response.status === 401) {
           // FIX HIGH: Token je potekel — USTAVI procesiranje, obvesti klienta
           // NE izbriši naročila — po re-loginu bo poskus znova
+          // P1-14: vrni nazaj na PENDING (ne blokiraj page-side pollingu)
+          markPendingOrderStatus(db, order.id, 'PENDING')
           authExpired = true
           notifyClient({ type: 'SYNC_AUTH_EXPIRED', message: 'Potrebna ponovna prijava za sinhronizacijo' })
           break
         } else if (response.status === 409) {
-          // FIX HIGH: Konflikt (spremenjene cene, zaloga) — obvesti klienta
+          // P1-15 FIX: Konflikt (spremenjene cene, zaloga, fiskalne zahteve) —
+          // PREJ: deletePendingOrder() = TIHA IZGUBA PODATKOV.
+          // Sedaj: zadržimo vnos s statusom CONFLICT za ročni pregled.
           const conflictData = await response.json().catch(() => ({}))
-          deletePendingOrder(db, order.id)
+          markPendingOrderStatus(db, order.id, 'CONFLICT', `HTTP 409: ${JSON.stringify(conflictData).substring(0, 300)}`)
           notifyClient({ type: 'SYNC_CONFLICT', orderId: order.id, conflict: conflictData })
+        } else if (response.status === 400 || response.status === 404 || response.status === 410 || response.status === 422) {
+          // P1-15: trajna klientova napaka — retry ne more uspeti → ročni pregled
+          markPendingOrderStatus(db, order.id, 'MANUAL_REVIEW', `HTTP ${response.status}: trajna napaka`)
+          notifyClient({ type: 'SYNC_MANUAL_REVIEW', orderId: order.id, status: response.status })
         } else {
-          // Druge napake — povečaj retry count
+          // 429/5xx — retryable z backoffom
           const retryCount = (order.retryCount || 0) + 1
           if (retryCount >= 5) {
-            deletePendingOrder(db, order.id)
+            // P1-15 FIX: prej IZBRISAL — sedaj MANUAL_REVIEW (ne izgubi naročila)
+            markPendingOrderStatus(db, order.id, 'MANUAL_REVIEW', `5 neuspelih poskusov (zadnji: HTTP ${response.status})`)
             notifyClient({ type: 'SYNC_FAILED', orderId: order.id, status: response.status })
           } else {
+            markPendingOrderStatus(db, order.id, 'RETRY', `HTTP ${response.status}`)
             updatePendingOrderRetry(db, order.id, retryCount)
           }
         }
       } catch {
+        // Omrežna napaka — RETRY (nazaj na PENDING, da page polling pobere)
+        markPendingOrderStatus(db, order.id, 'PENDING')
         // FIX: Nadaljuj z naslednjim naročilom namesto break — eno neuspelo ne sme blokirati ostalih
         continue
       }
@@ -446,6 +498,31 @@ function updatePendingOrderRetry(db, id, retryCount) {
     const order = getRequest.result
     if (order) {
       order.retryCount = retryCount
+      // P1-14: zrcalna legacy polja (attempts + status + lastError/syncError)
+      order.attempts = retryCount
+      order.lastAttemptAt = Date.now()
+      store.put(order)
+    }
+  }
+}
+
+/**
+ * P1-14/P1-15: nastavi status vnosa (velike črke) + lastError + lastAttemptAt.
+ * NE BRIŠE vnosa — brisanje samo ob uspehu ali TTL.
+ */
+function markPendingOrderStatus(db, id, status, error) {
+  const tx = db.transaction('pendingOrders', 'readwrite')
+  const store = tx.objectStore('pendingOrders')
+  const getRequest = store.get(id)
+  getRequest.onsuccess = () => {
+    const order = getRequest.result
+    if (order) {
+      order.status = status
+      order.lastAttemptAt = Date.now()
+      if (typeof error === 'string') {
+        order.lastError = error.substring(0, 500)
+        order.syncError = order.lastError
+      }
       store.put(order)
     }
   }

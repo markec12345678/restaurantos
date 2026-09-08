@@ -1,17 +1,16 @@
 
 // FIX CRITICAL: Dovoljene vrednosti za permissions — prepreči injection admin dovoljenja
+// P1-13: seznam uvožen iz centralne matrike (+ manage_accounting)
 import { db, createAuditLog } from '@/lib/db'
 import { parsePermissions } from '@/lib/json-fields'
 import { requireAuth, revokeEmployeeSessions } from '@/lib/auth-middleware'
+import { ALL_PERMISSIONS } from '@/lib/auth-middleware/permission-matrix'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { z } from 'zod'
 
-const VALID_PERMISSIONS = [
-  'take_orders', 'void_items', 'apply_discounts', 'manage_cash',
-  'manage_inventory', 'manage_employees', 'view_reports', 'admin',
-] as const
+const VALID_PERMISSIONS = ALL_PERMISSIONS
 
 const updateJobSchema = z.object({
   name: z.string().min(1, 'Ime je obvezno').max(200).optional(),

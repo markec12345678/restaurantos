@@ -102,6 +102,10 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/api/purchase-orders': ['manage_inventory'],
   '/api/dashboard': ['view_reports'],
   '/api/reports': ['view_reports'],
+  // P1-13: varovalka default za accounting pod-poti, ki bi kdaj pozabile
+  // inline requireAuth({ permission }) — read-only minimum (view_reports).
+  // Write rute (AP/AR/COA POST) zahtevajo 'manage_accounting' inline.
+  '/api/accounting': ['view_reports'],
   '/api/cash-register': ['manage_cash'],
   '/api/shifts': ['manage_employees'],
   '/api/time-entries': ['manage_employees'],

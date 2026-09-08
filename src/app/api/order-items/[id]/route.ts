@@ -22,9 +22,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (validationError) return validationError
 
     // FIX V3: Loči void od status update — kuhar lahko spremeni status (take_orders),
-    // void pa zahteva void_item dovoljenje (omejen nabor zaposlenih)
+    // void pa zahteva void_items dovoljenje (omejen nabor zaposlenih)
+    // P1-13 FIX: 'void_item' (ednina) se NI ujemal z 'void_items' (množina) v
+    // Job.permissions → natakar z veljavnim void_items dovoljenjem je dobil 403.
     const isVoidOperation = data.voided === true
-    const requiredPermission = isVoidOperation ? 'void_item' : 'take_orders'
+    const requiredPermission = isVoidOperation ? 'void_items' : 'take_orders'
     const authResult = await requireAuth(req, { permission: requiredPermission })
     if (authResult.error) return authResult.error
 

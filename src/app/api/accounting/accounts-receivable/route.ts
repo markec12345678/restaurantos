@@ -81,7 +81,10 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const authResult = await requireAuth(req, { permission: 'manage_cash' })
+    // P1-13: accounting write iz 'manage_cash' na 'manage_accounting' —
+    // po uporabnikovi matriki knjigovodstvo urejata samo Manager/Admin,
+    // ne pa tudi blagajnik/vodja smene z manage_cash
+    const authResult = await requireAuth(req, { permission: 'manage_accounting' })
     if (authResult.error) return authResult.error
 
     const { data, error: validationError } = await validateRequest(req, createArSchema)

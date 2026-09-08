@@ -13,6 +13,14 @@
 // ============================================
 
 import { z } from 'zod'
+import { ALL_PERMISSIONS } from '@/lib/auth-middleware/permission-matrix'
+
+// ────────────────────────────────────────────
+// PERMISSIONS (P1-13: enum iz centralne matrike — vključuje
+// 'void_items' in novo 'manage_accounting'; prej ročno podvojen seznam)
+// ────────────────────────────────────────────
+
+export const permissionSchema = z.enum(ALL_PERMISSIONS)
 
 // ────────────────────────────────────────────
 // VERZIONIRANJE (P1-9: "version every JSON payload")
@@ -121,11 +129,8 @@ export const vatBreakdownSchema = z.record(z.string(), vatBreakdownValueSchema)
 // ────────────────────────────────────────────
 // Job/Session.permissions — RBAC (varnostno relevantno)
 // ────────────────────────────────────────────
-
-export const permissionSchema = z.enum([
-  'admin', 'manage_employees', 'manage_cash', 'manage_inventory',
-  'take_orders', 'void_items', 'apply_discounts', 'view_reports',
-])
+// (permissionSchema je definirana zgoraj — uvožena iz centralne matrike)
+// ────────────────────────────────────────────
 
 export const permissionsSchema = z.array(permissionSchema)
 

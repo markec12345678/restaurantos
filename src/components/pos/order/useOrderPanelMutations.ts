@@ -4,7 +4,7 @@ import { useCallback, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { usePOSStore } from '@/lib/store'
 import { toast } from 'sonner'
-import { authFetch } from '@/components/pos/PinLogin'
+import { authFetch, getCurrentUser } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import type { OrderType } from './OrderList'
 import {
@@ -54,14 +54,53 @@ export function useOrderPanelMutations() {
             toast.success(`${result.succeeded} naročil sinhroniziranih`)
             queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
           }
+          // P1-15: konflikti/zadržana naročila → obvesti uporabnika
+          // (ročni pregled — ne tiho odpusti)
+          if (result.conflicts > 0) {
+            toast.warning(`${result.conflicts} naročil zadržanih (konflikt) — potreben ročni pregled`)
+          }
+          if (result.authExpired) {
+            toast.error('Seja je potekla — ponovno se prijavite za sinhronizacijo offline naročil')
+          }
         })
       })
     }
     window.addEventListener('online', handleOnline)
 
+    // P1-15: poslušaj Service Worker sinhronizacijska obvestila.
+    // Prej jih NIHČE ni poslušal — SYNC_CONFLICT/SYNC_EXPIRED/SYNC_FAILED
+    // so šla v prazno (uporabnik ni nikoli izvedel za izgubljena naročila).
+    const handleSwMessage = (event: MessageEvent) => {
+      const data = event.data as { type?: string; orderId?: string; age?: string; status?: number } | null
+      if (!data?.type) return
+      switch (data.type) {
+        case 'SYNC_CONFLICT':
+          toast.warning(`Offline naročilo ${data.orderId ?? ''} je v konfliktu — zadržano za ročni pregled`)
+          break
+        case 'SYNC_MANUAL_REVIEW':
+          toast.warning(`Offline naročilo ${data.orderId ?? ''} zahteva ročni pregled (napaka ${data.status ?? ''})`)
+          break
+        case 'SYNC_EXPIRED':
+          toast.error(`Offline naročilo je poteklo (${data.age ?? '?'} h) in je bilo zavrženo`)
+          break
+        case 'SYNC_AUTH_EXPIRED':
+          toast.error('Potrebna ponovna prijava za sinhronizacijo offline naročil')
+          break
+        case 'SYNC_FAILED':
+          toast.error(`Offline naročilo ${data.orderId ?? ''} ni bilo poslano (napaka ${data.status ?? ''}) — zadržano za pregled`)
+          break
+      }
+    }
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleSwMessage)
+    }
+
     return () => {
       stopPolling()
       window.removeEventListener('online', handleOnline)
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleSwMessage)
+      }
     }
   }, [queryClient])
 
@@ -95,11 +134,21 @@ export function useOrderPanelMutations() {
           })),
         }
 
+        // P1-14: polni format queue vnosa — operationId/idempotencyKey/deviceId/
+        // locationId/employeeId/createdAt/payloadVersion/retryCount/status/lastError
+        // (deviceId in payloadVersion dopolni enqueueOrder samodejno)
+        const currentUser = getCurrentUser()
         const queued = await enqueueOrder({
           id: `offline-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
           idempotencyKey,
           orderData,
           createdAt: Date.now(),
+          // Atencija: kdo je naročilo USTVARIL (ne kdo bo sinhroniziral)
+          employeeId: currentUser?.id ?? null,
+          // Informacijsko — server lokacijo resolvira avtoritativno (session/miza)
+          locationId: null,
+          retryCount: 0,
+          lastError: null,
         })
 
         if (queued) {

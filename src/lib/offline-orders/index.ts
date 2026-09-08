@@ -10,19 +10,80 @@
 // 3. Fallback: polling vsake 5s če Background Sync ni na voljo
 // 4. IdempotencyKey zagotavlja da ni duplikatov pri retry-jih
 //
-// INDICEDDB STORES v isti bazi:
+// P1-14 (format vnosa — uporabniška specifikacija):
+//   operationId, idempotencyKey, deviceId, locationId, employeeId,
+//   createdAt, payloadVersion, retryCount, status, lastError
+//   (+ internals: lastAttemptAt, syncedOrderId, orderData, attempts)
+//
+// P1-14 (statusi): PENDING | PROCESSING | SYNCED | RETRY | FAILED |
+//   CONFLICT | MANUAL_REVIEW | EXPIRED — domenska pravila v sync-status.ts
+//
+// P1-15 (kritični fix): vnos, ujet v PROCESSING ko se aplikacija zapre
+// sredi synca, je prej za VEDNO izgubil (getPendingOrders je bral samo
+// 'pending', cleanup ni čistil 'processing'). Sedaj isProcessableStatus
+// obravnava zastareli PROCESSING (5 min) kot ponovno obdelavo.
+//
+// INDEXEDDB STORES v isti bazi:
 //   1. pendingOrders   — naročila ko ni povezave (ta modul)
 //   2. pendingReceipts — FURS računi ko ni povezave (offline-furs)
 // ============================================
 
+import {
+  normalizeStatus,
+  isProcessableStatus,
+  resolveSyncFailure,
+  retentionMsForStatus,
+  PAYLOAD_VERSION,
+  type OfflineOpStatus,
+} from './sync-status'
+
+export {
+  OFFLINE_OP_STATUSES,
+  QUEUE_TTL_MS,
+  MAX_RETRY_ATTEMPTS,
+  PAYLOAD_VERSION,
+  normalizeStatus,
+  isProcessableStatus,
+  resolveSyncFailure,
+} from './sync-status'
+export type { OfflineOpStatus } from './sync-status'
+
 const DB_NAME = 'restaurantos-offline-queue'
 const DB_VERSION = 1
 const STORE_NAME = 'pendingOrders'
-const ORDER_TTL_MS = 24 * 60 * 60 * 1000 // 24 ur (max čas za offline naročilo)
+const DEVICE_ID_STORAGE_KEY = 'restaurantos-device-id'
 
+/** Queue vnos — polja po P1-14 specifikaciji + legacy/interna polja. */
 export interface PendingOrder {
-  id: string // unique ID za IndexedDB (cuid ali UUID)
-  idempotencyKey: string // server-side dedup ključ
+  // ── P1-14 spec polja ──
+  /** IndexedDB keyPath (primarni ključ) */
+  id: string
+  /** Semantični ID operacije — enak `id` (keyPath ostanek). */
+  operationId: string
+  /** Server-side dedup ključ (Order.idempotencyKey @unique) */
+  idempotencyKey: string
+  /** Stabilen identifikator naprave (localStorage UUID) */
+  deviceId: string
+  /** Lokacija, na kateri je bilo naročilo ustvarjeno (informacijsko —
+   *  server RESOLVIRA lokacijo avtoritativno iz session/mize!) */
+  locationId: string | null
+  /** Zaposleni, ki je naročilo USTVARIL (atencija ne glede na to, kdo sinhronizira) */
+  employeeId: string | null
+  /** Unix ms — kdaj je bilo naročilo ustvarjeno (offline) */
+  createdAt: number
+  /** Verzija formata payload-a (glej sync-status.PAYLOAD_VERSION) */
+  payloadVersion: number
+  /** Število poskusov sinhronizacije (P1-14 ime; `attempts` = legacy zrcalo) */
+  retryCount: number
+  /** P1-14 status (velike črke) */
+  status: OfflineOpStatus
+  /** Zadnja napaka pri sinhronizaciji (`syncError` = legacy zrcalo) */
+  lastError: string | null
+
+  // ── interna / legacy polja ──
+  attempts: number // legacy zrcalo retryCount
+  syncError: string | null // legacy zrcalo lastError
+  lastAttemptAt: number | null
   orderData: {
     type: string
     tableId: string | null
@@ -42,15 +103,38 @@ export interface PendingOrder {
     }>
     employeeId?: string | null
   }
-  createdAt: number // timestamp ms — kdaj je bilo naročilo ustvarjeno (offline)
-  attempts: number // število poskusov sinhronizacije
-  lastAttemptAt: number | null
-  status: 'pending' | 'processing' | 'synced' | 'failed' | 'expired'
   syncedOrderId?: string // ID naročila na serverju (po uspešnem sync)
-  syncError?: string // zadnja napaka pri sinhronizaciji
 }
 
+/**
+ * Obvezna polja za NOV vnos v queue; vsa ostala P1-14 polja
+ * (status, retryCount, deviceId, payloadVersion, ...) se dopolnijo samodejno.
+ */
+export type NewQueueEntry = Pick<PendingOrder, 'id' | 'idempotencyKey' | 'orderData' | 'createdAt'>
+  & Partial<Omit<PendingOrder, 'id' | 'idempotencyKey' | 'orderData' | 'createdAt' | 'status' | 'attempts' | 'syncError'>>
+
 let dbInstance: IDBDatabase | null = null
+
+/**
+ * Stabilen deviceId za to napravo (localStorage UUID).
+ * Namembnost: P1-14 sledljjivost offline operacij po napravi
+ * (dve napravi, isti zaposleni → ločljivo po deviceId).
+ */
+export function getDeviceId(): string {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return 'server'
+  try {
+    const existing = localStorage.getItem(DEVICE_ID_STORAGE_KEY)
+    if (existing) return existing
+    const id = `dev-${typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`}`
+    localStorage.setItem(DEVICE_ID_STORAGE_KEY, id)
+    return id
+  } catch {
+    // localStorage nedotenljiv (private mode) — nestabilen fallback
+    return 'dev-unknown'
+  }
+}
 
 /** Odpri IndexedDB za offline order queue */
 function openDB(): Promise<IDBDatabase | null> {
@@ -80,45 +164,110 @@ function openDB(): Promise<IDBDatabase | null> {
   })
 }
 
-/** Dodaj naročilo v offline queue */
+/**
+ * Normaliziraj surovo IndexedDB vrstico v PendingOrder:
+ * - starejše verzije so imele lowercase statuse ('pending') → uppercase
+ * - starejše verzije niso imele operationId/retryCount/lastError/payloadVersion
+ * - employeeId na vrhnji ravni (P1-14) → preslikan tudi v orderData
+ */
+function normalizeEntry(raw: unknown): PendingOrder | null {
+  if (!raw || typeof raw !== 'object') return null
+  const e = raw as Record<string, unknown>
+  if (typeof e.id !== 'string' || !e.orderData) return null
+
+  const attempts = typeof e.attempts === 'number' ? e.attempts
+    : typeof e.retryCount === 'number' ? e.retryCount : 0
+  const orderData = e.orderData as PendingOrder['orderData']
+  const employeeId =
+    typeof e.employeeId === 'string' ? e.employeeId
+      : typeof orderData.employeeId === 'string' ? (orderData.employeeId as string)
+        : null
+
+  return {
+    id: e.id,
+    operationId: typeof e.operationId === 'string' ? e.operationId : e.id,
+    idempotencyKey: typeof e.idempotencyKey === 'string' ? e.idempotencyKey : '',
+    deviceId: typeof e.deviceId === 'string' ? e.deviceId : 'dev-legacy',
+    locationId: typeof e.locationId === 'string' ? e.locationId : null,
+    employeeId,
+    createdAt: typeof e.createdAt === 'number' ? e.createdAt : Date.now(),
+    payloadVersion: typeof e.payloadVersion === 'number' ? e.payloadVersion : 1,
+    retryCount: typeof e.retryCount === 'number' ? e.retryCount : attempts,
+    status: normalizeStatus(e.status),
+    lastError: typeof e.lastError === 'string' ? e.lastError
+      : typeof e.syncError === 'string' ? e.syncError : null,
+    attempts,
+    syncError: typeof e.syncError === 'string' ? e.syncError : null,
+    lastAttemptAt: typeof e.lastAttemptAt === 'number' ? e.lastAttemptAt : null,
+    orderData: { ...orderData, employeeId },
+    syncedOrderId: typeof e.syncedOrderId === 'string' ? e.syncedOrderId : undefined,
+  }
+}
+
+/** Zapiši vnos v queue (idempotentno po `id`). */
+function putEntry(db: IDBDatabase, entry: PendingOrder): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(STORE_NAME, 'readwrite')
+      tx.objectStore(STORE_NAME).put(entry)
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => resolve(false)
+    } catch {
+      resolve(false)
+    }
+  })
+}
+
+/**
+ * Dodaj naročilo v offline queue.
+ * Samodejno dopolni P1-14 polja: operationId, deviceId, payloadVersion,
+ * status=PENDING, retryCount=0, lastError=null.
+ */
 export async function enqueueOrder(
-  order: Omit<PendingOrder, 'attempts' | 'lastAttemptAt' | 'status'>,
+  order: NewQueueEntry,
 ): Promise<boolean> {
   const db = await openDB()
   if (!db) return false
 
-  try {
-    const tx = db.transaction(STORE_NAME, 'readwrite')
-    const store = tx.objectStore(STORE_NAME)
-    const entry: PendingOrder = {
-      ...order,
-      attempts: 0,
-      lastAttemptAt: null,
-      status: 'pending',
-    }
-    store.put(entry)
-    return new Promise((resolve) => {
-      tx.oncomplete = () => resolve(true)
-      tx.onerror = () => resolve(false)
-    })
-  } catch {
-    return false
+  const retryCount = order.retryCount ?? 0
+  const lastError = order.lastError ?? null
+  const entry: PendingOrder = {
+    ...order,
+    // P1-14 spec polja — samodejne privzete vrednosti
+    operationId: order.operationId || order.id,
+    deviceId: order.deviceId || getDeviceId(),
+    locationId: order.locationId ?? null,
+    employeeId: order.employeeId ?? null,
+    payloadVersion: order.payloadVersion ?? PAYLOAD_VERSION,
+    retryCount,
+    lastError,
+    status: 'PENDING',
+    attempts: retryCount,
+    syncError: lastError,
+    lastAttemptAt: order.lastAttemptAt ?? null,
   }
+  if (entry.orderData && entry.employeeId) {
+    entry.orderData.employeeId = entry.employeeId
+  }
+
+  return putEntry(db, entry)
 }
 
-/** Pridobi vsa čakajoča naročila (najstarejša prva) */
-export async function getPendingOrders(): Promise<PendingOrder[]> {
+/** Preberi VSE vnose (normalizirane) — vključno z ne-obdelovalnimi statusi. */
+export async function getAllOrders(): Promise<PendingOrder[]> {
   const db = await openDB()
   if (!db) return []
 
   try {
     const tx = db.transaction(STORE_NAME, 'readonly')
     const store = tx.objectStore(STORE_NAME)
-    const index = store.index('status')
     return new Promise((resolve) => {
-      const request = index.getAll('pending')
+      const request = store.getAll()
       request.onsuccess = () => {
-        const orders = (request.result as PendingOrder[]).sort((a, b) => a.createdAt - b.createdAt)
+        const orders = (request.result as unknown[])
+          .map(normalizeEntry)
+          .filter((o): o is PendingOrder => o !== null)
+          .sort((a, b) => a.createdAt - b.createdAt)
         resolve(orders)
       }
       request.onerror = () => resolve([])
@@ -126,6 +275,25 @@ export async function getPendingOrders(): Promise<PendingOrder[]> {
   } catch {
     return []
   }
+}
+
+/**
+ * Vnosi, pripravljeni na sinhronizacijo:
+ * PENDING vedno; RETRY po backoffu; zastareli PROCESSING (>5 min —
+ * aplikacija se je zaprla sredi synca) se VRNE v obdelavo.
+ *
+ * P1-15 FIX: prej je getPendingOrders bral SAMO status 'pending' —
+ * vnos, ujet v 'processing', bi bil za vedno izgubljen.
+ */
+export async function getProcessableOrders(): Promise<PendingOrder[]> {
+  const now = Date.now()
+  const all = await getAllOrders()
+  return all.filter(o => isProcessableStatus(o.status, o.lastAttemptAt, now))
+}
+
+/** @deprecated uporabljaj getProcessableOrders (P1-14/15) */
+export async function getPendingOrders(): Promise<PendingOrder[]> {
+  return getProcessableOrders()
 }
 
 /** Označi naročilo kot uspešno sinhronizirano in odstrani iz queue */
@@ -145,8 +313,12 @@ export async function dequeueOrder(id: string): Promise<boolean> {
   }
 }
 
-/** Označi naročilo kot neuspešno (povečaj attempts, nastavi status) */
-export async function markOrderFailed(id: string, error: string): Promise<boolean> {
+/** Nastavi status (in napako) vnosa — splošni P1-14 prehod. */
+export async function markOrderStatus(
+  id: string,
+  status: OfflineOpStatus,
+  error?: string,
+): Promise<boolean> {
   const db = await openDB()
   if (!db) return false
 
@@ -156,21 +328,65 @@ export async function markOrderFailed(id: string, error: string): Promise<boolea
     const getRequest = store.get(id)
     return new Promise((resolve) => {
       getRequest.onsuccess = () => {
-        const order = getRequest.result as PendingOrder | undefined
+        const raw = getRequest.result as unknown
+        const order = normalizeEntry(raw)
         if (!order) { resolve(false); return }
-        order.attempts += 1
-        order.lastAttemptAt = Date.now()
-        order.syncError = error.substring(0, 500)
-
-        // Po 5 poskusih ali po 24h označi kot failed/expired
-        const age = Date.now() - order.createdAt
-        if (age > ORDER_TTL_MS) {
-          order.status = 'expired'
-        } else if (order.attempts >= 5) {
-          order.status = 'failed'
-        } else {
-          order.status = 'pending' // ponovni poskus
+        order.status = status
+        if (error !== undefined) {
+          order.lastError = error.substring(0, 500)
+          order.syncError = order.lastError
         }
+        if (status === 'RETRY' || status === 'FAILED' || status === 'MANUAL_REVIEW' || status === 'EXPIRED') {
+          order.retryCount = (order.retryCount || 0) + 1
+          order.attempts = order.retryCount
+        }
+        order.lastAttemptAt = Date.now()
+        store.put(order)
+      }
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => resolve(false)
+    })
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Neuspešen poskus (P1-15 domenska pravila — glej sync-status.resolveSyncFailure):
+ *  401 → PENDING (brez štetja poskusa; čakaj re-login)
+ *  409 → CONFLICT (zadrži za ročni pregled)
+ *  400/404/410/422 → MANUAL_REVIEW (trajna klientova napaka)
+ *  omrežje/5xx/429 → RETRY/FAILED (z backoffom)
+ */
+export async function markOrderFailed(
+  id: string,
+  error: string,
+  httpStatus: number | null = null,
+): Promise<boolean> {
+  const db = await openDB()
+  if (!db) return false
+
+  const now = Date.now()
+  let outcome = resolveSyncFailure(httpStatus, 0, 0)
+  // Preberi trenutni vnos za attempts/age (resolveSyncFailure potrebuje dejanske vrednosti)
+  try {
+    const tx = db.transaction(STORE_NAME, 'readwrite')
+    const store = tx.objectStore(STORE_NAME)
+    const getRequest = store.get(id)
+    return new Promise((resolve) => {
+      getRequest.onsuccess = () => {
+        const order = normalizeEntry(getRequest.result)
+        if (!order) { resolve(false); return }
+        const age = now - order.createdAt
+        outcome = resolveSyncFailure(httpStatus, order.retryCount, age)
+        order.status = outcome.status
+        order.lastError = error.substring(0, 500)
+        order.syncError = order.lastError
+        if (outcome.countAttempt) {
+          order.retryCount = order.retryCount + 1
+          order.attempts = order.retryCount
+        }
+        order.lastAttemptAt = Date.now()
         store.put(order)
       }
       tx.oncomplete = () => resolve(true)
@@ -192,9 +408,9 @@ export async function markOrderProcessing(id: string): Promise<boolean> {
     const getRequest = store.get(id)
     return new Promise((resolve) => {
       getRequest.onsuccess = () => {
-        const order = getRequest.result as PendingOrder | undefined
+        const order = normalizeEntry(getRequest.result)
         if (!order) { resolve(false); return }
-        order.status = 'processing'
+        order.status = 'PROCESSING'
         order.lastAttemptAt = Date.now()
         store.put(order)
       }
@@ -206,29 +422,34 @@ export async function markOrderProcessing(id: string): Promise<boolean> {
   }
 }
 
-/** Počisti expired/failed naročila starejša od 7 dni */
+/**
+ * P1-15: cleanup spoštuje domensko retencijo:
+ *   SYNCED/FAILED/EXPIRED → 7 dni; CONFLICT/MANUAL_REVIEW → 30 dni;
+ *   PENDING/PROCESSING/RETRY → NIKOLI (živa vrsta).
+ * Prej je čistil samo status 'failed'/'expired'/'synced' — zastareli
+ * 'processing' (zaprta aplikacija) bi ostal za vedno.
+ */
 export async function cleanupOldOrders(): Promise<number> {
   const db = await openDB()
   if (!db) return 0
 
+  const now = Date.now()
   try {
     const tx = db.transaction(STORE_NAME, 'readwrite')
     const store = tx.objectStore(STORE_NAME)
-    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
-    const index = store.index('createdAt')
-    const range = IDBKeyRange.upperBound(cutoff)
     return new Promise((resolve) => {
       let deleted = 0
-      const request = index.openCursor(range)
+      const request = store.getAll()
       request.onsuccess = () => {
-        const cursor = request.result
-        if (cursor) {
-          const order = cursor.value as PendingOrder
-          if (order.status === 'failed' || order.status === 'expired' || order.status === 'synced') {
-            cursor.delete()
+        const entries = (request.result as unknown[])
+          .map(normalizeEntry)
+          .filter((o): o is PendingOrder => o !== null)
+        for (const order of entries) {
+          const retention = retentionMsForStatus(order.status)
+          if (retention > 0 && now - order.createdAt > retention) {
+            store.delete(order.id)
             deleted++
           }
-          cursor.continue()
         }
       }
       tx.oncomplete = () => resolve(deleted)
@@ -239,44 +460,55 @@ export async function cleanupOldOrders(): Promise<number> {
   }
 }
 
-/** Število čakajočih naročil v queue */
+/** Število obdelovalnih (PENDING/RETRY/zastareli PROCESSING) naročil */
 export async function getPendingCount(): Promise<number> {
-  const db = await openDB()
-  if (!db) return 0
+  return (await getProcessableOrders()).length
+}
 
-  try {
-    const tx = db.transaction(STORE_NAME, 'readonly')
-    const store = tx.objectStore(STORE_NAME)
-    const index = store.index('status')
-    return new Promise((resolve) => {
-      const request = index.count('pending')
-      request.onsuccess = () => resolve(request.result)
-      request.onerror = () => resolve(0)
-    })
-  } catch {
-    return 0
-  }
+/** Statistika po statusih (za UI/audit — npr. prikaz CONFLICT za ročni pregled). */
+export async function getQueueStats(): Promise<Record<OfflineOpStatus, number>> {
+  const all = await getAllOrders()
+  const stats = Object.fromEntries(
+    (['PENDING', 'PROCESSING', 'SYNCED', 'RETRY', 'FAILED', 'CONFLICT', 'MANUAL_REVIEW', 'EXPIRED'] as OfflineOpStatus[])
+      .map(s => [s, 0]),
+  ) as Record<OfflineOpStatus, number>
+  for (const o of all) stats[o.status] = (stats[o.status] || 0) + 1
+  return stats
 }
 
 /**
- * Sinhroniziraj vsa čakajoča naročila s serverjem.
+ * Sinhroniziraj obdelovalne vnose s serverjem.
  * Klice se iz:
  *   1. Service Worker Background Sync
  *   2. Polling fallbacka (vsake 5s)
  *   3. Manual trigger (admin UI)
+ *
+ * P1-15: 401 prekine nadaljnjo obdelavo (brez štetja poskusov — po
+ * re-loginu se samo nadaljuje); 409/4xx zadržita vnos z ustreznim
+ * statusom za ročni pregled namesto slepega retry-ja.
  */
-export async function syncPendingOrders(authFetch: (url: string, options: RequestInit) => Promise<Response>): Promise<{
+export async function syncPendingOrders(
+  authFetch: (url: string, options: RequestInit) => Promise<Response>,
+): Promise<{
   processed: number
   succeeded: number
   failed: number
+  conflicts: number
+  authExpired: boolean
 }> {
-  const pending = await getPendingOrders()
+  const pending = await getProcessableOrders()
   let succeeded = 0
   let failed = 0
+  let conflicts = 0
+  let authExpired = false
 
   for (const order of pending) {
     // Označi kot processing
     await markOrderProcessing(order.id)
+
+    let httpStatus: number | null = null
+    let ok = false
+    let json: { id?: string } | null = null
 
     try {
       const res = await authFetch('/api/orders', {
@@ -287,26 +519,45 @@ export async function syncPendingOrders(authFetch: (url: string, options: Reques
           idempotencyKey: order.idempotencyKey,
         }),
       })
+      httpStatus = res.status
+      ok = res.ok
+      if (ok) json = await res.json().catch(() => null)
+    } catch {
+      httpStatus = null // omrežna napaka
+      ok = false
+    }
 
-      if (res.ok) {
-        const json = await res.json()
-        // Označi kot synced in odstrani iz queue
-        await dequeueOrder(order.id)
-        succeeded++
-        console.log(`[OfflineQueue] Order synced: ${order.idempotencyKey} → ${json.id}`)
-      } else {
-        const errorText = await res.text().catch(() => 'Unknown error')
-        await markOrderFailed(order.id, `HTTP ${res.status}: ${errorText.substring(0, 200)}`)
-        failed++
-      }
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : String(err)
-      await markOrderFailed(order.id, errMsg)
+    if (ok) {
+      // Označi kot synced in odstrani iz queue
+      await dequeueOrder(order.id)
+      succeeded++
+      console.log(`[OfflineQueue] Order synced: ${order.idempotencyKey} → ${json?.id}`)
+      continue
+    }
+
+    const outcome = resolveSyncFailure(httpStatus, order.retryCount, Date.now() - order.createdAt)
+
+    if (outcome.status === 'PENDING') {
+      // 401 — potrebna ponovna prijava: USTAVI, vnos ostane PENDING
+      await markOrderStatus(order.id, 'PENDING')
+      authExpired = true
+      break
+    }
+
+    const errorText = httpStatus === null
+      ? 'Omrežna napaka (ni odgovora)'
+      : `HTTP ${httpStatus}`
+    await markOrderStatus(order.id, outcome.status, `${errorText}: ${outcome.reason}`)
+
+    if (outcome.status === 'CONFLICT' || outcome.status === 'MANUAL_REVIEW') {
+      conflicts++
+      console.warn(`[OfflineQueue] ${outcome.status}: ${order.idempotencyKey} — zadržano za ročni pregled`)
+    } else {
       failed++
     }
   }
 
-  return { processed: pending.length, succeeded, failed }
+  return { processed: pending.length, succeeded, failed, conflicts, authExpired }
 }
 
 /**
