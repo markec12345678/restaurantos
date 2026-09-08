@@ -7,7 +7,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { verifySignature } from '@/lib/webhook-engine'
-import { getNextCounter } from '@/lib/counters'
+import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
 import { emitOrderCreated } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
 import { toNum, multiply, round2, sumBy } from '@/lib/decimal'
@@ -82,7 +82,8 @@ export async function POST(req: Request) {
     }
 
     // Ustvari naročilo v RestaurantOS
-    const orderNumber = await getNextCounter('orderNumber')
+    const webhookLocationId = await resolveDefaultLocationId()
+    const orderNumber = await getNextOrderNumber(webhookLocationId)
     const deliveryAddress = woltOrder.delivery?.location?.formatted_address || ''
     const recipientName = woltOrder.delivery?.recipient?.name || 'Wolt gost'
     const recipientPhone = woltOrder.delivery?.recipient?.phone || ''
@@ -115,6 +116,7 @@ export async function POST(req: Request) {
         paidAt: woltOrder.payment?.method ? new Date() : null,
         notes: `WOLT:${woltOrder.order_id}${woltOrder.notes ? ' | ' + woltOrder.notes : ''}`,
         inventoryDeducted: false,
+        ...(webhookLocationId ? { location: { connect: { id: webhookLocationId } } } : {}),
         orderItems: { create: orderItems },
         deliveryInfo: {
           create: {

@@ -30,10 +30,15 @@ export async function deductDirectItem(
   item: StockDeductionItem,
   orderId: string,
   orderNumber: number,
-  result: StockDeductionResult
+  result: StockDeductionResult,
+  locationId?: string | null
 ): Promise<void> {
+  // P1-7: InventoryItem.menuItemId ni več globalno unikaten (@@unique([menuItemId, locationId]))
+  // — iskanje po menuItemId je lahko več zadetkov (po lokacijah).
+  // locationId (iz naročila) zoži izbor na pravo lokacijo; brez njega — prvi zadetek
+  // (backward kompatibilen fallback za globalne zaloge).
   const invItem = await tx.inventoryItem.findFirst({
-    where: { menuItemId: item.menuItemId },
+    where: { menuItemId: item.menuItemId, ...(locationId ? { locationId } : {}) },
   })
 
   if (!invItem || toNum(invItem.servingsPerUnit) <= 0) return

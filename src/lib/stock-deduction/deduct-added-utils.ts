@@ -93,8 +93,12 @@ export async function deductDirectItem(
   orderNumber: number,
   orderId: string,
   result: StockDeductionResult,
+  locationId?: string | null,
 ): Promise<void> {
-  const invItem = await tx.inventoryItem.findFirst({ where: { menuItemId: item.menuItemId } })
+  // P1-7: InventoryItem je per-lokacija — menuItemId ni več globalno unikaten
+  const invItem = await tx.inventoryItem.findFirst({
+    where: { menuItemId: item.menuItemId, ...(locationId ? { locationId } : {}) },
+  })
 
   if (!invItem || toNum(invItem.servingsPerUnit) <= 0) return
 

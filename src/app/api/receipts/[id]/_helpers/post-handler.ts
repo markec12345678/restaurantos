@@ -64,8 +64,11 @@ export async function handlePostReceipt(
   const vatBreakdownForReceipt = calculateVatBreakdownForReceipt(order.orderItems, totalDiscount)
 
   // FIX CRITICAL: Atomna sekvenčna številka + ustvarjanje računa v transakciji (FURS skladnost)
+  // P1-7 (FURS): številka računa je vezana na POSLOVNI PROSTOR (lokacija) in leto —
+  // R-YYYY-NNNNNN se številči PO LOKACIJI (poslovno pravilo za FURS premises).
+  // P1-6: Receipt.locationId izhaja iz order.locationId (nikoli iz bodyja).
   const receipt = await db.$transaction(async (tx) => {
-    const receiptNumber = await getNextReceiptNumber(tx)
+    const receiptNumber = await getNextReceiptNumber(order.locationId, tx)
 
     // ZOI placeholder
     const zoi = generateZOIPlaceholder(order.orderNumber, receiptNumber)
@@ -94,6 +97,8 @@ export async function handlePostReceipt(
         isCopy: false,
         isStorno: data.isStorno,
         stornoOf: data.stornoOf,
+        // P1-6: račun pripada lokaciji naročila (fiskalna veriga Order → Receipt)
+        locationId: order.locationId,
       },
     })
 

@@ -39,9 +39,11 @@ export async function deductStockForOrder(
     const recipeHandled = await deductRecipeItems(tx, items, orderId, orderNumber, result)
 
     // 2. Direct deduction za preostale postavke
+    // P1-7: locationId naročila zoži zaloge na pravo lokacijo
+    // (InventoryItem je per-lokacija: @@unique([menuItemId, locationId]))
     for (let i = 0; i < items.length; i++) {
       if (items[i].voided || recipeHandled.has(i)) continue
-      await deductDirectItem(tx, items[i], orderId, orderNumber, result)
+      await deductDirectItem(tx, items[i], orderId, orderNumber, result, order.locationId)
     }
 
     // Označi naročilo kot razknjiženo ZNOTRAJ transakcije — atomarno

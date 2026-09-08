@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { checkRateLimitAsync, getClientIp, PUBLIC_ORDER_LIMIT } from '@/lib/rate-limit'
 import { toNum } from '@/lib/decimal'
+import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
 import { logger } from '@/lib/logger'
 import { handleRouteError, validateRequest } from '@/lib/api-utils'
 import {
@@ -78,14 +79,12 @@ export async function POST(req: Request) {
 
     // Generiraj številko naročila z atomskim counterjem
     // FIX Q04 MEDIUM: Če counter ne deluje, VRNI NAPAKO namesto neatomskega fallbacka
+    // P1-7: per-lokacijsko številčenje — QR miza pripada lokaciji mize (resolvedLocationId);
+    // fallback na privzeto lokacijo, če miza nima nastavljene (dedične mize)
+    const qrLocationId = resolvedLocationId || await resolveDefaultLocationId()
     let nextOrderNumber: number
     try {
-      const counter = await db.counter.upsert({
-        where: { name: 'orderNumber' },
-        update: { value: { increment: 1 } },
-        create: { name: 'orderNumber', value: 1 }
-      })
-      nextOrderNumber = counter.value
+      nextOrderNumber = await getNextOrderNumber(qrLocationId)
     } catch (counterErr: unknown) {
       logger.error('API', '[QR ORDER] Counter upsert failed — ZAVRNI naročilo (neatomska operacija):', counterErr)
       return NextResponse.json({ error: 'Napaka pri generiranju številke naročila. Poskusite znova.' }, { status: 503 })
@@ -123,6 +122,7 @@ export async function POST(req: Request) {
           tableId,
           diningOptionId: diningOption!.id,
           inventoryDeducted: false,
+          locationId: qrLocationId,
           orderItems: {
             create: orderItemsData,
           },

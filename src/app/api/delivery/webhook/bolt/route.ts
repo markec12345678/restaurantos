@@ -7,7 +7,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { getNextCounter } from '@/lib/counters'
+import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
 import { emitOrderCreated } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
 import { toNum, round2, sumBy } from '@/lib/decimal'
@@ -125,7 +125,8 @@ export async function POST(req: Request) {
     const total = round2(subtotalNum + deliveryFee)
 
     // Ustvari naročilo
-    const orderNumber = await getNextCounter('orderNumber')
+    const webhookLocationId = await resolveDefaultLocationId()
+    const orderNumber = await getNextOrderNumber(webhookLocationId)
 
     const order = await db.order.create({
       data: {
@@ -147,6 +148,7 @@ export async function POST(req: Request) {
         totalWithTip: total,
         paymentStatus: 'paid', // Bolt plača vnaprej
         paymentMethod: 'card', // Bolt vedno kartično
+        ...(webhookLocationId ? { location: { connect: { id: webhookLocationId } } } : {}),
         deliveryInfo: {
           create: {
             address: data.delivery_address,

@@ -93,8 +93,8 @@ export async function validateAndSubmitStorno(req: Request): Promise<StornoValid
     return NextResponse.json({ error: 'Manjkajo poslovni podatki (matična št., DDV ID) za to lokacijo — storno ni mogoč' }, { status: 400 })
   }
 
-  // Atomna številka storno računa
-  const stornoNumber = await getNextReceiptNumber()
+  // Atomna številka storno računa — P1-7 (FURS): per poslovni prostor (lokacija)
+  const stornoNumber = await getNextReceiptNumber(orderForConfig?.locationId)
 
   // Naloži privatni ključ
   const privateKey = (settings.fursCertPath && settings.fursCertPassword)

@@ -3,10 +3,11 @@
 import { db } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, KIOSK_LIMIT, PUBLIC_MENU_LIMIT } from '@/lib/rate-limit'
-import { logger } from '@/lib/logger'
+import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
+import { buildOrderItemsData, calculateOrderTotals } from '@/app/api/orders/_helpers/order-items'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
 
@@ -20,6 +21,9 @@ const kioskOrderSchema = z.object({
   tableNumber: z.string().max(10).optional(),
   customerName: z.string().max(100).default('Kiosk'),
   paymentMethod: z.enum(['cash', 'card']).default('card'),
+  // FIX P4: idempotency key — brez njega React Query retry ustvari duplikat
+  // (kiosk je javna naprava — network retry-ji so pogosti)
+  idempotencyKey: z.string().max(100).optional(),
 })
 
 export const dynamic = 'force-dynamic'
@@ -62,6 +66,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  // `data` deklariran zunaj try — dostopen v catch za idempotent replay pri P2002
+  let data: z.infer<typeof kioskOrderSchema> | undefined
   try {
     // Rate limiting — prepreči zlorabo kioska
     const rl = await checkRateLimitAsync('kiosk-order', getClientIp(req), KIOSK_LIMIT)
@@ -71,8 +77,8 @@ export async function POST(req: Request) {
 
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error
-    let data
     try { data = kioskOrderSchema.parse(bodyResult.data) } catch (e) { return NextResponse.json({ error: 'Neveljavni podatki' }, { status: 400 }) }
+    if (!data) return NextResponse.json({ error: 'Neveljavni podatki' }, { status: 400 })
 
     // Pridobi meni artikle za izračun
     const menuItemIds = data.orderItems.map(oi => oi.menuItemId)
@@ -85,49 +91,47 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Nekateri artikli niso na voljo' }, { status: 400 })
     }
 
-    // Izračunaj totale
-    let subtotal = 0
-    let tax = 0
-    const orderItemsData = data.orderItems.map(oi => {
-      const mi = menuItems.find(m => m.id === oi.menuItemId)!
-      const lineTotal = toNum(mi.price) * oi.quantity
-      const lineTax = lineTotal * (toNum(mi.vatRate) / 100)
-      subtotal += lineTotal - lineTax
-      tax += lineTax
-      return {
-        menuItemId: oi.menuItemId,
-        menuItemName: mi.name,
-        quantity: oi.quantity,
-        price: mi.price,
-        vatRate: mi.vatRate,
-        vatAmount: lineTax,
-        notes: oi.notes,
-        status: 'pending',
-      }
+    // P1-8 FIX KRITIČNO: kiosk je prej ceno obravnal kot GROSS (neto = cena − DDV),
+    // medtem ko jeMenuItem.price po definiciji sistema NETO (QR meni prikazuje
+    // € × (1 + DDV/100); POS izračun: total = subtotal + DDV). Kiosk je s tem
+    // zaračunaval MANJ kot POS za isti artikel — neusklajeno z računi/DB.
+    // Sedaj: ISTI kanonični izračun (buildOrderItemsData + calculateOrderTotals).
+    const vatMap = new Map(menuItems.map(mi => [mi.id, mi]))
+    const { orderItemsData, subtotal } = buildOrderItemsData(data.orderItems, vatMap, 0)
+    const { totalTax: tax, total } = calculateOrderTotals(orderItemsData, subtotal)
+
+    // P1-6: kiosk naprava stoji na lokaciji — resolucija (single-tenant fallback)
+    const kioskLocationId = await resolveDefaultLocationId()
+
+    // P1-7: per-lokacijsko številčenje naročil (self-init iz MAX)
+    const nextOrderNumber = await getNextOrderNumber(kioskLocationId)
+
+    // P1-8: idempotencyKey — vedno prisoten (auto), klient lahko pošlje svojega
+    const idempotencyKey = data.idempotencyKey ||
+      `auto-kiosk-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+
+    // FIX CRITICAL (Test 3.2 parity): vrni obstoječe naročilo pri replay-u
+    const existingOrder = await db.order.findFirst({
+      where: { idempotencyKey },
+      select: { id: true, orderNumber: true, total: true, orderItems: { select: { id: true } } },
     })
-
-    const total = subtotal + tax
-
-    // FIX CRITICAL (race): Atomsko generiraj orderNumber z db.counter.upsert.
-    // Prejšnja koda `await db.order.count() + 1` je bila neatomska — dve sočasni
-    // kiosk naročili bi dobili enako številko (unique constraint violation → 500).
-    let nextOrderNumber: number
-    try {
-      const counter = await db.counter.upsert({
-        where: { name: 'orderNumber' },
-        update: { value: { increment: 1 } },
-        create: { name: 'orderNumber', value: 1 },
-      })
-      nextOrderNumber = counter.value
-    } catch (counterErr: unknown) {
-      logger.error('API', '[KIOSK] Counter upsert failed:', counterErr)
-      return NextResponse.json({ error: 'Napaka pri generiranju številke naročila. Poskusite znova.' }, { status: 503 })
+    if (existingOrder) {
+      return NextResponse.json({
+        success: true,
+        orderId: existingOrder.id,
+        orderNumber: existingOrder.orderNumber,
+        total: toNum(existingOrder.total),
+        items: existingOrder.orderItems.length,
+        message: `Naročilo #${existingOrder.orderNumber} že obstaja — plačaj €${toNum(existingOrder.total).toFixed(2)}`,
+        idempotentReplay: true,
+      }, { status: 200 })
     }
 
     // Ustvari naročilo (dine-in za mizo, takeout za s seboj)
     const order = await db.order.create({
       data: {
         orderNumber: nextOrderNumber,
+        idempotencyKey,
         type: data.diningOption,
         status: 'pending',
         customerName: data.customerName,
@@ -137,7 +141,16 @@ export async function POST(req: Request) {
         totalWithTip: total,
         paymentStatus: 'unpaid',
         paymentMethod: '',
-        orderItems: { create: orderItemsData },
+        locationId: kioskLocationId,
+        orderItems: {
+          // OrderItemData (z menuItemId skalarjem) — isti unchecked vzorec kot POS post-handler
+          create: (
+            orderItemsData.map(oid => ({
+              ...oid,
+              menuItemName: menuItems.find(m => m.id === oid.menuItemId)?.name ?? '',
+            })) as Prisma.OrderItemUncheckedCreateInput[]
+          ),
+        },
       },
       include: { orderItems: true },
     })
@@ -151,6 +164,28 @@ export async function POST(req: Request) {
       message: `Naročilo #${order.orderNumber} ustvarjeno na kiosku — plačaj €${toNum(order.total).toFixed(2)}`,
     }, { status: 201 })
   } catch (error: unknown) {
+    // P2002 (idempotencyKey race): dva vzporedna klica z istim ključem —
+    // drugi dobi unique violation → vrni obstoječe naročilo (200, ne 500)
+    if (
+      error && typeof error === 'object' && 'code' in error &&
+      (error as { code?: string }).code === 'P2002' && data?.idempotencyKey
+    ) {
+      const existing = await db.order.findFirst({
+        where: { idempotencyKey: data.idempotencyKey },
+        select: { id: true, orderNumber: true, total: true, orderItems: { select: { id: true } } },
+      })
+      if (existing) {
+        return NextResponse.json({
+          success: true,
+          orderId: existing.id,
+          orderNumber: existing.orderNumber,
+          total: toNum(existing.total),
+          items: existing.orderItems.length,
+          message: `Naročilo #${existing.orderNumber} že obstaja — plačaj €${toNum(existing.total).toFixed(2)}`,
+          idempotentReplay: true,
+        }, { status: 200 })
+      }
+    }
     return handleApiError(error, 'POST /api/public/kiosk', 'Napaka pri kiosk naročilu')
   }
 }

@@ -110,11 +110,20 @@ async function seedCoreData() {
     ['R', 'Znižana DDV 9.5%', 9.5],
     ['Z', 'Oproščeno 0%', 0.0],
   ] as const) {
-    await db.taxRate.upsert({
-      where: { code },
-      create: { code, name, rate, isActive: true, sortOrder: code === 'S' ? 0 : code === 'R' ? 1 : 2 },
-      update: { name, rate },
-    })
+    // P1-7: TaxRate unique je zdaj compound [locationId, code] — seedanih
+    // globalnih stopenj ne moremo več naslavljati po { code }. Upsert po
+    // obstoju (findFirst po kodi brez lokacije), sicer create.
+    const existingRate = await db.taxRate.findFirst({ where: { code } })
+    if (existingRate) {
+      await db.taxRate.update({
+        where: { id: existingRate.id },
+        data: { name, rate },
+      })
+    } else {
+      await db.taxRate.create({
+        data: { code, name, rate, isActive: true, sortOrder: code === 'S' ? 0 : code === 'R' ? 1 : 2 },
+      })
+    }
   }
 
   for (const [type, name, prepTime] of [

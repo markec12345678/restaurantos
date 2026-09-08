@@ -4,12 +4,55 @@ import { db } from '@/lib/db'
 import { toNum, deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
-import { getNextCounter } from '@/lib/counters'
+import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
 import { createOrderSchema } from '@/lib/validations'
 import { checkStockAvailability } from '@/lib/stock-deduction'
 import { validateRequest } from '@/lib/api-utils'
 import { buildOrderItemsData, calculateOrderTotals, validateMenuItems } from './order-items'
 import { handleStockDeduction, handlePostCreationEffects } from './stock'
+
+// P1-6: session kontekst, ki ga POST pot potrebuje za resolucijo lokacije
+export interface PostOrderAuthSession {
+  session?: {
+    employeeId?: string
+    locationId?: string | null
+    role?: string
+  } | null
+}
+
+/**
+ * P1-6: Resolviraj locationId za novo naročilo (server-side — body.locationId
+ * se NE zaupa, večnadstropni tenant rescue:
+ *   1. session.locationId (Employee kontekst — avtoritativen za regular userja)
+ *   2. miza (tableId → Table.locationId — fizična lokacija mize)
+ *   3. fallback: edina aktivna lokacija (single-tenant / seed)
+ *   4. null (super admin v multi-tenant brez lokacije → globalni zapis)
+ * Če session in miza nakazujeta RAZLIČNI lokaciji → 400 (IDOR zaščita:
+ * natakar lokacije A ne more ustvariti naročila na mizi lokacije B).
+ */
+async function resolveOrderLocationId(
+  tableId: string | null | undefined,
+  sessionLocationId: string | null | undefined,
+): Promise<{ ok: true; locationId: string | null } | { ok: false; error: string }> {
+  let tableLocationId: string | null = null
+  if (tableId) {
+    const table = await db.table.findUnique({
+      where: { id: tableId },
+      select: { locationId: true },
+    })
+    if (table) tableLocationId = table.locationId
+  }
+
+  const sessionLoc = sessionLocationId || null
+  if (sessionLoc && tableLocationId && sessionLoc !== tableLocationId) {
+    return { ok: false, error: 'Izbrana miza pripada drugi lokaciji' }
+  }
+  const locationId = sessionLoc || tableLocationId
+  if (locationId) return { ok: true, locationId }
+
+  const fallback = await resolveDefaultLocationId()
+  return { ok: true, locationId: fallback }
+}
 
 // FIX CRITICAL (Test 3.2): Poišči obstoječe naročilo po idempotencyKey
 // Če klient pošlje isti idempotencyKey 2× (double-click, React Query retry,
@@ -30,7 +73,7 @@ function isUniqueConstraintViolation(error: unknown): boolean {
 
 export async function handlePostOrder(
   req: Request,
-  authSession: { session?: { employeeId?: string } | null },
+  authSession: PostOrderAuthSession,
 ) {
   // FIX H-01: Validiraj vnos z Zod + omejitev velikosti bodyja (1 MB) + samodejna sanatizacija
   const { data, error: validationError } = await validateRequest(req, createOrderSchema, { maxBodySize: 1024 * 1024 })
@@ -48,8 +91,20 @@ export async function handlePostOrder(
     return NextResponse.json(deepToNumbers(existing), { status: 200 })
   }
 
-  // FIX 1: Atomic counter — prepreči race condition
-  const orderNumber = await getNextCounter('orderNumber')
+  // P1-6: Resolviraj lokacijo naročila (session → miza → single-tenant fallback).
+  // Naročilo brez lokacije je izgubljeno za tenant-scoped poizvedbe (GET /api/orders
+  // z where locationId ne bi videl NULL vrstic) — zato resolucija pred kreiranjem.
+  const locationResolution = await resolveOrderLocationId(
+    data.tableId || null,
+    authSession.session?.locationId,
+  )
+  if (!locationResolution.ok) {
+    return NextResponse.json({ error: locationResolution.error }, { status: 400 })
+  }
+  const orderLocationId = locationResolution.locationId
+
+  // FIX 1: Atomna številka — P1-7: per-lokacijsko številčenje (self-init iz MAX)
+  const orderNumber = await getNextOrderNumber(orderLocationId)
 
   // Multi-DDV: pridobi vatRate za vsak artiklov iz baze (edini vir resnice)
   const menuItemIds = data.orderItems.map(item => item.menuItemId)
@@ -108,6 +163,9 @@ export async function handlePostOrder(
           notes: data.notes,
           employeeId: data.employeeId || authSession.session?.employeeId || null,
           inventoryDeducted: false,
+          // P1-6: lokacija naročila — resolvirana server-side (session/miza/fallback),
+          // nikoli iz bodyja (tenant isolation: body ni vir zaupanja)
+          locationId: orderLocationId,
           orderItems: {
             // OrderItemData matches unchecked create input
           // eslint-disable-next-line @typescript-eslint/no-explicit-any

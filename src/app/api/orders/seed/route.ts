@@ -2,7 +2,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { getNextCounter } from '@/lib/counters'
+import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
 import { requireAuth } from '@/lib/auth-middleware'
 import { toNum, round2, calcVat } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
@@ -18,6 +18,8 @@ export async function POST(req: Request) {
 
     const menuItems = await db.menuItem.findMany({ take: 10 })
     const tables = await db.table.findMany()
+    // P1-6/P1-7: seed naročila dobijo lokacijo + per-lokacijsko številčenje
+    const seedLocationId = await resolveDefaultLocationId()
 
     if (menuItems.length === 0) {
       return NextResponse.json({ error: 'No menu items found. Seed data first.' }, { status: 400 })
@@ -70,7 +72,8 @@ export async function POST(req: Request) {
         const status = statuses[statusIdx]
 
         // FIX BUG 4: Uporabi atomni števec — prepreči race condition
-        const orderNumber = await getNextCounter('orderNumber')
+        // P1-7: per-lokacijsko številčenje; P1-6: seed naročila dobijo lokacijo
+        const orderNumber = await getNextOrderNumber(seedLocationId)
 
         const tableId = type === 'dine-in' && tables.length > 0 ? tables[Math.floor(Math.random() * tables.length)].id : null
 
@@ -80,6 +83,7 @@ export async function POST(req: Request) {
             type,
             status,
             tableId,
+            locationId: seedLocationId,
             customerName: ['Jože N.', 'Maja S.', 'Miha R.', 'Ana L.', 'Tomaž V.', 'Ema B.'][Math.floor(Math.random() * 6)],
             customerPhone: '',
             subtotal,

@@ -71,6 +71,22 @@ export async function POST(req: Request) {
     const { data, error: validationError } = await validateRequest(req, createLoyaltySchema)
     if (validationError) return validationError
 
+    // P1-6/P1-7: račun zvestobe je VEZAN NA LOKACIJO (P0-C4 per-location loyalty) —
+    // session.locationId je avtoritativen (super admin brez lokacije → globalni račun).
+    const loyaltyLocationId = authResult.session?.locationId || null
+
+    // P1-7: telefon je unikaten PO LOKACIJI (ne globalno) — isti gost ima lahko
+    // račun na več lokacijah. Preveri duplikat pred create (pregnosen P2002 → 400).
+    if (loyaltyLocationId) {
+      const duplicate = await db.loyaltyAccount.findFirst({
+        where: { customerPhone: data.customerPhone, locationId: loyaltyLocationId },
+        select: { id: true },
+      })
+      if (duplicate) {
+        return NextResponse.json({ error: 'Račun zvestobe s to telefonsko številko že obstaja na tej lokaciji' }, { status: 409 })
+      }
+    }
+
     // FIX HIGH: Server nadzoruje začetne točke — klient NE more nastaviti pointsBalance/lifetimePoints
     const account = await db.loyaltyAccount.create({
       data: {
@@ -81,6 +97,7 @@ export async function POST(req: Request) {
         lifetimePoints: 0, // FIX: Vedno začni z 0
         tier: 'bronze', // FIX: Nov račun vedno začne kot bronze
         isActive: data.isActive,
+        locationId: loyaltyLocationId,
       },
       include: {
         transactions: true,

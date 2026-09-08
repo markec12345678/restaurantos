@@ -8,7 +8,7 @@ export interface CreateOnlineOrderInput {
   paymentMethod: string
   customer: Record<string, unknown>
   promoCode?: string
-  locationId?: string
+  locationId?: string | null  // P1-6: null = globalno (super admin fallback)
   menuItemMap: Map<string, {
     id: string; price: import('@/lib/decimal').DecimalLike; vatRate: import('@/lib/decimal').DecimalLike
     recipeItems: Array<{

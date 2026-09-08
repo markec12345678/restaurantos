@@ -8,6 +8,9 @@ import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/api-utils'
 import { verifyApiKey } from '@/lib/api-security'
 import { toNum } from '@/lib/decimal'
+import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
+import { buildOrderItemsData, calculateOrderTotals } from '@/app/api/orders/_helpers/order-items'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
@@ -131,45 +134,64 @@ export async function POST(req: Request) {
       }
     }
 
-    // Izračunaj total
-    let total = 0
-    const orderItemsData = input.items.map((item) => {
-      const mi = menuItems.find((m) => m.id === item.menuItemId)!
-      const lineTotal = toNum(mi.price) * item.quantity
-      total += lineTotal
-      return {
-        menuItemId: item.menuItemId,
-        menuItemName: mi.name,
-        quantity: item.quantity,
-        price: mi.price,
-        vatRate: mi.vatRate,
-        vatAmount: toNum(mi.price) * 0.22 * item.quantity,
-        notes: item.notes,
-      }
-    })
+    // P1-6/P1-8: mobilno naročilo uporablja ISTI kanonični izračun kot POS
+    // (buildOrderItemsData + calculateOrderTotals — Decimal aritmetika, DDV po
+    // postavki iz DB vatRate). Prej: hardkodiran 0.22 DDV na vse artikle
+    // (napačno za 9,5 % in 0 % stopnje) + manjkajoč orderNumber (create je
+    // vedno padel na Prisma required-field napaki).
+    const vatMap = new Map(menuItems.map(mi => [mi.id, mi]))
+    const { orderItemsData, subtotal } = buildOrderItemsData(input.items, vatMap, 0)
+    const { totalTax, total } = calculateOrderTotals(orderItemsData, subtotal)
+
+    // P1-6: resolucija lokacije (miza → single-tenant fallback) — enak vzorec kot POS
+    let orderLocationId: string | null = null
+    if (input.tableId) {
+      const table = await db.table.findUnique({
+        where: { id: input.tableId },
+        select: { locationId: true },
+      })
+      orderLocationId = table?.locationId ?? null
+    }
+    if (!orderLocationId) {
+      orderLocationId = await resolveDefaultLocationId()
+    }
+
+    // P1-7: per-lokacijsko številčenje + FIX: idempotencyKey vedno prisoten
+    // (prej: samo če ga klient pošlje — retry brez ključa je ustvaril duplikat)
+    const idempotencyKey = input.idempotencyKey ||
+      `auto-mobile-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+    const orderNumber = await getNextOrderNumber(orderLocationId)
 
     // FIX P4: Uporabi $transaction za order.create — če klic failne med
     // order.create in orderItems.create, ostane order brez postavk (inconsistent).
     // Prisma nested create je sicer atomic, ampak izrecna transakcija je boljša
     // za future-proofing (če dodamo side effects kot inventory deduction).
-    // input je zagotovo definiran tukaj — orderSchema.parse bi vržo napako če bi failal
     const validatedInput = input!
     const order = await db.$transaction(async (tx) => {
       return tx.order.create({
         data: {
-          type: validatedInput.tableId ? 'dine_in' : 'takeaway',
+          orderNumber,
+          type: validatedInput.tableId ? 'dine-in' : 'takeout',
           tableId: validatedInput.tableId || null,
           status: 'pending',
           paymentStatus: 'unpaid',
-          subtotal: total,
-          tax: total * 0.22,
-          total: total * 1.22,
+          subtotal,
+          tax: totalTax,
+          total,
+          totalWithTip: total,
           notes: `Mobile order from ${validatedInput.customerName}${validatedInput.customerPhone ? ` (${validatedInput.customerPhone})` : ''}`,
-          idempotencyKey: validatedInput.idempotencyKey || null,
+          idempotencyKey,
+          locationId: orderLocationId,
           orderItems: {
-            create: orderItemsData,
+            // OrderItemData (z menuItemId skalarjem) — isti unchecked vzorec kot POS post-handler
+            create: (
+              orderItemsData.map(oid => ({
+                ...oid,
+                menuItemName: menuItems.find(m => m.id === oid.menuItemId)?.name ?? '',
+              })) as Prisma.OrderItemUncheckedCreateInput[]
+            ),
           },
-        } as never,
+        },
         include: {
           orderItems: true,
         },

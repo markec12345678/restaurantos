@@ -7,7 +7,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { verifySignature } from '@/lib/webhook-engine'
-import { getNextCounter } from '@/lib/counters'
+import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
 import { emitOrderCreated } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
 import { toNum, multiply, round2, sumBy } from '@/lib/decimal'
@@ -82,7 +82,8 @@ export async function POST(req: Request) {
     }
 
     // Ustvari naročilo v RestaurantOS
-    const orderNumber = await getNextCounter('orderNumber')
+    const webhookLocationId = await resolveDefaultLocationId()
+    const orderNumber = await getNextOrderNumber(webhookLocationId)
     const deliveryAddress = [
       glovoOrder.delivery_address?.street,
       glovoOrder.delivery_address?.city,
@@ -119,6 +120,7 @@ export async function POST(req: Request) {
         paidAt: glovoOrder.payment?.method ? new Date() : null,
         notes: `GLOVO:${glovoOrder.order_id}${glovoOrder.comment ? ' | ' + glovoOrder.comment : ''}`,
         inventoryDeducted: false,
+        ...(webhookLocationId ? { location: { connect: { id: webhookLocationId } } } : {}),
         orderItems: { create: orderItems },
         deliveryInfo: {
           create: {

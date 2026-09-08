@@ -10,6 +10,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { toNum } from '@/lib/decimal'
+import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
 import { checkRateLimitAsync, getClientIp, ONLINE_ORDER_LIMIT } from '@/lib/rate-limit'
 import { handleRouteError, validateRequest } from '@/lib/api-utils'
 import {
@@ -75,22 +76,26 @@ export async function POST(req: Request) {
       actualDeliveryFee = feeResult.fee
     }
 
-    // Preveri lokacijo
+    // Preveri lokacijo (P1-6: body locationId se VALIDIRA — ne zaupa slepo;
+    // brez locationId → fallback na privzeto aktivno lokacijo, da naročilo
+    // ne ostane brez tenant konteksta)
+    let onlineLocationId: string | null = null
     if (locationId) {
       const location = await db.location.findUnique({ where: { id: locationId } })
       if (!location || !location.isActive) {
         return NextResponse.json({ error: 'Izbrana lokacija ni na voljo' }, { status: 400 })
       }
+      onlineLocationId = location.id
+    } else {
+      onlineLocationId = await resolveDefaultLocationId()
     }
 
     // Generiraj številko naročila
     // FIX Q04 MEDIUM: Če counter ne deluje, VRNI NAPAKO namesto neatomskega fallbacka
+    // P1-7: per-lokacijsko številčenje (self-init iz MAX — varno nadaljevanje)
     let nextOrderNumber: number
     try {
-      const counter = await db.counter.upsert({
-        where: { name: 'orderNumber' }, update: { value: { increment: 1 } }, create: { name: 'orderNumber', value: 1 },
-      })
-      nextOrderNumber = counter.value
+      nextOrderNumber = await getNextOrderNumber(onlineLocationId)
     } catch (_counterErr: unknown) {
       return NextResponse.json({ error: 'Napaka pri generiranju številke naročila. Poskusite znova.' }, { status: 503 })
     }
@@ -116,7 +121,7 @@ export async function POST(req: Request) {
       paymentMethod,
       customer: customer as Record<string, unknown>,
       promoCode,
-      locationId,
+      locationId: onlineLocationId,
       menuItemMap,
       orderItemsData,
       subtotal,

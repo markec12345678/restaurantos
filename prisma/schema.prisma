@@ -54,11 +54,11 @@ model MenuItem {
   id              String           @id @default(cuid())
   name            String
   description     String           @default("")
-  price           Decimal            // FIX: Decimal za valuto
+  price           Decimal        @db.Decimal(12, 2)  // P1-8: valuta EUR — 2 decimalni mesti
   image           String           @default("")
   isAvailable     Boolean          @default(true)
   sortOrder       Int              @default(0)
-  vatRate         Decimal           @default(22.00)     // DDV stopnja: 22.0, 9.5, 0 (%)  // FIX: Decimal za davčno stopnjo
+  vatRate         Decimal        @db.Decimal(5, 2) @default(22.00)  // P1-8: DDV stopnja: 22.0, 9.5, 0 (%)
   allergens       String           @default("")       // Alergeni: "1,3,7,12" (EU številke)
   categoryId      String
   category        Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade, onUpdate: Cascade)
@@ -76,7 +76,8 @@ model MenuItem {
   prepStation     PrepStation?     @relation(fields: [prepStationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Relations ---
   orderItems      OrderItem[]
-  inventory       InventoryItem?
+  // P1-7: 1:N — zaloga artikla je PO LOKACIJAH (InventoryItem @@unique([menuItemId, locationId]))
+  inventoryItems InventoryItem[]
   recipeItems     RecipeItem[]
   modifierGroups  MenuItemModifierGroup[]
   mealtimeRules   MealtimeRule[]   // FIX MEALTIMES: per-item availability scheduling
@@ -134,7 +135,7 @@ model ModifierGroup {
 model Modifier {
   id              String        @id @default(cuid())
   name            String        // "Srednje pečeno", "Francoski krompir"
-  price           Decimal        @default(0)  // FIX: Decimal za valuto
+  price           Decimal        @default(0) @db.Decimal(12, 2)  // P1-8: dodatek v EUR
   isAvailable     Boolean       @default(true)
   sortOrder       Int           @default(0)
   // FIX ALLER-04 HIGH: Alergeni na modifierjih — "sir" (mleko), "oreščki" itd.
@@ -168,7 +169,7 @@ model MenuItemModifierGroup {
 model TaxRate {
   id          String   @id @default(cuid())
   name        String   // "Standard DDV 22%", "Znižana DDV 9.5%", "Oproščeno 0%"
-  rate        Decimal   // 22.0, 9.5, 0  // FIX: Decimal za davčno stopnjo
+  rate        Decimal  @db.Decimal(5, 2)  // 22.0, 9.5, 0  // FIX: Decimal za davčno stopnjo + P1-8: natančnost 5,2
   code        String   @default("")  // "S", "R", "Z" (FURS kode)
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
@@ -178,8 +179,11 @@ model TaxRate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // FIX SCHEMA-02 HIGH: FURS koda mora biti unikatna — prepreči dvojne "S" kode
-  @@unique([code])
+  // FIX SCHEMA-02 HIGH → P1-7: FURS koda je unikatna PO LOKACIJI — druga lokacija
+  // lahko ima svoj "S" 22 % (prej: @@unique([code]) je to preprečeval!).
+  // Globalne stopnje (locationId NULL) ostanejo unikatne med sabo (NULL ≠ NULL v PG;
+  // db-sync doda tudi delni unique indeks za globalne vrstice).
+  @@unique([locationId, code])
   diningOptions  DiningOption[] // FIX F5-7: Relation from DiningOption
   @@index([isActive])
   @@index([locationId]) // FIX: per-lokacija davčne stopnje
@@ -227,7 +231,7 @@ model ServiceCharge {
   id          String   @id @default(cuid())
   name        String   // "Servisna postavka 10%", "Paketnina za dostavo"
   type        String   // percentage, fixed
-  amount      Decimal   // Odstotek ali fiksni znesek  // FIX: Decimal za valuto
+  amount      Decimal   @db.Decimal(5, 2) // Odstotek ali fiksni znesek  // P1-8
   isAutoApply Boolean  @default(false) // Samodejno dodaj
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
@@ -361,7 +365,7 @@ model PackagingConfig {
 model PackagingItem {
   id                String          @id @default(cuid())
   name              String          // "Kartonska škatla", "Alu folija", "Vrečka za pijačo"
-  price             Decimal          @default(0) // Dodatna cena za embalažo  // FIX: Decimal za valuto
+  price             Decimal          @default(0) @db.Decimal(12, 2) // Cena embalaže  // P1-8
   packagingConfigId String
   packagingConfig   PackagingConfig @relation(fields: [packagingConfigId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   isActive          Boolean         @default(true)
@@ -411,7 +415,10 @@ model Table {
 
 model Order {
   id              String     @id @default(cuid())
-  orderNumber     Int        @unique
+  // P1-7: številka naročila je unikatna PO LOKACIJI (ne globalno) — poslovno
+  // pravilo: vsaka lokacija številči svoja naročila od 1 naprej.
+  // Globalni @unique je odstranjen; unique index (locationId, orderNumber) je v db-sync.
+  orderNumber     Int
   // FIX CRITICAL (Test 3.2): Idempotency key za preprečevanje duplikatov pri offline/retry
   // Brez tega bi React Query retry ustvaril duplikat naročila.
   idempotencyKey  String?  @unique
@@ -432,12 +439,12 @@ model Order {
   customerPhone   String     @default("")
   customerEmail   String     @default("")
   // --- Zneski (iz čekov agregirano) ---
-  subtotal        Decimal     @default(0)  // FIX: Decimal za valuto
-  tax             Decimal     @default(0)  // FIX: Decimal za valuto
-  discount        Decimal     @default(0)  // FIX: Decimal za valuto
-  tip             Decimal     @default(0)  // FIX: Decimal za valuto
-  total           Decimal     @default(0)  // FIX: Decimal za valuto
-  totalWithTip    Decimal     @default(0)  // FIX: Decimal za valuto
+  subtotal        Decimal     @default(0) @db.Decimal(12, 2)  // P1-8: valuta EUR — 2 dec
+  tax             Decimal     @default(0) @db.Decimal(12, 2)  // P1-8: valuta EUR — 2 dec
+  discount        Decimal     @default(0) @db.Decimal(12, 2)  // P1-8: valuta EUR — 2 dec
+  tip             Decimal     @default(0) @db.Decimal(12, 2)  // P1-8: valuta EUR — 2 dec
+  total           Decimal     @default(0) @db.Decimal(12, 2)  // P1-8: valuta EUR — 2 dec
+  totalWithTip    Decimal     @default(0) @db.Decimal(12, 2)  // P1-8: valuta EUR — 2 dec
   // --- Status plačila ---
   paymentStatus   String     @default("unpaid")
   paymentMethod   String     @default("")
@@ -486,6 +493,8 @@ model Order {
   @@index([status, paymentStatus]) // FIX: Compound index for common filter pattern
   @@index([paidAt, paymentStatus]) // Index for financial reports
   @@index([type]) // Index for order type filtering
+  // P1-7: per-lokacijsko številčenje naročil (FURS: ločeno po poslovnem prostoru)
+  @@unique([locationId, orderNumber])
   // FIX SCHEMA-10: Dodatni composite indexes za Order — najpogostejše poizvedbe
   @@index([status, createdAt])  // KDS: aktivna naročila po času (pending, preparing, itd.)
   @@index([diningOptionId])     // FIX: FK index — poizvedbe po načinu strežbe
@@ -504,9 +513,9 @@ model OrderItem {
   menuItemId     String
   menuItem       MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   quantity       Int      @default(1)
-  price          Decimal                        // Cena brez DDV  // FIX: Decimal za valuto
-  vatRate        Decimal   @default(22.00)   // DDV stopnja tega artikla  // FIX: Decimal za davčno stopnjo
-  vatAmount      Decimal   @default(0)      // Znesek DDV za ta artikel  // FIX: Decimal za valuto
+  price          Decimal      @db.Decimal(12, 2)  // Cena brez DDV (NETO)  // P1-8: 2 dec
+  vatRate        Decimal   @default(22.00) @db.Decimal(5, 2)  // P1-8: DDV stopnja artikla
+  vatAmount      Decimal   @default(0) @db.Decimal(12, 2)  // P1-8: DDV znesek artikla
   notes          String   @default("")
   modifiersJson  String   @default("[]") // JSON array of selected modifiers [{name, price}]
   menuItemName   String   @default("") // FIX: Denormalizirano ime artikla za naročila
@@ -515,7 +524,7 @@ model OrderItem {
   voidReasonId   String?
   voidReason     VoidReason? @relation(fields: [voidReasonId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Toast: Discounts na artikel ---
-  discountAmount Decimal   @default(0)  // FIX: Decimal za valuto
+  discountAmount Decimal   @default(0) @db.Decimal(12, 2)  // P1-8: popust na postavko
   appliedDiscountId String?
   appliedDiscount Discount? @relation(fields: [appliedDiscountId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Course (fine dining) ---
@@ -553,13 +562,13 @@ model Check {
   orderId         String
   order           Order      @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   // --- Zneski čeka ---
-  subtotal        Decimal     @default(0)  // FIX: Decimal za valuto
-  tax             Decimal     @default(0)  // FIX: Decimal za valuto
-  discount        Decimal     @default(0)  // FIX: Decimal za valuto
-  serviceCharge   Decimal     @default(0)  // Servisna postavka  // FIX: Decimal za valuto
-  total           Decimal     @default(0)  // Subtotal + tax - discount + serviceCharge  // FIX: Decimal za valuto
-  tip             Decimal     @default(0)  // FIX: Decimal za valuto
-  totalWithTip    Decimal     @default(0)  // FIX: Decimal za valuto
+  subtotal        Decimal     @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
+  tax             Decimal     @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
+  discount        Decimal     @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
+  serviceCharge   Decimal     @default(0) @db.Decimal(12, 2)  // Servisna postavka  // FIX: Decimal za valuto
+  total           Decimal     @default(0) @db.Decimal(12, 2)  // Subtotal + tax - discount + serviceCharge  // FIX: Decimal za valuto
+  tip             Decimal     @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
+  totalWithTip    Decimal     @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
   // --- Plačilo čeka ---
   paymentStatus   String     @default("unpaid") // unpaid, partial, paid
   paymentMethod   String     @default("")
@@ -585,9 +594,9 @@ model Payment {
   checkId               String
   check                 Check                 @relation(fields: [checkId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani finančno revizijsko sled
   // --- Znesek ---
-  amount                Decimal                // Plačani znesek  // FIX: Decimal za valuto
+  amount                Decimal                @db.Decimal(12, 2) // Plačani znesek  // P1-8
   refundAmount          Decimal   @default(0) // FIX: Delni povračila — znesek, ki je bil povrnjen
-  tipAmount             Decimal   @default(0) // Napitnina  // FIX: Decimal za valuto
+  tipAmount             Decimal   @default(0) @db.Decimal(12, 2) // Napitnina  // P1-8
   // --- Vrsta plačila ---
   type                  String                // cash, card, mobile, voucher, loyalty, giftcard, alternate
   // --- Toast: Alternate Payment Type ---
@@ -626,7 +635,7 @@ model Discount {
   id          String   @id @default(cuid())
   name        String   // "Happy Hour -20%", "Zaposleniški popust", "Domači rojstni dan"
   type        String   // percentage, fixed_amount, buy_x_get_y
-  amount      Decimal   // Odstotek ali znesek (odvisno od type)  // FIX: Decimal za valuto
+  amount      Decimal   @db.Decimal(5, 2) // Odstotek ali znesek (odvisno od type)  // P1-8
   // --- Pogoji ---
   appliesTo   String   @default("check") // check, item, category
   triggerType String   @default("manual") // manual, auto, promo_code
@@ -669,8 +678,8 @@ model DeliveryInfo {
   // --- Status ---
   status          String   @default("pending") // pending, preparing, ready, picked_up, delivered, failed
   // --- Pakiranje ---
-  packagingFee    Decimal   @default(0) // Strošek embalaže  // FIX: Decimal za valuto
-  deliveryFee     Decimal   @default(0) // Strošek dostave  // FIX: Decimal za valuto
+  packagingFee    Decimal   @default(0) @db.Decimal(12, 2) // Strošek embalaže  // P1-8
+  deliveryFee     Decimal   @default(0) @db.Decimal(12, 2) // Strošek dostave  // P1-8
   // --- Koordinate ---
   latitude        Float?
   longitude       Float?
@@ -735,7 +744,7 @@ model Job {
   id          String   @id @default(cuid())
   name        String   // "Natakar", "Kuhar", "Barman", "Vodja izmene", "Skladnik"
   code        String   @default("") // Kratka koda
-  basePayRate Decimal  @default(0) // Osnovna urna postavka  // FIX: Decimal za valuto
+  basePayRate Decimal  @default(0) @db.Decimal(12, 2) // Osnovna urna postavka  // P1-8
   overtimeRate Decimal  @default(0) // Osnovna + 50% za presežek  // FIX: Decimal za valuto
   // --- Dovoljenja (JSON) ---
   permissions String   @default("[]") // ["take_orders", "void_items", "apply_discounts", "manage_cash", "admin"]
@@ -760,7 +769,7 @@ model EmployeeJob {
   employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   jobId      String
   job        Job      @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  payRate    Decimal   @default(0) // Override osnovne plače za tega zaposlenega  // FIX: Decimal za valuto
+  payRate    Decimal   @default(0) @db.Decimal(12, 2) // Override plače  // P1-8
   isPrimary  Boolean  @default(false) // Primarna funkcija
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -816,8 +825,8 @@ model TimeEntry {
   breakMinutes Int     @default(0) // Dejansko minut odmora
   // --- Izračun ---
   totalMinutes Int     @default(0) // Skupaj minut (brez odmora)
-  payRate     Decimal   @default(0) // Urna postavka za ta vnos  // FIX: Decimal za valuto
-  totalPay    Decimal   @default(0) // totalMinutes / 60 * payRate  // FIX: Decimal za valuto
+  payRate     Decimal   @default(0) @db.Decimal(12, 2) // Urna postavka  // P1-8
+  totalPay    Decimal   @default(0) @db.Decimal(12, 2) // totalMinutes / 60 * payRate  // P1-8
   // --- Tip ---
   type        String   @default("regular") // regular, overtime, holiday, sick, vacation
   status      String   @default("active") // active, approved, disputed
@@ -849,20 +858,20 @@ model CashRegisterShift {
   openedAt          DateTime @default(now())
   closedAt          DateTime?
   startingCash      Decimal   @default(0) // Začetno stanje gotovine  // FIX: Decimal za valuto
-  closingCash       Decimal   @default(0) // Končno stanje gotovine (dejansko štete)  // FIX: Decimal za valuto
-  expectedCash      Decimal   @default(0) // Pričakovano stanje gotovine  // FIX: Decimal za valuto
+  closingCash       Decimal   @default(0) @db.Decimal(12, 2)  // Končno stanje gotovine (dejansko štete)  // FIX: Decimal za valuto
+  expectedCash      Decimal   @default(0) @db.Decimal(12, 2)  // Pričakovano stanje gotovine  // FIX: Decimal za valuto
   cashSales         Decimal   @default(0) // Prodaja v gotovini  // FIX: Decimal za valuto
   cardSales         Decimal   @default(0) // Kartična prodaja  // FIX: Decimal za valuto
   mobileSales       Decimal   @default(0) // Mobilna prodaja  // FIX: Decimal za valuto
   alternateSales    Decimal   @default(0) // Alternativna plačila (boni, vavčerji)  // FIX: Decimal za valuto
-  splitPayments     Decimal   @default(0) // Deljena plačila  // FIX: Decimal za valuto
-  totalSales        Decimal   @default(0) // Skupna prodaja  // FIX: Decimal za valuto
+  splitPayments     Decimal   @default(0) @db.Decimal(12, 2)  // Deljena plačila  // FIX: Decimal za valuto
+  totalSales        Decimal   @default(0) @db.Decimal(12, 2)  // Skupna prodaja  // FIX: Decimal za valuto
   totalOrders       Int      @default(0)       // Število naročil
-  totalDiscounts    Decimal   @default(0) // Skupni popusti  // FIX: Decimal za valuto
-  totalTips         Decimal   @default(0) // Skupne napitnine  // FIX: Decimal za valuto
-  totalVoided       Decimal   @default(0) // Skupaj poničenih zneskov  // FIX: Decimal za valuto
-  totalRefunds      Decimal   @default(0) // FIX Test 4.2: Skupaj vračil (refundAmount vsota)
-  cashDifference    Decimal   @default(0) // Razlika (dejansko - pričakovano)  // FIX: Decimal za valuto
+  totalDiscounts    Decimal   @default(0) @db.Decimal(12, 2)  // Skupni popusti  // FIX: Decimal za valuto
+  totalTips         Decimal   @default(0) @db.Decimal(12, 2)  // Skupne napitnine  // FIX: Decimal za valuto
+  totalVoided       Decimal   @default(0) @db.Decimal(12, 2)  // Skupaj poničenih zneskov  // FIX: Decimal za valuto
+  totalRefunds      Decimal   @default(0) @db.Decimal(12, 2)  // FIX Test 4.2: Skupaj vračil (refundAmount vsota)
+  cashDifference    Decimal   @default(0) @db.Decimal(12, 2)  // Razlika (dejansko - pričakovano)  // FIX: Decimal za valuto
   notes             String   @default("")      // Opombe ob zaključku
   // --- Multi-location ---
   locationId        String?
@@ -883,19 +892,22 @@ model InventoryItem {
   description     String    @default("")           // Opis artikla
   image           String    @default("")           // Pot do slike
   unit            String    @default("pcs")       // Enota zaloge: steklenica, keg, kos, L, kg
-  quantity        Decimal    @default(0)   // Količina na zalogi (v enotah)  // FIX: Decimal za natančnost
-  minQuantity     Decimal    @default(0)   // Minimalna količina za opozorilo  // FIX: Decimal za natančnost
-  costPerUnit     Decimal    @default(0)   // Nabavna cena na enoto zaloge  // FIX: Decimal za valuto
+  quantity        Decimal    @default(0)   @db.Decimal(12, 3) // Količina na zalogi  // P1-8: 3 dec
+  minQuantity     Decimal    @default(0)   @db.Decimal(12, 3) // Minimalna količina  // P1-8: 3 dec
+  costPerUnit     Decimal    @default(0)   @db.Decimal(12, 2) // Nabavna cena  // P1-8
   supplier        String    @default("")           // Dobavitelj
   category        String    @default("general")    // Kategorija zaloge
   location         String    @default("main")       // Lokacija/skladišče: main, bar, kuhinja, hladilnik, klet, etc.
   expiryDate      DateTime?
   // --- NORMATIVI (standardizirano odmerjanje) ---
-  servingsPerUnit Decimal    @default(1)  // Število servisov iz ene enote zaloge  // FIX: Decimal za natančnost
+  servingsPerUnit Decimal    @default(1)   @db.Decimal(12, 3) // Servisi na enoto  // P1-8: 3 dec
   servingSize     String    @default("")           // Velikost servisa
-  costPerServing  Decimal    @default(0)  // Strošek na servis  // FIX: Decimal za valuto
+  costPerServing  Decimal    @default(0)  @db.Decimal(12, 2) // Strošek na servis  // P1-8
   // --- Povezava z menijem ---
-  menuItemId      String?   @unique
+  // P1-7: menuItemId NI več globalno unikaten — zaloga istega artikla obstaja
+  // PO LOKACIJAH (@@unique([menuItemId, locationId])). Globalne zaloge (locationId
+  // NULL) ostanejo dovoljene kot skupni vir (NULL ≠ NULL v PG).
+  menuItemId      String?
   menuItem        MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   lastRestocked   DateTime  @default(now())
   // --- Transakcije ---
@@ -917,6 +929,8 @@ model InventoryItem {
   @@index([supplier])
   @@index([location])
   @@index([quantity])
+  // P1-7: ena zaloga artikla na lokacijo (globalni vir: NULL vrstice ostanejo)
+  @@unique([menuItemId, locationId])
 }
 
 // ============================================
@@ -928,11 +942,11 @@ model StockTransaction {
   inventoryItemId String
   inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani zalogo audit
   type            String        // "procurement", "sale", "write-off", "adjustment", "return"
-  quantity        Decimal             // FIX: Decimal za natančnost
-  previousQty     Decimal             // FIX: Decimal za natančnost
-  newQty          Decimal             // FIX: Decimal za natančnost
-  costPerUnit     Decimal             // FIX: Decimal za valuto
-  totalCost       Decimal             // FIX: Decimal za valuto
+  quantity        Decimal             @db.Decimal(12, 3) // P1-8: 3 dec
+  previousQty     Decimal             @db.Decimal(12, 3) // P1-8: 3 dec
+  newQty          Decimal             @db.Decimal(12, 3) // P1-8: 3 dec
+  costPerUnit     Decimal             @db.Decimal(12, 2) // P1-8
+  totalCost       Decimal             @db.Decimal(12, 2) // P1-8
   reason          String        @default("")
   note            String        @default("")
   supplierDoc     String        @default("")
@@ -953,7 +967,7 @@ model RecipeItem {
   menuItem        MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   inventoryItemId String
   inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  quantityPerServing Decimal    @default(0)  // FIX: Decimal za natančnost
+  quantityPerServing Decimal    @default(0)  @db.Decimal(12, 3) // P1-8: 3 dec
   unit            String        @default("")
   notes           String        @default("")
   // FIX F5-4: Multi-level recipes — sub-recepti (npr. "pica testo" uporabljen v "margherita")
@@ -973,7 +987,10 @@ model RecipeItem {
 
 model Receipt {
   id                String   @id @default(cuid())
-  receiptNumber     String   @unique               // Sekvenčna številka: R-2026-000001
+  // P1-7 (FURS): številka računa je unikatna PO POSLOVNEM PROSTORU (= lokacija) —
+  // ne globalno! Vsaka lokacija ima svoje zaporedno številčenje R-YYYY-NNNNNN.
+  // Globalni @unique odstranjen; compound unique index je v db-sync.
+  receiptNumber     String
   orderId           String                         // Omogoča več računov na naročilo (split payments)
   order             Order    @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   // --- Podatki izdajatelja ---
@@ -989,13 +1006,13 @@ model Receipt {
   fiscalStatus      String   @default("none")       // none, pending, verified, failed
   verificationDate  DateTime?
   // --- Vsebina računa ---
-  subtotal          Decimal           // FIX: Decimal za valuto
+  subtotal          Decimal           @db.Decimal(12, 2) // P1-8
   vatBreakdown      String   @default("{}")
-  totalVat          Decimal           // FIX: Decimal za valuto
-  discount          Decimal   @default(0)  // FIX: Decimal za valuto
-  total             Decimal           // FIX: Decimal za valuto
-  tip               Decimal   @default(0)  // FIX: Decimal za valuto
-  totalWithTip      Decimal   @default(0) // FIX: Decimal za valuto
+  totalVat          Decimal           @db.Decimal(12, 2) // P1-8
+  discount          Decimal   @default(0) @db.Decimal(12, 2)  // P1-8
+  total             Decimal           @db.Decimal(12, 2) // P1-8
+  tip               Decimal   @default(0) @db.Decimal(12, 2)  // P1-8
+  totalWithTip      Decimal   @default(0) @db.Decimal(12, 2) // P1-8
   paymentMethod     String
   // --- Meta ---
   isCopy            Boolean  @default(false)
@@ -1016,6 +1033,8 @@ model Receipt {
   @@index([orderId, isStorno])
   // FIX SCHEMA-04 MEDIUM: Index za fiscalStatus — batch processing unfiscalized receipts
   @@index([fiscalStatus])
+  // P1-7 (FURS): zaporedna številka računa po poslovnem prostoru (lokacija)
+  @@unique([locationId, receiptNumber])
 }
 
 // ============================================
@@ -1026,7 +1045,7 @@ model LoyaltyAccount {
   id              String   @id @default(cuid())
   // --- Stranka ---
   customerName    String   @default("")
-  customerPhone   String   @unique @default("") // FIX: prepreči duplikatne prijave na isto telefonsko številko
+  customerPhone   String   @default("") // P1-7: telefon je unikaten PO LOKACIJI (db-sync: delni unique indeks WHERE customerPhone <> '' in locationId IS NOT NULL; isti gost ima lahko račun na več lokacijah). Prej globalni @unique — druga lokacija ni mogla imeti istega gosta!
   customerEmail   String   @default("")
   // --- Točke ---
   pointsBalance   Int      @default(0)
@@ -1066,7 +1085,7 @@ model LoyaltyTransaction {
   orderId         String?
   checkId         String?
   // --- Vrednost ---
-  monetaryValue   Decimal         @default(0) // Vrednost v EUR, če se točke unovčijo  // FIX: Decimal za valuto
+  monetaryValue   Decimal         @default(0) @db.Decimal(12, 2) // Vrednost v EUR  // P1-8
   createdAt       DateTime       @default(now())
 
   @@index([loyaltyAccountId])
@@ -1088,8 +1107,8 @@ model GiftCard {
   id              String   @id @default(cuid())
   cardNumber      String   @unique               // Številka kartice
   // --- Vrednost ---
-  balance         Decimal   @default(0)     // Trenutno stanje  // FIX: Decimal za valuto
-  initialBalance  Decimal   @default(0)     // Začetna vrednost  // FIX: Decimal za valuto
+  balance         Decimal   @default(0)     @db.Decimal(12, 2) // Trenutno stanje  // P1-8
+  initialBalance  Decimal   @default(0)     @db.Decimal(12, 2) // Začetna vrednost  // P1-8
   // --- Status ---
   status          String   @default("active")     // active, depleted, expired, suspended
   // --- Lastnik ---
@@ -1117,8 +1136,8 @@ model GiftCardTransaction {
   giftCard        GiftCard  @relation(fields: [giftCardId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani zgodovino darilnih kartic
   // --- Transakcija ---
   type            String    // load, redeem, adjust, transfer
-  amount          Decimal    // Pozitivno za load, negativno za redeem  // FIX: Decimal za valuto
-  balanceAfter    Decimal    // Stanje po transakciji  // FIX: Decimal za valuto
+  amount          Decimal    @db.Decimal(12, 2) // Load/redeem znesek  // P1-8
+  balanceAfter    Decimal    @db.Decimal(12, 2) // Stanje po transakciji  // P1-8
   // --- Povezava ---
   orderId         String?
   checkId         String?
@@ -1167,7 +1186,7 @@ model RestaurantSettings {
   // --- Loyalty nastavitve ---
   loyaltyEnabled    Boolean  @default(false)
   loyaltyPointsPerEuro Int   @default(1)            // Točk na porabljen EUR
-  loyaltyPointsValue Decimal  @default(0.01) // Vrednost ene točke v EUR  // FIX: Decimal za valuto
+  loyaltyPointsValue Decimal  @default(0.01) @db.Decimal(12, 2) // Vrednost točke v EUR  // P1-8
   // --- Ostalo ---
   receiptFooter     String   @default("")
   currency          String   @default("EUR")
@@ -1236,7 +1255,7 @@ model Location {
   // Fallback: če location polja niso nastavljena (prazni), uporabi RestaurantSettings (global).
   loyaltyEnabled        Boolean  @default(false)
   loyaltyPointsPerEuro  Int      @default(1)
-  loyaltyPointsValue    Decimal  @default(0.01)
+  loyaltyPointsValue    Decimal  @default(0.01) @db.Decimal(12, 2)  // P1-8
   emailReportRecipients String   @default("[]")        // JSON: ["knjigovodja@racunovodja.si"]
   emailEnabled          Boolean  @default(false)        // Per-lokacija email (override global)
   // --- Koordinate ---
@@ -1621,7 +1640,7 @@ model Guest {
   notes           String   @default("")         // Osebne opombe: "Rad sedi ob oknu"
   // --- Statistika (denormalizirano za hitre poizvedbe) ---
   totalVisits     Int      @default(0)
-  totalSpent      Decimal   @default(0) // FIX: Decimal za valuto
+  totalSpent      Decimal   @default(0) @db.Decimal(12, 2) // P1-8
   avgCheckAmount  Decimal   @default(0) // FIX: Decimal za valuto
   lastVisitAt     DateTime?
   firstVisitAt    DateTime?
@@ -1653,8 +1672,8 @@ model GuestVisit {
   tableId         String?
   partySize       Int      @default(1)
   // --- Zneski ---
-  totalSpent      Decimal   @default(0) // FIX: Decimal za valuto
-  tipAmount       Decimal   @default(0) // FIX: Decimal za valuto
+  totalSpent      Decimal   @default(0) @db.Decimal(12, 2) // P1-8
+  tipAmount       Decimal   @default(0) @db.Decimal(12, 2) // P1-8
   // --- Kvaliteta ---
   feedbackScore   Int?                          // 1-5 ocena gosta
   feedbackComment String   @default("")
@@ -1739,8 +1758,8 @@ model PurchaseOrder {
   expectedDate    DateTime?                     // Pričakovana dostava
   receivedDate    DateTime?                     // Dejanska dostava
   // --- Zneski ---
-  subtotal        Decimal   @default(0) // FIX: Decimal za valuto
-  vatAmount       Decimal   @default(0) // FIX: Decimal za valuto
+  subtotal        Decimal   @default(0) @db.Decimal(12, 2) // P1-8
+  vatAmount       Decimal   @default(0) @db.Decimal(12, 2) // P1-8
   totalAmount     Decimal   @default(0) // FIX: Decimal za valuto
   // --- Dostava ---
   deliveryAddress String   @default("")
@@ -2077,7 +2096,7 @@ model Subscription {
   plan              String   @default("starter")        // starter, professional, enterprise
   status            String   @default("trial")          // trial, active, past_due, cancelled, expired
   // --- Cenitev ---
-  monthlyPrice      Decimal   @default(0)   // EUR/mesec  // FIX: Decimal za valuto
+  monthlyPrice      Decimal   @default(0) @db.Decimal(12, 2)  // EUR/mesec  // FIX: Decimal za valuto
   locationCount     Int      @default(1)                // Št. lokacij
   currency          String   @default("EUR")
   // --- Obdobje ---
@@ -2112,10 +2131,10 @@ model SubscriptionInvoice {
   subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   // --- Račun ---
   invoiceNumber   String   @unique
-  amount          Decimal                                // Znesek brez DDV  // FIX: Decimal za valuto
-  vatRate         Decimal   @default(22)   // DDV stopnja  // FIX: Decimal za davčno stopnjo
-  vatAmount       Decimal   @default(0)    // DDV znesek  // FIX: Decimal za valuto
-  totalAmount     Decimal   @default(0)    // Skupaj z DDV  // FIX: Decimal za valuto
+  amount          Decimal                                 @db.Decimal(12, 2)  // Znesek brez DDV  // FIX: Decimal za valuto
+  vatRate         Decimal   @default(22) @db.Decimal(5, 2)  // DDV stopnja  // FIX: Decimal za davčno stopnjo
+  vatAmount       Decimal   @default(0) @db.Decimal(12, 2)  // DDV znesek  // FIX: Decimal za valuto
+  totalAmount     Decimal   @default(0) @db.Decimal(12, 2)  // Skupaj z DDV  // FIX: Decimal za valuto
   currency        String   @default("EUR")
   // --- Obdobje ---
   periodStart     DateTime
@@ -2190,38 +2209,38 @@ model ZReport {
   openedAt          DateTime                           // Čas odprtja prve izmene
   closedAt          DateTime?                          // Čas zaključka zadnje izmene
   // --- Prodaja ---
-  totalSales        Decimal   @default(0) // Skupna prodaja (z DDV)  // FIX: Decimal za valuto
-  totalNetSales     Decimal   @default(0) // Čista prodaja (brez DDV)  // FIX: Decimal za valuto
-  totalTax          Decimal   @default(0) // Skupni DDV  // FIX: Decimal za valuto
+  totalSales        Decimal   @default(0) @db.Decimal(12, 2)  // Skupna prodaja (z DDV)  // FIX: Decimal za valuto
+  totalNetSales     Decimal   @default(0) @db.Decimal(12, 2)  // Čista prodaja (brez DDV)  // FIX: Decimal za valuto
+  totalTax          Decimal   @default(0) @db.Decimal(12, 2)  // Skupni DDV  // FIX: Decimal za valuto
   // --- Po načinu plačila ---
-  cashSales         Decimal   @default(0)  // FIX: Decimal za valuto
-  cardSales         Decimal   @default(0)  // FIX: Decimal za valuto
-  mobileSales       Decimal   @default(0)  // FIX: Decimal za valuto
-  alternateSales    Decimal   @default(0)  // FIX: Decimal za valuto
+  cashSales         Decimal   @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
+  cardSales         Decimal   @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
+  mobileSales       Decimal   @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
+  alternateSales    Decimal   @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
   // --- Po vrsti naročila ---
-  dineInSales       Decimal   @default(0)  // FIX: Decimal za valuto
-  takeoutSales      Decimal   @default(0)  // FIX: Decimal za valuto
-  deliverySales     Decimal   @default(0)  // FIX: Decimal za valuto
+  dineInSales       Decimal   @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
+  takeoutSales      Decimal   @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
+  deliverySales     Decimal   @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
   // --- DDV razčlenitev ---
-  vatStandard       Decimal   @default(0) // DDV 22% osnova  // FIX: Decimal za valuto
-  vatStandardAmount Decimal   @default(0) // DDV 22% znesek  // FIX: Decimal za valuto
-  vatReduced        Decimal   @default(0) // DDV 9.5% osnova  // FIX: Decimal za valuto
-  vatReducedAmount  Decimal   @default(0) // DDV 9.5% znesek  // FIX: Decimal za valuto
-  vatZero           Decimal   @default(0) // DDV 0% osnova  // FIX: Decimal za valuto
+  vatStandard       Decimal   @default(0) @db.Decimal(12, 2)  // DDV 22% osnova  // FIX: Decimal za valuto
+  vatStandardAmount Decimal   @default(0) @db.Decimal(12, 2)  // DDV 22% znesek  // FIX: Decimal za valuto
+  vatReduced        Decimal   @default(0) @db.Decimal(12, 2)  // DDV 9.5% osnova  // FIX: Decimal za valuto
+  vatReducedAmount  Decimal   @default(0) @db.Decimal(12, 2)  // DDV 9.5% znesek  // FIX: Decimal za valuto
+  vatZero           Decimal   @default(0) @db.Decimal(12, 2)  // DDV 0% osnova  // FIX: Decimal za valuto
   // --- Statistika ---
   totalOrders       Int      @default(0)
   totalGuests       Int      @default(0)
-  avgOrderValue     Decimal   @default(0) // FIX: Decimal za valuto
+  avgOrderValue     Decimal   @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
   // --- Popusti in napitnine ---
-  totalDiscounts    Decimal   @default(0) // FIX: Decimal za valuto
-  totalTips         Decimal   @default(0) // FIX: Decimal za valuto
-  totalVoided       Decimal   @default(0) // FIX: Decimal za valuto
-  totalStorno       Decimal   @default(0) // FIX: Decimal za valuto
+  totalDiscounts    Decimal   @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
+  totalTips         Decimal   @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
+  totalVoided       Decimal   @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
+  totalStorno       Decimal   @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
   // --- Gotovina ---
   startingCash      Decimal   @default(0) // FIX: Decimal za valuto
   expectedCash      Decimal   @default(0) // FIX: Decimal za valuto
   actualCash        Decimal   @default(0) // FIX: Decimal za valuto
-  cashDifference    Decimal   @default(0) // FIX: Decimal za valuto
+  cashDifference    Decimal   @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
   cashDrops         Decimal   @default(0) // FIX: Decimal za valuto
   // --- Stroški ---
   totalCost         Decimal   @default(0) // Skupni stroški (food cost)  // FIX: Decimal za valuto
@@ -2257,9 +2276,9 @@ model TipPool {
   date            DateTime                           // Datum
   shiftId         String?                            // Povezava z izmeno (opcija)
   // --- Zneski ---
-  totalTips       Decimal   @default(0) // Skupne napitnine  // FIX: Decimal za valuto
-  cashTips        Decimal   @default(0) // FIX: Decimal za valuto
-  cardTips        Decimal   @default(0) // FIX: Decimal za valuto
+  totalTips       Decimal   @default(0) @db.Decimal(12, 2)  // Skupne napitnine  // FIX: Decimal za valuto
+  cashTips        Decimal   @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
+  cardTips        Decimal   @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
   // --- Metoda distribucije ---
   distributionMethod String  @default("equal")       // equal, hours, points, manual
   // --- Status ---
@@ -2288,11 +2307,11 @@ model TipDistribution {
   previousHash    String   @default("")  // Hash prejšnjega vnosa
   chainHash       String   @default("")  // SHA-256(previousHash + title + value + status + date)
   // --- Ure ---
-  hoursWorked     Decimal   @default(0)  // Ure v izmeni  // FIX: Decimal za ure
+  hoursWorked     Decimal   @default(0) @db.Decimal(12, 2)  // Ure v izmeni  // FIX: Decimal za ure
   // --- Točke (za points metodo) ---
-  points          Decimal   @default(0)  // FIX: Decimal za natančnost
+  points          Decimal   @default(0) @db.Decimal(12, 2)  // FIX: Decimal za natančnost
   // --- Znesek ---
-  amount          Decimal   @default(0) // Dodeljen znesek napitnine  // FIX: Decimal za valuto
+  amount          Decimal   @default(0) @db.Decimal(12, 2)  // Dodeljen znesek napitnine  // FIX: Decimal za valuto
   // --- Status ---
   status          String   @default("pending")       // pending, paid
   paidAt          DateTime?
@@ -2484,8 +2503,8 @@ model JournalLine {
   accountName    String                     // Ime konta
   accountType    String                     // asset, liability, equity, revenue, expense
   // --- Zneski (double-entry: vsaj 2 vrstici, debiti == krediti) ---
-  debit          Decimal       @default(0)  // FIX: Decimal za valuto
-  credit         Decimal       @default(0)  // FIX: Decimal za valuto
+  debit          Decimal       @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
+  credit         Decimal       @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
   // --- Opis ---
   description    String        @default("")
   // --- Multi-location (issue #31): denormalizirano iz JournalEntry za hitre poizvedbe ---
@@ -2520,8 +2539,8 @@ model AccountsPayable {
   // --- Zneski ---
   subtotal        Decimal                       // Bruto brez DDV
   vatAmount       Decimal    @default(0)        // DDV
-  totalAmount     Decimal                       // Skupaj z DDV
-  paidAmount      Decimal    @default(0)        // Kaj je že plačano (partial payments)
+  totalAmount     Decimal                        @db.Decimal(12, 2)  // Skupaj z DDV
+  paidAmount      Decimal    @default(0) @db.Decimal(12, 2)  // Kaj je že plačano (partial payments)
   // --- Status ---
   status          String     @default("open")   // open, partial, paid, overdue, cancelled
   paidAt          DateTime?
@@ -2562,8 +2581,7 @@ model AccountsReceivable {
   subtotal        Decimal
   vatAmount       Decimal    @default(0)
   totalAmount     Decimal
-  paidAmount      Decimal    @default(0)
-  // --- Status ---
+  paidAmount      Decimal    @default(0) @db.Decimal(12, 2)  // --- Status ---
   status          String     @default("open")   // open, partial, paid, overdue, cancelled
   paidAt          DateTime?
   // --- Multi-location (issue #31): AR pripada specifični lokaciji ---

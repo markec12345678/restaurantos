@@ -102,8 +102,13 @@ export async function returnStockForOrder(
         }
       } else {
         // 2. Direktna 1:1 povezava
+        // P1-7: zoži na lokacijo naročila (InventoryItem je per-lokacija;
+        // @@unique([menuItemId, locationId]) — menuItemId več ni globalno unikaten)
         const invItem = await client.inventoryItem.findFirst({
-          where: { menuItemId: oi.menuItemId },
+          where: {
+            menuItemId: oi.menuItemId,
+            ...(order.locationId ? { locationId: order.locationId } : {}),
+          },
         })
 
         if (!invItem || toNum(invItem.servingsPerUnit) <= 0) continue

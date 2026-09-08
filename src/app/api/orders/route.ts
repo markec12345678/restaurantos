@@ -110,7 +110,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return await handlePostOrder(req, authResult as { session?: { employeeId?: string } | null })
+    return await handlePostOrder(req, authResult as { session?: { employeeId?: string; locationId?: string | null; role?: string } | null })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/orders', 'Napaka pri ustvarjanju naročila')
   }

@@ -41,7 +41,8 @@ export async function deductStockForAddedItems(
         await deductRecipeItems(tx, item, orderNumber, orderId, result)
       } else {
         // 2. Fallback: direktna 1:1 povezava InventoryItem↔MenuItem
-        await deductDirectItem(tx, item, orderNumber, orderId, result)
+        // P1-7: zoži zalogo na lokacijo naročila
+        await deductDirectItem(tx, item, orderNumber, orderId, result, order.locationId)
       }
     }
   })

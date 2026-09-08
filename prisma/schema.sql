@@ -32,11 +32,11 @@ CREATE TABLE "MenuItem" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT NOT NULL DEFAULT '',
-    "price" DECIMAL(65,30) NOT NULL,
+    "price" DECIMAL(12,2) NOT NULL,
     "image" TEXT NOT NULL DEFAULT '',
     "isAvailable" BOOLEAN NOT NULL DEFAULT true,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
-    "vatRate" DECIMAL(65,30) NOT NULL DEFAULT 22.00,
+    "vatRate" DECIMAL(5,2) NOT NULL DEFAULT 22.00,
     "allergens" TEXT NOT NULL DEFAULT '',
     "categoryId" TEXT NOT NULL,
     "salesCategoryId" TEXT,
@@ -83,7 +83,7 @@ CREATE TABLE "ModifierGroup" (
 CREATE TABLE "Modifier" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "price" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "price" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "isAvailable" BOOLEAN NOT NULL DEFAULT true,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
     "allergens" TEXT NOT NULL DEFAULT '',
@@ -108,7 +108,7 @@ CREATE TABLE "MenuItemModifierGroup" (
 CREATE TABLE "TaxRate" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "rate" DECIMAL(65,30) NOT NULL,
+    "rate" DECIMAL(5,2) NOT NULL,
     "code" TEXT NOT NULL DEFAULT '',
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
@@ -153,7 +153,7 @@ CREATE TABLE "ServiceCharge" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "type" TEXT NOT NULL,
-    "amount" DECIMAL(65,30) NOT NULL,
+    "amount" DECIMAL(5,2) NOT NULL,
     "isAutoApply" BOOLEAN NOT NULL DEFAULT false,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
@@ -272,7 +272,7 @@ CREATE TABLE "PackagingConfig" (
 CREATE TABLE "PackagingItem" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "price" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "price" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "packagingConfigId" TEXT NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
@@ -317,12 +317,12 @@ CREATE TABLE "Order" (
     "customerName" TEXT NOT NULL DEFAULT '',
     "customerPhone" TEXT NOT NULL DEFAULT '',
     "customerEmail" TEXT NOT NULL DEFAULT '',
-    "subtotal" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "tax" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "discount" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "tip" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "total" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "totalWithTip" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "subtotal" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "tax" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "discount" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "tip" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "total" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "totalWithTip" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "paymentStatus" TEXT NOT NULL DEFAULT 'unpaid',
     "paymentMethod" TEXT NOT NULL DEFAULT '',
     "splitCount" INTEGER NOT NULL DEFAULT 1,
@@ -351,15 +351,15 @@ CREATE TABLE "OrderItem" (
     "checkId" TEXT,
     "menuItemId" TEXT NOT NULL,
     "quantity" INTEGER NOT NULL DEFAULT 1,
-    "price" DECIMAL(65,30) NOT NULL,
-    "vatRate" DECIMAL(65,30) NOT NULL DEFAULT 22.00,
-    "vatAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "price" DECIMAL(12,2) NOT NULL,
+    "vatRate" DECIMAL(5,2) NOT NULL DEFAULT 22.00,
+    "vatAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "notes" TEXT NOT NULL DEFAULT '',
     "modifiersJson" TEXT NOT NULL DEFAULT '[]',
     "menuItemName" TEXT NOT NULL DEFAULT '',
     "voided" BOOLEAN NOT NULL DEFAULT false,
     "voidReasonId" TEXT,
-    "discountAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "discountAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "appliedDiscountId" TEXT,
     "courseId" TEXT,
     "status" TEXT NOT NULL DEFAULT 'pending',
@@ -375,13 +375,13 @@ CREATE TABLE "Check" (
     "id" TEXT NOT NULL,
     "checkNumber" INTEGER NOT NULL,
     "orderId" TEXT NOT NULL,
-    "subtotal" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "tax" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "discount" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "serviceCharge" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "total" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "tip" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "totalWithTip" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "subtotal" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "tax" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "discount" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "serviceCharge" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "total" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "tip" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "totalWithTip" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "paymentStatus" TEXT NOT NULL DEFAULT 'unpaid',
     "paymentMethod" TEXT NOT NULL DEFAULT '',
     "appliedDiscountId" TEXT,
@@ -395,9 +395,9 @@ CREATE TABLE "Check" (
 CREATE TABLE "Payment" (
     "id" TEXT NOT NULL,
     "checkId" TEXT NOT NULL,
-    "amount" DECIMAL(65,30) NOT NULL,
+    "amount" DECIMAL(12,2) NOT NULL,
     "refundAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "tipAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "tipAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "type" TEXT NOT NULL,
     "alternatePaymentTypeId" TEXT,
     "cardType" TEXT NOT NULL DEFAULT '',
@@ -420,7 +420,7 @@ CREATE TABLE "Discount" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "type" TEXT NOT NULL,
-    "amount" DECIMAL(65,30) NOT NULL,
+    "amount" DECIMAL(5,2) NOT NULL,
     "appliesTo" TEXT NOT NULL DEFAULT 'check',
     "triggerType" TEXT NOT NULL DEFAULT 'manual',
     "promoCode" TEXT NOT NULL DEFAULT '',
@@ -451,8 +451,8 @@ CREATE TABLE "DeliveryInfo" (
     "courierName" TEXT NOT NULL DEFAULT '',
     "courierPhone" TEXT NOT NULL DEFAULT '',
     "status" TEXT NOT NULL DEFAULT 'pending',
-    "packagingFee" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "deliveryFee" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "packagingFee" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "deliveryFee" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "latitude" DOUBLE PRECISION,
     "longitude" DOUBLE PRECISION,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -484,7 +484,7 @@ CREATE TABLE "Job" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "code" TEXT NOT NULL DEFAULT '',
-    "basePayRate" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "basePayRate" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "overtimeRate" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "permissions" TEXT NOT NULL DEFAULT '[]',
     "isActive" BOOLEAN NOT NULL DEFAULT true,
@@ -500,7 +500,7 @@ CREATE TABLE "EmployeeJob" (
     "id" TEXT NOT NULL,
     "employeeId" TEXT NOT NULL,
     "jobId" TEXT NOT NULL,
-    "payRate" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "payRate" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "isPrimary" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -537,8 +537,8 @@ CREATE TABLE "TimeEntry" (
     "breakEnd" TIMESTAMP(3),
     "breakMinutes" INTEGER NOT NULL DEFAULT 0,
     "totalMinutes" INTEGER NOT NULL DEFAULT 0,
-    "payRate" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "totalPay" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "payRate" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "totalPay" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "type" TEXT NOT NULL DEFAULT 'regular',
     "status" TEXT NOT NULL DEFAULT 'active',
     "notes" TEXT NOT NULL DEFAULT '',
@@ -558,20 +558,20 @@ CREATE TABLE "CashRegisterShift" (
     "openedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "closedAt" TIMESTAMP(3),
     "startingCash" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "closingCash" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "expectedCash" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "closingCash" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "expectedCash" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "cashSales" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "cardSales" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "mobileSales" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "alternateSales" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "splitPayments" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "totalSales" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "splitPayments" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "totalSales" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "totalOrders" INTEGER NOT NULL DEFAULT 0,
-    "totalDiscounts" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "totalTips" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "totalVoided" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "totalRefunds" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "cashDifference" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "totalDiscounts" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "totalTips" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "totalVoided" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "totalRefunds" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "cashDifference" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "notes" TEXT NOT NULL DEFAULT '',
     "locationId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -587,16 +587,16 @@ CREATE TABLE "InventoryItem" (
     "description" TEXT NOT NULL DEFAULT '',
     "image" TEXT NOT NULL DEFAULT '',
     "unit" TEXT NOT NULL DEFAULT 'pcs',
-    "quantity" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "minQuantity" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "costPerUnit" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "quantity" DECIMAL(12,3) NOT NULL DEFAULT 0,
+    "minQuantity" DECIMAL(12,3) NOT NULL DEFAULT 0,
+    "costPerUnit" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "supplier" TEXT NOT NULL DEFAULT '',
     "category" TEXT NOT NULL DEFAULT 'general',
     "location" TEXT NOT NULL DEFAULT 'main',
     "expiryDate" TIMESTAMP(3),
-    "servingsPerUnit" DECIMAL(65,30) NOT NULL DEFAULT 1,
+    "servingsPerUnit" DECIMAL(12,3) NOT NULL DEFAULT 1,
     "servingSize" TEXT NOT NULL DEFAULT '',
-    "costPerServing" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "costPerServing" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "menuItemId" TEXT,
     "lastRestocked" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "locationId" TEXT,
@@ -611,11 +611,11 @@ CREATE TABLE "StockTransaction" (
     "id" TEXT NOT NULL,
     "inventoryItemId" TEXT NOT NULL,
     "type" TEXT NOT NULL,
-    "quantity" DECIMAL(65,30) NOT NULL,
-    "previousQty" DECIMAL(65,30) NOT NULL,
-    "newQty" DECIMAL(65,30) NOT NULL,
-    "costPerUnit" DECIMAL(65,30) NOT NULL,
-    "totalCost" DECIMAL(65,30) NOT NULL,
+    "quantity" DECIMAL(12,3) NOT NULL,
+    "previousQty" DECIMAL(12,3) NOT NULL,
+    "newQty" DECIMAL(12,3) NOT NULL,
+    "costPerUnit" DECIMAL(12,2) NOT NULL,
+    "totalCost" DECIMAL(12,2) NOT NULL,
     "reason" TEXT NOT NULL DEFAULT '',
     "note" TEXT NOT NULL DEFAULT '',
     "supplierDoc" TEXT NOT NULL DEFAULT '',
@@ -631,7 +631,7 @@ CREATE TABLE "RecipeItem" (
     "id" TEXT NOT NULL,
     "menuItemId" TEXT NOT NULL,
     "inventoryItemId" TEXT NOT NULL,
-    "quantityPerServing" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "quantityPerServing" DECIMAL(12,3) NOT NULL DEFAULT 0,
     "unit" TEXT NOT NULL DEFAULT '',
     "notes" TEXT NOT NULL DEFAULT '',
     "parentRecipeItemId" TEXT,
@@ -656,13 +656,13 @@ CREATE TABLE "Receipt" (
     "fiscalVerified" BOOLEAN NOT NULL DEFAULT false,
     "fiscalStatus" TEXT NOT NULL DEFAULT 'none',
     "verificationDate" TIMESTAMP(3),
-    "subtotal" DECIMAL(65,30) NOT NULL,
+    "subtotal" DECIMAL(12,2) NOT NULL,
     "vatBreakdown" TEXT NOT NULL DEFAULT '{}',
-    "totalVat" DECIMAL(65,30) NOT NULL,
-    "discount" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "total" DECIMAL(65,30) NOT NULL,
-    "tip" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "totalWithTip" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "totalVat" DECIMAL(12,2) NOT NULL,
+    "discount" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "total" DECIMAL(12,2) NOT NULL,
+    "tip" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "totalWithTip" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "paymentMethod" TEXT NOT NULL,
     "isCopy" BOOLEAN NOT NULL DEFAULT false,
     "isStorno" BOOLEAN NOT NULL DEFAULT false,
@@ -701,7 +701,7 @@ CREATE TABLE "LoyaltyTransaction" (
     "reason" TEXT NOT NULL DEFAULT '',
     "orderId" TEXT,
     "checkId" TEXT,
-    "monetaryValue" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "monetaryValue" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "LoyaltyTransaction_pkey" PRIMARY KEY ("id")
@@ -711,8 +711,8 @@ CREATE TABLE "LoyaltyTransaction" (
 CREATE TABLE "GiftCard" (
     "id" TEXT NOT NULL,
     "cardNumber" TEXT NOT NULL,
-    "balance" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "initialBalance" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "balance" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "initialBalance" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "status" TEXT NOT NULL DEFAULT 'active',
     "ownerName" TEXT NOT NULL DEFAULT '',
     "purchasedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -729,8 +729,8 @@ CREATE TABLE "GiftCardTransaction" (
     "id" TEXT NOT NULL,
     "giftCardId" TEXT NOT NULL,
     "type" TEXT NOT NULL,
-    "amount" DECIMAL(65,30) NOT NULL,
-    "balanceAfter" DECIMAL(65,30) NOT NULL,
+    "amount" DECIMAL(12,2) NOT NULL,
+    "balanceAfter" DECIMAL(12,2) NOT NULL,
     "orderId" TEXT,
     "checkId" TEXT,
     "note" TEXT NOT NULL DEFAULT '',
@@ -759,7 +759,7 @@ CREATE TABLE "RestaurantSettings" (
     "reducedVatRate" DECIMAL(65,30) NOT NULL DEFAULT 9.50,
     "loyaltyEnabled" BOOLEAN NOT NULL DEFAULT false,
     "loyaltyPointsPerEuro" INTEGER NOT NULL DEFAULT 1,
-    "loyaltyPointsValue" DECIMAL(65,30) NOT NULL DEFAULT 0.01,
+    "loyaltyPointsValue" DECIMAL(12,2) NOT NULL DEFAULT 0.01,
     "receiptFooter" TEXT NOT NULL DEFAULT '',
     "currency" TEXT NOT NULL DEFAULT 'EUR',
     "locale" TEXT NOT NULL DEFAULT 'sl-SI',
@@ -810,7 +810,7 @@ CREATE TABLE "Location" (
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "loyaltyEnabled" BOOLEAN NOT NULL DEFAULT false,
     "loyaltyPointsPerEuro" INTEGER NOT NULL DEFAULT 1,
-    "loyaltyPointsValue" DECIMAL(65,30) NOT NULL DEFAULT 0.01,
+    "loyaltyPointsValue" DECIMAL(12,2) NOT NULL DEFAULT 0.01,
     "emailReportRecipients" TEXT NOT NULL DEFAULT '[]',
     "emailEnabled" BOOLEAN NOT NULL DEFAULT false,
     "latitude" DOUBLE PRECISION,
@@ -1022,7 +1022,7 @@ CREATE TABLE "Guest" (
     "company" TEXT NOT NULL DEFAULT '',
     "notes" TEXT NOT NULL DEFAULT '',
     "totalVisits" INTEGER NOT NULL DEFAULT 0,
-    "totalSpent" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "totalSpent" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "avgCheckAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "lastVisitAt" TIMESTAMP(3),
     "firstVisitAt" TIMESTAMP(3),
@@ -1040,8 +1040,8 @@ CREATE TABLE "GuestVisit" (
     "orderId" TEXT,
     "tableId" TEXT,
     "partySize" INTEGER NOT NULL DEFAULT 1,
-    "totalSpent" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "tipAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "totalSpent" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "tipAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "feedbackScore" INTEGER,
     "feedbackComment" TEXT NOT NULL DEFAULT '',
     "employeeId" TEXT,
@@ -1093,8 +1093,8 @@ CREATE TABLE "PurchaseOrder" (
     "orderDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "expectedDate" TIMESTAMP(3),
     "receivedDate" TIMESTAMP(3),
-    "subtotal" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "vatAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "subtotal" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "vatAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "totalAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "deliveryAddress" TEXT NOT NULL DEFAULT '',
     "deliveryNotes" TEXT NOT NULL DEFAULT '',
@@ -1169,6 +1169,7 @@ CREATE TABLE "WaitlistEntry" (
     "reservationId" TEXT,
     "notes" TEXT NOT NULL DEFAULT '',
     "employeeId" TEXT,
+    "locationId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -1300,7 +1301,7 @@ CREATE TABLE "Subscription" (
     "businessId" TEXT NOT NULL DEFAULT '',
     "plan" TEXT NOT NULL DEFAULT 'starter',
     "status" TEXT NOT NULL DEFAULT 'trial',
-    "monthlyPrice" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "monthlyPrice" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "locationCount" INTEGER NOT NULL DEFAULT 1,
     "currency" TEXT NOT NULL DEFAULT 'EUR',
     "trialStartsAt" TIMESTAMP(3),
@@ -1321,10 +1322,10 @@ CREATE TABLE "SubscriptionInvoice" (
     "id" TEXT NOT NULL,
     "subscriptionId" TEXT NOT NULL,
     "invoiceNumber" TEXT NOT NULL,
-    "amount" DECIMAL(65,30) NOT NULL,
-    "vatRate" DECIMAL(65,30) NOT NULL DEFAULT 22,
-    "vatAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "totalAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "amount" DECIMAL(12,2) NOT NULL,
+    "vatRate" DECIMAL(5,2) NOT NULL DEFAULT 22,
+    "vatAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "totalAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "currency" TEXT NOT NULL DEFAULT 'EUR',
     "periodStart" TIMESTAMP(3) NOT NULL,
     "periodEnd" TIMESTAMP(3) NOT NULL,
@@ -1368,32 +1369,32 @@ CREATE TABLE "ZReport" (
     "reportDate" TIMESTAMP(3) NOT NULL,
     "openedAt" TIMESTAMP(3) NOT NULL,
     "closedAt" TIMESTAMP(3),
-    "totalSales" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "totalNetSales" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "totalTax" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "cashSales" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "cardSales" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "mobileSales" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "alternateSales" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "dineInSales" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "takeoutSales" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "deliverySales" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "vatStandard" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "vatStandardAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "vatReduced" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "vatReducedAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "vatZero" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "totalSales" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "totalNetSales" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "totalTax" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "cashSales" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "cardSales" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "mobileSales" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "alternateSales" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "dineInSales" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "takeoutSales" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "deliverySales" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "vatStandard" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "vatStandardAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "vatReduced" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "vatReducedAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "vatZero" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "totalOrders" INTEGER NOT NULL DEFAULT 0,
     "totalGuests" INTEGER NOT NULL DEFAULT 0,
-    "avgOrderValue" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "totalDiscounts" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "totalTips" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "totalVoided" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "totalStorno" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "avgOrderValue" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "totalDiscounts" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "totalTips" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "totalVoided" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "totalStorno" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "startingCash" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "expectedCash" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "actualCash" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "cashDifference" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "cashDifference" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "cashDrops" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "totalCost" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "grossProfit" DECIMAL(65,30) NOT NULL DEFAULT 0,
@@ -1413,9 +1414,9 @@ CREATE TABLE "TipPool" (
     "id" TEXT NOT NULL,
     "date" TIMESTAMP(3) NOT NULL,
     "shiftId" TEXT,
-    "totalTips" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "cashTips" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "cardTips" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "totalTips" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "cashTips" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "cardTips" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "distributionMethod" TEXT NOT NULL DEFAULT 'equal',
     "status" TEXT NOT NULL DEFAULT 'pending',
     "locationId" TEXT,
@@ -1433,9 +1434,9 @@ CREATE TABLE "TipDistribution" (
     "employeeName" TEXT NOT NULL DEFAULT '',
     "previousHash" TEXT NOT NULL DEFAULT '',
     "chainHash" TEXT NOT NULL DEFAULT '',
-    "hoursWorked" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "points" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "amount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "hoursWorked" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "points" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "amount" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "status" TEXT NOT NULL DEFAULT 'pending',
     "paidAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1546,8 +1547,8 @@ CREATE TABLE "JournalLine" (
     "chartOfAccountCode" TEXT,
     "accountName" TEXT NOT NULL,
     "accountType" TEXT NOT NULL,
-    "debit" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "credit" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "debit" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "credit" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "description" TEXT NOT NULL DEFAULT '',
     "locationId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1566,8 +1567,8 @@ CREATE TABLE "AccountsPayable" (
     "dueDate" TIMESTAMP(3) NOT NULL,
     "subtotal" DECIMAL(65,30) NOT NULL,
     "vatAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "totalAmount" DECIMAL(65,30) NOT NULL,
-    "paidAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "totalAmount" DECIMAL(12,2) NOT NULL,
+    "paidAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "status" TEXT NOT NULL DEFAULT 'open',
     "paidAt" TIMESTAMP(3),
     "locationId" TEXT,
@@ -1593,7 +1594,7 @@ CREATE TABLE "AccountsReceivable" (
     "subtotal" DECIMAL(65,30) NOT NULL,
     "vatAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "totalAmount" DECIMAL(65,30) NOT NULL,
-    "paidAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
+    "paidAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "status" TEXT NOT NULL DEFAULT 'open',
     "paidAt" TIMESTAMP(3),
     "locationId" TEXT,
@@ -1730,6 +1731,7 @@ CREATE TABLE "OutboxEvent" (
     "attempts" INTEGER NOT NULL DEFAULT 0,
     "maxAttempts" INTEGER NOT NULL DEFAULT 5,
     "lastError" TEXT NOT NULL DEFAULT '',
+    "response" JSONB,
     "idempotencyKey" TEXT NOT NULL,
     "nextRetryAt" TIMESTAMP(3),
     "processedAt" TIMESTAMP(3),
@@ -1954,7 +1956,7 @@ CREATE INDEX "TaxRate_isActive_idx" ON "TaxRate"("isActive");
 CREATE INDEX "TaxRate_locationId_idx" ON "TaxRate"("locationId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "TaxRate_code_key" ON "TaxRate"("code");
+CREATE UNIQUE INDEX "TaxRate_locationId_code_key" ON "TaxRate"("locationId", "code");
 
 -- CreateIndex
 CREATE INDEX "DiningOption_isActive_idx" ON "DiningOption"("isActive");
@@ -2023,9 +2025,6 @@ CREATE INDEX "Table_locationId_idx" ON "Table"("locationId");
 CREATE UNIQUE INDEX "Table_number_locationId_key" ON "Table"("number", "locationId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Order_orderNumber_key" ON "Order"("orderNumber");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Order_idempotencyKey_key" ON "Order"("idempotencyKey");
 
 -- CreateIndex
@@ -2065,9 +2064,6 @@ CREATE INDEX "Order_type_idx" ON "Order"("type");
 CREATE INDEX "Order_status_createdAt_idx" ON "Order"("status", "createdAt");
 
 -- CreateIndex
-CREATE INDEX "Order_createdAt_status_idx" ON "Order"("createdAt", "status");
-
--- CreateIndex
 CREATE INDEX "Order_diningOptionId_idx" ON "Order"("diningOptionId");
 
 -- CreateIndex
@@ -2075,6 +2071,9 @@ CREATE INDEX "Order_revenueCenterId_idx" ON "Order"("revenueCenterId");
 
 -- CreateIndex
 CREATE INDEX "Order_guestId_idx" ON "Order"("guestId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "Order_locationId_orderNumber_key" ON "Order"("locationId", "orderNumber");
 
 -- CreateIndex
 CREATE INDEX "OrderItem_orderId_idx" ON "OrderItem"("orderId");
@@ -2245,9 +2244,6 @@ CREATE INDEX "CashRegisterShift_locationId_idx" ON "CashRegisterShift"("location
 CREATE INDEX "CashRegisterShift_closedAt_idx" ON "CashRegisterShift"("closedAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "InventoryItem_menuItemId_key" ON "InventoryItem"("menuItemId");
-
--- CreateIndex
 CREATE INDEX "InventoryItem_expiryDate_idx" ON "InventoryItem"("expiryDate");
 
 -- CreateIndex
@@ -2267,6 +2263,9 @@ CREATE INDEX "InventoryItem_location_idx" ON "InventoryItem"("location");
 
 -- CreateIndex
 CREATE INDEX "InventoryItem_quantity_idx" ON "InventoryItem"("quantity");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "InventoryItem_menuItemId_locationId_key" ON "InventoryItem"("menuItemId", "locationId");
 
 -- CreateIndex
 CREATE INDEX "StockTransaction_inventoryItemId_idx" ON "StockTransaction"("inventoryItemId");
@@ -2290,9 +2289,6 @@ CREATE INDEX "RecipeItem_inventoryItemId_idx" ON "RecipeItem"("inventoryItemId")
 CREATE UNIQUE INDEX "RecipeItem_menuItemId_inventoryItemId_key" ON "RecipeItem"("menuItemId", "inventoryItemId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Receipt_receiptNumber_key" ON "Receipt"("receiptNumber");
-
--- CreateIndex
 CREATE INDEX "Receipt_orderId_idx" ON "Receipt"("orderId");
 
 -- CreateIndex
@@ -2311,7 +2307,7 @@ CREATE INDEX "Receipt_orderId_isStorno_idx" ON "Receipt"("orderId", "isStorno");
 CREATE INDEX "Receipt_fiscalStatus_idx" ON "Receipt"("fiscalStatus");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "LoyaltyAccount_customerPhone_key" ON "LoyaltyAccount"("customerPhone");
+CREATE UNIQUE INDEX "Receipt_locationId_receiptNumber_key" ON "Receipt"("locationId", "receiptNumber");
 
 -- CreateIndex
 CREATE INDEX "LoyaltyAccount_customerPhone_idx" ON "LoyaltyAccount"("customerPhone");
@@ -2624,6 +2620,9 @@ CREATE INDEX "WaitlistEntry_tableId_idx" ON "WaitlistEntry"("tableId");
 
 -- CreateIndex
 CREATE INDEX "WaitlistEntry_reservationId_idx" ON "WaitlistEntry"("reservationId");
+
+-- CreateIndex
+CREATE INDEX "WaitlistEntry_locationId_idx" ON "WaitlistEntry"("locationId");
 
 -- CreateIndex
 CREATE INDEX "Course_orderId_idx" ON "Course"("orderId");
@@ -3326,6 +3325,9 @@ ALTER TABLE "WaitlistEntry" ADD CONSTRAINT "WaitlistEntry_reservationId_fkey" FO
 
 -- AddForeignKey
 ALTER TABLE "WaitlistEntry" ADD CONSTRAINT "WaitlistEntry_employeeId_fkey" FOREIGN KEY ("employeeId") REFERENCES "Employee"("id") ON DELETE SET NULL ON UPDATE SET NULL;
+
+-- AddForeignKey
+ALTER TABLE "WaitlistEntry" ADD CONSTRAINT "WaitlistEntry_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE SET NULL ON UPDATE SET NULL;
 
 -- AddForeignKey
 ALTER TABLE "Course" ADD CONSTRAINT "Course_orderId_fkey" FOREIGN KEY ("orderId") REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE CASCADE;
