@@ -16,6 +16,7 @@
 // ============================================
 
 import { describe, it, expect } from 'vitest'
+import { z } from 'zod'
 import {
   safeJsonParse,
   safeJsonSerialize,
@@ -340,29 +341,26 @@ describe('getJsonFieldStats — migracijski dashboard', () => {
 // ════════════════════════════════════════════════════════════════
 
 describe('P1-9: safeParseJson — vzorec schema.parse(JSON.parse(value))', () => {
-  const numberArray = (arr: unknown[]) => arr.every((n) => typeof n === 'number')
+  const numberArraySchema = z.array(z.number())
 
   it('veljaven JSON + veljavna struktura → podatki', () => {
-    // mini shema: array števil
-    const result = safeParseJson(
-      { safeParse: (v: unknown) => (Array.isArray(v) && numberArray(v as unknown[]) ? { success: true, data: v as number[] } : { success: false, error: null }) },
-      '[1,2,3]',
-      [],
-    )
+    const result = safeParseJson(numberArraySchema, '[1,2,3]', [])
     expect(result).toEqual([1, 2, 3])
   })
 
   it('veljaven JSON ampak napačna struktura → fallback', () => {
-    const result = safeParseJson(
-      { safeParse: (v: unknown) => (Array.isArray(v) && numberArray(v as unknown[]) ? { success: true, data: v as number[] } : { success: false, error: null }) },
-      '{"a":1}',
-      [],
-    )
+    const result = safeParseJson(numberArraySchema, '{"a":1}', [])
     expect(result).toEqual([])
   })
 
   it('malformed JSON → fallback (nikoli throw)', () => {
-    expect(() => safeParseJson({ safeParse: () => ({ success: true, data: null }) }, 'ne-veljaven{', null)).not.toThrow()
+    expect(() => safeParseJson(numberArraySchema, 'ne-veljaven{', [])).not.toThrow()
+    expect(safeParseJson(numberArraySchema, 'ne-veljaven{', [])).toEqual([])
+  })
+
+  it('fallback se uporabi tudi za prazen/null vhod', () => {
+    expect(safeParseJson(numberArraySchema, null, [])).toEqual([])
+    expect(safeParseJson(numberArraySchema, '', [])).toEqual([])
   })
 })
 
