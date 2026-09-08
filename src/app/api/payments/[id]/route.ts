@@ -48,17 +48,6 @@ export async function PUT(
       )
     }
 
-    // PAYMENT AUDIT 2026-09-09: blokiraj mutacijo giftcard/loyalty polj po
-    // ustvarjanju — ta polja poganjajo reversal logiko ob povračilu; če se
-    // po ustvarjanju prestavijo na drugo kartico/račun, bi povračilo odobrilo
-    // NAPAČNEMU uporabniku (denar na tujco darilno kartico).
-    if (data.giftCardId !== undefined || data.loyaltyAccountId !== undefined || data.loyaltyPointsUsed !== undefined) {
-      return NextResponse.json(
-        { error: 'Darilne kartice in zvestobnih podatkov ni mogoče spremeniti po ustvarjanju plačila' },
-        { status: 400 }
-      )
-    }
-
     // 404 CHECK: Verify payment exists before updating
     // FIX P0-C1 (IDOR): findUnique → findFirst z check.order.locationId scope (cross-tenant zaščita)
     // Payment nima lastnega locationId — scoping prek Check → Order relation
@@ -79,6 +68,21 @@ export async function PUT(
 
     if (!existingPayment) {
       return NextResponse.json({ error: 'Plačilo ni najdeno' }, { status: 404 })
+    }
+
+    // PAYMENT AUDIT 2026-09-09: blokiraj mutacijo giftcard/loyalty polj po
+    // ustvarjanju — ta polja poganjajo reversal logiko ob povračilu; če se
+    // po ustvarjanju prestavijo na drugo kartico/račun, bi povračilo odobrilo
+    // NAPAČNEMU uporabniku (denar na tujco darilno kartico).
+    // ⚠ Zod .partial() NE odstrani .default() vrednosti (loyaltyPointsUsed=0,
+    // cardType="" ... se izpolnijo tudi če klient polja NI poslal) — zato
+    // prisotnost preverjamo na RAW body-ju, ne na parsed data.
+    const rawBody = (bodyResult.data ?? {}) as Record<string, unknown>
+    if ('giftCardId' in rawBody || 'loyaltyAccountId' in rawBody || 'loyaltyPointsUsed' in rawBody) {
+      return NextResponse.json(
+        { error: 'Darilne kartice in zvestobnih podatkov ni mogoče spremeniti po ustvarjanju plačila' },
+        { status: 400 }
+      )
     }
 
     // Determine if status is changing to refunded/voided
@@ -104,12 +108,17 @@ export async function PUT(
     }
 
     // Build update data (excluding amount and type)
+    // PAYMENT AUDIT 2026-09-09: prisotnost polj preverjamo na RAW body-ju —
+    // Zod .default() polja (tipAmount, cardType, cardLast4, authorizationCode)
+    // se ob .partial() vseeno izpolnijo s privzetimi vrednostmi, kar je
+    // prej TIHO PONIŽILO obstoječe vrednosti (PUT {status} → tip=0, card="")
+    // in izbrisalo kartične podatke ob statusni transiciji.
     const updateData: Record<string, unknown> = {}
-    if (data.tipAmount !== undefined) updateData.tipAmount = data.tipAmount
-    if (data.alternatePaymentTypeId !== undefined) updateData.alternatePaymentTypeId = data.alternatePaymentTypeId || null
-    if (data.cardType !== undefined) updateData.cardType = data.cardType
-    if (data.cardLast4 !== undefined) updateData.cardLast4 = data.cardLast4
-    if (data.authorizationCode !== undefined) updateData.authorizationCode = data.authorizationCode
+    if ('tipAmount' in rawBody) updateData.tipAmount = data.tipAmount
+    if ('alternatePaymentTypeId' in rawBody) updateData.alternatePaymentTypeId = data.alternatePaymentTypeId || null
+    if ('cardType' in rawBody) updateData.cardType = data.cardType
+    if ('cardLast4' in rawBody) updateData.cardLast4 = data.cardLast4
+    if ('authorizationCode' in rawBody) updateData.authorizationCode = data.authorizationCode
     if (data.status !== undefined) updateData.status = data.status
     if (data.employeeId !== undefined) updateData.employeeId = data.employeeId || null
 
