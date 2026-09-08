@@ -56,6 +56,16 @@ updates:
         versions: [">=16.2.0"]
       - dependency-name: "eslint-config-next"
         versions: [">=16.2.0"]
+      # TypeScript 7 (nativni Go port) ne odpošilja več starega JS API-ja
+      # (ts.Extension/ModuleKind/ustvarjanje programa) — npm paket ima samo
+      # bin/tsc + experimental "unstable/*" izvoze. @typescript-eslint/
+      # typescript-estree (8.53), ki ga vendor-a eslint-config-next, ob
+      # require('typescript') sesuje: "Cannot read properties of undefined
+      # (reading 'Cjs')" → ESLint (CI quality gate) ne deluje.
+      # Odklepamo, ko @typescript-eslint objavi podporo za TS 7
+      # ali ko preidemo na parser brez TS JS API odvisnosti.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
       # React major verzije (19 → 20+) zahtevajo ročno testiranje
       - dependency-name: "react"
         update-types: ["version-update:semver-major"]

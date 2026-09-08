@@ -2,7 +2,7 @@
 // EMAIL SERVICE — nodemailer + templates za scheduled reports
 // ============================================
 
-import nodemailer from 'nodemailer'
+import { createTransport, type Transporter } from 'nodemailer'
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { ensureDecrypted } from '@/lib/crypto/secrets'
@@ -27,7 +27,7 @@ interface SendEmailOptions {
   }>
 }
 
-let cachedTransporter: nodemailer.Transporter | null = null
+let cachedTransporter: Transporter | null = null
 let cachedConfigKey = ''
 
 /** Pridobi email konfiguracijo iz RestaurantSettings */
@@ -44,7 +44,7 @@ async function getEmailConfig(): Promise<EmailConfig | null> {
 }
 
 /** Ustvari ali pridobi cached SMTP transporter */
-async function getTransporter(): Promise<{ transporter: nodemailer.Transporter; config: EmailConfig } | null> {
+async function getTransporter(): Promise<{ transporter: Transporter; config: EmailConfig } | null> {
   const config = await getEmailConfig()
   if (!config || !config.smtpHost || !config.smtpUser) return null
 
@@ -53,7 +53,7 @@ async function getTransporter(): Promise<{ transporter: nodemailer.Transporter; 
     return { transporter: cachedTransporter, config }
   }
 
-  cachedTransporter = nodemailer.createTransport({
+  cachedTransporter = createTransport({
     host: config.smtpHost,
     port: config.smtpPort,
     secure: config.smtpPort === 465,
