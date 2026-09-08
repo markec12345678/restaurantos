@@ -19,8 +19,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (authResult.error) return authResult.error
     const { id } = await params
 
-    const order = await db.order.findUnique({
-      where: { id },
+    // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const order = await db.order.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
       include: {
         table: true,
         orderItems: {
@@ -89,7 +91,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error
     const body = bodyResult.data as Record<string, unknown>
-    const receipt = await db.receipt.findFirst({ where: { orderId: id, isStorno: false } })
+    // FIX P0-C1 (IDOR): scope prek order.locationId — prej je bil račun dostopen cross-tenant
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const receipt = await db.receipt.findFirst({
+      where: { orderId: id, isStorno: false, ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}) },
+    })
     if (!receipt) {
       return NextResponse.json({ error: 'Račun ni najden' }, { status: 404 })
     }

@@ -93,39 +93,24 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
-    // FIX SECURITY v5: Triple-check statusa zaposlenega DIREKTNO v POST handler
-    // DEBUG: X-Auth-Check header je dodan na VSE response-e (ne samo 401)
-    // da lahko preverimo ali nova koda teče na Vercelu
-    const debugHeaders: Record<string, string> = {
-      'X-Auth-Check': 'v5-active',
-      'X-Auth-EmployeeId': authResult.session?.employeeId || 'none',
-    }
-
+    // FIX SECURITY (PII leak): aktivni status-check zaposlenega je ostal, DEBUG headerji
+    // (X-Auth-Check/EmployeeId/EmployeeName/EmployeeStatus) so ODSTRANJENI — razkrivali so
+    // identiteto in status zaposlenega vsakemu klicatelju (PII + info disclosure).
     if (authResult.session?.employeeId) {
       const emp = await db.employee.findUnique({
         where: { id: authResult.session.employeeId },
-        select: { status: true, name: true },
+        select: { status: true },
       })
-      debugHeaders['X-Auth-EmployeeStatus'] = emp?.status || 'not_found'
-      debugHeaders['X-Auth-EmployeeName'] = emp?.name || 'unknown'
 
       if (!emp || emp.status !== 'active') {
         return NextResponse.json(
-          { error: `Dostop zavrnjen — ${emp?.name || 'račun'} ni več aktiven (status: ${emp?.status || 'not_found'})` },
-          { status: 401, headers: { ...debugHeaders, 'X-Auth-Check': 'v5-blocked' } }
+          { error: 'Dostop zavrnjen — račun ni več aktiven' },
+          { status: 401 }
         )
       }
     }
 
-    // Dodaj debug headers na uspešen response
-    const result = await handlePostOrder(req, authResult as { session?: { employeeId?: string } | null })
-    // Kopiraj headers iz result response
-    if (result instanceof NextResponse) {
-      for (const [key, value] of Object.entries(debugHeaders)) {
-        result.headers.set(key, value)
-      }
-    }
-    return result
+    return await handlePostOrder(req, authResult as { session?: { employeeId?: string } | null })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/orders', 'Napaka pri ustvarjanju naročila')
   }

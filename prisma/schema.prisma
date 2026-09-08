@@ -1281,6 +1281,8 @@ model Location {
   giftCards        GiftCard[]
   // P0-C4 Phase 4: Webhook per-lokacija (nullable za backward compat)
   webhooks         Webhook[]
+  // FIX IDOR-AUDIT: čakalna vrsta je tenant-scoped (P0-C4 TENANT_REQUIRED — prej brez locationId)
+  waitlistEntries  WaitlistEntry[]
 
   @@index([code])
   @@index([isActive])
@@ -1860,6 +1862,9 @@ model WaitlistEntry {
   notes           String   @default("")
   employeeId      String?
   employee        Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // FIX IDOR-AUDIT: tenant scope za čakalno vrsto (nullable — enak vzorec kot TimeEntry, P0-C4)
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -1870,6 +1875,7 @@ model WaitlistEntry {
   @@index([employeeId])  // Kdo je vpisal v čakalno vrsto
   @@index([tableId])  // Katera miza je dodeljena
   @@index([reservationId])  // Povezava z rezervacijo
+  @@index([locationId])  // FIX IDOR-AUDIT: tenant scope poizvedbe
 }
 
 // ============================================
@@ -2770,6 +2776,10 @@ model OutboxEvent {
   maxAttempts     Int      @default(5)
   // --- Napaka ---
   lastError       String   @default("")
+  // --- Odziv procesorja ---
+  // FIX AUDIT: response se shrani v LOČENO polje — prej je markOutboxSent PREPISAL
+  // originalni payload z odzivom in uničil podatke za retry/debug
+  response        Json?
   // --- Ključ za idempotentnost ---
   idempotencyKey  String   @unique             // prepreči duplikate pri retry-jih
   // --- Čas ---

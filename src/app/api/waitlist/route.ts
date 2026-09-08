@@ -43,6 +43,7 @@ export async function POST(req: Request) {
     const { data, error: validationError } = validateBody(createWaitlistSchema, bodyResult.data)
     if (validationError) return validationError
 
+    // FIX IDOR-AUDIT: zapiši locationId ob kreiranju (tenant scope iz seje)
     const entry = await db.waitlistEntry.create({
       data: {
         guestName: data.guestName,
@@ -54,6 +55,7 @@ export async function POST(req: Request) {
         status: 'waiting',
         notes: data.notes || '',
         employeeId: authResult.session?.employeeId || null,
+        locationId: authResult.session?.locationId || null,
       },
     })
     return NextResponse.json(entry, { status: 201 })

@@ -117,7 +117,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return await handleReceiveAction(id, body.receivedItems, authResult.session?.employeeId)
     }
 
-    const existing = await db.purchaseOrder.findUnique({ where: { id } })
+    // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (PATCH je zaostal za GET/PUT fixom)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.purchaseOrder.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
     if (!existing) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
 
     // State machine validacija

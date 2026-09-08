@@ -25,7 +25,11 @@ export async function PUT(
     if (validationError) return validationError
 
     // FIX MEDIUM: Preveri da časovni vnos obstaja pred posodobitvijo
-    const existingEntry = await db.timeEntry.findUnique({ where: { id } })
+    // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existingEntry = await db.timeEntry.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
     if (!existingEntry) {
       return NextResponse.json({ error: 'Časovni vnos ni najden' }, { status: 404 })
     }

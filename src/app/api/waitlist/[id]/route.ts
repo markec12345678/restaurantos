@@ -44,7 +44,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (validationError) return validationError
 
     // FIX HIGH: Preveri, da vnos obstaja
-    const existing = await db.waitlistEntry.findUnique({ where: { id } })
+    // FIX IDOR-AUDIT: findUnique → findFirst z locationId scope (cross-tenant zaščita)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.waitlistEntry.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
     if (!existing) {
       return NextResponse.json({ error: 'Vnos v čakalni vrsti ni najden' }, { status: 404 })
     }
@@ -116,7 +120,11 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const { id } = await params
 
     // FIX HIGH: Preveri, da vnos obstaja
-    const existing = await db.waitlistEntry.findUnique({ where: { id } })
+    // FIX IDOR-AUDIT: findUnique → findFirst z locationId scope (cross-tenant zaščita)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.waitlistEntry.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
     if (!existing) {
       return NextResponse.json({ error: 'Vnos v čakalni vrsti ni najden' }, { status: 404 })
     }

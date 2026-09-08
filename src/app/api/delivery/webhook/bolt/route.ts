@@ -70,7 +70,14 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Neveljaven podpis' }, { status: 401 })
       }
     } else {
-      logger.warn('Bolt', 'Webhook secret ni konfiguriran — preskakujem preverjanje podpisa')
+      // FIX SECURITY (fail-closed): brez konfiguriranega secreta ZAVRNEMO zahtevo — prej se je
+      // preverjanje podpisa tiho preskočilo (fail-open), kar je omogočalo lažna Bolt naročila.
+      // Skladno z rate-limit fail-closed filozofijo tega projekta.
+      logger.error('Bolt', 'Webhook secret NI konfiguriran — zahteva ZAVRNJENA (fail-closed)')
+      return NextResponse.json(
+        { error: 'Webhook ni konfiguriran — podpis ni mogoče preveriti. Nastavite Integration.apiSecret ali WEBHOOK_SECRET.' },
+        { status: 503 }
+      )
     }
 
     // Parse in validiraj payload

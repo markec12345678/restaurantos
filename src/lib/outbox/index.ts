@@ -143,8 +143,9 @@ export async function markOutboxSent(eventId: string, response?: unknown) {
       status: 'sent',
       processedAt: new Date(),
       lastError: '',
-      // Shranimo response v payload če želimo kasneje debug
-      ...(response ? { payload: { sent: true, response } as unknown as never } : {}),
+      // FIX AUDIT: response v ločeno polje — prej se je payload PREPISAL z odzivom,
+      // kar je uničilo originalne podatke (orderId, ZOI ...) za retry/debug
+      ...(response !== undefined ? { response: response as unknown as never } : {}),
     },
   })
 
@@ -254,13 +255,18 @@ type OutboxProcessor = (event: {
 const processors: Record<OutboxTarget, OutboxProcessor> = {
   // FURS — pošlje račun na FURS
   furs: async (event) => {
-    // V produkciji: kliči FURS API
-    // Za MVP: implementirano preko obstoječih FURS libov
+    // FIX AUDIT: pravi klic FURS knjižnice prek processors/furs.ts (prej stub "queued")
     try {
       // dynamic import, da ne obremenimo modula če se ne uporablja
       const { sendToFurs } = await import('@/lib/outbox/processors/furs')
       const result = await sendToFurs(event)
-      return { success: true, response: result }
+      // FIX AUDIT (CRITICAL): propagiraj dejanski success — prej je bil VEDNO true,
+      // kar je lahko dogodek označil kot "sent" brez uspešne fiskalizacije
+      return {
+        success: result.success,
+        response: result,
+        ...(result.error ? { error: result.error } : {}),
+      }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : String(err) }
     }

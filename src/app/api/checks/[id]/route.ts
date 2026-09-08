@@ -32,8 +32,10 @@ export async function PUT(
     const { data, error: validationError } = validateBody(updateCheckSchema, bodyResult.data)
     if (validationError) return validationError
 
-    const existingCheck = await db.check.findUnique({
-      where: { id },
+    // FIX P0-C1 (IDOR): findUnique → findFirst s scope prek order.locationId (Check nima lastnega locationId)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existingCheck = await db.check.findFirst({
+      where: { id, ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}) },
       include: { orderItems: true },
     })
 
@@ -99,8 +101,10 @@ export async function DELETE(
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
-    const check = await db.check.findUnique({
-      where: { id },
+    // FIX P0-C1 (IDOR): findUnique → findFirst s scope prek order.locationId (Check nima lastnega locationId)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const check = await db.check.findFirst({
+      where: { id, ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}) },
       include: { payments: true },
     })
 
