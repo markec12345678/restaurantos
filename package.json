@@ -80,7 +80,7 @@
     "next-intl": "^4.3.4",
     "next-themes": "^0.4.6",
     "node-cron": "^4.3.0",
-    "nodemailer": "^9.0.1",
+    "nodemailer": "^10.0.0",
     "pagedjs": "^0.4.3",
     "pdfkit": "^0.19.1",
     "pglite-prisma-adapter": "^0.3.0",
