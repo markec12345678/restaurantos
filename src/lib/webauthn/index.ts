@@ -89,7 +89,7 @@ export function base64urlEncode(buf: ArrayBuffer | Uint8Array): string {
 /**
  * Base64url decode za WebAuthn (RFC 4648 §5)
  */
-export function base64urlDecode(str: string): Uint8Array {
+export function base64urlDecode(str: string): Uint8Array<ArrayBuffer> {
   const padded = str + '='.repeat((4 - (str.length % 4)) % 4)
   const b64 = padded.replace(/-/g, '+').replace(/_/g, '/')
   const bin = atob(b64)
@@ -139,7 +139,7 @@ export function parseTransports(transportsJson: string): AuthenticatorTransportF
 /**
  * Convert DB-stored publicKey (base64url string) → Uint8Array.
  */
-export function decodePublicKey(b64url: string): Uint8Array {
+export function decodePublicKey(b64url: string): Uint8Array<ArrayBuffer> {
   return base64urlDecode(b64url)
 }
 
