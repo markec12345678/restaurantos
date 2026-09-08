@@ -1,10 +1,9 @@
 // POST /api/payments/[id]/refund — Delno ali popolno povračilo plačila
 // FIX BUG-PAY-1: Prej je refund samo posodobil refundAmount, brez reversal side-effects.
 // Sedaj reverzira: gift card, loyalty points, check/order status, discount counter.
-import { db, createAuditLog } from '@/lib/db'
+import { db } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
@@ -48,25 +47,47 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!payment) return NextResponse.json({ error: 'Plačilo ni najdeno' }, { status: 404 })
 
     const currentRefunded = toNum(payment.refundAmount)
-    const maxRefundable = toNum(payment.amount) - currentRefunded
-    if (amount > maxRefundable) {
-      return NextResponse.json(
-        { error: `Znesek povračila (€${amount.toFixed(2)}) presega max povračilo (€${maxRefundable.toFixed(2)})` },
-        { status: 400 }
-      )
-    }
 
     // FIX BUG-PAY-1: Transakcija z vsemi reversal side-effects
+    //
+    // PAYMENT AUDIT 2026-09-09 (race condition): prej je bila validacija
+    // `amount > maxRefundable` izvedena IZVEN transakcije na zastarelem
+    // branju refundAmount. Dva vzporedna refunda istega plačila sta oba
+    // prebrala refundAmount=0 → oba prestala validacijo → oba zapisala
+    // newRefundAmount=amount (izgubljen update) → dvojno povračilo
+    // (gift card dvakrat polnjena, točke dvakrat vrnjene).
+    //
+    // Fix: pg_advisory_xact_lock na paymentId (enak vzorec kot create-payment)
+    // + PONOVN pre branje refundAmount in validacija ZNOTRAJ transakcije.
     const updated = await db.$transaction(async (tx) => {
-      const newRefundAmount = currentRefunded + amount
+      // Zakleni vrstico plačila — vzporedni refundi čakajo, dokler ta ne konča
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`
+
+      // PONOVN preberi refundAmount znotraj zaklenjene transakcije (avtoritativno)
+      const lockedPayment = await tx.payment.findUnique({
+        where: { id },
+        select: { refundAmount: true, amount: true, status: true },
+      })
+      if (!lockedPayment) {
+        throw new Error('PAYMENT_NOT_FOUND')
+      }
+
+      const lockedRefunded = toNum(lockedPayment.refundAmount)
+      const lockedMaxRefundable = toNum(lockedPayment.amount) - lockedRefunded
+      if (amount > lockedMaxRefundable) {
+        throw new Error(`REFUND_EXCEEDS:${amount.toFixed(2)}:${lockedMaxRefundable.toFixed(2)}`)
+      }
+
+      const newRefundAmount = lockedRefunded + amount
       const isFullyRefunded = newRefundAmount >= toNum(payment.amount)
       const refundRatio = amount / toNum(payment.amount) // razmerje za delne reverze
 
-      // 1. Posodobi Payment
+      // 1. Posodobi Payment — increment (ne absolutni zapis!) za dodatno
+      // varovalko pred izgubljenimi update-i
       const updatedPayment = await tx.payment.update({
         where: { id },
         data: {
-          refundAmount: newRefundAmount,
+          refundAmount: { increment: amount },
           ...(isFullyRefunded ? { status: 'refunded' } : {}),
         },
       })
@@ -200,6 +221,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       fullyRefunded: toNum(updated.refundAmount) >= toNum(payment.amount),
     })
   } catch (error: unknown) {
+    // PAYMENT AUDIT: specifične napake iz zaklenjene transakcije → 4xx
+    if (error instanceof Error) {
+      if (error.message.includes('REFUND_EXCEEDS')) {
+        const [, refundStr, maxStr] = error.message.split(':')
+        return NextResponse.json(
+          { error: `Znesek povračila (€${refundStr}) presega max povračilo (€${maxStr})` },
+          { status: 400 }
+        )
+      }
+      if (error.message.includes('PAYMENT_NOT_FOUND')) {
+        return NextResponse.json({ error: 'Plačilo ni najdeno' }, { status: 404 })
+      }
+    }
     return handleApiError(error, 'POST /api/payments/[id]/refund', 'Napaka pri povračilu plačila')
   }
 }

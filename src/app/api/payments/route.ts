@@ -13,7 +13,8 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
-    return await handleListPayments(req)
+    // PAYMENT AUDIT 2026-09-09 (cross-tenant): seznam plačil scoped na lokacijo seje
+    return await handleListPayments(req, authResult.session?.locationId ?? null)
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/payments', 'Napaka pri pridobivanju plačil')
   }
@@ -27,7 +28,9 @@ export async function POST(req: Request) {
     const { data, error: validationError } = await validateRequest(req, createPaymentSchema, { maxBodySize: 512 * 1024 })
     if (validationError) return validationError
 
-    return await handleCreatePayment(data, authResult.session?.employeeId)
+    // PAYMENT AUDIT 2026-09-09 (cross-tenant): posreduj lokacijo seje —
+    // prepreči ustvarjanje plačila na čeku/naročilu DRUGE lokacije
+    return await handleCreatePayment(data, authResult.session?.employeeId, authResult.session?.locationId ?? null)
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/payments', 'Napaka pri ustvarjanju plačila')
   }

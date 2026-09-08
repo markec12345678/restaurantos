@@ -40,10 +40,27 @@ import { z } from 'zod'
 /**
  * Poišče obstoječe plačilo po idempotencyKey z vsemi relacijami.
  * Uporablja se v fast-path in race-path (po P2002).
+ *
+ * PAYMENT AUDIT 2026-09-09: dodan lokacijski scope — idempotencyKey pri split
+ * plačilih je DETERMINISTIČEN (`split-{checkId}-s{i}-{amount}`), zato ga
+ * uporabnik lokacije A lahko ugane in prebere plačilo lokacije B prek
+ * idempotentnega fast-path-a (200 + payment + check + giftcard podatki).
+ * Scope prek Payment → Check → Order.locationId zagotavlja, da fast-path
+ * vrne SAMO plačila lastne lokacije (tuje → null → nadaljuje v create,
+ * ki prav tako pade na location scope → 404).
  */
-async function findExistingPaymentByIdempotencyKey(idempotencyKey: string) {
+async function findExistingPaymentByIdempotencyKey(
+  idempotencyKey: string,
+  sessionLocationId?: string | null,
+) {
   return db.payment.findFirst({
-    where: { idempotencyKey },
+    where: {
+      idempotencyKey,
+      // PAYMENT AUDIT: tenant scope — super admin (null) vidi vse
+      ...(sessionLocationId
+        ? { check: { order: { locationId: sessionLocationId } } }
+        : {}),
+    },
     include: {
       check: true,
       alternatePaymentType: true,
@@ -65,6 +82,7 @@ function isUniqueConstraintViolation(error: unknown): boolean {
 export async function handleCreatePayment(
   data: CreatePaymentInput,
   employeeId: string | null | undefined,
+  sessionLocationId?: string | null,
 ) {
   // ─── IDEMPOTENCY: Fast path ───────────────────────────────────────────────
   // FIX Bug #2 (CRITICAL): Prej je bil idempotencyKey.optional() v Zod shemi
@@ -75,16 +93,27 @@ export async function handleCreatePayment(
   // To zagotavlja da VSA plačila imajo idempotencyKey za deduplikacijo.
   const idempotencyKey = data.idempotencyKey || `auto-${data.checkId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
-  // Preveri ali plačilo z tem idempotencyKey že obstaja
-  const existing = await findExistingPaymentByIdempotencyKey(idempotencyKey)
+  // Preveri ali plačilo z tem idempotencyKey že obstaja (z lokacijskim scope-om)
+  const existing = await findExistingPaymentByIdempotencyKey(idempotencyKey, sessionLocationId)
   if (existing) {
     return NextResponse.json(deepToNumbers(existing), { status: 200 })
   }
 
   // Preveri check
   // FIX P0-C4: vključi order.locationId — loyalty config se rešuje per-lokacija
-  const check = await db.check.findUnique({
-    where: { id: data.checkId },
+  //
+  // PAYMENT AUDIT 2026-09-09 (cross-tenant): findUnique → findFirst z
+  // check.order.locationId scope. Prej je zaposleni lokacije A lahko ustvaril
+  // plačilo na ček lokacije B ("ustvariti payment za order druge lokacije") —
+  // Payment podeduje lokacijo prek Check → Order verige, zato je scope kritičen.
+  // Super admin (sessionLocationId=null) brez omejitve.
+  const check = await db.check.findFirst({
+    where: {
+      id: data.checkId,
+      ...(sessionLocationId
+        ? { order: { locationId: sessionLocationId } }
+        : {}),
+    },
     select: { id: true, total: true, orderId: true, order: { select: { locationId: true } } },
   })
   if (!check) return NextResponse.json({ error: 'Ček ni najden' }, { status: 404 })
@@ -213,7 +242,7 @@ export async function handleCreatePayment(
     // plačilo dejansko uspelo. Natakar bi lahko mislil, da plačilo ni uspelo, in
     // poskusil znova z novim ključem → pravo dvojno plačilo.
     if (idempotencyKey && isUniqueConstraintViolation(error)) {
-      const existing = await findExistingPaymentByIdempotencyKey(idempotencyKey)
+      const existing = await findExistingPaymentByIdempotencyKey(idempotencyKey, sessionLocationId)
       if (existing) {
         return NextResponse.json(deepToNumbers(existing), { status: 200 })
       }

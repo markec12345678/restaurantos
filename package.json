@@ -1,6 +1,6 @@
 {
   "name": "restaurantos",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "private": true,
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
@@ -22,6 +22,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:deploy": "node scripts/deploy-test.mjs",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "verify": "npx tsx scripts/verify-features.ts"

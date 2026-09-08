@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createPaymentSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
+import { logger } from '@/lib/logger'
 import { z } from 'zod'
 import { reverseGiftCard, reverseLoyaltyPoints, recalculatePaymentStatus, deepToNumbers } from './_helpers'
 
@@ -47,6 +48,17 @@ export async function PUT(
       )
     }
 
+    // PAYMENT AUDIT 2026-09-09: blokiraj mutacijo giftcard/loyalty polj po
+    // ustvarjanju — ta polja poganjajo reversal logiko ob povračilu; če se
+    // po ustvarjanju prestavijo na drugo kartico/račun, bi povračilo odobrilo
+    // NAPAČNEMU uporabniku (denar na tujco darilno kartico).
+    if (data.giftCardId !== undefined || data.loyaltyAccountId !== undefined || data.loyaltyPointsUsed !== undefined) {
+      return NextResponse.json(
+        { error: 'Darilne kartice in zvestobnih podatkov ni mogoče spremeniti po ustvarjanju plačila' },
+        { status: 400 }
+      )
+    }
+
     // 404 CHECK: Verify payment exists before updating
     // FIX P0-C1 (IDOR): findUnique → findFirst z check.order.locationId scope (cross-tenant zaščita)
     // Payment nima lastnega locationId — scoping prek Check → Order relation
@@ -75,6 +87,22 @@ export async function PUT(
       (data.status === 'refunded' || data.status === 'voided') &&
       existingPayment.status === 'completed'
 
+    // PAYMENT AUDIT 2026-09-09 (statusni stroj): dovoljene SOLE completed →
+    // refunded / completed → voided (z reversal side-effects prek spodnje
+    // transakcije). Vse ostale spremembe statusa so zavrnjene:
+    //   - refunded → completed: re-aktivacija že povrnjenega plačila brez
+    //     reverza reversal-a bi pokvarila bilanco in omogočila dvojno trošenje
+    //   - voided → completed: enako
+    //   - refunded → voided in obratno: nonsensikalne transicije
+    if (data.status !== undefined && !isRefundOrVoid) {
+      return NextResponse.json(
+        {
+          error: `Sprememba statusa '${existingPayment.status}' → '${data.status}' ni dovoljena. Dovoljena transicija: completed → refunded/voided (prek /refund endpointa).`,
+        },
+        { status: 400 }
+      )
+    }
+
     // Build update data (excluding amount and type)
     const updateData: Record<string, unknown> = {}
     if (data.tipAmount !== undefined) updateData.tipAmount = data.tipAmount
@@ -82,11 +110,45 @@ export async function PUT(
     if (data.cardType !== undefined) updateData.cardType = data.cardType
     if (data.cardLast4 !== undefined) updateData.cardLast4 = data.cardLast4
     if (data.authorizationCode !== undefined) updateData.authorizationCode = data.authorizationCode
-    if (data.giftCardId !== undefined) updateData.giftCardId = data.giftCardId || null
-    if (data.loyaltyAccountId !== undefined) updateData.loyaltyAccountId = data.loyaltyAccountId || null
-    if (data.loyaltyPointsUsed !== undefined) updateData.loyaltyPointsUsed = data.loyaltyPointsUsed
     if (data.status !== undefined) updateData.status = data.status
     if (data.employeeId !== undefined) updateData.employeeId = data.employeeId || null
+
+    // PAYMENT AUDIT 2026-09-09 (audit sled): vsako posodobitev plačila zapiši v
+    // AuditLog — prej je bilo mogoče spremeniti zaključeno plačilo (tip, kartica,
+    // status) BREZ sledi. Diff pred/po zagotavlja revizijsko sled.
+    const beforeSnapshot: Record<string, unknown> = {}
+    for (const key of Object.keys(updateData)) {
+      beforeSnapshot[key] = (existingPayment as Record<string, unknown>)[key] ?? null
+    }
+    const auditEmployeeId = data.employeeId || authResult.session?.employeeId || null
+
+    // PAYMENT AUDIT: helper — zapiši audit log (best-effort, ne podre posodobitve)
+    const writeAuditLog = async (after: Record<string, unknown>) => {
+      try {
+        await db.auditLog.create({
+          data: {
+            userId: auditEmployeeId,
+            action: 'UPDATE_PAYMENT',
+            entityType: 'Payment',
+            entityId: id,
+            details: JSON.stringify({
+              changedFields: Object.keys(updateData),
+              before: beforeSnapshot,
+              after: Object.fromEntries(
+                Object.keys(updateData).map(k => [k, (after as Record<string, unknown>)[k] ?? null])
+              ),
+              statusTransition: updateData.status
+                ? `${existingPayment.status} → ${String(updateData.status)}`
+                : null,
+              reversalApplied: !!isRefundOrVoid,
+            }),
+            ipAddress: '',
+          },
+        })
+      } catch (auditErr) {
+        logger.error('PAYMENT', '[PUT] Napaka pri pisanju audit loga:', auditErr)
+      }
+    }
 
     if (isRefundOrVoid) {
       // Wrap reversal + update in a single transaction
@@ -124,6 +186,8 @@ export async function PUT(
         return updatedPayment
       })
 
+      await writeAuditLog(payment as unknown as Record<string, unknown>)
+
       return NextResponse.json(deepToNumbers(payment))
     } else {
       // No reversal needed — simple update
@@ -137,6 +201,8 @@ export async function PUT(
           loyaltyAccount: true,
         },
       })
+
+      await writeAuditLog(payment as unknown as Record<string, unknown>)
 
       return NextResponse.json(deepToNumbers(payment))
     }

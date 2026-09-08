@@ -19,6 +19,13 @@ import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
+// PAYMENT AUDIT 2026-09-09 (duplicate webhook): providerji (Stripe/Adyen)
+// redeliverjajo webhoopke, ki niso vrnili 2xx. authorizeWalletPayment vrže
+// napako, če WalletPayment NI več v pending stanju → prej je to pomenilo 500
+// → ponovni poskusi v neskončnost (Stripe retry-a do 3 dni). Duplikat, ki se
+// ujema s ŽE obdelanim stanjem, je idempotentno potrdjen z 200 — pravi
+// konflikt stanj (npr. authorized po failed) pa se ZAVRNE z 409.
+
 /**
  * Constant-time primerjava HMAC podpisov — prepreči timing attack.
  *
@@ -112,13 +119,32 @@ export async function POST(req: Request) {
         ? ((obj.last_payment_error as { message?: string })?.message || 'Payment failed')
         : undefined
 
-      await authorizeWalletPayment(walletPaymentId, {
-        transactionId: obj.id as string,
-        cardBrand: ((obj.charges as { data?: Array<{ payment_method_details?: { card?: { brand?: string } } }> })?.data?.[0]?.payment_method_details?.card?.brand) || '',
-        cardLast4: ((obj.charges as { data?: Array<{ payment_method_details?: { card?: { last4?: string } } }> })?.data?.[0]?.payment_method_details?.card?.last4) || '',
-        status,
-        errorMessage,
-      })
+      try {
+        await authorizeWalletPayment(walletPaymentId, {
+          transactionId: obj.id as string,
+          cardBrand: ((obj.charges as { data?: Array<{ payment_method_details?: { card?: { brand?: string } } }> })?.data?.[0]?.payment_method_details?.card?.brand) || '',
+          cardLast4: ((obj.charges as { data?: Array<{ payment_method_details?: { card?: { last4?: string } } }> })?.data?.[0]?.payment_method_details?.card?.last4) || '',
+          status,
+          errorMessage,
+        })
+      } catch (err) {
+        // PAYMENT AUDIT (duplicate webhook): če plačilo ŽE ni v pending stanju
+        // — dovoli samo idempotentni duplikat (enak končni status), sicer 409.
+        const message = err instanceof Error ? err.message : String(err)
+        if (message.includes('ni v pending stanju')) {
+          const currentStatus = message.match(/trenutno: (\w+)/)?.[1] || 'unknown'
+          if (currentStatus === status) {
+            logger.info('WalletWebhook', `Duplikat webhook-a za ${walletPaymentId} (status ${status}) — idempotentno potrjeno`)
+            return NextResponse.json({ received: true, duplicate: true })
+          }
+          logger.warn('WalletWebhook', `Webhook konflikt stanj za ${walletPaymentId}: ${currentStatus} ≠ ${status} — zavrnjeno`)
+          return NextResponse.json(
+            { error: `Status conflict: payment is '${currentStatus}', webhook says '${status}'` },
+            { status: 409 },
+          )
+        }
+        throw err
+      }
     }
     // Adyen events (drugačen format)
     else if (event.type === 'AUTHORISATION') {

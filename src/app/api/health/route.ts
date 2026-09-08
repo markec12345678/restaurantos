@@ -20,6 +20,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
+import { checkFursBootReadiness } from '@/lib/furs/boot-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -88,6 +89,19 @@ async function checkRedis(): Promise<HealthCheck> {
 
 function checkFurs(): HealthCheck {
   const env = process.env.FURS_ENVIRONMENT
+
+  // FURS AUDIT 2026-09-09 (boot guard): simulation mode v produkciji je
+  // KRITIČNA napaka konfiguracije — poročaj v health odgovoru (Vercel nima
+  // procesa, ki bi "zavrnil zagon"; health je kanal za nadzor).
+  const bootGuard = checkFursBootReadiness()
+  if (!bootGuard.ok) {
+    return {
+      name: 'furs',
+      status: 'error',
+      detail: `BOOT GUARD: ${bootGuard.reason}`,
+    }
+  }
+
   if (!env) {
     return {
       name: 'furs',
@@ -160,7 +174,7 @@ export async function GET(req: Request) {
       return NextResponse.json({
         status: 'error',
         timestamp: new Date().toISOString(),
-        version: process.env.APP_VERSION || '1.0.8',
+        version: process.env.APP_VERSION || '1.0.9',
         database: dbCheck,
       }, { status: 503 })
     }
@@ -181,7 +195,7 @@ export async function GET(req: Request) {
       return NextResponse.json({
         status: allOk ? 'ok' : (hasWarnings ? 'degraded' : 'error'),
         timestamp: new Date().toISOString(),
-        version: process.env.APP_VERSION || '1.0.8',
+        version: process.env.APP_VERSION || '1.0.9',
         environment: process.env.NODE_ENV || 'development',
         uptime: process.uptime ? `${Math.floor(process.uptime())}s` : undefined,
         checks,
@@ -192,7 +206,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
-      version: process.env.APP_VERSION || '1.0.8',
+      version: process.env.APP_VERSION || '1.0.9',
       database: 'connected',
     }, { status: 200 })
 
@@ -201,7 +215,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       status: 'error',
       timestamp: new Date().toISOString(),
-      version: process.env.APP_VERSION || '1.0.8',
+      version: process.env.APP_VERSION || '1.0.9',
       database: 'disconnected',
       error: error instanceof Error ? error.message : 'Unknown error',
     }, { status: 503 })

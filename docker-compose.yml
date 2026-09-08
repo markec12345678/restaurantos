@@ -69,8 +69,10 @@ services:
       # Redis
       REDIS_URL: redis://redis:6379
 
-      # FURS (test privzeto)
-      FURS_ALLOW_SIMULATION: ${FURS_ALLOW_SIMULATION:-true}
+      # FURS (test privzeto — sim. način NE overja računov)
+      # FURS AUDIT 2026-09-09: default spremenjen true → false — varno privzeto.
+      # V produkciji (NODE_ENV=production) boot guard ZAVRNE zagon, če je true.
+      FURS_ALLOW_SIMULATION: ${FURS_ALLOW_SIMULATION:-false}
       FURS_ENVIRONMENT: ${FURS_ENVIRONMENT:-test}
 
       # Sentry (optional)

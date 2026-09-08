@@ -9,9 +9,35 @@ const { WebSocketServer } = require('ws')
 // WS varnostna jedra (Zod validacija inbound, role gate, URL-token detekcija)
 const wsCore = require('./server-ws-core')
 
+// ─── FURS BOOT GUARD (FURS AUDIT 2026-09-09) ─────────────────────
+// Produkcija ZAVRNE zagon, če je vključen simulation mode — sim vmre
+// nikoli ne označi računa kot fiskaliziranega → tihi ne-overjeni računi.
+// Prej (server.js inline): varovalka v TS modulu src/lib/furs/boot-guard.ts
+// (testabilna); tu CJS presleditek, ker server.js teče izven TS kompilacije.
+if (process.env.NODE_ENV === 'production' && process.env.FURS_ALLOW_SIMULATION === 'true') {
+  console.error(`
+╔════════════════════════════════════════════════════════╗
+║  [FURS BOOT GUARD] ZAGON ZAVRNJEN                       ║
+║  ──────────────────────────────────────────────────── ║
+║  NODE_ENV=production + FURS_ALLOW_SIMULATION=true       ║
+║                                                          ║
+║  Simulirana overitev NIKOLI ne označi računa kot        ║
+║  fiskaliziranega — produkcija s sim. načinom tiho      ║
+║  proizvaja ne-overjene račune (kršitev ZDDV-1).        ║
+║                                                          ║
+║  Rešitev: FURS_ALLOW_SIMULATION=false + certifikat      ║
+║  (Location.fursCertPath ali FURS_CERT_PATH).            ║
+╚════════════════════════════════════════════════════════╝
+`)
+  process.exit(1)
+}
+
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = '0.0.0.0'
-const port = 3000
+// DEPLOYMENT AUDIT 2026-09-09: port iz env (PORT) namesto hardkodiranega 3000
+// — Docker/VPS/reverse-proxy deploymenti pogosto zahtevajo drug port.
+// Default ostaja 3000 (backward kompatibilno).
+const port = parseInt(process.env.PORT || '3000', 10)
 
 const app = next({ dev, hostname, port })
 const handle = app.getRequestHandler()
