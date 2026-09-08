@@ -10,7 +10,7 @@
     "dev": "next dev -p 3000",
     "dev:ws": "node server.js",
     "postbuild": "node scripts/copy-standalone.mjs",
-    "build": "next build",
+    "build": "node scripts/db-sync.mjs && next build",
     "start": "bun .next/standalone/server.js",
     "start:ws": "NODE_ENV=production node server.js",
     "lint": "eslint .",

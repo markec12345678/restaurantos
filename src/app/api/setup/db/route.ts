@@ -105,6 +105,11 @@ export async function GET(req: Request) {
       'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
       'ALTER TABLE "LoyaltyAccount" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
       'ALTER TABLE "GiftCard" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
+      // FIX IDOR-AUDIT (runda 12): WaitlistEntry tenant scope + OutboxEvent.response
+      'ALTER TABLE "WaitlistEntry" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
+      'CREATE INDEX IF NOT EXISTS "WaitlistEntry_locationId_idx" ON "WaitlistEntry"("locationId")',
+      'ALTER TABLE "OutboxEvent" ADD COLUMN IF NOT EXISTS "response" JSONB',
+      `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WaitlistEntry_locationId_fkey') THEN ALTER TABLE "WaitlistEntry" ADD CONSTRAINT "WaitlistEntry_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE SET NULL ON UPDATE SET NULL; END IF; END $$;`,
     ]
     
     let added = 0
