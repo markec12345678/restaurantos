@@ -4,8 +4,10 @@
 
 import { db } from '@/lib/db'
 import { base64urlEncode } from './index'
-import type { VerifiedRegistrationResponse } from '@simplewebauthn/server'
-import type { AuthenticatorTransportFuture } from '@simplewebauthn/types'
+import type {
+  VerifiedRegistrationResponse,
+  AuthenticatorTransport,
+} from '@simplewebauthn/server'
 
 export interface StoredCredentialRow {
   id: string
@@ -118,14 +120,14 @@ export async function hasAnyCredential(employeeId: string): Promise<boolean> {
 /**
  * Parse transports from DB JSON string.
  */
-export function parseTransportsFromDb(transportsJson: string): AuthenticatorTransportFuture[] {
+export function parseTransportsFromDb(transportsJson: string): AuthenticatorTransport[] {
   try {
     const parsed = JSON.parse(transportsJson)
     if (Array.isArray(parsed)) {
-      const valid: AuthenticatorTransportFuture[] = ['ble', 'cable', 'hybrid', 'internal', 'nfc', 'smart-card', 'usb']
+      const valid: AuthenticatorTransport[] = ['ble', 'hybrid', 'internal', 'nfc', 'usb']
       return parsed.filter(
-        (t): t is AuthenticatorTransportFuture =>
-          typeof t === 'string' && valid.includes(t as AuthenticatorTransportFuture)
+        (t): t is AuthenticatorTransport =>
+          typeof t === 'string' && valid.includes(t as AuthenticatorTransport)
       )
     }
   } catch {

@@ -19,7 +19,7 @@ import {
 import { saveChallenge, takeChallenge } from '@/lib/webauthn/challenge-store'
 import { findCredential, updateCounterAfterUse } from '@/lib/webauthn/db-helpers'
 import { createAuditLog } from '@/lib/db'
-import type { AuthenticationResponseJSON } from '@simplewebauthn/types'
+import type { AuthenticationResponseJSON } from '@simplewebauthn/server'
 
 export const dynamic = 'force-dynamic'
 

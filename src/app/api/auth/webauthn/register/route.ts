@@ -18,7 +18,7 @@ import {
 import { saveChallenge, takeChallenge } from '@/lib/webauthn/challenge-store'
 import { storeCredential, listEmployeeCredentials } from '@/lib/webauthn/db-helpers'
 import { createAuditLog, db } from '@/lib/db'
-import type { RegistrationResponseJSON } from '@simplewebauthn/types'
+import type { RegistrationResponseJSON } from '@simplewebauthn/server'
 
 export const dynamic = 'force-dynamic'
 

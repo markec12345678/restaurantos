@@ -203,7 +203,9 @@ describe('webauthn lib — parseTransports', () => {
 
   it('obdela vse veljavne transporte iz spec-a', async () => {
     const { parseTransports } = await import('@/lib/webauthn')
-    const valid = ['ble', 'cable', 'hybrid', 'internal', 'nfc', 'smart-card', 'usb']
+    // @simplewebauthn v14: 'cable' in 'smart-card' sta izpadla iz
+    // AuthenticatorTransport unije (transporti so UI-namigi, ne varnostni)
+    const valid = ['ble', 'hybrid', 'internal', 'nfc', 'usb']
     const json = JSON.stringify(valid)
     const parsed = parseTransports(json)
     expect(parsed.sort()).toEqual([...valid].sort())

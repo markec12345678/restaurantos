@@ -2,7 +2,7 @@
 // WEBAUTHN (FIDO2) — Biometric login za POS
 // Podpira: Touch ID, Face ID, Windows Hello, Android fingerprint, YubiKey
 //
-// IMPLEMENTACIJA: @simplewebauthn/server v11 — pravo kriptografsko preverjanje
+// IMPLEMENTACIJA: @simplewebauthn/server v14 — pravo kriptografsko preverjanje
 // podpisa (COSE / ES256 / RS256 / EdDSA). Prejšnja implementacija je bila
 // onemogočena, ker je verifyAssertion() preverjal samo clientData.challenge.
 // ============================================
@@ -14,12 +14,12 @@ import {
   generateAuthenticationOptions,
   type VerifiedRegistrationResponse,
   type VerifiedAuthenticationResponse,
+  // v14: tipi so zdaj re-izvoženi iz server/browser (samostojni
+  // @simplewebauthn/types je izpadel iz grafa odvisnosti)
+  type RegistrationResponseJSON,
+  type AuthenticationResponseJSON,
+  type AuthenticatorTransport,
 } from '@simplewebauthn/server'
-import type {
-  RegistrationResponseJSON,
-  AuthenticationResponseJSON,
-  AuthenticatorTransportFuture,
-} from '@simplewebauthn/types'
 
 export interface WebAuthnConfig {
   rpName: string
@@ -120,14 +120,14 @@ export interface StoredCredential {
 /**
  * Convert DB-stored transports (JSON string) → typed array.
  */
-export function parseTransports(transportsJson: string): AuthenticatorTransportFuture[] {
+export function parseTransports(transportsJson: string): AuthenticatorTransport[] {
   try {
     const parsed = JSON.parse(transportsJson)
     if (Array.isArray(parsed)) {
-      const valid: AuthenticatorTransportFuture[] = ['ble', 'cable', 'hybrid', 'internal', 'nfc', 'smart-card', 'usb']
+      const valid: AuthenticatorTransport[] = ['ble', 'hybrid', 'internal', 'nfc', 'usb']
       return parsed.filter(
-        (t): t is AuthenticatorTransportFuture =>
-          typeof t === 'string' && valid.includes(t as AuthenticatorTransportFuture)
+        (t): t is AuthenticatorTransport =>
+          typeof t === 'string' && valid.includes(t as AuthenticatorTransport)
       )
     }
   } catch {
