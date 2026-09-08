@@ -53,7 +53,11 @@ export async function GET(req: Request) {
     let certModified: Date | null = null
 
     if (certPath) {
-      const fullPath = path.isAbsolute(certPath) ? certPath : path.join(process.cwd(), certPath)
+      // turbopackIgnore: pot je dinamična (iz DB/nastavitev) — brez tega Turbopack
+      // (Next 16.3+) sledi celotnemu projektu in build pade z ENOENT next-server.js.nft.json
+      const fullPath = path.isAbsolute(certPath)
+        ? certPath
+        : path.join(/*turbopackIgnore: true*/ process.cwd(), certPath)
       try {
         const stat = fs.statSync(fullPath)
         certExists = true
