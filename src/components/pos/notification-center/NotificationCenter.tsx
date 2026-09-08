@@ -105,7 +105,15 @@ export const NotificationCenter = memo(function NotificationCenter() {
     const wsUrl = `${protocol}//${window.location.host}/ws`
     try {
       const ws = new WebSocket(wsUrl)
-      ws.onopen = () => setWsConnected(true)
+      ws.onopen = () => {
+        setWsConnected(true)
+        // WS AUDIT 2026-09-09: server ZAHTEVA AUTH sporočilo v 10s — brez njega
+        // povezavo zapre (4001). Token nikoli v URL-ju, vedno kot AUTH sporočilo.
+        const token = sessionStorage.getItem('pos_auth_token') || localStorage.getItem('pos_token')
+        if (token) {
+          ws.send(JSON.stringify({ type: 'AUTH', payload: { token } }))
+        }
+      }
       ws.onclose = () => setWsConnected(false)
       ws.onmessage = handleWsMessage
       return () => ws.close()

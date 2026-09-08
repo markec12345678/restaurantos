@@ -83,9 +83,8 @@ export const API_RATE_LIMITS: { pattern: RegExp; config: RateLimitConfig; name: 
   { pattern: /\/api\/seed/, config: { maxRequests: 3, windowMs: 60 * 60 * 1000 }, name: 'seed-general' },
 
   // ═══════════════════════════════════════════
-  // WEBSOCKET BROADCAST — interno, a omejimo zlorabo
+  // WEBSOCKET BROADCAST — WS AUDIT 2026-09-09: vzorec odstranjen (ruta izbrisana)
   // ═══════════════════════════════════════════
-  { pattern: /\/api\/ws-broadcast/, config: { maxRequests: 30, windowMs: 60 * 1000 }, name: 'ws-broadcast' },
 
   // ═══════════════════════════════════════════
   // SPLOŠNI AVTENTICIRANI API — 60/min (catch-all)

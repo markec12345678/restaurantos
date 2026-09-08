@@ -23,6 +23,8 @@ export interface StockDeductionResult {
     name: string
     currentQty: number
     minQty: number
+    // WS AUDIT 2026-09-09: lokacija inventory artikla — za per-location WS dostavo
+    locationId?: string | null
   }>
   errors: Array<{
     inventoryItemId?: string

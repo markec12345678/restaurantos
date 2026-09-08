@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     // Poišči mizo - podprto prek tableNumber (int) ali tableId (UUID)
     const tableResult = await resolveTable(data.tableId, data.tableNumber)
     if (tableResult instanceof NextResponse) return tableResult
-    const { tableId, tableNumber: resolvedTableNumber } = tableResult
+    const { tableId, tableNumber: resolvedTableNumber, locationId: resolvedLocationId } = tableResult
 
     // Pridobi podatke o menu itemih za izračun
     const menuItemIds = items.map((i: { menuItemId: string }) => i.menuItemId)
@@ -151,7 +151,8 @@ export async function POST(req: Request) {
     })
 
     // FIX: Broadcast NEW_ORDER to KDS/POS via WebSocket
-    await broadcastNewOrder(order.id, order.orderNumber, resolvedTableNumber || data.tableNumber)
+    // WS AUDIT: locationId mize za per-location dostavo (KDS druge lokacije ne vidi)
+    broadcastNewOrder(order.id, order.orderNumber, resolvedTableNumber || data.tableNumber, resolvedLocationId ?? null)
 
     return NextResponse.json({
       success: true,

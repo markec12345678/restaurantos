@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { Prisma } from '@prisma/client'
 import { toNum, calcVat, type DecimalLike } from '@/lib/decimal'
 import { logger } from '@/lib/logger'
+import { wsBroadcastEvent } from '@/lib/ws-server-broadcast'
 
 // ─── Izračunaj cene artiklov iz strežniških podatkov (NE zaupaj klientu!) ───
 export interface OrderItemData {
@@ -133,28 +134,21 @@ export async function deductInventoryInTx(
 }
 
 // ─── Broadcast NEW_ORDER to KDS/POS via WebSocket ───
-export async function broadcastNewOrder(
+// WS AUDIT 2026-09-09: prej HTTP fetch na /api/ws-broadcast (401 — brez
+// Authorization glave). Zdaj: direkten globalThis.__wsBroadcast klic +
+// locationId (kjer izvedljiv) za per-location dostavo.
+export function broadcastNewOrder(
   orderId: string,
   orderNumber: number,
   tableNumber?: number | string | null,
-): Promise<void> {
-  try {
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || `http://localhost:${process.env.PORT || 3000}`
-    await fetch(`${appUrl}/api/ws-broadcast`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'NEW_ORDER',
-        payload: {
-          orderId,
-          orderNumber,
-          type: 'dine-in',
-          source: 'qr',
-          tableNumber: tableNumber || null,
-        },
-      }),
-    })
-  } catch {
-    // WS ni na voljo — ni kritično
-  }
+  locationId?: string | null,
+): void {
+  wsBroadcastEvent('NEW_ORDER', {
+    orderId,
+    orderNumber,
+    type: 'dine-in',
+    source: 'qr',
+    tableNumber: tableNumber || null,
+    locationId: locationId ?? null,
+  })
 }

@@ -85,7 +85,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
 }, {
   ignores: [
     "node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts",
-    "examples/**", "skills/**", "data/**", "server.js", "ecosystem.config.js",
+    "examples/**", "skills/**", "data/**", "server.js", "server-ws-core.js", "ecosystem.config.js",
     "scripts/*.cjs", // CommonJS scripts use require() — not part of Next.js app
     "public/sw.js", // Service Worker — separate execution context
   ]

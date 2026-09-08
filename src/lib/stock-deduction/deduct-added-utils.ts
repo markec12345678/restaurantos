@@ -80,7 +80,8 @@ export async function deductRecipeItems(
     result.deducted.push({ inventoryItemId: invItem.id, name: invItem.name, quantityDeducted: actualDeducted, previousQty, newQty, method: 'recipe' })
 
     if (newQty <= toNum(invItem.minQuantity)) {
-      result.lowStockAlerts.push({ inventoryItemId: invItem.id, name: invItem.name, currentQty: newQty, minQty: toNum(invItem.minQuantity) })
+      // WS AUDIT: locationId za per-location WS dostavo
+      result.lowStockAlerts.push({ inventoryItemId: invItem.id, name: invItem.name, currentQty: newQty, minQty: toNum(invItem.minQuantity), locationId: invItem.locationId ?? null })
     }
   }
 }
@@ -145,6 +146,7 @@ export async function deductDirectItem(
   result.deducted.push({ inventoryItemId: invItem.id, name: invItem.name, quantityDeducted: actualDeducted, previousQty, newQty, method: 'direct' })
 
   if (newQty <= toNum(invItem.minQuantity)) {
-    result.lowStockAlerts.push({ inventoryItemId: invItem.id, name: invItem.name, currentQty: newQty, minQty: toNum(invItem.minQuantity) })
+    // WS AUDIT: locationId za per-location WS dostavo
+    result.lowStockAlerts.push({ inventoryItemId: invItem.id, name: invItem.name, currentQty: newQty, minQty: toNum(invItem.minQuantity), locationId: invItem.locationId ?? null })
   }
 }

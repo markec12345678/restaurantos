@@ -1,4 +1,4 @@
-import { logger } from '@/lib/logger'
+import { wsBroadcastEvent } from '@/lib/ws-server-broadcast'
 import type { WSEventType } from './types'
 
 // ============================================
@@ -6,17 +6,13 @@ import type { WSEventType } from './types'
 // ============================================
 
 /**
- * Pošlje WebSocket dogodek preko strežniškega broadcast-a
+ * Pošlji WebSocket dogodek prek strežniškega broadcast-a
  * To funkcijo kličejo API rute, ko želijo obvestiti KDS odjemalce
+ *
+ * WS AUDIT 2026-09-09: prej HTTP fetch na /api/ws-broadcast (dvojno pokvarjeno:
+ * 401 zaradi manjkajoče Authorization glave + relativni URL je metal napako).
+ * Zdaj: direkten globalThis.__wsBroadcast klic v istem procesu.
  */
 export async function broadcastWSEvent(type: WSEventType, payload: unknown): Promise<void> {
-  try {
-    await fetch('/api/ws-broadcast', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, payload }),
-    })
-  } catch (err: unknown) {
-    logger.error('WS', 'Broadcast napaka:', err)
-  }
+  wsBroadcastEvent(type, (payload ?? null) as Record<string, unknown> | null)
 }

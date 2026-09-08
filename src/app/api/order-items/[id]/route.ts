@@ -120,6 +120,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         orderId: orderItem.orderId,
         newStatus: data.status,
         menuItemName: orderItem.menuItem.name,
+        // WS AUDIT: locationId za per-location dostavo (KDS druge lokacije ne vidi)
+        locationId: orderItem.order.locationId ?? null,
       })
     }
 

@@ -5,9 +5,8 @@
 
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
 import { z } from 'zod'
-import { getAppUrl } from '@/lib/utils'
+import { wsBroadcastEvent } from '@/lib/ws-server-broadcast'
 import { checkRateLimitAsync, getClientIp, CALL_WAITER_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
@@ -40,23 +39,15 @@ export async function POST(req: Request) {
     }
 
     // Broadcast WebSocket obvestilo
-    try {
-      await fetch(`${getAppUrl()}/api/ws-broadcast`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'CALL_WAITER',
-          payload: {
-            tableId: data.tableId,
-            tableNumber: table.number,
-            message: data.message || 'Stranka prosi za natakarja',
-            timestamp: new Date().toISOString(),
-          },
-        }),
-      })
-    } catch {
-      // WS strežnik ni na voljo
-    }
+    // WS AUDIT 2026-09-09: direkten globalThis klic (prej HTTP fetch 401) +
+    // locationId mize za per-location dostavo (natakarji druge lokacije ne vidijo)
+    wsBroadcastEvent('CALL_WAITER', {
+      tableId: data.tableId,
+      tableNumber: table.number,
+      message: data.message || 'Stranka prosi za natakarja',
+      timestamp: new Date().toISOString(),
+      locationId: table.locationId ?? null,
+    })
 
     // Revizijski dnevnik
     await createAuditLog({

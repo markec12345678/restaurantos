@@ -14,8 +14,41 @@ import { hashSessionToken } from './token-hash'
 // še vedno lahko dostopa do API-jev do poteka seje (do 8h!).
 // Cache je 30s — če admin terminira zaposlenega, bo seja prenehala veljati v 30s.
 // FIX: Zmanjšan z 60s na 30s za hitrejši odziv na terminacijo.
-const employeeStatusCache = new Map<string, { status: string; checkedAt: number }>()
+//
+// WS AUDIT 2026-09-09: cache razširjen še z locationId zaposlenega. Razlog:
+// Session tabela NE shranjuje locationId — ob rekonstrukciji seje iz DB
+// (verifyToken DB pot / loadSessionsFromDb po restartu) je session.locationId
+// IZGUBLJEN. Posledice: (a) WS per-location filter je kliente obravnaval kot
+// globalne (bypass multi-tenant izolacije na WS), (b) resolveTenantLocationId
+// bi rednim uporabnikom vrnil 403. Sedaj obogatimo sejo iz Employee zapisa
+// (avtoritativni vir, svež v 30s — sledi tudi prenosom zaposlenega).
+const employeeStatusCache = new Map<string, { status: string; locationId: string | null; checkedAt: number }>()
 const EMPLOYEE_STATUS_CACHE_TTL_MS = 30 * 1000 // 30 sekund
+
+/**
+ * Pridobi kontekst zaposlenega (status + lokacija) iz baze s 30s cache-om.
+ * Uporablja se za preverjanje aktivnosti in obogatitev sej z locationId.
+ */
+async function getEmployeeContext(employeeId: string): Promise<{ status: string; locationId: string | null }> {
+  // Preveri cache (30s TTL)
+  const cached = employeeStatusCache.get(employeeId)
+  if (cached && Date.now() - cached.checkedAt < EMPLOYEE_STATUS_CACHE_TTL_MS) {
+    return { status: cached.status, locationId: cached.locationId }
+  }
+
+  const employee = await db.employee.findUnique({
+    where: { id: employeeId },
+    select: { status: true, locationId: true },
+  })
+
+  if (!employee) {
+    employeeStatusCache.set(employeeId, { status: 'not_found', locationId: null, checkedAt: Date.now() })
+    return { status: 'not_found', locationId: null }
+  }
+
+  employeeStatusCache.set(employeeId, { status: employee.status, locationId: employee.locationId ?? null, checkedAt: Date.now() })
+  return { status: employee.status, locationId: employee.locationId ?? null }
+}
 
 /**
  * Preveri ali je zaposleni še vedno aktiven (s 30s cache-om)
@@ -39,18 +72,8 @@ async function isEmployeeActive(employeeId: string): Promise<boolean> {
 
   // Preveri v bazi — BREZ try/catch fail-open!
   // Če DB query vrže napako, naj se request fail-a (500) namesto dovoliti dostop.
-  const employee = await db.employee.findUnique({
-    where: { id: employeeId },
-    select: { status: true },
-  })
-
-  if (!employee) {
-    employeeStatusCache.set(employeeId, { status: 'not_found', checkedAt: Date.now() })
-    return false
-  }
-
-  employeeStatusCache.set(employeeId, { status: employee.status, checkedAt: Date.now() })
-  return employee.status === 'active'
+  const ctx = await getEmployeeContext(employeeId)
+  return ctx.status === 'active'
 }
 
 /**
@@ -168,6 +191,13 @@ export async function verifyToken(token: string): Promise<Session | null> {
       await db.session.deleteMany({ where: { token: tokenHash } }).catch(() => {})
       return null
     }
+    // WS AUDIT 2026-09-09: obogatitev locationId — seje, naložene iz DB
+    // (loadSessionsFromDb po restartu), locationId NI imajo. null je VELJAVNA
+    // vrednost (super admin) — obogatimo SAMO undefined!
+    if (session.locationId === undefined) {
+      const ctx = await getEmployeeContext(session.employeeId)
+      session.locationId = ctx.locationId
+    }
     return session
   }
 
@@ -189,8 +219,9 @@ export async function verifyToken(token: string): Promise<Session | null> {
     }
 
     // FIX SECURITY: preveri status zaposlenega tudi za DB sessions
-    const isActive = await isEmployeeActive(dbSession.employeeId)
-    if (!isActive) {
+    // WS AUDIT: pridobi tudi locationId (isti query — brez dodatnega obremenjevanja)
+    const employeeContext = await getEmployeeContext(dbSession.employeeId)
+    if (employeeContext.status !== 'active') {
       await db.session.deleteMany({ where: { token: tokenHash } }).catch(() => {})
       return null
     }
@@ -203,6 +234,11 @@ export async function verifyToken(token: string): Promise<Session | null> {
       createdAt: dbSession.createdAt instanceof Date ? dbSession.createdAt.getTime() : Number(dbSession.createdAt),
       expiresAt,
       absoluteExpiry,
+      // WS AUDIT 2026-09-09: Session tabela ne hrani locationId — obogatimo iz
+      // Employee zapisa (avtoritativni vir, 30s cache). Brez tega bi bil
+      // regular user na Vercelu (cold start) brez lokacije → 403, WS klient
+      // pa obravnavan kot globalen (bypass per-location filtra).
+      locationId: employeeContext.locationId,
     }
 
     sessions.set(tokenHash, reconstructed)

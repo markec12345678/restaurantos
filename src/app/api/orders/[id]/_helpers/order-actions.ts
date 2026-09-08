@@ -10,7 +10,7 @@
 import { db, createAuditLog } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
 import { returnStockForOrder, broadcastLowStockAlert } from '@/lib/stock-deduction'
-import { getAppUrl } from '@/lib/utils'
+import { wsBroadcastEvent } from '@/lib/ws-server-broadcast'
 import { emitEvent } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
 import { Prisma } from '@prisma/client'
@@ -18,16 +18,10 @@ import { Prisma } from '@prisma/client'
 type TransactionClient = Prisma.TransactionClient
 
 // ─── Helper za WebSocket broadcast ───
-export async function broadcastWS(type: string, payload: unknown) {
-  try {
-    await fetch(`${getAppUrl()}/api/ws-broadcast`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, payload }),
-    })
-  } catch {
-    // WS strežnik ni na voljo
-  }
+// WS AUDIT 2026-09-09: prej HTTP fetch na /api/ws-broadcast (401 — brez
+// Authorization glave). Zdaj: direkten globalThis.__wsBroadcast klic.
+export function broadcastWS(type: string, payload: unknown) {
+  wsBroadcastEvent(type, (payload ?? null) as Record<string, unknown> | null)
 }
 
 // ─── Sprosti mizo, če ni več aktivnih naročil ───
@@ -116,6 +110,7 @@ export async function handleOrderCompletion(
 export async function handleOrderCancellation(
   id: string, existingOrder: {
     tableId: string | null; orderNumber: number; inventoryDeducted: boolean;
+    locationId?: string | null;
   },
   cancelReason: string | undefined, employeeId?: string,
   tx?: TransactionClient,
@@ -173,5 +168,7 @@ export async function handleOrderCancellation(
   broadcastWS('ORDER_CANCELLED', {
     orderId: id, orderNumber: existingOrder.orderNumber,
     cancelReason: cancelReason || '',
+    // WS AUDIT: locationId za per-location dostavo (KDS druge lokacije ne vidi)
+    locationId: existingOrder.locationId ?? null,
   })
 }

@@ -1,12 +1,12 @@
 // Obdelaj item_status akcijo (PATCH)
 
 import { db } from '@/lib/db'
-import { getAppUrl } from '@/lib/utils'
 import { broadcastWS } from '../_helpers'
+import { wsBroadcastEvent } from '@/lib/ws-server-broadcast'
 
 export async function handleItemStatusUpdate(
   id: string, itemId: string, status: string,
-  order: { id: string; status: string; orderNumber: number }
+  order: { id: string; status: string; orderNumber: number; locationId?: string | null }
 ) {
   if (order.status === 'cancelled') {
     return { error: 'Preklicano naročilo ni mogoče spreminjati', status: 400 }
@@ -42,6 +42,8 @@ export async function handleItemStatusUpdate(
   // Broadcast za KDS
   broadcastWS('ITEM_STATUS_UPDATE', {
     orderId: id, orderNumber: order.orderNumber, itemId, status,
+    // WS AUDIT: locationId za per-location dostavo (KDS druge lokacije ne vidi)
+    locationId: order.locationId ?? null,
   })
 
   // Obvestilo za natakarja ko je artikel PRIPRAVLJEN
@@ -58,22 +60,19 @@ export async function handleItemStatusUpdate(
       const totalItems = allItems.filter(i => i.status !== 'cancelled').length
       const readyCount = allItems.filter(i => ['ready', 'served'].includes(i.status)).length
 
-      await fetch(`${getAppUrl()}/api/ws-broadcast`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'order_ready', channel: 'pos',
-          data: {
-            orderId: id, orderNumber: order.orderNumber,
-            tableName: fullOrder?.table?.number?.toString() || null,
-            tableNumber: fullOrder?.table?.number || null,
-            waiterName: fullOrder?.customerName || null,
-            waiterId: fullOrder?.employeeId || null,
-            itemName: updatedItem?.menuItem?.name || 'Neznan artikel',
-            itemQuantity: updatedItem.quantity,
-            allReady, readyCount, totalItems, readyItems,
-          },
-        }),
+      // WS AUDIT 2026-09-09: prej HTTP fetch (401 + 'order_ready' ni bil v enum).
+      // Zdaj: direkten globalThis.__wsBroadcast klic z 'order_ready' dogodkom.
+      wsBroadcastEvent('order_ready', {
+        orderId: id, orderNumber: order.orderNumber,
+        tableName: fullOrder?.table?.number?.toString() || null,
+        tableNumber: fullOrder?.table?.number || null,
+        waiterName: fullOrder?.customerName || null,
+        waiterId: fullOrder?.employeeId || null,
+        itemName: updatedItem?.menuItem?.name || 'Neznan artikel',
+        itemQuantity: updatedItem.quantity,
+        allReady, readyCount, totalItems, readyItems,
+        // WS AUDIT: locationId za per-location dostavo (natakarji druge lokacije ne vidijo)
+        locationId: fullOrder?.locationId ?? order.locationId ?? null,
       })
     } catch { /* broadcast ni kritičen */ }
   }

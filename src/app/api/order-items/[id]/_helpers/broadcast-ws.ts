@@ -1,16 +1,10 @@
 // WebSocket broadcast helper
 
-import { getAppUrl } from '@/lib/utils'
+import { wsBroadcastEvent } from '@/lib/ws-server-broadcast'
 
 // Helper za WebSocket broadcast
-export async function broadcastWS(type: string, payload: unknown) {
-  try {
-    await fetch(`${getAppUrl()}/api/ws-broadcast`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, payload }),
-    })
-  } catch {
-    // WS strežnik ni na voljo
-  }
+// WS AUDIT 2026-09-09: prej HTTP fetch na /api/ws-broadcast (401 — brez
+// Authorization glave). Zdaj: direkten globalThis.__wsBroadcast klic.
+export function broadcastWS(type: string, payload: unknown) {
+  wsBroadcastEvent(type, (payload ?? null) as Record<string, unknown> | null)
 }

@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { addOrderItemsSchema } from '@/lib/validations'
 import { deductStockForAddedItems, broadcastLowStockAlert } from '@/lib/stock-deduction'
+import { wsBroadcastEvent } from '@/lib/ws-server-broadcast'
 import { handleRouteError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { createOrderItemsAndRecalculate } from './_helpers'
 
@@ -84,24 +85,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     // FIX: Broadcast to KDS/POS — kitchen needs to know about added items!
-    try {
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || `http://localhost:${process.env.PORT || 3000}`
-      await fetch(`${appUrl}/api/ws-broadcast`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'ORDER_UPDATED',
-          payload: {
-            orderId: id,
-            orderNumber: order.orderNumber,
-            action: 'add-items',
-            addedCount: newItems.length,
-          },
-        }),
-      })
-    } catch {
-      // WS ni na voljo — ni kritično
-    }
+    // WS AUDIT 2026-09-09: direkten globalThis klic (prej HTTP fetch 401)
+    wsBroadcastEvent('ORDER_UPDATED', {
+      orderId: id,
+      orderNumber: order.orderNumber,
+      action: 'add-items',
+      addedCount: newItems.length,
+      // WS AUDIT: locationId za per-location dostavo
+      locationId: order.locationId ?? null,
+    })
 
     // Pridobi posodobljeno naročilo
     // FIX P0-C1 (IDOR): Tudi za vračanje posodobljenega naročila uporabi locationId scope

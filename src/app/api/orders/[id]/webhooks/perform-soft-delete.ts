@@ -10,6 +10,7 @@ export async function performOrderSoftDelete(
     orderNumber: number
     inventoryDeducted: boolean
     receipt: unknown[]
+    locationId?: string | null
   },
   employeeId: string | undefined,
 ): Promise<void> {
@@ -31,5 +32,9 @@ export async function performOrderSoftDelete(
   const cancelReason = order.receipt.length > 0
     ? 'Izbrisano iz seznama (z računom)'
     : 'Izbrisano iz seznama (brez računa)'
-  broadcastWS('ORDER_CANCELLED', { orderId: id, orderNumber: order.orderNumber, cancelReason })
+  broadcastWS('ORDER_CANCELLED', {
+    orderId: id, orderNumber: order.orderNumber, cancelReason,
+    // WS AUDIT: locationId za per-location dostavo
+    locationId: order.locationId ?? null,
+  })
 }

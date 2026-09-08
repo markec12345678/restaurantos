@@ -6,7 +6,8 @@
 const { createServer } = require('http')
 const next = require('next')
 const { WebSocketServer } = require('ws')
-const crypto = require('crypto')
+// WS varnostna jedra (Zod validacija inbound, role gate, URL-token detekcija)
+const wsCore = require('./server-ws-core')
 
 const dev = process.env.NODE_ENV !== 'production'
 const hostname = '0.0.0.0'
@@ -30,8 +31,10 @@ let wss = null
 const HEARTBEAT_INTERVAL = 30000
 
 // WS Avtentikacija: Seje v pomnilniku (sinhronizirano z auth-middleware.ts)
-// Token mora biti poslan kot query parameter: ws://host/ws?token=xxx
-// ali v prvem sporočilu: { type: 'AUTH', payload: { token: 'xxx' } }
+// WS AUDIT 2026-09-09: token se NE sme poslati v URL-ju (logi/proxy/referrer).
+// Edini dovoljen način: AUTH sporočilo po povezavi: { type: 'AUTH', payload: { token } }
+// (browser WebSocket API ne podpira Authorization glave na handshake-u; AUTH
+// sporočilo doseža enako varnost — token nikoli ne zapusti TLS kanala v URL-ju)
 const wsSessions = new Map()
 
 // Rate limiting za WS povezave (prepreči brute-force)
@@ -164,6 +167,13 @@ globalThis.__wsVerifyToken = verifyWsToken
  * @param {any} payload - Podatki dogodka
  */
 function broadcastEvent(type, payload, channels = null) {
+  // WS AUDIT: outbound envelope validacija — dogodke generira IZKLJUČNO server
+  // (globalThis.__wsBroadcast iz API poti). Neveljaven envelope se zavrže + logira.
+  if (!wsCore.isValidOutboundEvent(type, payload)) {
+    console.warn(`[WS] Zavrnjen neveljaven outbound event (type=${JSON.stringify(type)})`)
+    return
+  }
+
   const message = JSON.stringify({
     type,
     payload,
@@ -290,7 +300,9 @@ app.prepare().then(() => {
   wss = new WebSocketServer({
     server,
     path: '/ws',
-    maxPayload: 1024 * 1024, // 1MB max
+    // WS AUDIT: 16KB max — klient pošilja samo kontrolna sporočila (AUTH/IDENTIFY/
+    // SUBSCRIBE/ping); prejšnjih 1MB je bilo neupravičeno veliko (flooding vektor)
+    maxPayload: 16 * 1024,
     // FIX CRITICAL: Preveri avtentikacijo pred vzpostavitvijo povezave
     verifyClient: (info, callback) => {
       const clientIp = info.req.socket.remoteAddress
@@ -302,26 +314,16 @@ app.prepare().then(() => {
         return
       }
 
-      // Preveri token iz query parametra: ws://host/ws?token=xxx
-      const url = new URL(info.req.url, `http://${hostname}:${port}`)
-      const token = url.searchParams.get('token')
-
-      if (token) {
-        const session = verifyWsToken(token)
-        if (session) {
-          // Avtenticirana povezava — shrani sejo na req za kasnejšo uporabo
-          info.req.__wsSession = session
-          callback(true)
-          return
-        }
-        // Neveljaven token — zavrni
-        console.warn(`[WS] Neveljaven token od: ${clientIp}`)
-        callback(false, 401, 'Neveljaven ali potekel žeton. Prijavite se ponovno.')
+      // WS AUDIT 2026-09-09: token v URL-ju je PREPOVEDAN — pride v dostopne
+      // loge, proxy loge in referrerje. Klient mora uporabiti AUTH sporočilo.
+      if (wsCore.detectTokenInHandshakeUrl(info.req.url).tokenInUrl) {
+        console.warn(`[WS] Zavrnjen token v URL-ju od: ${clientIp}`)
+        callback(false, 401, 'Žeton v URL-ju ni dovoljen. Pošljite { type: "AUTH", payload: { token } } po povezavi.')
         return
       }
 
-      // Brez tokena — dovoli povezavo, vendar OZNAČI kot neavtenticirano
-      // Klient mora poslati AUTH sporočilo v 10 sekundah
+      // Povezava brez URL tokena — dovoljena, a OZNAČENA kot neavtenticirana.
+      // Klient mora poslati veljavno AUTH sporočilo v 10 sekundah.
       info.req.__wsSession = null
       callback(true)
     },
@@ -366,119 +368,133 @@ app.prepare().then(() => {
       ws.__isAlive = true
     })
 
-    // Obdelaj vhodna sporočila
+    // Obdelaj vhodna sporočila — VSOTA skozi wsCore.parseInboundMessage (Zod)
     ws.on('message', (data) => {
-      try {
-        const msg = JSON.parse(data.toString())
-
-        // FIX CRITICAL: Obdelaj AUTH sporočilo za neavtenticirane povezave
-        if (msg.type === 'AUTH' && !ws.__isAuthenticated) {
-          const token = msg.payload?.token
-          if (!token) {
-            ws.close(4002, 'Manjka žeton za avtentikacijo.')
-            return
-          }
-
-          const authSession = verifyWsToken(token)
-          if (!authSession) {
-            ws.close(4003, 'Neveljaven ali potekel žeton.')
-            return
-          }
-
-          // Avtenticiran!
-          ws.__isAuthenticated = true
-          ws.__session = authSession
-          ws.__employeeId = authSession.employeeId
-          ws.__role = authSession.role
-          // FIX MULTI-TENANT: shraniti session locationId za per-location broadcast filtriranje
-          ws.__locationId = authSession.locationId ?? null
-          connectedClients.add(ws)
-
-          if (authTimeout) {
-            clearTimeout(authTimeout)
-            authTimeout = null
-          }
-
-          console.log(`[WS] Avtenticiran preko sporočila: ${clientIp} (${authSession.role}) — skupaj: ${connectedClients.size}`)
-
-          // Pošlji potrditev
-          ws.send(JSON.stringify({
-            type: 'AUTH_SUCCESS',
-            payload: {
-              role: authSession.role,
-              employeeId: authSession.employeeId,
-            },
-            timestamp: new Date().toISOString(),
-          }))
-          return // Ne obdeluj naprej
-        }
-
-        // Zavrni vsa sporočila od neavtenticiranih povezav
-        if (!ws.__isAuthenticated) {
-          ws.send(JSON.stringify({
-            type: 'AUTH_REQUIRED',
-            payload: { message: 'Avtentikacija je obvezna. Pošljite { type: "AUTH", payload: { token: "xxx" } }' },
-            timestamp: new Date().toISOString(),
-          }))
-          return
-        }
-
-        // Klient lahko pošlje identifikacijo
-        if (msg.type === 'IDENTIFY') {
-          ws.__clientType = msg.payload?.clientType || 'unknown'
-          ws.__clientName = msg.payload?.clientName || ''
-          console.log(`[WS] Klient identificiran: ${ws.__clientType} (${ws.__clientName})`)
-        }
-
-        // OUTBOX subscription — client želi prejemati outbox updates
-        if (msg.type === 'SUBSCRIBE_OUTBOX') {
-          ws.__subscribedChannels = ws.__subscribedChannels || new Set()
-          ws.__subscribedChannels.add('outbox')
-          ws.send(JSON.stringify({
-            type: 'SUBSCRIPTION_CONFIRMED',
-            payload: { channel: 'outbox' },
-            timestamp: new Date().toISOString(),
-          }))
-          console.log(`[WS] Client ${ws.__employeeId || 'unknown'} subscribed to outbox`)
-          return
-        }
-
-        // Unsubscribe
-        if (msg.type === 'UNSUBSCRIBE_OUTBOX') {
-          if (ws.__subscribedChannels) {
-            ws.__subscribedChannels.delete('outbox')
-          }
-          return
-        }
-
-        // FIX MEDIUM: Per-message rate limiting — prepreči flooding
-        const rateResult = checkWsMessageRateLimit(ws)
-        if (!rateResult.allowed) {
-          ws.send(JSON.stringify({
-            type: 'RATE_LIMITED',
-            payload: { message: 'Preveč sporočil. Počakajte trenutek.' },
-            timestamp: new Date().toISOString(),
-          }))
-          console.warn(`[WS] Rate limited sporočilo od: ${ws.__employeeId || ws.__clientIp}`)
-          return
-        }
-
-        // FIX: Preveri dovoljenja za oddajo dogodkov
-        // Samo avtenticirani uporabniki z dovoljenji lahko oddajajo dogodke
-        const ALLOWED_BROADCAST_TYPES = [
-          'NEW_ORDER', 'ORDER_UPDATED', 'ITEM_STATUS_CHANGED',
-          'ORDER_CANCELLED', 'ORDER_FIRED', 'ITEM_STATUS_UPDATE',
-          'STOCK_LOW', 'CALL_WAITER',
-        ]
-
-        if (msg.type && msg.payload && ALLOWED_BROADCAST_TYPES.includes(msg.type)) {
-          broadcastEvent(msg.type, msg.payload)
-        } else if (msg.type && msg.payload && !ALLOWED_BROADCAST_TYPES.includes(msg.type)) {
-          console.warn(`[WS] Zavrnjen nedovoljen tip dogodka: ${msg.type} od ${ws.__employeeId}`)
-        }
-      } catch (err) {
-        console.error('[WS] Neveljavno sporočilo:', err.message)
+      // WS AUDIT 2026-09-09: klienti NE morejo več broadcastati dogodkov
+      // (prej: ALLOWED_BROADCAST_TYPES je dovoljeval client → ORDER_CANCELLED →
+      // verbatim broadcast vsem klientom brez role/location/DB preverjanja).
+      // Dogodke izključno generira server prek API poti:
+      //   client → REST request → auth → Zod → DB transakcija → __wsBroadcast
+      const parsed = wsCore.parseInboundMessage(data)
+      if (!parsed.ok) {
+        console.warn(`[WS] Zavrnjeno sporočilo od ${ws.__employeeId || ws.__clientIp || 'unknown'}: ${parsed.reason}`)
+        return
       }
+
+      const msg = parsed.message
+
+      // FIX CRITICAL: Obdelaj AUTH sporočilo za neavtenticirane povezave
+      if (msg.type === 'AUTH' && !ws.__isAuthenticated) {
+        const token = msg.payload?.token
+        if (!token) {
+          ws.close(4002, 'Manjka žeton za avtentikacijo.')
+          return
+        }
+
+        const authSession = verifyWsToken(token)
+        if (!authSession) {
+          ws.close(4003, 'Neveljaven ali potekel žeton.')
+          return
+        }
+
+        // Avtenticiran!
+        ws.__isAuthenticated = true
+        ws.__session = authSession
+        ws.__employeeId = authSession.employeeId
+        ws.__role = authSession.role
+        // FIX MULTI-TENANT: shraniti session locationId za per-location broadcast filtriranje
+        ws.__locationId = authSession.locationId ?? null
+        connectedClients.add(ws)
+
+        if (authTimeout) {
+          clearTimeout(authTimeout)
+          authTimeout = null
+        }
+
+        console.log(`[WS] Avtenticiran preko sporočila: ${clientIp} (${authSession.role}) — skupaj: ${connectedClients.size}`)
+
+        // Pošlji potrditev
+        ws.send(JSON.stringify({
+          type: 'AUTH_SUCCESS',
+          payload: {
+            role: authSession.role,
+            employeeId: authSession.employeeId,
+          },
+          timestamp: new Date().toISOString(),
+        }))
+        return // Ne obdeluj naprej
+      }
+
+      // Zavrni vsa sporočila od neavtenticiranih povezav
+      if (!ws.__isAuthenticated) {
+        ws.send(JSON.stringify({
+          type: 'AUTH_REQUIRED',
+          payload: { message: 'Avtentikacija je obvezna. Pošljite { type: "AUTH", payload: { token: "xxx" } }' },
+          timestamp: new Date().toISOString(),
+        }))
+        return
+      }
+
+      // FIX MEDIUM: Per-message rate limiting — prepreči flooding
+      const rateResult = checkWsMessageRateLimit(ws)
+      if (!rateResult.allowed) {
+        ws.send(JSON.stringify({
+          type: 'RATE_LIMITED',
+          payload: { message: 'Preveč sporočil. Počakajte trenutek.' },
+          timestamp: new Date().toISOString(),
+        }))
+        console.warn(`[WS] Rate limited sporočilo od: ${ws.__employeeId || ws.__clientIp}`)
+        return
+      }
+
+      // Klient lahko pošlje identifikacijo
+      if (msg.type === 'IDENTIFY') {
+        ws.__clientType = msg.payload?.clientType || 'unknown'
+        ws.__clientName = msg.payload?.clientName || ''
+        console.log(`[WS] Klient identificiran: ${ws.__clientType} (${ws.__clientName})`)
+        return
+      }
+
+      // Aplikacijski heartbeat: klient ping → server pong (predj je klientov
+      // ping padel v "nedovoljen tip" in se povezava reincila vsakih 60s)
+      if (msg.type === 'ping') {
+        ws.send(JSON.stringify({ type: 'pong', timestamp: new Date().toISOString() }))
+        return
+      }
+
+      // OUTBOX subscription — samo manager/admin vloge (finančni/outbox podatki)
+      if (msg.type === 'SUBSCRIBE_OUTBOX') {
+        if (!wsCore.isOutboxRoleAllowed(ws.__role)) {
+          console.warn(`[WS] Zavrnjena outbox naročnina za vlogo ${ws.__role} (${ws.__employeeId})`)
+          ws.send(JSON.stringify({
+            type: 'SUBSCRIPTION_DENIED',
+            payload: { channel: 'outbox', message: 'Outbox naročnina je rezervirana za vodje.' },
+            timestamp: new Date().toISOString(),
+          }))
+          return
+        }
+        ws.__subscribedChannels = ws.__subscribedChannels || new Set()
+        ws.__subscribedChannels.add('outbox')
+        ws.send(JSON.stringify({
+          type: 'SUBSCRIPTION_CONFIRMED',
+          payload: { channel: 'outbox' },
+          timestamp: new Date().toISOString(),
+        }))
+        console.log(`[WS] Client ${ws.__employeeId || 'unknown'} subscribed to outbox`)
+        return
+      }
+
+      // Unsubscribe
+      if (msg.type === 'UNSUBSCRIBE_OUTBOX') {
+        if (ws.__subscribedChannels) {
+          ws.__subscribedChannels.delete('outbox')
+        }
+        return
+      }
+
+      // Vsi ostali tipi (vključno s poskusi NEW_ORDER/ORDER_UPDATED/ORDER_CANCELLED
+      // broadcasta) so zavrnjeni — Zod union jih že odbije, to pa je varovalka.
+      console.warn(`[WS] Zavrnjeno nedovoljeno sporočilo: ${msg.type} od ${ws.__employeeId}`)
     })
 
     // Ob zaprtju povezave

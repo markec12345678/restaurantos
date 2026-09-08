@@ -78,7 +78,8 @@ export const ROUTE_PERMISSIONS: Record<string, Permission[]> = {
   '/api/delivery': ['take_orders'],
   '/api/furs': ['admin'],
   '/api/audit': ['admin'],
-  '/api/ws-broadcast': ['take_orders'],
+  // WS AUDIT 2026-09-09: /api/ws-broadcast ruta IZBRISANA — klientom onemogočen
+  // broadcast; server-side kodi so direktni globalThis.__wsBroadcast klici.
   '/api/packaging': ['manage_inventory'],
   '/api/courses': ['take_orders'],
   '/api/jobs': ['manage_employees'],

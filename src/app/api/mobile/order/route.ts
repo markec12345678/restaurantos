@@ -177,8 +177,9 @@ export async function POST(req: Request) {
     })
 
     // Proži event za KDS
+    // WS AUDIT: locationId za per-location dostavo (KDS druge lokacije ne vidi)
     const broadcastEvent = (globalThis as Record<string, unknown>).__wsBroadcast as ((type: string, payload: unknown) => void) | undefined
-    broadcastEvent?.('NEW_ORDER', { orderId: order.id, orderNumber: order.orderNumber })
+    broadcastEvent?.('NEW_ORDER', { orderId: order.id, orderNumber: order.orderNumber, locationId: order.locationId ?? null })
 
     return NextResponse.json({
       success: true,

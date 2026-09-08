@@ -36,9 +36,12 @@ export function useKDSWebSocket(
         ws = new WebSocket(wsUrl)
         ws.onopen = () => {
           setWsConnected(true); retries = 0
-          const token = localStorage.getItem('pos_token')
+          // WS AUDIT: token poslan kot AUTH sporočilo (nikoli v URL-ju) + pravilen
+          // format { type: 'AUTH', payload: { token } } — prej { type: 'AUTH', token }
+          // ki ga server ni prepoznal (4002 Manjka žeton).
+          const token = localStorage.getItem('pos_token') || sessionStorage.getItem('pos_auth_token')
           if (token) {
-            ws?.send(JSON.stringify({ type: 'AUTH', token }))
+            ws?.send(JSON.stringify({ type: 'AUTH', payload: { token } }))
           }
         }
         ws.onmessage = (event) => {

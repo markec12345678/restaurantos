@@ -124,6 +124,8 @@ export async function deductDirectItem(
       name: invItem.name,
       currentQty: newQty,
       minQty: toNum(invItem.minQuantity),
+      // WS AUDIT: locationId za per-location WS dostavo
+      locationId: invItem.locationId ?? null,
     })
   }
 }

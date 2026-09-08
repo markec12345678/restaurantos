@@ -157,6 +157,8 @@ export async function handlePutOrder(req: Request, params: Promise<{ id: string 
               tableId: existingOrder.tableId,
               orderNumber: existingOrder.orderNumber,
               inventoryDeducted: existingOrder.inventoryDeducted,
+              // WS AUDIT: locationId za per-location WS dostavo preklica
+              locationId: existingOrder.locationId,
             },
             data.cancelReason,
             authResult.session?.employeeId,

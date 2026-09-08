@@ -103,11 +103,7 @@ export const DELIVERY_WEBHOOK_LIMIT: RateLimitConfig = {
   windowMs: 60 * 1000,
 }
 
-/** WebSocket broadcast — 30 zahtev na minuto (interno, a omejimo zlorabo) */
-export const WS_BROADCAST_LIMIT: RateLimitConfig = {
-  maxRequests: 30,
-  windowMs: 60 * 1000,
-}
+/** WebSocket broadcast — WS AUDIT 2026-09-09: preset odstranjen (routa izbrisana) */
 
 /** Seed endpoint — 3 zahtev na uro (zelo destruktiven, samo admin) */
 export const SEED_LIMIT: RateLimitConfig = {

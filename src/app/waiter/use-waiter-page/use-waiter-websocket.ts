@@ -33,12 +33,22 @@ export function useWaiterWebSocket(
     const connect = () => {
       try {
         ws = new WebSocket(wsUrl)
-        ws.onopen = () => { setWsConnected(true); retries = 0 }
+        ws.onopen = () => {
+          setWsConnected(true); retries = 0
+          // WS AUDIT 2026-09-09: server ZAHTEVA AUTH sporočilo v 10s — brez njega
+          // povezavo zapre (4001). Token nikoli v URL-ju, vedno kot AUTH sporočilo.
+          const token = sessionStorage.getItem('pos_auth_token') || localStorage.getItem('pos_token')
+          if (token) {
+            ws?.send(JSON.stringify({ type: 'AUTH', payload: { token } }))
+          }
+        }
         ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data)
-            if (data.type === 'order_ready' && data.data) {
-              const d = data.data
+            // WS AUDIT: server envelope je { type, payload, timestamp } — 'order_ready'
+            // dogodek nosi podatke v 'payload' (prej klient bral neobstoječe 'data')
+            if (data.type === 'order_ready' && data.payload) {
+              const d = data.payload
               const isMyOrder = !d.waiterId || d.waiterId === employee?.id
               if (isMyOrder) {
                 const notif: WaiterNotification = {
@@ -54,7 +64,7 @@ export function useWaiterWebSocket(
                 if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200])
               }
             }
-            if (data.type === 'order_update') {
+            if (data.type === 'order_update' || data.type === 'ORDER_UPDATED' || data.type === 'ORDER_CANCELLED') {
               onOrderUpdate()
             }
           } catch {

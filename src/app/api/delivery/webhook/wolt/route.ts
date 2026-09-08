@@ -143,6 +143,8 @@ export async function POST(req: Request) {
       orderNumber: order.orderNumber,
       type: 'delivery',
       source: 'wolt',
+      // WS AUDIT: locationId za per-location dostavo (KDS ne vidi tujih lokacij)
+      locationId: order.locationId ?? null,
     })
 
     // Sproži webhook za novo naročilo

@@ -28,6 +28,8 @@ export async function isRestaurantOpen(): Promise<boolean> {
 export interface ResolvedTable {
   tableId: string | undefined
   tableNumber: number | undefined
+  // WS AUDIT 2026-09-09: lokacija mize — za per-location WS dostavo NEW_ORDER
+  locationId?: string | null
 }
 
 export async function resolveTable(
@@ -44,7 +46,7 @@ export async function resolveTable(
     if (table.status === 'available' || table.status === 'occupied') {
       await db.table.update({ where: { id: table.id }, data: { status: 'occupied' } })
     }
-    return { tableId: table.id, tableNumber: table.number }
+    return { tableId: table.id, tableNumber: table.number, locationId: table.locationId ?? null }
   }
 
   if (tableNumber) {
@@ -60,7 +62,7 @@ export async function resolveTable(
     if (table.status === 'available' || table.status === 'occupied') {
       await db.table.update({ where: { id: table.id }, data: { status: 'occupied' } })
     }
-    return { tableId: table.id, tableNumber: tableNum }
+    return { tableId: table.id, tableNumber: tableNum, locationId: table.locationId ?? null }
   }
 
   return { tableId: undefined, tableNumber: undefined }

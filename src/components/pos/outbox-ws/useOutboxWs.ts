@@ -5,9 +5,9 @@
 // namesto polling-a vsakih 10s.
 //
 // Komunikacija:
-//   1. Client se poveže na /ws?token=xxx
-//   2. Pošlje: { type: 'SUBSCRIBE_OUTBOX' }
-//   3. Server pošilja: { type: 'OUTBOX_UPDATE', payload: { stats, recentEvents } }
+//   1. Client se poveže na /ws (brez tokena v URL-ju — WS AUDIT 2026-09-09)
+//   2. Pošlje: { type: 'AUTH', payload: { token } } nato { type: 'SUBSCRIBE_OUTBOX' }
+//   3. Server pošilja: { type: 'OUTBOX_UPDATE', payload: { stats, recentFailures } }
 // ============================================
 
 'use client'
@@ -65,7 +65,9 @@ export function useOutboxWs(options: UseOutboxWsOptions = {}) {
 
     try {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const wsUrl = `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`
+      // WS AUDIT 2026-09-09: token NE sme biti v URL-ju (viden v logih/proxy).
+      // Povežemo se brez tokena, nato pošljemo AUTH sporočilo (10s okno).
+      const wsUrl = `${protocol}//${window.location.host}/ws`
 
       const ws = new WebSocket(wsUrl)
       wsRef.current = ws
@@ -73,6 +75,10 @@ export function useOutboxWs(options: UseOutboxWsOptions = {}) {
       ws.onopen = () => {
         setIsConnected(true)
         setError(null)
+        // WS AUDIT: avtentikacija prek AUTH sporočila (token iz options)
+        if (token) {
+          ws.send(JSON.stringify({ type: 'AUTH', payload: { token } }))
+        }
         // Naroči se na outbox updates
         ws.send(JSON.stringify({ type: 'SUBSCRIBE_OUTBOX' }))
       }
