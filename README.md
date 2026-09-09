@@ -1,10 +1,10 @@
-# RestaurantOS v1.0.1
+# RestaurantOS v1.1.0
 
-[![Version](https://img.shields.io/badge/version-1.0.1-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.1.0-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
-[![CI](https://img.shields.io/badge/CI-5%2F5%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-901%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![CI](https://img.shields.io/badge/CI-9%20stopenj%20%2F%20breaking-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
+[![Tests](https://img.shields.io/badge/tests-1326%20unit%20%C2%B7%20100%2B%20E2E-3c7a50?style=flat-square)](tests/)
 [![Hardening](https://img.shields.io/badge/P0--C1..C5-complete-426990?style=flat-square)](docs/KNOWN_ISSUES.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -22,7 +22,44 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z FURS potrjevanjem, offline delovanjem in multi-tenant arhitekturo. **A+ security** — 0 HIGH odprtih (P0-C1..C5 hardening complete). Glej [Security Policy](SECURITY.md) in [Known Issues](docs/KNOWN_ISSUES.md).
+> Pilot-ready POS sistem za restavracije z FURS potrjevanjem, offline delovanjem in multi-tenant arhitekturo. **A+ security** — 0 HIGH odprtih (P0-C1..C5 hardening complete). Glej [Security Policy](SECURITY.md), [Status po modulih](#-status-po-modulih) in [Known Issues](docs/KNOWN_ISSUES.md).
+
+---
+
+## 🏷️ Status po modulih
+
+> **Pomembno:** RestaurantOS trenutNO NI "production-ready" kot celota — glej status
+> posameznih modulov spodaj. Sistem je pripravljen na **staging pilot**; produkcijska
+> uvedba zahteva zapolnitev vseh "Pending" vrstic (FURS certifikat, plačilni
+> gateway, produkcjska overitev WebSocket in tenant migracije).
+
+Statusne oznake (uporabljene po vsej dokumentaciji):
+
+| Oznaka | Pomen |
+|--------|-------|
+| **Implemented** | Koda napisana, pokrita z enotnimi testi |
+| **Tested locally** | Deluje v lokalnem razvoju (PGlite) z zelenimi E2E |
+| **Tested in staging** | Nameščeno in preverjeno na staging okolju |
+| **Production verified** | Overjeno v produkciji pri strankah |
+| **Planned** | Zasnova obstaja, implementacija še ne |
+| **Simulation only** | Deluje samo v simulacijskem/testnem načinu |
+| **Pending external certification** | Čaka na zunanji proces (FURS certifikat, produkcjski ključi) |
+
+| Modul | Status | Podrobnosti |
+|-------|:------:|-------------|
+| POS (naročila, mize, plačila, čeki) | **Tested locally** | 35 E2E flow testov zelenih (core + variante); še brez staging potrditve |
+| KDS (kuhinjski zaslon, WebSocket) | **Tested locally** | Real-time posodobitve preverjene v dev; produkcjski deployment WS še neoverjen |
+| FURS davčno potrjevanje | **Simulation only** + **Pending external certification** | ZOI/EOR/storno/e-invoice implementirani; pravi klic zahteva certifikat (eDavki) — računi v testnem načinu ostanejo `pending` |
+| Offline naročila (IndexedDB + sync) | **Tested locally** | Idempotenčna sinhronizacija E2E; konflikti z admin pregledom |
+| Split payment / refund | **Tested locally** | Vračilo z atomarno knjigovodsko reverzo (E2E); kartično-terminalsko vračilo odvisno od gateway |
+| Računovodstvo (double-entry) | **Tested locally** | DEBIT=CREDIT invarianti testirani; brez certifikacije revizorja |
+| Inventar (recepta, StockTransaction) | **Tested locally** | Nepremutljivi vnosi + negativna zaloga onemogočena |
+| Multi-tenant (lokacije) | **Tested locally** | 24 tenant-required modelov scoppiranih; migracija še NI uporabljena na produkcijski bazi |
+| Multi-lokacijska prodaja (2 lokaciji) | **Tested locally** | Neodvisne številčne vrste računov (E2E) |
+| Observability (metrike + alerti) | **Tested locally** | /api/monitoring/metrics|alerts; alerting kanal (email/PagerDuty) še Planned |
+| Plačilni gateway (Stripe/SumUp) | **Planned** + **Pending external certification** | Produkcjski ključi pridobljeni še ne; webhook konflikti rešeni (P1-19) |
+| PWA (offline-first mobilni) | **Planned** (P0-3) | Service worker osnova obstaja |
+| CI/CD (9 stopenj, breaking) | **Production verified** (pipeline sam) | Vsak commit prestreže: typecheck/lint/unit/integration/migration/build/security/E2E |
 
 ---
 
@@ -66,9 +103,9 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 
 - **4x ceneje od Toast**, 2x ceneje od Square pri primerljivi funkcionalnosti
 - **FURS-ready Next.js POS** na slovenskem trgu (certifikat pending — pridobitev na eDavki portal)
-- **A+ varnostna ocena** (0 HIGH odprtih, 54 security testov, P0-C1..C5 hardening complete) — glej [Security Policy](SECURITY.md) za celoten pregled
-- **9.2/10 realna ocena** — production-ready za single-tenant pilot (P0-C1..C5 hardening complete, 901/901 testov pass)
-- **0 kritičnih vrzeli** — vse IDOR/FURS/tenant isolation ranljivosti zaprte. Preostalo: FURS certifikat (pridobitev na eDavki), Stripe production keys, PWA polish.
+- **A+ varnostna ocena** (0 HIGH odprtih, P0-C1..C5 hardening complete) — glej [Security Policy](SECURITY.md) za celoten pregled
+- **9.2/10 ocena samo-ocena** — pripravljen za STAGING PILOT (ne produkcijo): P0-C1..C5 hardening + P1 security/quality revizija zaključena, 1326/1326 enotnih + 35/35 E2E flow testov zelenih. **Ne trdimo "production-ready"** — glej [Status po modulih](#-status-po-modulih): FURS čaka certifikat, plačilni gateway na produkcjske ključe, WS deployment in tenant migracija še nista overjena v produkciji
+- **0 kritičnih vrzeli** — vse IDOR/FURS/tenant isolation ranljivosti zaprte. Preostalo: FURS certifikat (pridobitev na eDavki), Stripe/SumUp production keys, PWA polish.
 
 ---
 
@@ -109,6 +146,9 @@ bun run dev
 
 ## 📋 Glavne funkcije
 
+> Statusne oznake so definirane v [Status po modulih](#-status-po-modulih) —
+> ✅ = Tested locally, ⏳ = Planned / Pending external certification.
+
 | Modul | Opis | Status |
 |-------|------|:---:|
 | **POS** | Sprejemanje naročil, mize, plačila, popusti | ✅ |
@@ -124,6 +164,7 @@ bun run dev
 | **Plačilni gateway** | Stripe/SumUp integracija | ⏳ P0-2 |
 | **Loyalty** | Program zvestobe strank | ⏳ P1 |
 | **Rezervacije** | Spletna rezervacija miz | ⏳ P1 |
+| **Observability** | Metrike, 8 infra alertov, JSON logging, backup heartbeat | ✅ (P1-obs) |
 
 ## 🔒 Varnost (A+ ocena)
 
@@ -142,16 +183,18 @@ bun run dev
 
 | Metrika | Vrednost |
 |---------|----------|
-| Commitov | 430+ |
-| API endpointov | 211 |
+| Commitov | 500+ |
+| API endpointov | 215+ (vključno monitoring) |
 | React komponent | 659 |
 | Prisma modelov | 92 |
 | Tabel v bazi | 94 |
 | Jezikov | 5 (sl, en, it, hr, de) |
-| E2E testov PASS | 144/149 (96.6%) — 5 odprtih, glej [Known Issues](docs/KNOWN_ISSUES.md) |
+| Enotnih testov | 1326/1326 ✅ (CI breaking) |
+| E2E flow testov | 39/39 ✅ (core 14 + variante 21 + observability 4; CI breaking) |
+| Chaos/financial E2E | ~140 lokalno (ne CI-blocking) |
 | Varnostna ocena | A+ (0 HIGH odprtih, P0-C1..C5 complete, glej [Security Policy](SECURITY.md)) |
-| Koda (vrstice) | 63.389 |
-| Odvisnosti | 99 |
+| CI stopenj | 9 (quality → unit → integration → migration → build → security → e2e) |
+| Odvisnosti | 86 (po P1-deps čiščenju, Bun-only) |
 
 ## 🧪 E2E Testi
 
@@ -256,7 +299,8 @@ src/
 |----------|-------------|
 | [Architecture](docs/ARCHITECTURE.md) | System diagram, modules, security layers, key flows |
 | [Code Review Report](docs/CODE-REVIEW-REPORT.md) | 85 deep checks, 11 fixes, A- security score (historical A++) |
-| [Changelog](CHANGELOG.md) | v1.0.0 release notes — all features and fixes |
+| [Changelog](CHANGELOG.md) | v1.1.0 release notes — vsa funkcionalnost in popravki |
+| [Release Process](RELEASE_PROCESS.md) | Verzioniranje (semver), release checklist, rollback postopek |
 | [Contributing](CONTRIBUTING.md) | How to contribute — setup, code style, PR process |
 | [Security Policy](SECURITY.md) | Vulnerability reporting, OWASP Top 10 status |
 | [Code of Conduct](CODE_OF_CONDUCT.md) | Community standards |
@@ -301,7 +345,7 @@ Kontakt: sales@restaurantos.app
 ## 📞 Kontakt
 
 - **GitHub:** https://github.com/markec12345678/restaurantos
-- **Release v1.0.0:** https://github.com/markec12345678/restaurantos/releases/tag/v1.0.0
+- **Release v1.1.0:** https://github.com/markec12345678/restaurantos/releases/tag/v1.1.0
 - **Email:** info@restaurantos.app
 - **Security:** security@restaurantos.app
 

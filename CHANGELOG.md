@@ -2,6 +2,63 @@
 
 All notable changes to RestaurantOS are documented in this file.
 
+> Format vsakega vnosa sledi [RELEASE_PROCESS.md](RELEASE_PROCESS.md): datum,
+> commit SHA, migracije, breaking changes, rezultati testov, znane težave,
+> deployment in rollback navodila.
+
+## [v1.1.0] — 2026-09-09 — E2E testiranje + Observability + P2 dokumentacija/release
+
+| Polje | Vrednost |
+|-------|----------|
+| **Datum izdaje** | 2026-09-09 |
+| **Commit** | `78aae4ce` (release commit, glej tag v1.1.0) |
+| **Migracije** | NO Prisma sheme — ni db push potreben. Sveže DDL je sprememba `prisma/schema.sql` (samo za lokalne PGlite E2E baze; CI/production uporabljata `prisma db push` iz sheme) |
+| **Breaking changes** | NE — popolna združljivost. Opomba: `LOG_FORMAT` privzeto zdaj JSON v produkciji (LOG_FORMAT=human za stari zapis); API rate limit meja je ENV-nastavljiva (API_RATE_LIMIT_MAX, privzeto 60 — nespremenjeno) |
+| **Testni rezultati** | 1326/1326 enotnih ✅ · 39/39 E2E flow ✅ (14 core + 21 variant + 4 observability, lokalno na PGlite + v CI na PostgreSQL) · tsc clean · eslint 0 napak (1486 warningov = budget ratchet) · produkcijski build OK (Next 16.3.4) |
+| **Znane težave** | Glej spodaj v tem vnosu + [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) |
+| **Deployment** | Standardni: `bun install --frozen-lockfile && bun run build && bun start` (custom server: `npm run start:ws`). Podrobnosti: [DEPLOYMENT.md](DEPLOYMENT.md) |
+| **Rollback** | `git checkout v1.0.15 && bun install --frozen-lockfile && bun run build && ponovno deploy` — brez migracij je rollback trenuten (glej RELEASE_PROCESS.md §Rollback) |
+
+### 🧪 P1-testiranje točka 2: E2E (35 novih testov)
+
+- **Added:** `tests/e2e/core-flow.spec.ts` — minimalni E2E flow po specifikaciji (14 korakov): login → open table → create order → add item → send to kitchen → KDS receives → modify order → close check → pay → fiscalize → print/export receipt → verify accounting (JE uravnotežen) → verify inventory (StockTransaction) → verify audit log
+- **Added:** `tests/e2e/flow-variants.spec.ts` — 5 variant toka: **A** offline mode (idempotenčna replay sinhronizacija — isti idempotencyKey → enako naročilo, brez duplikatov), **B** split payment (delno → paid → zavrnitev preplačila), **C** refund (delno + končno vračilo + uravnotežena knjigovodska reverza + zavrnitev prevelikega vračila), **D** dve lokaciji (loc-1/loc-2 neodvisna poteka, lastne številčne vrste računov), **E** dve hkratni blagajni (sočasni plačili + idempotenčna dirka z istim ključem = eno plačilo + zavrnitev dvojnega zapiranja čeka)
+- **Changed:** FURS simulacija v E2E je ISKRENA — račun ostane `pending` (HTTP 400, `fiscalStatus: 'pending'`), E2E ne more "lažno" potrjevati fiskalizacije; neuspešna overitev se zapiše kot `FURS_VERIFY_FAILED` v audit
+- **Changed:** `playwright.config.ts` — webServer sam inicializira deterministično PGlite bazo (init-e2e-db.mjs) pred `bun run dev` (prej `npm run dev` — Bun-only uskladitev); `API_RATE_LIMIT_MAX=600` za E2E
+- **Changed:** CI e2e-security zahteva core-flow + flow-variante + observability dim (+ obstoječi multi-tenant); razširjen seed (druga lokacija, inventar, recepte)
+
+### 📈 P1-observability: metrike + alerti + logging
+
+- **Added:** `src/lib/observability/metrics.ts` — lahkotni metrični register (števci z okenskimi event bufferji, histogrami s p50/p95/p99, gorice) brez zunanjih odvisnosti
+- **Added:** instrumentacija — DB latenca vseh Prisma poizvedb (`$extends $allOperations`), HTTP 5xx/4xx števci (handleApiError), neuspešne/uspešne prijave (/api/auth), FURS latenca + napake/uspehi (verifyInvoiceWithFURS; simulacija se NE šteje kot napaka)
+- **Added:** `GET /api/monitoring/metrics` (admin) — register + DB gorice: outbox queue depth/failed/dead-letter, plačila brez knjigovodskega vnosa (reconciliacija), neuspešni payment webhooki, neuspešne offline sinhronizacije, negativna zaloga, neusklajenost inventarja (ledger ≠ trenutna količina), WS metrike pripojene iz custom server-ja
+- **Added:** `GET /api/monitoring/alerts` (admin) — 8 alert pravil: večkratne FURS napake, neuspešni payment webhooki, vrsta ki se ne prazni (+ dead-letter), porast 5xx, WS disconnect spike, negativna zaloga, zapoznel/neuspešen backup, audit chain mismatch (blockchain verifyChain). Kritični alerti se zazlogirajo
+- **Added:** `POST|GET /api/monitoring/backup-heartbeat` — CRON_SECRET zaščiten status backupov (zunanja backup skripta potrdi uspeh; alert ob poteku BACKUP_EXPECTED_INTERVAL_HOURS)
+- **Added:** server.js WS metrike (povezave/odklopi/sporočila/broadcasti + okenski odklopi) na `GET /internal/ws-metrics` (x-internal-secret = WS_BROADCAST_SECRET)
+- **Changed:** logger — JSON je PRIVZET v produkciji (LOG_FORMAT=human prepiše) — strukturirani vnosi za log agregatorje
+
+### 🐛 Kritični popravki odkriti z E2E
+
+- **Fixed (CRITICAL):** `resolveAccountCode` (chart-of-accounts) je znotraj refund/storno transakcij klical GLOBALNI db klient — na single-connection adapterjih (PGlite) DEADLOCK: transakcija drži povezavo, globalni klic čaka nanjo → refund se obesi >20s do timeouta. Sedaj sprejme `tx` klienta (refund + storno podatajo svoj tx). Na pravi bazi z poolom je delalo po naključju
+- **Fixed:** refund `$transaction` timeout 5s → 20s (+ maxWait 10s) — advisory lock + reversal + journal pod obremenitvijo presega privzeti timeout
+- **Fixed:** `prisma/schema.sql` je bil ZASTAREL (manjkal `Employee.sessionVersion` iz P1-9) — lokalne E2E baze niso mogle teči od nič. Regeneriran; `init-e2e-db.mjs` sedaj generira DDL živo (fallback na datoteko)
+- **Fixed:** `init-e2e-db.mjs` — TaxRate `ON CONFLICT (code)` na neobstoječi unique → `(id)`; `Location.premisesId` UNIQUE privzeti `''` → loc-2 dobi `PREM-TEST02`; FS-delete data mape namesto DROP SCHEMA (PGlite WASM abort po unclean shutdown); deterministična baza (privzeti wipe, `--keep` za razvoj)
+- **Changed:** API rate limit (60/min catch-all) je ENV-nastavljiv (`API_RATE_LIMIT_MAX`) — E2E/CI 600, produkcija nespremenjeno
+
+### 📚 P2: dokumentacija in release proces
+
+- **Added:** `RELEASE_PROCESS.md` — semver verzioniranje (v1.0.0 → v1.0.1 → v1.0.2 disciplina), 9-stopenjski release checklist, obvezna polja vsakega release-a, rollback postopek
+- **Changed:** README — nova sekcija **Status po modulih** z 7 statusnimi oznakami (Implemented / Tested locally / Tested in staging / Production verified / Planned / Simulation only / Pending external certification); ODSTRANJENA trditev "production-ready za single-tenant pilot" (FURS čaka certifikat, plačila produkcjske ključe, WS deployment in tenant migracija še neoverjena v produkciji); badgeji usklajeni (1326 unit, 39 E2E, CI 9 stopenj)
+- **Changed:** uskladitev verzij — package.json 1.1.0, README v1.1.0, SECURITY.md v1.1.0, git tag v1.1.0 + GitHub release (prej: README v1.0.1, SECURITY v1.0.2, package.json 1.0.15 — trije različni)
+
+### Znane težave tega release-a
+
+- FURS: simulacija prireja ZOI vendar NE potrjuje računov (`pending`) — pravi EOR zahteva certifikat (eDavki)
+- Refund NE vrača zaloge (poslovna odločitev — hrana se ne more ponovno prodati; storno vrača zalogo)
+- Storno vračanje zaloge se zgodi PO commitu (ni atomarno z ustvarjanjem storno računa)
+- COGS/write-off/cash-adjustment se ne knjižijo kot JournalEntry (P&L uporablja StockTransaction agregacijo)
+- Alerting kanal (email/PagerDuty) za monitoring alert je Planned — endpointi so na voljo, dostava še ne
+
 ## [v1.0.15] — 2026-09-09 — P1 Dependencies & Build + P1-20 CI + P1-21 Testna matrika
 
 ### 📦 P1-deps: En package manager (Bun) + ranljivosti
