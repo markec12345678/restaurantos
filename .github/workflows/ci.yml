@@ -282,7 +282,7 @@ jobs:
       - name: Push schema to PostgreSQL
         run: bunx prisma db push --skip-generate
 
-      - name: Build Next.js (production — TS errors fail, ignoreBuildErrors: false)
+      - name: "Build Next.js (production — TS errors fail, ignoreBuildErrors: false)"
         run: bun run build
         env:
           NODE_OPTIONS: --max-old-space-size=4096
@@ -405,7 +405,8 @@ jobs:
             await db.employee.upsert({ where: { email: 'admin@e2e.test' }, update: { pin: pinHash, pinLookup }, create: { id: 'test-admin', name: 'Test Admin', email: 'admin@e2e.test', role: 'admin', status: 'active', pin: pinHash, pinLookup, hireDate: new Date() } });
             await db.location.upsert({ where: { code: 'HQ' }, update: {}, create: { id: 'loc-1', name: 'Test Restavracija', code: 'HQ', type: 'restaurant', address: 'Testna 1', city: 'Ljubljana', postCode: '1000', country: 'SI', businessId: '12345678', taxId: 'SI12345678', registerNumber: 'TEST01', fursEnvironment: 'test', isActive: true } });
             // E2E varianta "dve lokaciji": druga lokacija + meni + miza
-            await db.location.upsert({ where: { code: 'FIL2' }, update: {}, create: { id: 'loc-2', name: 'Test Filiala', code: 'FIL2', type: 'restaurant', address: 'Filialna 2', city: 'Maribor', postCode: '2000', country: 'SI', businessId: '87654321', taxId: 'SI87654321', registerNumber: 'TEST02', fursEnvironment: 'test', isActive: true } });
+            // (premisesId je UNIQUE s privzetim '' — loc-2 MORA imeti svojega)
+            await db.location.upsert({ where: { code: 'FIL2' }, update: {}, create: { id: 'loc-2', name: 'Test Filiala', code: 'FIL2', type: 'restaurant', address: 'Filialna 2', city: 'Maribor', postCode: '2000', country: 'SI', businessId: '87654321', taxId: 'SI87654321', registerNumber: 'TEST02', premisesId: 'PREM-TEST02', fursEnvironment: 'test', isActive: true } });
             await db.restaurantSettings.upsert({ where: { id: 'rs-1' }, update: {}, create: { id: 'rs-1', name: 'Test Restaurant', address: 'Testna 1', postCode: '1000', city: 'Ljubljana', businessId: '12345678', taxId: 'SI12345678', registerNumber: 'TEST01', fursEnvironment: 'test', isActive: true } });
             const menu = await db.menu.upsert({ where: { id: 'menu-1' }, update: {}, create: { id: 'menu-1', name: 'Test Menu', locationId: 'loc-1', isActive: true } });
             const cat = await db.category.upsert({ where: { id: 'cat-1' }, update: {}, create: { id: 'cat-1', name: 'Test Kategorija', menuId: 'menu-1' } });

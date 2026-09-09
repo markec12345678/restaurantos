@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Install deps (P1-deps: bun + frozen lockfile — edini PM)
+      - name: "Install deps (P1-deps: bun + frozen lockfile — edini PM)"
         run: bun install --frozen-lockfile
 
       - name: Setup .env
