@@ -18,6 +18,7 @@
 
 import { NextResponse } from 'next/server'
 import { ZodError } from 'zod'
+import { Prisma } from '@prisma/client'
 import { logger, generateRequestId } from '../logger'
 
 // FIX P3 (audit 2026-09-06): Lazy-load Sentry da ne crash-a če @sentry/nextjs
@@ -44,6 +45,7 @@ try {
  */
 export const ERROR_CODES = {
   VALIDATION_ERROR: 'VALIDATION_ERROR',
+  INVALID_PARAMETER: 'INVALID_PARAMETER',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 } as const
 
@@ -169,6 +171,31 @@ export function handleApiError(
         code: ERROR_CODES.VALIDATION_ERROR,
         requestId,
         validationErrors,
+      },
+      { status: 400, headers: { 'X-Request-Id': requestId } }
+    )
+  }
+
+  // ── P1-21: PrismaClientValidationError = neveljaven parameter (npr. malformed
+  // UUID v /api/orders/[id]) → 400 INVALID_PARAMETER, ne 500 INTERNAL_ERROR.
+  // Rute ne validirajo path parametrov z Zodom — Prisma vrže validacijsko
+  // napako, ko UUID/količina ne ustreza shemi. To je napaka VENDA (client
+  // poslje smeti), zato spada v 4xx + ne sme razkriti SQL notranjosti.
+  if (error instanceof Prisma.PrismaClientValidationError) {
+    logger.warn(context, 'INVALID_PARAMETER', {
+      requestId,
+      statusCode: 400,
+      errorCode: ERROR_CODES.INVALID_PARAMETER,
+      ...meta,
+      // Samo klassa napake — Prisma validation message lahko vsebuje
+      // notranje podrobnosti sheme, zato klientu ne vračamo message.
+      prismaValidation: true,
+    })
+    return NextResponse.json(
+      {
+        error: 'Neveljaven parameter zahtevka (npr. neveljaven ID)',
+        code: ERROR_CODES.INVALID_PARAMETER,
+        requestId,
       },
       { status: 400, headers: { 'X-Request-Id': requestId } }
     )

@@ -11,12 +11,17 @@ jobs:
         with:
           ref: feature/webauthn-csp-security
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
+
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
 
-      - name: Install deps
-        run: npm install --no-audit --no-fund
+      - name: Install deps (P1-deps: bun + frozen lockfile — edini PM)
+        run: bun install --frozen-lockfile
 
       - name: Setup .env
         run: |
@@ -31,13 +36,13 @@ jobs:
           node scripts/init-pglite.mjs
 
       - name: TypeCheck
-        run: npx tsc --noEmit
+        run: bunx tsc --noEmit
 
       - name: Run verify script
-        run: npm run verify
+        run: bun run verify
 
       - name: Build production
-        run: npm run build
+        run: bun run build
         env:
           NODE_OPTIONS: --max-old-space-size=4096
 

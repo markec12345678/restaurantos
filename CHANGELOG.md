@@ -2,6 +2,39 @@
 
 All notable changes to RestaurantOS are documented in this file.
 
+## [v1.0.15] — 2026-09-09 — P1 Dependencies & Build + P1-20 CI + P1-21 Testna matrika
+
+### 📦 P1-deps: En package manager (Bun) + ranljivosti
+
+- **Fixed (CRITICAL):** Next.js 16.1.7 → 16.3.4 — odpravljeni 2 neavtenticirana RCE ranljivosti (GHSA-p293-qw3h-jr36, GHSA-2xp9-vwfh-vxw4) + 2 moderate (DoS image optimization, server function disclosure). Audit: 78 → 37 ranljivosti, **0 critical** (preostanek = dev-chain transitive: eslint/webpack/babel/browserslist)
+- **Fixed:** `package-lock.json` ODSTRANJEN (+ .gitignore za package-lock/yarn/pnpm) — prej sta obstajala OBA lockfile-a (bun.lock + package-lock.json). Edini PM je zdaj Bun: CI (vsi 4 workflow-i), `start` skripta, `packageManager: bun@1.3.14` (pin, prej `latest`)
+- **Fixed:** odstranjenih 13 unused dependencyjev (depcheck + ročna validacija z rg): `@hookform/resolvers`, `@prisma/driver-adapter-utils`, `@radix-ui/react-tabs`, `@radix-ui/react-toast`, `@reactuses/core`, `@tanstack/react-table`, `node-cron`, `pagedjs`, `react-markdown`, `uuid` (dependencies), `@types/node-cron`, `bun-types` (devDeps); `docx` prestavljen v devDependencies (uporabljen samo v dev skriptah — nič več v production bundle)
+- **Fixed:** zastareli `examples/` (socket.io primeri — aplikacija uporablja `ws`, socket.io ni nameščen) izbrisan
+- **Added:** `server-only` guard v `src/lib/db.ts` — build fail-a, če bi Prisma/PGlite kdaj ušel v client bundle (+ vitest stub alias)
+- **Verified:** @prisma/client in prisma na isti verziji (5.22.0) ✅; pdfkit/exceljs SAMO v API rutah (server) + `serverExternalPackages` ✅; `NEXT_PUBLIC_*` ne vsebujejo skrivnosti (APP_URL/APP_NAME/DEFAULT_LOCALE/SENTRY_DSN/WS_DISABLED — vsi public-by-design) ✅; prisma generate + tsc + lint + test + build vrata vsa zelena ✅
+
+### 🏗️ P1-20: CI pipeline (9 stopenj, vsi breaking)
+
+- **Added:** `integration-tests` job — pravi PostgreSQL + pravi Prisma klient (brez mockov): unique indeksi, FK, numeric(12,2), P2002 reprodukcija (tests/integration/db-invariants.test.ts, locally PGlite)
+- **Added:** `migration-test` job — schema → DDL generacija + drift check (`prisma migrate diff --exit-code` po db push) — schema spremembe brez push-a ZAVRNEJO build
+- **Changed:** `security` job — `bun audit --severity critical` je zdaj BLOKIRAJOČ (prej continue-on-error); depcheck advisory dodan (neblokira — false positive tveganje)
+- **Changed:** lint — `eslint . --max-warnings 1486` (warning budget/ratchet: novi warningi fail-ajo; obstoječih 1486 postopoma znižujemo — 798 no-console + 675 no-unused-vars)
+- **Changed:** E2E-security zahteva build + unit + integration + migration (kaskada); bun pin 1.3.14 namesto latest; vsi workflow-i (ci/db-push/test-app/test-live) migrirani z npm na bun --frozen-lockfile
+
+### 🧪 P1-21: Testna matrika (17 scenarijev — 52 novih testov)
+
+- **Added:** `tests/unit/security/test-matrix-p21.test.ts` (28): unauthenticated (3), disabled user (3), expired session (4), revoked session (1), wrong role (2), malformed UUID (helper, 2), invalid decimal (5), duplicate idempotency key — P2002 race path (1), replayed webhook (6), duplicate offline event (1)
+- **Added:** `tests/unit/resilience/timeouts-p21.test.ts` (8): database timeout P2028/P2034 → 409, provider timeout (brez razkritja P-kod), FURS timeout (AbortSignal 10s → graceful reachable:false)
+- **Added:** `tests/unit/websocket/ws-reconnect-p21.test.ts` (7): eksponentni backoff 1s→2s→4s, cap 30s, max attempts stop, close(1000) brez reconnecta, reset na onopen, AUTH+IDENTIFY (token ne v URL)
+- **Added:** `tests/unit/api-utils/malformed-uuid-p21.test.ts` (3): route-level GET /api/orders/[id] z malformed UUID → 400 (ne 500)
+- **Added:** `tests/integration/db-invariants.test.ts` (9, prava DB): Payment.idempotencyKey/SyncState kompozitni/Session.token UNIQUE, Order→Location FK, Payment.amount numeric(12,2), Employee.sessionVersion default 0, P2002 skozi pravi klient
+- **Coverage referenca (že pokrito prej):** wrong location (idor-cross-tenant), concurrent update (concurrency-p19), stale client version (sync.test.ts stale-write + offline conflict rules)
+
+### 🐛 P1-21: Popravek iz testov
+
+- **Fixed:** `handleApiError` — `Prisma.PrismaClientValidationError` (npr. malformed UUID v path parametru) sedaj 400 INVALID_PARAMETER z generičnim sporočilom (prej 500 INTERNAL_ERROR; Prisma internals se klientu NE razkrivajo)
+- **Changed:** `ERROR_CODES` + nov `INVALID_PARAMETER` (strojni kode za kliente)
+
 ## [v1.0.14] — 2026-09-09 — P1 Security Audit (16/17/18) + Offline Conflict Admin UI
 
 ### 🔒 P1-16: Request Validation (centralna pagination validacija)

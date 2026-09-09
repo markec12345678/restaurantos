@@ -111,3 +111,8 @@ suspected_icons.json
 /home/z/my-project/pglite-data
 FORCE_DEPLOY.txt
 FORCE_DEPLOY2.txt
+
+# P1-deps: edini package manager je Bun — npm lockfile je prepovedan
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

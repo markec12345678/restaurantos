@@ -15,16 +15,21 @@ jobs:
       RECEIPT_TOKEN_SECRET: test-receipt-12345
     steps:
       - uses: actions/checkout@v7
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.14"
       - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - run: npm install --no-audit --no-fund
+      # P1-deps: bun + frozen lockfile (edini package manager)
+      - run: bun install --frozen-lockfile
       - run: cp .env.example .env
-      - run: npx prisma generate
+      - run: bunx prisma generate
       - run: node scripts/init-pglite.mjs
-      - run: npx tsc --noEmit
-      - run: npm run verify
-      - run: NODE_OPTIONS=--max-old-space-size=4096 npm run build
+      - run: bunx tsc --noEmit
+      - run: bun run verify
+      - run: NODE_OPTIONS=--max-old-space-size=4096 bun run build
       - name: Start server
         run: |
           node .next/standalone/server.js &

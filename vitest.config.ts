@@ -14,7 +14,7 @@ export default defineConfig({
       'src/**/*.test.ts',
       'src/**/*.test.tsx',
     ],
-    exclude: ['node_modules', '.next', 'tests/e2e/**'],
+    exclude: ['node_modules', '.next', 'tests/e2e/**', 'tests/integration/**'],
 
     // Environment — jsdom za React komponente, node za utilityje
     environment: 'jsdom',
@@ -60,6 +60,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // P1-deps: 'server-only' guard (glej src/lib/db.ts) vrže error izven
+      // react-server condicije — v testih uporabimo prazen stub.
+      'server-only': path.resolve(__dirname, './tests/mocks/server-only-stub.ts'),
     },
   },
 })

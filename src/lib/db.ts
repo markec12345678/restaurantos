@@ -1,3 +1,7 @@
+// P1-deps: server-only guard — build faila, če bi ta modul (Prisma/PGlite)
+// kdaj ušel v client bundle (import iz 'use client' komponente).
+import 'server-only'
+
 import { PrismaClient } from '@prisma/client'
 import crypto from 'crypto'
 import { logger } from './logger'
