@@ -19,17 +19,27 @@ export async function createOnlineOrder(input: CreateOnlineOrderInput) {
     actualDeliveryFee, nextOrderNumber, nextCheckNumber,
   } = input
 
-  // Poišči ali ustvari dining option
-  let diningOption = await db.diningOption.findFirst({ where: { type: orderType } })
+  // Poišči ali ustvari dining option — PO LOKACIJI (MODEL A: unique(type,
+  // locationId); prej globalni findFirst({type}) — en "delivery" za VSE najemnike)
+  let diningOption = await db.diningOption.findFirst({ where: { type: orderType, locationId } })
   if (!diningOption) {
-    diningOption = await db.diningOption.create({
-      data: {
-        name: orderType === 'delivery' ? 'Dostava' : 'Za s seboj',
-        type: orderType, isActive: true,
-        sortOrder: orderType === 'takeout' ? 1 : 2,
-        prepTimeMinutes: orderType === 'delivery' ? 30 : 15,
-      },
-    })
+    try {
+      diningOption = await db.diningOption.create({
+        data: {
+          name: orderType === 'delivery' ? 'Dostava' : 'Za s seboj',
+          type: orderType, isActive: true,
+          sortOrder: orderType === 'takeout' ? 1 : 2,
+          prepTimeMinutes: orderType === 'delivery' ? 30 : 15,
+          locationId,
+        },
+      })
+    } catch (e: unknown) {
+      // P2002 = vzporedna kreacija — ponovno poišči
+      if (typeof e === 'object' && e !== null && 'code' in e && (e as { code: string }).code === 'P2002') {
+        diningOption = await db.diningOption.findFirst({ where: { type: orderType, locationId } })
+      }
+      if (!diningOption) throw e
+    }
   }
 
   // Stranka podatki
@@ -41,7 +51,8 @@ export async function createOnlineOrder(input: CreateOnlineOrderInput) {
     const deliveryInfoId = await createDeliveryInfo(tx, customer, actualDeliveryFee)
 
     // FIX TOCTOU: Validate discount INSIDE the transaction
-    const discount = await validateDiscount(tx, promoCode, subtotal)
+    // MODEL A: promo koda scoped na lokacijo naročila
+    const discount = await validateDiscount(tx, promoCode, subtotal, locationId)
 
     // FIX: Delivery fee is subject to VAT in Slovenia/EU
     const deliveryFeeVat = actualDeliveryFee_final * (DELIVERY_FEE_VAT_RATE / 100)

@@ -5,6 +5,7 @@ import { updateMenuSchema } from '@/lib/validations'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
+import { sessionLocationId, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,12 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (authResult.error) return authResult.error
 
     const { id } = await params
+
+    // MODEL A: meni izven scope-a seje = 404 (admin brez lokacije = cross-lokacijski nadzor)
+    const existing = await db.menu.findUnique({ where: { id }, select: { id: true, locationId: true } })
+    if (!existing || !isWithinScope(sessionLocationId(authResult), existing.locationId)) {
+      return notInScopeResponse('Meni')
+    }
     const bodyResult = await parseJsonBody(request)
     if (bodyResult.error) return bodyResult.error
     const body = bodyResult.data
@@ -45,6 +52,12 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     if (authResult.error) return authResult.error
 
     const { id } = await params
+
+    // MODEL A: briši lahko samo meni v svojem scope-u
+    const existing = await db.menu.findUnique({ where: { id }, select: { id: true, locationId: true } })
+    if (!existing || !isWithinScope(sessionLocationId(authResult), existing.locationId)) {
+      return notInScopeResponse('Meni')
+    }
     await db.menu.delete({ where: { id } })
     return NextResponse.json({ success: true })
   } catch (error: unknown) {

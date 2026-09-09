@@ -5,6 +5,7 @@ import { createPackagingSchema } from '@/lib/validations'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
+import { sessionLocationId, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +17,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const isActive = searchParams.get('isActive')
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = { ...locationFilter(sessionLocationId(authResult)) }
     if (isActive !== null) where.isActive = isActive === 'true'
 
     const packagingConfigs = await db.packagingConfig.findMany({
@@ -47,10 +48,16 @@ export async function POST(req: Request) {
     const { data, error: validationError } = validateBody(createPackagingSchema, bodyResult.data)
     if (validationError) return validationError
 
+    // MODEL A: embalaža je PO LOKACIJI — iz seje ali izrecnega ?locationId=
+    const { searchParams } = new URL(req.url)
+    const loc = resolveWriteLocationId(sessionLocationId(authResult), searchParams.get('locationId'))
+    if (!loc.ok) return loc.response
+
     const packagingConfig = await db.packagingConfig.create({
       data: {
         name: data.name,
         isActive: data.isActive,
+        locationId: loc.locationId,
         items: {
           create: (data.items || []).map((item) => ({
             name: item.name,

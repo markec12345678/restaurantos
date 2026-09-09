@@ -6,6 +6,38 @@ All notable changes to RestaurantOS are documented in this file.
 > commit SHA, migracije, breaking changes, rezultati testov, znane težave,
 > deployment in rollback navodila.
 
+## [v1.3.1] — 2026-09-09 — Tenant scope MODEL A (katalog/konfiguracija PO LOKACIJI) + db-sync ODSTRANJEN + staging §5.1/§5.2
+
+| Polje | Vrednost |
+|-------|----------|
+| **Datum izdaje** | 2026-09-09 |
+| **Commit** | release commit (glej tag v1.3.1) |
+| **Migracije** | DA — NOVO: `0003_tenant_model_a` (15 tabel: locationId NOT NULL + FK CASCADE + indeksi; DiningOption globalni unique[type] → unique[type, locationId]; vsaka s FAIL-CLOSED varovalko `Cannot apply NOT NULL migration: unresolved … without locationId`). **Obstoječe baze z globalnimi vrsticami ZAVRNEJO** — razreši ROČNO (glej docs/adr/0001-tenant-model-a.md) |
+| **Breaking changes** | DA: (1) `scripts/db-sync.mjs` je IZBRISAN (njegova dokumentacija je trdila "samo nedestruktivne spremembe", izvajal pa DROP CONSTRAINT/ALTER TYPE/UPDATE/SET NOT NULL — nadomeščen z verzioniranimi Prisma migracijami 0001–0003); (2) API konfiguracije je zdaj PO LOKACIJI — `GET /api/configuration` vrne SAMO lokacijo seje (admin brez lokacije vidi vse); POST config/menus/tables/discounts/packaging ZAHTEVA locationId (iz seje ali izrecen `?locationId=` za admina); (3) order POST z artiklom DRUGE lokacije = 400; (4) DiningOption je unikaten po (type, locationId) — globalne vrstice ne obstajajo več; (5) seed/setup kreira konfiguracijo NA lokaciji |
+| **Testni rezultati** | tsc clean; vitest unit 15/15 novih tenant-scope testov; e2e multi-tenant +6 MODEL A testov (loc-2 zaposleni: scoped meniji/konfiguracija, cross-tenant artikel = 400, admin vidi vse); migracija 0003 dokazana na realnem PostgreSQL (deploy + drift=0 + negativni test); verify-db 45/45 invariant; §5.1 deploy-test + WS-skozi-proxy; §5.2 pg_dump/restore z aplikacijo na ponovljeni bazi |
+| **Znane težave** | Glej [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md). FURS produkcijska certifikacija ostaja zunanji proces. Preostale lokacijsko-nullable tabele (Employee, ZReport, Shift … 28 modelov) so NASLEDNJI korak Modela A — trenutno imajo lastno P1 scoped logiko |
+| **Deployment** | `bun install --frozen-lockfile && bun run db:generate && bun run db:migrate:deploy && bun run db:verify && bun run build && bun run start`. Docker: `docker compose build && docker compose run --rm migrate && docker compose up -d` (glej [docs/STAGING_DEPLOYMENT.md](docs/STAGING_DEPLOYMENT.md)) |
+| **Rollback** | `git checkout v1.3.0 && docker compose build && docker compose up -d`. 0003 NI samodejno povrnljiva (Prisma migracije so enosmerne) — za povrnitev sheme ročno: `ALTER TABLE … ALTER COLUMN "locationId" DROP NOT NULL` po potrebi; podatki niso uničeni (samo stolpci/omejitve dodani) |
+
+### 🔒 Multi-tenant MODEL A (uporabnikova točka 7 — "visoka prioriteta")
+
+- **Fixed (KRITIČNO):** `GET /api/configuration` je IZPISAL KONFIGURACIJO VSEH LOKACIJ/NAJEMNIKOV (findMany brez where) + POST je kreiral GLOBALNE vrstice — zdaj vse PO LOKACIJI (scope iz seje; admin = izrecen `?locationId=`)
+- **Fixed (KRITIČNO):** `DiningOption @@unique([type])` GLOBALEN — en "dine-in" za VSE najemnike (dve lokaciji nista mogli imeti vsaka svojega!). Zdaj `unique([type, locationId])`
+- **Fixed (KRITIČNO):** order POST/add-items je sprejel `menuItemId` iz KATerekoli lokacije (cross-tenant injekcija artiklov — napačen DDV/cena/promet). Zdaj: veriga MenuItem→Category→Menu→locationId MORA sovpadati z lokacijo naročila (400 sicer)
+- **Fixed:** `GET/POST /api/menus`, `/api/categories`, `/api/menu-items`, bulk-import, `/api/tables` POST, `/api/discounts`, `/api/packaging`, `diningOption.findFirst({type})` v public poteh (QR/online-order), `promo-check` (promo koda druge lokacije ne velja več), `setup/init`, vsi seedi — vsi scoped
+- **NOVO:** `src/lib/tenant-scope.ts` — centralni helper (sessionLocationId, locationFilter, menuItemLocationFilter, resolveWriteLocationId z anti-forgery, isWithinScope); odločitev dokumentirana v `docs/adr/0001-tenant-model-a.md`
+- **NOVO:** migracija `0003_tenant_model_a` (fail-closed, enak vzorec varovalk kot 0002) + verify-db razširjen na 45 invariant
+- **Sankcionirano deljenje vsebin:** `/api/locations/sync` (kopija NA ciljno lokacijo) — edini mehanizem
+
+### 🧹 db-sync.mjs — ODSTRANJEN (uporabnikova točka 6)
+
+- **Removed:** `scripts/db-sync.mjs` — komentar je trdil "SAMO dodatne, nedestruktivne spremembe", datoteka pa je izvajala DROP CONSTRAINT, ALTER COLUMN TYPE, UPDATE, SET NOT NULL in spreminjanje unique indeksov. Mehanizem popolnoma odstranjen; vir resnice so izključno verzionirane Prisma migracije (`0001_init` + `0002_p1_hardening` + `0003_tenant_model_a`). Reference počiščene (DEPLOYMENT.md, STAGING_DEPLOYMENT.md, Dockerfile); 0002/CHANGELOG zgodovinski zapisi namensko ohranjeni
+
+### 🧪 Staging (vodnik §5.1 + §5.2)
+
+- **NOVO:** `scripts/ws-proxy-test.mjs` — §5.1b kot skripta (WS handshake skozi reverse proxy z Upgrade/Connection glavami; AUTH_REQUIRED; token v URL = 401) — deluje lokalno (mini proxy) ali proti pravemu stagingu (`--target https://staging… --external`)
+- §5.1/§5.2 izvedena lokalno na realnem PostgreSQL 16 (portable binarke) — glej STAGING_DEPLOYMENT.md §9 (dnevnik izvedbe + podpisa)
+
 ## [v1.3.0] — 2026-09-09 — Deploy audit: interna omrežja, Redis geslo, build brez DDL, PRAVE Prisma migracije, WS v Dockerju
 
 | Polje | Vrednost |

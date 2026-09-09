@@ -121,15 +121,17 @@ curl -s http://localhost:3000/api/health | head -1
 ```
 
 **Kaj se je ZDAJ drugače (deploy audit v1.3.0):** prej je `build`
-poganjal `scripts/db-sync.mjs` — ad-hoc DDL z best-effort napakami, ki je
-lahko pustil DELNO migrirano bazo in vseeno uspel. Sdaj migracije poganja
+poganjal ad-hoc DDL (nekdanji `scripts/db-sync.mjs`, ki je trdil, da
+dela samo nedestruktivne spremembe, izvajal pa DROP CONSTRAINT / ALTER
+TYPE / UPDATE / SET NOT NULL — datoteka je ODSTRANJENA) in bi lahko
+pustil DELNO migrirano bazo in vseeno uspel. Sdaj migracije poganja
 IZKLJUČNO `migrate` servis (Prisma migracije so transakcijske — delna
 napaka povrne CELO migracijo in deployment se ustavi).
 
 ### Obstoječa (pre-migracijska) baza
 
-Če migracijo poganjaš nad bazo, ki je bila usklajevana z `db push` /
-db-sync (npr. stari Neon), pred prvim `migrate deploy` Označi baseline:
+Če migracijo poganjaš nad bazo, ki je bila usklajevana z `db push` ali
+ad-hoc DDL (npr. stari Neon), pred prvim `migrate deploy` Označi baseline:
 
 ```bash
 DATABASE_URL="postgresql://..." bunx prisma migrate resolve --applied 0001_init
@@ -281,3 +283,83 @@ Ko sta §5.1 in §5.2 podpisana (datum + izvedel), so VSI kriteriji zaprti
 — razen FURS produkcijske certifikacije (zunanji proces pri davčni
 upravi). Sledi pilot: ena lokacija, 1–2 blagajni, 2 tedna vzporednega
 delovanja, nato polni preklop.
+
+---
+
+## 9. Dnevnik izvedbe + PODPISA (2026-09-09, v1.3.1)
+
+Prva dejanska izvedba tega vodnika — **sandbox lokacija** (enaki komponente,
+brez Dockerja): PostgreSQL 16.4 (portable, 127.0.0.1:5434), `node server.js`
+(Next+WS en proces, NODE_ENV=production), reverse-proxy vrstva za WS upgrade
+(mini-proxy; namesto Caddyja), `pg_dump`/`pg_restore` (17.11 klient → 16.4
+strežnik; glej opombo pri §5.2).
+
+### 9.1 Vrstni red §4 (TOČNO po vodniku)
+
+| Korak | Ukaz | Rezultat |
+|---|---|---|
+| 1 | `bun install --frozen-lockfile` | ✅ 1062 instalacij, 0 sprememb |
+| 2 | `bun run db:generate` | ✅ Prisma client 5.22 (Model A tipi) |
+| 3 | `bun run db:migrate:deploy` | ✅ 0001+0002+0003 aplicirane (transakcijsko) |
+| 4 | `bun run db:verify` | ✅ **45/45 invariant** (15× NOT NULL, 15× 0 NULL vrstic, unique, migracijska zgodovina) |
+| 5 | `bun run build` (BREZ `DATABASE_URL`) | ✅ build ne dostopa bazi (dokaz: env -u DATABASE_URL) |
+| 6 | `node server.js` + health | ✅ `/api/health` 200 (db: connected) |
+
+Negativni dokazi migracije 0003 (fail-closed):
+`migrate deploy` na bazi z globalnimi vrsticami **ZAVRNE** z
+`Cannot apply NOT NULL migration: unresolved dining options without
+locationId (1) — … NIKOLI samodejno`; `db:verify` po namernem NULL vnosu
+pade (44/45 + DEPLOYMENT ZAVRNJEN). Drift: `migrate diff --from-url` =
+**No difference detected**.
+
+### 9.2 §5.1 — WebSocket na (simulirani) infrastrukturi — ✅ PODPISAN
+
+| Preskus | Orodje | Rezultat |
+|---|---|---|
+| a) 11 preverjanj (health, WS, AUTH_REQUIRED, 401 na token-v-URL, oversize 1009, restart, reconnect, SIGTERM, FURS guard) | `scripts/deploy-test.mjs` | **11/11 ✅** (na realnem PostgreSQL) |
+| b) WS **skozi reverse-proxy vrstico** (Upgrade/Connection glave) | `scripts/ws-proxy-test.mjs` (NOVO) | **4/4 ✅** (health skozi proxy; WS handshake; AUTH_REQUIRED; 401) |
+| c) MODEL A API dokazi na zagnani aplikaciji | prijava loc-2 zaposlenega | meniji SAMO loc-2 ✅; konfiguracija SAMO loc-2 ✅; naročilo s tujim artiklom = 400 ✅ |
+| d) FURS boot guard (sim=true v produkciji) | vodnik §5.3 | ✅ zagon zavrnjen (exit 1) |
+
+**Podpis §5.1:** *2026-09-09, izvedel: Super Z (agent), orodji: deploy-test
+11/11 + ws-proxy-test 4/4 na PostgreSQL 16.*
+
+⚠️ **Obseg podpisa (sandbox)**: preverjen je CELOTEN WS avtorizacijski in
+upgrade mehanizem skozi proxy-vrstico — to je del, ki se v praksi POKVARI
+(nastavitev `proxy_set_header Upgrade`). NI pokrito: TLS/wss terminacija
+(Caddy/nginx) in brskalniški KDS push <1 s. **Pred pilotom na pravem VPS
+ponovi §5.1b v brskalniku** (vodnik zahteva brskalniški preskus) —
+`node scripts/ws-proxy-test.mjs --target https://staging.domena.si --external`
+podpre tudi ta korak.
+
+### 9.3 §5.2 — Backup/restore dejansko testiran — ✅ PODPISAN
+
+| Korak | Rezultat |
+|---|---|
+| 1. Testni podatki | ✅ naročila ustvarjena **skozi API** (namesto UI — sandbox brez brskalnika; ista koda poti) |
+| 2. BACKUP | ✅ `pg_dump -Fc` → 332 KB (datumski pečat) |
+| 3. RESTORE v svežo bazo | ✅ `pg_restore --clean --if-exists` v `restore_test` |
+| 4. Primerjava vsot | ✅ `COUNT+SUM(total) "Order"`: izvir = 6\|24.90, restore = **6\|24.90**; TaxRate 6/6; `_prisma_migrations` 3/3 |
+| 5. App na ponovljeni bazi | ✅ health 200 + prijava + MODEL A scoped meniji (restore DB!) |
+
+**Podpis §5.2:** *2026-09-09, izvedel: Super Z (agent), orodji: pg_dump 17.11
+→ restore, aplikacija zagnana na `restore_test`.*
+
+⚠️ **Opomba (verzijska razlika peskovnika)**: pg_dump/pg_restore 17.11 proti
+strežniku 16.4 proizvede ENO benigno napako (`SET transaction_timeout` —
+PG17-only GUC, ki ga 16 ne pozna; session-level, ne podatkovna). Na pravem
+staging VPS sta dump in strežnik ISTIH verzij (postgres:16-alpine) → napake
+ni. Vsi podatkovni kriteriji (vsote, zgodovina, app) so zeleni kljub njej.
+
+### 9.4 Stanje sprejemnega checklist (12 kriterijev)
+
+| # | Kriterij | Status po tej izvedbi |
+|---|---|---|
+| 7 | WebSocket na infrastrukturi | ✅ sandbox podpis (9.2); TLS+brskalnik ponovi na VPS |
+| 9 | Backup/restore testiran | ✅ podpis (9.3) — z aplikacijo na ponovljeni bazi |
+| 1–6, 8, 10–12 | (CI, fail-closed, E2E …) | ✅ kot v §8 — CI bo pognal ob pushu na GitHub |
+
+> Opomba: izvedba je potekala v peskovniku brez Dockerja in brez dostopa do
+> GitHub (CI 7/7 se poganja ob naslednjem pushu). Lokalne vrata: tsc clean,
+> vitest unit (tenant-scope 15/15 + obstoječa zbirka), migracija 0003 +
+> verify 45/45 dokazani na realnem PostgreSQL 16.

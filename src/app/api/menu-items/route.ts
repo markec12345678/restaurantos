@@ -8,6 +8,7 @@ import { z } from 'zod'
 import { handleApiError, validateRequest, parsePaginationParams, BULK_MAX_LIMIT } from '@/lib/api-utils'
 import { isItemAvailableNow } from '@/lib/mealtimes'
 import { withETag } from '@/lib/middleware/cache-headers'
+import { sessionLocationId, menuItemLocationFilter, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 
 const createMenuItemWithModifiersSchema = createMenuItemSchema.extend({
   modifierGroupIds: z.array(z.string().min(1)).default([]),
@@ -33,11 +34,14 @@ export async function GET(request: Request) {
     const checkMealtimes = searchParams.get('checkMealtimes') === 'true'
     const hideUnavailable = searchParams.get('hideUnavailable') === '1'
 
-    let where = {}
+    // MODEL A: artikel NIMA lastnega locationId — scope prek Category → Menu.
+    // Prej: neufiltrirano = artikel KATEREKOLI lokacije/najemnika!
+    const scope = sessionLocationId(authResult)
+    let where: Record<string, unknown> = { ...menuItemLocationFilter(scope) }
     if (categoryId) {
-      where = { categoryId }
+      where = { ...where, categoryId }
     } else if (menuId) {
-      where = { category: { menuId } }
+      where = { ...where, category: { ...(where.category as Record<string, unknown> || {}), menuId } }
     }
 
     // FIX PERF: Paginacija + optional simple mode (brez modifierGroups za hitrejši response)
@@ -118,6 +122,16 @@ export async function POST(req: Request) {
     if (validationError) return validationError
 
     const { modifierGroupIds, ...itemData } = data
+
+    // MODEL A: artikel pade POD kategorijo — preveri verigo Category → Menu →
+    // Location proti scope-u seje (prej: artikel katerokoli lokacije!).
+    const parentCategory = await db.category.findUnique({
+      where: { id: itemData.categoryId },
+      select: { id: true, menu: { select: { id: true, locationId: true } } },
+    })
+    if (!parentCategory || !isWithinScope(sessionLocationId(authResult), parentCategory.menu.locationId)) {
+      return notInScopeResponse('Kategorija')
+    }
 
     const item = await db.menuItem.create({
       data: {

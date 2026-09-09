@@ -10,6 +10,13 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('🚀 Začenjam full seed (437 artiklov)...\n')
 
+  // MODEL A (tenant scope): konfiguracija pade na PRVO AKTIVNO lokacijo
+  // (demo seed — enak vzorec kot api/seed; NE prerazporeja obstoječih vrstic)
+  const targetLoc = await prisma.location.findFirst({ where: { isActive: true }, orderBy: { createdAt: 'asc' }, select: { id: true } })
+  const locationId = targetLoc?.id || 'loc-1'
+  console.log(`   📍 Lokacija: ${locationId}\n`)
+
+
   // 1. Počisti obstoječe podatke
   console.log('1️⃣  Čistim obstoječe podatke...')
   await prisma.menuItemModifierGroup.deleteMany()
@@ -34,6 +41,7 @@ async function main() {
       color: '#f59e0b',
       sortOrder: 0,
       isActive: true,
+      locationId,
     },
   })
   console.log(`   ✅ Meni: ${menu.name}\n`)
@@ -110,7 +118,7 @@ async function main() {
     { name: 'Dostava', type: 'delivery', isActive: true, sortOrder: 2, prepTimeMinutes: 30 },
   ]
   for (const d of diningOptions) {
-    await prisma.diningOption.create({ data: d })
+    await prisma.diningOption.create({ data: { ...d, locationId } })
   }
   console.log(`   ✅ ${diningOptions.length} dining options\n`)
 
@@ -125,7 +133,7 @@ async function main() {
     { name: 'Predolgo čakanje', isActive: true, sortOrder: 5 },
   ]
   for (const v of voidReasons) {
-    await prisma.voidReason.create({ data: v })
+    await prisma.voidReason.create({ data: { ...v, locationId } })
   }
   console.log(`   ✅ ${voidReasons.length} void reasons\n`)
 
@@ -141,7 +149,7 @@ async function main() {
     { name: 'Pokvarjeno', isActive: true, sortOrder: 6 },
   ]
   for (const n of noSaleReasons) {
-    await prisma.noSaleReason.create({ data: n })
+    await prisma.noSaleReason.create({ data: { ...n, locationId } })
   }
   console.log(`   ✅ ${noSaleReasons.length} no-sale reasons\n`)
 
@@ -160,7 +168,7 @@ async function main() {
     { name: 'Promo koda -10%', type: 'percentage', amount: 10, appliesTo: 'check', triggerType: 'promo_code', promoCode: 'WELCOME10', isActive: true, sortOrder: 9 },
   ]
   for (const d of discounts) {
-    await prisma.discount.create({ data: d })
+    await prisma.discount.create({ data: { ...d, locationId } })
   }
   console.log(`   ✅ ${discounts.length} popustov\n`)
 
@@ -172,7 +180,7 @@ async function main() {
     { code: 'Z', name: 'Nična stopnja (0%)', rate: 0 },
   ]
   for (const t of taxRates) {
-    await prisma.taxRate.create({ data: t })
+    await prisma.taxRate.create({ data: { ...t, locationId } })
   }
   console.log(`   ✅ ${taxRates.length} davčnih stopenj\n`)
 

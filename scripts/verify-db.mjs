@@ -20,9 +20,12 @@
  *   5.  Order.locationId / Receipt.locationId sta NOT NULL (trdno)
  *   6.  Per-lokacijski unique: Order(locationId, orderNumber),
  *       Receipt(locationId, receiptNumber)
- *   7.  Delni unique indeksi (P1-7): TaxRate globalni + per-lokacija,
+ *   7.  Delni unique indeksi (P1-7): TaxRate per-lokacija,
  *       InventoryItem, LoyaltyAccount
  *   8.  sessionVersion stolpca (P1-11) obstajata
+ *   9.  MODEL A (tenant scope audit 2026-09-09, migracija 0003): vsa
+ *       konfiguracija/katalog PO LOKACIJI — 15 tabel ima locationId
+ *       NOT NULL + 0 NULL vrstic + DiningOption unique(type, locationId)
  *
  * Vsaka preverba se izpiše (OK/FAIL) — izhod 1 ob KATERIKOLI napaki.
  * Deployment se MORA ustaviti (docker compose run --rm migrate že
@@ -102,14 +105,21 @@ async function main() {
     return '0 nerazrešenih'
   })
 
-  // 5. NOT NULL trditve
-  for (const table of ['Order', 'Receipt']) {
+  // 5. NOT NULL trditve — Order/Receipt (0002) + MODEL A tabele (0003)
+  const MODEL_A_TABLES = [
+    'Menu', 'Table', 'TaxRate', 'DiningOption', 'RevenueCenter', 'SalesCategory',
+    'PriceGroup', 'ServiceCharge', 'PrepStation', 'VoidReason', 'NoSaleReason',
+    'Printer', 'PackagingConfig', 'AlternatePaymentType', 'Discount',
+  ]
+  for (const table of ['Order', 'Receipt', ...MODEL_A_TABLES]) {
     await check(`${table}.locationId NOT NULL`, async () => {
       const rows = await prisma.$queryRaw`
         SELECT is_nullable FROM information_schema.columns
         WHERE table_name = ${table} AND column_name = 'locationId'`
       if (rows.length === 0) throw new Error(`stolpec ${table}.locationId NE OBSTAJA`)
-      if (rows[0].is_nullable !== 'NO') throw new Error(`${table}.locationId je še NULLABLE — 0002_p1_hardening ni aplicirana`)
+      if (rows[0].is_nullable !== 'NO') {
+        throw new Error(`${table}.locationId je še NULLABLE — ${table === 'Order' || table === 'Receipt' ? '0002_p1_hardening' : '0003_tenant_model_a'} ni aplicirana`)
+      }
       return 'trdno (NOT NULL)'
     })
   }
@@ -123,6 +133,9 @@ async function main() {
   for (const idx of [
     'Order_locationId_orderNumber_key',
     'Receipt_locationId_receiptNumber_key',
+    // MODEL A: DiningOption type je unikaten ZNOTRAJ lokacije (prej GLOBALNI
+    // unique — en "dine-in" za vse najemnike!)
+    'DiningOption_type_locationId_key',
   ]) {
     await check(`Unique ${idx}`, async () => {
       if (!(await indexExists(idx))) throw new Error('indeks/constraint manjka — migracija ni popolna')
@@ -130,9 +143,31 @@ async function main() {
     })
   }
 
+  // 6b. MODEL A: globalni DiningOption unique (pred 0003) NE sme obstajati več
+  await check('Globalni DiningOption_type_key ODSTRANJEN (0003)', async () => {
+    if (await indexExists('DiningOption_type_key')) {
+      throw new Error('DiningOption_type_key še obstaja — 0003_tenant_model_a ni aplicirana')
+    }
+    return 'odstranjen'
+  })
+
+  // 6c. MODEL A: NI vrstic z NULL locationId v katalogu/konfiguraciji
+  // (queryRawUnsafe ker je ime tabele identifikator — vrednosti iz kodiranega
+  // MODEL_A_TABLES seznama, NI vhod od uporabnika → brez injekcije)
+  for (const table of MODEL_A_TABLES) {
+    await check(`${table}: 0 vrstic z NULL locationId`, async () => {
+      const rows = await prisma.$queryRawUnsafe(`SELECT COUNT(*)::int AS n FROM "${table}" WHERE "locationId" IS NULL`)
+      if (rows[0].n > 0) {
+        throw new Error(`unresolved ${table} rows without locationId (${rows[0].n}) — razreši ROČNO, NIKOLI samodejno`)
+      }
+      return '0 nerazrešenih'
+    })
+  }
+
   // 7. Delni unique indeksi (P1-7 — semantika, ki je ni v shemi)
+  // MODEL A: TaxRate_code_global_key je 0003 ODSTRANIL (globalne stopnje ne
+  // obstajajo več) — preverjamo samo preostale.
   for (const idx of [
-    'TaxRate_code_global_key',
     'TaxRate_location_code_key',
     'InventoryItem_menuItem_location_key',
     'LoyaltyAccount_phone_location_key',

@@ -49,28 +49,49 @@ export async function POST(req: Request) {
 
     const items = data.items || data.orderItems || []
 
-    // Poišči ali ustvari dining option za QR naročanje
-    let diningOption = await db.diningOption.findFirst({ where: { type: 'dine-in' } })
-    if (!diningOption) {
-      diningOption = await db.diningOption.create({
-        data: { name: 'Na mestu', type: 'dine-in', isActive: true, sortOrder: 0, prepTimeMinutes: 15 }
-      })
-    }
-
     // Poišči mizo - podprto prek tableNumber (int) ali tableId (UUID)
+    // MODEL A: mizo/lokacijo rešimo NAJPREJ — dining option in artikli so
+    // scoped NA LOKACIJO MIZE (prej: globalni findFirst({type}) brez scopa!).
     const tableResult = await resolveTable(data.tableId, data.tableNumber)
     if (tableResult instanceof NextResponse) return tableResult
     const { tableId, tableNumber: resolvedTableNumber, locationId: resolvedLocationId } = tableResult
 
-    // Pridobi podatke o menu itemih za izračun
+    const qrLocationId = resolvedLocationId || await resolveDefaultLocationId()
+    if (!qrLocationId) {
+      return NextResponse.json({ error: 'QR naročanje ni nastavljeno — kontaktirajte osebje' }, { status: 400 })
+    }
+
+    // Poišči ali ustvari dining option za QR naročanje — PO LOKACIJI (MODEL A;
+    // unique(type, locationId); auto-create z lokacijo mize, P2002-safe)
+    let diningOption = await db.diningOption.findFirst({ where: { type: 'dine-in', locationId: qrLocationId } })
+    if (!diningOption) {
+      try {
+        diningOption = await db.diningOption.create({
+          data: { name: 'Na mestu', type: 'dine-in', isActive: true, sortOrder: 0, prepTimeMinutes: 15, locationId: qrLocationId }
+        })
+      } catch (e: unknown) {
+        // P2002 = vzporedna kreacija (unique type+location) — ponovno poišči
+        if (typeof e === 'object' && e !== null && 'code' in e && (e as { code: string }).code === 'P2002') {
+          diningOption = await db.diningOption.findFirst({ where: { type: 'dine-in', locationId: qrLocationId } })
+        }
+        if (!diningOption) throw e
+      }
+    }
+
+    // Pridobi podatke o menu itemih za izračun — SAMO z menijev lokacije mize
+    // (MODEL A: veriga MenuItem → Category → Menu → locationId; prej brez scopa)
     const menuItemIds = items.map((i: { menuItemId: string }) => i.menuItemId)
     const menuItems = await db.menuItem.findMany({
-      where: { id: { in: menuItemIds }, isAvailable: true },
+      where: {
+        id: { in: menuItemIds },
+        isAvailable: true,
+        category: { menu: { locationId: qrLocationId } },
+      },
       include: { recipeItems: { include: { inventoryItem: true } } }
     })
     const menuItemMap = new Map(menuItems.map(mi => [mi.id, mi]))
 
-    // Preveri, da vsi artikli obstajajo in so na voljo
+    // Preveri, da vsi artikli obstajajo in so na voljo (na tej lokaciji)
     if (menuItems.length !== menuItemIds.length) {
       const foundIds = new Set(menuItems.map(m => m.id))
       const missing = menuItemIds.filter((id: string) => !foundIds.has(id))
@@ -79,12 +100,7 @@ export async function POST(req: Request) {
 
     // Generiraj številko naročila z atomskim counterjem
     // FIX Q04 MEDIUM: Če counter ne deluje, VRNI NAPAKO namesto neatomskega fallbacka
-    // P1-7: per-lokacijsko številčenje — QR miza pripada lokaciji mize (resolvedLocationId);
-    // fallback na privzeto lokacijo, če miza nima nastavljene (dedične mize)
-    const qrLocationId = resolvedLocationId || await resolveDefaultLocationId()
-    if (!qrLocationId) {
-      return NextResponse.json({ error: 'QR naročanje ni nastavljeno — kontaktirajte osebje' }, { status: 400 })
-    }
+    // P1-7: per-lokacijsko številčenje — qrLocationId je že rešen zgoraj (MODEL A)
     let nextOrderNumber: number
     try {
       nextOrderNumber = await getNextOrderNumber(qrLocationId)

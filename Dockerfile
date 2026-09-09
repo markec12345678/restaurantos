@@ -4,9 +4,12 @@
 # ARHITEKTURNA SPREMEMBA (deploy audit 2026-09-09):
 #
 #   1. BUILD NE DOSTOPA DO BAZE. Prej je "build" poganjal
-#      scripts/db-sync.mjs (DDL med buildom!). Sdaj je build čisto
-#      `next build` — migracije aplicira LOČEN korak pred zagonom:
-#      docker compose run --rm migrate   (prisma migrate deploy + db:verify)
+#      ad-hoc DDL (nekdanji scripts/db-sync.mjs — datoteka je
+#      ODSTRANJENA: trdila je, da dela samo nedestruktivne spremembe,
+#      izvajala pa DROP CONSTRAINT / ALTER TYPE / UPDATE / SET NOT NULL).
+#      Sdaj je build čisto `next build` — migracije aplicira LOČEN korak
+#      pred zagonom: docker compose run --rm migrate
+#      (prisma migrate deploy + db:verify)
 #
 #   2. RUNNER POGANJA CUSTOM SERVER (server.js + server-ws-core.js),
 #      ne Next standalone strežnika — standalone NIMA WebSocket

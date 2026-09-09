@@ -6,6 +6,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createDiscountSchema } from '@/lib/validations'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
+import { sessionLocationId, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +24,7 @@ export async function GET(req: Request) {
     // FIX HIGH: Iskanje po promoCode za validacijo
     const promoCode = searchParams.get('promoCode')
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = { ...locationFilter(sessionLocationId(authResult)) }
     if (appliesTo) where.appliesTo = appliesTo
     if (triggerType) where.triggerType = triggerType
     if (isActiveParam !== null) where.isActive = isActiveParam === 'true'
@@ -91,6 +92,11 @@ export async function POST(req: Request) {
       )
     }
 
+    // MODEL A: popust je PO LOKACIJI (NOT NULL) — iz seje ali izrecnega ?locationId=
+    const { searchParams } = new URL(req.url)
+    const loc = resolveWriteLocationId(sessionLocationId(authResult), searchParams.get('locationId'))
+    if (!loc.ok) return loc.response
+
     const discount = await db.discount.create({
       data: {
         name: data.name,
@@ -105,6 +111,7 @@ export async function POST(req: Request) {
         validTo: data.validTo ? new Date(data.validTo) : null,
         isActive: data.isActive,
         sortOrder: 0,
+        locationId: loc.locationId,
       },
     })
 

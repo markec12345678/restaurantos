@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { sessionLocationId, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 
 // FIX HIGH: Zod validacija za posodobitev popusta
 const updateDiscountSchema = z.object({
@@ -43,10 +44,10 @@ export async function PUT(
     // FIX C-06: currentUses ni mogoče nastaviti neposredno
     // (validateRequest already strips unknown fields, but double-check)
 
-    // FIX HIGH: Preveri, da popust obstaja
+    // FIX HIGH: Preveri, da popust obstaja (MODEL A: in je v scope-u seje)
     const existing = await db.discount.findUnique({ where: { id } })
-    if (!existing) {
-      return NextResponse.json({ error: 'Popust ni najden' }, { status: 404 })
+    if (!existing || !isWithinScope(sessionLocationId(authResult), existing.locationId)) {
+      return notInScopeResponse('Popust')
     }
 
     const updateData: Record<string, unknown> = {}
@@ -84,10 +85,10 @@ export async function DELETE(
 
     const { id } = await params
 
-    // FIX HIGH: Preveri, da popust obstaja
+    // FIX HIGH: Preveri, da popust obstaja (MODEL A: in je v scope-u seje)
     const existing = await db.discount.findUnique({ where: { id } })
-    if (!existing) {
-      return NextResponse.json({ error: 'Popust ni najden' }, { status: 404 })
+    if (!existing || !isWithinScope(sessionLocationId(authResult), existing.locationId)) {
+      return notInScopeResponse('Popust')
     }
 
     // FIX C-06: Soft delete namesto hard delete

@@ -5,6 +5,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { configPostSchema, allowedFields, modelMap, coerceFieldTypes } from './_helpers'
 import { withETag } from '@/lib/middleware/cache-headers'
+import { sessionLocationId, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
 
 
 // FIX CRITICAL: Zahtevaj avtentikacijo za GET — konfiguracija vsebuje
@@ -15,6 +16,12 @@ export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req)
     if (authResult.error) return authResult.error
+
+    // MODEL A (tenant scope audit 2026-09-09): VSA konfiguracija je PO LOKACIJI.
+    // Prej: findMany BREZ where je izpisal konfiguracijo VSEH lokacij/najemnikov
+    // (cross-tenant leak) + globalne vrstice. Zaposleni = SAMO svoja lokacija;
+    // admin brez lokacije = cross-lokacijski nadzor (vidi vse).
+    const locWhere = locationFilter(sessionLocationId(authResult))
     const [
       taxRates,
       diningOptions,
@@ -29,21 +36,22 @@ export async function GET(req: Request) {
       printers,
       discounts,
     ] = await Promise.all([
-      db.taxRate.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, rate: true, code: true, isActive: true, sortOrder: true } }),
+      db.taxRate.findMany({ where: locWhere, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, rate: true, code: true, isActive: true, sortOrder: true } }),
       db.diningOption.findMany({
+        where: locWhere,
         orderBy: { sortOrder: 'asc' },
         select: { id: true, name: true, isActive: true, sortOrder: true, serviceChargeId: true, serviceCharge: { select: { id: true, name: true, type: true, amount: true } } },
       }),
-      db.revenueCenter.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, isActive: true, sortOrder: true } }),
-      db.salesCategory.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, isActive: true, sortOrder: true } }),
-      db.priceGroup.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, description: true, isActive: true, sortOrder: true } }),
-      db.serviceCharge.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, type: true, amount: true, isAutoApply: true, isActive: true, sortOrder: true } }),
-      db.prepStation.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, type: true, avgPrepTime: true, isActive: true, sortOrder: true } }),
-      db.voidReason.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, isActive: true, sortOrder: true } }),
-      db.noSaleReason.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, isActive: true, sortOrder: true } }),
-      db.alternatePaymentType.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, type: true, isActive: true, sortOrder: true } }),
-      db.printer.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, type: true, location: true, ipAddress: true, printRules: true, isActive: true, sortOrder: true } }),
-      db.discount.findMany({ orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, type: true, amount: true, appliesTo: true, triggerType: true, isActive: true, sortOrder: true } }),
+      db.revenueCenter.findMany({ where: locWhere, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, isActive: true, sortOrder: true } }),
+      db.salesCategory.findMany({ where: locWhere, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, isActive: true, sortOrder: true } }),
+      db.priceGroup.findMany({ where: locWhere, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, description: true, isActive: true, sortOrder: true } }),
+      db.serviceCharge.findMany({ where: locWhere, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, type: true, amount: true, isAutoApply: true, isActive: true, sortOrder: true } }),
+      db.prepStation.findMany({ where: locWhere, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, type: true, avgPrepTime: true, isActive: true, sortOrder: true } }),
+      db.voidReason.findMany({ where: locWhere, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, isActive: true, sortOrder: true } }),
+      db.noSaleReason.findMany({ where: locWhere, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, isActive: true, sortOrder: true } }),
+      db.alternatePaymentType.findMany({ where: locWhere, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, type: true, isActive: true, sortOrder: true } }),
+      db.printer.findMany({ where: locWhere, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, type: true, location: true, ipAddress: true, printRules: true, isActive: true, sortOrder: true } }),
+      db.discount.findMany({ where: locWhere, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, type: true, amount: true, appliesTo: true, triggerType: true, isActive: true, sortOrder: true } }),
     ])
 
     const responseBody = {
@@ -92,6 +100,14 @@ export async function POST(req: Request) {
     }
 
     coerceFieldTypes(filteredData)
+
+    // MODEL A: konfiguracija je PO LOKACIJI (NOT NULL) — locationId se izpelje
+    // IZKLJUČNO iz seje (zaposleni) ali izrecnega ?locationId= (admin).
+    // locationId NI v allowedFields — klient ga NE more podati sam (anti-forgery).
+    const { searchParams } = new URL(req.url)
+    const loc = resolveWriteLocationId(sessionLocationId(authResult), searchParams.get('locationId'))
+    if (!loc.ok) return loc.response
+    filteredData.locationId = loc.locationId
 
     // FIX SECURITY: Uporabi type-safe switch namesto dinamičnega (db as any)[prismaModel]
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

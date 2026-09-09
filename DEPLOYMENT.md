@@ -42,8 +42,10 @@ WebSocket v enem procesu, glej opombo spodaj), `docker-compose.yml`
 
 ### Deployment vrstni red (deploy audit 2026-09-09 — OBVEZNO)
 
-Build NIKOLI NE spreminja baze (db-sync.mjs je ODSTRANJEN iz `build`
-skripte — arhitekturno nevaren: delna migracija + tihe napake). Vrstni red:
+Build NIKOLI NE spreminja baze (ad-hoc DDL mehanizem `scripts/db-sync.mjs`
+je POPOLNOMA ODSTRANJEN — njegova lastna dokumentacija je trdila "samo
+nedestruktivne spremembe", izvajal pa je DROP CONSTRAINT / ALTER TYPE /
+UPDATE / SET NOT NULL. Nadomestil so ga verzionirane Prisma migracije). Vrstni red:
 
 ```bash
 bun install --frozen-lockfile   # 1. odvisnosti (en PM, bun.lock)
@@ -62,9 +64,16 @@ transakcijskost (delna napaka = ROLLBACK cele migracije) + `db:verify`
 `docker compose run --rm migrate` (koraka 3+4) → `docker compose up -d`.
 
 **Obstoječe (pre-migracijske) baze** (Neon, ki je bila usklajevana z
-`db push` / db-sync): pred prvim `migrate deploy` označi baseline:
+`db push` ali ad-hoc DDL): pred prvim `migrate deploy` označi baseline:
 `bunx prisma migrate resolve --applied 0001_init` — nato se 0002_
 p1_hardening izvede varno nad obstoječo shemo (idempotentne izjave).
+
+**MODEL A (0003_tenant_model_a)**: če obstoječa baza vsebuje GLOBALNE
+konfiguracijske vrstice (TaxRate/DiningOption/… brez locationId), migracija
+**ZAVRNE** z `Cannot apply NOT NULL migration: unresolved … without
+locationId`. Razreši ROČNO (dodeli pravo lokacijo prek SQL, podvoji po
+lokacijah ali izbisi/označi legacy) — NIKOLI samodejno "prvi aktivni
+lokaciji". Odločitev je dokumentirana v `docs/adr/0001-tenant-model-a.md`.
 
 ### ⚠️ POZOR — DOLGOLETNA NAPAKA KONČNO ZAPRTA (2026-09-09, v1.3.0)
 

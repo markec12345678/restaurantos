@@ -7,11 +7,14 @@ export async function validateDiscount(
   tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
   promoCode: string | undefined,
   subtotal: number,
+  locationId: string,
 ): Promise<number> {
   if (!promoCode) return 0
 
+  // MODEL A: promo koda velja SAMO na lokaciji naročila (prej globalno —
+  // koda druge lokacije/najemnika bi se uveljavila tudi tukaj!)
   const discountObj = await tx.discount.findFirst({
-    where: { promoCode: promoCode.trim().toUpperCase(), isActive: true, triggerType: 'promo_code' },
+    where: { promoCode: promoCode.trim().toUpperCase(), isActive: true, triggerType: 'promo_code', locationId },
   })
   if (!discountObj) return 0
 

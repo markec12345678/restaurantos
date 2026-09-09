@@ -65,6 +65,44 @@ async function main() {
   await db.table.upsert({ where: { id: 'table-1' }, update: {}, create: { id: 'table-1', number: 1, capacity: 4, status: 'available', area: 'main', posX: 10, posY: 10, width: 8, height: 10, shape: 'round', rotation: 0, locationId: 'loc-1' } })
   await db.table.upsert({ where: { id: 'table-2' }, update: {}, create: { id: 'table-2', number: 1, capacity: 4, status: 'available', area: 'main', posX: 20, posY: 10, width: 8, height: 10, shape: 'square', rotation: 0, locationId: 'loc-2' } })
 
+  // MODEL A (tenant scope): zaposleni VEZAN na loc-2 — za cross-tenant teste
+  // (PIN 2222). Admin brez lokacije = cross-lokacijski nadzor. USTVARJEN PO
+  // lokacijah (FK Employee_locationId_fkey zahteva obstoječo loc-2).
+  const pin2 = '2222'
+  const pinHash2 = await bcrypt.hash(pin2, 10)
+  const pinLookup2 = crypto.createHmac('sha256', NEXTAUTH_SECRET).update(pin2).digest('hex')
+  await db.employee.upsert({
+    where: { email: 'filiala@e2e.test' },
+    update: { pin: pinHash2, pinLookup: pinLookup2, locationId: 'loc-2', status: 'active' },
+    create: { id: 'filiala-admin', name: 'Filiala Admin', email: 'filiala@e2e.test', role: 'admin', status: 'active', pin: pinHash2, pinLookup: pinLookup2, locationId: 'loc-2', hireDate: new Date() },
+  })
+
+  // MODEL A: konfiguracija PO LOKACIJI (vsaka lokacija svoje DDV stopnje,
+  // dining options in razloga — cross-tenant testni podatki)
+  for (const loc of ['loc-1', 'loc-2']) {
+    for (const [id, code, name, rate] of [
+      [`tr-${loc}-S`, 'S', 'Standard DDV 22%', 22.0],
+      [`tr-${loc}-R`, 'R', 'Znižana DDV 9.5%', 9.5],
+      [`tr-${loc}-Z`, 'Z', 'Oproščeno 0%', 0.0],
+    ]) {
+      await db.taxRate.upsert({
+        where: { id },
+        update: { locationId: loc, rate },
+        create: { id, code, name, rate, isActive: true, locationId: loc },
+      })
+    }
+    await db.diningOption.upsert({
+      where: { id: `do-${loc}-dinein` },
+      update: { locationId: loc },
+      create: { id: `do-${loc}-dinein`, name: 'Na mestu', type: 'dine-in', isActive: true, sortOrder: 0, prepTimeMinutes: 15, locationId: loc },
+    })
+    await db.voidReason.upsert({
+      where: { id: `vr-${loc}-1` },
+      update: { locationId: loc },
+      create: { id: `vr-${loc}-1`, name: `Napaka natakarja (${loc})`, isActive: true, sortOrder: 0, locationId: loc },
+    })
+  }
+
   // E2E "verify inventory": inventar + recepte (mi-1/mi-4 → inv-kava, mi-5 → inv-burger)
   await db.inventoryItem.upsert({ where: { id: 'inv-kava' }, update: {}, create: { id: 'inv-kava', name: 'E2E Kava zrnje', description: 'E2E testna zaloga', unit: 'kos', quantity: 100, minQuantity: 10, costPerUnit: 5.0, supplier: 'E2E dobavitelj', category: 'general', location: 'main', servingsPerUnit: 1, costPerServing: 5.0 } })
   await db.inventoryItem.upsert({ where: { id: 'inv-burger' }, update: {}, create: { id: 'inv-burger', name: 'E2E Burger meso', description: 'E2E testna zaloga', unit: 'kos', quantity: 50, minQuantity: 5, costPerUnit: 3.0, supplier: 'E2E dobavitelj', category: 'general', location: 'main', servingsPerUnit: 1, costPerServing: 3.0 } })

@@ -21,9 +21,9 @@ model Menu {
   sortOrder  Int        @default(0)
   isActive   Boolean    @default(true)
   categories Category[]
-  // --- Multi-location ---
-  locationId String?
-  location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // --- Multi-location (MODEL A — tenant scope audit 2026-09-09: katalog PO LOKACIJI, NOT NULL) ---
+  locationId String
+  location   Location  @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
 
@@ -174,15 +174,16 @@ model TaxRate {
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
   // --- Multi-location (FIX: DDV se razlikuje po državi — Location.country) ---
-  locationId  String?
-  location    Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // MODEL A: stopnje so PO LOKACIJI (NOT NULL) — globalne stopnje (NULL) ne obstajajo več.
+  locationId  String
+  location    Location  @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // FIX SCHEMA-02 HIGH → P1-7: FURS koda je unikatna PO LOKACIJI — druga lokacija
   // lahko ima svoj "S" 22 % (prej: @@unique([code]) je to preprečeval!).
-  // Globalne stopnje (locationId NULL) ostanejo unikatne med sabo (NULL ≠ NULL v PG;
-  // migracija 0002_p1_hardening doda tudi delni unique indeks za globalne vrstice).
+  // MODEL A: brez globalnih vrstic — delni unique indeksi iz 0002 za NULL vrstice so odveč
+  // (0003 jih droppi, ker NULL locationId ne obstaja več).
   @@unique([locationId, code])
   diningOptions  DiningOption[] // FIX F5-7: Relation from DiningOption
   @@index([isActive])
@@ -202,13 +203,19 @@ model DiningOption {
   isActive          Boolean  @default(true)
   sortOrder         Int      @default(0)
   orders            Order[]
+  // MODEL A — tenant scope audit 2026-09-09: PO LOKACIJI, NOT NULL.
+  // Prej globalen singleton: @@unique([type]) je veljal čez VSE najemnike (dve
+  // lokaciji nista mogli imeti vsaka svojega "dine-in"!) — zdaj unique(type, locationId).
+  locationId        String
+  location          Location @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  // FIX SCHEMA-03 HIGH: type mora biti unikaten — findFirst({type: 'dine-in'}) predpostavlja enoličnost
-  @@unique([type])
+  // FIX SCHEMA-03 HIGH: type je unikaten ZNOTRAJ lokacije — findFirst({type, locationId})
+  @@unique([type, locationId])
   @@index([isActive])
   @@index([serviceChargeId])   // FIX: FK index — iskanje po servisni postavki
+  @@index([locationId])        // MODEL A: per-lokacija dostopne možnosti
 }
 
 model RevenueCenter {
@@ -217,6 +224,9 @@ model RevenueCenter {
   code        String   @default("")  // Kratka koda za poročila
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
+  // MODEL A — tenant scope audit 2026-09-09: PO LOKACIJI, NOT NULL
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   menuItems   MenuItem[]
   tables      Table[]
   orders      Order[]
@@ -225,6 +235,7 @@ model RevenueCenter {
 
   // FIX: isActive — filtriranje aktivnih centrov prihodkov
   @@index([isActive])
+  @@index([locationId])   // MODEL A: per-lokacija centri prihodkov
 }
 
 model ServiceCharge {
@@ -235,12 +246,16 @@ model ServiceCharge {
   isAutoApply Boolean  @default(false) // Samodejno dodaj
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
+  // MODEL A — tenant scope audit 2026-09-09: PO LOKACIJI, NOT NULL
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   diningOptions DiningOption[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // FIX: isActive — filtriranje aktivnih servisnih postavk
   @@index([isActive])
+  @@index([locationId])   // MODEL A: per-lokacija servisne postavke
 }
 
 model SalesCategory {
@@ -249,12 +264,16 @@ model SalesCategory {
   code        String   @default("")  // Kratka koda za poročila
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
+  // MODEL A — tenant scope audit 2026-09-09: PO LOKACIJI, NOT NULL
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   menuItems   MenuItem[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // FIX: isActive — filtriranje aktivnih prodajnih kategorij
   @@index([isActive])
+  @@index([locationId])   // MODEL A: per-lokacija prodajne kategorije
 }
 
 model PriceGroup {
@@ -263,6 +282,9 @@ model PriceGroup {
   description String   @default("")
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
+  // MODEL A — tenant scope audit 2026-09-09: PO LOKACIJI, NOT NULL
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   menuItems      MenuItem[]
   happyHourSchedules HappyHourSchedule[]
   createdAt      DateTime @default(now())
@@ -270,6 +292,7 @@ model PriceGroup {
 
   // FIX: isActive — filtriranje aktivnih cenikov
   @@index([isActive])
+  @@index([locationId])   // MODEL A: per-lokacija ceniki
 }
 
 model PrepStation {
@@ -279,6 +302,9 @@ model PrepStation {
   avgPrepTime Int      @default(15) // Povprečen čas priprave v minutah
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
+  // MODEL A — tenant scope audit 2026-09-09: PO LOKACIJI, NOT NULL
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   menuItems   MenuItem[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -287,6 +313,7 @@ model PrepStation {
   @@index([isActive])
   // FIX: type — filtriranje po vrsti postaje (kitchen, bar, pastry, grill)
   @@index([type])
+  @@index([locationId])   // MODEL A: per-lokacija postaje priprave
 }
 
 model AlternatePaymentType {
@@ -296,6 +323,9 @@ model AlternatePaymentType {
   type        String   @default("voucher") // voucher, coupon, subsidy, token
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
+  // MODEL A — tenant scope audit 2026-09-09: PO LOKACIJI, NOT NULL
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   payments    Payment[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -304,6 +334,7 @@ model AlternatePaymentType {
   @@index([isActive])
   // FIX: type — filtriranje po vrsti (voucher, coupon, subsidy, token)
   @@index([type])
+  @@index([locationId])   // MODEL A: per-lokacija vrste plačil
 }
 
 model VoidReason {
@@ -311,12 +342,16 @@ model VoidReason {
   name        String   // "Napaka natakarja", "Kuhinja zgrešila", "Stranka zamenjala mnenje", "Alergija"
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
+  // MODEL A — tenant scope audit 2026-09-09: PO LOKACIJI, NOT NULL
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   orderItems  OrderItem[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // FIX: isActive — filtriranje aktivnih razlogov za poničenje
   @@index([isActive])
+  @@index([locationId])   // MODEL A: per-lokacija razlogi za poničenje
 }
 
 model NoSaleReason {
@@ -324,23 +359,31 @@ model NoSaleReason {
   name        String   // "Mali dvig", "Vračilo dobavitelju", "Izplačilo napitnine", "Zamenjava"
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
+  // MODEL A — tenant scope audit 2026-09-09: PO LOKACIJI, NOT NULL
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // FIX: isActive — filtriranje aktivnih razlogov za nerealizacijo
   @@index([isActive])
+  @@index([locationId])   // MODEL A: per-lokacija razlogi za nerealizacijo
 }
 
 model Printer {
   id          String   @id @default(cuid())
   name        String   // "Kuhinja 1", "Bar tiskalnik", "Blagajna"
   type        String   @default("thermal") // thermal, dot-matrix, label
-  location    String   @default("") // Fizična lokacija
+  location    String   @default("") // Fizična lokacija (opis — NE relacija)
   ipAddress   String   @default("") // IP naslov omrežnega tiskalnika
   isActive    Boolean  @default(true)
   // Kaj se tiska na tem tiskalniku (JSON array)
   printRules  String   @default("[]") // [{type: "order", prepStationId: "..."}, {type: "receipt"}]
   sortOrder   Int      @default(0)
+  // MODEL A — tenant scope audit 2026-09-09: PO LOKACIJI, NOT NULL
+  // (polje `location` je OPIS fizičnega mesta; `locationId` je tenant dodelitev)
+  locationId  String
+  locationRel Location @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -348,18 +391,23 @@ model Printer {
   @@index([isActive])
   // FIX: type — filtriranje po vrsti tiskalnika (thermal, dot-matrix, label)
   @@index([type])
+  @@index([locationId])   // MODEL A: per-lokacija tiskalniki
 }
 
 model PackagingConfig {
   id          String   @id @default(cuid())
   name        String   // "Standard embalaža", "Premium embalaža"
   isActive    Boolean  @default(true)
+  // MODEL A — tenant scope audit 2026-09-09: PO LOKACIJI, NOT NULL
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   items       PackagingItem[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   // FIX: isActive — filtriranje aktivnih konfiguracij embalaže
   @@index([isActive])
+  @@index([locationId])   // MODEL A: per-lokacija embalaža
 }
 
 model PackagingItem {
@@ -398,8 +446,11 @@ model Table {
   // --- Povezave ---
   revenueCenterId String?
   revenueCenter   RevenueCenter? @relation(fields: [revenueCenterId], references: [id], onDelete: SetNull, onUpdate: SetNull)
-  locationId      String?
-  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // MODEL A — tenant scope audit 2026-09-09: miza PO LOKACIJI, NOT NULL
+  // (prej nullable: miza brez lokacije je bila nevidna za scoped poizvedbe,
+  //  a je order-location resolucija lahko vseeno prisvila naročila nanjo)
+  locationId      String
+  location        Location  @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   orders          Order[]
   reservations    Reservation[]
   waitlistEntries WaitlistEntry[]
@@ -650,6 +701,9 @@ model Discount {
   validTo     DateTime?
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
+  // MODEL A — tenant scope audit 2026-09-09: PO LOKACIJI, NOT NULL
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   // --- Relations ---
   orderItems  OrderItem[]
   checks      Check[]
@@ -659,6 +713,7 @@ model Discount {
   @@index([promoCode])
   @@index([isActive])
   @@index([triggerType])
+  @@index([locationId])   // MODEL A: per-lokacija popusti
 }
 
 model DeliveryInfo {
@@ -1310,6 +1365,21 @@ model Location {
   webhooks         Webhook[]
   // FIX IDOR-AUDIT: čakalna vrsta je tenant-scoped (P0-C4 TENANT_REQUIRED — prej brez locationId)
   waitlistEntries  WaitlistEntry[]
+  // MODEL A — tenant scope audit 2026-09-09: katalog/konfiguracija PO LOKACIJI.
+  // Odločitev: model A (vse lokalno) — razdeljevanje vsebin med lokacijami je
+  // IZKLJUČNO eksplicitno (locations/sync kopija). Nikoli implicitna delitev.
+  diningOptions        DiningOption[]
+  revenueCenters       RevenueCenter[]
+  salesCategories      SalesCategory[]
+  priceGroups          PriceGroup[]
+  serviceCharges       ServiceCharge[]
+  prepStations         PrepStation[]
+  voidReasons          VoidReason[]
+  noSaleReasons        NoSaleReason[]
+  printers             Printer[]
+  packagingConfigs     PackagingConfig[]
+  alternatePaymentTypes AlternatePaymentType[]
+  discounts            Discount[]
 
   @@index([code])
   @@index([isActive])

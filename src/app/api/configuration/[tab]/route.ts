@@ -12,6 +12,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { modelMap } from '../_helpers'
+import { sessionLocationId, locationFilter } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -114,7 +115,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ tab: str
       )
     }
 
+    // MODEL A: konfiguracija PO LOKACIJI — zaposleni dobi SAMO svojo (prej: vsi
+    // najemniki). Admin brez lokacije = cross-lokacijski nadzor.
+    const locWhere = locationFilter(sessionLocationId(authResult))
     const result = await prisma.findMany({
+      where: locWhere,
       select: config.select,
       orderBy: config.orderBy || { sortOrder: 'asc' },
       ...(config.include ? { include: config.include } : {}),

@@ -11,6 +11,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { checkRateLimitAsync, getClientIp, PROMO_CHECK_LIMIT } from '@/lib/rate-limit'
 import { toNum, calcDiscount } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
+import { resolveDefaultLocationId } from '@/lib/counters'
 
 
 export const dynamic = 'force-dynamic'
@@ -41,12 +42,18 @@ export async function GET(req: Request) {
       return NextResponse.json({ valid: false, message: 'Neveljavna koda' })
     }
 
-    // Poišči aktivni popust s to promo kodo
+    // MODEL A: promo koda je PO LOKACIJI — filter na podano ?locationId=
+    // (online-order frontend ve svojo lokacijo) ali privzeto lokacijo (single-tenant).
+    // Prej: globalni findFirst — koda DRUGE lokacije/najemnika bi bila priznana!
+    const locationId = url.searchParams.get('locationId') || await resolveDefaultLocationId()
+
+    // Poišči aktivni popust s to promo kodo (na tej lokaciji)
     const discount = await db.discount.findFirst({
       where: {
         promoCode: code,
         isActive: true,
         triggerType: 'promo_code',
+        ...(locationId ? { locationId } : {}),
       },
     })
 

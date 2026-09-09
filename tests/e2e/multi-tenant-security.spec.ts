@@ -347,6 +347,106 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
   })
 
   // ═══════════════════════════════════════════════════════════════
+  // MODEL A (tenant scope audit 2026-09-09): katalog/konfiguracija PO LOKACIJI
+  // Seed: filiala-admin (PIN 2222) VEZAN na loc-2; test-admin = brez lokacije.
+  // ═══════════════════════════════════════════════════════════════
+
+  test.describe('MODEL A: Location-scoped catalog & config', () => {
+    let filialaToken: string
+
+    test.beforeAll(async () => {
+      const ctx = await playwrightRequest.newContext({ baseURL: BASE_URL })
+      const res = await ctx.post(`${API_BASE}/auth`, {
+        data: { employeeId: 'filiala-admin', pin: '2222' },
+      })
+      expect(res.ok()).toBeTruthy()
+      const body = await res.json().catch(() => ({}))
+      filialaToken = body.token || ''
+      expect(filialaToken).toBeTruthy()
+      await ctx.dispose()
+    })
+
+    function filialaHeaders(): Record<string, string> {
+      return { Authorization: `Bearer ${filialaToken}`, 'Content-Type': 'application/json' }
+    }
+
+    test('MODELA-1: GET /api/menus (loc-2 zaposleni) izpiše SAMO loc-2 meni', async ({ request }) => {
+      const res = await request.get(`${API_BASE}/menus`, { headers: filialaHeaders() })
+      expect(res.ok()).toBeTruthy()
+      const menus = await res.json()
+      expect(Array.isArray(menus)).toBeTruthy()
+      expect(menus.length).toBeGreaterThan(0)
+      const menuIds = menus.map((m: { id: string }) => m.id)
+      expect(menuIds).toContain('menu-2')
+      expect(menuIds).not.toContain('menu-1') // ← cross-tenant leak bi bil tu
+    })
+
+    test('MODELA-2: GET /api/menu-items (loc-2) izpiše SAMO loc-2 artikle (veriga Category→Menu)', async ({ request }) => {
+      const res = await request.get(`${API_BASE}/menu-items?limit=500`, { headers: filialaHeaders() })
+      expect(res.ok()).toBeTruthy()
+      const body = await res.json()
+      const ids = (body.menuItems || []).map((i: { id: string }) => i.id)
+      expect(ids).toContain('mi-4')
+      expect(ids).toContain('mi-5')
+      expect(ids).not.toContain('mi-1')
+      expect(ids).not.toContain('mi-2')
+    })
+
+    test('MODELA-3: GET /api/configuration (loc-2) izpiše SAMO loc-2 konfiguracijo', async ({ request }) => {
+      const res = await request.get(`${API_BASE}/configuration`, { headers: filialaHeaders() })
+      expect(res.ok()).toBeTruthy()
+      const body = await res.json()
+      // DDV stopnje: loc-2 ima S/R/Z — ne pa loc-1 (cross-tenant leak bi bil tu)
+      const taxIds = (body.taxRates || []).map((t: { id: string }) => t.id)
+      expect(taxIds).toContain('tr-loc-2-S')
+      expect(taxIds).not.toContain('tr-loc-1-S')
+      // VoidReason: loc-2 razlog, ne loc-1
+      const voidIds = (body.voidReasons || []).map((v: { id: string }) => v.id)
+      expect(voidIds).toContain('vr-loc-2-1')
+      expect(voidIds).not.toContain('vr-loc-1-1')
+    })
+
+    test('MODELA-4: POST /api/orders (loc-2) z loc-1 artiklom = 400 (cross-tenant injekcija)', async ({ request }) => {
+      const res = await request.post(`${API_BASE}/orders`, {
+        headers: filialaHeaders(),
+        data: {
+          type: 'dine-in',
+          tableId: 'table-2',
+          orderItems: [{ menuItemId: 'mi-1', quantity: 1 }], // mi-1 = loc-1 artikel!
+        },
+      })
+      expect(res.status()).toBe(400)
+      const body = await res.json().catch(() => ({}))
+      expect(String(body.error || '')).toContain('ni na voljo na tej lokaciji')
+    })
+
+    test('MODELA-5: POST /api/orders (loc-2) z LASTNIM artiklom = 200 (positive control)', async ({ request }) => {
+      const res = await request.post(`${API_BASE}/orders`, {
+        headers: filialaHeaders(),
+        data: {
+          type: 'dine-in',
+          tableId: 'table-2',
+          orderItems: [{ menuItemId: 'mi-4', quantity: 1 }],
+        },
+      })
+      expect(res.ok()).toBeTruthy()
+      const order = await res.json()
+      expect(order.locationId).toBe('loc-2')
+      // cleanup
+      await request.delete(`${API_BASE}/orders/${order.id}`, { headers: filialaHeaders() })
+    })
+
+    test('MODELA-6: admin brez lokacije vidi VSE menije (cross-lokacijski nadzor)', async ({ request }) => {
+      const res = await request.get(`${API_BASE}/menus`, { headers: authHeaders() })
+      expect(res.ok()).toBeTruthy()
+      const menus = await res.json()
+      const menuIds = menus.map((m: { id: string }) => m.id)
+      expect(menuIds).toContain('menu-1')
+      expect(menuIds).toContain('menu-2')
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════
   // CLEANUP
   // ═══════════════════════════════════════════════════════════════
 

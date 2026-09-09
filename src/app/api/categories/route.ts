@@ -5,6 +5,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createCategorySchema } from '@/lib/validations'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
+import { sessionLocationId, categoryLocationFilter, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +20,9 @@ export async function GET(request: Request) {
     // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
     const { limit, offset } = parsePaginationParams(searchParams)
 
-    const where = menuId ? { menuId } : {}
+    // MODEL A: kategorije nimajo lastnega locationId — scope prek Menu (veriga)
+    const scope = sessionLocationId(authResult)
+    const where = { ...(menuId ? { menuId } : {}), ...categoryLocationFilter(scope) }
     const [categories, total] = await Promise.all([
       db.category.findMany({
         where,
@@ -53,6 +56,15 @@ export async function POST(req: Request) {
     // FIX SECURITY: validateRequest() prepreči DoS z oversized payload
     const { data, error: validationError } = await validateRequest(req, createCategorySchema)
     if (validationError) return validationError
+
+    // MODEL A: kategorija pade POD meni — preveri, da je meni v scope-u seje
+    const parentMenu = await db.menu.findUnique({
+      where: { id: data.menuId },
+      select: { id: true, locationId: true },
+    })
+    if (!parentMenu || !isWithinScope(sessionLocationId(authResult), parentMenu.locationId)) {
+      return notInScopeResponse('Meni')
+    }
 
     const category = await db.category.create({
       data: {

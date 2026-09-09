@@ -6,6 +6,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createTableSchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { withETag } from '@/lib/middleware/cache-headers'
+import { sessionLocationId, resolveWriteLocationId } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,12 +46,20 @@ export async function POST(req: Request) {
     const { data, error: validationError } = await validateRequest(req, createTableSchema)
     if (validationError) return validationError
 
+    // MODEL A: Table.locationId je NOT NULL — lokacija iz seje (zaposleni) ali
+    // izrecno ?locationId= (admin). Brez obeh = 400 (miza brez lokacije je bila
+    // prej nevidna za scoped poizvedbe, a je order-resolucija vrstila naročila vanjo).
+    const { searchParams } = new URL(req.url)
+    const loc = resolveWriteLocationId(sessionLocationId(authResult), searchParams.get('locationId'))
+    if (!loc.ok) return loc.response
+
     const table = await db.table.create({
       data: {
         number: data.number,
         capacity: data.capacity,
         status: data.status,
         area: data.area,
+        locationId: loc.locationId,
         // FIX HIGH: Vizualni tloris — uporabi Zod-validirane vrednosti namesto direktnega body-ja
         posX: data.posX ?? Math.random() * 70 + 5,
         posY: data.posY ?? Math.random() * 70 + 5,

@@ -26,18 +26,29 @@ export async function createOrderItemsAndRecalculate(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma OrderItem & { menuItem } from include
   const created: any[] = []
 
-  // Preveri, da vsi artikli obstajajo
+  // Preveri, da vsi artikli obstajajo IN pripadajo lokaciji naročila
+  // MODEL A (tenant scope audit 2026-09-09): veriga MenuItem → Category → Menu
+  // → locationId mora SOVPADATI z Order.locationId (prej: findUnique brez scopa =
+  // cross-tenant injekcija artiklov v tuje naročilo).
+  const validatedItems = new Map<string, Awaited<ReturnType<typeof tx.menuItem.findFirst>>>()
   for (const item of orderItems) {
-    const menuItem = await tx.menuItem.findUnique({ where: { id: item.menuItemId } })
+    const menuItem = await tx.menuItem.findFirst({
+      where: {
+        id: item.menuItemId,
+        category: { menu: { locationId: currentOrder.locationId } },
+      },
+    })
     if (!menuItem) {
-      throw new Error(`Artikel ${item.menuItemId} ni najden`)
+      throw new Error(`Artikel ${item.menuItemId} ni najden ali ni na voljo na tej lokaciji`)
     }
+    validatedItems.set(item.menuItemId, menuItem)
   }
 
   for (const item of orderItems) {
     // Pridobi artikel za DDV stopnjo in CENO (strežniško — edini vir resnice)
     // FIX BUG 6: Uporabimo menuItem.price iz baze, NE client-sent item.price
-    const menuItem = (await tx.menuItem.findUnique({ where: { id: item.menuItemId } }))!
+    // MODEL A: uporabimo ŽE validiran artikel iz preverjenega seznama (isti tx)
+    const menuItem = validatedItems.get(item.menuItemId)!
     const vatRate = toNum(menuItem.vatRate)
     const serverPrice = toNum(menuItem.price)
     const itemBase = serverPrice * item.quantity

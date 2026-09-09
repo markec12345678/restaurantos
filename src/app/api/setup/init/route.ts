@@ -111,8 +111,9 @@ export async function POST(req: Request) {
       },
     })
 
-    // 4. Seed core data
-    await seedCoreData()
+    // 4. Seed core data — MODEL A: vsa konfiguracija pade NA LOKACIJO, ki je
+    // bila pravkar ustvarjena (nič več globalnih vrstic)
+    await seedCoreData(location.id)
 
     return NextResponse.json({
       success: true,
@@ -127,16 +128,15 @@ export async function POST(req: Request) {
   }
 }
 
-async function seedCoreData() {
+async function seedCoreData(locationId: string) {
+  // MODEL A: stopnje DDV so PO LOKACIJI — setup vedno kreira za PRAVkar
+  // ustvarjeno lokacijo (nič globalnih vrstic, prej findFirst({code}) brez scopa).
   for (const [code, name, rate] of [
     ['S', 'Standard DDV 22%', 22.0],
     ['R', 'Znižana DDV 9.5%', 9.5],
     ['Z', 'Oproščeno 0%', 0.0],
   ] as const) {
-    // P1-7: TaxRate unique je zdaj compound [locationId, code] — seedanih
-    // globalnih stopenj ne moremo več naslavljati po { code }. Upsert po
-    // obstoju (findFirst po kodi brez lokacije), sicer create.
-    const existingRate = await db.taxRate.findFirst({ where: { code } })
+    const existingRate = await db.taxRate.findFirst({ where: { code, locationId } })
     if (existingRate) {
       await db.taxRate.update({
         where: { id: existingRate.id },
@@ -144,7 +144,7 @@ async function seedCoreData() {
       })
     } else {
       await db.taxRate.create({
-        data: { code, name, rate, isActive: true, sortOrder: code === 'S' ? 0 : code === 'R' ? 1 : 2 },
+        data: { code, name, rate, isActive: true, sortOrder: code === 'S' ? 0 : code === 'R' ? 1 : 2, locationId },
       })
     }
   }
@@ -154,9 +154,10 @@ async function seedCoreData() {
     ['takeout', 'Vzemi s seboj', 10],
     ['delivery', 'Dostava', 30],
   ] as const) {
+    // MODEL A: unique(type, locationId) — upsert po sestavljenem ključu
     await db.diningOption.upsert({
-      where: { type },
-      create: { type, name, prepTimeMinutes: prepTime, isActive: true, sortOrder: type === 'dine-in' ? 0 : type === 'takeout' ? 1 : 2 },
+      where: { type_locationId: { type, locationId } },
+      create: { type, name, prepTimeMinutes: prepTime, isActive: true, sortOrder: type === 'dine-in' ? 0 : type === 'takeout' ? 1 : 2, locationId },
       update: { name },
     })
   }
@@ -164,17 +165,17 @@ async function seedCoreData() {
   for (const [idx, name] of [
     'Napaka natakarja', 'Kuhinja zgrešila', 'Stranka zamenjala mnenje', 'Alergija', 'Ni na zalogi',
   ].entries()) {
-    await db.voidReason.create({ data: { name, isActive: true, sortOrder: idx } }).catch(() => {})
+    await db.voidReason.create({ data: { name, isActive: true, sortOrder: idx, locationId } }).catch(() => {})
   }
 
   for (const [idx, name] of [
     'Mali dvig', 'Vračilo dobavitelju', 'Izplačilo napitnine', 'Zamenjava',
   ].entries()) {
-    await db.noSaleReason.create({ data: { name, isActive: true, sortOrder: idx } }).catch(() => {})
+    await db.noSaleReason.create({ data: { name, isActive: true, sortOrder: idx, locationId } }).catch(() => {})
   }
 
-  await db.prepStation.create({ data: { name: 'Vroča kuhinja', type: 'kitchen', avgPrepTime: 20, isActive: true, sortOrder: 0 } }).catch(() => {})
-  await db.prepStation.create({ data: { name: 'Bar', type: 'bar', avgPrepTime: 5, isActive: true, sortOrder: 1 } }).catch(() => {})
+  await db.prepStation.create({ data: { name: 'Vroča kuhinja', type: 'kitchen', avgPrepTime: 20, isActive: true, sortOrder: 0, locationId } }).catch(() => {})
+  await db.prepStation.create({ data: { name: 'Bar', type: 'bar', avgPrepTime: 5, isActive: true, sortOrder: 1, locationId } }).catch(() => {})
 
   await db.counter.upsert({ where: { name: 'orderNumber' }, create: { id: 'counter-order', name: 'orderNumber', value: 0 }, update: {} })
   await db.counter.upsert({ where: { name: 'receiptNumber' }, create: { id: 'counter-receipt', name: 'receiptNumber', value: 0 }, update: {} })
@@ -198,7 +199,8 @@ async function seedCoreData() {
   }
 
   // Ustvari osnovne kategorije in artikle da je sistem takoj uporaben
-  const menu = await db.menu.create({ data: { name: 'Glavni meni', icon: '🍽️', color: '#f59e0b', sortOrder: 0, isActive: true } })
+  // MODEL A: meni pripada lokaciji, ki je bila ustvarjena v tem setupu
+  const menu = await db.menu.create({ data: { name: 'Glavni meni', icon: '🍽️', color: '#f59e0b', sortOrder: 0, isActive: true, locationId } })
 
   const catFood = await db.category.create({ data: { name: 'Topli napitki', icon: '☕', color: '#8B4513', sortOrder: 0, menuId: menu.id } })
   const catDrinks = await db.category.create({ data: { name: 'Brezalkoholne pijače', icon: '🥤', color: '#3b82f6', sortOrder: 1, menuId: menu.id } })

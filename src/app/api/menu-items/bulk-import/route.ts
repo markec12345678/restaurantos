@@ -7,6 +7,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
+import { sessionLocationId, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
 import ExcelJS from 'exceljs'
 
 
@@ -157,10 +158,15 @@ export async function POST(req: Request) {
       else if (result.data) dataRows.push({ rowNum: i + 1, data: result.data })
     }
 
-    // Pridobi ali ustvari menu (privzeto prvi aktivni)
-    let menu = await db.menu.findFirst({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } })
+    // Pridobi ali ustvari menu — MODEL A: na lokaciji seje (admin brez lokacije:
+    // izrecen ?locationId=), nikoli "globalni" meni
+    const scope = sessionLocationId(authResult)
+    const { searchParams } = new URL(req.url)
+    const loc = resolveWriteLocationId(scope, searchParams.get('locationId'))
+    if (!loc.ok) return loc.response
+    let menu = await db.menu.findFirst({ where: { isActive: true, ...locationFilter(scope) }, orderBy: { sortOrder: 'asc' } })
     if (!menu) {
-      menu = await db.menu.create({ data: { name: 'Glavni meni', icon: '📋', color: '#f59e0b', sortOrder: 0, isActive: true } })
+      menu = await db.menu.create({ data: { name: 'Glavni meni', icon: '📋', color: '#f59e0b', sortOrder: 0, isActive: true, locationId: loc.locationId } })
     }
 
     // Pridobi vse obstoječe kategorije za ta menu

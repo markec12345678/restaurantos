@@ -39,6 +39,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const { data, error: validationError } = validateBody(updateMenuItemSchema, bodyResult.data)
     if (validationError) return validationError
 
+    // MODEL A: premik artikla v DRUGO kategorijo — preveri, da ciljna kategorija
+    // pripada meniju v ISTEM scope-u (sicer cross-lokacijski premik verige)
+    if (data.categoryId !== undefined && data.categoryId !== existing.categoryId) {
+      const target = await db.category.findUnique({
+        where: { id: data.categoryId },
+        select: { menu: { select: { locationId: true } } },
+      })
+      const targetLoc = target?.menu.locationId ?? null
+      const scope = authResult.session?.locationId ?? null
+      if (!target || (scope && targetLoc !== scope)) {
+        return NextResponse.json({ error: 'Ciljna kategorija ni na voljo na tej lokaciji' }, { status: 404 })
+      }
+    }
+
     // Update modifier group associations and menu item in a transaction
     const item = await db.$transaction(async (tx) => {
       // Update modifier group associations if provided

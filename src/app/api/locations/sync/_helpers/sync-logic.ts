@@ -30,8 +30,10 @@ export async function syncLocationMenus(
     let menuId = existingMenu?.id
 
     if (!existingMenu && data.syncMenuStructure) {
+      // MODEL A: kopija menija pade na CILJNO lokacijo (eksplicitna delitev —
+      // to je edini sankcionirani mehanizem za "skupni" vsebinski katalog)
       const newMenu = await tx.menu.create({
-        data: { name: menu.name, icon: menu.icon, color: menu.color, sortOrder: menu.sortOrder, isActive: menu.isActive },
+        data: { name: menu.name, icon: menu.icon, color: menu.color, sortOrder: menu.sortOrder, isActive: menu.isActive, locationId: targetLocation.id },
       })
       menuId = newMenu.id
       menuMap.set(menu.name, newMenu as unknown as Parameters<typeof menuMap.set>[1])

@@ -22,7 +22,9 @@ async function main() {
   const drinksMenu = await db.menu.findFirst({ where: { name: 'Pijača' } })
   if (!drinksMenu) {
     console.log('❌ Pijača menu not found! Creating it...')
-    await db.menu.create({ data: { name: 'Pijača', icon: '🥤', color: '#3b82f6', sortOrder: 1 } })
+    // MODEL A: menu needs a location — first active, fallback loc-1 (demo seed)
+    const targetLoc = await db.location.findFirst({ where: { isActive: true }, orderBy: { createdAt: 'asc' }, select: { id: true } })
+    await db.menu.create({ data: { name: 'Pijača', icon: '🥤', color: '#3b82f6', sortOrder: 1, locationId: targetLoc?.id || 'loc-1' } })
   }
 
   // Delete order items linked to drink menu items

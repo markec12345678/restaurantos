@@ -112,18 +112,25 @@ export async function handlePostOrder(
   const orderNumber = await getNextOrderNumber(orderLocationId)
 
   // Multi-DDV: pridobi vatRate za vsak artiklov iz baze (edini vir resnice)
+  // MODEL A (tenant scope audit 2026-09-09): artikli so LAHKO SAMO z menijev
+  // lokacije naročila (veriga MenuItem → Category → Menu → locationId).
+  // Prej: where { id: { in } } BREZ scopa = cross-tenant injekcija artiklov
+  // (naročilo lokacije A je lahko vsebovalo artikle lokacije B!).
   const menuItemIds = data.orderItems.map(item => item.menuItemId)
   const menuItems = await db.menuItem.findMany({
-    where: { id: { in: menuItemIds } },
+    where: {
+      id: { in: menuItemIds },
+      ...(orderLocationId ? { category: { menu: { locationId: orderLocationId } } } : {}),
+    },
     select: { id: true, vatRate: true, price: true },
   })
   const vatMap = new Map(menuItems.map(mi => [mi.id, mi]))
 
-  // Preveri, da vsi artikli obstajajo
+  // Preveri, da vsi artikli obstajajo (in so na pravi lokaciji)
   const missingItem = validateMenuItems(data.orderItems, vatMap)
   if (missingItem) {
     return NextResponse.json(
-      { error: `Artikel ${missingItem} ni najden` },
+      { error: `Artikel ${missingItem} ni najden ali ni na voljo na tej lokaciji` },
       { status: 400 }
     )
   }
