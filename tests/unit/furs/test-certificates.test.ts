@@ -27,8 +27,11 @@ function opensslInfo(file: string): { subject: string; issuer: string; notBefore
     encoding: 'utf8',
     timeout: 10000,
   })
-  const subject = /subject=(.*)/.exec(out)?.[1]?.trim() ?? ''
-  const issuer = /issuer=(.*)/.exec(out)?.[1]?.trim() ?? ''
+  // openssl 3.0 (CI runner) izpiše "CN = ime", 3.5 (lokalno) "CN=ime" —
+  // normaliziraj presledke okoli "=" za stabilne asserte
+  const normalize = (dn: string) => dn.replace(/\s*=\s*/g, '=').trim()
+  const subject = normalize(/subject=(.*)/.exec(out)?.[1] ?? '')
+  const issuer = normalize(/issuer=(.*)/.exec(out)?.[1] ?? '')
   const notBefore = /notBefore=(.*)/.exec(out)?.[1]?.trim() ?? ''
   const notAfter = /notAfter=(.*)/.exec(out)?.[1]?.trim() ?? ''
   const fingerprint = /Fingerprint=([0-9A-F:]+)/.exec(out)?.[1]?.trim() ?? ''
