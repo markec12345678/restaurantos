@@ -56,6 +56,34 @@ let wss = null
 // Heartbeat interval - pošlji ping vsakih 30 sekund
 const HEARTBEAT_INTERVAL = 30000
 
+// ============================================
+// P1-OBSERVABILITY: WebSocket metrike (števci + okenski odklopi)
+// Izpostavljene na GET /internal/ws-metrics (x-internal-secret:
+// WS_BROADCAST_SECRET) — pripoji jih /api/monitoring/metrics|alerts.
+// ============================================
+const wsMetrics = {
+  connectionsTotal: 0,        // vseh vzpostavljenih povezav (od zagona)
+  disconnectsTotal: 0,        // vseh zaprtij
+  disconnectsRecent: [],      // epoch ms zadnjih 256 odklopov (okenski alerti)
+  messagesReceived: 0,        // vsa prejeta sporočila
+  broadcastsSent: 0,          // poslani broadcasti (__wsBroadcast)
+  lastDisconnectReason: '',   // zadnji close code/reason
+  startedAt: Date.now(),
+}
+
+function wsMetricsSnapshot() {
+  return {
+    connectionsTotal: wsMetrics.connectionsTotal,
+    connectionsActive: connectedClients.size,
+    disconnectsTotal: wsMetrics.disconnectsTotal,
+    disconnectsRecent: wsMetrics.disconnectsRecent,
+    messagesReceived: wsMetrics.messagesReceived,
+    broadcastsSent: wsMetrics.broadcastsSent,
+    lastDisconnectReason: wsMetrics.lastDisconnectReason,
+    processUptimeSeconds: Math.floor((Date.now() - wsMetrics.startedAt) / 1000),
+  }
+}
+
 // WS Avtentikacija: Seje v pomnilniku (sinhronizirano z auth-middleware.ts)
 // WS AUDIT 2026-09-09: token se NE sme poslati v URL-ju (logi/proxy/referrer).
 // Edini dovoljen način: AUTH sporočilo po povezavi: { type: 'AUTH', payload: { token } }
@@ -206,6 +234,9 @@ function broadcastEvent(type, payload, channels = null) {
     timestamp: new Date().toISOString(),
   })
 
+  // P1-observability: uspešno oddan broadcast (potrditev pošiljanja)
+  wsMetrics.broadcastsSent++
+
   // FIX MULTI-TENANT: če payload vsebuje locationId, dostavi SAMO klientom te
   // lokacije (in super adminom z __locationId=null). Klienti lokacije A tako
   // NE vidijo dogodkov lokacije B (npr. NEW_ORDER tuje filiale na KDS).
@@ -313,8 +344,22 @@ app.prepare().then(() => {
       return
     }
 
-    // Next.js handle needs pathname + query (like url.parse returns)
+    // P1-OBSERVABILITY: interne metrike custom server-ja (secret-protected).
+    // Stržen DIREKTNO (pred Next handlerjem) — ne gre skozi Next pipeline.
     const u = new URL(req.url, `http://${hostname}:${port}`)
+    if (req.method === 'GET' && u.pathname === '/internal/ws-metrics') {
+      const secret = process.env.WS_BROADCAST_SECRET
+      if (!secret || req.headers['x-internal-secret'] !== secret) {
+        res.writeHead(401, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ error: 'Unauthorized' }))
+        return
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify(wsMetricsSnapshot()))
+      return
+    }
+
+    // Next.js handle needs pathname + query (like url.parse returns)
     const parsedUrl = {
       pathname: u.pathname,
       query: Object.fromEntries(u.searchParams),
@@ -360,6 +405,9 @@ app.prepare().then(() => {
     const session = req.__wsSession || null
     const isAuthenticated = !!session
 
+    // P1-observability: štej VSAKO vzpostavitev povezave
+    wsMetrics.connectionsTotal++
+
     // Če ni avtenticiran takoj, nastavi timeout za AUTH
     let authTimeout = null
     if (!isAuthenticated) {
@@ -396,6 +444,8 @@ app.prepare().then(() => {
 
     // Obdelaj vhodna sporočila — VSOTA skozi wsCore.parseInboundMessage (Zod)
     ws.on('message', (data) => {
+      // P1-observability: vsa prejeta sporočila (tudi zavrnjena — volumen)
+      wsMetrics.messagesReceived++
       // WS AUDIT 2026-09-09: klienti NE morejo več broadcastati dogodkov
       // (prej: ALLOWED_BROADCAST_TYPES je dovoljeval client → ORDER_CANCELLED →
       // verbatim broadcast vsem klientom brez role/location/DB preverjanja).
@@ -530,6 +580,11 @@ app.prepare().then(() => {
         authTimeout = null
       }
       connectedClients.delete(ws)
+      // P1-observability: odklop + okenski buffer za spike alert
+      wsMetrics.disconnectsTotal++
+      wsMetrics.disconnectsRecent.push(Date.now())
+      if (wsMetrics.disconnectsRecent.length > 256) wsMetrics.disconnectsRecent.shift()
+      wsMetrics.lastDisconnectReason = `code=${code} reason=${reason ? reason.toString().slice(0, 100) : ''}`
       console.log(`[WS] Povezava zaprta: ${clientIp} (koda: ${code}, skupaj: ${connectedClients.size})`)
     })
 
@@ -540,6 +595,11 @@ app.prepare().then(() => {
         authTimeout = null
       }
       connectedClients.delete(ws)
+      // P1-observability: napaka na povezavi se šteje kot diskontinuiteta
+      wsMetrics.disconnectsTotal++
+      wsMetrics.disconnectsRecent.push(Date.now())
+      if (wsMetrics.disconnectsRecent.length > 256) wsMetrics.disconnectsRecent.shift()
+      wsMetrics.lastDisconnectReason = `error=${err.message.slice(0, 100)}`
     })
 
     // Pošlji pozdravno sporočilo

@@ -99,8 +99,13 @@ function formatJson(entry: LogEntry): string {
   return JSON.stringify(entry)
 }
 
-// FIX: Omogoči JSON logiranje z LOG_FORMAT=json
-const useJsonFormat = process.env.LOG_FORMAT === 'json'
+// FIX: JSON format za produkcijo (log agregacija — Datadog, CloudWatch, Vercel).
+// P1-observability: JSON je zdaj PRIVZET v produkciji (strogo strukturirani
+// vnosi za agregatorje); v razvoju ostane človeku prijazen format.
+// Preklop: LOG_FORMAT=json|human (eksplicitno prepiše privzeto).
+const useJsonFormat =
+  process.env.LOG_FORMAT === 'json' ||
+  (process.env.LOG_FORMAT !== 'human' && process.env.NODE_ENV === 'production')
 
 function formatEntry(entry: LogEntry): string {
   return useJsonFormat ? formatJson(entry) : formatHuman(entry)

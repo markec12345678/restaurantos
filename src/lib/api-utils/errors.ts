@@ -20,6 +20,7 @@ import { NextResponse } from 'next/server'
 import { ZodError } from 'zod'
 import { Prisma } from '@prisma/client'
 import { logger, generateRequestId } from '../logger'
+import { METRICS, incCounter } from '../observability/metrics'
 
 // FIX P3 (audit 2026-09-06): Lazy-load Sentry da ne crash-a če @sentry/nextjs
 // ni nameščen ali če SENTRY_DSN ni nastavljen. V production z SENTRY_DSN
@@ -212,6 +213,14 @@ export function handleApiError(
     error: message,
     stack: error instanceof Error ? error.stack?.split('\n').slice(0, 5).join('\n') : undefined,
   })
+
+  // P1-observability: števec 5xx z okenskimi dogodki (alert "spike 500").
+  // 4xx so klientove napake — šteto ločeno, brez event bufferja.
+  if (statusCode >= 500) {
+    incCounter(METRICS.HTTP_5XX, 1, true)
+  } else if (statusCode >= 400) {
+    incCounter(METRICS.HTTP_4XX)
+  }
 
   // FIX P3 (audit 2026-09-06): Pošlji napako v Sentry za production error tracking.
   // Samo za 5xx napake (4xx so client errors — ne rabimo Sentry-ja).

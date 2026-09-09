@@ -5,6 +5,7 @@ import 'server-only'
 import { PrismaClient } from '@prisma/client'
 import crypto from 'crypto'
 import { logger } from './logger'
+import { METRICS, observeHistogram } from './observability/metrics'
 
 // FIX VERCEL: Prisma.Decimal.toJSON() returns string on PostgreSQL.
 import { Prisma } from '@prisma/client'
@@ -88,10 +89,44 @@ function createPrismaClientSync(): PrismaClient {
   }
 }
 
+/**
+ * P1-observability: instrumentiraj klient z meritvami latence poizvedb.
+ * Prisma $extensions ($allModels/$allOperations) ovijejo VSE modele —
+ * vsaka poizvedba (vključno znotraj interaktivnih transakcij) prispeva
+ * opažanje v histogram `db_query_latency_ms`.
+ *
+ * Varnostni fallback: če $extends ni podprt na tej kombinaciji
+ * (driver-adapter/PGlite), vrnemo neinstrumentiranega klienta —
+ * funkcionalnost NI odvisna od metrik.
+ */
+function instrumentDbLatency(client: PrismaClient): PrismaClient {
+  try {
+    const extended = client.$extends({
+      query: {
+        $allModels: {
+          async $allOperations({ query, args }) {
+            const start = Date.now()
+            try {
+              return await query(args)
+            } finally {
+              // Vsa operacija (findMany/update/create/...) — meritve tudi ob napaki
+              observeHistogram(METRICS.DB_QUERY_LATENCY, Date.now() - start)
+            }
+          },
+        },
+      },
+    })
+    return extended as unknown as PrismaClient
+  } catch (err: unknown) {
+    logger.warn('DB', 'DB latency metrike niso na voljo ($extends ni podprt):', err)
+    return client
+  }
+}
+
 export const db =
   globalForPrisma.prisma ??
   (() => {
-    const client = createPrismaClientSync()
+    const client = instrumentDbLatency(createPrismaClientSync())
     if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = client
     return client
   })()

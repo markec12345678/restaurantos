@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger'
 import { generateCsrfToken } from '@/lib/csrf'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { createAuditLog } from '@/lib/db'
+import { METRICS, incCounter } from '@/lib/observability'
 import { verifyPin, buildAuthResponse, buildAuthStatusResponse } from './_helpers'
 import {
   isPinLocked,
@@ -75,6 +76,9 @@ export async function POST(req: Request) {
       // P1-12: zapiši neuspešen poskus + progresivni delay pred odgovorom
       // (upočasni avtomatizirano ugibanje PIN-ov)
       const failure = recordPinFailure(data.pin)
+      // P1-observability: števec neuspelih prijav (event buffer za alert
+      // na vzorec brute-force poskusov)
+      incCounter(METRICS.AUTH_LOGIN_FAILED, 1, true)
       const delayMs = progressiveDelayMs(failure.count)
       if (delayMs > 0) await sleep(delayMs)
 
@@ -97,8 +101,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Napačen PIN ali nedejaven uporabnik' }, { status: 401 })
     }
 
-    // P1-12: uspešna prijava ponastavi števec neuspelih poskusov za ta PIN
+    // P1-12: uspešna prijava ponastavi števc neuspelih poskusov za ta PIN
     clearPinFailures(data.pin)
+    // P1-observability: uspešne prijave (razmerje failed/success)
+    incCounter(METRICS.AUTH_LOGIN_SUCCESS)
 
     // P1-11: audit sled uspešne prijave
     await createAuditLog({

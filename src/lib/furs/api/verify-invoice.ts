@@ -4,6 +4,7 @@
 // ============================================
 
 import { logger } from '../../logger'
+import { METRICS, incCounter, observeHistogram } from '../../observability/metrics'
 import type { FursConfig, FursInvoiceData, FursVerificationResult } from '../types'
 import { FURS_URLS } from '../types'
 import { generateSimulatedEOR } from '../helpers'
@@ -33,13 +34,28 @@ export async function verifyInvoiceWithFURS(
   const now = new Date()
   const _isTest = config.environment === 'test'
 
+  // P1-observability: merjenje latence FURS klica (vključno s simulacijo —
+  // služi kot baseline; pravi klic doda OAuth + network)
+  const __fursStart = Date.now()
+  const trackFursResult = (result: FursVerificationResult): FursVerificationResult => {
+    observeHistogram(METRICS.FURS_LATENCY, Date.now() - __fursStart)
+    if (result.success) {
+      incCounter(METRICS.FURS_SUCCESS)
+    } else if (!result.isSimulation) {
+      // NE štejmo simulacije kot FURS napake (ni napaka strežnika —
+      // pomanjkanje certifikata v testnem okolju je pričakovano)
+      incCounter(METRICS.FURS_ERRORS, 1, true)
+    }
+    return result
+  }
+
   // Če ni certifikata, dovoli simulacijo SAMO če je FURS_ALLOW_SIMULATION=true
   if (!config.certPath || !config.certPassword) {
     if (process.env.FURS_ALLOW_SIMULATION === 'true') {
       logger.info('FURS', 'Brez certifikata — uporabljam simulirano overitev (FURS_ALLOW_SIMULATION=true)')
       // FIX HIGH: Simulirana overitev VRNE success=false, da klicalec NE označi računa kot fiscalVerified=true
       // Per ZDDV-1: simulirani račun NI davčno overjen — fiscalVerified MORA ostati false
-      return {
+      return trackFursResult({
         success: false,
         zoi,
         eor: generateSimulatedEOR(zoi, now),
@@ -47,10 +63,10 @@ export async function verifyInvoiceWithFURS(
         verifiedAt: now,
         isSimulation: true,
         error: 'FURS simulacija — račun NI davčno overjen. Nastavite certifikat za produkcijo.',
-      }
+      })
     }
     logger.error('FURS', 'Brez certifikata in FURS_ALLOW_SIMULATION ni omogočen — overitev ni uspela')
-    return {
+    return trackFursResult({
       success: false,
       zoi,
       eor: '',
@@ -58,7 +74,7 @@ export async function verifyInvoiceWithFURS(
       verifiedAt: now,
       isSimulation: true,
       error: 'Manjka certifikat za FURS overitev. Nastavite FURS_ALLOW_SIMULATION=true za testni način.',
-    }
+    })
   }
 
   try {
@@ -122,18 +138,18 @@ export async function verifyInvoiceWithFURS(
     }
 
     const eor = result.eor || result.EOR || ''
-    return {
+    return trackFursResult({
       success: true,
       zoi,
       eor,
       environment: config.environment,
       verifiedAt: now,
       isSimulation: false,
-    }
+    })
   } catch (err: unknown) {
     logger.error('FURS', 'Napaka pri overjanju:', err)
     // FURS strežnik ni dosegljiv — vrni napako (ne tihe simulacije!)
-    return {
+    return trackFursResult({
       success: false,
       zoi,
       eor: '',
@@ -141,6 +157,6 @@ export async function verifyInvoiceWithFURS(
       verifiedAt: now,
       isSimulation: false, // FIX BUG-F9: Ni simulacija — strežnik je dejansko nedosegljiv
       error: `FURS strežnik ni dosegljiv: ${err instanceof Error ? err.message : String(err)}`,
-    }
+    })
   }
 }
