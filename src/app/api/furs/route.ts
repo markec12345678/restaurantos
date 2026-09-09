@@ -72,9 +72,10 @@ export async function GET(req: Request) {
       configErrors: validation.errors,
       configWarnings: validation.warnings,
       responseTime: connectivity.responseTime,
+      // v1.3.2: uradni endpoint (spec 6.1/8) — prej napačni /v1/cash_payments
       fursUrl: environment === 'test'
-        ? 'https://blagajne-test.fu.gov.si:9002/v1/cash_payments'
-        : 'https://blagajne.fu.gov.si/v1/cash_payments',
+        ? 'https://blagajne-test.fu.gov.si:9002/v1/cash_registers/invoices'
+        : 'https://blagajne.fu.gov.si:9003/v1/cash_registers/invoices',
       lastCheck: new Date().toISOString(),
       // FIX BUG-08: Opozorilo o ne-overjenih računih
       unfiscalizedWarning: unfiscalizedCount > 0

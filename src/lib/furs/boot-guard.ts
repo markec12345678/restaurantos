@@ -18,7 +18,7 @@
 // Kaj NI preverljivo ob zagonu (per-location, živi v DB):
 //   - certifikat (.p12 pot + geslo) — pridobivanje ob vsaki fiskalizaciji
 //     prek getFursConfig(); manjkajoč certifikat → 503, račun OSTANE pending
-//   - potek certifikata — cert-status route (730 dni monitoring) + getFursToken
+//   - potek certifikata — cert-status route (730 dni monitoring) + JWS podpis (v1.3.2)
 //     vrže napako ob podpisu s poteklim ključem → overitev pade, ne simulira
 //   - obvezni podatki podjetja — validateFursConfig() pred vsako oddajo
 //
