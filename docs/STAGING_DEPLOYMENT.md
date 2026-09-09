@@ -357,9 +357,36 @@ ni. Vsi podatkovni kriteriji (vsote, zgodovina, app) so zeleni kljub njej.
 |---|---|---|
 | 7 | WebSocket na infrastrukturi | ✅ sandbox podpis (9.2); TLS+brskalnik ponovi na VPS |
 | 9 | Backup/restore testiran | ✅ podpis (9.3) — z aplikacijo na ponovljeni bazi |
-| 1–6, 8, 10–12 | (CI, fail-closed, E2E …) | ✅ kot v §8 — CI bo pognal ob pushu na GitHub |
+| 1–6, 8, 10–12 | (CI, fail-closed, E2E …) | ✅ kot v §8 — glej §9.5 za CI cikel |
 
-> Opomba: izvedba je potekala v peskovniku brez Dockerja in brez dostopa do
-> GitHub (CI 7/7 se poganja ob naslednjem pushu). Lokalne vrata: tsc clean,
-> vitest unit (tenant-scope 15/15 + obstoječa zbirka), migracija 0003 +
+> Opomba: izvedba je potekala v peskovniku brez Dockerja. Lokalna vrata: tsc
+> clean, vitest unit (tenant-scope 15/15 + obstoječa zbirka), migracija 0003 +
 > verify 45/45 dokazani na realnem PostgreSQL 16.
+
+### 9.5 CI cikel po pushu (run #543 → fix)
+
+Push v1.3.1 na GitHub je zagnal CI (run #543): 6/7 jobov zelenih, **E2E
+Security Tests (30) je padel** — prvič, da je Model A dejansko tekel v CI.
+Reprodukcija na identičnem okolju (svež PostgreSQL 16 + `db push` + `e2e-seed`
++ standalone build + enaka vrata) je odkrila in popravila tri vzroke
+(commit `fix(ci)`, v CHANGELOG v1.3.1 razdelek 🔁):
+
+1. **E-4** (flow-variants): naročilo `mi-1` (loc-1 artikel) na `table-2`
+   (loc-2 miza) — mešana lokacija, ki jo MODEL A varovalka PRAVILNO zavrne
+   (400). Testni podatki zastareli → popravljeni na dosleden par loc-2.
+2. **Prijavna kaskada (429):** dve plasti omejitve prijav (middleware
+   `API_RATE_LIMITS` + route-level `LOGIN_LIMIT`), obe 5/15 min, obe štejeta
+   tudi uspešne prijave — E2E zbirka z retriji naredi 6+ → 429 → MODELA/OBS
+   beforeAll padli. Obe plasti zdaj ENV-nastavljivi (`LOGIN_RATE_LIMIT_MAX`,
+   privzeto 5 — produkcija nespremenjena; CI 30).
+3. **D-3 (flaky):** trda asercija `-000001` je držala le za prvi loc-2 račun
+   na sveži bazi — retriji pustijo dodatne račune. Zdaj pričakovana številka
+   = `000001 + testInfo.retry` (asercija ostaja stroga).
+
+Lokalna potrditev popravka (isto okolje kot CI job): **E2E Security 74/74**
+(prej: 63 passed / 4 failed / 2 flaky / 5 not run), tsc clean, vitest
+1375/1375, eslint 0 errors / 1472 warnings (<1486 ratchet), `/api/health`
+zdaj poroča verzijo 1.3.1 (APP_VERSION inline iz package.json).
+
+Status: fix commit pripravljen; CI zelen na `main` + tag `v1.3.1` (annotated)
+se izvede po pushu (ta peskovnik nima GitHub poverilnic za push).

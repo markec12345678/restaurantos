@@ -49,7 +49,13 @@ export const API_RATE_LIMITS: { pattern: RegExp; config: RateLimitConfig; name: 
   // ═══════════════════════════════════════════
   // JAVNI ENDPOINTI — strožje omejitve (brez avtentikacije)
   // ═══════════════════════════════════════════
-  { pattern: /\/api\/auth$/, config: { maxRequests: 5, windowMs: 15 * 60 * 1000 }, name: 'auth-login' },
+  // P1-testiranje (v1.3.1 CI fix): auth-login meja je ENV-nastavljiva
+  // (LOGIN_RATE_LIMIT_MAX) — E2E/CI zbirka naredi 5+ prijav (4 datoteke ×
+  // beforeAll + MODELA filiala-login + playwright retriji), 6. bi dobila 429
+  // in sprožila kaskado padcev. Produkcija obdrži privzetih 5/15min.
+  // (Druga plast = route-level LOGIN_LIMIT v src/lib/rate-limit/presets.ts
+  // — isti env var, isto privzeto vrednost; middleware vrata so PRVA.)
+  { pattern: /\/api\/auth$/, config: { maxRequests: Number(process.env.LOGIN_RATE_LIMIT_MAX) || 5, windowMs: 15 * 60 * 1000 }, name: 'auth-login' },
   { pattern: /\/api\/public\/order$/, config: { maxRequests: 5, windowMs: 60 * 1000 }, name: 'public-order' },
   { pattern: /\/api\/public\/online-order/, config: { maxRequests: 5, windowMs: 2 * 60 * 1000 }, name: 'online-order' },
   { pattern: /\/api\/public\/call-waiter/, config: { maxRequests: 3, windowMs: 60 * 1000 }, name: 'call-waiter' },

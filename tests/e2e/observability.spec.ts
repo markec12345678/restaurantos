@@ -21,7 +21,14 @@ test.describe('Observability monitoring endpointa', () => {
     const res = await ctx.post(`${API_BASE}/auth`, {
       data: { employeeId: TEST_EMPLOYEE_ID, pin: TEST_PIN },
     })
-    authToken = (await res.json()).token
+    // FAIL-FAST (v1.3.1 CI fix): prej se token ni preveril — če je prijava padla
+    // (npr. 429 rate limit ob retryjih), je authToken ostal undefined in so
+    // vsi testi padli na 401, kar je prikrilo pravi vzrok. Zdaj prijava pade
+    // TUKAJ z jasnim sporočilom.
+    expect(res.ok()).toBeTruthy()
+    const body = await res.json().catch(() => ({}))
+    authToken = body.token
+    expect(authToken).toBeTruthy()
     await ctx.dispose()
   })
 

@@ -418,6 +418,11 @@ jobs:
       # P1-testiranje: E2E niz (core-flow + variante) nareda ~80+ API klicev/min —
       # dvignemo splošno rate limit mejo (produkcija obdrži privzetih 60/min)
       API_RATE_LIMIT_MAX: "600"
+      # P1-testiranje (v1.3.1 CI fix): E2E nareda 5+ prijav (4 datoteke × beforeAll
+      # + MODELA filiala-login + playwright retriji) — LOGIN_LIMIT 5/15min bi 6.
+      # prijavo zavrgel s 429 in sprožil kaskado (MODELA/OBS padci). Produkcija
+      # obdrži privzetih 5/15min (brute-force zaščita).
+      LOGIN_RATE_LIMIT_MAX: "30"
     services:
       postgres:
         image: postgres:16-alpine

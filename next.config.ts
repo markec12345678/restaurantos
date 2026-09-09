@@ -1,5 +1,13 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from '@sentry/nextjs/config';
+import { readFileSync } from 'fs';
+
+// APP_VERSION iz package.json (RELEASE_PROCESS mesto #7 — health endpoint
+// izpostavlja verzijo). Prej je bila fallback vrednost '1.0.13' hardcodirana,
+// /api/health je poročal NAPAČNO verzijo (package.json je bil na 1.3.1).
+// `env` inlined ob buildu — runtime process.env.APP_VERSION (če je nastavljen)
+// še vedno prevlada (Docker lahko prepiše).
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }
 
 // NOTE: Večina varnostnih headerjev se nastavi v `src/lib/middleware/security-headers.ts`
 // (middleware teče na vsakem zahtevku in prevlada nad statičnimi headers tukaj).
@@ -38,6 +46,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Verzija aplikacije iz package.json — inline ob buildu (health endpoint).
+  env: {
+    APP_VERSION: pkg.version,
+  },
   // FIX: pdfkit needs runtime access to font data files (.afm) in node_modules
   // Turbopack can't bundle these — mark as external package
   serverExternalPackages: ['pdfkit', '@electric-sql/pglite', 'pglite-prisma-adapter'],

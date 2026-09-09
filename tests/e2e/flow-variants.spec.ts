@@ -437,7 +437,7 @@ test.describe('Varianta D: dve lokaciji', () => {
     expect(entry.locationId).toBe('loc-1')
   })
 
-  test('D-3: polni potek na lokaciji 2 (table-2, mi-4)', async ({ request }) => {
+  test('D-3: polni potek na lokaciji 2 (table-2, mi-4)', async ({ request }, testInfo) => {
     const { orderId, checkId, total } = await createOrderAndCheck(request, 'mi-4', 'table-2')
     const paymentId = await payAndFiscalize(request, orderId, checkId, total, 'cash', `e2e-loc2-${Date.now()}`)
 
@@ -454,7 +454,14 @@ test.describe('Varianta D: dve lokaciji', () => {
     expect(createRes.status()).toBe(201)
     const receipt2 = await createRes.json()
     expect(receipt2.receiptNumber).toMatch(/^R-\d{4}-\d+$/)
-    expect(receipt2.receiptNumber.endsWith('-000001')).toBe(true) // lastna vrsta loc-2
+    // Retry-robustno (v1.3.1 CI fix): trda vrednost '-000001' drži le za PRVI
+    // loc-2 račun na sveži bazi. Računi so finančni zapisi (NE brišejo se) —
+    // vsak playwright retry zapusti DODATEN loc-2 račun, zato je pričakovana
+    // številka 000001 + število poskusa. Asercija ostaja STROGA: dokazuje, da
+    // loc-2 šteje od 000001 v LASTNI vrsti (neodvisno od loc-1 — globalni
+    // števec bi dal višjo številko, ker loc-1 že ima račune).
+    const expectedSeq = String(testInfo.retry + 1).padStart(6, '0')
+    expect(receipt2.receiptNumber.endsWith(`-${expectedSeq}`)).toBe(true) // lastna vrsta loc-2
     expect(receipt2.businessName).toContain('Filiala')
     await expectFursSimulation(request, orderId)
 
@@ -606,7 +613,11 @@ test.describe('Varianta E: dve hkratni blagajni', () => {
   })
 
   test('E-4: dvojno zapiranje istega čeka je zavrnjeno (druga blagajna zaostane)', async ({ request }) => {
-    const { checkId, total } = await createOrderAndCheck(request, 'mi-1', 'table-2')
+    // MODEL A (v1.3.1 CI fix): prej 'mi-1' + 'table-2' — MEŠANI lokaciji (mi-1
+    // pripada loc-1, table-2 loc-2). Nova cross-tenant varovalka take naročilo
+    // PRAVILNO zavrne (400) — test pa preverja zapiranje čeka, ne lokacije, zato
+    // uporabimo DOSLEDEN par loc-2 (mi-4 + table-2), kot ga uporablja D-3.
+    const { checkId, total } = await createOrderAndCheck(request, 'mi-4', 'table-2')
     const first = await request.post(`${API_BASE}/payments`, {
       headers: auth(authToken),
       data: { checkId, amount: total, tipAmount: 0, type: 'cash', idempotencyKey: `e2e-close1-${Date.now()}` },

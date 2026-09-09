@@ -77,9 +77,17 @@ export const ORDER_CONFIG_LIMIT: RateLimitConfig = {
   windowMs: 60 * 1000,
 }
 
-/** FIX MEDIUM: Prijava (login) — 5 poskusov na 15 minut, nato zaklep */
+/**
+ * FIX MEDIUM: Prijava (login) — 5 poskusov na 15 minut, nato zaklep.
+ *
+ * P1-testiranje (v1.3.1 CI fix): meja je ENV-nastavljiva (LOGIN_RATE_LIMIT_MAX)
+ * po vzorcu API_RATE_LIMIT_MAX. Razlog: E2E/CI zbirka (4 datoteke × beforeAll
+ * prijava + playwright retriji) naredi 5+ prijav v enem zagonu — 6. prijava
+ * bi dobila 429 in sprožila kaskado padcev (MODELA/OBS testi). Produkcija
+ * obdrži privzetih 5/15min (brute-force zaščita) — CI dvigne mejo na 30.
+ */
 export const LOGIN_LIMIT: RateLimitConfig = {
-  maxRequests: 5,
+  maxRequests: Number(process.env.LOGIN_RATE_LIMIT_MAX) || 5,
   windowMs: 15 * 60 * 1000, // 15 minut
 }
 

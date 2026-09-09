@@ -4,13 +4,15 @@
 
 | Version | Supported |
 |---------|-----------|
-| v1.1.x  | ✅ Active |
+| v1.3.x  | ✅ Active |
+| v1.2.x  | ✅ Active (maintenance) |
+| v1.1.x  | ✅ Active (maintenance) |
 | v1.0.x  | ✅ Active (maintenance) |
 | < v1.0  | ❌ EOL    |
 
 ## 🔒 Security Score: A++
 
-RestaurantOS v1.1.0 je pregledan z 85+ globokimi preverjanji + P0-C1..C5 hardening serijo + 11 audit rundami deep security review.
+RestaurantOS v1.3.1 je pregledan z 85+ globokimi preverjanji + P0-C1..C5 hardening serijo + 11 audit rundami deep security review + tenant MODEL A (katalog/konfiguracija PO LOKACIJI — 15 tabel locationId NOT NULL, centralni tenant-scope, cross-tenant artikel = 400).
 
 **Realna ocena: A++** — 0 HIGH odprtih, 0 MEDIUM odprtih, 2 LOW odprtih (code quality only). Vse kritične varnostne ranljivosti so zaprte.
 
