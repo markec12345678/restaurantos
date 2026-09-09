@@ -47,21 +47,28 @@ export default defineConfig({
   ],
 
   // ── Avtomatski zagon dev strežnika ─────────────
-  // FIX: Povečan timeout iz 120s na 180s za bolj zanesljiv zagon v CI
+  // P1-deps: Bun je edini package manager — prej je tukaj bil `npm run dev`
+  // (inconsistent z Bun-only politiko). P1-testiranje (točka 2): pred zagonom
+  // inicializiramo PGlite bazo s seed podatki (idempotentno — ON CONFLICT DO
+  // NOTHING), da E2E teče tudi na svežem okolju brez ročnega `db:init-pglite`.
+  // FIX: timeout 180s za bolj zanesljiv zagon (init + prvi next dev compile)
   webServer: process.env.CI
     ? undefined  // V CI uporabljamo standalone server (ne webServer)
     : {
-        command: 'npm run dev',
+        command: 'node scripts/init-e2e-db.mjs && bun run dev',
         url: `${BASE_URL}/api/health`,  // FIX: Health endpoint namesto root
         reuseExistingServer: true,
-        timeout: 180_000,  // ⬆️ Povečano z 120_000 na 180_000 (3 minute)
+        timeout: 240_000,  // ⬆️ init-e2e-db + next dev prvi compile (4 minute)
         env: {
           DATABASE_URL: '',
-          PGLITE_DATA_DIR: '/home/z/my-project/pglite-e2e-data',
+          PGLITE_DATA_DIR: process.env.PGLITE_DATA_DIR || '/home/z/my-project/pglite-e2e-data',
           FURS_ENV: 'test',
           FURS_ALLOW_SIMULATION: 'true',
           NEXTAUTH_SECRET: 'e2e-test-secret-only',
           WS_BROADCAST_SECRET: 'e2e-test-secret-only',
+          // P1-testiranje: E2E niz nareda ~80+ API klicev/min — dvignemo
+          // splošno rate limit mejo (produkcija obdrži privzetih 60/min)
+          API_RATE_LIMIT_MAX: '600',
         },
       },
 })

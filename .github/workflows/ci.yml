@@ -351,6 +351,9 @@ jobs:
       ENCRYPTION_KEY_VERSION: "ci-v1"
       FURS_ALLOW_SIMULATION: "true"
       NODE_ENV: "test"
+      # P1-testiranje: E2E niz (core-flow + variante) nareda ~80+ API klicev/min —
+      # dvignemo splošno rate limit mejo (produkcija obdrži privzetih 60/min)
+      API_RATE_LIMIT_MAX: "600"
     services:
       postgres:
         image: postgres:16-alpine
@@ -389,7 +392,7 @@ jobs:
 
       - name: Seed test data
         run: |
-          # Seed admin user + location + menu for E2E tests
+          # Seed admin user + lokaciji + menija + inventar z receptami za E2E teste
           node -e "
           const { PrismaClient } = require('@prisma/client');
           const bcrypt = require('bcryptjs');
@@ -401,13 +404,29 @@ jobs:
             const pinLookup = crypto.createHmac('sha256', process.env.NEXTAUTH_SECRET).update(pin).digest('hex');
             await db.employee.upsert({ where: { email: 'admin@e2e.test' }, update: { pin: pinHash, pinLookup }, create: { id: 'test-admin', name: 'Test Admin', email: 'admin@e2e.test', role: 'admin', status: 'active', pin: pinHash, pinLookup, hireDate: new Date() } });
             await db.location.upsert({ where: { code: 'HQ' }, update: {}, create: { id: 'loc-1', name: 'Test Restavracija', code: 'HQ', type: 'restaurant', address: 'Testna 1', city: 'Ljubljana', postCode: '1000', country: 'SI', businessId: '12345678', taxId: 'SI12345678', registerNumber: 'TEST01', fursEnvironment: 'test', isActive: true } });
+            // E2E varianta "dve lokaciji": druga lokacija + meni + miza
+            await db.location.upsert({ where: { code: 'FIL2' }, update: {}, create: { id: 'loc-2', name: 'Test Filiala', code: 'FIL2', type: 'restaurant', address: 'Filialna 2', city: 'Maribor', postCode: '2000', country: 'SI', businessId: '87654321', taxId: 'SI87654321', registerNumber: 'TEST02', fursEnvironment: 'test', isActive: true } });
             await db.restaurantSettings.upsert({ where: { id: 'rs-1' }, update: {}, create: { id: 'rs-1', name: 'Test Restaurant', address: 'Testna 1', postCode: '1000', city: 'Ljubljana', businessId: '12345678', taxId: 'SI12345678', registerNumber: 'TEST01', fursEnvironment: 'test', isActive: true } });
             const menu = await db.menu.upsert({ where: { id: 'menu-1' }, update: {}, create: { id: 'menu-1', name: 'Test Menu', locationId: 'loc-1', isActive: true } });
             const cat = await db.category.upsert({ where: { id: 'cat-1' }, update: {}, create: { id: 'cat-1', name: 'Test Kategorija', menuId: 'menu-1' } });
             for (const [id, name, price, vat] of [['mi-1','Test Kava',1.50,22.0],['mi-2','Test Pizza',8.90,9.5],['mi-3','Test Solata',5.50,9.5]]) {
               await db.menuItem.upsert({ where: { id }, update: {}, create: { id, name, description: '', price, image: '', isAvailable: true, sortOrder: 0, vatRate: vat, categoryId: 'cat-1' } });
             }
+            // Meni artikli lokacije 2
+            await db.menu.upsert({ where: { id: 'menu-2' }, update: {}, create: { id: 'menu-2', name: 'Test Menu Filiala', locationId: 'loc-2', isActive: true } });
+            await db.category.upsert({ where: { id: 'cat-2' }, update: {}, create: { id: 'cat-2', name: 'Test Kategorija Filiala', menuId: 'menu-2' } });
+            for (const [id, name, price, vat] of [['mi-4','Test Kava Filiala',1.70,22.0],['mi-5','Test Burger Filiala',9.90,9.5]]) {
+              await db.menuItem.upsert({ where: { id }, update: {}, create: { id, name, description: '', price, image: '', isAvailable: true, sortOrder: 0, vatRate: vat, categoryId: 'cat-2' } });
+            }
             await db.table.upsert({ where: { id: 'table-1' }, update: {}, create: { id: 'table-1', number: 1, capacity: 4, status: 'available', area: 'main', posX: 10, posY: 10, width: 8, height: 10, shape: 'round', rotation: 0, locationId: 'loc-1' } });
+            await db.table.upsert({ where: { id: 'table-2' }, update: {}, create: { id: 'table-2', number: 1, capacity: 4, status: 'available', area: 'main', posX: 20, posY: 10, width: 8, height: 10, shape: 'square', rotation: 0, locationId: 'loc-2' } });
+            // E2E "verify inventory": inventar + recepte (mi-1/mi-4 → inv-kava, mi-5 → inv-burger)
+            await db.inventoryItem.upsert({ where: { id: 'inv-kava' }, update: {}, create: { id: 'inv-kava', name: 'E2E Kava zrnje', description: 'E2E testna zaloga', unit: 'kos', quantity: 100, minQuantity: 10, costPerUnit: 5.0, supplier: 'E2E dobavitelj', category: 'general', location: 'main', servingsPerUnit: 1, costPerServing: 5.0 } });
+            await db.inventoryItem.upsert({ where: { id: 'inv-burger' }, update: {}, create: { id: 'inv-burger', name: 'E2E Burger meso', description: 'E2E testna zaloga', unit: 'kos', quantity: 50, minQuantity: 5, costPerUnit: 3.0, supplier: 'E2E dobavitelj', category: 'general', location: 'main', servingsPerUnit: 1, costPerServing: 3.0 } });
+            const recipes = [['recipe-kava-1','mi-1','inv-kava'],['recipe-kava-4','mi-4','inv-kava'],['recipe-burger-5','mi-5','inv-burger']];
+            for (const [id, mi, inv] of recipes) {
+              await db.recipeItem.upsert({ where: { menuItemId_inventoryItemId: { menuItemId: mi, inventoryItemId: inv } }, update: {}, create: { id, menuItemId: mi, inventoryItemId: inv, quantityPerServing: 1, unit: 'kos' } });
+            }
             console.log('Seed complete');
             await db.\$disconnect();
           })().catch(e => { console.error(e); process.exit(1); });
@@ -445,8 +464,8 @@ jobs:
         env:
           PORT: 3000
 
-      - name: Run E2E security tests (30 — P0-C1..C5 validation)
-        run: bunx playwright test tests/e2e/multi-tenant-security.spec.ts --project=chromium --reporter=list
+      - name: Run E2E tests (core flow + variante + observability + multi-tenant security)
+        run: bunx playwright test tests/e2e/core-flow.spec.ts tests/e2e/flow-variants.spec.ts tests/e2e/observability.spec.ts tests/e2e/multi-tenant-security.spec.ts --project=chromium --reporter=list
 
       - name: Stop production server
         if: always()

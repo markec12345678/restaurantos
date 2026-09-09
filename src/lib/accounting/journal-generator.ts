@@ -281,14 +281,14 @@ export async function generateJournalForRefund(
       : ACCOUNTS.SALES_DINEIN
     const paymentAccount = input.paymentType === 'cash' ? ACCOUNTS.CASH : ACCOUNTS.BANK
 
-    // resolveAccountCode je read-only poizvedba po kontnem načrtu — varno
-    // jo naredimo prek globalnega db klienta tudi znotraj tx callbacka
-    // (kontni načret se z refund operacijo NE spreminja).
+    // FIX (deadlock, E2E debug 2026-09-09): resolveAccountCode kliči prek `tx`!
+    // Prej je potekala prek GLOBALNEGA db klienta znotraj interaktivne
+    // transakcije — na single-connection adapterjih (PGlite) DEADLOCK.
     const [resolvedSales, resolvedPayment, resolvedTips, resolvedVat] = await Promise.all([
-      resolveAccountCode(salesAccount.code),
-      resolveAccountCode(paymentAccount.code),
-      tipPortion > 0 ? resolveAccountCode(ACCOUNTS.TIPS.code) : Promise.resolve(null),
-      vatPortion > 0 ? resolveAccountCode(ACCOUNTS.VAT_OUTPUT.code) : Promise.resolve(null),
+      resolveAccountCode(salesAccount.code, tx),
+      resolveAccountCode(paymentAccount.code, tx),
+      tipPortion > 0 ? resolveAccountCode(ACCOUNTS.TIPS.code, tx) : Promise.resolve(null),
+      vatPortion > 0 ? resolveAccountCode(ACCOUNTS.VAT_OUTPUT.code, tx) : Promise.resolve(null),
     ])
 
     const entry = await createEntryWithNumberRetry(tx, (entryNumber) =>
@@ -423,10 +423,11 @@ export async function generateJournalForStorno(
       ? ACCOUNTS.SALES_TAKEOUT
       : ACCOUNTS.SALES_DINEIN
 
+    // FIX (deadlock, E2E debug 2026-09-09): isti vzorec kot refund — prek `tx`
     const [resolvedSales, resolvedVat, resolvedTips] = await Promise.all([
-      resolveAccountCode(salesAccount.code),
-      input.vatAmount > 0 ? resolveAccountCode(ACCOUNTS.VAT_OUTPUT.code) : Promise.resolve(null),
-      input.tipAmount > 0 ? resolveAccountCode(ACCOUNTS.TIPS.code) : Promise.resolve(null),
+      resolveAccountCode(salesAccount.code, tx),
+      input.vatAmount > 0 ? resolveAccountCode(ACCOUNTS.VAT_OUTPUT.code, tx) : Promise.resolve(null),
+      input.tipAmount > 0 ? resolveAccountCode(ACCOUNTS.TIPS.code, tx) : Promise.resolve(null),
     ])
 
     // Kredit strani: ena vrstica po plačilnem sredstvu (1010 za gotovino, 1000 ostalo)
@@ -443,7 +444,7 @@ export async function generateJournalForStorno(
     for (const split of input.paymentSplits) {
       if (split.amount <= 0) continue
       const paymentAccount = split.paymentType === 'cash' ? ACCOUNTS.CASH : ACCOUNTS.BANK
-      const resolvedPayment = await resolveAccountCode(paymentAccount.code)
+      const resolvedPayment = await resolveAccountCode(paymentAccount.code, tx)
       creditLines.push({
         accountCode: resolvedPayment.accountCode,
         chartOfAccountCode: resolvedPayment.chartOfAccountCode,

@@ -1,7 +1,18 @@
 // Inicializira PGlite bazo s Prisma shemo + seed testne podatke
-// Uporaba: node scripts/init-e2e-db.mjs
+// Uporaba: node scripts/init-e2e-db.mjs [--keep]
+//
+// P1-testiranje (točka 2): DETERMINISTIČNA baza za E2E — privzeto se baza
+// POčisti in znova vzpostavi (DROP SCHEMA → svež DDL → seed), tako da E2E
+// testi vedno tečejo na istem izhodiščnem stanju. Zastarana/tuja stanja iz
+// prejšnjih zagonov ne morejo vplivati na rezultate.
+//
+// DDL vir: prisma migrate diff --from-empty (zagnan živo, če je CLI na voljo)
+// s fallbackom na prisma/schema.sql. slednji se regenerira ob vsaki
+// spremembi schema.prisma (sicer bi baze zaostale za shemo — to se je
+// zgodilo z Employee.sessionVersion, glej P1-9).
 import { PGlite } from '@electric-sql/pglite'
-import { readFileSync } from 'fs'
+import { readFileSync, rmSync } from 'fs'
+import { execSync } from 'child_process'
 import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
 
@@ -9,15 +20,36 @@ const { createHash, createHmac, randomUUID } = crypto
 
 const dataDir = process.env.PGLITE_DATA_DIR || '/tmp/pglite-data'
 const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || 'dev-secret-32-hex-chars-min-1234567890'
+const keepExisting = process.argv.includes('--keep')
+
+// 1a. Privzeto: POBRIŠI celotno data mapo (deterministični E2E začetek).
+//     FS-delete namesto DROP SCHEMA: PGlite WASM zna ABORT-ati pri odpiranju
+//     baze z nečisto zaključenim WAL stanjem (playwright SIGKILL webServer-ja
+//     → unclean shutdown → crash recovery v wasm crasha). Sveža mapa = sveža
+//     baza = ni crash-recovery poti. --keep ohrani obstoječe (razvojni način).
+if (!keepExisting) {
+  rmSync(dataDir, { recursive: true, force: true })
+  console.log('[init] ✅ Data mapa zavržena (deterministični E2E začetek)')
+}
 
 console.log(`[init] PGlite data dir: ${dataDir}`)
 const pg = new PGlite(dataDir)
 // PGlite je ready po konstruktorju (ne potrebuje waitReady v tej verziji)
 
-// 1. Zaženi schema.sql (CREATE TABLE + CREATE INDEX)
-console.log('[init] Loading schema.sql...')
-const sqlPath = new URL('../prisma/schema.sql', import.meta.url)
-const sql = readFileSync(sqlPath, 'utf8')
+// 1b. DDL — živa generacija iz prisma CLI (najbolj sveža), fallback schema.sql
+let sql = ''
+try {
+  sql = execSync(
+    'DATABASE_URL="postgresql://user:pass@localhost:5432/db" npx prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script',
+    { cwd: process.cwd(), encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] },
+  )
+  console.log('[init] ✅ DDL generiran živo iz prisma/schema.prisma')
+} catch {
+  console.log('[init] ⚠ Prisma CLI ni na voljo — uporabljam prisma/schema.sql (fallback)')
+  sql = readFileSync(new URL('../prisma/schema.sql', import.meta.url), 'utf8')
+}
+
+console.log(`[init] Applying DDL (${sql.length} znakov)...`)
 const statements = sql.split(';').filter(s => s.trim().length > 0)
 let created = 0
 let skipped = 0
@@ -26,7 +58,7 @@ for (const stmt of statements) {
     await pg.query(stmt + ';')
     created++
   } catch (err) {
-    // Ignoriraj "already exists" napake
+    // Ignoriraj "already exists" napake (samo v --keep načinu so možne)
     skipped++
   }
 }
@@ -83,7 +115,7 @@ for (const [id, name, rate, code] of [
   ['tax-95', 'Znižana DDV 9.5%', 9.5, 'R'],
   ['tax-0', 'Oproščeno 0%', 0.0, 'Z'],
 ]) {
-  await pg.query(`INSERT INTO "TaxRate" (id, name, rate, code, "isActive", "sortOrder", "createdAt", "updatedAt") VALUES ($1,$2,$3,$4,true,0,NOW(),NOW()) ON CONFLICT (code) DO NOTHING`, [id, name, rate, code])
+  await pg.query(`INSERT INTO "TaxRate" (id, name, rate, code, "isActive", "sortOrder", "createdAt", "updatedAt") VALUES ($1,$2,$3,$4,true,0,NOW(),NOW()) ON CONFLICT (id) DO NOTHING`, [id, name, rate, code])
 }
 console.log('[init] ✅ TaxRates seedan')
 
@@ -103,6 +135,45 @@ console.log('[init] ✅ Menu, Category, 3 artikli seedani (s locationId)')
 // Table (s locationId)
 await pg.query(`INSERT INTO "Table" (id, number, capacity, status, area, "posX", "posY", width, height, shape, rotation, "locationId", "createdAt", "updatedAt") VALUES ($1,1,4,'available','main',10,10,8,10,'round',0,$2,NOW(),NOW()) ON CONFLICT (id) DO UPDATE SET "locationId" = $2`, ['table-1', 'loc-1'])
 console.log('[init] ✅ Miza 1 seedana (s locationId)')
+
+// ═══════════════════════════════════════════════════════════════════
+// E2E TESTIRANJE (P1 točka 2): druga lokacija + inventar z receptami
+//   - loc-2/menu-2/table-2 → E2E varianta "dve lokaciji"
+//   - inv-kava + RecipeItem (mi-1 → inv-kava) → E2E korak "verify inventory"
+//     (receptna pot razknjižuje zalogo NEODVISNO od lokacije postavke)
+// ═══════════════════════════════════════════════════════════════════
+await pg.query(`
+  INSERT INTO "Location" (id, name, code, type, address, city, "postCode", country, phone, email, "businessId", "taxId", "registerNumber", "premisesId", "fursEnvironment", timezone, currency, locale, "isOpen", "isActive", "createdAt", "updatedAt")
+  VALUES ($1, $2, $3, $4, $5, $6, $7, 'SI', $8, $9, $10, $11, $12, 'PREM-TEST02', 'test', 'Europe/Ljubljana', 'EUR', 'sl-SI', true, true, NOW(), NOW())
+  ON CONFLICT (code) DO NOTHING
+`, ['loc-2', 'Test Filiala', 'FIL2', 'restaurant', 'Filialna 2', 'Maribor', '2000', '+386 2 345 6789', 'filiala@test.si', '87654321', 'SI87654321', 'TEST02'])
+await pg.query(`INSERT INTO "Menu" (id, name, icon, color, "sortOrder", "isActive", "locationId", "createdAt", "updatedAt") VALUES ($1,$2,'🍽️','#0ea5e9',0,true,$3,NOW(),NOW()) ON CONFLICT (id) DO UPDATE SET "locationId" = $3`, ['menu-2', 'Test Menu Filiala', 'loc-2'])
+await pg.query(`INSERT INTO "Category" (id, name, icon, color, "sortOrder", "menuId", "createdAt", "updatedAt") VALUES ($1,$2,'🍽️','#0ea5e9',0,$3,NOW(),NOW()) ON CONFLICT (id) DO NOTHING`, ['cat-2', 'Test Kategorija Filiala', 'menu-2'])
+for (const [id, name, price, vat] of [
+  ['mi-4', 'Test Kava Filiala', 1.70, 22.0],
+  ['mi-5', 'Test Burger Filiala', 9.90, 9.5],
+]) {
+  await pg.query(`INSERT INTO "MenuItem" (id, name, description, price, image, "isAvailable", "sortOrder", "vatRate", "categoryId", "createdAt", "updatedAt") VALUES ($1,$2,'',$3,'',true,0,$4,$5,NOW(),NOW()) ON CONFLICT (id) DO NOTHING`, [id, name, price, vat, 'cat-2'])
+}
+await pg.query(`INSERT INTO "Table" (id, number, capacity, status, area, "posX", "posY", width, height, shape, rotation, "locationId", "createdAt", "updatedAt") VALUES ($1,1,4,'available','main',20,10,8,10,'square',0,$2,NOW(),NOW()) ON CONFLICT (id) DO UPDATE SET "locationId" = $2`, ['table-2', 'loc-2'])
+console.log('[init] ✅ Lokacija 2 + menu-2 + miza 2 seedani (E2E dve lokaciji)')
+
+// Inventar + recepta za E2E "verify inventory" (mi-1 → inv-kava, 1 kos/servis)
+await pg.query(`
+  INSERT INTO "InventoryItem" (id, name, description, unit, quantity, "minQuantity", "costPerUnit", supplier, category, "location", "servingsPerUnit", "costPerServing", "lastRestocked", "createdAt", "updatedAt")
+  VALUES ($1, $2, 'E2E testna zaloga', 'kos', 100, 10, 5.0, 'E2E dobavitelj', 'general', 'main', 1, 5.0, NOW(), NOW(), NOW())
+  ON CONFLICT (id) DO NOTHING
+`, ['inv-kava', 'E2E Kava zrnje'])
+await pg.query(`
+  INSERT INTO "InventoryItem" (id, name, description, unit, quantity, "minQuantity", "costPerUnit", supplier, category, "location", "servingsPerUnit", "costPerServing", "lastRestocked", "createdAt", "updatedAt")
+  VALUES ($1, $2, 'E2E testna zaloga', 'kos', 50, 5, 3.0, 'E2E dobavitelj', 'general', 'main', 1, 3.0, NOW(), NOW(), NOW())
+  ON CONFLICT (id) DO NOTHING
+`, ['inv-burger', 'E2E Burger meso'])
+// Recepta: mi-1 porabi 1 kos inv-kava; mi-4 porabi 1 kos inv-kava (skupna sestavina)
+await pg.query(`INSERT INTO "RecipeItem" (id, "menuItemId", "inventoryItemId", "quantityPerServing", unit, "createdAt", "updatedAt") VALUES ($1,$2,$3,1,'kos',NOW(),NOW()) ON CONFLICT ("menuItemId", "inventoryItemId") DO NOTHING`, ['recipe-kava-1', 'mi-1', 'inv-kava'])
+await pg.query(`INSERT INTO "RecipeItem" (id, "menuItemId", "inventoryItemId", "quantityPerServing", unit, "createdAt", "updatedAt") VALUES ($1,$2,$3,1,'kos',NOW(),NOW()) ON CONFLICT ("menuItemId", "inventoryItemId") DO NOTHING`, ['recipe-kava-4', 'mi-4', 'inv-kava'])
+await pg.query(`INSERT INTO "RecipeItem" (id, "menuItemId", "inventoryItemId", "quantityPerServing", unit, "createdAt", "updatedAt") VALUES ($1,$2,$3,1,'kos',NOW(),NOW()) ON CONFLICT ("menuItemId", "inventoryItemId") DO NOTHING`, ['recipe-burger-5', 'mi-5', 'inv-burger'])
+console.log('[init] ✅ Inventar + recepte seedani (E2E verify inventory)')
 
 // Counters
 for (const [id, name] of [['c-rcpt', 'receiptNumber'], ['c-ord', 'orderNumber']]) {

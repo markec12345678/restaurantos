@@ -17,6 +17,9 @@
 
 import { db } from '@/lib/db'
 
+/** Prisma transakcijski klient (interaktivni callback parameter) */
+export type ChartOfAccountTx = Parameters<Parameters<typeof db.$transaction>[0]>[0]
+
 export interface ResolvedAccount {
   /** Originalna koda (lahko fallback v prosto-besedilo) */
   accountCode: string
@@ -44,15 +47,28 @@ export async function validateAccountCode(code: string): Promise<boolean> {
 /**
  * Lookup ChartOfAccount z denormaliziranimi polji.
  *
+ * FIX (E2E/debugging 2026-09-09): dodan optional `client` parameter.
+ * resolveAccountCode/lookupAccount sta se klicala ZNOTRAJ interaktivnih
+ * transakcij (refund/storno) prek GLOBALNEGA db klienta. Na single-connection
+ * adapterjih (PGlite v dev/test) to povzroči DEADLOCK: transakcija drži
+ * (edino) povezavo, globalni db klic pa čaka na isto povezavo → refund se
+ * obesi do izteka transakcijskega timeouta (20s+ 500). Na pravi bazi z poolom
+ * je delalo po naključju, a je enaka past za vsako single-connection
+ * konfiguracijo. Klicatelji ZNOTRAJ transakcije sedaj podajojo `tx`.
+ *
  * @returns null če koda ne obstaja
  */
-export async function lookupAccount(code: string): Promise<{
+export async function lookupAccount(
+  code: string,
+  client?: ChartOfAccountTx,
+): Promise<{
   code: string
   name: string
   accountType: string
   isActive: boolean
 } | null> {
-  const account = await db.chartOfAccount.findUnique({
+  const dbx = client ?? db
+  const account = await dbx.chartOfAccount.findUnique({
     where: { code },
     select: { code: true, name: true, accountType: true, isActive: true },
   })
@@ -72,8 +88,11 @@ export async function lookupAccount(code: string): Promise<{
  *   - accountType = 'unknown'
  *   - isValid = false (warning za admin)
  */
-export async function resolveAccountCode(code: string): Promise<ResolvedAccount> {
-  const account = await lookupAccount(code)
+export async function resolveAccountCode(
+  code: string,
+  client?: ChartOfAccountTx,
+): Promise<ResolvedAccount> {
+  const account = await lookupAccount(code, client)
 
   if (account) {
     return {

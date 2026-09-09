@@ -60,6 +60,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     //
     // Fix: pg_advisory_xact_lock na paymentId (enak vzorec kot create-payment)
     // + PONOVN pre branje refundAmount in validacija ZNOTRAJ transakcije.
+    //
+    // FIX (timeout): refund transakcija je LAHKA za bazo, ampak TEŽKA za čas:
+    //   advisory lock (vzporedni refundi ČAKAJO na zaklep) + gift card/loyalty
+    //   reverza + posodobitve Check/Order + generateJournalForRefund (DDV split).
+    //   Prisma privzeti interactive timeout 5s je pretesen — pod obremenitvijo
+    //   (lock contention) transakcija preteče in vrne 500 "Transaction already
+    //   closed" (zgodbilo se je tudi v E2E na počasnejši PGlite bazi).
+    //   timeout 20s + maxWait 10s: refund je kritična poslovna operacija —
+    //   raje počasi kot napačno.
     const updated = await db.$transaction(async (tx) => {
       // Zakleni vrstico plačila — vzporedni refundi čakajo, dokler ta ne konča
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`
@@ -247,6 +256,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
 
       return { payment: updatedPayment, journalEntryId }
+    }, {
+      // FIX (timeout): glej komentar zgoraj — privzetih 5s ni dovolj za
+      // lock-contended refund transakcijo (advisory lock + reversal + journal)
+      timeout: 20_000,
+      maxWait: 10_000,
     })
 
     return NextResponse.json({

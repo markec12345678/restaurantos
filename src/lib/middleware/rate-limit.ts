@@ -87,9 +87,18 @@ export const API_RATE_LIMITS: { pattern: RegExp; config: RateLimitConfig; name: 
   // ═══════════════════════════════════════════
 
   // ═══════════════════════════════════════════
-  // SPLOŠNI AVTENTICIRANI API — 60/min (catch-all)
+  // SPLOŠNI AVTENTICIRANI API — privzeto 60/min (catch-all)
+  // P1-testiranje: meja je ENV-nastavljiva (API_RATE_LIMIT_MAX) — E2E/CI
+  // okolja (PLAYWRIGHT z ~80 klici/min) jo dvignejo; produkcija obdrži 60.
   // ═══════════════════════════════════════════
-  { pattern: /\/api\//, config: { maxRequests: 60, windowMs: 60 * 1000 }, name: 'api-general' },
+  {
+    pattern: /\/api\//,
+    config: {
+      maxRequests: Number(process.env.API_RATE_LIMIT_MAX) || 60,
+      windowMs: 60 * 1000,
+    },
+    name: 'api-general',
+  },
 ]
 
 export function checkMiddlewareRateLimit(storeKey: string, clientIp: string, config: RateLimitConfig): { allowed: boolean; retryAfterMs?: number; remaining?: number } {
