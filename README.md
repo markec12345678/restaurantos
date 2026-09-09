@@ -1,6 +1,6 @@
-# RestaurantOS v1.3.1
+# RestaurantOS v1.3.2
 
-[![Version](https://img.shields.io/badge/version-1.3.1-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.3.2-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-9%20stopenj%20%2F%20breaking-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
@@ -299,7 +299,7 @@ src/
 |----------|-------------|
 | [Architecture](docs/ARCHITECTURE.md) | System diagram, modules, security layers, key flows |
 | [Code Review Report](docs/CODE-REVIEW-REPORT.md) | 85 deep checks, 11 fixes, A- security score (historical A++) |
-| [Changelog](CHANGELOG.md) | v1.3.1 release notes — vsa funkcionalnost in popravki |
+| [Changelog](CHANGELOG.md) | v1.3.2 release notes — vsa funkcionalnost in popravki |
 | [Release Process](RELEASE_PROCESS.md) | Verzioniranje (semver), release checklist, rollback postopek |
 | [Contributing](CONTRIBUTING.md) | How to contribute — setup, code style, PR process |
 | [Security Policy](SECURITY.md) | Vulnerability reporting, OWASP Top 10 status |
@@ -345,7 +345,7 @@ Kontakt: sales@restaurantos.app
 ## 📞 Kontakt
 
 - **GitHub:** https://github.com/markec12345678/restaurantos
-- **Release v1.3.1:** https://github.com/markec12345678/restaurantos/releases/tag/v1.3.1
+- **Release v1.3.2:** https://github.com/markec12345678/restaurantos/releases/tag/v1.3.2
 - **Email:** info@restaurantos.app
 - **Security:** security@restaurantos.app
 

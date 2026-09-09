@@ -1,15 +1,40 @@
 // ============================================
-// FURS API — Gradnja zahtevka
-// Pripravi JSON body za FURS cash_payments API
+// FURS API — Gradnja zahtevka (InvoiceRequest)
+//
+// URAdna oblika per Tehnična dokumentacija v3.2 (poglavje 5 + 9.1 +
+// FiscalVerificationSchema.json — additionalProperties: false!):
+//   InvoiceRequest/Invoice:
+//     TaxNumber          — davčna št. zavezanca (številka, ne "SI..." niz)
+//     IssueDateTime      — ISO lokalni čas (CET/CEST)
+//     NumberingStructure — "B" (številčenje elektronske naprave) | "C"
+//     InvoiceIdentifier  — { BusinessPremiseID, ElectronicDeviceID, InvoiceNumber }
+//     InvoiceAmount      — skupni znesek računa
+//     PaymentAmount      — plačani znesek
+//     TaxesPerSeller     — [{ VAT: [{ TaxRate, TaxableAmount, TaxAmount }] }]
+//     OperatorTaxNumber  — davčna št. operaterja (blagajnik)
+//     ProtectedID        — ZOI (zaščitna oznaka izdajatelja)
+//     SubsequentSubmit   — true za naknadno spremembo (storno/dobropis)
+//     ReferenceInvoice   — [{ ReferenceInvoiceIdentifier, ReferenceInvoiceIssueDateTime }]
+//
+// Prej (NAPAČNO): InvoiceIdentifier = ZOI, Premises/RegisterID polja,
+// PaymentType besedilno, VAT ravninski — schema tega NE pozna.
 // ============================================
 
 import crypto from 'crypto'
 import type { FursConfig, FursInvoiceData } from '../types'
 import { toSlovenianISO } from '../helpers'
 
-// ============================================
-// FURS ZAHTETEK — JSON FORMAT
-// ============================================
+/** Izlušči 8-mestno davčno številko iz "SI12345678" / "12345678". */
+function taxNumberDigits(taxId: string): number {
+  const digits = taxId.replace(/^SI/i, '').replace(/\D/g, '')
+  const n = Number(digits)
+  if (!Number.isFinite(n) || digits.length !== 8) {
+    // FURS zahteva 8-mestno davčno št. — neveljaven input ne sme biti tiho
+    // poslan kot 0 (strežnik bi zavrgel, a z nejasno napako)
+    throw new Error(`Neveljavna davčna številka za FURS: "${taxId}" (pričakovanih 8 števk)`)
+  }
+  return n
+}
 
 export function buildFursRequest(
   config: FursConfig,
@@ -21,19 +46,11 @@ export function buildFursRequest(
   // toISOString() vrne UTC — uporabi slovenski čas za FURS
   const isoDateTime = toSlovenianISO(dt)
 
-  // FIX BUG-F4 CRITICAL: PaymentType mora biti FURS enumeracija, ne angleške besede
-  // FURS v1 spec: "CashPayment" | "PaymentCard" | "Other"
-  const paymentTypeMap: Record<string, string> = {
-    cash: 'CashPayment',
-    card: 'PaymentCard',
-    mobile: 'Other',
-    other: 'Other',
-  }
-  const fursPaymentType = paymentTypeMap[invoiceData.paymentMethod] || 'Other'
+  const taxNumber = taxNumberDigits(config.taxId)
+  // OperatorTaxNumber: davčna št. operaterja — app nima per-zaposleni davčne
+  // št., zato uporabi davčno št. zavezanca (dovoljeno: lastnik kot operater)
+  const operatorTaxNumber = taxNumber
 
-  // FIX BUG1: Use explicit isStorno flag instead of parsing customerName
-  // FIX BUG-F5 HIGH: Manjka InvoiceType — FURS zahteva za storno račune
-  // 0 = redni račun, 1 = storno račun
   const isStorno = invoiceData.isStorno || false
 
   return {
@@ -43,32 +60,42 @@ export function buildFursRequest(
         DateTime: isoDateTime,
       },
       Invoice: {
-        TaxNumber: config.taxId.replace('SI', ''),
+        TaxNumber: taxNumber,
         IssueDateTime: isoDateTime,
-        InvoiceNumber: invoiceData.invoiceNumber,
-        InvoiceIdentifier: zoi,
-        InvoiceType: isStorno ? 1 : 0, // FIX BUG-F5: 0=redni, 1=storno
-        Premises: {
-          PremisesID: config.premisesId,
-          RegisterID: config.registerId,
+        // "B" = številčenje po elektronski napravi (POS blagajna)
+        NumberingStructure: 'B',
+        InvoiceIdentifier: {
+          BusinessPremiseID: config.premisesId,
+          ElectronicDeviceID: config.registerId,
+          InvoiceNumber: String(invoiceData.invoiceNumber),
         },
         InvoiceAmount: invoiceData.totalAmount,
-        PaymentType: fursPaymentType, // FIX BUG-F4: Pravilne FURS vrednosti
-        VAT: invoiceData.vatBreakdown.map(vb => ({
-          TaxRate: vb.rate,
-          TaxableAmount: vb.baseAmount,
-          TaxAmount: vb.vatAmount,
-        })),
-        CustomerVATNumber: invoiceData.customerVatId || undefined,
-        CustomerName: invoiceData.customerName || undefined,
-        // FIX BUG1: Proper ReferenceInvoice structure for storno — FURS requires original ZOI and issue date
+        PaymentAmount: invoiceData.totalAmount,
+        TaxesPerSeller: [
+          {
+            VAT: invoiceData.vatBreakdown.map(vb => ({
+              TaxRate: vb.rate,
+              TaxableAmount: vb.baseAmount,
+              TaxAmount: vb.vatAmount,
+            })),
+          },
+        ],
+        OperatorTaxNumber: operatorTaxNumber,
+        ProtectedID: zoi, // ZOI — zaščitna oznaka izdajatelja (NE "InvoiceIdentifier"!)
+        // Storno / naknadna sprememba (spec: SubsequentSubmit + ReferenceInvoice)
         ...(isStorno && invoiceData.referenceInvoice ? {
-          ReferenceInvoice: {
-            ReferenceInvoiceNumber: invoiceData.referenceInvoice.invoiceNumber,
-            ReferenceInvoiceIdentifier: invoiceData.referenceInvoice.zoi,
-            ReferenceIssueDateTime: toSlovenianISO(invoiceData.referenceInvoice.issueDateTime),
-          }
+          SubsequentSubmit: true,
+          ReferenceInvoice: [{
+            ReferenceInvoiceIdentifier: {
+              BusinessPremiseID: config.premisesId,
+              ElectronicDeviceID: config.registerId,
+              InvoiceNumber: String(invoiceData.referenceInvoice.invoiceNumber),
+            },
+            ReferenceInvoiceIssueDateTime: toSlovenianISO(invoiceData.referenceInvoice.issueDateTime),
+          }],
         } : {}),
+        // Opcijski polji (samo če prisotna — schema: additionalProperties false)
+        ...(invoiceData.customerVatId ? { CustomerVATNumber: invoiceData.customerVatId } : {}),
       },
     },
   }

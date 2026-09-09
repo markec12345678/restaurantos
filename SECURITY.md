@@ -12,7 +12,7 @@
 
 ## 🔒 Security Score: A++
 
-RestaurantOS v1.3.1 je pregledan z 85+ globokimi preverjanji + P0-C1..C5 hardening serijo + 11 audit rundami deep security review + tenant MODEL A (katalog/konfiguracija PO LOKACIJI — 15 tabel locationId NOT NULL, centralni tenant-scope, cross-tenant artikel = 400).
+RestaurantOS v1.3.2 je pregledan z 85+ globokimi preverjanji + P0-C1..C5 hardening serijo + 11 audit rundami deep security review + tenant MODEL A (katalog/konfiguracija PO LOKACIJI — 15 tabel locationId NOT NULL, centralni tenant-scope, cross-tenant artikel = 400).
 
 **Realna ocena: A++** — 0 HIGH odprtih, 0 MEDIUM odprtih, 2 LOW odprtih (code quality only). Vse kritične varnostne ranljivosti so zaprte.
 
@@ -61,6 +61,8 @@ Glej [Known Issues](docs/KNOWN_ISSUES.md) za celoten pregled in [P0-C4 Classific
   - 24 TENANT_REQUIRED modelov z NOT NULL constraint (P0-C4 Phase 5)
   - IDOR protection: `findFirst({where:{id, locationId}})` za vse user-controlled ID-je
   - FURS config per-receipt (ne globalni singleton)
+  - FURS spec-compliance v1.3.2: URADNI endpointi (`/v1/cash_registers/invoices`), JWS-podpisana sporočila `{"token":"JWT"}` (brez OAuthja — spec ga ne pozna), dvosmerna TLS (mTLS s cert/key iz p12 + CA verigo `certs/furs-test/`), odgovori preverjeni (JWS/x5c → EOR)
+  - Javni FURS testni certifikati v repu (`certs/furs-test/` — TLS strežnik + podpis odgovorov + CA veriga; fingerprint pin testi) — privatni testni p12 se zahteva prek sd.fu@gov.si
   - API keys z `subscriptionId` FK (ApiKey tabela, ne RestaurantSettings JSON)
 - **Secrets encryption**: AES-256-GCM (`enc:v1:{IV}:{authTag}:{ciphertext}` format)
 - **Idempotency**: Orders + Payments (idempotencyKey @unique)
@@ -125,6 +127,8 @@ Trenutno ne ponujamo bug bounty programa. Prispevali bomo v `CONTRIBUTORS.md`.
 - [ ] P0-C4 Phase 5 migration aplikacija (po E2E potrditvi)
 - [ ] P0-C5 ApiKey backfill aplikacija (po E2E potrditvi)
 - [ ] FURS certifikat naložen na Location nivoju (ne RestaurantSettings)
+- [ ] `bun run furs:check` poteče (TLS + CA veriga + pin; brez p12 bo echo zavrnjen — pričakovano)
+- [ ] FURS testno potrdilo (p12) zahtevano na sd.fu@gov.si, pred go-live živim echo/invoice testom
 
 ## 🔐 Responsible Disclosure
 

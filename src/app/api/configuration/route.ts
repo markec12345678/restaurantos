@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
-import { configPostSchema, allowedFields, modelMap, coerceFieldTypes } from './_helpers'
+import { configPostSchema, allowedFields, modelMap, coerceFieldTypes, validateConfigRefs } from './_helpers'
 import { withETag } from '@/lib/middleware/cache-headers'
 import { sessionLocationId, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
 
@@ -40,7 +40,7 @@ export async function GET(req: Request) {
       db.diningOption.findMany({
         where: locWhere,
         orderBy: { sortOrder: 'asc' },
-        select: { id: true, name: true, isActive: true, sortOrder: true, serviceChargeId: true, serviceCharge: { select: { id: true, name: true, type: true, amount: true } } },
+        select: { id: true, name: true, isActive: true, sortOrder: true, serviceChargeId: true, taxRateId: true, serviceCharge: { select: { id: true, name: true, type: true, amount: true } } },
       }),
       db.revenueCenter.findMany({ where: locWhere, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, isActive: true, sortOrder: true } }),
       db.salesCategory.findMany({ where: locWhere, orderBy: { sortOrder: 'asc' }, select: { id: true, name: true, isActive: true, sortOrder: true } }),
@@ -108,6 +108,15 @@ export async function POST(req: Request) {
     const loc = resolveWriteLocationId(sessionLocationId(authResult), searchParams.get('locationId'))
     if (!loc.ok) return loc.response
     filteredData.locationId = loc.locationId
+
+    // MODEL A (#8/#9): cross-scope validacija FK referenc — serviceChargeId /
+    // taxRateId (DiningOption) in prepStationId (Printer.printRules) smejo
+    // kazati SAMO na zapise ISTE lokacije. Cross-tenant DDV na fiskalnem
+    // računu (FURS) ni sprejemljiv → 400.
+    const refCheck = await validateConfigRefs(model, filteredData, loc.locationId)
+    if (!refCheck.ok) {
+      return NextResponse.json({ error: refCheck.error }, { status: 400 })
+    }
 
     // FIX SECURITY: Uporabi type-safe switch namesto dinamičnega (db as any)[prismaModel]
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -25,7 +25,7 @@ const tabConfig: Record<string, {
 }> = {
   'dining-options': {
     model: 'diningOption',
-    select: { id: true, name: true, type: true, serviceChargeId: true, prepTimeMinutes: true, isActive: true, sortOrder: true },
+    select: { id: true, name: true, type: true, serviceChargeId: true, taxRateId: true, prepTimeMinutes: true, isActive: true, sortOrder: true },
     include: { serviceCharge: { select: { id: true, name: true, type: true, amount: true } } },
     orderBy: { sortOrder: 'asc' },
   },

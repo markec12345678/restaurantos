@@ -128,8 +128,18 @@ model ModifierGroup {
   sortOrder   Int      @default(0)
   modifiers   Modifier[]
   menuItems   MenuItemModifierGroup[]
+  // MODEL A — #9 tenant scope audit 2026-09-09: skupine modifikatorjev so PO
+  // LOKACIJI, NOT NULL (cene v EUR / dostopnost so operativni podatek lokacije).
+  // Prej popolnoma globalne: GET /api/modifier-groups je izpisal VSE najemnike,
+  // skupino lokacije A je bilo mogoče pripeti artiklu lokacije B.
+  // Modifier deduje scope prek modifierGroupId (isti vzorec kot PackagingItem →
+  // PackagingConfig). Deljenje = IZKLJUČNO eksplicitno (/api/locations/sync kopija).
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([locationId])   // MODEL A: per-lokacija skupine modifikatorjev
 }
 
 model Modifier {
@@ -1380,6 +1390,7 @@ model Location {
   packagingConfigs     PackagingConfig[]
   alternatePaymentTypes AlternatePaymentType[]
   discounts            Discount[]
+  modifierGroups        ModifierGroup[]   // MODEL A #9: skupine modifikatorjev PO LOKACIJI
 
   @@index([code])
   @@index([isActive])

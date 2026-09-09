@@ -4,7 +4,7 @@
 // ============================================
 
 import type { FursConfig, FursEnvironment } from '../types'
-import { FURS_URLS, FURS_TOKEN_URLS } from '../types'
+import { FURS_ECHO_URLS } from '../types'
 
 /**
  * Preveri veljavnost FURS konfiguracije
@@ -61,18 +61,18 @@ export async function checkFursConnectivity(environment: FursEnvironment): Promi
   responseTime?: number
   error?: string
 }> {
-  const _url = FURS_TOKEN_URLS[environment] // Token URL supports POST — use that for connectivity
+  // URADNO: echo servis za preverjanje dosegljivosti (spec 6.1) — token URL
+  // ne obstaja več (OAuth flow odstranjen, sporočila so JWS-podpisana).
   const start = Date.now()
 
   try {
-    // FIX F8: Uporabimo token URL z GET — FURS cash_payments ne podpira HEAD
-    // Token URL vrne 401 (Unauthorized) brez veljavnega JWT, kar pomeni, da strežnik deluje
-    const response = await fetch(FURS_URLS[environment], {
+    // FIX F8: GET na echo URL — 401/405 = strežnik deluje (zahteva JWS/mTLS)
+    const response = await fetch(FURS_ECHO_URLS[environment], {
       method: 'GET', // GET namesto HEAD — FURS ne podpira HEAD
       signal: AbortSignal.timeout(10000),
     })
     return {
-      reachable: response.ok || response.status === 401 || response.status === 405, // 401/405 = strežnik deluje
+      reachable: response.ok || response.status === 401 || response.status === 403 || response.status === 405, // 401/403/405 = strežnik deluje (zahteva cert/token)
       responseTime: Date.now() - start,
     }
   } catch (err: unknown) {

@@ -101,6 +101,28 @@ async function main() {
       update: { locationId: loc },
       create: { id: `vr-${loc}-1`, name: `Napaka natakarja (${loc})`, isActive: true, sortOrder: 0, locationId: loc },
     })
+    // MODEL A #8: servisna postavka + dining option s SKUPNO referenco (za
+    // cross-scope validacijo: serviceChargeId iz TUJE lokacije = 400)
+    await db.serviceCharge.upsert({
+      where: { id: `sc-${loc}-1` },
+      update: { locationId: loc },
+      create: { id: `sc-${loc}-1`, name: `Servisna 10% (${loc})`, type: 'percentage', amount: 10, isActive: true, sortOrder: 0, locationId: loc },
+    })
+    await db.diningOption.upsert({
+      where: { id: `do-${loc}-takeout` },
+      update: { locationId: loc },
+      create: { id: `do-${loc}-takeout`, name: 'Vzemi s seboj', type: 'takeout', isActive: true, sortOrder: 1, prepTimeMinutes: 10, locationId: loc },
+    })
+    // MODEL A #9: modifier group PO LOKACIJI (GET isolation test)
+    await db.modifierGroup.upsert({
+      where: { id: `mg-${loc}-1` },
+      update: { locationId: loc },
+      create: {
+        id: `mg-${loc}-1`, name: `Priloge (${loc})`, required: false, minSelect: 0, maxSelect: 2,
+        sortOrder: 0, locationId: loc,
+        modifiers: { create: [{ name: 'Ekstra sir', price: 1.5, sortOrder: 0 }] },
+      },
+    })
   }
 
   // E2E "verify inventory": inventar + recepte (mi-1/mi-4 → inv-kava, mi-5 → inv-burger)

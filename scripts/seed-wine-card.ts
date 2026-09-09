@@ -60,6 +60,13 @@ async function main() {
   // ============================================
   console.log('📋 Creating modifier groups...')
 
+  // MODEL A (#9): skupine modifikatorjev so PO LOKACIJI — podedujejo
+  // lokacijo Pijača menija (drinksMenu.locationId).
+  // (null-safe: če je bil meni pravkar ustvarjen, ga ponovno preberi)
+  const modifierLocId = drinksMenu?.locationId
+    ?? (await db.menu.findFirst({ where: { name: 'Pijača' }, select: { locationId: true } }))?.locationId
+    ?? 'loc-1'
+
   const [
     wineGlassBottle, wineGlassBottle2, beerSizeTap, beerSizeBottle,
     liquorWineSize, waterSize, iceChoice, milkChoice, sweetenerChoice, alcoholAdd,
@@ -67,49 +74,49 @@ async function main() {
   ] = await Promise.all([
 
     // Wine: glass (0.10L) vs bottle (0.75L)
-    db.modifierGroup.create({ data: { name: 'Velikost vina', required: true, minSelect: 1, maxSelect: 1, sortOrder: 0, modifiers: { create: [
+    db.modifierGroup.create({ data: { locationId: modifierLocId, name: 'Velikost vina', required: true, minSelect: 1, maxSelect: 1, sortOrder: 0, modifiers: { create: [
       { name: 'Kozarec (0.10L)', price: 0, sortOrder: 0 },
       { name: 'Steklenica (0.75L)', price: 0, sortOrder: 1 }, // price diff calculated per item
     ] } } }),
 
     // Wine: glass (0.10L) vs bottle (0.75L) - for items with bigger price gap
-    db.modifierGroup.create({ data: { name: 'Velikost vina', required: true, minSelect: 1, maxSelect: 1, sortOrder: 0, modifiers: { create: [
+    db.modifierGroup.create({ data: { locationId: modifierLocId, name: 'Velikost vina', required: true, minSelect: 1, maxSelect: 1, sortOrder: 0, modifiers: { create: [
       { name: 'Kozarec (0.10L)', price: 0, sortOrder: 0 },
       { name: 'Steklenica (0.75L)', price: 0, sortOrder: 1 },
     ] } } }),
 
     // Draft beer: 0.30L vs 0.50L
-    db.modifierGroup.create({ data: { name: 'Velikost piva', required: true, minSelect: 1, maxSelect: 1, sortOrder: 1, modifiers: { create: [
+    db.modifierGroup.create({ data: { locationId: modifierLocId, name: 'Velikost piva', required: true, minSelect: 1, maxSelect: 1, sortOrder: 1, modifiers: { create: [
       { name: '0.30L', price: 0, sortOrder: 0 },
       { name: '0.50L', price: 0, sortOrder: 1 },
     ] } } }),
 
     // Bottle beer: 0.33L
-    db.modifierGroup.create({ data: { name: 'Velikost', required: false, minSelect: 0, maxSelect: 1, sortOrder: 2, modifiers: { create: [
+    db.modifierGroup.create({ data: { locationId: modifierLocId, name: 'Velikost', required: false, minSelect: 0, maxSelect: 1, sortOrder: 2, modifiers: { create: [
       { name: '0.33L', price: 0, sortOrder: 0 },
     ] } } }),
 
     // Liqueur wine sizes
-    db.modifierGroup.create({ data: { name: 'Velikost', required: true, minSelect: 1, maxSelect: 1, sortOrder: 3, modifiers: { create: [
+    db.modifierGroup.create({ data: { locationId: modifierLocId, name: 'Velikost', required: true, minSelect: 1, maxSelect: 1, sortOrder: 3, modifiers: { create: [
       { name: '0.05L', price: 0, sortOrder: 0 },
       { name: '0.50L', price: 0, sortOrder: 1 },
     ] } } }),
 
     // Water sizes
-    db.modifierGroup.create({ data: { name: 'Velikost', required: true, minSelect: 1, maxSelect: 1, sortOrder: 4, modifiers: { create: [
+    db.modifierGroup.create({ data: { locationId: modifierLocId, name: 'Velikost', required: true, minSelect: 1, maxSelect: 1, sortOrder: 4, modifiers: { create: [
       { name: '0.25L', price: 0, sortOrder: 0 },
       { name: '0.50L', price: 0, sortOrder: 1 },
       { name: '1.00L', price: 0, sortOrder: 2 },
     ] } } }),
 
     // Ice
-    db.modifierGroup.create({ data: { name: 'Led', required: false, minSelect: 0, maxSelect: 1, sortOrder: 5, modifiers: { create: [
+    db.modifierGroup.create({ data: { locationId: modifierLocId, name: 'Led', required: false, minSelect: 0, maxSelect: 1, sortOrder: 5, modifiers: { create: [
       { name: 'Z ledom', price: 0, sortOrder: 0 },
       { name: 'Brez ledu', price: 0, sortOrder: 1 },
     ] } } }),
 
     // Milk type - for coffee
-    db.modifierGroup.create({ data: { name: 'Vrsta mleka', required: false, minSelect: 0, maxSelect: 1, sortOrder: 6, modifiers: { create: [
+    db.modifierGroup.create({ data: { locationId: modifierLocId, name: 'Vrsta mleka', required: false, minSelect: 0, maxSelect: 1, sortOrder: 6, modifiers: { create: [
       { name: 'Kravje mleko', price: 0, sortOrder: 0 },
       { name: 'Ovseno mleko', price: 0.50, sortOrder: 1 },
       { name: 'Mandljevo mleko', price: 0.50, sortOrder: 2 },
@@ -117,26 +124,26 @@ async function main() {
     ] } } }),
 
     // Sweetener
-    db.modifierGroup.create({ data: { name: 'Sladilo', required: false, minSelect: 0, maxSelect: 1, sortOrder: 7, modifiers: { create: [
+    db.modifierGroup.create({ data: { locationId: modifierLocId, name: 'Sladilo', required: false, minSelect: 0, maxSelect: 1, sortOrder: 7, modifiers: { create: [
       { name: 'Sladkor', price: 0, sortOrder: 0 },
       { name: 'Med', price: 0.30, sortOrder: 1 },
       { name: 'Stevia', price: 0.30, sortOrder: 2 },
     ] } } }),
 
     // Alcohol addition for coffee
-    db.modifierGroup.create({ data: { name: 'Alkoholni dodatek', required: false, minSelect: 0, maxSelect: 1, sortOrder: 8, modifiers: { create: [
+    db.modifierGroup.create({ data: { locationId: modifierLocId, name: 'Alkoholni dodatek', required: false, minSelect: 0, maxSelect: 1, sortOrder: 8, modifiers: { create: [
       { name: 'Amaretto', price: 2.50, sortOrder: 0 },
       { name: 'Baileys', price: 2.50, sortOrder: 1 },
       { name: 'Kahlua', price: 2.50, sortOrder: 2 },
     ] } } }),
 
     // Wine size general (single bottle)
-    db.modifierGroup.create({ data: { name: 'Velikost', required: false, minSelect: 0, maxSelect: 1, sortOrder: 9, modifiers: { create: [
+    db.modifierGroup.create({ data: { locationId: modifierLocId, name: 'Velikost', required: false, minSelect: 0, maxSelect: 1, sortOrder: 9, modifiers: { create: [
       { name: '0.75L', price: 0, sortOrder: 0 },
     ] } } }),
 
     // Keros sizes (0.05L / 0.50L)
-    db.modifierGroup.create({ data: { name: 'Velikost', required: true, minSelect: 1, maxSelect: 1, sortOrder: 10, modifiers: { create: [
+    db.modifierGroup.create({ data: { locationId: modifierLocId, name: 'Velikost', required: true, minSelect: 1, maxSelect: 1, sortOrder: 10, modifiers: { create: [
       { name: '0.05L', price: 0, sortOrder: 0 },
       { name: '0.50L', price: 0, sortOrder: 1 },
     ] } } }),

@@ -7,14 +7,22 @@
 // KONSTANTE
 // ============================================
 
+// URADNI endpointi (Tehnična dokumentacija v3.2, poglavje 6.1 — "Sprejem
+// podatkov o računih" + poglavje 8 JSON oblika):
+//   TEST:  https://blagajne-test.fu.gov.si:9002/v1/cash_registers/invoices
+//   PROD:  https://blagajne.fu.gov.si:9003/v1/cash_registers/invoices  (port 9003!)
+// Prej (NAPAČNO): /v1/cash_payments + /v1/cash_payments/oauth/token — teh
+// endpointov NI v specifikaciji; OAuth token flow ne obstaja (sporočilo se
+// podpiše kot JWS {"token":"<JWT>"} — glej crypto/jws.ts).
 export const FURS_URLS = {
-  test: 'https://blagajne-test.fu.gov.si:9002/v1/cash_payments',
-  production: 'https://blagajne.fu.gov.si/v1/cash_payments',
+  test: 'https://blagajne-test.fu.gov.si:9002/v1/cash_registers/invoices',
+  production: 'https://blagajne.fu.gov.si:9003/v1/cash_registers/invoices',
 } as const
 
-export const FURS_TOKEN_URLS = {
-  test: 'https://blagajne-test.fu.gov.si:9002/v1/cash_payments/oauth/token',
-  production: 'https://blagajne.fu.gov.si/v1/cash_payments/oauth/token',
+// Echo servis — preverjanje dosegljivosti ISFU (poglavje 6.1)
+export const FURS_ECHO_URLS = {
+  test: 'https://blagajne-test.fu.gov.si:9002/v1/cash_registers/echo',
+  production: 'https://blagajne.fu.gov.si:9003/v1/cash_registers/echo',
 } as const
 
 export type FursEnvironment = 'test' | 'production'

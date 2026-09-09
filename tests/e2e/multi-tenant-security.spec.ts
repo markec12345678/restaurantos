@@ -444,6 +444,134 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
       expect(menuIds).toContain('menu-1')
       expect(menuIds).toContain('menu-2')
     })
+
+    // ── MODEL A #8/#9 (tenant scope audit — 2. krog, 2026-09-09) ──
+    // DiningOption/RevenueCenter FK validacija na money-path + konfiguracijske
+    // cross-scope reference + modifier-group scoping (migracija 0004).
+
+    test('MODELA-9: POST /api/orders (loc-2) z loc-1 diningOptionId = 400 (#8 FK scope)', async ({ request }) => {
+      const res = await request.post(`${API_BASE}/orders`, {
+        headers: filialaHeaders(),
+        data: {
+          type: 'dine-in',
+          tableId: 'table-2',
+          diningOptionId: 'do-loc-1-dinein', // ← loc-1 dining option!
+          orderItems: [{ menuItemId: 'mi-4', quantity: 1 }],
+        },
+      })
+      expect(res.status()).toBe(400)
+      const body = await res.json().catch(() => ({}))
+      expect(String(body.error || '')).toContain('Dining option')
+    })
+
+    test('MODELA-10: POST /api/orders (loc-2) z LASTNJIM diningOptionId = 200 (positive control)', async ({ request }) => {
+      const res = await request.post(`${API_BASE}/orders`, {
+        headers: filialaHeaders(),
+        data: {
+          type: 'dine-in',
+          tableId: 'table-2',
+          diningOptionId: 'do-loc-2-dinein',
+          orderItems: [{ menuItemId: 'mi-4', quantity: 1 }],
+        },
+      })
+      expect(res.ok()).toBeTruthy()
+      const order = await res.json()
+      expect(order.diningOptionId).toBe('do-loc-2-dinein')
+      await request.delete(`${API_BASE}/orders/${order.id}`, { headers: filialaHeaders() })
+    })
+
+    test('MODELA-11: POST /api/orders (loc-2) z loc-1 revenueCenterId = 400 (#9 FK scope)', async ({ request }) => {
+      // loc-1 revenue center: ustvari ga najprej prek admin API (loc-1)
+      const createRes = await request.post(`${API_BASE}/configuration?locationId=loc-1`, {
+        headers: authHeaders(),
+        data: { model: 'revenue-centers', data: { name: 'RC loc-1 E2E', code: 'RC1E2E', isActive: true, sortOrder: 0 } },
+      })
+      expect(createRes.status()).toBe(201)
+      const rc = await createRes.json()
+      try {
+        const res = await request.post(`${API_BASE}/orders`, {
+          headers: filialaHeaders(),
+          data: {
+            type: 'dine-in',
+            tableId: 'table-2',
+            revenueCenterId: rc.id, // ← loc-1 revenue center!
+            orderItems: [{ menuItemId: 'mi-4', quantity: 1 }],
+          },
+        })
+        expect(res.status()).toBe(400)
+        const body = await res.json().catch(() => ({}))
+        expect(String(body.error || '')).toContain('Revenue center')
+      } finally {
+        // NOTE: configuration nima DELETE endpointa — RC loc-1 ostane kot E2E
+        // podatek (baza se re-seeda med CI zagoni; P2002 ni možen — code unikaten na lokacijo)
+      }
+    })
+
+    test('MODELA-12: POST /api/configuration (loc-2) dining-option s loc-1 serviceChargeId = 400 (#8 cross-scope)', async ({ request }) => {
+      const res = await request.post(`${API_BASE}/configuration`, {
+        headers: filialaHeaders(),
+        data: {
+          model: 'dining-options',
+          data: { name: 'Dostava E2E', type: 'delivery', serviceChargeId: 'sc-loc-1-1', isActive: true, sortOrder: 5 },
+        },
+      })
+      expect(res.status()).toBe(400)
+      const body = await res.json().catch(() => ({}))
+      expect(String(body.error || '')).toContain('Servisna postavka')
+    })
+
+    test('MODELA-13: POST /api/configuration (loc-2) dining-option s LASTNIM serviceChargeId = 201 (positive control)', async ({ request }) => {
+      // retry-varno: unikaten type (unique(type, locationId) — playwright retry
+      // ne sme padti na P2002)
+      const uniqueType = `delivery-${Date.now() % 100000}`
+      const res = await request.post(`${API_BASE}/configuration`, {
+        headers: filialaHeaders(),
+        data: {
+          model: 'dining-options',
+          data: { name: 'Dostava E2E', type: uniqueType, serviceChargeId: 'sc-loc-2-1', isActive: true, sortOrder: 6 },
+        },
+      })
+      expect(res.status()).toBe(201)
+      const created = await res.json()
+      expect(created.serviceChargeId).toBe('sc-loc-2-1')
+      expect(created.locationId).toBe('loc-2')
+    })
+
+    test('MODELA-14: GET /api/modifier-groups (loc-2) izpiše SAMO loc-2 skupine (#9)', async ({ request }) => {
+      const res = await request.get(`${API_BASE}/modifier-groups`, { headers: filialaHeaders() })
+      expect(res.ok()).toBeTruthy()
+      const groups = await res.json()
+      expect(Array.isArray(groups)).toBeTruthy()
+      const ids = groups.map((g: { id: string }) => g.id)
+      expect(ids).toContain('mg-loc-2-1')
+      expect(ids).not.toContain('mg-loc-1-1') // ← cross-tenant leak bi bil tu
+    })
+
+    test('MODELA-15: POST /api/modifier-groups (loc-2 zaposleni) podeduje lokacijo seje (#9)', async ({ request }) => {
+      const res = await request.post(`${API_BASE}/modifier-groups`, {
+        headers: filialaHeaders(),
+        data: { name: 'E2E Priloge loc-2', required: false, minSelect: 0, maxSelect: 1, sortOrder: 0, modifiers: [{ name: 'Ketchup', price: 0.5 }] },
+      })
+      expect(res.status()).toBe(201)
+      const group = await res.json()
+      expect(group.locationId).toBe('loc-2') // iz seje — iz bodyja NI mogel priti
+    })
+
+    test('MODELA-16: POST /api/menu-items (loc-2) z loc-1 modifierGroupId = 404 (#9 attach scope)', async ({ request }) => {
+      const res = await request.post(`${API_BASE}/menu-items`, {
+        headers: filialaHeaders(),
+        data: {
+          name: 'E2E Artikel s tujo skupino',
+          price: 5,
+          vatRate: 22,
+          categoryId: 'cat-2',
+          modifierGroupIds: ['mg-loc-1-1'], // ← loc-1 skupina!
+        },
+      })
+      expect(res.status()).toBe(404)
+      const body = await res.json().catch(() => ({}))
+      expect(String(body.error || '')).toContain('Skupina modifikatorjev')
+    })
   })
 
   // ═══════════════════════════════════════════════════════════════

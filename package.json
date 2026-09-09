@@ -1,6 +1,6 @@
 {
   "name": "restaurantos",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "private": true,
   "license": "SEE LICENSE IN LICENSE",
   "packageManager": "bun@1.3.14",
@@ -32,7 +32,8 @@
     "typecheck": "tsc --noEmit",
     "verify": "npx tsx scripts/verify-features.ts",
     "db:migrate:deploy": "prisma migrate deploy",
-    "db:verify": "node scripts/verify-db.mjs"
+    "db:verify": "node scripts/verify-db.mjs",
+    "furs:check": "bash scripts/furs-test-connection.sh"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.8",

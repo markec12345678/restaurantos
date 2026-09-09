@@ -52,7 +52,7 @@ const nextConfig: NextConfig = {
   },
   // FIX: pdfkit needs runtime access to font data files (.afm) in node_modules
   // Turbopack can't bundle these — mark as external package
-  serverExternalPackages: ['pdfkit', '@electric-sql/pglite', 'pglite-prisma-adapter'],
+  serverExternalPackages: ['pdfkit', '@electric-sql/pglite', 'pglite-prisma-adapter', 'undici'],
   // FIX BUG 25: Onemogoči ignoreBuildErrors — skriva prave TS napake
   typescript: {
     ignoreBuildErrors: false,

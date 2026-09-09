@@ -108,6 +108,36 @@ export async function handlePostOrder(
   }
   const orderLocationId = locationResolution.locationId
 
+  // MODEL A (#8 tenant scope audit 2026-09-09): DiningOption in RevenueCenter
+  // iz bodyja sta FK referenci — preverita se proti lokaciji naročila.
+  // DiningOption nosi taxRateId/serviceChargeId (DDV override + servisna
+  // postavka!): cross-tenant referenca = napačen DDV na fiskalnem računu.
+  // Prej:šel je skrivaj skozi brez preverjanja (samo FK obstoj).
+  if (data.diningOptionId) {
+    const diningOptionInScope = await db.diningOption.findFirst({
+      where: { id: data.diningOptionId, locationId: orderLocationId },
+      select: { id: true },
+    })
+    if (!diningOptionInScope) {
+      return NextResponse.json(
+        { error: 'Dining option ni na voljo na tej lokaciji' },
+        { status: 400 }
+      )
+    }
+  }
+  if (data.revenueCenterId) {
+    const revenueCenterInScope = await db.revenueCenter.findFirst({
+      where: { id: data.revenueCenterId, locationId: orderLocationId },
+      select: { id: true },
+    })
+    if (!revenueCenterInScope) {
+      return NextResponse.json(
+        { error: 'Revenue center ni na voljo na tej lokaciji' },
+        { status: 400 }
+      )
+    }
+  }
+
   // FIX 1: Atomna številka — P1-7: per-lokacijsko številčenje (self-init iz MAX)
   const orderNumber = await getNextOrderNumber(orderLocationId)
 

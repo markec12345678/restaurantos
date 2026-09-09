@@ -5,8 +5,17 @@ import { updateModifierGroupSchema } from '@/lib/validations'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
+import { sessionLocationId, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
+
+// MODEL A (#9): preveri, da skupina pripada scope-u seje, preden jo spreminjaš.
+async function getGroupInScope(id: string, scope: string | null) {
+  const group = await db.modifierGroup.findUnique({ where: { id }, select: { id: true, locationId: true } })
+  if (!group) return { notFound: true as const }
+  if (!isWithinScope(scope, group.locationId)) return { notFound: true as const }
+  return { group }
+}
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -14,6 +23,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     if (authResult.error) return authResult.error
 
     const { id } = await params
+
+    // MODEL A (#9): scope guard — 404 tudi za tuje lokacije (ne razkrivaj obstoja)
+    const inScope = await getGroupInScope(id, sessionLocationId(authResult))
+    if ('notFound' in inScope) return notInScopeResponse('Skupina modifikatorjev')
+
     const bodyResult = await parseJsonBody(request)
     if (bodyResult.error) return bodyResult.error
     const body = bodyResult.data
@@ -66,11 +80,9 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
     const { id } = await params
 
-    // FIX: Preveri, da skupina obstaja pred brisanjem
-    const existing = await db.modifierGroup.findUnique({ where: { id } })
-    if (!existing) {
-      return NextResponse.json({ error: 'Skupina modifikatorjev ni najdena' }, { status: 404 })
-    }
+    // MODEL A (#9): scope guard — prej findUnique BREZ scopa (IDOR čez lokacije)
+    const inScope = await getGroupInScope(id, sessionLocationId(authResult))
+    if ('notFound' in inScope) return notInScopeResponse('Skupina modifikatorjev')
 
     await db.modifierGroup.delete({ where: { id } })
     return NextResponse.json({ success: true })

@@ -5,7 +5,7 @@
 
 // Tipi in konstante
 export type { FursEnvironment, FursConfig, FursReferenceInvoice, FursInvoiceData, FursVerificationResult, FursQRData } from './types'
-export { FURS_URLS, FURS_TOKEN_URLS } from './types'
+export { FURS_URLS, FURS_ECHO_URLS } from './types'
 
 // Kriptografija in certifikati
 export { generateZOI, loadCertificatePrivateKey, clearCertificateCache, extractCertificateFromPKCS12 } from './crypto'

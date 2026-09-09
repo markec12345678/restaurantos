@@ -6,6 +6,46 @@ All notable changes to RestaurantOS are documented in this file.
 > commit SHA, migracije, breaking changes, rezultati testov, znane težave,
 > deployment in rollback navodila.
 
+## [v1.3.2] — 2026-09-09 — MODEL A 2. krog (#8/#9) + FURS spec-compliance + URADNI testni certifikati
+
+| Polje | Vrednost |
+|-------|----------|
+| **Datum izdaje** | 2026-09-09 |
+| **Commit** | release commit (glej tag v1.3.2) |
+| **Migracije** | DA — NOVO: `0004_modifier_group_scope` (ModifierGroup.locationId NOT NULL + FK CASCADE + indeks; lokacija se izpelje iz pripetih artiklov `MenuItemModifierGroup → MenuItem → Category → Menu` — samo enolične lokacije; skupine brez artiklov ALI pripete artiklom VEČ lokacij = FAIL-CLOSED). Oba poti dokazani na realnem PostgreSQL (happy-path samododelitev + fail-closed blokada) |
+| **Breaking changes** | DA: (1) `ModifierGroup` ni več globalen — `GET /api/modifier-groups` vrne SAMO lokacijo seje, POST dedni lokacijo iz seje/`?locationId=`; PUT/DELETE na tujih skupinah = 404; (2) `POST /api/menu-items` z `modifierGroupIds` tuje lokacije = 404; (3) order POST z `diningOptionId`/`revenueCenterId` tuje lokacije = 400; (4) `POST /api/configuration` (dining-options) s `serviceChargeId`/`taxRateId` tuje lokacije = 400 (taxRateId je sedaj dovoljen v allowedFields Z validacijo); (5) printers `printRules` se striktno validira (JSON array, type, port 1–65535, prepStationId iz iste lokacije) |
+| **Testni rezultati** | tsc clean; vitest **1414/1414** (+87 novih: certifikati/JWS/PKCS12/cross-scope); eslint 0 errors / 1476 warnings (<1482 ratchet); E2E Security **82/82** (+8 novih MODELA-9..16); migracija 0004 fail-closed + happy-path dokazana |
+| **Znane težave** | Glej [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md). FURS živo E2E (echo + račun + EOR) čaka na namensko testno potrdilo (sd.fu@gov.si — dokumentacija 2.3) |
+| **Deployment** | `bun install --frozen-lockfile && bun run db:generate && bun run db:migrate:deploy && bun run db:verify && bun run build && bun run start`. Docker: `docker compose build && docker compose run --rm migrate && docker compose up -d` |
+| **Rollback** | `git checkout v1.3.1 && docker compose build && docker compose up -d`. 0004 ni samodejno povrnljiva — ročno: `ALTER TABLE "ModifierGroup" ALTER COLUMN "locationId" DROP NOT NULL` (podatki ostanejo) |
+
+### 🔒 MODEL A 2. krog — uporabnikovi točki #8 in #9
+
+- **Fixed (#8, money-path):** `POST /api/orders` je sprejel `diningOptionId` in `revenueCenterId` iz KATerekoli lokacije — DiningOption nosi `taxRateId`/`serviceChargeId` (DDV override + servisna postavka!), torej je cross-tenant referenca pomenila NAPAČEN DDV na fiskalnem računu (FURS). Zdaj: FK validirana proti lokaciji naročila (400 sicer)
+- **Fixed (#8, konfiguracija):** `POST /api/configuration` (dining-options) je sprejel `serviceChargeId` tuje lokacije (edini settable FK; `taxRateId` sploh ni bil v allowedFields). Zdaj: `validateConfigRefs()` preverja ISTO lokacijo za serviceChargeId in taxRateId (slednji je sedaj settable Z validacijo — F5-7 DDV override glede na način serviranja)
+- **Fixed (#9):** `ModifierGroup` je bil ZADNJI globalni katalog — GET je izpisal VSE najemnike, skupino lokacije A je bilo mogoče pripeti artiklu lokacije B. Zdaj: locationId NOT NULL (migracija 0004 z izpeljava iz pripetih artiklov), API scoped, attach validiran
+- **Fixed (#9):** `printers.printRules` (JSON) — prej neserializirana/nescopana: sedaj oblika (array ≤50, type ≤50 znakov, port 1–65535) + `prepStationId` iz ISTE lokacije
+- **NOVO:** 8 E2E testov MODELA-9..16 (diningOption/revenueCenter FK scope, serviceCharge cross-scope, modifier-group izolacija/attach) + 15 unit testov cross-scope validacije
+
+### 🇸🇮 FURS spec-compliance (ustanovna revizija iz uporabnikovega zahtevka "najdi testne certifikate in preveri")
+
+Primerjava implementacije z **Uradno tehnično dokumentacijo v3.2** (prenesena s edavki.durs.si, 125 strani + BlagajneSample + JSON shema FiscalVerificationSchema.json) je odkrila **4 hude neskladnosti** — vse odpravljene:
+
+- **Fixed (KRITIČNO):** NAPAČNI endpointi — app je klical `/v1/cash_payments` + izmišljen `/v1/cash_payments/oauth/token` (v specifikaciji NE OBSTAJATA; "cash_payments" se v 125 straneh ne pojavi niti enkrat!). Zdaj: `/v1/cash_registers/invoices` (test `:9002`, produkcija `:9003`) + `/v1/cash_registers/echo`
+- **Fixed (KRITIČNO):** NAPAČEN avtentikacijski model — OAuth2 client_credentials flow je odstranjen (`token.ts` izbrisan). Spec zahteva: vsako sporočilo je `{"token":"<JWT>"}` kjer JWT = **JWS (RFC 7515)**: header `{alg:"RS256", subject_name, issuer_name, serial}` (iz certifikata!) + payload = CELA vsebina sporočila + RS256 podpis. NOVO: `src/lib/furs/crypto/jws.ts` (buildFursJws, verifyFursJws, extractCertIdentity z DN-formatom Java X500Principal)
+- **Fixed (KRITIČNO):** MANJKALO mTLS — spec v1.3+ zahteva DVOSMERNO TLS (odjemalški certifikat v handshake-u; živo potrjeno: strežnik pošlje TLS "Request CERT" in prekine brez njega). Zdaj: undici Agent s cert/key iz p12 + CA verigo iz `certs/furs-test/`
+- **Fixed (KRITIČNO):** NAPAČEN payload računa — `InvoiceIdentifier` je vseboval ZOI namesto `ProtectedID`; manjkali so NumberingStructure/InvoiceIdentifier{TROJICA}/TaxesPerSeller/OperatorTaxNumber; plačilni tip je bil besedilen ("PaymentType") namesto spec struktur. Zdaj: buildFursRequest po uradni shemi (validirano proti FiscalVerificationSchema.json — additionalProperties: false!), TaxNumber kot ŠTEVILO, storno = SubsequentSubmit + ReferenceInvoice[]
+- **NOVO:** odgovor FURS se preveri: `{"token": JWT}` → JWS podpis preverjen z javnim ključem iz header `x5c` (certifikat FURS za podpisovanje odgovorov) → EOR iz payloada. Manipuliran EOR = zavrnjen
+
+### 📜 URADNI javni testni certifikati (v repu, CI-ponovljivo)
+
+- **NOVO:** `certs/furs-test/` — javni certifikati uradnega FURS testnega okolja (preneseni 2026-09-09 z uradne strani, nižje v README z viri/fingerprint/veljavnostmi): `blagajne-test.fu.gov.si.cer` (TLS strežnik), `DavPotRacTEST.cer` (podpis odgovorov), `si-trust-root.crt` + `sigov-ca.crt` (CA veriga) + README s postopkom obnove ob rotaciji
+- **NOVO:** `scripts/furs-test-connection.sh` (`bun run furs:check`) — živo preverjanje: TCP, TLS handshake s CA verigo, fingerprint pin (rotacijski detector), echo poskus (potrdi mTLS zahtevo). Izvedeno: dosegljivost ✅, verifikacija OK ✅, pin ujema ✅, mTLS zahteva potrjena ✅
+- **NOVO:** `tests/unit/furs/test-certificates.test.ts` — parsanje, CA verifikacija (openssl verify), SHA-256 pin, veljavnost (lomijo se NAMERNO ob rotaciji FURS)
+- **NOVO:** `tests/unit/furs/jws.test.ts` — JWS z URADNIMI vektorji dokumentacije (ITM STORITVE/99999862/serial, DN format, ZOI 34905bcff14b381039af2e9d7eee54bb, TaxNumber številka, oblika payloada)
+- **NOVO:** `tests/unit/furs/pkcs12-roundtrip.test.ts` — realen p12 (openssl-generiran, enaka struktura): loadFromPKCS12 (OpenSSL CLI) + RS256 podpis + extractCertIdentity + negativni geslo testi
+- **Dokumentirano:** namenski testni certifikat (p12 s privatnim ključem) NI javno prenosljiv — zahtevek na **sd.fu@gov.si** (dok. 2.3); FINA/CIS (HR) demo potrdilo prek FINA portala + demo-pki.fina.hr iskalnika (vse v certs/furs-test/README.md)
+
 ## [v1.3.1] — 2026-09-09 — Tenant scope MODEL A (katalog/konfiguracija PO LOKACIJI) + db-sync ODSTRANJEN + staging §5.1/§5.2
 
 | Polje | Vrednost |

@@ -133,6 +133,19 @@ export async function POST(req: Request) {
       return notInScopeResponse('Kategorija')
     }
 
+    // MODEL A (#9): modifierGroupIds morajo pripadati ISTI lokaciji kot meni
+    // artikla (prej: skupino katerekoli lokacije je bilo mogoče pripeti).
+    if (modifierGroupIds.length > 0) {
+      const uniqueIds = [...new Set(modifierGroupIds)]
+      const groupsInLocation = await db.modifierGroup.findMany({
+        where: { id: { in: uniqueIds }, locationId: parentCategory.menu.locationId },
+        select: { id: true },
+      })
+      if (groupsInLocation.length !== uniqueIds.length) {
+        return notInScopeResponse('Skupina modifikatorjev')
+      }
+    }
+
     const item = await db.menuItem.create({
       data: {
         ...itemData,
