@@ -168,6 +168,12 @@ export async function initiateWalletPayment(
 }
 
 // 2. POTRDIPLAČILO (gateway response webhook)
+// P1-19 (concurrency): pogojni updateMany (status='pending') — ATOMICNA
+// preprečitev check-then-act race-a. Prej: findUnique + status check + update
+// kot trije ločeni koraki → dva sočasna webhook-a istega dogodka sta oba
+// prebrala 'pending' in oba nadaljevala. Sedaj samo PRVI zmaga (count=1);
+// konkurentne klice vržejo "ni v pending stanju" napako, ki jo webhook
+// route obravnava idempotentno (isti končni status → 200 duplicate).
 export async function authorizeWalletPayment(
   walletPaymentId: string,
   gatewayResponse: {
@@ -179,28 +185,47 @@ export async function authorizeWalletPayment(
     errorMessage?: string
   },
 ): Promise<WalletPaymentResult> {
-  const walletPayment = await db.walletPayment.findUnique({
-    where: { id: walletPaymentId },
-  })
-  if (!walletPayment) {
-    throw new Error(`WalletPayment ${walletPaymentId} ne obstaja`)
-  }
-
-  if (walletPayment.status !== 'pending') {
-    throw new Error(`WalletPayment ${walletPaymentId} ni v pending stanju (trenutno: ${walletPayment.status})`)
-  }
-
-  const updated = await db.walletPayment.update({
-    where: { id: walletPaymentId },
+  // Atomarna statusna transicija pending → authorized/failed
+  const claim = await db.walletPayment.updateMany({
+    where: { id: walletPaymentId, status: 'pending' },
     data: {
       status: gatewayResponse.status === 'authorized' ? 'authorized' : 'failed',
       transactionId: gatewayResponse.transactionId,
-      cardBrand: gatewayResponse.cardBrand || walletPayment.cardBrand,
-      cardLast4: gatewayResponse.cardLast4 || walletPayment.cardLast4,
+      cardBrand: gatewayResponse.cardBrand || undefined,
+      cardLast4: gatewayResponse.cardLast4 || undefined,
       errorCode: gatewayResponse.errorCode || '',
       errorMessage: gatewayResponse.errorMessage || '',
     },
   })
+
+  if (claim.count === 0) {
+    // Konkurentni klic je že obdelal ta wallet payment — preberi trenutni
+    // status za ločevanje duplikata (idempotentno) od konflikta stanj (409).
+    let currentStatus = 'unknown'
+    try {
+      const current = await db.walletPayment.findUnique({
+        where: { id: walletPaymentId },
+        select: { status: true },
+      })
+      currentStatus = current?.status ?? 'ne obstaja'
+      if (!current) {
+        throw new Error(`WalletPayment ${walletPaymentId} ne obstaja`)
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message.includes('ne obstaja')) throw err
+      currentStatus = 'unknown'
+    }
+    throw new Error(
+      `WalletPayment ${walletPaymentId} ni v pending stanju (trenutno: ${currentStatus})`,
+    )
+  }
+
+  const updated = await db.walletPayment.findUnique({
+    where: { id: walletPaymentId },
+  })
+  if (!updated) {
+    throw new Error(`WalletPayment ${walletPaymentId} ne obstaja`)
+  }
 
   logger.info(
     'WalletPayment',
@@ -217,27 +242,36 @@ export async function authorizeWalletPayment(
 }
 
 // 3. CAPTURE plačila (pooblastitev → dejansko breme)
+// P1-19: pogojni updateMany (status='authorized') — prepreči dvojni capture
+// ob sočasnih klicih (npr. webhook retry + ročni capture).
 export async function captureWalletPayment(
   walletPaymentId: string,
 ): Promise<WalletPaymentResult> {
-  const walletPayment = await db.walletPayment.findUnique({
-    where: { id: walletPaymentId },
-  })
-  if (!walletPayment) {
-    throw new Error(`WalletPayment ${walletPaymentId} ne obstaja`)
-  }
-
-  if (walletPayment.status !== 'authorized') {
-    throw new Error(`WalletPayment ${walletPaymentId} ni avtoriziran (trenutno: ${walletPayment.status})`)
-  }
-
-  const updated = await db.walletPayment.update({
-    where: { id: walletPaymentId },
+  const claim = await db.walletPayment.updateMany({
+    where: { id: walletPaymentId, status: 'authorized' },
     data: {
       status: 'captured',
       capturedAt: new Date(),
     },
   })
+
+  if (claim.count === 0) {
+    const current = await db.walletPayment.findUnique({
+      where: { id: walletPaymentId },
+      select: { status: true },
+    })
+    if (!current) {
+      throw new Error(`WalletPayment ${walletPaymentId} ne obstaja`)
+    }
+    throw new Error(`WalletPayment ${walletPaymentId} ni avtoriziran (trenutno: ${current.status})`)
+  }
+
+  const updated = await db.walletPayment.findUnique({
+    where: { id: walletPaymentId },
+  })
+  if (!updated) {
+    throw new Error(`WalletPayment ${walletPaymentId} ne obstaja`)
+  }
 
   logger.info('WalletPayment', `Captured ${walletPaymentId}`)
 
@@ -248,10 +282,10 @@ export async function captureWalletPayment(
     eventType: 'wallet_payment_captured',
     payload: {
       walletPaymentId,
-      amount: toNum(walletPayment.amount),
-      currency: walletPayment.currency,
-      checkId: walletPayment.checkId,
-      paymentId: walletPayment.paymentId,
+      amount: toNum(updated.amount),
+      currency: updated.currency,
+      checkId: updated.checkId,
+      paymentId: updated.paymentId,
     },
     target: 'internal',
     idempotencyKey: `wallet_payment:${walletPaymentId}:capture`,
@@ -267,45 +301,60 @@ export async function captureWalletPayment(
 }
 
 // 4. POVRAČILO
+// P1-19 (concurrency): read-validate-write pod pg_advisory_xact_lock +
+// INCREMENT namesto absolutnega zapisa. Prej: dvakrat sočasno delno vračilo
+// je oba prebrala isti refundedAmount → izgubljen update (dvakrat vračeno,
+// DB pa kazala enkrat). Zaklep + increment serializira kumulativo.
 export async function refundWalletPayment(
   walletPaymentId: string,
   refundAmount: number,
 ): Promise<WalletPaymentResult> {
-  const walletPayment = await db.walletPayment.findUnique({
-    where: { id: walletPaymentId },
+  const { updated, newRefundedAmount } = await db.$transaction(async (tx) => {
+    // Zakleni vrstico — vzporedni refundi istega wallet payment čakajo
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'wallet-refund:' + walletPaymentId}))`
+
+    // PONOVNO branje ZNOTRAJ zaklepa (avtoritativno stanje)
+    const walletPayment = await tx.walletPayment.findUnique({
+      where: { id: walletPaymentId },
+    })
+    if (!walletPayment) {
+      throw new Error(`WalletPayment ${walletPaymentId} ne obstaja`)
+    }
+
+    if (walletPayment.status !== 'captured') {
+      throw new Error(`WalletPayment ${walletPaymentId} ni bil realiziran (trenutno: ${walletPayment.status})`)
+    }
+
+    const originalAmount = toNum(walletPayment.amount)
+    const alreadyRefunded = toNum(walletPayment.refundedAmount)
+
+    if (refundAmount <= 0 || refundAmount > originalAmount - alreadyRefunded) {
+      throw new Error(`Neveljaven znesek povračila (preostanek: €${round2(originalAmount - alreadyRefunded)})`)
+    }
+
+    const newRefundedTotal = alreadyRefunded + refundAmount
+    const isFullRefund = newRefundedTotal >= originalAmount
+
+    // INCREMENT — dodatna varovalka pred izgubljenimi update-i
+    const updatedRow = await tx.walletPayment.update({
+      where: { id: walletPaymentId },
+      data: {
+        refundedAmount: { increment: refundAmount },
+        status: isFullRefund ? 'refunded' : 'captured', // delno ostane captured
+      },
+    })
+
+    return { updated: updatedRow, newRefundedAmount: newRefundedTotal }
   })
-  if (!walletPayment) {
-    throw new Error(`WalletPayment ${walletPaymentId} ne obstaja`)
-  }
 
-  if (walletPayment.status !== 'captured') {
-    throw new Error(`WalletPayment ${walletPaymentId} ni bil realiziran (trenutno: ${walletPayment.status})`)
-  }
-
-  const originalAmount = toNum(walletPayment.amount)
-  const alreadyRefunded = toNum(walletPayment.refundedAmount)
-
-  if (refundAmount <= 0 || refundAmount > originalAmount - alreadyRefunded) {
-    throw new Error(`Neveljaven znesek povračila (preostanek: €${round2(originalAmount - alreadyRefunded)})`)
-  }
-
-  const newRefundedAmount = alreadyRefunded + refundAmount
-  const isFullRefund = newRefundedAmount >= originalAmount
-
-  const updated = await db.walletPayment.update({
-    where: { id: walletPaymentId },
-    data: {
-      refundedAmount: newRefundedAmount,
-      status: isFullRefund ? 'refunded' : 'captured', // delno ostane captured
-    },
-  })
+  const isFullRefund = newRefundedAmount >= toNum(updated.amount)
 
   logger.info(
     'WalletPayment',
     `Refunded ${walletPaymentId}: €${refundAmount} (total refunded: €${newRefundedAmount})`,
   )
 
-  // Outbox za gateway refund
+  // Outbox za gateway refund (po commit-u; idempotencyKey = kumulativa)
   await createOutboxEvent({
     aggregateType: 'payment',
     aggregateId: walletPaymentId,
@@ -313,7 +362,7 @@ export async function refundWalletPayment(
     payload: {
       walletPaymentId,
       refundAmount,
-      transactionId: walletPayment.transactionId,
+      transactionId: updated.transactionId,
     },
     target: 'stripe',
     targetEndpoint: 'refund',

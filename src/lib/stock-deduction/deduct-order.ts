@@ -20,7 +20,7 @@ export async function deductStockForOrder(
     errors: [],
   }
 
-  // Preveri, da zaloga še NI bila razknjižena
+  // Preveri, da zaloga še NI bila razknjižena (fast path — zastarelo branje!)
   const order = await db.order.findUnique({ where: { id: orderId } })
   if (!order) {
     result.success = false
@@ -35,6 +35,27 @@ export async function deductStockForOrder(
 
   // Celotno razknjiževanje v eni transakciji — prepreči parcialno stanje
   await db.$transaction(async (tx) => {
+    // P1-19 (concurrency): ATOMICNA ZAHTEVA (claim) flag-a ZNOTRAJ transakcije.
+    //
+    // Prej je bil `inventoryDeducted` prebran IZVEN transakcije (zgoraj) —
+    // TOCTOU race: order-create flow in FURS-fallback flow (post-verify) sta
+    // SOČASNO prebrala false → oba vstopila v transakcijo → oba razknjižila
+    // zalogo (dvojni odbitek + duplikat StockMovement vrstic).
+    //
+    // Fix: pogojni updateMany (conditional update = optimistic locking vzorec):
+    // samo PRVI klic postavi false→true in dobi count=1; konkurenčni klici
+    // dobijo count=0 → takoj končajo BREZ razknjižbe. To je tudi idempotenca
+    // za retry klice (isti order, drugačen čas).
+    const claim = await tx.order.updateMany({
+      where: { id: orderId, inventoryDeducted: false },
+      data: { inventoryDeducted: true },
+    })
+    if (claim.count === 0) {
+      // Druga sočasna transakcija je medtem že prevzela razknjižbo — izstopimo
+      // brez stranskih učinkov (transaction se izvede kot no-op commit).
+      return
+    }
+
     // 1. Recipe-based deduction (vrne indekse obdelanih postavk)
     const recipeHandled = await deductRecipeItems(tx, items, orderId, orderNumber, result)
 
@@ -45,12 +66,6 @@ export async function deductStockForOrder(
       if (items[i].voided || recipeHandled.has(i)) continue
       await deductDirectItem(tx, items[i], orderId, orderNumber, result, order.locationId)
     }
-
-    // Označi naročilo kot razknjiženo ZNOTRAJ transakcije — atomarno
-    await tx.order.update({
-      where: { id: orderId },
-      data: { inventoryDeducted: true },
-    })
   })
 
   return result

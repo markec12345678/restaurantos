@@ -16,7 +16,8 @@ export interface StockDeductionResult {
     quantityDeducted: number
     previousQty: number
     newQty: number
-    method: 'recipe' | 'direct'
+    // 'snapshot' = vračilo po snapshotu dedukcije (mirror sale vrstic — P1-19)
+    method: 'recipe' | 'direct' | 'snapshot'
   }>
   lowStockAlerts: Array<{
     inventoryItemId: string

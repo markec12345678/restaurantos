@@ -28,7 +28,8 @@ export async function handleStockDeduction(
   try {
     const stockResult = await deductStockForOrder(orderId, orderNumber, orderItems)
     stockDeducted = true
-    await db.order.update({ where: { id: orderId }, data: { inventoryDeducted: true } })
+    // NOTE: inventoryDeducted=true se nastavi ZNOTRAJ deductStockForOrder
+    // transakcije (P1-19 pogojni claim) — zunanja posodobitev ni potrebna več.
     if (stockResult.lowStockAlerts.length > 0) {
       broadcastLowStockAlert(stockResult.lowStockAlerts)
     }

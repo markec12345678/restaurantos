@@ -7,6 +7,7 @@ import { logger } from "@/lib/logger"
 import { db } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
 import { resolveAccountCode } from './chart-of-accounts'
+import { Prisma } from '@prisma/client'
 
 // Slovenski kontni načrt (poenostavljen za restavracije)
 export const ACCOUNTS = {
@@ -23,6 +24,63 @@ export const ACCOUNTS = {
 } as const
 
 type AccountKey = keyof typeof ACCOUNTS
+
+/** Prisma transakcijski klient (interaktivni callback parameter) */
+type PrismaTx = Parameters<Parameters<typeof db.$transaction>[0]>[0]
+
+type DbOrTx = typeof db | PrismaTx
+
+function isUniqueViolation(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002'
+}
+
+/**
+ * P1-19 (concurrency): številka vnosa z retry na P2002 (unique collision).
+ *
+ * Prej: `count + 1` — dva sočasno generirana vnosa (npr. dve plačili) sta
+ * oba prebrala isti count → isto entryNumber → P2002 → JE TIHO manjkal
+ * (catch → null). Sedaj: ob unikatnem konfliktu ponovno preberemo count
+ * (medtem je zmagovalec zapisal svoj vnos) in poskusimo znova.
+ */
+async function nextJournalEntryNumber(client: DbOrTx): Promise<string> {
+  const year = new Date().getFullYear()
+  const count = await client.journalEntry.count({
+    where: { entryNumber: { startsWith: `JE-${year}-` } },
+  })
+  return `JE-${year}-${String(count + 1).padStart(6, '0')}`
+}
+
+/**
+ * Ustvari JE z retryjem na P2002 (entryNumber kolizija). createFn dobi
+ * (entryNumber) in mora izvesti sam create.
+ */
+async function createEntryWithNumberRetry<T extends { id: string }>(
+  client: DbOrTx,
+  createFn: (entryNumber: string) => Promise<T>,
+  maxAttempts = 3,
+): Promise<T> {
+  let lastError: unknown
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const entryNumber = await nextJournalEntryNumber(client)
+    try {
+      return await createFn(entryNumber)
+    } catch (err) {
+      if (isUniqueViolation(err) && attempt < maxAttempts - 1) {
+        // Kolizija na entryNumber — zmagovalni klic je že zapisal svoj vnos;
+        // ponovno preberemo count in poskusimo z naslednjo številko.
+        continue
+      }
+      // Kolizija na DRUGEM unique polju (npr. reference idempotenca) — ne retry
+      if (isUniqueViolation(err)) {
+        // Zadnji poskus — lahko je tudi idempotenčna kolizija; vrni original
+        // napako, klicnik (refund) jo obravnava.
+      }
+      lastError = err
+      if (!isUniqueViolation(err)) throw err
+    }
+  }
+  throw lastError ?? new Error('JOURNAL_ENTRY_NUMBER_RETRY_EXHAUSTED')
+}
 
 /** Ustvari knjigovodski vnos za plačilo (avtomatsko iz Order + Payment) */
 export async function generateJournalForPayment(
@@ -42,6 +100,13 @@ export async function generateJournalForPayment(
     const order = payment.check?.order
     if (!order) return null
 
+    // P1-accounting: idempotenca — duplikat (retry klica) preskočimo
+    const existing = await db.journalEntry.findFirst({
+      where: { reference: paymentId, referenceType: 'payment' },
+      select: { id: true },
+    })
+    if (existing) return existing.id
+
     // Določi konto prometa glede na tip naročila
     const salesAccount = order.type === 'delivery'
       ? ACCOUNTS.SALES_DELIVERY
@@ -54,81 +119,95 @@ export async function generateJournalForPayment(
     const tip = toNum(payment.tipAmount)
     const netSales = total - tip
 
+    // P1-accounting (DDV): razdeli bruto znesek na NETO prihodek + DDV.
+    // Prej je celoten netSales (vključno z DDV!) šel na konto prihodka —
+    // prihodek bil napihnjen, DDV izhodni (2600) pa se nikoli ni knjižil.
+    // DDV delež: proporcionalno po deležu plačila na čeku (check.tax × ratio).
+    const check = payment.check
+    const checkTotal = toNum(check?.total)
+    const checkTax = toNum(check?.tax)
+    const ratio = checkTotal > 0 ? Math.min(total / checkTotal, 1) : 0
+    const vatPortion = Math.max(0, Math.round(checkTax * ratio * 100) / 100)
+    const netRevenue = Math.max(0, Math.round((netSales - vatPortion) * 100) / 100)
+
     // ISSUE #38: Resolve ChartOfAccount FK za vsako vrstico (validacija + denormalizacija)
-    const [resolvedSales, resolvedPayment, resolvedTips] = await Promise.all([
+    const [resolvedSales, resolvedPayment, resolvedTips, resolvedVat] = await Promise.all([
       resolveAccountCode(salesAccount.code),
       resolveAccountCode(paymentAccount.code),
       tip > 0 ? resolveAccountCode(ACCOUNTS.TIPS.code) : Promise.resolve(null),
+      vatPortion > 0 ? resolveAccountCode(ACCOUNTS.VAT_OUTPUT.code) : Promise.resolve(null),
     ])
 
-    // Številka vnosa: JE-YYYY-NNNNNN
-    const year = new Date().getFullYear()
-    const count = await db.journalEntry.count({ where: { entryNumber: { startsWith: `JE-${year}-` } } })
-    const entryNumber = `JE-${year}-${String(count + 1).padStart(6, '0')}`
-
-    // P1-18 (idempotenca): če vnos za to plačilo ŽE obstaja (retry klica),
-    // ne ustvari duplikata — vračamo obstoječi ID.
-    const existing = await db.journalEntry.findFirst({
-      where: { reference: paymentId, referenceType: 'payment' },
-      select: { id: true },
-    })
-    if (existing) return existing.id
-
-    // Ustvari knjigovodski vnos z vrsticami (double-entry)
-    const entry = await db.journalEntry.create({
-      data: {
-        entryNumber,
-        date: new Date(),
-        reference: paymentId,
-        referenceType: 'payment',
-        description: `Plačilo #${order.orderNumber} — ${order.customerName || 'Gost'} (${payment.type})`,
-        source: 'auto-payment',
-        status: 'posted',
-        postedAt: new Date(),
-        postedBy: employeeId || null,
-        // FIX issue #31: nastavi locationId iz povezanega naročila za multi-location accounting
-        locationId: order.locationId || null,
-        lines: {
-          create: [
-            // Debet: banka/blagajna (prejmemo denar)
-            {
-              accountCode: resolvedPayment.accountCode,
-              chartOfAccountCode: resolvedPayment.chartOfAccountCode,
-              accountName: resolvedPayment.accountName,
-              accountType: resolvedPayment.accountType,
-              debit: total,
-              credit: 0,
-              description: `Prejem ${payment.type} — plačilo #${order.orderNumber}`,
-              // ISSUE #31: denormalizirano na JournalLine za hitre poizvedbe
-              locationId: order.locationId || null,
-            },
-            // Kredit: promet (brez napitnine)
-            {
-              accountCode: resolvedSales.accountCode,
-              chartOfAccountCode: resolvedSales.chartOfAccountCode,
-              accountName: resolvedSales.accountName,
-              accountType: resolvedSales.accountType,
-              debit: 0,
-              credit: netSales,
-              description: `Promet ${order.type} — naročilo #${order.orderNumber}`,
-              locationId: order.locationId || null,
-            },
-            // Kredit: napitnine (če > 0)
-            ...(tip > 0 && resolvedTips ? [{
-              accountCode: resolvedTips.accountCode,
-              chartOfAccountCode: resolvedTips.chartOfAccountCode,
-              accountName: resolvedTips.accountName,
-              accountType: resolvedTips.accountType,
-              debit: 0,
-              credit: tip,
-              description: `Napitnina — naročilo #${order.orderNumber}`,
-              locationId: order.locationId || null,
-            }] : []),
-          ],
+    // Ustvari knjigovodski vnos z vrsticami (double-entry, DDV razdeljen)
+    // Debet: plačilno sredstvo (total)
+    // Kredit: prihodek (neto brez DDV) + DDV izhodni + napitnine
+    const entry = await createEntryWithNumberRetry(db, (entryNumber) =>
+      db.journalEntry.create({
+        data: {
+          entryNumber,
+          date: new Date(),
+          reference: paymentId,
+          referenceType: 'payment',
+          description: `Plačilo #${order.orderNumber} — ${order.customerName || 'Gost'} (${payment.type})`,
+          source: 'auto-payment',
+          status: 'posted',
+          postedAt: new Date(),
+          postedBy: employeeId || null,
+          // FIX issue #31: nastavi locationId iz povezanega naročila za multi-location accounting
+          locationId: order.locationId || null,
+          lines: {
+            create: [
+              // Debet: banka/blagajna (prejmemo denar)
+              {
+                accountCode: resolvedPayment.accountCode,
+                chartOfAccountCode: resolvedPayment.chartOfAccountCode,
+                accountName: resolvedPayment.accountName,
+                accountType: resolvedPayment.accountType,
+                debit: total,
+                credit: 0,
+                description: `Prejem ${payment.type} — plačilo #${order.orderNumber}`,
+                // ISSUE #31: denormalizirano na JournalLine za hitre poizvedbe
+                locationId: order.locationId || null,
+              },
+              // Kredit: promet NETO (brez DDV, brez napitnine)
+              {
+                accountCode: resolvedSales.accountCode,
+                chartOfAccountCode: resolvedSales.chartOfAccountCode,
+                accountName: resolvedSales.accountName,
+                accountType: resolvedSales.accountType,
+                debit: 0,
+                credit: netRevenue,
+                description: `Promet ${order.type} (neto) — naročilo #${order.orderNumber}`,
+                locationId: order.locationId || null,
+              },
+              // Kredit: DDV izhodni (2600) — obveznost do države
+              ...(vatPortion > 0 && resolvedVat ? [{
+                accountCode: resolvedVat.accountCode,
+                chartOfAccountCode: resolvedVat.chartOfAccountCode,
+                accountName: resolvedVat.accountName,
+                accountType: resolvedVat.accountType,
+                debit: 0,
+                credit: vatPortion,
+                description: `DDV izhodni — plačilo #${order.orderNumber}`,
+                locationId: order.locationId || null,
+              }] : []),
+              // Kredit: napitnine (če > 0)
+              ...(tip > 0 && resolvedTips ? [{
+                accountCode: resolvedTips.accountCode,
+                chartOfAccountCode: resolvedTips.chartOfAccountCode,
+                accountName: resolvedTips.accountName,
+                accountType: resolvedTips.accountType,
+                debit: 0,
+                credit: tip,
+                description: `Napitnina — naročilo #${order.orderNumber}`,
+                locationId: order.locationId || null,
+              }] : []),
+            ],
+          },
         },
-      },
-      include: { lines: true },
-    })
+        include: { lines: true },
+      }),
+    )
 
     return entry.id
   } catch (error) {
@@ -137,8 +216,7 @@ export async function generateJournalForPayment(
   }
 }
 
-/** Prisma transakcijski klient (interaktivni callback parameter) */
-type PrismaTx = Parameters<Parameters<typeof db.$transaction>[0]>[0]
+/** Prisma transakcijski klient (interaktivni callback parameter) — podedovano zgoraj */
 
 /** Vhod za generateJournalForRefund — vrednosti priskrbi refund transakcija. */
 export interface RefundJournalInput {
@@ -149,6 +227,8 @@ export interface RefundJournalInput {
   cumulativeRefundAmount: number
   /** Delež napitnine tega vračila (refundRatio × payment.tipAmount) */
   tipPortion: number
+  /** P1-accounting: delež DDV tega vračila (izračuna klicatelj iz check.tax) */
+  vatPortion: number
   orderType: string
   orderNumber: number | string
   customerName: string
@@ -188,7 +268,11 @@ export async function generateJournalForRefund(
     })
     if (existing) return existing.id
 
-    const netRefund = Math.max(input.refundAmount - input.tipPortion, 0)
+    // P1-accounting (DDV): neto reverza = vračilo − napitnina − DDV delež.
+    // DDV reverza gre na DEBET konta 2600 (razveljavitev obveznosti do države).
+    const tipPortion = Math.max(0, Math.min(input.tipPortion, input.refundAmount))
+    const vatPortion = Math.max(0, Math.min(input.vatPortion || 0, input.refundAmount - tipPortion))
+    const netRefund = Math.max(input.refundAmount - tipPortion - vatPortion, 0)
 
     const salesAccount = input.orderType === 'delivery'
       ? ACCOUNTS.SALES_DELIVERY
@@ -200,68 +284,78 @@ export async function generateJournalForRefund(
     // resolveAccountCode je read-only poizvedba po kontnem načrtu — varno
     // jo naredimo prek globalnega db klienta tudi znotraj tx callbacka
     // (kontni načret se z refund operacijo NE spreminja).
-    const [resolvedSales, resolvedPayment, resolvedTips] = await Promise.all([
+    const [resolvedSales, resolvedPayment, resolvedTips, resolvedVat] = await Promise.all([
       resolveAccountCode(salesAccount.code),
       resolveAccountCode(paymentAccount.code),
-      input.tipPortion > 0 ? resolveAccountCode(ACCOUNTS.TIPS.code) : Promise.resolve(null),
+      tipPortion > 0 ? resolveAccountCode(ACCOUNTS.TIPS.code) : Promise.resolve(null),
+      vatPortion > 0 ? resolveAccountCode(ACCOUNTS.VAT_OUTPUT.code) : Promise.resolve(null),
     ])
 
-    const year = new Date().getFullYear()
-    const count = await tx.journalEntry.count({ where: { entryNumber: { startsWith: `JE-${year}-` } } })
-    const entryNumber = `JE-${year}-${String(count + 1).padStart(6, '0')}`
-
-    const entry = await tx.journalEntry.create({
-      data: {
-        entryNumber,
-        date: new Date(),
-        reference,
-        referenceType: 'refund',
-        description: `Reverza vračila #${input.orderNumber} — ${input.customerName || 'Gost'} (${input.paymentType})${input.reason ? `: ${input.reason}` : ''}`,
-        source: 'auto-refund',
-        status: 'posted',
-        postedAt: new Date(),
-        postedBy: input.employeeId || null,
-        locationId: input.locationId || null,
-        lines: {
-          create: [
-            // Debet: promet (razveljavimo prihodek)
-            {
-              accountCode: resolvedSales.accountCode,
-              chartOfAccountCode: resolvedSales.chartOfAccountCode,
-              accountName: resolvedSales.accountName,
-              accountType: resolvedSales.accountType,
-              debit: netRefund,
-              credit: 0,
-              description: `Reverza prometa ${input.orderType} — vračilo #${input.orderNumber}`,
-              locationId: input.locationId || null,
-            },
-            // Debet: napitnine (če je del vračila)
-            ...(input.tipPortion > 0 && resolvedTips ? [{
-              accountCode: resolvedTips.accountCode,
-              chartOfAccountCode: resolvedTips.chartOfAccountCode,
-              accountName: resolvedTips.accountName,
-              accountType: resolvedTips.accountType,
-              debit: input.tipPortion,
-              credit: 0,
-              description: `Reverza napitnine — vračilo #${input.orderNumber}`,
-              locationId: input.locationId || null,
-            }] : []),
-            // Kredit: banka/blagajna (vrnimo denar)
-            {
-              accountCode: resolvedPayment.accountCode,
-              chartOfAccountCode: resolvedPayment.chartOfAccountCode,
-              accountName: resolvedPayment.accountName,
-              accountType: resolvedPayment.accountType,
-              debit: 0,
-              credit: input.refundAmount,
-              description: `Izplačilo vračila (${input.paymentType}) — vračilo #${input.orderNumber}`,
-              locationId: input.locationId || null,
-            },
-          ],
+    const entry = await createEntryWithNumberRetry(tx, (entryNumber) =>
+      tx.journalEntry.create({
+        data: {
+          entryNumber,
+          date: new Date(),
+          reference,
+          referenceType: 'refund',
+          description: `Reverza vračila #${input.orderNumber} — ${input.customerName || 'Gost'} (${input.paymentType})${input.reason ? `: ${input.reason}` : ''}`,
+          source: 'auto-refund',
+          status: 'posted',
+          postedAt: new Date(),
+          postedBy: input.employeeId || null,
+          locationId: input.locationId || null,
+          lines: {
+            create: [
+              // Debet: promet NETO (razveljavimo prihodek brez DDV)
+              {
+                accountCode: resolvedSales.accountCode,
+                chartOfAccountCode: resolvedSales.chartOfAccountCode,
+                accountName: resolvedSales.accountName,
+                accountType: resolvedSales.accountType,
+                debit: netRefund,
+                credit: 0,
+                description: `Reverza prometa ${input.orderType} (neto) — vračilo #${input.orderNumber}`,
+                locationId: input.locationId || null,
+              },
+              // Debet: DDV izhodni (razveljavitev obveznosti do države)
+              ...(vatPortion > 0 && resolvedVat ? [{
+                accountCode: resolvedVat.accountCode,
+                chartOfAccountCode: resolvedVat.chartOfAccountCode,
+                accountName: resolvedVat.accountName,
+                accountType: resolvedVat.accountType,
+                debit: vatPortion,
+                credit: 0,
+                description: `Reverza DDV — vračilo #${input.orderNumber}`,
+                locationId: input.locationId || null,
+              }] : []),
+              // Debet: napitnine (če je del vračila)
+              ...(tipPortion > 0 && resolvedTips ? [{
+                accountCode: resolvedTips.accountCode,
+                chartOfAccountCode: resolvedTips.chartOfAccountCode,
+                accountName: resolvedTips.accountName,
+                accountType: resolvedTips.accountType,
+                debit: tipPortion,
+                credit: 0,
+                description: `Reverza napitnine — vračilo #${input.orderNumber}`,
+                locationId: input.locationId || null,
+              }] : []),
+              // Kredit: banka/blagajna (vrnimo denar)
+              {
+                accountCode: resolvedPayment.accountCode,
+                chartOfAccountCode: resolvedPayment.chartOfAccountCode,
+                accountName: resolvedPayment.accountName,
+                accountType: resolvedPayment.accountType,
+                debit: 0,
+                credit: input.refundAmount,
+                description: `Izplačilo vračila (${input.paymentType}) — vračilo #${input.orderNumber}`,
+                locationId: input.locationId || null,
+              },
+            ],
+          },
         },
-      },
-      include: { lines: true },
-    })
+        include: { lines: true },
+      }),
+    )
 
     return entry.id
   } catch (error) {
@@ -269,6 +363,177 @@ export async function generateJournalForRefund(
     // nadaljujemo (knjigovodska vrzel je vidna v reviziji; vračilo denarja
     // je poslovno kritičnejše). Vrna null — klicnik ve da JE ni nastal.
     logger.error('JOURNAL', 'Reverza vračila ni bila ustvarjena:', error)
+    return null
+  }
+}
+
+/**
+ * P1-accounting (G11): Knjigovodska reverza ob STORNU računa.
+ *
+ * Prej: storno je označil plačila kot refunded in vrnil zalogo, a NI
+ * ustvaril knjigovodske reverze — prihodek iz originalnega plačilnega
+ * vnosa je ostal knjižen (napihnjen promet + napihnjen DDV).
+ *
+ * KLICATI ZNOTRAJ executeStornoTransaction ($transaction) — storno in
+ * accounting reversal sta atomarna (isti vzorec kot refund).
+ *
+ * Double-entry reverza (zrcalna slika plačilnega vnosa):
+ *   Debet:  promet NETO (subtotal − popust)
+ *   Debet:  DDV izhodni (razveljavitev obveznosti)
+ *   Debet:  napitnine (če > 0)
+ *   Kredit: plačilna sredstva po vrsti (gotovina → 1010, ostalo → 1000)
+ *
+ * Idempotenca: reference = `storno:{orderId}` — duplikat preskoči create.
+ */
+export interface StornoJournalInput {
+  orderId: string
+  orderNumber: number | string
+  orderType: string
+  customerName: string
+  /** Neto prihodek (subtotal − popust) */
+  netRevenue: number
+  /** DDV znesek originalnega računa */
+  vatAmount: number
+  /** Napitnina */
+  tipAmount: number
+  /** Zneski po plačilnem sredstvu — Kredit strani (cash → 1010, ostalo → 1000) */
+  paymentSplits: Array<{ paymentType: string; amount: number }>
+  locationId: string | null
+  employeeId?: string | null
+  reason?: string
+}
+
+export async function generateJournalForStorno(
+  tx: PrismaTx,
+  input: StornoJournalInput,
+): Promise<string | null> {
+  try {
+    const reference = `storno:${input.orderId}`
+
+    // Idempotenca — duplikat (retry) preskočimo
+    const existing = await tx.journalEntry.findFirst({
+      where: { reference, referenceType: 'storno' },
+      select: { id: true },
+    })
+    if (existing) return existing.id
+
+    const salesAccount = input.orderType === 'delivery'
+      ? ACCOUNTS.SALES_DELIVERY
+      : input.orderType === 'takeout'
+      ? ACCOUNTS.SALES_TAKEOUT
+      : ACCOUNTS.SALES_DINEIN
+
+    const [resolvedSales, resolvedVat, resolvedTips] = await Promise.all([
+      resolveAccountCode(salesAccount.code),
+      input.vatAmount > 0 ? resolveAccountCode(ACCOUNTS.VAT_OUTPUT.code) : Promise.resolve(null),
+      input.tipAmount > 0 ? resolveAccountCode(ACCOUNTS.TIPS.code) : Promise.resolve(null),
+    ])
+
+    // Kredit strani: ena vrstica po plačilnem sredstvu (1010 za gotovino, 1000 ostalo)
+    const creditLines: Array<{
+      accountCode: string
+      chartOfAccountCode: string | null
+      accountName: string
+      accountType: string
+      debit: number
+      credit: number
+      description: string
+      locationId: string | null
+    }> = []
+    for (const split of input.paymentSplits) {
+      if (split.amount <= 0) continue
+      const paymentAccount = split.paymentType === 'cash' ? ACCOUNTS.CASH : ACCOUNTS.BANK
+      const resolvedPayment = await resolveAccountCode(paymentAccount.code)
+      creditLines.push({
+        accountCode: resolvedPayment.accountCode,
+        chartOfAccountCode: resolvedPayment.chartOfAccountCode,
+        accountName: resolvedPayment.accountName,
+        accountType: resolvedPayment.accountType,
+        debit: 0,
+        credit: split.amount,
+        description: `Vračilo ${split.paymentType} ob stornu — naročilo #${input.orderNumber}`,
+        locationId: input.locationId || null,
+      })
+    }
+
+    // Vsaj ena kredit vrstica (fallback: če splits manjkajo, knjižimo na BANK)
+    if (creditLines.length === 0) {
+      const resolvedPayment = await resolveAccountCode(ACCOUNTS.BANK.code)
+      const fallbackAmount = Math.max(0, input.netRevenue + input.vatAmount + input.tipAmount)
+      creditLines.push({
+        accountCode: resolvedPayment.accountCode,
+        chartOfAccountCode: resolvedPayment.chartOfAccountCode,
+        accountName: resolvedPayment.accountName,
+        accountType: resolvedPayment.accountType,
+        debit: 0,
+        credit: fallbackAmount,
+        description: `Vračilo ob stornu — naročilo #${input.orderNumber}`,
+        locationId: input.locationId || null,
+      })
+    }
+
+    const entry = await createEntryWithNumberRetry(tx, (entryNumber) =>
+      tx.journalEntry.create({
+        data: {
+          entryNumber,
+          date: new Date(),
+          reference,
+          referenceType: 'storno',
+          description: `Storno reverza #${input.orderNumber} — ${input.customerName || 'Gost'}${input.reason ? `: ${input.reason}` : ''}`,
+          source: 'auto-storno',
+          status: 'posted',
+          postedAt: new Date(),
+          postedBy: input.employeeId || null,
+          locationId: input.locationId || null,
+          lines: {
+            create: [
+              // Debet: promet NETO (razveljavimo prihodek)
+              {
+                accountCode: resolvedSales.accountCode,
+                chartOfAccountCode: resolvedSales.chartOfAccountCode,
+                accountName: resolvedSales.accountName,
+                accountType: resolvedSales.accountType,
+                debit: input.netRevenue,
+                credit: 0,
+                description: `Storno prometa ${input.orderType} (neto) — naročilo #${input.orderNumber}`,
+                locationId: input.locationId || null,
+              },
+              // Debet: DDV izhodni (razveljavitev obveznosti do države)
+              ...(input.vatAmount > 0 && resolvedVat ? [{
+                accountCode: resolvedVat.accountCode,
+                chartOfAccountCode: resolvedVat.chartOfAccountCode,
+                accountName: resolvedVat.accountName,
+                accountType: resolvedVat.accountType,
+                debit: input.vatAmount,
+                credit: 0,
+                description: `Storno DDV — naročilo #${input.orderNumber}`,
+                locationId: input.locationId || null,
+              }] : []),
+              // Debet: napitnine (če > 0)
+              ...(input.tipAmount > 0 && resolvedTips ? [{
+                accountCode: resolvedTips.accountCode,
+                chartOfAccountCode: resolvedTips.chartOfAccountCode,
+                accountName: resolvedTips.accountName,
+                accountType: resolvedTips.accountType,
+                debit: input.tipAmount,
+                credit: 0,
+                description: `Storno napitnine — naročilo #${input.orderNumber}`,
+                locationId: input.locationId || null,
+              }] : []),
+              // Kredit: plačilna sredstva (vračilo denarja)
+              ...creditLines,
+            ],
+          },
+        },
+        include: { lines: true },
+      }),
+    )
+
+    return entry.id
+  } catch (error) {
+    // Napaka journal-a NE sme ponesreči fiskalnega storna (račun je že
+    // poslan na FURS) — logiramo in vrnemo null (vrzel vidna v reviziji).
+    logger.error('JOURNAL', 'Storno reverza ni bila ustvarjena:', error)
     return null
   }
 }

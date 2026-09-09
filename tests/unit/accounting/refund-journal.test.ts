@@ -85,6 +85,7 @@ const baseInput = {
   refundAmount: 10,
   cumulativeRefundAmount: 10,
   tipPortion: 0,
+  vatPortion: 0,
   orderType: 'dine-in',
   orderNumber: 42,
   customerName: 'Test Gost',
@@ -210,6 +211,100 @@ describe('generateJournalForRefund — P1-18', () => {
     const calledCodes = mockResolveAccountCode.mock.calls.map(c => c[0])
     expect(calledCodes).toContain('1000')
     expect(calledCodes).not.toContain('1010')
+  })
+
+  // ── P1-accounting (DDV): reverza mora razdeliti DDV na konto 2600 ──
+  it('DDV reverza: refund 12.20 (tip 0, DDV 2.20) → debit promet 10 + debit DDV 2.20 = kredit 12.20', async () => {
+    const { tx, calls } = createMockTx()
+    await generateJournalForRefund(tx as never, {
+      ...baseInput,
+      refundAmount: 12.2,
+      cumulativeRefundAmount: 12.2,
+      vatPortion: 2.2,
+    })
+
+    const createArgs = calls.journalEntryCreate[0] as {
+      data: { lines: { create: Array<Record<string, unknown>> } }
+    }
+    const lines = createArgs.data.lines.create
+    expect(lines.length).toBe(3)
+
+    const vatLine = lines.find(l => String(l.description).includes('Reverza DDV'))
+    expect(vatLine).toBeDefined()
+    expect(vatLine!.debit).toBe(2.2)
+    expect(vatLine!.credit).toBe(0)
+
+    // INVARIANTA debit = credit
+    const totalDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0)
+    const totalCredit = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0)
+    expect(Math.abs(totalDebit - totalCredit)).toBeLessThan(0.01)
+    expect(totalDebit).toBeCloseTo(12.2, 2)
+
+    // DDV konto (2600) je bil resolvan
+    const calledCodes = mockResolveAccountCode.mock.calls.map(c => c[0])
+    expect(calledCodes).toContain('2600')
+  })
+
+  it('INVARIANTA debit = credit: refund 15 (tip 2, DDV 2.54)', async () => {
+    const { tx, calls } = createMockTx()
+    await generateJournalForRefund(tx as never, {
+      ...baseInput,
+      refundAmount: 15,
+      cumulativeRefundAmount: 15,
+      tipPortion: 2,
+      vatPortion: 2.54,
+    })
+
+    const createArgs = calls.journalEntryCreate[0] as {
+      data: { lines: { create: Array<Record<string, unknown>> } }
+    }
+    const lines = createArgs.data.lines.create
+    const totalDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0)
+    const totalCredit = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0)
+    expect(Math.abs(totalDebit - totalCredit)).toBeLessThan(0.01)
+    expect(totalDebit).toBeCloseTo(15, 2)
+  })
+})
+
+describe('generateJournalForPayment — P1-accounting (DDV split)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockDbPaymentFindUnique.mockResolvedValue({
+      id: 'pay-2',
+      amount: 24.4,
+      tipAmount: 0,
+      type: 'cash',
+      check: {
+        total: 24.4,
+        tax: 4.4,
+        order: { id: 'o1', orderNumber: 7, type: 'dine-in', customerName: 'G', locationId: 'loc-2' },
+      },
+    })
+  })
+
+  it('plačilo 24.40 (check tax 4.40) → kredit promet 20 + kredit DDV 4.40 = debit 24.40', async () => {
+    const id = await generateJournalForPayment('o1', 'pay-2', 'emp-2')
+    expect(id).toBeTruthy()
+
+    const createArgs = mockDbJournalEntry.create.mock.calls[0][0] as {
+      data: { lines: { create: Array<Record<string, unknown>> } }
+    }
+    const lines = createArgs.data.lines.create
+    expect(lines.length).toBe(3)
+
+    const vatLine = lines.find(l => String(l.description).includes('DDV izhodni'))
+    expect(vatLine).toBeDefined()
+    expect(vatLine!.credit).toBe(4.4)
+
+    // INVARIANTA debit = credit
+    const totalDebit = lines.reduce((s, l) => s + (Number(l.debit) || 0), 0)
+    const totalCredit = lines.reduce((s, l) => s + (Number(l.credit) || 0), 0)
+    expect(Math.abs(totalDebit - totalCredit)).toBeLessThan(0.01)
+    expect(totalDebit).toBeCloseTo(24.4, 2)
+
+    // DDV konto resolvan
+    const calledCodes = mockResolveAccountCode.mock.calls.map(c => c[0])
+    expect(calledCodes).toContain('2600')
   })
 })
 

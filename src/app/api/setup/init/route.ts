@@ -6,6 +6,7 @@ import { z } from 'zod'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { PIN_MIN_LENGTH, WEAK_PINS, BCRYPT_ROUNDS } from '@/lib/auth-middleware/constants'
+import { requireEnvSecret } from '@/lib/crypto/secrets'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,7 +62,17 @@ export async function POST(req: Request) {
     // 1. Admin
     // P1-12: BCRYPT_ROUNDS (12) namesto 10
     const pinHash = await bcrypt.hash(data.adminPin, BCRYPT_ROUNDS)
-    const nextauthSecret = process.env.NEXTAUTH_SECRET || 'fallback-secret-change-me'
+    // P1 (seed & konfig): brez 'fallback-secret' konstante — v produkciji
+    // OBVEZNO NEXTAUTH_SECRET (sicer napadalec izračuna pinLookup offline)
+    let nextauthSecret: string
+    try {
+      nextauthSecret = requireEnvSecret('NEXTAUTH_SECRET', 'setup/init pinLookup')
+    } catch (secretErr) {
+      return NextResponse.json(
+        { error: 'NEXTAUTH_SECRET ni nastavljen — inicializacija v produkciji zahteva skrivnost (brez fallback-a).' },
+        { status: 500 }
+      )
+    }
     const pinLookup = crypto.createHmac('sha256', nextauthSecret).update(data.adminPin).digest('hex')
 
     const admin = await db.employee.create({

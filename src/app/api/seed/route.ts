@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { handleApiError } from '@/lib/api-utils'
+import { handleApiError, checkSeedAllowed } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, SEED_LIMIT } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { requireAuth } from '@/lib/auth-middleware'
@@ -17,6 +17,11 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
   try {
+    // P1 (seed): fail-closed v produkciji — ta endpoint počene
+    // cleanupExistingData() (IZBRIŠE VSE) in seje demo PIN 1234 z admin vlogo.
+    const seedGuard = checkSeedAllowed('POST /api/seed')
+    if (!seedGuard.allowed) return seedGuard.error
+
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 

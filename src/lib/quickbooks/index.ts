@@ -21,6 +21,7 @@ import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { toNum, round2 } from '@/lib/decimal'
 import crypto from 'crypto'
+import { requireEnvSecret } from '@/lib/crypto/secrets'
 
 // --- Konstante ---
 const QBO_BASE_URL = 'https://quickbooks.api.intuit.com'
@@ -458,8 +459,16 @@ export async function runFullSync(syncId: string): Promise<{
 }
 
 // --- ENCRYPTION helpers ---
+// P1 (seed & konfig): brez 'fallback-secret' konstante — samo skrivnosti iz
+// env-a (ENCRYPTION_KEY, fallback NEXTAUTH_SECRET). Če NI nastavljena nobena:
+// produkcija vrže napako (fail-closed), dev dobi eksplicitno označen fallback.
+function getQboSecret(): string {
+  if (process.env.ENCRYPTION_KEY) return process.env.ENCRYPTION_KEY
+  return requireEnvSecret('NEXTAUTH_SECRET', 'quickbooks token encryption (ENCRYPTION_KEY fallback)')
+}
+
 function encrypt(text: string): string {
-  const secret = process.env.ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET || 'fallback-secret'
+  const secret = getQboSecret()
   const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(secret.padEnd(32).substring(0, 32)), Buffer.alloc(16, 0))
   let encrypted = cipher.update(text, 'utf8', 'hex')
   encrypted += cipher.final('hex')
@@ -467,7 +476,7 @@ function encrypt(text: string): string {
 }
 
 function decrypt(encrypted: string): string {
-  const secret = process.env.ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET || 'fallback-secret'
+  const secret = getQboSecret()
   const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(secret.padEnd(32).substring(0, 32)), Buffer.alloc(16, 0))
   let decrypted = decipher.update(encrypted, 'hex', 'utf8')
   decrypted += decipher.final('utf8')

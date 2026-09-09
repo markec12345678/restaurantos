@@ -12,3 +12,4 @@ export {
   MAX_SEARCH_LENGTH,
   BULK_MAX_LIMIT,
 } from './pagination'
+export { checkSeedAllowed } from './seed-guard'

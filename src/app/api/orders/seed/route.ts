@@ -5,13 +5,18 @@ import { deepToNumbers } from '@/lib/decimal'
 import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
 import { requireAuth } from '@/lib/auth-middleware'
 import { toNum, round2, calcVat } from '@/lib/decimal'
-import { handleApiError } from '@/lib/api-utils'
+import { handleApiError, checkSeedAllowed } from '@/lib/api-utils'
 
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
   try {
+    // P1 (seed): fail-closed v produkciji — seed naročil soffa produkcijske
+    // številčne sekvence in fiskalne verige (orderNumber/receiptNumber counterji)
+    const seedGuard = checkSeedAllowed('POST /api/orders/seed')
+    if (!seedGuard.allowed) return seedGuard.error
+
     // Zahtevaj admin avtentikacijo za seed
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error

@@ -219,6 +219,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       // preskoči create. Napaka journal-a NE vrže refunda (vračilo denarja je
       // poslovno kritičnejše od knjigovodske vrstice; vrzel je vidna v log-u).
       const order = payment.check?.order
+      // P1-accounting (DDV): delež DDV tega vračila — proporcionalno po
+      // DDV deležu plačila na čeku (check.tax × payment/check.total) × razmerje vračila
+      const checkTotal = toNum(payment.check?.total)
+      const checkTax = toNum(payment.check?.tax)
+      const paymentTax = checkTotal > 0 ? checkTax * (toNum(payment.amount) / checkTotal) : 0
+      const vatPortion = round2(Math.max(0, paymentTax * refundRatio))
       let journalEntryId: string | null = null
       try {
         journalEntryId = await generateJournalForRefund(tx, {
@@ -226,6 +232,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           refundAmount: amount,
           cumulativeRefundAmount: newRefundAmount,
           tipPortion: round2(toNum(payment.tipAmount) * refundRatio),
+          vatPortion,
           orderType: order?.type ?? 'dine-in',
           orderNumber: order?.orderNumber ?? '',
           customerName: order?.customerName ?? '',

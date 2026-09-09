@@ -161,7 +161,26 @@ export async function PUT(
 
     if (isRefundOrVoid) {
       // Wrap reversal + update in a single transaction
+      //
+      // P1-19 (concurrency): prej je bil status ('completed') prebran IZVEN
+      // transakcije — dva sočasna PUT status=refunded/voided sta oba prestala
+      // preverbo in oba izvedla reversal (gift card napolnjena dvakrat,
+      // loyalty točke vrnjene dvakrat). Fix: pg_advisory_xact_lock +
+      // POGOJNI updateMany (status='completed') ZNOTRAJ transakcije — samo
+      // prvi zmaga, drugi dobi PAYMENT_STATUS_CONFLICT → 409.
       const payment = await db.$transaction(async (tx) => {
+        // Zakleni vrstico plačila — vzporedne statusne spremembe čakajo
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'payment-void:' + id}))`
+
+        // Pogojna transicija completed → refunded/voided (samo prvi zmaga)
+        const claim = await tx.payment.updateMany({
+          where: { id, status: 'completed' },
+          data: updateData,
+        })
+        if (claim.count === 0) {
+          throw new Error('PAYMENT_STATUS_CONFLICT')
+        }
+
         // Reverse gift card balance if it was a giftcard payment
         await reverseGiftCard(tx, existingPayment, id)
 
@@ -177,10 +196,9 @@ export async function PUT(
           })
         }
 
-        // Update the payment itself
-        const updatedPayment = await tx.payment.update({
+        // Preberi posodobljeno plačilo (pogojna posodobitev je že stekla zgoraj)
+        const updatedPayment = await tx.payment.findUnique({
           where: { id },
-          data: updateData,
           include: {
             check: true,
             alternatePaymentType: true,
@@ -188,6 +206,9 @@ export async function PUT(
             loyaltyAccount: true,
           },
         })
+        if (!updatedPayment) {
+          throw new Error('PAYMENT_NOT_FOUND')
+        }
 
         // Recalculate payment statuses
         await recalculatePaymentStatus(tx, existingPayment, checkForDiscount)
@@ -216,6 +237,14 @@ export async function PUT(
       return NextResponse.json(deepToNumbers(payment))
     }
   } catch (error: unknown) {
+    // P1-19: konkurenčna statusna sprememba — drugi request je medtem
+    // že preklical/povrnil to plačilo (pogojna posodobitev je vrnila count=0)
+    if (error instanceof Error && error.message.includes('PAYMENT_STATUS_CONFLICT')) {
+      return NextResponse.json(
+        { error: 'Plačilo je medtem spremenilo status (že povrnjeno/poničeno). Osvežite in poskusite znova.' },
+        { status: 409 }
+      )
+    }
     return handleApiError(error, 'PUT /api/payments/[id]', 'Napaka pri posodobitvi plačila')
   }
 }

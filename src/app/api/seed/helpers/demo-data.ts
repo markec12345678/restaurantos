@@ -4,6 +4,7 @@
 
 import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
+import { requireEnvSecret } from '@/lib/crypto/secrets'
 
 export async function seedDemoData(menuItems: { id: string; price: number; vatRate: number }[]) {
   // FIX P0-C4: Get first active location for TENANT_REQUIRED models
@@ -29,7 +30,11 @@ export async function seedDemoData(menuItems: { id: string; price: number; vatRa
   // ============================================
   const bcrypt = await import('bcryptjs')
   const crypto = await import('crypto')
-  const nextauthSecret = process.env.NEXTAUTH_SECRET || 'fallback-secret-change-me'
+  // P1 (seed & konfig): brez 'fallback-secret-change-me' konstante —
+  // v produkciji vrže napako (fail-closed); dev-only fallback je izrecno
+  // označen. Seed je sicer žе fail-closed v produkciji (seed-guard), to je
+  // dodatna plast.
+  const nextauthSecret = requireEnvSecret('NEXTAUTH_SECRET', 'seed demo-data pinLookup')
   const hashPin = async (pin: string) => {
     const hash = await bcrypt.hash(pin, 10)
     const lookup = crypto.createHmac('sha256', nextauthSecret).update(pin).digest('hex')

@@ -85,6 +85,44 @@ export function getEncryptionKeyVersion(): string {
 }
 
 // ============================================
+// ENV SECRETS — fail-closed pridobivanje obveznih skrivnosti
+// ============================================
+
+/**
+ * P1 (seed & konfiguracija): pridobi obvezno skrivnost iz env-a.
+ *
+ * PREPOVEDANO je vzorec `process.env.X || 'fallback-secret'` — če napadalec
+ * pozna fallback (objavljen v open-source kodi!), izračuna HMAC/šifrirane
+ * vrednosti offline (npr. pinLookup za vse PIN-kombinacije).
+ *
+ * Vedenje:
+ *  - vrednost obstaja → vrne jo
+ *  - PRODUKCIJA + manjka → vrže napako (fail-closed)
+ *  - development/test + manjka → determinističen DEV fallback (izključno
+ *    razvoj, PIN lookup takrat itak pada na O(n) bcrypt primerjavo)
+ *
+ * @param name ime env spremenljivke (npr. 'NEXTAUTH_SECRET')
+ * @param context opis klica (za log)
+ */
+export function requireEnvSecret(name: string, context: string): string {
+  const value = process.env[name]
+  if (value && value.length > 0) return value
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      `[secrets] ${name} ni nastavljen v produkciji (kontekst: ${context}). ` +
+        'Nikoli ne uporabljaj fallback skrivnosti — nastavite env spremenljivko.',
+    )
+  }
+
+  console.warn(
+    `[secrets] ⚠️ ${name} ni nastavljen (${context}) — uporabljam DEV-ONLY fallback. ` +
+      'NI za produkcijo (pinLookup/token izračuni niso varni).',
+  )
+  return `dev-only-insecure-fallback:${name}`
+}
+
+// ============================================
 // ENCRYPT / DECRYPT
 // ============================================
 

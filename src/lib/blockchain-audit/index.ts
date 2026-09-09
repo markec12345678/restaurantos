@@ -16,6 +16,7 @@
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import crypto from 'crypto'
+import { requireEnvSecret } from '@/lib/crypto/secrets'
 
 // --- Tipi ---
 export type AuditEntityType = 'order' | 'payment' | 'refund' | 'void' | 'cash_shift' | 'inventory' | 'employee' | 'furs_invoice'
@@ -294,7 +295,12 @@ function signEntry(data: {
   action: string
   timestamp: string
 }): string {
-  const secret = process.env.NEXTAUTH_SECRET || process.env.ENCRYPTION_KEY || 'blockchain-fallback-secret'
+  // P1 (seed & konfig): brez 'blockchain-fallback-secret' konstante —
+  // podpis verige sme uporabiti SAMO env skrivnost (produkcija fail-closed,
+  // dev dobi eksplicitno označen fallback). Fallback konstanta bi pomenila,
+  // da lahko napadalec ponaredi podpise revizijske verige.
+  const secret = process.env.NEXTAUTH_SECRET
+    || requireEnvSecret('ENCRYPTION_KEY', 'blockchain-audit chain signature (NEXTAUTH_SECRET fallback)')
   const input = [
     data.blockNumber,
     data.previousHash,

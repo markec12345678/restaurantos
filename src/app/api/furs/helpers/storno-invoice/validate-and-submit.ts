@@ -15,6 +15,23 @@ import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rat
 import { parseJsonBody, validateBody } from '@/lib/api-utils'
 import { fursStornoSchema } from '@/lib/validations'
 
+/**
+ * P1-19 (concurrency): sprosti storno claim (vrni isStorno=false), če FURS
+ * overitev ni uspela ali je vržila napako — sicer bi račun ostal zaklenjen
+ * kot "storniran" brez dejanskega storno računa. Best-effort (ne podre
+ * originalne napake).
+ */
+export async function releaseStornoClaim(receiptId: string): Promise<void> {
+  try {
+    await db.receipt.updateMany({
+      where: { id: receiptId, isStorno: true },
+      data: { isStorno: false },
+    })
+  } catch (err) {
+    logger.error('FURS', `[STORNO] Napaka pri sproščanju claim-a za ${receiptId}:`, err)
+  }
+}
+
 // Tip za rezultat validacije
 export interface StornoValidationResult {
   receipt: any // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -148,7 +165,59 @@ export async function validateAndSubmitStorno(req: Request): Promise<StornoValid
     },
   }
 
-  const fursResult = await verifyInvoiceWithFURS(config, stornoInvoiceData, zoi)
+  // ── P1-19 (concurrency): ATOMICNA ZAHTEVA (claim) pred klicem na FURS ──
+  //
+  // Prej: validacija isStorno/status je bila izvedena IZVEN transakcije,
+  // FURS pa poklican ŠELEJ pred označitvijo originala → dva sočasna storno
+  // requesta (dvoklik / dva admina) sta oba prestala validacijo, oba
+  // poslala SVOJ storno račun na FURS (dve fiskalni računa!) in oba vrnila
+  // zalogo (dvakrat).
+  //
+  // Fix: pogojni updateMany isStorno false→true PRED klicem na FURS.
+  // Samo PRVI request zmaga (count=1); konkurentni dobijo count=0 → 409.
+  // Če FURS overitev nato ne uspe, se claim sprosti (releaseStornoClaim) —
+  // retry ostaja mogoč.
+  const claim = await db.receipt.updateMany({
+    where: { id: receipt.id, isStorno: false },
+    data: { isStorno: true },
+  })
+  if (claim.count === 0) {
+    return NextResponse.json(
+      { error: 'Račun je že storniran ali se storno trenutno obdeluje' },
+      { status: 409 },
+    )
+  }
+
+  // Audit claim-a (sledljivost tudi če proces pada med claim-om in FURS klicem)
+  try {
+    const { createAuditLog } = await import('@/lib/db')
+    await createAuditLog({
+      userId: authResult.session?.employeeId,
+      action: 'FURS_STORNO_CLAIMED',
+      entityType: 'Receipt',
+      entityId: receipt.id,
+      details: { stornoNumber, originalReceiptNumber: receipt.receiptNumber },
+    })
+  } catch { /* audit best-effort */ }
+
+  let fursResult: Awaited<ReturnType<typeof verifyInvoiceWithFURS>>
+  try {
+    fursResult = await verifyInvoiceWithFURS(config, stornoInvoiceData, zoi)
+  } catch (fursErr) {
+    // FURS klic je vržel napako — sprosti claim, da retry ostane mogoč
+    await releaseStornoClaim(receipt.id)
+    throw fursErr
+  }
+
+  // Če FURS overitev NI uspela → sprosti claim (sicer bi račun ostal
+  // zaklenjen kot "storniran" brez dejanskega storno računa).
+  // IZJEMA: simulacija s FURS_ALLOW_SIMULATION=true — core.ts tak storno
+  // vseeno izvede (effectiveFursResult.success=true), claim ohranimo.
+  const allowSimulationStorno =
+    process.env.FURS_ALLOW_SIMULATION === 'true' && fursResult.isSimulation
+  if (!fursResult.success && !allowSimulationStorno) {
+    await releaseStornoClaim(receipt.id)
+  }
 
   return {
     receipt, settings, config, stornoNumber, zoi, fursResult,
