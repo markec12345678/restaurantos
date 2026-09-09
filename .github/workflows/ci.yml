@@ -264,16 +264,18 @@ jobs:
         # NEGATIVNI test (uporabniška zahteva): vrstica z NULL locationId
         # MORA povzročiti izhod 1 (nikoli samodejna dodelitev prvi lokaciji).
         # 0002_p1_hardening je že aplicirana v Testu 3 — vstavimo "legacy"
-        # vrstico in preverimo, da db:verify ODBIJE.
+        # vrstico (heredoc: brez bash citatnega pekla!) in preverimo, da
+        # db:verify ODBIJE.
         env:
           DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci_migrate?schema=public"
         run: |
           PG_CID=$(docker ps -q --filter "ancestor=postgres:16-alpine" | head -n1)
           # Odstrani NOT NULL (simuliraj legacy bazo pred 0002), vstavi NULL vrstico
-          docker exec "$PG_CID" psql -U ci -d ci_migrate \
-            -c 'ALTER TABLE "Order" ALTER COLUMN "locationId" DROP NOT NULL' \
-            -c 'INSERT INTO "Order" ("id", "orderNumber", "locationId", "createdAt", "updatedAt") VALUES (\'neg-test-1\', 999999, NULL, now(), now())'
-          # db:verify MORA pasti (izhod != 0) — prej obrnjeno logiko preskočimo
+          docker exec -i "$PG_CID" psql -U ci -d ci_migrate << 'SQL'
+          ALTER TABLE "Order" ALTER COLUMN "locationId" DROP NOT NULL;
+          INSERT INTO "Order" ("id", "orderNumber", "locationId", "createdAt", "updatedAt") VALUES ('neg-test-1', 999999, NULL, now(), now());
+          SQL
+          # db:verify MORA pasti (izhod != 0) — obrnjena logika: uspeh = FAIL joba
           if bun run db:verify; then
             echo "::error::db:verify NI odbil nerazrešene vrstice — fail-closed je pokvarjen!"
             exit 1
