@@ -1,0 +1,25 @@
+# Build context hygiene — prepreči, da bi `COPY . .` v Docker builder
+# prenesel gostiteljske (nevarne/nepotrebne) datoteke v sliko:
+#   - .env            → SKRIVNOSTI se NE smejo kadrovati v sliko!
+#   - node_modules    → namestijo se z bun install (frozen lockfile)
+#   - .next           → build izhod se generira v builder fazi
+#   - .git, tests     → ne potrebni v sliki
+#   - certs           → FURS certifikati se mountajo ob zagonu (NE v sliko)
+.env
+.env.*
+!.env.example
+node_modules
+.next
+.git
+.gitignore
+test-results
+playwright-report
+tests
+docs
+certs
+pglite-e2e-data
+download
+tool-results
+*.log
+Dockerfile.compose
+docker-compose.yml

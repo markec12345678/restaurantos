@@ -1,18 +1,30 @@
 #!/usr/bin/env node
 /**
- * db-sync.mjs — idempotentna DDL sinhronizacija baze med buildom.
+ * db-sync.mjs — ⚠️ ZASTARELO (DEPRECATED) — deploy audit 2026-09-09.
  *
- * Namen: Vercel build dobi dešifriran DATABASE_URL (ki runtime API ne more
- * izdati) in zato build EXAKTNO TU lahko varno aplikira manjkajoče
- * primerjave sheme (schema drift) pred zagonom nove kode.
+ * NAMENOMO OHRANJEN samo kot ENKRATNA reševanja za stare (pre-migracijske)
+ * baze, ki še niso bile migrirane. Za VSE nove deploye uporabi:
  *
- * Načela:
- *  - SAMO dodatne, nedestruktivne spremembe (ADD COLUMN IF NOT EXISTS,
- *    CREATE INDEX IF NOT EXISTS, pogojni FK) — NIKOLI drop/alter tipov.
- *  - Best-effort: napaka NE sme prelomiti builda (warn + exit 0).
- *  - Lokalni razvoj (brez DATABASE_URL / PGlite način): nemoten preskok.
+ *   bun run db:migrate:deploy   (prisma migrate deploy — transakcijsko,
+ *                                fail-closed, sledljivo v _prisma_migrations)
+ *   bun run db:verify           (fail-closed preverba invariant)
  *
- * Uporaba: node scripts/db-sync.mjs  (zagnano iz "build" skripte)
+ * ZAKAJ je bil odstranjen iz "build" skripte:
+ *  - build NE SME spreminjati produkcjske baze (arhitekturno nevarno),
+ *  - best-effort obravnava napak je lahko pustila DELNO migrirano bazo
+ *    (napaka se je zapisala, build je VSEENO uspel, aplikacija je zagnala
+ *    nepopolno shemo),
+ *  - ad-hoc DDL brez _prisma_migrations evidence ni sledljiv.
+ *
+ * SPREMEMBE ob deprecationu:
+ *  - ODSTRANJENA nevarna dodelitev: Order/Receipt brez lokacije →
+ *    "prvi aktivni lokaciji" (pokvarila bi promet, Z-report, FURS,
+ *    računovodstvo, statistiko, zalogo, revizijsko sled).
+ *  - Preverba zdaj FAIL-CLOSED: nerazrešene vrstice OBVOLIJO skripto
+ *    (izhod 1) — podatke razreši ROČNO.
+ *  - Napake stavkov se NE ignorirajo več (zbirajo se, izhod 1).
+ *
+ * Uporaba (samo legacy): DATABASE_URL=... node scripts/db-sync.mjs
  */
 import { PrismaClient } from '@prisma/client'
 
@@ -70,11 +82,14 @@ const statements = [
   //  P1-8: Decimal(65,30) → Decimal(12,2)/(5,2)/(12,3) za denar/stopnje/količine
   // ════════════════════════════════════════════════════════════════
   // ── P1-6 BACKFILL: Receipt.locationId iz Order (fiskalna veriga) ──
+  // IZPELJAVA, ne arbitrarna dodelitev — varna (lokacija naročila je ZNANA).
   'UPDATE "Receipt" r SET "locationId" = o."locationId" FROM "Order" o WHERE r."orderId" = o."id" AND r."locationId" IS NULL AND o."locationId" IS NOT NULL',
-  // ── P1-6 BACKFILL: Order → privzeta (aktivna) lokacija — samo če obstaja ──
-  'UPDATE "Order" SET "locationId" = (SELECT "id" FROM "Location" WHERE "isActive" ORDER BY "createdAt" ASC LIMIT 1) WHERE "locationId" IS NULL AND EXISTS (SELECT 1 FROM "Location" WHERE "isActive")',
-  // ── P1-6 BACKFILL: Receipt → privzeta lokacija (ostanki brez orderja) ──
-  'UPDATE "Receipt" SET "locationId" = (SELECT "id" FROM "Location" WHERE "isActive" ORDER BY "createdAt" ASC LIMIT 1) WHERE "locationId" IS NULL AND EXISTS (SELECT 1 FROM "Location" WHERE "isActive")',
+  // ⚠️ DEPRECATED AUDIT 2026-09-09: prej sta tukaj stala DVA NEVARNA
+  // UPDATE-a, ki sta vrstice brez lokacije dodelila "prvi aktivni
+  // lokaciji" (ORDER BY createdAt LIMIT 1). To je bilo samovoljno
+  // ugibanje, ki je pokvarilo promet/Z-report/FURS/računovodstvo/
+  // statistiko/zalogo/revizijsko sled. ODSTRANJENO — nadomestilo:
+  // FAIL-CLOSED varovalka spodaj (izhod 1 = ročna razrešitev).
   // ── P1-7: Order.orderNumber — globalni unique OFF, per-lokacijski ON ──
   'ALTER TABLE "Order" DROP CONSTRAINT IF EXISTS "Order_orderNumber_key"',
   'CREATE UNIQUE INDEX IF NOT EXISTS "Order_locationId_orderNumber_key" ON "Order"("locationId", "orderNumber")',
@@ -201,24 +216,20 @@ const statements = [
   'ALTER TABLE "AccountsPayable" ALTER COLUMN "totalAmount" TYPE DECIMAL(12,2)',
   'ALTER TABLE "AccountsPayable" ALTER COLUMN "paidAmount" TYPE DECIMAL(12,2)',
   'ALTER TABLE "AccountsReceivable" ALTER COLUMN "paidAmount" TYPE DECIMAL(12,2)',
-  // ── P1-6 HARDENING (drugi korak, po tem ko je koda v1.0.10+ živa):
-  // Order/Receipt.locationId → NOT NULL — SAMO če 0 NULL vrstic (varovano).
-  // Koda od v1.0.10 vedno zapisuje locationId; backfill zgoraj je počistil zgodovino.
-  // Če NULL ostanejo (npr. vrstice nastale v build-oknu prejšnjega deploya), se
-  // constraint preskoči in logira — nikoli ne prelomi deploya.
+  // ── P1-6 HARDENING: Order/Receipt.locationId → NOT NULL.
+  // DEPRECATED AUDIT: prej RAISE NOTICE (tiho preskoči). Zdaj RAISE
+  // EXCEPTION — FAIL-CLOSED, enaka semantika kot 0002_p1_hardening.
   `DO $$ BEGIN
-     IF (SELECT COUNT(*) FROM "Order" WHERE "locationId" IS NULL) = 0 THEN
-       ALTER TABLE "Order" ALTER COLUMN "locationId" SET NOT NULL;
-     ELSE
-       RAISE NOTICE 'P1-6: Order ima % NULL locationId vrstic — SET NOT NULL preskočen', (SELECT COUNT(*) FROM "Order" WHERE "locationId" IS NULL);
+     IF (SELECT COUNT(*) FROM "Order" WHERE "locationId" IS NULL) > 0 THEN
+       RAISE EXCEPTION 'Cannot apply NOT NULL migration: unresolved orders without locationId (%) — razreši ROČNO (klasifikacija / uvoz / MIGRATION_REVIEW); NIKOLI samodejna dodelitev prvi lokaciji', (SELECT COUNT(*) FROM "Order" WHERE "locationId" IS NULL);
      END IF;
+     ALTER TABLE "Order" ALTER COLUMN "locationId" SET NOT NULL;
    END $$;`,
   `DO $$ BEGIN
-     IF (SELECT COUNT(*) FROM "Receipt" WHERE "locationId" IS NULL) = 0 THEN
-       ALTER TABLE "Receipt" ALTER COLUMN "locationId" SET NOT NULL;
-     ELSE
-       RAISE NOTICE 'P1-6: Receipt ima % NULL locationId vrstic — SET NOT NULL preskočen', (SELECT COUNT(*) FROM "Receipt" WHERE "locationId" IS NULL);
+     IF (SELECT COUNT(*) FROM "Receipt" WHERE "locationId" IS NULL) > 0 THEN
+       RAISE EXCEPTION 'Cannot apply NOT NULL migration: unresolved receipts without locationId (%) — razreši ROČNO', (SELECT COUNT(*) FROM "Receipt" WHERE "locationId" IS NULL);
      END IF;
+     ALTER TABLE "Receipt" ALTER COLUMN "locationId" SET NOT NULL;
    END $$;`,
   // ════════════════════════════════════════════════════════════════
   // P1-11 AUTH HARDENING (v1.0.12): sessionVersion — revokacija sej ob
@@ -242,7 +253,11 @@ const prisma = new PrismaClient({
 })
 
 console.log('[db-sync] Zunanji PostgreSQL zaznan — apliciram idempotentni DDL …')
+console.log('[db-sync] ⚠️ DEPRECATED — za deploy uporabi: bun run db:migrate:deploy + bun run db:verify')
 
+// FAIL-CLOSED: napake stavkov se ZBIRAJO — izhod 1 ob KATERIKOLI napaki.
+// (Prej: warn + nadaljuj + vedno exit 0 — lahko delno migrirana baza!)
+const errors = []
 try {
   let applied = 0
   for (const stmt of statements) {
@@ -252,19 +267,25 @@ try {
       applied++
       console.log(`[db-sync] OK: ${label}`)
     } catch (err) {
-      const msg = (err && err.message ? err.message : String(err)).slice(0, 160)
-      console.warn(`[db-sync] SKIP/opozorilo: ${label} — ${msg}`)
+      const msg = (err && err.message ? err.message : String(err)).slice(0, 200)
+      errors.push(`${label} — ${msg}`)
+      console.error(`[db-sync] NAPAKA: ${label} — ${msg}`)
     }
   }
   console.log(`[db-sync] Dokončano: ${applied}/${statements.length} stavkov apliciranih.`)
 } catch (err) {
-  // NIKOLI ne prelomimo builda — sinhronizacija je best-effort.
   const msg = (err && err.message ? err.message : String(err)).slice(0, 200)
-  console.warn(`[db-sync] Zunanja napaka (build se nadaljuje): ${msg}`)
+  errors.push(`zunanja napaka — ${msg}`)
+  console.error(`[db-sync] Zunanja napaka: ${msg}`)
 } finally {
   try {
     await prisma.$disconnect()
   } catch {}
 }
 
+if (errors.length > 0) {
+  console.error(`\n[db-sync] ZAVRNJENO: ${errors.length} napak — baza NI usklajena (delno stanje).`)
+  console.error('[db-sync] Razreši napake ročno, nato poženi scripts/verify-db.mjs.')
+  process.exit(1)
+}
 process.exit(0)

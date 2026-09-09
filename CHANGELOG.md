@@ -6,6 +6,50 @@ All notable changes to RestaurantOS are documented in this file.
 > commit SHA, migracije, breaking changes, rezultati testov, znane težave,
 > deployment in rollback navodila.
 
+## [v1.3.0] — 2026-09-09 — Deploy audit: interna omrežja, Redis geslo, build brez DDL, PRAVE Prisma migracije, WS v Dockerju
+
+| Polje | Vrednost |
+|-------|----------|
+| **Datum izdaje** | 2026-09-09 |
+| **Commit** | release commit (glej tag v1.3.0) |
+| **Migracije** | DA — NOVO: `prisma/migrations/0001_init` (celotna shema, iz `migrate diff --from-empty`) + `0002_p1_hardening` (fail-closed varovalke + delni unique indeksi). Sveže baze: `migrate deploy` postavi vse. Obstoječe (db push/db-sync) baze: `prisma migrate resolve --applied 0001_init` najprej! |
+| **Breaking changes** | DA (infra): (1) `"build"` NE poganja več `scripts/db-sync.mjs` — katerikoli CI/deploy, ki je računal na build-time DDL, MORA dodati `db:migrate:deploy` + `db:verify` korak; (2) `docker-compose.yml` ZAHTEVA `DB_PASSWORD`/`REDIS_PASSWORD`/`NEXTAUTH_SECRET` v .env (ni več `changeme` fallback — compose ne zažene brez njih!); (3) Redis ZAHTEVA geslo (`REDIS_URL=redis://:GESLO@redis:6379`); (4) Dockerfile poganja custom server (Next+WS en proces), NE standalone — slika vsebuje poln `.next`; (5) `prisma` CLI premaknjen devDeps→deps (migrate servis v containerju) |
+| **Testni rezultati** | CI 7/7 zelenih (vključno NOVE migration-test točke 3–5: `migrate deploy` na sveži bazi, `db:verify` 14/14 invariant, negativni test — NULL locationId vrstica MORA povzročiti zavrnitev) |
+| **Znane težave** | Glej [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md). FURS produkcijska certifikacija ostaja zunanji proces |
+| **Deployment** | `bun install --frozen-lockfile && bun run db:generate && bun run db:migrate:deploy && bun run db:verify && bun run build && bun run start`. Docker: `docker compose build && docker compose run --rm migrate && docker compose up -d` (glej [docs/STAGING_DEPLOYMENT.md](docs/STAGING_DEPLOYMENT.md)) |
+| **Rollback** | `git checkout v1.2.0 && docker compose build && docker compose up -d` — migraciji 0001/0002 sta idempotentni/dodatni na svežih bazah; na obstoječih bazah 0002 NI uničujoča (samo trditve + indeksi) — vrnitev kode je varna |
+
+### 🔒 Varnost omrežja (docker-compose.yml)
+
+- **Fixed (KRITIČNO):** `db` in `redis` sta bila javno izpostavljena (`ports: "5432:5432"`, `"6379:6379"` — 0.0.0.0, vsa host omrežja). Zdaj: SAMO `expose` (Docker omrežje); lokalni dostop opcijsko prek `127.0.0.1:5432:5432` (odkomentiraj)
+- **Fixed (KRITIČNO):** Redis je tekel BREZ gesla. Zdaj: `redis-server --requirepass ${REDIS_PASSWORD:?...}` (fail-closed — compose brez gesla NE zažene) + healthcheck z avtentikacijo + AOF
+- **Fixed:** `DB_PASSWORD`/`NEXTAUTH_SECRET` sta imela `changeme`/`change-this-in-production` defaulta — fail-closed `:?` sintaksa
+
+### 🏗️ Build/migracije arhitektura
+
+- **Fixed (KRITIČNO):** `"build": "node scripts/db-sync.mjs && next build"` — build je spreminjal produkcijsko bazo z ad-hoc DDL (ALTER tipov, DROP constraintov, UPDATE podatkov), napake TIHO ignoriral (exit 0) → delno migrirana baza + uspešen build. Zdaj: `"build": "next build"` (brez DB), migracije = LOČEN fail-closed korak
+- **Fixed (KRITIČNO):** `db-sync.mjs` je vrstice z NULL `locationId` dodelil "prvi aktivni lokaciji" (`ORDER BY createdAt LIMIT 1`) — samovoljno ugibanje, ki pokvari promet/Z-report/FURS/računovodstvo/statistiko/zalogo/revizijsko sled. ODSTRANJENO; migracija zdaj ZAVRNE z "Cannot apply NOT NULL migration: unresolved orders without locationId" in zahteva ročno razrešitev
+- **NOVO:** `prisma/migrations/` (prej PRAZNA — `migrate deploy` bi bil no-op!): `0001_init` (3411 vrstic, celotna shema z NOT NULL/per-lokacijski unique/Decimal) + `0002_p1_hardening` (delni unique indeksi: TaxRate globalni/per-lokacija, InventoryItem, LoyaltyAccount; legacy constraint cleanup; fail-closed varovalka)
+- **NOVO:** `scripts/verify-db.mjs` — 14 invariant, izhod 1 = deployment STOP (prazna `_prisma_migrations`, NULL vrstice, isNullable, 6 unique indeksov, sessionVersion)
+- **Deprecated:** `scripts/db-sync.mjs` ohranjen SAMO za legacy reševanja — napake zdaj fail-closed (izhod 1), nevarni UPDATE-i odstranjeni
+
+### 🐳 Dockerfile (WS vrzel zaprta)
+
+- **Fixed:** CMD je zaganjal Next standalone (`/app/server.js` prepisala standalone različica) — WebSocket v Dockerju NI DELoval (dokumentirano v DEPLOYMENT.md). Zdaj: runner poganja custom server (`node server.js` — Next.js + WS v enem procesu), kopira FULL `.next` + produkcijske `node_modules` + generiran Prisma client (alpine/musl)
+- **Fixed:** build faza je kopirala `package-lock.json` (IZBRISAN iz repoza v v1.0.15!) + `npm ci` — `docker build` DEJANSKO NI MOGEL USPETI. Zdaj: bun (oven/bun:1-alpine, `bun install --frozen-lockfile`)
+- **NOVO:** `.dockerignore` (.env, node_modules, .next, .git, certs — skrivnosti ne smejo v build context!)
+
+### 📋 CI (migration-test job — 5 testov)
+
+- **NOVO Test 3:** `prisma migrate deploy` na sveži bazi (deployment pot)
+- **NOVO Test 4:** `db:verify` — 14/14 invariant na migrirani bazi
+- **NOVO Test 5 (negativni):** NULL `locationId` vrstica MORA povzročiti `db:verify` zavrnitev (dokaz fail-closed)
+
+### 📚 Dokumentacija
+
+- **NOVO:** `docs/STAGING_DEPLOYMENT.md` — vodnik (arhitektura, .env, točen vrstni red, WS/backup preskusa za kriterija #7 in #9, sprejemni checklist 12 točk)
+- DEPLOYMENT.md: nov odsek "Deployment vrstni red", odstranjeno opozorilo "WS v Dockerju ne teče" (zaprto), docker deploy-test ukaz
+
 ## [v1.2.0] — 2026-09-09 — P2-UX: plačilna varnost + offline/fiskalizacija/obnova + a11y/i18n/tiskanje + CI popravki
 
 | Polje | Vrednost |

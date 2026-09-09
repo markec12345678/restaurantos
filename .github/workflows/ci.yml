@@ -10,7 +10,7 @@
 #   3. lint                           (quality — z WARNING BUDGETOM, glej spodaj)
 #   4. unit tests                     (unit-tests)
 #   5. integration tests              (integration-tests — pravi PostgreSQL)
-#   6. migration test                 (migration-test — db push + drift check)
+#   6. migration test                 (migration-test — db push drift + migrate deploy + db:verify fail-closed)
 #   7. build                          (build — production Next.js build)
 #   8. security tests                 (security — bun audit CRITICAL blokira + gitleaks)
 #   9. E2E tests                      (e2e-security — Playwright, zahteva build)
@@ -178,8 +178,11 @@ jobs:
 
   # ───────────────────────────────────────────
   # Job 4: Migration test (P1-20 — NOV)
-  # Projekt uporablja prisma db push flow (prisma/migrations je prazna) —
-  # "migration test" = schema DDL se generira + PUSH-ANA baza ni v driftu
+  # Projekt je v1.3.0 prešel iz "db push flow" (prisma/migrations je bila
+  # PRAZNA!) na PRAVE migracije (deploy audit 2026-09-09 — db-sync.mjs
+  # odstranjen iz build skripte). Testira OBE poti:
+  #   a) db push + drift check (razvojna pot)
+  #   b) prisma migrate deploy + db:verify (DEPLOYMENT pot — fail-closed!)
   # ───────────────────────────────────────────
   migration-test:
     name: Migration Test (schema drift)
@@ -234,6 +237,49 @@ jobs:
         # (v1.0.15 je CI padal na "file or directory not found" — lažni drift).
         # Za direktni URL povezave je pravilen flag: --from-url.
         run: bunx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+
+      - name: "Test 3: prisma migrate deploy na SVEŽI bazi (deployment pot)"
+        # DEPLOY AUDIT 2026-09-09: migrate deploy je edina dovoljena pot za
+        # spreminjanje baze ob deployu (db-sync iz build je ODSTRANJEN).
+        # Test teče na LOČENI bazi (ci_migrate) — prve štiri zgoraj so pustile
+        # tabelo _prisma_migrations v stanju "db push" (prazna), zato NE
+        # smemo migrirati na isti bazi.
+        env:
+          MIGRATE_DB_URL: "postgresql://ci:ci@localhost:5432/ci_migrate?schema=public"
+        run: |
+          PG_CID=$(docker ps -q --filter "ancestor=postgres:16-alpine" | head -n1)
+          docker exec "$PG_CID" psql -U ci -d ci -c 'CREATE DATABASE ci_migrate'
+          DATABASE_URL="$MIGRATE_DB_URL" bunx prisma migrate deploy
+
+      - name: "Test 4: db:verify — fail-closed invariante (exit 1 = FAIL)"
+        # Preverja: _prisma_migrations aplicirane, 0 NULL locationId vrstic,
+        # NOT NULL trditve, per-lokacijski + delni unique indeksi.
+        # To je IDENTIČNA skripta, ki jo deploy zažene pred zagonom aplikacije
+        # (docker compose run --rm migrate).
+        env:
+          DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci_migrate?schema=public"
+        run: bun run db:verify
+
+      - name: "Test 5: migracija ODBIJE deploy ob nerazrešenih vrsticah (fail-closed)"
+        # NEGATIVNI test (uporabniška zahteva): vrstica z NULL locationId
+        # MORA povzročiti izhod 1 (nikoli samodejna dodelitev prvi lokaciji).
+        # 0002_p1_hardening je že aplicirana v Testu 3 — vstavimo "legacy"
+        # vrstico in preverimo, da db:verify ODBIJE.
+        env:
+          DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci_migrate?schema=public"
+        run: |
+          PG_CID=$(docker ps -q --filter "ancestor=postgres:16-alpine" | head -n1)
+          # Odstrani NOT NULL (simuliraj legacy bazo pred 0002), vstavi NULL vrstico
+          docker exec "$PG_CID" psql -U ci -d ci_migrate \
+            -c 'ALTER TABLE "Order" ALTER COLUMN "locationId" DROP NOT NULL' \
+            -c 'INSERT INTO "Order" ("id", "orderNumber", "locationId", "createdAt", "updatedAt") VALUES (\'neg-test-1\', 999999, NULL, now(), now())'
+          # db:verify MORA pasti (izhod != 0) — prej obrnjeno logiko preskočimo
+          if bun run db:verify; then
+            echo "::error::db:verify NI odbil nerazrešene vrstice — fail-closed je pokvarjen!"
+            exit 1
+          else
+            echo "OK: db:verify je pravilno ZAVRNIL bazo z nerazrešeno vrstico (exit != 0)"
+          fi
 
   # ───────────────────────────────────────────
   # Job 5: Production build (z realno PostgreSQL bazo)

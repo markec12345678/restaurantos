@@ -76,8 +76,18 @@ log "Phase 2: Database Initialization"
 log "  Generating Prisma client..."
 bunx prisma generate || fail "Prisma generate failed"
 
-log "  Pushing schema to PostgreSQL..."
-bunx prisma db push --skip-generate || fail "Schema push failed"
+# DEPLOY AUDIT 2026-09-09 (v1.3.0): namesto ad-hoc `db push` uporabljamo
+# PRAVE transakcijske migracije + fail-closed preverbo invariant.
+# (db push je ostal samo kot razvojno orodje; staging/produkcija = migrate.)
+if [ -d prisma/migrations ] && [ "$(ls -A prisma/migrations 2>/dev/null | grep -v migration_lock | wc -l)" -gt 0 ]; then
+  log "  Applying Prisma migrations (migrate deploy)..."
+  bunx prisma migrate deploy || fail "Migration deploy failed (fail-closed — deployment STOP)"
+  log "  Verifying DB invariants (db:verify)..."
+  bun run db:verify || fail "DB verification failed (fail-closed — deployment STOP)"
+else
+  log "  WARN: prisma/migrations je prazna — fallback na db push (RAZVOJNO le)!"
+  bunx prisma db push --skip-generate || fail "Schema push failed"
+fi
 
 log "  Seeding test data..."
 node -e "

@@ -1,64 +1,93 @@
 # ============================================
 # RestaurantOS — Production Docker Image
 # ============================================
+# ARHITEKTURNA SPREMEMBA (deploy audit 2026-09-09):
+#
+#   1. BUILD NE DOSTOPA DO BAZE. Prej je "build" poganjal
+#      scripts/db-sync.mjs (DDL med buildom!). Sdaj je build čisto
+#      `next build` — migracije aplicira LOČEN korak pred zagonom:
+#      docker compose run --rm migrate   (prisma migrate deploy + db:verify)
+#
+#   2. RUNNER POGANJA CUSTOM SERVER (server.js + server-ws-core.js),
+#      ne Next standalone strežnika — standalone NIMA WebSocket
+#      podpore (glej DEPLOYMENT.md). Custom server = Next.js + WS
+#      v enem procesu (Možnost A).
+#
+#   3. BUN (ne npm): projekt uporablja bun.lock (package-lock je
+#      iz repoza odstranjen). En sam package manager, frozen lockfile.
+#
 # Build: docker build -t restaurantos .
-# Run:   docker run -p 3000:3000 -v $(pwd)/db:/app/db restaurantos
+# Run:   docker compose up -d  (glej docker-compose.yml)
 # ============================================
 
-FROM node:26-alpine AS base
-
-# Install dependencies only when needed
-FROM base AS deps
-RUN apk add --no-cache libc6-compat
+# ── 1. Odvisnosti (full — za build + prisma generate) ──
+# alpine (musl) VSAKI fazi: Prisma query engine se generira za platformo
+# builda in se v runnerju (prav tako alpine/musl) dejansko zažene.
+FROM oven/bun:1-alpine AS deps
 WORKDIR /app
+# prisma/schema.prisma je OBVEZNA za postinstall (prisma generate)
+COPY package.json bun.lock ./
+COPY prisma ./prisma
+RUN bun install --frozen-lockfile
 
-# Copy package files
-COPY package.json package-lock.json ./
-RUN npm ci --only=production
-
-# Build stage
-FROM base AS builder
+# ── 2. Build (BREZ DATABASE_URL — baza se NE dotika!) ──
+FROM oven/bun:1-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# next build (postbuild: copy-standalone.mjs za NE-Docker zagon).
+# .next/cache (build cache, lahko >500 MB) in .next/standalone (za
+# ne-WS standalone zagon) nista potrebna v sliki — ju odstranimo.
+RUN bun run build && rm -rf .next/cache .next/standalone
 
-# Generate Prisma client
-RUN npx prisma generate
-
-# Build Next.js
-RUN npm run build
-
-# Production stage
-FROM base AS runner
+# ── 3. Produkcijske odvisnosti (brez devDeps, brez skript) ──
+# `prisma` CLI je NAMENOMO v dependencies — migrate servis ga potrebuje
+# (npx prisma migrate deploy znotraj containerja).
+FROM oven/bun:1-alpine AS prod-deps
 WORKDIR /app
+COPY package.json bun.lock ./
+COPY prisma ./prisma
+RUN bun install --frozen-lockfile --production --ignore-scripts
+
+# ── 4. Runner: Node + custom server (Next.js + WebSocket) ──
+FROM node:26-alpine AS runner
+WORKDIR /app
+# libc6-compat: Prisma engine na alpine; tzdata: TZ=Europe/Ljubljana
+RUN apk add --no-cache libc6-compat tzdata
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV TZ=Europe/Ljubljana
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy built application
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-
-# Copy Prisma files
+# Produkcijski node_modules + GENERIRANI Prisma client (engine: alpine/musl,
+# pride iz builder faze, kjer je `prisma generate` tekel)
+COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
+
+# Build izhod: FULL .next (custom server ga potrebuje, NE standalone)
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+
+# Custom server: Next.js + WebSocket v enem procesu (DEPLOYMENT.md Možnost A)
+COPY --from=builder /app/server.js /app/server-ws-core.js ./
+
+# Prisma migracije + operacijska orodja (verify-db, deploy-test)
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/package.json ./package.json
 
-# Copy database directory
-RUN mkdir -p /app/db
-VOLUME /app/db
-
-# Copy env example as reference
-COPY --from=builder /app/.env.example ./.env.example
+# Upload dir (runtime zapisljiv volume)
+RUN mkdir -p /app/upload /app/public/uploads
+VOLUME /app/upload
 
 USER nextjs
-
 EXPOSE 3000
-
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
+# FURS boot guard teče v server.js (produkcija + simulation → exit 1)
 CMD ["node", "server.js"]

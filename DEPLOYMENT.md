@@ -34,8 +34,47 @@ dodatnih servisov.
        └─ reverse proxy (nginx/Caddy) ← TLS terminacija + WS upgrade
 ```
 
-Pripravljeno infrastrukture: `Dockerfile`, `docker-compose.yml`
-(postgres + redis + app), `start:ws` skripta, `scripts/deploy-test.mjs`.
+Pripravljeno infrastrukture: `Dockerfile` (custom server — Next.js +
+WebSocket v enem procesu, glej opombo spodaj), `docker-compose.yml`
+(postgres + redis + app, db/redis SAMO interna omrežja, Redis Z geslom),
+`migrate` servis (enkratne migracije), `start:ws` skripta,
+`scripts/deploy-test.mjs`.
+
+### Deployment vrstni red (deploy audit 2026-09-09 — OBVEZNO)
+
+Build NIKOLI NE spreminja baze (db-sync.mjs je ODSTRANJEN iz `build`
+skripte — arhitekturno nevaren: delna migracija + tihe napake). Vrstni red:
+
+```bash
+bun install --frozen-lockfile   # 1. odvisnosti (en PM, bun.lock)
+bun run db:generate             # 2. Prisma client (postinstall)
+bun run db:migrate:deploy       # 3. PRAVE migracije (transakcijske, fail-closed)
+bun run db:verify               # 4. fail-closed preverba invariant (izhod 1 = STOP)
+bun run build                   # 5. produkcjski build (brez DB dostopa)
+bun run start                   # 6. zagon (custom server: app + WS)
+```
+
+Migracija, ki ne uspe, MORA ustaviti deployment — to zagotavlja:
+transakcijskost (delna napaka = ROLLBACK cele migracije) + `db:verify`
+(14 invariant: NOT NULL, unique indeksi, 0 nerazrešenih vrstic).
+
+**Docker ekvivalent**: `docker compose build` (brez DB) →
+`docker compose run --rm migrate` (koraka 3+4) → `docker compose up -d`.
+
+**Obstoječe (pre-migracijske) baze** (Neon, ki je bila usklajevana z
+`db push` / db-sync): pred prvim `migrate deploy` označi baseline:
+`bunx prisma migrate resolve --applied 0001_init` — nato se 0002_
+p1_hardening izvede varno nad obstoječo shemo (idempotentne izjave).
+
+### ⚠️ POZOR — DOLGOLETNA NAPAKA KONČNO ZAPRTA (2026-09-09, v1.3.0)
+
+Prej je `Dockerfile` CMD zagnal **Next standalone** strežnik
+(`.next/standalone/server.js` je prepisal custom `server.js`) — v Dockerju
+WS NI deloval. V1.3.0 runner kopira **custom server** (`server.js` +
+`server-ws-core.js` + FULL `.next` + produkcijski `node_modules`) in poganja
+`node server.js` — Next.js + WebSocket v ENEM procesu. Zagon potrdita
+`docker compose run --rm app node scripts/deploy-test.mjs` in healthcheck
+(`wget /api/health`) v compose. Za WS prek HTTPS glej nginx odsek spodaj.
 
 ### Časovni pas (TZ) — poslovni dnevi
 
@@ -46,12 +85,6 @@ procesa). Kljub temu priporočamo, da na strežniku nastavite tudi procesni TZ
 saj ostali deli knjižnic (npr. `date-fns format`) sledijo lokalnemu času
 procesa — na UTC strežniku bi videli 1–2 h zamaknjene časovne žige v dnevnikih
 in nekaterih pogledih.
-
-⚠️ **POZOR (Docker)**: `Dockerfile` CMD zažene **Next standalone** strežnik
-(`.next/standalone/server.js` prepiše custom `server.js`) — v Dockerju WS
-TRENUTNO ne teče. Za WS v Dockerju spremeni runner stage: skopiraj
-`server.js` + `server-ws-core.js` + polne `node_modules/` namesto standalone
-izhoda (ali zaženi `node server.js` iz repozitorija na VPS).
 
 ### Reverse proxy zahteve (nginx)
 
@@ -108,6 +141,7 @@ Vercelu; cron ostane na Vercelu.
 ```bash
 bun run build                 # 1. produkcjski build
 bun run test:deploy           # 2. node scripts/deploy-test.mjs
+# Docker: docker compose run --rm app node scripts/deploy-test.mjs
 ```
 
 Skripta preverja (11 preverjanj, izhod 1 = neveljavno za deploy):

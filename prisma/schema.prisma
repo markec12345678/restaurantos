@@ -182,7 +182,7 @@ model TaxRate {
   // FIX SCHEMA-02 HIGH → P1-7: FURS koda je unikatna PO LOKACIJI — druga lokacija
   // lahko ima svoj "S" 22 % (prej: @@unique([code]) je to preprečeval!).
   // Globalne stopnje (locationId NULL) ostanejo unikatne med sabo (NULL ≠ NULL v PG;
-  // db-sync doda tudi delni unique indeks za globalne vrstice).
+  // migracija 0002_p1_hardening doda tudi delni unique indeks za globalne vrstice).
   @@unique([locationId, code])
   diningOptions  DiningOption[] // FIX F5-7: Relation from DiningOption
   @@index([isActive])
@@ -417,7 +417,7 @@ model Order {
   id              String     @id @default(cuid())
   // P1-7: številka naročila je unikatna PO LOKACIJI (ne globalno) — poslovno
   // pravilo: vsaka lokacija številči svoja naročila od 1 naprej.
-  // Globalni @unique je odstranjen; unique index (locationId, orderNumber) je v db-sync.
+  // Globalni @unique je odstranjen; unique index (locationId, orderNumber) je v 0002_p1_hardening.
   orderNumber     Int
   // FIX CRITICAL (Test 3.2): Idempotency key za preprečevanje duplikatov pri offline/retry
   // Brez tega bi React Query retry ustvaril duplikat naročila.
@@ -479,7 +479,7 @@ model Order {
   virtualBrand    VirtualBrand? @relation(fields: [virtualBrandId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Multi-location ---
   // P1-6 (obvezen): naročilo VEDNO pripada lokaciji (koda resolvia vse poteh;
-  // db-sync varovano SET NOT NULL). onDelete: Restrict — lokacija z naročili se
+  // 0002_p1_hardening trdno SET NOT NULL, fail-closed). onDelete: Restrict — lokacija z naročili se
   // ne sme izbrisati (fiskalna integriteta); uporabi deaktivacijo (isActive=false).
   locationId      String
   location        Location  @relation(fields: [locationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
@@ -995,7 +995,7 @@ model Receipt {
   id                String   @id @default(cuid())
   // P1-7 (FURS): številka računa je unikatna PO POSLOVNEM PROSTORU (= lokacija) —
   // ne globalno! Vsaka lokacija ima svoje zaporedno številčenje R-YYYY-NNNNNN.
-  // Globalni @unique odstranjen; compound unique index je v db-sync.
+  // Globalni @unique odstranjen; compound unique index je v 0002_p1_hardening.
   receiptNumber     String
   orderId           String                         // Omogoča več računov na naročilo (split payments)
   order             Order    @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: Restrict)
@@ -1053,7 +1053,7 @@ model LoyaltyAccount {
   id              String   @id @default(cuid())
   // --- Stranka ---
   customerName    String   @default("")
-  customerPhone   String   @default("") // P1-7: telefon je unikaten PO LOKACIJI (db-sync: delni unique indeks WHERE customerPhone <> '' in locationId IS NOT NULL; isti gost ima lahko račun na več lokacijah). Prej globalni @unique — druga lokacija ni mogla imeti istega gosta!
+  customerPhone   String   @default("") // P1-7: telefon je unikaten PO LOKACIJI (0002_p1_hardening: delni unique indeks WHERE customerPhone <> '' in locationId IS NOT NULL; isti gost ima lahko račun na več lokacijah). Prej globalni @unique — druga lokacija ni mogla imeti istega gosta!
   customerEmail   String   @default("")
   // --- Točke ---
   pointsBalance   Int      @default(0)
