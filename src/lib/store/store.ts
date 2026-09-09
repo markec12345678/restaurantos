@@ -3,12 +3,21 @@
 // ============================================
 
 import { create } from 'zustand'
+import { persist, createJSONStorage } from 'zustand/middleware'
 import { setLocale, getLocale } from '../i18n'
 import { getCountryConfig, getCountryByLocale } from '../country-config'
 import type { POSStore } from './types'
 import { generateCartKey, getItemEffectivePrice, calculateTaxBreakdown } from './types'
 
-export const usePOSStore = create<POSStore>((set, get) => ({
+// P2-UX FIX (stanje po refreshu/crashu): košarica, izbrana miza, vrsta naročila
+// in popust preživijo refresh/crash POS aplikacije — prej je natakar ob osvežitvi
+// izgubil celotno v nastavitvi naročilo (košarico) in moral znova izbrati mizo +
+// vnesti vse artikle. Persistanca NE vsebuje osebnih podatkov strank.
+// skipHydration: true — rehidracija se sproži ročno v POSPage useEffect,
+// da se izognemo React hydration mismatch (SSR = prazna košarica).
+export const usePOSStore = create<POSStore>()(
+  persist(
+    (set, get) => ({
   activeModule: 'orders',
   setActiveModule: (module) => set({ activeModule: module }),
   cart: [],
@@ -117,4 +126,25 @@ export const usePOSStore = create<POSStore>((set, get) => ({
   setActivePriceGroupId: (id) => set({ activePriceGroupId: id }),
   happyHourActive: false,
   setHappyHourActive: (active) => set({ happyHourActive: active }),
-}))
+    }),
+    {
+      name: 'pos-order-session-v1',
+      storage: createJSONStorage(() => localStorage),
+      version: 1,
+      skipHydration: true,
+      // Persistiramo samo "v nastavitvi" naročilo (košarico) — ne UI stanja,
+      // ne locale/country (ti se že sami shranjujeta) in ne auth podatkov.
+      // clearCart() resetira vsa ta polja → storage se avtomatsko počisti.
+      partialize: (state) => ({
+        cart: state.cart,
+        orderType: state.orderType,
+        selectedTable: state.selectedTable,
+        discount: state.discount,
+        editingOrderId: state.editingOrderId,
+        editingOrderNumber: state.editingOrderNumber,
+        appliedDiscountId: state.appliedDiscountId,
+        diningOptionId: state.diningOptionId,
+      }),
+    }
+  )
+)

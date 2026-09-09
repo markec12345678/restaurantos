@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
+import { errorSl } from '@/lib/error-messages'
 
 // ============================================
 // HOOK: Mutacije za menije, artikle in kategorije
@@ -32,7 +33,7 @@ export function useMenuMutations({
       return res.json()
     },
     onSuccess: () => { toast.success('Meni ustvarjen'); queryClient.invalidateQueries({ queryKey: queryKeys.menus.all }); onCloseMenuDialog() },
-    onError: (err: Error) => { toast.error(err.message || 'Napaka pri ustvarjanju menija') },
+    onError: (err: Error) => { toast.error(errorSl(err, 'Napaka pri ustvarjanju menija')) },
   })
 
   // Ustvari artikel
@@ -43,7 +44,7 @@ export function useMenuMutations({
       return res.json()
     },
     onSuccess: () => { toast.success('Artikel ustvarjen'); queryClient.invalidateQueries({ queryKey: queryKeys.menuItems.all }); onCloseItemDialog() },
-    onError: (err: Error) => { toast.error(err.message || 'Napaka pri ustvarjanju artikla') },
+    onError: (err: Error) => { toast.error(errorSl(err, 'Napaka pri ustvarjanju artikla')) },
   })
 
   // Posodobi artikel
@@ -54,7 +55,7 @@ export function useMenuMutations({
       return res.json()
     },
     onSuccess: () => { toast.success('Artikel posodobljen'); queryClient.invalidateQueries({ queryKey: queryKeys.menuItems.all }); onCloseItemDialog(); onClearEditingItem() },
-    onError: (err: Error) => { toast.error(err.message || 'Napaka pri posodabljanju artikla') },
+    onError: (err: Error) => { toast.error(errorSl(err, 'Napaka pri posodabljanju artikla')) },
   })
 
   // Izbriši artikel
@@ -65,7 +66,7 @@ export function useMenuMutations({
       return res.json()
     },
     onSuccess: () => { toast.success('Artikel izbrisan'); queryClient.invalidateQueries({ queryKey: queryKeys.menuItems.all }) },
-    onError: (err: Error) => { toast.error(err.message || 'Napaka pri brisanju artikla') },
+    onError: (err: Error) => { toast.error(errorSl(err, 'Napaka pri brisanju artikla')) },
   })
 
   // Preklopi razpoložljivost
@@ -76,7 +77,7 @@ export function useMenuMutations({
       return res.json()
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.menuItems.all }) },
-    onError: (err: Error) => { toast.error(err.message || 'Napaka pri spreminjanju razpoložljivosti') },
+    onError: (err: Error) => { toast.error(errorSl(err, 'Napaka pri spreminjanju razpoložljivosti')) },
   })
 
   // Ustvari kategorijo

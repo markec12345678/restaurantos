@@ -32,6 +32,9 @@ export interface FormData {
   printRulesOrder: boolean
   printRulesReceipt: boolean
   printRulesPrepStationOrder: boolean
+  /** P2-UX (tiskanje po postajah): specifična postaja za 'prepStationOrder'
+   *  pravilo; prazno = vse postaje */
+  prepStationOrderStationId: string
 }
 
 /** Status preizkusa povezljivosti tiskalnika */
@@ -108,6 +111,8 @@ export interface PrinterDialogProps {
   open: boolean
   editingPrinter: PrinterItem | null
   formData: FormData
+  /** P2-UX (tiskanje po postajah): pripravljalne postaje za usmerjanje naročil */
+  prepStations: { id: string; name: string }[] | undefined
   onOpenChange: (_open: boolean) => void
   onFormDataChange: (_data: FormData) => void
   onSubmit: () => void

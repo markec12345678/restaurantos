@@ -230,7 +230,10 @@ jobs:
       - name: "Test 2: baza po db push NI v driftu s schemo (exit 1 = FAIL)"
         # migrate diff --exit-code vrne 1, če obstaja RAZLIKA med živo bazo in
         # schema.prisma. To ulovi: schema spremenjena, db push neveljaven/obskodovan.
-        run: bunx prisma migrate diff --from-schema-datasource "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+        # POZOR: --from-schema-datasource pričakuje POT DO DATOTEKE sheme, ne URL
+        # (v1.0.15 je CI padal na "file or directory not found" — lažni drift).
+        # Za direktni URL povezave je pravilen flag: --from-url.
+        run: bunx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
 
   # ───────────────────────────────────────────
   # Job 5: Production build (z realno PostgreSQL bazo)
@@ -315,8 +318,21 @@ jobs:
       # P1-20: CRITICAL ranljivosti BLOKIRAJO build (next 16.1.7 RCE → 16.3.4
       # popravljeno 2026-09-09; sedaj 0 critical). high/moderate v dev-chain
       # (eslint/webpack/babel) ostanejo vidni v logih — ne blokirajo.
+      # BUG-WORKAROUND: bun audit (v1.3.14) vrne exit 1 ob KATERIKOLI
+      # ranljivosti in --severity ne vpliva niti na izhod niti exit kodo.
+      # Zato preštejemo critical ranljivosti ročno iz JSON izhoda.
       - name: Run bun audit (CRITICAL = blocking)
-        run: bun audit --severity critical
+        run: |
+          bun audit --json > audit-report.json || true
+          CRITICALS=$(jq '[.[][] | select(.severity == "critical")] | length' audit-report.json)
+          TOTAL=$(jq '[.[][]] | length' audit-report.json)
+          echo "Skupaj ranljivosti: $TOTAL | kritičnih: $CRITICALS"
+          if [ "$CRITICALS" -gt 0 ]; then
+            echo "::error::ZAZNANE $CRITICALS KRITIČNIH ranljivosti — build blokiran"
+            jq -r 'to_entries[] | .key as $p | .value[] | select(.severity == "critical") | "  CRITICAL [$p] \(.title) — \(.url)"' audit-report.json
+            exit 1
+          fi
+          echo "OK: 0 kritičnih ranljivosti — vrata prestavljena"
 
       - name: Check for committed secrets (gitleaks)
         uses: gitleaks/gitleaks-action@v3

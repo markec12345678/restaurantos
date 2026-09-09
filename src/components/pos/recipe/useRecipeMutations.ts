@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import type { AddFormState, EditFormState } from './constants'
+import { errorSl } from '@/lib/error-messages'
 
 interface RecipeMutationCallbacks {
   onCloseAddDialog: () => void
@@ -36,7 +37,7 @@ export function useRecipeMutations(callbacks: RecipeMutationCallbacks) {
       queryClient.invalidateQueries({ queryKey: queryKeys.recipes.all })
       callbacks.onCloseAddDialog()
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(errorSl(err, 'Napaka pri receptu')),
   })
 
   const editMutation = useMutation({

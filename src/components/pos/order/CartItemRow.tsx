@@ -44,7 +44,7 @@ export const CartItemRow = memo(function CartItemRow({
       )}
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-semibold truncate">{item.name}</p>
+        <p className="text-xs font-semibold truncate" title={item.name}>{item.name}</p>
         <p className="text-[10px] text-muted-foreground">€{safeToFixed(item.price, 2)} na kos</p>
         {item.modifiers.length > 0 && (
           <div className="flex flex-wrap gap-0.5 mt-0.5">

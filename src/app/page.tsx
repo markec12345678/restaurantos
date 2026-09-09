@@ -4,12 +4,14 @@ import { usePOSStore } from '@/lib/store'
 import { Sidebar } from '@/components/pos/sidebar/Sidebar'
 import { KioskBar } from '@/components/pos/KioskBar'
 import { HappyHourBanner } from '@/components/pos/HappyHourBanner'
+// P2-UX (jasen status offline/online): vselej viden status povezave + števec čakajočih offline naročil
+import { NetworkStatusBar } from '@/components/pos/NetworkStatusBar'
 import { GlobalNotifications } from '@/components/pos/GlobalNotifications'
 import { CommandPalette } from '@/components/pos/command-palette/CommandPalette'
 import { KeyboardShortcutsDialog } from '@/components/pos/keyboard-shortcuts/KeyboardShortcutsDialog'
 import { KeyboardShortcutsHandler } from '@/components/pos/keyboard-shortcuts/KeyboardShortcutsHandler'
 import { NotificationCenter } from '@/components/pos/notification-center/NotificationCenter'
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useModulePrefetch } from '@/lib/use-module-prefetch'
 import { moduleComponents, AIAssistant } from '@/app/components/module-registry'
 import { usePOSAuth } from '@/app/components/use-pos-auth'
@@ -27,6 +29,12 @@ export default function POSPage() {
   // Prednalaganje podatkov ob preklopu modula — hitrejši prehod za uporabnika
   useModulePrefetch(activeModule)
   const { authUser, setAuthUser, authChecked } = usePOSAuth()
+
+  // P2-UX FIX (stanje po refreshu/crashu): ročna rehidracija košarice/mize iz
+  // localStorage PO prvi upodabitvi (skipHydration v store-u prepreči SSR mismatch)
+  useEffect(() => {
+    void usePOSStore.persist.rehydrate()
+  }, [])
 
   // FIX WORKFLOW-48: preusmeri na /setup če sistem še ni inicializiran (first-run)
   if (!authChecked) {
@@ -49,6 +57,8 @@ export default function POSPage() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background">
+      {/* P2-UX: status povezave (online/offline + čakajoča offline naročila) */}
+      <NetworkStatusBar />
       {/* Happy Hour Banner — vidno kadar aktiven */}
       <HappyHourBanner />
       <div className="flex flex-1 overflow-hidden">

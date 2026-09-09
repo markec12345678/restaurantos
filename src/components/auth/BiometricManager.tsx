@@ -9,6 +9,7 @@ import { Fingerprint, Loader2, Plus, Trash2, Smartphone, Monitor, Watch } from '
 import { startRegistration } from '@simplewebauthn/browser'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
+import { errorSl } from '@/lib/error-messages'
 
 interface BiometricCredential {
   id: string
@@ -86,7 +87,7 @@ export function BiometricManager({ employeeId }: BiometricManagerProps) {
     },
     onError: (err: Error) => {
       if (err.name === 'NotAllowedError') return
-      toast.error(err.message || 'Napaka pri registraciji.')
+      toast.error(errorSl(err, 'Napaka pri registraciji biometrije.'))
     },
   })
 
@@ -104,7 +105,7 @@ export function BiometricManager({ employeeId }: BiometricManagerProps) {
       toast.success('Poverilnica izbrisana.')
       queryClient.invalidateQueries({ queryKey: ['biometric-credentials'] })
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(errorSl(err, 'Napaka pri prijavi s biometrijo')),
   })
 
   const handleRegister = () => {

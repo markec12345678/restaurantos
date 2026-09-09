@@ -6,6 +6,59 @@ All notable changes to RestaurantOS are documented in this file.
 > commit SHA, migracije, breaking changes, rezultati testov, znane težave,
 > deployment in rollback navodila.
 
+## [v1.2.0] — 2026-09-09 — P2-UX: plačilna varnost + offline/fiskalizacija/obnova + a11y/i18n/tiskanje + CI popravki
+
+| Polje | Vrednost |
+|-------|----------|
+| **Datum izdaje** | 2026-09-09 |
+| **Commit** | release commit (glej tag v1.2.0) |
+| **Migracije** | NE — brez sprememb Prisma sheme (`fiscalStatus` je obstajal; sedaj se vrača tudi v GET /api/receipts/[id]) |
+| **Breaking changes** | NE. Opombe: (1) `GET /api/receipts/[id]` odgovor ima novo obvezno polje `fiscalStatus` (`none\|pending\|verified\|failed`); (2) Z-report/EOD mejijo poslovni dan po Europe/Ljubljana (ne več po strežniškem TZ) — dnevi se lahko premaknejo na UTC strežnikih, kar je NAPAČNO popravljenje (prejšnje stanje je bilo napačno); (3) tiskanje kuhinjskih naročil se lahko razdeli po postajah (printer printRules `prepStationOrder` + `prepStationId`) |
+| **Testni rezultati** | 1360/1360 enotnih ✅ (44 novih: 29 P2-UX formatiranje/časovni pas/prevodi + 15 Zod prevodi) · tsc clean · eslint 0 napak, 1472 warningov (< 1486 ratchet) · produkcijski build OK · CI Migration Test lokalno potrjen (PGlite over TCP) |
+| **Znane težave** | Glej [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md) |
+| **Deployment** | Standardni: `bun install --frozen-lockfile && bun run build && bun start`. Priporočeno: `TZ=Europe/Ljubljana` na strežniku (glej DEPLOYMENT.md §Časovni pas) |
+| **Rollback** | `git checkout v1.1.0 && bun install --frozen-lockfile && bun run build && ponovno deploy` — brez migracij je rollback trenuten |
+
+### 🔧 CI popravki (run 538 pada)
+
+- **Fixed:** `Migration Test` job je padal z `Could not load --from-schema-datasource from provided path` — Prisma `--from-schema-datasource` pričakuje POT DO DATOTEKE sheme, ne URL. Zamenjano z `--from-url "$DATABASE_URL"` (lokalno potrjeno: "No difference detected", EXIT=0)
+- **Fixed:** `Security Audit` job je padal, ker `bun audit --severity critical` (v1.3.14) vrne exit 1 ob KATERIKOLI ranljivosti in `--severity` ne vpliva na izhod/exit kodo. Zdaj CI ročno prešteje critical iz JSON (`jq`), high/moderate (dev-chain: eslint/webpack/babel) ostanejo vidni v logih, ne blokirajo
+
+### 💳 P2-UX: plačilna varnost (preprečitev dvojnega klika, stale order, opozorila)
+
+- **Fixed:** PaymentDialog se ne more zapreti (X/Esc) MED obdelavo plačila — prej je mutacija tekla v ozadju, natakar ni vedel, ali je plačilo uspelo
+- **Fixed:** `handleSinglePayment` dobi sync varovalko proti dvojnemu kliku (React-Query NE deduplicira `.mutate()`)
+- **Fixed:** idempotencyKey je vezan na naročilo (`idempotencyOrderRef`) — prej se je STARI ključ lahko uporabil za DRUGO naročilo (fast-path bi vrnil plačilo prejšnjega naročila)
+- **Fixed:** plačilni potek pošlje `expectedUpdatedAt` (single/split/by-items) — AKTIVIRA obstoječo backend optimistic-locking varovalko; 409 → Sloven toast + invalidacija
+- **Fixed:** onError tosti prikazujejo SPOROČILO napake (409, ALREADY_PAID, validacije) namesto generičnega "Napaka pri obdelavi plačila"; split/by-items napačni catch-i (popolnoma tihi) zdaj toastajo + 409 invalidacija
+- **Added:** opozorilo pred plačilom naročila z neodposlanimi artikli ("N artiklov ni poslanih v kuhinjo")
+- **Added:** AlertDialog pred zaključkom NEPLAČANEGA naročila (zaključek je nepovraten)
+- **Fixed:** WalletPaymentTerminal uporablja `authFetch` (prej surov fetch BREZ auth headerjev → tiha 401) + onError tosti + potrditvena sporočila
+
+### 📡 P2-UX: offline status, fiskalizacija, obnova stanja
+
+- **Added:** `NetworkStatusBar` — vedno viden trak na POS glavi: online (diskreten) / sinhronizacija (rumen, števec) / BREZ POVEZAVE (rdeč) z številom čakajočih offline naročil (IndexedDB, `useSyncExternalStore` + 5 s poll)
+- **Fixed:** neuspešna FURS fiskalizacija po plačilu ni bila VEČ tiha (HTTP 400 je padel v null) — zdaj izrecen rdeč toast "Fiskalizacija ni uspela — EOR manjka" (single + split potek)
+- **Added:** `ReceiptData.fiscalStatus` + rdeč prikaz "Fiskalizacija NI uspela" na računu (ločeno od rumenega "čaka") — API, Zod shema, tipi, UI
+- **Added:** POS košarica/miza/vrsta naročila preživijo refresh/crash (zustand `persist` + `skipHydration`, ročna rehidracija; `clearCart` po uspehu počisti tudi storage) + košarica spletnega naročanja (`localStorage`, validiran load, brez osebnih podatkov)
+
+### ⌨️ P2-UX: dostopnost, touch targeti
+
+- **Fixed:** kartice artiklov v spletnem meniju in KDS bump vrstice (PRIMARNA kuhinjska akcija!) so tipkovnici dostopne (role=button, tabIndex, Enter/Space, aria-label)
+- **Fixed:** touch targeti: steperi košarice 28px → 40px + `touch-manipulation` (44px na dotik), enako QR steperi, mize-ikone 24px → 36px
+
+### 💶 P2-UX: decimalne vejice, timezone, prevodi
+
+- **Added:** `formatEUR` / `formatNumberSl` (deterministično "1.234,56 €", neodvisno od Node ICU) — zamenjani ključni prikazi: CartTotals, ReceiptTotals, plačilni dialog, spletno naročanje; **natisnjeni računi** (ESC/POS) zdaj uporabljajo vejico
+- **Added:** `parseDecimalInput` — vnosi "12,50" se pravilno razumejo (prej parseFloat → 12!): gotovina, napitnina, EOD gotovina
+- **Added:** `src/lib/timezone-sl.ts` (`ljubljanaDayBounds` z iterativno DST konvergenco — 23/25 h dnevi pravilni; `ljubljanaTodayStr`) — EOD, Z-report in email poročila mejijo poslovni dan po Europe/Ljubljana, ne UTC/strežniški TZ; TZ dokumentiran v DEPLOYMENT.md
+- **Added:** `errorSl` preslikava znanih angleških napak ("Failed to fetch" → "Ni povezave s strežnikom") v ~15 tostih; Zod validacijska sporočila se prevajajo v slovenščino (Zod 4 + 3 vzorci)
+
+### 🖨️ P2-UX: dolga imena + tiskanje po postajah
+
+- **Fixed:** skrajšana dolga imena artiklov imajo `title` orisal (POSO cart, kartice menija, kuhinja, KDS, seznam postavk) — na KDS varnostno relevantno (alergeni)
+- **Added:** fan-out kuhinjskih naročil PO PRIPRAMBALNIH POSTAJAH: artikli se združijo po `menuItem.prepStationId`, vsaka postaja dobi svoj izpis (glava "POSTAJA: …") na tiskalnike z `prepStationOrder` pravilom; izbira postaje v PrinterDialog (prazno = vse); artikli brez postaje gredo na splošne 'order' tiskalnike; eksplicitni printerId = stari vedenji
+
 ## [v1.1.0] — 2026-09-09 — E2E testiranje + Observability + P2 dokumentacija/release
 
 | Polje | Vrednost |

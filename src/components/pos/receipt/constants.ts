@@ -40,6 +40,9 @@ export interface ReceiptData {
   zoi: string
   eor: string
   fiscalVerified: boolean
+  // P2-UX (prikaz neuspele fiskalizacije): none/pending/verified/failed —
+  // loči "nikoli poskusili" od "poskusili in padlo" (API vrača iz Receipt.fiscalStatus)
+  fiscalStatus?: string
   // Naročilo
   orderNumber: number
   type: string

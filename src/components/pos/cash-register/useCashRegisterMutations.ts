@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
+import { errorSl } from '@/lib/error-messages'
 import type { OpenShiftFormType, CloseShiftFormType } from './constants'
 
 // ============================================
@@ -47,7 +48,7 @@ export function useCashRegisterMutations({
       onCloseOpenDialog()
       queryClient.invalidateQueries({ queryKey: queryKeys.cashRegister.all })
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(errorSl(err, 'Napaka pri blagajni')),
   })
 
   const closeShiftMutation = useMutation({
@@ -104,7 +105,7 @@ export function useCashRegisterMutations({
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(errorSl(err, 'Napaka pri blagajni')),
   })
 
   return {

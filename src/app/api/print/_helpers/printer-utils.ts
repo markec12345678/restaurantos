@@ -72,6 +72,44 @@ export interface PrinterInfo {
   ipAddress: string
   type: string
   port: number
+  /** P2-UX (tiskanje po postajah): postaja, na katero je tiskalnik usmerjen (če je) */
+  prepStationId?: string
+}
+
+/** P2-UX FIX (tiskanje na različnih printerjih): izlušči PrinterInfo iz zapisa */
+function toPrinterInfo(printer: { id: string; name: string; ipAddress: string; type: string; printRules: string }): PrinterInfo {
+  // FIX EP5: konfigurabilni port iz printRules, sicer 9100
+  const rules = parsePrintRules(printer.printRules)
+  const customPort = rules.find(r => r.port)?.port
+  return {
+    id: printer.id,
+    name: printer.name,
+    ipAddress: printer.ipAddress,
+    type: printer.type,
+    port: customPort || 9100,
+  }
+}
+
+/**
+ * P2-UX FIX (tiskanje na različnih printerjih): vrni VSE aktivne tiskalnike,
+ * katerih pravila ustrezajo predikatu — za fan-out naročil po postajah.
+ * (findPrinter vrača SAMO prvi zadetek — zadostuje za račune.)
+ */
+export async function findPrintersByRule(
+  predicate: (_rule: { type: string; prepStationId?: string; port?: number }) => boolean,
+): Promise<PrinterInfo[]> {
+  const printers = await db.printer.findMany({
+    where: { isActive: true, ipAddress: { not: '' } },
+    orderBy: { sortOrder: 'asc' },
+  })
+  const matched: PrinterInfo[] = []
+  for (const printer of printers) {
+    const rules = parsePrintRules(printer.printRules)
+    if (rules.some(predicate)) {
+      matched.push(toPrinterInfo(printer))
+    }
+  }
+  return matched
 }
 
 /**

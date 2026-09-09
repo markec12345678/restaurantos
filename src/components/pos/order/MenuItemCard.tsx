@@ -120,7 +120,7 @@ export const MenuItemCard = memo(function MenuItemCard({
       {/* Info */}
       <div className="p-2 flex-1 flex flex-col justify-between">
         <div className="flex items-start justify-between gap-1">
-          <p className={`font-semibold text-xs leading-tight line-clamp-2 ${isOutOfStock ? 'text-muted-foreground line-through' : ''}`}>{item.name}</p>
+          <p title={item.name} className={`font-semibold text-xs leading-tight line-clamp-2 ${isOutOfStock ? 'text-muted-foreground line-through' : ''}`}>{item.name}</p>
           {item.allergens && (
             <span className="flex-shrink-0 flex items-center gap-0.5 rounded-full bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 text-[8px] font-bold px-1 py-0.5 border border-red-200 dark:border-red-800" title={`Alergeni: ${item.allergens}`}>
               <ShieldAlert className="h-2.5 w-2.5" />

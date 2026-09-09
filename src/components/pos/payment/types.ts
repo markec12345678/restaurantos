@@ -8,6 +8,9 @@ export interface OrderItemType {
   quantity: number
   price: number
   vatRate: number
+  // P2-UX: status artikla (pending = še ni poslan v kuhinjo) — API ga vrača,
+  // potrebujemo ga za opozorilo pred plačilom naročila z neodposlanimi artikli
+  status?: string
 }
 
 // Tipi za darilne kartice
@@ -46,6 +49,9 @@ export interface PaymentDialogProps {
     discount: number
     tip: number
     status?: string
+    // P2-UX (stale order): optimistic locking — klient pošlje updatedAt, ki ga je
+    // prebral; backend ga primerja in vrne 409, če je medtem drug uporabnik spremenil naročilo
+    updatedAt?: string
     orderItems: OrderItemType[]
   } | null
   open: boolean

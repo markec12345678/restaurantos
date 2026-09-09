@@ -30,6 +30,9 @@ export interface OrderType {
   paymentStatus: string
   paymentMethod: string
   createdAt: string
+  // P2-UX (stale order): optimistic locking — API (Prisma) vrača updatedAt,
+  // plačilni potek ga pošlje kot expectedUpdatedAt
+  updatedAt?: string
   table?: { number: number }
   orderItems: OrderItemType[]
   subtotal?: number

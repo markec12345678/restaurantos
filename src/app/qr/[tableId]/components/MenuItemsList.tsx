@@ -55,12 +55,13 @@ export const MenuItemCard = memo(function MenuItemCard({
               </button>
             ) : (
               <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                <button onClick={() => onUpdateQuantity(item.id, '', -1)} className="w-7 h-7 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                  <Minus className="h-3 w-3" />
+                {/* P2-UX FIX (touch target): 28px → 40px + touch-manipulation (44px na dotik) */}
+                <button onClick={() => onUpdateQuantity(item.id, '', -1)} aria-label="Zmanjšaj količino" className="w-10 h-10 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors touch-manipulation">
+                  <Minus className="h-4 w-4" />
                 </button>
                 <span className="font-bold text-sm w-5 text-center">{cartQty}</span>
-                <button onClick={() => onAddToCart(item)} className="w-7 h-7 flex items-center justify-center bg-amber-500 text-white rounded-full hover:bg-amber-600 transition-colors">
-                  <Plus className="h-3 w-3" />
+                <button onClick={() => onAddToCart(item)} aria-label="Povečaj količino" className="w-10 h-10 flex items-center justify-center bg-amber-500 text-white rounded-full hover:bg-amber-600 transition-colors touch-manipulation">
+                  <Plus className="h-4 w-4" />
                 </button>
               </div>
             )}

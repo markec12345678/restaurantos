@@ -21,6 +21,18 @@ export function usePrinterQueries() {
     },
   })
 
+  // P2-UX FIX (tiskanje po postajah): postaje za usmerjanje kuhinjskih naročil
+  // na posamezne tiskalnike (npr. Bar → bar-tiskalnik)
+  const { data: prepStations } = useQuery<{ id: string; name: string }[]>({
+    queryKey: ['prep-stations-printer-routing'],
+    queryFn: async () => {
+      const res = await authFetch('/api/configuration')
+      const data = await res.json()
+      return Array.isArray(data?.prepStations) ? data.prepStations : []
+    },
+    staleTime: 60_000,
+  })
+
   const stats = useMemo(() => {
     const list = printers || []
     const active = list.filter(p => p.isActive).length
@@ -35,5 +47,5 @@ export function usePrinterQueries() {
     return { total: list.length, active, kitchen, receipt }
   }, [printers])
 
-  return { search, setSearch, printers, isLoading, stats }
+  return { search, setSearch, printers, isLoading, stats, prepStations }
 }

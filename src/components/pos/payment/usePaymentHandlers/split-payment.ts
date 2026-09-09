@@ -75,6 +75,8 @@ export async function executeSplitPayment({
     if (!paymentRes.ok) throw new Error(`Napaka pri ustvarjanju plačila ${i + 1}`)
   }
   // 3. Posodobi naročilo
+  // P2-UX FIX (stale order): pošlji expectedUpdatedAt (optimistic locking) —
+  // glej useProcessPayment za podrobnosti.
   const orderRes = await authFetch(`/api/orders/${order.id}`, {
     method: 'PUT',
     body: JSON.stringify({
@@ -83,6 +85,7 @@ export async function executeSplitPayment({
       ...(order.status === 'ready' ? { status: 'completed' } : {}),
       tip: tipAmount,
       totalWithTip: orderTotal + tipAmount,
+      ...(order.updatedAt ? { expectedUpdatedAt: order.updatedAt } : {}),
     }),
   })
   if (!orderRes.ok) throw new Error('Napaka pri posodobitvi naročila')
@@ -93,12 +96,22 @@ export async function executeSplitPayment({
       body: JSON.stringify({ paymentMethod: 'split', isStorno: false }),
     })
     if (receiptRes.ok) {
+      // P2-UX FIX (prikaz neuspele fiskalizacije): prej se je odgovor 400 (fiskalizacija
+      // ni uspela) tiho zavrnil — natakar ni izvedel, da EOR manjka.
       try {
-        await authFetch('/api/furs', {
+        const fursRes = await authFetch('/api/furs', {
           method: 'POST',
           body: JSON.stringify({ orderId: order.id }),
         })
-      } catch { /* FURS overitev ni kritična za split payment */ }
+        const fursResult = await fursRes.json().catch(() => null)
+        if (fursResult?.success && !fursResult.isSimulation) {
+          toast.success('Račun davčno overjen (FURS)', { duration: 3000 })
+        } else if (fursResult?.success && fursResult.isSimulation) {
+          toast.info('Račun overjen (FURS simulacija)', { duration: 3000 })
+        } else {
+          toast.error(fursResult?.warning || fursResult?.error || 'Fiskalizacija ni uspela — ponovite davčno overitev.', { duration: 8000 })
+        }
+      } catch { toast.warning('FURS overitev ni uspela — račun je brez davčnega overjanja') }
     }
   } catch { /* Račun ni bil ustvarjen — plačilo je še vedno veljavno */ }
   toast.success(`Plačilo uspešno! ${splitCount}x €${(orderTotal / splitCount).toFixed(2)}`)

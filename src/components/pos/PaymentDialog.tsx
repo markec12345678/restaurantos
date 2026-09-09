@@ -5,10 +5,11 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { CreditCard, Split, Users } from 'lucide-react'
 import { memo } from 'react'
+import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import dynamic from 'next/dynamic'
 import type { PaymentDialogProps } from './payment/types'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 import { usePaymentDialog } from './payment/usePaymentDialog'
 
 // Lazy-loaded podkomponente
@@ -48,7 +49,21 @@ export const PaymentDialog = memo(function PaymentDialog(props: PaymentDialogPro
   if (!order) return null
 
   return (
-    <Dialog open={open} onOpenChange={() => { if (!paymentSuccess) resetAndClose() }}>
+    <Dialog
+      open={open}
+      onOpenChange={() => {
+        // P2-UX FIX (varen zaključek plačila): prej je bilo mogoče dialog zapreti
+        // (X / Esc) MED obdelavo plačila — mutacija je tekla naprej v ozadju,
+        // natakar pa ni vedel, ali je plačilo uspelo. Zdaj zaprtje blokiramo,
+        // dokler plačilo teče (uspeh samodejno zapre dialog po animaciji).
+        if (paymentSuccess) return
+        if (processPaymentIsPending || isProcessing) {
+          toast.warning('Plačilo se obdeluje — počakajte na zaključek.')
+          return
+        }
+        resetAndClose()
+      }}
+    >
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <AnimatePresence mode="wait">
           {paymentSuccess ? (
@@ -59,7 +74,7 @@ export const PaymentDialog = memo(function PaymentDialog(props: PaymentDialogPro
                 <DialogTitle className="flex items-center justify-between">
                   <span>Plačilo #{order.orderNumber}</span>
                   <Badge variant="outline" className="text-sm font-bold">
-                    €{safeToFixed(orderTotal, 2)}
+                    {formatEUR(orderTotal)}
                   </Badge>
                 </DialogTitle>
               </DialogHeader>

@@ -95,7 +95,7 @@ export function LaborReportsDashboard() {
     queryKey: ['labor-reports', activeTab, dateFrom, dateTo],
     queryFn: async () => {
       const res = await fetch(`/api/labor-reports?type=${activeTab}&${params}`)
-      if (!res.ok) throw new Error('Failed to fetch')
+      if (!res.ok) throw new Error('Ni povezave s strežnikom')
       return res.json()
     },
   })

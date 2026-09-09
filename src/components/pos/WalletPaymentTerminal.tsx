@@ -13,6 +13,8 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { authFetch } from '@/components/pos/PinLogin'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -78,12 +80,13 @@ export function WalletPaymentTerminal() {
   const [refundAmount, setRefundAmount] = useState<string>('')
 
   // Fetch payments
+  // P2-UX FIX: surov fetch BREZ auth header-jev → 401 na zaščitenih API-jih.
+  // Zamenjano z authFetch (poskrbi za Authorization + Slovenian error handling).
   const { data: paymentsData, isLoading } = useQuery<{ payments: WalletPayment[]; count: number }>({
     queryKey: ['wallet-payments', statusFilter],
     queryFn: async () => {
       const params = statusFilter !== 'all' ? `?status=${statusFilter}` : ''
-      const res = await fetch(`/api/wallet-payment${params}`)
-      if (!res.ok) throw new Error('Failed to fetch')
+      const res = await authFetch(`/api/wallet-payment${params}`)
       return res.json()
     },
     refetchInterval: 10_000,
@@ -93,8 +96,7 @@ export function WalletPaymentTerminal() {
   const { data: statsData } = useQuery<{ stats: WalletStats }>({
     queryKey: ['wallet-stats'],
     queryFn: async () => {
-      const res = await fetch('/api/wallet-payment?stats=1')
-      if (!res.ok) throw new Error('Failed to fetch stats')
+      const res = await authFetch('/api/wallet-payment?stats=1')
       return res.json()
     },
     refetchInterval: 30_000,
@@ -103,33 +105,42 @@ export function WalletPaymentTerminal() {
   // Capture mutation
   const captureMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`/api/wallet-payment/${id}/capture`, { method: 'POST' })
-      if (!res.ok) throw new Error('Capture failed')
+      const res = await authFetch(`/api/wallet-payment/${id}/capture`, { method: 'POST' })
       return res.json()
     },
     onSuccess: () => {
+      toast.success('Plačilo uspešno zajeto')
       setCaptureDialog(null)
       queryClient.invalidateQueries({ queryKey: ['wallet-payments'] })
       queryClient.invalidateQueries({ queryKey: ['wallet-stats'] })
+    },
+    // P2-UX FIX: prej BREZ onError — napaka (401/400/409) je tiha, gumb se
+    // re-enable-a in uporabnik ne ve, da operacija ni uspela.
+    onError: (err: unknown) => {
+      const e = err as { message?: string }
+      toast.error(e?.message || 'Zajem plačila ni uspel')
     },
   })
 
   // Refund mutation
   const refundMutation = useMutation({
     mutationFn: async ({ id, amount }: { id: string; amount: number }) => {
-      const res = await fetch(`/api/wallet-payment/${id}/refund`, {
+      const res = await authFetch(`/api/wallet-payment/${id}/refund`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ amount }),
       })
-      if (!res.ok) throw new Error('Refund failed')
       return res.json()
     },
     onSuccess: () => {
+      toast.success('Vračilo uspešno izvedeno')
       setRefundDialog(null)
       setRefundAmount('')
       queryClient.invalidateQueries({ queryKey: ['wallet-payments'] })
       queryClient.invalidateQueries({ queryKey: ['wallet-stats'] })
+    },
+    onError: (err: unknown) => {
+      const e = err as { message?: string }
+      toast.error(e?.message || 'Vračilo ni uspelo')
     },
   })
 

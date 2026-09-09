@@ -25,6 +25,7 @@ export function usePrinterMutations() {
     printRulesOrder: false,
     printRulesReceipt: false,
     printRulesPrepStationOrder: false,
+    prepStationOrderStationId: '',
   })
 
   const createMutation = useMutation({

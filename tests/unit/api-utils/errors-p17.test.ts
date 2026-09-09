@@ -177,3 +177,52 @@ describe('handleRouteError — P1-17 ZodError prioriteta', () => {
     expect(body.error).toBe('Izmena ni najdena')
   })
 })
+
+// ── P2-UX: Zodova sporočila prevedena v slovenščino ──
+
+describe('handleApiError — P2-UX prevodi Zod sporočil', () => {
+  function zodErrFrom(schema: z.ZodTypeAny, input: unknown): ZodError {
+    try {
+      schema.parse(input)
+      throw new Error('unreachable')
+    } catch (e) {
+      return e as ZodError
+    }
+  }
+
+  it('min(1) validacija vrne SLOVENŠKO sporočilo (ne "String must contain at least 1 character(s)")', async () => {
+    const err = zodErrFrom(z.object({ name: z.string().min(1) }), { name: '' })
+    const res = handleApiError(err, 'POST /api/test')
+    const body = await res.json()
+    expect(body.validationErrors[0].message).toBe('Polje ne sme biti prazno')
+    expect(body.validationErrors[0].message).not.toContain('String must contain')
+  })
+
+  it('email validacija → "Neveljaven e-poštni naslov"', async () => {
+    const err = zodErrFrom(z.object({ email: z.string().email() }), { email: 'xxx' })
+    const res = handleApiError(err, 'POST /api/test')
+    const body = await res.json()
+    expect(body.validationErrors[0].message).toBe('Neveljaven e-poštni naslov')
+  })
+
+  it('min(3) dolžina vključi številko: "vsaj 3 znakov"', async () => {
+    const err = zodErrFrom(z.object({ code: z.string().min(3) }), { code: 'a' })
+    const res = handleApiError(err, 'POST /api/test')
+    const body = await res.json()
+    expect(body.validationErrors[0].message).toBe('Polje mora vsebovati vsaj 3 znakov')
+  })
+
+  it('UUID validacija → "Neveljaven identifikator"', async () => {
+    const err = zodErrFrom(z.object({ id: z.string().uuid() }), { id: 'not-uuid' })
+    const res = handleApiError(err, 'POST /api/test')
+    const body = await res.json()
+    expect(body.validationErrors[0].message).toBe('Neveljaven identifikator')
+  })
+
+  it('številčna omejitev vključi prag: "Vrednost mora biti vsaj 1"', async () => {
+    const err = zodErrFrom(z.object({ qty: z.number().min(1) }), { qty: 0 })
+    const res = handleApiError(err, 'POST /api/test')
+    const body = await res.json()
+    expect(body.validationErrors[0].message).toBe('Vrednost mora biti vsaj 1')
+  })
+})

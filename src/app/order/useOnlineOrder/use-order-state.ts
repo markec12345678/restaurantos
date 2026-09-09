@@ -14,6 +14,55 @@ import {
 import { getSubtotal } from './cart-utils'
 
 // =====================================================================
+// P2-UX FIX (stanje po refreshu/crashu): košarica spletnega naročanja
+// preživi osvežitev strani / crash brskalnika — prej je vsak refresh
+// počistil celotno košarico stranke sredi oddaje naročila.
+// Shranjujemo samo košarico + vrsto naročila (NE osebnih podatkov).
+// =====================================================================
+const ONLINE_CART_STORAGE_KEY = 'online-order-cart-v1'
+
+function loadPersistedCart(): CartItem[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(ONLINE_CART_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    // Osnovna validacija oblike (anti-corruption guard za ročno manipulacijo)
+    return parsed.filter((i: unknown): i is CartItem => {
+      const item = i as { id?: string; quantity?: number; price?: number }
+      return typeof item?.id === 'string' && typeof item?.quantity === 'number' && typeof item?.price === 'number' && item.quantity > 0
+    })
+  } catch {
+    return []
+  }
+}
+
+function loadPersistedOrderType(): OrderType {
+  if (typeof window === 'undefined') return 'delivery'
+  try {
+    const raw = localStorage.getItem(`${ONLINE_CART_STORAGE_KEY}-type`)
+    return raw === 'delivery' || raw === 'takeout' ? raw : 'delivery'
+  } catch {
+    return 'delivery'
+  }
+}
+
+function persistCart(cart: CartItem[], orderType: OrderType) {
+  if (typeof window === 'undefined') return
+  try {
+    if (cart.length === 0) {
+      localStorage.removeItem(ONLINE_CART_STORAGE_KEY)
+    } else {
+      localStorage.setItem(ONLINE_CART_STORAGE_KEY, JSON.stringify(cart))
+    }
+    localStorage.setItem(`${ONLINE_CART_STORAGE_KEY}-type`, orderType)
+  } catch {
+    // Quota/private-mode — persistanca ni kritična, tiho ignoriraj
+  }
+}
+
+// =====================================================================
 // HOOK: Stanje spletne naročilne platforme (state + inicializacija)
 // =====================================================================
 
@@ -22,9 +71,9 @@ export function useOrderState() {
   const [settings, setSettings] = useState<RestaurantSettingsRow | null>(null)
   const [activeMenu, setActiveMenu] = useState<string>('')
   const [activeCategory, setActiveCategory] = useState<string>('')
-  const [cart, setCart] = useState<CartItem[]>([])
+  const [cart, setCart] = useState<CartItem[]>(() => loadPersistedCart())
   const [loading, setLoading] = useState(true)
-  const [orderType, setOrderType] = useState<OrderType>('delivery')
+  const [orderType, setOrderType] = useState<OrderType>(() => loadPersistedOrderType())
   const [step, setStep] = useState<CheckoutStep>('menu')
   const [searchQuery, setSearchQuery] = useState('')
   const [isDark, setIsDark] = useState(false)
@@ -58,6 +107,12 @@ export function useOrderState() {
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
     setIsDark(prefersDark)
   }, [])
+
+  // P2-UX FIX: košarica + vrsta naročila se shranjujeta ob vsaki spremembi
+  // (uspešna oddaja naročila pokliče setCart([]) → avtomatsko počisti storage)
+  useEffect(() => {
+    persistCart(cart, orderType)
+  }, [cart, orderType])
 
   async function initMenu() {
     const result = await fetchMenuData()

@@ -4,7 +4,7 @@ import { memo } from 'react'
 import Image from 'next/image'
 import type { Category, MenuItem, CartItem, OrderType, Modifier } from './types'
 import { ALLERGEN_DATA, DEFAULT_DELIVERY_FEE, DEFAULT_MIN_ORDER, ESTIMATED_DELIVERY_MIN, ESTIMATED_TAKEOUT_MIN } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR, formatNumberSl } from '@/lib/safe-format'
 
 interface MenuStepProps {
   isDark: boolean
@@ -52,8 +52,8 @@ export const MenuStep = memo(function MenuStep({
           <span className={isDark ? 'text-blue-300' : 'text-blue-700'}>
             {orderType === 'delivery'
               ? deliveryZone
-                ? `Dostava (${deliveryZone.name}) ${getDeliveryFee().toFixed(2)} € • Min. ${getMinOrderAmount().toFixed(2)} € • ${getEstimatedMinutes()}-${getEstimatedMinutes() + 15} min${deliveryZone.freeDeliveryAbove > 0 ? ` • Brezplačno nad €${safeToFixed(deliveryZone.freeDeliveryAbove, 2)}` : ''}`
-                : `Dostava ${safeToFixed(DEFAULT_DELIVERY_FEE, 2)} € • Min. naročilo ${safeToFixed(DEFAULT_MIN_ORDER, 2)} € • ${ESTIMATED_DELIVERY_MIN}-${ESTIMATED_DELIVERY_MIN + 15} min`
+                ? `Dostava (${deliveryZone.name}) ${formatNumberSl(getDeliveryFee())} € • Min. ${formatNumberSl(getMinOrderAmount())} € • ${getEstimatedMinutes()}-${getEstimatedMinutes() + 15} min${deliveryZone.freeDeliveryAbove > 0 ? ` • Brezplačno nad ${formatNumberSl(deliveryZone.freeDeliveryAbove)} €` : ''}`
+                : `Dostava ${formatNumberSl(DEFAULT_DELIVERY_FEE)} € • Min. naročilo ${formatNumberSl(DEFAULT_MIN_ORDER)} € • ${ESTIMATED_DELIVERY_MIN}-${ESTIMATED_DELIVERY_MIN + 15} min`
               : `Prevzem na lokaciji • ${ESTIMATED_TAKEOUT_MIN}-${ESTIMATED_TAKEOUT_MIN + 10} min`}
           </span>
         </div>
@@ -88,8 +88,21 @@ export const MenuStep = memo(function MenuStep({
           return (
             <div
               key={item.id}
-              className={`${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'} rounded-2xl border shadow-sm flex overflow-hidden cursor-pointer hover:shadow-md transition`}
+              // P2-UX FIX (dostopnost tipkovnice): prej gol <div onClick> — uporabniki
+              // tipkovnice niso mogli odpreti detail-a artikla. Gnezdeni gumb
+              // "Dodaj v košarico" ne dovoljuje <button> v <button> (neveljaven HTML),
+              // zato role="button" + tabIndex + Enter/Space handling.
+              role="button"
+              tabIndex={0}
+              className={`${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'} rounded-2xl border shadow-sm flex overflow-hidden cursor-pointer hover:shadow-md transition touch-manipulation`}
               onClick={() => { setShowItemDetail(item); setItemNotes(''); setSelectedMods([]) }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  setShowItemDetail(item); setItemNotes(''); setSelectedMods([])
+                }
+              }}
+              aria-label={`${item.name}, ${formatNumberSl(priceWithVat)} evrov${inCart > 0 ? `, v košarici ${inCart}` : ''}`}
             >
               {item.image ? (
                 <div className="flex-shrink-0 w-24 h-28 relative">
@@ -121,7 +134,7 @@ export const MenuStep = memo(function MenuStep({
                   </div>
                 )}
                 <div className="flex items-end justify-between gap-2 mt-2">
-                  <span className={`font-bold ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>€{safeToFixed(priceWithVat, 2)}</span>
+                  <span className={`font-bold ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>{formatEUR(priceWithVat)}</span>
                   <button
                     onClick={(e) => { e.stopPropagation(); addToCart(item) }}
                     className="bg-blue-600 text-white rounded-xl p-2 shadow-md hover:bg-blue-700 active:scale-90 transition"
@@ -149,7 +162,7 @@ export const MenuStep = memo(function MenuStep({
               <span className="bg-white/20 rounded-lg px-2 py-0.5 text-sm">{cartItemCount}</span>
               Košarica
             </span>
-            <span>€{safeToFixed(total, 2)}</span>
+            <span>{formatEUR(total)}</span>
           </button>
         </div>
       )}

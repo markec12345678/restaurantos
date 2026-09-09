@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
+import { errorSl } from '@/lib/error-messages'
 
 interface InventoryMutationCallbacks {
   onCloseDialog: () => void
@@ -68,7 +69,7 @@ export function useInventoryMutations(callbacks: InventoryMutationCallbacks) {
       queryClient.invalidateQueries({ queryKey: queryKeys.inventory.transactions })
       callbacks.onCloseRestockDialog()
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(errorSl(err, 'Napaka pri zalogi')),
   })
 
   const writeOffMutation = useMutation({
@@ -83,7 +84,7 @@ export function useInventoryMutations(callbacks: InventoryMutationCallbacks) {
       queryClient.invalidateQueries({ queryKey: queryKeys.inventory.transactions })
       callbacks.onCloseWriteOffDialog()
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(errorSl(err, 'Napaka pri zalogi')),
   })
 
   return {

@@ -56,23 +56,25 @@ export const TableGrid = memo(function TableGrid({
                   <div className="flex items-center justify-between">
                     <div className={`h-3 w-3 rounded-full ${statusDot[table.status] || ''}`} />
                     <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                      {/* P2-UX FIX (touch target): prej h-6 w-6 (24px) — bistvo pod
+                          44px priporočilom za dotik; adminiji na tablicah so zatikali mimo. */}
                       <Button
                         variant="ghost"
                         size="icon"
                         aria-label="Uredi mizo"
-                        className="h-6 w-6"
+                        className="h-9 w-9 touch-manipulation"
                         onClick={() => onEdit(table)}
                       >
-                        <Pencil className="h-3 w-3" />
+                        <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
                         aria-label="Izbriši mizo"
-                        className="h-6 w-6 text-destructive"
+                        className="h-9 w-9 text-destructive touch-manipulation"
                         onClick={() => onDelete(table)}
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>

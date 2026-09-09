@@ -29,6 +29,9 @@ interface ExistingReceipt {
   zoi?: string
   eor?: string
   fiscalVerified?: boolean
+  // P2-UX (prikaz neuspele fiskalizacije): none/pending/verified/failed —
+  // loči "nikoli poskusili" od "poskusili in padlo" za prikaz v UI
+  fiscalStatus?: string
   isCopy?: boolean
   isStorno?: boolean
   stornoOf?: string
@@ -67,6 +70,7 @@ export function buildReceiptPreview(
     zoi,
     eor: existingReceipt?.eor || '',
     fiscalVerified: existingReceipt?.fiscalVerified || false,
+    fiscalStatus: existingReceipt?.fiscalStatus || 'none',
     orderNumber: order.orderNumber,
     type: order.type,
     status: order.status,

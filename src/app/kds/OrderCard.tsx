@@ -75,13 +75,26 @@ export const OrderCard = memo(function OrderCard({
       <div className="flex-1 px-3 py-3 space-y-2 overflow-y-auto smooth-scroll">
         {preparingItems.map(item => (
           <div key={item.id}
+            // P2-UX FIX (dostopnost tipkovnice): bump vrstice so PRIMARNA KDS
+            // akcija — prej samo onClick (miška/dotik). Zdaj role=button + tabIndex
+            // + Enter/Space, tako da kuhar deluje tudi s tipkovnico.
+            role="button"
+            tabIndex={0}
+            aria-label={`${item.quantity}x ${item.name} — pritisni za bump`}
             className="flex items-center justify-between py-2 px-3 rounded-lg bg-white dark:bg-card border text-sm cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-all duration-150 touch-manipulation min-h-[44px] btn-press"
             onClick={() => onBumpItem(order.id, item.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onBumpItem(order.id, item.id)
+              }
+            }}
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-black text-base">{item.quantity}x</span>
-                <span className="font-semibold truncate">{item.name}</span>
+                {/* P2-UX (dolga imena): celoten naziv v title orisalu */}
+                <span className="font-semibold truncate" title={item.name}>{item.name}</span>
               </div>
               {item.modifiers?.length > 0 && (
                 <div className="ml-7 text-xs text-muted-foreground">
@@ -113,13 +126,23 @@ export const OrderCard = memo(function OrderCard({
         ))}
         {readyItems.map(item => (
           <div key={item.id}
+            // P2-UX FIX (dostopnost tipkovnice): enako kot preparing vrstice
+            role="button"
+            tabIndex={0}
+            aria-label={`${item.quantity}x ${item.name} — že pripravljeno, pritisni za bump`}
             className="flex items-center justify-between py-2 px-3 rounded-lg bg-emerald-100 dark:bg-emerald-950/40 text-sm cursor-pointer hover:bg-emerald-200 transition-all duration-150 touch-manipulation min-h-[44px] btn-press"
             onClick={() => onBumpItem(order.id, item.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onBumpItem(order.id, item.id)
+              }
+            }}
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-black text-base">{item.quantity}x</span>
-                <span className="font-semibold truncate line-through opacity-60">{item.name}</span>
+                <span className="font-semibold truncate line-through opacity-60" title={item.name}>{item.name}</span>
               </div>
             </div>
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />

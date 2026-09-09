@@ -19,6 +19,7 @@ export const PrinterDialog = memo(function PrinterDialog({
   open,
   editingPrinter,
   formData,
+  prepStations,
   onOpenChange,
   onFormDataChange,
   onSubmit,
@@ -118,16 +119,42 @@ export const PrinterDialog = memo(function PrinterDialog({
                   Računi
                 </label>
               </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="rule-prep-station"
-                  checked={formData.printRulesPrepStationOrder}
-                  onCheckedChange={(c) => onFormDataChange({ ...formData, printRulesPrepStationOrder: !!c })}
-                />
-                <label htmlFor="rule-prep-station" className="text-sm cursor-pointer flex items-center gap-1.5">
-                  <ScrollText className="h-3.5 w-3.5 text-muted-foreground" />
-                  Naročila pripravljalne postaje
-                </label>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="rule-prep-station"
+                    checked={formData.printRulesPrepStationOrder}
+                    onCheckedChange={(c) => onFormDataChange({ ...formData, printRulesPrepStationOrder: !!c })}
+                  />
+                  <label htmlFor="rule-prep-station" className="text-sm cursor-pointer flex items-center gap-1.5">
+                    <ScrollText className="h-3.5 w-3.5 text-muted-foreground" />
+                    Naročila pripravljalne postaje
+                  </label>
+                </div>
+                {/* P2-UX FIX (tiskanje po postajah): izbira postaje, za katero ta
+                    tiskalnik tiska kuhinjska naročila. Prazno = vse postaje. */}
+                {formData.printRulesPrepStationOrder && (
+                  <div className="pl-6 space-y-1">
+                    <Label htmlFor="rule-prep-station-id" className="text-xs text-muted-foreground">Usmerjena postaja (opcijsko)</Label>
+                    <Select
+                      value={formData.prepStationOrderStationId || 'all'}
+                      onValueChange={(v) => onFormDataChange({ ...formData, prepStationOrderStationId: v === 'all' ? '' : v })}
+                    >
+                      <SelectTrigger id="rule-prep-station-id" className="h-8">
+                        <SelectValue placeholder="Vse postaje" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Vse postaje</SelectItem>
+                        {(prepStations || []).map(s => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground">
+                      Izberi postajo, če ta tiskalnik tiska SAMO za določeno pripravljalno postajo (npr. Bar).
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

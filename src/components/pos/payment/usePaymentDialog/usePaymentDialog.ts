@@ -55,6 +55,11 @@ export function usePaymentDialog({ order, open, onClose, onPaymentSuccess }: Pay
   )
 
   const handleSinglePayment = useCallback(() => {
+    // P2-UX FIX (dvojni klik): React-Query NE deduplicira .mutate() klicev — dva
+    // hitra klika v istem frame-u bi izvedla mutationFn dvakrat. Gumb je sicer
+    // disabled med isPending, a to velja šele po re-renderju; ta sync varovalka
+    // pokriva tudi klik v istem trenutku.
+    if (processPaymentMutation.isPending || isProcessing) return
     if (!paymentMethod) {
       toast.error('Izberite način plačila')
       return
@@ -67,8 +72,18 @@ export function usePaymentDialog({ order, open, onClose, onPaymentSuccess }: Pay
       toast.error('Izberite vrsto alternativnega plačila')
       return
     }
+    // P2-UX FIX (opozorilo pred zaprtjem): artikli, ki niso bili poslani v kuhinjo,
+    // bodo s plačilom trajno zaključeni (backend po plačilu force-complete).
+    // Natakarju pokažemo opozorilo PRED potrditvijo plačila.
+    const unsentItems = (order?.orderItems ?? []).filter(oi => oi.status === 'pending')
+    if (unsentItems.length > 0) {
+      toast.warning(
+        `Pozor: ${unsentItems.length} ${unsentItems.length === 1 ? 'artikel ni poslan' : 'artiklov ni poslanih'} v kuhinjo — s plačilom bo naročilo zaključeno.`,
+        { duration: 8000 },
+      )
+    }
     processPaymentMutation.mutate()
-  }, [paymentMethod, selectedGiftCardId, selectedAltPayment, processPaymentMutation])
+  }, [paymentMethod, selectedGiftCardId, selectedAltPayment, processPaymentMutation, isProcessing, order])
 
   // Split in by-items handlerji (iz usePaymentHandlers)
   const { handleSplitPayment, handlePayByItems } = usePaymentHandlers({

@@ -1,11 +1,21 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { safeToFixed, safeNum } from '@/lib/safe-format'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Eye, CreditCard, Printer, Plus, FileWarning } from 'lucide-react'
 import { format } from 'date-fns'
 import type { OrderType as OrderListOrderType } from './OrderList'
@@ -37,6 +47,15 @@ export const OrderCard = memo(function OrderCard({
   // FIX TypeError: t?.filter is not a function — order.orderItems je lahko undefined
   // če API vrača partial podatke ali če order prihaja iz drugačnega vira.
   const orderItems = Array.isArray(order?.orderItems) ? order.orderItems : []
+  // P2-UX FIX (opozorilo pred zaprtjem): zaključek NEPLAČANEGA naročila je
+  // nepovraten ('completed' nima izhodnih prehodov) — zahteva potrditev.
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false)
+  const nextStatusOfOrder = nextStatus[order.status]
+  const needsCloseConfirmation =
+    order.status !== 'completed' &&
+    order.status !== 'cancelled' &&
+    nextStatusOfOrder === 'completed' &&
+    order.paymentStatus !== 'paid'
   // FIX RangeError: Invalid time value — order.createdAt je lahko undefined
   const formatTime = (dateStr: string | null | undefined): string => {
     if (!dateStr) return '—'
@@ -84,7 +103,20 @@ export const OrderCard = memo(function OrderCard({
               <Eye className="h-3 w-3 mr-1" />Poglej
             </Button>
             {order.status !== 'completed' && order.status !== 'cancelled' && nextStatus[order.status] && (
-              <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => onUpdateOrderStatus({ id: order.id, status: nextStatus[order.status] })} disabled={isStatusUpdatePending}>
+              <Button
+                size="sm"
+                variant="default"
+                className="h-7 text-xs"
+                onClick={() => {
+                  // P2-UX FIX: zaključek neplačanega naročila → potrditveno okno
+                  if (needsCloseConfirmation) {
+                    setConfirmCloseOpen(true)
+                  } else {
+                    onUpdateOrderStatus({ id: order.id, status: nextStatus[order.status] })
+                  }
+                }}
+                disabled={isStatusUpdatePending}
+              >
                 → {statusLabels[nextStatus[order.status]]}
               </Button>
             )}
@@ -115,6 +147,32 @@ export const OrderCard = memo(function OrderCard({
             )}
           </div>
         </div>
+        {/* P2-UX FIX: potrditev zaključka neplačanega naročila */}
+        <AlertDialog open={confirmCloseOpen} onOpenChange={setConfirmCloseOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Naročilo #{order.orderNumber} ni plačano</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2">
+                  <p>
+                    Zaključek naročila je <strong>nepovraten</strong> — po zaključku ga ni mogoče več odpreti (samo storno).
+                    Stanje: <strong>{paymentStatusLabels[order.paymentStatus] || order.paymentStatus}</strong>, znesek: <strong>€{safeToFixed(order.total, 2)}</strong>.
+                  </p>
+                  <p className="text-muted-foreground">Ste prepričani, da želite zaključiti neplačano naročilo?</p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Prekliči — raje plačaj</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-amber-600 hover:bg-amber-700"
+                onClick={() => onUpdateOrderStatus({ id: order.id, status: nextStatusOfOrder })}
+              >
+                Vseeno zaključi
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   )

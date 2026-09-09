@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { parseDecimalInput } from '@/lib/safe-format'
 import type { PaymentDialogProps } from '../types'
 
 export function usePaymentState({ order, open: _open, onClose }: PaymentDialogProps) {
@@ -35,7 +36,8 @@ export function usePaymentState({ order, open: _open, onClose }: PaymentDialogPr
   }, [orderTotal])
 
   const handleCustomTip = useCallback((val: string) => {
-    const amount = parseFloat(val) || 0
+    // P2-UX FIX (vejica): "12,50" → 12.5 (prej parseFloat → 12)
+    const amount = parseDecimalInput(val)
     setTipAmount(amount)
     setTipPercent(orderTotal > 0 ? Math.round((amount / orderTotal) * 100) : 0)
   }, [orderTotal])

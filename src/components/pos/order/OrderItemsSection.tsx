@@ -51,7 +51,7 @@ export const OrderItemsSection = memo(function OrderItemsSection({
             )}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-medium">{oi.quantity}x {menuItemName}</span>
+                <span className="font-medium truncate" title={`${oi.quantity}x ${menuItemName}`}>{oi.quantity}x {menuItemName}</span>
                 <Badge variant="outline" className={`text-[10px] h-4 capitalize ${oi.voided ? 'bg-red-100 text-red-800' : ''}`}>{oi.voided ? 'VOID' : oi.status}</Badge>
               </div>
               {oi.modifiersJson && (() => {

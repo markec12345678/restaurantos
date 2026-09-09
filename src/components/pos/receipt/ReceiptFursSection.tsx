@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { CheckCircle2, AlertTriangle, Shield } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, Shield, XCircle } from 'lucide-react'
 import type { ReceiptData } from './constants'
 
 // ============================================
@@ -33,6 +33,13 @@ export const ReceiptFursSection = memo(function ReceiptFursSection({
         <div className="flex items-center gap-1">
           {receipt.fiscalVerified ? (
             <><CheckCircle2 className="h-3 w-3 text-emerald-500" /> <span className="text-emerald-600">Davčno overjeno</span></>
+          ) : receipt.fiscalStatus === 'failed' ? (
+            // P2-UX FIX (prikaz neuspele fiskalizacije): prej je bil vsak ne-overjen
+            // račun enakoten rumen "čaka na overjanje" — natakar ni vedel, da je
+            // fiskalizacija DEJANSKO padla in EOR manjka. Zdaj izrecno rdeče stanje.
+            <><XCircle className="h-3 w-3 text-red-600" /> <span className="text-red-600 font-semibold">Fiskalizacija NI uspela — EOR manjka, ponovite overitev</span></>
+          ) : receipt.fiscalStatus === 'pending' ? (
+            <><AlertTriangle className="h-3 w-3 text-orange-500" /> <span className="text-orange-600">Overitev je bila poskusena in ni uspela — čaka na ponovni poskus (EOR manjka)</span></>
           ) : (
             <><AlertTriangle className="h-3 w-3 text-amber-500" /> <span className="text-amber-600">Čaka na davčno overjanje (FURS)</span></>
           )}

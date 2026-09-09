@@ -85,7 +85,7 @@ export function OutboxDashboard() {
     queryKey: ['outbox', filterStatus],
     queryFn: async () => {
       const res = await fetch(`/api/outbox?status=${filterStatus}&limit=100`)
-      if (!res.ok) throw new Error('Failed to fetch outbox')
+      if (!res.ok) throw new Error('Ni povezave s strežnikom')
       return res.json()
     },
     refetchInterval: 10_000, // Auto-refresh vsakih 10s
@@ -99,7 +99,7 @@ export function OutboxDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'process', limit: 25 }),
       })
-      if (!res.ok) throw new Error('Process failed')
+      if (!res.ok) throw new Error('Obdelava ni uspela')
       return res.json()
     },
     onSuccess: () => {
@@ -115,7 +115,7 @@ export function OutboxDashboard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'cleanup', days: 30 }),
       })
-      if (!res.ok) throw new Error('Cleanup failed')
+      if (!res.ok) throw new Error('Čiščenje ni uspelo')
       return res.json()
     },
     onSuccess: () => {
@@ -127,7 +127,7 @@ export function OutboxDashboard() {
   const retryMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await fetch(`/api/outbox/${id}/retry`, { method: 'POST' })
-      if (!res.ok) throw new Error('Retry failed')
+      if (!res.ok) throw new Error('Ponovni poskus ni uspel')
       return res.json()
     },
     onSuccess: () => {

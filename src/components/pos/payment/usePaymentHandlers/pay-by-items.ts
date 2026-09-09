@@ -50,12 +50,15 @@ export async function executePayByItems({
       }),
     })
   }
+  // P2-UX FIX (stale order): pošlji expectedUpdatedAt (optimistic locking) —
+  // glej useProcessPayment za podrobnosti.
   await authFetch(`/api/orders/${order.id}`, {
     method: 'PUT',
     body: JSON.stringify({
       paymentStatus: 'paid',
       paymentMethod: 'split',
       ...(order.status === 'ready' ? { status: 'completed' } : {}),
+      ...(order.updatedAt ? { expectedUpdatedAt: order.updatedAt } : {}),
     }),
   })
   toast.success('Plačilo po artiklih uspešno!')

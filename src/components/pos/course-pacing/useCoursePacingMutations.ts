@@ -12,7 +12,7 @@ export function useCoursePacingMutations(pacedOrders: PacedOrder[]) {
   const fireCourseMutation = useMutation({
     mutationFn: async ({ orderId, courseIndex }: { orderId: string; courseIndex: number }) => {
       const order = pacedOrders.find(o => o.id === orderId)
-      if (!order) throw new Error('Order not found')
+      if (!order) throw new Error('Naročilo ni najdeno')
       const course = order.courses[courseIndex]
       const results = await Promise.all(
         course.items.map(async (item) => {
@@ -35,7 +35,7 @@ export function useCoursePacingMutations(pacedOrders: PacedOrder[]) {
   const readyCourseMutation = useMutation({
     mutationFn: async ({ orderId, courseIndex }: { orderId: string; courseIndex: number }) => {
       const order = pacedOrders.find(o => o.id === orderId)
-      if (!order) throw new Error('Order not found')
+      if (!order) throw new Error('Naročilo ni najdeno')
       const course = order.courses[courseIndex]
       const results = await Promise.all(
         course.items.map(async (item) => {

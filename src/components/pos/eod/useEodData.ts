@@ -10,6 +10,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
+import { parseDecimalInput } from '@/lib/safe-format'
+import { ljubljanaTodayStr } from '@/lib/timezone-sl'
 import type { EODData } from './constants'
 
 export function useEodData() {
@@ -36,8 +38,11 @@ export function useEodData() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          date: data?.date || new Date().toISOString().split('T')[0],
-          actualCash: parseFloat(actualCash) || 0,
+          // P2-UX FIX (timezone): "danes" po ljubljanskem času — ne UTC
+          // (UTC fallback je do 01:00/02:00 izbral prejšnji dan)
+          date: data?.date || ljubljanaTodayStr(),
+          // P2-UX FIX (vejica): štetje gotovine z vnosom "12,50" → 12.5 (prej 12)
+          actualCash: parseDecimalInput(actualCash),
           notes: eodNotes,
         }),
       })

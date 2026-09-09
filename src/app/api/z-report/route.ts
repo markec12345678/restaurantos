@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, handleRouteError, validateRequest } from '@/lib/api-utils'
+import { ljubljanaDayBounds } from '@/lib/timezone-sl'
 import { calculateReportStats, buildReportData } from './_helpers'
 
 
@@ -48,9 +49,8 @@ export async function GET(req: Request) {
       ...tenantScopeToWhere(scope),
     }
     if (date) {
-      const d = new Date(date)
-      const start = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-      const end = new Date(start.getTime() + 86400000)
+      // P2-UX FIX (timezone): meje ljubljanskega dne — prej strežniški TZ (UTC deploy = zamaknjeno 1–2 h)
+      const { start, end } = ljubljanaDayBounds(date)
       where.reportDate = { gte: start, lt: end }
     }
     if (status) where.status = status
@@ -95,9 +95,8 @@ export async function POST(req: Request) {
     const locationId = effectiveLocationId ?? undefined
 
     // Datumski obseg
-    const d = new Date(date)
-    const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate())
-    const dayEnd = new Date(dayStart.getTime() + 86400000)
+    // P2-UX FIX (timezone): meje ljubljanskega dne — prej strežniški TZ (UTC deploy = zamaknjeno 1–2 h)
+    const { start: dayStart, end: dayEnd } = ljubljanaDayBounds(date)
 
     // Preveri če že obstaja
     const existing = await db.zReport.findFirst({
@@ -176,10 +175,12 @@ export async function POST(req: Request) {
     })
 
     // Audit log
+    // P2-UX FIX (timezone): datum je string 'YYYY-MM-DD' (ljubljanski dan) —
+    // prikaz v audit logu brez new Date() konverzije (prej spremenljivka d)
     await createAuditLog({
       action: finalize ? 'z_report_finalized' : 'z_report_generated',
       entityType: 'z_report',
-      details: { date: d.toLocaleDateString('sl-SI'), totalSales: stats.totalSales, message: `Z-poročilo za ${d.toLocaleDateString('sl-SI')}: €${round2(stats.totalSales)}` },
+      details: { date, totalSales: stats.totalSales, message: `Z-poročilo za ${date}: €${round2(stats.totalSales)}` },
       userId: authResult.session?.employeeId,
     })
 
@@ -191,11 +192,12 @@ export async function POST(req: Request) {
           // FIX P0-C3B: Pridobi prejemnike za PRAVO lokacijo (ne global)
           const recipients = await getReportRecipients(locationId || null)
           if (recipients.length > 0) {
-            const dateStr = d.toISOString().split('T')[0]
-            const dateFilter = { gte: new Date(dateStr + 'T00:00:00'), lte: new Date(dateStr + 'T23:59:59') }
+            // P2-UX FIX (timezone): meje ljubljanskega dne (ne UTC polnoč)
+            const { start: emailDayStart, end: emailDayEnd } = ljubljanaDayBounds(date)
+            const dateFilter = { gte: emailDayStart, lte: emailDayEnd }
             const reportData = await fetchReportData(dateFilter)
             const pdfBuffer = await generateReportPdf(reportData)
-            await sendZReportEmail(recipients, dateStr, pdfBuffer, {
+            await sendZReportEmail(recipients, date, pdfBuffer, {
               totalSales: round2(stats.totalSales),
               totalTax: round2(stats.totalTax),
               totalOrders: paidOrders.length,

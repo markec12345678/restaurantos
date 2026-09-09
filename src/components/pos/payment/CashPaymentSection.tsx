@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import { Input } from '@/components/ui/input'
 import { quickCashAmounts } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed, parseDecimalInput } from '@/lib/safe-format'
 
 interface CashPaymentSectionProps {
   totalWithTip: number
@@ -61,7 +61,7 @@ export const CashPaymentSection = memo(function CashPaymentSection({
             step="0.01"
             min="0"
             value={cashReceived || ''}
-            onChange={(e) => setCashReceived(parseFloat(e.target.value) || 0)}
+            onChange={(e) => setCashReceived(parseDecimalInput(e.target.value))}
             className="h-7 text-xs w-24"
             placeholder={safeToFixed(totalWithTip, 2)}
             aria-label="Prejeta gotovina"

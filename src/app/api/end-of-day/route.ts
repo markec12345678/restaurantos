@@ -9,6 +9,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { eodCloseSchema, validateReportDateRange } from '@/lib/validations'
 import { toNum } from '@/lib/decimal'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
+import { ljubljanaDayBounds, ljubljanaTodayStr } from '@/lib/timezone-sl'
 import { fetchEodData, computeEodMetrics, closeShift } from './_helpers'
 
 
@@ -23,16 +24,17 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
-    const date = searchParams.get('date') || new Date().toISOString().split('T')[0]
+    // P2-UX FIX (timezone): "danes" po ljubljanskem času — ne UTC
+    // (na UTC strežniku je UTC-datum do 01:00/02:00 ŠE prejšnji dan)
+    const date = searchParams.get('date') || ljubljanaTodayStr()
 
     // FIX HIGH: Validiraj datumski format
     const dateError = validateReportDateRange(date, date)
     if (dateError) return dateError
 
-    const startDate = new Date(date)
-    startDate.setHours(0, 0, 0, 0)
-    const endDate = new Date(date)
-    endDate.setHours(23, 59, 59, 999)
+    // P2-UX FIX (timezone): meje [00:00, 24:00) LJUBLJANSKEGA dne v UTC —
+    // prej new Date(date)+setHours(0) = meje po strežniškem TZ
+    const { start: startDate, end: endDate } = ljubljanaDayBounds(date)
 
     // ── Vse neodvisne poizvedbe vzporedno ────────────────────
     const data = await fetchEodData(startDate, endDate)

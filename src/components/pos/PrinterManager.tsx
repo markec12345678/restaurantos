@@ -21,6 +21,7 @@ export const PrinterManager = memo(function PrinterManager() {
     dialogOpen,
     editingPrinter,
     formData, setFormData,
+    prepStations,
     printerStatus,
     printers, isLoading,
     stats,
@@ -72,6 +73,7 @@ export const PrinterManager = memo(function PrinterManager() {
         open={dialogOpen}
         editingPrinter={editingPrinter}
         formData={formData}
+        prepStations={prepStations}
         onOpenChange={handleDialogOpenChange}
         onFormDataChange={setFormData}
         onSubmit={handleSubmit}

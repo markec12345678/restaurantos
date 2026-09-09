@@ -54,6 +54,7 @@ export function usePrinterManager() {
       printRulesOrder: false,
       printRulesReceipt: false,
       printRulesPrepStationOrder: false,
+      prepStationOrderStationId: '',
     })
     mutations.setDialogOpen(true)
   }, [mutations])
@@ -70,6 +71,8 @@ export function usePrinterManager() {
       printRulesOrder: rules.some(r => r.type === 'order'),
       printRulesReceipt: rules.some(r => r.type === 'receipt'),
       printRulesPrepStationOrder: rules.some(r => r.type === 'prepStationOrder'),
+      // P2-UX (tiskanje po postajah): preberi specifično postajo iz pravila
+      prepStationOrderStationId: rules.find(r => r.type === 'prepStationOrder')?.prepStationId || '',
     })
     mutations.setDialogOpen(true)
   }, [mutations])
@@ -82,7 +85,13 @@ export function usePrinterManager() {
     const printRules: PrintRule[] = []
     if (mutations.formData.printRulesOrder) printRules.push({ type: 'order' })
     if (mutations.formData.printRulesReceipt) printRules.push({ type: 'receipt' })
-    if (mutations.formData.printRulesPrepStationOrder) printRules.push({ type: 'prepStationOrder' })
+    // P2-UX FIX (tiskanje po postajah): shrani tudi prepStationId — prazno = vse postaje.
+    // Prej se prepStationId NI nikoli shranil, zato fan-out po postajah ni deloval.
+    if (mutations.formData.printRulesPrepStationOrder) {
+      printRules.push(mutations.formData.prepStationOrderStationId
+        ? { type: 'prepStationOrder', prepStationId: mutations.formData.prepStationOrderStationId }
+        : { type: 'prepStationOrder' })
+    }
     const payload = {
       name: mutations.formData.name,
       type: mutations.formData.type,
@@ -118,6 +127,7 @@ export function usePrinterManager() {
     printerStatus,
     printers: queries.printers, isLoading: queries.isLoading,
     stats: queries.stats,
+    prepStations: queries.prepStations,
     createMutation: mutations.createMutation, updateMutation: mutations.updateMutation, deleteMutation: mutations.deleteMutation,
     testConnectivity, openCreate, openEdit,
     handleSubmit, toggleActive, handleDialogOpenChange,

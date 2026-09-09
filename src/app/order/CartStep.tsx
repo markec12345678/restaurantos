@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import type { CartItem, OrderType, DeliveryZoneInfo, PromoResult } from './types'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR, formatNumberSl } from '@/lib/safe-format'
 
 interface CartStepProps {
   isDark: boolean
@@ -42,7 +42,8 @@ export const CartStep = memo(function CartStep({
               <div key={idx} className={`${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'} rounded-xl border p-3`}>
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm">{item.menuItem.name}</p>
+                    {/* P2-UX (dolga imena): truncate + title za celoten naziv */}
+                    <p className="font-semibold text-sm truncate" title={item.menuItem.name}>{item.menuItem.name}</p>
                     {item.selectedModifiers.length > 0 && (
                       <p className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                         + {item.selectedModifiers.map(m => m.name).join(', ')}
@@ -52,12 +53,15 @@ export const CartStep = memo(function CartStep({
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-1">
-                      <button onClick={() => updateQuantity(idx, -1)} className={`w-7 h-7 rounded-lg ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'} flex items-center justify-center text-sm font-bold`}>-</button>
+                      {/* P2-UX FIX (touch target): prej w-7 h-7 (28px) — pod 44px
+                          priporočeno za dotik (WWWC 2.5.5). Zdaj 40px vizualno +
+                          touch-manipulation (44px na coarse-pointer napravah). */}
+                      <button onClick={() => updateQuantity(idx, -1)} aria-label={`Zmanjšaj količino: ${item.menuItem.name}`} className={`w-10 h-10 rounded-lg ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-100 text-gray-600'} flex items-center justify-center text-base font-bold touch-manipulation`}>−</button>
                       <span className="w-6 text-center font-bold text-sm">{item.quantity}</span>
-                      <button onClick={() => updateQuantity(idx, 1)} className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center text-sm font-bold">+</button>
+                      <button onClick={() => updateQuantity(idx, 1)} aria-label={`Povečaj količino: ${item.menuItem.name}`} className="w-10 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center text-base font-bold touch-manipulation">+</button>
                     </div>
-                    <span className="font-bold text-sm w-16 text-right">€{safeToFixed(priceWithVat * item.quantity, 2)}</span>
-                    <button onClick={() => removeFromCart(idx)} className="text-red-400 hover:text-red-600 text-sm" aria-label="Odstrani iz košarice">✕</button>
+                    <span className="font-bold text-sm w-16 text-right">{formatEUR(priceWithVat * item.quantity)}</span>
+                    <button onClick={() => removeFromCart(idx)} className="w-10 h-10 rounded-lg text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center justify-center text-base touch-manipulation" aria-label={`Odstrani ${item.menuItem.name} iz košarice`}>✕</button>
                   </div>
                 </div>
               </div>
@@ -68,29 +72,32 @@ export const CartStep = memo(function CartStep({
           <div className={`${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-100'} rounded-xl border p-4 space-y-2`}>
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Vmesna vsota (z DDV)</span>
-              <span>€{(subtotal + cart.reduce((sum, item) => {
-                const modPrice = item.selectedModifiers.reduce((s, m) => s + (m.price || 0), 0)
-                return sum + (item.menuItem.price + modPrice) * (item.menuItem.vatRate / 100) * item.quantity
-              }, 0) - subtotal).toFixed(2)}</span>
+              {/* P2-UX FIX (decimalna vejica): formatNumberSl — sl vejica namesto pike */}
+              <span>{formatNumberSl(
+                subtotal + cart.reduce((sum, item) => {
+                  const modPrice = item.selectedModifiers.reduce((s, m) => s + (m.price || 0), 0)
+                  return sum + (item.menuItem.price + modPrice) * (item.menuItem.vatRate / 100) * item.quantity
+                }, 0) - subtotal
+              )} €</span>
             </div>
             {orderType === 'delivery' && (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Dostava{deliveryZone ? ` (${deliveryZone.name})` : ''}</span>
-                <span>{getDeliveryFee() === 0 ? <span className="text-green-600">Brezplačno</span> : `€${getDeliveryFee().toFixed(2)}`}</span>
+                <span>{getDeliveryFee() === 0 ? <span className="text-green-600">Brezplačno</span> : formatEUR(getDeliveryFee())}</span>
               </div>
             )}
             {promoResult?.valid && promoResult.discount && (
               <div className="flex justify-between text-sm text-green-600">
                 <span>🏷 {promoResult.discount.description}</span>
-                <span>-€{safeToFixed(promoResult.discount.discountAmount, 2)}</span>
+                <span>-{formatEUR(promoResult.discount.discountAmount)}</span>
               </div>
             )}
             <div className="flex justify-between font-bold text-lg pt-2 border-t">
               <span>Skupaj</span>
-              <span className="text-blue-600">€{safeToFixed(total, 2)}</span>
+              <span className="text-blue-600">{formatEUR(total)}</span>
             </div>
             {orderType === 'delivery' && subtotal < getMinOrderAmount() && (
-              <p className="text-xs text-amber-600">Min. naročilo za dostavo: €{getMinOrderAmount().toFixed(2)}</p>
+              <p className="text-xs text-amber-600">Min. naročilo za dostavo: {formatEUR(getMinOrderAmount())}</p>
             )}
           </div>
 

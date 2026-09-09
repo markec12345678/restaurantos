@@ -22,6 +22,53 @@ import { Prisma } from '@prisma/client'
 import { logger, generateRequestId } from '../logger'
 import { METRICS, incCounter } from '../observability/metrics'
 
+// ── P2-UX (prevodi): Zodova privzeta sporočila → slovenščina ─────────────
+// Zod v4 + v3 vzorci (različne privzete besedilne oblike)
+const ZOD_MESSAGE_TRANSLATIONS: [RegExp, string][] = [
+  // Zod 4: "Too small: expected string to have >=1 characters"
+  [/^Too small: expected string to have >=1 character/i, 'Polje ne sme biti prazno'],
+  [/^Too small: expected string to have >=(\d+) character/i, 'Polje mora vsebovati vsaj $1 znakov'],
+  [/^Too big: expected string to have <=(\d+) character/i, 'Polje sme vsebovati največ $1 znakov'],
+  [/^Too small: expected number to be >=(\S+)/i, 'Vrednost mora biti vsaj $1'],
+  [/^Too big: expected number to be <=(\S+)/i, 'Vrednost sme biti največ $1'],
+  [/^Too small: expected number to be an integer/i, 'Vrednost mora biti celo število'],
+  [/^Invalid input: expected number, received/i, 'Pričakovana številka'],
+  [/^Invalid input: expected string, received/i, 'Pričakovan niz'],
+  [/^Invalid input: expected boolean, received/i, 'Pričakovana logična vrednost'],
+  [/^Invalid input: expected .*?, received/i, 'Neveljaven vnos — napačen tip'],
+  // Zod 3 kompatibilnost: "String must contain at least 1 character(s)"
+  [/^String must contain at least 1 character/i, 'Polje ne sme biti prazno'],
+  [/^String must contain at least (\d+) character/i, 'Polje mora vsebovati vsaj $1 znakov'],
+  [/^String must contain at most (\d+) character/i, 'Polje sme vsebovati največ $1 znakov'],
+  [/^Number must be greater than or equal to (\S+)/i, 'Vrednost mora biti vsaj $1'],
+  [/^Number must be less than or equal to (\S+)/i, 'Vrednost sme biti največ $1'],
+  [/^Number must be an integer/i, 'Vrednost mora biti celo število'],
+  [/^Number must be finite/i, 'Vrednost ni veljavna številka'],
+  [/^Expected number, received/i, 'Pričakovana številka'],
+  [/^Expected string, received/i, 'Pričakovan niz'],
+  [/^Expected boolean, received/i, 'Pričakovana logična vrednost'],
+  [/^Invalid date/i, 'Neveljaven datum'],
+  [/^Invalid enum value/i, 'Neveljavna vrednost'],
+  [/^Invalid input: expected/i, 'Neveljaven vnos'],
+  [/^Invalid URL/i, 'Neveljaven URL naslov'],
+  [/^Invalid email/i, 'Neveljaven e-poštni naslov'],
+  [/^Invalid UUID/i, 'Neveljaven identifikator'],
+  [/^Invalid input/i, 'Neveljaven vnos'],
+  [/^Required/i, 'Obvezen podatek manjka'],
+  [/^Cannot be empty/i, 'Polje ne sme biti prazno'],
+]
+
+function translateZodMessage(message: string): string {
+  for (const [pattern, sl] of ZOD_MESSAGE_TRANSLATIONS) {
+    const m = pattern.exec(message)
+    if (m) {
+      // $1 … zamenjaj v slovenskem vzorcu (le na varnem našem vzorcu)
+      return sl.replace(/\$1/g, m[1] ?? '')
+    }
+  }
+  return message
+}
+
 // FIX P3 (audit 2026-09-06): Lazy-load Sentry da ne crash-a če @sentry/nextjs
 // ni nameščen ali če SENTRY_DSN ni nastavljen. V production z SENTRY_DSN
 // se napake avtomatsko pošiljajo v Sentry.
@@ -155,9 +202,13 @@ export function handleApiError(
   // Rute, ki uporabljajo `schema.parse(await req.json())`, vržejo ZodError
   // v ta catch — prej je klient dobil 500 "Napaka na strežniku".
   if (error instanceof ZodError) {
+    // P2-UX FIX (prevodi): Zodova privzeta sporočila so ANGLEŠKA ("String must
+    // contain at least 1 character(s)") in so se prikazala neposredno
+    // uporabniku. Preslikamo najpogostejše vzorce v slovenščino; neznan
+    // vzorec pusti kot je (tehnično, a razumljivo).
     const validationErrors = error.issues.map(e => ({
       field: e.path.join('.'),
-      message: e.message,
+      message: translateZodMessage(e.message),
     }))
     logger.warn(context, 'VALIDATION_ERROR', {
       requestId,

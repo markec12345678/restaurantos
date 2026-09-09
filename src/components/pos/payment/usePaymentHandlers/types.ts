@@ -14,6 +14,8 @@ interface OrderItem {
 interface Order {
   id: string
   status?: string
+  // P2-UX (stale order): optimistic locking — glej PUT /api/orders expectedUpdatedAt
+  updatedAt?: string
   orderItems: OrderItem[]
 }
 
@@ -35,6 +37,8 @@ export interface PaymentHandlersProps {
 export interface OrderForPayment {
   id: string
   status?: string
+  // P2-UX (stale order): optimistic locking — glej PUT /api/orders expectedUpdatedAt
+  updatedAt?: string
   orderItems: OrderItem[]
 }
 

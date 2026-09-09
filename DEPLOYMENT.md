@@ -37,6 +37,16 @@ dodatnih servisov.
 Pripravljeno infrastrukture: `Dockerfile`, `docker-compose.yml`
 (postgres + redis + app), `start:ws` skripta, `scripts/deploy-test.mjs`.
 
+### Časovni pas (TZ) — poslovni dnevi
+
+EOD, Z-poročila in dnevne meje računajo poslovni dan po **Europe/Ljubljana**
+prek `src/lib/timezone-sl.ts` (pravilen CET/CEST preklop, neodvisno od TZ
+procesa). Kljub temu priporočamo, da na strežniku nastavite tudi procesni TZ
+(`TZ=Europe/Ljubljana` v `docker-compose.yml` / systemd / ecosystem.config.js),
+saj ostali deli knjižnic (npr. `date-fns format`) sledijo lokalnemu času
+procesa — na UTC strežniku bi videli 1–2 h zamaknjene časovne žige v dnevnikih
+in nekaterih pogledih.
+
 ⚠️ **POZOR (Docker)**: `Dockerfile` CMD zažene **Next standalone** strežnik
 (`.next/standalone/server.js` prepiše custom `server.js`) — v Dockerju WS
 TRENUTNO ne teče. Za WS v Dockerju spremeni runner stage: skopiraj

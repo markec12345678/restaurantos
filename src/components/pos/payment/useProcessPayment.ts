@@ -16,6 +16,8 @@ interface ProcessPaymentParams {
     total: number
     orderItems: { id: string }[]
     status?: string
+    // P2-UX (stale order): optimistic locking — glej PUT /api/orders expectedUpdatedAt
+    updatedAt?: string
   } | null
   orderTotal: number
   tipAmount: number
@@ -66,6 +68,10 @@ export function useProcessPayment(params: ProcessPaymentParams, callbacks: Proce
   // Ne generira se ob vsakem .mutate() — samo ob prvem poskusu. Počisti se
   // šele po uspehu (resetPaymentIntent), tako da retry po napaki uporabi isti key.
   const idempotencyKeyRef = useRef<string | null>(null)
+  // P2-UX FIX (stale key): ključ je vezan na naročilo — če naročilo zamenja (odpre se
+  // druga miza/rečun), se STARI ključ NE ponovno uporabi (sicer bi backend vrnil
+  // plačilo prejšnjega naročila po fast-path in dialog napačno zaključil kot plačano).
+  const idempotencyOrderRef = useRef<string | null>(null)
 
   const processPaymentMutation = useMutation({
     mutationFn: async () => {
@@ -73,8 +79,11 @@ export function useProcessPayment(params: ProcessPaymentParams, callbacks: Proce
       if (!order) return null
 
       // P0 FIX: Generiraj idempotencyKey ob prvem poskusu; ohrani pri retry-ih.
-      if (!idempotencyKeyRef.current) {
+      // P2-UX FIX: če se je naročilo zamenjalo od zadnjega poskusa, generiraj NOV key
+      // (prepreči fast-path snošenje s plačilom DRUGEGA naročila).
+      if (!idempotencyKeyRef.current || idempotencyOrderRef.current !== order.id) {
         idempotencyKeyRef.current = generateIdempotencyKey()
+        idempotencyOrderRef.current = order.id
       }
       const idempotencyKey = idempotencyKeyRef.current
 
@@ -125,6 +134,10 @@ export function useProcessPayment(params: ProcessPaymentParams, callbacks: Proce
       if (!paymentRes.ok) throw new Error('Napaka pri ustvarjanju plačila')
 
       // 3. Posodobi naročilo
+      // P2-UX FIX (stale order): pošlji expectedUpdatedAt — aktivira obstoječo
+      // optimistic-locking varovalko na backendu (PUT /api/orders). Če je drug
+      // natakar medtem spremenil naročilo (dodal artikle, spremenil status),
+      // backend zavrne z 409 namesto tihega prepisa stale podatkov.
       const orderRes = await authFetch(`/api/orders/${order.id}`, {
         method: 'PUT',
         body: JSON.stringify({
@@ -133,6 +146,7 @@ export function useProcessPayment(params: ProcessPaymentParams, callbacks: Proce
           ...(order.status === 'ready' ? { status: 'completed' } : {}),
           tip: tipAmount,
           totalWithTip: orderTotal + tipAmount,
+          ...(order.updatedAt ? { expectedUpdatedAt: order.updatedAt } : {}),
         }),
       })
       if (!orderRes.ok) throw new Error('Napaka pri posodobitvi naročila')
@@ -150,16 +164,21 @@ export function useProcessPayment(params: ProcessPaymentParams, callbacks: Proce
         if (receiptRes.ok) {
           const _receipt = await receiptRes.json()
           // ─── AUTO-FURS: Avtomatsko davčno overi račun ───
+          // P2-UX FIX (prikaz neuspele fiskalizacije): prej je HTTP 400 (fiskalizacija
+          // ni uspela) padel v null BREZ obvestila — natakar je mislil, da je račun
+          // overjen. Zdaj vedno preberemo odgovor in pokažemo napako/opozorilo.
           try {
             const fursRes = await authFetch('/api/furs', {
               method: 'POST',
               body: JSON.stringify({ orderId: order.id }),
             })
-            const fursResult = fursRes.ok ? await fursRes.json() : null
+            const fursResult = await fursRes.json().catch(() => null)
             if (fursResult?.success && !fursResult.isSimulation) {
               toast.success('Račun davčno overjen (FURS)', { duration: 3000 })
             } else if (fursResult?.success && fursResult.isSimulation) {
               toast.info('Račun overjen (FURS simulacija)', { duration: 3000 })
+            } else {
+              toast.error(fursResult?.warning || fursResult?.error || 'Fiskalizacija ni uspela — EOR manjka. Ponovite davčno overitev v pogledu računa.', { duration: 8000 })
             }
           } catch {
             toast.warning('FURS overitev ni uspela, račun je brez davčnega overjanja')
@@ -185,6 +204,7 @@ export function useProcessPayment(params: ProcessPaymentParams, callbacks: Proce
       toast.success('Plačilo uspešno obdelano!')
       // P0 FIX: Po uspehu počisti idempotencyKey — naslednje plačilo dobi nov key.
       idempotencyKeyRef.current = null
+      idempotencyOrderRef.current = null
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.tables.all })
@@ -199,12 +219,24 @@ export function useProcessPayment(params: ProcessPaymentParams, callbacks: Proce
       callbacks.onSetPaymentSuccess(true)
       callbacks.scheduleClose()
     },
-    onError: () => {
+    onError: (err: unknown) => {
       // P0 FIX: NE čistimo idempotencyKeyRef tukaj!
       // Če je plačilo morda uspelo na backendu (npr. prekinitev omrežja po insertu,
       // preden je klient prejel odgovor), mora retry z istim keyjem dobiti obstoječe
       // plačilo (idempotent 200). Če bi počistili key, bi retry ustvaril duplikat.
-      toast.error('Napaka pri obdelavi plačila')
+      //
+      // P2-UX FIX (prikaz prave napake): prej generični toast — backend sporočila
+      // (409 konflikt, ALREADY_PAID, napake validacije) so šla v /dev/null.
+      // authFetch vrže Error z .message (Slovenski tekst iz API-ja) in .status.
+      const e = err as { message?: string; status?: number }
+      if (e?.status === 409) {
+        // Stale order — naročilo je spremenil drug uporabnik.
+        // Osvežimo seznam, da retry uporablja sveže updatedAt.
+        toast.error(e.message || 'Naročilo je bilo medtem spremenjeno. Osvežite in poskusite znova.', { duration: 8000 })
+        queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
+      } else {
+        toast.error(e?.message || 'Napaka pri obdelavi plačila')
+      }
     },
   })
 

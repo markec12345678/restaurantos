@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 // --- Props ---
 
@@ -24,30 +24,31 @@ export const CartTotals = memo(function CartTotals({
 }: CartTotalsProps) {
   return (
     <div className="px-3 py-2 space-y-0.5 text-xs">
+      {/* P2-UX FIX (decimalna vejica): formatEUR — "1.234,56 €" (sl-SI) namesto pike */}
       <div className="flex justify-between text-muted-foreground">
         <span>Vmesna vsota (brez DDV)</span>
-        <span>€{safeToFixed(subtotal, 2)}</span>
+        <span>{formatEUR(subtotal)}</span>
       </div>
       {/* Multi-DDV prikaz po stopnjah */}
       {Object.entries(vatBreakdown).map(([rate, data]) => (
         <div key={rate} className="flex justify-between text-muted-foreground">
           <span>DDV {rate}%</span>
-          <span>€{safeToFixed(data.vat, 2)} <span className="text-[9px] opacity-60">(osn. €{safeToFixed(data.base, 2)})</span></span>
+          <span>{formatEUR(data.vat)} <span className="text-[9px] opacity-60">(osn. {formatEUR(data.base)})</span></span>
         </div>
       ))}
       <div className="flex justify-between text-muted-foreground font-medium">
         <span>Skupaj DDV</span>
-        <span>€{safeToFixed(totalTax, 2)}</span>
+        <span>{formatEUR(totalTax)}</span>
       </div>
       {discount > 0 && (
         <div className="flex justify-between text-emerald-600">
           <span>Popust</span>
-          <span>-€{safeToFixed(discount, 2)}</span>
+          <span>-{formatEUR(discount)}</span>
         </div>
       )}
       <div className="flex justify-between font-bold text-base pt-1">
         <span>Skupaj z DDV</span>
-        <span>€{Math.max(0, total).toFixed(2)}</span>
+        <span>{formatEUR(Math.max(0, total))}</span>
       </div>
     </div>
   )

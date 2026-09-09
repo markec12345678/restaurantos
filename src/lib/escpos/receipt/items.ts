@@ -7,6 +7,15 @@ import type { ESCPOSBuilder } from '../types'
 import type { ReceiptPrintData } from '../types'
 
 /**
+ * P2-UX FIX (decimalna vejica na tiskanem računu): slovenski fiskalni
+ * račun uporablja VEJICO kot decimalno ločilo (12,50) — toFixed(2)
+ * da piko (12.50). ESC/POS tabele so znakovne, zato preprosta zamenjava.
+ */
+function sl(n: number): string {
+  return n.toFixed(2).replace('.', ',')
+}
+
+/**
  * Nariši seznam artiklov na računu
  */
 export function buildReceiptItems(b: ESCPOSBuilder, data: ReceiptPrintData, LINE_W: number): void {
@@ -23,7 +32,7 @@ export function buildReceiptItems(b: ESCPOSBuilder, data: ReceiptPrintData, LINE
     const itemTotal = item.price * item.quantity
     const vatSuffix = item.vatRate > 0 ? ` (${item.vatRate}%)` : ' (0%)'
     const nameStr = `${item.quantity}x ${item.name}`
-    const priceStr = `${itemTotal.toFixed(2)}`
+    const priceStr = sl(itemTotal)
     const nameLen = nameStr.length
     const priceLen = priceStr.length + 4 // EUR + space
     // FIX EP3 MEDIUM: Če je ime artikla predolgo, ga skrajšaj — prejšnja koda je overflowala vrstico
@@ -44,7 +53,7 @@ export function buildReceiptItems(b: ESCPOSBuilder, data: ReceiptPrintData, LINE
     if (item.modifiers && item.modifiers.length > 0) {
       for (const mod of item.modifiers) {
         const modName = `  + ${mod.name}`
-        const modPrice = mod.price > 0 ? `${mod.price.toFixed(2)}` : ''
+        const modPrice = mod.price > 0 ? sl(mod.price) : ''
         const modPad = Math.max(1, LINE_W - modName.length - modPrice.length - 2)
         b.smallText().text(modName + ' '.repeat(modPad) + modPrice).normalText().lineFeed()
       }

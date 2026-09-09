@@ -2,6 +2,8 @@
 
 import { useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { queryKeys } from '@/lib/query-keys'
 import { executeSplitPayment, executePayByItems } from './payment-handlers'
 import type { PaymentHandlersProps } from './payment-handlers'
 
@@ -38,8 +40,16 @@ export function usePaymentHandlers({
         onPaymentSuccess,
         resetAndClose,
       })
-    } catch {
-      // toast already handled in executeSplitPayment or silently here
+    } catch (err: unknown) {
+      // P2-UX FIX (nemi neuspeh): prej prazen catch — če je deljeno plačilo padlo
+      // na 2. od 4 delov, gostje 1–2 so bili bremenjeni, natakar pa NI VIDEL
+      // nobene napake. Zdaj pokažemo sporočilo napake (authFetch vrže Error z
+      // .message = Slovenški tekst API-ja in .status).
+      const e = err as { message?: string; status?: number }
+      toast.error(e?.message || 'Napaka pri deljenem plačilu', { duration: 8000 })
+      if (e?.status === 409) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
+      }
     } finally {
       setIsProcessing(false)
     }
@@ -58,8 +68,13 @@ export function usePaymentHandlers({
         onPaymentSuccess,
         resetAndClose,
       })
-    } catch {
-      // toast already handled
+    } catch (err: unknown) {
+      // P2-UX FIX (nemi neuspeh): enako kot pri deljenem plačilu — prej prazen catch.
+      const e = err as { message?: string; status?: number }
+      toast.error(e?.message || 'Napaka pri plačilu po artiklih', { duration: 8000 })
+      if (e?.status === 409) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
+      }
     } finally {
       setIsProcessing(false)
     }

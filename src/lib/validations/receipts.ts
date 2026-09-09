@@ -17,6 +17,8 @@ export const receiptResponseSchema = z.object({
   zoi: z.string(),
   eor: z.string(),
   fiscalVerified: z.boolean(),
+  // P2-UX: stanje fiskalizacije (none/pending/verified/failed) za prikaz neuspele fiskalizacije
+  fiscalStatus: z.enum(['none', 'pending', 'verified', 'failed']),
   orderNumber: z.number(),
   type: z.string(),
   status: z.string(),
