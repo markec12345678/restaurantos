@@ -77,6 +77,13 @@ Thumbs.db
 *.p12
 *.pfx
 
+# IZJEMA: javni certifikati fiskalnih testnih okolij (FURS SI + CIS HR) —
+# namerno v repu za CI-pin teste (brez zasebnih ključev; glej certs/*/README.md).
+# P12/PFX z zasebnimi ključi ostanejo ignorirani ZA VEDNO.
+!certs/furs-test/*.crt
+!certs/furs-test/*.cer
+!certs/cis-test/*.pem
+
 # ============================================
 # Project-specific
 # ============================================

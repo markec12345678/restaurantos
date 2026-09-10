@@ -18,6 +18,7 @@
 import { describe, it, expect } from 'vitest'
 import { execFileSync } from 'child_process'
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
 
 const CERTS_DIR = path.join(process.cwd(), 'certs', 'cis-test')
@@ -42,12 +43,12 @@ function opensslInfo(file: string): { subject: string; issuer: string; notBefore
   return { subject, issuer, notBefore: new Date(notBefore), notAfter: new Date(notAfter), fingerprint }
 }
 
-/** Izlušči prvi (list) certifikat iz multi-PEM verige. */
+/** Izlušči prvi (list) certifikat iz multi-PEM verige (tmp v os.tmpdir, ne v certs/). */
 function leafOf(chainFile: string): string {
   const pem = fs.readFileSync(chainFile, 'utf8')
   const m = pem.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/)
   if (!m) throw new Error(`${chainFile}: ni certifikatnih blokov`)
-  const tmp = path.join(path.dirname(chainFile), `.leaf-${path.basename(chainFile)}.tmp`)
+  const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'cis-cert-')), 'leaf.pem')
   fs.writeFileSync(tmp, m[0])
   return tmp
 }
@@ -117,7 +118,7 @@ describe('CIS (HR) testni certifikati — datoteke in verige', () => {
     expect((pem.match(/-----BEGIN CERTIFICATE-----/g) || []).length).toBe(3)
     // veriga se mora končati s korenom (samopodpisanim)
     const blocks = pem.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g) ?? []
-    const last = path.join(CERTS_DIR, '.last.tmp')
+    const last = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'cis-cert-')), 'last.pem')
     fs.writeFileSync(last, blocks[blocks.length - 1])
     const rootInfo = opensslInfo(last)
     expect(rootInfo.subject).toBe(rootInfo.issuer) // samopodpisan koren na koncu
