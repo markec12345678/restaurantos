@@ -60,9 +60,20 @@ FURS objavlja novice ob zamenjavi (glej "Novice" na zgornji strani — npr.
 
 ## FINA / CIS (Hrvaška) — za primerjavo
 
-Demo certifikat CIS ("Fiskalcistest", OIB 02994650199, FINA Demo CA 2020):
-javni ključ se iskanja na https://demo-pki.fina.hr/certificate-search/ (kriteriji:
-aplikacijski certifikati / FINA Demo CA 2020 / fiskalcistest / OIB 02994650199).
-Javni demo CA certifikati: https://www.fina.hr/finadigicert/certifikati-za-testiranje-i-demonstraciju/fina-demo-ca-certifikati.
-Privatni demo certifikat se zahteva prek FINA portala. App trenutno implementira
-fiskalizacijo samo za SI (FURS) — HR je v country-config samo kot pripravljenost.
+**CERTIFIKATI SO ŽE V REPU**: glej `certs/cis-test/` (demo CA veriga, NOVI
+fiskalcistest po rotaciji 9. 7. 2026, cistest TLS pin, produkcijska veriga)
++ `scripts/cis-test-connection.sh` (`bun run fina:check`) — 5/5 živih preverjanj,
+vključno z overitvijo, da strežnik dejavno podpisuje odgovore z istim
+fiskalcistest certifikatom kot v našem paketu (preverjeno 2026-09-10 živo).
+
+Ključna razlika proti FURS: CIS ne zahteva mTLS na TLS nivoju — živ SOAP POST
+deluje brez odjemalškega certifikata (demo P12 se uporablja za XML podpis
+sporočil racun, ne za TLS). Demo aplikacijski certifikat (P12 + zasebni ključ)
+se izda prek FINA portala https://demo-usercert.fina.hr/cms-user-portal/
+(zahtevek: https://www.fina.hr/poslovni-digitalni-certifikati/poslovni-certifikati-za-fiskalizaciju/izdavanje-demo-aplikacijskog-certifikata-za-fiskalizaciju).
+
+Iskanje po spletu (2026-09-10) je potrdilo, da odjemalški P12 NI javno dostopen:
+vse GitHub knjižnice (fiskalhrgo, fiskpy, senko/fiskal-hr, shunkica, ntica,
+dalrankov) vsebujejo LE javne certifikate ali lokalno samopodpisane teste.
+App trenutno implementira fiskalizacijo samo za SI (FURS) — HR je v
+country-config samo kot pripravljenost.
