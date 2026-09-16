@@ -119,9 +119,14 @@ export const SEED_LIMIT: RateLimitConfig = {
   windowMs: 60 * 60 * 1000, // 1 ura
 }
 
-/** Splošni avtentificirani API — 60 zahtev na minuto */
+/** Splošni avtentificirani API — 120 zahtev na minuto (E2E 2026-09-17: 60 → 120, glej komentar) */
 export const AUTHENTICATED_LIMIT: RateLimitConfig = {
-  maxRequests: 60,
+  // FIX (E2E 2026-09-17): 60/min je bilo premalo za POS UI, ki ob preklopu modula
+  // sproži sveženj prefetch + react-query klicev iz ISTEGA IP (vse tablice v eni
+  // lokaciji deli NAT → skupen vedro). Modul Zaloga sam porabi ~6 klicev;
+  // hitro preklapljanje med moduli je sprožilo 429 → prazne liste.
+  // 120/min ostane varno za brute-force (prijava ima svoje, strožje omejitve).
+  maxRequests: 120,
   windowMs: 60 * 1000,
 }
 

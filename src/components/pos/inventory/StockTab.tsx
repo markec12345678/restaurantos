@@ -2,10 +2,11 @@
 
 import { memo } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Search } from 'lucide-react'
+import { AlertTriangle, RefreshCw, Search } from 'lucide-react'
 import { type InventoryItemData, categoryLabels } from './constants'
 import { StockItemCard } from './StockItemCard'
 
@@ -15,6 +16,8 @@ interface StockTabProps {
   items: InventoryItemData[] | undefined
   filteredItems: InventoryItemData[]
   isLoading: boolean
+  isError?: boolean
+  onRetry?: () => void
   search: string
   onSearchChange: (_value: string) => void
   filterCategory: string
@@ -33,6 +36,8 @@ interface StockTabProps {
 export const StockTab = memo(function StockTab({
   filteredItems,
   isLoading,
+  isError,
+  onRetry,
   search,
   onSearchChange,
   filterCategory,
@@ -67,7 +72,24 @@ export const StockTab = memo(function StockTab({
         <Badge variant="outline" className="text-xs">{(Array.isArray(filteredItems) ? filteredItems : []).length} artiklov</Badge>
       </div>
 
-      {isLoading ? (
+      {isError && !isLoading ? (
+        /* FIX (E2E 2026-09-17): 429/500 ni več prikrito kot prazna zaloga —
+           izpostavljena napaka z gumbom za ponoven poskus */
+        <div className="flex flex-col items-center justify-center gap-3 py-12 text-center" role="alert">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+            <AlertTriangle className="h-6 w-6 text-destructive" aria-hidden="true" />
+          </div>
+          <div className="space-y-1">
+            <p className="font-medium text-destructive">Napaka pri nalaganju zaloge</p>
+            <p className="text-sm text-muted-foreground">Strežnik ni odgovoril (morda preveč zahtevkov). Poskusite znova.</p>
+          </div>
+          {onRetry && (
+            <Button variant="outline" size="sm" onClick={onRetry} className="gap-2 mt-1">
+              <RefreshCw className="h-4 w-4" aria-hidden="true" /> Poskusi znova
+            </Button>
+          )}
+        </div>
+      ) : isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-44" />)}
         </div>
@@ -89,7 +111,7 @@ export const StockTab = memo(function StockTab({
         </div>
       )}
 
-      {filteredItems.length === 0 && !isLoading && (
+      {!isError && filteredItems.length === 0 && !isLoading && (
         <p className="text-center py-12 text-muted-foreground">Ni najdenih artiklov v zalogi</p>
       )}
     </>

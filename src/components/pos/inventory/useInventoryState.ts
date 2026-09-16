@@ -56,7 +56,7 @@ export function useInventoryState() {
   // QUERIES (iz pod-hooka)
   // ============================================
 
-  const { invCategories, items, isLoading, menuItems, transactionsData, txLoading } = useInventoryQueries({
+  const { invCategories, items, isLoading, isError, error, refetch, menuItems, transactionsData, txLoading } = useInventoryQueries({
     activeTab, filterCategory, txTypeFilter, txDateFrom, txDateTo,
   })
 
@@ -123,7 +123,7 @@ export function useInventoryState() {
     // NOVO (QA 2026-09-17): hitri filter nizkih zalog + vrednost zaloge
     lowStockOnly, setLowStockOnly, inventoryValue,
     // Poizvedbe
-    isLoading, items, menuItems, transactionsData, txLoading, invCategories,
+    isLoading, isError, queryError: error, refetchItems: refetch, items, menuItems, transactionsData, txLoading, invCategories,
     // Izračuni
     filteredItems, lowStockItems, sortedItems,
     // Dijalog za urejanje artikla
