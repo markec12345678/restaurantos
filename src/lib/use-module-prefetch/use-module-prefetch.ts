@@ -12,6 +12,40 @@ import { logger } from '@/lib/logger'
 import { modulePrefetchMap } from './config'
 import type { ModuleName } from './config'
 
+// FIX BUG (E2E 2026-09-17): prefetch je v cache shranil SUROVI JSON odgovor
+// (npr. `{ menuItems: [...], total, limit, offset }` za /api/menu-items).
+// Konsumerji z ISTIM queryKey (npr. useMenuManager, useInventoryQueries,
+// useRecipeQueries za ['menu-items']) pričakujejo POLJE → crash
+// "menuItems?.map is not a function" ob prvi odprtji Zaloge/Menija
+// (med staleTime 10 s oknom, ko React Query servira prefetched vrednost).
+//
+// Popravek: za znane "seznamtske" ključe razpakiraj wrapper v polje,
+// PRI VSEM DRUGEM pusti surovi odgovor (npr. kitchen {orders, stats} je pravilen).
+const ARRAY_KEY_WRAPPERS: Record<string, readonly string[]> = {
+  'menu-items': ['menuItems', 'items'],
+  categories: ['categories', 'items'],
+  orders: ['orders', 'items'],
+  menus: ['menus', 'items'],
+  inventory: ['items'],
+  suppliers: ['suppliers', 'items'],
+  employees: ['employees', 'items'],
+  recipes: ['recipes', 'items'],
+  expenses: ['expenses', 'items'],
+  feedback: ['feedback', 'items'],
+}
+
+export function normalizePrefetchData(queryKey: readonly unknown[], json: unknown): unknown {
+  if (json === null || typeof json !== 'object' || Array.isArray(json)) return json
+  const root = String(queryKey[0] ?? '')
+  const wrappers = ARRAY_KEY_WRAPPERS[root]
+  if (!wrappers) return json
+  const obj = json as Record<string, unknown>
+  for (const wrapper of wrappers) {
+    if (Array.isArray(obj[wrapper])) return obj[wrapper]
+  }
+  return json
+}
+
 /**
  * Hook, ki ob preklopu modula prednaloži podatke z React Query prefetch.
  *
@@ -64,7 +98,8 @@ export function useModulePrefetch(activeModule: ModuleName): void {
           // Re-throw da React Query označi cache kot error (ne kot podatke).
           // Komponenta bo ob mount-u samodejno ponovno poskusila.
           const res = await authFetch(config.endpoint)
-          return res.json()
+          // FIX BUG (E2E 2026-09-17): normaliziraj wrapper → polje za seznamtske ključe
+          return normalizePrefetchData(config.queryKeys, await res.json())
         },
         // FIX BUG #1: Krajši staleTime (10s) — prej 60s je blokiralo refetch
         // Ko uporabnik odpre modul, naj se podatki hitro osvežijo

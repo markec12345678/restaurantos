@@ -34,6 +34,10 @@ export const StockItemCard = memo(function StockItemCard({
   const qty = item.quantity
   const minQty = item.minQuantity
   const pct = minQty > 0 ? Math.min((qty / (minQty * 2)) * 100, 100) : 100
+  // FIX (QA 2026-09-17): barvno kodiran indikator zaloge — rdeča (izčrpano),
+  // jantar (nizko), zelena (zadostno). Takojšnja vizualna orientacija.
+  const stockBarColor =
+    qty <= 0 ? 'bg-red-500' : qty <= minQty ? 'bg-amber-500' : 'bg-emerald-500'
 
   return (
     <Card className="hover:shadow-md transition-shadow overflow-hidden">
@@ -92,7 +96,7 @@ export const StockItemCard = memo(function StockItemCard({
           <span className="text-xs text-muted-foreground">{item.supplier || ''}</span>
         </div>
 
-        <Progress value={pct} className="h-1.5" />
+        <Progress value={pct} className="h-1.5" indicatorClassName={stockBarColor} />
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>Min: {minQty} {item.unit}</span>

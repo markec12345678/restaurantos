@@ -24,6 +24,9 @@ export function useInventoryState() {
   const [activeTab, setActiveTab] = useState('stock')
   const [search, setSearch] = useState('')
   const [filterCategory, setFilterCategory] = useState('all')
+  // NOVO (QA 2026-09-17): hitri filter samo nizkih zalog — upravitelj restavracije
+  // takoj vidi, kaj je treba naročiti, brez ročnega prebriskavanja
+  const [lowStockOnly, setLowStockOnly] = useState(false)
 
   // Dijalog za urejanje artikla
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -61,11 +64,19 @@ export function useInventoryState() {
   // IZRAČUNI
   // ============================================
 
-  const filteredItems = (items || []).filter((item) =>
-    item.name.toLowerCase().includes(search.toLowerCase())
-  )
-
   const lowStockItems = (items || []).filter((item) => item.quantity <= item.minQuantity)
+
+  const filteredItems = (items || []).filter((item) => {
+    if (lowStockOnly && item.quantity > item.minQuantity) return false
+    return item.name.toLowerCase().includes(search.toLowerCase())
+  })
+
+  // NOVO (QA 2026-09-17): skupna vrednost zaloge (qty × cena/enota) —
+  // ključni poslovni KPI za upravitelja na prvi pogled
+  const inventoryValue = useMemo(
+    () => (items || []).reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.costPerUnit) || 0), 0),
+    [items],
+  )
 
   const sortedItems = useMemo(
     () => [...(items || [])].sort((a, b) => a.name.localeCompare(b.name)),
@@ -109,6 +120,8 @@ export function useInventoryState() {
   return {
     // Zavihki in iskanje
     activeTab, setActiveTab, search, setSearch, filterCategory, setFilterCategory,
+    // NOVO (QA 2026-09-17): hitri filter nizkih zalog + vrednost zaloge
+    lowStockOnly, setLowStockOnly, inventoryValue,
     // Poizvedbe
     isLoading, items, menuItems, transactionsData, txLoading, invCategories,
     // Izračuni

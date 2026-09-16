@@ -118,19 +118,25 @@ export async function handleCreatePayment(
   })
   if (!check) return NextResponse.json({ error: 'Ček ni najden' }, { status: 404 })
 
+  // FIX BUG (E2E 2026-09-17): obrambna plast — prazen niz "" za FK ID polje
+  // povzroči Prisma FK constraint napako (npr. Payment_alternatePaymentTypeId_fkey).
+  // Schema že normalizira "" → null, ampak helper mora biti varen tudi za direktno uporabo.
+  const emptyToNull = (v: string | null | undefined): string | null =>
+    typeof v === 'string' && v.trim() === '' ? null : (v ?? null)
+
   const paymentInput: PaymentInput = {
     checkId: data.checkId,
     amount: data.amount,
     tipAmount: data.tipAmount,
     type: data.type,
-    alternatePaymentTypeId: data.alternatePaymentTypeId ?? null,
-    cardType: data.cardType ?? null,
-    cardLast4: data.cardLast4 ?? null,
-    authorizationCode: data.authorizationCode ?? null,
-    giftCardId: data.giftCardId ?? null,
-    loyaltyAccountId: data.loyaltyAccountId ?? null,
+    alternatePaymentTypeId: emptyToNull(data.alternatePaymentTypeId),
+    cardType: data.cardType ?? '',
+    cardLast4: data.cardLast4 ?? '',
+    authorizationCode: data.authorizationCode ?? '',
+    giftCardId: emptyToNull(data.giftCardId),
+    loyaltyAccountId: emptyToNull(data.loyaltyAccountId),
     loyaltyPointsUsed: data.loyaltyPointsUsed ?? 0,
-    employeeId: data.employeeId ?? employeeId ?? null,
+    employeeId: emptyToNull(data.employeeId) ?? employeeId ?? null,
     idempotencyKey: idempotencyKey,
     // FIX P0-C4: posreduj order.locationId — resolveLoyaltyConfig() ga uporabi
     // za per-location loyalty (Location override → RestaurantSettings fallback)

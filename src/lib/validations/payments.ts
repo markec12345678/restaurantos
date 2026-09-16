@@ -9,19 +9,34 @@ import { cuid } from './shared'
 // PLAČILA (Payments)
 // ============================================
 
+// FIX BUG (E2E 2026-09-17): clients pošljejo `""` namesto `null` za FK ID polja
+// (npr. gotovinsko plačilo brez alternate tipa) → Prisma FK constraint napaka
+// `Payment_alternatePaymentTypeId_fkey`. Normaliziraj prazen niz → null.
+const nullableId = z.preprocess(
+  (v) => (typeof v === 'string' && v.trim() === '' ? null : v),
+  z.string().nullable().optional(),
+)
+
+// Kartična polja: dovoli `null` (gotovina nima kartice) in pretvori v '' za DB NOT NULL
+const optionalCardString = (max: number) =>
+  z.preprocess(
+    (v) => (v === null || v === undefined ? '' : v),
+    z.string().max(max).default(''),
+  )
+
 export const createPaymentSchema = z.object({
   checkId: cuid,
   amount: z.number().positive('Znesek plačila mora biti pozitiven'),
   tipAmount: z.number().min(0).default(0),
   type: z.enum(['cash', 'card', 'mobile', 'voucher', 'loyalty', 'giftcard', 'alternate']),
-  alternatePaymentTypeId: z.string().nullable().optional(),
-  cardType: z.string().max(30).default(''),
-  cardLast4: z.string().max(4).default(''),
-  authorizationCode: z.string().max(50).default(''),
-  giftCardId: z.string().nullable().optional(),
-  loyaltyAccountId: z.string().nullable().optional(),
+  alternatePaymentTypeId: nullableId,
+  cardType: optionalCardString(30),
+  cardLast4: optionalCardString(4),
+  authorizationCode: optionalCardString(50),
+  giftCardId: nullableId,
+  loyaltyAccountId: nullableId,
   loyaltyPointsUsed: z.number().int().min(0).default(0),
-  employeeId: z.string().nullable().optional(),
+  employeeId: nullableId,
   // FIX HIGH: Idempotency key — prepreči duplikatna plačila ob double-click
   idempotencyKey: z.string().max(100).optional(),
 })
