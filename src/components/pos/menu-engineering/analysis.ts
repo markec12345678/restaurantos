@@ -36,7 +36,9 @@ export function analyzeEngineeringData(
     return {
       id: item.id || String(idx),
       name: item.name,
-      category: item.category,
+      // FIX TS (runda 4): MenuItemRow.category je string | undefined —
+      // konsumerji pričakujejo string
+      category: item.category ?? '',
       price,
       foodCost,
       grossProfit,

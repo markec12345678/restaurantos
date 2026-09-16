@@ -125,13 +125,20 @@ export const GlobalNotifications = memo(function GlobalNotifications() {
           <ShoppingCart className="h-3.5 w-3.5" />{orderStats.totalActive} aktivnih
         </button>
       )}
-      {activeModule !== 'inventory' && lowStockData && lowStockData.count > 0 && (
+      {activeModule !== 'inventory' && activeModule !== 'kitchen' && lowStockData && lowStockData.count > 0 && (
+        /* QA 2026-09-17 (runda 4): kompaktna različica (samo ikona + števec) —
+           prej širok pill je prekrival vsebino modula (npr. mize, plačilni gumb);
+       na Kuhinji (KDS) je skrit čisto — kuhar ne ureja zalog */
         <button
           onClick={() => usePOSStore.getState().setActiveModule('inventory')}
-          className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-6 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 shadow-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors text-xs font-semibold"
+          className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-6 z-40 flex h-9 w-9 items-center justify-center rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300 shadow-lg hover:bg-orange-200 dark:hover:bg-orange-900/60 transition-colors"
           aria-label={`${lowStockData.count} artiklov z nizko zalogo — odpri Zalogo`}
+          title={`${lowStockData.count} nizkih zal.`}
         >
-          <AlertTriangle className="h-3.5 w-3.5" />{lowStockData.count} nizkih zal.
+          <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+          <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-orange-600 text-white text-[9px] font-bold px-0.5 tabular-nums">
+            {lowStockData.count}
+          </span>
         </button>
       )}
     </>

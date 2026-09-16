@@ -53,7 +53,7 @@ export const MenuItemCard = memo(function MenuItemCard({
   return (
     <button
       onClick={onClick}
-      className={`relative flex flex-col rounded-xl border bg-card hover:bg-accent/50 active:scale-[0.97] transition-all text-left overflow-hidden group ${
+      className={`relative h-full flex flex-col rounded-xl border bg-card hover:bg-accent/50 active:scale-[0.97] transition-all text-left overflow-hidden group ${
         isOutOfStock
           ? 'border-red-300 dark:border-red-900/50 opacity-60 cursor-not-allowed'
           : isLowStock
