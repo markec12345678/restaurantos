@@ -76,5 +76,18 @@ export function usePOSAuth() {
     return () => window.removeEventListener('pos:auth-expired', handleAuthExpired)
   }, [])
 
+  // BUG FIX (runda 5): odjava (UserIndicator → setAuthToken(null)) pošlje
+  // pos:auth-changed — ne auth-expired — zato UI NI prešel na prijavni ekran
+  // (ostal je "prijavljen" do reload-a, čeprav je bila seja že izbrisana).
+  // Preverjamo DEJANSKO stanje žetona, ker setAuthToken(null) pošlje dogodek
+  // tudi pri offline prijavi (tam onLogin takoj zatem znova nastavi userja).
+  useEffect(() => {
+    const handleAuthChanged = () => {
+      if (!getAuthToken()) setAuthUser(null)
+    }
+    window.addEventListener('pos:auth-changed', handleAuthChanged)
+    return () => window.removeEventListener('pos:auth-changed', handleAuthChanged)
+  }, [])
+
   return { authUser, setAuthUser, authChecked }
 }
