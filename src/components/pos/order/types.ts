@@ -24,6 +24,7 @@ export interface MenuItemType {
   name: string
   description: string
   price: number
+  vatRate?: number // FIX BUG-13: DDV stopnja iz DB — brez nje store pade na 22 % (napačno za 9,5 % artikle)
   image: string
   isAvailable: boolean
   sortOrder: number

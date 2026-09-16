@@ -8,7 +8,7 @@ import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
 import { createOrderSchema } from '@/lib/validations'
 import { checkStockAvailability } from '@/lib/stock-deduction'
 import { validateRequest } from '@/lib/api-utils'
-import { buildOrderItemsData, calculateOrderTotals, validateMenuItems } from './order-items'
+import { buildOrderItemsData, calculateOrderTotals, validateMenuItems, fetchModifierPriceMap, type MenuItemVatMap } from './order-items'
 import { handleStockDeduction, handlePostCreationEffects } from './stock'
 
 // P1-6: session kontekst, ki ga POST pot potrebuje za resolucijo lokacije
@@ -154,7 +154,15 @@ export async function handlePostOrder(
     },
     select: { id: true, vatRate: true, price: true },
   })
-  const vatMap = new Map(menuItems.map(mi => [mi.id, mi]))
+  const vatMap = new Map<string, MenuItemVatMap>(menuItems.map(mi => [mi.id, mi]))
+
+  // FIX BUG-13: DB cene modifierjev (server-authoritative) — sicer bi bila postavka
+  // zaračunana po osnovni ceni brez dodatkov (npr. "Srednja (30cm) +3,00 €").
+  const modifierPriceMap = await fetchModifierPriceMap(menuItemIds, orderLocationId, db)
+  for (const [miId, modPrices] of modifierPriceMap) {
+    const entry = vatMap.get(miId)
+    if (entry) entry.modifierPrices = modPrices
+  }
 
   // Preveri, da vsi artikli obstajajo (in so na pravi lokaciji)
   const missingItem = validateMenuItems(data.orderItems, vatMap)

@@ -41,6 +41,79 @@ export interface MenuItemVatMap {
   id: string
   vatRate: { toNumber: () => number } | number
   price: { toNumber: () => number } | number
+  // FIX BUG-13: DB cene modifierjev za ta artikel (ključ = ime lower-cased).
+  // Server-authoritative cene — client-sent modifier price je SAMO fallback,
+  // kadar modifierja ni v DB (npr. stari kiosk/mobilni klienti).
+  modifierPrices?: Map<string, number>
+}
+
+/**
+ * FIX BUG-13: Varno razčleni modifiersJson (string ali že-parsan array).
+ * Vrne normaliziran seznam { name, price } — neveljavni vnosi se tiho preskočijo,
+ * negativne cene se stisnejo na 0 (defenzivno proti tujim klientom).
+ */
+export function parseModifiersJson(raw: unknown): Array<{ name: string; price: number }> {
+  if (raw == null) return []
+  let parsed: unknown = raw
+  if (typeof raw === 'string') {
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      return []
+    }
+  }
+  if (!Array.isArray(parsed)) return []
+  const out: Array<{ name: string; price: number }> = []
+  for (const m of parsed) {
+    if (m && typeof m === 'object') {
+      const rec = m as { name?: unknown; price?: unknown }
+      if (typeof rec.name !== 'string' || rec.name.length === 0) continue
+      const p = toNum(rec.price as Parameters<typeof toNum>[0])
+      const price = Number.isFinite(p) && p >= 0 ? p : 0
+      out.push({ name: rec.name, price })
+    }
+  }
+  return out
+}
+
+/**
+ * FIX BUG-13: Pridobi DB cene modifierjev za podane artikle (en query).
+ * Scope prek ModifierGroup.locationId (MODEL A — skupine po lokaciji).
+ * Vrne: menuItemId → Map<imeLower, cena>
+ */
+export async function fetchModifierPriceMap(
+  menuItemIds: string[],
+  locationId: string | null | undefined,
+  // tx parametrizacija omogoča uporabo znotraj transakcije (add-items)
+  exec: Pick<typeof import('@/lib/db').db, 'menuItemModifierGroup'>,
+): Promise<Map<string, Map<string, number>>> {
+  const result = new Map<string, Map<string, number>>()
+  if (menuItemIds.length === 0) return result
+  const links = await exec.menuItemModifierGroup.findMany({
+    where: {
+      menuItemId: { in: menuItemIds },
+      ...(locationId ? { modifierGroup: { locationId } } : {}),
+    },
+    select: {
+      menuItemId: true,
+      modifierGroup: {
+        select: {
+          modifiers: { where: { isAvailable: true }, select: { name: true, price: true } },
+        },
+      },
+    },
+  })
+  for (const link of links) {
+    let perItem = result.get(link.menuItemId)
+    if (!perItem) {
+      perItem = new Map<string, number>()
+      result.set(link.menuItemId, perItem)
+    }
+    for (const mod of link.modifierGroup.modifiers) {
+      perItem.set(mod.name.toLowerCase(), toNum(mod.price as Parameters<typeof toNum>[0]))
+    }
+  }
+  return result
 }
 
 // Tip za izračunane podatke artikla naročila
@@ -65,7 +138,19 @@ export function buildOrderItemsData(
   const rawItemsData = orderItems.map(item => {
     const mi = vatMap.get(item.menuItemId)!
     const vatRate = toNum(mi.vatRate as Parameters<typeof toNum>[0])
-    const price = toNum(mi.price as Parameters<typeof toNum>[0])
+    const basePrice = toNum(mi.price as Parameters<typeof toNum>[0])
+    // FIX BUG-13 (kritično, FURS-relevantno): cene modifierjev MORAJO biti v ceni
+    // postavke — kanonični celovod v headerju to že opisuje ("→ modifikatorji"),
+    // ampak implementacija jih je ignorirala → naročilo z "Srednja (30cm) +3,00 €"
+    // je bilo zaračunano po OSNOVNI ceni (denarni izgubi na vsakem naročilu
+    // z modifierjem!). Cena iz DB je avtoritativna; client cena je samo fallback.
+    const dbModifierPrices = mi.modifierPrices
+    let modifierDelta = new D(0)
+    for (const mod of parseModifiersJson(item.modifiersJson)) {
+      const dbPrice = dbModifierPrices?.get(mod.name.toLowerCase())
+      modifierDelta = modifierDelta.plus(dbPrice !== undefined ? new D(dbPrice) : new D(mod.price))
+    }
+    const price = dec2(new D(basePrice).plus(modifierDelta)).toNumber() // enotna cena (osnova + modifierji)
     const itemBase = dec2(new D(price).times(item.quantity)) // cena × količina (neto)
     return { menuItemId: item.menuItemId, quantity: item.quantity, price, vatRate, itemBase }
   })

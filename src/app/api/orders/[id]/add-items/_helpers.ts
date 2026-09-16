@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db'
 import { toNum, round2, isPositive } from '@/lib/decimal'
+import { parseModifiersJson, fetchModifierPriceMap } from '../../_helpers/order-items'
 
 /** Create order items inside a transaction, recalculating order totals */
 export async function createOrderItemsAndRecalculate(
@@ -44,13 +45,28 @@ export async function createOrderItemsAndRecalculate(
     validatedItems.set(item.menuItemId, menuItem)
   }
 
+  // FIX BUG-13: DB cene modifierjev (server-authoritative) — enak vzorec kot POST /api/orders
+  const modifierPriceMap = await fetchModifierPriceMap(
+    orderItems.map(i => i.menuItemId),
+    currentOrder.locationId,
+    tx,
+  )
+
   for (const item of orderItems) {
     // Pridobi artikel za DDV stopnjo in CENO (strežniško — edini vir resnice)
     // FIX BUG 6: Uporabimo menuItem.price iz baze, NE client-sent item.price
     // MODEL A: uporabimo ŽE validiran artikel iz preverjenega seznama (isti tx)
     const menuItem = validatedItems.get(item.menuItemId)!
     const vatRate = toNum(menuItem.vatRate)
-    const serverPrice = toNum(menuItem.price)
+    // FIX BUG-13: cena postavke = osnova + vsota cen modifierjev (DB, fallback client)
+    const basePrice = toNum(menuItem.price)
+    const dbModPrices = modifierPriceMap.get(item.menuItemId)
+    let modifierDelta = 0
+    for (const mod of parseModifiersJson(item.modifiersJson)) {
+      const dbPrice = dbModPrices?.get(mod.name.toLowerCase())
+      modifierDelta += dbPrice !== undefined ? dbPrice : mod.price
+    }
+    const serverPrice = round2(basePrice + modifierDelta)
     const itemBase = serverPrice * item.quantity
     const vatAmount = round2(itemBase * (vatRate / 100))
 

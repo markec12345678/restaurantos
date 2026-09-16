@@ -10,7 +10,7 @@ import type { ModifierGroupType, MenuItemType } from './types'
 // ============================================
 
 interface UseModifierSelectionParams {
-  onAddToCart: (_item: { id: string; name: string; price: number; categoryId: string; image: string; modifiers?: SelectedModifier[] }) => void
+  onAddToCart: (_item: { id: string; name: string; price: number; vatRate?: number; categoryId: string; image: string; modifiers?: SelectedModifier[] }) => void
   onSetLastAddedId: (_id: string | null) => void
 }
 
@@ -42,7 +42,9 @@ export function useModifierSelection({
       setSelectedModifiers(new Map())
     } else {
       // Artikel brez modifierjev (ali s praznimi skupinami) — direktno v košarico
-      onAddToCart({ id: item.id, name: item.name, price: item.price, categoryId: item.categoryId, image: item.image })
+      // FIX BUG-13: vatRate MORA biti posredovan — sicer store pade na 22 % tudi
+      // za artikle z 9,5 % (napačen DDV v vozičku → razlikа proti računu)
+      onAddToCart({ id: item.id, name: item.name, price: item.price, vatRate: item.vatRate, categoryId: item.categoryId, image: item.image })
       onSetLastAddedId(item.id)
       setTimeout(() => onSetLastAddedId(null), 500)
     }
@@ -80,7 +82,8 @@ export function useModifierSelection({
       return
     }
     const modifiers = Array.from(selectedModifiers.values())
-    onAddToCart({ id: modifierDialogItem.id, name: modifierDialogItem.name, price: modifierDialogItem.price, categoryId: modifierDialogItem.categoryId, image: modifierDialogItem.image, modifiers })
+    // FIX BUG-13: posreduj tudi vatRate (glej komentar zgoraj)
+    onAddToCart({ id: modifierDialogItem.id, name: modifierDialogItem.name, price: modifierDialogItem.price, vatRate: modifierDialogItem.vatRate, categoryId: modifierDialogItem.categoryId, image: modifierDialogItem.image, modifiers })
     onSetLastAddedId(modifierDialogItem.id)
     setTimeout(() => onSetLastAddedId(null), 500)
     setModifierDialogItem(null)

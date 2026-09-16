@@ -9,7 +9,7 @@ import { handleApiError } from '@/lib/api-utils'
 import { verifyApiKey } from '@/lib/api-security'
 import { toNum } from '@/lib/decimal'
 import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
-import { buildOrderItemsData, calculateOrderTotals } from '@/app/api/orders/_helpers/order-items'
+import { buildOrderItemsData, calculateOrderTotals, fetchModifierPriceMap, type MenuItemVatMap } from '@/app/api/orders/_helpers/order-items'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
@@ -134,16 +134,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // P1-6/P1-8: mobilno naročilo uporablja ISTI kanonični izračun kot POS
-    // (buildOrderItemsData + calculateOrderTotals — Decimal aritmetika, DDV po
-    // postavki iz DB vatRate). Prej: hardkodiran 0.22 DDV na vse artikle
-    // (napačno za 9,5 % in 0 % stopnje) + manjkajoč orderNumber (create je
-    // vedno padel na Prisma required-field napaki).
-    const vatMap = new Map(menuItems.map(mi => [mi.id, mi]))
-    const { orderItemsData, subtotal } = buildOrderItemsData(input.items, vatMap, 0)
-    const { totalTax, total } = calculateOrderTotals(orderItemsData, subtotal)
-
     // P1-6: resolucija lokacije (miza → single-tenant fallback) — enak vzorec kot POS
+    // (premaknjeno PRED izračun — FIX BUG-13 potrebuje lokacijo za scope modifierjev)
     let orderLocationId: string | null = null
     if (input.tableId) {
       const table = await db.table.findUnique({
@@ -158,6 +150,21 @@ export async function POST(req: Request) {
     if (!orderLocationId) {
       return NextResponse.json({ error: 'Ni nastavljene lokacije — kontaktirajte podporo' }, { status: 400 })
     }
+
+    // P1-6/P1-8: mobilno naročilo uporablja ISTI kanonični izračun kot POS
+    // (buildOrderItemsData + calculateOrderTotals — Decimal aritmetika, DDV po
+    // postavki iz DB vatRate). Prej: hardkodiran 0.22 DDV na vse artikle
+    // (napačno za 9,5 % in 0 % stopnje) + manjkajoč orderNumber (create je
+    // vedno padel na Prisma required-field napaki).
+    const vatMap = new Map<string, MenuItemVatMap>(menuItems.map(mi => [mi.id, mi]))
+    // FIX BUG-13: DB cene modifierjev (server-authoritative) — mobilni meni uporablja dodatke
+    const modifierPriceMap = await fetchModifierPriceMap(menuItemIds, orderLocationId, db)
+    for (const [miId, modPrices] of modifierPriceMap) {
+      const entry = vatMap.get(miId)
+      if (entry) entry.modifierPrices = modPrices
+    }
+    const { orderItemsData, subtotal } = buildOrderItemsData(input.items, vatMap, 0)
+    const { totalTax, total } = calculateOrderTotals(orderItemsData, subtotal)
 
     // P1-7: per-lokacijsko številčenje + FIX: idempotencyKey vedno prisoten
     // (prej: samo če ga klient pošlje — retry brez ključa je ustvaril duplikat)

@@ -17,13 +17,13 @@ export function buildReceiptItems(
       const modifiers: { name: string; price?: number }[] = parseOrderItemModifiers(oi.modifiersJson)
 
       const vatRate = toNum(oi.vatRate) || toNum(oi.menuItem?.vatRate) || 22.0
-      // FIX MEDIUM: Vključi ceno modifikatorjev v skupno ceno artikla
-      let modifiersTotal = 0
-      for (const mod of modifiers) {
-        modifiersTotal += mod.price || 0
-      }
-      // FIX BUG2: Subtract discountAmount from basePrice — previously discount was not deducted per-item
-      const basePrice = (toNum(oi.price) + modifiersTotal) * oi.quantity - toNum(oi.discountAmount)
+      // FIX BUG-14 (kritično, FURS-relevantno): modifierjev NE prištevamo VEČ k ceni!
+      // Od FIX BUG-13 je OrderItem.price končna enotna cena (osnova + modifierji,
+      // server-authoritative). Prejšnja koda je modifierje prištela ŠE ENKRAT
+      // (račun 18,94 € za 15,66 € naročilo) — pred #13 je bila napaka maskirana,
+      // ker je strežnik modifierjev sploh ne štel v ceno postavke.
+      // Modifierji se na računu izpišejo SAMO kot oznake vrstic ("+ Srednja (30cm)").
+      const basePrice = toNum(oi.price) * oi.quantity - toNum(oi.discountAmount)
       const vatAmount = basePrice * (vatRate / 100)
       const totalWithVat = basePrice + vatAmount
 

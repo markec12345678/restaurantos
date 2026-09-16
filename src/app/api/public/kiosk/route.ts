@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, KIOSK_LIMIT, PUBLIC_MENU_LIMIT } from '@/lib/rate-limit'
 import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
-import { buildOrderItemsData, calculateOrderTotals } from '@/app/api/orders/_helpers/order-items'
+import { buildOrderItemsData, calculateOrderTotals, fetchModifierPriceMap, type MenuItemVatMap } from '@/app/api/orders/_helpers/order-items'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
@@ -91,21 +91,28 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Nekateri artikli niso na voljo' }, { status: 400 })
     }
 
+    // P1-6: kiosk naprava stoji na lokaciji — resolucija (single-tenant fallback)
+    // Brez lokacije: ZAVRNI (naročilo brez lokacije bi bilo tiho izgubljeno za tenant poizvedbe)
+    // (premaknjeno PRED izračun — FIX BUG-13 potrebuje lokacijo za scope modifierjev)
+    const kioskLocationId = await resolveDefaultLocationId()
+    if (!kioskLocationId) {
+      return NextResponse.json({ error: 'Kiosk ni nastavljen — kontaktirajte osebje' }, { status: 400 })
+    }
+
     // P1-8 FIX KRITIČNO: kiosk je prej ceno obravnal kot GROSS (neto = cena − DDV),
     // medtem ko jeMenuItem.price po definiciji sistema NETO (QR meni prikazuje
     // € × (1 + DDV/100); POS izračun: total = subtotal + DDV). Kiosk je s tem
     // zaračunaval MANJ kot POS za isti artikel — neusklajeno z računi/DB.
     // Sedaj: ISTI kanonični izračun (buildOrderItemsData + calculateOrderTotals).
-    const vatMap = new Map(menuItems.map(mi => [mi.id, mi]))
+    const vatMap = new Map<string, MenuItemVatMap>(menuItems.map(mi => [mi.id, mi]))
+    // FIX BUG-13: DB cene modifierjev (server-authoritative) — kiosk meni pogosto uporablja dodatke
+    const modifierPriceMap = await fetchModifierPriceMap(menuItemIds, kioskLocationId, db)
+    for (const [miId, modPrices] of modifierPriceMap) {
+      const entry = vatMap.get(miId)
+      if (entry) entry.modifierPrices = modPrices
+    }
     const { orderItemsData, subtotal } = buildOrderItemsData(data.orderItems, vatMap, 0)
     const { totalTax: tax, total } = calculateOrderTotals(orderItemsData, subtotal)
-
-    // P1-6: kiosk naprava stoji na lokaciji — resolucija (single-tenant fallback)
-    // Brez lokacije: ZAVRNI (naročilo brez lokacije bi bilo tiho izgubljeno za tenant poizvedbe)
-    const kioskLocationId = await resolveDefaultLocationId()
-    if (!kioskLocationId) {
-      return NextResponse.json({ error: 'Kiosk ni nastavljen — kontaktirajte osebje' }, { status: 400 })
-    }
 
     // P1-7: per-lokacijsko številčenje naročil (self-init iz MAX)
     const nextOrderNumber = await getNextOrderNumber(kioskLocationId)
