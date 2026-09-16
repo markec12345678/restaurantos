@@ -1,7 +1,7 @@
 'use client'
 
 // ============================================
-// PROCESS PAYMENT MUTATION — Check → Payment → Order → Receipt → FURS → Print
+// PROCESS PAYMENT MUTATION (r5) — Check → Payment → Order → Receipt → FURS → Print
 // ============================================
 
 import { useMutation, useQueryClient } from '@tanstack/react-query'
@@ -138,19 +138,40 @@ export function useProcessPayment(params: ProcessPaymentParams, callbacks: Proce
       // optimistic-locking varovalko na backendu (PUT /api/orders). Če je drug
       // natakar medtem spremenil naročilo (dodal artikle, spremenil status),
       // backend zavrne z 409 namesto tihega prepisa stale podatkov.
-      const orderRes = await authFetch(`/api/orders/${order.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          paymentStatus: 'paid',
-          paymentMethod: paymentMethod === 'split' ? 'split' : paymentMethod,
-          ...(order.status === 'ready' ? { status: 'completed' } : {}),
-          tip: tipAmount,
-          totalWithTip: orderTotal + tipAmount,
-          ...(order.updatedAt ? { expectedUpdatedAt: order.updatedAt } : {}),
-        }),
-      })
-      if (!orderRes.ok) throw new Error('Napaka pri posodobitvi naročila')
-      const updatedOrder = await orderRes.json()
+      /* BUG FIX (runda 5): POST /api/payments SAM transakcijsko posodobi order
+         (paymentStatus, paidAt, paymentMethod, status: 'completed' — check-status.ts).
+         Client PUT nato pošlje expectedUpdatedAt snapshot iz PRED plačila →
+         optimistic locking je 409 konflikt S PLAČILO SAMIM (false positive).
+         Posledica: auto-receipt + FURS fiscalizacija + animacija uspeha so bili
+         preskočeni, natakar pa je videl strašljivo "spremenjeno s strani
+         drugega uporabnika".
+         OPOMBA: authFetch VEDNO vrže Error na !ok — zato try/catch okoli PUT
+         (stari `if (!orderRes.ok)` je bil mrtva koda!). Ob 409 preverimo
+         DEJANSKO stanje naročila: če je že PAID, je konflikt sprožilo plačilo
+         samo → mirno nadaljujemo. Resničen konflikt (šele neplačan) ostane napaka. */
+      let updatedOrder: { id?: string; status?: string } | null = null
+      try {
+        const orderRes = await authFetch(`/api/orders/${order.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            paymentStatus: 'paid',
+            paymentMethod: paymentMethod === 'split' ? 'split' : paymentMethod,
+            ...(order.status === 'ready' ? { status: 'completed' } : {}),
+            tip: tipAmount,
+            totalWithTip: orderTotal + tipAmount,
+            ...(order.updatedAt ? { expectedUpdatedAt: order.updatedAt } : {}),
+          }),
+        })
+        updatedOrder = await orderRes.json()
+      } catch (putErr) {
+        const putError = putErr as { status?: number }
+        if (putError?.status !== 409) throw putErr
+        const verify = await authFetch(`/api/orders/${order.id}`)
+          .then(r => r.json() as Promise<{ paymentStatus?: string; status?: string }>)
+          .catch(() => null)
+        if (verify?.paymentStatus !== 'paid') throw putErr
+        updatedOrder = { id: order.id, status: verify.status ?? 'completed' }
+      }
 
       // ─── AUTO-RECEIPT: Avtomatsko ustvari račun v bazi ───
       try {

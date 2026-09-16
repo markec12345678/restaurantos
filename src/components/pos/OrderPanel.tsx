@@ -25,8 +25,8 @@ export const OrderPanel = memo(function OrderPanel() {
     customerName, setCustomerName, customerPhone, setCustomerPhone,
     orderNotes, setOrderNotes, mainTab, setMainTab,
     orderListTab, setOrderListTab,
-    selectedOrder, paymentDialogOpen, detailOrder, setDetailOrder,
-    receiptOrder, autoPayOrder, voidItem, setVoidItem, stornoOrder,
+    selectedOrder, paymentDialogOpen, setPaymentDialogOpen, detailOrder, setDetailOrder,
+    receiptOrder, autoPayOrder, setAutoPayOrder, voidItem, setVoidItem, stornoOrder,
     clearCartConfirm, setClearCartConfirm, lastAddedId, setLastAddedId,
     shortcutsOpen, setShortcutsOpen,
     menus, menusLoading, menuItems, menuLoading,
@@ -105,7 +105,27 @@ export const OrderPanel = memo(function OrderPanel() {
               editingOrderId={editingOrderId}
               editingOrderNumber={editingOrderNumber}
               onExitEditing={handleExitEditing}
-              onSubmit={() => placeOrderMutation.mutate({ customerName, customerPhone, orderNotes })}
+              /* BUG FIX (runda 5): "Oddaj in plačaj" je oddal naročilo, ampak
+                 plačilni dialog se NI nikoli odprl — onSuccess je vračal podatke
+                 "za samodejno plačilo", a jih nihče ni obdelal (komentar v
+                 useOrderPanelMutations.ts). Zdaj: uspešna oddaja takoj odpre
+                 PaymentDialog z novim naročilom. Offline naročila in urejanje
+                 obstoječega plačila preskočita auto-pay. */
+              onSubmit={() =>
+                placeOrderMutation
+                  .mutateAsync({ customerName, customerPhone, orderNotes })
+                  .then(data => {
+                    if (
+                      data && typeof data === 'object' &&
+                      !('offline' in data && data.offline) &&
+                      !editingOrderId && 'id' in data && data.id
+                    ) {
+                      setAutoPayOrder(data as Record<string, unknown>)
+                      setPaymentDialogOpen(true)
+                    }
+                  })
+                  .catch(() => {/* onError toast že prikazan v mutaciji */})
+              }
               isPending={placeOrderMutation.isPending}
               setClearCartConfirm={setClearCartConfirm}
             />

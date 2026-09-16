@@ -27,6 +27,10 @@ const orderItemModifierSchema = z.object({
   price: z.number().min(-1000, 'Cena modifierja ne more biti pod -1000').max(10000, 'Cena modifierja ne more preseči 10.000'),
   quantity: z.number().int().min(1, 'Količina modifierja mora biti vsaj 1').max(99, 'Količina modifierja ne more preseči 99').optional(),
   modifierGroupId: z.string().max(100).optional(),
+  /* BUG FIX (runda 5): klient (useOrderPanelMutations.ts, 3 kraji) pošilja
+     tudi modifierGroupName — strežnik ga je strict() zavrnil → VSAKO naročilo
+     z modifierjem (npr. omaka) je dobilo 400 in ni bilo mogoče oddati! */
+  modifierGroupName: z.string().max(100).optional(),
 }).strict() // strict() — zavrne nepoznana polja (prepreči injection)
 
 // Validacija modifiersJson: string → parse → validiraj vsak modifier → vrni originalni string

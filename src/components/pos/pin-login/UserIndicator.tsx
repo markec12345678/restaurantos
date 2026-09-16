@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { User, LogOut } from 'lucide-react'
 import { getCurrentUser, getAuthToken, setCurrentUser, setAuthToken } from '../PinLogin'
+import { clearOfflineSession } from './offline-auth'
 
 // ============================================
 // UPORABNISKI INDICATOR — Prikaz prijavljenega uporabnika (za Sidebar)
@@ -30,6 +31,9 @@ export const UserIndicator = memo(function UserIndicator() {
     }
     setCurrentUser(null)
     setAuthToken(null)
+    // Offline device session poteče ob odjavi — brez tega bi bil PIN
+    // napadalcu ostal uporaben še 12 h po odjavi.
+    clearOfflineSession()
     queryClient.invalidateQueries()
     toast.success('Uspešno odjavljen')
   }

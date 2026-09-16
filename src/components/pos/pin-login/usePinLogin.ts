@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { queryKeys } from '@/lib/query-keys'
 import type { PinLoginProps } from './constants'
 import { setCurrentUser, setAuthToken } from '../PinLogin'
+import { cacheOfflineSession, verifyOfflinePin } from './offline-auth'
 
 // ============================================
 // HOOK: PIN prijava
@@ -34,21 +35,53 @@ export function usePinLogin(_props: PinLoginProps) {
   })
 
   const loginMutation = useMutation({
-    mutationFn: async (pinCode: string) => {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pin: pinCode }),
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Napaka pri prijavi')
+    mutationFn: async (pinCode: string): Promise<{ employee: import('./constants').AuthUser; message: string; token?: string; offline?: boolean }> => {
+      /* NOVA FUNKCIONALNOST (runda 5): offline-first prijava — če strežnik ni
+         dosegljiv (mreža down, strežnik restart), preverimo PIN proti cached
+         device session-u (TTL 12h, SHA-256 verifikator, rate-limit 5/15min).
+         Natakar lahko nato oddaja naročila v offline vrsto (offline-orders.ts). */
+      let serverError: unknown = null
+      try {
+        const res = await fetch('/api/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin: pinCode }),
+        })
+        if (!res.ok) {
+          const data = await res.json()
+          // Napačen PIN pri DOSEGLJIVEM strežniku = prava napaka (ne offline fallback!)
+          throw new Error(data.error || 'Napaka pri prijavi')
+        }
+        return res.json()
+      } catch (err) {
+        serverError = err
       }
-      return res.json()
+      // Strežnik ni dosegljiv (mrežna napaka) → offline fallback
+      if (serverError instanceof TypeError || (serverError as Error)?.message?.includes('fetch')) {
+        const offline = await verifyOfflinePin(pinCode).catch(() => null)
+        if (offline) {
+          return {
+            employee: offline.employee,
+            message: `Offline prijava (${Math.ceil(offline.expiresInMs / 3600000)} h veljavnosti) — naročila gredo na strežnik ob povezavi`,
+            offline: true,
+          }
+        }
+        throw new Error('Strežnik ni dosegljiv in offline prijava ni mogoča — prijavite se enkrat z mrežo')
+      }
+      throw serverError as Error
     },
-    onSuccess: (data, _variables, _context) => {
+    onSuccess: (data, variables, _context) => {
       setCurrentUser(data.employee)
-      setAuthToken(data.token)
+      if (data.offline) {
+        // Offline seja NIMA žetona — vse API poizvedbe ne bodo uspele,
+        // ampak offline naročila se vrstijo lokalno in gredo ob povezavi.
+        setAuthToken(null)
+        toast.warning('OFFLINE način — naročila se bodo samodejno poslala ob vrnitvi povezave', { duration: 8000 })
+      } else {
+        setAuthToken(data.token ?? null)
+        // Shrani sejo za prihodnje offline prijave (tiho — ne sme pokvariti online toka)
+        void cacheOfflineSession(data.employee, variables)
+      }
       setPin('')
       setError('')
       toast.success(data.message)

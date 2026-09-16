@@ -22,6 +22,44 @@ export interface NavItem {
   adminOnly?: boolean
 }
 
+/* QA runda 5 (styling): 69 navigacijskih elementov v ENEM seznamu je bilo
+   vizualna preobremenitev (tablet UX). Elementi so zdaj grupirani v 7
+   logičnih sekcij z zložljivimi glavami (glej SidebarNav.tsx). */
+export interface NavGroup {
+  id: string
+  label: string
+  itemIds: string[]
+}
+
+export const navGroups: NavGroup[] = [
+  { id: 'sales', label: 'Prodaja', itemIds: [
+    'orders', 'kitchen', 'floor-plan', 'tables', 'waitlist', 'course-pacing',
+    'kitchen-prep', 'kitchen-stations', 'wait-time', 'delivery', 'delivery-tracking', 'order-bump',
+  ] },
+  { id: 'cash', label: 'Blagajna', itemIds: [
+    'cash-register', 'shifts', 'end-of-day', 'z-report', 'wallet-payment',
+  ] },
+  { id: 'guests', label: 'Gosti & CRM', itemIds: [
+    'guests', 'reservations', 'table-reservation-sync', 'gift-cards', 'loyalty', 'customer-timeline', 'feedback',
+  ] },
+  { id: 'menu', label: 'Meni & zaloge', itemIds: [
+    'menu', 'inventory', 'inventory-alerts', 'food-cost', 'recipes', 'recipe-scaling',
+    'suppliers', 'waste-tracker', 'allergen-matrix', 'nutrition', 'vendor-scorecard',
+  ] },
+  { id: 'staff', label: 'Osebje', itemIds: [
+    'employees', 'staff-schedule', 'shift-overview', 'tip-manager', 'staff-performance', 'labor-reports',
+  ] },
+  { id: 'analytics', label: 'Analitika', itemIds: [
+    'dashboard', 'reports', 'menu-engineering', 'table-turnover', 'expenses', 'profit-loss',
+    'tax-report', 'ghost-kitchen', 'ai-forecast', 'ai-recommendations',
+  ] },
+  { id: 'system', label: 'Sistem', itemIds: [
+    'configuration', 'settings', 'locations', 'multi-location', 'printers', 'integrations',
+    'webhooks', 'furs', 'subscription', 'compliance', 'haccp', 'audit-log',
+    'outbox', 'conflicts', 'offline-queue', 'notifications', 'fraud-detection', 'daily-checklist',
+  ] },
+]
+
 export const navItems: NavItem[] = [
   { id: 'orders', labelKey: 'nav.sales', icon: ShoppingCart, highlight: true, permission: 'take_orders' },
   { id: 'kitchen', labelKey: 'nav.kitchen', icon: ChefHat, permission: 'take_orders' },

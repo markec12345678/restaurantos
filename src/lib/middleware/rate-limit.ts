@@ -93,14 +93,19 @@ export const API_RATE_LIMITS: { pattern: RegExp; config: RateLimitConfig; name: 
   // ═══════════════════════════════════════════
 
   // ═══════════════════════════════════════════
-  // SPLOŠNI AVTENTICIRANI API — privzeto 60/min (catch-all)
-  // P1-testiranje: meja je ENV-nastavljiva (API_RATE_LIMIT_MAX) — E2E/CI
-  // okolja (PLAYWRIGHT z ~80 klici/min) jo dvignejo; produkcija obdrži 60.
+  // SPLOŠNI AVTENTICIRANI API — privzeto 300/min (catch-all)
+  // BUG FIX (runda 5): prej 60/min — ampak POS frontend naredi ~44 klicov/min
+  // SAMO z mirovanjem (KDS 5s, prep-queue 5s, waiter 10s, sidebar 30s polling
+  // + 3 status-filtri naročil) → vsaka navigacija/hover-prefetch je presegla
+  // limit → 429 med NORMALNIM delom. 2 tablici na istem LAN IP = takoj mrtvi.
+  // 300/min (5 rps trajno) še vedno blokira brute-force/DDoS, ne pa verižne
+  // restavracije. Meja je ENV-nastavljiva (API_RATE_LIMIT_MAX); CI/E2E jo
+  // lahko še dvigne. Produkcija obdrži 300.
   // ═══════════════════════════════════════════
   {
     pattern: /\/api\//,
     config: {
-      maxRequests: Number(process.env.API_RATE_LIMIT_MAX) || 60,
+      maxRequests: Number(process.env.API_RATE_LIMIT_MAX) || 300,
       windowMs: 60 * 1000,
     },
     name: 'api-general',

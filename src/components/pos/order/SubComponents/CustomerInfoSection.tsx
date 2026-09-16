@@ -22,6 +22,14 @@ interface CustomerInfoSectionProps {
   subtotal: number
 }
 
+// Chip label: prepend the amount prefix ("10%", "€5") only when the name
+// doesn't already contain it — seed names like "10% na celotno naročilo" or
+// "5€ popust na pijačo" would otherwise render duplicated ("10% 10% na").
+const discountChipLabel = (d: { name: string; type: string; amount: number }) => {
+  const prefix = d.type === 'percentage' ? `${d.amount}%` : `€${d.amount}`
+  return d.name.toLowerCase().includes(prefix.toLowerCase()) ? d.name : `${prefix} ${d.name}`
+}
+
 export const CustomerInfoSection = memo(function CustomerInfoSection({
   customerName, setCustomerName, customerPhone, setCustomerPhone,
   orderNotes, setOrderNotes, discount, setDiscount,
@@ -55,7 +63,7 @@ export const CustomerInfoSection = memo(function CustomerInfoSection({
               }}
               className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${appliedDiscountId === d.id ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
             >
-              {d.type === 'percentage' ? `${d.amount}%` : `€${d.amount}`} {d.name.split(' ').slice(0, 2).join(' ')}
+              {discountChipLabel(d)}
             </button>
           ))}
         </div>

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { usePOSStore } from '@/lib/store'
 import { Bell, ShoppingCart, AlertTriangle } from 'lucide-react'
 import { useState, useEffect, useCallback, useRef, memo } from 'react'
+import { cn } from '@/lib/utils'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import type { Notification } from './notifications/types'
@@ -128,10 +129,18 @@ export const GlobalNotifications = memo(function GlobalNotifications() {
       {activeModule !== 'inventory' && activeModule !== 'kitchen' && lowStockData && lowStockData.count > 0 && (
         /* QA 2026-09-17 (runda 4): kompaktna različica (samo ikona + števec) —
            prej širok pill je prekrival vsebino modula (npr. mize, plačilni gumb);
-       na Kuhinji (KDS) je skrit čisto — kuhar ne ureja zalog */
+       na Kuhinji (KDS) je skrit čisto — kuhar ne ureja zalog.
+       QA runda 5: na Prodaji (orders) je gumb ZDAJ zgoraj desno — spodaj desno
+       je ležel NA zelenem "Oddaj in plačaj" gumbu (glavni CTA!). Na drugih
+       modulih ostane v spodnjem skladu ob zvončku in AI gumbu. */
         <button
           onClick={() => usePOSStore.getState().setActiveModule('inventory')}
-          className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-6 z-40 flex h-9 w-9 items-center justify-center rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300 shadow-lg hover:bg-orange-200 dark:hover:bg-orange-900/60 transition-colors"
+          className={cn(
+            'fixed z-40 flex h-9 w-9 items-center justify-center rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300 shadow-lg hover:bg-orange-200 dark:hover:bg-orange-900/60 transition-colors',
+            activeModule === 'orders'
+              ? 'top-3 right-3'
+              : 'bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-6'
+          )}
           aria-label={`${lowStockData.count} artiklov z nizko zalogo — odpri Zalogo`}
           title={`${lowStockData.count} nizkih zal.`}
         >
