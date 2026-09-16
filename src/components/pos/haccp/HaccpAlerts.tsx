@@ -47,13 +47,13 @@ export const HaccpAlerts = memo(function HaccpAlerts({
               >
                 <span className={`h-1.5 w-1.5 rounded-full ${cfg.dotColor} mr-1`} aria-hidden="true" />
                 {entry.title}: {entry.value || cfg.label}
-                {!entry.correctiveAction && ' \u26A0 Brez ukrepa'}
+                {!entry.correctiveAction && ' ⚠ Brez ukrepa'}
               </Badge>
             )
           })}
           {alertEntries.length > 8 && (
             <Badge variant="outline" className="text-xs">
-              +{alertEntries.length - 8} ve\u010D
+              +{alertEntries.length - 8} več
             </Badge>
           )}
         </div>

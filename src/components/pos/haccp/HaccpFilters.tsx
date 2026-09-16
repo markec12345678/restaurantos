@@ -39,7 +39,7 @@ export const HaccpFilters = memo(function HaccpFilters({
           <div className="relative flex-1 min-w-48 max-w-sm">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="I\u0161\u010Di po naslovu, opisu, zaposlenem..."
+              placeholder="Išči po naslovu, opisu, zaposlenem..."
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               className="pl-9"
@@ -62,7 +62,7 @@ export const HaccpFilters = memo(function HaccpFilters({
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" className="h-9" onClick={onReset}>
               <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-              Po\u010Disti
+              Počisti
             </Button>
           )}
         </div>

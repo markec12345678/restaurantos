@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import Image from 'next/image'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR, formatNumberSl } from '@/lib/safe-format'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -46,7 +46,9 @@ export const ModifierDialog = memo(function ModifierDialog({
             )}
             <div>
               <p>{modifierDialogItem?.name}</p>
-              <p className="text-sm font-normal text-muted-foreground">€{(modifierDialogItem?.price || 0).toFixed(2)}</p>
+              {/* STYLING FIX: formatEUR (slovenska vejica "11,30 €") namesto toFixed pike —
+                  doslednost s preostalim POS */}
+              <p className="text-sm font-normal text-muted-foreground">{formatEUR(modifierDialogItem?.price || 0)}</p>
             </div>
           </DialogTitle>
         </DialogHeader>
@@ -72,7 +74,7 @@ export const ModifierDialog = memo(function ModifierDialog({
                             : 'bg-card text-card-foreground border-border hover:bg-accent'
                         }`}
                       >
-                        {mod.name}{mod.price > 0 ? ` +€${safeToFixed(mod.price, 2)}` : ''}
+                        {mod.name}{mod.price > 0 ? ` +${formatNumberSl(mod.price)}` : ''}
                       </button>
                     )
                   })}
@@ -85,7 +87,8 @@ export const ModifierDialog = memo(function ModifierDialog({
           <Button variant="outline" onClick={onClose} autoFocus>Prekliči</Button>
           <Button onClick={onConfirm}>
             <Check className="h-4 w-4 mr-1" />
-            Potrdi €{((modifierDialogItem?.price || 0) + modifierExtraPrice).toFixed(2)}
+            {/* STYLING FIX: formatEUR namesto toFixed — enotno decimalno vejico */}
+            Potrdi {formatEUR((modifierDialogItem?.price || 0) + modifierExtraPrice)}
           </Button>
         </DialogFooter>
       </DialogContent>

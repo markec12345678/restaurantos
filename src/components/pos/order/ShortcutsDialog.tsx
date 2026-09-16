@@ -19,17 +19,17 @@ export const ShortcutsDialog = memo(function ShortcutsDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Keyboard className="h-5 w-5" />
-            Tipkovne bli\u017Enjice
+            Tipkovne bližnjice
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-2 text-sm">
           {[
-            { key: 'F2', desc: 'Novo naro\u010Dilo' },
-            { key: 'F4', desc: 'Pla\u010Daj / Oddaj' },
-            { key: 'F5', desc: 'Seznam naro\u010Dil' },
-            { key: 'F8', desc: 'Po\u010Disti ko\u0161arico' },
-            { key: 'Ctrl+K', desc: 'I\u0161\u010Di artikel' },
-            { key: 'Esc', desc: 'Zapri / Prekli\u010Di' },
+            { key: 'F2', desc: 'Novo naročilo' },
+            { key: 'F4', desc: 'Plačaj / Oddaj' },
+            { key: 'F5', desc: 'Seznam naročil' },
+            { key: 'F8', desc: 'Počisti košarico' },
+            { key: 'Ctrl+K', desc: 'Išči artikel' },
+            { key: 'Esc', desc: 'Zapri / Prekliči' },
           ].map(s => (
             <div key={s.key} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
               <span className="text-muted-foreground">{s.desc}</span>

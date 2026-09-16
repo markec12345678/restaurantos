@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { queryKeys } from '@/lib/query-keys'
 import type { PinLoginProps } from './constants'
 import { setCurrentUser, setAuthToken } from '../PinLogin'
-import { cacheOfflineSession, verifyOfflinePin } from './offline-auth'
+import { cacheOfflineSession, verifyOfflinePin, getOfflineSessionHint } from './offline-auth'
 
 // ============================================
 // HOOK: PIN prijava
@@ -17,6 +17,14 @@ export function usePinLogin(_props: PinLoginProps) {
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
   const firstDigitRef = useRef<HTMLButtonElement>(null)
+  // NOVA FUNKCIONALNOST (runda 6): namig "offline prijava na voljo" na prijavnem
+  // ekranu — natakar takoj ve, da brez mreže NE ostane na zunanji strani.
+  // useEffect (ne med renderjem): localStorage je client-only + izognemo se
+  // SSR hydration mismatchu.
+  const [offlineHint, setOfflineHint] = useState<{ name: string; expiresInMs: number } | null>(null)
+  useEffect(() => {
+    setOfflineHint(getOfflineSessionHint())
+  }, [])
 
   // A11y: Samodejno premakni fokus na prvo stevko ob prikazu
   useEffect(() => {
@@ -125,5 +133,6 @@ export function usePinLogin(_props: PinLoginProps) {
     handlePinSubmit,
     handleDigit,
     handleBackspace,
+    offlineHint,
   }
 }

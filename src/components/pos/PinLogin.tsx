@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Store, Fingerprint } from 'lucide-react'
+import { Store, Fingerprint, WifiOff } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import type { PinLoginProps } from './pin-login/constants'
 import { usePinLogin } from './pin-login/usePinLogin'
@@ -38,6 +38,7 @@ export const PinLogin = memo(function PinLogin({ onLogin, onSkip }: PinLoginProp
     handlePinSubmit,
     handleDigit,
     handleBackspace,
+    offlineHint,
   } = usePinLogin({ onLogin, onSkip })
 
   return (
@@ -52,6 +53,24 @@ export const PinLogin = memo(function PinLogin({ onLogin, onSkip }: PinLoginProp
             <h2 className="text-xl font-bold">RestaurantOS</h2>
             <p className="text-sm text-muted-foreground mt-1">Vnesite PIN za prijavo</p>
           </div>
+          {/* NOVA FUNKCIONALNOST (runda 6): namig o offline prijavi — zaposleni
+              takoj ve, da ob izpadu mreže NE obstane na prijavi (PIN se preveri
+              proti cached device session-u, naročila gredo v offline vrsto).
+              Prikazano samo, če cached session obstaja in NI potekel (12h TTL). */}
+          {offlineHint && (
+            <div
+              className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-400"
+              role="status"
+            >
+              <WifiOff className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>
+                Offline prijava na voljo za <strong>{offlineHint.name}</strong> — vnesite PIN tudi brez mreže
+                {offlineHint.expiresInMs > 3600000
+                  ? ` (še ${Math.floor(offlineHint.expiresInMs / 3600000)} h)`
+                  : ` (še ${Math.max(1, Math.floor(offlineHint.expiresInMs / 60000))} min)`}
+              </span>
+            </div>
+          )}
           {/* PIN prikaz */}
           <PinDisplay pinLength={pin.length} />
           {/* Napaka */}

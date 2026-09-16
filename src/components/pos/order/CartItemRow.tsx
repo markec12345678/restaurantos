@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import Image from 'next/image'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR, formatNumberSl } from '@/lib/safe-format'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { motion } from 'framer-motion'
@@ -45,12 +45,12 @@ export const CartItemRow = memo(function CartItemRow({
       {/* Info */}
       <div className="flex-1 min-w-0">
         <p className="text-xs font-semibold truncate" title={item.name}>{item.name}</p>
-        <p className="text-[10px] text-muted-foreground">€{safeToFixed(item.price, 2)} na kos</p>
+        <p className="text-[10px] text-muted-foreground">{formatEUR(item.price)} na kos</p>
         {item.modifiers.length > 0 && (
           <div className="flex flex-wrap gap-0.5 mt-0.5">
             {item.modifiers.map(m => (
               <Badge key={m.id} variant="outline" className="text-[8px] h-3.5 px-1 py-0">
-                {m.name}{m.price > 0 ? ` +€${safeToFixed(m.price, 2)}` : ''}
+                {m.name}{m.price > 0 ? ` +${formatNumberSl(m.price)}` : ''}
               </Badge>
             ))}
           </div>
@@ -59,19 +59,20 @@ export const CartItemRow = memo(function CartItemRow({
       </div>
       {/* Controls */}
       <div className="flex flex-col items-end gap-1 flex-shrink-0">
-        <Button variant="ghost" size="icon" aria-label="Zapri" className="h-8 w-8 text-destructive touch-manipulation" onClick={() => removeFromCart(item.cartKey)}>
+        <Button variant="ghost" size="icon" aria-label="Zapri" className="h-9 w-9 text-destructive touch-manipulation" onClick={() => removeFromCart(item.cartKey)}>
           <X className="h-3.5 w-3.5" />
         </Button>
         <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon" aria-label="Zmanjšaj" className="h-10 w-10 touch-manipulation" onClick={() => updateCartQuantity(item.cartKey, item.quantity - 1)}>
+          {/* STYLING FIX: h-11 = 44px dotična tarča (WCAG 2.5.5, tablice) */}
+          <Button variant="outline" size="icon" aria-label="Zmanjšaj" className="h-11 w-11 touch-manipulation" onClick={() => updateCartQuantity(item.cartKey, item.quantity - 1)}>
             <Minus className="h-3.5 w-3.5" />
           </Button>
-          <span className="text-sm font-bold w-7 text-center">{item.quantity}</span>
-          <Button variant="outline" size="icon" aria-label="Dodaj" className="h-10 w-10 touch-manipulation" onClick={() => updateCartQuantity(item.cartKey, item.quantity + 1)}>
+          <span className="text-sm font-bold w-7 text-center" aria-live="polite" aria-label="Količina">{item.quantity}</span>
+          <Button variant="outline" size="icon" aria-label="Dodaj" className="h-11 w-11 touch-manipulation" onClick={() => updateCartQuantity(item.cartKey, item.quantity + 1)}>
             <Plus className="h-3.5 w-3.5" />
           </Button>
         </div>
-        <p className="text-xs font-bold">€{(item.price * item.quantity).toFixed(2)}</p>
+        <p className="text-xs font-bold">{formatEUR(item.price * item.quantity)}</p>
       </div>
     </motion.div>
   )

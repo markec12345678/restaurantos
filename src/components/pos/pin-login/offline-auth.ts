@@ -157,3 +157,25 @@ export function hasOfflineSession(): boolean {
     return false
   }
 }
+
+/**
+ * NOVA FUNKCIONALNOST (runda 6): namig za prijavni ekran — kdo se lahko
+ * prijavi offline in do kdaj. null = offline prijava ni na voljo.
+ * (Ločeno od hasOfflineSession, ker UI želi pokazati ime + preostanek TTL.)
+ */
+export function getOfflineSessionHint(): { name: string; expiresInMs: number } | null {
+  if (!storageAvailable()) return null
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return null
+    const session = JSON.parse(raw) as OfflineSession
+    if (Date.now() > session.expiresAt || !session.employee?.id) return null
+    const expiresInMs = session.expiresAt - Date.now()
+    return {
+      name: session.employee.name || 'zaposleni',
+      expiresInMs,
+    }
+  } catch {
+    return null
+  }
+}

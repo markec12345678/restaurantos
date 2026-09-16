@@ -20,16 +20,16 @@ export const ClearCartDialog = memo(function ClearCartDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Po\u010Disti ko\u0161arico?</DialogTitle>
+          <DialogTitle>Počisti košarico?</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
-          Ali ste prepri\u010Dani, da \u017Eelite izbrisati vse artikle iz ko\u0161arice? Tega dejanja ni mogo\u010De razveljaviti.
+          Ali ste prepričani, da želite izbrisati vse artikle iz košarice? Tega dejanja ni mogoče razveljaviti.
         </p>
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} autoFocus>Prekli\u010Di</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} autoFocus>Prekliči</Button>
           <Button variant="destructive" onClick={onConfirm}>
             <Trash2 className="h-4 w-4 mr-1" />
-            Po\u010Di\u0161ti
+            Počisti
           </Button>
         </DialogFooter>
       </DialogContent>

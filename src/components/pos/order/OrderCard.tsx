@@ -1,7 +1,8 @@
 'use client'
 
 import { memo, useState } from 'react'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
+import { parseOrderItemModifiers } from '@/lib/json-fields'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -68,7 +69,7 @@ export const OrderCard = memo(function OrderCard({
     }
   }
   return (
-    <Card className="hover:shadow-md transition-shadow">
+    <Card className="hover:shadow-md hover:border-primary/30 hover:-translate-y-0.5 transition-all duration-200">
       <CardContent className="p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div>
@@ -87,17 +88,27 @@ export const OrderCard = memo(function OrderCard({
           {order.table && <p className="text-muted-foreground">Miza {order.table.number}</p>}
         </div>
         <div className="space-y-1">
-          {orderItems.slice(0, 3).map(oi => (
-            <div key={oi.id} className="flex justify-between text-sm">
-              <span>{oi.quantity}x {oi.menuItem?.name || 'Artikel'}</span>
-              <span>€{(oi.price * oi.quantity).toFixed(2)}</span>
-            </div>
-          ))}
+          {orderItems.slice(0, 3).map(oi => {
+            // STYLING FIX: modifierji v predogledu kartice — natakar vidi
+            // "1x Margerita (Srednja 30cm)" brez odpiranja podrobnosti
+            const mods = parseOrderItemModifiers(oi.modifiersJson)
+            return (
+              <div key={oi.id} className="flex justify-between text-sm gap-2">
+                <span className="min-w-0 truncate">
+                  {oi.quantity}x {oi.menuItem?.name || 'Artikel'}
+                  {mods.length > 0 && (
+                    <span className="text-muted-foreground"> ({mods.map(m => m.name).join(', ')})</span>
+                  )}
+                </span>
+                <span className="flex-shrink-0">{formatEUR(oi.price * oi.quantity)}</span>
+              </div>
+            )
+          })}
           {orderItems.length > 3 && <p className="text-xs text-muted-foreground">+{orderItems.length - 3} artiklov več</p>}
         </div>
         <Separator />
-        <div className="flex items-center justify-between">
-          <span className="font-bold">€{safeToFixed(order.total, 2)}</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="font-bold whitespace-nowrap">{formatEUR(order.total)}</span>
           <div className="flex gap-1 flex-wrap justify-end">
             <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onOrderClick(order)}>
               <Eye className="h-3 w-3 mr-1" />Poglej
@@ -156,7 +167,7 @@ export const OrderCard = memo(function OrderCard({
                 <div className="space-y-2">
                   <p>
                     Zaključek naročila je <strong>nepovraten</strong> — po zaključku ga ni mogoče več odpreti (samo storno).
-                    Stanje: <strong>{paymentStatusLabels[order.paymentStatus] || order.paymentStatus}</strong>, znesek: <strong>€{safeToFixed(order.total, 2)}</strong>.
+                    Stanje: <strong>{paymentStatusLabels[order.paymentStatus] || order.paymentStatus}</strong>, znesek: <strong>{formatEUR(order.total)}</strong>.
                   </p>
                   <p className="text-muted-foreground">Ste prepričani, da želite zaključiti neplačano naročilo?</p>
                 </div>
