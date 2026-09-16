@@ -82,7 +82,7 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
-            {filteredMenuItems.map((item: MenuItemType) => {
+            {filteredMenuItems.map((item: MenuItemType, idx: number) => {
               const inCart = cart.filter(c => c.id === item.id)
               const totalQty = inCart.reduce((sum, c) => sum + c.quantity, 0)
               const stockInfo = menuStockMap?.[item.id]
@@ -94,6 +94,8 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
                   totalQty={totalQty}
                   lastAddedId={lastAddedId}
                   stockInfo={stockInfo}
+                  /* LCP fix (QA 2026-09-17): prvih 10 zgornjih artiklov eager */
+                  eager={idx < 10}
                   onClick={() => !isOutOfStock && onItemClick(item)}
                 />
               )

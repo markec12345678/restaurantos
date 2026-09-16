@@ -22,6 +22,8 @@ const BreakdownSection = dynamic(() => import('./dashboard/BreakdownSection').th
 const RecentActivity = dynamic(() => import('./dashboard/RecentActivity').then((m) => m.RecentActivity), { ssr: false })
 const StockAndKitchen = dynamic(() => import('./dashboard/StockAndKitchen').then((m) => m.StockAndKitchen), { ssr: false })
 const SetupProgress = dynamic(() => import('./setup-progress/SetupProgress').then((m) => m.SetupProgress), { ssr: false })
+// NOVO (QA 2026-09-17, runda 3): menedžerski KPI kvadranti menija
+const MenuEngineeringKpi = dynamic(() => import('./dashboard/MenuEngineeringKpi').then((m) => m.MenuEngineeringKpi), { ssr: false })
 
 export const Dashboard = memo(function Dashboard() {
   const { setActiveModule } = usePOSStore()
@@ -98,6 +100,10 @@ export const Dashboard = memo(function Dashboard() {
 
       {/* Setup Progress — pokazuje kaj je nastavljeno, kaj manjka */}
       <SetupProgress />
+
+      {/* NOVO (QA 2026-09-17, runda 3): Menu Engineering KPI — kvadranti menija,
+          top zvezde in akcijska priporočila za menedžerja */}
+      <MenuEngineeringKpi />
 
       {/* WoW primerjava */}
       <WoWComparison wow={computed.wow} wowChartData={computed.wowChartData} />

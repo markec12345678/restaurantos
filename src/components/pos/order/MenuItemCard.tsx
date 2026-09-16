@@ -15,6 +15,8 @@ export interface MenuItemCardProps {
   lastAddedId: string | null
   stockInfo: StockInfoType | undefined
   onClick: () => void
+  /** NOVO (QA 2026-09-17): eager nalaganje za zgornji vidni del (LCP fix) */
+  eager?: boolean
 }
 
 
@@ -42,6 +44,7 @@ export const MenuItemCard = memo(function MenuItemCard({
   lastAddedId,
   stockInfo,
   onClick,
+  eager = false,
 }: MenuItemCardProps) {
   const hasMods = item.modifierGroups?.length > 0
   const isOutOfStock = stockInfo?.status === 'out'
@@ -95,6 +98,8 @@ export const MenuItemCard = memo(function MenuItemCard({
             alt={item.name}
             fill
             sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+            /* LCP fix (QA 2026-09-17): zgornji vidni artikli se naložijo takoj */
+            loading={eager ? 'eager' : 'lazy'}
             className={`object-cover group-hover:scale-105 transition-transform duration-200 ${isOutOfStock ? 'grayscale' : ''}`}
             onError={() => {
               // Skrij <Image> in prikaži fallback (lahko isti element)

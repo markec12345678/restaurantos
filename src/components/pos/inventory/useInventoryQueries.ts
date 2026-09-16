@@ -33,25 +33,52 @@ export function useInventoryQueries({ activeTab, filterCategory, txTypeFilter, t
 
   const invCategories = useMemo(() => ['all', ...(dbCategories || ['general'])], [dbCategories])
 
-  const { data: items, isLoading } = useQuery<InventoryItemData[]>({
+  // FIX (E2E 2026-09-17): prej je `if (!res.ok) return []` utišal 429/500 napake —
+  // React Query je prazno polje cachesal kot VELJAVNE podatke → UI je pokazal
+  // "Ni najdenih artiklov" namesto napake. Zdaj queryFn VŽI vrže napako,
+  // da React Query aktivira retry + izpostavi isError/refetch UI-ju.
+  //
+  // FIX (E2E 2026-09-17, runda 3): obrambni `select` — če katerakoli prefetch pot
+  // (modul ali hover) vpiše SUROVI wrapper {items:[...]} pod ta ključ, konsumer
+  // VEDNO dobi polje (namesto crash-a "(items || []).filter is not a function").
+  const selectItems = (d: unknown): InventoryItemData[] => {
+    if (Array.isArray(d)) return d as InventoryItemData[]
+    if (d && typeof d === 'object') {
+      const obj = d as { items?: unknown }
+      if (Array.isArray(obj.items)) return obj.items as InventoryItemData[]
+    }
+    return []
+  }
+
+  const { data: items, isLoading, isError, error, refetch } = useQuery<InventoryItemData[]>({
     queryKey: [...queryKeys.inventory.all, filterCategory],
     queryFn: async () => {
       const params = new URLSearchParams()
       if (filterCategory !== 'all') params.set('category', filterCategory)
       const res = await authFetch(`/api/inventory?${params}`)
-      if (!res.ok) return []
+      if (!res.ok) throw new Error(`Inventory API ${res.status}`)
       const json = await res.json()
       return json.items ?? []
     },
+    select: selectItems,
   })
 
   const { data: menuItems } = useQuery({
     queryKey: queryKeys.menuItems.all,
     queryFn: async () => {
       const res = await authFetch('/api/menu-items')
-      if (!res.ok) return []
+      if (!res.ok) throw new Error(`Menu API ${res.status}`)
       const json = await res.json()
       return json.menuItems ?? json.items ?? []
+    },
+    select: (d: unknown) => {
+      if (Array.isArray(d)) return d
+      if (d && typeof d === 'object') {
+        const obj = d as { menuItems?: unknown; items?: unknown }
+        if (Array.isArray(obj.menuItems)) return obj.menuItems
+        if (Array.isArray(obj.items)) return obj.items
+      }
+      return []
     },
   })
 
@@ -71,5 +98,5 @@ export function useInventoryQueries({ activeTab, filterCategory, txTypeFilter, t
     enabled: activeTab === 'history',
   })
 
-  return { invCategories, items, isLoading, menuItems, transactionsData, txLoading }
+  return { invCategories, items, isLoading, isError, error, refetch, menuItems, transactionsData, txLoading }
 }

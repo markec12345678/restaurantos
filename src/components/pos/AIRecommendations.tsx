@@ -19,10 +19,14 @@ export const AIRecommendations = memo(function AIRecommendations() {
 
   const { data: menuItems, isLoading } = useQuery({
     queryKey: queryKeys.menuItems.all,
+    // FIX (E2E 2026-09-17, runda 3): ta ključ DELIJO več konsumerjev (Meni, Recepti,
+    // Zaloga). Prej je queryFn shranil SUROVI {menuItems:[...]} objekt → drugi
+    // konsumerji so dobili ne-polje. Zdaj vedno razpakiraj v polje.
     queryFn: async () => {
       const res = await authFetch('/api/menu-items?limit=500')
       if (!res.ok) throw new Error('Napaka pri nalaganju')
-      return res.json()
+      const json = await res.json()
+      return Array.isArray(json) ? json : (json.menuItems ?? json.items ?? [])
     },
   })
 

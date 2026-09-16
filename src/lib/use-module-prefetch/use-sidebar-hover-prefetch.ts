@@ -8,6 +8,7 @@ import { useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { authFetch, getAuthToken } from '@/components/pos/PinLogin'
 import { modulePrefetchMap } from './config'
+import { normalizePrefetchData } from './use-module-prefetch'
 import type { ModuleName } from './config'
 
 /**
@@ -52,18 +53,20 @@ export function useSidebarHoverPrefetch() {
         queryKey: config.queryKeys as unknown[],
         queryFn: async () => {
           if (!config.endpoint) return null
-          try {
-            const res = await authFetch(config.endpoint)
-            if (!res.ok) return null
-            return res.json()
-          } catch {
-            // FIX NAPAKA 5 (HTTP 403): Tiho ignoriraj 403 — to pomeni da uporabnik nima
-            // dovoljenja za ta endpoint (npr. natakar in admin-only modul).
-            // Ni napaka — samo preskoči prefetch.
-            return null
-          }
+          // FIX (E2E 2026-09-17, runda 3): prej je `if (!res.ok) return null` in
+          // `catch { return null }` CACHAL null kot USPEŠEN rezultat (staleTime 15 s)
+          // → ob hitrem kliku je konsumer videl "uspešne prazne podatke" (0 artiklov,
+          // brez napake) namesto lastnega refetch-a. Zdaj VŽI vrži napako → React Query
+          // shrani error state → konsumer ob mount-u samodejno požene svoj queryFn.
+          // (Zunanjega .catch(() => {}) tišina ostaja — napaka ne moti uporabnika.)
+          const res = await authFetch(config.endpoint)
+          if (!res.ok) throw new Error(`Hover prefetch ${config.endpoint} → ${res.status}`)
+          return normalizePrefetchData(config.queryKeys, await res.json())
         },
-        staleTime: 60 * 1000,
+        // FIX (E2E 2026-09-17, runda 3): staleTime 60s → 15s. Hover-prefetch piše v
+        // ISTI cache ključ kot konsumer; če je vrednost zastarela, konsumerjev lastni
+        // queryFn (z lastno normalizacijo) hitro popravi morebitne razlike.
+        staleTime: 15 * 1000,
       }).catch(() => {
         // Tiho ignoriraj — prefetch napake ne motijo uporabnika
       })
