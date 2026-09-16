@@ -10,7 +10,22 @@ export function registerServiceWorker() {
   if (typeof window === 'undefined') return // SSR guard
   if (!('serviceWorker' in navigator)) return
 
-  window.addEventListener('load', () => {
+  // POMENBNO (QA 2026-09-17, runda 3): SW se registrira SAMO v produkcijski
+  // build. V dev načinu Turbopak servira CHUNE z nestabilnimi imeni (src_*.js,
+  // ki se OBNOVIJO z istim imenom ob vsaki spremembi) — SW cache-first strategija
+  // bi v devu servirala ZASTARELE chune in pokvarila HMR/hitro razhroščevanje.
+  // PWA offline ostaja popolnoma funkcionalen v produkcijskem načinu.
+  if (process.env.NODE_ENV !== 'production') {
+    logger.debug('SW', 'Service Worker preskočen (dev način — zaščita pred zastarelmi chunki)')
+    return
+  }
+
+  // FIX BUG (QA 2026-09-17, runda 3): prej je bil listener registriran na
+  // `window.addEventListener('load', …)`. V Next.js App Router se hidracija
+  // pogosto zaključi ŠELE PO `load` dogodku (Turbopack/dev overhead, počasne
+  // tablice) → listener NI Nikoli sprožen → Service Worker NI bil registriran
+  // → offline način PWA je bil mrtav. Če je load že mimo, registriraj takoj.
+  const register = () => {
     navigator.serviceWorker.register('/sw.js').then((registration) => {
       logger.info('SW', 'Service Worker registriran', { scope: registration.scope })
 
@@ -50,5 +65,12 @@ export function registerServiceWorker() {
       logger.info('SW', 'SW kontrolni spremenjen — osvežujem stran')
       window.location.reload()
     })
-  })
+  }
+
+  if (document.readyState === 'complete') {
+    // Load event je že mimo (hidracija po load-u) — registriraj takoj
+    register()
+  } else {
+    window.addEventListener('load', register, { once: true })
+  }
 }

@@ -36,13 +36,23 @@ export const SidebarNav = memo(function SidebarNav({
             aria-current={isActive ? 'page' : undefined}
             aria-label={t(item.labelKey)}
             className={cn(
-              'flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+              // QA 2026-09-17 (tablet): na dotikalnih napravah 44px tarča (WCAG 2.5.5)
+              'relative flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+              '[@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:py-2.5',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 focus-visible:ring-offset-background',
               isActive
-                ? item.highlight ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-accent text-accent-foreground'
-                : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                ? item.highlight ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-accent text-accent-foreground font-semibold'
+                : 'text-muted-foreground hover:bg-accent/60 hover:text-accent-foreground active:bg-accent'
             )}
           >
-            <Icon className="h-4 w-4" />
+            {/* Aktiven indikator — levi barvni trak (subtilen, izrazit na tablici) */}
+            {isActive && (
+              <span
+                aria-hidden="true"
+                className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-primary"
+              />
+            )}
+            <Icon className={cn('h-4 w-4 shrink-0', isActive && 'text-primary', item.highlight && isActive && 'text-primary-foreground')} />
             {t(item.labelKey)}
             {item.id === 'orders' && activeOrderCount > 0 && (
               <span className="ml-auto flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1" aria-label={`${activeOrderCount} aktivnih naročil`}>

@@ -44,18 +44,36 @@ export const OrderTypeBar = memo(function OrderTypeBar({
   // Če ni izbral, selectedTable je bil null → naročilo brez mize.
   // Sedaj: ko orderType = 'dine-in' in mize so naložene in ni izbrane mize,
   // samodejno izberi prvo prosto mizo.
+  //
+  // QA 2026-09-17 (runda 3): NEVELJAVNE STARE MIZE — selectedTable je poznan v
+  // zustand persist seji (localStorage). Če mize ne obstaja več v trenutnem
+  // seznamu (npr. drug seed, brisanje mize, druga lokacija), je Select prikazal
+  // PRAZNO vrednost in Badge "Miza undefined". Zdaj: neveljavna izbira →
+  // ponastavi na prvo prosto mizo (ali pusti prazno, če ni prostih).
   useEffect(() => {
-    if (orderType === 'dine-in' && !selectedTable && availableTables.length > 0) {
-      const firstAvailable = availableTables.find(t => t.status === 'available')
+    if (orderType !== 'dine-in') return
+    if (tablesLoading) return // čakaj seznam miz — prej ne moremo validirati
+    const tableExists = selectedTable ? availableTables.some((t) => t.id === selectedTable) : false
+    if (selectedTable && !tableExists) {
+      // Stara/izbrisana miza — ponastavi na prvo prosto (ali null)
+      const firstAvailable = availableTables.find((t) => t.status === 'available')
+      setSelectedTable(firstAvailable ? firstAvailable.id : null)
+      return
+    }
+    if (!selectedTable && availableTables.length > 0) {
+      const firstAvailable = availableTables.find((t) => t.status === 'available')
       if (firstAvailable) {
         setSelectedTable(firstAvailable.id)
       }
     }
-  }, [orderType, selectedTable, availableTables, setSelectedTable])
+  }, [orderType, selectedTable, availableTables, tablesLoading, setSelectedTable])
+
+  // A11Y + UX: izpisano ime mize tudi kadar persisted id ni več v seznamu
+  const selectedTableNumber = tablesArray.find((t) => t.id === selectedTable)?.number
 
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30 flex-shrink-0">
-      <Select value={orderType} onValueChange={setOrderType}>
+      <Select value={orderType} onValueChange={setOrderType} aria-label="Vrsta naročila">
         <SelectTrigger className="w-32 h-8 text-xs">
           <SelectValue />
         </SelectTrigger>
@@ -67,7 +85,11 @@ export const OrderTypeBar = memo(function OrderTypeBar({
       </Select>
       {/* Dining option iz konfiguracije */}
       {diningOptions && diningOptions.length > 0 && (
-        <Select value={diningOptionId || 'none'} onValueChange={(v) => setDiningOptionId(v === 'none' ? null : v)}>
+        <Select
+          value={diningOptionId || 'none'}
+          onValueChange={(v) => setDiningOptionId(v === 'none' ? null : v)}
+          aria-label="Način postrežbe"
+        >
           <SelectTrigger className="w-40 h-8 text-xs">
             <SelectValue placeholder="Način postrežbe" />
           </SelectTrigger>
@@ -82,7 +104,12 @@ export const OrderTypeBar = memo(function OrderTypeBar({
         </Select>
       )}
       {orderType === 'dine-in' && (
-        <Select value={selectedTable || ''} onValueChange={setSelectedTable} disabled={tablesLoading}>
+        <Select
+          value={selectedTable || ''}
+          onValueChange={setSelectedTable}
+          disabled={tablesLoading}
+          aria-label="Izbira mize"
+        >
           <SelectTrigger className="w-36 h-8 text-xs">
             <SelectValue placeholder={tablesLoading ? 'Nalagam mize...' : 'Izberi mizo'} />
           </SelectTrigger>
@@ -106,7 +133,7 @@ export const OrderTypeBar = memo(function OrderTypeBar({
       {selectedTable && orderType === 'dine-in' && (
         <Badge variant="outline" className="text-xs h-6">
           <Users className="h-3 w-3 mr-1" />
-          Miza {tablesArray.find((t) => t.id === selectedTable)?.number}
+          {selectedTableNumber ? `Miza ${selectedTableNumber}` : 'Miza —'}
         </Badge>
       )}
     </div>

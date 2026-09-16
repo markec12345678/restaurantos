@@ -46,6 +46,13 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // FIX OOM (QA 2026-09-17, runda 3): v omejenem okolju (4 GB RAM, cgroup ~2.7 GB
+  // za proces) je Turbopack dev compile velikih API-rut ob prvi kompilaciji
+  // sprožil OOM killer (next-server ubit pri RSS 1.7 GB). 'full' vsili agresivno
+  // izpodrivanje modulov iz pomnilnika med kompilacijo → nižji vrh RSS.
+  experimental: {
+    turbopackMemoryEviction: 'full',
+  },
   // Verzija aplikacije iz package.json — inline ob buildu (health endpoint).
   env: {
     APP_VERSION: pkg.version,

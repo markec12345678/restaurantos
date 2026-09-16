@@ -38,7 +38,9 @@ export const modulePrefetchMap: Record<ModuleName, PrefetchConfig[]> = {
   ],
   kitchen: [
     { queryKeys: queryKeys.kitchen.all, endpoint: '/api/kitchen' },
-    { queryKeys: queryKeys.kitchen.pacing, endpoint: '/api/kitchen/pacing' },
+    // FIX (QA 2026-09-17, runda 3): '/api/kitchen/pacing' ne obstaja (404) —
+    // useCoursePacing.ts bere iz /api/kitchen
+    { queryKeys: queryKeys.kitchen.pacing, endpoint: '/api/kitchen' },
   ],
   tables: [
     { queryKeys: queryKeys.tables.all, endpoint: '/api/tables' },
@@ -49,8 +51,13 @@ export const modulePrefetchMap: Record<ModuleName, PrefetchConfig[]> = {
     { queryKeys: queryKeys.orders.all, endpoint: '/api/orders' },
   ],
   inventory: [
-    { queryKeys: queryKeys.inventory.all, endpoint: '/api/inventory' },
-    { queryKeys: queryKeys.inventory.lowStock, endpoint: '/api/inventory/alerts' },
+    // FIX (E2E 2026-09-17): ključ mora biti enak konsumerskemu
+    // ([...queryKeys.inventory.all, filterCategory] v useInventoryQueries,
+    // privzeti filter = 'all') — prej ['inventory'] ≠ ['inventory','all']
+    // → PODVOJEN klic na /api/inventory ob vsaki odprtji modula (poraba rate limita)
+    { queryKeys: [...queryKeys.inventory.all, 'all'], endpoint: '/api/inventory' },
+    // FIX (E2E 2026-09-17): odstranjena mrtva vnosna točka /api/inventory/alerts —
+    // ruta ne obstaja (405) in ključa ['notification-low-stock'] ne konzumira nihče
   ],
   reports: [
     { queryKeys: queryKeys.reports.financial(), endpoint: '/api/reports/financial' },
@@ -85,24 +92,31 @@ export const modulePrefetchMap: Record<ModuleName, PrefetchConfig[]> = {
   ],
   'end-of-day': [
     { queryKeys: queryKeys.endOfDay.all, endpoint: '/api/end-of-day' },
-    { queryKeys: queryKeys.zReport.all, endpoint: '/api/z-reports' },
+    // FIX (QA 2026-09-17, runda 3): '/api/z-reports' ne obstaja (404) — konsumer bere /api/z-report
+    { queryKeys: queryKeys.zReport.all, endpoint: '/api/z-report' },
   ],
   shifts: [
     { queryKeys: queryKeys.shifts.all, endpoint: '/api/shifts' },
-    { queryKeys: queryKeys.shifts.schedule, endpoint: '/api/shifts/schedule' },
+    // FIX (QA 2026-09-17, runda 3): odstranjena mrtva vrstica shifts.schedule —
+    // konsumerjev ključ je [...schedule, from, to] (goli ključ se ne ujame) + endpoint 405
   ],
   locations: [
     { queryKeys: queryKeys.locations.all, endpoint: '/api/locations' },
     { queryKeys: queryKeys.locations.stats, endpoint: '/api/locations/stats' },
   ],
   delivery: [
-    { queryKeys: queryKeys.delivery.tracking, endpoint: '/api/delivery-trackings' },
-    { queryKeys: queryKeys.delivery.onlineOrders, endpoint: '/api/online-orders-admin' },
+    // FIX (QA 2026-09-17, runda 3): '/api/delivery-trackings' ne obstaja (404) — ruta je /api/delivery-tracking
+    { queryKeys: queryKeys.delivery.tracking, endpoint: '/api/delivery-tracking' },
+    // FIX (QA 2026-09-17, runda 3): odstranjena mrtva vrstica onlineOrders —
+    // ključ konsumerja vsebuje filter (se ne ujame) + '/api/online-orders-admin' je 404
     { queryKeys: queryKeys.delivery.zones, endpoint: '/api/delivery-zones' },
   ],
   furs: [
-    { queryKeys: queryKeys.furs.settings, endpoint: '/api/furs/settings' },
-    { queryKeys: queryKeys.furs.status, endpoint: '/api/furs/status' },
+    // FIX (QA 2026-09-17, runda 3): endpointa sta morala biti ista kot v FursManager.tsx —
+    // prej '/api/furs/settings' in '/api/furs/status' → 404 ob vsaki obiski modula
+    // (mrtev promet + odvečna 404 napaka v cache-u konsumerja)
+    { queryKeys: queryKeys.furs.settings, endpoint: '/api/settings' },
+    { queryKeys: queryKeys.furs.status, endpoint: '/api/furs' },
   ],
   webhooks: [
     { queryKeys: queryKeys.webhooks.all, endpoint: '/api/webhooks' },
@@ -114,7 +128,8 @@ export const modulePrefetchMap: Record<ModuleName, PrefetchConfig[]> = {
     { queryKeys: queryKeys.configuration.byTab('general'), endpoint: '/api/configuration?tab=general' },
   ],
   feedback: [
-    { queryKeys: queryKeys.feedback.all, endpoint: '/api/feedback' },
+    // FIX (QA 2026-09-17, runda 3): '/api/feedback' ne obstaja (404) — konsumer bere /api/guests/feedback
+    { queryKeys: queryKeys.feedback.all, endpoint: '/api/guests/feedback' },
   ],
   expenses: [
     { queryKeys: queryKeys.expenses.all, endpoint: '/api/expenses' },

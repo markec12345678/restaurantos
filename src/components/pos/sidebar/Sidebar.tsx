@@ -81,7 +81,9 @@ export const Sidebar = memo(function Sidebar() {
       <Button variant="ghost" size="icon" className="fixed top-3 left-3 z-50 md:hidden" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label={sidebarOpen ? 'Zapri meni' : 'Odpri meni'} aria-expanded={sidebarOpen}>
         {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </Button>
-      <aside aria-label="Glavna navigacija" className={cn('fixed md:static inset-y-0 left-0 z-50 flex flex-col w-56 bg-card border-r border-border transition-transform duration-300 md:translate-x-0', sidebarOpen ? 'translate-x-0' : '-translate-x-full')}>
+      {/* QA 2026-09-17 (tablet): pb-env(safe-area-inset-bottom) — Uporabniški indikator in
+          SidebarBottom ne zdrsnejo pod gesture-bar na iOS/Android tablicah (viewportFit=cover) */}
+      <aside aria-label="Glavna navigacija" className={cn('fixed md:static inset-y-0 left-0 z-50 flex flex-col w-56 bg-card border-r border-border transition-transform duration-300 md:translate-x-0 pb-[env(safe-area-inset-bottom)]', sidebarOpen ? 'translate-x-0' : '-translate-x-full')}>
         <div className="flex items-center gap-2.5 px-4 py-4 border-b border-border" aria-label="RestaurantOS - domača stran">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Store className="h-4.5 w-4.5" />

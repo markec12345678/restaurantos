@@ -115,7 +115,7 @@ for (const [id, name, rate, code] of [
   ['tax-95', 'Znižana DDV 9.5%', 9.5, 'R'],
   ['tax-0', 'Oproščeno 0%', 0.0, 'Z'],
 ]) {
-  await pg.query(`INSERT INTO "TaxRate" (id, name, rate, code, "isActive", "sortOrder", "createdAt", "updatedAt") VALUES ($1,$2,$3,$4,true,0,NOW(),NOW()) ON CONFLICT (id) DO NOTHING`, [id, name, rate, code])
+  await pg.query(`INSERT INTO "TaxRate" (id, name, rate, code, "locationId", "isActive", "sortOrder", "createdAt", "updatedAt") VALUES ($1,$2,$3,$4,'loc-1',true,0,NOW(),NOW()) ON CONFLICT (id) DO NOTHING`, [id, name, rate, code])
 }
 console.log('[init] ✅ TaxRates seedan')
 

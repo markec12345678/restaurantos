@@ -109,7 +109,15 @@ export const GlobalNotifications = memo(function GlobalNotifications() {
           <NotificationItem key={notif.id} notif={notif} onRemove={removeNotification} />
         ))}
       </div>
-      <button onClick={toggleSound} className="fixed bottom-3 right-3 z-40 flex h-8 w-8 items-center justify-center rounded-full bg-card border border-border shadow-sm hover:bg-accent transition-colors" title={soundEnabled ? 'Izklopi zvoke' : 'Vklopi zvoke'} aria-label={soundEnabled ? 'Izklopi zvoke' : 'Vklopi zvoke'}>
+      {/* QA 2026-09-17 (tablet): urejen sklad v spodnjem desnem kotu —
+          zvonček LEVO od AI gumba, nizke zaloge NAD AI gumbom;
+          env(safe-area-inset-bottom) spoštuje gesture-bar na tablicah */}
+      <button
+        onClick={toggleSound}
+        className="fixed bottom-[calc(1.75rem+env(safe-area-inset-bottom))] right-[5.5rem] z-40 flex h-9 w-9 items-center justify-center rounded-full bg-card border border-border shadow-sm hover:bg-accent transition-colors"
+        title={soundEnabled ? 'Izklopi zvoke' : 'Vklopi zvoke'}
+        aria-label={soundEnabled ? 'Izklopi zvoke' : 'Vklopi zvoke'}
+      >
         <Bell className={`h-3.5 w-3.5 ${soundEnabled ? 'text-primary' : 'text-muted-foreground'}`} />
       </button>
       {activeModule !== 'orders' && activeModule !== 'kitchen' && orderStats && orderStats.totalActive > 0 && (
@@ -118,7 +126,11 @@ export const GlobalNotifications = memo(function GlobalNotifications() {
         </button>
       )}
       {activeModule !== 'inventory' && lowStockData && lowStockData.count > 0 && (
-        <button onClick={() => usePOSStore.getState().setActiveModule('inventory')} className="fixed bottom-3 right-14 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 shadow-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors text-xs font-semibold">
+        <button
+          onClick={() => usePOSStore.getState().setActiveModule('inventory')}
+          className="fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-6 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 shadow-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors text-xs font-semibold"
+          aria-label={`${lowStockData.count} artiklov z nizko zalogo — odpri Zalogo`}
+        >
           <AlertTriangle className="h-3.5 w-3.5" />{lowStockData.count} nizkih zal.
         </button>
       )}
