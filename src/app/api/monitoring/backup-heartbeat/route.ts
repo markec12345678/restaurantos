@@ -75,7 +75,7 @@ export async function GET(req: Request) {
     // Read-only status (za backup monitoring skripte)
     const path = STATUS_PATH()
     try {
-      const raw = JSON.parse(readFileSync(path, 'utf8'))
+      const raw = JSON.parse(readFileSync(/*turbopackIgnore: true*/ path, 'utf8'))
       return NextResponse.json({ success: true, status: raw, path })
     } catch {
       return NextResponse.json({ success: true, status: null, path, message: 'Heartbeat še ni zabeležen' })

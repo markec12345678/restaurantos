@@ -45,7 +45,7 @@ const securityHeaders = [
 ]
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  ...(process.env.VERCEL ? {} : { output: "standalone" as const }),
   // FIX OOM (QA 2026-09-17, runda 3): v omejenem okolju (4 GB RAM, cgroup ~2.7 GB
   // za proces) je Turbopack dev compile velikih API-rut ob prvi kompilaciji
   // sprožil OOM killer (next-server ubit pri RSS 1.7 GB). 'full' vsili agresivno
@@ -63,6 +63,17 @@ const nextConfig: NextConfig = {
   // FIX BUG 25: Onemogoči ignoreBuildErrors — skriva prave TS napake
   typescript: {
     ignoreBuildErrors: false,
+  },
+  // FIX Vercel 308 MB function (Task 18, 2026-09-17): zmanjšaj traced node_modules.
+  // @prisma/engines (34 MB: podvojen query engine + CLI-only schema engine) in
+  // prisma CLI (27 MB) NIKOLI niso potrebni v serverless function — runtime engine
+  // je v .prisma/client/libquery_engine-*.so.node (ostane vključen).
+  outputFileTracingExcludes: {
+    '*': [
+      'node_modules/@prisma/engines/**',
+      'node_modules/prisma/**',
+      'node_modules/docx/**',
+    ],
   },
   reactStrictMode: true, // FIX: Omogoči strict mode za boljšo kakovost kode
   // next/image: optimizacija slik (WebP/AVIF konverzija, responsive sizing, lazy loading)

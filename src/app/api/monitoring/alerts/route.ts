@@ -58,8 +58,8 @@ async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 function readBackupStatus(): { lastSuccess: string | null; path: string } {
   const path = process.env.BACKUP_STATUS_FILE || '.backup-status.json'
   try {
-    if (!existsSync(path)) return { lastSuccess: null, path }
-    const raw = JSON.parse(readFileSync(path, 'utf8')) as { lastSuccess?: string }
+    if (!existsSync(/*turbopackIgnore: true*/ path)) return { lastSuccess: null, path }
+    const raw = JSON.parse(readFileSync(/*turbopackIgnore: true*/ path, 'utf8')) as { lastSuccess?: string }
     return { lastSuccess: raw.lastSuccess ?? null, path }
   } catch {
     return { lastSuccess: null, path }

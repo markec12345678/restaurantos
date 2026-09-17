@@ -55,7 +55,7 @@ function loadServerCaBundle(): string[] {
   const cas: string[] = []
   for (const p of caPaths) {
     try {
-      if (fs.existsSync(p)) cas.push(fs.readFileSync(p, 'utf8'))
+      if (fs.existsSync(/*turbopackIgnore: true*/ p)) cas.push(fs.readFileSync(/*turbopackIgnore: true*/ p, 'utf8'))
     } catch { /* brezpomembno — fallback na sistemske CA */ }
   }
   if (cas.length === 0) {
