@@ -6,6 +6,62 @@ All notable changes to RestaurantOS are documented in this file.
 > commit SHA, migracije, breaking changes, rezultati testov, znane težave,
 > deployment in rollback navodila.
 
+## [v1.3.3] — 2026-09-17 — QA runde 8–12: regresija, slovenizacija vnosov, živi Z-poročila, tablet optimizacija, lint ratchet 0
+
+| Polje | Vrednost |
+|-------|----------|
+| **Datum izdaje** | 2026-09-17 |
+| **Commit** | 7e2ca4d..4aa209a (15 commitov) |
+| **Migracije** | NE (brez sprememb sheme) |
+| **Breaking changes** | NE |
+| **Testni rezultati** | tsc clean; vitest **1423/1423**, 78 datotek, 0 errorov (+9 novih); eslint **0 napak / 0 opozoril** (`--max-warnings 0`, ratchet 1486 → 180 → 0); denarni tok browser-verificiran v vsaki QA rundi (agent-browser: prijava PIN → naročilo → modifier → oddaja → plačilo → račun z ZOI) |
+| **Znane težave** | FURS produkcija čaka p12 certifikat (sd.fu@gov.si); FINA/CIS HR fiskalizacija ni začeta; WS v devu ni mogoč (Next 16 custom server v devu ne hidrira RSC — NotificationCenter uporablja polling fallback); React "state update on unmounted" warning na "/" je dev-only artefakt (HMR/hidracijski race, produkcija neprizadeta) |
+| **Deployment** | enako kot v1.3.2: `bun install --frozen-lockfile && bun run db:generate && bun run db:migrate:deploy && bun run db:verify && bun run build && bun run start` |
+| **Rollback** | `git checkout v1.3.2` — brez migracij, povrnitev samo kode |
+
+### 🐛 Bugfixi (QA regresija)
+
+- **Payments FK:** `alternatePaymentTypeId: ""` → `null` (prazen niz je sprožil FK constraint napako pri plačilu)
+- **Prefetch cache poisoning:** odgovori brez `menuItems` normalizirani pred pisanjem v cache — crash modula Zaloga (`menuItems?.map is not a function`) rešen
+- **Z-report totalSales:** Prisma Decimal kot STRING `"0"` je bil truthy → naročila brez napitnika prispevala 0 € v totalSales; numeric fallback (`toNum(totalWithTip) || toNum(total)`) — totalSales je zdaj konsistenten z vsoto plačil
+- **Modifier cene:** cene modifierjev manjkale iz skupnih zneskov naročila + DDV rate fallback + podvojen prikaz postavke na računu
+- **Logout UI stuck:** `auth-changed` event ni bil obravnavan — UI je ostal ujet po odjavi
+- **Inventory error state:** 429/500 napake prikazane kot prazna zaloga → pravi error UI z retry
+- **Floorplan drag:** vlečenje miz delovalo SAMO z miško (mouse events) → migrirano na pointer events + `touch-action: none` (mize premikljive tudi na tablici)
+- **giftCard.code runtime bug:** Prisma select prinaša `cardNumber`, ne `code` — `as any` je maskiral `undefined` na runtimu
+- **Literal "0":** prikaz "0" pri brezplačnih modifierjih (`(mod.price ?? 0) > 0 && …`)
+- **PWA SW registracija** + stale-table select fix; odstranjeni mrtev prefetch endpointi
+
+### ✨ Nove funkcije
+
+- **Priljubljeni artikli (★)** na POS — hitri dostop do najpogostejših artiklov
+- **Offline-first login** + namig za offline način; prijava deluje brez omrežja
+- **Iskanje po seznamu naročil**
+- **Menu Engineering KPI** na Nadzorni plošči + low-stock filter in KPI vrednosti zaloge v Zalogi
+- **Avtomatski Z-osnutek ob zaprtju izmene** (`upsertZReportForDay`, audit `z_report_auto_draft`) — povzetek za vodjo je pripravljen samodejno, finalizacija = 1 klik
+- **Živi Z-osnutek na Nadzorni plošči:** strežniško osveževanje ob vsakem plačilu (fire-and-forget, nikoli ne pokvari plačila) + UI polling 30 s + takojšnja invalidacija v 6 točkah (plačila, split, pay-by-items, storno, void)
+- **"Predračun — št. ob plačilu"** placeholder namesto prazne vrstice "Račun št.:" (FURS semantika: številka nastane šele ob plačilu/fiskalizaciji)
+- **Grouped sidebar navigacija** + dark-mode kontrast v Notification Center
+
+### 🇸🇮 Slovenizacija & UX
+
+- **Slovenski format valute (X,XX €)** prek `formatEUR` na 100+ mestih
+- **Nova komponenta `DecimalInput`** — vejica ostane vidna med tipkanjem ("12,50"), ob blur normalizira na kanonično število; zamenjala vse `type="number"` vnose (~64 vnosov, 42 datotek: zaloga, blagajna, EOD, davki, darilni boni, zvestoba, dostava, stroški, napitnice, denarnica …)
+- **DDV stopnje z decimalno vejico** na računih, košarici in EOD poročilih ("DDV 9,50 %")
+- Vnosi za napitnino/gotovino sprejemajo vejico
+
+### 📱 Tablet optimizacija (pointer-coarse, WCAG 2.5.5 / 44px vodilo)
+
+- **1. del:** Prodaja (iskalnik, priljubljeni ★, naročilne kartice, košarica, popust chips, vrsta naročila) + safe area insets
+- **2. del:** KDS (status gumbi, filtri, header), Mize (pointer-events drag), plačilni dialog (načini plačila, split po osebah, po artiklih, napitnica) — 44px+ tarče z `touch-manipulation`; namizni vmesnik ostane kompakten
+
+### 🧹 Quality / CI
+
+- **Lint ratchet 1486 → 0:** 141 neuporabljenih importov odstranjenih v 146 datotekah, 25 lokalnih deklaracij preimenovanih, `any` casti odstranjeni (orders dossier), 16× `console.*` → strukturirani logger, dvojno štetje `no-unused-vars` odpravljeno, `tests/` izvzeti iz `no-console` — vsak nov warning zdaj fail-a CI
+- **CI trigger fix:** workflow ni bil sprožen ob push-u (popravljen)
+- **WS-v-dev raziskan in zavrnjen:** Next 16.3.4 custom server v devu ne hidrira RSC (HTTP + WS 101 delujeta, stran zataki na auth loaderju) — dokumentirano v `server.js`; NotificationCenter obdrži polling fallback
+- **Testi:** 4 pre-existing `ERR_INVALID_URL_SCHEME` unhandled rejection rešene (`DATABASE_URL` v vitest test.env — PrismaClient v testih mockan) — testna suite 100 % čista
+
 ## [v1.3.2] — 2026-09-09 — MODEL A 2. krog (#8/#9) + FURS spec-compliance + URADNI testni certifikati
 
 | Polje | Vrednost |

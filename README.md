@@ -1,10 +1,10 @@
-# RestaurantOS v1.0.3
+# RestaurantOS v1.3.3
 
-[![Version](https://img.shields.io/badge/version-1.0.3-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.3.3-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-5%2F5%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-965%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Tests](https://img.shields.io/badge/tests-1423%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
 [![Audit](https://img.shields.io/badge/audit-17%20rounds%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-%E2%98%85%E2%98%85%E2%98%85%E2%98%85%C2%BD-f59e0b?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
@@ -24,6 +24,20 @@
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
 > Pilot-ready POS sistem za restavracije z FURS potrjevanjem, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (17 audit rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.3.3 (QA runde 8–12)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| 🧾 **Z-poročila** | Avtomatski Z-osnutek ob zaprtju izmene + živ Z-osnutek na Nadzorni plošči (osvežitev ob vsakem plačilu, 30 s polling med napravami) — finalizacija = 1 klik |
+| ⭐ **POS** | Priljubljeni artikli (★), iskanje po seznamu naročil, offline-first login |
+| 🇸🇮 **Slovenizacija** | Slovenski format valute (X,XX €) na 100+ mestih; nova `DecimalInput` komponenta — vejica ostane vidna med tipkanjem ("12,50"); DDV stopnje "9,50 %" na računih |
+| 📱 **Tablet** | Optimizacija za dotične naprave (WCAG 2.5.5, 44px tarče): Prodaja, KDS, Mize (pointer-events drag), plačilni dialog — namizje ostane kompaktno |
+| 🐛 **Stabilnost** | 10 bugfixov denarnega toka (Payments FK, prefetch cache poisoning, modifier cene, Z-report totalSales, floorplan drag, logout, inventory error state …) |
+| 🧹 **Quality** | Lint ratchet 1486 → **0** (`--max-warnings 0`), 1423/1423 testov, 0 errorjev, CI trigger fix |
+| 🧾 **UX** | "Predračun — št. ob plačilu" namesto prazne vrstice (FURS semantika); Menu Engineering KPI; low-stock filter z vrednostjo zaloge |
+
+Podrobnosti: [CHANGELOG v1.3.3](CHANGELOG.md).
 
 ### ✨ Nove funkcije v v1.0.3
 
@@ -86,7 +100,7 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 - **4x ceneje od Toast**, 2x ceneje od Square pri primerljivi funkcionalnosti
 - **FURS-ready Next.js POS** na slovenskem trgu (certifikat pending — pridobitev na eDavki portal)
 - **A+ varnostna ocena** (0 HIGH odprtih, 54 security testov, P0-C1..C5 hardening complete) — glej [Security Policy](SECURITY.md) za celoten pregled
-- **9.2/10 realna ocena** — production-ready za single-tenant pilot (P0-C1..C5 hardening complete, 901/901 testov pass)
+- **9.2/10 realna ocena** — production-ready za single-tenant pilot (P0-C1..C5 hardening complete, 1423/1423 unit testov pass)
 - **0 kritičnih vrzeli** — vse IDOR/FURS/tenant isolation ranljivosti zaprte. Preostalo: FURS certifikat (pridobitev na eDavki), Stripe production keys, PWA polish.
 
 ---
@@ -130,16 +144,17 @@ bun run dev
 
 | Modul | Opis | Status |
 |-------|------|:---:|
-| **POS** | Sprejemanje naročil, mize, plačila, popusti | ✅ |
+| **POS** | Sprejemanje naročil, mize, plačila, popusti, priljubljeni artikli | ✅ |
+| **Tablet** | Dotične tarče 44px+ (pointer-coarse), safe areas, floorplan drag | ✅ |
 | **KDS** | Kitchen Display System z WebSocket, station filter, sound, bump | ✅ |
 | **Waiter** | Natakar interfejs z real-time posodobitvami | ✅ |
 | **FURS** | Davčno potrjevanje računov (ZDDV-1), storno, e-invoice book | ⏳ Cert pending |
 | **Zaloga** | Inventory management, HACCP, recepti, purchase orders | ✅ |
 | **Računovodstvo** | Trial Balance, P&L, Balance Sheet, Journal Entries | ✅ |
-| **Z-Report** | Zapiranje izmene z gotovinskim usklajevanjem | ✅ |
+| **Z-Report** | Zapiranje izmene z gotovinskim usklajevanjem + avtomatski osnutek (živ na plošči) | ✅ |
 | **Multi-tenant** | Branch isolation z locationId (30+ modelov, glej [Known Issues](docs/KNOWN_ISSUES.md)) | ✅ |
 | **Offline** | IndexedDB queue + Background Sync | ✅ |
-| **PWA** | Service Worker, offline-capable, installable (push TBD) | ⏳ P0-3 |
+| **PWA** | Service Worker (produkcija), offline-capable, installable (push TBD) | ⚠️ P0-3 |
 | **Plačilni gateway** | Stripe/SumUp integracija | ⏳ P0-2 |
 | **Loyalty** | Program zvestobe strank | ⏳ P1 |
 | **Rezervacije** | Spletna rezervacija miz | ⏳ P1 |
@@ -161,12 +176,13 @@ bun run dev
 
 | Metrika | Vrednost |
 |---------|----------|
-| Commitov | 430+ |
+| Commitov | 65 |
 | API endpointov | 211 |
 | React komponent | 659 |
 | Prisma modelov | 92 |
 | Tabel v bazi | 94 |
 | Jezikov | 5 (sl, en, it, hr, de) |
+| Unit testov PASS | 1423/1423 (100 %) — 78 datotek, 0 errorjev |
 | E2E testov PASS | 144/149 (96.6%) — 5 odprtih, glej [Known Issues](docs/KNOWN_ISSUES.md) |
 | Varnostna ocena | A+ (0 HIGH odprtih, P0-C1..C5 complete, glej [Security Policy](SECURITY.md)) |
 | Koda (vrstice) | 63.389 |
@@ -233,14 +249,14 @@ src/
 ## 🗺️ Roadmap (12 mesecev)
 
 ### P0 - Kritično (0-3 meseci)
-- [ ] P0-1: FURS produkcijska certifikacija (.p12)
+- [ ] P0-1: FURS produkcijska certifikacija (.p12) — zahteva na sd.fu@gov.si
 - [ ] P0-2: Stripe/SumUp plačilni gateway
-- [ ] P0-3: Mobilna PWA aplikacija (offline)
+- [ ] P0-3: Mobilna PWA aplikacija (offline) — SW registracija popravljena, prod build test odstoji
 - [x] P0-4: Sentry monitoring
 - [x] P0-5: Custom domena (restaurantos.app)
 
 ### P1 - Visoko (3-6 mesecev)
-- [ ] P1-1: Mobile-responsive dashboard
+- [x] P1-1: Tablet optimizacija (pointer-coarse 44px tarče: Prodaja, KDS, Mize, plačilni dialog) — mobile-responsive dashboard v nadaljevanju
 - [x] P1-2: Kitchen Display System (KDS) ✅ Implementirano (WebSocket, station filter, sound, bump, fullscreen)
 - [ ] P1-3: Spletne naročilne forme na domeni
 - [ ] P1-4: Loyalty program
