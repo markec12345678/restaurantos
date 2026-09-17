@@ -62,6 +62,8 @@ export const EmailTab = memo(function EmailTab({ form, updateField }: {
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [preview, setPreview] = useState<DigestPreviewData | null>(null)
+  const [sending, setSending] = useState(false)
+  const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null)
 
   const smtpHost = (form.emailSmtpHost as string) || ''
   const smtpPort = (form.emailSmtpPort as string) || ''
@@ -123,6 +125,49 @@ export const EmailTab = memo(function EmailTab({ form, updateField }: {
       toast.error('Predogled ni uspel — preveri povezavo/pravice')
     } finally {
       setPreviewLoading(false)
+    }
+  }
+
+  // Task 22: ročno pošiljanje povzetka — zapre zanko konfiguriraj → testiraj →
+  // predogled → pošlji. Idempotentno (API pošlje samo pending/failed logom,
+  // 'sent' prejemnikov ne spam-a ponovno).
+  async function handleSendNow() {
+    setSending(true)
+    setSendResult(null)
+    try {
+      const res = await authFetch('/api/reports/digest-send', { method: 'POST' })
+      const json = (await res.json()) as {
+        success?: boolean
+        skipped?: boolean
+        reason?: string
+        error?: string
+        date?: string
+        sent?: number
+        failed?: number
+        results?: Array<{ to: string; ok: boolean; error?: string }>
+      }
+      if (res.ok && json.skipped) {
+        setSendResult({ ok: true, message: json.reason || 'Povzetek je bil že poslan' })
+        toast.info('Povzetek je bil že poslan')
+      } else if (res.ok && json.success && (json.sent ?? 0) > 0) {
+        setSendResult({
+          ok: true,
+          message: `Poslano ${json.sent} prejemnikom za ${json.date}${json.failed ? ` — ${json.failed} neuspešnih` : ''}`,
+        })
+        toast.success(`Dnevni povzetek poslan (${json.sent})`)
+      } else if (res.ok && (json.failed ?? 0) > 0 && json.results?.length) {
+        const firstErr = json.results.find(r => !r.ok)?.error
+        setSendResult({ ok: false, message: `${json.failed} pošiljanj ni uspelo: ${firstErr || 'neznana napaka'}` })
+        toast.error('Pošiljanje povzetka ni uspelo')
+      } else {
+        setSendResult({ ok: false, message: json.error || `Napaka ${res.status}` })
+        toast.error('Pošiljanje povzetka ni uspelo')
+      }
+    } catch {
+      setSendResult({ ok: false, message: 'Povezava s strežnikom ni uspela' })
+      toast.error('Pošiljanje povzetka ni uspelo')
+    } finally {
+      setSending(false)
     }
   }
 
@@ -393,7 +438,37 @@ export const EmailTab = memo(function EmailTab({ form, updateField }: {
                 Odpri HTML predogled
               </Button>
             )}
+            <Button
+              onClick={handleSendNow}
+              disabled={sending || !emailEnabled || !hasSmtpConfig || !hasRecipients}
+              className="btn-press"
+              title={
+                !emailEnabled || !hasSmtpConfig || !hasRecipients
+                  ? 'Omogoči samodejna pošiljanja, SMTP in prejemnike (in shrani)'
+                  : 'Pošlji povzetek za včeraj takoj'
+              }
+            >
+              <Send className="h-4 w-4 mr-1" />
+              {sending ? 'Pošiljam...' : 'Pošlji zdaj'}
+            </Button>
           </div>
+          {sendResult?.ok && (
+            <p className="text-sm text-emerald-600 dark:text-emerald-400 flex items-start gap-1.5 animate-fade-in-up">
+              <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+              {sendResult.message}
+            </p>
+          )}
+          {sendResult && !sendResult.ok && (
+            <p className="text-sm text-red-600 dark:text-red-400 flex items-start gap-1.5 animate-fade-in-up break-words">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              {sendResult.message}
+            </p>
+          )}
+          {!sendResult && (!emailEnabled || !hasSmtpConfig || !hasRecipients) && (
+            <p className="text-xs text-muted-foreground">
+              Za ročno pošiljanje omogoči samodejna pošiljanja, nastavi SMTP in dodaj prejemnike (nato Shrani).
+            </p>
+          )}
 
           {previewLoading && (
             <div className="space-y-2">
