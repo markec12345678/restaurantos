@@ -2,11 +2,11 @@
 // CIS — Hrvaška fiskalizacija (FINA / Porezna uprava)
 // Barrel file — re-exports vse iz podmodulov
 // ============================================
-// STATUS (Task 26-a): Echo/povezljivost ŽIVA (Task 23) + ZKI in RacunZahtjev
-// gradnja (Task 24-b) + XML-dsig enveloped podpis s FINA P12 (canonicalize
-// + signRacunZahtjev + loadCisP12). Za polno oddajo računa še: POŠILJANJE
-// podpisanega envelope-a prek transport.ts + parsing RacunOdgovor (JIR).
-// Glej docs/ in worklog Task 23/24/26.
+// STATUS (runda 27): Fiskalizacija KONČNA end-to-end — Echo/povezljivost
+// (Task 23) + ZKI in RacunZahtjev gradnja (Task 24-b) + XML-dsig enveloped
+// podpis s FINA P12 (Task 26-a) + POŠILJANJE + RacunOdgovor/JIR parsing
+// (runda 27, send.ts). Za produkcijski promet manjka samo FINA P12
+// certifikat (demo: digicert.finastre.hr). Glej docs/ in worklog Task 23/24/26/27.
 // ============================================
 
 export type { CisEnvironment, CisConnectivityResult, CisConfigValidation } from './types'
@@ -47,3 +47,10 @@ export {
   locateRacunZahtjev,
   pemToBase64Der,
 } from './xmlsig'
+export type { CisSendResult, CisRacunOdgovor, CisSignedRequest } from './send'
+export {
+  sendRacunZahtjev,
+  buildSignedRacunZahtjev,
+  parseRacunOdgovor,
+  isValidJir,
+} from './send'
