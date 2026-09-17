@@ -1,13 +1,22 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import { Button } from '@/components/ui/button'
+import { Cookie, X, ShieldCheck } from 'lucide-react'
 import { logger } from '@/lib/logger'
 
 // ============================================
 // COOKIE CONSENT BANNER (GDPR)
 // ============================================
-// Prikazuje se ob prvem obisku.
-// Nujni piškotki so veddo aktivni (brez privolitve).
+// QA runda 16 REDESIGN: plavajoča kartica (desno spodaj) namesto
+// full-width traku — prej je banner (z-[100], bottom-0, celotna širina)
+// POKRIVAL PIN-tipkovnico in glavne gumbe na tablicah → interceptal
+// prve klike ob prvem obisku (worklog runda 15, točka 4).
+// Kartica je neblokirajoča: nePREKRIVA interaktivnih elementov,
+// ima slide-in animacijo, shadcn gumbe (44px tarče na tablicah)
+// in design token-e (deluje v dark mode).
+// Nujni piškotki so vedno aktivni (brez privolitve).
 // Analitski piškotki zahtevajo privolitev.
 // ============================================
 
@@ -25,6 +34,8 @@ export function CookieConsent() {
   const [show, setShow] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [analytics, setAnalytics] = useState(false)
+  // WCAG 2.3.3: upoštevaj prefers-reduced-motion — brez animacij
+  const reduceMotion = useReducedMotion()
 
   useEffect(() => {
     try {
@@ -75,98 +86,126 @@ export function CookieConsent() {
     }
   }
 
-  if (!show) return null
-
+  // Opomba: komponenta ostane mountana — AnimatePresence znotraj poskrbi za
+  // exit animacijo ob setShow(false) (brez tega bi banner izginil trdo)
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-[100] bg-gray-900 text-white shadow-2xl">
-      <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-        {!showSettings ? (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex-1 text-sm">
-              <p>
-                Uporabljamo piškotke za zagotavljanje osnovne funkcionalnosti in izboljšanje vaše izkušnje.
-                Nujni piškotki so vedno aktivni. Analitske piškotke lahko omogočite spodaj.{' '}
-                <a href="/privacy-policy" className="text-amber-400 hover:text-amber-300 underline">
-                  Politika zasebnosti
-                </a>
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2 shrink-0">
-              <button
-                onClick={() => setShowSettings(true)}
-                className="px-4 py-2 text-sm text-gray-300 hover:text-white border border-gray-600 rounded-lg hover:bg-gray-800 transition"
-              >
-                Nastavitve
-              </button>
-              <button
-                onClick={acceptNecessary}
-                className="px-4 py-2 text-sm text-white border border-gray-600 rounded-lg hover:bg-gray-800 transition"
-              >
-                Samo nujni
-              </button>
-              <button
-                onClick={acceptAll}
-                className="px-4 py-2 text-sm text-gray-900 bg-amber-500 hover:bg-amber-400 rounded-lg font-medium transition"
-              >
-                Sprejmi vse
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Nastavitve piškotkov</h3>
-              <button
-                onClick={() => setShowSettings(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Nujni piškotki */}
-            <div className="flex items-start justify-between p-3 bg-gray-800 rounded-lg">
-              <div className="flex-1">
-                <p className="font-medium text-sm">Nujni piškotki</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  NEXT_LOCALE (jezik), pos_auth_token (prijava) — vedno aktivni
-                </p>
-              </div>
-              <span className="text-xs text-green-400 font-medium">Vedno omogočeno</span>
-            </div>
-
-            {/* Analitski piškotki */}
-            <div className="flex items-start justify-between p-3 bg-gray-800 rounded-lg">
-              <div className="flex-1">
-                <p className="font-medium text-sm">Analitski piškotki</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  Sentry Session Replay (1% vzorec, anonimizirano), Vercel Analytics
-                </p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={analytics}
-                  onChange={(e) => setAnalytics(e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-11 h-6 bg-gray-600 peer-checked:bg-amber-500 rounded-full peer transition relative">
-                  <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition ${analytics ? 'translate-x-5' : ''}`} />
+    <AnimatePresence>
+      {show && (
+        <motion.div
+          role="dialog"
+          aria-label="Nastavitve piškotkov (GDPR privolitev)"
+          initial={reduceMotion ? false : { opacity: 0, y: 24, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={reduceMotion ? undefined : { opacity: 0, y: 24, scale: 0.96 }}
+          transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 320, damping: 28 }}
+          className="fixed bottom-3 right-3 left-3 sm:left-auto sm:bottom-4 sm:right-4 z-[100] sm:max-w-sm rounded-xl border bg-popover text-popover-foreground shadow-2xl"
+        >
+          {!showSettings ? (
+            <div className="p-4 space-y-3">
+              <div className="flex items-start gap-2.5">
+                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/15">
+                  <Cookie className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
                 </div>
-              </label>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold leading-tight">Piškotki</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Nujni so vedno aktivni; analitika samo z vašo privolitvijo.{' '}
+                    <a href="/privacy-policy" className="text-amber-600 dark:text-amber-400 underline underline-offset-2 hover:opacity-80">
+                      Politika zasebnosti
+                    </a>
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowSettings(true)}
+                  className="pointer-coarse:h-11 pointer-coarse:px-4"
+                >
+                  Nastavitve
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={acceptNecessary}
+                  className="pointer-coarse:h-11 pointer-coarse:px-4"
+                >
+                  Samo nujni
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={acceptAll}
+                  className="pointer-coarse:h-11 pointer-coarse:px-4 bg-amber-500 hover:bg-amber-600 text-white"
+                >
+                  Sprejmi vse
+                </Button>
+              </div>
             </div>
+          ) : (
+            <div className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="flex items-center gap-2 text-sm font-semibold">
+                  <ShieldCheck className="h-4 w-4 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                  Nastavitve piškotkov
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Zapri nastavitve piškotkov"
+                  onClick={() => setShowSettings(false)}
+                  className="h-8 w-8"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </Button>
+              </div>
 
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={saveCustom}
-                className="px-4 py-2 text-sm text-gray-900 bg-amber-500 hover:bg-amber-400 rounded-lg font-medium transition"
-              >
-                Shrani nastavitve
-              </button>
+              {/* Nujni piškotki */}
+              <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/50 p-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">Nujni piškotki</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    NEXT_LOCALE (jezik), pos_auth_token (prijava) — vedno aktivni
+                  </p>
+                </div>
+                <span className="shrink-0 text-xs font-medium text-green-600 dark:text-green-400">Vedno omogočeno</span>
+              </div>
+
+              {/* Analitski piškotki */}
+              <div className="flex items-start justify-between gap-3 rounded-lg border bg-muted/50 p-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">Analitski piškotki</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Sentry Session Replay (1% vzorec, anonimizirano), Vercel Analytics
+                  </p>
+                </div>
+                <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    checked={analytics}
+                    onChange={(e) => setAnalytics(e.target.checked)}
+                    className="sr-only peer"
+                    aria-label="Omogoči analitske piškotke"
+                  />
+                  <div className="w-11 h-6 bg-muted-foreground/30 peer-checked:bg-amber-500 rounded-full peer transition relative">
+                    <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition ${analytics ? 'translate-x-5' : ''}`} />
+                  </div>
+                </label>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  size="sm"
+                  onClick={saveCustom}
+                  className="pointer-coarse:h-11 pointer-coarse:px-4 bg-amber-500 hover:bg-amber-600 text-white"
+                >
+                  Shrani nastavitve
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
-    </div>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

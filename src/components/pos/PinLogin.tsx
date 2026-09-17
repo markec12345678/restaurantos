@@ -43,7 +43,7 @@ export const PinLogin = memo(function PinLogin({ onLogin, onSkip }: PinLoginProp
 
   return (
     <div className="flex items-center justify-center h-full bg-background" role="dialog" aria-modal="true" aria-label="PIN prijava">
-      <Card className="w-full max-w-sm mx-4">
+      <Card className="w-full max-w-sm mx-4" data-testid="pin-login-card">
         <CardContent className="p-6 space-y-6">
           {/* Logo */}
           <div className="text-center">
