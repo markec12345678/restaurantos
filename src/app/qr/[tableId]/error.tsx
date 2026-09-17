@@ -13,12 +13,12 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
 
   const isDev = process.env.NODE_ENV === 'development'
   return (
-    <div style={{ padding: 40, maxWidth: 600, margin: '0 auto', fontFamily: 'system-ui, sans-serif' }}>
-      <h2 style={{ color: '#ef4444' }}>Napaka</h2>
-      <p>Prišlo je do napake pri nalaganju menija za mizo.</p>
-      {error?.digest && <p style={{ color: '#888', fontSize: 12 }}>Koda napake: {error.digest}</p>}
-      {isDev && <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 8, overflow: 'auto', fontSize: 12 }}>{error?.message || 'Neznana napaka'}</pre>}
-      <button onClick={reset} style={{ marginTop: 20, padding: '10px 24px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}>Poskusi znova</button>
+    <div className="p-8 sm:p-10 max-w-xl mx-auto">
+      <h2 className="text-destructive text-xl font-semibold">Napaka</h2>
+      <p className="text-foreground/90 mt-2">Prišlo je do napake pri nalaganju menija za mizo.</p>
+      {error?.digest && <p className="text-muted-foreground text-xs mt-2">Koda napake: {error.digest}</p>}
+      {isDev && <pre className="bg-muted text-foreground/80 rounded-lg p-4 overflow-auto text-xs mt-4 font-mono">{error?.message || 'Neznana napaka'}</pre>}
+      <button onClick={reset} className="bg-primary text-primary-foreground rounded-lg px-6 py-2.5 font-medium min-h-[44px] cursor-pointer hover:opacity-90 transition-opacity mt-5">Poskusi znova</button>
     </div>
   )
 }

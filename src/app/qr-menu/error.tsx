@@ -21,36 +21,28 @@ export default function QRMenuError({
   const isDev = process.env.NODE_ENV === 'development'
 
   return (
-    <div style={{ padding: 40, maxWidth: 600, margin: '0 auto', fontFamily: 'system-ui, sans-serif' }}>
-      <h2 style={{ color: '#ef4444' }}>Napaka — QR Jedilnik</h2>
-      <p>Prišlo je do napake pri nalaganju jedilnika. Prosimo, poskusite znova ali povprašajte natakarja.</p>
+    <div className="p-8 sm:p-10 max-w-xl mx-auto">
+      <h2 className="text-destructive text-xl font-semibold">Napaka — QR Jedilnik</h2>
+      <p className="text-foreground/90 mt-2">Prišlo je do napake pri nalaganju jedilnika. Prosimo, poskusite znova ali povprašajte natakarja.</p>
       {error?.digest && (
-        <p style={{ color: '#888', fontSize: 12 }}>Koda napake: {error.digest}</p>
+        <p className="text-muted-foreground text-xs mt-2">Koda napake: {error.digest}</p>
       )}
       {/* Podrobnosti napake samo v development načinu — varnost v produkciji */}
       {isDev && (
-        <pre style={{ background: '#f5f5f5', padding: 16, borderRadius: 8, overflow: 'auto', fontSize: 12 }}>
+        <pre className="bg-muted text-foreground/80 rounded-lg p-4 overflow-auto text-xs mt-4 font-mono">
           {error?.message || 'Neznana napaka'}
         </pre>
       )}
-      <div style={{ marginTop: 20, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+      <div className="mt-5 flex flex-wrap gap-3">
         <button
           onClick={reset}
-          style={{ padding: '10px 24px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}
+          className="bg-primary text-primary-foreground rounded-lg px-6 py-2.5 font-medium min-h-[44px] cursor-pointer hover:opacity-90 transition-opacity"
         >
           Poskusi znova
         </button>
         <Link
           href="/"
-          style={{
-            padding: '10px 24px',
-            background: '#6b7280',
-            color: 'white',
-            borderRadius: 8,
-            textDecoration: 'none',
-            display: 'inline-flex',
-            alignItems: 'center',
-          }}
+          className="bg-secondary text-secondary-foreground rounded-lg px-6 py-2.5 font-medium min-h-[44px] cursor-pointer inline-flex items-center hover:opacity-90 transition-opacity"
         >
           Nazaj na začetno stran
         </Link>
