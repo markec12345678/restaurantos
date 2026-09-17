@@ -19,17 +19,31 @@ import { ensureEncrypted, isEncrypted } from '../src/lib/crypto/secrets'
 
 const db = new PrismaClient()
 
+// FIX runda 14 (CI Lint & Typecheck TS2339/TS2345): prej je bil `model` tipiziran
+// z ročnim objektom SAMO z findMany (brez update → TS2339) in realni Prisma
+// delegati (LocationDelegate, WebhookDelegate …) NISO bili dodeljivi, ker
+// findMany vrača tipizirane payload-e, ne Record<string, string|null>.
+// REŠITEV: minimalni strukturni tip z OBEH metodah + ENA lokalizirana dvojna
+// pretvorba (unknown → SecretDelegate) na klicni meji — `any` ostaja prepovedan
+// (no-explicit-any), sprememba pa je dokumentirana in kontrolirana.
+type SecretDelegate = {
+  findMany: (args: {
+    where: Record<string, unknown>
+    select: Record<string, boolean>
+  }) => Promise<Array<Record<string, unknown>>>
+  update: (args: {
+    where: Record<string, unknown>
+    data: Record<string, string>
+  }) => Promise<unknown>
+}
+
+const asSecretDelegate = (model: unknown): SecretDelegate => model as SecretDelegate
+
 async function migrateTable(
   tableName: string,
   idField: string,
   secretField: string,
-  // Prisma model delegate — dinamična tabela (generic pattern, namesto any)
-  model: {
-    findMany: (args: {
-      where: Record<string, unknown>
-      select: Record<string, boolean>
-    }) => Promise<Array<Record<string, string | null>>>
-  }
+  model: SecretDelegate
 ): Promise<{ total: number; migrated: number; skipped: number }> {
   const records = await model.findMany({
     where: { [secretField]: { not: '' } },
@@ -40,7 +54,7 @@ async function migrateTable(
   let skipped = 0
 
   for (const record of records) {
-    const currentValue = record[secretField] as string
+    const currentValue = String(record[secretField] ?? '')
 
     // Skip if already encrypted
     if (isEncrypted(currentValue)) {
@@ -50,12 +64,13 @@ async function migrateTable(
 
     // Encrypt and update
     const encrypted = ensureEncrypted(currentValue)
+    const recordId = String(record[idField])
     await model.update({
-      where: { [idField]: record[idField] },
+      where: { [idField]: recordId },
       data: { [secretField]: encrypted },
     })
     migrated++
-    console.log(`  [${tableName}] ${record[idField]}: encrypted`)
+    console.log(`  [${tableName}] ${recordId}: encrypted`)
   }
 
   return { total: records.length, migrated, skipped }
@@ -72,32 +87,32 @@ async function main() {
 
   // 1. Location.fursCertPassword
   console.log('1. Location.fursCertPassword...')
-  const loc = await migrateTable('Location', 'id', 'fursCertPassword', db.location)
+  const loc = await migrateTable('Location', 'id', 'fursCertPassword', asSecretDelegate(db.location))
   console.log(`   Total: ${loc.total}, Migrated: ${loc.migrated}, Already encrypted: ${loc.skipped}\n`)
 
   // 2. RestaurantSettings.fursCertPassword
   console.log('2. RestaurantSettings.fursCertPassword...')
-  const rsFurs = await migrateTable('RestaurantSettings', 'id', 'fursCertPassword', db.restaurantSettings)
+  const rsFurs = await migrateTable('RestaurantSettings', 'id', 'fursCertPassword', asSecretDelegate(db.restaurantSettings))
   console.log(`   Total: ${rsFurs.total}, Migrated: ${rsFurs.migrated}, Already encrypted: ${rsFurs.skipped}\n`)
 
   // 3. RestaurantSettings.emailSmtpPassword
   console.log('3. RestaurantSettings.emailSmtpPassword...')
-  const rsSmtp = await migrateTable('RestaurantSettings', 'id', 'emailSmtpPassword', db.restaurantSettings)
+  const rsSmtp = await migrateTable('RestaurantSettings', 'id', 'emailSmtpPassword', asSecretDelegate(db.restaurantSettings))
   console.log(`   Total: ${rsSmtp.total}, Migrated: ${rsSmtp.migrated}, Already encrypted: ${rsSmtp.skipped}\n`)
 
   // 4. Webhook.secret
   console.log('4. Webhook.secret...')
-  const wh = await migrateTable('Webhook', 'id', 'secret', db.webhook)
+  const wh = await migrateTable('Webhook', 'id', 'secret', asSecretDelegate(db.webhook))
   console.log(`   Total: ${wh.total}, Migrated: ${wh.migrated}, Already encrypted: ${wh.skipped}\n`)
 
   // 5. Integration.apiKey
   console.log('5. Integration.apiKey...')
-  const intKey = await migrateTable('Integration', 'id', 'apiKey', db.integration)
+  const intKey = await migrateTable('Integration', 'id', 'apiKey', asSecretDelegate(db.integration))
   console.log(`   Total: ${intKey.total}, Migrated: ${intKey.migrated}, Already encrypted: ${intKey.skipped}\n`)
 
   // 6. Integration.apiSecret
   console.log('6. Integration.apiSecret...')
-  const intSecret = await migrateTable('Integration', 'id', 'apiSecret', db.integration)
+  const intSecret = await migrateTable('Integration', 'id', 'apiSecret', asSecretDelegate(db.integration))
   console.log(`   Total: ${intSecret.total}, Migrated: ${intSecret.migrated}, Already encrypted: ${intSecret.skipped}\n`)
 
   const totalMigrated = loc.migrated + rsFurs.migrated + rsSmtp.migrated + wh.migrated + intKey.migrated + intSecret.migrated
