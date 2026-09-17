@@ -18,6 +18,10 @@ export const updateSettingsSchema = z.object({
   fursCertPath: z.string().max(500).optional(),
   fursCertPassword: z.string().max(200).optional(),
   fursEnvironment: z.enum(['test', 'production']).optional(),
+  // Task 24: CIS (Hrvaška fiskalizacija — FINA P12) — zrcali FURS polja
+  cisCertPath: z.string().max(500).optional(),
+  cisCertPassword: z.string().max(200).optional(),
+  cisEnvironment: z.enum(['test', 'production']).optional(),
   // FIX issue #51: emailSmtpPassword je bil manjkal v Zod shemi — TypeScript error
   emailSmtpHost: z.string().max(200).optional(),
   emailSmtpPort: z.coerce.number().int().min(1).max(65535).optional(),

@@ -1253,6 +1253,13 @@ model RestaurantSettings {
   fursCertPath      String   @default("")
   fursCertPassword  String   @default("")
   fursEnvironment   String   @default("test")
+  // --- CIS certifikat (Hrvaška fiskalizacija — FINA P12) ---
+  // Task 24: zrcali FURS vzorec. CIS TLS NE uporablja odjemalskega certifikata
+  // (glej src/lib/cis/types.ts) — P12 se uporablja IZKLJUČNO za XML-dsig podpis
+  // soap:Body sporočil (RacunZahtjev). Demo: FINA DigiCert portal.
+  cisCertPath       String   @default("")
+  cisCertPassword   String   @default("")
+  cisEnvironment    String   @default("test")
   // --- DDV nastavitve ---
   defaultVatRate    Decimal   @default(22.00)  // FIX: Decimal za davčno stopnjo
   reducedVatRate    Decimal   @default(9.50)   // FIX: Decimal za davčno stopnjo

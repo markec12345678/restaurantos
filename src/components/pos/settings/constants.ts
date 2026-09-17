@@ -22,6 +22,9 @@ export interface SettingsData {
   fursCertPath: string
   fursCertPassword: string
   fursEnvironment: string
+  cisCertPath: string
+  cisCertPassword: string
+  cisEnvironment: string
   defaultVatRate: number
   reducedVatRate: number
   receiptFooter: string

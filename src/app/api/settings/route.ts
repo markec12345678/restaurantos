@@ -57,8 +57,9 @@ export async function GET(req: Request) {
 
     // FIX BUG 11 + FIX SECURITY: Ne izpostavi občutljivih podatkov v GET odgovoru
     // - fursCertPassword, fursCertPath: FURS certifikat (že maskirano prej)
+    // - cisCertPassword, cisCertPath: CIS certifikat (Task 24, isti vzorec)
     // - emailSmtpPassword: SMTP geslo za pošiljanje email poročil (prej leakano!)
-    const { fursCertPassword, fursCertPath, emailSmtpPassword, ...safeSettings } = settings
+    const { fursCertPassword, fursCertPath, emailSmtpPassword, cisCertPassword, cisCertPath, ...safeSettings } = settings
 
     // FIX P14: Preberi AI/integration nastavitve iz apiKeys JSON field
     let integrationSettings: Record<string, unknown> = {}
@@ -76,6 +77,10 @@ export async function GET(req: Request) {
       fursCertPassword: fursCertPassword ? '••••••' : '',
       fursCertPath: fursCertPath ? '••••••' : '', // Skrij pot do certifikata
       hasFursCert: !!(fursCertPath && fursCertPassword), // Povej samo ali obstaja
+      // Task 24: CIS polja — isti maskirni vzorec kot FURS
+      cisCertPassword: cisCertPassword ? '••••••' : '',
+      cisCertPath: cisCertPath ? '••••••' : '',
+      hasCisCert: !!(cisCertPath && cisCertPassword),
       emailSmtpPassword: emailSmtpPassword ? '••••••' : '',
       hasEmailConfig: !!(emailSmtpPassword && settings.emailSmtpUser),
       // Integration nastavitve (maskiraj gesla/tokene)
@@ -137,6 +142,9 @@ export async function PUT(req: Request) {
           fursCertPath: data.fursCertPath || '',
           fursCertPassword: data.fursCertPassword || '',
           fursEnvironment: data.fursEnvironment || 'test',
+          cisCertPath: data.cisCertPath || '',
+          cisCertPassword: data.cisCertPassword || '',
+          cisEnvironment: data.cisEnvironment || 'test',
           defaultVatRate: data.defaultVatRate ?? 22.0,
           reducedVatRate: data.reducedVatRate ?? 9.5,
           loyaltyEnabled: data.loyaltyEnabled ?? false,
@@ -168,6 +176,23 @@ export async function PUT(req: Request) {
         updateData.fursCertPath = ''
       } else if (updateData.fursCertPath === '') {
         delete updateData.fursCertPath // Ohrani staro če ni ekspliciten _clear
+      }
+      // Task 24: CIS cert polja — zrcali FURS mask/clear vzorec
+      if (updateData.cisCertPassword === '••••••') {
+        delete updateData.cisCertPassword
+      }
+      if (updateData.cisCertPassword === '' && body._clearCisCertPassword === true) {
+        updateData.cisCertPassword = ''
+      } else if (updateData.cisCertPassword === '') {
+        delete updateData.cisCertPassword
+      }
+      if (updateData.cisCertPath === '••••••') {
+        delete updateData.cisCertPath
+      }
+      if (updateData.cisCertPath === '' && body._clearCisCertPath === true) {
+        updateData.cisCertPath = ''
+      } else if (updateData.cisCertPath === '') {
+        delete updateData.cisCertPath
       }
       // FIX SECURITY: enak pattern za emailSmtpPassword — ne shrani maskirane vrednosti
       if (updateData.emailSmtpPassword === '••••••') {
@@ -217,7 +242,7 @@ export async function PUT(req: Request) {
     }
 
     // FIX SECURITY: Ne izpostavi gesel v odgovoru (fursCertPassword + emailSmtpPassword)
-    const { fursCertPassword, emailSmtpPassword, fursCertPath, ...safeSettings } = settings
+    const { fursCertPassword, emailSmtpPassword, fursCertPath, cisCertPassword, cisCertPath, ...safeSettings } = settings
 
     // FIX P14: Preberi AI/integration nastavitve iz apiKeys JSON field
     let integrationSettings: Record<string, unknown> = {}
@@ -235,6 +260,10 @@ export async function PUT(req: Request) {
       fursCertPassword: fursCertPassword ? '••••••' : '',
       fursCertPath: fursCertPath ? '••••••' : '',
       hasFursCert: !!(fursCertPath && fursCertPassword),
+      // Task 24: CIS polja — isti maskirni vzorec kot FURS
+      cisCertPassword: cisCertPassword ? '••••••' : '',
+      cisCertPath: cisCertPath ? '••••••' : '',
+      hasCisCert: !!(cisCertPath && cisCertPassword),
       emailSmtpPassword: emailSmtpPassword ? '••••••' : '',
       hasEmailConfig: !!(emailSmtpPassword && settings.emailSmtpUser),
       // Integration nastavitve (maskiraj gesla/tokene)
