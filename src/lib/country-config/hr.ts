@@ -32,8 +32,11 @@ export const HR: CountryConfig = {
     required: true,
     hasDigitalSign: true,
     certificateFormat: 'PKCS#12 (.p12) — FINA certifikat',
-    testUrl: 'https://cistest.apis-it.hr:8449/FiskalizacijaService',
-    prodUrl: 'https://cis.apis-it.hr:8449/FiskalizacijaService',
+    // FIX Task 23: URL-ja po tehnička specifikacija v2.7 (živo verificirano v
+    // scripts/cis-test-connection.sh) — prej: test brez "Test" pripone,
+    // prod na zastarel apis-it.hr host.
+    testUrl: 'https://cistest.apis-it.hr:8449/FiskalizacijaServiceTest',
+    prodUrl: 'https://cis.porezna-uprava.hr:8449/FiskalizacijaService',
     infoUrl: 'https://porezna-uprava.gov.hr/',
     receiptCodes: {
       protectionCode: 'JIR',
