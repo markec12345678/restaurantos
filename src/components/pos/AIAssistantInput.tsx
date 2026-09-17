@@ -11,7 +11,7 @@ interface ChatInputProps {
 
 export const ChatInput = memo(function ChatInput({ value, onChange, onSend, disabled }: ChatInputProps) {
   return (
-    <div className="p-3 border-t bg-white">
+    <div className="p-3 border-t bg-card">
       <div className="flex gap-2">
         <input
           type="text"

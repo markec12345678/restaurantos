@@ -33,7 +33,7 @@ export const SupplierCard = memo(function SupplierCard({ supplier, rank }: Suppl
                 <TierIcon className="h-3 w-3 mr-1" /> {tierConf.label}
               </Badge>
               <Badge variant="outline" className="text-xs">{supplier.category}</Badge>
-              <div className={`flex items-center gap-1 text-sm ${supplier.trend === 'up' ? 'text-green-600' : supplier.trend === 'down' ? 'text-red-600' : 'text-gray-500'}`}>
+              <div className={`flex items-center gap-1 text-sm ${supplier.trend === 'up' ? 'text-green-600' : supplier.trend === 'down' ? 'text-red-600' : 'text-muted-foreground'}`}>
                 <TrendIcon className="h-4 w-4" />
               </div>
             </div>

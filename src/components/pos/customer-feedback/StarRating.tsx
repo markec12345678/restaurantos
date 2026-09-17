@@ -14,7 +14,7 @@ export const StarRating = memo(function StarRating({ rating, size = 'sm' }: { ra
       {[1, 2, 3, 4, 5].map(n => (
         <Star
           key={n}
-          className={`${sz} ${n <= rating ? 'text-amber-400 fill-amber-400' : 'text-gray-500'}`}
+          className={`${sz} ${n <= rating ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground'}`}
         />
       ))}
     </div>

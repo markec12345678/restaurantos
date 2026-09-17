@@ -89,14 +89,14 @@ export const ItemDialog = memo(function ItemDialog({
               <button
                 type="button"
                 onClick={() => setImageSearchType('name')}
-                className={`px-3 py-1 text-xs rounded-md transition ${imageSearchType === 'name' ? 'bg-amber-500 text-gray-900 font-medium' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}
+                className={`px-3 py-1 text-xs rounded-md transition ${imageSearchType === 'name' ? 'bg-amber-500 text-black font-medium' : 'bg-muted text-muted-foreground'}`}
               >
                 Po imenu
               </button>
               <button
                 type="button"
                 onClick={() => setImageSearchType('barcode')}
-                className={`px-3 py-1 text-xs rounded-md transition ${imageSearchType === 'barcode' ? 'bg-amber-500 text-gray-900 font-medium' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'}`}
+                className={`px-3 py-1 text-xs rounded-md transition ${imageSearchType === 'barcode' ? 'bg-amber-500 text-black font-medium' : 'bg-muted text-muted-foreground'}`}
               >
                 Po EAN kodi
               </button>

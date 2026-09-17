@@ -67,7 +67,7 @@ const statusConfig: Record<OfflineOpStatus, StatusCfg> = {
   FAILED: { label: 'Neuspešno', color: 'bg-red-50 text-red-800 border-red-200', icon: XCircle },
   CONFLICT: { label: 'Konflikt', color: 'bg-red-50 text-red-800 border-red-300', icon: AlertTriangle },
   MANUAL_REVIEW: { label: 'Ročni pregled', color: 'bg-orange-50 text-orange-800 border-orange-200', icon: FileSearch },
-  EXPIRED: { label: 'Poteklo', color: 'bg-gray-100 text-gray-600 border-gray-300', icon: Clock },
+  EXPIRED: { label: 'Poteklo', color: 'bg-muted text-muted-foreground', icon: Clock },
 }
 
 type FilterValue = 'review' | 'all' | OfflineOpStatus
@@ -214,8 +214,8 @@ export function OfflineQueueDashboard() {
         <StatCard title="Za pregled" value={reviewCount} icon={AlertTriangle} color="bg-red-50 border-red-200 text-red-800" alert={reviewCount > 0} />
         <StatCard title="Čakajoča" value={stats?.PENDING ?? 0} icon={Clock} color="bg-blue-50 border-blue-200 text-blue-800" />
         <StatCard title="Ponovni poskusi" value={stats?.RETRY ?? 0} icon={RefreshCw} color="bg-amber-50 border-amber-200 text-amber-800" />
-        <StatCard title="Neuspešna" value={stats?.FAILED ?? 0} icon={XCircle} color="bg-gray-50 border-gray-200 text-gray-700" />
-        <StatCard title="Potekla" value={stats?.EXPIRED ?? 0} icon={Clock} color="bg-gray-50 border-gray-200 text-gray-500" />
+        <StatCard title="Neuspešna" value={stats?.FAILED ?? 0} icon={XCircle} color="bg-muted/50 text-foreground/90" />
+        <StatCard title="Potekla" value={stats?.EXPIRED ?? 0} icon={Clock} color="bg-muted/50 text-muted-foreground" />
       </div>
 
       {/* Filter */}

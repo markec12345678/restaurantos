@@ -106,7 +106,7 @@ export const WebhookTable = memo(function WebhookTable({
                         {item.isActive ? (
                           <Badge className="text-xs bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">Aktiven</Badge>
                         ) : (
-                          <Badge className="text-xs bg-gray-100 text-gray-800 dark:bg-gray-800/30 dark:text-gray-400">Nedejaven</Badge>
+                          <Badge className="text-xs bg-muted text-foreground">Nedejaven</Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-xs text-muted-foreground whitespace-nowrap">

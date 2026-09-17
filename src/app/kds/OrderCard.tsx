@@ -64,7 +64,7 @@ export const OrderCard = memo(function OrderCard({
         <div className="flex items-center gap-2.5">
           <span className="text-lg font-black">{order.orderNumber}</span>
           {order.table && (
-            <span className="bg-white/20 px-2 py-0.5 rounded text-xs font-bold">
+            <span className="bg-foreground/20 px-2 py-0.5 rounded text-xs font-bold">
               Miza {order.table.number}
             </span>
           )}
@@ -79,7 +79,7 @@ export const OrderCard = memo(function OrderCard({
       {activeItems.length > 0 && !allReady && (
         <div className="h-1.5 bg-black/10" aria-hidden="true">
           <motion.div
-            className="h-full bg-white/90"
+            className="h-full bg-foreground/90"
             initial={reduceMotion ? { width: `${progressPct}%` } : { width: 0 }}
             animate={{ width: `${progressPct}%` }}
             transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 120, damping: 20 }}
@@ -96,7 +96,7 @@ export const OrderCard = memo(function OrderCard({
             role="button"
             tabIndex={0}
             aria-label={`${item.quantity}x ${item.name} — pritisni za bump`}
-            className="flex items-center justify-between py-2 px-3 rounded-lg bg-white dark:bg-card border text-sm cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-all duration-150 touch-manipulation min-h-[44px] btn-press"
+            className="flex items-center justify-between py-2 px-3 rounded-lg bg-card border text-sm cursor-pointer hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-all duration-150 touch-manipulation min-h-[44px] btn-press"
             onClick={() => onBumpItem(order.id, item.id)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
