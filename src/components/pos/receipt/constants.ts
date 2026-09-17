@@ -43,6 +43,12 @@ export interface ReceiptData {
   // P2-UX (prikaz neuspele fiskalizacije): none/pending/verified/failed —
   // loči "nikoli poskusili" od "poskusili in padlo" (API vrača iz Receipt.fiscalStatus)
   fiscalStatus?: string
+  // Runda 29 (CIS HR): ZKI/JIR vzporedno s FURS ZOI/EOR — sekcia se renderira
+  // samo ko je bil poskus oddaje (cisStatus ≠ 'none') ALI JIR obstaja
+  cisStatus?: 'none' | 'pending' | 'submitted' | 'failed'
+  cisZki?: string
+  cisJir?: string
+  cisSubmittedAt?: string | null
   // Naročilo
   orderNumber: number
   type: string
@@ -104,6 +110,8 @@ export interface ActionButtonsProps {
   onPrint: () => void
   onCopy: () => void
   onFiscalVerify: () => void
+  onCisSubmit: () => void
+  cisSubmitting: boolean
   onStorno: () => void
   onSendEmail: () => void
   onSendSms: () => void

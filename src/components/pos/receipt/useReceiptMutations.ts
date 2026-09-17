@@ -24,6 +24,7 @@ export function useReceiptMutations({
 }: UseReceiptMutationsParams) {
   const queryClient = useQueryClient()
   const [verifying, setVerifying] = useState(false)
+  const [cisSubmitting, setCisSubmitting] = useState(false)
 
   // Shrani račun v bazo
   const saveReceipt = useMutation({
@@ -99,6 +100,39 @@ export function useReceiptMutations({
     },
   })
 
+  // CIS (FINA, HR) ponovna oddaja računa — runda 29. Avto-oddaja se zgodi
+  // strežno ob ustvarjanju računa; ta mutacija je retry pot za pending/failed.
+  const cisSubmit = useMutation({
+    mutationFn: async () => {
+      if (!orderId) return null
+      setCisSubmitting(true)
+      const res = await authFetch('/api/cis/submit-invoice', {
+        method: 'POST',
+        body: JSON.stringify({ orderId }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Napaka pri oddaji')
+      return result as { ok: boolean; jir?: string; serverErrorCode?: string; reason?: string }
+    },
+    onSuccess: (result) => {
+      setCisSubmitting(false)
+      queryClient.invalidateQueries({ queryKey: queryKeys.receipt.byOrder(orderId as string) })
+      if (result?.ok && result.jir) {
+        toast.success(`Račun fiskaliziran — JIR: ${result.jir}`)
+      } else if (result?.serverErrorCode) {
+        toast.warning(`FINA je zavrnila oddajo (${result.serverErrorCode}) — poskusite znova`, { duration: 6000 })
+      } else {
+        toast.info(result?.reason === 'no-cert-config'
+          ? 'FINA P12 certifikat ni nastavljen — oddaja bo možna po konfiguraciji'
+          : 'Oddaja ni bila izvedena')
+      }
+    },
+    onError: (err: Error) => {
+      setCisSubmitting(false)
+      toast.error(`Napaka pri oddaji na FINA: ${err.message}`)
+    },
+  })
+
   const { handlePrint, handleConfirmAndPrint, handleSendEmail, handleSendSms } = useReceiptActions({
     orderId,
     setIsPreview,
@@ -113,6 +147,8 @@ export function useReceiptMutations({
     markPrinted,
     markCopy,
     fiscalVerify,
+    cisSubmit,
+    cisSubmitting,
     handlePrint,
     handleConfirmAndPrint,
     handleSendEmail,
