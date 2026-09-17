@@ -32,11 +32,6 @@ interface ExistingReceipt {
   // P2-UX (prikaz neuspele fiskalizacije): none/pending/verified/failed —
   // loči "nikoli poskusili" od "poskusili in padlo" za prikaz v UI
   fiscalStatus?: string
-  // Runda 29 (CIS HR): ZKI/JIR vzporedno s FURS polji
-  cisStatus?: string
-  cisZki?: string
-  cisJir?: string
-  cisSubmittedAt?: Date | null
   isCopy?: boolean
   isStorno?: boolean
   stornoOf?: string
@@ -76,11 +71,6 @@ export function buildReceiptPreview(
     eor: existingReceipt?.eor || '',
     fiscalVerified: existingReceipt?.fiscalVerified || false,
     fiscalStatus: existingReceipt?.fiscalStatus || 'none',
-    // Runda 29 (CIS HR): prikaz ZKI/JIR + statusa oddaje na FINA
-    cisStatus: existingReceipt?.cisStatus || 'none',
-    cisZki: existingReceipt?.cisZki || '',
-    cisJir: existingReceipt?.cisJir || '',
-    cisSubmittedAt: existingReceipt?.cisSubmittedAt?.toISOString() || null,
     orderNumber: order.orderNumber,
     type: order.type,
     status: order.status,

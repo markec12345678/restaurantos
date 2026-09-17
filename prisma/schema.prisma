@@ -1076,17 +1076,6 @@ model Receipt {
   fiscalVerified    Boolean  @default(false)
   fiscalStatus      String   @default("none")       // none, pending, verified, failed
   verificationDate  DateTime?
-  // --- Davčno potrjevanje (CIS — Hrvaška, runda 29) ---
-  // ZKI/JIR vzporedno s FURS ZOI/EOR: multi-državni račun nosi oba fiskalna
-  // kompleta (SI gost izda FURS račun, HR gost FINA račun — isti Receipt row).
-  // cisStatus: none (ni poskuseno — npr. SI tenant / cert ni nastavljen),
-  //            pending (poskuseno, NI uspelo — retry potreben),
-  //            submitted (JIR dodeljen — fiskalizirano),
-  //            failed (rezervirano za trajno neuspešne — npr. zavrnjen OIB).
-  cisStatus         String   @default("none")
-  cisZki            String   @default("")
-  cisJir            String   @default("")
-  cisSubmittedAt    DateTime?
   // --- Vsebina računa ---
   subtotal          Decimal           @db.Decimal(12, 2) // P1-8
   vatBreakdown      String   @default("{}")
@@ -1117,8 +1106,6 @@ model Receipt {
   @@index([orderId, isStorno])
   // FIX SCHEMA-04 MEDIUM: Index za fiscalStatus — batch processing unfiscalized receipts
   @@index([fiscalStatus])
-  // Runda 29 (CIS HR): batch retry receipts z cisStatus=pending (oddaja FINA ni uspela)
-  @@index([cisStatus])
   // P1-7 (FURS): zaporedna številka računa po poslovnem prostoru (lokacija)
   @@unique([locationId, receiptNumber])
 }

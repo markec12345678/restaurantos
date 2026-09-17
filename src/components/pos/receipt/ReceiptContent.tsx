@@ -10,7 +10,6 @@ import type { ReceiptContentProps } from './constants'
 import { ReceiptTotalsSection } from './ReceiptTotalsSection'
 import { formatNumberSl } from '@/lib/safe-format'
 import { ReceiptFursSection } from './ReceiptFursSection'
-import { ReceiptCisSection } from './ReceiptCisSection'
 
 // ============================================
 // VSEBINA RAČUNA (tiskalno območje)
@@ -156,10 +155,6 @@ export const ReceiptContent = memo(function ReceiptContent({
         {/* FURS podatki in QR */}
         <Separator className="border-dashed" />
         <ReceiptFursSection receipt={receipt} qrCodeDataUrl={qrCodeDataUrl} />
-
-        {/* CIS podatki (FINA, HR) — renderira se samo ob poskusu oddaje (runda 29) */}
-        <Separator className="border-dashed" />
-        <ReceiptCisSection receipt={receipt} />
 
         {/* Noga računa */}
         {receipt.receiptFooter && (

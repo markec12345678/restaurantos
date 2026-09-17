@@ -54,17 +54,3 @@ export {
   parseRacunOdgovor,
   isValidJir,
 } from './send'
-// Runda 29: produkcijska vezava — Receipt → CIS (FINA)
-export type {
-  ReceiptForCis,
-  SettingsForCis,
-  CisSkipReason,
-  CisSubmissionOutcome,
-  CisSubmissionDeps,
-} from './receipt-submission'
-export {
-  mapPaymentMethodToNacinPlac,
-  receiptNumberToBrOznRac,
-  buildCisRacunDataFromReceipt,
-  submitReceiptToCis,
-} from './receipt-submission'

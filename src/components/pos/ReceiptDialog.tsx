@@ -53,8 +53,6 @@ export const ReceiptDialog = memo(function ReceiptDialog({
     verifying,
     markCopy,
     fiscalVerify,
-    cisSubmit,
-    cisSubmitting,
     handleConfirmAndPrint,
     handlePrint,
     handleSendEmail,
@@ -94,8 +92,6 @@ export const ReceiptDialog = memo(function ReceiptDialog({
               onPrint={handlePrint}
               onCopy={() => markCopy.mutate()}
               onFiscalVerify={() => fiscalVerify.mutate()}
-              onCisSubmit={() => cisSubmit.mutate()}
-              cisSubmitting={cisSubmitting}
               onStorno={handleStorno}
               onSendEmail={handleSendEmail}
               onSendSms={handleSendSms}
