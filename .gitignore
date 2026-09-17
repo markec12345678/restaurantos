@@ -123,3 +123,9 @@ FORCE_DEPLOY2.txt
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+
+# FIX repo bloat (Task 19): QA/dev artefakti niso source (download/ ostane: README deliverables)
+/pglite-data
+/pglite-data.corrupt-20260917
+test-shots/
+/data/
