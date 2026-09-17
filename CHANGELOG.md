@@ -6,6 +6,32 @@ All notable changes to RestaurantOS are documented in this file.
 > commit SHA, migracije, breaking changes, rezultati testov, znane težave,
 > deployment in rollback navodila.
 
+## [v1.5.0] — Runda 29 re-land: produkcijska vezava CIS oddaje na plačilni tok + deploy sinkronizacija
+
+| Polje | Vrednost |
+|-------|----------|
+| **Commit** | 2cbcd2f (runda 29) → 5fe0ea50 (varnostni revert) → db581639 (deploy sinkronizacija) → 016ecb38 (re-land) → df5904b8 (build fix) |
+| **Migracije** | `0005_cis_receipt_fields` — čisto ADITIVNA (Receipt + cisStatus/cisZki/cisJir/cisSubmittedAt + indeks; default vrednosti, non-breaking). Aplikirana na produkcijo PREJ kot deploy novega clienta (zero error window) |
+| **Breaking changes** | NE |
+| **Testni rezultati** | tsc clean; vitest **1703/1703**, 96 datotek (+33: receipt-submission 26, cis-submit-invoice API 7); eslint 0; CI green; Vercel prod health 200, e-invoice-book 200 z novimi kolonami |
+| **Znane težave** | GitHub secret `DATABASE_URL` še vedno prazen (password je samo v Vercel env — ročni korak za workflow "DB Push to Neon"); Vercel Hobby builder 4 GB OOM → buildCommand = compile-mode (CI runner 7 GB teče polni build + tsc); `/api/setup/db` brez admin auth (samo rate-limit) — kandidat za naslednjo rundo |
+| **Deployment** | Vercel git-integracija (compile-mode); prod DB kolone aplikirane prek `/api/setup/db` (idempotentno) |
+| **Rollback** | `git revert 016ecb38` — kolone ostanejo (aditivne, SI tenanti neobčutljivi; cisStatus='none' = passthrough) |
+
+### 🇭🇷 Runda 29: CIS oddaja vezana na plačilni tok (re-land)
+
+- **Auto-oddaja ob plačilu**: POST /api/receipts/[id] (plačilni tok) fire-and-forget `submitReceiptToCis()` — ZKI → XML-dsig → SOAP FINA → JIR persist na Receipt; NON-BLOCKING (POS pravilo — fiskalizacija ne ustvari prodaje)
+- **Receipt nosi oba fiskalna kompleta**: SI gost → FURS ZOI/EOR, HR gost → FINA ZKI/JIR (isti row); `cisStatus` none/pending/submitted/failed + `@@index` za batch retry
+- **UI**: ReceiptCisSection (ZKI mono + JIR + status vrstica, emerald/orange/red) — render gate: samo cisStatus≠'none' → SI računi 100 % nespremenjeni; ActionButtons "Ponovi FINA oddajo" za pending/failed
+- **Orkestracija** (`receipt-submission.ts`): idempotentna (submitted+JIR→skip), storno→unsupported, brez cert-config→skip brez spremembe statusa, FINA b001/transport→pending+ZKI shranjen (konstruktiven — retry uporabi iste podatke); mapPaymentMethodToNacinPlac (G/K/T/O), receiptNumberToBrOznRac (zadnja številčna skupina)
+- **POST /api/cis/submit-invoice**: admin auth + rate limit, receiptId XOR orderId, non-throwing 200 (ok=false = veljaven izid)
+
+### 🔧 Deploy sinkronizacija (lekcija iz incidenta 5fe0ea50)
+
+- **`/api/setup/db`** zdaj aplikira tudi runda-29 kolone (idempotentno, `IF NOT EXISTS`) in poroča `migrationSet:'r29'` + `cisReady`/`cisColumns`/`cisIndexPresent` — zunanja verifikacija pred aktivacijo novega Prisma clienta; prod baza je dobila kolone PREJ (zero error window)
+- **`scripts/seed-minimal.mjs`** idempotenten (create-if-missing) — workflow "DB Push to Neon" varen za ponovne poglede, brez duplikatov/pregaza podatkov
+- **Build OOM fix**: Vercel Hobby builder (4 GB) je OOM-kill-al next build v TypeScript (in nato page-data collect) fazi od runde 29 naprej — `vercel.json buildCommand = next build --experimental-build-mode compile`; tipi ostajajo pokriti prek CI job-a "Lint & Typecheck" (tsc --noEmit, blocking required check) — na Vercelu `typescript.ignoreBuildErrors = VERCEL==='1'`
+
 ## [v1.4.0] — QA runde 13–26: CIS/HR fiskalizacija, KDS Bump sistem, POS UX na nivoju Square/Toast
 
 | Polje | Vrednost |
