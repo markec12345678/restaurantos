@@ -76,12 +76,12 @@ export function OrderCart({
         </div>
         <div className="flex items-center gap-1">
           {editingOrderId && (
-            <Button variant="ghost" size="sm" onClick={onExitEditing} className="h-7 text-xs">
+            <Button variant="ghost" size="sm" onClick={onExitEditing} className="h-7 text-xs pointer-coarse:h-9">
               <ArrowLeft className="h-3 w-3 mr-1" />Novo
             </Button>
           )}
           {cart.length > 0 && (
-            <Button variant="ghost" size="sm" onClick={() => setClearCartConfirm(true)} className="h-7 text-xs text-destructive hover:text-destructive">
+            <Button variant="ghost" size="sm" onClick={() => setClearCartConfirm(true)} className="h-7 text-xs pointer-coarse:h-9 text-destructive hover:text-destructive">
               <Trash2 className="h-3 w-3 mr-1" />Zbriši
             </Button>
           )}

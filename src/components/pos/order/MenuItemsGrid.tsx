@@ -78,11 +78,11 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
               placeholder="Išči artikel..."
               value={itemSearch}
               onChange={e => onItemSearchChange(e.target.value)}
-              className="h-8 text-xs pl-8 pr-8"
+              className="h-8 text-xs pl-8 pr-8 pointer-coarse:h-11"
               aria-label="Išči artikel"
               autoFocus
             />
-            <Button variant="ghost" size="icon" aria-label="Zapri" className="absolute right-0.5 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => onItemSearchChange('')}>
+            <Button variant="ghost" size="icon" aria-label="Zapri" className="absolute right-0.5 top-1/2 -translate-y-1/2 h-7 w-7 pointer-coarse:h-9 pointer-coarse:w-9" onClick={() => onItemSearchChange('')}>
               <X className="h-3 w-3" />
             </Button>
           </div>
@@ -93,7 +93,7 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
         <div className="px-3 pt-2 flex-shrink-0 flex items-center gap-2">
           <button
             onClick={() => onItemSearchChange(' ')}
-            className="flex items-center gap-2 flex-1 text-sm text-muted-foreground hover:text-foreground transition-colors py-2 px-3 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-primary/5"
+            className="flex items-center gap-2 flex-1 text-sm text-muted-foreground hover:text-foreground transition-colors py-2 px-3 pointer-coarse:py-2.5 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-primary/5"
           >
             <Search className="h-4 w-4" />
             <span>Išči artikel...</span>
@@ -105,7 +105,7 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
               onClick={() => setFavoritesOnly((v) => !v)}
               aria-pressed={favoritesOnly}
               aria-label={`Priljubljeni artikli: ${favoritesInView} v trenutnem pogledu`}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-colors flex-shrink-0 ${
+              className={`flex items-center gap-1.5 px-3 py-2 pointer-coarse:py-2.5 rounded-lg border text-sm font-medium transition-colors flex-shrink-0 ${
                 favoritesOnly
                   ? 'bg-amber-100 border-amber-300 text-amber-800 dark:bg-amber-900/40 dark:border-amber-700 dark:text-amber-300'
                   : 'border-dashed border-border text-muted-foreground hover:border-amber-300 hover:text-amber-700 dark:hover:text-amber-300'
@@ -164,7 +164,7 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
                     aria-pressed={isFav}
                     aria-label={isFav ? `Odstrani ${item.name} iz priljubljenih` : `Dodaj ${item.name} med priljubljene`}
                     title={isFav ? 'Odstrani iz priljubljenih' : 'Dodaj med priljubljene'}
-                    className={`absolute bottom-1.5 right-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-full backdrop-blur-sm transition-all active:scale-90 ${
+                    className={`absolute bottom-1.5 right-1.5 z-10 flex h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 items-center justify-center rounded-full backdrop-blur-sm transition-all active:scale-90 touch-manipulation ${
                       isFav
                         ? 'bg-amber-400/90 text-white shadow-md'
                         : 'bg-black/35 text-white/80 hover:bg-black/50 hover:text-white'

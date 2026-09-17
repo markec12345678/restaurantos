@@ -59,6 +59,7 @@ export function useVoidMutation({ orderItem, onVoided, onClose }: UseVoidMutatio
       toast.success(`Artikel "${orderItem?.name}" je voidan (poniščen)`)
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.zReport.all }) // živi Z-osnutek (runda 11)
       queryClient.invalidateQueries({ queryKey: queryKeys.kitchen.all })
       onVoided?.()
       resetAndClose()

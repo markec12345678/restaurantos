@@ -228,6 +228,9 @@ export function useProcessPayment(params: ProcessPaymentParams, callbacks: Proce
       idempotencyOrderRef.current = null
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
+      // Živi Z-osnutek (runda 11): strežnik ga posodobi ob plačilu,
+      // tukaj takoj osvežimo kartico na Nadzorni plošči
+      queryClient.invalidateQueries({ queryKey: queryKeys.zReport.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.tables.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.kitchen.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.cashRegister.all })

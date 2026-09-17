@@ -39,16 +39,18 @@ export const CustomerInfoSection = memo(function CustomerInfoSection({
 }: CustomerInfoSectionProps) {
   return (
     <div className="px-3 py-2 space-y-1.5 border-b border-border">
-      <Input placeholder="Ime stranke" value={customerName} onChange={e => setCustomerName(e.target.value)} className="h-7 text-xs" aria-label="Ime stranke" />
+      {/* TABLET (runda 11): pointer-coarse = tablice/telefoni dobijo 44px tarče,
+          namizje ostane kompaktno (h-7) — WCAG 2.5.5 brez žrtvovanja gostote */}
+      <Input placeholder="Ime stranke" value={customerName} onChange={e => setCustomerName(e.target.value)} className="h-7 text-xs pointer-coarse:h-11" aria-label="Ime stranke" />
       <div className="flex gap-1.5">
-        <Input placeholder="Telefon" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="h-7 text-xs flex-1" aria-label="Telefon stranke" />
-        <DecimalInput placeholder="Popust €" value={discount || ''} onValueChange={n => { setDiscount(n); setAppliedDiscountId(null) }} className="h-7 text-xs w-20" aria-label="Popust v evrih" />
+        <Input placeholder="Telefon" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="h-7 text-xs flex-1 pointer-coarse:h-11" aria-label="Telefon stranke" />
+        <DecimalInput placeholder="Popust €" value={discount || ''} onValueChange={n => { setDiscount(n); setAppliedDiscountId(null) }} className="h-7 text-xs w-20 pointer-coarse:h-11" aria-label="Popust v evrih" />
       </div>
       {discounts && discounts.length > 0 && (
         <div className="flex gap-1 flex-wrap">
           <button
             onClick={() => { setDiscount(0); setAppliedDiscountId(null) }}
-            className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${!appliedDiscountId && discount === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
+            className={`px-2 py-0.5 pointer-coarse:px-3 pointer-coarse:py-1.5 rounded text-[10px] font-semibold transition-colors ${!appliedDiscountId && discount === 0 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
           >
             Brez
           </button>
@@ -63,14 +65,14 @@ export const CustomerInfoSection = memo(function CustomerInfoSection({
                   setDiscount(d.amount)
                 }
               }}
-              className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${appliedDiscountId === d.id ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
+              className={`px-2 py-0.5 pointer-coarse:px-3 pointer-coarse:py-1.5 rounded text-[10px] font-semibold transition-colors ${appliedDiscountId === d.id ? 'bg-emerald-600 text-white' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
             >
               {discountChipLabel(d)}
             </button>
           ))}
         </div>
       )}
-      <Input placeholder="Opombe" value={orderNotes} onChange={e => setOrderNotes(e.target.value)} className="h-7 text-xs" aria-label="Opombe k naročilu" />
+      <Input placeholder="Opombe" value={orderNotes} onChange={e => setOrderNotes(e.target.value)} className="h-7 text-xs pointer-coarse:h-11" aria-label="Opombe k naročilu" />
     </div>
   )
 })

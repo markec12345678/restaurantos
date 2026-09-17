@@ -47,9 +47,19 @@ export const ReceiptContent = memo(function ReceiptContent({
 
         {/* Podatki računa */}
         <div className="space-y-0.5 text-[11px]">
+          {/* UX FIX (runda 11): neplačana naročila še nimajo dodeljene številke
+              računa (le-ta nastane šele ob plačilu/fiskalizaciji) — prej je
+              bila vrstica "Račun št.:" PRAZNA (zdelo se je pokvarjeno). Zdaj
+              eksplicitno "Predračun" + razlaga, kateri predogled je to. */}
           <div className="flex justify-between font-semibold">
             <span>Račun št.:</span>
-            <span>{receipt.receiptNumber}</span>
+            {receipt.receiptNumber ? (
+              <span>{receipt.receiptNumber}</span>
+            ) : (
+              <span className="italic font-normal text-muted-foreground" aria-label="Številka računa se dodeli ob plačilu">
+                Predračun — št. ob plačilu
+              </span>
+            )}
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Datum:</span>

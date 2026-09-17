@@ -110,14 +110,14 @@ export const OrderCard = memo(function OrderCard({
         <div className="flex items-center justify-between gap-2">
           <span className="font-bold whitespace-nowrap">{formatEUR(order.total)}</span>
           <div className="flex gap-1 flex-wrap justify-end">
-            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onOrderClick(order)}>
+            <Button size="sm" variant="ghost" className="h-7 text-xs pointer-coarse:h-9 touch-manipulation" onClick={() => onOrderClick(order)}>
               <Eye className="h-3 w-3 mr-1" />Poglej
             </Button>
             {order.status !== 'completed' && order.status !== 'cancelled' && nextStatus[order.status] && (
               <Button
                 size="sm"
                 variant="default"
-                className="h-7 text-xs"
+                className="h-7 text-xs pointer-coarse:h-9 touch-manipulation"
                 onClick={() => {
                   // P2-UX FIX: zaključek neplačanega naročila → potrditveno okno
                   if (needsCloseConfirmation) {
@@ -132,17 +132,17 @@ export const OrderCard = memo(function OrderCard({
               </Button>
             )}
             {order.paymentStatus !== 'paid' && order.status !== 'cancelled' && (
-              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onPayOrder(order)}>
+              <Button size="sm" variant="outline" className="h-7 text-xs pointer-coarse:h-9 touch-manipulation" onClick={() => onPayOrder(order)}>
                 <CreditCard className="h-3 w-3 mr-1" />Plačaj
               </Button>
             )}
             {order.paymentStatus === 'paid' && (
-              <Button size="sm" variant="default" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700" onClick={() => onPrintReceipt(order)}>
+              <Button size="sm" variant="default" className="h-7 text-xs pointer-coarse:h-9 touch-manipulation bg-emerald-600 hover:bg-emerald-700" onClick={() => onPrintReceipt(order)}>
                 <Printer className="h-3 w-3 mr-1" />Tiskaj račun
               </Button>
             )}
             {order.status !== 'cancelled' && order.paymentStatus !== 'storno' && (
-              <Button size="sm" variant="ghost" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => onStornoOrder(order)}>
+              <Button size="sm" variant="ghost" className="h-7 text-xs pointer-coarse:h-9 touch-manipulation text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => onStornoOrder(order)}>
                 <FileWarning className="h-3 w-3 mr-1" />{order.paymentStatus === 'paid' ? 'Storno' : 'Prekliči'}
               </Button>
             )}
@@ -152,7 +152,7 @@ export const OrderCard = memo(function OrderCard({
               </Badge>
             )}
             {order.status !== 'completed' && order.status !== 'cancelled' && order.paymentStatus !== 'paid' && (
-              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onAddToOrder(order)}>
+              <Button size="sm" variant="ghost" className="h-7 text-xs pointer-coarse:h-9 touch-manipulation" onClick={() => onAddToOrder(order)}>
                 <Plus className="h-3 w-3 mr-1" />Dodaj
               </Button>
             )}

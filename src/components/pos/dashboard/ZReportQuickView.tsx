@@ -14,6 +14,14 @@
 // to finančni pregled. Žive številke so fallback iz dashboard API,
 // ko osnutek za danes še ne obstaja.
 //
+// ŽIVOST (runda 11): osnutek se na strežniku posodobi ob vsakem plačilu
+// (refreshZDraftForPayment), tukaj pa ga držimo živega z:
+//   • refetchInterval 30 s (plačila z DRUGIH naprav — npr. natakrjeva
+//     tablica — se pojavijo najkasneje čez 30 s, brez ročnega refresha)
+//   • invalidacijo queryKeys.zReport.all neposredno po plačilu/stornu/
+//     void-item na ISTI napravi (useProcessPayment, useStornoMutations,
+//     useVoidMutation) — takojšnja posodobitev brez čakanja intervala.
+//
 // Časovni pas: primerjava "danes" poteka v Europe/Ljubljana (enako
 // kot strežniški ljubljanaDayBounds) — ne v strežniškem/brskalnem TZ.
 // ═══════════════════════════════════════════════════════════════
@@ -98,8 +106,12 @@ export const ZReportQuickView = memo(function ZReportQuickView({
       if (!res.ok) throw new Error('Napaka pri nalaganju Z-poročil')
       return res.json() as Promise<TodayZReport[]>
     },
-    staleTime: 60_000,
+    staleTime: 30_000,
     retry: false,
+    // Živi osnutek: poceni GET, osveži vsakih 30 s (samo ko je kartica
+    // montirana in tab aktiven — TanStack Query pavzira v ozadju)
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   })
 
   if (isLoading) return <Skeleton className="h-40" />
@@ -148,7 +160,7 @@ export const ZReportQuickView = memo(function ZReportQuickView({
             <Button
               variant="outline"
               size="sm"
-              className="min-h-9"
+              className="min-h-9 pointer-coarse:min-h-11"
               onClick={() => setActiveModule('z-report')}
               aria-label="Odpri polni dnevni zaključek"
             >

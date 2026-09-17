@@ -64,6 +64,7 @@ export async function executePayByItems({
   toast.success('Plačilo po artiklih uspešno!')
   queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
   queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
+  queryClient.invalidateQueries({ queryKey: queryKeys.zReport.all }) // živi Z-osnutek (runda 11)
   queryClient.invalidateQueries({ queryKey: queryKeys.tables.all })
   if (onPaymentSuccess && order.id) onPaymentSuccess(order.id)
   resetAndClose()

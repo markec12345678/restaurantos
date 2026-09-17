@@ -74,7 +74,7 @@ export const OrderTypeBar = memo(function OrderTypeBar({
   return (
     <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30 flex-shrink-0">
       <Select value={orderType} onValueChange={setOrderType} aria-label="Vrsta naročila">
-        <SelectTrigger className="w-32 h-8 text-xs">
+        <SelectTrigger className="w-32 h-8 text-xs pointer-coarse:h-11">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -90,7 +90,7 @@ export const OrderTypeBar = memo(function OrderTypeBar({
           onValueChange={(v) => setDiningOptionId(v === 'none' ? null : v)}
           aria-label="Način postrežbe"
         >
-          <SelectTrigger className="w-40 h-8 text-xs">
+          <SelectTrigger className="w-40 h-8 text-xs pointer-coarse:h-11">
             <SelectValue placeholder="Način postrežbe" />
           </SelectTrigger>
           <SelectContent>
@@ -110,7 +110,7 @@ export const OrderTypeBar = memo(function OrderTypeBar({
           disabled={tablesLoading}
           aria-label="Izbira mize"
         >
-          <SelectTrigger className="w-36 h-8 text-xs">
+          <SelectTrigger className="w-36 h-8 text-xs pointer-coarse:h-11">
             <SelectValue placeholder={tablesLoading ? 'Nalagam mize...' : 'Izberi mizo'} />
           </SelectTrigger>
           <SelectContent>

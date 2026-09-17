@@ -118,6 +118,7 @@ export async function executeSplitPayment({
   toast.success(`Plačilo uspešno! ${splitCount}x ${formatEUR(orderTotal / splitCount)}`)
   queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
   queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
+  queryClient.invalidateQueries({ queryKey: queryKeys.zReport.all }) // živi Z-osnutek (runda 11)
   queryClient.invalidateQueries({ queryKey: queryKeys.tables.all })
   queryClient.invalidateQueries({ queryKey: queryKeys.kitchen.all })
   queryClient.invalidateQueries({ queryKey: queryKeys.cashRegister.all })
