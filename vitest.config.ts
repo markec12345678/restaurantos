@@ -5,17 +5,24 @@
 import { defineConfig } from 'vitest/config'
 import path from 'path'
 
+// Task 23: dva projekta zaradi POOLA:
+//   - 'unit-vm'  → pool 'vmThreads': jsdom se ustvari ENKRAT na worker
+//     (prej: 82× kreacije = 50s od 71s testa → sedaj ~10s). Per-file izolacija
+//     ostane (svež VM context na datoteko).
+//   - 'unit-globals' → pool 'forks': datoteke, ki delajo vi.stubGlobal na
+//     window/navigator (webauthn, register-sw-override) — v vmThreads je
+//     jsdom 'window' non-configurable ("Cannot redefine property: window"),
+//     zato tečejo v klasičnem forks poolu.
+//
+// Skupne opcije živijo na root test nivoju (projects jih podedujejo),
+// project-specifične (include/exclude/pool) so v vsakem projektu.
+const GLOBAL_STUB_FILES = [
+  'tests/unit/auth/webauthn.test.ts',
+  'tests/unit/lib/register-sw-override.test.ts',
+]
+
 export default defineConfig({
   test: {
-    // Testni fajli so v mapi tests/ in .test.ts ob vsaki komponenti
-    include: [
-      'tests/**/*.test.ts',
-      'tests/**/*.test.tsx',
-      'src/**/*.test.ts',
-      'src/**/*.test.tsx',
-    ],
-    exclude: ['node_modules', '.next', 'tests/e2e/**', 'tests/integration/**'],
-
     // Environment — jsdom za React komponente, node za utilityje
     environment: 'jsdom',
 
@@ -64,6 +71,39 @@ export default defineConfig({
         inline: [/@prisma\/client/],
       },
     },
+
+    projects: [
+      {
+        test: {
+          name: 'unit-vm',
+          include: [
+            'tests/**/*.test.ts',
+            'tests/**/*.test.tsx',
+            'src/**/*.test.ts',
+            'src/**/*.test.tsx',
+          ],
+          exclude: [
+            'node_modules',
+            '.next',
+            'tests/e2e/**',
+            'tests/integration/**',
+            ...GLOBAL_STUB_FILES,
+          ],
+          pool: 'vmThreads',
+        },
+      },
+      {
+        test: {
+          name: 'unit-globals',
+          include: GLOBAL_STUB_FILES,
+          exclude: ['node_modules', '.next', 'tests/e2e/**', 'tests/integration/**'],
+          environment: 'jsdom',
+          globals: true,
+          setupFiles: ['./tests/setup.ts'],
+          pool: 'forks',
+        },
+      },
+    ],
   },
 
   resolve: {
