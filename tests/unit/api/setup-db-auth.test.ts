@@ -75,7 +75,7 @@ describe('GET /api/setup/db — auth gate', () => {
 
     expect(res.status).toBe(200)
     expect(data.success).toBe(true)
-    expect(data.migrationSet).toBe('r29')
+    expect(data.migrationSet).toBe('r31')
     expect(requireAuthMock).not.toHaveBeenCalled()
   })
 
@@ -158,5 +158,66 @@ describe('GET /api/setup/db — uspešen potek (r29 report)', () => {
     expect(data.cisReady).toBe(true)
     expect(data.cisColumns).toHaveLength(4)
     expect(data.cisIndexPresent).toBe(true)
+  })
+})
+
+describe('GET /api/setup/db — r31 column drift report', () => {
+  // Fixture: polna pričakovana shema jedrnih tabel (zrcali expectedColumns v routi)
+  const fullSchema: Record<string, string[]> = {
+    Menu: ['id', 'name', 'icon', 'color', 'sortOrder', 'isActive', 'locationId'],
+    Category: ['id', 'menuId', 'name', 'description', 'icon', 'color', 'sortOrder', 'isActive'],
+    MenuItem: ['id', 'categoryId', 'name', 'description', 'price', 'image', 'isAvailable', 'sortOrder', 'vatRate', 'allergens'],
+    ModifierGroup: ['id', 'name', 'required', 'minSelect', 'maxSelect', 'sortOrder', 'locationId'],
+    Modifier: ['id', 'name', 'price', 'isAvailable', 'sortOrder', 'allergens', 'modifierGroupId'],
+    MenuItemModifierGroup: ['id', 'menuItemId', 'modifierGroupId', 'sortOrder'],
+    Receipt: ['cisStatus', 'cisZki', 'cisJir', 'cisSubmittedAt', 'vatBreakdown', 'locationId'],
+  }
+  function driftRows(schema: Record<string, string[]>) {
+    return Object.entries(schema).flatMap(([t, cols]) => cols.map((c) => ({ table_name: t, column_name: c })))
+  }
+
+  it('popolna shema → modifierReady true, missingColumns {}', async () => {
+    vi.stubEnv('CRON_SECRET', 'test-cron-secret')
+    queryRawMock
+      .mockResolvedValueOnce([]) // SELECT 1
+      .mockResolvedValueOnce([]) // pg_tables
+      .mockResolvedValueOnce([]) // cis cols
+      .mockResolvedValueOnce([]) // cis idx
+      .mockResolvedValueOnce(driftRows(fullSchema)) // drift query
+
+    const res = await GET(get('Bearer test-cron-secret'))
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data.driftChecked).toBe(true)
+    expect(data.modifierReady).toBe(true)
+    expect(data.missingColumns).toEqual({})
+  })
+
+  it('manjkajoči ModifierGroup.locationId (prod hipoteza) → modifierReady false + natančen report', async () => {
+    vi.stubEnv('CRON_SECRET', 'test-cron-secret')
+    // Prod baza: vse kolone OBSTAJAJO razen ModifierGroup.locationId
+    const partial: Record<string, string[]> = Object.fromEntries(
+      Object.entries(fullSchema).map(([t, cols]) => [
+        t,
+        t === 'ModifierGroup' ? cols.filter((c) => c !== 'locationId') : cols,
+      ])
+    )
+    queryRawMock
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce(driftRows(partial))
+
+    const res = await GET(get('Bearer test-cron-secret'))
+    const data = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(data.modifierReady).toBe(false)
+    expect(data.missingColumns.ModifierGroup).toEqual(['locationId']) // SAMO ta kolona
+    expect(data.missingColumns.Menu).toBeUndefined()
+    expect(data.missingColumns.Modifier).toBeUndefined()
+    expect(data.missingColumns.Receipt).toBeUndefined()
   })
 })

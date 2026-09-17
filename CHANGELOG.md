@@ -6,13 +6,14 @@ All notable changes to RestaurantOS are documented in this file.
 > commit SHA, migracije, breaking changes, rezultati testov, znane težave,
 > deployment in rollback navodila.
 
-## [Unreleased] — Runda 30: CIS batch retry + varnost /api/setup/db
+## [Unreleased] — Runda 30/31: CIS batch retry + varnost /api/setup/db + prod menu 500 fix
 
-- **Batch retry pending računov (FINA)**: NOVO `GET/POST /api/cis/retry-pending` — GET badge števec (pendingCount/failedCount), POST sekvencna ponovna oddaja cisStatus='pending'/'failed' Receiptov (FIFO po createdAt, privzeti 10, max 25/batch; idempotentno, non-throwing per-item, reject → errors++ in batch gre naprej); NOVO preset `CIS_BATCH_RETRY_LIMIT` (10/5 min, deljeno vedro GET+POST); admin auth
+- **FIX (P0, runda 31) prod 500 na /api/menus + /api/modifier-groups**: prod baza nima `ModifierGroup.locationId` (MODEL A audit v1.3.2 je dodal kolono v schema.prisma, ampak NIKOLI v /api/setup/db ALTER seznam; prod Neon je drug account brez DATABASE_URL secret-a) → full-scalar SELECT pri include pada "column does not exist"; public/menu in /api/categories sta delala, ker selectata podmnožico brez te kolone. **Fix: r31 idempotentni ALTER-i v setup/db** — ModifierGroup.locationId + backfill (prva lokacija) + FK + NOT NULL varovalka + indeks; defenzivni skalarji za ModifierGroup/Modifier/MenuItemModifierGroup/Menu/Category; **generic column-drift report** (`missingColumns`, `modifierReady`, `driftChecked`) za sistemsko odkrivanje tega razreda napak. Po deployu: EN klic setup/db popravi prod BREZ novih deploy-ov (trenutni client že SELECT-a te kolone)
+- **Batch retry pending računov (FINA, runda 30)**: NOVO `GET/POST /api/cis/retry-pending` — GET badge števec (pendingCount/failedCount), POST sekvencna ponovna oddaja cisStatus='pending'/'failed' Receiptov (FIFO po createdAt, privzeti 10, max 25/batch; idempotentno, non-throwing per-item, reject → errors++ in batch gre naprej); NOVO preset `CIS_BATCH_RETRY_LIMIT` (10/5 min, deljeno vedro GET+POST); admin auth
 - **UI**: NOVO `CisPendingRetryPanel` v CisTab — badge števec, "Ponovi oddajo (N)" gumb, toast povzetek (JIR uspeh / ni novih JIR warning / 429), avtomatski refresh števcev; samozaadna komponenta (brez sprememb CisTab props)
 - **VARNOST (Task 29-RELAND kandidat)**: `/api/setup/db` zdaj zahteva `Authorization: Bearer $CRON_SECRET` ALI admin `requireAuth` (zrcali /api/cron/* vzorec) — prej samo rate-limit (odprt DDL endpoint nad prod bazo); deploy runbook: `curl -H "Authorization: Bearer $CRON_SECRET" https://…/api/setup/db`
-- **Testi**: +17 (cis-retry-pending 10, setup-db-auth 7) → **1720/1720**, 98 datotek; eslint 0; tsc 0
-- **Migracije**: NE (brez shemskih sprememb)
+- **Testi**: +19 (cis-retry-pending 10, setup-db-auth 9) → **1722/1722**, 98 datotek; eslint 0; tsc 0
+- **Migracije**: NE (shema prek idempotentnih setup/db ALTER-ov, ne prisma migration)
 
 ## [v1.5.0] — Runda 29 re-land: produkcijska vezava CIS oddaje na plačilni tok + deploy sinkronizacija
 

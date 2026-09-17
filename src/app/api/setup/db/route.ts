@@ -139,6 +139,45 @@ export async function GET(req: Request) {
       'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "cisJir" TEXT NOT NULL DEFAULT \'\'',
       'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "cisSubmittedAt" TIMESTAMP(3)',
       'CREATE INDEX IF NOT EXISTS "Receipt_cisStatus_idx" ON "Receipt"("cisStatus")',
+      // ─── Runda 31 (FIX prod 500 na /api/menus + /api/modifier-groups) ───
+      // MODEL A audit (v1.3.2) je dodal lokacijske kolone na Menu/ModifierGroup,
+      // ampak NIKOLI v ta ALTER seznam → stara prod baza (drugi Neon account,
+      // brez DATABASE_URL secret-a) jih nima → Prisma client (full-scalar SELECT
+      // pri include) pada z "column does not exist". public/menu je delal, ker
+      // selecta eksplicitno podmnozico brez locationId na skupini.
+      // Idempotentno + backfill (prva obstojeca lokacija) + varovalka pred NOT NULL.
+      'ALTER TABLE "ModifierGroup" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
+      `UPDATE "ModifierGroup" SET "locationId" = (SELECT "id" FROM "Location" ORDER BY "createdAt" ASC LIMIT 1) WHERE "locationId" IS NULL`,
+      `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM "ModifierGroup" WHERE "locationId" IS NULL) THEN ALTER TABLE "ModifierGroup" ALTER COLUMN "locationId" SET NOT NULL; END IF; END $$;`,
+      `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ModifierGroup_locationId_fkey') THEN ALTER TABLE "ModifierGroup" ADD CONSTRAINT "ModifierGroup_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE CASCADE ON UPDATE CASCADE; END IF; END $$;`,
+      'CREATE INDEX IF NOT EXISTS "ModifierGroup_locationId_idx" ON "ModifierGroup"("locationId")',
+      // Defenzivno: ostali skalarji, ki jih full-scalar SELECT pričakuje
+      'ALTER TABLE "ModifierGroup" ADD COLUMN IF NOT EXISTS "required" BOOLEAN NOT NULL DEFAULT false',
+      'ALTER TABLE "ModifierGroup" ADD COLUMN IF NOT EXISTS "minSelect" INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE "ModifierGroup" ADD COLUMN IF NOT EXISTS "maxSelect" INTEGER',
+      'ALTER TABLE "ModifierGroup" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE "Modifier" ADD COLUMN IF NOT EXISTS "price" DECIMAL(12,2) NOT NULL DEFAULT 0',
+      'ALTER TABLE "Modifier" ADD COLUMN IF NOT EXISTS "isAvailable" BOOLEAN NOT NULL DEFAULT true',
+      'ALTER TABLE "Modifier" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE "Modifier" ADD COLUMN IF NOT EXISTS "allergens" TEXT NOT NULL DEFAULT \'\'',
+      'ALTER TABLE "Modifier" ADD COLUMN IF NOT EXISTS "modifierGroupId" TEXT',
+      'CREATE INDEX IF NOT EXISTS "Modifier_modifierGroupId_idx" ON "Modifier"("modifierGroupId")',
+      'CREATE INDEX IF NOT EXISTS "Modifier_isAvailable_idx" ON "Modifier"("isAvailable")',
+      'ALTER TABLE "MenuItemModifierGroup" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE "MenuItemModifierGroup" ADD COLUMN IF NOT EXISTS "menuItemId" TEXT',
+      'ALTER TABLE "MenuItemModifierGroup" ADD COLUMN IF NOT EXISTS "modifierGroupId" TEXT',
+      'CREATE INDEX IF NOT EXISTS "MenuItemModifierGroup_modifierGroupId_idx" ON "MenuItemModifierGroup"("modifierGroupId")',
+      'ALTER TABLE "Menu" ADD COLUMN IF NOT EXISTS "icon" TEXT NOT NULL DEFAULT \'📋\'',
+      'ALTER TABLE "Menu" ADD COLUMN IF NOT EXISTS "color" TEXT NOT NULL DEFAULT \'#f59e0b\'',
+      'ALTER TABLE "Menu" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE "Menu" ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN NOT NULL DEFAULT true',
+      'ALTER TABLE "Menu" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
+      'CREATE INDEX IF NOT EXISTS "Menu_locationId_idx" ON "Menu"("locationId")',
+      'ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "description" TEXT NOT NULL DEFAULT \'\'',
+      'ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "icon" TEXT NOT NULL DEFAULT \'📁\'',
+      'ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "color" TEXT NOT NULL DEFAULT \'#94a3b8\'',
+      'ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "sortOrder" INTEGER NOT NULL DEFAULT 0',
+      'ALTER TABLE "Category" ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN NOT NULL DEFAULT true',
     ]
     
     let added = 0
@@ -176,14 +215,52 @@ export async function GET(req: Request) {
       // Receipt tabela morda ne obstaja (sveža baza) — report ostane false
     }
 
+    // ─── Runda 31: GENERIC column-drift report ───
+    // Sistemski fix za razred napak "prod 500 na manjkajoči koloni": za jedrne
+    // tabele menijske verige + Receipt poročaj, katere kolone shema pričakuje,
+    // jih pa baza NIMA. Ops dobi na enem mestu celoten manjkajoči seznam.
+    const expectedColumns: Record<string, string[]> = {
+      Menu: ['id', 'name', 'icon', 'color', 'sortOrder', 'isActive', 'locationId'],
+      Category: ['id', 'menuId', 'name', 'description', 'icon', 'color', 'sortOrder', 'isActive'],
+      MenuItem: ['id', 'categoryId', 'name', 'description', 'price', 'image', 'isAvailable', 'sortOrder', 'vatRate', 'allergens'],
+      ModifierGroup: ['id', 'name', 'required', 'minSelect', 'maxSelect', 'sortOrder', 'locationId'],
+      Modifier: ['id', 'name', 'price', 'isAvailable', 'sortOrder', 'allergens', 'modifierGroupId'],
+      MenuItemModifierGroup: ['id', 'menuItemId', 'modifierGroupId', 'sortOrder'],
+      Receipt: ['cisStatus', 'cisZki', 'cisJir', 'cisSubmittedAt', 'vatBreakdown', 'locationId'],
+    }
+    let missingColumns: Record<string, string[]> = {}
+    let driftChecked = false
+    try {
+      const allCols = await db.$queryRaw`
+        SELECT table_name, column_name FROM information_schema.columns
+        WHERE table_schema = 'public'
+      ` as Array<{ table_name: string; column_name: string }>
+      const byTable: Record<string, Set<string>> = {}
+      for (const r of allCols) {
+        (byTable[r.table_name] ??= new Set()).add(r.column_name)
+      }
+      missingColumns = Object.fromEntries(
+        Object.entries(expectedColumns)
+          .map(([t, cols]) => [t, cols.filter((c) => !byTable[t]?.has(c))] as const)
+          .filter(([, miss]) => miss.length > 0)
+      )
+      driftChecked = true
+    } catch {
+      // sveža baza / napaka — report ostane prazen
+    }
+    const modifierReady = !missingColumns.ModifierGroup && !missingColumns.Modifier && !missingColumns.MenuItemModifierGroup
+
     return NextResponse.json({
       success: true,
       tableCount: afterTables.length,
       columnsAdded: added,
-      migrationSet: 'r29',
+      migrationSet: 'r31',
       cisReady,
       cisColumns,
       cisIndexPresent,
+      modifierReady,
+      driftChecked,
+      missingColumns,
       message: `${afterTables.length} tables, ${added} columns added`,
     })
   } catch (error: unknown) {
