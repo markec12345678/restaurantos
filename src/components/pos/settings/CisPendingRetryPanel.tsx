@@ -39,7 +39,7 @@ export const CisPendingRetryPanel = memo(function CisPendingRetryPanel() {
 
   const loadStats = useCallback(async () => {
     try {
-      const res = await fetch('/api/cis/retry-pending', { cache: 'no-store' })
+      const res = await fetch('/api/cis', { cache: 'no-store' })
       if (res.ok) setStats((await res.json()) as RetryStats)
     } catch {
       // Badge ni kritičen — tiho; panel pokaže nevtralno stanje
@@ -55,7 +55,7 @@ export const CisPendingRetryPanel = memo(function CisPendingRetryPanel() {
   const onRetry = useCallback(async () => {
     setRetrying(true)
     try {
-      const res = await fetch('/api/cis/retry-pending', {
+      const res = await fetch('/api/cis', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),

@@ -1,5 +1,7 @@
 // ============================================
-// GET/POST /api/cis/retry-pending — Batch ponovna oddaja pending računov (runda 30)
+// GET/POST /api/cis — Batch ponovna oddaja pending računov (runda 30, r31 fold)
+// (prej /api/cis/retry-pending — zložen na /api/cis index: Vercel Hobby limit
+// 12 serverless funkcij na deployment; vsak route.ts = 1 funkcija)
 // ============================================
 // FINA lahko oddajo zavrne (b001 'Račun već poslan', transport down, P12
 // manjkal ob plačilu …) — ti računi ostanejo cisStatus='pending' (indeks na
@@ -86,7 +88,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ ok: true, pendingCount, failedCount })
   } catch (error: unknown) {
-    return handleApiError(error, 'GET /api/cis/retry-pending', 'Napaka pri branju CIS števcev')
+    return handleApiError(error, 'GET /api/cis', 'Napaka pri branju CIS števcev')
   }
 }
 
@@ -170,6 +172,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, ...summary, results })
   } catch (error: unknown) {
-    return handleApiError(error, 'POST /api/cis/retry-pending', 'Napaka pri ponovni oddaji računov na CIS')
+    return handleApiError(error, 'POST /api/cis', 'Napaka pri ponovni oddaji računov na CIS')
   }
 }
