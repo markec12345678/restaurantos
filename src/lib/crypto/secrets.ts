@@ -18,6 +18,7 @@
 // ============================================
 
 import crypto from 'crypto'
+import { logger } from '@/lib/logger'
 
 // ============================================
 // KONSTANTE
@@ -50,7 +51,7 @@ function getEncryptionKey(): Buffer {
   if (!keyEnv) {
     // V dev/seed okolju brez ENCRYPTION_KEY: generiraj ephemeral key (ni persisten!)
     if (process.env.NODE_ENV === 'development' && !process.env.REDIS_URL) {
-      console.warn('[crypto] ⚠️ ENCRYPTION_KEY not set — using ephemeral key (dev only, NOT for production)')
+      logger.warn('crypto', 'ENCRYPTION_KEY not set — using ephemeral key (dev only, NOT for production)')
       cachedKey = crypto.randomBytes(KEY_LENGTH)
       cachedKeyVersion = 'ephemeral-dev'
       return cachedKey
@@ -115,8 +116,9 @@ export function requireEnvSecret(name: string, context: string): string {
     )
   }
 
-  console.warn(
-    `[secrets] ⚠️ ${name} ni nastavljen (${context}) — uporabljam DEV-ONLY fallback. ` +
+  logger.warn(
+    'secrets',
+    `${name} ni nastavljen (${context}) — uporabljam DEV-ONLY fallback. ` +
       'NI za produkcijo (pinLookup/token izračuni niso varni).',
   )
   return `dev-only-insecure-fallback:${name}`

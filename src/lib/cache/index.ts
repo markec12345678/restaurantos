@@ -18,6 +18,7 @@
 
 import type { CacheAdapter } from './adapter'
 import { MemoryCacheAdapter } from './memory-adapter'
+import { logger } from '@/lib/logger'
 
 let cachedAdapter: CacheAdapter | null = null
 let useRedisLogShown = false
@@ -49,7 +50,7 @@ export function getCacheAdapter(): CacheAdapter {
   // Če je REDIS_URL nastavljen, kliči async verzijo — vendar sinhrono inicializacijo
   // povzročimo preko global cache da lazy-import na prvi set/get/incr klic
   if (!useRedisLogShown && typeof console !== 'undefined') {
-    console.info('[cache] Will use RedisCacheAdapter (REDIS_URL set) — multi-replica safe. Initializing...')
+    logger.info('cache', 'Will use RedisCacheAdapter (REDIS_URL set) — multi-replica safe. Initializing...')
     useRedisLogShown = true
   }
   // Lazy-init: ustvarimo wrapper adapter ki na prvi klic naloži RedisCacheAdapter

@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import type { ReceiptItem } from '../types'
 import { fmtEur } from '../constants'
+import { formatNumberSl } from '@/lib/safe-format'
 
 // ═══════════════════════════════════════════════════════════════
 // RestaurantOS — Seznam artiklov na računu
@@ -28,7 +29,7 @@ export const ReceiptItemsList = memo(function ReceiptItemsList({ items }: Receip
                   </span>
                   {item.vatRate > 0 && (
                     <span className="text-xs text-gray-400 ml-1">
-                      ({item.vatRate}%)
+                      ({formatNumberSl(item.vatRate)}%)
                     </span>
                   )}
                 </div>

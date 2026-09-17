@@ -22,6 +22,7 @@
 // ============================================
 
 import type { CacheAdapter, CacheValue } from './adapter'
+import { logger } from '@/lib/logger'
 
 interface IncrementResult {
   count: number
@@ -89,7 +90,7 @@ async function getRedisClient(): Promise<RedisClient> {
   })
 
   redisClient.on('error', (err: unknown) => {
-    console.error('[redis] client error:', err instanceof Error ? err.message : err)
+    logger.error('redis', 'client error', err instanceof Error ? err.message : err)
   })
 
   return redisClient

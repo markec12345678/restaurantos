@@ -36,6 +36,7 @@ import {
   PAYLOAD_VERSION,
   type OfflineOpStatus,
 } from './sync-status'
+import { logger } from '@/lib/logger'
 
 export {
   OFFLINE_OP_STATUSES,
@@ -534,7 +535,7 @@ export async function syncSingleOrder(
 
   if (ok) {
     await dequeueOrder(entry.id)
-    console.log(`[OfflineQueue] Manual retry synced: ${entry.idempotencyKey} → ${json?.id}`)
+    logger.info('OfflineQueue', `Manual retry synced: ${entry.idempotencyKey} → ${json?.id}`)
     return { ok: true, status: 'SYNCED', httpStatus, message: 'Sinhronizirano' }
   }
 
@@ -618,7 +619,7 @@ export async function syncPendingOrders(
       // Označi kot synced in odstrani iz queue
       await dequeueOrder(order.id)
       succeeded++
-      console.log(`[OfflineQueue] Order synced: ${order.idempotencyKey} → ${json?.id}`)
+      logger.info('OfflineQueue', `Order synced: ${order.idempotencyKey} → ${json?.id}`)
       continue
     }
 
@@ -638,7 +639,7 @@ export async function syncPendingOrders(
 
     if (outcome.status === 'CONFLICT' || outcome.status === 'MANUAL_REVIEW') {
       conflicts++
-      console.warn(`[OfflineQueue] ${outcome.status}: ${order.idempotencyKey} — zadržano za ročni pregled`)
+      logger.warn('OfflineQueue', `${outcome.status}: ${order.idempotencyKey} — zadržano za ročni pregled`)
     } else {
       failed++
     }
@@ -691,7 +692,7 @@ export function startSyncPolling(
     if (isOnline()) {
       const pending = await getPendingCount()
       if (pending > 0) {
-        console.log(`[OfflineQueue] Polling: ${pending} pending orders to sync`)
+        logger.debug('OfflineQueue', `Polling: ${pending} pending orders to sync`)
         await syncPendingOrders(authFetch)
       }
     }

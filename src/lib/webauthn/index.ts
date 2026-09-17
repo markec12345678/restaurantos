@@ -20,6 +20,7 @@ import {
   type AuthenticationResponseJSON,
   type AuthenticatorTransport,
 } from '@simplewebauthn/server'
+import { logger } from '@/lib/logger'
 
 export interface WebAuthnConfig {
   rpName: string
@@ -211,7 +212,7 @@ export async function verifyRegistration(
       registrationInfo: verified.registrationInfo,
     }
   } catch (err) {
-    console.warn('[webauthn] verifyRegistration failed:', err instanceof Error ? err.message : err)
+    logger.warn('webauthn', 'verifyRegistration failed', err instanceof Error ? err.message : err)
     return { verified: false }
   }
 }
@@ -244,7 +245,7 @@ export async function verifyAssertion(
       authenticationInfo: verified.authenticationInfo,
     }
   } catch (err) {
-    console.warn('[webauthn] verifyAssertion failed:', err instanceof Error ? err.message : err)
+    logger.warn('webauthn', 'verifyAssertion failed', err instanceof Error ? err.message : err)
     return { verified: false }
   }
 }

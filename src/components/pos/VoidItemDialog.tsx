@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { AlertTriangle, XCircle } from 'lucide-react'
 import { memo } from 'react'
 import { useVoidMutation } from './void-item/useVoidMutation'
-import { formatEUR } from '@/lib/safe-format'
+import { formatEUR, formatNumberSl } from '@/lib/safe-format'
 
 // ============================================
 // TIPI
@@ -64,7 +64,7 @@ export const VoidItemDialog = memo(function VoidItemDialog({ orderItem, orderId,
               <strong>Pozor!</strong> Void artikla pomeni, da se artikel poniči in se ne zaračuna stranki.
               {orderItem.vatRate > 0 && (
                 <span className="block mt-1 text-xs">
-                  Vključno z DDV {orderItem.vatRate}%: {formatEUR(vatAmount)} davka se vrne.
+                  Vključno z DDV {formatNumberSl(orderItem.vatRate)}%: {formatEUR(vatAmount)} davka se vrne.
                 </span>
               )}
               <span className="block mt-1 text-xs">Ta operacija se zabeleži v dnevnik in je vidna v poročilih.</span>
@@ -79,7 +79,7 @@ export const VoidItemDialog = memo(function VoidItemDialog({ orderItem, orderId,
             </div>
             {orderItem.vatRate > 0 && (
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>DDV {orderItem.vatRate}%</span>
+                <span>DDV {formatNumberSl(orderItem.vatRate)}%</span>
                 <span>{formatEUR(vatAmount)}</span>
               </div>
             )}

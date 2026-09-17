@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { logger } from '@/lib/logger'
 
 // ============================================
 // COOKIE CONSENT BANNER (GDPR)
@@ -64,10 +65,10 @@ export function CookieConsent() {
       // Apply Sentry replay consent
       if (data.analytics && typeof window !== 'undefined') {
         // Enable Sentry session replay
-        console.log('[CookieConsent] Analytics consent: granted')
+        logger.info('CookieConsent', 'Analytics consent: granted')
       } else {
         // Disable Sentry session replay
-        console.log('[CookieConsent] Analytics consent: denied')
+        logger.info('CookieConsent', 'Analytics consent: denied')
       }
     } catch {
       // localStorage not available

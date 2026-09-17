@@ -15,6 +15,7 @@
 
 import type { RateLimitConfig } from './presets'
 import { getCacheAdapter } from '@/lib/cache'
+import { logger } from '@/lib/logger'
 
 /**
  * Async implementacija — kliče CacheAdapter (Memory ali Redis).
@@ -51,7 +52,7 @@ export async function checkRateLimitAsync(
   } catch (error) {
     // 🔴 FAIL-CLOSED: če cache (Redis) odpove, ZAVRNEMO request
     // To je pravilno varnostno držo: "if we can't verify the rate limit, reject"
-    console.error('[rate-limit] 🔴 FAIL-CLOSED: cache.increment() failed — rejecting request', error)
+    logger.error('rate-limit', 'FAIL-CLOSED: cache.increment() failed — rejecting request', error)
     return {
       allowed: false,
       retryAfterMs: config.windowMs,
@@ -87,7 +88,7 @@ export function checkRateLimit(
 
   // RedisCacheAdapter: sync path ne more await-ati → FAIL-CLOSED
   // Prej je bilo FAIL-OPEN (allowed: true) — to je bila varostna napaka #39
-  console.error('[rate-limit] 🔴 FAIL-CLOSED: sync checkRateLimit() called with Redis adapter — rejecting. Use checkRateLimitAsync() instead.')
+  logger.error('rate-limit', 'FAIL-CLOSED: sync checkRateLimit() called with Redis adapter — rejecting. Use checkRateLimitAsync() instead.')
   return { allowed: false, retryAfterMs: config.windowMs, remaining: 0 }
 }
 

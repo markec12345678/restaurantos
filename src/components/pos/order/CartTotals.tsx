@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { formatEUR } from '@/lib/safe-format'
+import { formatEUR, formatNumberSl } from '@/lib/safe-format'
 
 // --- Props ---
 
@@ -32,7 +32,7 @@ export const CartTotals = memo(function CartTotals({
       {/* Multi-DDV prikaz po stopnjah */}
       {Object.entries(vatBreakdown).map(([rate, data]) => (
         <div key={rate} className="flex justify-between text-muted-foreground">
-          <span>DDV {rate}%</span>
+          <span>DDV {formatNumberSl(Number(rate))}%</span>
           <span>{formatEUR(data.vat)} <span className="text-[9px] opacity-60">(osn. {formatEUR(data.base)})</span></span>
         </div>
       ))}

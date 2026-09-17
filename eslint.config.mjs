@@ -35,11 +35,11 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     
     // General JavaScript rules
     "prefer-const": "off",
-    "no-unused-vars": ["warn", {
-      argsIgnorePattern: "^_",
-      varsIgnorePattern: "^_",
-      caughtErrorsIgnorePattern: "^_",
-    }],
+    // LINT RATCHET FIX (QA 2026-09-17): core "no-unused-vars" je OFF —
+    // @typescript-eslint/no-unused-vars je strožja in pokrije isti problem.
+    // Prej sta OBEMA reportala isto vrstico → DVOSTROJNO ŠTETJE (275 lažnih
+    // warningov, skupna številka 1303 je bila mešana). En sam vir resnice:
+    "no-unused-vars": "off",
     "no-console": "warn",
     "no-debugger": "off",
     "no-empty": "off",
@@ -61,9 +61,14 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   },
 }, {
   // CLI skripte in orodja — console je pričakovan v teh datotekah
+  // LINT RATCHET FIX (QA 2026-09-17): tudi tests/ chaos E2E skripte + korenski
+  // seed-*.mjs so CLI-opravila (tečejo izven brskalnika, console = njihov I/O).
+  // Prej niso bila izvzeta → 849 warningov iz tests/ je onesnaževalo budget.
   files: [
     "scripts/**/*.{js,mjs,ts}",
+    "tests/**/*.{js,mjs,ts}",
     "daemon.js",
+    "seed-*.mjs",
   ],
   rules: {
     "no-console": "off",

@@ -61,7 +61,13 @@ export async function calculateReportStats(
   let totalGuests = 0
 
   for (const order of paidOrders) {
-    totalSales += toNum(order.totalWithTip || order.total)
+    // FIX (QA 2026-09-17, runda 10): Prisma Decimal v JSON/API kontekstu prihaja
+    // kot STRING — "0" je TRUTHY, zato je `order.totalWithTip || order.total`
+    // za naročila brez napitnika (totalWithTip = "0") vzel "0" in prispeval
+    // 0 € v totalSales (zaznano: totalSales 71,07 € vs cashSales 593,02 €).
+    // Numeric fallback: primerjaj ŠTEVILKI, ne primitivov.
+    const orderGross = toNum(order.totalWithTip) || toNum(order.total)
+    totalSales += orderGross
     totalNetSales += toNum(order.subtotal)
     totalTax += toNum(order.tax)
     totalDiscounts += toNum(order.discount)
@@ -70,10 +76,10 @@ export async function calculateReportStats(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     totalGuests += order.orderItems.filter((oi: any) => !oi.voided).reduce((sum: number, oi: any) => sum + oi.quantity, 0)
 
-    // FIX HIGH: totalSales vsebuje tip, a tipBreakdown ne
-    if (order.type === 'dine-in') dineInSales += toNum(order.totalWithTip || order.total)
-    else if (order.type === 'takeout') takeoutSales += toNum(order.totalWithTip || order.total)
-    else if (order.type === 'delivery') deliverySales += toNum(order.totalWithTip || order.total)
+    // FIX HIGH: totalSales vsebuje tip, a tipBreakdown ne (isti numeric fallback kot zgoraj)
+    if (order.type === 'dine-in') dineInSales += orderGross
+    else if (order.type === 'takeout') takeoutSales += orderGross
+    else if (order.type === 'delivery') deliverySales += orderGross
 
     // DDV razčlenitev
     for (const oi of order.orderItems) {

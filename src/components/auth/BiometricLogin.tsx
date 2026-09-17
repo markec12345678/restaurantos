@@ -7,6 +7,7 @@ import { startAuthentication } from '@simplewebauthn/browser'
 import { toast } from 'sonner'
 import { setAuthToken, setCurrentUser } from '@/components/pos/PinLogin'
 import type { AuthUser } from '@/components/pos/pin-login/constants'
+import { logger } from '@/lib/logger'
 
 interface BiometricLoginProps {
   onLogin: (employee: AuthUser) => void
@@ -90,7 +91,7 @@ export function BiometricLogin({
       if (err instanceof Error && err.name === 'NotAllowedError') {
         return
       }
-      console.error('[biometric-login] error:', err)
+      logger.error('biometric-login', 'Napaka pri biometrični prijavi', err instanceof Error ? err.message : err)
       toast.error('Napaka pri biometrični prijavi. Poskusite znova.')
     } finally {
       setIsLoading(false)

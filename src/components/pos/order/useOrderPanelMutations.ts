@@ -14,6 +14,7 @@ import {
   startSyncPolling,
   getPendingCount,
 } from '@/lib/offline-orders'
+import { logger } from '@/lib/logger'
 
 // ============================================
 // HOOK: Mutacije in callbacki za OrderPanel
@@ -47,7 +48,7 @@ export function useOrderPanelMutations() {
 
     // Sync ko pride online
     const handleOnline = () => {
-      console.log('[OfflineQueue] Network restored — syncing pending orders')
+      logger.info('OfflineQueue', 'Network restored — syncing pending orders')
       import('@/lib/offline-orders').then(({ syncPendingOrders }) => {
         syncPendingOrders(authFetch).then(result => {
           if (result.succeeded > 0) {

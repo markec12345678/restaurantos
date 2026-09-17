@@ -21,15 +21,15 @@ export const ReceiptTotalsSection = memo(function ReceiptTotalsSection({
         <span>{formatNumberSl(receipt.subtotal)} €</span>
       </div>
 
-      {/* DDV po stopnjah */}
+      {/* DDV po stopnjah — STYLING FIX (runda 10): stopnja "9.5" → slovensko "9,5" */}
       {Object.entries(receipt.vatBreakdown).map(([rate, data]) => (
         <div key={rate} className="space-y-0.5">
           <div className="flex justify-between text-[10px]">
-            <span className="text-muted-foreground pl-2">DDV {rate}% osnova:</span>
+            <span className="text-muted-foreground pl-2">DDV {formatNumberSl(Number(rate))}% osnova:</span>
             <span className="text-muted-foreground">{formatNumberSl(data.base)} €</span>
           </div>
           <div className="flex justify-between">
-            <span className="pl-2">DDV {rate}%:</span>
+            <span className="pl-2">DDV {formatNumberSl(Number(rate))}%:</span>
             <span>{formatNumberSl(data.vat)} €</span>
           </div>
         </div>

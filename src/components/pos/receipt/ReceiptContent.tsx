@@ -82,7 +82,9 @@ export const ReceiptContent = memo(function ReceiptContent({
                 <span className="font-semibold">{formatNumberSl(item.totalWithVat)}€</span>
               </div>
               <div className="pl-4 flex justify-between text-[10px] text-muted-foreground">
-                <span>{item.quantity}x {formatNumberSl(item.unitPrice)}€ + DDV {item.vatRate}%</span>
+                {/* STYLING FIX (runda 10): formatNumberSl tudi za DDV stopnjo —
+                    prej "DDV 9.5%" (pike), zdaj "DDV 9,5%" (slovenska vejica) */}
+                <span>{item.quantity}x {formatNumberSl(item.unitPrice)}€ + DDV {formatNumberSl(item.vatRate)}%</span>
                 <span>osn.{formatNumberSl(item.basePrice)}€ ddv.{formatNumberSl(item.vatAmount)}€</span>
               </div>
               {item.modifiers.length > 0 && (
@@ -90,7 +92,9 @@ export const ReceiptContent = memo(function ReceiptContent({
                   {item.modifiers.map((mod, i) => (
                     <div key={i} className="flex justify-between text-[10px] text-muted-foreground">
                       <span>+ {mod.name}</span>
-                      {mod.price && mod.price > 0 && <span>+{formatNumberSl(mod.price)}€</span>}
+                      {/* STYLING FIX (runda 10): prej `mod.price && mod.price > 0 &&`
+                          je za ceno 0 NARISAL LITERALNI "0" (0 je validni ReactNode) */}
+                      {(mod.price ?? 0) > 0 && <span>+{formatNumberSl(mod.price)}€</span>}
                     </div>
                   ))}
                 </div>

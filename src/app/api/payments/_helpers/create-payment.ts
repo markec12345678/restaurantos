@@ -12,6 +12,7 @@ import { handleGiftCardDeduction } from './gift-card'
 import { handleLoyaltyPointsDeduction, handleLoyaltyEarn } from './loyalty'
 import { updateCheckAndOrderStatus } from './check-status'
 import { postPaymentProcessing } from './post-processing'
+import { refreshZDraftForPayment } from '@/app/api/z-report/_helpers/refresh-draft'
 import { type PaymentInput } from './types'
 
 type CreatePaymentInput = z.infer<typeof createPaymentSchema>
@@ -225,6 +226,16 @@ export async function handleCreatePayment(
     })
 
     await postPaymentProcessing(result.id, paymentInput, check.orderId, employeeId ?? undefined)
+
+    // NOVA FUNKCIONALNOST (runda 10): Z-osnutek se osveži tudi ob NOVEM plačilu
+    // (prej samo ob zaprtju izmene / ročnem POST) — Nadzorna plošča ne prikazuje
+    // več zastarelih števk med dnem. Fire-and-forget: plačilo ne čaka (~80 ms),
+    // napaka se samo zabeleži (nikoli ne pokvari plačila).
+    void refreshZDraftForPayment(new Date(), check.order?.locationId).catch((err: unknown) => {
+      logger.warn('ZReport', 'Avtomatska osvežitev Z-osnutka ob plačilu spodletela (ne kritično)', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    })
 
     // FIX FASE 1: Avtomatsko generiraj knjigovodski vnos (double-entry)
     // Non-blocking — če spodleti, ne prekini plačila (samo zabeleži napako)

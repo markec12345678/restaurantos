@@ -75,10 +75,19 @@ jobs:
       - name: Generate Prisma client
         run: bunx prisma generate
 
-      - name: ESLint (0 error + warning budget 1486)
+      - name: ESLint (0 error + warning budget 180)
         # P1-20: warningi NISO tiho zeleni — budget (ratchet) fail-a vsak NOVI
-        # warning. Znižujemo ga postopoma (798 no-console + 675 no-unused-vars).
-        run: npx eslint . --max-warnings 1486
+        # warning. Znižujemo ga postopoma.
+        # QA 2026-09-17: 1486 → 180. Razlaga skoka (prej 457 → 1303):
+        #  (1) DVOSTROJNO ŠTETJE — core "no-unused-vars" + "@typescript-eslint/
+        #      no-unused-vars" sta oba reportala isto vrstico (275 dvojnikov);
+        #      core pravilo je zdaj OFF, TS pravilo ostaja edini vir resnice
+        #  (2) tests/ chaos E2E skripte + korenski seed-*.mjs niso bili izvzeti
+        #      iz "no-console" (849 warningov); zdaj v CLI-izvzetki skupini
+        #  (3) 16 "no-console" v src/ pretvorjenih v strukturirani logger
+        #  Preostanek: 167 no-unused-vars (TS) + 8 no-explicit-any +
+        #  2 import/no-anonymous-default-export → naslednja čiščenja.
+        run: npx eslint . --max-warnings 180
 
       - name: TypeScript typecheck (no emit)
         run: bunx tsc --noEmit
