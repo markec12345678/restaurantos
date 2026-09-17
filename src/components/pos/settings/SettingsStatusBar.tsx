@@ -11,10 +11,17 @@ import type { SettingsStatusBarProps } from './constants'
 export const SettingsStatusBar = memo(function SettingsStatusBar({
   form,
   fursStatus,
+  cisStatus,
   lastSaved,
   currentCountryCode,
 }: SettingsStatusBarProps) {
   const currentCountryConfig = getCountryConfig(currentCountryCode)
+
+  // Task 24-c: HR → CIS (Porezna uprava), ostalo → FURS — status + okolje državno
+  // ozaveščeni (fiskalni modul je določen z izbrano državo)
+  const isCisCountry = currentCountryCode === 'HR'
+  const fiscalStatus = isCisCountry ? cisStatus : fursStatus
+  const fiscalEnvironment = isCisCountry ? form.cisEnvironment : form.fursEnvironment
 
   return (
     <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-4">
@@ -25,8 +32,8 @@ export const SettingsStatusBar = memo(function SettingsStatusBar({
         </span>
         <span className="flex items-center gap-1.5">
           <Monitor className="h-3.5 w-3.5" />
-          Okolje: <Badge variant={form.fursEnvironment === 'production' ? 'destructive' : 'outline'} className="text-[9px] h-4">
-            {form.fursEnvironment === 'production' ? 'PRODUKCIJA' : 'TEST'}
+          Okolje: <Badge variant={fiscalEnvironment === 'production' ? 'destructive' : 'outline'} className="text-[9px] h-4">
+            {fiscalEnvironment === 'production' ? 'PRODUKCIJA' : 'TEST'}
           </Badge>
         </span>
         <span>Blagajna: {form.registerNumber || 'BLG-001'}</span>
@@ -35,8 +42,8 @@ export const SettingsStatusBar = memo(function SettingsStatusBar({
       <div className="flex items-center gap-4">
         {lastSaved && <span>Zadnje shranjevanje: {lastSaved}</span>}
         <span className="flex items-center gap-1">
-          <div className={`h-2 w-2 rounded-full ${fursStatus === 'connected' ? 'bg-emerald-500' : fursStatus === 'error' ? 'bg-red-500' : 'bg-gray-400'}`}><span className="sr-only">{fursStatus === 'connected' ? 'Povezan' : fursStatus === 'error' ? 'Napaka' : 'Nepovezan'}</span></div>
-          {fursStatus === 'connected' ? `${currentCountryConfig.fiscalization.authorityShort} povezan` : fursStatus === 'error' ? `${currentCountryConfig.fiscalization.authorityShort} napaka` : `${currentCountryConfig.fiscalization.authorityShort} nepovezan`}
+          <div className={`h-2 w-2 rounded-full ${fiscalStatus === 'connected' ? 'bg-emerald-500' : fiscalStatus === 'error' ? 'bg-red-500' : 'bg-muted-foreground'}`}><span className="sr-only">{fiscalStatus === 'connected' ? 'Povezan' : fiscalStatus === 'error' ? 'Napaka' : 'Nepovezan'}</span></div>
+          {fiscalStatus === 'connected' ? `${currentCountryConfig.fiscalization.authorityShort} povezan` : fiscalStatus === 'error' ? `${currentCountryConfig.fiscalization.authorityShort} napaka` : `${currentCountryConfig.fiscalization.authorityShort} nepovezan`}
         </span>
       </div>
     </div>

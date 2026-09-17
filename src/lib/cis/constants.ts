@@ -8,8 +8,12 @@
 // FIX vsaj country-config/hr.ts: ta je imel napačna URL-ja
 // (test brez "Test" pripone, prod na zastarel apis-it.hr host).
 //
-// Namespace: klasična APIS-IT fiskalizacija (Echo deluje; za polne sporočile
-// RacunZahtev/RacunOdgovor bo potrebna potrditev ns ob implementaciji podpisa).
+// Namespace: FIX Task 24-b — prej je bil "types/fiskalizacija", kar je NAPAČNO.
+// Pravilen namespace (verificirano iz referenčne implementacije
+// fiskalizacija2-js IN uradne specifikacije v1.3+) je "types/f73" —
+// uporabljata ga TUDI EchoRequest in RacunZahtjev. Stari ns ni povzročil
+// očitne napake pri Echo (strežnik na ne-podpisan echo odgovarja s sistemsko
+// napako s006 ne glede na ns), ampak bi RacunZahtjev zavrnil.
 // ============================================
 
 import type { CisEnvironment } from './types'
@@ -20,7 +24,7 @@ export const CIS_URLS: Record<CisEnvironment, string> = {
 }
 
 export const CIS_SOAP_NS = 'http://schemas.xmlsoap.org/soap/envelope/'
-export const CIS_NS = 'http://www.apis-it.hr/fin/2012/types/fiskalizacija'
+export const CIS_NS = 'http://www.apis-it.hr/fin/2012/types/f73'
 
 /** Demo CA pin odgovora (rotacija detector — glej certs/cis-test/README.md). */
 export const CIS_TEST_RESPONSE_CERT_PIN =

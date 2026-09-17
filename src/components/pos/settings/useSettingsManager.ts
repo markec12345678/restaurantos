@@ -9,6 +9,7 @@ import { getCountryConfig, type CountryCode } from '@/lib/country-config'
 import { setLocale } from '@/lib/i18n'
 import type { SettingsData, FursStatus } from './constants'
 import { useSettingsSave } from './useSettingsSave'
+import { mapCisEchoResponseToStatus } from './cis-status'
 
 // ============================================
 // HOOK: Upravljanje nastavitev
@@ -19,6 +20,7 @@ export function useSettingsManager() {
   const { country: storeCountry, setCountry: setStoreCountry, setLocale: setStoreLocale } = usePOSStore()
   const [activeTab, setActiveTab] = useState('country')
   const [fursStatus, setFursStatus] = useState<FursStatus>('disconnected')
+  const [cisStatus, setCisStatus] = useState<FursStatus>('disconnected')
   const [lastSaved, setLastSaved] = useState<string>('')
   const [selectedCountry, setSelectedCountry] = useState<CountryCode>((storeCountry as CountryCode) || 'SI')
   const [bulkVatFrom, setBulkVatFrom] = useState('22')
@@ -101,6 +103,28 @@ export function useSettingsManager() {
     }
   }, [])
 
+  // CIS povezljivost (Hrvaška) — zrcali testFursConnection, ampak kliče
+  // GET /api/cis/echo?environment=... (odgovor: { reachable, echoed, ... }).
+  // Okolje prihaja iz forme (cisEnvironment) — zato je forma v deps.
+  const testCisConnection = useCallback(async () => {
+    setCisStatus('testing')
+    try {
+      const environment = form.cisEnvironment || 'test'
+      const res = await authFetch(`/api/cis/echo?environment=${encodeURIComponent(environment)}`)
+      const data = await res.json()
+      const { status, message } = mapCisEchoResponseToStatus(data)
+      setCisStatus(status)
+      if (status === 'connected') {
+        toast.success(message)
+      } else {
+        toast.error(message)
+      }
+    } catch {
+      setCisStatus('error')
+      toast.error('CIS povezava neuspešna - napaka pri preverjanju')
+    }
+  }, [form])
+
   const updateField = useCallback((field: string, value: unknown) => {
     setForm(prev => ({ ...prev, [field]: value }))
   }, [])
@@ -108,6 +132,7 @@ export function useSettingsManager() {
   return {
     activeTab, setActiveTab,
     fursStatus,
+    cisStatus,
     lastSaved,
     selectedCountry,
     bulkVatFrom, setBulkVatFrom,
@@ -121,6 +146,7 @@ export function useSettingsManager() {
     handleSave,
     handleBulkVatChange,
     testFursConnection,
+    testCisConnection,
     updateField,
   }
 }

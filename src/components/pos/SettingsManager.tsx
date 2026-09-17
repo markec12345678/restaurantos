@@ -17,6 +17,7 @@ const CountryTab = dynamic(() => import('./settings/CountryTab').then(m => ({ de
 const CompanyTab = dynamic(() => import('./settings/CompanyTab').then(m => ({ default: m.CompanyTab })), { ssr: false })
 const TaxTab = dynamic(() => import('./settings/TaxTab').then(m => ({ default: m.TaxTab })), { ssr: false })
 const FursTab = dynamic(() => import('./settings/FursTab').then(m => ({ default: m.FursTab })), { ssr: false })
+const CisTab = dynamic(() => import('./settings/CisTab').then(m => ({ default: m.CisTab })), { ssr: false })
 const ReceiptTab = dynamic(() => import('./settings/ReceiptTab').then(m => ({ default: m.ReceiptTab })), { ssr: false })
 const AiTab = dynamic(() => import('./settings/AiTab').then(m => ({ default: m.AiTab })), { ssr: false })
 const IntegrationsTab = dynamic(() => import('./settings/IntegrationsTab').then(m => ({ default: m.IntegrationsTab })), { ssr: false })
@@ -30,6 +31,7 @@ export const SettingsManager = memo(function SettingsManager() {
   const {
     activeTab, setActiveTab,
     fursStatus,
+    cisStatus,
     lastSaved,
     selectedCountry,
     bulkVatFrom, setBulkVatFrom,
@@ -43,6 +45,7 @@ export const SettingsManager = memo(function SettingsManager() {
     handleSave,
     handleBulkVatChange,
     testFursConnection,
+    testCisConnection,
     updateField,
   } = useSettingsManager()
 
@@ -84,7 +87,7 @@ export const SettingsManager = memo(function SettingsManager() {
           <TabsTrigger value="tax" className="gap-1.5">
             <Percent className="h-3.5 w-3.5" /> Davki
           </TabsTrigger>
-          <TabsTrigger value="furs" className="gap-1.5">
+          <TabsTrigger value="fiscal" className="gap-1.5">
             <Shield className="h-3.5 w-3.5" /> {currentCountryConfig.fiscalization.authorityShort}
           </TabsTrigger>
           <TabsTrigger value="receipt" className="gap-1.5">
@@ -132,15 +135,25 @@ export const SettingsManager = memo(function SettingsManager() {
           />
         </TabsContent>
 
-        {/* TAB: FISKALIZACIJA */}
-        <TabsContent value="furs" className="space-y-4 mt-4">
-          <FursTab
-            form={form}
-            updateField={updateField}
-            fursStatus={fursStatus}
-            onTestFursConnection={testFursConnection}
-            currentCountryCode={selectedCountry}
-          />
+        {/* TAB: FISKALIZACIJA — FURS (SI) oz. CIS (HR, Task 24-c) */}
+        <TabsContent value="fiscal" className="space-y-4 mt-4">
+          {selectedCountry === 'HR' ? (
+            <CisTab
+              form={form}
+              updateField={updateField}
+              cisStatus={cisStatus}
+              onTestCisConnection={testCisConnection}
+              currentCountryCode={selectedCountry}
+            />
+          ) : (
+            <FursTab
+              form={form}
+              updateField={updateField}
+              fursStatus={fursStatus}
+              onTestFursConnection={testFursConnection}
+              currentCountryCode={selectedCountry}
+            />
+          )}
         </TabsContent>
 
         {/* TAB: NOGA RAČUNA */}
@@ -180,6 +193,7 @@ export const SettingsManager = memo(function SettingsManager() {
       <SettingsStatusBar
         form={form}
         fursStatus={fursStatus}
+        cisStatus={cisStatus}
         lastSaved={lastSaved}
         currentCountryCode={selectedCountry}
       />

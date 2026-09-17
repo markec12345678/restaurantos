@@ -34,8 +34,17 @@ export interface SettingsData {
   isActive: boolean
 }
 
-/** Stanje povezave s FURS */
+/** Stanje povezave s FURS (ponovno uporabljeno tudi za CIS povezavo) */
 export type FursStatus = 'disconnected' | 'testing' | 'connected' | 'error'
+
+/**
+ * Forma + maskirne zastavice, ki jih GET /api/settings vrne poleg
+ * SettingsData (hasCisCert/hasFursCert niso del zapisljivega objekta).
+ */
+export type SettingsFormWithFlags = Partial<SettingsData> & {
+  hasCisCert?: boolean
+  hasFursCert?: boolean
+}
 
 /** Rezultat posamezne overitve v množičnem overjanju */
 export interface BatchVerificationResult {
@@ -92,6 +101,15 @@ export interface FursTabProps {
   currentCountryCode: CountryCode
 }
 
+export interface CisTabProps {
+  form: SettingsFormWithFlags
+  updateField: (_field: string, _value: unknown) => void
+  /** Stanje CIS povezave (isti tip kot fursStatus) */
+  cisStatus: FursStatus
+  onTestCisConnection: () => void
+  currentCountryCode: CountryCode
+}
+
 export interface ReceiptTabProps {
   form: Partial<SettingsData>
   updateField: (_field: string, _value: unknown) => void
@@ -100,6 +118,8 @@ export interface ReceiptTabProps {
 export interface SettingsStatusBarProps {
   form: Partial<SettingsData>
   fursStatus: FursStatus
+  /** Stanje CIS povezave — prikazano, ko je izbrana država HR (Task 24-c) */
+  cisStatus: FursStatus
   lastSaved: string
   currentCountryCode: CountryCode
 }

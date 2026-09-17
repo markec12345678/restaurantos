@@ -45,7 +45,7 @@ describe('buildCisEchoEnvelope', () => {
     const xml = buildCisEchoEnvelope('ping-123')
     expect(xml).toContain('soapenv:Envelope')
     expect(xml).toContain('http://schemas.xmlsoap.org/soap/envelope/')
-    expect(xml).toContain('http://www.apis-it.hr/fin/2012/types/fiskalizacija')
+    expect(xml).toContain('http://www.apis-it.hr/fin/2012/types/f73')
     expect(xml).toContain('<fu:EchoRequest>ping-123</fu:EchoRequest>')
   })
 })
@@ -65,10 +65,17 @@ describe('extractCisErrorCode', () => {
 
 describe('checkCisConnectivity (mock transport)', () => {
   it('echo round-trip → echoed=true, reachable=true', async () => {
-    const msg = `restaurantos-ping-${Date.now()}`
-    mocks.soapPost.mockResolvedValue({
-      status: 200,
-      body: `<soap:Envelope><soap:Body><fu:EchoResponse>${msg}</fu:EchoResponse></soap:Body></soap:Envelope>`,
+    // FIX (Task 24-b, znan flake iz runde 23): test je generiral svoj
+    // `restaurantos-ping-${Date.now()}`, checkCisConnectivity pa svojega —
+    // ob prelomu milisekunde med obema klicema se niza razlikujeta → echoed=false
+    // (1× od ~3 poganjanj). Mock zdaj odmeva sporočilo IZ REQUEST body-a
+    // (tako kot pravi CIS strežnik) → deterministično.
+    mocks.soapPost.mockImplementation(async (_url: string, reqBody: string) => {
+      const m = /restaurantos-ping-\d+/.exec(reqBody)
+      return {
+        status: 200,
+        body: `<soap:Envelope><soap:Body><fu:EchoResponse>${m?.[0] ?? ''}</fu:EchoResponse></soap:Body></soap:Envelope>`,
+      }
     })
 
     const res = await checkCisConnectivity('test')
