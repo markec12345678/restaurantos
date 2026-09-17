@@ -18,6 +18,7 @@
 
 import * as React from 'react'
 import { Input } from '@/components/ui/input'
+import { cn } from '@/lib/utils'
 import { parseDecimalInput } from '@/lib/safe-format'
 
 export type DecimalInputProps = Omit<
@@ -53,7 +54,11 @@ export const DecimalInput = React.forwardRef<HTMLInputElement, DecimalInputProps
         inputMode="decimal"
         autoComplete="off"
         spellCheck={false}
-        className={className}
+        // STYLING runda 14 (tablet 3. del): centralni dotične tarče — vsi ~44
+        // datotek z DecimalInput dobijo na grobi kazalki (tablice/telefoni)
+        // 44px tarčo + touch-manipulation BREZ posameznih popravkov;
+        // namizje ostane kompaktno (h-* override-i v uporabi ostanejo varen).
+        className={cn('pointer-coarse:h-11 touch-manipulation', className)}
         {...props}
         value={raw}
         onFocus={(e) => {

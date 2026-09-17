@@ -108,6 +108,7 @@ export const Dashboard = memo(function Dashboard() {
       <ZReportQuickView
         todayRevenue={data?.todayRevenue || 0}
         totalOrders={data?.totalOrders || 0}
+        paidOrders={data?.paidOrderCount}
         avgOrderValue={data?.avgOrderValue || 0}
       />
 

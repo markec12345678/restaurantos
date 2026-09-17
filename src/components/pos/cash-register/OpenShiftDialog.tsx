@@ -50,7 +50,7 @@ export const OpenShiftDialog = memo(function OpenShiftDialog({
                 onFormChange({ ...form, employeeId: v, employeeName: emp?.name || '' })
               }}
             >
-              <SelectTrigger id="cash-employee" autoFocus>
+              <SelectTrigger id="cash-employee" autoFocus className="pointer-coarse:h-11 pointer-coarse:text-base touch-manipulation">
                 <SelectValue placeholder="Izberi zaposlenega" />
               </SelectTrigger>
               <SelectContent>
@@ -72,8 +72,8 @@ export const OpenShiftDialog = memo(function OpenShiftDialog({
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} aria-label="Prekliči">Prekliči</Button>
-          <Button onClick={() => onSubmit(form)} disabled={isPending} aria-label="Odpri izmeno">
+          <Button variant="outline" onClick={() => onOpenChange(false)} aria-label="Prekliči" className="pointer-coarse:h-11 pointer-coarse:text-base">Prekliči</Button>
+          <Button onClick={() => onSubmit(form)} disabled={isPending} aria-label="Odpri izmeno" className="pointer-coarse:h-11 pointer-coarse:text-base">
             {isPending ? 'Odpiram...' : 'Odpri izmeno'}
           </Button>
         </DialogFooter>

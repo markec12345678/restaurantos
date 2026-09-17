@@ -22,11 +22,11 @@ export const NotesFields = memo(function NotesFields({
       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Opombe</p>
       <div>
         <label htmlFor="res-special-requests" className="text-xs font-medium">Posebne želje</label>
-        <Textarea id="res-special-requests" value={specialRequests} onChange={e => setSpecialRequests(e.target.value)} placeholder="Otroški stol, ob oknu, rojstnodnevna torta..." className="text-sm min-h-16" aria-label="Otroški stol, ob oknu, rojstnodnevna torta"/>
+        <Textarea id="res-special-requests" value={specialRequests} onChange={e => setSpecialRequests(e.target.value)} placeholder="Otroški stol, ob oknu, rojstnodnevna torta..." className="text-sm min-h-16 pointer-coarse:min-h-20" aria-label="Otroški stol, ob oknu, rojstnodnevna torta"/>
       </div>
       <div>
         <label htmlFor="res-notes" className="text-xs font-medium">Interne opombe</label>
-        <Textarea id="res-notes" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Alergije, VIP gost, pogosto naroča..." className="text-sm min-h-16" aria-label="Alergije, VIP gost, pogosto naroča"/>
+        <Textarea id="res-notes" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Alergije, VIP gost, pogosto naroča..." className="text-sm min-h-16 pointer-coarse:min-h-20" aria-label="Alergije, VIP gost, pogosto naroča"/>
       </div>
     </div>
   )

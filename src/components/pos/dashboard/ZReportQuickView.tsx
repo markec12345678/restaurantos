@@ -57,8 +57,12 @@ interface TodayZReport {
 interface ZReportQuickViewProps {
   /** Živi današnji prihodek iz /api/dashboard (fallback, če osnutek še ne obstaja) */
   todayRevenue: number
-  /** Živa številka naročil iz /api/dashboard */
+  /** Živa številka VSEH naročil danes iz /api/dashboard (kontekst: "od X vseh") */
   totalOrders: number
+  /** Runda 14: živo število PLAČANIH naročil danes iz /api/dashboard —
+   *  semantično usklajeno s Prodajo/Povprečnim (tudi ta sta samo plačana).
+   *  Brez tega je karta mešala "Naročila 7 (vsa)" z "Prodaja 12,37 (plačana)". */
+  paidOrders?: number
   /** Živ povprečni račun iz /api/dashboard */
   avgOrderValue: number
 }
@@ -93,6 +97,7 @@ function ljubljanaTime(iso: string): string {
 export const ZReportQuickView = memo(function ZReportQuickView({
   todayRevenue,
   totalOrders,
+  paidOrders,
   avgOrderValue,
 }: ZReportQuickViewProps) {
   const setActiveModule = usePOSStore((s) => s.setActiveModule)
@@ -123,10 +128,18 @@ export const ZReportQuickView = memo(function ZReportQuickView({
     (r) => ljubljanaDateKey(r.reportDate) === todayKey,
   )
 
-  // Številke: iz osnutka, sicer žive iz dashboard API-ja
+  // Številke: iz osnutka, sicer žive iz dashboard API-ja.
+  // Runda 14 — semantika "Naročila": VEDNO plačana naročila (osnutek totalOrders
+  // šteje samo plačana; živi način pa zdaj uporablja paidOrderCount namesto
+  // vseh naročil) — tako je nabor (Prodaja, Naročila, Povprečno) med seboj
+  // konsistenten v OBEH stanjih. Vsak dodatni kontekst: "od X vseh".
   const sales = today ? Number(today.totalSales) : todayRevenue
   const tax = today ? Number(today.totalTax) : null
-  const orders = today ? today.totalOrders : totalOrders
+  const paidFallback = typeof paidOrders === 'number' ? paidOrders : totalOrders
+  const orders = today ? today.totalOrders : paidFallback
+  const allOrdersContext = !today && typeof paidOrders === 'number' && totalOrders > paidOrders
+    ? totalOrders
+    : null
   const avg = today ? Number(today.avgOrderValue) : avgOrderValue
 
   // Razčlenitev plačil (samo kadar osnutek obstaja — vseeno kar je znano)
@@ -181,8 +194,14 @@ export const ZReportQuickView = memo(function ZReportQuickView({
             <div className="text-lg font-bold text-amber-600">{tax === null ? '—' : formatEUR(tax)}</div>
           </div>
           <div className="rounded-lg border p-3">
-            <div className="text-xs text-muted-foreground">Naročila</div>
+            <div className="text-xs text-muted-foreground">{today ? 'Naročila (plačana)' : 'Naročila'}</div>
             <div className="text-lg font-bold">{orders}</div>
+            {/* Živi način: kontekst, koliko naročil je danes SKUPAJ (vključno z neplačanimi) */}
+            {allOrdersContext !== null && (
+              <div className="text-[11px] text-muted-foreground" title="Število vseh naročil danes, vključno s še neplačanimi">
+                od {allOrdersContext} vseh danes
+              </div>
+            )}
           </div>
           <div className="rounded-lg border p-3">
             <div className="text-xs text-muted-foreground">Povprečno</div>

@@ -102,8 +102,8 @@ export const ReservationDialog = memo(function ReservationDialog({
           />
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Prekliči</Button>
-          <Button onClick={handleSave}>{isEditing ? 'Shrani spremembe' : 'Ustvari rezervacijo'}</Button>
+          <Button variant="outline" onClick={onClose} className="pointer-coarse:h-11 pointer-coarse:text-base">Prekliči</Button>
+          <Button onClick={handleSave} className="pointer-coarse:h-11 pointer-coarse:text-base">{isEditing ? 'Shrani spremembe' : 'Ustvari rezervacijo'}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -101,6 +101,10 @@ export async function GET(req: Request) {
       todayTax: agg.todayTax,
       todayDiscount: agg.todayDiscount,
       totalOrders: agg.totalOrders,
+      // Runda 14: število PLAČANIH naročil danes — Z-quick-view ga uporabi za
+      // semantično usklajen živi povzetek ("Naročila" = plačana, enako kot
+      // Prodaja/Povprečno; brez tega je karta mešala vsa vs. plačana naročila)
+      paidOrderCount: agg.paidOrderCount,
       completedOrders: agg.completedOrders,
       cancelledOrders: agg.cancelledOrders,
       avgOrderValue: agg.avgOrderValue,

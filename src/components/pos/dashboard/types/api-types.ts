@@ -94,6 +94,8 @@ export interface LowStockItem {
 export interface DashboardData {
   todayRevenue: number
   totalOrders: number
+  /** Runda 14: plačana naročila danes (paidAt + paymentStatus='paid') — Z-quick-view živa številka */
+  paidOrderCount?: number
   completedOrders: number
   cancelledOrders: number
   pendingOrders: number

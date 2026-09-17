@@ -37,12 +37,12 @@ export const DateTimeTableFields = memo(function DateTimeTableFields({
       <div className="grid grid-cols-4 gap-3">
         <div>
           <label htmlFor="res-date" className="text-xs font-medium">Datum</label>
-          <Input id="res-date" type="date" value={date} onChange={e => setDate(e.target.value)} className="h-9 text-sm" />
+          <Input id="res-date" type="date" value={date} onChange={e => setDate(e.target.value)} className="h-9 text-sm pointer-coarse:h-11 touch-manipulation" />
         </div>
         <div>
           <label htmlFor="res-time" className="text-xs font-medium">Ura</label>
           <Select value={time} onValueChange={setTime}>
-            <SelectTrigger id="res-time" className="h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectTrigger id="res-time" className="h-9 text-sm pointer-coarse:h-11 touch-manipulation"><SelectValue /></SelectTrigger>
             <SelectContent>
               {timeSlots.map(slot => (<SelectItem key={slot} value={slot}>{slot}</SelectItem>))}
             </SelectContent>
@@ -50,12 +50,12 @@ export const DateTimeTableFields = memo(function DateTimeTableFields({
         </div>
         <div>
           <label htmlFor="res-party-size" className="text-xs font-medium">Oseb *</label>
-          <DecimalInput id="res-party-size" value={partySize} onValueChange={n => setPartySize(n || 1)} className="h-9 text-sm" />
+          <DecimalInput id="res-party-size" value={partySize} onValueChange={n => setPartySize(n || 1)} className="h-9 text-sm pointer-coarse:h-11 touch-manipulation" />
         </div>
         <div>
           <label htmlFor="res-duration" className="text-xs font-medium">Trajanje (min)</label>
           <Select value={String(duration)} onValueChange={v => setDuration(parseInt(v))}>
-            <SelectTrigger id="res-duration" className="h-9 text-sm"><SelectValue /></SelectTrigger>
+            <SelectTrigger id="res-duration" className="h-9 text-sm pointer-coarse:h-11 touch-manipulation"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="60">1 ura</SelectItem>
               <SelectItem value="90">1.5 ure</SelectItem>
@@ -69,7 +69,7 @@ export const DateTimeTableFields = memo(function DateTimeTableFields({
       <div>
         <label htmlFor="res-table" className="text-xs font-medium">Miza (primernih: {suitableTables.length})</label>
         <Select value={tableId || 'none'} onValueChange={(v) => setTableId(v === 'none' ? '' : v)}>
-          <SelectTrigger id="res-table" className="h-9 text-sm"><SelectValue placeholder="Izberi mizo ali pusti prazno" /></SelectTrigger>
+          <SelectTrigger id="res-table" className="h-9 text-sm pointer-coarse:h-11 touch-manipulation"><SelectValue placeholder="Izberi mizo ali pusti prazno" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="none">Brez mize</SelectItem>
             {suitableTables.map(t => (<SelectItem key={t.id} value={t.id}>Miza {t.number} ({t.capacity} mest) — {t.area}</SelectItem>))}

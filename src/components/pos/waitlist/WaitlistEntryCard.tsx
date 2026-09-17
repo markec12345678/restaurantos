@@ -67,7 +67,7 @@ export const WaitlistEntryCard = memo(function WaitlistEntryCard({
             <Button
               size="sm"
               onClick={onNotify}
-              className="bg-blue-500 hover:bg-blue-600 text-white text-xs h-7 px-2"
+              className="bg-blue-500 hover:bg-blue-600 text-white text-xs h-7 px-2 pointer-coarse:h-9 pointer-coarse:px-3 pointer-coarse:text-sm touch-manipulation"
               aria-label="Obvesti gosta"
             >
               Obvesti
@@ -76,7 +76,7 @@ export const WaitlistEntryCard = memo(function WaitlistEntryCard({
           <Button
             size="sm"
             onClick={onSeat}
-            className="bg-green-500 hover:bg-green-600 text-white text-xs h-7 px-2"
+            className="bg-green-500 hover:bg-green-600 text-white text-xs h-7 px-2 pointer-coarse:h-9 pointer-coarse:px-3 pointer-coarse:text-sm touch-manipulation"
             aria-label="Usedi gosta"
           >
             Usedi
@@ -85,7 +85,7 @@ export const WaitlistEntryCard = memo(function WaitlistEntryCard({
             size="sm"
             variant="secondary"
             onClick={onLeave}
-            className="text-xs h-7 px-2"
+            className="text-xs h-7 px-2 pointer-coarse:h-9 pointer-coarse:px-3 pointer-coarse:text-sm touch-manipulation"
             aria-label="Označi kot odšel"
           >
             Odšel

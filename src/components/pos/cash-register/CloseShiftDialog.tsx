@@ -113,17 +113,18 @@ export const CloseShiftDialog = memo(function CloseShiftDialog({
               value={form.notes}
               onChange={e => onFormChange({ ...form, notes: e.target.value })}
               placeholder="Opombe ob zaključku izmene..."
-              className="h-20"
+              className="h-20 pointer-coarse:h-24"
             />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} aria-label="Prekliči">Prekliči</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} aria-label="Prekliči" className="pointer-coarse:h-11 pointer-coarse:text-base">Prekliči</Button>
           <Button
             variant="destructive"
             onClick={onSubmit}
             disabled={isPending}
             aria-label="Zapri izmeno"
+            className="pointer-coarse:h-11 pointer-coarse:text-base"
           >
             {isPending ? 'Zapiram...' : 'Zapri izmeno'}
           </Button>

@@ -36,7 +36,7 @@ export const WaitlistFormDialog = memo(function WaitlistFormDialog({
               id="waitlist-guest-name"
               value={(form.guestName as string) || ''}
               onChange={e => onUpdateForm('guestName', e.target.value)}
-              className="mt-1"
+              className="mt-1 pointer-coarse:h-11 touch-manipulation"
               placeholder="Ime in priimek"
               autoFocus
             />
@@ -67,7 +67,7 @@ export const WaitlistFormDialog = memo(function WaitlistFormDialog({
               id="waitlist-phone"
               value={(form.guestPhone as string) || ''}
               onChange={e => onUpdateForm('guestPhone', e.target.value)}
-              className="mt-1"
+              className="mt-1 pointer-coarse:h-11 touch-manipulation"
               placeholder="+386 ..."
             />
           </div>
@@ -77,7 +77,7 @@ export const WaitlistFormDialog = memo(function WaitlistFormDialog({
               id="waitlist-area"
               value={(form.preferredArea as string) || ''}
               onChange={e => onUpdateForm('preferredArea', e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm mt-1"
+              className="w-full border rounded-lg px-3 py-2 text-sm mt-1 pointer-coarse:py-2.5 pointer-coarse:text-base touch-manipulation"
             >
               {AREA_OPTIONS.map(opt => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -90,7 +90,7 @@ export const WaitlistFormDialog = memo(function WaitlistFormDialog({
               id="waitlist-special"
               value={(form.specialNeeds as string) || ''}
               onChange={e => onUpdateForm('specialNeeds', e.target.value)}
-              className="mt-1"
+              className="mt-1 pointer-coarse:h-11 touch-manipulation"
               placeholder="Otroški stol, invalidski dostop..."
             />
           </div>
@@ -100,18 +100,18 @@ export const WaitlistFormDialog = memo(function WaitlistFormDialog({
               id="waitlist-notes"
               value={(form.notes as string) || ''}
               onChange={e => onUpdateForm('notes', e.target.value)}
-              className="mt-1"
+              className="mt-1 pointer-coarse:h-11 touch-manipulation"
             />
           </div>
         </div>
         <DialogFooter className="gap-2">
           <DialogClose asChild>
-            <Button variant="ghost" onClick={onCancel}>Prekliči</Button>
+            <Button variant="ghost" onClick={onCancel} className="pointer-coarse:h-11 pointer-coarse:text-base">Prekliči</Button>
           </DialogClose>
           <Button
             onClick={onAddEntry}
             disabled={!form.guestName}
-            className="bg-orange-500 hover:bg-orange-600 text-white"
+            className="bg-orange-500 hover:bg-orange-600 text-white pointer-coarse:h-11 pointer-coarse:text-base"
           >
             Dodaj v čakalno
           </Button>
