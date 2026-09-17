@@ -157,7 +157,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 
 // FIX F5-9: Pošlji email obvestilo dobavitelju o nabavnem naročilu
-async function sendEmailIfConfigured(supplierId: string, poNumber: string): Promise<void> {
+async function _sendEmailIfConfigured(supplierId: string, poNumber: string): Promise<void> {
   const emailEnabled = await isEmailEnabled()
   if (!emailEnabled) return
   const supplier = await db.supplier.findUnique({ where: { id: supplierId } })

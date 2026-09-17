@@ -7,7 +7,7 @@ import { type LucideIcon } from 'lucide-react'
 import { Users, Home, Building, BarChart3, Package, Calculator, Receipt } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency, type ExpensesTabProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 interface ExpenseItem {
   label: string

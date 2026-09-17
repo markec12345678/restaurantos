@@ -11,7 +11,7 @@
 // Za multi-replica konfiguracijo nastavi REDIS_URL in uporabi RedisCacheAdapter.
 // ============================================
 
-import type { CacheAdapter, CacheValue, RateLimitConfig } from './adapter'
+import type { CacheAdapter, CacheValue } from './adapter'
 
 interface Entry {
   value: CacheValue

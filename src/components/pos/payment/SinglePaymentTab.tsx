@@ -80,7 +80,7 @@ export const SinglePaymentTab = memo(function SinglePaymentTab({
               <button
                 key={pm.id}
                 onClick={() => setPaymentMethod(pm.id)}
-                className={`flex flex-col items-center gap-1.5 py-3 rounded-lg border-2 transition-all ${
+                className={`flex flex-col items-center gap-1.5 py-3 rounded-lg border-2 transition-all touch-manipulation pointer-coarse:py-4 ${
                   isSelected
                     ? 'border-primary bg-primary/5 shadow-sm'
                     : 'border-border hover:bg-accent'

@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Store, Fingerprint, WifiOff } from 'lucide-react'
+import { Store, WifiOff } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import type { PinLoginProps } from './pin-login/constants'
 import { usePinLogin } from './pin-login/usePinLogin'

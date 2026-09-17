@@ -8,7 +8,7 @@ import { allergenLabels } from '../types'
 import type { TranslationValue } from '../translations'
 import type { MenuItemType, CartItem, CategoryType } from '../types'
 import { EmptySearchResults, EmptyCategory } from './MenuEmptyStates'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // ============================================
 // POSAMEZNA KARTICA MENIJSKEGA ARTIKLA

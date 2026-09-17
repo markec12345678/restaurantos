@@ -15,7 +15,7 @@
 // Dokler ni razcepljeno: ta endpoint ostaja za single-tenant admin upravljanje.
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
+// odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateSettingsSchema } from '@/lib/validations'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'

@@ -5,7 +5,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import type { KpiCardsProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 export const KpiCards = memo(function KpiCards({ analytics }: KpiCardsProps) {
   return (

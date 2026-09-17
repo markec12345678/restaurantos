@@ -23,7 +23,7 @@ export const KitchenStationFilter = memo(function KitchenStationFilter({
         <button
           key={station.value}
           onClick={() => onStationFilterChange(station.value)}
-          className={`px-3 py-1 text-xs font-semibold transition-colors touch-manipulation ${
+          className={`px-3 py-1 text-xs font-semibold transition-colors touch-manipulation pointer-coarse:px-4 pointer-coarse:py-2.5 pointer-coarse:text-sm ${
             stationFilter === station.value
               ? 'bg-primary text-primary-foreground'
               : 'bg-muted text-muted-foreground hover:bg-accent'

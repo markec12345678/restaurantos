@@ -8,7 +8,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Star, Zap, TrendingUp } from 'lucide-react'
 import { RatingEmoji } from './RatingEmoji'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 import type { FeedbackStatsCardsProps } from './constants'
 
 export const FeedbackStatsCards = memo(function FeedbackStatsCards({ avgRatings, nps }: FeedbackStatsCardsProps) {

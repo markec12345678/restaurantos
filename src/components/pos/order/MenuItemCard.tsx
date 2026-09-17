@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import Image from 'next/image'
-import { ChevronRight, ImageIcon, ShieldAlert } from 'lucide-react'
+import { ChevronRight, ShieldAlert } from 'lucide-react'
 import type { MenuItemType, StockInfoType } from './types'
 import { formatEUR } from '@/lib/safe-format'
 

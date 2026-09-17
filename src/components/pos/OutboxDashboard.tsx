@@ -10,7 +10,7 @@
 //   - Cleanup in manual process gumbi
 // ============================================
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -139,7 +139,7 @@ export function OutboxDashboard() {
   const stats = data?.stats
   const events = data?.events || []
 
-  const totalEvents = stats
+  const _totalEvents = stats
     ? stats.pending + stats.processing + stats.sent + stats.failed + stats.dead_letter
     : 0
 

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Clock } from 'lucide-react'
 import { TIME_SLOTS, calcHours } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 export const ShiftTimeFields = memo(function ShiftTimeFields({
   date, setDate,

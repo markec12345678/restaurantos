@@ -39,7 +39,7 @@ export const TipSection = memo(function TipSection({
           <button
             key={pct}
             onClick={() => onTipPercent(pct)}
-            className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+            className={`flex-1 py-1.5 rounded-md text-xs font-semibold transition-colors touch-manipulation pointer-coarse:py-2.5 pointer-coarse:text-sm ${
               tipPercent === pct && (pct > 0 || tipAmount === 0)
                 ? 'bg-primary text-primary-foreground'
                 : 'bg-muted text-muted-foreground hover:bg-accent'
@@ -57,7 +57,7 @@ export const TipSection = memo(function TipSection({
           inputMode="decimal"
           value={tipAmount || ''}
           onChange={e => onCustomTip(e.target.value)}
-          className="h-7 text-xs w-24"
+          className="h-7 text-xs w-24 pointer-coarse:h-10 pointer-coarse:text-sm"
           placeholder="0,00"
           aria-label="Znesek napitnine"
           autoFocus

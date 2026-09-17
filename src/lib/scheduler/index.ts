@@ -15,7 +15,7 @@
 // Po raziskavi 2025 zmanjša stroške dela za 10-15% z AI scheduling.
 // ============================================
 
-import { toNum, round2 } from '@/lib/decimal'
+import { round2 } from '@/lib/decimal'
 
 // --- Konstante (EU/SI labor law) ---
 export const LABOR_CONSTRAINTS = {

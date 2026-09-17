@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { CheckCircle2, Clock, Sun, Moon, Save, RotateCcw, ClipboardCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // ============================================
 // DAILY CHECKLIST HEADER

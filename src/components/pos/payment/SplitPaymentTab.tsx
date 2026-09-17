@@ -38,7 +38,7 @@ export const SplitPaymentTab = memo(function SplitPaymentTab({
               onClick={() => setSplitCount(n)}
               aria-label={`${n} oseb`}
               aria-pressed={splitCount === n}
-              className={`flex-1 py-2 rounded-md text-sm font-bold transition-colors ${
+              className={`flex-1 py-2 rounded-md text-sm font-bold transition-colors touch-manipulation pointer-coarse:py-3 ${
                 splitCount === n
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted text-muted-foreground hover:bg-accent'

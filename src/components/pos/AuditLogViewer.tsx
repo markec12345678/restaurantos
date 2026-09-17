@@ -19,7 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Search, Filter, Download, ShieldCheck, AlertCircle, Activity, ChevronLeft, ChevronRight } from 'lucide-react'
 import { authFetch } from '@/components/pos/PinLogin'
-import { safeToFixed } from '@/lib/safe-format'
+// odstranjen prazen import (runda 12 lint cleanup)
 
 interface AuditLogEntry {
   id: string

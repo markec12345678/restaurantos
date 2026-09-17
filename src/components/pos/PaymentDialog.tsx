@@ -99,15 +99,15 @@ export const PaymentDialog = memo(function PaymentDialog(props: PaymentDialogPro
                 {/* Plačilni zavihki */}
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
                   <TabsList className="w-full">
-                    <TabsTrigger value="single" className="flex-1 text-xs">
+                    <TabsTrigger value="single" className="flex-1 text-xs pointer-coarse:py-2.5 pointer-coarse:text-sm">
                       <CreditCard className="h-3 w-3 mr-1" />
                       Eno plačilo
                     </TabsTrigger>
-                    <TabsTrigger value="split" className="flex-1 text-xs">
+                    <TabsTrigger value="split" className="flex-1 text-xs pointer-coarse:py-2.5 pointer-coarse:text-sm">
                       <Split className="h-3 w-3 mr-1" />
                       Deljeno
                     </TabsTrigger>
-                    <TabsTrigger value="byitems" className="flex-1 text-xs">
+                    <TabsTrigger value="byitems" className="flex-1 text-xs pointer-coarse:py-2.5 pointer-coarse:text-sm">
                       <Users className="h-3 w-3 mr-1" />
                       Po artiklih
                     </TabsTrigger>

@@ -2,7 +2,7 @@
 // URL v QR kodi: https://tvojpos.si/qr/[tableId]
 // Natakar izpiše QR nalepko za vsako mizo
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
+// odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { db } from '@/lib/db'

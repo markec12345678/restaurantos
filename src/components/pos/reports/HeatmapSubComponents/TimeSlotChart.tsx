@@ -1,5 +1,5 @@
 'use client'
-import { formatEUR, safeToFixed } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Clock } from 'lucide-react'

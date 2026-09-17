@@ -8,7 +8,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BarChart3, TrendingDown, DollarSign, AlertTriangle, Receipt } from 'lucide-react'
 import { formatCurrency } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 import type { ProfitDiscountSectionProps } from './constants'
 
 export const ProfitDiscountSection = memo(function ProfitDiscountSection({ report }: ProfitDiscountSectionProps) {

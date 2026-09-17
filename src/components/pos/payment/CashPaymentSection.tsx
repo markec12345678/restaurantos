@@ -38,7 +38,7 @@ export const CashPaymentSection = memo(function CashPaymentSection({
                 }
               }}
               aria-label={`${formatEUR(amount)} gotovina`}
-              className={`flex-1 py-2 rounded-md text-xs font-bold transition-colors touch-manipulation ${
+              className={`flex-1 py-2 rounded-md text-xs font-bold transition-colors touch-manipulation pointer-coarse:py-3 pointer-coarse:text-sm ${
                 amount >= totalWithTip
                   ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
                   : 'bg-muted text-muted-foreground hover:bg-accent'
@@ -64,7 +64,7 @@ export const CashPaymentSection = memo(function CashPaymentSection({
             inputMode="decimal"
             value={cashReceived || ''}
             onChange={(e) => setCashReceived(parseDecimalInput(e.target.value))}
-            className="h-7 text-xs w-24"
+            className="h-7 text-xs w-24 pointer-coarse:h-10 pointer-coarse:text-sm"
             placeholder={safeToFixed(totalWithTip, 2)}
             aria-label="Prejeta gotovina"
           />

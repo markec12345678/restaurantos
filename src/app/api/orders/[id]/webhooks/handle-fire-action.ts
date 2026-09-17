@@ -17,7 +17,7 @@ export async function handleFireAction(id: string) {
   })
 
   // Vsi pending items preidejo v 'preparing' in dobijo firedAt
-  const updatedItems = await db.orderItem.updateMany({
+  const _updatedItems = await db.orderItem.updateMany({
     where: { orderId: id, status: 'pending' },
     data: { status: 'preparing', firedAt: now },
   })

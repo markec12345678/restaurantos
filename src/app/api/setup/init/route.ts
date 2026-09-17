@@ -67,7 +67,7 @@ export async function POST(req: Request) {
     let nextauthSecret: string
     try {
       nextauthSecret = requireEnvSecret('NEXTAUTH_SECRET', 'setup/init pinLookup')
-    } catch (secretErr) {
+    } catch (_secretErr) {
       return NextResponse.json(
         { error: 'NEXTAUTH_SECRET ni nastavljen — inicializacija v produkciji zahteva skrivnost (brez fallback-a).' },
         { status: 500 }

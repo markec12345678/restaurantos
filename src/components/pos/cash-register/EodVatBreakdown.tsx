@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { Receipt } from 'lucide-react'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EodData = any

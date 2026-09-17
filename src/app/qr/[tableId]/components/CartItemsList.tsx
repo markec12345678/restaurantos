@@ -4,7 +4,7 @@ import { memo } from 'react'
 import Image from 'next/image'
 import { Plus, Minus, Trash2 } from 'lucide-react'
 import type { CartItem } from '../types'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 interface CartItemsListProps {
   cart: CartItem[]

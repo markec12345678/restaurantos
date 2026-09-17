@@ -3,7 +3,7 @@
 import { memo } from 'react';
 import type { CartItem } from '../types';
 import { CartItemRow, UpsellSection, CartTotalsFooter } from './cart-drawer-parts';
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // ============================================
 // EMPTY CART VIEW

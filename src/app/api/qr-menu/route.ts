@@ -4,7 +4,7 @@
 // FIX P0-C3B: ?locationId je obvezen (public endpoint brez session)
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
+// odstranjen prazen import (runda 12 lint cleanup)
 import { checkRateLimitAsync, getClientIp, PUBLIC_MENU_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'

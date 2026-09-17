@@ -83,7 +83,7 @@ export async function getCacheAdapterAsync(): Promise<CacheAdapter> {
 function createLazyRedisAdapter(): CacheAdapter {
   let redisAdapterPromise: Promise<CacheAdapter> | null = null
   let redisAdapter: CacheAdapter | null = null
-  let memoryFallback = new MemoryCacheAdapter()
+  let _memoryFallback = new MemoryCacheAdapter()
 
   const ensureRedis = async (): Promise<CacheAdapter> => {
     if (redisAdapter) return redisAdapter

@@ -130,7 +130,7 @@ export async function GET(req: Request) {
       message: 'Slika ni najdena. Poskusi z drugačnim imenom ali EAN kodo.',
     }, { status: 404 })
 
-  } catch (error: unknown) {
+  } catch (_error: unknown) {
     return NextResponse.json(
       { error: 'Napaka pri iskanju slike' },
       { status: 500 }

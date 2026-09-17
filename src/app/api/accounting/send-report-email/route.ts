@@ -1,8 +1,8 @@
 // POST /api/accounting/send-report-email — Ročno pošlji Z-report email (za test/cron)
 import { db } from '@/lib/db'
-import { toNum, round2 } from '@/lib/decimal'
+import { round2 } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
+// odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { sendZReportEmail, isEmailEnabled, getReportRecipients } from '@/lib/email'

@@ -16,7 +16,7 @@
 
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationId } from '@/lib/auth-middleware'
-import { checkRateLimitAsync, getClientIp, AI_ASSISTANT_LIMIT } from '@/lib/rate-limit'
+// odstranjen prazen import (runda 12 lint cleanup)
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
 import { generateSchedule } from '@/lib/scheduler/generate'

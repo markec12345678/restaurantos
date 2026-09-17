@@ -20,9 +20,15 @@ export function useFloorPlanDrag(tables: FloorTable[]) {
   // Posodobitev mize (za drag-drop pozicije)
   const updateMutation = useMutationForDrag()
 
-  const handleDragStart = useCallback((id: string, e: React.MouseEvent) => {
+  // FIX runda 12 (tablet): React.MouseEvent → React.PointerEvent — pointer eventi
+  // pokrijejo MIŠKO + DOTIK + PISALO. Prej je bilo vlečenje miz na tablici
+  // nemogoče (onMouseDown se na dotiku NE sproži kot drag). Z FloorTableItem
+  // touch-none se pri dragu ne skrola naključno.
+  const handleDragStart = useCallback((id: string, e: React.PointerEvent) => {
     const table = tables.find(t => t.id === id)
     if (!table) return
+    // Samo primarni gumb / prst — zavri desni klik in multi-touch geste
+    if (e.button !== undefined && e.button !== 0) return
     setDragState({
       id,
       startX: e.clientX,
@@ -70,22 +76,24 @@ export function useFloorPlanDrag(tables: FloorTable[]) {
     setDragState(null)
   }, [dragState, tables, updateMutation])
 
-  // Globalni mouse move/up za vlečenje
+  // Globalni pointer move/up za vlečenje (miška + dotik + pisalo)
   useEffect(() => {
     if (!dragState) return
-    const handleMouseMove = (e: MouseEvent) => {
+    const handlePointerMove = (e: PointerEvent) => {
       const deltaX = e.clientX - dragState.startX
       const deltaY = e.clientY - dragState.startY
       handleDrag(dragState.id, deltaX, deltaY)
     }
-    const handleMouseUp = () => {
+    const handlePointerUp = () => {
       handleDragEnd()
     }
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerUp)
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
     }
   }, [dragState, handleDrag, handleDragEnd])
 

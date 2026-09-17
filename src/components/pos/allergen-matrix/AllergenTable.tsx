@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Edit, ShieldAlert } from 'lucide-react'
 import { EU_ALLERGENS, parseAllergens } from './constants'
 import type { AllergenTableProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // ============================================
 // MATRIKA ALERGENOV — TABELA

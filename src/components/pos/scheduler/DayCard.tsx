@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Plus } from 'lucide-react'
 import { type ShiftType, DAY_NAMES, calcHours } from './constants'
 import { ShiftRow } from './ShiftRow'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // ─── DayCard — Posamezen dan v tednu ───
 

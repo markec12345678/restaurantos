@@ -8,7 +8,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Wallet, Banknote, CreditCard, Smartphone, Receipt, Split, Gift, CheckCircle2 } from 'lucide-react'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 import { format } from 'date-fns'
 import type { ActiveShiftType, LiveStatsType } from './constants'
 

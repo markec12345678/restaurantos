@@ -6,7 +6,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrendingUp, Timer, Target, ArrowDownRight, Award } from 'lucide-react'
 import type { RecommendationsSectionProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 export const RecommendationsSection = memo(function RecommendationsSection({
   employees,

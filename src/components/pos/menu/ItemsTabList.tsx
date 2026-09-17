@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Pencil, Trash2, ImageIcon } from 'lucide-react'
 import type { ItemsTabProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // ============================================
 // SEZNAMSKI POGLED ARTIKLOV

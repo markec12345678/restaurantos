@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 interface POTotalsProps {
   subtotal: number

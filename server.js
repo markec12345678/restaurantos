@@ -39,7 +39,12 @@ const hostname = '0.0.0.0'
 // Default ostaja 3000 (backward kompatibilno).
 const port = parseInt(process.env.PORT || '3000', 10)
 
-const app = next({ dev, hostname, port })
+// NOTE runda 12 (TESTIRANO + ZAVRNJENO): poskus zagona deva prek server.js
+// (custom server + WS v devu) NE deluje z Next 16.3.4 — programmatic
+// next({ dev: true, turbopack: true }) servira HTML + chunka, ampak RSC
+// hidracija se NIKOLI ne zaključi (AuthLoadingScreen zataki, __next_f ostane
+// prazen, efekti ne teknejo). WS ostane produkciski-only; dev uporablja
+// `bunx next dev` + NotificationCenter polling fallback.
 const handle = app.getRequestHandler()
 
 // ============================================

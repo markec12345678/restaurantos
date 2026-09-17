@@ -5,7 +5,7 @@
 import { memo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { QUADRANT_COLORS, QUADRANT_LABELS, getProfitColorClass, type MatrixTooltipProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 export const MatrixTooltip = memo(function MatrixTooltip({ active, payload }: MatrixTooltipProps) {
   if (!active || !payload?.length) return null

@@ -2,11 +2,11 @@
 // Podpira: name, description, price, vatRate, categoryName, allergens, isAvailable
 // Format: CSV (text/csv) ali Excel (.xlsx)
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
+// odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { db } from '@/lib/db'
-import { toNum } from '@/lib/decimal'
+// odstranjen prazen import (runda 12 lint cleanup)
 import { sessionLocationId, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
 import ExcelJS from 'exceljs'
 
@@ -30,7 +30,7 @@ interface ImportResult {
   duplicates: number
 }
 
-const REQUIRED_COLUMNS = ['name', 'price', 'vatRate', 'categoryName']
+const _REQUIRED_COLUMNS = ['name', 'price', 'vatRate', 'categoryName']
 
 /** Parsaj CSV v vrstice (podpora quoted poljem z vejicami) */
 function parseCsv(text: string): string[][] {
@@ -100,7 +100,6 @@ export async function POST(req: Request) {
     const contentType = req.headers.get('content-type') || ''
 
     let rows: string[][] = []
-    let isExcel = false
 
     if (contentType.includes('application/json')) {
       // JSON mode: { rows: [["name","price",...], [...]] }
@@ -116,7 +115,6 @@ export async function POST(req: Request) {
       rows = parseCsv(text)
     } else if (contentType.includes('spreadsheet') || contentType.includes('excel')) {
       // Excel .xlsx — parsaj z exceljs
-      isExcel = true
       const arrayBuffer = await req.arrayBuffer()
       const buffer = Buffer.from(new Uint8Array(arrayBuffer))
       const wb = new ExcelJS.Workbook()
@@ -186,7 +184,7 @@ export async function POST(req: Request) {
     // Sedaj zbiramo nove kategorije in artikle, jih batch-amo znotraj ene
     // transakcije. Transakcija tudi zagotavlja atomarnost — če ena vrstica
     // ne uspe, se celoten import rollback-a (prejšnja koda je pustila delne uvoze).
-    const categoriesToCreate: Array<{ name: string; icon: string; color: string; sortOrder: number; menuId: string }> = []
+    const _categoriesToCreate: Array<{ name: string; icon: string; color: string; sortOrder: number; menuId: string }> = []
     const itemsToCreate: Array<{ name: string; description: string; price: number; vatRate: number; allergens: string; isAvailable: boolean; sortOrder: number; categoryId: string }> = []
 
     // Najprej zberemo nove kategorije (da lahko uporabimo createMany)

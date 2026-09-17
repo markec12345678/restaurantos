@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/dialog'
 import {
   AlertTriangle, Shield, ShieldAlert, RefreshCw, Loader2,
-  Clock, TrendingDown, DollarSign, User, Activity,
+  Clock, DollarSign, User, Activity,
 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -80,7 +80,7 @@ export function FraudDetectionDashboard() {
   const [filterSeverity, setFilterSeverity] = useState<string>('all')
 
   // Fetch fraud alerts
-  const { data, isLoading, refetch } = useQuery<FraudResponse>({
+  const { data, isLoading, refetch: _refetch } = useQuery<FraudResponse>({
     queryKey: ['fraud-alerts'],
     queryFn: async () => {
       const res = await fetch('/api/fraud-detection')

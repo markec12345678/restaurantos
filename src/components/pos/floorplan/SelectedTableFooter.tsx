@@ -32,13 +32,13 @@ export const SelectedTableFooter = memo(function SelectedTableFooter({
         <span className="text-sm text-muted-foreground">{sel.capacity} mest · {statusLabels[sel.status]}</span>
       </div>
       <div className="flex gap-2">
-        <Button variant="outline" size="sm" onClick={() => onOpenEdit(sel)}>
+        <Button variant="outline" size="sm" className="pointer-coarse:h-11 pointer-coarse:px-4 pointer-coarse:text-sm" onClick={() => onOpenEdit(sel)}>
           <Pencil className="h-3.5 w-3.5 mr-1.5" /> Uredi
         </Button>
-        <Button variant="outline" size="sm" onClick={() => onRotateTable(sel)}>
+        <Button variant="outline" size="sm" className="pointer-coarse:h-11 pointer-coarse:px-4 pointer-coarse:text-sm" onClick={() => onRotateTable(sel)}>
           <RotateCw className="h-3.5 w-3.5 mr-1.5" /> Zavrti
         </Button>
-        <Button variant="destructive" size="sm" onClick={() => { onDeleteTable(selectedTableId); onDeselect() }}>
+        <Button variant="destructive" size="sm" className="pointer-coarse:h-11 pointer-coarse:px-4 pointer-coarse:text-sm" onClick={() => { onDeleteTable(selectedTableId); onDeselect() }}>
           <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Izbriši
         </Button>
       </div>

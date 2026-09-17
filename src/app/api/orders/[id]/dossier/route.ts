@@ -25,14 +25,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
     const sessionLocationId = authResult.session?.locationId ?? undefined
     const orderScope = sessionLocationId ? { locationId: sessionLocationId } : {}
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [orderAny, checksAny, receiptsAny, kotDocumentsAny, auditLogsAny] = await Promise.all([
+    const [orderRow, checkRows, receiptRows, kotRows, auditLogRows] = await Promise.all([
       db.order.findFirst({
         where: { id, ...orderScope },
         include: {
           table: { select: { id: true, number: true, area: true } },
           employee: { select: { id: true, name: true } },
-          guest: { select: { id: true, firstName: true, lastName: true, phone: true } } as any,
+          guest: { select: { id: true, firstName: true, lastName: true, phone: true } },
           diningOption: { select: { id: true, name: true, type: true } },
           deliveryInfo: true,
           orderItems: {
@@ -50,7 +49,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             orderBy: { createdAt: 'asc' },
           },
         },
-      }) as Promise<any>,
+      }),
       db.check.findMany({
         where: { orderId: id },
         include: {
@@ -65,7 +64,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           },
         },
         orderBy: { checkNumber: 'asc' },
-      }) as Promise<any>,
+      }),
       db.receipt.findMany({
         where: { orderId: id },
         select: {
@@ -76,14 +75,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           createdAt: true,
         },
         orderBy: { createdAt: 'asc' },
-      }) as Promise<any>,
+      }),
       db.kotDocument.findMany({
         where: { orderId: id },
         include: {
           employee: { select: { id: true, name: true } },
         },
         orderBy: { createdAt: 'asc' },
-      }) as Promise<any>,
+      }),
       db.auditLog.findMany({
         where: { entityId: id },
         select: {
@@ -91,18 +90,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           details: true, timestamp: true, ipAddress: true,
         },
         orderBy: { timestamp: 'asc' },
-      }) as Promise<any>,
+      }),
     ])
 
-    if (!orderAny) {
+    if (!orderRow) {
       return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
     }
 
-    const order = orderAny
-    const checks = checksAny || []
-    const receipts = receiptsAny || []
-    const kotDocuments = kotDocumentsAny || []
-    const auditLogs = auditLogsAny || []
+    const order = orderRow
+    const checks = checkRows || []
+    const receipts = receiptRows || []
+    const kotDocuments = kotRows || []
+    const auditLogs = auditLogRows || []
 
     // Zgradi časovnico dogodkov
     const timeline: Array<{ timestamp: string; type: string; description: string; data?: unknown }> = []
@@ -162,7 +161,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             (payment.status === 'refunded' ? ` (povrnjeno ${formatEUR(toNum(payment.refundAmount).toFixed(2))})` : ''),
           data: {
             checkNumber: check.checkNumber,
-            giftCard: payment.giftCard?.code,
+            giftCard: payment.giftCard?.cardNumber,
             loyaltyAccount: payment.loyaltyAccount?.customerName,
           },
         })

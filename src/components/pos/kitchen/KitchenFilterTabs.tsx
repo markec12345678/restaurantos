@@ -31,7 +31,7 @@ export const KitchenFilterTabs = memo(function KitchenFilterTabs({
         <button
           key={tab.value}
           onClick={() => onFilterStatusChange(tab.value as 'all' | 'pending' | 'in-progress')}
-          className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+          className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors touch-manipulation pointer-coarse:px-4 pointer-coarse:py-2.5 pointer-coarse:text-sm ${
             filterStatus === tab.value
               ? 'bg-primary text-primary-foreground'
               : 'bg-muted text-muted-foreground hover:bg-accent'

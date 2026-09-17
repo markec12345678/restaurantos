@@ -5,7 +5,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
+// odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
 import { createGuestSchema } from '@/lib/validations'
 import { emitEvent } from '@/lib/event-emitter'

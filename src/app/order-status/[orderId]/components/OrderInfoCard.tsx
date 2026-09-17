@@ -4,7 +4,7 @@ import { memo } from 'react'
 import { Phone, MapPin, Clock } from 'lucide-react'
 import type { OrderData } from '../types'
 import { getElapsedTime, getEstimatedTime, getStepIndex } from '../constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // ═══════════════════════════════════════════════════════════════
 // RestaurantOS — Kartica s podatki naročila

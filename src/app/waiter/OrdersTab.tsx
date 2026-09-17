@@ -4,7 +4,7 @@ import { memo, useState } from 'react'
 import { CheckCircle, ChevronRight, ShoppingBag, ShoppingCart } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Order } from './types'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // ─── ORDERS TAB — Seznam naročil ───────────────────────────────
 

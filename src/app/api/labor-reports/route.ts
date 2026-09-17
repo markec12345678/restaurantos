@@ -13,7 +13,7 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-const querySchema = z.object({
+const _querySchema = z.object({
   type: z.enum(['scheduled_vs_actual', 'overtime', 'attendance']),
   dateFrom: z.string().datetime(),
   dateTo: z.string().datetime(),

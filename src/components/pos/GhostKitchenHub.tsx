@@ -24,7 +24,7 @@ import {
   Store, TrendingUp, Clock, Package, Truck,
   ChefHat, Loader2, ShoppingBag,
 } from 'lucide-react'
-import { format, formatDistanceToNow } from 'date-fns'
+// odstranjen prazen import (runda 12 lint cleanup)
 
 import { formatEUR } from '@/lib/safe-format'
 // --- Tipi ---

@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/api-utils'
 import { verifyApiKey } from '@/lib/api-security'
-import { toNum } from '@/lib/decimal'
+// odstranjen prazen import (runda 12 lint cleanup)
 
 export const dynamic = 'force-dynamic'
 

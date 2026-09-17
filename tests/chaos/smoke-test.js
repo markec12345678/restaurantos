@@ -44,7 +44,7 @@ export function setup() {
   return { token }
 }
 
-export default function (data) {
+export default function smokeTestScenario(data) {
   const token = data.token
   if (!token) {
     sleep(0.1)

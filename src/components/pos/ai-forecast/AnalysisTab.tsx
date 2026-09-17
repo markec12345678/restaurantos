@@ -8,7 +8,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrendingUp, BarChart3, Brain, AlertTriangle, ShieldCheck } from 'lucide-react'
 import type { AnalysisTabProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 export const AnalysisTab = memo(function AnalysisTab({ forecasts }: AnalysisTabProps) {
   return (

@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { generateDailyCarbonReport, calculateMenuItemCarbon } from '@/lib/carbon'
-import { db } from '@/lib/db'
+// odstranjen prazen import (runda 12 lint cleanup)
 
 export const dynamic = 'force-dynamic'
 

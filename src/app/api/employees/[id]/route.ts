@@ -1,6 +1,6 @@
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
+// odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth, revokeEmployeeSessions } from '@/lib/auth-middleware'
 import { updateEmployeeSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
@@ -142,7 +142,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     // FIX SECURITY: nikoli ne vračaj `pinLookup` (HMAC) klientu — lahko bi ga
     // napadalec uporabil za offline brute-force PIN-a če pozna NEXTAUTH_SECRET.
-    const { pinLookup, ...safeEmployee } = employee
+    const { pinLookup: _pinLookup, ...safeEmployee } = employee
     return NextResponse.json({ ...safeEmployee, pin: safeEmployee.pin ? '****' : '' })
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/employees/[id]', 'Napaka pri posodobitvi zaposlenega')

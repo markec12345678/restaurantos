@@ -4,7 +4,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { marginColor } from './constants'
 import type { MarginStats } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 interface MarginStatsCardsProps {
   stats: MarginStats

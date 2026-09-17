@@ -23,11 +23,17 @@ async function migrateTable(
   tableName: string,
   idField: string,
   secretField: string,
-  model: any
+  // Prisma model delegate — dinamična tabela (generic pattern, namesto any)
+  model: {
+    findMany: (args: {
+      where: Record<string, unknown>
+      select: Record<string, boolean>
+    }) => Promise<Array<Record<string, string | null>>>
+  }
 ): Promise<{ total: number; migrated: number; skipped: number }> {
   const records = await model.findMany({
     where: { [secretField]: { not: '' } },
-    select: { [idField]: true, [secretField]: true } as any,
+    select: { [idField]: true, [secretField]: true },
   })
 
   let migrated = 0

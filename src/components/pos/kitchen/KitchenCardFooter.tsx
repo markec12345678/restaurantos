@@ -53,7 +53,7 @@ export const KitchenCardFooter = memo(function KitchenCardFooter({
       {order.status === 'pending' && (
         <Button
           size="sm"
-          className="h-10 text-sm bg-blue-600 hover:bg-blue-700 touch-manipulation"
+          className="h-10 text-sm bg-blue-600 hover:bg-blue-700 touch-manipulation pointer-coarse:h-12 pointer-coarse:text-base"
           onClick={() => onOrderStatusChange(order.id, 'in-progress')}
         >
           <Flame className="h-4 w-4 mr-1" />
@@ -63,7 +63,7 @@ export const KitchenCardFooter = memo(function KitchenCardFooter({
       {order.status === 'in-progress' && order.readyCount === order.totalItems && (
         <Button
           size="sm"
-          className="h-10 text-sm bg-emerald-600 hover:bg-emerald-700 touch-manipulation"
+          className="h-10 text-sm bg-emerald-600 hover:bg-emerald-700 touch-manipulation pointer-coarse:h-12 pointer-coarse:text-base"
           onClick={() => onOrderStatusChange(order.id, 'ready')}
         >
           <CheckCircle2 className="h-4 w-4 mr-1" />

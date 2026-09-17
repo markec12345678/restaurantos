@@ -6,7 +6,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { QUADRANT_COLORS, QUADRANT_LABELS, QUADRANT_ORDER, getProfitWeightClass, type TableViewProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 export const TableView = memo(function TableView({ filteredItems }: TableViewProps) {
   return (

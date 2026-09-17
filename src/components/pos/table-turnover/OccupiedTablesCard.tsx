@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Clock, AlertTriangle, UtensilsCrossed, LayoutGrid } from 'lucide-react'
 import type { OccupiedTablesCardProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 export const OccupiedTablesCard = memo(function OccupiedTablesCard({ analytics }: OccupiedTablesCardProps) {
   return (

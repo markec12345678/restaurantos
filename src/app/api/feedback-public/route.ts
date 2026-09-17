@@ -7,7 +7,7 @@
 // FIX MEDIUM: Zod validacija za javni feedback endpoint — prejšnja koda ni imela sheme
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
+// odstranjen prazen import (runda 12 lint cleanup)
 import { checkRateLimitAsync, getClientIp, FEEDBACK_PUBLIC_LIMIT } from '@/lib/rate-limit'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'

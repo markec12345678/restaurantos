@@ -5,7 +5,7 @@ import { MessageSquare } from 'lucide-react'
 import { allergenLabels } from '../types'
 import type { TranslationValue } from '../translations'
 import type { MenuItemType, CartItem } from '../types'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 interface ItemContentSectionProps {
   t: TranslationValue

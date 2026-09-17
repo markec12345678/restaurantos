@@ -5,7 +5,7 @@
 
 import { TrendingUp, TrendingDown, Minus, AlertTriangle, ShieldCheck, Zap, Clock } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // --- TIPI ---
 

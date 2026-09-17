@@ -75,7 +75,7 @@ jobs:
       - name: Generate Prisma client
         run: bunx prisma generate
 
-      - name: ESLint (0 error + warning budget 180)
+      - name: ESLint (0 error + warning budget 0)
         # P1-20: warningi NISO tiho zeleni — budget (ratchet) fail-a vsak NOVI
         # warning. Znižujemo ga postopoma.
         # QA 2026-09-17: 1486 → 180. Razlaga skoka (prej 457 → 1303):
@@ -85,9 +85,16 @@ jobs:
         #  (2) tests/ chaos E2E skripte + korenski seed-*.mjs niso bili izvzeti
         #      iz "no-console" (849 warningov); zdaj v CLI-izvzetki skupini
         #  (3) 16 "no-console" v src/ pretvorjenih v strukturirani logger
-        #  Preostanek: 167 no-unused-vars (TS) + 8 no-explicit-any +
-        #  2 import/no-anonymous-default-export → naslednja čiščenja.
-        run: npx eslint . --max-warnings 180
+        # Runda 12 (2026-09-17): 180 → 0. Čiščenje 141 neuporabljenih importov
+        # (kiruršno po specifikatorjih, ESLint JSON-vodeno) + 25 lokalnih
+        # deklaracij (preimenovanje v _predpono / alias v destrukturiranju) +
+        # 6 no-explicit-any v orders/[id]/dossier (odstranjeni as any — Prisma
+        # tipi sklepajo naravno; pri tem odkrit in popravljen REAL bug:
+        # payment.giftCard?.code → .cardNumber, select prinaša cardNumber) +
+        # 3 odvečne eslint-disable direktive. useOutboxWs: rekurzivni connect()
+        # v onclose prek named function expression (TDZ fix brez disable).
+        # NADALJNI RATCHET: 0 warningov = vsak nov warning fail-a CI.
+        run: npx eslint . --max-warnings 0
 
       - name: TypeScript typecheck (no emit)
         run: bunx tsc --noEmit

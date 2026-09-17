@@ -8,7 +8,7 @@ import { Users } from 'lucide-react'
 import { format, subDays } from 'date-fns'
 import { EmployeeRow } from '@/lib/types'
 import { authFetch } from '@/components/pos/PinLogin'
-import { formatEUR, safeToFixed } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 import { queryKeys } from '@/lib/query-keys'
 import {
   BarChart, Bar,

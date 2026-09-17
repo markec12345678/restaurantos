@@ -61,7 +61,7 @@ export interface PredictiveOrderingResult {
 
 // --- Konstante ---
 const HISTORY_DAYS = 90 // 3 meseci zgodovine za forecast
-const MIN_DATA_DAYS = 7 // Najmanj 7 dni podatkov za smiseln forecast
+const _MIN_DATA_DAYS = 7 // Najmanj 7 dni podatkov za smiseln forecast
 const SAFETY_STOCK_DAYS = 2 // 2 dni varnostne zaloge
 
 // --- Glavne funkcije ---

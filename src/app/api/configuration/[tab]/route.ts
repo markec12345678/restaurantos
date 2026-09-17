@@ -103,7 +103,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ tab: str
 
     // Dynamic Prisma query — model ime iz tabConfig
     const prismaModel = modelMap[tab] || config.model
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const prisma = (db as unknown as Record<string, unknown>)[prismaModel] as
       | { findMany: (args: Record<string, unknown>) => Promise<unknown[]> }
       | undefined

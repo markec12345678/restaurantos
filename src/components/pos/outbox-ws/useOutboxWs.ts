@@ -58,7 +58,11 @@ export function useOutboxWs(options: UseOutboxWsOptions = {}) {
     process.env.NEXT_PUBLIC_WS_DISABLED === 'true'
   )
 
-  const connect = useCallback(() => {
+  // FIX runda 12: named function expression — onclose se rekurzivno sklicuje na
+  // connect (auto-reconnect). Prej direktna referenca na useCallback spremenljivko
+  // = TDZ napaka ("Cannot access variable before it is declared"); ime funkcije
+  // se veže na samo sebe, brez refa in brez disable direktiv.
+  const connect = useCallback(function connect() {
     // FIX NAPAKA 3: Preskoči povezovanje na Vercelu
     if (isVercel || !enabled || !token) return
     if (wsRef.current?.readyState === WebSocket.OPEN) return
@@ -115,7 +119,6 @@ export function useOutboxWs(options: UseOutboxWsOptions = {}) {
         // Auto-reconnect po 5 sekundah — samo če nismo na Vercelu
         // FIX NAPAKA 3: prepreči neskončne reconnect poskuse na Vercelu
         if (enabled && !isVercel) {
-          // eslint-disable-next-line react-hooks/exhaustive-deps
           reconnectTimeoutRef.current = setTimeout(() => connect(), 5000)
         }
       }

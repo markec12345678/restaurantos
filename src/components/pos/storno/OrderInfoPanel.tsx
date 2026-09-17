@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import type { OrderInfoPanelProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // ============================================
 // PODATKI NAROČILA

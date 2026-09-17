@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-middleware'
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
+// odstranjen prazen import (runda 12 lint cleanup)
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { configPostSchema, allowedFields, modelMap, coerceFieldTypes, validateConfigRefs } from './_helpers'
 import { withETag } from '@/lib/middleware/cache-headers'

@@ -22,7 +22,6 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { checkRateLimitAsync, getClientIp, SEED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
-import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60

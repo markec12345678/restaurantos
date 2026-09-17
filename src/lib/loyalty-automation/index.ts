@@ -13,8 +13,8 @@
 
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
-import { sendSms, sendSmsBatch, type SmsMessage } from '@/lib/sms'
-import { toNum } from '@/lib/decimal'
+import { sendSms, type SmsMessage } from '@/lib/sms'
+// odstranjen prazen import (runda 12 lint cleanup)
 import { createOutboxEvent } from '@/lib/outbox'
 
 // --- Konstante ---
@@ -269,8 +269,8 @@ export async function triggerWelcome(
 // Poišče vse stranke, ki jim je danes rojstni dan
 export async function processBirthdayBatch(config: LoyaltyAutomationConfig = DEFAULT_CONFIG) {
   const today = new Date()
-  const month = today.getMonth() + 1
-  const day = today.getDate()
+  const _month = today.getMonth() + 1
+  const _day = today.getDate()
 
   // Poišči vse aktivne accounts s customerPhone in rojstnim dnevom danes
   // (Predpostavljamo da je rojstni dan shranjen v customerEmail ali posebnem polju)

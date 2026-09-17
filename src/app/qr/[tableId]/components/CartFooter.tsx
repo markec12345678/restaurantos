@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import { ChevronRight, Loader2 } from 'lucide-react'
 import type { TranslationValue } from '../translations'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 interface CartFooterProps {
   t: TranslationValue

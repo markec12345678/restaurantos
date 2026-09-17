@@ -6,7 +6,7 @@
 import { db } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
+// odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { createAuditLog } from '@/lib/db'

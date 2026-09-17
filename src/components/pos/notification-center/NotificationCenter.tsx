@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, memo } from 'react'
-import { Bell, X, CheckCircle2, AlertTriangle, Info, ShoppingCart } from 'lucide-react'
+import { Bell, CheckCircle2, AlertTriangle, Info, ShoppingCart } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'

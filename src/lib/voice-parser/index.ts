@@ -165,7 +165,7 @@ function parseSegment(segment: string, menuItemNames: string[]): ParsedItem | nu
   }
 
   // 3. Ekstrahiraj modificiratorje
-  const { modifiers, size, temperature, remainingText } = extractModifiers(workingSegment)
+  const { modifiers, size, temperature, remainingText: _remainingText } = extractModifiers(workingSegment)
 
   // 4. Confidence:
   // - 1.0 če exact match
@@ -232,7 +232,7 @@ function extractModifiers(segment: string): {
 
   // Brez čebule, brez sladkorja, itd.
   // Poisci originalne besede (ne normalizirane) za prikaz
-  const originalWords = segment.split(/\s+/)
+  const _originalWords = segment.split(/\s+/)
   for (const word of MODIFIERS.without) {
     const regex = new RegExp(`\\b${word}\\s+(\\w+)`, 'gi')
     let match

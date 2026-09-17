@@ -4,7 +4,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { CheckCircle2, Users, Clock, ChefHat } from 'lucide-react'
 import type { StatsGridProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // ============================================
 // STATISTIKA — Štiri kartice z metrikami

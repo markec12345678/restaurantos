@@ -94,7 +94,7 @@ export const defaultTableForm: TableFormState = {
 
 export interface FloorTableItemProps {
   table: FloorTable
-  onDragStart: (_id: string, _e: React.MouseEvent) => void
+  onDragStart: (_id: string, _e: React.PointerEvent) => void
   onDragEnd: () => void
   onDrag: (_id: string, _deltaX: number, _deltaY: number) => void
   onClick: (_table: FloorTable) => void
@@ -111,7 +111,7 @@ export interface FloorPlanCanvasProps {
   zoom: number
   groupedByArea: Record<string, FloorTable[]>
   containerRef: React.RefObject<HTMLDivElement | null>
-  onDragStart: (_id: string, _e: React.MouseEvent) => void
+  onDragStart: (_id: string, _e: React.PointerEvent) => void
   onDragEnd: () => void
   onDrag: (_id: string, _deltaX: number, _deltaY: number) => void
   onTableClick: (_table: FloorTable) => void

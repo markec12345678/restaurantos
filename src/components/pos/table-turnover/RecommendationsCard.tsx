@@ -5,7 +5,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertTriangle, TrendingUp, Timer, Users, CheckCircle2, Zap } from 'lucide-react'
 import type { RecommendationsCardProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 export const RecommendationsCard = memo(function RecommendationsCard({ analytics }: RecommendationsCardProps) {
   return (

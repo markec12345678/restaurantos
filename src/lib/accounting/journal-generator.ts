@@ -23,7 +23,7 @@ export const ACCOUNTS = {
   TIPS: { code: '7600', name: 'Napitnine', type: 'revenue' },
 } as const
 
-type AccountKey = keyof typeof ACCOUNTS
+type _AccountKey = keyof typeof ACCOUNTS
 
 /** Prisma transakcijski klient (interaktivni callback parameter) */
 type PrismaTx = Parameters<Parameters<typeof db.$transaction>[0]>[0]

@@ -155,7 +155,7 @@ export function setup() {
   return { authed, startTime: Date.now() }
 }
 
-export default function (data) {
+export default function loadTestScenario(data) {
   // Re-authenticate vsakih 100 iteracij (če je token expired)
   if (!sessionCookie || __ITER % 100 === 0) {
     authenticate()

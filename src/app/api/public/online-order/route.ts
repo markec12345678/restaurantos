@@ -8,7 +8,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
+// odstranjen prazen import (runda 12 lint cleanup)
 import { toNum } from '@/lib/decimal'
 import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
 import { checkRateLimitAsync, getClientIp, ONLINE_ORDER_LIMIT } from '@/lib/rate-limit'

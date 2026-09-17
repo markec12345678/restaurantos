@@ -8,7 +8,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Lock, Clock, Banknote, CreditCard, TrendingUp, TrendingDown } from 'lucide-react'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 import { format } from 'date-fns'
 import type { RecentShiftType } from './constants'
 

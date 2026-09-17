@@ -3,9 +3,9 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import {
-  ArrowRight, Check, Shield, Zap, Globe, Database, Lock, Smartphone,
+  ArrowRight, Check, Shield, Zap, Globe, Database, Lock,
   ChefHat, Receipt, TrendingUp, Wifi, Users, Star, ChevronDown,
-  Terminal, Cpu, Eye, AlertTriangle, Clock, BarChart3, ShoppingBag
+  Terminal, Eye, AlertTriangle, Clock, BarChart3, ShoppingBag
 } from 'lucide-react'
 
 // ═══ Animated counter hook ═══

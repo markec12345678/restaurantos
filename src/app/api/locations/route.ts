@@ -5,7 +5,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
+// odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
@@ -50,7 +50,7 @@ export async function GET(req: Request) {
 
     // FIX SECURITY: maskiraj fursCertPassword v odgovoru
     // (prejšnja koda je vračala polno vrstico vključno z geslom certifikata)
-    const maskedLocations = locations.map(maskLocationSecrets)
+    const _maskedLocations = locations.map(maskLocationSecrets)
 
     // Statistika
     const totalLocations = await db.location.count()

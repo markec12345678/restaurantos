@@ -85,7 +85,7 @@ export const ByItemsTab = memo(function ByItemsTab({
                         }}
                         aria-label={`Dodeli ${oi.menuItem?.name || 'artikel'} gostu ${guestNum}`}
                         aria-pressed={assignedGuest === guestNum}
-                        className={cn('w-6 h-6 rounded-full text-[9px] font-bold flex items-center justify-center transition-all touch-manipulation',
+                        className={cn('w-6 h-6 rounded-full text-[9px] font-bold flex items-center justify-center transition-all touch-manipulation pointer-coarse:w-10 pointer-coarse:h-10 pointer-coarse:text-xs',
                           assignedGuest === guestNum ? cn(guestColors[gi % guestColors.length], 'text-white scale-110') : 'bg-muted text-muted-foreground hover:bg-accent'
                         )}
                       >{guestNum}</button>

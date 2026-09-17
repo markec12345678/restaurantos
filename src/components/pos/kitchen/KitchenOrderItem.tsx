@@ -82,7 +82,7 @@ export const KitchenOrderItem = memo(function KitchenOrderItem({
           <Button
             size="sm"
             variant="ghost"
-            className={`h-7 text-xs flex-shrink-0 ml-2 ${config.color} hover:${config.bg}`}
+            className={`h-7 text-xs flex-shrink-0 ml-2 ${config.color} hover:${config.bg} pointer-coarse:h-9 pointer-coarse:px-3 pointer-coarse:text-sm`}
             onClick={() => onStatusChange(item.id, config.nextStatus)}
           >
             {config.nextLabel} <ArrowRight className="h-3 w-3 ml-1" />
@@ -126,7 +126,7 @@ export const KitchenOrderItem = memo(function KitchenOrderItem({
           {item.status !== 'served' && (
             <Button
               size="sm"
-              className="h-10 min-w-[100px] text-sm touch-manipulation"
+              className="h-10 min-w-[100px] text-sm touch-manipulation pointer-coarse:h-12 pointer-coarse:min-w-[120px] pointer-coarse:text-base"
               onClick={() => onStatusChange(item.id, config.nextStatus)}
             >
               {config.nextLabel}

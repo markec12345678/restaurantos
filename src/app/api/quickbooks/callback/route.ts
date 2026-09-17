@@ -12,7 +12,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const code = searchParams.get('code')
     const realmId = searchParams.get('realmId')
-    const state = searchParams.get('state')
+    const _state = searchParams.get('state')
     const error = searchParams.get('error')
 
     if (error) {

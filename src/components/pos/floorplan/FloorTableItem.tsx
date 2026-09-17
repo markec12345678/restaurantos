@@ -20,7 +20,10 @@ export const FloorTableItem = memo(function FloorTableItem({
   const shapeClass = table.shape === 'round' ? 'rounded-full' : table.shape === 'booth' ? 'rounded-2xl' : 'rounded-lg'
   return (
     <div
-      className={`absolute cursor-move touch-manipulation select-none transition-shadow ${shapeClass} ${colors.bg} border-2 ${colors.border} ${isDragging ? 'shadow-2xl z-50 opacity-90' : 'shadow-md hover:shadow-lg z-10'} ${isSelected ? 'ring-2 ring-primary ring-offset-2' : ''} flex flex-col items-center justify-center`}
+      // FIX runda 12 (tablet): touch-none (touch-action: none) — med vlečenjem mize
+      // s prstom se stran NE skrola; pointer eventi (upravljani v useFloorPlanDrag)
+      // pokrijejo miško + dotik + pisalo.
+      className={`absolute cursor-move touch-none select-none transition-shadow ${shapeClass} ${colors.bg} border-2 ${colors.border} ${isDragging ? 'shadow-2xl z-50 opacity-90' : 'shadow-md hover:shadow-lg z-10'} ${isSelected ? 'ring-2 ring-primary ring-offset-2' : ''} flex flex-col items-center justify-center`}
       style={{
         left: `${table.posX}%`,
         top: `${table.posY}%`,
@@ -30,11 +33,13 @@ export const FloorTableItem = memo(function FloorTableItem({
         minWidth: '60px',
         minHeight: '50px',
       }}
-      onMouseDown={(e) => {
-        e.preventDefault()
+      onPointerDown={(e) => {
+        // Prej onMouseDown + preventDefault — na dotiku se drag sploh ni sprožil.
+        // Pointer events: enaka pot za vse kazalke.
+        if (e.pointerType !== 'mouse') e.preventDefault()
         onDragStart(table.id, e)
       }}
-      onMouseUp={_onDragEnd}
+      onPointerUp={_onDragEnd}
       onClick={() => _onClick(table)}
     >
       {/* Statusna pika */}

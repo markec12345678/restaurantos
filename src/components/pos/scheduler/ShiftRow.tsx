@@ -4,7 +4,7 @@ import { Clock, Edit, Trash2, CheckCircle2, AlertTriangle, Coffee, TrendingUp } 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { type ShiftType, statusLabels, statusColors, calcHours, getShiftColor } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // ============================================
 // SHIFT ROW — Posamezna izmena v dnevu

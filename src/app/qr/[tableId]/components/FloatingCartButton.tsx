@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import { motion } from 'framer-motion'
 import { ShoppingCart } from 'lucide-react'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 interface FloatingCartButtonProps {
   cartCount: number

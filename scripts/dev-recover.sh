@@ -25,8 +25,10 @@ log() { echo "[recover $(date +%H:%M:%S)] $*"; }
 # ── 1. Ustavi strežnik ──────────────────────────────────────────
 log "Ustavljam obstoječi strežnik..."
 pkill -f "next dev -p $PORT" 2>/dev/null
+pkill -f "node server.js" 2>/dev/null
 sleep 2
 pkill -9 -f "next dev -p $PORT" 2>/dev/null
+pkill -9 -f "node server.js" 2>/dev/null
 pkill -9 -f "next-server" 2>/dev/null
 sleep 1
 
@@ -68,7 +70,7 @@ for route in / /api/setup/status /api/auth /api/menu-items /api/categories /api/
   code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 110 "${AUTH[@]}" "http://localhost:$PORT$route" 2>/dev/null)
   if [ -z "$code" ] || [ "$code" = "000" ]; then
     log "$route → STREŽNIK UMRL — ponovni zagon..."
-    pkill -f "next dev -p $PORT" 2>/dev/null; sleep 3
+    pkill -f "next dev -p $PORT" 2>/dev/null; pkill -f "node server.js" 2>/dev/null; sleep 3
     PGLITE_DATA_DIR="/home/z/restaurantos/pglite-data" LOGIN_RATE_LIMIT_MAX=30 \
       setsid nohup bunx next dev -p $PORT > dev-restaurantos.log 2>&1 < /dev/null &
     disown

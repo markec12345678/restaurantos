@@ -87,21 +87,21 @@ export const KitchenHeader = memo(function KitchenHeader({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" aria-label="Zvok" className="h-8 w-8" onClick={onToggleSound} title={soundEnabled ? 'Izklopi zvok' : 'Vklopi zvok'}>
+          <Button variant="ghost" size="icon" aria-label="Zvok" className="h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11" onClick={onToggleSound} title={soundEnabled ? 'Izklopi zvok' : 'Vklopi zvok'}>
             {soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4 text-muted-foreground" />}
           </Button>
           <div className="flex border rounded-md">
-            <Button variant={viewMode === 'cards' ? 'default' : 'ghost'} size="icon" aria-label="Kartični pogled" className="h-8 w-8 rounded-r-none" onClick={() => onViewModeChange('cards')}>
+            <Button variant={viewMode === 'cards' ? 'default' : 'ghost'} size="icon" aria-label="Kartični pogled" className="h-8 w-8 rounded-r-none pointer-coarse:h-11 pointer-coarse:w-11" onClick={() => onViewModeChange('cards')}>
               <Grid3X3 className="h-4 w-4" />
             </Button>
-            <Button variant={viewMode === 'list' ? 'default' : 'ghost'} size="icon" aria-label="Seznamni pogled" className="h-8 w-8 rounded-l-none" onClick={() => onViewModeChange('list')}>
+            <Button variant={viewMode === 'list' ? 'default' : 'ghost'} size="icon" aria-label="Seznamni pogled" className="h-8 w-8 rounded-l-none pointer-coarse:h-11 pointer-coarse:w-11" onClick={() => onViewModeChange('list')}>
               <List className="h-4 w-4" />
             </Button>
           </div>
-          <Button variant="ghost" size="icon" aria-label="Osveži" className="h-8 w-8" onClick={onRefresh}>
+          <Button variant="ghost" size="icon" aria-label="Osveži" className="h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11" onClick={onRefresh}>
             <RefreshCw className="h-4 w-4" />
           </Button>
-          <Button variant={isFullscreen ? 'default' : 'ghost'} size="icon" aria-label="Cel zaslon" className="h-8 w-8" onClick={onToggleFullscreen} title={isFullscreen ? 'Izhod iz cel. zaslona' : 'Celozaslonski način'}>
+          <Button variant={isFullscreen ? 'default' : 'ghost'} size="icon" aria-label="Cel zaslon" className="h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11" onClick={onToggleFullscreen} title={isFullscreen ? 'Izhod iz cel. zaslona' : 'Celozaslonski način'}>
             {isFullscreen ? <Minimize className="h-4 w-4" /> : <Maximize className="h-4 w-4" />}
           </Button>
         </div>

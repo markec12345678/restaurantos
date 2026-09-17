@@ -2,9 +2,9 @@
 // Agregira OrderItem po menuItem.prepStationId — sešteje identične artikle
 // v vseh aktivnih naročilih per postajo. Kuhar vidi npr. "skupaj na žaru: 14× pleskavica".
 import { db } from '@/lib/db'
-import { toNum } from '@/lib/decimal'
+// odstranjen prazen import (runda 12 lint cleanup)
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
+// odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 

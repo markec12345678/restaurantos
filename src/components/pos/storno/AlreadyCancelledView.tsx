@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button'
 import { FileWarning } from 'lucide-react'
 import type { AlreadyCancelledViewProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // ============================================
 // PRIKAZ ŽE STORNIRANEGA/PREKLICANEGA NAROČILA

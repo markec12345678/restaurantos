@@ -8,7 +8,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 import { Truck, Phone, Mail, MapPin, Building2, Star, Edit, FileText, Clock, ChevronDown, ChevronUp, Hash } from 'lucide-react'
 import type { SupplierType } from './constants'
 

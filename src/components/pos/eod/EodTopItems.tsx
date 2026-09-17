@@ -4,7 +4,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrendingUp } from 'lucide-react'
 import type { EodSectionsProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 export const EodTopItems = memo(function EodTopItems({ data }: Pick<EodSectionsProps, 'data'>) {
   return (

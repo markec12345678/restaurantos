@@ -78,7 +78,7 @@ export async function POST(req: Request) {
 
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error
-    try { data = kioskOrderSchema.parse(bodyResult.data) } catch (e) { return NextResponse.json({ error: 'Neveljavni podatki' }, { status: 400 }) }
+    try { data = kioskOrderSchema.parse(bodyResult.data) } catch (_e) { return NextResponse.json({ error: 'Neveljavni podatki' }, { status: 400 }) }
     if (!data) return NextResponse.json({ error: 'Neveljavni podatki' }, { status: 400 })
 
     // Pridobi meni artikle za izračun

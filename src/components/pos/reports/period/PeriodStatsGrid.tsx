@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import { StatsCard } from '../../StatsCard'
 import { DollarSign, ShoppingBag, TrendingUp, Receipt, Wallet, Package, AlertTriangle } from 'lucide-react'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // ============================================
 // Statistična mreža za poročilo po obdobju

@@ -7,7 +7,7 @@ import { memo } from 'react'
 import { Card } from '@/components/ui/card'
 import { Clock, UserCheck, Briefcase, TrendingUp, CheckCircle2, XCircle } from 'lucide-react'
 import { type SchedulerStats } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // ─── Props ─────────────────────────────────────────────────────
 export interface StatsCardsProps {
