@@ -116,7 +116,7 @@
     "@types/react-dom": "^19.2.7",
     "@types/web-push": "^3.6.4",
     "@types/ws": "^8.18.1",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.0",
     "docx": "^9.7.1",
     "eslint": "^9.39.5",
     "eslint-config-next": "16.3.4",
