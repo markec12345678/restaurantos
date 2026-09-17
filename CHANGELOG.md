@@ -6,6 +6,35 @@ All notable changes to RestaurantOS are documented in this file.
 > commit SHA, migracije, breaking changes, rezultati testov, znane težave,
 > deployment in rollback navodila.
 
+## [v1.4.0] — QA runde 13–26: CIS/HR fiskalizacija, KDS Bump sistem, POS UX na nivoju Square/Toast
+
+| Polje | Vrednost |
+|-------|----------|
+| **Commit** | 4aa209a..f067f54 |
+| **Migracije** | NE (brez sprememb sheme v rundah 22–26) |
+| **Breaking changes** | NE (react-resizable-panels v2→v4 notranja migracija, API wrapper nespremenjen) |
+| **Testni rezultati** | tsc clean; vitest **1623/1623**, 91 datotek, ~12 s, 0 errorov (+200 od v1.3.3); eslint **0 napak / 0 opozoril**; CI 7/7 green; Vercel prod READY, health 200 |
+| **Znane težave** | FINA demo P12 certifikat (digicert.finastre.hr) pending — transport POST + JIR parsing ostajata; FURS produkcija čaka p12 (sd.fu@gov.si); sandbox QA OOM (4 GB cgroup) — API-E2E recept dokumentiran v worklogu runde 26 |
+| **Deployment** | enako kot v1.3.3: `bun install --frozen-lockfile && bun run db:generate && bun run db:migrate:deploy && bun run db:verify && bun run build && bun run start` |
+| **Rollback** | `git checkout v1.3.3` — brez migracij, povrnitev samo kode |
+
+### 🇭🇷 Hrvaška fiskalizacija (CIS/FINA) — runde 23–26
+
+- **Fiskalno stikalo SI/HR** v nastavitvah: admin izbere državo → sistem preklopi fiskalni modul (FURS ↔ Porezna uprava) z lastnimi cert konfiguracijami
+- **ZKI izračun** (`zki.ts`): MD5/RSA spec-verifyiran iz produkcijske implementacije, Intl Europe/Zagreb h23 časovne zone
+- **RacunZahtjev builder** (`invoice.ts`): exact element order, escapeXml, ZKI nad računovim DatVrijeme, `validateRacunData` non-throwing validacija
+- **XML-dsig enveloped signature** (`xmlsig.ts`): exclusive C14N 1.0 (spec-korekcija iz fiskalizacija2 0.16.1 reference — NE c14n11), rsa-sha256, Signature kot zadnji otrok RacunZahtjev; **P12 loading** (`p12.ts`, node-forge)
+- **CisTab UI**: živi povezljivostni test na FINA strežnik — **produkcijski strežnik vrača echoed=true na obeh okoljih** (popravljen namespace bug: f73 ne fiskalizacija)
+- 100 testov v cis modulu (INDEPENDENT-VERIFICATION vzorec)
+
+### 🍳 KDS + POS UX (UI/UX primerjava z best-in-class, runda 25–26)
+
+- **Toast-style Bump sistem**: "pick-up shelf" sekcija PRIPRAVLJENO na KDS, Bump/Recall akcije, 4. filter tab, emerald ring + glow signal prevzema pri natakarju; bump = display akcija (zustand persist, auto-prune 2 h, brez DB tveganja)
+- **PIN prijava na nivoju Square/Clover**: fizična tipkovnica, auto-submit pri max dolžini (varno za 4–6 dolžine), haptic feedback, pop animacija
+- **Recents hitro ponovno naročilo**: zadnjih 8 artiklov, 1-tap čez kategorije (zustand persist, LRU dedup)
+- **"Pošlji zdaj"** dnevni digest iz UI (idempotentno: sent ne duplira, failed retry)
+- **Dark mode 100 % pokritost** vseh modulov + fix near-invisible KDS progress bar v light mode
+
 ## [v1.3.3] — 2026-09-17 — QA runde 8–12: regresija, slovenizacija vnosov, živi Z-poročila, tablet optimizacija, lint ratchet 0
 
 | Polje | Vrednost |
