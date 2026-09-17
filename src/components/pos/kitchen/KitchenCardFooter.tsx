@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
-import { CheckCircle2, Flame } from 'lucide-react'
+import { CheckCircle2, Flame, CheckCheck } from 'lucide-react'
 import type { EnrichedOrder } from './types'
 
 // ============================================
@@ -11,9 +11,12 @@ import type { EnrichedOrder } from './types'
 export const KitchenCardFooter = memo(function KitchenCardFooter({
   order,
   onOrderStatusChange,
+  onBumpOrder,
 }: {
   order: EnrichedOrder
   onOrderStatusChange: (_orderId: string, _status: string) => void
+  /** R26-b: bump = odstrani gotovo naročilo z ekrana (display akcija) */
+  onBumpOrder?: (_orderId: string) => void
 }) {
   // FIX TypeError: t?.filter — order.orderItems je lahko undefined
   const orderItems = Array.isArray(order?.orderItems) ? order.orderItems : []
@@ -50,10 +53,11 @@ export const KitchenCardFooter = memo(function KitchenCardFooter({
         </span>
       </div>
 
+      <div className="flex items-center gap-2">
       {order.status === 'pending' && (
         <Button
           size="sm"
-          className="h-10 text-sm bg-blue-600 hover:bg-blue-700 touch-manipulation pointer-coarse:h-12 pointer-coarse:text-base"
+          className="h-10 text-sm bg-blue-600 hover:bg-blue-700 touch-manipulation pointer-coarse:h-12 pointer-coarse:text-base active:scale-95 transition-transform"
           onClick={() => onOrderStatusChange(order.id, 'in-progress')}
         >
           <Flame className="h-4 w-4 mr-1" />
@@ -63,13 +67,28 @@ export const KitchenCardFooter = memo(function KitchenCardFooter({
       {order.status === 'in-progress' && order.readyCount === order.totalItems && (
         <Button
           size="sm"
-          className="h-10 text-sm bg-emerald-600 hover:bg-emerald-700 touch-manipulation pointer-coarse:h-12 pointer-coarse:text-base"
+          className="h-10 text-sm bg-emerald-600 hover:bg-emerald-700 touch-manipulation pointer-coarse:h-12 pointer-coarse:text-base active:scale-95 transition-transform"
           onClick={() => onOrderStatusChange(order.id, 'ready')}
         >
           <CheckCircle2 className="h-4 w-4 mr-1" />
           Vse pripravljeno
         </Button>
       )}
+      {/* R26-b Toast vzorec: Bump — gotovo naročilo odstrani z ekrana.
+          Display akcija (bumped-store) — NE spremeni statusa naročila;
+          plačilo/zaključek ostane naloga natakarja. */}
+      {order.status === 'ready' && onBumpOrder && (
+        <Button
+          size="sm"
+          className="h-10 text-sm bg-emerald-600 hover:bg-emerald-700 text-white touch-manipulation pointer-coarse:h-12 pointer-coarse:text-base active:scale-95 transition-transform"
+          onClick={() => onBumpOrder(order.id)}
+          aria-label={`Bump naročila #${order.orderNumber} — odstrani z ekrana`}
+        >
+          <CheckCheck className="h-4 w-4 mr-1" />
+          Bump · prevzeto
+        </Button>
+      )}
+      </div>
     </div>
   )
 })

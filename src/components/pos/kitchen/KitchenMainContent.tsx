@@ -18,10 +18,15 @@ interface KitchenMainContentProps {
   urgentOrders: EnrichedOrder[]
   warningOrders: EnrichedOrder[]
   normalOrders: EnrichedOrder[]
+  /** R26-b: ready naročila (pick-up shelf) — vidna v 'all' in 'ready' filtru */
+  readyOrders: EnrichedOrder[]
   onItemStatusChange: (_itemId: string, _status: string) => void
   onOrderStatusChange: (_orderId: string, _status: string) => void
+  /** R26-b: bump = odstrani gotovo naročilo z ekrana (display akcija) */
+  onBumpOrder: (_orderId: string) => void
   stationFilter: 'all' | 'kuhinja' | 'sank'
   wsConnected: boolean
+  filterStatus: 'all' | 'pending' | 'in-progress' | 'ready'
 }
 
 // --- Komponenta ---
@@ -33,10 +38,13 @@ export const KitchenMainContent = memo(function KitchenMainContent({
   urgentOrders,
   warningOrders,
   normalOrders,
+  readyOrders,
   onItemStatusChange,
   onOrderStatusChange,
+  onBumpOrder,
   stationFilter,
   wsConnected,
+  filterStatus,
 }: KitchenMainContentProps) {
   if (isLoading) {
     return (
@@ -50,12 +58,15 @@ export const KitchenMainContent = memo(function KitchenMainContent({
   }
 
   if (filteredOrders.length === 0) {
+    const emptyCopy = filterStatus === 'ready'
+      ? { title: 'Ni pripravljenih naročil', subtitle: 'Naročila se bodo tu pojavila, ko so vsi artikli pripravljeni' }
+      : { title: 'Kuhinja je prosta', subtitle: 'Ni aktivnih naročil za pripravo' }
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
         <ChefHat className="h-16 w-16 opacity-20" />
         <div className="text-center">
-          <p className="text-lg font-medium">Kuhinja je prosta</p>
-          <p className="text-sm">Ni aktivnih naročil za pripravo</p>
+          <p className="text-lg font-medium">{emptyCopy.title}</p>
+          <p className="text-sm">{emptyCopy.subtitle}</p>
         </div>
         <div className="flex items-center gap-2 text-xs">
           {wsConnected ? (
@@ -80,8 +91,10 @@ export const KitchenMainContent = memo(function KitchenMainContent({
         urgentOrders={urgentOrders}
         warningOrders={warningOrders}
         normalOrders={normalOrders}
+        readyOrders={readyOrders}
         onItemStatusChange={onItemStatusChange}
         onOrderStatusChange={onOrderStatusChange}
+        onBumpOrder={onBumpOrder}
         stationFilter={stationFilter}
       />
     )

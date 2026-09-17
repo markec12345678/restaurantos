@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   ChefHat, AlertTriangle, Volume2, VolumeX, RefreshCw,
-  Grid3X3, List, Maximize, Minimize,
+  Grid3X3, List, Maximize, Minimize, Undo2,
 } from 'lucide-react'
 import type { KDSData } from './types'
 
@@ -32,11 +32,16 @@ interface KitchenHeaderProps {
   onRefresh: () => void
   isFullscreen: boolean
   onToggleFullscreen: () => void
-  filterStatus: 'all' | 'pending' | 'in-progress'
-  onFilterStatusChange: (_status: 'all' | 'pending' | 'in-progress') => void
+  filterStatus: 'all' | 'pending' | 'in-progress' | 'ready'
+  onFilterStatusChange: (_status: 'all' | 'pending' | 'in-progress' | 'ready') => void
   filteredOrdersCount: number
   pendingOrdersCount: number
   inProgressOrdersCount: number
+  /** R26-b: vidna (ne-bumpana) ready naročila */
+  readyOrdersCount: number
+  /** R26-b: št. bumpanih (skritih) ready naročil — Recall jih vrne */
+  bumpedCount: number
+  onRecallAll: () => void
 }
 
 // --- Komponenta ---
@@ -57,6 +62,9 @@ export const KitchenHeader = memo(function KitchenHeader({
   filteredOrdersCount,
   pendingOrdersCount,
   inProgressOrdersCount,
+  readyOrdersCount,
+  bumpedCount,
+  onRecallAll,
 }: KitchenHeaderProps) {
   return (
     <div className="flex-shrink-0 border-b bg-card">
@@ -77,6 +85,12 @@ export const KitchenHeader = memo(function KitchenHeader({
                 <span className="h-2 w-2 rounded-full bg-blue-400 mr-1.5" />
                 {stats.inProgressOrders} v pripravi
               </Badge>
+              {(stats.readyOrdersCount ?? 0) > 0 && (
+                <Badge variant="outline" className="text-xs h-6 border-emerald-400 text-emerald-700 dark:text-emerald-400">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse" />
+                  {(stats.readyOrdersCount ?? 0)} pripravljenih
+                </Badge>
+              )}
               {stats.criticalOrders > 0 && (
                 <Badge variant="destructive" className="text-xs h-6">
                   <AlertTriangle className="h-3 w-3 mr-1" />
@@ -98,6 +112,22 @@ export const KitchenHeader = memo(function KitchenHeader({
               <List className="h-4 w-4" />
             </Button>
           </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label={`Prikliči ${bumpedCount} bumpanih naročil`}
+            className="h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 relative"
+            onClick={onRecallAll}
+            disabled={bumpedCount === 0}
+            title={bumpedCount > 0 ? `Recall — vrni ${bumpedCount} odstranjenih nazaj na zaslon` : 'Ni odstranjenih naročil'}
+          >
+            <Undo2 className="h-4 w-4" />
+            {bumpedCount > 0 && (
+              <span className="absolute -top-1 -right-1 h-4 min-w-4 px-0.5 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center">
+                {bumpedCount}
+              </span>
+            )}
+          </Button>
           <Button variant="ghost" size="icon" aria-label="Osveži" className="h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11" onClick={onRefresh}>
             <RefreshCw className="h-4 w-4" />
           </Button>
@@ -114,6 +144,7 @@ export const KitchenHeader = memo(function KitchenHeader({
         filteredOrdersCount={filteredOrdersCount}
         pendingOrdersCount={pendingOrdersCount}
         inProgressOrdersCount={inProgressOrdersCount}
+        readyOrdersCount={readyOrdersCount}
       />
     </div>
   )

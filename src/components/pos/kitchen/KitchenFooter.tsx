@@ -22,6 +22,9 @@ export const KitchenFooter = memo(function KitchenFooter({
       <div className="flex items-center gap-4">
         <span>Povpr. čakalna doba: <strong className={stats.avgWaitTime >= 10 ? 'text-amber-600' : ''}>{stats.avgWaitTime} min</strong></span>
         <span>Artikli: <strong>{stats.totalItemsPending}</strong> čaka / <strong>{stats.totalItemsPreparing}</strong> v pripravi / <strong className="text-emerald-600">{stats.totalItemsReady}</strong> pripravljeni</span>
+        {(stats.readyOrdersCount ?? 0) > 0 && (
+          <span>Naročila za prevzem: <strong className="text-emerald-600">{stats.readyOrdersCount}</strong></span>
+        )}
       </div>
       <div className="flex items-center gap-2">
         {wsConnected ? (

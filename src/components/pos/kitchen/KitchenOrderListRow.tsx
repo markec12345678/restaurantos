@@ -2,6 +2,8 @@
 
 import { memo } from 'react'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { CheckCheck } from 'lucide-react'
 import { KitchenOrderItem } from './KitchenOrderItem'
 import { WaitTimer } from './WaitTimer'
 import { TYPE_LABELS, URGENCY_BORDER, URGENCY_BG } from './types'
@@ -14,17 +16,30 @@ export const KitchenOrderListRow = memo(function KitchenOrderListRow({
   order,
   displayItems,
   onItemStatusChange,
+  onBumpOrder,
 }: {
   order: EnrichedOrder
   displayItems: OrderItemWithMenu[]
   onItemStatusChange: (_itemId: string, _status: string) => void
+  /** R26-b: bump = odstrani gotovo naročilo z ekrana (display akcija) */
+  onBumpOrder?: (_orderId: string) => void
 }) {
+  const isReady = order.status === 'ready'
   return (
-    <div className={`rounded-lg border bg-card ${URGENCY_BORDER[order.urgency]} ${URGENCY_BG[order.urgency]} transition-all hover:shadow-md`}>
+    <div className={`rounded-lg border bg-card transition-all hover:shadow-md ${
+      isReady
+        ? 'border-l-4 border-l-emerald-500 ring-1 ring-emerald-400/40'
+        : `${URGENCY_BORDER[order.urgency]} ${URGENCY_BG[order.urgency]}`
+    }`}>
       <div className="p-3">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-3">
             <span className="font-bold text-lg">#{order.orderNumber}</span>
+            {isReady && (
+              <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-[10px] font-bold animate-pulse">
+                PRIPRAVLJENO
+              </Badge>
+            )}
             <Badge variant="outline" className="text-xs">
               {TYPE_LABELS[order.type] || order.type}
             </Badge>
@@ -56,6 +71,17 @@ export const KitchenOrderListRow = memo(function KitchenOrderListRow({
                 </Badge>
               )}
             </div>
+            {isReady && onBumpOrder && (
+              <Button
+                size="sm"
+                className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 transition-transform pointer-coarse:h-10"
+                onClick={() => onBumpOrder(order.id)}
+                aria-label={`Bump naročila #${order.orderNumber} — odstrani z ekrana`}
+              >
+                <CheckCheck className="h-3.5 w-3.5 mr-1" />
+                Bump
+              </Button>
+            )}
           </div>
         </div>
         <div className="space-y-1" role="list">

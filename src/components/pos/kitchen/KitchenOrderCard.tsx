@@ -19,12 +19,15 @@ export const KitchenOrderCard = memo(function KitchenOrderCard({
   order,
   onItemStatusChange,
   onOrderStatusChange,
+  onBumpOrder,
   viewMode,
   stationFilter
 }: {
   order: EnrichedOrder
   onItemStatusChange: (_itemId: string, _status: string) => void
   onOrderStatusChange: (_orderId: string, _status: string) => void
+  /** R26-b: bump = odstrani gotovo naročilo z ekrana (display akcija) */
+  onBumpOrder?: (_orderId: string) => void
   viewMode: 'cards' | 'list'
   stationFilter?: 'all' | 'kuhinja' | 'sank'
 }) {
@@ -36,6 +39,7 @@ export const KitchenOrderCard = memo(function KitchenOrderCard({
   // - 'bar' → šank artikli (šank filter)
   // - če prepStation ni nastavljen, fallback na category ime
   const allItems = Array.isArray(order.orderItems) ? order.orderItems : []
+  const isReady = order.status === 'ready'
 
   const foodItems = allItems.filter(oi => {
     const stationType = (oi.menuItem as { prepStation?: { type?: string } })?.prepStation?.type
@@ -61,18 +65,27 @@ export const KitchenOrderCard = memo(function KitchenOrderCard({
         order={order}
         displayItems={[...displayFoodItems, ...displayDrinkItems]}
         onItemStatusChange={onItemStatusChange}
+        onBumpOrder={onBumpOrder}
       />
     )
   }
 
-  // Kartični prikaz
+  // Kartični prikaz — ready naročilo dobi emerald obrobo (Toast pick-up shelf)
+  const readyCardStyle = isReady
+    ? 'border-l-4 border-l-emerald-500 ring-1 ring-emerald-400/40 shadow-[0_0_14px_rgba(16,185,129,0.18)]'
+    : `${URGENCY_BORDER[order.urgency]} ${URGENCY_BG[order.urgency]}`
   return (
-    <Card className={`overflow-hidden ${URGENCY_BORDER[order.urgency]} ${URGENCY_BG[order.urgency]} transition-all hover:shadow-lg`}>
+    <Card className={`overflow-hidden ${readyCardStyle} transition-all hover:shadow-lg`}>
       {/* Header */}
-      <div className="px-4 py-3 border-b bg-muted/30 flex items-center justify-between">
+      <div className={`px-4 py-3 border-b flex items-center justify-between ${isReady ? 'bg-emerald-50/60 dark:bg-emerald-900/15' : 'bg-muted/30'}`}>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="font-bold text-xl">#{order.orderNumber}</span>
+            {isReady && (
+              <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white text-[10px] font-bold animate-pulse">
+                PRIPRAVLJENO
+              </Badge>
+            )}
             {order.urgency === 'critical' && (
               <AlertTriangle className="h-4 w-4 text-red-500 animate-pulse" aria-label="Kritična nujnost" />
             )}
@@ -151,7 +164,7 @@ export const KitchenOrderCard = memo(function KitchenOrderCard({
       </CardContent>
 
       {/* Footer with progress and bulk action */}
-      <KitchenCardFooter order={order} onOrderStatusChange={onOrderStatusChange} />
+      <KitchenCardFooter order={order} onOrderStatusChange={onOrderStatusChange} onBumpOrder={onBumpOrder} />
     </Card>
   )
 })

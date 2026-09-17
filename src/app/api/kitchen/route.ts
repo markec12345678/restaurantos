@@ -46,9 +46,18 @@ export async function GET(req: Request) {
       },
     })
 
-    // Calculate wait times and urgency
+    // Calculate wait times and urgency (DELJENO za obe množici)
     const now = new Date()
-    const enrichedOrders = orders.map(order => {
+    const enrichOrder = (
+      order: (typeof orders)[number]
+    ): (typeof orders)[number] & {
+      waitMinutes: number
+      urgency: 'normal' | 'warning' | 'critical'
+      pendingCount: number
+      preparingCount: number
+      readyCount: number
+      totalItems: number
+    } => {
       const waitMs = now.getTime() - new Date(order.createdAt).getTime()
       const waitMinutes = Math.floor(waitMs / 60000)
 
@@ -71,13 +80,40 @@ export async function GET(req: Request) {
         readyCount,
         totalItems: order.orderItems.length,
       }
+    }
+
+    const enrichedOrders = orders.map(enrichOrder)
+
+    // R26-b (Toast vzorec): "pick-up shelf" — naročila statusa 'ready' ostanejo
+    // VIDNA na KDS, dokler kuhar/jata ne Bump-a (bump je čisto odjemalska
+    // display akcija — bumped-store.ts; zaključek ostane naloga natakarja).
+    const readyRaw = await db.order.findMany({
+      where: { status: 'ready' },
+      orderBy: { createdAt: 'asc' },
+      take: 10,
+      include: {
+        table: true,
+        orderItems: {
+          include: {
+            menuItem: {
+              include: {
+                prepStation: { select: { id: true, name: true, type: true } },
+                category: { select: { id: true, name: true, menu: { select: { id: true, name: true } } } },
+              },
+            },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
     })
+    const readyOrders = readyRaw.map(enrichOrder)
 
     // Summary stats
     const stats = {
-      totalActive: orders.length,
+      totalActive: orders.length + readyOrders.length,
       pendingOrders: orders.filter(o => o.status === 'pending').length,
       inProgressOrders: orders.filter(o => o.status === 'in-progress').length,
+      readyOrdersCount: readyOrders.length,
       totalItemsPending: orders.reduce((sum, o) => sum + o.orderItems.filter(oi => oi.status === 'pending').length, 0),
       totalItemsPreparing: orders.reduce((sum, o) => sum + o.orderItems.filter(oi => oi.status === 'preparing').length, 0),
       totalItemsReady: orders.reduce((sum, o) => sum + o.orderItems.filter(oi => oi.status === 'ready').length, 0),
@@ -87,7 +123,7 @@ export async function GET(req: Request) {
       criticalOrders: enrichedOrders.filter(o => o.urgency === 'critical').length,
     }
 
-    return NextResponse.json({ orders: enrichedOrders, stats })
+    return NextResponse.json({ orders: enrichedOrders, readyOrders, stats })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/kitchen', 'Napaka pri pridobivanju kuhinjskih naročil')
   }

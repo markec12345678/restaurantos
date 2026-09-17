@@ -56,10 +56,16 @@ export const URGENCY_BG: Record<string, string> = {
 
 export interface KDSData {
   orders: EnrichedOrder[]
+  /**
+   * Naročila statusa 'ready' — Toast "pick-up shelf": ostanejo vidna na KDS,
+   * dokler kuhar/jata ne Bump-a (odjemalec prikaz — bumped-store.ts).
+   */
+  readyOrders?: EnrichedOrder[]
   stats: {
     totalActive: number
     pendingOrders: number
     inProgressOrders: number
+    readyOrdersCount?: number
     totalItemsPending: number
     totalItemsPreparing: number
     totalItemsReady: number
@@ -67,3 +73,6 @@ export interface KDSData {
     criticalOrders: number
   }
 }
+
+/** Filter zavihkov KDS ('ready' = Toast pick-up shelf). */
+export type KdsFilterStatus = 'all' | 'pending' | 'in-progress' | 'ready'

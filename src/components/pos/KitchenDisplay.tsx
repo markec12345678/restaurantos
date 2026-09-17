@@ -7,10 +7,11 @@ import { useState, useEffect, useRef, useCallback, memo, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { useKitchenWebSocket } from '@/lib/websocket-client'
 import { queryKeys } from '@/lib/query-keys'
-import { KDSData } from './kitchen/types'
+import { KDSData, type KdsFilterStatus } from './kitchen/types'
 import { soundManager } from './kitchen/kitchen-sound'
 import { useFullscreen } from './kitchen/use-fullscreen'
 import { useKitchenMutations } from './kitchen/useKitchenMutations'
+import { useKdsBumpedStore, getVisibleReadyOrders } from './kitchen/bumped-store'
 
 // Lazy-loaded podkomponente
 const KitchenHeader = dynamic(() => import('./kitchen/KitchenHeader').then(m => ({ default: m.KitchenHeader })), { ssr: false })
@@ -24,12 +25,16 @@ export const KitchenDisplay = memo(function KitchenDisplay() {
   const queryClient = useQueryClient()
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards')
   const [soundEnabled, setSoundEnabled] = useState(() => soundManager.isEnabled())
-  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'in-progress'>('all')
+  const [filterStatus, setFilterStatus] = useState<KdsFilterStatus>('all')
   const [stationFilter, setStationFilter] = useState<'all' | 'kuhinja' | 'sank'>('all')
   const prevOrdersRef = useRef<string[]>([])
   const { isFullscreen, toggle: toggleFullscreen } = useFullscreen()
 
   const { handleItemStatusChange, handleOrderStatusChange } = useKitchenMutations(soundEnabled)
+  // R26-b Toast vzorec: bump = odjemalska display akcija; Recall vrne bumpana naročila
+  const bumpedAt = useKdsBumpedStore(s => s.bumpedAt)
+  const bumpOrder = useKdsBumpedStore(s => s.bump)
+  const recallAll = useKdsBumpedStore(s => s.recallAll)
 
   const { connected: wsConnected, lastEvent: wsLastEvent } = useKitchenWebSocket({
     onEvent: (msg) => {
@@ -46,7 +51,7 @@ export const KitchenDisplay = memo(function KitchenDisplay() {
     queryKey: queryKeys.kitchen.all,
     queryFn: async () => {
       const res = await authFetch('/api/kitchen')
-      if (!res.ok) return { orders: [], stats: { totalActive: 0, pendingOrders: 0, inProgressOrders: 0, totalItemsPending: 0, totalItemsPreparing: 0, totalItemsReady: 0, avgWaitTime: 0, criticalOrders: 0 } } as KDSData
+      if (!res.ok) return { orders: [], readyOrders: [], stats: { totalActive: 0, pendingOrders: 0, inProgressOrders: 0, readyOrdersCount: 0, totalItemsPending: 0, totalItemsPreparing: 0, totalItemsReady: 0, avgWaitTime: 0, criticalOrders: 0 } } as KDSData
       return res.json() as Promise<KDSData>
     },
     refetchInterval: wsConnected ? 30000 : 5000,
@@ -79,18 +84,29 @@ export const KitchenDisplay = memo(function KitchenDisplay() {
     setSoundEnabled(enabled)
   }, [])
 
+  // R26-b: ready "pick-up shelf" — bumpani so skriti
+  const visibleReadyOrders = useMemo(
+    () => getVisibleReadyOrders(data?.readyOrders, bumpedAt),
+    [data?.readyOrders, bumpedAt]
+  )
+  const bumpedCount = useMemo(
+    () => Math.max(0, (data?.readyOrders?.length || 0) - visibleReadyOrders.length),
+    [data?.readyOrders, visibleReadyOrders.length]
+  )
+
   const filteredOrders = useMemo(() => {
+    if (filterStatus === 'ready') return visibleReadyOrders
     return (data?.orders || []).filter(order => {
       if (filterStatus === 'all') return true
       return order.status === filterStatus
     })
-  }, [data?.orders, filterStatus])
+  }, [data?.orders, visibleReadyOrders, filterStatus])
 
   const { urgentOrders, warningOrders, normalOrders } = useMemo(() => ({
-    urgentOrders: filteredOrders.filter(o => o.urgency === 'critical'),
-    warningOrders: filteredOrders.filter(o => o.urgency === 'warning'),
-    normalOrders: filteredOrders.filter(o => o.urgency === 'normal'),
-  }), [filteredOrders])
+    urgentOrders: filterStatus === 'ready' ? [] : filteredOrders.filter(o => o.urgency === 'critical'),
+    warningOrders: filterStatus === 'ready' ? [] : filteredOrders.filter(o => o.urgency === 'warning'),
+    normalOrders: filterStatus === 'ready' ? [] : filteredOrders.filter(o => o.urgency === 'normal'),
+  }), [filteredOrders, filterStatus])
 
   const stats = data?.stats
 
@@ -103,13 +119,18 @@ export const KitchenDisplay = memo(function KitchenDisplay() {
         isFullscreen={isFullscreen} onToggleFullscreen={toggleFullscreen}
         filterStatus={filterStatus} onFilterStatusChange={setFilterStatus}
         filteredOrdersCount={filteredOrders.length} pendingOrdersCount={stats?.pendingOrders || 0} inProgressOrdersCount={stats?.inProgressOrders || 0}
+        readyOrdersCount={visibleReadyOrders.length}
+        bumpedCount={bumpedCount} onRecallAll={recallAll}
       />
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
         <KitchenMainContent
           isLoading={isLoading} viewMode={viewMode} filteredOrders={filteredOrders}
           urgentOrders={urgentOrders} warningOrders={warningOrders} normalOrders={normalOrders}
+          readyOrders={filterStatus === 'all' || filterStatus === 'ready' ? visibleReadyOrders : []}
           onItemStatusChange={handleItemStatusChange} onOrderStatusChange={handleOrderStatusChange}
+          onBumpOrder={bumpOrder}
           stationFilter={stationFilter} wsConnected={wsConnected}
+          filterStatus={filterStatus}
         />
       </div>
       {stats && <KitchenFooter stats={stats} wsConnected={wsConnected} />}
