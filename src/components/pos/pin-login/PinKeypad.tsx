@@ -12,30 +12,32 @@ import type { PinKeypadProps } from './constants'
 export const PinKeypad = memo(function PinKeypad({ onDigit, onBackspace, onSubmit, disabled, firstDigitRef }: PinKeypadProps) {
   return (
     <div className="grid grid-cols-3 gap-2">
+      {/* NOVO (runda 25): active:scale + transition-transform — takojšnja
+          taktilna povratna informacija na vsaki tipki (Square vzorec) */}
       {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit, idx) => (
         <Button
           key={digit}
           ref={idx === 0 ? firstDigitRef : undefined}
           variant="outline"
-          className="h-14 text-xl font-bold"
+          className="h-14 text-xl font-bold active:scale-95 transition-transform"
           onClick={() => onDigit(digit)}
           aria-label={`Stevka ${digit}`}
         >
           {digit}
         </Button>
       ))}
-      <Button variant="ghost" className="h-14" onClick={onBackspace} aria-label="Izbrisi zadnjo stevko">
+      <Button variant="ghost" className="h-14 active:scale-95 transition-transform" onClick={onBackspace} aria-label="Izbrisi zadnjo stevko">
         <KeyRound className="h-5 w-5" />
       </Button>
       <Button
         variant="outline"
-        className="h-14 text-xl font-bold"
+        className="h-14 text-xl font-bold active:scale-95 transition-transform"
         onClick={() => onDigit('0')}
       >
         0
       </Button>
       <Button
-        className="h-14 bg-emerald-600 hover:bg-emerald-700 text-white"
+        className="h-14 bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 transition-transform"
         onClick={onSubmit}
         disabled={disabled}
         aria-label="Potrdi PIN"

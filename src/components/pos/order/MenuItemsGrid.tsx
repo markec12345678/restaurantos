@@ -5,15 +5,20 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Search, Star, X } from 'lucide-react'
-import { MenuItemCard } from './MenuItemCard'
+import { History, Plus, Search, Star, X } from 'lucide-react'
+import { MenuItemCard, stringToColor } from './MenuItemCard'
+import { formatEUR } from '@/lib/safe-format'
 import { useFavoritesStore } from '@/lib/favorites-store'
+import { useRecentsStore, RECENTS_MAX } from '@/lib/recents-store'
 import type { MenuItemType, StockInfoType } from './types'
 
 // --- Props ---
 
 interface MenuItemsGridProps {
   filteredMenuItems: MenuItemType[]
+  /** NOVO (runda 25): VSI artikli menija — Recents hitra vrstica dela
+      ponovni dodatek čez kategorije (artikel ni več v trenutnem filtru) */
+  allMenuItems?: MenuItemType[]
   menuStockMap: Record<string, StockInfoType> | undefined
   cart: { id: string; quantity: number }[]
   lastAddedId: string | null
@@ -28,6 +33,7 @@ interface MenuItemsGridProps {
 
 export const MenuItemsGrid = memo(function MenuItemsGrid({
   filteredMenuItems,
+  allMenuItems,
   menuStockMap,
   cart,
   lastAddedId,
@@ -43,14 +49,33 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
   const toggleFavorite = useFavoritesStore((s) => s.toggle)
   const [favoritesOnly, setFavoritesOnly] = useState(false)
 
+  // NOVO (runda 25 — Square "Recents" vzorec): nedavno dodani artikli.
+  // record() pokličemo OB POTRJENEM dodajanju (lastAddedId nastavi
+  // useModifierSelection/direkten dodatek), ne pri kliku (ta lahko odpre
+  // modifier dialog — to ni dodatek).
+  const recentIds = useRecentsStore((s) => s.ids)
+
   useEffect(() => {
     // skipHydration: ročna rehidracija po mountu (brez SSR mismatcha).
-    // Posebnega "hydrated" flaga ni treba — rehydrate sproži store update,
-    // komponenta se sama ponovno rendra (lint: brez sync setState v efektu).
     void useFavoritesStore.persist.rehydrate()
+    void useRecentsStore.persist.rehydrate()
   }, [])
 
+  useEffect(() => {
+    if (lastAddedId) useRecentsStore.getState().record(lastAddedId)
+  }, [lastAddedId])
+
   const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds])
+
+  // Recents lookup čez VSE artikle (ne samo trenutni filter kategorije)
+  const recentItems = useMemo(() => {
+    if (recentIds.length === 0 || !allMenuItems || allMenuItems.length === 0) return []
+    const byId = new Map(allMenuItems.map((i) => [i.id, i]))
+    return recentIds
+      .map((id) => byId.get(id))
+      .filter((i): i is MenuItemType => Boolean(i))
+      .slice(0, RECENTS_MAX)
+  }, [recentIds, allMenuItems])
 
   const visibleItems = useMemo(() => {
     if (!favoritesOnly) return filteredMenuItems
@@ -116,6 +141,50 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
               <span className="text-[10px] font-bold bg-background/60 rounded-full px-1.5 py-0.5 tabular-nums">{favoritesInView}</span>
             </button>
           )}
+        </div>
+      )}
+      {/* NOVO (runda 25 — Square "Recents" vzorec): hitra vrstica nedavno
+          dodanih artiklov — 1-tap ponovno naročilo brez iskanja po kategorijah.
+          Skrita med iskanjem in v favoritesOnly pogledu (tam je rdeča nitka
+          že ožja kot “vsi” pogled). */}
+      {!itemSearch && !favoritesOnly && recentItems.length > 0 && (
+        <div className="px-3 pt-2 pb-1 flex-shrink-0" aria-label="Nedavno dodani artikli">
+          <div className="flex items-center gap-1.5 mb-1">
+            <History className="h-3 w-3 text-muted-foreground" aria-hidden="true" />
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+              Nedavno
+            </span>
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto custom-scrollbar pb-0.5">
+            {recentItems.map((item) => {
+              const stock = menuStockMap?.[item.id]
+              const isOut = stock?.status === 'out'
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => !isOut && onItemClick(item)}
+                  disabled={isOut}
+                  title={isOut ? `${item.name} — ni zaloge` : `Ponovno dodaj: ${item.name}`}
+                  aria-label={`Ponovno dodaj ${item.name} (${formatEUR(item.price)})`}
+                  className={`flex-shrink-0 flex items-center gap-1.5 pl-1.5 pr-2.5 min-h-[32px] pointer-coarse:min-h-[40px] rounded-full border bg-card text-xs font-medium transition-all active:scale-95 touch-manipulation ${
+                    isOut
+                      ? 'opacity-50 cursor-not-allowed border-border text-muted-foreground line-through'
+                      : 'border-border hover:border-primary/50 hover:bg-primary/5 text-foreground'
+                  }`}
+                >
+                  <span
+                    className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white flex-shrink-0"
+                    style={{ background: `linear-gradient(135deg, ${stringToColor(item.name)}, ${stringToColor(item.name + 'x')})` }}
+                    aria-hidden="true"
+                  >
+                    {item.name.charAt(0).toUpperCase()}
+                  </span>
+                  <span className="max-w-[110px] truncate">{item.name}</span>
+                  <Plus className="h-3 w-3 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+                </button>
+              )
+            })}
+          </div>
         </div>
       )}
       {/* ITEMS GRID */}

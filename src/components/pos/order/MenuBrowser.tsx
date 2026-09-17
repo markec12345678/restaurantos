@@ -140,6 +140,9 @@ export function MenuBrowser({
       <AllergenFilterBar />
       <MenuItemsGrid
         filteredMenuItems={filteredMenuItems}
+        /* NOVO (runda 25): vsi artikli — Recents hitra vrstica dela ponovni
+           dodatek tudi takrat, ko je artikel zunaj trenutnega filtra kategorije */
+        allMenuItems={menuItems}
         menuStockMap={menuStockMap}
         cart={cart}
         lastAddedId={lastAddedId}

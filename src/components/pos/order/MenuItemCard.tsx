@@ -20,8 +20,9 @@ export interface MenuItemCardProps {
 }
 
 
-// Generate a consistent color from a string (for placeholder backgrounds)
-function stringToColor(str: string): string {
+// NOVO (runda 25): export — Recents hitra vrstica (MenuItemsGrid) uporablja
+// isto barvno logiko za krog z začetnico artikla (enotna identiteta artikla)
+export function stringToColor(str: string): string {
   const colors = [
     '#f97316', '#ea580c', '#dc2626', '#b91c1c',
     '#7c3aed', '#6d28d9', '#2563eb', '#1d4ed8',

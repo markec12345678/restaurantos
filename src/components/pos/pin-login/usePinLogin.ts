@@ -4,9 +4,18 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { queryKeys } from '@/lib/query-keys'
+import { applyPinDigit, hapticFeedback } from './pin-digit'
+import { PIN_MIN_LENGTH } from './constants'
 import type { PinLoginProps } from './constants'
 import { setCurrentUser, setAuthToken } from '../PinLogin'
 import { cacheOfflineSession, verifyOfflinePin, getOfflineSessionHint } from './offline-auth'
+
+// NOVO (QA 2026-09-17, runda 25 — UI/UX primerjava z najboljšimi POS):
+// Square/Clover na fizičnih tipkovnicah POS terminalov dovoljujeta vpis PIN-a
+// s številkami + Backspace/Enter. Prej je bila tipkovnica MRTVA koda
+// (_handleKeyDown ni bil nikoli povezan) — zdaj window listener.
+// Čisti helperji (applyPinDigit, hapticFeedback) živijo v ./pin-digit
+// (testabilnost brez težkih importov).
 
 // ============================================
 // HOOK: PIN prijava
@@ -102,29 +111,60 @@ export function usePinLogin(_props: PinLoginProps) {
   })
 
   const handlePinSubmit = useCallback(() => {
-    if (pin.length < 4) {
-      setError('Vnesite vsaj 4 stevke')
+    if (loginMutation.isPending) return
+    if (pin.length < PIN_MIN_LENGTH) {
+      setError(`Vnesite vsaj ${PIN_MIN_LENGTH} stevke`)
       return
     }
     setError('')
+    hapticFeedback(20)
     loginMutation.mutate(pin)
   }, [pin, loginMutation])
 
-  const _handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') handlePinSubmit()
-  }, [handlePinSubmit])
-
+  // FIX runda 25: prej _handleKeyDown (Enter-only) NI bil nikoli povezan —
+  // fizična tipkovnica na POS terminalu NI delovala. Zdaj window listener
+  // (številke + Backspace + Enter), povezan ob mountu prijavnega ekrana.
   const handleDigit = useCallback((digit: string) => {
-    if (pin.length < 6) {
-      setPin(prev => prev + digit)
+    hapticFeedback(10)
+    const { pin: next, autoSubmit } = applyPinDigit(pin, digit)
+    if (next !== pin) {
+      setPin(next)
       setError('')
     }
-  }, [pin])
+    if (autoSubmit && !loginMutation.isPending) {
+      loginMutation.mutate(next)
+    }
+  }, [pin, loginMutation])
 
   const handleBackspace = useCallback(() => {
+    hapticFeedback(15)
     setPin(prev => prev.slice(0, -1))
     setError('')
   }, [])
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      if (e.key >= '0' && e.key <= '9') {
+        handleDigit(e.key)
+        return
+      }
+      if (e.key === 'Backspace') {
+        // prepreči navigacijo nazaj (stari browserji) / dvojni vnos
+        e.preventDefault()
+        handleBackspace()
+        return
+      }
+      if (e.key === 'Enter') {
+        // preventDefault: prepreči "klik" gumba, ki ima naključno fokus
+        // (sicer bi Enter sprožil submit DVAKRAT)
+        e.preventDefault()
+        handlePinSubmit()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [handleDigit, handleBackspace, handlePinSubmit])
 
   return {
     pin, error, authStatus,

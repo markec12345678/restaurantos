@@ -2,6 +2,14 @@
 // PIN LOGIN — Skupne konstante in tipi
 // ============================================
 
+// --- KONSTANTE ---
+
+/** Največja dolžina PIN-a (runda 25: izvlečeno iz magične 6 v usePinLogin) */
+export const PIN_MAX_LENGTH = 6
+
+/** Najmanjša dolžina PIN-a (enotna z validacijo na strežniku) */
+export const PIN_MIN_LENGTH = 4
+
 // --- TIPI ---
 
 /** Podatkovni tip za prijavljenega uporabnika */
