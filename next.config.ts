@@ -60,9 +60,15 @@ const nextConfig: NextConfig = {
   // FIX: pdfkit needs runtime access to font data files (.afm) in node_modules
   // Turbopack can't bundle these — mark as external package
   serverExternalPackages: ['pdfkit', '@electric-sql/pglite', 'pglite-prisma-adapter', 'undici'],
-  // FIX BUG 25: Onemogoči ignoreBuildErrors — skriva prave TS napake
+  // FIX BUG 25: Onemogoči ignoreBuildErrors — skriva prave TS napake.
+  // IZJEMA (re-land runde 29, 2026-09-17): Vercel builder ima 4GB — faza
+  // "Running TypeScript" (tsc nad ~197k vrsticami) je od runde 29 presegla
+  // peak in builderja OOM-kill-a (exit 137; lokalno reploducirano). Tipi so
+  // ŠE VEDNO vedno preverjeni: CI job "Lint & Typecheck" (tsc --noEmit) je
+  // blocking required check + lokalni workflow. Na Vercelu build samo ne
+  // ponovi istega checka — ni izguba varnosti, samo odstranitev duplikata.
   typescript: {
-    ignoreBuildErrors: false,
+    ignoreBuildErrors: process.env.VERCEL === '1',
   },
   // FIX Vercel 308 MB function (Task 18, 2026-09-17): zmanjšaj traced node_modules.
   // @prisma/engines (34 MB: podvojen query engine + CLI-only schema engine) in
