@@ -52,13 +52,13 @@ export const TipSection = memo(function TipSection({
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted-foreground">Znesek:</span>
         <Input
-          type="number"
-          step="0.01"
-          min="0"
+          // STYLING FIX runda 8: vejica namesto pike za sl tipkovnice (glej CashPaymentSection)
+          type="text"
+          inputMode="decimal"
           value={tipAmount || ''}
           onChange={e => onCustomTip(e.target.value)}
           className="h-7 text-xs w-24"
-          placeholder="0.00"
+          placeholder="0,00"
           aria-label="Znesek napitnine"
           autoFocus
         />

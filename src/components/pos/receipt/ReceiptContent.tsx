@@ -8,7 +8,7 @@ import { format } from 'date-fns'
 import { TYPE_LABELS, PAYMENT_LABELS } from './constants'
 import type { ReceiptContentProps } from './constants'
 import { ReceiptTotalsSection } from './ReceiptTotalsSection'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatNumberSl } from '@/lib/safe-format'
 import { ReceiptFursSection } from './ReceiptFursSection'
 
 // ============================================
@@ -79,18 +79,18 @@ export const ReceiptContent = memo(function ReceiptContent({
             <div key={item.id} className="space-y-0.5">
               <div className="flex justify-between">
                 <span className="font-semibold">{item.quantity}x {item.name}</span>
-                <span className="font-semibold">{safeToFixed(item.totalWithVat, 2)}€</span>
+                <span className="font-semibold">{formatNumberSl(item.totalWithVat)}€</span>
               </div>
               <div className="pl-4 flex justify-between text-[10px] text-muted-foreground">
-                <span>{item.quantity}x {safeToFixed(item.unitPrice, 2)}€ + DDV {item.vatRate}%</span>
-                <span>osn.{safeToFixed(item.basePrice, 2)}€ ddv.{safeToFixed(item.vatAmount, 2)}€</span>
+                <span>{item.quantity}x {formatNumberSl(item.unitPrice)}€ + DDV {item.vatRate}%</span>
+                <span>osn.{formatNumberSl(item.basePrice)}€ ddv.{formatNumberSl(item.vatAmount)}€</span>
               </div>
               {item.modifiers.length > 0 && (
                 <div className="pl-4">
                   {item.modifiers.map((mod, i) => (
                     <div key={i} className="flex justify-between text-[10px] text-muted-foreground">
                       <span>+ {mod.name}</span>
-                      {mod.price && mod.price > 0 && <span>+{safeToFixed(mod.price, 2)}€</span>}
+                      {mod.price && mod.price > 0 && <span>+{formatNumberSl(mod.price)}€</span>}
                     </div>
                   ))}
                 </div>

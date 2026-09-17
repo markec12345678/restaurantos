@@ -24,6 +24,8 @@ const StockAndKitchen = dynamic(() => import('./dashboard/StockAndKitchen').then
 const SetupProgress = dynamic(() => import('./setup-progress/SetupProgress').then((m) => m.SetupProgress), { ssr: false })
 // NOVO (QA 2026-09-17, runda 3): menedžerski KPI kvadranti menija
 const MenuEngineeringKpi = dynamic(() => import('./dashboard/MenuEngineeringKpi').then((m) => m.MenuEngineeringKpi), { ssr: false })
+// NOVO (QA runda 8): dnevni zaključek (Z-poročilo) na en pogled
+const ZReportQuickView = dynamic(() => import('./dashboard/ZReportQuickView').then((m) => m.ZReportQuickView), { ssr: false })
 
 export const Dashboard = memo(function Dashboard() {
   const { setActiveModule } = usePOSStore()
@@ -100,6 +102,14 @@ export const Dashboard = memo(function Dashboard() {
 
       {/* Setup Progress — pokazuje kaj je nastavljeno, kaj manjka */}
       <SetupProgress />
+
+      {/* NOVO (QA runda 8): dnevni zaključek na en pogled — status osnutka/zaključka,
+          žive številke dneva in razčlenitev plačil; skrito za vloge brez manage_cash */}
+      <ZReportQuickView
+        todayRevenue={data?.todayRevenue || 0}
+        totalOrders={data?.totalOrders || 0}
+        avgOrderValue={data?.avgOrderValue || 0}
+      />
 
       {/* NOVO (QA 2026-09-17, runda 3): Menu Engineering KPI — kvadranti menija,
           top zvezde in akcijska priporočila za menedžerja */}

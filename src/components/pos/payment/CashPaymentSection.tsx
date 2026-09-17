@@ -57,9 +57,11 @@ export const CashPaymentSection = memo(function CashPaymentSection({
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground">Prejeto:</span>
           <Input
-            type="number"
-            step="0.01"
-            min="0"
+            // STYLING FIX runda 8: type="number" zavrača vejico ("12,50" → neveljaven
+            // vnos na sl tipkovnici). text + inputMode=decimal ohrani numerično
+            // tipkovnico na tablicah, parseDecimalInput pa varno razčleni vejico.
+            type="text"
+            inputMode="decimal"
             value={cashReceived || ''}
             onChange={(e) => setCashReceived(parseDecimalInput(e.target.value))}
             className="h-7 text-xs w-24"
