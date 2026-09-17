@@ -7,9 +7,11 @@ import { authFetch } from '@/components/pos/PinLogin'
 import { usePOSStore } from '@/lib/store'
 import { getCountryConfig, type CountryCode } from '@/lib/country-config'
 import { setLocale } from '@/lib/i18n'
-import type { SettingsData, FursStatus } from './constants'
+import type { SettingsData, FursStatus, SettingsFormWithFlags } from './constants'
 import { useSettingsSave } from './useSettingsSave'
 import { mapCisEchoResponseToStatus } from './cis-status'
+import { mapCisSendResponseToStatus } from './cis-send-status'
+import type { CisSendResponse } from './cis-send-status'
 
 // ============================================
 // HOOK: Upravljanje nastavitev
@@ -21,6 +23,8 @@ export function useSettingsManager() {
   const [activeTab, setActiveTab] = useState('country')
   const [fursStatus, setFursStatus] = useState<FursStatus>('disconnected')
   const [cisStatus, setCisStatus] = useState<FursStatus>('disconnected')
+  const [cisSendStatus, setCisSendStatus] = useState<FursStatus>('disconnected')
+  const [cisSendResult, setCisSendResult] = useState<CisSendResponse | null>(null)
   const [lastSaved, setLastSaved] = useState<string>('')
   const [selectedCountry, setSelectedCountry] = useState<CountryCode>((storeCountry as CountryCode) || 'SI')
   const [bulkVatFrom, setBulkVatFrom] = useState('22')
@@ -34,7 +38,9 @@ export function useSettingsManager() {
     },
   })
 
-  const [form, setForm] = useState<Partial<SettingsData>>({})
+  // SettingsFormWithFlags: API vrne tudi hasCisCert/hasFursCert flege
+  // (nisem del zapisljivega SettingsData — glej constants.ts)
+  const [form, setForm] = useState<SettingsFormWithFlags>({})
 
   useEffect(() => {
     if (settings) {
@@ -125,6 +131,37 @@ export function useSettingsManager() {
     }
   }, [form])
 
+  // Testna oddaja računa (POST /api/cis/test-invoice) — polna fiskalizacijska
+  // runda: ZKI + XML-dsig + SOAP POST + JIR parsing. Zahteva naložen P12
+  // (hasCisCert flag iz /api/settings) — brez njega NE kliče API-ja.
+  const sendCisTestInvoice = useCallback(async () => {
+    if (!form.hasCisCert) {
+      toast.error('FINA P12 certifikat ni nastavljen — vnesi pot in geslo ter shrani nastavitve')
+      return
+    }
+    setCisSendStatus('testing')
+    try {
+      const environment = form.cisEnvironment || 'test'
+      const res = await authFetch('/api/cis/test-invoice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ environment }),
+      })
+      const data = (await res.json()) as CisSendResponse
+      setCisSendResult(data)
+      const { status, message } = mapCisSendResponseToStatus(data)
+      setCisSendStatus(status)
+      if (status === 'connected') {
+        toast.success(message)
+      } else {
+        toast.error(message)
+      }
+    } catch {
+      setCisSendStatus('error')
+      toast.error('Testna oddaja neuspešna — napaka pri komunikaciji s strežnikom')
+    }
+  }, [form])
+
   const updateField = useCallback((field: string, value: unknown) => {
     setForm(prev => ({ ...prev, [field]: value }))
   }, [])
@@ -133,6 +170,8 @@ export function useSettingsManager() {
     activeTab, setActiveTab,
     fursStatus,
     cisStatus,
+    cisSendStatus,
+    cisSendResult,
     lastSaved,
     selectedCountry,
     bulkVatFrom, setBulkVatFrom,
@@ -147,6 +186,7 @@ export function useSettingsManager() {
     handleBulkVatChange,
     testFursConnection,
     testCisConnection,
+    sendCisTestInvoice,
     updateField,
   }
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { toast } from 'sonner'
 import type { WaiterNotification } from '../types'
 
 // ═══════════════════════════════════════════════════════════════
@@ -62,6 +63,22 @@ export function useWaiterWebSocket(
                 onNotification(notif)
                 playSound()
                 if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200])
+                // Runda 28: sonner toast — uporabnik naj vidi pripravljenost TUDI
+                // kadar je na drugem tabu (ReadyTab obvestila so vidna samo v njem)
+                const tableLabel = d.tableNumber ? ` — Miza ${d.tableNumber}` : ''
+                const countLabel =
+                  typeof d.readyCount === 'number' && typeof d.totalItems === 'number' && d.totalItems > 0
+                    ? ` (${d.readyCount}/${d.totalItems})`
+                    : ''
+                if (d.allReady) {
+                  toast.success(`Naročilo #${d.orderNumber} je PRIPRAVLJENO${tableLabel}`, {
+                    description: `${d.itemName ?? ''} — prevzem na pultu`,
+                  })
+                } else {
+                  toast.info(`Artikel pripravljen: ${d.itemName ?? ''}${tableLabel}${countLabel}`, {
+                    description: `Naročilo #${d.orderNumber}`,
+                  })
+                }
               }
             }
             if (data.type === 'order_update' || data.type === 'ORDER_UPDATED' || data.type === 'ORDER_CANCELLED') {

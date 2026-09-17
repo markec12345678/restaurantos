@@ -46,6 +46,9 @@ export const SettingsManager = memo(function SettingsManager() {
     handleBulkVatChange,
     testFursConnection,
     testCisConnection,
+    cisSendStatus,
+    cisSendResult,
+    sendCisTestInvoice,
     updateField,
   } = useSettingsManager()
 
@@ -143,6 +146,9 @@ export const SettingsManager = memo(function SettingsManager() {
               updateField={updateField}
               cisStatus={cisStatus}
               onTestCisConnection={testCisConnection}
+              cisSendStatus={cisSendStatus}
+              cisSendResult={cisSendResult}
+              onSendCisTestInvoice={sendCisTestInvoice}
               currentCountryCode={selectedCountry}
             />
           ) : (

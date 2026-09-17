@@ -107,6 +107,11 @@ export interface CisTabProps {
   /** Stanje CIS povezave (isti tip kot fursStatus) */
   cisStatus: FursStatus
   onTestCisConnection: () => void
+  /** Stanje testne oddaje računa (idle = 'disconnected') */
+  cisSendStatus: FursStatus
+  /** Surov odgovor testne oddaje (JIR/napaka/XML) — null pred prvo oddajo */
+  cisSendResult: import('./cis-send-status').CisSendResponse | null
+  onSendCisTestInvoice: () => void
   currentCountryCode: CountryCode
 }
 

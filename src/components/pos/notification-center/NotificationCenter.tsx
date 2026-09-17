@@ -88,6 +88,20 @@ export const NotificationCenter = memo(function NotificationCenter() {
             title = `Pripravljeno: ${msg.payload?.itemName || '?'}`
             message = `Naročilo #${msg.payload?.orderNumber || '?'}`
             break
+          // Runda 28: order_ready (server pošilja lowercase) — zvonček zdaj
+          // pokaže tudi pripravljene artikle/naročila (prej ignore)
+          case 'order_ready':
+          case 'ORDER_READY': {
+            notifType = 'success'
+            const table = msg.payload?.tableNumber ? ` — Miza ${msg.payload.tableNumber}` : ''
+            title = `Pripravljeno: ${msg.payload?.itemName || '?'}${table}`
+            const counts =
+              typeof msg.payload?.readyCount === 'number' && typeof msg.payload?.totalItems === 'number'
+                ? ` (${msg.payload.readyCount}/${msg.payload.totalItems})`
+                : ''
+            message = `Naročilo #${msg.payload?.orderNumber || '?'}${counts}${msg.payload?.allReady ? ' — VSE pripravljeno' : ''}`
+            break
+          }
           default:
             return
         }
