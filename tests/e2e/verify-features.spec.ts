@@ -10,6 +10,9 @@
 import { test, expect } from '@playwright/test'
 
 test.describe('RestaurantOS — UI/UX Verification', () => {
+  // QA runda 13: mrzel Turbopack compile lahko preseže privzeti 15s nav timeout
+  test.use({ navigationTimeout: 120_000 })
+
   test('homepage se naloži in ima skip-to-content link', async ({ page }) => {
     await page.goto('/')
     // Skip-to-content link mora obstajati v DOM (WCAG 2.4.1)
@@ -167,17 +170,50 @@ test.describe('RestaurantOS — UI/UX Verification', () => {
     expect(manifest.icons.length).toBeGreaterThan(0)
   })
 
-  test('service worker se registrira', async ({ page }) => {
-    await page.goto('/')
-    await page.waitForTimeout(2000) // Počakaj da se SW registrira
+  test('service worker se registrira in aktivira (PWA runtime)', async ({ page }) => {
+    // QA runda 13: SW se v dev načinu registrira SAMO z ?pwa=1 QA override
+    // (zaščita pred stale Turbopack chunk-i — glej src/lib/register-sw.ts).
+    // Ta test KONČNO resnično verificira PWA runtime — prej je preverjal samo
+    // `typeof boolean` (brez vrednosti), ker v devu SW sploh ni registriran.
+    await page.goto('/?pwa=1')
+    // Prva aktivacija (skipWaiting + clients.claim) sproži controllerchange →
+    // register-sw naredi EN samodejni reload. Počakaj da se stanje ustali,
+    // nato naloži znova — stran je sedaj pod kontrolo SW (brez dodatnih reloadov).
+    await page.waitForTimeout(2500)
+    await page.goto('/?pwa=1')
 
-    const swRegistered = await page.evaluate(async () => {
-      if (!('serviceWorker' in navigator)) return false
+    const swState = await page.evaluate(async () => {
+      if (!('serviceWorker' in navigator)) {
+        return { supported: false, controlled: false, active: false, cacheNames: [] as string[] }
+      }
+      // Pollaj do ~8s da je SW aktiviran (lokalno je to < 1s)
+      for (let i = 0; i < 40; i++) {
+        const reg = await navigator.serviceWorker.getRegistration()
+        if (reg?.active && reg.active.state === 'activated') break
+        await new Promise((r) => setTimeout(r, 200))
+      }
       const reg = await navigator.serviceWorker.getRegistration()
-      return !!reg
+      const cacheNames = await caches.keys()
+      return {
+        supported: true,
+        controlled: !!navigator.serviceWorker.controller,
+        active: !!reg?.active && reg.active.state === 'activated',
+        cacheNames,
+      }
     })
 
-    // SW je lahko še v loading stanju — preveri samo če API podprt
-    expect(typeof swRegistered).toBe('boolean')
+    expect(swState.supported).toBe(true)
+    expect(swState.active).toBe(true)
+    expect(swState.controlled).toBe(true)
+    // SW install precache mora obstajati (STATIC_CACHE: restos-static-vN;
+    // CACHE_NAME/API/IMAGE cache-i se kreirajo šele ob runtime fetchih)
+    expect(swState.cacheNames.some((n) => n.startsWith('restos-static-'))).toBe(true)
+  })
+
+  test('offline.html fallback je dosegljiv in v SW static cache', async ({ request }) => {
+    const response = await request.get('/offline.html')
+    expect(response.ok()).toBe(true)
+    const html = await response.text()
+    expect(html.length).toBeGreaterThan(100)
   })
 })
