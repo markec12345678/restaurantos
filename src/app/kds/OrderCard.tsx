@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import { motion, useReducedMotion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { Clock, Flame, CheckCircle2, AlertTriangle } from 'lucide-react'
 import type { OrderKDS } from './types'
@@ -29,6 +30,9 @@ export const OrderCard = memo(function OrderCard({
   const elapsed = getElapsed(order.firedAt)
   const isDanger = elapsed >= 25
   const isWarning = elapsed >= 15 && !isDanger
+  // Task 20 (stil dodelava): mikro-animiran progress — vidna metrika "X od Y pripravljenih"
+  const progressPct = activeItems.length > 0 ? Math.round((readyItems.length / activeItems.length) * 100) : 0
+  const reduceMotion = useReducedMotion()  // WCAG 2.3.3: animacije od izklopa
   const typeLabels: Record<string, string> = {
     'dine-in': 'NA MESTU',
     'takeout': 'ZA SEBOJ',
@@ -71,6 +75,17 @@ export const OrderCard = memo(function OrderCard({
           <ElapsedTimer startTime={order.firedAt} />
         </div>
       </div>
+      {/* Task 20: spring progress bar (0→X%) — spring od izklopa če reduceMotion */}
+      {activeItems.length > 0 && !allReady && (
+        <div className="h-1.5 bg-black/10" aria-hidden="true">
+          <motion.div
+            className="h-full bg-white/90"
+            initial={reduceMotion ? { width: `${progressPct}%` } : { width: 0 }}
+            animate={{ width: `${progressPct}%` }}
+            transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 120, damping: 20 }}
+          />
+        </div>
+      )}
       {/* Artikli — več padding-a in spacing-a */}
       <div className="flex-1 px-3 py-3 space-y-2 overflow-y-auto smooth-scroll">
         {preparingItems.map(item => (
@@ -164,7 +179,7 @@ export const OrderCard = memo(function OrderCard({
               : 'bg-orange-500 text-white hover:bg-orange-600 shadow-sm'
           )}
         >
-          {allReady ? '✓ BUMP' : 'BUMP vse'}
+          {allReady ? '✓ BUMP' : preparingItems.length > 0 ? `BUMP vse (${preparingItems.length})` : 'BUMP vse'}
         </button>
       </div>
     </div>
