@@ -8,7 +8,7 @@ import { memo } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { onlineStatusLabels, onlineStatusColors } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 import type { OnlineOrderDetailDialogProps } from './constants'
 
 export const OnlineOrderDetailDialog = memo(function OnlineOrderDetailDialog({
@@ -44,7 +44,7 @@ export const OnlineOrderDetailDialog = memo(function OnlineOrderDetailDialog({
                   {(Array.isArray(order?.orderItems) ? order.orderItems : []).map((item) => (
                     <li key={item.id} className="flex justify-between">
                       <span>{item.quantity}x {item.menuItemId}</span>
-                      <span>€{safeToFixed(item.price * item.quantity, 2)}</span>
+                      <span>{formatEUR(item.price * item.quantity)}</span>
                     </li>
                   ))}
                 </ul>
@@ -52,7 +52,7 @@ export const OnlineOrderDetailDialog = memo(function OnlineOrderDetailDialog({
             )}
             <div className="border-t pt-2 flex justify-between font-medium">
               <span>Skupaj:</span>
-              <span>€{safeToFixed(order.total, 2)}</span>
+              <span>{formatEUR(order.total)}</span>
             </div>
             {order.notes && (
               <div className="bg-muted p-2 rounded text-xs">{order.notes}</div>

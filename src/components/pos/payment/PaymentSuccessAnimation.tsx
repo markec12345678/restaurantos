@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import { motion } from 'framer-motion'
 import { CheckCircle2 } from 'lucide-react'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 interface PaymentSuccessAnimationProps {
   totalWithTip: number
@@ -49,7 +49,7 @@ export const PaymentSuccessAnimation = memo(function PaymentSuccessAnimation({ t
         transition={{ delay: 0.6 }}
         className="text-sm text-muted-foreground"
       >
-        €{safeToFixed(totalWithTip, 2)}
+        {formatEUR(totalWithTip)}
       </motion.p>
     </motion.div>
   )

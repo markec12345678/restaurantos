@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import type { OrderResultRow } from '@/lib/types'
 import type { OrderType, DeliveryDetails } from './types'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 // =====================================================================
 // POTRDITEV NAROČILA
@@ -45,7 +45,7 @@ export const ConfirmationView = memo(function ConfirmationView({
         {orderType === 'delivery' && (
           <p className="text-gray-500 text-sm">Dostava na: {deliveryDetails.address}, {deliveryDetails.city}</p>
         )}
-        <p className="text-lg font-bold text-green-700 mt-4">Skupaj: €{safeToFixed(total, 2)}</p>
+        <p className="text-lg font-bold text-green-700 mt-4">Skupaj: {formatEUR(total)}</p>
         <div className="mt-2 text-sm text-gray-500">
           {paymentMethod === 'card' && 'Plačilo s kartico ✓'}
           {paymentMethod === 'cash' && 'Plačilo ob prevzemu (gotovina)'}

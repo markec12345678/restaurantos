@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Building2, AlertTriangle, CheckCircle2, Clock, RefreshCw } from 'lucide-react'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 import { format } from 'date-fns'
 
 interface AgingBucket {
@@ -81,9 +81,9 @@ export const APAgingReport = memo(function APAgingReport() {
           <h3 className="text-lg font-semibold">AP Aging — Obveznosti dobaviteljem</h3>
           <p className="text-xs text-muted-foreground">
             Skupaj: {summary.totalEntries} obveznosti ·
-            Odprto: €{safeToFixed(summary.totalOutstanding, 2)} ·
-            Plačano: €{safeToFixed(summary.totalPaid, 2)} ·
-            Skupna vrednost: €{safeToFixed(summary.grandTotal, 2)}
+            Odprto: {formatEUR(summary.totalOutstanding)} ·
+            Plačano: {formatEUR(summary.totalPaid)} ·
+            Skupna vrednost: {formatEUR(summary.grandTotal)}
           </p>
         </div>
         <div className="flex gap-2">
@@ -109,7 +109,7 @@ export const APAgingReport = memo(function APAgingReport() {
                   <span className={`text-xs font-semibold ${color}`}>{label}</span>
                 </div>
                 <p className="text-2xl font-bold">{bucket.count}</p>
-                <p className="text-xs text-muted-foreground">€{safeToFixed(bucket.total, 2)}</p>
+                <p className="text-xs text-muted-foreground">{formatEUR(bucket.total)}</p>
                 <p className="text-[10px] text-muted-foreground mt-1">
                   {bucket.count === 1 ? '1 obveznost' : `${bucket.count} obveznosti`}
                 </p>
@@ -174,10 +174,10 @@ export const APAgingReport = memo(function APAgingReport() {
                         </td>
                         <td className="p-3 text-xs text-muted-foreground">{String(ap.invoiceNumber || '—')}</td>
                         <td className="p-3 text-xs font-mono">{po?.poNumber || '—'}</td>
-                        <td className="p-3 text-right font-medium">€{safeToFixed(total, 2)}</td>
-                        <td className="p-3 text-right text-emerald-600">€{safeToFixed(paid, 2)}</td>
+                        <td className="p-3 text-right font-medium">{formatEUR(total)}</td>
+                        <td className="p-3 text-right text-emerald-600">{formatEUR(paid)}</td>
                         <td className={`p-3 text-right font-bold ${outstanding > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                          €{safeToFixed(outstanding, 2)}
+                          {formatEUR(outstanding)}
                         </td>
                         <td className="p-3 text-xs text-muted-foreground">
                           {invoiceDate && !isNaN(invoiceDate.getTime()) ? format(invoiceDate, 'd. MMM yyyy') : '—'}

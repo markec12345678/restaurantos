@@ -15,6 +15,7 @@ import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { toNum, round2 } from '@/lib/decimal'
 
+import { formatEUR } from '@/lib/safe-format'
 // --- Tipi ---
 export type TriggerType = 'min_qty' | 'forecast_7d' | 'forecast_14d' | 'manual'
 
@@ -426,7 +427,7 @@ export async function createPurchaseOrderFromRecommendations(
     }
   }
 
-  logger.info('PredictiveOrdering', `Created PO ${poNumber} for ${supplier.name}: ${itemsWithCost.length} items, €${totalAmount.toFixed(2)}`)
+  logger.info('PredictiveOrdering', `Created PO ${poNumber} for ${supplier.name}: ${itemsWithCost.length} items, ${formatEUR(totalAmount)}`)
 
   return {
     poNumber,

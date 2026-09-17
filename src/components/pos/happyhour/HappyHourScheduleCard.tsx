@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Trash2 } from 'lucide-react'
 import { type HappyHourSchedule, DAY_LABELS } from './types'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 // ============================================
 // KARTICA URNIKA HAPPY HOUR
@@ -44,7 +44,7 @@ export const HappyHourScheduleCard = memo(function HappyHourScheduleCard({
               <Badge variant="outline">{s.startTime} - {s.endTime}</Badge>
               {s.discountType !== 'none' && (
                 <Badge variant="default">
-                  {s.discountType === 'percentage' ? `-${s.discountAmount}%` : `-€${safeToFixed(s.discountAmount, 2)}`}
+                  {s.discountType === 'percentage' ? `-${s.discountAmount}%` : `-${formatEUR(s.discountAmount)}`}
                 </Badge>
               )}
               {s.priceGroup && <Badge variant="secondary">{s.priceGroup.name}</Badge>}

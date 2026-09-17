@@ -6,7 +6,7 @@ import { Plus, AlertTriangle, Wallet } from 'lucide-react'
 import { memo } from 'react'
 import dynamic from 'next/dynamic'
 import { useInventoryState } from './inventory/useInventoryState'
-import { safeToFixed } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 // Lazy-loaded podkomponente
 const LowStockAlerts = dynamic(() => import('./inventory/LowStockAlerts').then(m => ({ default: m.LowStockAlerts })), { ssr: false })
@@ -39,7 +39,7 @@ export const InventoryManager = memo(function InventoryManager() {
             title="Skupna vrednost zaloge (količina × nabavna cena)"
           >
             <Wallet className="h-4 w-4 text-primary" />
-            Vrednost zaloge: €{safeToFixed(s.inventoryValue, 2)}
+            Vrednost zaloge: {formatEUR(s.inventoryValue)}
           </Badge>
           <Button
             variant={s.lowStockOnly ? 'destructive' : 'outline'}

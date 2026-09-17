@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { ChevronRight, AlertTriangle } from 'lucide-react'
 import { marginColor, marginBadge } from './constants'
 import type { MarginItem } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR, safeToFixed } from '@/lib/safe-format'
 
 interface MarginTableProps {
   data: MarginItem[]
@@ -41,10 +41,10 @@ export const MarginTable = memo(function MarginTable({ data }: MarginTableProps)
                     </div>
                   </td>
                   <td className="p-3 text-muted-foreground">{item.category}</td>
-                  <td className="p-3 text-right font-medium">€{safeToFixed(item.price, 2)}</td>
-                  <td className="p-3 text-right text-red-600">€{safeToFixed(item.cost, 2)}</td>
+                  <td className="p-3 text-right font-medium">{formatEUR(item.price)}</td>
+                  <td className="p-3 text-right text-red-600">{formatEUR(item.cost)}</td>
                   <td className={`p-3 text-right font-semibold ${marginColor(item.marginPct)}`}>
-                    €{safeToFixed(item.marginEur, 2)}
+                    {formatEUR(item.marginEur)}
                   </td>
                   <td className={`p-3 text-right font-bold ${marginColor(item.marginPct)}`}>
                     {item.cost > 0 ? `${safeToFixed(item.marginPct, 1)}%` : '—'}

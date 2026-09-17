@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import { Input } from '@/components/ui/input'
 import { quickCashAmounts } from './constants'
-import { safeToFixed, parseDecimalInput } from '@/lib/safe-format'
+import { formatEUR, parseDecimalInput, safeToFixed } from '@/lib/safe-format'
 
 interface CashPaymentSectionProps {
   totalWithTip: number
@@ -37,14 +37,14 @@ export const CashPaymentSection = memo(function CashPaymentSection({
                   setTipPercent(0)
                 }
               }}
-              aria-label={`€${amount} gotovina`}
+              aria-label={`${formatEUR(amount)} gotovina`}
               className={`flex-1 py-2 rounded-md text-xs font-bold transition-colors touch-manipulation ${
                 amount >= totalWithTip
                   ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
                   : 'bg-muted text-muted-foreground hover:bg-accent'
               }`}
             >
-              €{amount}
+              {formatEUR(amount)}
             </button>
           )
         })}
@@ -52,7 +52,7 @@ export const CashPaymentSection = memo(function CashPaymentSection({
       <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-2 text-xs space-y-1">
         <div className="flex justify-between">
           <span className="text-muted-foreground">Znesek za plačilo:</span>
-          <span className="font-bold">€{safeToFixed(totalWithTip, 2)}</span>
+          <span className="font-bold">{formatEUR(totalWithTip)}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-muted-foreground">Prejeto:</span>
@@ -70,7 +70,7 @@ export const CashPaymentSection = memo(function CashPaymentSection({
         </div>
         <div className="flex justify-between">
           <span className="font-semibold">Vračilo:</span>
-          <span className={`font-bold ${cashChange > 0 ? 'text-emerald-700 dark:text-emerald-400' : cashReceived > 0 ? 'text-red-600' : 'text-emerald-700 dark:text-emerald-400'}`} aria-live="polite">€{safeToFixed(cashChange, 2)}</span>
+          <span className={`font-bold ${cashChange > 0 ? 'text-emerald-700 dark:text-emerald-400' : cashReceived > 0 ? 'text-red-600' : 'text-emerald-700 dark:text-emerald-400'}`} aria-live="polite">{formatEUR(cashChange)}</span>
         </div>
       </div>
     </div>

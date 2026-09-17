@@ -4,7 +4,7 @@ import { memo } from 'react'
 import Image from 'next/image'
 import { ChevronRight, ImageIcon, ShieldAlert } from 'lucide-react'
 import type { MenuItemType, StockInfoType } from './types'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 // ============================================
 // TIPI
@@ -133,7 +133,7 @@ export const MenuItemCard = memo(function MenuItemCard({
             </span>
           )}
         </div>
-        <p className={`font-bold text-sm mt-1 ${isOutOfStock ? 'text-muted-foreground' : 'text-primary'}`}>€{safeToFixed(item.price, 2)}</p>
+        <p className={`font-bold text-sm mt-1 ${isOutOfStock ? 'text-muted-foreground' : 'text-primary'}`}>{formatEUR(item.price)}</p>
       </div>
     </button>
   )

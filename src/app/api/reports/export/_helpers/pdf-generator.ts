@@ -6,7 +6,8 @@
 import PDFDocument from 'pdfkit'
 import type { ReportData } from './report-data'
 
-const EUR = (n: number) => `€${n.toFixed(2)}`
+import { formatEUR } from '@/lib/safe-format'
+const EUR = (n: number) => `${formatEUR(n)}`
 
 /** Generiraj PDF buffer iz poročila */
 export async function generateReportPdf(data: ReportData): Promise<Buffer> {

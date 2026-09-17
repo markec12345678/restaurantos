@@ -8,7 +8,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Package, RefreshCw } from 'lucide-react'
@@ -83,7 +83,7 @@ export const StockDashboard = memo(function StockDashboard() {
     }
   }, [items, filter])
 
-  const formatCurrency = (n: number) => `€${safeToFixed(n, 2)}`
+  const formatCurrency = (n: number) => `${formatEUR(n)}`
 
   return (
     <div className="space-y-4">

@@ -8,6 +8,7 @@ import { Check, Clock, ArrowUpRight } from 'lucide-react'
 import { planIcons, planColors, statusLabels, statusColors } from './constants'
 import type { SubscriptionCardProps } from './constants'
 
+import { formatEUR } from '@/lib/safe-format'
 // ============================================
 // KARTICA NAROČNINE — Prikaz trenutne naročnine
 // ============================================
@@ -31,7 +32,7 @@ export const SubscriptionCard = memo(function SubscriptionCard({ subscription, p
               <Badge className={statusColors[subscription.status] || ''}>
                 {statusLabels[subscription.status] || subscription.status}
               </Badge>
-              <span className="text-2xl font-bold">€{subscription.monthlyPrice}<span className="text-sm text-muted-foreground font-normal">/mesec</span></span>
+              <span className="text-2xl font-bold">{formatEUR(subscription.monthlyPrice)}<span className="text-sm text-muted-foreground font-normal">/mesec</span></span>
               <span className="text-sm text-muted-foreground">{subscription.locationCount} lokacij</span>
             </div>
             {subscription.status === 'trial' && subscription.trialEndsAt && (

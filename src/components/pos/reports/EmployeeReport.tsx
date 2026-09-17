@@ -8,7 +8,7 @@ import { Users } from 'lucide-react'
 import { format, subDays } from 'date-fns'
 import { EmployeeRow } from '@/lib/types'
 import { authFetch } from '@/components/pos/PinLogin'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR, safeToFixed } from '@/lib/safe-format'
 import { queryKeys } from '@/lib/query-keys'
 import {
   BarChart, Bar,
@@ -29,7 +29,7 @@ export function EmployeeReport() {
       return res.json()
     },
   })
-  const fmt = (n: number) => `€${safeToFixed(n, 2)}`
+  const fmt = (n: number) => `${formatEUR(n)}`
   if (isLoading) return <div className="space-y-4">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-40" />)}</div>
   if (!data) return <p className="text-center py-12 text-muted-foreground">Ni podatkov</p>
   const { employees, totals } = data
@@ -64,9 +64,9 @@ export function EmployeeReport() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={employees} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
+                <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `${formatEUR(v)}`} />
                 <YAxis type="category" dataKey="employeeName" width={120} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(value) => [`€${safeToFixed(Number(value ?? 0), 2)}`, 'Prihodek']} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
+                <Tooltip formatter={(value) => [`${formatEUR(Number(value ?? 0))}`, 'Prihodek']} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
                 <Bar dataKey="totalRevenue" fill="oklch(0.7 0.15 55)" radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>

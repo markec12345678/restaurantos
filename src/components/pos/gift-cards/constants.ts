@@ -5,6 +5,7 @@
 
 import { ArrowDownToLine, Wallet, ArrowUpDown, RefreshCw } from 'lucide-react'
 
+import { formatEUR } from '@/lib/safe-format'
 // --- Tipi ---
 
 export interface GiftCardTransaction {
@@ -113,7 +114,7 @@ export function formatDateTimeSI(dateStr: string): string {
 }
 
 export function formatCurrency(amount: number): string {
-  return `€${amount.toFixed(2)}`
+  return `${formatEUR(amount)}`
 }
 
 export function generateCardNumber(): string {

@@ -9,6 +9,7 @@ import { sendZReportEmail, isEmailEnabled, getReportRecipients } from '@/lib/ema
 import { fetchReportData, generateReportPdf } from '@/app/api/reports/export/_helpers'
 
 
+import { formatEUR } from '@/lib/safe-format'
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
         reportType: 'z_report',
         recipient: recipients.join(', '),
         subject: `Z-report ${reportDate} — RestaurantOS`,
-        body: `Dnevni Z-report: promet €${summary.totalSales.toFixed(2)}, DDV €${summary.totalTax.toFixed(2)}, naročil ${summary.totalOrders}`,
+        body: `Dnevni Z-report: promet ${formatEUR(summary.totalSales)}, DDV ${formatEUR(summary.totalTax)}, naročil ${summary.totalOrders}`,
         attachmentName: `Z-report_${reportDate}.pdf`,
         status: result.success ? 'sent' : 'failed',
         errorMessage: result.error || '',

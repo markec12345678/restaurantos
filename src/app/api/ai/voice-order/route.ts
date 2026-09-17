@@ -9,6 +9,7 @@ import { db } from '@/lib/db'
 import { z } from 'zod'
 
 
+import { formatEUR } from '@/lib/safe-format'
 const voiceOrderSchema = z.object({
   transcript: z.string().min(1, 'Transkript je obvezen'),
   tableId: z.string().nullable().optional(),
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
       // Poskusi z Gemini AI
       const ZAI = (await import('z-ai-web-dev-sdk')).default
       const zai = await ZAI.create()
-      const menuContext = menuItems.map(m => `- ${m.name} (€${m.price})`).join('\n')
+      const menuContext = menuItems.map(m => `- ${m.name} (${formatEUR(m.price)})`).join('\n')
       const completion = await zai.chat.completions.create({
         messages: [
           { role: 'assistant', content: `Si pomočnik v restavraciji. Stranka je naročila z glasom. Prepoznaj artikle in količine. Vrni JSON array format: [{"name":"ime artikla","quantity":število}]. Meni:\n${menuContext}` },

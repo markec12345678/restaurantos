@@ -8,7 +8,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
 import { authFetch } from '@/components/pos/PinLogin'
 import { PeriodType } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 import { TableRevenueSummaryCards } from './table-revenue/TableRevenueSummaryCards'
 import { TableRevenueCharts } from './table-revenue/TableRevenueCharts'
 import { TableRevenueDetailsTable } from './table-revenue/TableRevenueDetailsTable'
@@ -37,7 +37,7 @@ export function TableRevenueReport() {
       return res.json()
     },
   })
-  const fmt = (n: number) => `€${safeToFixed(n, 2)}`
+  const fmt = (n: number) => `${formatEUR(n)}`
   const tables = fin?.tableRevenue || []
   // Grupiraj po conah
   const areas = useMemo(() => {

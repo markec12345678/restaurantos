@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { format, subDays } from 'date-fns'
 
+import { formatEUR } from '@/lib/safe-format'
 // --- Tipi ---
 interface ScheduledVsActualEntry {
   employeeId: string
@@ -194,8 +195,8 @@ export function LaborReportsDashboard() {
             <>
               <div className="grid grid-cols-4 gap-3">
                 <StatCard title="Skupaj nadur" value={`${data.summary.totalOvertimeHours}h`} icon={Clock} color="bg-orange-50 border-orange-200 text-orange-800" />
-                <StatCard title="Strošek nadur" value={`€${data.summary.totalOvertimePay.toFixed(0)}`} icon={DollarSign} color="bg-red-50 border-red-200 text-red-800" />
-                <StatCard title="Redni strošek" value={`€${data.summary.totalRegularPay.toFixed(0)}`} icon={DollarSign} color="bg-green-50 border-green-200 text-green-800" />
+                <StatCard title="Strošek nadur" value={`${formatEUR(data.summary.totalOvertimePay)}`} icon={DollarSign} color="bg-red-50 border-red-200 text-red-800" />
+                <StatCard title="Redni strošek" value={`${formatEUR(data.summary.totalRegularPay)}`} icon={DollarSign} color="bg-green-50 border-green-200 text-green-800" />
                 <StatCard title="% nadur" value={`${data.summary.overtimePayPercentage}%`} icon={TrendingUp} color="bg-purple-50 border-purple-200 text-purple-800" />
               </div>
 
@@ -216,7 +217,7 @@ export function LaborReportsDashboard() {
                           </div>
                           <div className="text-right">
                             <div className="text-sm font-bold text-orange-600">{entry.totalOvertimeHours}h</div>
-                            <div className="text-xs text-muted-foreground">€{entry.overtimePay.toFixed(2)}</div>
+                            <div className="text-xs text-muted-foreground">{formatEUR(entry.overtimePay)}</div>
                           </div>
                         </div>
                       ))}
@@ -237,7 +238,7 @@ export function LaborReportsDashboard() {
               <div className="grid grid-cols-3 gap-3">
                 <StatCard title="Skupaj vnosov" value={data.summary.totalEntries} icon={Calendar} color="bg-blue-50 border-blue-200 text-blue-800" />
                 <StatCard title="Skupaj ur" value={`${data.summary.totalHours}h`} icon={Clock} color="bg-green-50 border-green-200 text-green-800" />
-                <StatCard title="Skupni strošek" value={`€${data.summary.totalPay.toFixed(0)}`} icon={DollarSign} color="bg-purple-50 border-purple-200 text-purple-800" />
+                <StatCard title="Skupni strošek" value={`${formatEUR(data.summary.totalPay)}`} icon={DollarSign} color="bg-purple-50 border-purple-200 text-purple-800" />
               </div>
 
               <Card>
@@ -259,7 +260,7 @@ export function LaborReportsDashboard() {
                           </div>
                           <div className="text-right">
                             <div className="text-sm font-bold">{entry.totalHours}h</div>
-                            <div className="text-xs text-muted-foreground">€{entry.totalPay.toFixed(2)}</div>
+                            <div className="text-xs text-muted-foreground">{formatEUR(entry.totalPay)}</div>
                           </div>
                         </div>
                       ))}

@@ -17,6 +17,7 @@ import { ljubljanaDayBounds } from '@/lib/timezone-sl'
 import { calculateReportStats, buildReportData } from './_helpers'
 
 
+import { formatEUR } from '@/lib/safe-format'
 const generateZReportSchema = z.object({
   date: z.string().min(1, 'Datum je obvezen').max(30, 'Neveljaven format datuma'),
   locationId: z.string().max(100, 'ID lokacije je predolg').optional(),
@@ -180,7 +181,7 @@ export async function POST(req: Request) {
     await createAuditLog({
       action: finalize ? 'z_report_finalized' : 'z_report_generated',
       entityType: 'z_report',
-      details: { date, totalSales: stats.totalSales, message: `Z-poročilo za ${date}: €${round2(stats.totalSales)}` },
+      details: { date, totalSales: stats.totalSales, message: `Z-poročilo za ${date}: ${formatEUR(round2(stats.totalSales))}` },
       userId: authResult.session?.employeeId,
     })
 

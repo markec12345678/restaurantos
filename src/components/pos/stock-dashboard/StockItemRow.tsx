@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Package, AlertTriangle, XCircle, TrendingDown, ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
 import type { StockItem } from './types'
 import { stockLevelColor, stockLevelBg, progressColor, progressLabel } from './types'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 // ============================================
 // VRSTICA ARTIKLA V SEZNAMU ZALOGE
@@ -21,7 +21,7 @@ export const StockItemRow = memo(function StockItemRow({ item }: StockItemRowPro
     ? Math.min((item.quantity / (item.minQuantity * 2)) * 100, 100)
     : 100
   const servings = Math.floor(item.quantity * item.servingsPerUnit)
-  const formatCurrency = (n: number) => `€${safeToFixed(n, 2)}`
+  const formatCurrency = (n: number) => `${formatEUR(n)}`
 
   return (
     <div

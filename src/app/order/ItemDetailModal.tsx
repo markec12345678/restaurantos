@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import Image from 'next/image'
 import type { MenuItem, Modifier, ModifierGroup } from './types'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 // =====================================================================
 // MODAL ZA PODROBNOSTI ARTIKLA
@@ -40,7 +40,7 @@ export const ItemDetailModal = memo(function ItemDetailModal({
           )}
           {showItemDetail.description && <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{showItemDetail.description}</p>}
           <p className={`font-bold text-lg ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>
-            €{(showItemDetail.price * (1 + showItemDetail.vatRate / 100)).toFixed(2)} <span className="text-xs text-gray-400">z DDV</span>
+            {formatEUR(showItemDetail.price * (1 + showItemDetail.vatRate / 100))} <span className="text-xs text-gray-400">z DDV</span>
           </p>
 
           {showItemDetail.modifierGroups?.map(mg => (
@@ -61,7 +61,7 @@ export const ItemDetailModal = memo(function ItemDetailModal({
                       }`}
                     >
                       <span className="font-medium">{mod.name}</span>
-                      {mod.price > 0 && <span className="text-xs text-gray-500 ml-1">+€{safeToFixed(mod.price, 2)}</span>}
+                      {mod.price > 0 && <span className="text-xs text-gray-500 ml-1">+{formatEUR(mod.price)}</span>}
                     </button>
                   )
                 })}

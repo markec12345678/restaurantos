@@ -5,6 +5,7 @@ import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import { type OrderForPayment, type PaymentExecContext } from './types'
 
+import { formatEUR } from '@/lib/safe-format'
 // ============================================
 // SPLIT PLAČILO
 // ============================================
@@ -114,7 +115,7 @@ export async function executeSplitPayment({
       } catch { toast.warning('FURS overitev ni uspela — račun je brez davčnega overjanja') }
     }
   } catch { /* Račun ni bil ustvarjen — plačilo je še vedno veljavno */ }
-  toast.success(`Plačilo uspešno! ${splitCount}x €${(orderTotal / splitCount).toFixed(2)}`)
+  toast.success(`Plačilo uspešno! ${splitCount}x ${formatEUR(orderTotal / splitCount)}`)
   queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
   queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
   queryClient.invalidateQueries({ queryKey: queryKeys.tables.all })

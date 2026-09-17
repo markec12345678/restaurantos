@@ -24,6 +24,7 @@ import { logger } from '@/lib/logger'
 import { toNum, round2 } from '@/lib/decimal'
 import { createOutboxEvent } from '@/lib/outbox'
 
+import { formatEUR } from '@/lib/safe-format'
 // --- Tipi ---
 export type WalletType = 'apple_pay' | 'google_pay' | 'samsung_pay' | 'nfc_card' | 'qr_pay'
 export type WalletPaymentStatus = 'pending' | 'authorized' | 'captured' | 'failed' | 'refunded'
@@ -135,7 +136,7 @@ export async function initiateWalletPayment(
 
   logger.info(
     'WalletPayment',
-    `Initiated ${input.walletType} payment ${walletPayment.id} (token: ${maskToken(input.paymentToken)}, amount: €${input.amount})`,
+    `Initiated ${input.walletType} payment ${walletPayment.id} (token: ${maskToken(input.paymentToken)}, amount: ${formatEUR(input.amount)})`,
   )
 
   // Ustvari OutboxEvent za async procesiranje preko payment gateway-a
@@ -329,7 +330,7 @@ export async function refundWalletPayment(
     const alreadyRefunded = toNum(walletPayment.refundedAmount)
 
     if (refundAmount <= 0 || refundAmount > originalAmount - alreadyRefunded) {
-      throw new Error(`Neveljaven znesek povračila (preostanek: €${round2(originalAmount - alreadyRefunded)})`)
+      throw new Error(`Neveljaven znesek povračila (preostanek: ${formatEUR(round2(originalAmount - alreadyRefunded))})`)
     }
 
     const newRefundedTotal = alreadyRefunded + refundAmount
@@ -351,7 +352,7 @@ export async function refundWalletPayment(
 
   logger.info(
     'WalletPayment',
-    `Refunded ${walletPaymentId}: €${refundAmount} (total refunded: €${newRefundedAmount})`,
+    `Refunded ${walletPaymentId}: ${formatEUR(refundAmount)} (total refunded: ${formatEUR(newRefundedAmount)})`,
   )
 
   // Outbox za gateway refund (po commit-u; idempotencyKey = kumulativa)
@@ -374,7 +375,7 @@ export async function refundWalletPayment(
     status: updated.status as WalletPaymentStatus,
     transactionId: updated.transactionId,
     amount: toNum(updated.amount),
-    message: isFullRefund ? 'Polno povračilo izvedeno' : `Delno povračilo (€${refundAmount})`,
+    message: isFullRefund ? 'Polno povračilo izvedeno' : `Delno povračilo (${formatEUR(refundAmount)})`,
   }
 }
 

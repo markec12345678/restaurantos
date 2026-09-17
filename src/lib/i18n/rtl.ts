@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from 'react'
 
+import { formatEUR } from '@/lib/safe-format'
 // --- RTL jeziki ---
 export const RTL_LANGUAGES = ['ar', 'he', 'fa', 'ur', 'yi', 'dv']
 
@@ -106,6 +107,6 @@ export function formatRtlCurrency(amount: number, locale: string, currency = 'EU
       currency,
     }).format(amount)
   } catch {
-    return `€${amount.toFixed(2)}`
+    return `${formatEUR(amount)}`
   }
 }

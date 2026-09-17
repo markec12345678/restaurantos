@@ -5,6 +5,7 @@
 
 import type { LucideIcon } from 'lucide-react'
 
+import { formatEUR } from '@/lib/safe-format'
 // ─── Tipi ──────────────────────────────────────────────────────
 
 export interface ZReportData {
@@ -50,7 +51,7 @@ export interface ZReportData {
 
 /** Oblikuj znesek v valuti */
 export function formatCurrency(val: number): string {
-  return `€${(val || 0).toFixed(2)}`
+  return `${formatEUR(val || 0)}`
 }
 
 // ═══════════════════════════════════════════════════════════════

@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Clock, TrendingUp, UserCheck, Users } from 'lucide-react'
 import { format } from 'date-fns'
 import type { RecentActivityProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR, safeToFixed } from '@/lib/safe-format'
 
 /**
  * RecentActivity — zadnja naročila, najbolj prodajani artikli
@@ -46,7 +46,7 @@ export const RecentActivity = memo(function RecentActivity({
                   <Badge variant="outline" className={statusColors[order.status] || ''}>
                     {statusLabels[order.status] || order.status}
                   </Badge>
-                  <span className="text-sm font-semibold">€{safeToFixed(order.total, 2)}</span>
+                  <span className="text-sm font-semibold">{formatEUR(order.total)}</span>
                 </div>
               </div>
             ))}
@@ -73,7 +73,7 @@ export const RecentActivity = memo(function RecentActivity({
                   </div>
                   <div className="flex items-center gap-3 text-sm">
                     <span className="text-muted-foreground">{item.quantity}x</span>
-                    <span className="font-semibold">€{safeToFixed(item.revenue, 2)}</span>
+                    <span className="font-semibold">{formatEUR(item.revenue)}</span>
                   </div>
                 </div>
               ))}

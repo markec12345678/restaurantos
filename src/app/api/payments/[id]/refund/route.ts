@@ -10,6 +10,7 @@ import { logger } from '@/lib/logger'
 import { generateJournalForRefund } from '@/lib/accounting/journal-generator'
 import { z } from 'zod'
 
+import { formatEUR } from '@/lib/safe-format'
 const refundSchema = z.object({
   amount: z.number().positive('Znesek povračila mora biti pozitiven'),
   reason: z.string().max(500).default(''),
@@ -122,7 +123,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             note: `REFUND: ${reason || 'Povračilo plačila'}`,
           },
         })
-        logger.info('REFUND', `Gift card ${payment.giftCardId} rechargeana za €${refundToGiftCard}`)
+        logger.info('REFUND', `Gift card ${payment.giftCardId} rechargeana za ${formatEUR(refundToGiftCard)}`)
       }
 
       // 3. FIX: Reverziraj loyalty točke (če je bilo plačilo z loyalty)
@@ -276,7 +277,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (error.message.includes('REFUND_EXCEEDS')) {
         const [, refundStr, maxStr] = error.message.split(':')
         return NextResponse.json(
-          { error: `Znesek povračila (€${refundStr}) presega max povračilo (€${maxStr})` },
+          { error: `Znesek povračila (${formatEUR(refundStr)}) presega max povračilo (${formatEUR(maxStr)})` },
           { status: 400 }
         )
       }

@@ -13,6 +13,7 @@ import { toNum } from '@/lib/decimal'
 import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
 import { checkRateLimitAsync, getClientIp, ONLINE_ORDER_LIMIT } from '@/lib/rate-limit'
 import { handleRouteError, validateRequest } from '@/lib/api-utils'
+import { formatEUR } from '@/lib/safe-format'
 import {
 
   onlineOrderSchema, MIN_ORDER_AMOUNT,
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
 
     // Ponovno preveri minimum za dostavo s strežniškimi cenami
     if (orderType === 'delivery' && itemsSubtotal < MIN_ORDER_AMOUNT) {
-      return NextResponse.json({ error: `Minimalno naročilo za dostavo je €${MIN_ORDER_AMOUNT.toFixed(2)}` }, { status: 400 })
+      return NextResponse.json({ error: `Minimalno naročilo za dostavo je ${formatEUR(MIN_ORDER_AMOUNT)}` }, { status: 400 })
     }
 
     if (menuItems.length !== menuItemIds.length) {

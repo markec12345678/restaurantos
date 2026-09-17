@@ -7,7 +7,7 @@ import { Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { guestColors, guestTextColors } from './constants'
 import type { OrderItemType } from './types'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 interface ByItemsTabProps {
   order: {
@@ -55,7 +55,7 @@ export const ByItemsTab = memo(function ByItemsTab({
                 <div className={cn('w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold', guestColors[i % guestColors.length])}>
                   {guestNum}
                 </div>
-                <span className="font-medium">€{safeToFixed(guestTotal, 2)}</span>
+                <span className="font-medium">{formatEUR(guestTotal)}</span>
               </div>
             )
           })}
@@ -67,7 +67,7 @@ export const ByItemsTab = memo(function ByItemsTab({
             return (
               <div key={oi.id} className="flex items-center justify-between py-1.5 px-2.5 rounded-lg bg-muted/50 text-sm">
                 <span className="flex-1 truncate">{oi.quantity}x {oi.menuItem?.name || 'Artikel'}</span>
-                <span className="text-xs text-muted-foreground mr-2">€{safeToFixed(oi.price * oi.quantity, 2)}</span>
+                <span className="text-xs text-muted-foreground mr-2">{formatEUR(oi.price * oi.quantity)}</span>
                 <div className="flex gap-1">
                   {/* FIX MEDIUM: Dinamični gumbi za goste glede na splitCount */}
                   {Array.from({ length: Math.max(splitCount, 2) }).map((_, gi) => {
@@ -106,14 +106,14 @@ export const ByItemsTab = memo(function ByItemsTab({
           return (
             <div key={guestNum} className="flex justify-between">
               <span className={cn('font-semibold', guestTextColors[i % guestTextColors.length])}>Gost {guestNum}</span>
-              <span className="font-bold">€{safeToFixed(guestTotal, 2)}</span>
+              <span className="font-bold">{formatEUR(guestTotal)}</span>
             </div>
           )
         })}
         <Separator />
         <div className="flex justify-between font-bold">
           <span>Skupaj</span>
-          <span>€{safeToFixed(orderTotal, 2)}</span>
+          <span>{formatEUR(orderTotal)}</span>
         </div>
         {(() => {
           const assigned = Object.keys(guestAssignments).length

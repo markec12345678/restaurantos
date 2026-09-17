@@ -14,6 +14,7 @@ import { handleApiError } from '@/lib/api-utils'
 import { resolveDefaultLocationId } from '@/lib/counters'
 
 
+import { formatEUR } from '@/lib/safe-format'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
@@ -96,7 +97,7 @@ export async function GET(req: Request) {
         discountAmount: Math.round(discountAmount * 100) / 100,
         description: discount.type === 'percentage'
           ? `${toNum(discount.amount)}% popust`
-          : `€${toNum(discount.amount).toFixed(2)} popust`,
+          : `${formatEUR(toNum(discount.amount).toFixed(2))} popust`,
       },
     })
   } catch (error: unknown) {

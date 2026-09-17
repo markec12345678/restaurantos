@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import type { TrackingData } from './types'
 import { stepIcons } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 // =====================================================================
 // RESTAURANTOS ORDER TRACKING — Order Header Card
@@ -56,7 +56,7 @@ export const OrderHeaderCard = memo(function OrderHeaderCard({
         </div>
         <div className="text-right">
           <p className="text-xs text-gray-500">Skupaj</p>
-          <p className="text-lg font-bold">€{safeToFixed(tracking.order.total, 2)}</p>
+          <p className="text-lg font-bold">{formatEUR(tracking.order.total)}</p>
         </div>
       </div>
 

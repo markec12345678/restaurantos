@@ -4,7 +4,7 @@ import { memo } from 'react'
 import type { FoodCostItem } from './types'
 import { CLASSIFICATION_COLORS } from './types'
 import dynamic from 'next/dynamic'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 const FoodCostExpandedDetail = dynamic(() => import('./FoodCostExpandedDetail').then(m => ({ default: m.FoodCostExpandedDetail })), { ssr: false })
 
@@ -44,9 +44,9 @@ export const FoodCostItemRow = memo(function FoodCostItemRow({
           <p className="text-[10px] text-gray-500">food cost</p>
         </div>
         <div className="text-right w-20">
-          <p className="text-sm font-medium">€{safeToFixed(item.sellingPriceInclVat, 2)}</p>
+          <p className="text-sm font-medium">{formatEUR(item.sellingPriceInclVat)}</p>
           {item.priceDifference > 0.5 && (
-            <p className="text-[10px] text-red-500">Predlagano: €{safeToFixed(item.suggestedPrice, 2)}</p>
+            <p className="text-[10px] text-red-500">Predlagano: {formatEUR(item.suggestedPrice)}</p>
           )}
         </div>
         <svg className={`w-4 h-4 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -1,6 +1,6 @@
 'use client'
 
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR, safeToFixed } from '@/lib/safe-format'
 import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { UtensilsCrossed } from 'lucide-react'
@@ -43,8 +43,8 @@ export const TableRevenueCharts = memo(function TableRevenueCharts({
                 <BarChart data={tables.slice(0, 15)}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                   <XAxis dataKey="tableNumber" tick={{ fontSize: 11 }} label={{ value: 'Miza', position: 'insideBottom', offset: -5, fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
-                  <Tooltip formatter={(value) => [`€${safeToFixed(Number(value ?? 0), 2)}`, 'Prihodek']} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${formatEUR(v)}`} />
+                  <Tooltip formatter={(value) => [`${formatEUR(Number(value ?? 0))}`, 'Prihodek']} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
                   <Bar dataKey="revenue" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -76,7 +76,7 @@ export const TableRevenueCharts = memo(function TableRevenueCharts({
                       <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value) => [`€${safeToFixed(Number(value ?? 0), 2)}`, 'Prihodek']} />
+                  <Tooltip formatter={(value) => [`${formatEUR(Number(value ?? 0))}`, 'Prihodek']} />
                 </PieChart>
               </ResponsiveContainer>
             </div>

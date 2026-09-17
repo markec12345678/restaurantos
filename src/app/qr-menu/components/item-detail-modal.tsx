@@ -4,7 +4,7 @@ import { memo, type RefObject } from 'react';
 import type { MenuItem, Modifier, ModifierGroup } from '../types';
 import type { FontSize } from '../use-qr-menu';
 import { ALLERGEN_DATA } from '../constants';
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 export interface ItemDetailModalProps {
   item: MenuItem;
@@ -99,7 +99,7 @@ export const ItemDetailModal = memo(function ItemDetailModal({
                       }`}
                       role="checkbox"
                       aria-checked={!!isSelected}
-                      aria-label={`${mod.name}${mod.price > 0 ? ` +€${safeToFixed(mod.price, 2)}` : ''}`}
+                      aria-label={`${mod.name}${mod.price > 0 ? ` +${formatEUR(mod.price)}` : ''}`}
                     >
                       <span className="flex items-center gap-2">
                         <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center ${
@@ -109,7 +109,7 @@ export const ItemDetailModal = memo(function ItemDetailModal({
                         </span>
                         {mod.name}
                       </span>
-                      {mod.price > 0 && <span className={`text-xs font-medium ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>+€{safeToFixed(mod.price, 2)}</span>}
+                      {mod.price > 0 && <span className={`text-xs font-medium ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>+{formatEUR(mod.price)}</span>}
                     </button>
                   );
                 })}
@@ -132,9 +132,9 @@ export const ItemDetailModal = memo(function ItemDetailModal({
           <button
             onClick={onAddToCart}
             className={`w-full ${isDark ? 'bg-amber-500 hover:bg-amber-400 text-gray-900' : 'bg-amber-500 hover:bg-amber-600 text-white'} py-4 rounded-2xl font-bold text-lg active:scale-[0.98] transition shadow-lg shadow-amber-500/30`}
-            aria-label={`Dodaj v košarico. Skupaj €${((item.price + selectedMods.reduce((s, m) => s + m.price, 0)) * (1 + item.vatRate / 100)).toFixed(2)} z DDV`}
+            aria-label={`Dodaj v košarico. Skupaj ${formatEUR((item.price + selectedMods.reduce((s, m) => s + m.price, 0)) * (1 + item.vatRate / 100))} z DDV`}
           >
-            Dodaj v košarico · €{((item.price + selectedMods.reduce((s, m) => s + m.price, 0)) * (1 + item.vatRate / 100)).toFixed(2)}
+            Dodaj v košarico · {formatEUR((item.price + selectedMods.reduce((s, m) => s + m.price, 0)) * (1 + item.vatRate / 100))}
           </button>
         </div>
       </div>

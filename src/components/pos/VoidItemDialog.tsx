@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { AlertTriangle, XCircle } from 'lucide-react'
 import { memo } from 'react'
 import { useVoidMutation } from './void-item/useVoidMutation'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 // ============================================
 // TIPI
@@ -64,7 +64,7 @@ export const VoidItemDialog = memo(function VoidItemDialog({ orderItem, orderId,
               <strong>Pozor!</strong> Void artikla pomeni, da se artikel poniči in se ne zaračuna stranki.
               {orderItem.vatRate > 0 && (
                 <span className="block mt-1 text-xs">
-                  Vključno z DDV {orderItem.vatRate}%: €{safeToFixed(vatAmount, 2)} davka se vrne.
+                  Vključno z DDV {orderItem.vatRate}%: {formatEUR(vatAmount)} davka se vrne.
                 </span>
               )}
               <span className="block mt-1 text-xs">Ta operacija se zabeleži v dnevnik in je vidna v poročilih.</span>
@@ -75,17 +75,17 @@ export const VoidItemDialog = memo(function VoidItemDialog({ orderItem, orderId,
           <div className="bg-muted/50 rounded-lg p-3 space-y-1.5">
             <div className="flex justify-between font-semibold">
               <span>{orderItem.quantity}x {orderItem.name}</span>
-              <span>€{safeToFixed(itemTotal, 2)}</span>
+              <span>{formatEUR(itemTotal)}</span>
             </div>
             {orderItem.vatRate > 0 && (
               <div className="flex justify-between text-xs text-muted-foreground">
                 <span>DDV {orderItem.vatRate}%</span>
-                <span>€{safeToFixed(vatAmount, 2)}</span>
+                <span>{formatEUR(vatAmount)}</span>
               </div>
             )}
             <div className="flex justify-between font-bold text-red-600 border-t pt-1.5">
               <span>Skupaj za vračilo</span>
-              <span>€{safeToFixed(itemTotal + vatAmount, 2)}</span>
+              <span>{formatEUR(itemTotal + vatAmount)}</span>
             </div>
           </div>
 

@@ -4,7 +4,7 @@ import { memo, type RefObject } from 'react';
 import type { MenuItem, CartItem } from '../types';
 import type { FontSize } from '../use-qr-menu';
 import { ALLERGEN_DATA, VAT_LABELS } from '../constants';
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 export interface MenuItemListProps {
   items: MenuItem[];
@@ -45,7 +45,7 @@ export const MenuItemList = memo(function MenuItemList({
             onClick={() => onOpenItemDetail(item)}
             role="button"
             tabIndex={0}
-            aria-label={`${item.name}, €${(item.price * (1 + item.vatRate / 100)).toFixed(2)} z DDV${allergenNums.length > 0 ? `. Alergeni: ${allergenNums.map(a => ALLERGEN_DATA[a.trim()]?.label || a).join(', ')}` : ''}`}
+            aria-label={`${item.name}, ${formatEUR(item.price * (1 + item.vatRate / 100))} z DDV${allergenNums.length > 0 ? `. Alergeni: ${allergenNums.map(a => ALLERGEN_DATA[a.trim()]?.label || a).join(', ')}` : ''}`}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenItemDetail(item); } }}
           >
             {/* ===== ITEM IMAGE ===== */}
@@ -101,7 +101,7 @@ export const MenuItemList = memo(function MenuItemList({
               <div className="flex items-end justify-between gap-2 mt-2">
                 <div className="flex items-baseline gap-2">
                   <span className={`font-bold ${fontSize === 'xl' ? 'text-2xl' : fontSize === 'large' ? 'text-xl' : 'text-lg'} ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
-                    €{(item.price * (1 + item.vatRate / 100)).toFixed(2)}
+                    {formatEUR(item.price * (1 + item.vatRate / 100))}
                   </span>
                   <span className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>
                     {VAT_LABELS[item.vatRate] || `${item.vatRate}%`}

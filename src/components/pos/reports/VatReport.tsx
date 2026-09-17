@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import { VatSummaryCards } from './SubComponents/VatReport/VatSummaryCards'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 import { VatBreakdownTable } from './SubComponents/VatReport/VatBreakdownTable'
 import { VatPieChart } from './SubComponents/VatReport/VatPieChart'
 import { FursFormatTable } from './SubComponents/VatReport/FursFormatTable'
@@ -29,7 +29,7 @@ export function VatReport({ startDate, endDate }: { startDate: string; endDate: 
       return res.json()
     },
   })
-  const fmt = (n: number) => `€${safeToFixed(n, 2)}`
+  const fmt = (n: number) => `${formatEUR(n)}`
   if (vatLoading) {
     return <div className="space-y-4">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-40" />)}</div>
   }

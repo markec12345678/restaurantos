@@ -1,7 +1,7 @@
 'use client'
 
 import { memo } from 'react'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -100,7 +100,7 @@ export const StockItemCard = memo(function StockItemCard({
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>Min: {minQty} {item.unit}</span>
-          <span>€{safeToFixed(item.costPerUnit, 2)}/{item.unit}</span>
+          <span>{formatEUR(item.costPerUnit)}/{item.unit}</span>
         </div>
 
         {/* Normativi info */}
@@ -118,7 +118,7 @@ export const StockItemCard = memo(function StockItemCard({
             )}
             <div className="flex justify-between">
               <span>Strošek/servis:</span>
-              <span className="font-medium">€{safeToFixed(item.costPerServing, 2)}</span>
+              <span className="font-medium">{formatEUR(item.costPerServing)}</span>
             </div>
             <div className="flex justify-between">
               <span>Možnih servisov:</span>
@@ -131,15 +131,15 @@ export const StockItemCard = memo(function StockItemCard({
         {item.menuItem && (
           <button onClick={() => onToggleExpand(item.id)} className="flex items-center gap-1 text-xs text-primary w-full">
             {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            Povezano: {item.menuItem.name} (€{safeToFixed(item.menuItem.price, 2)})
+            Povezano: {item.menuItem.name} ({formatEUR(item.menuItem.price)})
           </button>
         )}
         {isExpanded && item.menuItem && (
           <div className="text-xs text-muted-foreground bg-muted/50 rounded p-2 space-y-1">
-            <div>Cena menija: €{safeToFixed(item.menuItem.price, 2)}</div>
-            <div>Strošek servisa: €{safeToFixed(item.costPerServing, 2)}</div>
+            <div>Cena menija: {formatEUR(item.menuItem.price)}</div>
+            <div>Strošek servisa: {formatEUR(item.costPerServing)}</div>
             <div className="font-medium text-green-600">
-              Bruto marža: €{(item.menuItem.price - item.costPerServing).toFixed(2)} ({item.costPerServing > 0 ? Math.round(((item.menuItem.price - item.costPerServing) / item.menuItem.price) * 100) : 0}%)
+              Bruto marža: {formatEUR(item.menuItem.price - item.costPerServing)} ({item.costPerServing > 0 ? Math.round(((item.menuItem.price - item.costPerServing) / item.menuItem.price) * 100) : 0}%)
             </div>
           </div>
         )}

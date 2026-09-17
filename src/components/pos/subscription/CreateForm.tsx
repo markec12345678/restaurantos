@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import type { CreateFormProps } from './constants'
 
+import { formatEUR } from '@/lib/safe-format'
 // ============================================
 // OBRAZEC ZA USTVARJANJE — Aktivacija naročnine
 // ============================================
@@ -35,7 +36,7 @@ export const CreateForm = memo(function CreateForm({ selectedPlan, plans, form, 
         </div>
         <div className="flex gap-2">
           <Button onClick={onSubmit} disabled={!form.companyName || !form.email || isPending} className="flex-1">
-            {isPending ? 'Ustvarjam...' : `Aktiviraj ${plans[selectedPlan]?.name} (€${plans[selectedPlan]?.price}/mesec)`}
+            {isPending ? 'Ustvarjam...' : `Aktiviraj ${plans[selectedPlan]?.name} (${formatEUR(plans[selectedPlan]?.price)}/mesec)`}
           </Button>
           <Button variant="outline" onClick={onCancel}>Prekliči</Button>
         </div>

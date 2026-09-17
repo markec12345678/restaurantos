@@ -7,6 +7,7 @@ import { Check } from 'lucide-react'
 import { planIcons, planColors } from './constants'
 import type { PlansGridProps } from './constants'
 
+import { formatEUR } from '@/lib/safe-format'
 // ============================================
 // MREŽA PAKETOV — Primerjava paketov naročnine
 // ============================================
@@ -25,7 +26,7 @@ export const PlansGrid = memo(function PlansGrid({ plans, selectedPlan, currentP
               <h3 className="font-bold text-lg">{plan.name}</h3>
             </div>
             <div className="mb-4">
-              <span className="text-3xl font-bold">€{plan.price}</span>
+              <span className="text-3xl font-bold">{formatEUR(plan.price)}</span>
               <span className="text-muted-foreground text-sm">/mesec</span>
             </div>
             <ul className="space-y-2 text-sm">

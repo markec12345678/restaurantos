@@ -8,7 +8,7 @@ import { CashPaymentSection } from './CashPaymentSection'
 import { GiftCardSection } from './GiftCardSection'
 import { LoyaltySection } from './LoyaltySection'
 import { AlternatePaymentSection } from './AlternatePaymentSection'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 import type { GiftCardItem, LoyaltyAccountItem, AltPaymentItem } from './types'
 
 // ============================================
@@ -141,7 +141,7 @@ export const SinglePaymentTab = memo(function SinglePaymentTab({
         ) : (
           <>
             <CheckCircle2 className="h-4 w-4 mr-2" />
-            Plačaj €{safeToFixed(totalWithTip, 2)} ({paymentMethods.find(p => p.id === paymentMethod)?.label || ''})
+            Plačaj {formatEUR(totalWithTip)} ({paymentMethods.find(p => p.id === paymentMethod)?.label || ''})
           </>
         )}
       </Button>

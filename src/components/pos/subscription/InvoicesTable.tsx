@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Receipt } from 'lucide-react'
 import type { InvoicesTableProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 // ============================================
 // TABELA RAČUNOV — Prikaz računov naročnine
@@ -36,7 +36,7 @@ export const InvoicesTable = memo(function InvoicesTable({ invoices }: InvoicesT
               {invoices.map((inv) => (
                 <tr key={String(inv.id)} className="border-b hover:bg-muted/30">
                   <td className="p-3 font-mono text-xs">{String(inv.invoiceNumber ?? inv.number ?? '')}</td>
-                  <td className="p-3 text-right font-semibold">€{((inv.totalAmount ?? inv.amount ?? 0) as number).toFixed(2)}</td>
+                  <td className="p-3 text-right font-semibold">{formatEUR((inv.totalAmount ?? inv.amount ?? 0) as number)}</td>
                   <td className="p-3 text-xs">{inv.periodStart ? new Date(String(inv.periodStart)).toLocaleDateString('sl-SI') : '-'} - {inv.periodEnd ? new Date(String(inv.periodEnd)).toLocaleDateString('sl-SI') : '-'}</td>
                   <td className="p-3 text-right text-xs">{inv.dueDate ? new Date(String(inv.dueDate)).toLocaleDateString('sl-SI') : '-'}</td>
                   <td className="p-3 text-center">

@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import { format, formatDistanceToNow } from 'date-fns'
 
+import { formatEUR } from '@/lib/safe-format'
 // --- Tipi ---
 interface VirtualBrand {
   id: string
@@ -176,7 +177,7 @@ export function GhostKitchenHub() {
         />
         <SummaryCard
           title="Skupni promet"
-          value={`€${totalRevenue.toFixed(2)}`}
+          value={`${formatEUR(totalRevenue)}`}
           icon={TrendingUp}
           color="bg-green-50 border-green-200 text-green-800"
         />
@@ -231,11 +232,11 @@ export function GhostKitchenHub() {
                     </div>
                     <div className="flex justify-between">
                       <span>Promet:</span>
-                      <span className="font-medium text-green-600">€{(stat?.revenue || 0).toFixed(0)}</span>
+                      <span className="font-medium text-green-600">{formatEUR(stat?.revenue || 0)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Povp. vrednost:</span>
-                      <span className="font-medium">€{(stat?.avgOrderValue || 0).toFixed(2)}</span>
+                      <span className="font-medium">{formatEUR(stat?.avgOrderValue || 0)}</span>
                     </div>
                   </div>
                 </CardContent>
@@ -324,7 +325,7 @@ export function GhostKitchenHub() {
                         </div>
                         <div className="flex justify-between">
                           <span>Znesek:</span>
-                          <span className="font-semibold text-foreground">€{(order.total || 0).toFixed(2)}</span>
+                          <span className="font-semibold text-foreground">{formatEUR(order.total || 0)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Čas:</span>

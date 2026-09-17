@@ -11,6 +11,7 @@ import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
 
+import { formatEUR } from '@/lib/safe-format'
 const kioskOrderSchema = z.object({
   orderItems: z.array(z.object({
     menuItemId: z.string().min(1),
@@ -133,7 +134,7 @@ export async function POST(req: Request) {
         orderNumber: existingOrder.orderNumber,
         total: toNum(existingOrder.total),
         items: existingOrder.orderItems.length,
-        message: `Naročilo #${existingOrder.orderNumber} že obstaja — plačaj €${toNum(existingOrder.total).toFixed(2)}`,
+        message: `Naročilo #${existingOrder.orderNumber} že obstaja — plačaj ${formatEUR(toNum(existingOrder.total).toFixed(2))}`,
         idempotentReplay: true,
       }, { status: 200 })
     }
@@ -172,7 +173,7 @@ export async function POST(req: Request) {
       orderNumber: order.orderNumber,
       total: toNum(order.total),
       items: order.orderItems.length,
-      message: `Naročilo #${order.orderNumber} ustvarjeno na kiosku — plačaj €${toNum(order.total).toFixed(2)}`,
+      message: `Naročilo #${order.orderNumber} ustvarjeno na kiosku — plačaj ${formatEUR(toNum(order.total).toFixed(2))}`,
     }, { status: 201 })
   } catch (error: unknown) {
     // P2002 (idempotencyKey race): dva vzporedna klica z istim ključem —
@@ -192,7 +193,7 @@ export async function POST(req: Request) {
           orderNumber: existing.orderNumber,
           total: toNum(existing.total),
           items: existing.orderItems.length,
-          message: `Naročilo #${existing.orderNumber} že obstaja — plačaj €${toNum(existing.total).toFixed(2)}`,
+          message: `Naročilo #${existing.orderNumber} že obstaja — plačaj ${formatEUR(toNum(existing.total).toFixed(2))}`,
           idempotentReplay: true,
         }, { status: 200 })
       }

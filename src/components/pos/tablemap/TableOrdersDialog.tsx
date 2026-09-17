@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Separator } from '@/components/ui/separator'
 import { Plus, Users, ShoppingBag, Clock, UtensilsCrossed } from 'lucide-react'
 import { format } from 'date-fns'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 import { type TableData, type TableOrderData, orderStatusColors, orderStatusLabels } from './constants'
 
 // --- Props ---
@@ -67,7 +67,7 @@ export const TableOrdersDialog = memo(function TableOrdersDialog({
                             Neplačano
                           </Badge>
                         )}
-                        <span className="font-bold text-sm">€{safeToFixed(order.total, 2)}</span>
+                        <span className="font-bold text-sm">{formatEUR(order.total)}</span>
                       </div>
                     </div>
                     <div className="text-xs text-muted-foreground">
@@ -88,7 +88,7 @@ export const TableOrdersDialog = memo(function TableOrdersDialog({
                       {(Array.isArray(order?.orderItems) ? order.orderItems : []).map(oi => (
                         <div key={oi.id} className="flex justify-between text-sm">
                           <span>{oi.quantity}x {oi.menuItem?.name || 'Artikel'}</span>
-                          <span className="text-muted-foreground">€{safeToFixed(oi.price * oi.quantity, 2)}</span>
+                          <span className="text-muted-foreground">{formatEUR(oi.price * oi.quantity)}</span>
                         </div>
                       ))}
                     </div>

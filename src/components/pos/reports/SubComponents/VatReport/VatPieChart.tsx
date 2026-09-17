@@ -4,7 +4,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import { PIE_COLORS } from '../../constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR, safeToFixed } from '@/lib/safe-format'
 
 // ============================================
 // DDV TORTNI DIAGRAM — Delež po DDV stopnjah
@@ -40,7 +40,7 @@ export const VatPieChart = memo(function VatPieChart({ vatBreakdown, vatColors }
                   <Cell key={`cell-${index}`} fill={vatColors[String(vr.rate)] || PIE_COLORS[index % PIE_COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => [`€${safeToFixed(Number(value ?? 0), 2)}`, 'Znesek z DDV']} />
+              <Tooltip formatter={(value) => [`${formatEUR(Number(value ?? 0))}`, 'Znesek z DDV']} />
             </PieChart>
           </ResponsiveContainer>
         </div>

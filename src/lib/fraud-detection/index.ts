@@ -19,6 +19,7 @@ import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { toNum } from '@/lib/decimal'
 
+import { formatEUR } from '@/lib/safe-format'
 // --- Tipi ---
 export type FraudSeverity = 'low' | 'medium' | 'high' | 'critical'
 
@@ -167,7 +168,7 @@ export async function detectExcessiveVoids(
         id: `void_${empId}_${Date.now()}`,
         type: 'excessive_voids',
         severity: data.count > thresholds.maxVoidsPerShift * 2 ? 'high' : 'medium',
-        description: `${data.count} voidov v zadnjem tednu (threshold: ${thresholds.maxVoidsPerShift}). Skupna vrednost: €${data.totalAmount.toFixed(2)}`,
+        description: `${data.count} voidov v zadnjem tednu (threshold: ${thresholds.maxVoidsPerShift}). Skupna vrednost: ${formatEUR(data.totalAmount)}`,
         entityType: 'employee',
         entityId: empId,
         detectedAt: new Date(),
@@ -225,7 +226,7 @@ export async function detectHighDiscounts(
         id: `disc_${order.id}`,
         type: 'high_discount_no_reason',
         severity: discountPercent > 80 ? 'high' : 'medium',
-        description: `Visok popust ${discountPercent.toFixed(1)}% (€${discountAmount.toFixed(2)}) na naročilo #${order.orderNumber}${order.notes ? '' : ' — BREZ RAZLOGA'}`,
+        description: `Visok popust ${discountPercent.toFixed(1)}% (${formatEUR(discountAmount)}) na naročilo #${order.orderNumber}${order.notes ? '' : ' — BREZ RAZLOGA'}`,
         entityType: 'order',
         entityId: order.id,
         detectedAt: new Date(),
@@ -342,7 +343,7 @@ export async function detectCashDiscrepancies(
         id: `cash_${shift.id}`,
         type: 'cash_drawer_discrepancy',
         severity: discrepancy > thresholds.cashDrawerDiscrepancyThreshold * 5 ? 'critical' : 'high',
-        description: `Neskladje blagajne €${discrepancy.toFixed(2)} (pričakovano: €${expected.toFixed(2)}, dejansko: €${actual.toFixed(2)})`,
+        description: `Neskladje blagajne ${formatEUR(discrepancy)} (pričakovano: ${formatEUR(expected)}, dejansko: ${formatEUR(actual)})`,
         entityType: 'cash_shift',
         entityId: shift.id,
         detectedAt: new Date(),

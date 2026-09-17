@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { DialogFooter } from '@/components/ui/dialog'
 import { Users, Minus, Plus, CheckCircle2 } from 'lucide-react'
 import type { EqualSplitTabProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 export const EqualSplitTab = memo(function EqualSplitTab({
   equalCount,
@@ -40,15 +40,15 @@ export const EqualSplitTab = memo(function EqualSplitTab({
         <Card className="bg-primary/5 border-primary/20">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">Skupaj z napitnino</p>
-            <p className="text-2xl font-bold text-primary">€{safeToFixed(orderTotal + autoGratuityAmount, 2)}</p>
+            <p className="text-2xl font-bold text-primary">{formatEUR(orderTotal + autoGratuityAmount)}</p>
           </CardContent>
         </Card>
         <Card className="bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800">
           <CardContent className="p-4 text-center">
             <p className="text-xs text-muted-foreground mb-1">Na osebo</p>
-            <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">€{safeToFixed(equalSplitAmount, 2)}</p>
+            <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">{formatEUR(equalSplitAmount)}</p>
             {equalRemainder > 0 && (
-              <p className="text-[10px] text-muted-foreground mt-1">+€{safeToFixed(equalRemainder, 2)} na zadnjo osebo</p>
+              <p className="text-[10px] text-muted-foreground mt-1">+{formatEUR(equalRemainder)} na zadnjo osebo</p>
             )}
           </CardContent>
         </Card>
@@ -61,9 +61,9 @@ export const EqualSplitTab = memo(function EqualSplitTab({
               <Users className="h-4 w-4 text-primary" />
             </div>
             <span className="text-xs text-muted-foreground">Oseba {i + 1}</span>
-            <span className="text-sm font-bold">€{safeToFixed(equalSplitAmount, 2)}</span>
+            <span className="text-sm font-bold">{formatEUR(equalSplitAmount)}</span>
             {i === 0 && equalRemainder > 0 && (
-              <Badge variant="outline" className="text-[9px] h-4 mt-1">+€{safeToFixed(equalRemainder, 2)}</Badge>
+              <Badge variant="outline" className="text-[9px] h-4 mt-1">+{formatEUR(equalRemainder)}</Badge>
             )}
           </div>
         ))}

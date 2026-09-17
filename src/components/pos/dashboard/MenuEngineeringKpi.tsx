@@ -14,7 +14,7 @@ import { useQuery } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-keys'
 import { authFetch } from '../PinLogin'
 import { usePOSStore } from '@/lib/store'
-import { safeToFixed } from '@/lib/safe-format'
+import { formatEUR, safeToFixed } from '@/lib/safe-format'
 import { analyzeEngineeringData } from '../menu-engineering/analysis'
 import {
   QUADRANT_COLORS,
@@ -177,7 +177,7 @@ export const MenuEngineeringKpi = memo(function MenuEngineeringKpi() {
                   <div className="flex items-center justify-between gap-2 text-sm">
                     <span className="font-medium truncate" title={s.name}>{s.name}</span>
                     <span className="tabular-nums text-muted-foreground whitespace-nowrap">
-                      €{safeToFixed(s.revenue, 0)} · {s.quantitySold}×
+                      {formatEUR(s.revenue)} · {s.quantitySold}×
                     </span>
                   </div>
                   <div

@@ -13,6 +13,7 @@ import { toNum } from '@/lib/decimal'
 import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
 import { logger } from '@/lib/logger'
 import { handleRouteError, validateRequest } from '@/lib/api-utils'
+import { formatEUR } from '@/lib/safe-format'
 import {
 
   publicOrderSchema,
@@ -120,7 +121,7 @@ export async function POST(req: Request) {
 
     // FIX QR-02 HIGH: Maksimalni skupni znesek naročila — prepreči zlorabo
     if (total > MAX_ORDER_TOTAL) {
-      return NextResponse.json({ error: `Naročilo presega maksimalni znesek €${MAX_ORDER_TOTAL}. Zmanjšajte količino.` }, { status: 400 })
+      return NextResponse.json({ error: `Naročilo presega maksimalni znesek ${formatEUR(MAX_ORDER_TOTAL)}. Zmanjšajte količino.` }, { status: 400 })
     }
 
     const displayTableNum = resolvedTableNumber || data.tableNumber || '?'

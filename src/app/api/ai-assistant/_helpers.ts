@@ -4,6 +4,7 @@
 import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
 
+import { formatEUR } from '@/lib/safe-format'
 export const SYSTEM_PROMPT = `Si AI asistent za slovenski restavracijski POS sistem "RestaurantOS". 
 Govoriš slovensko in pomagaš lastnikom restavracij z:
 
@@ -87,11 +88,11 @@ export async function gatherDataContext(_context: Record<string, unknown>): Prom
     const orderCount = orderAgg._count;
     const avgCheck = toNum(orderAgg._avg.total);
 
-    parts.push(`PRODAJA (zadnjih 30 dni): Skupaj ${orderCount} naročil, Prihodek: €${round2(totalRevenue).toFixed(2)}, Povprečen ček: €${round2(avgCheck).toFixed(2)}`);
+    parts.push(`PRODAJA (zadnjih 30 dni): Skupaj ${orderCount} naročil, Prihodek: ${formatEUR(round2(totalRevenue).toFixed(2))}, Povprečen ček: ${formatEUR(round2(avgCheck).toFixed(2))}`);
 
     // Top artikli
     if (topItemsRaw.length > 0) {
-      parts.push(`TOP 10 ARTIKLI: ${topItemsRaw.map((i, idx) => `${idx + 1}. ${i.name} (${i.total_qty}x, €${round2(i.total_revenue).toFixed(2)})`).join(', ')}`);
+      parts.push(`TOP 10 ARTIKLI: ${topItemsRaw.map((i, idx) => `${idx + 1}. ${i.name} (${i.total_qty}x, ${formatEUR(round2(i.total_revenue).toFixed(2))})`).join(', ')}`);
     }
 
     // Nizka zaloga

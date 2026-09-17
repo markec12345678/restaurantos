@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Input } from '@/components/ui/input'
 
+import { formatEUR } from '@/lib/safe-format'
 // ============================================
 // CUSTOMER INFO — Ime, telefon, popust, opombe
 // ============================================
@@ -26,7 +27,7 @@ interface CustomerInfoSectionProps {
 // doesn't already contain it — seed names like "10% na celotno naročilo" or
 // "5€ popust na pijačo" would otherwise render duplicated ("10% 10% na").
 const discountChipLabel = (d: { name: string; type: string; amount: number }) => {
-  const prefix = d.type === 'percentage' ? `${d.amount}%` : `€${d.amount}`
+  const prefix = d.type === 'percentage' ? `${d.amount}%` : `${formatEUR(d.amount)}`
   return d.name.toLowerCase().includes(prefix.toLowerCase()) ? d.name : `${prefix} ${d.name}`
 }
 

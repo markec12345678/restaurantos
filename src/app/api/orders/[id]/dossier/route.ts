@@ -12,6 +12,7 @@ import { toNum } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 
+import { formatEUR } from '@/lib/safe-format'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -157,8 +158,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         timeline.push({
           timestamp: new Date(payment.createdAt).toISOString(),
           type: payment.status === 'refunded' ? 'payment_refunded' : 'payment_received',
-          description: `Plačilo ${payment.type} €${toNum(payment.amount).toFixed(2)}` +
-            (payment.status === 'refunded' ? ` (povrnjeno €${toNum(payment.refundAmount).toFixed(2)})` : ''),
+          description: `Plačilo ${payment.type} ${formatEUR(toNum(payment.amount).toFixed(2))}` +
+            (payment.status === 'refunded' ? ` (povrnjeno ${formatEUR(toNum(payment.refundAmount).toFixed(2))})` : ''),
           data: {
             checkNumber: check.checkNumber,
             giftCard: payment.giftCard?.code,

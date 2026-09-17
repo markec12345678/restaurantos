@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Users, Trophy, Clock, UtensilsCrossed, BarChart3, ArrowDownRight } from 'lucide-react'
 import { ROLE_ICONS, ROLE_LABELS, getScoreBg, getScoreColor, type EmployeeListProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR, safeToFixed } from '@/lib/safe-format'
 
 export const EmployeeList = memo(function EmployeeList({
   employees,
@@ -69,11 +69,11 @@ export const EmployeeList = memo(function EmployeeList({
                   <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                     <div className="text-center p-2 rounded-lg bg-white/50 dark:bg-black/20">
                       <p className="text-[10px] text-muted-foreground">Prihodek</p>
-                      <p className="text-sm font-bold">€{safeToFixed(emp.totalRevenue, 2)}</p>
+                      <p className="text-sm font-bold">{formatEUR(emp.totalRevenue)}</p>
                     </div>
                     <div className="text-center p-2 rounded-lg bg-white/50 dark:bg-black/20">
                       <p className="text-[10px] text-muted-foreground">Napitnine</p>
-                      <p className="text-sm font-bold text-amber-600">€{safeToFixed(emp.totalTips, 2)}</p>
+                      <p className="text-sm font-bold text-amber-600">{formatEUR(emp.totalTips)}</p>
                     </div>
                     <div className="text-center p-2 rounded-lg bg-white/50 dark:bg-black/20">
                       <p className="text-[10px] text-muted-foreground">Naročila</p>
@@ -81,7 +81,7 @@ export const EmployeeList = memo(function EmployeeList({
                     </div>
                     <div className="text-center p-2 rounded-lg bg-white/50 dark:bg-black/20">
                       <p className="text-[10px] text-muted-foreground">Povpr. naročilo</p>
-                      <p className="text-sm font-bold">€{safeToFixed(emp.avgOrderValue, 2)}</p>
+                      <p className="text-sm font-bold">{formatEUR(emp.avgOrderValue)}</p>
                     </div>
                     <div className="text-center p-2 rounded-lg bg-white/50 dark:bg-black/20">
                       <p className="text-[10px] text-muted-foreground">Čas strežbe</p>
@@ -89,7 +89,7 @@ export const EmployeeList = memo(function EmployeeList({
                     </div>
                     <div className="text-center p-2 rounded-lg bg-white/50 dark:bg-black/20">
                       <p className="text-[10px] text-muted-foreground">Prih./uro</p>
-                      <p className="text-sm font-bold">€{safeToFixed(emp.revenuePerHour, 2)}</p>
+                      <p className="text-sm font-bold">{formatEUR(emp.revenuePerHour)}</p>
                     </div>
                     <div className="text-center p-2 rounded-lg bg-white/50 dark:bg-black/20">
                       <p className="text-[10px] text-muted-foreground">Upsell</p>

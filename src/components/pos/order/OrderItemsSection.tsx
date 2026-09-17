@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import Image from 'next/image'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { XCircle, ImageIcon } from 'lucide-react'
@@ -63,7 +63,7 @@ export const OrderItemsSection = memo(function OrderItemsSection({
                   return (
                     <div className="flex flex-wrap gap-0.5 mt-0.5">
                       {mods.map((m: { name: string; price: number }, mi: number) => (
-                        <Badge key={mi} variant="outline" className="text-[9px] h-3.5 px-1 py-0">{m.name}{m.price > 0 ? ` +€${safeToFixed(m.price, 2)}` : ''}</Badge>
+                        <Badge key={mi} variant="outline" className="text-[9px] h-3.5 px-1 py-0">{m.name}{m.price > 0 ? ` +${formatEUR(m.price)}` : ''}</Badge>
                       ))}
                     </div>
                   )
@@ -76,7 +76,7 @@ export const OrderItemsSection = memo(function OrderItemsSection({
             </div>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0">
-            <span className="font-medium">€{(oi.price * oi.quantity).toFixed(2)}</span>
+            <span className="font-medium">{formatEUR(oi.price * oi.quantity)}</span>
             {!oi.voided && paymentStatus !== 'paid' && orderStatus !== 'cancelled' && (
               <Button
                 variant="ghost"

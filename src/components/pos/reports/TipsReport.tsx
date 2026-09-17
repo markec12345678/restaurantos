@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { ShoppingBag, TrendingUp, Wallet, Users, ChevronLeft, ChevronRight } from 'lucide-react'
 import { format } from 'date-fns'
 import { authFetch } from '@/components/pos/PinLogin'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR, safeToFixed } from '@/lib/safe-format'
 import { PeriodType } from './constants'
 import {
   BarChart, Bar,
@@ -50,7 +50,7 @@ export function TipsReport() {
       return res.json()
     },
   })
-  const fmt = (n: number) => `€${safeToFixed(n, 2)}`
+  const fmt = (n: number) => `${formatEUR(n)}`
   const fmtPct = (n: number) => `${safeToFixed(n, 1)}%`
   if (isLoading) return <div className="space-y-4">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-40" />)}</div>
   if (!fin) return <p className="text-center py-12 text-muted-foreground">Ni podatkov</p>
@@ -118,9 +118,9 @@ export function TipsReport() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={tipsByEmp} layout="vertical">
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
+                    <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => `${formatEUR(v)}`} />
                     <YAxis type="category" dataKey="employeeName" width={120} tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(value) => [`€${safeToFixed(Number(value ?? 0), 2)}`, 'Napitnine']} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
+                    <Tooltip formatter={(value) => [`${formatEUR(Number(value ?? 0))}`, 'Napitnine']} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
                     <Bar dataKey="tips" fill="#10b981" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

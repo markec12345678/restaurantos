@@ -17,6 +17,7 @@ import {
 import ZAI from 'z-ai-web-dev-sdk'
 
 
+import { formatEUR } from '@/lib/safe-format'
 // =====================================================================
 // AI SMART PAIRING UPSELL - World-Class 2026
 // Uporablja Gemini za personalizirane predloge na osnovi:
@@ -101,7 +102,7 @@ export async function POST(req: Request) {
       if (cartItems && cartItems.length > 0) {
         const zai = await ZAI.create()
         const cartDesc = cartItems.map(i => `${i.name} (${i.category})`).join(', ')
-        const menuSample = allItems.slice(0, 30).map(i => `${i.name} - €${toNum(i.price).toFixed(2)} [${i.category?.name || ''}]`).join('\n')
+        const menuSample = allItems.slice(0, 30).map(i => `${i.name} - ${formatEUR(toNum(i.price).toFixed(2))} [${i.category?.name || ''}]`).join('\n')
 
         const completion = await zai.chat.completions.create({
           messages: [

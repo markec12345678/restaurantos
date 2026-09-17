@@ -7,6 +7,7 @@ import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { ensureDecrypted } from '@/lib/crypto/secrets'
 
+import { formatEUR } from '@/lib/safe-format'
 interface EmailConfig {
   smtpHost: string
   smtpPort: number
@@ -105,8 +106,8 @@ export async function sendZReportEmail(
   const text = `Dnevni Z-report za ${reportDate}
 
 Povzetek:
-- Skupni promet: €${summary.totalSales.toFixed(2)}
-- DDV skupaj: €${summary.totalTax.toFixed(2)}
+- Skupni promet: ${formatEUR(summary.totalSales)}
+- DDV skupaj: ${formatEUR(summary.totalTax)}
 - Število naročil: ${summary.totalOrders}
 
 Podroben poročilo je v priponki (PDF).
@@ -117,8 +118,8 @@ RestaurantOS — Avtomatsko generirano`
 <h2>Z-report ${reportDate}</h2>
 <p>Dnevni zaključek blagajne:</p>
 <table style="border-collapse: collapse; margin: 16px 0;">
-  <tr><td style="padding: 8px; border: 1px solid #ddd;">Skupni promet:</td><td style="padding: 8px; border: 1px solid #ddd;"><strong>€${summary.totalSales.toFixed(2)}</strong></td></tr>
-  <tr><td style="padding: 8px; border: 1px solid #ddd;">DDV skupaj:</td><td style="padding: 8px; border: 1px solid #ddd;">€${summary.totalTax.toFixed(2)}</td></tr>
+  <tr><td style="padding: 8px; border: 1px solid #ddd;">Skupni promet:</td><td style="padding: 8px; border: 1px solid #ddd;"><strong>${formatEUR(summary.totalSales)}</strong></td></tr>
+  <tr><td style="padding: 8px; border: 1px solid #ddd;">DDV skupaj:</td><td style="padding: 8px; border: 1px solid #ddd;">${formatEUR(summary.totalTax)}</td></tr>
   <tr><td style="padding: 8px; border: 1px solid #ddd;">Število naročil:</td><td style="padding: 8px; border: 1px solid #ddd;">${summary.totalOrders}</td></tr>
 </table>
 <p>Podroben poročilo je v priponki (PDF).</p>

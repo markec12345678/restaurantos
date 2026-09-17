@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { CalendarDays, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import type { WoWComparisonProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR, safeToFixed } from '@/lib/safe-format'
 
 /**
  * WoWComparison — primerjava s prejšnjim tednom (Week-over-Week).
@@ -38,8 +38,8 @@ export const WoWComparison = memo(function WoWComparison({ wow, wowChartData }: 
                 </Badge>
               )}
             </div>
-            <p className="text-lg font-bold">€{safeToFixed(wow?.thisWeek?.revenue || 0, 2)}</p>
-            <p className="text-[10px] text-muted-foreground">Prejšnji teden: €{safeToFixed(wow?.lastWeek?.revenue || 0, 2)}</p>
+            <p className="text-lg font-bold">{formatEUR(wow?.thisWeek?.revenue || 0)}</p>
+            <p className="text-[10px] text-muted-foreground">Prejšnji teden: {formatEUR(wow?.lastWeek?.revenue || 0)}</p>
           </div>
           {/* Naročila WoW */}
           <div className="p-3 rounded-lg bg-muted/50">
@@ -72,8 +72,8 @@ export const WoWComparison = memo(function WoWComparison({ wow, wowChartData }: 
                 </Badge>
               )}
             </div>
-            <p className="text-lg font-bold">€{safeToFixed(wow?.thisWeek?.avgOrder || 0, 2)}</p>
-            <p className="text-[10px] text-muted-foreground">Prejšnji teden: €{safeToFixed(wow?.lastWeek?.avgOrder || 0, 2)}</p>
+            <p className="text-lg font-bold">{formatEUR(wow?.thisWeek?.avgOrder || 0)}</p>
+            <p className="text-[10px] text-muted-foreground">Prejšnji teden: {formatEUR(wow?.lastWeek?.avgOrder || 0)}</p>
           </div>
         </div>
         {/* Dnevni WoW diagram */}
@@ -83,8 +83,8 @@ export const WoWComparison = memo(function WoWComparison({ wow, wowChartData }: 
               <BarChart data={wowChartData} barGap={4}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="day" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
-                <Tooltip formatter={(value, name) => [`€${safeToFixed(Number(value ?? 0), 2)}`, String(name)]} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${v} €`} />
+                <Tooltip formatter={(value, name) => [`${formatEUR(Number(value ?? 0))}`, String(name)]} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="Ta teden" fill="oklch(0.7 0.15 55)" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Prejšnji teden" fill="oklch(0.6 0.1 250)" radius={[4, 4, 0, 0]} opacity={0.6} />

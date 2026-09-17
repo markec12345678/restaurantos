@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { RotateCcw } from 'lucide-react'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 import {
   type TransactionData,
   type TransactionSummary,
@@ -90,7 +90,7 @@ export const HistoryTab = memo(function HistoryTab({
                   {transactionTypeLabels[s.type] || s.type}
                 </div>
                 <p className="text-lg font-bold">{s.count}</p>
-                <p className="text-xs text-muted-foreground">€{safeToFixed(Math.abs(s.totalCost), 2)}</p>
+                <p className="text-xs text-muted-foreground">{formatEUR(Math.abs(s.totalCost))}</p>
               </CardContent>
             </Card>
           ))}
@@ -139,7 +139,7 @@ export const HistoryTab = memo(function HistoryTab({
                       <td className="p-3 text-right text-muted-foreground">{tx.previousQty}</td>
                       <td className="p-3 text-right font-medium">{tx.newQty}</td>
                       <td className={`p-3 text-right ${tx.quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        €{safeToFixed(Math.abs(tx.totalCost), 2)}
+                        {formatEUR(Math.abs(tx.totalCost))}
                       </td>
                       <td className="p-3 max-w-40 truncate">{tx.reason || '—'}</td>
                       <td className="p-3 text-muted-foreground">{tx.employeeName || '—'}</td>

@@ -20,6 +20,7 @@ import { validateRequest } from '@/lib/api-utils'
 import { createTipDistributionWithChain } from '@/lib/tip-distribution-chain'
 import { Prisma } from '@prisma/client'
 
+import { formatEUR } from '@/lib/safe-format'
 export async function handlePutTipPool(
   req: Request,
   _authResult: { session?: { employeeId?: string } | null },
@@ -81,7 +82,7 @@ export async function handlePutTipPool(
         details: {
           totalTips: pool.totalTips,
           employeeCount: distributions.length,
-          message: `Napitnine razdeljene: €${toNum(pool.totalTips).toFixed(2)} med ${distributions.length} zaposlenih`,
+          message: `Napitnine razdeljene: ${formatEUR(toNum(pool.totalTips).toFixed(2))} med ${distributions.length} zaposlenih`,
         },
         userId: _authResult.session?.employeeId,
       }, tx) // ← predamo tx

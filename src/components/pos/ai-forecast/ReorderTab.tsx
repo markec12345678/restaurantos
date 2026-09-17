@@ -13,6 +13,7 @@ import { ShieldCheck, Package, ShoppingCart, CheckCircle2 } from 'lucide-react'
 import { riskConfig, fmt, fmtQty } from './constants'
 import type { ReorderTabProps } from './constants'
 
+import { formatEUR } from '@/lib/safe-format'
 export const ReorderTab = memo(function ReorderTab({
   reorders,
   isLoading,
@@ -42,7 +43,7 @@ export const ReorderTab = memo(function ReorderTab({
     <>
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Skupni predlagani strošek: <strong>€{fmt(reorders.reduce((s, r) => s + r.totalCost, 0))}</strong>
+          Skupni predlagani strošek: <strong>{formatEUR(fmt(reorders.reduce((s, r) => s + r.totalCost, 0)))}</strong>
         </p>
         <div className="flex gap-2">
           <Button
@@ -97,8 +98,8 @@ export const ReorderTab = memo(function ReorderTab({
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-sm">€{fmt(r.totalCost)}</p>
-                  <p className="text-[10px] text-muted-foreground">@ €{fmt(r.costPerUnit)}/{r.unit}</p>
+                  <p className="font-bold text-sm">{formatEUR(fmt(r.totalCost))}</p>
+                  <p className="text-[10px] text-muted-foreground">@ {formatEUR(fmt(r.costPerUnit))}/{r.unit}</p>
                 </div>
               </div>
             </CardContent>

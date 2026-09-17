@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import type { Plan } from './pricing-data'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 // =====================================================================
 // RESTAURANTOS PRICING — Pricing Card Component
@@ -38,9 +38,9 @@ export const PricingCard = memo(function PricingCard({ plan, annual }: PricingCa
             </>
           ) : (
             <>
-              <span className="text-4xl font-bold">€{monthlyPrice}</span>
+              <span className="text-4xl font-bold">{formatEUR(monthlyPrice)}</span>
               <span className="text-gray-500 text-sm">/mesec</span>
-              {annual && monthlyPrice > 0 && <p className="text-xs text-green-600 mt-1">Prihranek €{safeToFixed(plan.price * 12 - monthlyPrice * 12, 0)}/leto</p>}
+              {annual && monthlyPrice > 0 && <p className="text-xs text-green-600 mt-1">Prihranek {formatEUR(Math.round(plan.price * 12 - monthlyPrice * 12))}/leto</p>}
               {monthlyPrice === 0 && <p className="text-xs text-green-600 mt-1">Brezplačno za vedno (AGPL-3.0)</p>}
             </>
           )}

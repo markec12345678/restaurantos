@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { Loader2, Sparkles, AlertTriangle, CheckCircle2, TrendingUp, Clock, Users } from 'lucide-react'
 import { format } from 'date-fns'
 
+import { formatEUR } from '@/lib/safe-format'
 // ─── Tipi (skladno z /api/ai/staff-scheduler response) ────────
 interface GeneratedShift {
   date: string
@@ -199,7 +200,7 @@ export function AISchedulerModal({
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                   <TrendingUp className="h-3 w-3" /> Strošek dela
                 </div>
-                <p className="text-2xl font-bold">€{data.insights.totalLaborCost.toFixed(0)}</p>
+                <p className="text-2xl font-bold">{formatEUR(data.insights.totalLaborCost)}</p>
               </div>
               <div className="border border-border rounded-lg p-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">

@@ -12,6 +12,7 @@ import { toNum } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 
+import { formatEUR } from '@/lib/safe-format'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
@@ -100,7 +101,7 @@ export async function GET(req: Request) {
         tableNumber: o.table?.number || null,
         hoursOpen,
         total: toNum(o.total),
-        message: `Miza ${o.table?.number || '?'} odprta ${hoursOpen}h (€${toNum(o.total).toFixed(2)})`,
+        message: `Miza ${o.table?.number || '?'} odprta ${hoursOpen}h (${formatEUR(toNum(o.total).toFixed(2))})`,
       }
     })
 

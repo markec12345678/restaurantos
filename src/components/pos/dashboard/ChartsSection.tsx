@@ -7,7 +7,7 @@ import { format } from 'date-fns'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { PIE_COLORS } from './constants'
 import type { ChartsSectionProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR, safeToFixed } from '@/lib/safe-format'
 
 /**
  * ChartsSection — prihodek zadnjih 7 dni (stolpčni diagram)
@@ -27,8 +27,8 @@ export const ChartsSection = memo(function ChartsSection({ dailyRevenue, categor
               <BarChart data={dailyRevenue || []}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="date" tickFormatter={(v) => format(new Date(v), 'EEE')} className="text-xs" tick={{ fontSize: 12 }} />
-                <YAxis className="text-xs" tick={{ fontSize: 12 }} tickFormatter={(v) => `€${v}`} />
-                <Tooltip formatter={(value) => [`€${safeToFixed(Number(value ?? 0), 2)}`, 'Prihodek']} labelFormatter={(label) => format(new Date(label as string | number), 'MMM dd, yyyy')} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
+                <YAxis className="text-xs" tick={{ fontSize: 12 }} tickFormatter={(v) => `${v} €`} />
+                <Tooltip formatter={(value) => [`${formatEUR(Number(value ?? 0))}`, 'Prihodek']} labelFormatter={(label) => format(new Date(label as string | number), 'MMM dd, yyyy')} contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
                 <Bar dataKey="revenue" fill="oklch(0.7 0.15 55)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -49,7 +49,7 @@ export const ChartsSection = memo(function ChartsSection({ dailyRevenue, categor
                   <Pie data={categoryBreakdown} dataKey="revenue" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${String(name ?? '')} ${safeToFixed((percent ?? 0) * 100, 0)}%`}>
                     {categoryBreakdown.map((_: unknown, index: number) => <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip formatter={(value) => [`€${safeToFixed(Number(value ?? 0), 2)}`, 'Prihodek']} />
+                  <Tooltip formatter={(value) => [`${formatEUR(Number(value ?? 0))}`, 'Prihodek']} />
                 </PieChart>
               </ResponsiveContainer>
             </div>

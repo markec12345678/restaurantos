@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { type GuestData, parseJsonField } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 // --- Props ---
 
@@ -48,7 +48,7 @@ export const GuestList = memo(function GuestList({
                 {guest.isVip && <span className="text-amber-500 text-xs">VIP</span>}
               </div>
               <div className="text-xs text-gray-500">
-                {guest.totalVisits} obiskov • €{safeToFixed(guest.totalSpent, 0)} skupaj
+                {guest.totalVisits} obiskov • {formatEUR(guest.totalSpent)} skupaj
               </div>
             </div>
             {guest.lastVisitAt && (

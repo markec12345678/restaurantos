@@ -1,3 +1,4 @@
+import { formatEUR } from '@/lib/safe-format'
 // Pomožne funkcije za online naročila — Obdelava strankinih podatkov
 
 // ─── Izlušči podatke o stranki ───
@@ -33,6 +34,6 @@ export function buildOrderNotes(opts: {
     customerNotes ? `Opombe: ${customerNotes}` : '',
     paymentMethod === 'cash' ? 'PLAČILO: Gotovina ob prevzemu' : `PLAČILO: ${paymentMethod === 'card' ? 'Kartica' : 'Mobilno'}`,
     'preferredTime' in customer && customer.preferredTime ? `Želen čas: ${customer.preferredTime}` : '',
-    promoCode ? `PROMO: ${promoCode} (-€${discount.toFixed(2)})` : '',
+    promoCode ? `PROMO: ${promoCode} (-${formatEUR(discount)})` : '',
   ].filter(Boolean).join(' | ')
 }

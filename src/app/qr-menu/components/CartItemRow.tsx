@@ -3,7 +3,7 @@
 import { memo } from 'react';
 import type { CartItem } from '../types';
 import { ALLERGEN_DATA } from '../constants';
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 // ============================================
 // Cart item row sub-component
@@ -52,7 +52,7 @@ export const CartItemRow = memo(function CartItemRow({
           </div>
         )}
         <p className={`text-sm font-bold mt-1 ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
-          €{safeToFixed(unitPrice * vatMultiplier, 2)}
+          {formatEUR(unitPrice * vatMultiplier)}
         </p>
       </div>
       <div className="flex items-center gap-2">

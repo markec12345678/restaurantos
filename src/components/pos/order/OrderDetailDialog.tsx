@@ -11,7 +11,7 @@ import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { ArrowLeftRight } from 'lucide-react'
 import type { OrderType } from './OrderList'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 import { authFetch } from '@/components/pos/PinLogin'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/query-keys'
@@ -166,10 +166,10 @@ export const OrderDetailDialog = memo(function OrderDetailDialog({
           />
           <Separator />
           <div className="space-y-1 text-sm">
-            <div className="flex justify-between"><span className="text-muted-foreground">Vmesna vsota</span><span>€{safeToFixed(detailOrder?.subtotal || 0, 2)}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Davek</span><span>€{safeToFixed(detailOrder?.tax || 0, 2)}</span></div>
-            {Number(detailOrder?.discount || 0) > 0 && <div className="flex justify-between text-emerald-600"><span>Popust</span><span>-€{safeToFixed(detailOrder?.discount || 0, 2)}</span></div>}
-            <div className="flex justify-between font-bold"><span>Skupaj</span><span>€{safeToFixed(detailOrder?.total || 0, 2)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Vmesna vsota</span><span>{formatEUR(detailOrder?.subtotal || 0)}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">Davek</span><span>{formatEUR(detailOrder?.tax || 0)}</span></div>
+            {Number(detailOrder?.discount || 0) > 0 && <div className="flex justify-between text-emerald-600"><span>Popust</span><span>-{formatEUR(detailOrder?.discount || 0)}</span></div>}
+            <div className="flex justify-between font-bold"><span>Skupaj</span><span>{formatEUR(detailOrder?.total || 0)}</span></div>
           </div>
 
           {/* Prenesi na drugo mizo — samo za dine-in naročila ki niso plačana */}

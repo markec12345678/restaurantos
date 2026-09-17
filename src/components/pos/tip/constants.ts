@@ -5,6 +5,7 @@
 import type { LucideIcon } from 'lucide-react'
 import { Equal, Clock, Star, Edit } from 'lucide-react'
 
+import { formatEUR } from '@/lib/safe-format'
 export interface TipDistribution {
   id: string
   employeeId: string
@@ -41,4 +42,4 @@ export const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   paid: { label: 'Izplačano', color: 'bg-emerald-100 text-emerald-800' },
 }
 
-export const formatCurrency = (val: number) => `€${(val || 0).toFixed(2)}`
+export const formatCurrency = (val: number) => `${formatEUR(val || 0)}`

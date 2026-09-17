@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label'
 import { Plus } from 'lucide-react'
 import type { MenuItemData, InventoryData, AddFormState } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 // ============================================
 // TIPI PROPS
@@ -64,7 +64,7 @@ export const AddRecipeDialog = memo(function AddRecipeDialog({
               <SelectTrigger id="add-menu-item" autoFocus><SelectValue placeholder="Izberite artikel iz jedilnika..." /></SelectTrigger>
               <SelectContent className="max-h-60">
                 {menuItems?.map(mi => (
-                  <SelectItem key={mi.id} value={mi.id}>{mi.name} (€{safeToFixed(mi.price, 2)})</SelectItem>
+                  <SelectItem key={mi.id} value={mi.id}>{mi.name} ({formatEUR(mi.price)})</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -83,7 +83,7 @@ export const AddRecipeDialog = memo(function AddRecipeDialog({
               <SelectContent className="max-h-60">
                 {sortedInventoryItems.map(inv => (
                   <SelectItem key={inv.id} value={inv.id}>
-                    {inv.name} — €{safeToFixed(inv.costPerUnit, 2)}/{inv.unit} (zaloga: {inv.quantity} {inv.unit})
+                    {inv.name} — {formatEUR(inv.costPerUnit)}/{inv.unit} (zaloga: {inv.quantity} {inv.unit})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -119,9 +119,9 @@ export const AddRecipeDialog = memo(function AddRecipeDialog({
             const cost = parseFloat(form.quantityPerServing) * inv.costPerUnit
             return (
               <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-sm">
-                <div className="flex justify-between"><span className="text-muted-foreground">Nabavna cena/enoto:</span><span>€{safeToFixed(inv.costPerUnit, 2)}/{inv.unit}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">Nabavna cena/enoto:</span><span>{formatEUR(inv.costPerUnit)}/{inv.unit}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Količina na porcijo:</span><span>{form.quantityPerServing} {form.unit || inv.unit}</span></div>
-                <div className="flex justify-between font-semibold"><span>Strošek na porcijo:</span><span className="text-red-600">€{safeToFixed(cost, 2)}</span></div>
+                <div className="flex justify-between font-semibold"><span>Strošek na porcijo:</span><span className="text-red-600">{formatEUR(cost)}</span></div>
               </div>
             )
           })()}

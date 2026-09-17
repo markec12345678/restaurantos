@@ -1,6 +1,6 @@
 'use client'
 
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR, safeToFixed } from '@/lib/safe-format'
 import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CreditCard, Wallet, Smartphone } from 'lucide-react'
@@ -45,7 +45,7 @@ export const PaymentMethodChart = memo(function PaymentMethodChart({ paymentMeth
                   <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => [`€${safeToFixed(Number(value ?? 0), 2)}`, 'Prihodek']} />
+              <Tooltip formatter={(value) => [`${formatEUR(Number(value ?? 0))}`, 'Prihodek']} />
             </PieChart>
           </ResponsiveContainer>
         </div>

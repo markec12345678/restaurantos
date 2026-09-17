@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Wallet, Shield, Banknote, CreditCard } from 'lucide-react'
 import { format } from 'date-fns'
 import type { ShiftFursStatusProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 /**
  * ShiftFursStatus — prikaz aktivne izmene in FURS davčnega potrjevanja.
@@ -26,7 +26,7 @@ export const ShiftFursStatus = memo(function ShiftFursStatus({ activeShift, furs
                 <p className="font-bold text-sm">{activeShift ? 'Izmena odprta' : 'Ni odprte izmene'}</p>
                 <p className="text-xs text-muted-foreground">
                   {activeShift
-                    ? `Od: ${format(new Date(activeShift.openedAt), 'HH:mm')} · Začetna blagajna: €${safeToFixed(activeShift.startingCash, 2)}`
+                    ? `Od: ${format(new Date(activeShift.openedAt), 'HH:mm')} · Začetna blagajna: ${formatEUR(activeShift.startingCash)}`
                     : 'Odprite izmeno za sledenje prodaje'}
                 </p>
               </div>
@@ -35,15 +35,15 @@ export const ShiftFursStatus = memo(function ShiftFursStatus({ activeShift, furs
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div>
                   <p className="text-[10px] text-muted-foreground">Gotovina</p>
-                  <p className="font-bold text-sm flex items-center justify-center gap-1"><Banknote className="h-3 w-3" />€{safeToFixed(activeShift.cashSales || 0, 2)}</p>
+                  <p className="font-bold text-sm flex items-center justify-center gap-1"><Banknote className="h-3 w-3" />{formatEUR(activeShift.cashSales || 0)}</p>
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground">Kartice</p>
-                  <p className="font-bold text-sm flex items-center justify-center gap-1"><CreditCard className="h-3 w-3" />€{safeToFixed(activeShift.cardSales || 0, 2)}</p>
+                  <p className="font-bold text-sm flex items-center justify-center gap-1"><CreditCard className="h-3 w-3" />{formatEUR(activeShift.cardSales || 0)}</p>
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground">Skupaj</p>
-                  <p className="font-bold text-sm text-primary">€{safeToFixed(activeShift.totalSales || 0, 2)}</p>
+                  <p className="font-bold text-sm text-primary">{formatEUR(activeShift.totalSales || 0)}</p>
                 </div>
               </div>
             )}

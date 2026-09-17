@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { DialogFooter } from '@/components/ui/dialog'
 import { Plus, Trash2, CheckCircle2 } from 'lucide-react'
 import type { CustomSplitTabProps } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { formatEUR, safeToFixed } from '@/lib/safe-format'
 
 export const CustomSplitTab = memo(function CustomSplitTab({
   parties,
@@ -26,7 +26,7 @@ export const CustomSplitTab = memo(function CustomSplitTab({
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Vnesi znesek za vsako osebo. Skupaj mora ustrezati €{safeToFixed(orderTotal + autoGratuityAmount, 2)}.
+        Vnesi znesek za vsako osebo. Skupaj mora ustrezati {formatEUR(orderTotal + autoGratuityAmount)}.
       </p>
       {parties.map((party) => (
         <div key={party.id} className="flex items-center gap-3">
@@ -71,11 +71,11 @@ export const CustomSplitTab = memo(function CustomSplitTab({
         <span className="text-sm font-medium">Skupaj:</span>
         <div className="text-right">
           <span className={`text-sm font-bold ${customDifference === 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400'}`}>
-            €{safeToFixed(customTotal, 2)} / €{safeToFixed(orderTotal + autoGratuityAmount, 2)}
+            {formatEUR(customTotal)} / {formatEUR(orderTotal + autoGratuityAmount)}
           </span>
           {customDifference !== 0 && (
             <p className="text-xs text-red-600 dark:text-red-400">
-              {customDifference > 0 ? `Manjka €${safeToFixed(customDifference, 2)}` : `Preseženo za €${safeToFixed(Math.abs(customDifference), 2)}`}
+              {customDifference > 0 ? `Manjka ${formatEUR(customDifference)}` : `Preseženo za €${safeToFixed(Math.abs(customDifference), 2)}`}
             </p>
           )}
         </div>

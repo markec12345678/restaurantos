@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Clock } from 'lucide-react'
+import { formatEUR } from '@/lib/safe-format'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
@@ -31,7 +32,7 @@ export const TimeDistributionChart = memo(function TimeDistributionChart({ data,
             <BarChart data={data}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
               <XAxis dataKey="period" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `€${v}`} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${formatEUR(v)}`} />
               <Tooltip contentStyle={{ borderRadius: '8px', border: '1px solid var(--border)' }} />
               <Legend />
               <Bar dataKey="revenue" name="Trenutno" fill="oklch(0.7 0.15 55)" radius={[4, 4, 0, 0]} />

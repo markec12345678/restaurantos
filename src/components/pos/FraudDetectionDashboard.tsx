@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 
+import { formatEUR } from '@/lib/safe-format'
 // --- Tipi ---
 interface FraudAlert {
   id: string
@@ -254,7 +255,7 @@ export function FraudDetectionDashboard() {
                           {alert.amount !== undefined && alert.amount > 0 && (
                             <span className="flex items-center gap-1">
                               <DollarSign className="h-3 w-3" />
-                              €{alert.amount.toFixed(2)}
+                              {formatEUR(alert.amount)}
                             </span>
                           )}
                         </div>
@@ -302,7 +303,7 @@ export function FraudDetectionDashboard() {
                 <div>
                   <div className="text-xs text-muted-foreground">Znesek</div>
                   <div className="font-medium">
-                    {selectedAlert.amount ? `€${selectedAlert.amount.toFixed(2)}` : '—'}
+                    {selectedAlert.amount ? `${formatEUR(selectedAlert.amount)}` : '—'}
                   </div>
                 </div>
                 <div>

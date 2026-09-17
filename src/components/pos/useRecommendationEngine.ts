@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import type { MenuItemData, Recommendation } from './ai-recommendations/constants'
 
+import { formatEUR } from '@/lib/safe-format'
 export function useRecommendationEngine(menuItems: MenuItemData[] | undefined) {
   const recommendations = useMemo(() => {
     const items = (menuItems || []) as MenuItemData[]
@@ -31,7 +32,7 @@ export function useRecommendationEngine(menuItems: MenuItemData[] | undefined) {
       const profitScore = Math.min(item.price / 20, 1) * 25
       score += profitScore
       if (item.price >= 15) {
-        reasons.push(`Visoka marža (€${item.price.toFixed(2)})`)
+        reasons.push(`Visoka marža (${formatEUR(item.price)})`)
         if (category === 'popular') category = 'profitable'
       }
 

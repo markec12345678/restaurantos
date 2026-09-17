@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 
+import { formatEUR } from '@/lib/safe-format'
 // --- Tipi ---
 interface WalletPayment {
   id: string
@@ -172,13 +173,13 @@ export function WalletPaymentTerminal() {
         />
         <StatCard
           title="Skupni znesek"
-          value={`€${(stats?.totalAmount || 0).toFixed(2)}`}
+          value={`${formatEUR(stats?.totalAmount || 0)}`}
           icon={TrendingUp}
           color="bg-green-50 border-green-200 text-green-800"
         />
         <StatCard
           title="Povrnjeno"
-          value={`€${(stats?.totalRefunded || 0).toFixed(2)}`}
+          value={`${formatEUR(stats?.totalRefunded || 0)}`}
           icon={RefreshCw}
           color="bg-orange-50 border-orange-200 text-orange-800"
         />
@@ -210,7 +211,7 @@ export function WalletPaymentTerminal() {
                     <div className="text-xs text-muted-foreground mt-1">
                       {w.count} plačil
                     </div>
-                    <div className="text-sm font-bold">€{w.amount.toFixed(2)}</div>
+                    <div className="text-sm font-bold">{formatEUR(w.amount)}</div>
                   </div>
                 )
               })}
@@ -288,10 +289,10 @@ export function WalletPaymentTerminal() {
                       </div>
 
                       <div className="text-right">
-                        <div className="font-bold">€{payment.amount.toFixed(2)}</div>
+                        <div className="font-bold">{formatEUR(payment.amount)}</div>
                         {payment.refundedAmount > 0 && (
                           <div className="text-xs text-orange-600">
-                            -€{payment.refundedAmount.toFixed(2)}
+                            -{formatEUR(payment.refundedAmount)}
                           </div>
                         )}
                       </div>
@@ -337,7 +338,7 @@ export function WalletPaymentTerminal() {
               Realiziraj plačilo?
             </DialogTitle>
             <DialogDescription>
-              Znesek: <strong>€{captureDialog?.amount.toFixed(2)}</strong>
+              Znesek: <strong>{formatEUR(captureDialog?.amount)}</strong>
               <br />
               Po realizaciji bo plačilo knjiženo na račun stranke.
             </DialogDescription>
@@ -370,7 +371,7 @@ export function WalletPaymentTerminal() {
               Povračilo plačila
             </DialogTitle>
             <DialogDescription>
-              Maksimalni znesek za povračilo: <strong>€{refundDialog?.maxAmount.toFixed(2)}</strong>
+              Maksimalni znesek za povračilo: <strong>{formatEUR(refundDialog?.maxAmount)}</strong>
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">

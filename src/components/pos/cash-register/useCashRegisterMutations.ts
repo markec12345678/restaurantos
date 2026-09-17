@@ -7,6 +7,7 @@ import { queryKeys } from '@/lib/query-keys'
 import { errorSl } from '@/lib/error-messages'
 import type { OpenShiftFormType, CloseShiftFormType } from './constants'
 
+import { formatEUR } from '@/lib/safe-format'
 // ============================================
 // HOOK: Mutacije za blagajno (odpri/zapri izmeno, EOD)
 // ============================================
@@ -70,7 +71,7 @@ export function useCashRegisterMutations({
     onSuccess: (result) => {
       const diff = result.cashDifference
       if (Math.abs(diff) > 0.01) {
-        toast.warning(`Izmena zaprta. Razlika v gotovini: €${diff.toFixed(2)}`)
+        toast.warning(`Izmena zaprta. Razlika v gotovini: ${formatEUR(diff)}`)
       } else {
         toast.success('Izmena uspešno zaprta! Gotovina se ujema.')
       }
@@ -95,7 +96,7 @@ export function useCashRegisterMutations({
     onSuccess: (result) => {
       const diff = result.summary?.cashDifference
       if (diff && Math.abs(diff) > 0.01) {
-        toast.warning(`Obratovalni dan zaključen! Razlika v gotovini: €${diff.toFixed(2)}`)
+        toast.warning(`Obratovalni dan zaključen! Razlika v gotovini: ${formatEUR(diff)}`)
       } else {
         toast.success('Obratovalni dan uspešno zaključen!')
       }

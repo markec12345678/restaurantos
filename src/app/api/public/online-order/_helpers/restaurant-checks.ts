@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger'
 import { NextResponse } from 'next/server'
 import { DELIVERY_FEE } from './schemas'
 
+import { formatEUR } from '@/lib/safe-format'
 // ─── Preveri, ali je restavracija odprta ───
 // FIX MEDIUM: Fail-CLOSED, ne fail-open — če nastavitv ni mogoče prebrati, ZAPRI naročila
 export async function checkRestaurantOpen(): Promise<NextResponse | null> {
@@ -68,7 +69,7 @@ export async function calculateDeliveryFee(
     return {
       fee: 0,
       error: NextResponse.json({
-        error: `Minimalno naročilo za cono "${matchingZone.name}" je €${toNum(matchingZone.minOrderAmount).toFixed(2)}`,
+        error: `Minimalno naročilo za cono "${matchingZone.name}" je ${formatEUR(toNum(matchingZone.minOrderAmount).toFixed(2))}`,
       }, { status: 400 }),
     }
   }
