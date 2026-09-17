@@ -4,6 +4,22 @@ import { readFileSync } from 'fs'
 import path from 'path'
 import { checkRateLimitAsync, getClientIp, SEED_LIMIT } from '@/lib/rate-limit'
 
+/**
+ * Runda 30 (varnost): endpoint je bil do zdaj odprt (samo rate-limit) —
+ * vsakdo je lahko sprožil DDL nad produkcijsko bazo. Zdaj: CRON_SECRET
+ * Bearer (deploy runbook — `curl -H "Authorization: Bearer $CRON_SECRET"`)
+ * ALI admin seja. Zrcali /api/cron/* vzorec: brez nastavljenega CRON_SECRET-a
+ * gre zahteva vedno skozi admin auth.
+ */
+async function isAuthorized(req: Request): Promise<boolean> {
+  const authHeader = req.headers.get('authorization')
+  const cronSecret = process.env.CRON_SECRET
+  if (cronSecret && authHeader === `Bearer ${cronSecret}`) return true
+  const { requireAuth } = await import('@/lib/auth-middleware')
+  const authResult = await requireAuth(req, { permission: 'admin' })
+  return !authResult.error
+}
+
 export async function GET(req: Request) {
   try {
     // FIX Code Review: Rate limiting — prepreči zlorabo
@@ -14,6 +30,11 @@ export async function GET(req: Request) {
         { error: 'Preveč zahtevkov. Poskusite znova kasneje.' },
         { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 3600000) / 1000)) } }
       )
+    }
+
+    // Runda 30: auth gate — CRON_SECRET bearer ALI admin seja
+    if (!(await isAuthorized(req))) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     await db.$queryRaw`SELECT 1`

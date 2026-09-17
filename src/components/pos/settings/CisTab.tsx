@@ -9,6 +9,7 @@ import { getCountryConfig, type CountryCode } from '@/lib/country-config'
 import type { CisTabProps } from './constants'
 import { ConnectionStatusPanel, ReceiptRequirementsCard } from './FursSubComponents'
 import { CisCertificateFields } from './CisCertificateFields'
+import { CisPendingRetryPanel } from './CisPendingRetryPanel'
 import type { CisSendResponse } from './cis-send-status'
 
 // ============================================
@@ -245,6 +246,9 @@ export const CisTab = memo(function CisTab({
           onSend={onSendCisTestInvoice}
           hasCert={!!form.hasCisCert}
         />
+
+        {/* Batch ponovna oddaja neoddanih računov (runda 30) */}
+        <CisPendingRetryPanel />
 
         <Separator />
 

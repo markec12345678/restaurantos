@@ -119,6 +119,16 @@ export const SEED_LIMIT: RateLimitConfig = {
   windowMs: 60 * 60 * 1000, // 1 ura
 }
 
+/**
+ * CIS batch retry (runda 30) — 10 batchov / 5 min.
+ * Vsak batch = do 25 sekvencnih FINA klicev (SOAP), zato bolj strog kot
+ * splošni authenticated limit; GET (badge števec) in POST (retry) delita vedro.
+ */
+export const CIS_BATCH_RETRY_LIMIT: RateLimitConfig = {
+  maxRequests: 10,
+  windowMs: 5 * 60 * 1000,
+}
+
 /** Splošni avtentificirani API — 120 zahtev na minuto (E2E 2026-09-17: 60 → 120, glej komentar) */
 export const AUTHENTICATED_LIMIT: RateLimitConfig = {
   // FIX (E2E 2026-09-17): 60/min je bilo premalo za POS UI, ki ob preklopu modula

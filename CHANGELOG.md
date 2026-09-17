@@ -6,6 +6,14 @@ All notable changes to RestaurantOS are documented in this file.
 > commit SHA, migracije, breaking changes, rezultati testov, znane težave,
 > deployment in rollback navodila.
 
+## [Unreleased] — Runda 30: CIS batch retry + varnost /api/setup/db
+
+- **Batch retry pending računov (FINA)**: NOVO `GET/POST /api/cis/retry-pending` — GET badge števec (pendingCount/failedCount), POST sekvencna ponovna oddaja cisStatus='pending'/'failed' Receiptov (FIFO po createdAt, privzeti 10, max 25/batch; idempotentno, non-throwing per-item, reject → errors++ in batch gre naprej); NOVO preset `CIS_BATCH_RETRY_LIMIT` (10/5 min, deljeno vedro GET+POST); admin auth
+- **UI**: NOVO `CisPendingRetryPanel` v CisTab — badge števec, "Ponovi oddajo (N)" gumb, toast povzetek (JIR uspeh / ni novih JIR warning / 429), avtomatski refresh števcev; samozaadna komponenta (brez sprememb CisTab props)
+- **VARNOST (Task 29-RELAND kandidat)**: `/api/setup/db` zdaj zahteva `Authorization: Bearer $CRON_SECRET` ALI admin `requireAuth` (zrcali /api/cron/* vzorec) — prej samo rate-limit (odprt DDL endpoint nad prod bazo); deploy runbook: `curl -H "Authorization: Bearer $CRON_SECRET" https://…/api/setup/db`
+- **Testi**: +17 (cis-retry-pending 10, setup-db-auth 7) → **1720/1720**, 98 datotek; eslint 0; tsc 0
+- **Migracije**: NE (brez shemskih sprememb)
+
 ## [v1.5.0] — Runda 29 re-land: produkcijska vezava CIS oddaje na plačilni tok + deploy sinkronizacija
 
 | Polje | Vrednost |
