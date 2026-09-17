@@ -20,6 +20,7 @@ import { isEmailEnabled, getReportRecipients, sendZReportEmail } from '@/lib/ema
 import { fetchReportData, generateReportPdf } from '@/app/api/reports/export/_helpers'
 import { round2 } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { fetchDailyDigestData, sendDailyDigestEmail, ensureDailySummaryLog } from '@/lib/email/daily-digest'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,6 +49,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'Ni prejemnikov — preskakujem', processed: 0 })
     }
 
+    // Task 20 — SELF-HEAL: zagotovi daily_summary log za včeraj (cron teče 2:00 UTC).
+    // Tudi če EOD closeShift ni sprožil pošiljanja (pade server, pozabljen EOD),
+    // digest pride naslednje jutro. Idempotentno (preveri duplikate).
+    // Non-throwing: pri napaki samo loggiramo in nadaljujemo z obstoječimi logi.
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    const digestResult = await ensureDailySummaryLog(yesterday)
+    if (digestResult.created > 0) {
+      logger.info('EMAIL', `Daily digest self-heal: ustvarjenih ${digestResult.created} logov za ${digestResult.reportDate}`)
+    }
+
     // Pridobi vse pending email loge (starejše od 1 minute, da se izognemo race condition)
     const oneMinuteAgo = new Date(Date.now() - 60 * 1000)
     const pendingEmails = await db.scheduledEmailLog.findMany({
@@ -68,27 +79,39 @@ export async function POST(req: Request) {
 
     for (const emailLog of pendingEmails) {
       try {
-        // Generiraj PDF poročilo za ta datum
         const reportDate = emailLog.reportDate || new Date()
-        const dateFilter: Record<string, Date> = {
-          gte: new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 0, 0, 0),
-          lte: new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 23, 59, 59),
-        }
+        const dateStr = reportDate.toISOString().split('T')[0]
 
-        const data = await fetchReportData(dateFilter)
-        const pdfBuffer = await generateReportPdf(data)
-
-        // Pošlji email — uporabi pravilen sendZReportEmail signature
-        await sendZReportEmail(
-          recipients,
-          reportDate.toISOString().split('T')[0],
-          pdfBuffer,
-          {
-            totalSales: round2(data.summary.totalRevenue),
-            totalTax: round2(data.summary.totalTax),
-            totalOrders: data.summary.totalOrders,
+        // Task 20: daily_summary = menedžerski HTML digest (brez PDF)
+        // FIX duplikatov: log je per-recipient → pošlji SAMO temu prejemniku
+        // (prej je Z-report path pošiljal VSEM prejemnikom za vsak log = N×N)
+        if (emailLog.reportType === 'daily_summary') {
+          const digest = await fetchDailyDigestData(reportDate)
+          const sendResult = await sendDailyDigestEmail(emailLog.recipient, digest)
+          if (!sendResult.success) {
+            throw new Error(sendResult.error || 'Napaka pri pošiljanju dnevnega povzetka')
           }
-        )
+        } else {
+          // z_report / weekly_summary / vat_report — Z-report PDF pot (obstoječa)
+          const dateFilter: Record<string, Date> = {
+            gte: new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 0, 0, 0),
+            lte: new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 23, 59, 59),
+          }
+
+          const data = await fetchReportData(dateFilter)
+          const pdfBuffer = await generateReportPdf(data)
+
+          await sendZReportEmail(
+            [emailLog.recipient],
+            dateStr,
+            pdfBuffer,
+            {
+              totalSales: round2(data.summary.totalRevenue),
+              totalTax: round2(data.summary.totalTax),
+              totalOrders: data.summary.totalOrders,
+            }
+          )
+        }
 
         // Označi kot poslano
         await db.scheduledEmailLog.update({
