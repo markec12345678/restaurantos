@@ -19,6 +19,11 @@ export const receiptResponseSchema = z.object({
   fiscalVerified: z.boolean(),
   // P2-UX: stanje fiskalizacije (none/pending/verified/failed) za prikaz neuspele fiskalizacije
   fiscalStatus: z.enum(['none', 'pending', 'verified', 'failed']),
+  // Runda 29 (CIS HR): ZKI/JIR + status oddaje na FINA (vzporedno s FURS polji)
+  cisStatus: z.enum(['none', 'pending', 'submitted', 'failed']),
+  cisZki: z.string(),
+  cisJir: z.string(),
+  cisSubmittedAt: z.string().nullable(),
   orderNumber: z.number(),
   type: z.string(),
   status: z.string(),

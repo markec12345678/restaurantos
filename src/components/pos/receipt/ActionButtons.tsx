@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
-import { Printer, Copy, CheckCircle2, Shield, FileWarning, Mail, MessageSquare } from 'lucide-react'
+import { Printer, Copy, CheckCircle2, Shield, FileWarning, Mail, MessageSquare, Landmark } from 'lucide-react'
 import type { ActionButtonsProps } from './constants'
 
 // ============================================
@@ -16,6 +16,8 @@ export const ActionButtons = memo(function ActionButtons({
   onPrint,
   onCopy,
   onFiscalVerify,
+  onCisSubmit,
+  cisSubmitting,
   onStorno,
   onSendEmail,
   onSendSms,
@@ -57,6 +59,15 @@ export const ActionButtons = memo(function ActionButtons({
         <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700" onClick={onFiscalVerify} disabled={verifying}>
           <Shield className="h-3 w-3 mr-1" />
           {verifying ? 'Overjam...' : 'Davčno overi'}
+        </Button>
+      )}
+      {/* CIS (FINA, HR) ponovna oddaja — samo ko je bil poskus in NI uspel:
+          uspešna oddaja je avtomatska (runda 29 auto-trigger ob plačilu),
+          ta gumb je retry pot za cisStatus pending/failed. */}
+      {receipt && !isPreview && (receipt.cisStatus === 'pending' || receipt.cisStatus === 'failed') && (
+        <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700" onClick={onCisSubmit} disabled={cisSubmitting}>
+          <Landmark className="h-3 w-3 mr-1" />
+          {cisSubmitting ? 'Oddajam...' : 'Ponovi FINA oddajo'}
         </Button>
       )}
       {/* Storno gumb - odpre StornoDialog z razlogom */}

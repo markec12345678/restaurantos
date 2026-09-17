@@ -6,8 +6,10 @@ import { getNextReceiptNumber } from '@/lib/counters'
 import { createReceiptSchema, receiptCreatedResponseSchema } from '@/lib/validations'
 import { parseJsonBody, validateBody, validateApiResponse } from '@/lib/api-utils'
 import { toNum, round2, deepToNumbers } from '@/lib/decimal'
+import { logger } from '@/lib/logger'
 import { generateZOIPlaceholder, MINIMAL_SETTINGS, calculateVatBreakdownForReceipt } from './index'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
+import { submitReceiptToCis } from '@/lib/cis/receipt-submission'
 
 export async function handlePostReceipt(
   req: Request,
@@ -111,6 +113,19 @@ export async function handlePostReceipt(
     }
 
     return created
+  })
+
+  // ── Runda 29 (CIS HR): AUTO-ODDAJA na FINA ob plačilu ──
+  // Fire-and-forget, NON-BLOCKING (POS pravilo: fiskalizacija ne blokira
+  // prodaje — napaka gre v cisStatus='pending' za retry, odgovor klijentu
+  // gre takoj). Skip logika živi v submitReceiptToCis: SI tenant brez P12 →
+  // cisStatus ostane 'none' (brez sledi); storno/predračun → skip.
+  void submitReceiptToCis(receipt.id).catch((err: unknown) => {
+    logger.error(
+      'CIS',
+      `Auto-oddaja Receipt ${receipt.receiptNumber} napaka:`,
+      err instanceof Error ? err.message : String(err)
+    )
   })
 
   return NextResponse.json(validateApiResponse(deepToNumbers(receipt), receiptCreatedResponseSchema, 'POST /api/receipts/[id]'), { status: 201 })
