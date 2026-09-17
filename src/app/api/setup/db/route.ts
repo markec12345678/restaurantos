@@ -110,6 +110,14 @@ export async function GET(req: Request) {
       'CREATE INDEX IF NOT EXISTS "WaitlistEntry_locationId_idx" ON "WaitlistEntry"("locationId")',
       'ALTER TABLE "OutboxEvent" ADD COLUMN IF NOT EXISTS "response" JSONB',
       `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'WaitlistEntry_locationId_fkey') THEN ALTER TABLE "WaitlistEntry" ADD CONSTRAINT "WaitlistEntry_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE SET NULL ON UPDATE SET NULL; END IF; END $$;`,
+      // Runda 29 (CIS HR fiskalizacija): Receipt + ZKI/JIR polja — idempotentno,
+      // MORA biti aplikirano PRED deployom novega Prisma clienta (SELECT cisStatus).
+      // Glej prisma/migrations/0005_cis_receipt_fields/migration.sql.
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "cisStatus" TEXT NOT NULL DEFAULT \'none\'',
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "cisZki" TEXT NOT NULL DEFAULT \'\'',
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "cisJir" TEXT NOT NULL DEFAULT \'\'',
+      'ALTER TABLE "Receipt" ADD COLUMN IF NOT EXISTS "cisSubmittedAt" TIMESTAMP(3)',
+      'CREATE INDEX IF NOT EXISTS "Receipt_cisStatus_idx" ON "Receipt"("cisStatus")',
     ]
     
     let added = 0
@@ -123,11 +131,38 @@ export async function GET(req: Request) {
     const afterTables = await db.$queryRaw`
       SELECT tablename FROM pg_tables WHERE schemaname = 'public'
     ` as Array<{ tablename: string }>
-    
+
+    // Runda 29 verifikacija — poročaj o CIS kolonah, da lahko deploy sinkronizacija
+    // ZUNAJ preveri, da shema vsebuje rundo 29 PRED aktivacijo novega clienta.
+    let cisReady = false
+    let cisColumns: string[] = []
+    let cisIndexPresent = false
+    try {
+      const cols = await db.$queryRaw`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'Receipt'
+          AND column_name IN ('cisStatus','cisZki','cisJir','cisSubmittedAt')
+        ORDER BY column_name
+      ` as Array<{ column_name: string }>
+      const idx = await db.$queryRaw`
+        SELECT indexname FROM pg_indexes
+        WHERE tablename = 'Receipt' AND indexname = 'Receipt_cisStatus_idx'
+      ` as Array<{ indexname: string }>
+      cisColumns = cols.map((c) => c.column_name)
+      cisIndexPresent = idx.length > 0
+      cisReady = cisColumns.length === 4 && cisIndexPresent
+    } catch {
+      // Receipt tabela morda ne obstaja (sveža baza) — report ostane false
+    }
+
     return NextResponse.json({
       success: true,
       tableCount: afterTables.length,
       columnsAdded: added,
+      migrationSet: 'r29',
+      cisReady,
+      cisColumns,
+      cisIndexPresent,
       message: `${afterTables.length} tables, ${added} columns added`,
     })
   } catch (error: unknown) {
