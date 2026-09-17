@@ -8,7 +8,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: feature/webauthn-csp-security
+          # FIX (runda 29): checkout naj sledi dispatch ref (privzeto main) —
+          # prej je bil hardkodiran stale branch feature/webauthn-csp-security,
+          # ki NIMA aktualne sheme → db push ne bi aplikiral novih kolon.
+          ref: ${{ github.ref_name }}
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
