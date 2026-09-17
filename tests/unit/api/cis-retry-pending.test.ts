@@ -1,9 +1,9 @@
 // ============================================
 // CIS RETRY PENDING — API route testi (runda 30)
 //
-// GET/POST /api/cis (prej /api/cis/retry-pending — r31 fold na index,
-// Vercel Hobby 12-funkcija limit; direktno, brez HTTP strežnika):
-//   * GET → 200 { pendingCount, failedCount } (badge števec)
+// GET/POST /api/cis/echo (r31 fold — prej /api/cis/retry-pending; Vercel Hobby
+// 12-funkcija limit, zato ni novih route files; direktno, brez HTTP strežnika):
+//   * GET ?resource=pending → 200 { pendingCount, failedCount } (badge števec)
 //   * POST brez telesa → privzeti limit 10
 //   * POST { limit: 5 } → findMany take 5
 //   * POST { limit: 0 / 26 / 'x' } → 400 (zod)
@@ -49,7 +49,7 @@ vi.mock('@/lib/cis', () => ({
   submitReceiptToCis: (...args: unknown[]) => submitReceiptToCisMock(...args),
 }))
 
-import { GET, POST } from '@/app/api/cis/route'
+import { GET, POST } from '@/app/api/cis/echo/route'
 
 function post(body?: unknown): Request {
   return new Request('http://localhost:3000/api/cis/retry-pending', {
@@ -60,7 +60,7 @@ function post(body?: unknown): Request {
 }
 
 function get(): Request {
-  return new Request('http://localhost:3000/api/cis/retry-pending', { method: 'GET' })
+  return new Request('http://localhost:3000/api/cis/echo?resource=pending', { method: 'GET' })
 }
 
 beforeEach(() => {

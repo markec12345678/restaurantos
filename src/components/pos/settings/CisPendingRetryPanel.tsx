@@ -7,6 +7,8 @@
 // uspela (cisStatus 'pending'/'failed'). Samozaadna komponenta (lasten fetch
 // + toast) — CisTab ostane presentational, brez sprememb props vrvige.
 // Zrcali stil CisTestInvoicePanel (border, muted ozadje, sm icona).
+// R31 FOLD: endpoint je /api/cis/echo?resource=pending / POST action:'retry-pending'
+// (Vercel Hobby 12-funkcija limit — route zložen v echo, ni novih funkcij).
 // ============================================
 
 import { memo, useCallback, useEffect, useState } from 'react'
@@ -39,7 +41,7 @@ export const CisPendingRetryPanel = memo(function CisPendingRetryPanel() {
 
   const loadStats = useCallback(async () => {
     try {
-      const res = await fetch('/api/cis', { cache: 'no-store' })
+      const res = await fetch('/api/cis/echo?resource=pending', { cache: 'no-store' })
       if (res.ok) setStats((await res.json()) as RetryStats)
     } catch {
       // Badge ni kritičen — tiho; panel pokaže nevtralno stanje
@@ -55,10 +57,10 @@ export const CisPendingRetryPanel = memo(function CisPendingRetryPanel() {
   const onRetry = useCallback(async () => {
     setRetrying(true)
     try {
-      const res = await fetch('/api/cis', {
+      const res = await fetch('/api/cis/echo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ action: 'retry-pending' }),
       })
       if (res.status === 429) {
         toast.error('Preveč poskusov — poskusite znova čez nekaj minut.')
