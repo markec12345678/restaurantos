@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Pencil } from 'lucide-react'
@@ -58,12 +59,10 @@ export const EditRecipeDialog = memo(function EditRecipeDialog({
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="edit-quantity">Količina na porcijo</Label>
-                <Input
+                <DecimalInput
                   id="edit-quantity"
-                  type="number"
-                  step="0.01"
                   value={form.quantityPerServing}
-                  onChange={e => onFormChange({ ...form, quantityPerServing: e.target.value })}
+                  onValueChange={n => onFormChange({ ...form, quantityPerServing: String(n) })}
                   autoFocus
                 />
               </div>

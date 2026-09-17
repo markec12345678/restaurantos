@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
@@ -46,11 +46,9 @@ export const VatRatesCard = memo(function VatRatesCard({
                   <SelectItem value="0">0%</SelectItem>
                 </SelectContent>
               </Select>
-              <Input
-                type="number"
-                step="0.1"
+              <DecimalInput
                 value={form.defaultVatRate || 22}
-                onChange={e => updateField('defaultVatRate', parseFloat(e.target.value) || 22)}
+                onValueChange={n => updateField('defaultVatRate', n || 22)}
                 className="w-28"
               />
               <span className="flex items-center text-sm text-muted-foreground">%</span>
@@ -70,11 +68,9 @@ export const VatRatesCard = memo(function VatRatesCard({
                   <SelectItem value="0">0%</SelectItem>
                 </SelectContent>
               </Select>
-              <Input
-                type="number"
-                step="0.1"
+              <DecimalInput
                 value={form.reducedVatRate || 9.5}
-                onChange={e => updateField('reducedVatRate', parseFloat(e.target.value) || 9.5)}
+                onValueChange={n => updateField('reducedVatRate', n || 9.5)}
                 className="w-28"
               />
               <span className="flex items-center text-sm text-muted-foreground">%</span>

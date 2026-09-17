@@ -4,6 +4,7 @@ import { memo, useState } from 'react'
 import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
@@ -61,11 +62,11 @@ export const ItemDialog = memo(function ItemDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label htmlFor="inv-unit">Enota</Label><Input id="inv-unit" value={formData.unit} onChange={(e) => onFormDataChange({ ...formData, unit: e.target.value })} placeholder="npr. steklenica, kg, L, kos" aria-label="npr. steklenica, kg, L, kos"/></div>
-            <div><Label htmlFor="inv-quantity">Količina</Label><Input id="inv-quantity" type="number" value={formData.quantity} onChange={(e) => onFormDataChange({ ...formData, quantity: e.target.value })} /></div>
+            <div><Label htmlFor="inv-quantity">Količina</Label><DecimalInput id="inv-quantity" value={formData.quantity} onValueChange={(n) => onFormDataChange({ ...formData, quantity: String(n) })} /></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label htmlFor="inv-min-qty">Min. količina</Label><Input id="inv-min-qty" type="number" value={formData.minQuantity} onChange={(e) => onFormDataChange({ ...formData, minQuantity: e.target.value })} /></div>
-            <div><Label htmlFor="inv-cost">Nabavna cena/enoto (€)</Label><Input id="inv-cost" type="number" step="0.01" value={formData.costPerUnit} onChange={(e) => onFormDataChange({ ...formData, costPerUnit: e.target.value })} /></div>
+            <div><Label htmlFor="inv-min-qty">Min. količina</Label><DecimalInput id="inv-min-qty" value={formData.minQuantity} onValueChange={(n) => onFormDataChange({ ...formData, minQuantity: String(n) })} /></div>
+            <div><Label htmlFor="inv-cost">Nabavna cena/enoto (€)</Label><DecimalInput id="inv-cost" value={formData.costPerUnit} onValueChange={(n) => onFormDataChange({ ...formData, costPerUnit: String(n) })} /></div>
           </div>
 
           {/* Normativi */}
@@ -74,10 +75,10 @@ export const ItemDialog = memo(function ItemDialog({
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label htmlFor="inv-servings">Servisov/enoto</Label>
-                <Input id="inv-servings" type="number" min="1" step="1" value={formData.servingsPerUnit} onChange={(e) => {
-                  const spu = parseFloat(e.target.value) || 1
+                <DecimalInput id="inv-servings" value={formData.servingsPerUnit} onValueChange={(n) => {
+                  const spu = n || 1
                   const cpu = parseFloat(formData.costPerUnit) || 0
-                  onFormDataChange({ ...formData, servingsPerUnit: e.target.value, costPerServing: spu > 0 ? String(Math.round((cpu / spu) * 100) / 100) : '0' })
+                  onFormDataChange({ ...formData, servingsPerUnit: String(n), costPerServing: spu > 0 ? String(Math.round((cpu / spu) * 100) / 100) : '0' })
                 }} />
               </div>
               <div>
@@ -86,7 +87,7 @@ export const ItemDialog = memo(function ItemDialog({
               </div>
               <div>
                 <Label htmlFor="inv-cost-serving">Strošek/servis (€)</Label>
-                <Input id="inv-cost-serving" type="number" step="0.01" value={formData.costPerServing} readOnly className="bg-muted" />
+                <DecimalInput id="inv-cost-serving" value={formData.costPerServing} readOnly className="bg-muted" />
               </div>
             </div>
           </div>

@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Switch } from '@/components/ui/switch'
@@ -108,7 +109,7 @@ export const IntegrationDialog = memo(function IntegrationDialog({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="int-interval" className="text-sm font-semibold">Interval (sekunde)</Label>
-                <Input id="int-interval" type="number" min={60} max={86400} value={formData.syncInterval} onChange={e => onFormDataChange({ ...formData, syncInterval: parseInt(e.target.value) || 300 })} />
+                <DecimalInput id="int-interval" value={formData.syncInterval} onValueChange={n => onFormDataChange({ ...formData, syncInterval: Math.trunc(n) || 300 })} />
               </div>
             </div>
 

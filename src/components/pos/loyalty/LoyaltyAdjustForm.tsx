@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -54,11 +54,11 @@ export const LoyaltyAdjustForm = memo(function LoyaltyAdjustForm({
       </div>
       <div className="space-y-1.5">
         <Label className="text-sm font-semibold">Število točk *</Label>
-        <Input type="number" min="1" placeholder="npr. 100" value={adjustData.points} onChange={(e) => onAdjustDataChange({ ...adjustData, points: e.target.value })} />
+        <DecimalInput placeholder="npr. 100" value={adjustData.points} onValueChange={(n) => onAdjustDataChange({ ...adjustData, points: String(n) })} />
       </div>
       <div className="space-y-1.5">
         <Label className="text-sm font-semibold">Denarna vrednost (€)</Label>
-        <Input type="number" step="0.01" min="0" placeholder="npr. 5.00" value={adjustData.monetaryValue} onChange={(e) => onAdjustDataChange({ ...adjustData, monetaryValue: e.target.value })} />
+        <DecimalInput placeholder="npr. 5.00" value={adjustData.monetaryValue} onValueChange={(n) => onAdjustDataChange({ ...adjustData, monetaryValue: String(n) })} />
         <p className="text-xs text-muted-foreground">Neobvezno — vnesite, če točke ustrezajo določenemu znesku</p>
       </div>
       <div className="space-y-1.5">

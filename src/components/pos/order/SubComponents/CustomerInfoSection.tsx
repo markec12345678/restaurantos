@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 
 import { formatEUR } from '@/lib/safe-format'
 // ============================================
@@ -41,7 +42,7 @@ export const CustomerInfoSection = memo(function CustomerInfoSection({
       <Input placeholder="Ime stranke" value={customerName} onChange={e => setCustomerName(e.target.value)} className="h-7 text-xs" aria-label="Ime stranke" />
       <div className="flex gap-1.5">
         <Input placeholder="Telefon" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="h-7 text-xs flex-1" aria-label="Telefon stranke" />
-        <Input placeholder="Popust €" type="number" min="0" step="0.01" value={discount || ''} onChange={e => { setDiscount(parseFloat(e.target.value) || 0); setAppliedDiscountId(null) }} className="h-7 text-xs w-20" aria-label="Popust v evrih" />
+        <DecimalInput placeholder="Popust €" value={discount || ''} onValueChange={n => { setDiscount(n); setAppliedDiscountId(null) }} className="h-7 text-xs w-20" aria-label="Popust v evrih" />
       </div>
       {discounts && discounts.length > 0 && (
         <div className="flex gap-1 flex-wrap">

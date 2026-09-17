@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -139,7 +140,7 @@ export const ItemDialog = memo(function ItemDialog({
           </div>
           <div>
             <Label htmlFor="item-price">Cena (€)</Label>
-            <Input id="item-price" type="number" step="0.01" value={itemForm.price} onChange={(e) => onItemFormChange({ ...itemForm, price: e.target.value })} />
+            <DecimalInput id="item-price" value={itemForm.price} onValueChange={(n) => onItemFormChange({ ...itemForm, price: String(n) })} />
           </div>
           <div>
             <Label htmlFor="item-menu">Meni</Label>

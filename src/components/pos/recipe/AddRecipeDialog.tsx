@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -92,12 +93,10 @@ export const AddRecipeDialog = memo(function AddRecipeDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="add-quantity">Količina na porcijo *</Label>
-              <Input
+              <DecimalInput
                 id="add-quantity"
-                type="number"
-                step="0.01"
                 value={form.quantityPerServing}
-                onChange={e => onFormChange({ ...form, quantityPerServing: e.target.value })}
+                onValueChange={n => onFormChange({ ...form, quantityPerServing: String(n) })}
                 placeholder="npr. 0.25"
               />
             </div>

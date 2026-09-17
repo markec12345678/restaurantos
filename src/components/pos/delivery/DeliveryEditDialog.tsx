@@ -7,6 +7,7 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -54,8 +55,8 @@ export const DeliveryEditDialog = memo(function DeliveryEditDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div><Label htmlFor="dlv-fee">Dostavna cena (€)</Label><Input id="dlv-fee" type="number" step="0.01" value={formData.deliveryFee} onChange={(e) => set('deliveryFee', e.target.value)} /></div>
-            <div><Label htmlFor="dlv-pkg-fee">Embalaža (€)</Label><Input id="dlv-pkg-fee" type="number" step="0.01" value={formData.packagingFee} onChange={(e) => set('packagingFee', e.target.value)} /></div>
+            <div><Label htmlFor="dlv-fee">Dostavna cena (€)</Label><DecimalInput id="dlv-fee" value={formData.deliveryFee} onValueChange={(n) => set('deliveryFee', String(n))} /></div>
+            <div><Label htmlFor="dlv-pkg-fee">Embalaža (€)</Label><DecimalInput id="dlv-pkg-fee" value={formData.packagingFee} onValueChange={(n) => set('packagingFee', String(n))} /></div>
           </div>
         </div>
         <DialogFooter>

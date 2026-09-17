@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
@@ -90,7 +91,7 @@ export const WriteOffTab = memo(function WriteOffTab({
               </div>
               <div>
                 <Label htmlFor="writeoff-qty">Količina za odpis (v enotah) *</Label>
-                <Input id="writeoff-qty" type="number" min="0.01" step="0.01" placeholder="npr. 2" value={writeOffData.quantity} onChange={(e) => onWriteOffDataChange({ ...writeOffData, quantity: e.target.value })} aria-label="npr. 2"/>
+                <DecimalInput id="writeoff-qty" placeholder="npr. 2" value={writeOffData.quantity} onValueChange={(n) => onWriteOffDataChange({ ...writeOffData, quantity: String(n) })} aria-label="npr. 2"/>
                 {selectedItem && writeOffData.quantity && (() => {
                   const newQty = Math.max(0, selectedItem.quantity - parseFloat(writeOffData.quantity))
                   const costLoss = parseFloat(writeOffData.quantity) * selectedItem.costPerUnit

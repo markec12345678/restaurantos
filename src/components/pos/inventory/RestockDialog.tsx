@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -55,11 +56,11 @@ export const RestockDialog = memo(function RestockDialog({
         <div className="space-y-3">
           <div>
             <Label htmlFor="restock-dialog-qty">Količina (v enotah) *</Label>
-            <Input id="restock-dialog-qty" type="number" min="0.01" step="0.01" placeholder="npr. 12" value={restockData.quantity} onChange={(e) => onRestockDataChange({ ...restockData, quantity: e.target.value })} aria-label="npr. 12" autoFocus/>
+            <DecimalInput id="restock-dialog-qty" placeholder="npr. 12" value={restockData.quantity} onValueChange={(n) => onRestockDataChange({ ...restockData, quantity: String(n) })} aria-label="npr. 12" autoFocus/>
           </div>
           <div>
             <Label htmlFor="restock-dialog-cost">Nabavna cena na enoto (€)</Label>
-            <Input id="restock-dialog-cost" type="number" step="0.01" placeholder="Pustite prazno za trenutno" value={restockData.costPerUnit} onChange={(e) => onRestockDataChange({ ...restockData, costPerUnit: e.target.value })} aria-label="Pustite prazno za trenutno"/>
+            <DecimalInput id="restock-dialog-cost" placeholder="Pustite prazno za trenutno" value={restockData.costPerUnit} onValueChange={(n) => onRestockDataChange({ ...restockData, costPerUnit: String(n) })} aria-label="Pustite prazno za trenutno"/>
           </div>
           <div>
             <Label htmlFor="restock-dialog-po">Št. dobavnice</Label>

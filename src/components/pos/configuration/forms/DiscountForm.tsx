@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
@@ -36,7 +37,7 @@ export const DiscountForm = memo(function DiscountForm({ formData, update }: For
       </div>
       <div>
         <Label htmlFor="discount-amount">Znesek {formData.type === 'percentage' ? '(%)' : '(€)'}</Label>
-        <Input id="discount-amount" type="number" step="0.01" value={String(formData.amount ?? '')} onChange={e => update('amount', e.target.value)} placeholder="10" aria-label="Znesek popusta"/>
+        <DecimalInput id="discount-amount" value={String(formData.amount ?? '')} onValueChange={n => update('amount', String(n))} placeholder="10" aria-label="Znesek popusta"/>
       </div>
       <div>
         <Label htmlFor="discount-applies">Velja za</Label>
@@ -77,7 +78,7 @@ export const DiscountForm = memo(function DiscountForm({ formData, update }: For
       </div>
       <div>
         <Label htmlFor="discount-max">Največ uporab</Label>
-        <Input id="discount-max" type="number" value={String(formData.maxUses ?? '0')} onChange={e => update('maxUses', e.target.value)} placeholder="0 = neomejeno" aria-label="Največ uporab"/>
+        <DecimalInput id="discount-max" value={String(formData.maxUses ?? '0')} onValueChange={n => update('maxUses', String(n))} placeholder="0 = neomejeno" aria-label="Največ uporab"/>
       </div>
       <div className="flex items-center gap-2">
         <Switch id="discount-active" checked={Boolean(formData.isActive)} onCheckedChange={c => update('isActive', c)} />

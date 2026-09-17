@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -66,7 +67,7 @@ export const ExpenseAddDialog = memo(function ExpenseAddDialog({
           </div>
           <div>
             <Label htmlFor="exp-amount">Znesek (€)</Label>
-            <Input id="exp-amount" type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} placeholder="0.00" aria-label="0.00" />
+            <DecimalInput id="exp-amount" value={form.amount} onValueChange={(n) => setForm({ ...form, amount: String(n) })} placeholder="0.00" aria-label="0.00" />
           </div>
           <div>
             <Label htmlFor="exp-vendor">Dobavitelj</Label>

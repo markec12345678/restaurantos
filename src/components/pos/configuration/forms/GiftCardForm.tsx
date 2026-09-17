@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 
@@ -26,11 +27,11 @@ export const GiftCardForm = memo(function GiftCardForm({ formData, update }: For
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label htmlFor="gc-balance">Stanje (€)</Label>
-          <Input id="gc-balance" type="number" step="0.01" value={String(formData.balance ?? '')} onChange={e => update('balance', e.target.value)} />
+          <DecimalInput id="gc-balance" value={String(formData.balance ?? '')} onValueChange={n => update('balance', String(n))} />
         </div>
         <div>
           <Label htmlFor="gc-initial">Začetno stanje (€)</Label>
-          <Input id="gc-initial" type="number" step="0.01" value={String(formData.initialBalance ?? '')} onChange={e => update('initialBalance', e.target.value)} />
+          <DecimalInput id="gc-initial" value={String(formData.initialBalance ?? '')} onValueChange={n => update('initialBalance', String(n))} />
         </div>
       </div>
       <div>

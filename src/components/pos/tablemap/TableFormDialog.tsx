@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { type TableFormData } from './constants'
@@ -37,21 +37,19 @@ export const TableFormDialog = memo(function TableFormDialog({
         <div className="space-y-3">
           <div>
             <label htmlFor="table-number" className="text-sm font-medium">Številka mize</label>
-            <Input
+            <DecimalInput
               id="table-number"
-              type="number"
               value={formData.number}
-              onChange={(e) => onFormDataChange({ ...formData, number: e.target.value })}
+              onValueChange={(n) => onFormDataChange({ ...formData, number: String(n) })}
               autoFocus
             />
           </div>
           <div>
             <label htmlFor="table-capacity" className="text-sm font-medium">Kapaciteta</label>
-            <Input
+            <DecimalInput
               id="table-capacity"
-              type="number"
               value={formData.capacity}
-              onChange={(e) => onFormDataChange({ ...formData, capacity: e.target.value })}
+              onValueChange={(n) => onFormDataChange({ ...formData, capacity: String(n) })}
             />
           </div>
           <div>

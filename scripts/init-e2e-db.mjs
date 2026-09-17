@@ -181,19 +181,19 @@ for (const [id, name] of [['c-rcpt', 'receiptNumber'], ['c-ord', 'orderNumber']]
 }
 console.log('[init] ✅ Counterji seedani')
 
-// DiningOptions
+// DiningOptions — MODEL A: unique(type, locationId), locationId NOT NULL → seed v loc-1
 for (const [id, name, type] of [['do-1', 'Na mestu', 'dine-in'], ['do-2', 'Vzemi s seboj', 'takeout']]) {
-  await pg.query(`INSERT INTO "DiningOption" (id, name, type, "prepTimeMinutes", "isActive", "sortOrder", "createdAt", "updatedAt") VALUES ($1,$2,$3,15,true,0,NOW(),NOW()) ON CONFLICT (type) DO NOTHING`, [id, name, type])
+  await pg.query(`INSERT INTO "DiningOption" (id, name, type, "prepTimeMinutes", "isActive", "sortOrder", "locationId", "createdAt", "updatedAt") VALUES ($1,$2,$3,15,true,0,'loc-1',NOW(),NOW()) ON CONFLICT (id) DO NOTHING`, [id, name, type])
 }
 console.log('[init] ✅ DiningOptions seedani')
 
 // VoidReason + NoSaleReason
-await pg.query(`INSERT INTO "VoidReason" (id, name, "isActive", "sortOrder", "createdAt", "updatedAt") VALUES ($1,$2,true,0,NOW(),NOW()) ON CONFLICT DO NOTHING`, ['vr-1', 'Test razlog'])
-await pg.query(`INSERT INTO "NoSaleReason" (id, name, "isActive", "sortOrder", "createdAt", "updatedAt") VALUES ($1,$2,true,0,NOW(),NOW()) ON CONFLICT DO NOTHING`, ['nsr-1', 'Mali dvig'])
+await pg.query(`INSERT INTO "VoidReason" (id, name, "isActive", "sortOrder", "locationId", "createdAt", "updatedAt") VALUES ($1,$2,true,0,'loc-1',NOW(),NOW()) ON CONFLICT DO NOTHING`, ['vr-1', 'Test razlog'])
+await pg.query(`INSERT INTO "NoSaleReason" (id, name, "isActive", "sortOrder", "locationId", "createdAt", "updatedAt") VALUES ($1,$2,true,0,'loc-1',NOW(),NOW()) ON CONFLICT DO NOTHING`, ['nsr-1', 'Mali dvig'])
 
 // PrepStation
-await pg.query(`INSERT INTO "PrepStation" (id, name, type, "avgPrepTime", "isActive", "sortOrder", "createdAt", "updatedAt") VALUES ($1,$2,$3,15,true,0,NOW(),NOW()) ON CONFLICT DO NOTHING`, ['ps-1', 'Kuhinja', 'kitchen'])
-await pg.query(`INSERT INTO "PrepStation" (id, name, type, "avgPrepTime", "isActive", "sortOrder", "createdAt", "updatedAt") VALUES ($1,$2,$3,5,true,1,NOW(),NOW()) ON CONFLICT DO NOTHING`, ['ps-2', 'Bar', 'bar'])
+await pg.query(`INSERT INTO "PrepStation" (id, name, type, "avgPrepTime", "isActive", "sortOrder", "locationId", "createdAt", "updatedAt") VALUES ($1,$2,$3,15,true,0,'loc-1',NOW(),NOW()) ON CONFLICT DO NOTHING`, ['ps-1', 'Kuhinja', 'kitchen'])
+await pg.query(`INSERT INTO "PrepStation" (id, name, type, "avgPrepTime", "isActive", "sortOrder", "locationId", "createdAt", "updatedAt") VALUES ($1,$2,$3,5,true,1,'loc-1',NOW(),NOW()) ON CONFLICT DO NOTHING`, ['ps-2', 'Bar', 'bar'])
 
 // ChartOfAccount
 for (const [code, name, type] of [

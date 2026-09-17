@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 
@@ -65,7 +66,7 @@ export const BusinessFields = memo(function BusinessFields({
         </div>
         <div>
           <Label htmlFor="supplier-minorder" className="text-xs font-medium">Min. znesek naročila</Label>
-          <Input id="supplier-minorder" type="number" value={minOrderAmount} onChange={e => onMinOrderAmountChange(parseFloat(e.target.value) || 0)} className="h-9 text-sm" />
+          <DecimalInput id="supplier-minorder" value={minOrderAmount} onValueChange={n => onMinOrderAmountChange(n)} className="h-9 text-sm" />
         </div>
       </div>
     </div>

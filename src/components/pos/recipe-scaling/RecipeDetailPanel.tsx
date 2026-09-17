@@ -4,10 +4,10 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { ChefHat, Calculator, Plus, Minus, Package, ArrowUpRight, ArrowDownRight } from 'lucide-react'
 import { type RecipeDetailPanelProps, formatCurrency } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // Podrobnosti in raztegovanje izbranega recepta
 export const RecipeDetailPanel = memo(function RecipeDetailPanel({
@@ -60,11 +60,10 @@ export const RecipeDetailPanel = memo(function RecipeDetailPanel({
                   <Minus className="h-3 w-3" />
                 </Button>
                 <div className="text-center">
-                  <Input
+                  <DecimalInput
                     id="recipe-scaling-servings"
-                    type="number"
                     value={scaledServings || originalServings}
-                    onChange={e => onScaleChange(Math.max(1, parseInt(e.target.value) || 1))}
+                    onValueChange={n => onScaleChange(Math.max(1, Math.floor(n) || 1))}
                     className="w-20 text-center text-lg font-bold"
                   />
                   <p className="text-xs text-muted-foreground">obrokov</p>

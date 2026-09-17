@@ -14,7 +14,12 @@ import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/
 import { z } from 'zod'
 import { handleApiError, handleRouteError, validateRequest } from '@/lib/api-utils'
 import { ljubljanaDayBounds } from '@/lib/timezone-sl'
-import { calculateReportStats, buildReportData } from './_helpers'
+import { calculateReportStats, buildReportData, upsertZReportForDay } from './_helpers'
+// OPOMBA runda 9: jedro (preverjanje + izračun + upsert) je sedaj v
+// ./_helpers/upsert-z-report.ts, da ga ponovno uporabi tudi avtomatski
+// osnutek ob zaprtju blagajniške izmene (cash-register/[id]).
+void calculateReportStats
+void buildReportData
 
 
 import { formatEUR } from '@/lib/safe-format'
@@ -95,84 +100,15 @@ export async function POST(req: Request) {
     }
     const locationId = effectiveLocationId ?? undefined
 
-    // Datumski obseg
-    // P2-UX FIX (timezone): meje ljubljanskega dne — prej strežniški TZ (UTC deploy = zamaknjeno 1–2 h)
-    const { start: dayStart, end: dayEnd } = ljubljanaDayBounds(date)
-
-    // Preveri če že obstaja
-    const existing = await db.zReport.findFirst({
-      where: { reportDate: dayStart, ...(locationId ? { locationId } : {}) },
-    })
-    if (existing && existing.status === 'finalized') {
-      return NextResponse.json({ error: 'Z-poročilo za ta dan je že zaključeno' }, { status: 400 })
-    }
-
-    // FIX BUG-19 MEDIUM: Preveri, da so vse izmene zaprte
-    if (finalize) {
-      const openShifts = await db.cashRegisterShift.count({
-        where: {
-          openedAt: { gte: dayStart, lt: dayEnd },
-          status: 'open',
-          ...(locationId ? { locationId } : {}),
-        },
-      })
-      if (openShifts > 0) {
-        return NextResponse.json({
-          error: `Obstaja ${openShifts} odprtih blagajniških izmen. Zaprite vse izmene preden finalizirate Z-poročilo.`,
-          openShifts,
-        }, { status: 400 })
-      }
-    }
-
-    // Pridobi vse plačane orderje za ta dan
-    const orders = await db.order.findMany({
-      where: {
-        paidAt: { gte: dayStart, lt: dayEnd },
-        paymentStatus: { in: ['paid', 'partial'] },
-        ...(locationId ? { locationId } : {}),
-      },
-      include: {
-        checks: { include: { payments: true } },
-        orderItems: { include: { menuItem: { include: { salesCategory: true, recipeItems: { include: { inventoryItem: { select: { costPerUnit: true } } } } } } } },
-      },
-    })
-
-    const paidOrders = orders
-
-    // Izračunaj statistike
-    const stats = await calculateReportStats(paidOrders, orders, dayStart, dayEnd, locationId)
-
-    // Pridobi cash shifts za buildReportData
-    const cashShifts = await db.cashRegisterShift.findMany({
-      where: {
-        openedAt: { gte: dayStart, lt: dayEnd },
-        status: 'closed',
-        ...(locationId ? { locationId } : {}),
-      },
-    })
-
-    const reportData = buildReportData(
-      stats, dayStart, dayEnd, actualCash, notes, finalize,
-      authResult.session?.employeeId, locationId, cashShifts,
-    )
-    reportData.totalOrders = paidOrders.length
-    reportData.avgOrderValue = paidOrders.length > 0 ? round2(reportData.totalSales / paidOrders.length) : 0
-
-    // FIX BUG-5 MEDIUM: Upsert znotraj transakcije
-    const report = await db.$transaction(async (tx) => {
-      const txExisting = await tx.zReport.findFirst({
-        where: { reportDate: dayStart, ...(locationId ? { locationId } : {}) },
-      })
-
-      if (txExisting && txExisting.status === 'finalized') {
-        throw new Error('Z_REPORT_FINALIZED')
-      }
-
-      if (txExisting) {
-        return tx.zReport.update({ where: { id: txExisting.id }, data: reportData })
-      } else {
-        return tx.zReport.create({ data: reportData })
-      }
+    // RUNDA 9 REFAKTOR: celotno jedro (preverjanje finalized, open-shifts check,
+    // pridobivanje orderjev, statistike, upsert transakcija) je v upsertZReportForDay.
+    const { report, stats, paidOrdersCount } = await upsertZReportForDay({
+      date,
+      locationId,
+      actualCash,
+      notes,
+      finalize,
+      employeeId: authResult.session?.employeeId ?? null,
     })
 
     // Audit log
@@ -201,7 +137,7 @@ export async function POST(req: Request) {
             await sendZReportEmail(recipients, date, pdfBuffer, {
               totalSales: round2(stats.totalSales),
               totalTax: round2(stats.totalTax),
-              totalOrders: paidOrders.length,
+              totalOrders: paidOrdersCount,
             })
           }
         }
@@ -214,6 +150,10 @@ export async function POST(req: Request) {
   } catch (error: unknown) {
     return handleRouteError(error, 'POST /api/z-report', [
       { match: 'Z_REPORT_FINALIZED', message: 'Z-poročilo za ta dan je že zaključeno', status: 400 },
+      // RUNDA 9: open-shifts check se sedaj zgodi v upsertZReportForDay
+      // (matchBusinessError: 'message' je statični string; število odprtih izmen
+      //  gre v extra.openShifts — klijent ga lahko prikaže posebej)
+      { match: 'OPEN_SHIFTS', message: 'Obstajajo odprte blagajniške izmene. Zaprite vse izmene preden finalizirate Z-poročilo.', status: 400, extra: (parts) => ({ openShifts: parseInt(parts[1]) || 0 }) },
     ], 'Napaka pri generiranju Z-poročila')
   }
 }

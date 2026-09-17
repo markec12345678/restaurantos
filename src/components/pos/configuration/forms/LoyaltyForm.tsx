@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
 
@@ -33,7 +34,7 @@ export const LoyaltyForm = memo(function LoyaltyForm({ formData, update }: FormF
       </div>
       <div>
         <Label htmlFor="loyalty-points">Stanje točk</Label>
-        <Input id="loyalty-points" type="number" value={String(formData.pointsBalance ?? '0')} onChange={e => update('pointsBalance', e.target.value)} />
+        <DecimalInput id="loyalty-points" value={String(formData.pointsBalance ?? '0')} onValueChange={n => update('pointsBalance', String(n))} />
       </div>
       <div>
         <Label htmlFor="loyalty-tier">Raven</Label>

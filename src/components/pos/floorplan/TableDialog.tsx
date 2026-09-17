@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Plus, LayoutGrid } from 'lucide-react'
@@ -33,11 +33,11 @@ export const TableDialog = memo(function TableDialog({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label htmlFor="floor-table-number" className="text-sm font-medium">Številka mize</label>
-              <Input id="floor-table-number" type="number" value={formData.number} onChange={e => onSetFormData(prev => ({ ...prev, number: e.target.value }))} autoFocus />
+              <DecimalInput id="floor-table-number" value={formData.number} onValueChange={n => onSetFormData(prev => ({ ...prev, number: String(n) }))} autoFocus />
             </div>
             <div>
               <label htmlFor="floor-table-capacity" className="text-sm font-medium">Kapaciteta</label>
-              <Input id="floor-table-capacity" type="number" value={formData.capacity} onChange={e => onSetFormData(prev => ({ ...prev, capacity: e.target.value }))} />
+              <DecimalInput id="floor-table-capacity" value={formData.capacity} onValueChange={n => onSetFormData(prev => ({ ...prev, capacity: String(n) }))} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -69,11 +69,11 @@ export const TableDialog = memo(function TableDialog({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label htmlFor="floor-table-width" className="text-sm font-medium">Širina (%)</label>
-              <Input id="floor-table-width" type="number" value={formData.width} onChange={e => onSetFormData(prev => ({ ...prev, width: e.target.value }))} />
+              <DecimalInput id="floor-table-width" value={formData.width} onValueChange={n => onSetFormData(prev => ({ ...prev, width: String(n) }))} />
             </div>
             <div>
               <label htmlFor="floor-table-height" className="text-sm font-medium">Višina (%)</label>
-              <Input id="floor-table-height" type="number" value={formData.height} onChange={e => onSetFormData(prev => ({ ...prev, height: e.target.value }))} />
+              <DecimalInput id="floor-table-height" value={formData.height} onValueChange={n => onSetFormData(prev => ({ ...prev, height: String(n) }))} />
             </div>
           </div>
           <div>

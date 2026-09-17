@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { type WaitlistFormDialogProps, AREA_OPTIONS } from './constants'
 
 // Dialog za dodajanje v čakalno vrsto — Radix Dialog za dostopnost (focus trap, Escape, aria)
@@ -43,24 +44,20 @@ export const WaitlistFormDialog = memo(function WaitlistFormDialog({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label htmlFor="waitlist-party-size" className="text-xs font-medium text-gray-500">Št. oseb *</label>
-              <Input
+              <DecimalInput
                 id="waitlist-party-size"
-                type="number"
                 value={(form.partySize as number) || 2}
-                onChange={e => onUpdateForm('partySize', parseInt(e.target.value) || 1)}
+                onValueChange={n => onUpdateForm('partySize', n || 1)}
                 className="mt-1"
-                min={1}
               />
             </div>
             <div>
               <label htmlFor="waitlist-wait-time" className="text-xs font-medium text-gray-500">Obljubljen čakalni čas (min)</label>
-              <Input
+              <DecimalInput
                 id="waitlist-wait-time"
-                type="number"
                 value={(form.quotedWaitMinutes as number) || 15}
-                onChange={e => onUpdateForm('quotedWaitMinutes', parseInt(e.target.value) || 0)}
+                onValueChange={n => onUpdateForm('quotedWaitMinutes', n)}
                 className="mt-1"
-                min={0}
               />
             </div>
           </div>

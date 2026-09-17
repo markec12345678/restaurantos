@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { timeSlots } from './constants'
 import type { TableType } from './constants'
@@ -49,7 +50,7 @@ export const DateTimeTableFields = memo(function DateTimeTableFields({
         </div>
         <div>
           <label htmlFor="res-party-size" className="text-xs font-medium">Oseb *</label>
-          <Input id="res-party-size" type="number" min={1} max={20} value={partySize} onChange={e => setPartySize(parseInt(e.target.value) || 1)} className="h-9 text-sm" />
+          <DecimalInput id="res-party-size" value={partySize} onValueChange={n => setPartySize(n || 1)} className="h-9 text-sm" />
         </div>
         <div>
           <label htmlFor="res-duration" className="text-xs font-medium">Trajanje (min)</label>

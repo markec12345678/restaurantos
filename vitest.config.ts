@@ -19,6 +19,15 @@ export default defineConfig({
     // Environment — jsdom za React komponente, node za utilityje
     environment: 'jsdom',
 
+    // FIX runda 9: DATABASE_URL za teste — @/lib/db (ko ga testi naložijo prek
+    // importOriginal) NE sme inicializirati PGlite v jsdom okolju (PGlite zahteva
+    // file:// URL pod Node fs → ERR_INVALID_URL_SCHEME unhandled rejections).
+    // Z postgres:// URL db.ts vzame zunanji-Postgres branch; PrismaClient je
+    // v testih vedno mock-an, tako da ni nobenega resničnega omrežnega klica.
+    env: {
+      DATABASE_URL: 'postgresql://test:test@localhost:5432/testdb',
+    },
+
     // Suppress unhandled errors from PGlite connection attempts in unit tests
     // (PGlite tries to connect when @/lib/db is imported, but unit tests use mocks)
     dangerouslyIgnoreUnhandledErrors: true,

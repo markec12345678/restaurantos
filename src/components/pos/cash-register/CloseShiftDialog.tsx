@@ -7,8 +7,8 @@
 import { memo } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { DecimalInput } from '@/components/ui/decimal-input'
+import { safeToFixed } from '@/lib/safe-format'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Lock, TrendingUp, AlertTriangle, CheckCircle2 } from 'lucide-react'
@@ -77,12 +77,10 @@ export const CloseShiftDialog = memo(function CloseShiftDialog({
 
           <div>
             <label htmlFor="cash-closing" className="text-sm font-medium">Dejanska gotovina v blagajni (&euro;)</label>
-            <Input
+            <DecimalInput
               id="cash-closing"
-              type="number"
-              step="0.01"
               value={form.closingCash}
-              onChange={e => onFormChange({ ...form, closingCash: e.target.value })}
+              onValueChange={n => onFormChange({ ...form, closingCash: String(n) })}
               placeholder={String(liveStats?.expectedCash?.toFixed(2) || '0.00')}
               autoFocus
             />

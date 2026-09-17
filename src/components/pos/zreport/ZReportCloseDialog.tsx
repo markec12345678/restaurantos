@@ -6,7 +6,7 @@
 
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { CheckCircle2 } from 'lucide-react'
@@ -30,13 +30,11 @@ export const ZReportCloseDialog = memo(function ZReportCloseDialog({
           {/* Vnos dejanskega stanja gotovine */}
           <div>
             <label htmlFor="zreport-actual-cash" className="text-sm font-medium">Dejansko stanje gotovine</label>
-            <Input
+            <DecimalInput
               id="zreport-actual-cash"
-              type="number"
-              step="0.01"
               placeholder="0.00"
               value={actualCash}
-              onChange={(e) => onActualCashChange(e.target.value)}
+              onValueChange={n => onActualCashChange(String(n))}
               className="mt-1"
               autoFocus
             />

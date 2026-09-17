@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { DialogFooter } from '@/components/ui/dialog'
 import { Plus, Trash2, CheckCircle2 } from 'lucide-react'
 import type { CustomSplitTabProps } from './constants'
@@ -32,19 +32,12 @@ export const CustomSplitTab = memo(function CustomSplitTab({
         <div key={party.id} className="flex items-center gap-3">
           <span className="text-sm font-medium w-24">{party.name}</span>
           <div className="flex-1">
-            <Input
-              type="number"
+            <DecimalInput
               id={`custom-amount-${party.id}`}
-              step="0.01"
-              min="0"
-              max={safeToFixed(orderTotal + autoGratuityAmount, 2)}
               placeholder="0.00"
               className="h-9"
               value={customAmounts[party.id] !== undefined ? customAmounts[party.id].toFixed(2) : ''}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value)
-                onCustomAmountChange(party.id, isNaN(val) ? 0 : val)
-              }}
+              onValueChange={(n) => onCustomAmountChange(party.id, n)}
               aria-label="Znesek delitve"
             />
           </div>

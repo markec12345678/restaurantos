@@ -3,10 +3,11 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Separator } from '@/components/ui/separator'
 import { CalendarCheck, FileText } from 'lucide-react'
 import type { EodFormType } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EodData = any
@@ -37,13 +38,11 @@ export const EodCloseForm = memo(function EodCloseForm({
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="eod-cash" className="text-sm font-medium">Dejanska gotovina (&euro;)</label>
-            <Input
+            <DecimalInput
               id="eod-cash"
-              type="number"
-              step="0.01"
               placeholder={eodData.activeShift ? String(safeToFixed(eodData.activeShift.startingCash + eodData.summary.totalRevenue, 2)) : '0.00'}
               value={form.closingCash}
-              onChange={e => onFormChange({ ...form, closingCash: e.target.value })}
+              onValueChange={n => onFormChange({ ...form, closingCash: String(n) })}
               autoFocus
             />
           </div>

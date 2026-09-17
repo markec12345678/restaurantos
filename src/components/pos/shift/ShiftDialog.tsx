@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
@@ -89,7 +90,7 @@ export const ShiftDialog = memo(function ShiftDialog({
           {/* Odmor */}
           <div className="space-y-1.5">
             <Label htmlFor="shift-break" className="text-sm font-semibold">Odmor (min)</Label>
-            <Input id="shift-break" type="number" min="0" value={shiftForm.breakMinutes} onChange={e => onShiftFormChange({ ...shiftForm, breakMinutes: e.target.value })} />
+            <DecimalInput id="shift-break" value={shiftForm.breakMinutes} onValueChange={n => onShiftFormChange({ ...shiftForm, breakMinutes: String(n) })} />
           </div>
 
           {/* Opombe */}

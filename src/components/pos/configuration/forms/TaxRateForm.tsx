@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { memo } from 'react'
@@ -26,7 +27,7 @@ export const TaxRateForm = memo(function TaxRateForm({ formData, update }: FormF
       </div>
       <div>
         <Label>Stopnja (%)</Label>
-        <Input type="number" step="0.01" value={String(formData.rate ?? '')} onChange={e => update('rate', e.target.value)} placeholder="22" aria-label="22"/>
+        <DecimalInput value={String(formData.rate ?? '')} onValueChange={n => update('rate', String(n))} placeholder="22" aria-label="22"/>
       </div>
       <div>
         <Label>Koda</Label>

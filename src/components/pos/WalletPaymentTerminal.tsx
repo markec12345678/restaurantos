@@ -23,11 +23,11 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Label } from '@/components/ui/label'
 import {
   CreditCard, Smartphone, Nfc, Loader2, RefreshCw,
-  CheckCircle2, AlertTriangle, XCircle, DollarSign, TrendingUp,
+  CheckCircle2, XCircle, DollarSign, TrendingUp,
 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -376,14 +376,10 @@ export function WalletPaymentTerminal() {
           </DialogHeader>
           <div className="space-y-2">
             <Label htmlFor="refund-amount">Znesek povračila (EUR)</Label>
-            <Input
+            <DecimalInput
               id="refund-amount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              max={refundDialog?.maxAmount}
               value={refundAmount}
-              onChange={(e) => setRefundAmount(e.target.value)}
+              onValueChange={(n) => setRefundAmount(String(n))}
               placeholder="0.00"
             />
           </div>

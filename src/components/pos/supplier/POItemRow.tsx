@@ -2,10 +2,11 @@
 
 import { memo } from 'react'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { X } from 'lucide-react'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 export interface POItemDraft {
   description: string
@@ -61,7 +62,7 @@ export const POItemRow = memo(function POItemRow({
         </div>
         <div className="col-span-2">
           <label className="text-[9px] text-muted-foreground">Količina</label>
-          <Input type="number" value={item.quantityOrdered} onChange={e => onUpdate(idx, 'quantityOrdered', parseFloat(e.target.value) || 0)} className="h-8 text-xs" aria-label="Količina"/>
+          <DecimalInput value={item.quantityOrdered} onValueChange={n => onUpdate(idx, 'quantityOrdered', n)} className="h-8 text-xs" aria-label="Količina"/>
         </div>
         <div className="col-span-1">
           <label className="text-[9px] text-muted-foreground">Enota</label>
@@ -78,7 +79,7 @@ export const POItemRow = memo(function POItemRow({
         </div>
         <div className="col-span-2">
           <label className="text-[9px] text-muted-foreground">Cena €</label>
-          <Input type="number" value={item.unitPrice} onChange={e => onUpdate(idx, 'unitPrice', parseFloat(e.target.value) || 0)} placeholder="Cena" className="h-8 text-xs" aria-label="Cena"/>
+          <DecimalInput value={item.unitPrice} onValueChange={n => onUpdate(idx, 'unitPrice', n)} placeholder="Cena" className="h-8 text-xs" aria-label="Cena"/>
         </div>
         <div className="col-span-1">
           <label className="text-[9px] text-muted-foreground">Skupaj</label>

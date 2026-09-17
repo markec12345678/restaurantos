@@ -4,11 +4,11 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { CheckCircle2 } from 'lucide-react'
 import type { TipDistribution, TipPoolData } from './constants'
 import { formatCurrency } from './constants'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { safeToFixed } from '@/lib/safe-format'
 
 interface TipDistributionTableProps {
   pool: TipPoolData
@@ -57,12 +57,10 @@ export const TipDistributionTable = memo(function TipDistributionTable({
               </div>
               <div className="flex items-center gap-3">
                 {pool.distributionMethod === 'manual' && pool.status === 'pending' ? (
-                  <Input
-                    type="number"
-                    step="0.01"
+                  <DecimalInput
                     className="w-24 h-8 text-right"
                     value={editingAmounts[d.employeeId] ?? safeToFixed(d.amount, 2)}
-                    onChange={(e) => onAmountChange(d.employeeId, e.target.value)}
+                    onValueChange={(n) => onAmountChange(d.employeeId, String(n))}
                   />
                 ) : (
                   <span className="font-bold text-green-600">{formatCurrency(d.amount)}</span>

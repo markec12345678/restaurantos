@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
@@ -33,7 +34,7 @@ export const DiningOptionForm = memo(function DiningOptionForm({ formData, updat
       </div>
       <div>
         <Label>Pripravljalni čas (min)</Label>
-        <Input type="number" value={String(formData.prepTimeMinutes ?? '')} onChange={e => update('prepTimeMinutes', e.target.value)} placeholder="15" aria-label="15"/>
+        <DecimalInput value={String(formData.prepTimeMinutes ?? '')} onValueChange={n => update('prepTimeMinutes', String(n))} placeholder="15" aria-label="15"/>
       </div>
       <div>
         <Label>Povezani servisni strošek</Label>
@@ -81,7 +82,7 @@ export const ServiceChargeForm = memo(function ServiceChargeForm({ formData, upd
       </div>
       <div>
         <Label>Znesek {formData.type === 'percentage' ? '(%)' : '(€)'}</Label>
-        <Input type="number" step="0.01" value={String(formData.amount ?? '')} onChange={e => update('amount', e.target.value)} placeholder="10" aria-label="10"/>
+        <DecimalInput value={String(formData.amount ?? '')} onValueChange={n => update('amount', String(n))} placeholder="10" aria-label="10"/>
       </div>
       <div className="flex items-center gap-2">
         <Switch checked={Boolean(formData.isAutoApply)} onCheckedChange={c => update('isAutoApply', c)} />
@@ -114,7 +115,7 @@ export const PrepStationForm = memo(function PrepStationForm({ formData, update 
       </div>
       <div>
         <Label>Povprečni čas priprave (min)</Label>
-        <Input type="number" value={String(formData.avgPrepTime ?? '')} onChange={e => update('avgPrepTime', e.target.value)} placeholder="12" aria-label="12"/>
+        <DecimalInput value={String(formData.avgPrepTime ?? '')} onValueChange={n => update('avgPrepTime', String(n))} placeholder="12" aria-label="12"/>
       </div>
     </div>
   )

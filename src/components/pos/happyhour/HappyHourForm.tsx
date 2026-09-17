@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -60,7 +61,7 @@ export const HappyHourForm = memo(function HappyHourForm({
           </div>
           <div>
             <Label>Znesek {form.discountType === 'percentage' ? '(%)' : '(€)'}</Label>
-            <Input type="number" step="0.5" value={form.discountAmount} onChange={e => set({ discountAmount: parseFloat(e.target.value) || 0 })} />
+            <DecimalInput value={form.discountAmount} onValueChange={n => set({ discountAmount: n })} />
           </div>
         </div>
         <div>

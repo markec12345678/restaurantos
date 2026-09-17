@@ -7,7 +7,7 @@
 import { memo } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Unlock } from 'lucide-react'
 import type { OpenShiftFormType } from './constants'
@@ -62,12 +62,10 @@ export const OpenShiftDialog = memo(function OpenShiftDialog({
           </div>
           <div>
             <label htmlFor="cash-starting" className="text-sm font-medium">Začetna gotovina (&euro;)</label>
-            <Input
+            <DecimalInput
               id="cash-starting"
-              type="number"
-              step="0.01"
               value={form.startingCash}
-              onChange={e => onFormChange({ ...form, startingCash: e.target.value })}
+              onValueChange={n => onFormChange({ ...form, startingCash: String(n) })}
               placeholder="200.00"
             />
             <p className="text-xs text-muted-foreground mt-1">Vnesite znesek gotovine v blagajni ob odprtju</p>

@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
@@ -78,7 +79,7 @@ export const ProcurementForm = memo(function ProcurementForm({
           <div className="space-y-3">
             <div>
               <Label htmlFor="restock-qty">Količina (v enotah zaloge) *</Label>
-              <Input id="restock-qty" type="number" min="0.01" step="0.01" placeholder="npr. 12" value={restockData.quantity} onChange={(e) => onRestockDataChange({ ...restockData, quantity: e.target.value })} aria-label="npr. 12"/>
+              <DecimalInput id="restock-qty" placeholder="npr. 12" value={restockData.quantity} onValueChange={(n) => onRestockDataChange({ ...restockData, quantity: String(n) })} aria-label="npr. 12"/>
               {selectedItem && restockData.quantity && (() => {
                 const newQty = selectedItem.quantity + parseFloat(restockData.quantity)
                 return <p className="text-xs text-muted-foreground mt-1">Nova zaloga: <span className="font-medium text-green-600">{newQty} {selectedItem.unit}</span></p>
@@ -86,7 +87,7 @@ export const ProcurementForm = memo(function ProcurementForm({
             </div>
             <div>
               <Label htmlFor="restock-cost">Nabavna cena na enoto (€)</Label>
-              <Input id="restock-cost" type="number" step="0.01" placeholder="Pustite prazno za trenutno ceno" value={restockData.costPerUnit} onChange={(e) => onRestockDataChange({ ...restockData, costPerUnit: e.target.value })} aria-label="Pustite prazno za trenutno ceno"/>
+              <DecimalInput id="restock-cost" placeholder="Pustite prazno za trenutno ceno" value={restockData.costPerUnit} onValueChange={(n) => onRestockDataChange({ ...restockData, costPerUnit: String(n) })} aria-label="Pustite prazno za trenutno ceno"/>
             </div>
             <div>
               <Label htmlFor="restock-po">Številka dobavnice</Label>

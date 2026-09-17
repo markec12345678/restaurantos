@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import type { CreateFormProps } from './constants'
 
 import { formatEUR } from '@/lib/safe-format'
@@ -26,7 +27,7 @@ export const CreateForm = memo(function CreateForm({ selectedPlan, plans, form, 
           <Input aria-label="DDV identifikacija" placeholder="DDV ID" value={form.taxId} onChange={e => onFormChange({ ...form, taxId: e.target.value })} />
           <div className="flex items-center gap-2">
             <label className="text-sm">Št. lokacij:</label>
-            <Input aria-label="Število lokacij" type="number" min={1} max={50} value={form.locationCount} onChange={e => onFormChange({ ...form, locationCount: parseInt(e.target.value) || 1 })} className="w-20" />
+            <DecimalInput aria-label="Število lokacij" value={form.locationCount} onValueChange={n => onFormChange({ ...form, locationCount: n || 1 })} className="w-20" />
           </div>
           <select value={form.paymentMethod} onChange={e => onFormChange({ ...form, paymentMethod: e.target.value })} className="px-3 py-2 rounded-lg border bg-background text-sm">
             <option value="bank_transfer">Bančno nakazilo</option>

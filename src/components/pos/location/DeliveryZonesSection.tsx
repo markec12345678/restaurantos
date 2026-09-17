@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Navigation, Plus, Trash2 } from 'lucide-react'
@@ -89,10 +90,10 @@ export const DeliveryZonesSection = memo(function DeliveryZonesSection({
               <Input aria-label="Ime cone" placeholder="Ime cone (npr. Center LJU) *" value={zoneForm.name} onChange={e => onSetZoneForm(p => ({ ...p, name: e.target.value }))} className="col-span-2" />
               <Input aria-label="Poštne številke" placeholder="Poštne št. (1000,1001,1000)" value={zoneForm.postCodes} onChange={e => onSetZoneForm(p => ({ ...p, postCodes: e.target.value }))} className="col-span-2" />
               <Input aria-label="Mesta" placeholder="Mesta (Ljubljana,Domžale)" value={zoneForm.cities} onChange={e => onSetZoneForm(p => ({ ...p, cities: e.target.value }))} className="col-span-2" />
-              <Input aria-label="Cena dostave" placeholder="Cena dostave (€)" type="number" step="0.50" value={zoneForm.deliveryFee} onChange={e => onSetZoneForm(p => ({ ...p, deliveryFee: e.target.value }))} />
-              <Input aria-label="Minimalno naročilo" placeholder="Min. naročilo (€)" type="number" step="1" value={zoneForm.minOrderAmount} onChange={e => onSetZoneForm(p => ({ ...p, minOrderAmount: e.target.value }))} />
-              <Input aria-label="Brezplačna dostava nad" placeholder="Brezpl. dostava nad (€)" type="number" step="1" value={zoneForm.freeDeliveryAbove} onChange={e => onSetZoneForm(p => ({ ...p, freeDeliveryAbove: e.target.value }))} />
-              <Input aria-label="Predviden čas dostave" placeholder="Predviden čas (min)" type="number" value={zoneForm.estimatedMinutes} onChange={e => onSetZoneForm(p => ({ ...p, estimatedMinutes: e.target.value }))} />
+              <DecimalInput aria-label="Cena dostave" placeholder="Cena dostave (€)" value={zoneForm.deliveryFee} onValueChange={n => onSetZoneForm(p => ({ ...p, deliveryFee: String(n) }))} />
+              <DecimalInput aria-label="Minimalno naročilo" placeholder="Min. naročilo (€)" value={zoneForm.minOrderAmount} onValueChange={n => onSetZoneForm(p => ({ ...p, minOrderAmount: String(n) }))} />
+              <DecimalInput aria-label="Brezplačna dostava nad" placeholder="Brezpl. dostava nad (€)" value={zoneForm.freeDeliveryAbove} onValueChange={n => onSetZoneForm(p => ({ ...p, freeDeliveryAbove: String(n) }))} />
+              <DecimalInput aria-label="Predviden čas dostave" placeholder="Predviden čas (min)" value={zoneForm.estimatedMinutes} onValueChange={n => onSetZoneForm(p => ({ ...p, estimatedMinutes: String(n) }))} />
               <select value={zoneForm.locationId} onChange={e => onSetZoneForm(p => ({ ...p, locationId: e.target.value }))} className="col-span-2 px-3 py-2 rounded-lg border bg-background text-sm">
                 <option value="">Vse lokacije</option>
                 {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name} ({loc.code})</option>)}

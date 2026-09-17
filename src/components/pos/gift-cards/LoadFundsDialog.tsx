@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { Textarea } from '@/components/ui/textarea'
@@ -72,14 +72,11 @@ export const LoadFundsDialog = memo(function LoadFundsDialog({
 
             <div className="space-y-1.5">
               <Label htmlFor="gc-load-amount" className="text-sm font-semibold">Znesek (€) *</Label>
-              <Input
+              <DecimalInput
                 id="gc-load-amount"
-                type="number"
-                step="0.01"
-                min="0.01"
                 placeholder="0.00"
                 value={form.amount}
-                onChange={(e) => onFormChange({ ...form, amount: e.target.value })}
+                onValueChange={(n) => onFormChange({ ...form, amount: String(n) })}
                 autoFocus
               />
             </div>

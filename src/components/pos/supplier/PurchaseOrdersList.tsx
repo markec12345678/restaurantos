@@ -8,10 +8,10 @@ import { memo, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Truck, FileText, Calendar, Clock, Package, Send, CheckCircle2, Eye } from 'lucide-react'
-import { safeToFixed, safeNum } from '@/lib/safe-format'
+import { Truck, FileText, Calendar, Clock, Package, Send, CheckCircle2 } from 'lucide-react'
+import { safeToFixed } from '@/lib/safe-format'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import type { PurchaseOrderType, PurchaseOrderItemType } from './constants'
@@ -141,12 +141,9 @@ const ReceiveDialog = memo(function ReceiveDialog({
                   </p>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
-                  <Input
-                    type="number"
-                    min="0"
-                    max={Number(item.quantityOrdered) - Number(item.quantityReceived || 0)}
+                  <DecimalInput
                     value={receivedQtys[item.id] ?? 0}
-                    onChange={e => setReceivedQtys(prev => ({ ...prev, [item.id]: parseFloat(e.target.value) || 0 }))}
+                    onValueChange={n => setReceivedQtys(prev => ({ ...prev, [item.id]: n }))}
                     className="w-20 h-8 text-xs"
                     aria-label={`Prejeto količina za ${item.description}`}
                   />

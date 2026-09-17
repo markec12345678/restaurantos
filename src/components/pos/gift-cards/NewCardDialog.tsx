@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { DecimalInput } from '@/components/ui/decimal-input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Plus, Gift, RefreshCw } from 'lucide-react'
@@ -87,14 +88,11 @@ export const NewCardDialog = memo(function NewCardDialog({
 
           <div className="space-y-1.5">
             <Label htmlFor="gc-initial-balance" className="text-sm font-semibold">Začetno stanje (€) *</Label>
-            <Input
+            <DecimalInput
               id="gc-initial-balance"
-              type="number"
-              step="0.01"
-              min="0.01"
               placeholder="0.00"
               value={form.initialBalance}
-              onChange={(e) => onFormChange({ ...form, initialBalance: e.target.value })}
+              onValueChange={(n) => onFormChange({ ...form, initialBalance: String(n) })}
             />
           </div>
 
