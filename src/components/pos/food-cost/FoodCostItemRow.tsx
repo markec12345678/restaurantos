@@ -22,7 +22,7 @@ export const FoodCostItemRow = memo(function FoodCostItemRow({
   return (
     <div className="border-b">
       <div
-        className="p-3 flex items-center gap-3 cursor-pointer hover:bg-gray-50"
+        className="p-3 flex items-center gap-3 cursor-pointer hover:bg-muted"
         role="button"
         tabIndex={0}
         onClick={onToggleExpand}
@@ -33,7 +33,7 @@ export const FoodCostItemRow = memo(function FoodCostItemRow({
         </span>
         <div className="flex-1 min-w-0">
           <p className="font-medium text-sm truncate">{item.name}</p>
-          <p className="text-[10px] text-gray-500">{item.category} • {item.salesCategory}</p>
+          <p className="text-[10px] text-muted-foreground">{item.category} • {item.salesCategory}</p>
         </div>
         <div className="text-right">
           <p className={`text-sm font-bold ${
@@ -41,7 +41,7 @@ export const FoodCostItemRow = memo(function FoodCostItemRow({
           }`}>
             {item.hasRecipe ? `${item.foodCostPercent}%` : '—'}
           </p>
-          <p className="text-[10px] text-gray-500">food cost</p>
+          <p className="text-[10px] text-muted-foreground">food cost</p>
         </div>
         <div className="text-right w-20">
           <p className="text-sm font-medium">{formatEUR(item.sellingPriceInclVat)}</p>
@@ -49,7 +49,7 @@ export const FoodCostItemRow = memo(function FoodCostItemRow({
             <p className="text-[10px] text-red-500">Predlagano: {formatEUR(item.suggestedPrice)}</p>
           )}
         </div>
-        <svg className={`w-4 h-4 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className={`w-4 h-4 text-muted-foreground transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </div>

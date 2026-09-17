@@ -18,7 +18,7 @@ export const WaitlistEntryCard = memo(function WaitlistEntryCard({
   return (
     <div
       className={`p-3 border-b transition ${
-        isNotified ? 'bg-blue-50' : isOverQuoted ? 'bg-red-50' : 'bg-white'
+        isNotified ? 'bg-blue-50' : isOverQuoted ? 'bg-red-50' : 'bg-card'
       }`}
     >
       <div className="flex items-start gap-3">
@@ -33,7 +33,7 @@ export const WaitlistEntryCard = memo(function WaitlistEntryCard({
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <span className="font-semibold text-sm">{entry.guestName}</span>
-            <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-[10px]">
+            <span className="bg-muted text-muted-foreground px-1.5 py-0.5 rounded text-[10px]">
               {entry.partySize} oseb
             </span>
             {isNotified && (
@@ -51,13 +51,13 @@ export const WaitlistEntryCard = memo(function WaitlistEntryCard({
           </div>
 
           {entry.preferredArea && (
-            <span className="text-[10px] text-gray-500">{entry.preferredArea}</span>
+            <span className="text-[10px] text-muted-foreground">{entry.preferredArea}</span>
           )}
           {entry.specialNeeds && (
             <span className="text-[10px] text-purple-600 ml-2">{entry.specialNeeds}</span>
           )}
           {entry.notes && (
-            <p className="text-[10px] text-gray-500 mt-0.5">{entry.notes}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">{entry.notes}</p>
           )}
         </div>
 

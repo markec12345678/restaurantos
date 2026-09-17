@@ -26,21 +26,21 @@ export const FoodCostFilterBar = memo(function FoodCostFilterBar({
 }: FoodCostFilterBarProps) {
   return (
     <div className="flex items-center gap-2 p-3 border-b flex-wrap">
-      <span className="text-xs text-gray-500">Filter:</span>
+      <span className="text-xs text-muted-foreground">Filter:</span>
       {FILTER_OPTIONS.map(f => (
         <button
           key={f.key}
           onClick={() => setFilter(f.key)}
           className={`text-xs px-2 py-1 rounded-full transition ${
             filter === f.key
-              ? 'bg-gray-800 text-white'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              ? 'bg-primary text-primary-foreground'
+              : 'bg-muted text-muted-foreground hover:bg-accent'
           }`}
         >
           {f.label}
         </button>
       ))}
-      <span className="text-xs text-gray-500 ml-2">|</span>
+      <span className="text-xs text-muted-foreground ml-2">|</span>
       <select
         value={sortBy}
         onChange={e => setSortBy(e.target.value)}
@@ -53,7 +53,7 @@ export const FoodCostFilterBar = memo(function FoodCostFilterBar({
         <option value="marginAsc">Marža ↑</option>
         <option value="name">Po imenu</option>
       </select>
-      <span className="text-xs text-gray-500 ml-auto">
+      <span className="text-xs text-muted-foreground ml-auto">
         {filteredCount} od {totalCount} artiklov
       </span>
     </div>

@@ -27,7 +27,7 @@ export const GuestList = memo(function GuestList({
         <div
           key={guest.id}
           onClick={() => onSelectGuest(guest.id)}
-          className={`p-3 border-b cursor-pointer hover:bg-gray-50 transition ${
+          className={`p-3 border-b cursor-pointer hover:bg-muted transition ${
             selectedGuestId === guest.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
           }`}
           role="button"
@@ -36,7 +36,7 @@ export const GuestList = memo(function GuestList({
         >
           <div className="flex items-center gap-2">
             <div className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-bold ${
-              guest.isVip ? 'bg-amber-500' : 'bg-gray-400'
+              guest.isVip ? 'bg-amber-500' : 'bg-muted-foreground'
             }`}>
               {guest.isVip ? '👑' : (guest.firstName?.[0] || '') + (guest.lastName?.[0] || '')}
             </div>
@@ -47,12 +47,12 @@ export const GuestList = memo(function GuestList({
                 </span>
                 {guest.isVip && <span className="text-amber-500 text-xs">VIP</span>}
               </div>
-              <div className="text-xs text-gray-500">
+              <div className="text-xs text-muted-foreground">
                 {guest.totalVisits} obiskov • {formatEUR(guest.totalSpent)} skupaj
               </div>
             </div>
             {guest.lastVisitAt && (
-              <span className="text-[10px] text-gray-500">
+              <span className="text-[10px] text-muted-foreground">
                 {new Date(guest.lastVisitAt).toLocaleDateString('sl-SI')}
               </span>
             )}
@@ -69,7 +69,7 @@ export const GuestList = memo(function GuestList({
         </div>
       ))}
       {guests.length === 0 && (
-        <div className="p-8 text-center text-gray-500">
+        <div className="p-8 text-center text-muted-foreground">
           <p className="text-3xl mb-2">👥</p>
           <p>Ni gostov. Dodajte prvega!</p>
         </div>

@@ -316,3 +316,80 @@ export async function createScheduledEmailLog(
     }
   }
 }
+
+// ============================================
+// TEST EMAIL — realni SMTP test iz admin nastavitev
+// ============================================
+// FIX Task 21: EmailTab je prej imel lažni test (samo setTimeout + "uspeh").
+// Ta funkcija naredi REALNO pošiljanje prek SMTP, da admin preveri konfiguracijo.
+//
+// Namerna razlika od sendEmail(): NE preverja emailEnabled flaga — admin želi
+// testirati SMTP konfiguracijo PREDEN jo omogoči. Zahteva pa vseeno host+user.
+// ============================================
+
+export interface TestEmailResult {
+  success: boolean
+  to: string
+  from?: string
+  host?: string
+  error?: string
+}
+
+/** Zgradi HTML vsebino testnega emaila (email-safe, inline stili). */
+export function buildTestEmailHtml(timestamp: string): string {
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return `<!DOCTYPE html>
+<html lang="sl">
+<body style="margin:0;padding:24px;background:#f6f7f8;font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:#1c2430;">
+  <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #e4e6e8;border-radius:8px;padding:24px;">
+    <h1 style="font-size:18px;margin:0 0 8px;color:#0f766e;">✓ Testni email — RestaurantOS</h1>
+    <p style="margin:0 0 12px;font-size:14px;">Če to sporočilo vidite, je vaša SMTP konfiguracija pravilna in email poročila (Z-report, dnevni povzetek) bodo prihajala na nastavljene naslove.</p>
+    <p style="margin:0;font-size:13px;color:#6b7480;">Poslano: ${esc(timestamp)}<br/>RestaurantOS — avtomatsko generirano sporočilo</p>
+  </div>
+</body>
+</html>`
+}
+
+/**
+ * Pošlji testni email prek shranjenih SMTP nastavitev.
+ *
+ * Namerno NE preverja emailEnabled (admin testira pred omogočitvijo),
+ * ampak zahteva emailSmtpHost + emailSmtpUser. Non-throwing.
+ */
+export async function sendTestEmail(to: string): Promise<TestEmailResult> {
+  const base: TestEmailResult = { success: false, to }
+  try {
+    const settings = await db.restaurantSettings.findFirst()
+    if (!settings) return { ...base, error: 'Nastavitve restavracije ne obstajajo' }
+    if (!settings.emailSmtpHost || !settings.emailSmtpUser) {
+      return { ...base, error: 'SMTP host ali uporabniško ime ni nastavljen — izpolni Email zavihek' }
+    }
+
+    const from = settings.emailFromAddress || settings.email || 'noreply@restaurant.com'
+    const transporter = createTransport({
+      host: settings.emailSmtpHost,
+      port: settings.emailSmtpPort,
+      secure: settings.emailSmtpPort === 465,
+      auth: {
+        user: settings.emailSmtpUser,
+        pass: ensureDecrypted(settings.emailSmtpPassword || ''),
+      },
+    })
+
+    const now = new Date().toLocaleString('sl-SI', { timeZone: 'Europe/Ljubljana' })
+    await transporter.sendMail({
+      from,
+      to,
+      subject: `Testni email — RestaurantOS (${now})`,
+      text: `Testni email — RestaurantOS\n\nPoslano: ${now}\n\nČe to sporočilo vidite, je SMTP konfiguracija pravilna.\n`,
+      html: buildTestEmailHtml(now),
+    })
+
+    logger.info('EMAIL', `Testni email uspešno poslan na ${to} (host=${settings.emailSmtpHost})`)
+    return { success: true, to, from, host: settings.emailSmtpHost }
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : 'Neznana napaka'
+    logger.error('EMAIL', `Testni email NA ${to} NI uspel:`, msg)
+    return { ...base, error: msg }
+  }
+}

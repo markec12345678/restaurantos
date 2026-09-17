@@ -31,7 +31,7 @@ export const WaitlistFormDialog = memo(function WaitlistFormDialog({
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <label htmlFor="waitlist-guest-name" className="text-xs font-medium text-gray-500">Ime gosta *</label>
+            <label htmlFor="waitlist-guest-name" className="text-xs font-medium text-muted-foreground">Ime gosta *</label>
             <Input
               id="waitlist-guest-name"
               value={(form.guestName as string) || ''}
@@ -43,7 +43,7 @@ export const WaitlistFormDialog = memo(function WaitlistFormDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="waitlist-party-size" className="text-xs font-medium text-gray-500">Št. oseb *</label>
+              <label htmlFor="waitlist-party-size" className="text-xs font-medium text-muted-foreground">Št. oseb *</label>
               <DecimalInput
                 id="waitlist-party-size"
                 value={(form.partySize as number) || 2}
@@ -52,7 +52,7 @@ export const WaitlistFormDialog = memo(function WaitlistFormDialog({
               />
             </div>
             <div>
-              <label htmlFor="waitlist-wait-time" className="text-xs font-medium text-gray-500">Obljubljen čakalni čas (min)</label>
+              <label htmlFor="waitlist-wait-time" className="text-xs font-medium text-muted-foreground">Obljubljen čakalni čas (min)</label>
               <DecimalInput
                 id="waitlist-wait-time"
                 value={(form.quotedWaitMinutes as number) || 15}
@@ -62,7 +62,7 @@ export const WaitlistFormDialog = memo(function WaitlistFormDialog({
             </div>
           </div>
           <div>
-            <label htmlFor="waitlist-phone" className="text-xs font-medium text-gray-500">Telefon</label>
+            <label htmlFor="waitlist-phone" className="text-xs font-medium text-muted-foreground">Telefon</label>
             <Input
               id="waitlist-phone"
               value={(form.guestPhone as string) || ''}
@@ -72,7 +72,7 @@ export const WaitlistFormDialog = memo(function WaitlistFormDialog({
             />
           </div>
           <div>
-            <label htmlFor="waitlist-area" className="text-xs font-medium text-gray-500">Preferirano območje</label>
+            <label htmlFor="waitlist-area" className="text-xs font-medium text-muted-foreground">Preferirano območje</label>
             <select
               id="waitlist-area"
               value={(form.preferredArea as string) || ''}
@@ -85,7 +85,7 @@ export const WaitlistFormDialog = memo(function WaitlistFormDialog({
             </select>
           </div>
           <div>
-            <label htmlFor="waitlist-special" className="text-xs font-medium text-gray-500">Posebne potrebe</label>
+            <label htmlFor="waitlist-special" className="text-xs font-medium text-muted-foreground">Posebne potrebe</label>
             <Input
               id="waitlist-special"
               value={(form.specialNeeds as string) || ''}
@@ -95,7 +95,7 @@ export const WaitlistFormDialog = memo(function WaitlistFormDialog({
             />
           </div>
           <div>
-            <label htmlFor="waitlist-notes" className="text-xs font-medium text-gray-500">Opombe</label>
+            <label htmlFor="waitlist-notes" className="text-xs font-medium text-muted-foreground">Opombe</label>
             <Input
               id="waitlist-notes"
               value={(form.notes as string) || ''}

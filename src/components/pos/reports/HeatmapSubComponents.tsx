@@ -9,7 +9,7 @@ interface HeatmapGridProps {
 }
 
 const getIntensityColor = (intensity: number) => {
-  if (intensity === 0) return 'bg-gray-100 dark:bg-gray-800'
+  if (intensity === 0) return 'bg-muted'
   if (intensity < 20) return 'bg-blue-200 dark:bg-blue-900/40'
   if (intensity < 40) return 'bg-green-200 dark:bg-green-900/40'
   if (intensity < 60) return 'bg-yellow-200 dark:bg-yellow-900/40'
@@ -18,9 +18,9 @@ const getIntensityColor = (intensity: number) => {
 }
 
 const getIntensityText = (intensity: number) => {
-  if (intensity === 0) return 'text-gray-500'
-  if (intensity < 40) return 'text-gray-700 dark:text-gray-300'
-  if (intensity < 70) return 'text-gray-800 dark:text-gray-200'
+  if (intensity === 0) return 'text-muted-foreground'
+  if (intensity < 40) return 'text-foreground/90'
+  if (intensity < 70) return 'text-foreground'
   return 'text-white dark:text-white'
 }
 
@@ -43,7 +43,7 @@ export const HeatmapGrid = memo(function HeatmapGrid({ heatmap, fmt }: HeatmapGr
         <div className="flex items-center gap-3 mt-4 text-xs text-muted-foreground">
           <span>Nizka</span>
           <div className="flex gap-1">
-            <div className="w-4 h-4 rounded bg-gray-100 dark:bg-gray-800" />
+            <div className="w-4 h-4 rounded bg-muted" />
             <div className="w-4 h-4 rounded bg-blue-200 dark:bg-blue-900/40" />
             <div className="w-4 h-4 rounded bg-green-200 dark:bg-green-900/40" />
             <div className="w-4 h-4 rounded bg-yellow-200 dark:bg-yellow-900/40" />

@@ -20,7 +20,7 @@ export const GuestFormFields = memo(function GuestFormFields({
     <>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label htmlFor="guest-firstName" className="text-xs font-medium text-gray-500">Ime</label>
+          <label htmlFor="guest-firstName" className="text-xs font-medium text-muted-foreground">Ime</label>
           <input
             id="guest-firstName"
             value={form.firstName || ''}
@@ -30,7 +30,7 @@ export const GuestFormFields = memo(function GuestFormFields({
           />
         </div>
         <div>
-          <label htmlFor="guest-lastName" className="text-xs font-medium text-gray-500">Priimek *</label>
+          <label htmlFor="guest-lastName" className="text-xs font-medium text-muted-foreground">Priimek *</label>
           <input
             id="guest-lastName"
             value={form.lastName || ''}
@@ -42,7 +42,7 @@ export const GuestFormFields = memo(function GuestFormFields({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label htmlFor="guest-phone" className="text-xs font-medium text-gray-500">Telefon</label>
+          <label htmlFor="guest-phone" className="text-xs font-medium text-muted-foreground">Telefon</label>
           <input
             id="guest-phone"
             value={form.phone || ''}
@@ -52,7 +52,7 @@ export const GuestFormFields = memo(function GuestFormFields({
           />
         </div>
         <div>
-          <label htmlFor="guest-email" className="text-xs font-medium text-gray-500">Email</label>
+          <label htmlFor="guest-email" className="text-xs font-medium text-muted-foreground">Email</label>
           <input
             id="guest-email"
             value={form.email || ''}
@@ -63,7 +63,7 @@ export const GuestFormFields = memo(function GuestFormFields({
         </div>
       </div>
       <div>
-        <label htmlFor="guest-company" className="text-xs font-medium text-gray-500">Podjetje</label>
+        <label htmlFor="guest-company" className="text-xs font-medium text-muted-foreground">Podjetje</label>
         <input
           id="guest-company"
           value={form.company || ''}
@@ -73,7 +73,7 @@ export const GuestFormFields = memo(function GuestFormFields({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label htmlFor="guest-birthday" className="text-xs font-medium text-gray-500">Rojstni dan</label>
+          <label htmlFor="guest-birthday" className="text-xs font-medium text-muted-foreground">Rojstni dan</label>
           <input
             id="guest-birthday"
             type="date"
@@ -83,7 +83,7 @@ export const GuestFormFields = memo(function GuestFormFields({
           />
         </div>
         <div>
-          <label htmlFor="guest-anniversary" className="text-xs font-medium text-gray-500">Obletnica</label>
+          <label htmlFor="guest-anniversary" className="text-xs font-medium text-muted-foreground">Obletnica</label>
           <input
             id="guest-anniversary"
             type="date"

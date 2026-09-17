@@ -23,20 +23,20 @@ export const FoodCostExpandedDetail = memo(function FoodCostExpandedDetail({ ite
   return (
     <div className="px-3 pb-3 ml-8">
       <div className="grid grid-cols-4 gap-2 mb-3">
-        <div className="bg-gray-50 rounded p-2 text-center">
-          <p className="text-xs text-gray-500">Prodajna cena</p>
+        <div className="bg-muted/50 rounded p-2 text-center">
+          <p className="text-xs text-muted-foreground">Prodajna cena</p>
           <p className="font-bold text-sm">{formatEUR(item.sellingPriceInclVat)}</p>
         </div>
         <div className="bg-red-50 rounded p-2 text-center">
-          <p className="text-xs text-gray-500">Strošek sestavin</p>
+          <p className="text-xs text-muted-foreground">Strošek sestavin</p>
           <p className="font-bold text-sm text-red-600">{formatEUR(item.totalIngredientCost)}</p>
         </div>
         <div className="bg-green-50 rounded p-2 text-center">
-          <p className="text-xs text-gray-500">Bruto dobiček</p>
+          <p className="text-xs text-muted-foreground">Bruto dobiček</p>
           <p className="font-bold text-sm text-green-600">{formatEUR(item.grossProfit)}</p>
         </div>
         <div className="bg-blue-50 rounded p-2 text-center">
-          <p className="text-xs text-gray-500">Bruto marža</p>
+          <p className="text-xs text-muted-foreground">Bruto marža</p>
           <p className="font-bold text-sm text-blue-600">{item.grossMarginPercent}%</p>
         </div>
       </div>
@@ -45,7 +45,7 @@ export const FoodCostExpandedDetail = memo(function FoodCostExpandedDetail({ ite
       </div>
       <table className="w-full text-xs">
         <thead>
-          <tr className="text-gray-500 border-b">
+          <tr className="text-muted-foreground border-b">
             <th className="text-left py-1">Sestavina</th>
             <th className="text-right py-1">Količina</th>
             <th className="text-right py-1">Cena/enoto</th>
@@ -55,13 +55,13 @@ export const FoodCostExpandedDetail = memo(function FoodCostExpandedDetail({ ite
         </thead>
         <tbody>
           {item.ingredients.map((ing, i) => (
-            <tr key={i} className="border-b border-gray-100">
+            <tr key={i} className="border-b border">
               <td className="py-1">{ing.name}</td>
               <td className="text-right">{ing.quantity} {ing.unit}</td>
               <td className="text-right">{formatEUR(ing.costPerUnit || 0)}</td>
               <td className="text-right font-medium">{formatEUR(ing.totalCost)}</td>
               <td className="text-right">
-                <span className={(ing.stockLevel as number) <= 5 ? 'text-red-500' : 'text-gray-500'}>
+                <span className={(ing.stockLevel as number) <= 5 ? 'text-red-500' : 'text-muted-foreground'}>
                   {(ing.stockLevel as number)} {(ing.stockUnit as string)}
                 </span>
               </td>

@@ -43,7 +43,7 @@ export const EmployeeList = memo(function EmployeeList({
                         <div className="flex items-center gap-2">
                           <p className="font-bold">{emp.employeeName}</p>
                           {idx === 0 && <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 text-[10px]"><Trophy className="h-3 w-3 mr-0.5" />#1</Badge>}
-                          {idx === 1 && <Badge className="bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400 text-[10px]">#2</Badge>}
+                          {idx === 1 && <Badge className="bg-muted text-foreground/90 text-[10px]">#2</Badge>}
                           {idx === 2 && <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 text-[10px]">#3</Badge>}
                         </div>
                         <p className="text-xs text-muted-foreground">
@@ -67,31 +67,31 @@ export const EmployeeList = memo(function EmployeeList({
 
                   {/* KPI mreža */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-                    <div className="text-center p-2 rounded-lg bg-white/50 dark:bg-black/20">
+                    <div className="text-center p-2 rounded-lg bg-card/50">
                       <p className="text-[10px] text-muted-foreground">Prihodek</p>
                       <p className="text-sm font-bold">{formatEUR(emp.totalRevenue)}</p>
                     </div>
-                    <div className="text-center p-2 rounded-lg bg-white/50 dark:bg-black/20">
+                    <div className="text-center p-2 rounded-lg bg-card/50">
                       <p className="text-[10px] text-muted-foreground">Napitnine</p>
                       <p className="text-sm font-bold text-amber-600">{formatEUR(emp.totalTips)}</p>
                     </div>
-                    <div className="text-center p-2 rounded-lg bg-white/50 dark:bg-black/20">
+                    <div className="text-center p-2 rounded-lg bg-card/50">
                       <p className="text-[10px] text-muted-foreground">Naročila</p>
                       <p className="text-sm font-bold">{emp.totalOrders}</p>
                     </div>
-                    <div className="text-center p-2 rounded-lg bg-white/50 dark:bg-black/20">
+                    <div className="text-center p-2 rounded-lg bg-card/50">
                       <p className="text-[10px] text-muted-foreground">Povpr. naročilo</p>
                       <p className="text-sm font-bold">{formatEUR(emp.avgOrderValue)}</p>
                     </div>
-                    <div className="text-center p-2 rounded-lg bg-white/50 dark:bg-black/20">
+                    <div className="text-center p-2 rounded-lg bg-card/50">
                       <p className="text-[10px] text-muted-foreground">Čas strežbe</p>
                       <p className="text-sm font-bold">{emp.avgServiceTime > 0 ? `${safeToFixed(emp.avgServiceTime, 0)} min` : '-'}</p>
                     </div>
-                    <div className="text-center p-2 rounded-lg bg-white/50 dark:bg-black/20">
+                    <div className="text-center p-2 rounded-lg bg-card/50">
                       <p className="text-[10px] text-muted-foreground">Prih./uro</p>
                       <p className="text-sm font-bold">{formatEUR(emp.revenuePerHour)}</p>
                     </div>
-                    <div className="text-center p-2 rounded-lg bg-white/50 dark:bg-black/20">
+                    <div className="text-center p-2 rounded-lg bg-card/50">
                       <p className="text-[10px] text-muted-foreground">Upsell</p>
                       <p className={`text-sm font-bold ${emp.upsellRate >= 20 ? 'text-emerald-600' : emp.upsellRate >= 10 ? 'text-amber-600' : 'text-muted-foreground'}`}>
                         {safeToFixed(emp.upsellRate, 0)}%

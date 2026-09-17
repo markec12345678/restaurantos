@@ -1,11 +1,15 @@
 'use client'
 
 import { memo } from 'react'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { CheckCircle2 } from 'lucide-react'
 import type { OrderKDS } from './types'
 import { OrderCard } from './OrderCard'
 
 // ─── Mrežni/seznamski pogled naročil ──────────────────────────
+// Task 21: AnimatePresence exit animacija — ko kuhar bumpa naročilo,
+// kartica gladko "izstopi" (opacity + scale) namesto trdega izginotja.
+// useReducedMotion (WCAG 2.3.3): izklop animacij.
 
 interface KDSOrderGridProps {
   isLoading: boolean
@@ -16,6 +20,14 @@ interface KDSOrderGridProps {
   getElapsed: (_d: string | null) => number
 }
 
+const exitAnim = (reduceMotion: boolean | null) =>
+  reduceMotion ? { duration: 0 } : {
+    initial: { opacity: 0, scale: 0.96, y: 8 },
+    animate: { opacity: 1, scale: 1, y: 0 },
+    exit: { opacity: 0, scale: 0.9, transition: { duration: 0.18, ease: 'easeOut' as const } },
+    transition: { type: 'spring' as const, stiffness: 260, damping: 26 },
+  }
+
 export const KDSOrderGrid = memo(function KDSOrderGrid({
   isLoading,
   orders,
@@ -24,6 +36,7 @@ export const KDSOrderGrid = memo(function KDSOrderGrid({
   onBumpItem,
   getElapsed,
 }: KDSOrderGridProps) {
+  const reduceMotion = useReducedMotion()
   // Razvrsti: prednostna naročila prva, nato po firedAt
   const sortedOrders = [...orders].sort((a, b) => {
     if (a.priority && !b.priority) return -1
@@ -53,21 +66,27 @@ export const KDSOrderGrid = memo(function KDSOrderGrid({
     )
   }
 
+  const card = (order: OrderKDS) => (
+    <motion.div key={order.id} {...exitAnim(reduceMotion)} className={viewMode === 'list' ? 'w-full' : undefined}>
+      <OrderCard order={order} onBump={onBump} onBumpItem={onBumpItem} getElapsed={getElapsed} />
+    </motion.div>
+  )
+
   if (viewMode === 'grid') {
     return (
-      <div className="p-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 overflow-y-auto h-full custom-scrollbar">
-        {sortedOrders.map(order => (
-          <OrderCard key={order.id} order={order} onBump={onBump} onBumpItem={onBumpItem} getElapsed={getElapsed} />
-        ))}
-      </div>
+      <AnimatePresence mode="popLayout">
+        <div className="p-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 overflow-y-auto h-full custom-scrollbar">
+          {sortedOrders.map(card)}
+        </div>
+      </AnimatePresence>
     )
   }
 
   return (
-    <div className="p-3 space-y-2 overflow-y-auto h-full custom-scrollbar">
-      {sortedOrders.map(order => (
-        <OrderCard key={order.id} order={order} onBump={onBump} onBumpItem={onBumpItem} getElapsed={getElapsed} />
-      ))}
-    </div>
+    <AnimatePresence mode="popLayout">
+      <div className="p-3 space-y-2 overflow-y-auto h-full custom-scrollbar">
+        {sortedOrders.map(card)}
+      </div>
+    </AnimatePresence>
   )
 })

@@ -60,7 +60,7 @@ export const NewFeedbackDialog = memo(function NewFeedbackDialog({
                         <Star className={`h-6 w-6 transition-colors ${
                           n <= currentRating
                             ? 'text-amber-400 fill-amber-400'
-                            : 'text-gray-500 hover:text-amber-300'
+                            : 'text-muted-foreground hover:text-amber-300'
                         }`} />
                       </button>
                     )
@@ -76,7 +76,7 @@ export const NewFeedbackDialog = memo(function NewFeedbackDialog({
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition border ${
                 newFeedback.wouldReturn
                   ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                  : 'bg-gray-100 text-gray-500 border-gray-200'
+                  : 'bg-muted text-muted-foreground'
               }`}
               aria-label={newFeedback.wouldReturn ? 'Oznaci: ne bi se vrnil' : 'Oznaci: vrnil se bi'}
             >
@@ -88,7 +88,7 @@ export const NewFeedbackDialog = memo(function NewFeedbackDialog({
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition border ${
                 newFeedback.wouldRecommend
                   ? 'bg-blue-100 text-blue-700 border-blue-300'
-                  : 'bg-gray-100 text-gray-500 border-gray-200'
+                  : 'bg-muted text-muted-foreground'
               }`}
               aria-label={newFeedback.wouldRecommend ? 'Oznaci: ne priporoca' : 'Oznaci: priporoca'}
             >
@@ -112,7 +112,7 @@ export const NewFeedbackDialog = memo(function NewFeedbackDialog({
                     className={`px-2 py-1 rounded text-[10px] font-medium transition border ${
                       isSelected
                         ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                        : 'bg-card text-muted-foreground hover:bg-muted'
                     }`}
                     aria-label={isSelected ? `Odstrani oznako ${tag}` : `Dodaj oznako ${tag}`}
                   >

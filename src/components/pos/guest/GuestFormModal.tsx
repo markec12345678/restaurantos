@@ -41,17 +41,17 @@ export const GuestFormModal = memo(function GuestFormModal({
 
   return (
     <div role="dialog" aria-modal="true" aria-label="Nov gost" className="fixed inset-0 z-40 bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-card rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
         <div className="p-4 border-b flex items-center justify-between">
           <h3 className="font-bold text-lg">Nov gost</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-xl" aria-label="Zapri">×</button>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground text-xl" aria-label="Zapri">×</button>
         </div>
         <div className="p-4 space-y-3">
           <GuestFormFields form={form} onFormChange={onFormChange} />
           <AllergenSelector form={form} onFormChange={onFormChange} />
           <DietaryPrefsSelector form={form} onFormChange={onFormChange} />
           <div>
-            <label htmlFor="guest-notes" className="text-xs font-medium text-gray-500">Opombe</label>
+            <label htmlFor="guest-notes" className="text-xs font-medium text-muted-foreground">Opombe</label>
             <textarea
               id="guest-notes"
               value={form.notes || ''}
@@ -75,7 +75,7 @@ export const GuestFormModal = memo(function GuestFormModal({
         <div className="p-4 border-t flex gap-2 justify-end">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+            className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
           >
             Prekliči
           </button>

@@ -14,7 +14,7 @@ export function useKDSPage() {
   const [stationFilter, setStationFilter] = useState<string>('all')
   const [_showRecall, setShowRecall] = useState(false)
   const [bumpedOrders, setBumpedOrders] = useState<string[]>([])
-  const { play: playSound, toggle: toggleSound, isEnabled: isSoundEnabled } = useKDSSound()
+  const { play: playSound, playBump, toggle: toggleSound, isEnabled: isSoundEnabled } = useKDSSound()
 
   const session = useKDSSession()
   const { wsConnected } = useKDSWebSocket(session.employee, playSound)
@@ -24,6 +24,18 @@ export function useKDSPage() {
     setBumpedOrders([])
     setShowRecall(false)
   }, [])
+
+  // Task 21: bump confirmation — ločen zvok od prihodnega pinga (kuhar sliši razliko)
+  const { handleBump: bumpOrder, handleBumpItem: bumpOrderItem } = orders
+  const handleBump = useCallback((orderId: string) => {
+    playBump()
+    bumpOrder(orderId)
+  }, [bumpOrder, playBump])
+
+  const handleBumpItem = useCallback((orderId: string, itemId: string) => {
+    playBump()
+    bumpOrderItem(orderId, itemId)
+  }, [bumpOrderItem, playBump])
 
   return {
     employee: session.employee, setEmployee: session.setEmployee,
@@ -38,7 +50,7 @@ export function useKDSPage() {
     filteredOrders: orders.filteredOrders,
     getElapsed: session.getElapsed,
     bumpedOrders,
-    handleBump: orders.handleBump, handleBumpItem: orders.handleBumpItem, handleRecall,
+    handleBump, handleBumpItem, handleRecall,
     refetch: orders.refetch,
     toggleFullscreen: session.toggleFullscreen,
   }

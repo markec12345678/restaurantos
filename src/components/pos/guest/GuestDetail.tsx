@@ -23,12 +23,12 @@ export const GuestDetail = memo(function GuestDetail({
     <div className="w-2/3 overflow-y-auto p-4">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="text-gray-500 hover:text-gray-600">← Nazaj</button>
+          <button onClick={onBack} className="text-muted-foreground hover:text-foreground">← Nazaj</button>
           <h3 className="text-lg font-bold">{guest.firstName} {guest.lastName}</h3>
           <button
             onClick={() => onToggleVip(guest.id, guest.isVip)}
             className={`px-2 py-1 rounded text-xs font-medium ${
-              guest.isVip ? 'bg-amber-500 text-white' : 'bg-gray-100 text-gray-500'
+              guest.isVip ? 'bg-amber-500 text-white' : 'bg-muted text-muted-foreground'
             }`}
           >
             {guest.isVip ? '👑 VIP' : 'Označi VIP'}
@@ -60,14 +60,14 @@ export const GuestDetail = memo(function GuestDetail({
 
       {/* Informacijska mreža */}
       <div className="grid grid-cols-2 gap-4 mb-4">
-        <div className="bg-white border rounded-lg p-3">
-          <h4 className="text-xs font-semibold text-gray-500 mb-2">KONTAKT</h4>
+        <div className="bg-card border rounded-lg p-3">
+          <h4 className="text-xs font-semibold text-muted-foreground mb-2">KONTAKT</h4>
           <p className="text-sm">📧 {guest.email || '-'}</p>
           <p className="text-sm">📱 {guest.phone || '-'}</p>
           <p className="text-sm">🏢 {guest.company || '-'}</p>
         </div>
-        <div className="bg-white border rounded-lg p-3">
-          <h4 className="text-xs font-semibold text-gray-500 mb-2">DATUMI</h4>
+        <div className="bg-card border rounded-lg p-3">
+          <h4 className="text-xs font-semibold text-muted-foreground mb-2">DATUMI</h4>
           <p className="text-sm">🎂 {guest.birthday ? new Date(guest.birthday).toLocaleDateString('sl-SI') : '-'}</p>
           <p className="text-sm">💍 {guest.anniversary ? new Date(guest.anniversary).toLocaleDateString('sl-SI') : '-'}</p>
           <p className="text-sm">📅 Prvi obisk: {guest.firstVisitAt ? new Date(guest.firstVisitAt).toLocaleDateString('sl-SI') : '-'}</p>
@@ -75,14 +75,14 @@ export const GuestDetail = memo(function GuestDetail({
       </div>
 
       {/* Alergeni in preference */}
-      <div className="bg-white border rounded-lg p-3 mb-4">
-        <h4 className="text-xs font-semibold text-gray-500 mb-2">ALERGENI & PREFERENCE</h4>
+      <div className="bg-card border rounded-lg p-3 mb-4">
+        <h4 className="text-xs font-semibold text-muted-foreground mb-2">ALERGENI & PREFERENCE</h4>
         <div className="flex flex-wrap gap-1.5 mb-2">
           {parseJsonField(guest.allergens).map((a: string) => (
             <span key={a} className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">⚠️ {a}</span>
           ))}
           {parseJsonField(guest.allergens).length === 0 && (
-            <span className="text-xs text-gray-500">Bez alergenov</span>
+            <span className="text-xs text-muted-foreground">Bez alergenov</span>
           )}
         </div>
         <div className="flex flex-wrap gap-1.5 mb-2">
@@ -92,32 +92,32 @@ export const GuestDetail = memo(function GuestDetail({
         </div>
         <div className="flex flex-wrap gap-1.5">
           {parseJsonField(guest.dislikes).map((d: string) => (
-            <span key={d} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded">👎 {d}</span>
+            <span key={d} className="text-xs bg-muted text-muted-foreground px-2 py-1 rounded">👎 {d}</span>
           ))}
         </div>
       </div>
 
       {/* Najljubše jedi */}
-      <div className="bg-white border rounded-lg p-3 mb-4">
-        <h4 className="text-xs font-semibold text-gray-500 mb-2">NAJLJUBŠE JEDI</h4>
+      <div className="bg-card border rounded-lg p-3 mb-4">
+        <h4 className="text-xs font-semibold text-muted-foreground mb-2">NAJLJUBŠE JEDI</h4>
         <div className="flex flex-wrap gap-1.5">
           {parseJsonField(guest.favoriteItems).map((item: string) => (
             <span key={item} className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded">❤️ {item}</span>
           ))}
           {parseJsonField(guest.favoriteItems).length === 0 && (
-            <span className="text-xs text-gray-500">Ni zaznanih preferenc</span>
+            <span className="text-xs text-muted-foreground">Ni zaznanih preferenc</span>
           )}
         </div>
       </div>
 
       {/* Zadnji obiski */}
-      <div className="bg-white border rounded-lg p-3 mb-4">
-        <h4 className="text-xs font-semibold text-gray-500 mb-2">ZADNJI OBISKI</h4>
+      <div className="bg-card border rounded-lg p-3 mb-4">
+        <h4 className="text-xs font-semibold text-muted-foreground mb-2">ZADNJI OBISKI</h4>
         {guest.visits?.slice(0, 5).map((visit, i) => (
           <div key={i} className="flex items-center justify-between py-1.5 border-b last:border-0">
             <div>
               <span className="text-sm">{visit.arrivedAt ? new Date(visit.arrivedAt).toLocaleDateString('sl-SI') : '-'}</span>
-              {visit.employeeName != null && <span className="text-xs text-gray-500 ml-2"> Strežil: {String(visit.employeeName)}</span>}
+              {visit.employeeName != null && <span className="text-xs text-muted-foreground ml-2"> Strežil: {String(visit.employeeName)}</span>}
             </div>
             <div className="text-right">
               <span className="text-sm font-medium">{formatEUR(visit.totalSpent ?? 0)}</span>
@@ -126,7 +126,7 @@ export const GuestDetail = memo(function GuestDetail({
           </div>
         ))}
         {(!guest.visits || guest.visits.length === 0) && (
-          <p className="text-xs text-gray-500">Ni zabeleženih obiskov</p>
+          <p className="text-xs text-muted-foreground">Ni zabeleženih obiskov</p>
         )}
       </div>
 
