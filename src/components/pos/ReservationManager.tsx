@@ -11,11 +11,13 @@ import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import { Calendar, Plus } from 'lucide-react'
 import { useState, useMemo, useCallback, memo } from 'react'
-import { format, addDays } from 'date-fns'
+import { format, addDays, isToday } from 'date-fns'
+import { sl } from 'date-fns/locale'
 import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
 import { statusLabels, type ReservationType, type TableType } from './reservation/constants'
 import { DateNavigation, FilterBar } from './reservation/DateNavigation'
+import { REZERVACIJA_FORMS, GOST_FORMS, slCount } from '@/lib/sl-plural'
 
 // Lazy-loaded podkomponente
 const TimelineView = dynamic(() => import('./reservation/TimelineView').then(m => ({ default: m.TimelineView })), { ssr: false })
@@ -109,6 +111,12 @@ export const ReservationManager = memo(function ReservationManager() {
   const handleEdit = useCallback((r: ReservationType) => { setEditingReservation(r); setDialogOpen(true) }, [])
   const handleStatusChange = useCallback((id: string, status: string) => { statusMutation.mutate({ id, status }) }, [statusMutation])
 
+  // RUNDA 52: podnaslov SLEDI izbranemu dnevu — prej vedno "danes", tudi ko
+  // je uporabnik brskal po drugih dnevih (prikaz ≡ podatki varnost);
+  // sklanjanje prek sl-plural lib (1 rezervacija · 2 rezervaciji · 3
+  // rezervacije · 5+ rezervacij).
+  const dayLabel = isToday(selectedDate) ? 'danes' : format(selectedDate, 'EEE d. MMM', { locale: sl })
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
@@ -116,7 +124,9 @@ export const ReservationManager = memo(function ReservationManager() {
           <h2 className="text-xl font-bold flex items-center gap-2">
             <Calendar className="h-5 w-5 text-primary" /> Rezervacije
           </h2>
-          <p className="text-xs text-muted-foreground">{summary.total || 0} rezervacij · {summary.totalGuests || 0} gostov danes</p>
+          <p className="text-xs text-muted-foreground" aria-live="polite">
+            {slCount(summary.total || 0, REZERVACIJA_FORMS)} · {slCount(summary.totalGuests || 0, GOST_FORMS)} · {dayLabel}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setViewMode(viewMode === 'list' ? 'timeline' : 'list')}>
@@ -135,7 +145,7 @@ export const ReservationManager = memo(function ReservationManager() {
         {isLoading ? (
           <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>
         ) : viewMode === 'timeline' ? (
-          <TimelineView reservations={filteredReservations} tables={tables || []} onEdit={handleEdit} onStatusChange={handleStatusChange} />
+          <TimelineView reservations={filteredReservations} tables={tables || []} onEdit={handleEdit} onStatusChange={handleStatusChange} isToday={isToday(selectedDate)} />
         ) : (
           <ListView reservations={filteredReservations} onEdit={handleEdit} onStatusChange={handleStatusChange} />
         )}

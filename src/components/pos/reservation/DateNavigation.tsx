@@ -59,22 +59,28 @@ export const FilterBar = memo(function FilterBar({
   reservations,
 }: FilterBarProps) {
   return (
-    <div className="flex gap-1 ml-4">
+    // RUNDA 52: vodoravno drsenje na ožjih zaslonih (tablet) — čipi ne
+    // zavijejo v dve vrsti; focus ringi + touch-manipulation na vseh tarčah
+    <div
+      className="flex gap-1 ml-4 overflow-x-auto custom-scrollbar flex-nowrap"
+      role="group"
+      aria-label="Filtri statusov rezervacij"
+    >
       {['all', 'confirmed', 'seated', 'completed', 'cancelled', 'no_show'].map(status => (
         <Button
           key={status}
           variant={filterStatus === status ? 'default' : 'outline'}
           size="sm"
           aria-pressed={filterStatus === status}
-          className="h-7 text-[10px] px-2"
+          className="h-7 text-[10px] px-2 shrink-0 touch-manipulation focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
           onClick={() => onFilterChange(status)}
         >
           {status === 'all' ? 'Vse' : statusLabels[status]}
-          {status !== 'all' && (
-            <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1">
-              {reservations.filter(r => r.status === status).length}
-            </Badge>
-          )}
+          {/* RUNDA 52: "Vse" dobi števec na isto raven kot ostali čipi
+              (prej edini brez — vizualna neskladja) */}
+          <Badge variant="secondary" className="ml-1 text-[9px] h-4 px-1 tabular-nums">
+            {status === 'all' ? reservations.length : reservations.filter(r => r.status === status).length}
+          </Badge>
         </Button>
       ))}
     </div>
