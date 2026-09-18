@@ -75,6 +75,7 @@ export function coerceFieldTypes(filteredData: Record<string, unknown>): Record<
 // ============================================
 
 import { db } from '@/lib/db'
+import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 
 export type RefCheckResult = { ok: true } | { ok: false; error: string }
 
@@ -94,10 +95,13 @@ export async function validateConfigRefs(
     // serviceChargeId → ServiceCharge.locationId
     const scId = refId(filteredData.serviceChargeId)
     if (scId) {
-      const sc = await db.serviceCharge.findFirst({
-        where: { id: scId, locationId },
-        select: { id: true },
-      })
+      // FIX QA runda 39: ServiceCharge tabela v Neonu nima locationId stolpca (P1054) —
+      // most: ponovi brez lokacijskega filtra (scope validacija oslabjena do db push)
+      const sc = await withLocationColumnFallback('config-ref:serviceCharge', (withLoc) =>
+        db.serviceCharge.findFirst({
+          where: withLoc ? { id: scId, locationId } : { id: scId },
+          select: { id: true },
+        }))
       if (!sc) {
         return { ok: false, error: 'Servisna postavka ni na voljo na tej lokaciji (MODEL A: konfiguracija sme referencirati samo zapise iste lokacije)' }
       }
@@ -136,10 +140,11 @@ export async function validateConfigRefs(
         }
         const psId = refId(rule.prepStationId)
         if (psId) {
-          const ps = await db.prepStation.findFirst({
-            where: { id: psId, locationId },
-            select: { id: true },
-          })
+          const ps = await withLocationColumnFallback('config-ref:prepStation', (withLoc) =>
+            db.prepStation.findFirst({
+              where: withLoc ? { id: psId, locationId } : { id: psId },
+              select: { id: true },
+            }))
           if (!ps) {
             return { ok: false, error: 'Postaja priprave iz printRules ni na voljo na tej lokaciji (MODEL A)' }
           }

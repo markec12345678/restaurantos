@@ -6,6 +6,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createDiscountSchema } from '@/lib/validations'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
+import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 import { sessionLocationId, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
@@ -34,15 +35,20 @@ export async function GET(req: Request) {
     // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
     const { limit, offset } = parsePaginationParams(searchParams)
 
-    const [discounts, total] = await Promise.all([
-      db.discount.findMany({
-        where,
-        orderBy: { sortOrder: 'asc' },
-        take: limit,
-        skip: offset,
-      }),
-      db.discount.count({ where }),
-    ])
+    // FIX QA runda 39: Discount tabela v Neonu nima locationId stolpca (P1054) —
+    // most: pri P1054 ponovi brez lokacijskega filtra (prod = 1 lokacija; db push odpravi)
+    const [discounts, total] = await withLocationColumnFallback('discounts:GET', (withLoc) => {
+      const w = withLoc ? where : { ...where, locationId: undefined }
+      return Promise.all([
+        db.discount.findMany({
+          where: w,
+          orderBy: { sortOrder: 'asc' },
+          take: limit,
+          skip: offset,
+        }),
+        db.discount.count({ where: w }),
+      ])
+    })
 
     return NextResponse.json({ discounts: discounts.map(d => decimalsToNumbers(d, ['amount'])), total, limit, offset })
   } catch (error: unknown) {
@@ -97,7 +103,7 @@ export async function POST(req: Request) {
     const loc = resolveWriteLocationId(sessionLocationId(authResult), searchParams.get('locationId'))
     if (!loc.ok) return loc.response
 
-    const discount = await db.discount.create({
+    const discount = await withLocationColumnFallback('discounts:POST', (withLoc) => db.discount.create({
       data: {
         name: data.name,
         type: data.type,
@@ -111,9 +117,9 @@ export async function POST(req: Request) {
         validTo: data.validTo ? new Date(data.validTo) : null,
         isActive: data.isActive,
         sortOrder: 0,
-        locationId: loc.locationId,
-      },
-    })
+        locationId: withLoc ? loc.locationId : undefined,
+      } as any,
+    }))
 
     return NextResponse.json(decimalsToNumbers(discount, ['amount']), { status: 201 })
   } catch (error: unknown) {

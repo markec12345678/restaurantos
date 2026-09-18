@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db'
 import { toNum, calcDiscount } from '@/lib/decimal'
+import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 
 export async function validateDiscount(
   tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
@@ -13,9 +14,13 @@ export async function validateDiscount(
 
   // MODEL A: promo koda velja SAMO na lokaciji naročila (prej globalno —
   // koda druge lokacije/najemnika bi se uveljavila tudi tukaj!)
-  const discountObj = await tx.discount.findFirst({
-    where: { promoCode: promoCode.trim().toUpperCase(), isActive: true, triggerType: 'promo_code', locationId },
-  })
+  // FIX QA runda 39: P1054 most — Discount tabela v Neonu nima locationId stolpca
+  const discountObj = await withLocationColumnFallback('online-order:validateDiscount', (withLoc) =>
+    tx.discount.findFirst({
+      where: withLoc
+        ? { promoCode: promoCode.trim().toUpperCase(), isActive: true, triggerType: 'promo_code', locationId }
+        : { promoCode: promoCode.trim().toUpperCase(), isActive: true, triggerType: 'promo_code' },
+    }))
   if (!discountObj) return 0
 
   const now = new Date()

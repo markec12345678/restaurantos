@@ -10,6 +10,7 @@ import { checkStockAvailability } from '@/lib/stock-deduction'
 import { validateRequest } from '@/lib/api-utils'
 import { buildOrderItemsData, calculateOrderTotals, validateMenuItems, fetchModifierPriceMap, type MenuItemVatMap } from './order-items'
 import { handleStockDeduction, handlePostCreationEffects } from './stock'
+import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 
 // P1-6: session kontekst, ki ga POST pot potrebuje za resolucijo lokacije
 export interface PostOrderAuthSession {
@@ -114,10 +115,15 @@ export async function handlePostOrder(
   // postavka!): cross-tenant referenca = napačen DDV na fiskalnem računu.
   // Prej:šel je skrivaj skozi brez preverjanja (samo FK obstoj).
   if (data.diningOptionId) {
-    const diningOptionInScope = await db.diningOption.findFirst({
-      where: { id: data.diningOptionId, locationId: orderLocationId },
-      select: { id: true },
-    })
+    const diningOptionId = data.diningOptionId // closure narrowing
+    // FIX QA runda 39: DiningOption tabela nima locationId stolpca v Neonu (P1054) —
+    // most: pri P1054 ponovi brez lokacijskega filtra (sicer VSAKO naročilo z
+    // diningOptionId → 500!). Trajna rešitev: prisma db push.
+    const diningOptionInScope = await withLocationColumnFallback('order:diningOption-scope', (withLoc) =>
+      db.diningOption.findFirst({
+        where: withLoc ? { id: diningOptionId, locationId: orderLocationId } : { id: diningOptionId },
+        select: { id: true },
+      }))
     if (!diningOptionInScope) {
       return NextResponse.json(
         { error: 'Dining option ni na voljo na tej lokaciji' },
@@ -126,10 +132,12 @@ export async function handlePostOrder(
     }
   }
   if (data.revenueCenterId) {
-    const revenueCenterInScope = await db.revenueCenter.findFirst({
-      where: { id: data.revenueCenterId, locationId: orderLocationId },
-      select: { id: true },
-    })
+    const revenueCenterId = data.revenueCenterId // closure narrowing
+    const revenueCenterInScope = await withLocationColumnFallback('order:revenueCenter-scope', (withLoc) =>
+      db.revenueCenter.findFirst({
+        where: withLoc ? { id: revenueCenterId, locationId: orderLocationId } : { id: revenueCenterId },
+        select: { id: true },
+      }))
     if (!revenueCenterInScope) {
       return NextResponse.json(
         { error: 'Revenue center ni na voljo na tej lokaciji' },

@@ -1,6 +1,7 @@
 // Pomožne funkcije za online naročila — Ustvarjanje naročila v transakciji
 
 import { db } from '@/lib/db'
+import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 import { DELIVERY_FEE_VAT_RATE } from './schemas'
 import { createDeliveryInfo } from './create-delivery-info'
 import { validateDiscount } from './validate-discount'
@@ -21,18 +22,22 @@ export async function createOnlineOrder(input: CreateOnlineOrderInput) {
 
   // Poišči ali ustvari dining option — PO LOKACIJI (MODEL A: unique(type,
   // locationId); prej globalni findFirst({type}) — en "delivery" za VSE najemnike)
-  let diningOption = await db.diningOption.findFirst({ where: { type: orderType, locationId } })
+  // FIX QA runda 39: DiningOption tabela nima locationId stolpca v Neonu (P1054) —
+  // brez mostu je VSAK javni online naročilni tok (QR dostava/prevzem) padel na 500!
+  let diningOption = await withLocationColumnFallback('online-order:diningOption-find', (withLoc) =>
+    db.diningOption.findFirst({ where: withLoc ? { type: orderType, locationId } : { type: orderType } }))
   if (!diningOption) {
     try {
-      diningOption = await db.diningOption.create({
+      diningOption = await withLocationColumnFallback('online-order:diningOption-create', (withLoc) =>
+        db.diningOption.create({
         data: {
           name: orderType === 'delivery' ? 'Dostava' : 'Za s seboj',
           type: orderType, isActive: true,
           sortOrder: orderType === 'takeout' ? 1 : 2,
           prepTimeMinutes: orderType === 'delivery' ? 30 : 15,
-          locationId,
-        },
-      })
+          locationId: withLoc ? locationId : undefined,
+        } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      }))
     } catch (e: unknown) {
       // P2002 = vzporedna kreacija — ponovno poišči
       if (typeof e === 'object' && e !== null && 'code' in e && (e as { code: string }).code === 'P2002') {

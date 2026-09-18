@@ -6,6 +6,7 @@
 // =====================================================================
 
 import { db } from '@/lib/db'
+import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { checkRateLimitAsync, getClientIp, PUBLIC_ORDER_LIMIT } from '@/lib/rate-limit'
@@ -64,16 +65,20 @@ export async function POST(req: Request) {
 
     // Poišči ali ustvari dining option za QR naročanje — PO LOKACIJI (MODEL A;
     // unique(type, locationId); auto-create z lokacijo mize, P2002-safe)
-    let diningOption = await db.diningOption.findFirst({ where: { type: 'dine-in', locationId: qrLocationId } })
+    // FIX QA runda 39: P1054 most (DiningOption brez locationId stolpca v Neonu)
+    let diningOption = await withLocationColumnFallback('qr-order:diningOption-find', (withLoc) =>
+      db.diningOption.findFirst({ where: withLoc ? { type: 'dine-in', locationId: qrLocationId } : { type: 'dine-in' } }))
     if (!diningOption) {
       try {
-        diningOption = await db.diningOption.create({
-          data: { name: 'Na mestu', type: 'dine-in', isActive: true, sortOrder: 0, prepTimeMinutes: 15, locationId: qrLocationId }
-        })
+        diningOption = await withLocationColumnFallback('qr-order:diningOption-create', (withLoc) =>
+          db.diningOption.create({
+            data: { name: 'Na mestu', type: 'dine-in', isActive: true, sortOrder: 0, prepTimeMinutes: 15, locationId: withLoc ? qrLocationId : undefined } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+        }))
       } catch (e: unknown) {
         // P2002 = vzporedna kreacija (unique type+location) — ponovno poišči
         if (typeof e === 'object' && e !== null && 'code' in e && (e as { code: string }).code === 'P2002') {
-          diningOption = await db.diningOption.findFirst({ where: { type: 'dine-in', locationId: qrLocationId } })
+          diningOption = await withLocationColumnFallback('qr-order:diningOption-refind', (withLoc) =>
+            db.diningOption.findFirst({ where: withLoc ? { type: 'dine-in', locationId: qrLocationId } : { type: 'dine-in' } }))
         }
         if (!diningOption) throw e
       }

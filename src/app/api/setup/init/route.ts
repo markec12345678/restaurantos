@@ -1,6 +1,7 @@
 // POST /api/setup/init — Inicializiraj sistem
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { z } from 'zod'
 import bcrypt from 'bcryptjs'
@@ -155,27 +156,48 @@ async function seedCoreData(locationId: string) {
     ['delivery', 'Dostava', 30],
   ] as const) {
     // MODEL A: unique(type, locationId) — upsert po sestavljenem ključu
-    await db.diningOption.upsert({
-      where: { type_locationId: { type, locationId } },
-      create: { type, name, prepTimeMinutes: prepTime, isActive: true, sortOrder: type === 'dine-in' ? 0 : type === 'takeout' ? 1 : 2, locationId },
-      update: { name },
-    })
+    // FIX QA runda 39: P1054 most — tabela še nima locationId stolpca →
+    // fallback: findFirst(type) + update/create brez lokacije
+    await withLocationColumnFallback('setup:diningOption', async (withLoc) => {
+      if (withLoc) {
+        return db.diningOption.upsert({
+          where: { type_locationId: { type, locationId } },
+          create: { type, name, prepTimeMinutes: prepTime, isActive: true, sortOrder: type === 'dine-in' ? 0 : type === 'takeout' ? 1 : 2, locationId },
+          update: { name },
+        })
+      }
+      const existing = await db.diningOption.findFirst({ where: { type } })
+      if (existing) return db.diningOption.update({ where: { id: existing.id }, data: { name } })
+      return db.diningOption.create({ data: { type, name, prepTimeMinutes: prepTime, isActive: true, sortOrder: type === 'dine-in' ? 0 : type === 'takeout' ? 1 : 2 } as any }) // eslint-disable-line @typescript-eslint/no-explicit-any
+    }).catch(() => {})
   }
 
   for (const [idx, name] of [
     'Napaka natakarja', 'Kuhinja zgrešila', 'Stranka zamenjala mnenje', 'Alergija', 'Ni na zalogi',
   ].entries()) {
-    await db.voidReason.create({ data: { name, isActive: true, sortOrder: idx, locationId } }).catch(() => {})
+    await withLocationColumnFallback('setup:voidReason', (withLoc) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      db.voidReason.create({ data: { name, isActive: true, sortOrder: idx, locationId: withLoc ? locationId : undefined } as any }),
+    ).catch(() => {})
   }
 
   for (const [idx, name] of [
     'Mali dvig', 'Vračilo dobavitelju', 'Izplačilo napitnine', 'Zamenjava',
   ].entries()) {
-    await db.noSaleReason.create({ data: { name, isActive: true, sortOrder: idx, locationId } }).catch(() => {})
+    await withLocationColumnFallback('setup:noSaleReason', (withLoc) =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      db.noSaleReason.create({ data: { name, isActive: true, sortOrder: idx, locationId: withLoc ? locationId : undefined } as any }),
+    ).catch(() => {})
   }
 
-  await db.prepStation.create({ data: { name: 'Vroča kuhinja', type: 'kitchen', avgPrepTime: 20, isActive: true, sortOrder: 0, locationId } }).catch(() => {})
-  await db.prepStation.create({ data: { name: 'Bar', type: 'bar', avgPrepTime: 5, isActive: true, sortOrder: 1, locationId } }).catch(() => {})
+  await withLocationColumnFallback('setup:prepStation1', (withLoc) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    db.prepStation.create({ data: { name: 'Vroča kuhinja', type: 'kitchen', avgPrepTime: 20, isActive: true, sortOrder: 0, locationId: withLoc ? locationId : undefined } as any }),
+  ).catch(() => {})
+  await withLocationColumnFallback('setup:prepStation2', (withLoc) =>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    db.prepStation.create({ data: { name: 'Bar', type: 'bar', avgPrepTime: 5, isActive: true, sortOrder: 1, locationId: withLoc ? locationId : undefined } as any }),
+  ).catch(() => {})
 
   await db.counter.upsert({ where: { name: 'orderNumber' }, create: { id: 'counter-order', name: 'orderNumber', value: 0 }, update: {} })
   await db.counter.upsert({ where: { name: 'receiptNumber' }, create: { id: 'counter-receipt', name: 'receiptNumber', value: 0 }, update: {} })

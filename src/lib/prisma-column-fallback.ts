@@ -1,0 +1,60 @@
+// ============================================
+// PRISMA COLUMN FALLBACK — Neon schema-drift most (QA runda 39)
+// ============================================
+// PROBLEM: Neon DB ima na 11 konfiguracijskih tabelah ŠE danes NI stolpca
+// `locationId` (db push/migrate ni bil pognan ob MODEL A multi-location
+// spremembi), Prisma schema pa ga zahteva (String NOT NULL). Vsak create /
+// update / findFirst s `locationId` vrne P1054:
+//   "The column `locationId` does not exist in the current database."
+//
+// Prizadete tabele (empirično potrjeno na prod, runda 39):
+//   DiningOption, RevenueCenter, SalesCategory, PriceGroup, ServiceCharge,
+//   PrepStation, VoidReason, NoSaleReason, AlternatePaymentType, Printer,
+//   Discount.  (TaxRate IMA stolpec — 201.)
+//
+// MOST: operacijo izvedemo z locationId; pri P1054 ponovimo BREZ njega
+// (vrstica postane "globalna"). To je varno za trenutno produkcijsko
+// realnost (ENA lokacija / EN najemnik), a NE za pravi multi-tenant —
+// zato je TRAJNA REŠITEV `prisma db push` na Neonu, po kateri fallback
+// samodejno izgubi vlogo (P1054 se ne zgodi več).
+//
+// Uporaba:
+//   const item = await withLocationColumnFallback('config:noSaleReason', (withLoc) =>
+//     db.noSaleReason.create({ data: withLoc ? dataWithLoc : dataWithoutLoc }))
+
+import { Prisma } from '@prisma/client'
+
+/** P1054 "column locationId does not exist" detektor. */
+export function isMissingLocationColumnError(e: unknown): boolean {
+  if (!(e instanceof Prisma.PrismaClientKnownRequestError)) return false
+  if (e.code !== 'P1054') return false
+  return /locationId.*does not exist|does not exist.*locationId/i.test(e.message)
+}
+
+/** warnOnce per (process, op) — ne spamaj logov pri vsakem klicu. */
+const warnedOps = new Set<string>()
+function warnOnce(op: string): void {
+  if (warnedOps.has(op)) return
+  warnedOps.add(op)
+  console.warn(
+    `[column-fallback] ${op}: DB nima stolpca locationId — operacija izvedena BREZ lokacijskega filtra. ` +
+    `TRAJNA REŠITEV: prisma db push (dodaj locationId stolpec). Gl. src/lib/prisma-column-fallback.ts`,
+  )
+}
+
+/**
+ * Izvedi `run(true)` (z lokacijo); pri P1054 locationId-manjkajo-stolpec
+ * ponovi `run(false)` (brez). Ostale napake propadejo nespremenjene.
+ */
+export async function withLocationColumnFallback<T>(
+  op: string,
+  run: (withLocation: boolean) => Promise<T>,
+): Promise<T> {
+  try {
+    return await run(true)
+  } catch (e) {
+    if (!isMissingLocationColumnError(e)) throw e
+    warnOnce(op)
+    return await run(false)
+  }
+}

@@ -6,6 +6,7 @@
 // =====================================================================
 
 import { db } from '@/lib/db'
+import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { checkRateLimitAsync, getClientIp, PROMO_CHECK_LIMIT } from '@/lib/rate-limit'
@@ -49,14 +50,17 @@ export async function GET(req: Request) {
     const locationId = url.searchParams.get('locationId') || await resolveDefaultLocationId()
 
     // Poišči aktivni popust s to promo kodo (na tej lokaciji)
-    const discount = await db.discount.findFirst({
-      where: {
-        promoCode: code,
-        isActive: true,
-        triggerType: 'promo_code',
-        ...(locationId ? { locationId } : {}),
-      },
-    })
+    // FIX QA runda 39: Discount tabela nima locationId stolpca v Neonu (P1054) —
+    // brez mostu je javna validacija promo kode padla na 500.
+    const discount = await withLocationColumnFallback('promo-check:discount', (withLoc) =>
+      db.discount.findFirst({
+        where: {
+          promoCode: code,
+          isActive: true,
+          triggerType: 'promo_code',
+          ...(withLoc && locationId ? { locationId } : {}),
+        },
+      }))
 
     if (!discount) {
       return NextResponse.json({ valid: false, message: 'Neveljavna koda' })
