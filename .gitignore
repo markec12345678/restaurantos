@@ -129,3 +129,4 @@ pnpm-lock.yaml
 /pglite-data.corrupt-20260917
 test-shots/
 /data/
+.env*

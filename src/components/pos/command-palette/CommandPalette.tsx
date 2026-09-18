@@ -13,7 +13,8 @@
 // Inspiracija: Linear, Vercel, GitHub, Raycast — vsi imajo global Cmd+K.
 // ============================================
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   CommandDialog,
   CommandEmpty,
@@ -27,13 +28,18 @@ import { navItems } from '@/components/pos/sidebar/navItems'
 import { usePOSStore } from '@/lib/store'
 import { haptic } from '@/lib/haptic'
 import { t } from '@/lib/i18n'
+import { authFetch } from '@/components/pos/PinLogin'
+import { queryKeys } from '@/lib/query-keys'
+import { formatEUR } from '@/lib/safe-format'
 import {
   Search,
   Plus,
   LayoutDashboard,
   Settings,
+  UtensilsCrossed,
 } from 'lucide-react'
 import type { ComponentType } from 'react'
+import type { MenuItemType } from '@/components/pos/order/types'
 
 type IconType = ComponentType<{ className?: string }>
 
@@ -56,7 +62,20 @@ interface CommandNav {
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false)
-  const { setActiveModule, activeModule } = usePOSStore()
+  const { setActiveModule, activeModule, setPendingItemClickId } = usePOSStore()
+
+  // NOVO (runda 32): artikli v paleti — ⌘K napoveduje "Išči artikel" in TAUTI
+  // obljubi. Deli query cache s POS gridom (isti queryKey) → brez dodatnih
+  // klicev; fetch šele ob prvem odprtju (enabled: open).
+  const { data: menuItems } = useQuery({
+    queryKey: queryKeys.menuItems.all,
+    enabled: open,
+    queryFn: async () => {
+      const res = await authFetch('/api/menu-items')
+      const json = await res.json()
+      return Array.isArray(json) ? json : (json.menuItems ?? json.items ?? [])
+    },
+  })
 
   // Registriraj globalni keyboard shortcut
   useEffect(() => {
@@ -130,6 +149,24 @@ export function CommandPalette() {
       group: 'navigation' as const,
     }))
 
+  // Artikli za paletu: samo razpoložljivi, kap 12 (perf — cmdk render)
+  const paletteArticles: MenuItemType[] = useMemo(() => {
+    if (!Array.isArray(menuItems)) return []
+    return (menuItems as MenuItemType[])
+      .filter((i) => i.isAvailable !== false)
+      .slice(0, 12)
+  }, [menuItems])
+
+  // NOVO (runda 32): izbira artikla v paleti = IDENTIČNA pot kot klik na
+  // kartico (modifier dialog ali direkten dodatek) prek pendingItemClickId
+  // signala, ki ga MenuBrowser prevzame ko je Prodaja vidna.
+  const handleArticleSelect = (item: MenuItemType) => {
+    setActiveModule('orders')
+    setPendingItemClickId(item.id)
+    haptic('light')
+    setOpen(false)
+  }
+
   const handleSelect = (cmd: CommandAction | CommandNav) => {
     if ('action' in cmd) {
       cmd.action()
@@ -142,9 +179,33 @@ export function CommandPalette() {
 
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Išči modul ali akcijo..." />
+      <CommandInput placeholder="Išči artikel, modul ali akcijo..." />
       <CommandList>
         <CommandEmpty>Ni najdenih rezultatov.</CommandEmpty>
+
+        {/* NOVO (runda 32): Artikli — ⌘K zdaj RES išče artikle */}
+        {paletteArticles.length > 0 && (
+          <>
+            <CommandGroup heading="🍽️ Artikli — tapni za dodajanje">
+              {paletteArticles.map((item) => (
+                <CommandItem
+                  key={`art-${item.id}`}
+                  value={`${item.name} ${item.category?.name ?? ''} artikel`}
+                  onSelect={() => handleArticleSelect(item)}
+                  className="cursor-pointer"
+                >
+                  <UtensilsCrossed className="mr-2 h-4 w-4 flex-shrink-0 text-primary" />
+                  <span className="flex-1 truncate">{item.name}</span>
+                  {item.category?.name && (
+                    <span className="mr-2 hidden text-xs text-muted-foreground sm:inline">{item.category.name}</span>
+                  )}
+                  <span className="text-xs font-semibold tabular-nums text-muted-foreground">{formatEUR(item.price)}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandSeparator />
+          </>
+        )}
 
         <CommandGroup heading="⚡ Hitre akcije">
           {actions.map((action) => (

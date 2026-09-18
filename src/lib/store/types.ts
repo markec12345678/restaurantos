@@ -30,6 +30,12 @@ export interface CartItemType {
 export interface POSStore {
   activeModule: string
   setActiveModule: (_module: string) => void
+  // NOVO (runda 32): signal "klikni ta artikel" — CommandPalette (⌘K) in drugi
+  // oddaljeni UI tako sprožita IDENTIČNO pot kot klik na kartico v gridu
+  // (modifier dialog za artikle s skupinami, direkten dodatek sicer).
+  // Transient (NI v persist partialize) — preživi samo sejo.
+  pendingItemClickId: string | null
+  setPendingItemClickId: (_id: string | null) => void
   cart: CartItemType[]
   addToCart: (_item: { id: string; name: string; price: number; vatRate?: number; categoryId: string; image: string; modifiers?: SelectedModifier[] }) => void
   removeFromCart: (_cartKey: string) => void

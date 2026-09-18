@@ -20,6 +20,9 @@ export const usePOSStore = create<POSStore>()(
     (set, get) => ({
   activeModule: 'orders',
   setActiveModule: (module) => set({ activeModule: module }),
+  // NOVO (runda 32): transient signal za oddaljeni "klik" na artikel (⌘K palette)
+  pendingItemClickId: null,
+  setPendingItemClickId: (id) => set({ pendingItemClickId: id }),
   cart: [],
   addToCart: (item) =>
     set((state) => {

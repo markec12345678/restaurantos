@@ -194,15 +194,54 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
             {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
           </div>
         ) : visibleItems.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-2 px-6 text-center">
+          /* NOVO (runda 32): akcijska prazna stanja — vsaka veja ponudi
+             naslednji korak namesto slepega "Ni artiklov" */
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-3 px-6 text-center">
             {favoritesOnly ? (
               <>
                 <Star className="h-8 w-8 text-amber-300" aria-hidden="true" />
                 <p>Ni priljubljenih artiklov v tem pogledu.</p>
                 <p className="text-xs text-muted-foreground/80">Tapni ★ na kartici artikla, da ga dodaš med priljubljene.</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFavoritesOnly(false)}
+                  className="mt-1"
+                >
+                  <Star className="h-3.5 w-3.5" aria-hidden="true" />
+                  Pokaži vse artikle
+                </Button>
+              </>
+            ) : itemSearch.trim() ? (
+              <>
+                <Search className="h-8 w-8 opacity-40" aria-hidden="true" />
+                <p>Ni zadetkov za “<span className="font-medium text-foreground">{itemSearch.trim()}</span>”.</p>
+                <p className="text-xs text-muted-foreground/80">Preveri črkovanje ali išči po drugem imenu.</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onItemSearchChange('')}
+                  className="mt-1"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  Počisti iskanje
+                </Button>
               </>
             ) : (
-              'Ni artiklov v tej kategoriji'
+              <>
+                <Search className="h-8 w-8 opacity-40" aria-hidden="true" />
+                <p>Ni artiklov v tej kategoriji.</p>
+                <p className="text-xs text-muted-foreground/80">Poišči artikel čez vse kategorije.</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onItemSearchChange(' ')}
+                  className="mt-1"
+                >
+                  <Search className="h-3.5 w-3.5" aria-hidden="true" />
+                  Odpri iskanje artikla
+                </Button>
+              </>
             )}
           </div>
         ) : (

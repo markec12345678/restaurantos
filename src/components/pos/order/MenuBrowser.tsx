@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { AllergenFilterBar } from './AllergenFilterBar'
 import { OrderTypeBar } from './OrderTypeBar'
 import { MenuCategoryNav } from './MenuCategoryNav'
@@ -8,6 +8,7 @@ import { MenuItemsGrid } from './MenuItemsGrid'
 import { ModifierDialog } from './ModifierDialog'
 import { useModifierSelection } from './useModifierSelection'
 import { useMenuBrowserLogic, buildSuperGroups } from './useMenuBrowserLogic'
+import { usePOSStore } from '@/lib/store'
 import type { SelectedModifier } from '@/lib/store'
 import type {
   MenuItemType, MenuType,
@@ -112,6 +113,22 @@ export function MenuBrowser({
     const stockInfo = menuStockMap?.[item.id]
     handleItemClick(item, stockInfo ? { status: stockInfo.status, available: stockInfo.available } : undefined)
   }
+
+  // NOVO (runda 32): oddaljeni "klik" iz CommandPalette (⌘K) — prevzemi
+  // pendingItemClickId in OdIGRAJ identično pot kot tap kartice (modifier
+  // dialog za artikle s skupinami, direkten dodatek sicer). Signal se
+  // počisti, da ne Ponovi ob naslednjem mount-u.
+  const pendingItemClickId = usePOSStore((s) => s.pendingItemClickId)
+  const setPendingItemClickId = usePOSStore((s) => s.setPendingItemClickId)
+  useEffect(() => {
+    if (!pendingItemClickId || !menuItems) return
+    const item = menuItems.find((i) => i.id === pendingItemClickId)
+    if (item) {
+      const stockInfo = menuStockMap?.[item.id]
+      handleItemClick(item, stockInfo ? { status: stockInfo.status, available: stockInfo.available } : undefined)
+      setPendingItemClickId(null)
+    }
+  }, [pendingItemClickId, menuItems, menuStockMap, handleItemClick, setPendingItemClickId])
 
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
