@@ -77,6 +77,113 @@ export function coerceFieldTypes(filteredData: Record<string, unknown>): Record<
 import { db } from '@/lib/db'
 import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 
+// ============================================
+// SKUPNA CREATE LOGIKA (runda 41) — root POST /api/configuration IN NOVI
+// POST /api/configuration/[tab] delita isti potek: whitelist polj → coerce →
+// MODEL A location resolve → FK cross-scope validacija → typed create switch.
+// Root route ohrani zod {model,data} ovojnico; tab route sprejme tudi gol
+// objekt. Zero novih route datotek (Vercel Hobby 242 cap).
+// ============================================
+
+import { NextResponse } from 'next/server'
+import { requireAuth } from '@/lib/auth-middleware'
+import { handleApiError } from '@/lib/api-utils'
+import { resolveWriteLocationId, sessionLocationId } from '@/lib/tenant-scope'
+
+/** Iz body izlušči konfiguracijske podatke: sprejme {data:{...}} ovojnico
+ *  (root POST vzorec) ALI goli objekt (tab POST vzorec iz ConfigurationManager). */
+export function extractConfigData(body: unknown): { ok: true; data: Record<string, unknown> } | { ok: false; error: string } {
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return { ok: false, error: 'Neveljaven body — pričakovan objekt' }
+  }
+  const b = body as Record<string, unknown>
+  const candidate = (b.data && typeof b.data === 'object' && !Array.isArray(b.data))
+    ? (b.data as Record<string, unknown>)
+    : b
+  const keys = Object.keys(candidate)
+  if (keys.length === 0) return { ok: false, error: 'Podatki ne smejo biti prazni' }
+  if (keys.length > 50) return { ok: false, error: 'Preveč polj — največ 50 dovoljenih' }
+  return { ok: true, data: candidate }
+}
+
+type AuthResultLike = Awaited<ReturnType<typeof requireAuth>>
+
+export async function createConfigItem(
+  req: Request,
+  model: string,
+  configData: Record<string, unknown>,
+  authResult: AuthResultLike,
+): Promise<Response> {
+  try {
+    const prismaModel = modelMap[model]
+    if (!prismaModel) {
+      return NextResponse.json({ error: `Unknown model: ${model}` }, { status: 400 })
+    }
+
+    // FIX CRITICAL: Filtriraj podatke — samo dovoljena polja gredo v Prisma
+    const fields = allowedFields[model] || []
+    const filteredData: Record<string, unknown> = {}
+    for (const key of fields) {
+      if (key in configData) filteredData[key] = configData[key]
+    }
+
+    coerceFieldTypes(filteredData)
+
+    // MODEL A: konfiguracija je PO LOKACIJI (NOT NULL) — locationId se izpelje
+    // IZKLJUČNO iz seje (zaposleni) ali izrecnega ?locationId= (admin).
+    // locationId NI v allowedFields — klient ga NE more podati sam (anti-forgery).
+    const { searchParams } = new URL(req.url)
+    const loc = resolveWriteLocationId(sessionLocationId(authResult), searchParams.get('locationId'))
+    if (!loc.ok) return loc.response
+    filteredData.locationId = loc.locationId
+
+    // MODEL A (#8/#9): cross-scope validacija FK referenc — serviceChargeId /
+    // taxRateId (DiningOption) in prepStationId (Printer.printRules) smejo
+    // kazati SAMO na zapise ISTE lokacije. Cross-tenant DDV na fiskalnem
+    // računu (FURS) ni sprejemljiv → 400.
+    const refCheck = await validateConfigRefs(model, filteredData, loc.locationId)
+    if (!refCheck.ok) {
+      return NextResponse.json({ error: refCheck.error }, { status: 400 })
+    }
+
+    // FIX QA runda 39: 11/12 config tabel v Neonu nima stolpca locationId (P1054) —
+    // most: ponovi brez locationId (vrstica postane globalna; trajno reši db push).
+    const dataForCreate = (withLoc: boolean): Record<string, unknown> => {
+      if (withLoc) return filteredData
+      const { locationId: _drop, ...rest } = filteredData
+      return rest
+    }
+
+    // FIX SECURITY: Uporabi type-safe switch namesto dinamičnega (db as any)[prismaModel]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let item: any
+    item = await withLocationColumnFallback(`config:${model}`, async (withLoc) => {
+      const data = dataForCreate(withLoc)
+      switch (prismaModel) {
+        case 'taxRate': item = await db.taxRate.create({ data: data as never }); break
+        case 'diningOption': item = await db.diningOption.create({ data: data as never }); break
+        case 'revenueCenter': item = await db.revenueCenter.create({ data: data as never }); break
+        case 'salesCategory': item = await db.salesCategory.create({ data: data as never }); break
+        case 'priceGroup': item = await db.priceGroup.create({ data: data as never }); break
+        case 'serviceCharge': item = await db.serviceCharge.create({ data: data as never }); break
+        case 'prepStation': item = await db.prepStation.create({ data: data as never }); break
+        case 'voidReason': item = await db.voidReason.create({ data: data as never }); break
+        case 'noSaleReason': item = await db.noSaleReason.create({ data: data as never }); break
+        case 'alternatePaymentType': item = await db.alternatePaymentType.create({ data: data as never }); break
+        case 'printer': item = await db.printer.create({ data: data as never }); break
+        case 'discount': item = await db.discount.create({ data: data as never }); break
+        default:
+          return NextResponse.json({ error: `Unknown model: ${model}` }, { status: 400 })
+      }
+      return item
+    })
+
+    return NextResponse.json(item, { status: 201 })
+  } catch (error: unknown) {
+    return handleApiError(error, `POST /api/configuration (${model})`, 'Failed to create configuration item')
+  }
+}
+
 export type RefCheckResult = { ok: true } | { ok: false; error: string }
 
 /** Normaliziraj id: prazen/whitespace string → null */

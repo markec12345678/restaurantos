@@ -40,6 +40,7 @@ import {
   Settings,
   UtensilsCrossed,
   History,
+  ListEnd,
 } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
 import type { MenuItemType } from '@/components/pos/order/types'
@@ -110,9 +111,85 @@ function RecentsGroup({
   )
 }
 
+/** RUNDA 41: okno upodabljanja Artiklov (virtualizacija brez virtual lib).
+ *  useCommandState mora živeti v OTROKU Command-a — zato ločena komponenta.
+ *  Prazno iskanje: prvih emptyWindow artiklov + onemogočen namig vrstica
+ *  ("Še N artiklov — tipkaj za iskanje") — DOM pade s ~5000 na ~600 vozlišč.
+ *  Iskanje: substring po imenu/kategoriji/opisu/alergenih, okno searchWindow.
+ *  Ko self-filter najde nič, skupina NI upodobljena (PaletteEmpty gate na
+ *  cmdk filtered.count ostane točen — šteje samo odprte item-e). */
+function ArtikliGroup({
+  articles,
+  renderItem,
+  emptyWindow,
+  searchWindow,
+}: {
+  articles: MenuItemType[]
+  renderItem: (item: MenuItemType, opts: { recent?: boolean }) => ReactNode
+  emptyWindow: number
+  searchWindow: number
+}) {
+  const search = useCommandState((state) => state.search)
+  const q = search.trim().toLowerCase()
+
+  const matches = useMemo(() => {
+    if (!q) return articles.slice(0, emptyWindow)
+    const hit: MenuItemType[] = []
+    for (const item of articles) {
+      if (
+        item.name.toLowerCase().includes(q) ||
+        (item.category?.name ?? '').toLowerCase().includes(q) ||
+        (item.description ?? '').toLowerCase().includes(q) ||
+        (item.allergens ?? '').toLowerCase().includes(q)
+      ) {
+        hit.push(item)
+        if (hit.length >= searchWindow) break
+      }
+    }
+    return hit
+  }, [articles, q, emptyWindow, searchWindow])
+
+  if (q && matches.length === 0) return null // pusti PaletteEmpty govoriti
+
+  const remaining = q ? 0 : articles.length - matches.length
+  return (
+    <>
+      <CommandGroup
+        heading={q ? `🍽️ Artikli — zadetki (${matches.length})` : `🍽️ Artikli (${articles.length})`}
+      >
+        {matches.map((item) => renderItem(item, {}))}
+        {remaining > 0 && (
+          <CommandItem
+            disabled
+            className="gap-2 opacity-60"
+            value="__okno_namig__" // ne tekmuje s pravimi artikli
+          >
+            <ListEnd className="mr-2 h-4 w-4 flex-shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span>
+              Še <span className="font-semibold tabular-nums">{remaining}</span> artiklov — tipkaj za iskanje
+            </span>
+            <kbd className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Ctrl+K</kbd>
+          </CommandItem>
+        )}
+      </CommandGroup>
+      <CommandSeparator />
+    </>
+  )
+}
+
 export function CommandPalette() {
   const [open, setOpen] = useState(false)
   const { setActiveModule, activeModule, setPendingItemClickId } = usePOSStore()
+
+  // RUNDA 41: okno upodabljanja Artiklov — 437+ artiklov = 5000+ DOM vozlišč
+  // (merjeno 509 cmdk-itemov / 5302 vozlišča na prod), kar upočasni odpiranje
+  // na slabših tablicah. SELF-FILTER (substring po imenu/kategoriji/opisu/
+  // alergenih) + okno: prazno iskanje = prvih EMPTY_WINDOW artiklov + namig,
+  // iskanje = prvih SEARCH_WINDOW zadetkov. cmdk fuzzy filter ostane za
+  // akcijami/moduli/recents (majhne skupine); R33 lekcija (value brez UUID,
+  // keywords kanal) ostaja veljavna — substring je PREDVIDLJIVEJŠI od fuzzy.
+  const EMPTY_WINDOW = 40
+  const SEARCH_WINDOW = 50
 
   // (runda 32): artikli v paleti — deli query cache s POS gridom (isti
   // queryKey) → brez dodatnih klicev; fetch šele ob prvem odprtju (enabled).
@@ -298,14 +375,14 @@ export function CommandPalette() {
         )}
 
         {/* (runda 32) Artikli — ⌘K išče ime + kategorijo; (runda 33) + OPIS
-            in alergene, z opisom pod imenom in števcem v naslovu */}
+            in alergene; (runda 41) okno upodabljanja — glej ArtikliGroup */}
         {paletteArticles.length > 0 && (
-          <>
-            <CommandGroup heading={`🍽️ Artikli (${paletteArticles.length})`}>
-              {paletteArticles.map((item) => renderArticleItem(item, {}))}
-            </CommandGroup>
-            <CommandSeparator />
-          </>
+          <ArtikliGroup
+            articles={paletteArticles}
+            renderItem={renderArticleItem}
+            emptyWindow={EMPTY_WINDOW}
+            searchWindow={SEARCH_WINDOW}
+          />
         )}
 
         <CommandGroup heading="⚡ Hitre akcije">

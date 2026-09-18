@@ -3,10 +3,10 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { handleApiError, validateRequest } from '@/lib/api-utils'
-import { configPostSchema, allowedFields, modelMap, coerceFieldTypes, validateConfigRefs } from './_helpers'
+import { configPostSchema, createConfigItem } from './_helpers'
 import { withETag } from '@/lib/middleware/cache-headers'
-import { sessionLocationId, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
-import { withLocationColumnFallback, isMissingLocationColumnError } from '@/lib/prisma-column-fallback'
+import { sessionLocationId, locationFilter } from '@/lib/tenant-scope'
+import { isMissingLocationColumnError } from '@/lib/prisma-column-fallback'
 
 
 // FIX CRITICAL: Zahtevaj avtentikacijo za GET — konfiguracija vsebuje
@@ -100,74 +100,10 @@ export async function POST(req: Request) {
     const { data, error: validationError } = await validateRequest(req, configPostSchema)
     if (validationError) return validationError
 
-    const { model, data: configData } = data
-
-    const prismaModel = modelMap[model]
-    if (!prismaModel) {
-      return NextResponse.json({ error: `Unknown model: ${model}` }, { status: 400 })
-    }
-
-    // FIX CRITICAL: Filtriraj podatke — samo dovoljena polja gredo v Prisma
-    const fields = allowedFields[model] || []
-    const filteredData: Record<string, unknown> = {}
-    for (const key of fields) {
-      if (key in configData) {
-        filteredData[key] = configData[key]
-      }
-    }
-
-    coerceFieldTypes(filteredData)
-
-    // MODEL A: konfiguracija je PO LOKACIJI (NOT NULL) — locationId se izpelje
-    // IZKLJUČNO iz seje (zaposleni) ali izrecnega ?locationId= (admin).
-    // locationId NI v allowedFields — klient ga NE more podati sam (anti-forgery).
-    const { searchParams } = new URL(req.url)
-    const loc = resolveWriteLocationId(sessionLocationId(authResult), searchParams.get('locationId'))
-    if (!loc.ok) return loc.response
-    filteredData.locationId = loc.locationId
-
-    // FIX QA runda 39: 11/12 config tabel v Neonu nima stolpca locationId (P1054) —
-    // most: ponovi brez locationId (vrstica postane globalna; trajno reši db push).
-    const dataForCreate = (withLoc: boolean): Record<string, unknown> => {
-      if (withLoc) return filteredData
-      const { locationId: _drop, ...rest } = filteredData
-      return rest
-    }
-
-    // MODEL A (#8/#9): cross-scope validacija FK referenc — serviceChargeId /
-    // taxRateId (DiningOption) in prepStationId (Printer.printRules) smejo
-    // kazati SAMO na zapise ISTE lokacije. Cross-tenant DDV na fiskalnem
-    // računu (FURS) ni sprejemljiv → 400.
-    const refCheck = await validateConfigRefs(model, filteredData, loc.locationId)
-    if (!refCheck.ok) {
-      return NextResponse.json({ error: refCheck.error }, { status: 400 })
-    }
-
-    // FIX SECURITY: Uporabi type-safe switch namesto dinamičnega (db as any)[prismaModel]
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let item: any
-    item = await withLocationColumnFallback(`config:${model}`, async (withLoc) => {
-    const data = dataForCreate(withLoc)
-    switch (prismaModel) {
-      case 'taxRate': item = await db.taxRate.create({ data: data as any }); break // eslint-disable-line @typescript-eslint/no-explicit-any
-      case 'diningOption': item = await db.diningOption.create({ data: data as any }); break // eslint-disable-line @typescript-eslint/no-explicit-any
-      case 'revenueCenter': item = await db.revenueCenter.create({ data: data as any }); break // eslint-disable-line @typescript-eslint/no-explicit-any
-      case 'salesCategory': item = await db.salesCategory.create({ data: data as any }); break // eslint-disable-line @typescript-eslint/no-explicit-any
-      case 'priceGroup': item = await db.priceGroup.create({ data: data as any }); break // eslint-disable-line @typescript-eslint/no-explicit-any
-      case 'serviceCharge': item = await db.serviceCharge.create({ data: data as any }); break // eslint-disable-line @typescript-eslint/no-explicit-any
-      case 'prepStation': item = await db.prepStation.create({ data: data as any }); break // eslint-disable-line @typescript-eslint/no-explicit-any
-      case 'voidReason': item = await db.voidReason.create({ data: data as any }); break // eslint-disable-line @typescript-eslint/no-explicit-any
-      case 'noSaleReason': item = await db.noSaleReason.create({ data: data as any }); break // eslint-disable-line @typescript-eslint/no-explicit-any
-      case 'alternatePaymentType': item = await db.alternatePaymentType.create({ data: data as any }); break // eslint-disable-line @typescript-eslint/no-explicit-any
-      case 'printer': item = await db.printer.create({ data: data as any }); break // eslint-disable-line @typescript-eslint/no-explicit-any
-      case 'discount': item = await db.discount.create({ data: data as any }); break // eslint-disable-line @typescript-eslint/no-explicit-any
-      default:
-        return NextResponse.json({ error: `Unknown model: ${model}` }, { status: 400 })
-    }
-    return item as any
-    })
-
-    return NextResponse.json(item, { status: 201 })
+    // RUNDA 41: create logika preseljena v _helpers.createConfigItem — deljena
+    // z novim POST /api/configuration/[tab] (Konfiguracija UI create je bil mrtev:
+    // POST na [tab] = 405). Vedenje root route-a ostaja identično (zod ovojnica).
+    return await createConfigItem(req, data.model, data.data, authResult)
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/configuration', 'Failed to create configuration item')
   }
