@@ -24,6 +24,7 @@ interface ReservationInfo {
   status: 'confirmed' | 'pending' | 'seated' | 'completed' | 'cancelled'
   notes: string | null
   duration: number // minutes
+  tableId?: string | null // FIX R43: dodeljena miza (sinhronizacija tlorisa)
 }
 
 interface TimeSlot {

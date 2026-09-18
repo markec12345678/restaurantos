@@ -43,7 +43,7 @@ export const FloorTableItem = memo(function FloorTableItem({
       onClick={() => _onClick(table)}
     >
       {/* Statusna pika */}
-      <div className={`absolute -top-1 -right-1 h-3 w-3 rounded-full ${colors.dot} ${table.status === 'occupied' ? 'animate-pulse' : ''} z-20`} />
+      <div className={`absolute -top-1 -right-1 h-3 w-3 rounded-full ${colors.dot} ${table.status === 'occupied' || table.status === 'reserved' ? 'animate-pulse' : ''} z-20`} />
       {/* Številka mize */}
       <span className={`text-lg font-bold ${colors.text} leading-none`}>{table.number}</span>
       {/* Kapaciteta */}
@@ -51,11 +51,21 @@ export const FloorTableItem = memo(function FloorTableItem({
         <Users className="h-2.5 w-2.5" />
         {table.capacity}
       </span>
-      {/* Oznaka statusa za zasedene/rezervirane */}
-      {(table.status === 'occupied' || table.status === 'reserved') && (
+      {/* Oznaka statusa za zasedene/rezervirane; rezervirane pokažejo tudi gosta */}
+      {table.status === 'reserved' && table.reservation ? (
+        <span className={`text-[8px] leading-tight text-center font-semibold ${colors.text} mt-0.5 px-1`}>
+          {table.reservation.guestName}
+          <br />
+          {table.reservation.time}{table.reservation.partySize ? ` · ${table.reservation.partySize}` : ''}
+        </span>
+      ) : (table.status === 'occupied' || table.status === 'reserved') && (
         <span className={`text-[8px] font-semibold ${colors.text} mt-0.5`}>
           {statusLabels[table.status]}
         </span>
+      )}
+      {/* Pulsirajoča pika tudi za rezervirane (prihajajoč dogodek) */}
+      {table.status === 'reserved' && (
+        <span className="sr-only">Rezervirano: {table.reservation?.guestName} ob {table.reservation?.time}</span>
       )}
     </div>
   )

@@ -5,6 +5,7 @@ import { authFetch } from '@/components/pos/PinLogin'
 import dynamic from 'next/dynamic'
 import { useTableReservationData } from './table-reservation/useTableReservationData'
 import { useComputedData } from './table-reservation/useComputedData'
+import { ljubljanaTodayStr } from '@/lib/timezone-sl'
 
 // Lazy-loaded podkomponente
 const SyncHeader = dynamic(() => import('./table-reservation/SyncHeader').then(m => ({ default: m.SyncHeader })), { ssr: false })
@@ -15,7 +16,7 @@ const TimeSlotChart = dynamic(() => import('./table-reservation/TimeSlotChart').
 const CancelReservationDialog = dynamic(() => import('./table-reservation/CancelReservationDialog').then(m => ({ default: m.CancelReservationDialog })), { ssr: false })
 
 export const TableReservationSync = memo(function TableReservationSync() {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState(() => ljubljanaTodayStr())
   const [_dragAssign, _setDragAssign] = useState<string | null>(null)
   const [cancelTarget, setCancelTarget] = useState<{ id: string; name: string } | null>(null)
 

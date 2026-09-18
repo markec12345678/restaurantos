@@ -87,3 +87,32 @@ export function ljubljanaTodayStr(now: Date = new Date()): string {
   }).format(now) // en-CA formatira kot YYYY-MM-DD
   return ymd
 }
+
+/**
+ * ISO UTC čas → { datum 'YYYY-MM-DD', čas 'HH:mm' } v ljubljanskem času.
+ * FIX R43 (dodatno v rundi 43): rezervacije imajo dateTime v UTC — 19:00 UTC je
+ * po Ljubljani lahko NASLEDNJI koledarski dan (20:00/21:00 CET/CEST). Vsak modul,
+ * ki filtrira rezervacije po dnevu, MORA uporabiti to pretvorbo in ne .split('T').
+ */
+export function ljubljanaDateTimeParts(iso: string | null | undefined): { date: string; time: string } {
+  if (!iso) return { date: '', time: '' }
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) {
+    // Ni veljaven ISO datum — poskusi surovi rez 'YYYY-MM-DD' / 'HH:mm'
+    const raw = String(iso)
+    return { date: raw.split('T')[0] || '', time: raw.slice(11, 16) || '' }
+  }
+  const date = new Intl.DateTimeFormat('en-CA', {
+    timeZone: LJUBLJANA_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d)
+  const time = new Intl.DateTimeFormat('en-GB', {
+    timeZone: LJUBLJANA_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(d)
+  return { date, time }
+}

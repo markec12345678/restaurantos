@@ -16,6 +16,9 @@ export interface FloorTable {
   shape: string
   rotation: number
   revenueCenterId: string | null
+  // FEATURE R43: sinhronizacija tloris ↔ rezervacije — današnja dodeljena
+  // rezervacija (tableId) povzdigne prosto mizo v 'reserved' z podatki o gostu
+  reservation?: { guestName: string; time: string; partySize: number } | null
 }
 
 // Barve po statusu mize
