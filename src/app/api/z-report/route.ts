@@ -150,6 +150,8 @@ export async function POST(req: Request) {
   } catch (error: unknown) {
     return handleRouteError(error, 'POST /api/z-report', [
       { match: 'Z_REPORT_FINALIZED', message: 'Z-poročilo za ta dan je že zaključeno', status: 400 },
+      // QA runda 36: admin brez dodeljene lokacije + brez lokacij v DB
+      { match: 'Z_REPORT_NO_LOCATION', message: 'Ni mogoče določiti lokacije za Z-poročilo. Dodelite lokacijo zaposlenemu ali ustvarite lokacijo v nastavitvah.', status: 400 },
       // RUNDA 9: open-shifts check se sedaj zgodi v upsertZReportForDay
       // (matchBusinessError: 'message' je statični string; število odprtih izmen
       //  gre v extra.openShifts — klijent ga lahko prikaže posebej)

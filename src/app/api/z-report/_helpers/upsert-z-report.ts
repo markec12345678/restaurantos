@@ -9,6 +9,7 @@
 // Error kode (klicatelj sam odloči, kako jih javi):
 //   - 'Z_REPORT_FINALIZED' — poročilo za ta dan+lokacija je že zaključeno
 //   - 'OPEN_SHIFTS:n'      — samo pri finalize=true: n odprtih izmen
+//   - 'Z_REPORT_NO_LOCATION' — lokacije ni bilo mogoče resolvti (QA runda 36)
 
 import { db } from '@/lib/db'
 import { round2 } from '@/lib/decimal'
@@ -35,12 +36,42 @@ export interface UpsertZReportResult {
 }
 
 async function buildAndUpsert(params: UpsertZReportParams) {
-  const { date, locationId, actualCash = 0, notes = '', employeeId, finalize = false } = params
+  const { date, actualCash = 0, notes = '', employeeId, finalize = false } = params
   const { start: dayStart, end: dayEnd } = ljubljanaDayBounds(date)
+
+  // FIX QA 2026-09-18 (runda 36): 500 "Napaka pri generiranju Z-poročila" za VSE datume.
+  // VZROK: Prisma schema pravi `ZReport.locationId String?` (nullable), a NEON tabela je
+  // NOT NULL (schema drift — migrate diff ni bil pognan ob dodaji lokacij). Admin brez
+  // session.locationId (Ana Novak) → create z locationId: null → P2011 Null constraint
+  // violation. REŠITEV brez DDL dostopa: resolvi lokacijo vedno —
+  //   1. session/locationId klicatelja → 2. employee.locationId → 3. prva lokacija →
+  //   4. če še vedno nič: 'Z_REPORT_NO_LOCATION' (klicatelj preslika v 400).
+  // To pokrije TUDI avtomatski osnutek ob zaprtju blagajniške izmene (isti helper).
+  let resolvedLocationId = params.locationId
+  if (!resolvedLocationId) {
+    if (employeeId) {
+      const emp = await db.employee.findUnique({
+        where: { id: employeeId },
+        select: { locationId: true },
+      })
+      resolvedLocationId = emp?.locationId ?? undefined
+    }
+    if (!resolvedLocationId) {
+      const firstLocation = await db.location.findFirst({
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+      })
+      resolvedLocationId = firstLocation?.id
+    }
+    if (!resolvedLocationId) {
+      throw new Error('Z_REPORT_NO_LOCATION')
+    }
+  }
+  const locationId = resolvedLocationId
 
   // Preveri, če že obstaja (hiter izhod ob že finaliziranem poročilu)
   const existing = await db.zReport.findFirst({
-    where: { reportDate: dayStart, ...(locationId ? { locationId } : {}) },
+    where: { reportDate: dayStart, locationId },
   })
   if (existing && existing.status === 'finalized') {
     throw new Error('Z_REPORT_FINALIZED')
@@ -52,7 +83,7 @@ async function buildAndUpsert(params: UpsertZReportParams) {
       where: {
         openedAt: { gte: dayStart, lt: dayEnd },
         status: 'open',
-        ...(locationId ? { locationId } : {}),
+        locationId,
       },
     })
     if (openShifts > 0) {
@@ -65,7 +96,7 @@ async function buildAndUpsert(params: UpsertZReportParams) {
     where: {
       paidAt: { gte: dayStart, lt: dayEnd },
       paymentStatus: { in: ['paid', 'partial'] },
-      ...(locationId ? { locationId } : {}),
+      locationId,
     },
     include: {
       checks: { include: { payments: true } },
@@ -80,7 +111,7 @@ async function buildAndUpsert(params: UpsertZReportParams) {
     where: {
       openedAt: { gte: dayStart, lt: dayEnd },
       status: 'closed',
-      ...(locationId ? { locationId } : {}),
+      locationId,
     },
   })
 
@@ -94,7 +125,7 @@ async function buildAndUpsert(params: UpsertZReportParams) {
   // Upsert znotraj transakcije (FIX BUG-5) — re-check po race window
   const report = await db.$transaction(async (tx) => {
     const txExisting = await tx.zReport.findFirst({
-      where: { reportDate: dayStart, ...(locationId ? { locationId } : {}) },
+      where: { reportDate: dayStart, locationId },
     })
     if (txExisting && txExisting.status === 'finalized') {
       throw new Error('Z_REPORT_FINALIZED')
