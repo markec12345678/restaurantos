@@ -110,10 +110,35 @@ export async function POST(req: Request) {
         logger.warn('Migrate', `ADD COLUMN ${model}.locationId: ${err instanceof Error ? err.message : 'unknown'}`)
       }
     }
+    // Backfill z RAW SQL — Prisma updateMany({ where: { locationId: null } }) na
+    // schema-NOT-NULL modelu vrne PrismaClientValidationError še PRED pošiljanjem
+    // queryja (runda 39: zato je "P0-C4 Backfill" poročal lažno "0 NULL records").
+    // $executeRawUnsafe obide client validacijo in počisti NULL vrstice v DB.
+    let configBackfilled = 0
+    if (configColsAdded > 0) {
+      const loc = await db.location.findFirst({
+        where: { isActive: true },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+      })
+      if (loc) {
+        for (const model of configModelsWithLocationId) {
+          try {
+            const n = await db.$executeRawUnsafe(
+              `UPDATE "${model}" SET "locationId" = $1 WHERE "locationId" IS NULL`,
+              loc.id
+            )
+            configBackfilled += n
+          } catch (err) {
+            logger.warn('Migrate', `Backfill raw ${model}: ${err instanceof Error ? err.message : 'unknown'}`)
+          }
+        }
+      }
+    }
     results.push({
       phase: 'Phase 0.5: Config tables locationId (runda 39)',
       status: configColsAdded === configModelsWithLocationId.length ? 'applied' : 'partial',
-      details: `${configColsAdded}/${configModelsWithLocationId.length} tables ensured locationId column`,
+      details: `${configColsAdded}/${configModelsWithLocationId.length} tables ensured locationId column; ${configBackfilled} rows backfilled`,
     })
 
     // ═══════════════════════════════════════════════════
