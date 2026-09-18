@@ -66,6 +66,7 @@ export function usePaymentHandlers({
         order,
         splitCount,
         guestAssignments,
+        loyaltyAccountId: loyaltyAccountId ?? null,
         queryClient,
         onPaymentSuccess,
         resetAndClose,
@@ -80,7 +81,7 @@ export function usePaymentHandlers({
     } finally {
       setIsProcessing(false)
     }
-  }, [order, isProcessing, splitCount, guestAssignments, queryClient, onPaymentSuccess, resetAndClose, setIsProcessing])
+  }, [order, isProcessing, splitCount, guestAssignments, loyaltyAccountId, queryClient, onPaymentSuccess, resetAndClose, setIsProcessing])
 
   return {
     handleSplitPayment,

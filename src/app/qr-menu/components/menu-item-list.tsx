@@ -41,7 +41,7 @@ export const MenuItemList = memo(function MenuItemList({
         return (
           <article
             key={item.id}
-            className={`${isDark ? 'bg-gray-900/80 border-gray-800' : isHighContrast ? 'bg-white border-2 border-black' : 'bg-white/70 border-white/50'} backdrop-blur-xl rounded-2xl border shadow-sm flex active:scale-[0.98] transition-all duration-150 cursor-pointer hover:shadow-md overflow-hidden`}
+            className={`${isDark ? 'bg-gray-900/80 border-gray-800' : isHighContrast ? 'bg-white border-2 border-black' : 'bg-white/70 border-white/50'} ${inCart > 0 ? 'ring-2 ring-amber-500/40' : ''} backdrop-blur-xl rounded-2xl border shadow-sm flex active:scale-[0.98] transition-all duration-150 cursor-pointer hover:shadow-md overflow-hidden`}
             onClick={() => onOpenItemDetail(item)}
             role="button"
             tabIndex={0}
@@ -100,7 +100,7 @@ export const MenuItemList = memo(function MenuItemList({
               {/* Quick add + price */}
               <div className="flex items-end justify-between gap-2 mt-2">
                 <div className="flex items-baseline gap-2">
-                  <span className={`font-bold ${fontSize === 'xl' ? 'text-2xl' : fontSize === 'large' ? 'text-xl' : 'text-lg'} ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
+                  <span className={`font-bold tabular-nums ${fontSize === 'xl' ? 'text-2xl' : fontSize === 'large' ? 'text-xl' : 'text-lg'} ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
                     {formatEUR(item.price * (1 + item.vatRate / 100))}
                   </span>
                   <span className={`text-[10px] ${isDark ? 'text-gray-600' : 'text-gray-400'}`}>

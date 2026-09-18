@@ -3,11 +3,13 @@
 import { memo, type Dispatch, type SetStateAction } from 'react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { Users } from 'lucide-react'
+import { Users, TrendingUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { guestColors, guestTextColors } from './constants'
-import type { OrderItemType } from './types'
+import type { OrderItemType, LoyaltyAccountItem } from './types'
 import { formatEUR } from '@/lib/safe-format'
+import { applyTierBonus, tierEarnBonusPct } from '@/lib/loyalty-tiers'
+import { LoyaltySection } from './LoyaltySection'
 
 interface ByItemsTabProps {
   order: {
@@ -22,6 +24,13 @@ interface ByItemsTabProps {
   isProcessing: boolean
   processPaymentIsPending: boolean
   onPayByItems: () => void
+  // RUNDA 47: pripni zvestobni račun — earn tudi po artiklih (isti shared stanje)
+  loyaltyResults: LoyaltyAccountItem[]
+  loyaltySearch: string
+  setLoyaltySearch: (_val: string) => void
+  selectedLoyaltyId: string | null
+  setSelectedLoyaltyId: (_val: string | null) => void
+  loyaltyConfig?: { enabled: boolean; pointsPerEuro: number; pointsValue: number } | null
 }
 
 export const ByItemsTab = memo(function ByItemsTab({
@@ -32,11 +41,33 @@ export const ByItemsTab = memo(function ByItemsTab({
   isProcessing,
   processPaymentIsPending,
   onPayByItems,
+  loyaltyResults,
+  loyaltySearch,
+  setLoyaltySearch,
+  selectedLoyaltyId,
+  setSelectedLoyaltyId,
+  loyaltyConfig,
 }: ByItemsTabProps) {
   // FIX TypeError: t?.filter is not a function — order.orderItems je lahko undefined
   // če API vrača partial podatke ali če je order prišel iz drugačnega vira.
   const orderItems = Array.isArray(order?.orderItems) ? order.orderItems : []
   const orderTotal = order?.total ?? 0
+
+  // RUNDA 47: per-gost earn preview (backend handleLoyaltyEarn teče PER delno
+  // plačilo — vsak gostov znesek prisluži svoje točke; ista matematika kot
+  // backend: floor(znesek × pointsPerEuro) + tier bonus iz izbranega računa).
+  const selectedLoyalty = loyaltyResults.find(la => la.id === selectedLoyaltyId) || null
+  const guestEarn = (guestTotal: number): number => {
+    if (!loyaltyConfig?.enabled || !selectedLoyalty || guestTotal <= 0) return 0
+    const base = Math.max(0, Math.floor(guestTotal * (loyaltyConfig.pointsPerEuro || 1)))
+    return applyTierBonus(base, selectedLoyalty.tier).total
+  }
+  const totalEarn = Array.from({ length: Math.max(splitCount, 2) }).reduce((sum, _, i) => {
+    const gTotal = orderItems
+      .filter(oi => guestAssignments[oi.id] === i + 1)
+      .reduce((s, oi) => s + oi.price * oi.quantity, 0)
+    return sum + guestEarn(gTotal)
+  }, 0)
 
   return (
     <div className="space-y-3">
@@ -103,18 +134,32 @@ export const ByItemsTab = memo(function ByItemsTab({
           const guestNum = i + 1
           const guestItems = orderItems.filter(oi => guestAssignments[oi.id] === guestNum)
           const guestTotal = guestItems.reduce((sum, oi) => sum + oi.price * oi.quantity, 0)
+          const earn = guestEarn(guestTotal)
           return (
             <div key={guestNum} className="flex justify-between">
-              <span className={cn('font-semibold', guestTextColors[i % guestTextColors.length])}>Gost {guestNum}</span>
-              <span className="font-bold">{formatEUR(guestTotal)}</span>
+              <span className={cn('font-semibold', guestTextColors[i % guestTextColors.length])}>
+                Gost {guestNum}
+                {earn > 0 && <span className="ml-1.5 font-normal text-emerald-600 dark:text-emerald-400 tabular-nums">+{earn} t.</span>}
+              </span>
+              <span className="font-bold tabular-nums">{formatEUR(guestTotal)}</span>
             </div>
           )
         })}
         <Separator />
         <div className="flex justify-between font-bold">
           <span>Skupaj</span>
-          <span>{formatEUR(orderTotal)}</span>
+          <span className="tabular-nums">{formatEUR(orderTotal)}</span>
         </div>
+        {/* RUNDA 47: skupni earn preview */}
+        {totalEarn > 0 && (
+          <div className="flex items-center justify-between rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-1.5">
+            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <TrendingUp className="h-3 w-3 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+              Točke (skupaj)
+            </span>
+            <span className="text-xs font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+{totalEarn}</span>
+          </div>
+        )}
         {(() => {
           const assigned = Object.keys(guestAssignments).length
           const total = orderItems.length
@@ -123,6 +168,19 @@ export const ByItemsTab = memo(function ByItemsTab({
           ) : null
         })()}
       </div>
+      {/* RUNDA 47: pripni zvestobni račun — earn tudi po artiklih */}
+      <LoyaltySection
+        loyaltyResults={loyaltyResults}
+        loyaltySearch={loyaltySearch}
+        setLoyaltySearch={setLoyaltySearch}
+        selectedLoyaltyId={selectedLoyaltyId}
+        setSelectedLoyaltyId={setSelectedLoyaltyId}
+        variant="earn"
+        previewPoints={totalEarn}
+        tierBonusPct={selectedLoyalty ? tierEarnBonusPct(selectedLoyalty.tier) : 0}
+        tierBonusTier={selectedLoyalty?.tier ?? ''}
+        loyaltyEnabled={loyaltyConfig?.enabled ?? false}
+      />
       <Button
         className="w-full h-12 text-base font-bold"
         disabled={processPaymentIsPending || isProcessing || Object.keys(guestAssignments).length < orderItems.length}

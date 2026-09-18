@@ -171,6 +171,13 @@ export const PaymentDialog = memo(function PaymentDialog(props: PaymentDialogPro
                       isProcessing={isProcessing}
                       processPaymentIsPending={processPaymentIsPending}
                       onPayByItems={handlePayByItems}
+                      // RUNDA 47: pripni zvestobni račun — earn tudi po artiklih
+                      loyaltyResults={loyaltyResults}
+                      loyaltySearch={loyaltySearch}
+                      setLoyaltySearch={setLoyaltySearch}
+                      selectedLoyaltyId={selectedLoyaltyId}
+                      setSelectedLoyaltyId={setSelectedLoyaltyId}
+                      loyaltyConfig={loyaltyConfig}
                     />
                   </TabsContent>
                 </Tabs>

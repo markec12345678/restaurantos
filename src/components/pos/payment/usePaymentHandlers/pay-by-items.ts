@@ -13,6 +13,7 @@ export async function executePayByItems({
   order,
   splitCount,
   guestAssignments,
+  loyaltyAccountId,
   queryClient,
   onPaymentSuccess,
   resetAndClose,
@@ -20,6 +21,9 @@ export async function executePayByItems({
   order: OrderForPayment
   splitCount: number
   guestAssignments: Record<string, number>
+  /** RUNDA 47: zvestobni račun za earn ob plačilu po artiklih (parity s split —
+   *  prej by-items NIKOLI ni pripel točk). Vsak gostov plačil prišteje svoj del. */
+  loyaltyAccountId?: string | null
 } & PaymentExecContext) {
   // FIX TypeError: t?.filter is not a function — order.orderItems je lahko undefined
   const orderItems = Array.isArray(order?.orderItems) ? order.orderItems : []
@@ -47,6 +51,8 @@ export async function executePayByItems({
         type: 'cash',
         status: 'completed',
         idempotencyKey: `payitems-${order.id}-g${g}-${guestTotal.toFixed(2)}`,
+        // RUNDA 47: earn točk tudi ob plačilu po artiklih (prej tiho izgubljeno)
+        ...(loyaltyAccountId ? { loyaltyAccountId } : {}),
       }),
     })
   }

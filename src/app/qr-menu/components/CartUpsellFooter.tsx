@@ -61,17 +61,20 @@ export const CartTotalsFooter = memo(function CartTotalsFooter({
   totalWithoutVat, totalWithVat, isDark, orderSending, onPlaceOrder,
 }: CartTotalsFooterProps) {
   return (
-    <div className={`border-t ${isDark ? 'border-gray-800' : 'border-gray-100'} p-4 space-y-3`}>
+    <div
+      className={`border-t ${isDark ? 'border-gray-800' : 'border-gray-100'} p-4 space-y-3`}
+      style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
+    >
       <div className="space-y-1">
-        <div className={`flex justify-between text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+        <div className={`flex justify-between text-sm tabular-nums ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
           <span>Znesek brez DDV</span>
           <span>{formatEUR(totalWithoutVat)}</span>
         </div>
-        <div className={`flex justify-between text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+        <div className={`flex justify-between text-sm tabular-nums ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
           <span>DDV</span>
           <span>{formatEUR(totalWithVat - totalWithoutVat)}</span>
         </div>
-        <div className={`flex justify-between text-lg font-bold pt-1 ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
+        <div className={`flex justify-between text-lg font-bold pt-1 tabular-nums ${isDark ? 'text-amber-400' : 'text-amber-800'}`}>
           <span>Skupaj</span>
           <span>{formatEUR(totalWithVat)}</span>
         </div>
@@ -79,7 +82,7 @@ export const CartTotalsFooter = memo(function CartTotalsFooter({
       <button
         onClick={onPlaceOrder}
         disabled={orderSending}
-        className={`w-full py-4 rounded-2xl font-bold text-lg transition shadow-lg active:scale-[0.98] ${
+        className={`w-full py-4 rounded-2xl font-bold text-lg transition shadow-lg active:scale-[0.98] focus-visible:ring-4 focus-visible:ring-amber-300/60 outline-none ${
           orderSending
             ? 'bg-gray-400 text-gray-600 cursor-not-allowed shadow-none'
             : 'bg-amber-500 text-white hover:bg-amber-600 shadow-amber-500/30'
@@ -92,7 +95,7 @@ export const CartTotalsFooter = memo(function CartTotalsFooter({
             Pošiljam...
           </span>
         ) : (
-          `Naroči · ${formatEUR(totalWithVat)}`
+          <span className="tabular-nums">Naroči · {formatEUR(totalWithVat)}</span>
         )}
       </button>
     </div>
