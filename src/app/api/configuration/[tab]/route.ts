@@ -11,11 +11,62 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
+import { logger } from '@/lib/logger'
 import { modelMap, allowedFields, coerceFieldTypes, validateConfigRefs, createConfigItem, extractConfigData } from '../_helpers'
 import { sessionLocationId, locationFilter } from '@/lib/tenant-scope'
 import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 
 export const dynamic = 'force-dynamic'
+
+// RUNDA 41: raw UPDATE fallback — db.taxRate.update na prod VEDNO 500 (create +
+// GET delujejo, serviceCharge/priceGroup/voidReason update delujejo — samo
+// TaxRate update ne; vzrok ni mogoče diagnosticirati brez runtime logov /
+// DB dostopa). Fallback: parametriziran UPDATE po WHITELIST stolpcih iz
+// allowedFields (ni user-input imen stolpcev — vrednosti gredo kot $n parametri).
+// Izkušnja R39/R40: raw SQL je zanesljiva pot mimo Prisma client anomalij.
+function rawUpdateFallback(
+  tableName: string,
+  id: string,
+  data: Record<string, unknown>,
+): Promise<unknown> {
+  const cols = Object.keys(data)
+  if (cols.length === 0) throw new Error('rawUpdateFallback: ni stolpcev')
+  const sets = cols.map((c, i) => `"${c}" = $${i + 1}`)
+  const values = cols.map((c) => data[c])
+  const sql = `UPDATE "${tableName}" SET ${sets.join(', ')}, "updatedAt" = CURRENT_TIMESTAMP WHERE "id" = $${cols.length + 1}`
+  return db.$executeRawUnsafe(sql, ...values, id)
+}
+
+// Prisma delegate ime → DB tabelo ime (schema brez @@map — model = tabela)
+const tableByModel: Record<string, string> = {
+  taxRate: 'TaxRate',
+  diningOption: 'DiningOption',
+  revenueCenter: 'RevenueCenter',
+  salesCategory: 'SalesCategory',
+  priceGroup: 'PriceGroup',
+  serviceCharge: 'ServiceCharge',
+  prepStation: 'PrepStation',
+  voidReason: 'VoidReason',
+  noSaleReason: 'NoSaleReason',
+  alternatePaymentType: 'AlternatePaymentType',
+  printer: 'Printer',
+  discount: 'Discount',
+}
+
+/** RUNDA 41: širša FK-detekcija — poleg Prisma P2003 tudi surovi Postgres
+ *  message ("violates foreign key constraint ..."), ker R40 lekcija: error
+ *  instance v Next bundleju niso zanesljive (dual-copy @prisma/client). */
+function isFkViolation(err: unknown): boolean {
+  const code = (err as { code?: string }).code
+  const msg = err instanceof Error ? err.message : String(err)
+  return (
+    code === 'P2003' ||
+    msg.includes('P2003') ||
+    msg.includes('Foreign key constraint') ||
+    msg.includes('violates foreign key constraint') ||
+    msg.includes('foreign key constraint fails')
+  )
+}
 
 // Mapiranje tab → Prisma model + select polja
 const tabConfig: Record<string, {
@@ -263,24 +314,40 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tab: str
       }
     }
 
-    // Type-safe update switch (isti vzorec kot create switch)
+    // Type-safe update switch (isti vzorec kot create switch).
+    // RUNDA 41 hotfix: typed update lahko na prod pade (empirično: db.taxRate.
+    // update VEDNO 500) — fallback gre prek parametriziranega raw UPDATE.
     const data = filteredData
     let item: unknown
-    switch (prismaModel) {
-      case 'taxRate': item = await db.taxRate.update({ where: { id }, data: data as never }); break
-      case 'diningOption': item = await db.diningOption.update({ where: { id }, data: data as never }); break
-      case 'revenueCenter': item = await db.revenueCenter.update({ where: { id }, data: data as never }); break
-      case 'salesCategory': item = await db.salesCategory.update({ where: { id }, data: data as never }); break
-      case 'priceGroup': item = await db.priceGroup.update({ where: { id }, data: data as never }); break
-      case 'serviceCharge': item = await db.serviceCharge.update({ where: { id }, data: data as never }); break
-      case 'prepStation': item = await db.prepStation.update({ where: { id }, data: data as never }); break
-      case 'voidReason': item = await db.voidReason.update({ where: { id }, data: data as never }); break
-      case 'noSaleReason': item = await db.noSaleReason.update({ where: { id }, data: data as never }); break
-      case 'alternatePaymentType': item = await db.alternatePaymentType.update({ where: { id }, data: data as never }); break
-      case 'printer': item = await db.printer.update({ where: { id }, data: data as never }); break
-      case 'discount': item = await db.discount.update({ where: { id }, data: data as never }); break
-      default:
-        return NextResponse.json({ error: `Unknown model: ${prismaModel}` }, { status: 400 })
+    try {
+      switch (prismaModel) {
+        case 'taxRate': item = await db.taxRate.update({ where: { id }, data: data as never }); break
+        case 'diningOption': item = await db.diningOption.update({ where: { id }, data: data as never }); break
+        case 'revenueCenter': item = await db.revenueCenter.update({ where: { id }, data: data as never }); break
+        case 'salesCategory': item = await db.salesCategory.update({ where: { id }, data: data as never }); break
+        case 'priceGroup': item = await db.priceGroup.update({ where: { id }, data: data as never }); break
+        case 'serviceCharge': item = await db.serviceCharge.update({ where: { id }, data: data as never }); break
+        case 'prepStation': item = await db.prepStation.update({ where: { id }, data: data as never }); break
+        case 'voidReason': item = await db.voidReason.update({ where: { id }, data: data as never }); break
+        case 'noSaleReason': item = await db.noSaleReason.update({ where: { id }, data: data as never }); break
+        case 'alternatePaymentType': item = await db.alternatePaymentType.update({ where: { id }, data: data as never }); break
+        case 'printer': item = await db.printer.update({ where: { id }, data: data as never }); break
+        case 'discount': item = await db.discount.update({ where: { id }, data: data as never }); break
+        default:
+          return NextResponse.json({ error: `Unknown model: ${prismaModel}` }, { status: 400 })
+      }
+    } catch (updError: unknown) {
+      const updMsg = updError instanceof Error ? updError.message : String(updError)
+      logger.warn('ConfigPUT', `typed update failed (${prismaModel}/${id}): ${updMsg.slice(0, 200)} — raw fallback`)
+      const table = tableByModel[prismaModel]
+      if (!table) throw updError
+      await rawUpdateFallback(table, id, data)
+      item = await db.$queryRawUnsafe(
+        `SELECT * FROM "${table}" WHERE "id" = $1`,
+        id,
+      )
+      if (Array.isArray(item)) item = item[0] ?? null
+      if (!item) return NextResponse.json({ error: 'Zapis ne obstaja' }, { status: 404 })
     }
 
     return NextResponse.json(deepToNumbers(item))
@@ -317,20 +384,28 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ tab: 
 
     const softDelete = async (): Promise<unknown> => {
       const data = { isActive: false }
-      switch (prismaModel) {
-        case 'taxRate': return db.taxRate.update({ where: { id }, data })
-        case 'diningOption': return db.diningOption.update({ where: { id }, data })
-        case 'revenueCenter': return db.revenueCenter.update({ where: { id }, data })
-        case 'salesCategory': return db.salesCategory.update({ where: { id }, data })
-        case 'priceGroup': return db.priceGroup.update({ where: { id }, data })
-        case 'serviceCharge': return db.serviceCharge.update({ where: { id }, data })
-        case 'prepStation': return db.prepStation.update({ where: { id }, data })
-        case 'voidReason': return db.voidReason.update({ where: { id }, data })
-        case 'noSaleReason': return db.noSaleReason.update({ where: { id }, data })
-        case 'alternatePaymentType': return db.alternatePaymentType.update({ where: { id }, data })
-        case 'printer': return db.printer.update({ where: { id }, data })
-        case 'discount': return db.discount.update({ where: { id }, data })
-        default: throw new Error(`Unknown model: ${prismaModel}`)
+      try {
+        switch (prismaModel) {
+          case 'taxRate': return await db.taxRate.update({ where: { id }, data })
+          case 'diningOption': return await db.diningOption.update({ where: { id }, data })
+          case 'revenueCenter': return await db.revenueCenter.update({ where: { id }, data })
+          case 'salesCategory': return await db.salesCategory.update({ where: { id }, data })
+          case 'priceGroup': return await db.priceGroup.update({ where: { id }, data })
+          case 'serviceCharge': return await db.serviceCharge.update({ where: { id }, data })
+          case 'prepStation': return await db.prepStation.update({ where: { id }, data })
+          case 'voidReason': return await db.voidReason.update({ where: { id }, data })
+          case 'noSaleReason': return await db.noSaleReason.update({ where: { id }, data })
+          case 'alternatePaymentType': return await db.alternatePaymentType.update({ where: { id }, data })
+          case 'printer': return await db.printer.update({ where: { id }, data })
+          case 'discount': return await db.discount.update({ where: { id }, data })
+          default: throw new Error(`Unknown model: ${prismaModel}`)
+        }
+      } catch (softErr: unknown) {
+        // RUNDA 41: tudi soft-delete je lahko žrtev taxRate-update anomalije —
+        // raw fallback (ista pot kot v PUT)
+        logger.warn('ConfigDELETE', `typed softDelete failed (${prismaModel}/${id}): ${(softErr instanceof Error ? softErr.message : String(softErr)).slice(0, 160)} — raw fallback`)
+        await rawUpdateFallback(tableByModel[prismaModel], id, data)
+        return { id }
       }
     }
 
@@ -357,12 +432,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ tab: 
     try {
       item = await hardDelete()
     } catch (delError: unknown) {
-      // R39 lekcija: instanceof PrismaClientKnownRequestError NE DELUJE v Next
-      // bundleju (dual-copy @prisma/client) — vedno duck-typing po .code/.message.
-      const code = (delError as { code?: string }).code
-      const msg = delError instanceof Error ? delError.message : String(delError)
-      const fkViolation = code === 'P2003' || msg.includes('P2003') || msg.includes('Foreign key constraint')
-      if (!fkViolation) throw delError
+      if (!isFkViolation(delError)) throw delError
       // FK zaščita — deaktiviraj namesto izbrisa (fiskalna revizijska sled)
       item = await softDelete()
       softDeleted = true

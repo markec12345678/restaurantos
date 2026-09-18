@@ -154,6 +154,7 @@ export async function POST(req: Request) {
       'RestaurantSettings', 'Location', 'Reservation', 'Receipt', 'Order',
       'ZReport', 'HaccpEntry', 'TimeEntry', 'GuestFeedback', 'PurchaseOrder',
       'Shift', 'CashRegisterShift',
+      'TaxRate', // R41: taxRate update anomalo diagnoza (typed update 500, create/GET OK)
     ]
     const inspection: Record<string, string> = {}
     for (const t of inspectTables) {
