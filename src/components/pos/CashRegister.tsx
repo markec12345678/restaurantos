@@ -14,6 +14,7 @@ import { format } from 'date-fns'
 import dynamic from 'next/dynamic'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
+import { toNum } from '@/lib/decimal'
 import type { OpenShiftFormType, CloseShiftFormType, EodFormType } from './cash-register/constants'
 import { useCashRegisterMutations } from './cash-register/useCashRegisterMutations'
 import { CashRegisterLoading, NoActiveShiftCard } from './cash-register/CashRegisterLoading'
@@ -68,6 +69,19 @@ export const CashRegister = memo(function CashRegister() {
   })
 
   const activeShift = data?.activeShift
+
+  // FIX QA runda 37 (UX): prefill začetne gotovine z zaključnim stanjem prejšnje izmene —
+  // poslovna logika (409 STARTING_CASH_MISMATCH) zahteva popoln prenos gotovine,
+  // prej je dialog ponujal fiksno 200 € → vsako odpiranje je spodletelo z napako.
+  // (setState ob dogodku, ne v effect — react-hooks/set-state-in-effect)
+  const handleOpenShiftDialog = useCallback(() => {
+    const prevClosing = data?.recentShifts?.[0]?.closingCash
+    setOpenForm(f => ({
+      ...f,
+      startingCash: prevClosing != null ? String(toNum(prevClosing)) : f.startingCash,
+    }))
+    setOpenDialog(true)
+  }, [data])
   const liveStats = data?.liveStats
   const recentShifts = data?.recentShifts || []
 
@@ -115,7 +129,7 @@ export const CashRegister = memo(function CashRegister() {
             </Button>
           </div>
         ) : (
-          <Button onClick={() => setOpenDialog(true)} aria-label="Odpri izmeno">
+          <Button onClick={handleOpenShiftDialog} aria-label="Odpri izmeno">
             <Unlock className="h-4 w-4 mr-2" />Odpri izmeno
           </Button>
         )}
@@ -124,7 +138,7 @@ export const CashRegister = memo(function CashRegister() {
       {activeShift ? (
         <ActiveShiftView activeShift={activeShift} liveStats={liveStats} />
       ) : (
-        <NoActiveShiftCard onOpenShift={() => setOpenDialog(true)} />
+        <NoActiveShiftCard onOpenShift={handleOpenShiftDialog} />
       )}
 
       <RecentShiftsList shifts={recentShifts} />

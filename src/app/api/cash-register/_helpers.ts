@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { toNum, deepToNumbers, type DecimalLike } from '@/lib/decimal'
+import { getFirstLocationId } from '@/lib/location-fallback'
 import { z } from 'zod'
 
 // ============================================
@@ -109,6 +110,11 @@ export async function openShift(data: { employeeId?: string; employeeName: strin
     if (data.employeeId) {
       const emp = await tx.employee.findUnique({ where: { id: data.employeeId } })
       shiftLocationId = emp?.locationId || null
+    }
+    // FIX QA runda 37: DB stolpec CashRegisterShift.locationId je NOT NULL (schema drift)
+    // — create z null je vrgel P2011 (Ana = admin brez employee.locationId)
+    if (!shiftLocationId) {
+      shiftLocationId = await getFirstLocationId()
     }
 
     const previousShift = await tx.cashRegisterShift.findFirst({
