@@ -311,7 +311,7 @@ export async function POST(req: Request) {
     // NOT NULL + FK zdaj. RAW SQL (R39 lekcija: updateMany z locationId:null
     // na NOT NULL modelu = client validation PRED DB).
     // ═══════════════════════════════════════════════════
-    if (apply && firstLocation) {
+    if (apply) {
       try {
         const trBefore = await db.$queryRawUnsafe<Array<{ n: number }>>(
           `SELECT COUNT(*)::int AS n FROM "TaxRate" WHERE "locationId" IS NULL`
@@ -319,9 +319,16 @@ export async function POST(req: Request) {
         const nullCount = trBefore[0]?.n ?? 0
         let trFixed = 0
         if (nullCount > 0) {
+          // Prva lokacija (ista resolucija kot Phase 0/1 — lasten query, ker je
+          // firstLocation deklariran kasneje v datoteki)
+          const locRows = await db.$queryRawUnsafe<Array<{ id: string }>>(
+            `SELECT id FROM "Location" ORDER BY "createdAt" ASC LIMIT 1`
+          )
+          const locId = locRows[0]?.id
+          if (!locId) throw new Error('Ni lokacij — backfill nemogoč')
           trFixed = await db.$executeRawUnsafe(
             `UPDATE "TaxRate" SET "locationId" = $1 WHERE "locationId" IS NULL`,
-            firstLocation.id
+            locId
           )
           // Schema alignment: NOT NULL + FK (idempotentno)
           await db.$executeRawUnsafe(`ALTER TABLE "TaxRate" DROP CONSTRAINT IF EXISTS "TaxRate_locationId_fkey"`)
@@ -333,7 +340,7 @@ export async function POST(req: Request) {
         results.push({
           phase: 'Phase 0.5b: TaxRate NULL locationId backfill (runda 41)',
           status: nullCount > 0 ? 'applied' : 'already-in-sync',
-          details: `${nullCount} NULL vrstic${trFixed > 0 ? ` → backfillanih ${trFixed} na ${firstLocation.id} + NOT NULL + FK` : ''}`,
+          details: `${nullCount} NULL vrstic${trFixed > 0 ? ` → backfillanih ${trFixed} + NOT NULL + FK` : ''}`,
         })
       } catch (err) {
         results.push({
