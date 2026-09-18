@@ -131,3 +131,21 @@ export function tierProgress(lifetimePoints: number, currentTierOverride?: strin
     lifetimePoints: points,
   }
 }
+
+// ─── RUNDA 49: unovčenje (redeem) — točke potrebne za znesek ───
+// Paritetno z backend fraud-checkom: amount <= pointsUsed × pointsValue.
+// CEIL zagotavlja, da točke VEDNO pokrijejo znesek (nikoli manj);
+// 6-decimična kvantizacija kvocienta ubije float prah (61.65 / 0.01 =
+// 6164.999999… bi z golim ceil dalo 6165 — prav; 0.1+0.2-vrste prahu pa
+// lahko da X.000000001 → X+1 točk = napačen pregled).
+/**
+ * Število točk, potrebnych za pokritje `amount` EUR pri vrednosti
+ * `pointsValue` EUR/točko. Znesek <= 0 ali neveljavna pointsValue → 0.
+ * Pozitiven znesek ob veljavni vrednosti → vsaj 1 točka.
+ */
+export function redeemPointsNeeded(amount: number, pointsValue: number): number {
+  if (!Number.isFinite(amount) || amount <= 0) return 0
+  if (!Number.isFinite(pointsValue) || pointsValue <= 0) return 0
+  const quotient = Math.round((amount / pointsValue) * 1e6) / 1e6
+  return Math.max(1, Math.ceil(quotient))
+}

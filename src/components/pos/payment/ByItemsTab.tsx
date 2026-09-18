@@ -3,12 +3,12 @@
 import { memo, type Dispatch, type SetStateAction } from 'react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { Users, TrendingUp } from 'lucide-react'
+import { Users, TrendingUp, Ticket, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { guestColors, guestTextColors } from './constants'
 import type { OrderItemType, LoyaltyAccountItem } from './types'
 import { formatEUR } from '@/lib/safe-format'
-import { applyTierBonus, tierEarnBonusPct } from '@/lib/loyalty-tiers'
+import { applyTierBonus, tierEarnBonusPct, redeemPointsNeeded } from '@/lib/loyalty-tiers'
 import { LoyaltySection } from './LoyaltySection'
 
 interface ByItemsTabProps {
@@ -31,6 +31,9 @@ interface ByItemsTabProps {
   selectedLoyaltyId: string | null
   setSelectedLoyaltyId: (_val: string | null) => void
   loyaltyConfig?: { enabled: boolean; pointsPerEuro: number; pointsValue: number } | null
+  // RUNDA 49: unovčenje — vsak gostov plačilo gre kot type 'loyalty' s točkami
+  loyaltyRedeem?: boolean
+  setLoyaltyRedeem?: (_val: boolean) => void
 }
 
 export const ByItemsTab = memo(function ByItemsTab({
@@ -47,6 +50,8 @@ export const ByItemsTab = memo(function ByItemsTab({
   selectedLoyaltyId,
   setSelectedLoyaltyId,
   loyaltyConfig,
+  loyaltyRedeem = false,
+  setLoyaltyRedeem,
 }: ByItemsTabProps) {
   // FIX TypeError: t?.filter is not a function — order.orderItems je lahko undefined
   // če API vrača partial podatke ali če je order prišel iz drugačnega vira.
@@ -70,6 +75,19 @@ export const ByItemsTab = memo(function ByItemsTab({
       .reduce((s, oi) => s + oi.price * oi.quantity, 0)
     return sum + guestEarn(gTotal)
   }, 0)
+
+  // RUNDA 49: unovčenje preview — ISTA matematika kot executor (ceil per gost).
+  // Točke pokrijejo gostov znesek; gostje brez artiklov ne porabijo nič.
+  const pointsValue = loyaltyConfig?.pointsValue && loyaltyConfig.pointsValue > 0 ? loyaltyConfig.pointsValue : 0.01
+  const guestRedeem = (guestTotal: number): number => redeemPointsNeeded(guestTotal, pointsValue)
+  const totalRedeem = Array.from({ length: Math.max(splitCount, 2) }).reduce<number>((sum, _, i) => {
+    const gTotal = orderItems
+      .filter(oi => guestAssignments[oi.id] === i + 1)
+      .reduce((s, oi) => s + oi.price * oi.quantity, 0)
+    return sum + guestRedeem(gTotal)
+  }, 0)
+  const redeemFeasible = !!selectedLoyalty && selectedLoyalty.pointsBalance >= totalRedeem
+  const redeemToggleEnabled = !!selectedLoyalty && totalRedeem > 0
 
   return (
     <div className="space-y-3">
@@ -137,11 +155,18 @@ export const ByItemsTab = memo(function ByItemsTab({
           const guestItems = orderItems.filter(oi => guestAssignments[oi.id] === guestNum)
           const guestTotal = guestItems.reduce((sum, oi) => sum + oi.price * oi.quantity, 0)
           const earn = guestEarn(guestTotal)
+          const redeem = guestRedeem(guestTotal)
           return (
             <div key={guestNum} className="flex justify-between">
               <span className={cn('font-semibold', guestTextColors[i % guestTextColors.length])}>
                 Gost {guestNum}
-                {earn > 0 && <span className="ml-1.5 font-normal text-emerald-600 dark:text-emerald-400 tabular-nums">+{earn} t.</span>}
+                {/* RUNDA 49: unovčenje chip namesto earn chipa (točke pokrijejo znesek) */}
+                {loyaltyRedeem && redeem > 0 && (
+                  <span className="ml-1.5 font-normal text-violet-600 dark:text-violet-400 tabular-nums">−{redeem} t.</span>
+                )}
+                {!loyaltyRedeem && earn > 0 && (
+                  <span className="ml-1.5 font-normal text-emerald-600 dark:text-emerald-400 tabular-nums">+{earn} t.</span>
+                )}
               </span>
               <span className="font-bold tabular-nums">{formatEUR(guestTotal)}</span>
             </div>
@@ -152,8 +177,8 @@ export const ByItemsTab = memo(function ByItemsTab({
           <span>Skupaj</span>
           <span className="tabular-nums">{formatEUR(orderTotal)}</span>
         </div>
-        {/* RUNDA 47: skupni earn preview */}
-        {totalEarn > 0 && (
+        {/* RUNDA 47: skupni earn preview — skrit ob unovčenju (type 'loyalty' ne earn-a) */}
+        {!loyaltyRedeem && totalEarn > 0 && (
           <div className="flex items-center justify-between rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-1.5">
             <span className="text-[11px] text-muted-foreground flex items-center gap-1">
               <TrendingUp className="h-3 w-3 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
@@ -161,6 +186,28 @@ export const ByItemsTab = memo(function ByItemsTab({
             </span>
             <span className="text-xs font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+{totalEarn}</span>
           </div>
+        )}
+        {/* RUNDA 49: skupno unovčenje preview */}
+        {loyaltyRedeem && totalRedeem > 0 && (
+          <>
+            <div className={`flex items-center justify-between rounded-md border px-2.5 py-1.5 ${
+              redeemFeasible ? 'border-violet-500/30 bg-violet-500/5' : 'border-amber-500/40 bg-amber-500/5'
+            }`} aria-live="polite">
+              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <Ticket className={`h-3 w-3 ${redeemFeasible ? 'text-violet-600 dark:text-violet-400' : 'text-amber-600'}`} aria-hidden="true" />
+                Unovčenje (skupaj)
+              </span>
+              <span className={`text-xs font-bold tabular-nums ${
+                redeemFeasible ? 'text-violet-600 dark:text-violet-400' : 'text-amber-600 dark:text-amber-400'
+              }`}>−{totalRedeem}</span>
+            </div>
+            {!redeemFeasible && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1.5" role="alert">
+                <AlertTriangle className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+                Stanje {selectedLoyalty?.pointsBalance ?? 0} točk ne pokrije potrebnih {totalRedeem}.
+              </p>
+            )}
+          </>
         )}
         {(() => {
           const assigned = Object.keys(guestAssignments).length
@@ -178,18 +225,65 @@ export const ByItemsTab = memo(function ByItemsTab({
         selectedLoyaltyId={selectedLoyaltyId}
         setSelectedLoyaltyId={setSelectedLoyaltyId}
         variant="earn"
-        previewPoints={totalEarn}
-        tierBonusPct={selectedLoyalty ? tierEarnBonusPct(selectedLoyalty.tier) : 0}
+        previewPoints={loyaltyRedeem ? 0 : totalEarn}
+        tierBonusPct={loyaltyRedeem ? 0 : (selectedLoyalty ? tierEarnBonusPct(selectedLoyalty.tier) : 0)}
         tierBonusTier={selectedLoyalty?.tier ?? ''}
+        redeemActive={loyaltyRedeem}
         loyaltyEnabled={loyaltyConfig?.enabled ?? false}
       />
+      {/* RUNDA 49: preklop unovčenja — vsak gostov del pokrit z točkami */}
+      {selectedLoyalty && setLoyaltyRedeem && (
+        <button
+          type="button"
+          role="switch"
+          aria-checked={loyaltyRedeem}
+          disabled={!redeemToggleEnabled}
+          onClick={() => setLoyaltyRedeem(!loyaltyRedeem)}
+          className={`w-full flex items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors touch-manipulation ${
+            loyaltyRedeem
+              ? 'border-violet-500/50 bg-violet-500/10'
+              : redeemToggleEnabled
+                ? 'border-border hover:bg-accent'
+                : 'border-border/60 opacity-50 cursor-not-allowed'
+          }`}
+        >
+          <span className="flex items-center gap-2 min-w-0">
+            <Ticket className={`h-4 w-4 flex-shrink-0 ${loyaltyRedeem ? 'text-violet-600 dark:text-violet-400' : 'text-muted-foreground'}`} aria-hidden="true" />
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold">Plačilo s točkami (unovčenje)</span>
+              <span className="block text-[10px] text-muted-foreground tabular-nums">
+                {redeemToggleEnabled
+                  ? `${selectedLoyalty.pointsBalance} točk na voljo · pokrije vse goste`
+                  : 'Dodeli artikle za unovčenje'}
+              </span>
+            </span>
+          </span>
+          <span
+            aria-hidden="true"
+            className={`relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors ${
+              loyaltyRedeem ? 'bg-violet-600' : 'bg-muted-foreground/30'
+            }`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+              loyaltyRedeem ? 'translate-x-[18px]' : 'translate-x-0.5'
+            }`} />
+          </span>
+        </button>
+      )}
       <Button
         className="w-full h-12 text-base font-bold"
-        disabled={processPaymentIsPending || isProcessing || Object.keys(guestAssignments).length < orderItems.length}
+        disabled={
+          processPaymentIsPending || isProcessing || Object.keys(guestAssignments).length < orderItems.length ||
+          // RUNDA 49: unovčenje brez dovolj točk → gumb onemogočen (amber opozorilo zgoraj)
+          (loyaltyRedeem && totalRedeem > 0 && !redeemFeasible)
+        }
         onClick={onPayByItems}
       >
         {processPaymentIsPending ? 'Obdelujem...' : (
-          <><Users className="h-4 w-4 mr-2" aria-hidden="true" />Plačaj po artiklih</>
+          <>{loyaltyRedeem && totalRedeem > 0
+            ? <><Ticket className="h-4 w-4 mr-2" aria-hidden="true" />Plačaj s točkami (−{totalRedeem} t.)</>
+            : <><Users className="h-4 w-4 mr-2" aria-hidden="true" />Plačaj po artiklih</>
+          }</>
         )}
       </Button>
     </div>

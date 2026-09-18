@@ -38,6 +38,7 @@ export const PaymentDialog = memo(function PaymentDialog(props: PaymentDialogPro
     selectedGiftCardId, setSelectedGiftCardId,
     loyaltySearch, setLoyaltySearch,
     selectedLoyaltyId, setSelectedLoyaltyId,
+    loyaltyRedeem, setLoyaltyRedeem,
     selectedAltPayment, setSelectedAltPayment,
     altPayments, giftCards, loyaltyResults, loyaltyConfig,
     handleTipPercent, handleCustomTip,
@@ -159,6 +160,9 @@ export const PaymentDialog = memo(function PaymentDialog(props: PaymentDialogPro
                       selectedLoyaltyId={selectedLoyaltyId}
                       setSelectedLoyaltyId={setSelectedLoyaltyId}
                       loyaltyConfig={loyaltyConfig}
+                      // RUNDA 49: unovčenje — vsak delni plačilni POST gre kot type 'loyalty'
+                      loyaltyRedeem={loyaltyRedeem}
+                      setLoyaltyRedeem={setLoyaltyRedeem}
                     />
                   </TabsContent>
                   {/* Deli po artiklih */}
@@ -178,6 +182,9 @@ export const PaymentDialog = memo(function PaymentDialog(props: PaymentDialogPro
                       selectedLoyaltyId={selectedLoyaltyId}
                       setSelectedLoyaltyId={setSelectedLoyaltyId}
                       loyaltyConfig={loyaltyConfig}
+                      // RUNDA 49: unovčenje — vsak gostov plačilni POST gre kot type 'loyalty'
+                      loyaltyRedeem={loyaltyRedeem}
+                      setLoyaltyRedeem={setLoyaltyRedeem}
                     />
                   </TabsContent>
                 </Tabs>

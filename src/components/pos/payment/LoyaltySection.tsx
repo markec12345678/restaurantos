@@ -22,6 +22,9 @@ interface LoyaltySectionProps {
   tierBonusPct?: number
   /** RUNDA 45: ime nivoja, iz katerega bonus izhaja (za oznako) */
   tierBonusTier?: string
+  /** RUNDA 49: unovčenje je aktivno (deljeno / po artiklih) — statusna vrstica
+   *  izbranega računa pokaže namen unovčenja namesto "bo prejel +N točk" */
+  redeemActive?: boolean
   loyaltyEnabled?: boolean
 }
 
@@ -43,6 +46,7 @@ export const LoyaltySection = memo(function LoyaltySection({
   previewPoints = 0,
   tierBonusPct = 0,
   tierBonusTier = '',
+  redeemActive = false,
   loyaltyEnabled = false,
 }: LoyaltySectionProps) {
   const isRedeem = variant === 'redeem'
@@ -128,17 +132,21 @@ export const LoyaltySection = memo(function LoyaltySection({
         <p className="text-[11px] text-muted-foreground flex items-center gap-1.5" role="status">
           <Star className="h-3 w-3 fill-primary text-primary flex-shrink-0" aria-hidden="true" />
           Pripeto: <span className="font-semibold text-foreground">{selected.customerName}</span>
-          {isRedeem
+          {redeemActive ? (
+            <span className="text-violet-600 dark:text-violet-400 font-medium">
+              — unovčenje pokrije plačilo
+            </span>
+          ) : isRedeem
             ? ` — unovčenje ${previewPoints} točk`
             : loyaltyEnabled
               ? ` — bo prejel +${previewPoints} točk`
-              : ' — program točk ni aktiven (točke se ne birovale)'}
+              : ' — program točk ni aktiven (točke se ne pripisale)'}
           {' · '}
           <button
             onClick={() => setSelectedLoyaltyId(null)}
             className="underline underline-offset-2 hover:text-foreground"
           >
-            odpeni
+            odpni
           </button>
         </p>
       )}

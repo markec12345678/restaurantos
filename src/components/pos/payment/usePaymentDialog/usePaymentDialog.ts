@@ -24,6 +24,7 @@ export function usePaymentDialog({ order, open, onClose, onPaymentSuccess }: Pay
     selectedAltPayment, setSelectedAltPayment,
     selectedGiftCardId, setSelectedGiftCardId,
     selectedLoyaltyId, setSelectedLoyaltyId,
+    loyaltyRedeem, setLoyaltyRedeem,
     cashReceived, setCashReceived,
     isProcessing, setIsProcessing,
     paymentSuccess, setPaymentSuccess,
@@ -87,6 +88,11 @@ export function usePaymentDialog({ order, open, onClose, onPaymentSuccess }: Pay
   }, [paymentMethod, selectedGiftCardId, selectedAltPayment, processPaymentMutation, isProcessing, order])
 
   // Split in by-items handlerji (iz usePaymentHandlers)
+  // RUNDA 49: unovčenje (redeem) — izbrani račun + normalizirana vrednost točke
+  // + stanje (za predhodno odjavo preverjanje, ki prepreči pol-failed split).
+  const selectedLoyalty = loyaltyResults.find(la => la.id === selectedLoyaltyId) || null
+  const normalizedPointsValue =
+    loyaltyConfig?.pointsValue && loyaltyConfig.pointsValue > 0 ? loyaltyConfig.pointsValue : 0.01
   const { handleSplitPayment, handlePayByItems } = usePaymentHandlers({
     order,
     isProcessing,
@@ -99,6 +105,10 @@ export function usePaymentDialog({ order, open, onClose, onPaymentSuccess }: Pay
     guestAssignments,
     // RUNDA 46: earn točk tudi ob deljenem plačilu — pripet račun iz shared stanja
     loyaltyAccountId: selectedLoyaltyId,
+    // RUNDA 49: unovčenje ob deljenem / po-artiklih plačilu
+    loyaltyRedeem,
+    loyaltyBalance: selectedLoyalty?.pointsBalance ?? null,
+    pointsValue: normalizedPointsValue,
     onPaymentSuccess,
     resetAndClose,
   })
@@ -115,6 +125,7 @@ export function usePaymentDialog({ order, open, onClose, onPaymentSuccess }: Pay
     selectedAltPayment, setSelectedAltPayment,
     selectedGiftCardId, setSelectedGiftCardId,
     selectedLoyaltyId, setSelectedLoyaltyId,
+    loyaltyRedeem, setLoyaltyRedeem,
     cashReceived, setCashReceived,
     isProcessing,
     paymentSuccess,

@@ -19,6 +19,10 @@ export function usePaymentState({ order, open: _open, onClose }: PaymentDialogPr
   const [selectedAltPayment, setSelectedAltPayment] = useState('')
   const [selectedGiftCardId, setSelectedGiftCardId] = useState<string | null>(null)
   const [selectedLoyaltyId, setSelectedLoyaltyId] = useState<string | null>(null)
+  // RUNDA 49: unovčenje (redeem) za deljeno / po-artiklih plačilo — vsako delno
+  // plačilo gre kot type 'loyalty' (parity z Eno plačilo načinom). Skupno za
+  // oba zavihka (isti namen), počisti se z resetAndClose.
+  const [loyaltyRedeem, setLoyaltyRedeem] = useState(false)
   const [cashReceived, setCashReceived] = useState(0)
   // FIX CRITICAL: Double-click guard za split/by-items plačila
   const [isProcessing, setIsProcessing] = useState(false)
@@ -59,6 +63,7 @@ export function usePaymentState({ order, open: _open, onClose }: PaymentDialogPr
     setSelectedAltPayment('')
     setSelectedGiftCardId(null)
     setSelectedLoyaltyId(null)
+    setLoyaltyRedeem(false)
     setCashReceived(0)
     setPaymentSuccess(false)
     onClose()
@@ -91,6 +96,7 @@ export function usePaymentState({ order, open: _open, onClose }: PaymentDialogPr
     selectedAltPayment, setSelectedAltPayment,
     selectedGiftCardId, setSelectedGiftCardId,
     selectedLoyaltyId, setSelectedLoyaltyId,
+    loyaltyRedeem, setLoyaltyRedeem,
     cashReceived, setCashReceived,
     isProcessing, setIsProcessing,
     paymentSuccess, setPaymentSuccess,

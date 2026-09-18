@@ -4,6 +4,8 @@ import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import { type OrderForPayment, type PaymentExecContext } from './types'
+import { splitAmountBreakdown } from '@/lib/split-math'
+import { redeemPointsNeeded } from '@/lib/loyalty-tiers'
 
 import { formatEUR } from '@/lib/safe-format'
 // ============================================
@@ -17,6 +19,9 @@ export async function executeSplitPayment({
   splitCount,
   paymentMethod,
   loyaltyAccountId,
+  loyaltyRedeem,
+  loyaltyBalance,
+  pointsValue,
   queryClient,
   onPaymentSuccess,
   resetAndClose,
@@ -29,6 +34,16 @@ export async function executeSplitPayment({
   /** RUNDA 46: zvestobni račun za earn (vsako delno plačilo prisluži svoj del
    *  točk — enako semantiko kot posamezno plačilo); null = brez pripetega računa */
   loyaltyAccountId?: string | null
+  /** RUNDA 49: unovčenje — vsako delno plačilo gre kot type 'loyalty' s točkami
+   *  za svoj del zneska (parity z Eno plačilo). Tipa 'loyalty' backend NAMERNO
+   *  ne nagradi z earn (handleLoyaltyEarn izpusti type==='loyalty'). */
+  loyaltyRedeem?: boolean
+  /** RUNDA 49: stanje izbranega računa — predhodna odjava preverjanje PRED
+   *  prvim delnim plačilom (prepreči pol-failed split: gost 1 unovči, gost 2
+   *  pada na "Ni dovolj točk"). null = preverjanje izpusti (backend varovalka). */
+  loyaltyBalance?: number | null
+  /** RUNDA 49: vrednost točke v EUR (> 0, normalizirano v usePaymentDialog) */
+  pointsValue?: number
 } & PaymentExecContext) {
   // FIX BUG-04: Prepreči podvojene čeke — ponovno uporabi obstoječi neplačani ček
   let splitCheckId: string | undefined
@@ -55,16 +70,28 @@ export async function executeSplitPayment({
   }
   const check = { id: splitCheckId }
   // 2. Ustvari N ločenih plačil (zadnje absorbira razliko za zaokroževanje)
+  // RUNDA 49: razdelitev prek deljenega lib-a (split-math) — ista matematika
+  // kot UI preview (prej sta dve kopiji, ki sta se lahko razhodili).
+  const amounts = splitAmountBreakdown(orderTotal, splitCount)
   const payments: { amount: number; tipPortion: number }[] = []
-  const splitBase = Math.floor((orderTotal / splitCount) * 100) / 100
   for (let i = 0; i < splitCount; i++) {
-    const amount = i === splitCount - 1
-      ? Math.round((orderTotal - splitBase * (splitCount - 1)) * 100) / 100
-      : splitBase
     const tipPortion = i === splitCount - 1
       ? Math.round((tipAmount - Math.round((tipAmount / splitCount) * 100) / 100 * (splitCount - 1)) * 100) / 100
       : Math.round((tipAmount / splitCount) * 100) / 100
-    payments.push({ amount, tipPortion })
+    payments.push({ amount: amounts[i], tipPortion })
+  }
+  // RUNDA 49: unovčenje — pred PRVIM delnim plačilom preveri, da stanje
+  // pokrije vsoto vseh delov (sicer bi gost 1 unovčil, gost 2 pa padel na
+  // "Ni dovolj točk" — pol plačan račun). Vsota točk = Σ ceil(del / vrednost)
+  // — enaka matematika kot bo uporabil backend fraud-check per del.
+  const redeemActive = !!loyaltyRedeem && !!loyaltyAccountId && (pointsValue ?? 0) > 0
+  const redeemPointsTotal = redeemActive
+    ? payments.reduce((sum, p) => sum + redeemPointsNeeded(p.amount, pointsValue as number), 0)
+    : 0
+  if (redeemActive && typeof loyaltyBalance === 'number' && loyaltyBalance < redeemPointsTotal) {
+    throw new Error(
+      `Račun ima ${loyaltyBalance} točk, unovčenje zahteva ${redeemPointsTotal} — plačilo preklicano.`,
+    )
   }
   for (let i = 0; i < payments.length; i++) {
     const paymentRes = await authFetch('/api/payments', {
@@ -73,9 +100,15 @@ export async function executeSplitPayment({
         checkId: check.id,
         amount: payments[i].amount,
         tipAmount: payments[i].tipPortion,
-        type: paymentMethod === 'cash' ? 'cash' : paymentMethod === 'card' ? 'card' : paymentMethod === 'mobile' ? 'mobile' : paymentMethod === 'split' ? 'split' : 'cash',
+        // RUNDA 49: ob unovčenju je vsak del type 'loyalty' (backend sproži
+        // dedukcijo točk; earn za ta plačila namerno ne teče)
+        type: redeemActive
+          ? 'loyalty'
+          : paymentMethod === 'cash' ? 'cash' : paymentMethod === 'card' ? 'card' : paymentMethod === 'mobile' ? 'mobile' : paymentMethod === 'split' ? 'split' : 'cash',
         idempotencyKey: `split-${check.id}-s${i}-${payments[i].amount.toFixed(2)}`,
         // RUNDA 46: earn točk tudi ob deljenem plačilu (prej tiho izgubljeno)
+        // RUNDA 49: ob unovčenju še število točk za TA del (ceil — vedno pokrije)
+        ...(redeemActive ? { loyaltyPointsUsed: redeemPointsNeeded(payments[i].amount, pointsValue as number) } : {}),
         ...(loyaltyAccountId ? { loyaltyAccountId } : {}),
       }),
     })

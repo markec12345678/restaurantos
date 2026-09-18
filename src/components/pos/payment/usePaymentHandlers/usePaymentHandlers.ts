@@ -21,6 +21,9 @@ export function usePaymentHandlers({
   splitAmount: _splitAmount,
   guestAssignments,
   loyaltyAccountId,
+  loyaltyRedeem,
+  loyaltyBalance,
+  pointsValue,
   onPaymentSuccess,
   resetAndClose,
 }: PaymentHandlersProps) {
@@ -38,6 +41,10 @@ export function usePaymentHandlers({
         splitCount,
         paymentMethod,
         loyaltyAccountId: loyaltyAccountId ?? null,
+        // RUNDA 49: unovčenje — vsak delni plačilni POST gre kot type 'loyalty'
+        loyaltyRedeem,
+        loyaltyBalance,
+        pointsValue,
         queryClient,
         onPaymentSuccess,
         resetAndClose,
@@ -55,7 +62,7 @@ export function usePaymentHandlers({
     } finally {
       setIsProcessing(false)
     }
-  }, [order, isProcessing, orderTotal, splitCount, tipAmount, paymentMethod, loyaltyAccountId, queryClient, onPaymentSuccess, resetAndClose, setIsProcessing])
+  }, [order, isProcessing, orderTotal, splitCount, tipAmount, paymentMethod, loyaltyAccountId, loyaltyRedeem, loyaltyBalance, pointsValue, queryClient, onPaymentSuccess, resetAndClose, setIsProcessing])
 
   // FIX: By-items payment handler — ustvari ločen check za vsakega gosta
   const handlePayByItems = useCallback(async () => {
@@ -67,6 +74,10 @@ export function usePaymentHandlers({
         splitCount,
         guestAssignments,
         loyaltyAccountId: loyaltyAccountId ?? null,
+        // RUNDA 49: unovčenje — vsak gostov plačilni POST gre kot type 'loyalty'
+        loyaltyRedeem,
+        loyaltyBalance,
+        pointsValue,
         queryClient,
         onPaymentSuccess,
         resetAndClose,
@@ -81,7 +92,7 @@ export function usePaymentHandlers({
     } finally {
       setIsProcessing(false)
     }
-  }, [order, isProcessing, splitCount, guestAssignments, loyaltyAccountId, queryClient, onPaymentSuccess, resetAndClose, setIsProcessing])
+  }, [order, isProcessing, splitCount, guestAssignments, loyaltyAccountId, loyaltyRedeem, loyaltyBalance, pointsValue, queryClient, onPaymentSuccess, resetAndClose, setIsProcessing])
 
   return {
     handleSplitPayment,

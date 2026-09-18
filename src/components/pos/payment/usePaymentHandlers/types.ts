@@ -32,6 +32,16 @@ export interface PaymentHandlersProps {
   /** RUNDA 46: zvestobni račun za EARN ob deljenem plačilu (prej split NIKOLI
    *  ni pripel točk — tiha izguba za goste na deljenih računih). null = brez. */
   loyaltyAccountId?: string | null
+  /** RUNDA 49: unovčenje (redeem) ob deljenem/po-artiklih plačilu — vsako delno
+   *  plačilo gre kot type 'loyalty' s svojim številom točk (parity z Eno
+   *  plačilo, kjer je to 'loyalty' način). Zahteva loyaltyAccountId. */
+  loyaltyRedeem?: boolean
+  /** RUNDA 49: stanje točk izbranega računa (za odjavo preverjanje pred začetkom —
+   *  prepreči pol-failed split: gost 1 unovči, gost 2 pada na "Ni dovolj točk").
+   *  null = stanje ni znano → samo backend varovalka. */
+  loyaltyBalance?: number | null
+  /** RUNDA 49: vrednost ene točke v EUR (normalizirano > 0) — za izračun točk */
+  pointsValue?: number
   onPaymentSuccess: ((_orderId: string) => void) | undefined
   resetAndClose: () => void
 }

@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { useRef } from 'react'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
+import { redeemPointsNeeded } from '@/lib/loyalty-tiers'
 
 interface ProcessPaymentParams {
   order: {
@@ -134,8 +135,10 @@ export function useProcessPayment(params: ProcessPaymentParams, callbacks: Proce
           // RUNDA 42 FIX (points math): prej Math.round(orderTotal) — EUR zmešan
           // s točkami (61,65 € → 62 točk; pri 0,01 €/točko bi plačilo vedno
           // FAILALO na fraud-checku). Pravilno: število točk = amount / pointsValue.
+          // RUNDA 49: skozi redeemPointsNeeded (6-decimična kvantizacija ubije
+          // float prah; ISTA matematika kot split/by-items unovčenje preview).
           loyaltyPointsUsed: paymentMethod === 'loyalty' && selectedLoyaltyId
-            ? Math.ceil(orderTotal / (loyaltyPointsValue > 0 ? loyaltyPointsValue : 0.01))
+            ? redeemPointsNeeded(orderTotal, loyaltyPointsValue > 0 ? loyaltyPointsValue : 0.01)
             : 0,
           idempotencyKey,
         }),
