@@ -1,11 +1,11 @@
-# RestaurantOS v1.4.0
+# RestaurantOS v1.5.0
 
-[![Version](https://img.shields.io/badge/version-1.4.0-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.5.0-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-1623%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/audit-26%20rounds%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-1798%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-51%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,21 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (26 audit rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (51 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.5.0 (QA runde 42–51)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| ⭐ **Zvestoba — polni earn/redeem** | Točke se pripnejo in unovčijo na **VSEH treh plačilnih poteh** (eno plačilo, deljeno, po artiklih); tier-aware preview per osebo; preklop "Plačilo s točkami" s predhodnim preverjanjem stanja (prepreči pol-failed split); enoten vir matematike (`split-math`, `redeemPointsNeeded` s kvantizacijo proti float prahu) |
+| 🏆 **Tier bonus + samodejno povišanje** | Bonus na prislužene točke po nivoju (bron 0 %, srebro 5 %, zlato 10 %, platinasti 15 %) — backend + živi predogled v plačilnem dialogu; samodejno povišanje nivoja ob prestopu pragov z lastno transakcijo |
+| 🕐 **Zgodovina s filtri + KPI** | Zvestoba IN darilne kartice: filter čipi po kategoriji transakcij (prislužene/bonus/povišanje/unovčene/potekle oz. naloženo/porabljeno/prenos/prilagoditev) s števci, živ KPI povzetek filtrirane množice, prazno stanje + "Pokaži vse" — zrcalna generična lib (`loyalty-tx-category`, `gift-card-tx-category`) |
+| 📧 **Digest e-pošta: poljuben datum** | Datumski izbirnik povzetka (predogled/tisk/ponovno pošiljanje za poljuben pretekli dan) + mehka validacija prihodnjega datuma (amber opozorilo + zaklep akcij); tisk verzija z istim datumom |
+| 📱 **QR menu polish** | Sticky kategorije pod glavo (ResizeObserver merjena višina, snap scrolling, aktivni chip scrollIntoView); FloatingCartBar z iOS safe-area; amber ring na artiklih v košarici |
+| 🔄 **PWA pametne posodobitve** | Service Worker v10 z SKIP_WAITING protokolom: samodejni reload ko je stran sveža/ozadje, sicer toast "Nova različica" — varno za naročila v teku |
+| 📅 **Rezervacije stil pass** | Statusni časovni chip, leva obroba barve statusa, staggered animacije, aria-pressed filtri statusov |
+| 🧱 **Design jezik R42+** | Skupni vzorci: `card-lift` hover, `animate-fade-in-up` staggered (40 ms, respects prefers-reduced-motion), accent zgornji rob, ikonski čipi, `tabular-nums` na vseh zneskih/števcih |
+| 🧪 **Kakovost** | 1798/1798 unit testov (102 datotek), 0 tsc napak, 0 eslint errorjev |
 
 ### ✨ Nove funkcije v v1.4.0 (QA runde 22–26)
 
@@ -39,19 +53,7 @@
 | 🧱 **Panel layout v4** | Migracija na react-resizable-panels v4 API (Group/Separator) |
 | 🧪 **Kakovost** | 1623/1623 unit testov (91 datotek, ~12 s), 0 eslint errorjev, CI 7/7 green |
 
-### ✨ Nove funkcije v v1.3.3 (QA runde 8–12)
-
-| Kategorija | Funkcija |
-|------------|----------|
-| 🧾 **Z-poročila** | Avtomatski Z-osnutek ob zaprtju izmene + živ Z-osnutek na Nadzorni plošči (osvežitev ob vsakem plačilu, 30 s polling med napravami) — finalizacija = 1 klik |
-| ⭐ **POS** | Priljubljeni artikli (★), iskanje po seznamu naročil, offline-first login |
-| 🇸🇮 **Slovenizacija** | Slovenski format valute (X,XX €) na 100+ mestih; nova `DecimalInput` komponenta — vejica ostane vidna med tipkanjem ("12,50"); DDV stopnje "9,50 %" na računih |
-| 📱 **Tablet** | Optimizacija za dotične naprave (WCAG 2.5.5, 44px tarče): Prodaja, KDS, Mize (pointer-events drag), plačilni dialog — namizje ostane kompaktno |
-| 🐛 **Stabilnost** | 10 bugfixov denarnega toka (Payments FK, prefetch cache poisoning, modifier cene, Z-report totalSales, floorplan drag, logout, inventory error state …) |
-| 🧹 **Quality** | Lint ratchet 1486 → **0** (`--max-warnings 0`), 1423/1423 testov, 0 errorjev, CI trigger fix |
-| 🧾 **UX** | "Predračun — št. ob plačilu" namesto prazne vrstice (FURS semantika); Menu Engineering KPI; low-stock filter z vrednostjo zaloge |
-
-Podrobnosti: [CHANGELOG v1.3.3](CHANGELOG.md).
+Podrobnosti: [CHANGELOG](CHANGELOG.md).
 
 ### ✨ Nove funkcije v v1.0.3
 
@@ -86,7 +88,7 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 | **Multi-tenant** | ✅ (24 TENANT_REQUIRED + 5 OPTIONAL, glej [P0-C4 Classification](docs/P0-C4-CLASSIFICATION.md)) | ✅ | ✅ | ✅ | ❌ |
 | **5 jezikov** | ✅ sl/en/it/hr/de | ❌ | ❌ | Delno | ❌ |
 | **Varnost (A+)** | ✅ 0 HIGH, 54 security testov, CI 7/7 green, P0-C1..C5 complete | ✅ | ✅ | ✅ | ❌ |
-| **Mobilna PWA** | ⏳ P0-3 | ✅ Native | ✅ Native | ⚠ Slaba | ❌ |
+| **Mobilna PWA** | ✅ (SW v10 + pametne posodobitve) | ✅ Native | ✅ Native | ⚠ Slaba | ❌ |
 
 ### 📄 Deliverables
 
@@ -115,8 +117,8 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 - **4x ceneje od Toast**, 2x ceneje od Square pri primerljivi funkcionalnosti
 - **FURS-ready Next.js POS** na slovenskem trgu (certifikat pending — pridobitev na eDavki portal)
 - **A+ varnostna ocena** (0 HIGH odprtih, 54 security testov, P0-C1..C5 hardening complete) — glej [Security Policy](SECURITY.md) za celoten pregled
-- **9.2/10 realna ocena** — production-ready za single-tenant pilot (P0-C1..C5 hardening complete, 1423/1423 unit testov pass)
-- **0 kritičnih vrzeli** — vse IDOR/FURS/tenant isolation ranljivosti zaprte. Preostalo: FURS certifikat (pridobitev na eDavki), Stripe production keys, PWA polish.
+- **9.2/10 realna ocena** — production-ready za single-tenant pilot (P0-C1..C5 hardening complete, 1798/1798 unit testov pass)
+- **0 kritičnih vrzeli** — vse IDOR/FURS/tenant isolation ranljivosti zaprte. Preostalo: FURS certifikat (pridobitev na eDavki), Stripe production keys, FINA P12.
 
 ---
 
@@ -171,10 +173,11 @@ bun run dev
 | **Z-Report** | Zapiranje izmene z gotovinskim usklajevanjem + avtomatski osnutek (živ na plošči) | ✅ |
 | **Multi-tenant** | Branch isolation z locationId (30+ modelov, glej [Known Issues](docs/KNOWN_ISSUES.md)) | ✅ |
 | **Offline** | IndexedDB queue + Background Sync | ✅ |
-| **PWA** | Service Worker (produkcija), offline-capable, installable (push TBD) | ⚠️ P0-3 |
+| **PWA** | Service Worker v10 (pametne posodobitve z toast), offline-capable, installable (push TBD) | ✅ |
 | **Plačilni gateway** | Stripe/SumUp integracija | ⏳ P0-2 |
-| **Loyalty** | Program zvestobe strank | ⏳ P1 |
-| **Rezervacije** | Spletna rezervacija miz | ⏳ P1 |
+| **Loyalty** | Nivoji bronze→platinasti, earn/redeem na vseh 3 plačilnih poteh, tier bonus, samodejno povišanje, zgodovina s filtri | ✅ |
+| **Rezervacije** | Seznam z filtri statusov, datumski kalendar, statusni tok | ✅ |
+| **QR menu** | Gost-facing meni s sticky kategorijami, košarico, safe-area | ✅ |
 
 ## 🔒 Varnost (A+ ocena)
 
@@ -193,17 +196,17 @@ bun run dev
 
 | Metrika | Vrednost |
 |---------|----------|
-| Commitov | 68 |
-| API endpointov | 240 |
-| React komponent | 674 |
+| Commitov | 881 |
+| API endpointov | 242 |
+| React komponent | 679 |
 | Prisma modelov | 95 |
-| Tabel v bazi | 94 |
+| Tabel v bazi | 95 |
 | Jezikov | 5 (sl, en, it, hr, de) |
-| Unit testov PASS | 1623/1623 (100 %) — 91 datotek, ~12 s, 0 errorjev |
+| Unit testov PASS | 1798/1798 (100 %) — 102 datotek, 0 errorjev |
 | E2E testov PASS | 144/149 (96.6%) — 5 odprtih, glej [Known Issues](docs/KNOWN_ISSUES.md) |
 | Varnostna ocena | A+ (0 HIGH odprtih, P0-C1..C5 complete, glej [Security Policy](SECURITY.md)) |
-| Koda (src + tests) | 196.068 vrstic |
-| Odvisnosti | 99 |
+| Koda (src + tests) | 204.594 vrstic |
+| Odvisnosti | 88 |
 
 ## 🧪 E2E Testi
 
@@ -243,24 +246,30 @@ bun run dev
 ```
 src/
 ├── app/                    # Next.js App Router
-│   ├── api/               # 211 API endpointov
+│   ├── api/               # 242 API endpointov
 │   ├── landing/           # Javna landing page
 │   ├── privacy-policy/    # GDPR politika zasebnosti
 │   ├── terms-of-service/  # Pogoji uporabe
 │   ├── kds/               # Kitchen Display System
 │   ├── waiter/            # Natakar interfejs
+│   ├── qr-menu/           # Gost-facing QR meni
+│   ├── reports/           # Poročila (digest, tisk)
 │   └── order-status/      # Sledenje naročil
-├── components/            # 659 React komponent
-│   └── pos/               # POS moduli (orders, payments, inventory...)
+├── components/            # 679 React komponent
+│   └── pos/               # POS moduli (orders, payments, loyalty, gift-cards, reservations...)
 ├── lib/                   # Poslovna logika
 │   ├── auth-middleware/   # PIN auth, session, permissions
 │   ├── furs/              # FURS API, ZOI, EOR, QR
+│   ├── loyalty-tiers.ts   # Nivoji, tier bonus, redeemPointsNeeded
+│   ├── loyalty-tx-category.ts  # Kategorizacija transakcij zvestobe
+│   ├── gift-card-tx-category.ts # Kategorizacija transakcij darilnih kartic
+│   ├── split-math.ts      # Delitev računa (enoten vir UI + executor)
 │   ├── offline-orders/    # IndexedDB queue
 │   ├── offline-furs/      # FURS offline queue
 │   ├── accounting/        # Journal entries, Trial Balance
 │   └── websocket-client/  # WebSocket z auto-reconnect
 └── prisma/
-    └── schema.prisma      # 92 Prisma modelov
+    └── schema.prisma      # 95 Prisma modelov
 ```
 
 ## 🗺️ Roadmap (12 mesecev)
@@ -268,7 +277,7 @@ src/
 ### P0 - Kritično (0-3 meseci)
 - [ ] P0-1: FURS produkcijska certifikacija (.p12) — zahteva na sd.fu@gov.si
 - [ ] P0-2: Stripe/SumUp plačilni gateway
-- [ ] P0-3: Mobilna PWA aplikacija (offline) — SW registracija popravljena, prod build test odstoji
+- [x] P0-3: PWA (offline + SW v10 s pametnimi posodobitvami) — push notifications TBD
 - [x] P0-4: Sentry monitoring
 - [x] P0-5: Custom domena (restaurantos.app)
 
@@ -277,10 +286,10 @@ src/
 - [x] P1-8: HR fiskalizacija (CIS) — ZKI + RacunZahtjev + XML-dsig + P12 + živi Echo test ✅ (v1.4.0); za polno oddajo manjka še FINA demo P12 certifikat
 - [x] P1-2: Kitchen Display System (KDS) ✅ Implementirano (WebSocket, station filter, sound, bump, fullscreen)
 - [ ] P1-3: Spletne naročilne forme na domeni
-- [ ] P1-4: Loyalty program
+- [x] P1-4: Loyalty program ✅ (v1.5.0 — nivoji, earn/redeem na vseh plačilnih poteh, tier bonus, zgodovina s filtri)
 - [ ] P1-5: Formalni design system (Storybook)
-- [ ] P1-6: Rezervacijski sistem
-- [ ] P1-7: AI napovedi prodaje (osnovni)
+- [x] P1-6: Rezervacijski sistem ✅ (seznam/filtri/statusni tok; Timeline drag v backlogu)
+- [x] P1-7: AI napovedi prodaje (osnovni) ✅ (Gemini napovedi + NL query asistent)
 
 ### P2 - Srednje (6-12 mesecev)
 - [ ] P2-1: AI napovedi (napredni)
