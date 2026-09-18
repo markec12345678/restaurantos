@@ -142,6 +142,139 @@ export async function POST(req: Request) {
     })
 
     // ═══════════════════════════════════════════════════
+    // Phase 0.7 (QA runda 40): DB INTROSPEKCIJA + RestaurantSettings ensure
+    // — GET/PUT /api/settings = 500 na prod (rano 40), reservations pa deluje →
+    //   skupna točka je findFirst na RestaurantSettings = P2021/P2022 klasa
+    //   (manjkajoča tabela/stolpec) ALI 0 aktivnih vrstic → create-fallback pad.
+    // $queryRawUnsafe obide Prisma client validacijo → vidi REALNO DB stanje.
+    // Introspekcija je read-only in teče VEDNO (tudi brez apply=true) —
+    // diagnosticno zlato za prihodnje drift audit (sandbox nima dostopa do Neon porta).
+    // ═══════════════════════════════════════════════════
+    const inspectTables = [
+      'RestaurantSettings', 'Location', 'Reservation', 'Receipt', 'Order',
+      'ZReport', 'HaccpEntry', 'TimeEntry', 'GuestFeedback', 'PurchaseOrder',
+      'Shift', 'CashRegisterShift',
+    ]
+    const inspection: Record<string, string> = {}
+    for (const t of inspectTables) {
+      try {
+        const cols = await db.$queryRawUnsafe<Array<{ column_name: string; data_type: string; is_nullable: string }>>(
+          `SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 ORDER BY ordinal_position`,
+          t
+        )
+        inspection[t] = cols.length === 0
+          ? 'TABLE_MISSING'
+          : cols.map(c => `${c.column_name}:${c.data_type}${c.is_nullable === 'NO' ? '*' : ''}`).join(', ')
+      } catch (err) {
+        inspection[t] = `INSPECT_ERROR: ${err instanceof Error ? err.message.slice(0, 120) : 'unknown'}`
+      }
+    }
+    results.push({
+      phase: 'Phase 0.7a: DB introspection (runda 40)',
+      status: 'done',
+      details: Object.entries(inspection).map(([t, c]) => `${t}: ${c.slice(0, 400)}`).join(' | ').slice(0, 3500),
+    })
+
+    // Phase 0.7b: ensure VSEH RestaurantSettings stolpcev po Prisma shemi.
+    // Prisma SELECT izpostavi VSE shemske stolpce — EN manjkajoč = P2022 na vsakem read.
+    // ADD COLUMN IF NOT EXISTS je idempotenten; NOT NULL + DEFAULT varno za obstoječe vrstice.
+    const rsColumns: Array<{ name: string; type: string }> = [
+      { name: 'name', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'address', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'city', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'postCode', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'phone', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'email', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'web', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'businessId', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'taxId', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'registerNumber', type: `TEXT NOT NULL DEFAULT 'BLG-001'` },
+      { name: 'fursCertPath', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'fursCertPassword', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'fursEnvironment', type: `TEXT NOT NULL DEFAULT 'test'` },
+      { name: 'cisCertPath', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'cisCertPassword', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'cisEnvironment', type: `TEXT NOT NULL DEFAULT 'test'` },
+      { name: 'defaultVatRate', type: `DECIMAL(65,30) NOT NULL DEFAULT 22.00` },
+      { name: 'reducedVatRate', type: `DECIMAL(65,30) NOT NULL DEFAULT 9.50` },
+      { name: 'loyaltyEnabled', type: `BOOLEAN NOT NULL DEFAULT false` },
+      { name: 'loyaltyPointsPerEuro', type: `INTEGER NOT NULL DEFAULT 1` },
+      { name: 'loyaltyPointsValue', type: `DECIMAL(12,2) NOT NULL DEFAULT 0.01` },
+      { name: 'receiptFooter', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'currency', type: `TEXT NOT NULL DEFAULT 'EUR'` },
+      { name: 'locale', type: `TEXT NOT NULL DEFAULT 'sl-SI'` },
+      { name: 'country', type: `TEXT NOT NULL DEFAULT 'SI'` },
+      { name: 'apiKeys', type: `TEXT NOT NULL DEFAULT '[]'` },
+      { name: 'autoGratuityEnabled', type: `BOOLEAN NOT NULL DEFAULT false` },
+      { name: 'autoGratuityPercent', type: `DECIMAL(65,30) NOT NULL DEFAULT 10.00` },
+      { name: 'autoGratuityThreshold', type: `INTEGER NOT NULL DEFAULT 6` },
+      { name: 'allergenFilterEnabled', type: `BOOLEAN NOT NULL DEFAULT true` },
+      { name: 'emailEnabled', type: `BOOLEAN NOT NULL DEFAULT false` },
+      { name: 'emailSmtpHost', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'emailSmtpPort', type: `INTEGER NOT NULL DEFAULT 587` },
+      { name: 'emailSmtpUser', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'emailSmtpPassword', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'emailFromAddress', type: `TEXT NOT NULL DEFAULT ''` },
+      { name: 'emailReportRecipients', type: `TEXT NOT NULL DEFAULT '[]'` },
+      { name: 'isActive', type: `BOOLEAN NOT NULL DEFAULT true` },
+      { name: 'createdAt', type: `TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP` },
+      { name: 'updatedAt', type: `TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP` },
+    ]
+    let rsTableCreated = false
+    const rsColsBefore = await db.$queryRawUnsafe<Array<{ n: number }>>(
+      `SELECT COUNT(*)::int AS n FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'RestaurantSettings'`
+    )
+    if ((rsColsBefore[0]?.n ?? 0) === 0) {
+      // Tabela sploh ne obstaja (P2021) — ustvari jo po shemi (samo id + timestampe,
+      // ostale stolpce nato pokrije ensure zanka znotraj iste transakcije).
+      await db.$executeRawUnsafe(
+        `CREATE TABLE IF NOT EXISTS "RestaurantSettings" ("id" TEXT NOT NULL, CONSTRAINT "RestaurantSettings_pkey" PRIMARY KEY ("id"))`
+      )
+      rsTableCreated = true
+    }
+    let rsColsAdded = 0
+    const rsColsAddedList: string[] = []
+    for (const col of rsColumns) {
+      try {
+        const before = await db.$queryRawUnsafe<Array<{ n: number }>>(
+          `SELECT COUNT(*)::int AS n FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'RestaurantSettings' AND column_name = $1`,
+          col.name
+        )
+        if ((before[0]?.n ?? 0) === 0) {
+          await db.$executeRawUnsafe(`ALTER TABLE "RestaurantSettings" ADD COLUMN "${col.name}" ${col.type}`)
+          rsColsAdded++
+          rsColsAddedList.push(col.name)
+        }
+      } catch (err) {
+        logger.warn('Migrate', `RS ensure ${col.name}: ${err instanceof Error ? err.message.slice(0, 120) : 'unknown'}`)
+      }
+    }
+
+    // Phase 0.7c: stanje vrstic — če tabela obstaja a NI aktivnih vrstic, GET vsakič
+    // pade v create-fallback (ki ob manjkajočem stolpcu 500). Aktiviraj obstoječe.
+    let rsTotal = 0
+    let rsActive = 0
+    let rsReactivated = 0
+    try {
+      const counts = await db.$queryRawUnsafe<Array<{ total: number; active: number }>>(
+        `SELECT COUNT(*)::int AS total, COALESCE(SUM(CASE WHEN "isActive" THEN 1 ELSE 0 END), 0)::int AS active FROM "RestaurantSettings"`
+      )
+      rsTotal = counts[0]?.total ?? 0
+      rsActive = counts[0]?.active ?? 0
+      if (rsTotal > 0 && rsActive === 0) {
+        rsReactivated = await db.$executeRawUnsafe(`UPDATE "RestaurantSettings" SET "isActive" = true WHERE "isActive" = false`)
+        rsActive = rsReactivated
+      }
+    } catch (err) {
+      logger.warn('Migrate', `RS row state: ${err instanceof Error ? err.message.slice(0, 120) : 'unknown'}`)
+    }
+    results.push({
+      phase: 'Phase 0.7b: RestaurantSettings ensure (runda 40)',
+      status: rsTableCreated ? 'applied (table created)' : rsColsAdded > 0 ? 'applied' : 'already-in-sync',
+      details: `${rsColsAdded} stolpcev dodanih${rsColsAddedList.length ? `: ${rsColsAddedList.join(', ')}` : ''}; tabela ${rsTableCreated ? 'NOVA' : 'obstaja'}; vrstice: total=${rsTotal} active=${rsActive}${rsReactivated > 0 ? ` (reaktiviranih ${rsReactivated})` : ''}`,
+    })
+
+    // ═══════════════════════════════════════════════════
     // Phase 1: P0-C4 — Backfill NULL locationId
     // ═══════════════════════════════════════════════════
     const modelsToBackfill = [
