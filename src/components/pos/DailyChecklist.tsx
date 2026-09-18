@@ -13,6 +13,7 @@ import { useState, memo } from 'react'
 import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
 import { type ChecklistItem } from './checklist/types'
+import { ljubljanaTodayStr } from '@/lib/timezone-sl'
 import { ChecklistHeader, ChecklistProgress, ChecklistActions } from './checklist/ChecklistSubComponents'
 
 const ChecklistCategory = dynamic(() => import('./checklist/ChecklistCategory').then(m => ({ default: m.ChecklistCategory })), { ssr: false })
@@ -27,7 +28,8 @@ export const DailyChecklist = memo(function DailyChecklist() {
   const { data, isLoading } = useQuery({
     queryKey: [...queryKeys.dailyChecklist.all, type],
     queryFn: async () => {
-      const res = await authFetch(`/api/daily-checklist?type=${type}`)
+      // FIX QA runda 38: izrecen datum po ljubljanskem času (prej brez ?date= → 400 → prazen seznam)
+      const res = await authFetch(`/api/daily-checklist?type=${type}&date=${ljubljanaTodayStr()}`)
       return res.json()
     },
   })
@@ -46,7 +48,7 @@ export const DailyChecklist = memo(function DailyChecklist() {
       const res = await authFetch('/api/daily-checklist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, date: new Date().toISOString().split('T')[0], checklist: items }),
+        body: JSON.stringify({ type, date: ljubljanaTodayStr(), checklist: items }),
       })
       return res.json()
     },

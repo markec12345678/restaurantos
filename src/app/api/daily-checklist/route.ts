@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { ljubljanaDayBounds, ljubljanaTodayStr } from '@/lib/timezone-sl'
 import { saveChecklistSchema, getChecklistSchema, OPENING_CHECKLIST, CLOSING_CHECKLIST, ChecklistItem } from './_helpers'
 
 
@@ -19,9 +20,11 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
+    // FIX QA runda 38: searchParams.get() vrne NULL (ne undefined) — z.string().optional()
+    // zavrača null → GET brez ?date= je vrgel 400 → UI vedno prazen ("0/0 opravljenih")
     const parsed = getChecklistSchema.safeParse({
       type: searchParams.get('type') || 'opening',
-      date: searchParams.get('date'),
+      date: searchParams.get('date') || undefined,
     })
     if (!parsed.success) {
       return NextResponse.json(
@@ -31,7 +34,10 @@ export async function GET(req: Request) {
     }
 
     const { type, date } = parsed.data
-    const checklistDate = date || new Date().toISOString().split('T')[0]
+    // FIX QA runda 38: datum po ljubljanskem času (ne UTC) + bounds po LJ dnevu
+    // (prej: UTC polnoči — po polnoči po LZ čez poletje je seznam padel na napačen dan)
+    const checklistDate = date || ljubljanaTodayStr()
+    const { start: dayStart, end: dayEnd } = ljubljanaDayBounds(checklistDate)
 
     // Pridobi obstoječ checklist iz audit loga
     const existing = await db.auditLog.findFirst({
@@ -39,8 +45,8 @@ export async function GET(req: Request) {
         entityType: 'DailyChecklist',
         action: `CHECKLIST_${type.toUpperCase()}`,
         timestamp: {
-          gte: new Date(`${checklistDate}T00:00:00`),
-          lte: new Date(`${checklistDate}T23:59:59`),
+          gte: dayStart,
+          lte: dayEnd,
         },
       },
       orderBy: { timestamp: 'desc' },
