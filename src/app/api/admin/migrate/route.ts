@@ -303,6 +303,48 @@ export async function POST(req: Request) {
     }
 
     // ═══════════════════════════════════════════════════
+    // Phase 0.5b (QA runda 41): TaxRate backfill — 3 seed vrstice (2026-09-06)
+    // imajo locationId NULL, schema pa zahteva String (non-null). Prisma
+    // ENGINE vrže napako že pri findUnique nad takšno vrstico (NULL →
+    // non-nullable mapping), zato VSAK typed update/delete te vrstice 500.
+    // TaxRate je bil izpuščen iz Phase 0.5 ("edina s stolpcem") — backfill +
+    // NOT NULL + FK zdaj. RAW SQL (R39 lekcija: updateMany z locationId:null
+    // na NOT NULL modelu = client validation PRED DB).
+    // ═══════════════════════════════════════════════════
+    if (apply && firstLocation) {
+      try {
+        const trBefore = await db.$queryRawUnsafe<Array<{ n: number }>>(
+          `SELECT COUNT(*)::int AS n FROM "TaxRate" WHERE "locationId" IS NULL`
+        )
+        const nullCount = trBefore[0]?.n ?? 0
+        let trFixed = 0
+        if (nullCount > 0) {
+          trFixed = await db.$executeRawUnsafe(
+            `UPDATE "TaxRate" SET "locationId" = $1 WHERE "locationId" IS NULL`,
+            firstLocation.id
+          )
+          // Schema alignment: NOT NULL + FK (idempotentno)
+          await db.$executeRawUnsafe(`ALTER TABLE "TaxRate" DROP CONSTRAINT IF EXISTS "TaxRate_locationId_fkey"`)
+          await db.$executeRawUnsafe(
+            `ALTER TABLE "TaxRate" ADD CONSTRAINT "TaxRate_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE RESTRICT ON UPDATE CASCADE`
+          )
+          await db.$executeRawUnsafe(`ALTER TABLE "TaxRate" ALTER COLUMN "locationId" SET NOT NULL`)
+        }
+        results.push({
+          phase: 'Phase 0.5b: TaxRate NULL locationId backfill (runda 41)',
+          status: nullCount > 0 ? 'applied' : 'already-in-sync',
+          details: `${nullCount} NULL vrstic${trFixed > 0 ? ` → backfillanih ${trFixed} na ${firstLocation.id} + NOT NULL + FK` : ''}`,
+        })
+      } catch (err) {
+        results.push({
+          phase: 'Phase 0.5b: TaxRate NULL locationId backfill (runda 41)',
+          status: 'error',
+          details: err instanceof Error ? err.message.slice(0, 300) : 'unknown',
+        })
+      }
+    }
+
+    // ═══════════════════════════════════════════════════
     // Phase 1: P0-C4 — Backfill NULL locationId
     // ═══════════════════════════════════════════════════
     const modelsToBackfill = [
