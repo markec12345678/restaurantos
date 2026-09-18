@@ -64,9 +64,14 @@ interface CommandNav {
 }
 
 /** NOVO (runda 33): dinamično prazno stanje — pokaže tipano iskanje
- *  (isto vzorci kot MenuItemsGrid "Ni zadetkov za 'xyz'"). */
+ *  (isto vzorci kot MenuItemsGrid "Ni zadetkov za 'xyz'").
+ *  FIX (E2E QA runda 33): gate na filtered.count — cmdk CommandEmpty to
+ *  počne interni, naš custom renderer NE (kot je bilo v prvi verziji, se je
+ *  "Ni rezultatov." prikazoval tudi nad polnim seznamom). */
 function PaletteEmpty() {
   const search = useCommandState((state) => state.search)
+  const count = useCommandState((state) => state.filtered.count)
+  if (count > 0) return null
   return (
     <div className="py-6 text-center text-sm text-muted-foreground" role="status">
       {search ? (
