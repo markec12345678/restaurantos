@@ -7,6 +7,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createHaccpSchema, haccpUpdateSchema } from '@/lib/validations'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { createHaccpEntryWithChain } from '@/lib/haccp-chain'
+import { resolveLocationId } from '@/lib/location-fallback'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,6 +70,12 @@ export async function POST(req: Request) {
     // Prejšnja koda je brala `lastEntry.chainHash` zunaj transakcije —
     // dva sočasna klica bi ustvarila razvejano verigo.
     const entryDate = data.date ? new Date(data.date) : new Date()
+    // FIX QA runda 37: DB stolpec HaccpEntry.locationId je NOT NULL (schema drift) —
+    // brez resolucije je create vrgel P2011 (Ana = admin brez session.locationId)
+    const locationId = await resolveLocationId(
+      authResult.session?.locationId,
+      authResult.session?.employeeId,
+    )
     const entry = await createHaccpEntryWithChain({
       date: entryDate,
       category: data.category,
@@ -78,6 +85,7 @@ export async function POST(req: Request) {
       status: data.status,
       correctiveAction: data.correctiveAction,
       employeeName: data.employeeName || authResult.session?.employeeId || '',
+      locationId,
     })
 
     return NextResponse.json(entry, { status: 201 })

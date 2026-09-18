@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { resolveLocationId } from '@/lib/location-fallback'
 
 // =====================================================================
 // OPENING HOURS API — CRUD za delovni čas lokacij
@@ -85,10 +86,12 @@ export async function POST(req: Request) {
         await db.openingHours.deleteMany({ where: { locationId: null } })
       }
 
+      // FIX QA runda 37: DB stolpec OpeningHours.locationId je NOT NULL (schema drift)
+      const batchLocationId = locId || (await resolveLocationId(authResult.session?.locationId, authResult.session?.employeeId))
       const created = await db.openingHours.createMany({
         data: batchData.hours.map(h => ({
           ...h,
-          locationId: locId,
+          locationId: batchLocationId,
         })),
       })
 
@@ -96,7 +99,12 @@ export async function POST(req: Request) {
     }
 
     // Single day creation
-    const hours = await db.openingHours.create({ data: validatedData as z.infer<typeof openingHoursSchema> })
+    // FIX QA runda 37: NOT NULL drift — fallback, če body nima lokacije
+    const singleData = validatedData as z.infer<typeof openingHoursSchema>
+    if (!singleData.locationId) {
+      singleData.locationId = await resolveLocationId(authResult.session?.locationId, authResult.session?.employeeId)
+    }
+    const hours = await db.openingHours.create({ data: singleData })
     return NextResponse.json(hours, { status: 201 })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/opening-hours', 'Napaka pri ustvarjanju delovnega časa')

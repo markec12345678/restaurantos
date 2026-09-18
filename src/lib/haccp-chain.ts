@@ -28,6 +28,8 @@ export interface HaccpChainEntry {
   status: 'ok' | 'warning' | 'critical' | 'archived'
   correctiveAction?: string
   employeeName: string
+  /** FIX QA runda 37: DB stolpec je NOT NULL (schema drift) — lokacija je obvezna */
+  locationId?: string | null
 }
 
 /**
@@ -71,6 +73,7 @@ export async function createHaccpEntryWithChain(entry: HaccpChainEntry) {
         status: entry.status,
         correctiveAction: entry.correctiveAction || '',
         employeeName: entry.employeeName,
+        locationId: entry.locationId || null,
         previousHash,
         chainHash,
       },

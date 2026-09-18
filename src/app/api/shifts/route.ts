@@ -7,6 +7,7 @@ import { createShiftSchema } from '@/lib/validations'
 import { emitEvent } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
 import { endOfDayParam, handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
+import { resolveLocationId } from '@/lib/location-fallback'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,6 +67,12 @@ export async function POST(req: Request) {
     const { data, error: validationError } = await validateRequest(req, createShiftSchema)
     if (validationError) return validationError
 
+    // FIX QA runda 37: DB stolpec Shift.locationId je NOT NULL (schema drift) —
+    // create brez locationId je vedno vrgel P2011
+    const locationId = await resolveLocationId(
+      authResult.session?.locationId,
+      authResult.session?.employeeId ?? data.employeeId,
+    )
     const shift = await db.shift.create({
       data: {
         employeeId: data.employeeId,
@@ -76,6 +83,7 @@ export async function POST(req: Request) {
         status: data.status,
         breakMinutes: data.breakMinutes,
         notes: data.notes,
+        locationId,
       },
       include: {
         employee: { select: { id: true, name: true, role: true } },

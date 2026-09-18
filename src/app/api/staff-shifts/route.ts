@@ -11,6 +11,7 @@ import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/
 import { Prisma } from '@prisma/client'
 import { logger } from '@/lib/logger'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
+import { getFirstLocationId } from '@/lib/location-fallback'
 import { createStaffShiftSchema, checkTimeOverlap, buildShiftsWhere, computeShiftStats } from './_helpers'
 
 
@@ -94,7 +95,10 @@ export async function POST(req: Request) {
         shiftType,
         startTime,
         endTime,
-        locationId: locationId || null,
+        // FIX QA runda 37: DB stolpec StaffShift.locationId je NOT NULL (schema drift)
+        // — pri Ana (admin brez lokacije) je create z null vrgel P2011.
+        // Prioriteta: body → izmenina zaposlenega → seja → prva lokacija (cached)
+        locationId: locationId || employee.locationId || authResult.session?.locationId || (await getFirstLocationId()) || null,
         role: role || employee.role,
         notes,
         status,
