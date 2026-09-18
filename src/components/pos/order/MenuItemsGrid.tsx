@@ -1,11 +1,11 @@
 'use client'
 
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ChevronDown, History, Loader2, Plus, Search, Star, X } from 'lucide-react'
+import { ChevronDown, History, Plus, Search, Star, X } from 'lucide-react'
 import { MenuItemCard, stringToColor } from './MenuItemCard'
 import { formatEUR } from '@/lib/safe-format'
 import { useFavoritesStore } from '@/lib/favorites-store'
@@ -30,13 +30,6 @@ interface MenuItemsGridProps {
 }
 
 // --- Komponenta ---
-
-/** NOVO (runda 42): inkrementalno renderiranje — 437+ artiklov ne renderiramo
- *  vseh naenkrat (437 kartic × slika ≈ 8k+ DOM vozlišč → layout trrki na
- *  tabletih). Prvi bakec 48, nato +48 ob dosegu sentinela (IntersectionObserver).
- *  Enak vzorec zmogljivosti kot palette windowing (runda 41), le da grid
- *  ohrani naravni scroll (brez fiksne višine vrstic). */
-const RENDER_BATCH = 48
 
 export const MenuItemsGrid = memo(function MenuItemsGrid({
   filteredMenuItems,
@@ -112,39 +105,6 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
   const toggleFav = (id: string) => {
     toggleFavorite(id)
   }
-
-  // ── INKREMENTALNO RENDERIRANJE (runda 42) ─────────────────────────
-  // renderLimit se resetira ob vsaki spremembi filtra (iskanje, kategorija,
-  // priljubljeni) — uporabnik vedno začne na zgornjem delu seznama.
-  const [renderLimit, setRenderLimit] = useState(RENDER_BATCH)
-  const sentinelRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    setRenderLimit(RENDER_BATCH)
-  }, [itemSearch, favoritesOnly, filteredMenuItems])
-
-  const hasMore = visibleItems.length > renderLimit
-
-  useEffect(() => {
-    if (!hasMore) return
-    const el = sentinelRef.current
-    if (!el) return
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          setRenderLimit((limit) => limit + RENDER_BATCH)
-        }
-      },
-      { rootMargin: '600px 0px' }, // prednalaganje — bakec je pripravljen PRED scrollom do roba
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [hasMore])
-
-  const renderedItems = useMemo(
-    () => (hasMore ? visibleItems.slice(0, renderLimit) : visibleItems),
-    [visibleItems, hasMore, renderLimit],
-  )
 
   return (
     <>
