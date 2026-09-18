@@ -16,6 +16,7 @@
 // Zaenkrat application-level check zadostuje + transaction z SELECT FOR UPDATE.
 
 import { db, createAuditLog } from '@/lib/db'
+import { resolveLocationId } from '@/lib/location-fallback'
 import { logger } from '@/lib/logger'
 import { emitEvent } from '@/lib/event-emitter'
 
@@ -82,6 +83,13 @@ export async function handleCreateReservation(
   // Prej: SELECT (overlap check) in INSERT (create) sta bila ločena —
   // dva sočasna requesta lahko oba opravita overlap check in oba kreirata rezervacijo.
   // Sedaj: $transaction s SERIALIZABLE isolationLevel atomarno izvede check + create.
+
+  // FIX QA runda 40: DB stolpec Reservation.locationId je NOT NULL (Phase 2 iz
+  // admin/migrate) — create brez locationId → P2011 Null constraint (Ana = admin
+  // brez session.locationId → celoten rezervacijski tok 500). Resolvi PRED tx
+  // (R37 lekcija: base-db query znotraj interactive tx = pooler timeout).
+  const locationId = await resolveLocationId(null, employeeId)
+
   const reservation = await db.$transaction(async (tx) => {
     if (data.tableId) {
       const table = await tx.table.findUnique({ where: { id: data.tableId } })
@@ -137,6 +145,7 @@ export async function handleCreateReservation(
         source: data.source,
         confirmedAt: new Date(),
         employeeId: employeeId || null,
+        locationId,
       },
       include: {
         table: { select: { id: true, number: true, capacity: true, area: true } },
