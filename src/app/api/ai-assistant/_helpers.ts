@@ -1,5 +1,11 @@
 // Pomožne funkcije za AI asistenta
-// POST /api/ai-assistant — pomožni modul za kontekst, podatke in fallback odgovore
+// POST /api/ai-assistant — pomožni modul za kontekst, podatke in lokalne odgovore
+//
+// RUNDA 34: gatherDataSnapshot() vrača STRUKTURIRANE podatke (ne samo niz),
+// iz katerih generateLocalAnswer() sestavi DATA-DRIVEN odgovor brez zunanjega
+// AI API-ja. Ozadje: GEMINI_API_KEY ni nastavljen na Vercelu, z-ai-web-dev-sdk
+// pa deluje samo v sandboxu (qr-upsell vrne aiPowered:false) — lokalna
+// inteligenca je edina pot do delašega asistenta v produkciji.
 
 import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
@@ -18,20 +24,52 @@ Govoriš slovensko in pomagaš lastnikom restavracij z:
 Znaš Slovenijo-specifične stvari: DDV stopnje (22%, 9.5%, 0%), FURS predpise, HACCP, slovenske praznike, turistične sezone.
 Odgovarjaj strukturirano, s konkretnimi številkami in predlogi. Uporabljaj EUR za valuto.`
 
-export async function gatherDataContext(_context: Record<string, unknown>): Promise<string> {
-  const parts: string[] = [];
+// ─── STRUKTURIRANI PODATKI (runda 34) ───────────────────────────────
+
+export interface DataSnapshot {
+  totalRevenue: number
+  orderCount: number
+  avgCheck: number
+  topItems: { name: string; qty: number; revenue: number }[]
+  lowStock: { name: string; quantity: number; minQuantity: number; unit: string | null }[]
+  activeMenuItems: number
+  staffOnShift: string[]
+  reservationsToday: number
+  guestsToday: number
+}
+
+export interface DataSnapshotResult {
+  snapshot: DataSnapshot
+  /** Človeku/modelu berljiv povzetek (za Gemini prompt) */
+  context: string
+}
+
+export async function gatherDataSnapshot(): Promise<DataSnapshotResult> {
+  const parts: string[] = []
+
+  // Datumski prag za zadnjih 30 dni
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  // Današnji datum za izmene in rezervacije
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const snapshot: DataSnapshot = {
+    totalRevenue: 0,
+    orderCount: 0,
+    avgCheck: 0,
+    topItems: [],
+    lowStock: [],
+    activeMenuItems: 0,
+    staffOnShift: [],
+    reservationsToday: 0,
+    guestsToday: 0,
+  }
 
   try {
-    // Datumski prag za zadnjih 30 dni
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    // Današnji datum za izmene in rezervacije
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
     // ─── VSE POIZVEDBE VZPOREDNO Z Promise.all ───
     const [orderAgg, topItemsRaw, lowStockItems, menuItemCount, activeTimeEntries, reservationAgg] = await Promise.all([
       // 1. Agregacija prodaje — namesto findMany z include (50 naročil z vsemi relacijami)
@@ -84,58 +122,133 @@ export async function gatherDataContext(_context: Record<string, unknown>): Prom
     ]);
 
     // Prodajni povzetek
-    const totalRevenue = toNum(orderAgg._sum.total);
-    const orderCount = orderAgg._count;
-    const avgCheck = toNum(orderAgg._avg.total);
+    snapshot.totalRevenue = round2(toNum(orderAgg._sum.total));
+    snapshot.orderCount = orderAgg._count;
+    snapshot.avgCheck = round2(toNum(orderAgg._avg.total));
 
-    parts.push(`PRODAJA (zadnjih 30 dni): Skupaj ${orderCount} naročil, Prihodek: ${formatEUR(round2(totalRevenue).toFixed(2))}, Povprečen ček: ${formatEUR(round2(avgCheck).toFixed(2))}`);
+    snapshot.topItems = topItemsRaw.map(i => ({
+      name: i.name,
+      qty: Number(i.total_qty),
+      revenue: round2(toNum(i.total_revenue)),
+    }))
 
-    // Top artikli
-    if (topItemsRaw.length > 0) {
-      parts.push(`TOP 10 ARTIKLI: ${topItemsRaw.map((i, idx) => `${idx + 1}. ${i.name} (${i.total_qty}x, ${formatEUR(round2(i.total_revenue).toFixed(2))})`).join(', ')}`);
+    snapshot.lowStock = lowStockItems.map(i => ({
+      name: i.name,
+      quantity: toNum(i.quantity),
+      minQuantity: toNum(i.minQuantity),
+      unit: i.unit,
+    }))
+
+    snapshot.activeMenuItems = menuItemCount
+    snapshot.staffOnShift = activeTimeEntries.map(te => te.employee.name)
+
+    snapshot.reservationsToday = reservationAgg._count
+    snapshot.guestsToday = toNum(reservationAgg._sum.partySize)
+
+    parts.push(`PRODAJA (zadnjih 30 dni): Skupaj ${snapshot.orderCount} naročil, Prihodek: ${formatEUR(snapshot.totalRevenue)}, Povprečen ček: ${formatEUR(snapshot.avgCheck)}`);
+
+    if (snapshot.topItems.length > 0) {
+      parts.push(`TOP 10 ARTIKLI: ${snapshot.topItems.map((i, idx) => `${idx + 1}. ${i.name} (${i.qty}x, ${formatEUR(i.revenue)})`).join(', ')}`);
     }
 
-    // Nizka zaloga
-    if (lowStockItems.length > 0) {
-      parts.push(`NIZKA ZALOGA: ${lowStockItems.map(i => `${i.name} (${i.quantity}/${i.minQuantity} ${i.unit})`).join(', ')}`);
+    if (snapshot.lowStock.length > 0) {
+      parts.push(`NIZKA ZALOGA: ${snapshot.lowStock.map(i => `${i.name} (${i.quantity}/${i.minQuantity} ${i.unit ?? ''})`).join(', ')}`);
     }
 
-    // Meni
-    parts.push(`MENI: ${menuItemCount} aktivnih artiklov`);
+    parts.push(`MENI: ${snapshot.activeMenuItems} aktivnih artiklov`);
 
-    // Zaposleni na izmeni
-    if (activeTimeEntries.length > 0) {
-      parts.push(`ZAPOSLENI NA IZMENI: ${activeTimeEntries.map(te => te.employee.name).join(', ')}`);
+    if (snapshot.staffOnShift.length > 0) {
+      parts.push(`ZAPOSLENI NA IZMENI: ${snapshot.staffOnShift.join(', ')}`);
     }
 
-    // Rezervacije
-    const reservationCount = reservationAgg._count;
-    const totalGuests = toNum(reservationAgg._sum.partySize);
-    if (reservationCount > 0) {
-      parts.push(`REZERVACIJE DANES: ${reservationCount} rezervacij, skupaj ${totalGuests} gostov`);
+    if (snapshot.reservationsToday > 0) {
+      parts.push(`REZERVACIJE DANES: ${snapshot.reservationsToday} rezervacij, skupaj ${snapshot.guestsToday} gostov`);
     }
 
   } catch {
     parts.push('Podatki trenutno niso dosegljivi');
   }
 
-  return parts.join('\n');
+  return { snapshot, context: parts.join('\n') }
 }
 
+/** Nazdaj združljiva ovojnica (niz za Gemini prompt) */
+export async function gatherDataContext(context: Record<string, unknown>): Promise<string> {
+  const { context: str } = await gatherDataSnapshot()
+  void context
+  return str
+}
+
+// ─── LOKALNA INTELIGENCA (runda 34) ─────────────────────────────────
+// Data-driven odgovori brez zunanjega AI API-ja — iz realnih DB podatkov.
+
+export function generateLocalAnswer(message: string, snapshot: DataSnapshot): string {
+  const lowerMsg = message.toLowerCase()
+  const has = (...words: string[]) => words.some((w) => lowerMsg.includes(w))
+
+  const fmt = (n: number) => formatEUR(round2(n))
+
+  // 1. Top artikli / najboljše jedi / prodaja
+  if (has('najboljš', 'top', 'zvezd', 'priljubljen', 'najbolj prodajan')) {
+    if (snapshot.topItems.length === 0) {
+      return '📊 Za zadnjih 30 dni še ni evidentirane prodaje. Ko bodo naročila tekla, ti pokažem najboljše artikle in priporočila.'
+    }
+    const top = snapshot.topItems.slice(0, 3)
+    const lines = top.map((i, idx) => `${idx + 1}. **${i.name}** — ${i.qty}x, prihodek ${fmt(i.revenue)}`).join('\n')
+    return `📊 **Najboljši artikli (zadnjih 30 dni)**\n\n${lines}\n\n` +
+      `💡 Priporočilo: **${top[0].name}** je tvoja "zvezda" — promoviraj ga (upsell, dnevni ponudbi). ` +
+      `Skupaj si v tem obdobju ustvaril ${fmt(snapshot.totalRevenue)} prihodka prek ${snapshot.orderCount} naročil (povprečen ček ${fmt(snapshot.avgCheck)}).`
+  }
+
+  // 2. Prodaja / prihodek / ček
+  if (has('prodaj', 'prihodek', 'ček', 'promet', 'prihod')) {
+    return `📈 **Pregled prodaje (zadnjih 30 dni)**\n\n- Število naročil: **${snapshot.orderCount}**\n- Prihodek: **${fmt(snapshot.totalRevenue)}**\n- Povprečen ček: **${fmt(snapshot.avgCheck)}**\n\n` +
+      (snapshot.topItems.length > 0
+        ? `Največji zaveznik: **${snapshot.topItems[0].name}** (${snapshot.topItems[0].qty}x, ${fmt(snapshot.topItems[0].revenue)}).`
+        : `Še ni podatkov o artiklih — vidi se bodo, ko bodo naročila tekla.`)
+  }
+
+  // 3. Zaloga / naročila dobaviteljem
+  if (has('zaloga', 'zalog', 'naroč', 'dobavitelj', 'zaloge')) {
+    if (snapshot.lowStock.length === 0) {
+      return '📦 Nizke zaloge trenutno ni — vsi inventory artikel so nad varnostno ravnjo. 👍'
+    }
+    const lines = snapshot.lowStock.slice(0, 5).map(i => `- **${i.name}**: ${i.quantity}/${i.minQuantity} ${i.unit ?? ''} → naroči po zdaj`).join('\n')
+    return `📦 **Nizka zaloga — priporočam naročilo**\n\n${lines}\n\n💡 Tip: določi par level (min/max) za te artikle, da se naročila ustvarjajo pravočasno.`
+  }
+
+  // 4. Osebje / izmene / kadri
+  if (has('zaposlen', 'izmen', 'kader', 'osebje', 'natakar')) {
+    const staff = snapshot.staffOnShift.length > 0 ? snapshot.staffOnShift.join(', ') : 'trenutno nihče'
+    const resPart = snapshot.reservationsToday > 0
+      ? `Danes je ${snapshot.reservationsToday} potrjenih rezervacij (${snapshot.guestsToday} gostov) — načrtuj pokritost zanje.`
+      : 'Danes ni potrjenih rezervacij.'
+    return `👥 **Kadrovska slika**\n\n- Na izmeni zdaj: **${staff}**\n- ${resPart}\n\n💡 V konicah (pet–sob, 18:00–22:00) načrtuj več rok; za manjše izmene pa križno usposobljeni kader (natakar + barman).`
+  }
+
+  // 5. Rezervacije / gostje
+  if (has('rezervac', 'gost', 'obisk')) {
+    if (snapshot.reservationsToday === 0) {
+      return '📅 Za danes ni potrjenih rezervacij. Walk-in gostje se evidentirajo samodejno ob naročilu.'
+    }
+    return `📅 **Rezervacije danes**: ${snapshot.reservationsToday} rezervacij, skupaj **${snapshot.guestsToday}** pričakovanih gostov. Pripravi mize vnaprej in načrtuj pokritost osebja.`
+  }
+
+  // 6. Default — zmogljivosti + 2 realna podatka
+  const highlights: string[] = []
+  if (snapshot.topItems.length > 0) highlights.push(`Top artikel: **${snapshot.topItems[0].name}** (${snapshot.topItems[0].qty}x)`)
+  if (snapshot.lowStock.length > 0) highlights.push(`⚠️ Nizka zaloga: **${snapshot.lowStock[0].name}** (${snapshot.lowStock[0].quantity}/${snapshot.lowStock[0].minQuantity})`)
+  if (snapshot.reservationsToday > 0) highlights.push(`📅 Danes ${snapshot.guestsToday} gostov prek rezervacij`)
+
+  return `🤖 **RestaurantOS AI Asistent**\n\n${highlights.length > 0 ? highlights.join(' · ') + '\n\n' : ''}Lahko te vprašaš na primer:\n\n- 📊 "Kateri je najboljši artikel?"\n- 📈 "Kakšna je prodaja?"\n- 📦 "Kaj moram naročiti?"\n- 👥 "Kdo je na izmeni?"\n- 📅 "Koliko rezervacij imam danes?"\n\n*(Odgovorim na osnovi realnih podatkov tvoje restavracije.)*`
+}
+
+/** Zastarel fallback — ohranjen za nazaj združljivost (API brez snapshot) */
 export function generateFallbackResponse(message: string, _type: string, _dataContext: string): string {
-  const lowerMsg = message.toLowerCase();
-
-  if (lowerMsg.includes('meni') || lowerMsg.includes('cen') || lowerMsg.includes('artikl')) {
-    return `📊 **Optimizacija menija**\n\nNa osnovi vaših podatkov:\n\n1. **Analiza donosnosti**: Primerjajte prodajo vsakega artikla z njegovo ceno in stroškom sestavin. Artikle z visoko prodajo in visoko maržo označite kot "Zvezde" — te promovirajte.\n\n2. **Prilagoditev cen**: Če je food cost % nad 30%, razmislite o zvišanju cene ali zamenjavi dobavitelja.\n\n3. **Sezonski meni**: Dodajte sezonske artikle za povečanje zanimanja gostov.\n\n4. **Izločanje "psov"**: Artikli z nizko prodajo in nizko maržo bi morali biti odstranjeni iz menija.\n\n*Napredna analiza bo na voljo, ko bo API povezava obnovljena.*`;
-  }
-
-  if (lowerMsg.includes('zaloga') || lowerMsg.includes('dobavitelj') || lowerMsg.includes('naroč')) {
-    return `📦 **Upravljanje zaloge**\n\n1. **Par level**: Določite minimalno in maksimalno zalogo za vsak artikel.\n\n2. **Samodejno naročanje**: Ko zaloga pade pod minimalno raven, samodejno ustvarite naročilo dobavitelju.\n\n3. **FCFO (First Cooked, First Out)**: Uporabljajte starejše zaloge najprej za zmanjšanje odpadkov.\n\n4. **Tedenski pregled**: Preverite porabo vsak ponedeljek in naročite za teden naprej.\n\n*Natančna analiza zalog bo na voljo, ko bo API povezava obnovljena.*`;
-  }
-
-  if (lowerMsg.includes('kader') || lowerMsg.includes('zaposlen') || lowerMsg.includes('izmen')) {
-    return `👥 **Kadrovska optimizacija**\n\n1. **Obiskovalni vzorci**: Razporedite več osebja v konicah (petek-sobota 18:00-22:00).\n\n2. **Pametni odmori**: Načrtujte odmore izven konice obiska.\n\n3. **Križno usposabljanje**: Usposobite zaposlene za več vlog (natakar + barman).\n\n4. **Rezervna ekipa**: Imejte 1-2 rezervne osebe za nepričakovane obiske.\n\n*Natančna kadrovska analiza bo na volgo, ko bo API povezava obnovljena.*`;
-  }
-
-  return `🤖 **RestaurantOS AI Asistent**\n\nPozdravljeni! Sem vaš AI asistent za optimizacijo restavracije. Lahko vam pomagam z:\n\n- 📊 **Optimizacija menija** — "Kako optimiziram meni?"\n- 📦 **Upravljanje zaloge** — "Kaj moram naročiti?"\n- 👥 **Kadrovska optimizacija** — "Koliko osebja potrebujem?"\n- 💰 **Stroški hrane** — "Kakšen je moj food cost?"\n- 📈 **Napoved prodaje** — "Kakšna bo prodaja naslednji teden?"\n- 🎯 **Marketinški nasveti** — "Kako pritegnem več gostov?"\n\nPostavite mi vprašanje in vam bom pomagal z analizo vaših podatkov!`;
+  void _dataContext
+  return generateLocalAnswer(message, {
+    totalRevenue: 0, orderCount: 0, avgCheck: 0,
+    topItems: [], lowStock: [], activeMenuItems: 0,
+    staffOnShift: [], reservationsToday: 0, guestsToday: 0,
+  })
 }

@@ -51,10 +51,16 @@ export default memo(function AIAssistant() {
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, aiMessage]);
-    } catch {
+    } catch (err) {
+      // FIX (runda 34): pokaži serverjevo sporočilo (authFetch ga vrže v
+      // Error.message) — prej je bil vedno generični tekst, tudi ko je
+      // strežnik vrnil uporabniku razumljivo napako.
+      const serverMsg = err instanceof Error && err.message ? err.message : null;
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Oprostite, prišlo je do napake. Poskusite znova.',
+        content: serverMsg
+          ? `⚠️ ${serverMsg}`
+          : 'Oprostite, prišlo je do napake. Poskusite znova.',
         timestamp: new Date(),
       }]);
     } finally {
