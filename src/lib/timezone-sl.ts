@@ -89,6 +89,19 @@ export function ljubljanaTodayStr(now: Date = new Date()): string {
 }
 
 /**
+ * Včerajšnji datum kot 'YYYY-MM-DD' v ljubljanskem času (digest semantika).
+ * NOVO R48: prej dupliciran lokalno v /reports/digest/page.tsx — sedaj ENOTEN
+ * vir resnice (uporablja tudi EmailTab za privzeti datum povzetka).
+ * DST-varen: čisti koledarski subtract po LJ delih (ne start-24h, ki ob
+ * prehodu poletni/zimski čas lahko zgreši dan).
+ */
+export function ljubljanaYesterdayStr(now: Date = new Date()): string {
+  const [y, m, d] = ljubljanaTodayStr(now).split('-').map(Number)
+  const yesterday = new Date(Date.UTC(y, m - 1, d - 1))
+  return yesterday.toISOString().slice(0, 10)
+}
+
+/**
  * ISO UTC čas → { datum 'YYYY-MM-DD', čas 'HH:mm' } v ljubljanskem času.
  * FIX R43 (dodatno v rundi 43): rezervacije imajo dateTime v UTC — 19:00 UTC je
  * po Ljubljani lahko NASLEDNJI koledarski dan (20:00/21:00 CET/CEST). Vsak modul,

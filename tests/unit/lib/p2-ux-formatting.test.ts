@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { formatEUR, formatNumberSl, parseDecimalInput, safeToFixed, safeNum } from '@/lib/safe-format'
-import { ljubljanaDayBounds, ljubljanaTodayStr, ljubljanaDateTimeParts } from '@/lib/timezone-sl'
+import { ljubljanaDayBounds, ljubljanaTodayStr, ljubljanaDateTimeParts, ljubljanaYesterdayStr } from '@/lib/timezone-sl'
 import { errorSl } from '@/lib/error-messages'
 
 // ─────────────────────────────────────────────
@@ -131,6 +131,23 @@ describe('P2-UX: ljubljanaDayBounds (Europe/Ljubljana)', () => {
     expect(ljubljanaTodayStr(earlyMorningUTC)).toBe('2026-01-16')
     const noonUTC = new Date('2026-01-15T12:00:00Z') // 13:00 LJ 15.1.
     expect(ljubljanaTodayStr(noonUTC)).toBe('2026-01-15')
+  })
+
+  // R48: ljubljanaYesterdayStr — ENOTEN vir digest semantike (delili prej
+  // duplicirane lokalne kopije v /reports/digest in EmailTab izbirnik)
+  it('ljubljanaYesterdayStr: včeraj po LJ, četudi je UTC že naslednji dan', () => {
+    // 23:30 UTC 15.1. = 00:30 LJ 16.1. → LJ danes 16.1., LJ včeraj = 15.1.
+    const earlyMorningUTC = new Date('2026-01-15T23:30:00Z')
+    expect(ljubljanaYesterdayStr(earlyMorningUTC)).toBe('2026-01-15')
+    const noonUTC = new Date('2026-01-15T12:00:00Z') // LJ 15.1. → včeraj 14.1.
+    expect(ljubljanaYesterdayStr(noonUTC)).toBe('2026-01-14')
+  })
+
+  it('ljubljanaYesterdayStr: mesečno/letno mejo (1. januar → 31. december) in prestopno leto', () => {
+    const newYear = new Date('2026-01-01T12:00:00Z') // LJ 1.1.2026 → včeraj 31.12.2025
+    expect(ljubljanaYesterdayStr(newYear)).toBe('2025-12-31')
+    const leapEve = new Date('2024-03-01T12:00:00Z') // LJ 1.3.2024 (prestopno) → včeraj 29.2.2024
+    expect(ljubljanaYesterdayStr(leapEve)).toBe('2024-02-29')
   })
 })
 

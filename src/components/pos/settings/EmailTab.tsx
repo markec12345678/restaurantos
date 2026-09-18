@@ -14,6 +14,8 @@ import { Mail, Eye, EyeOff, Send, Settings2, Clock, Inbox, FileText, AlertTriang
 import { authFetch } from '@/components/pos/PinLogin'
 import { formatEUR } from '@/lib/safe-format'
 import { buildDailyDigestHtml } from '@/lib/email/digest-html'
+import { ljubljanaTodayStr, ljubljanaYesterdayStr } from '@/lib/timezone-sl'
+import { CalendarDays } from 'lucide-react'
 
 // ============================================
 // EMAIL ZAVIHEK — SMTP nastavitve + dnevni menedžerski digest
@@ -64,6 +66,21 @@ export const EmailTab = memo(function EmailTab({ form, updateField }: {
   const [preview, setPreview] = useState<DigestPreviewData | null>(null)
   const [sending, setSending] = useState(false)
   const [sendResult, setSendResult] = useState<{ ok: boolean; message: string } | null>(null)
+
+  // R48: datumski izbirnik povzetka — predogled/tisk/ponovno pošiljanje za
+  // POLJUBEN pretekli dan (backend /api/reports/digest-preview?date= in
+  // digest-send {date} podpirata parameter že od vvedenosti, UI pa je vedno
+  // pošiljal samo včeraj). Privzeto včeraj (ista semantika kot cron).
+  const [digestDate, setDigestDate] = useState<string>(() => ljubljanaYesterdayStr())
+  const maxDigestDate = ljubljanaTodayStr() // brez prihodnjih dni
+  const handleDigestDateChange = useCallback((value: string) => {
+    setDigestDate(value)
+    // STARA PREDGLED/ZAKLJUČEK = NEVEDEČE ZAMENJAVA DATUMA → počisti, sicer
+    // bi "Pošlji zdaj" poslal za nov datum, medtem ko prikazana številke
+    // pripadajo staremu (varnost: prikaz IN akcija sta vedno istega datuma).
+    setPreview(null)
+    setSendResult(null)
+  }, [])
 
   const smtpHost = (form.emailSmtpHost as string) || ''
   const smtpPort = (form.emailSmtpPort as string) || ''
@@ -117,7 +134,10 @@ export const EmailTab = memo(function EmailTab({ form, updateField }: {
   async function handlePreview() {
     setPreviewLoading(true)
     try {
-      const res = await authFetch('/api/reports/digest-preview')
+      // R48: ?date= — prazna vrednost (uporabnik pobrisal vnos) → brez parametra,
+      // API privzeto vzame včeraj (isti fallback kot digest stran)
+      const qs = digestDate ? `?date=${encodeURIComponent(digestDate)}` : ''
+      const res = await authFetch(`/api/reports/digest-preview${qs}`)
       if (!res.ok) throw new Error(`Napaka ${res.status}`)
       const json = (await res.json()) as { data: DigestPreviewData }
       setPreview(json.data)
@@ -135,7 +155,13 @@ export const EmailTab = memo(function EmailTab({ form, updateField }: {
     setSending(true)
     setSendResult(null)
     try {
-      const res = await authFetch('/api/reports/digest-send', { method: 'POST' })
+      // R48: {date} v telesu — ponovno pošiljanje za izbrani dan (API je
+      // idempotenten: 'sent' prejemnikov ne spama ponovno)
+      const res = await authFetch('/api/reports/digest-send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(digestDate ? { date: digestDate } : {}),
+      })
       const json = (await res.json()) as {
         success?: boolean
         skipped?: boolean
@@ -424,10 +450,32 @@ export const EmailTab = memo(function EmailTab({ form, updateField }: {
             Predogled dnevnega povzetka
           </CardTitle>
           <CardDescription>
-            Kako bo izgledal menedžerski email za včerajšnji dan (isti HTML kot produkcija).
+            Kako bo izgledal menedžerski email za izbrani datum (privzeto včeraj, isti HTML kot produkcija).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* R48: datumski izbirnik — predogled/tisk/ponovno pošiljanje za poljuben
+              pretekli dan; max = danes po LJ (brez prihodnjih povzetkov). Zamenjava
+              datuma počisti predogled in rezultat pošiljanja (prikaz ≡ akcija). */}
+          <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-muted/30 p-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="digestDate" className="flex items-center gap-1.5 text-xs font-medium">
+                <CalendarDays className="h-3.5 w-3.5 text-sky-600" aria-hidden="true" />
+                Datum povzetka
+              </Label>
+              <Input
+                id="digestDate"
+                type="date"
+                value={digestDate}
+                max={maxDigestDate}
+                onChange={e => handleDigestDateChange(e.target.value)}
+                className="w-44 tabular-nums"
+              />
+            </div>
+            <p className="max-w-56 pb-1.5 text-xs text-muted-foreground">
+              Izberi pretekli dan za predogled, tisk ali ponovno pošiljanje povzetka.
+            </p>
+          </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={handlePreview} disabled={previewLoading} className="btn-press">
               {previewLoading ? 'Nalagam...' : 'Naloži predogled'}
@@ -438,10 +486,14 @@ export const EmailTab = memo(function EmailTab({ form, updateField }: {
                 Odpri HTML predogled
               </Button>
             )}
-            {/* Runda 42: tiskana/PDF verzija — lastna stran z datumskim izbirnikom
-                in window.print() (brskalnik "Shrani kot PDF", brez odvisnosti) */}
+            {/* Runda 42 + R48: tiskana/PDF verzija z ISTM datumom kot predogled
+                (?date= — prej vedno včeraj, ne glede na izbiro v tem zavihku) */}
             <Button variant="outline" asChild className="btn-press">
-              <a href="/reports/digest" target="_blank" rel="noopener noreferrer">
+              <a
+                href={digestDate ? `/reports/digest?date=${encodeURIComponent(digestDate)}` : '/reports/digest'}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 <Printer className="h-4 w-4 mr-1" />
                 Tiskana verzija / PDF
               </a>
@@ -453,11 +505,11 @@ export const EmailTab = memo(function EmailTab({ form, updateField }: {
               title={
                 !emailEnabled || !hasSmtpConfig || !hasRecipients
                   ? 'Omogoči samodejna pošiljanja, SMTP in prejemnike (in shrani)'
-                  : 'Pošlji povzetek za včeraj takoj'
+                  : `Pošlji povzetek za ${digestDate || 'včeraj'} takoj`
               }
             >
               <Send className="h-4 w-4 mr-1" />
-              {sending ? 'Pošiljam...' : 'Pošlji zdaj'}
+              {sending ? 'Pošiljam...' : digestDate ? 'Pošlji za izbrani datum' : 'Pošlji zdaj'}
             </Button>
           </div>
           {sendResult?.ok && (

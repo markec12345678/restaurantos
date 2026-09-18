@@ -219,8 +219,9 @@ export async function handleLoyaltyEarn(
       },
     })
     logger.info(
-      { loyaltyAccountId: data.loyaltyAccountId, tier: accountBefore.tier, bonus: breakdown.bonus },
+      'LOYALTY',
       'Loyalty tier bonus applied',
+      { loyaltyAccountId: data.loyaltyAccountId, tier: accountBefore.tier, bonus: breakdown.bonus },
     )
   }
 
@@ -252,7 +253,7 @@ export async function handleLoyaltyEarn(
           monetaryValue: 0,
         },
       })
-      logger.info({ loyaltyAccountId: data.loyaltyAccountId, tier: computedTier }, 'Loyalty tier upgraded')
+      logger.info('LOYALTY', 'Loyalty tier upgraded', { loyaltyAccountId: data.loyaltyAccountId, tier: computedTier })
     }
   }
 }

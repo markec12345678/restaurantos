@@ -62,7 +62,9 @@ export const ByItemsTab = memo(function ByItemsTab({
     const base = Math.max(0, Math.floor(guestTotal * (loyaltyConfig.pointsPerEuro || 1)))
     return applyTierBonus(base, selectedLoyalty.tier).total
   }
-  const totalEarn = Array.from({ length: Math.max(splitCount, 2) }).reduce((sum, _, i) => {
+  // FIX R48: eksplicitni <number> generic — Array.from({length}) je unknown[],
+  // brez generika je sum (in s tem totalEarn) inferiral unknown (tsc P1)
+  const totalEarn = Array.from({ length: Math.max(splitCount, 2) }).reduce<number>((sum, _, i) => {
     const gTotal = orderItems
       .filter(oi => guestAssignments[oi.id] === i + 1)
       .reduce((s, oi) => s + oi.price * oi.quantity, 0)

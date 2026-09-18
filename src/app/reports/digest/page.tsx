@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { AlertTriangle, ArrowLeft, CheckCircle2, Printer } from 'lucide-react'
 import { authFetch } from '@/components/pos/PinLogin'
 import { formatEUR } from '@/lib/safe-format'
-import { ljubljanaTodayStr } from '@/lib/timezone-sl'
+import { ljubljanaYesterdayStr } from '@/lib/timezone-sl' // R48: yesterday iz lib (prej lokalna kopija)
 
 // ============================================
 // TISKANA VERZIJA DNEVNEGA POVZETKA (/reports/digest)
@@ -40,15 +40,8 @@ interface DigestData {
   furs: { sent: number; failed: number }
 }
 
-/** Včeraj po ljubljanskem času (digest semantika = server-local včeraj). */
-function ljubljanaYesterdayStr(): string {
-  const today = ljubljanaTodayStr()
-  const [y, m, d] = today.split('-').map(Number)
-  const yesterday = new Date(y, m - 1, d - 1)
-  const mm = String(yesterday.getMonth() + 1).padStart(2, '0')
-  const dd = String(yesterday.getDate()).padStart(2, '0')
-  return `${yesterday.getFullYear()}-${mm}-${dd}`
-}
+// R48: ljubljanaYesterdayStr zdaj živi v @/lib/timezone-sl (ENOTEN vir resnice —
+// deli ga tudi EmailTab datumski izbirnik); lokalna kopija odstranjena.
 
 /** YYYY-MM-DD → "18. september 2026" (sl-SI, deterministično — ročno, brez Intl). */
 const MESECI = ['januar', 'februar', 'marec', 'april', 'maj', 'junij', 'julij', 'avgust', 'september', 'oktober', 'november', 'december']
