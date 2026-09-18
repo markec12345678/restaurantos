@@ -192,7 +192,9 @@ const TransactionHistoryDialogInner = memo(function TransactionHistoryDialogInne
                       </p>
                     </div>
                     <p className={`mt-1.5 text-lg font-bold tabular-nums leading-none ${c.valueClass}`}>
-                      {c.sign === 'auto' ? (summary.net > 0 ? '+' : '') : c.sign}
+                      {/* RUNDA 51 detajl: znak samo pri neničelni vrednosti
+                          (−0,00 € je kozmetični šum); 'auto' = net po predznaku */}
+                      {c.sign === 'auto' ? (summary.net > 0 ? '+' : '') : (c.value > 0 ? c.sign : '')}
                       {formatCurrency(c.value)}
                     </p>
                   </div>
