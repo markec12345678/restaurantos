@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateReservationSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
+import { intervalsOverlap } from '@/lib/reservation-timeline'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,27 +56,50 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       }
     }
 
-    // FIX HIGH: Conflict detection ob spremembi tableId ali dateTime
-    if (data.tableId && data.dateTime) {
-      const newDateTime = new Date(data.dateTime)
-      const duration = data.duration || existing.duration || 120 // minut
-      const newEnd = new Date(newDateTime.getTime() + duration * 60000)
+    // RUNDA 53 FIX (2 loženi ranljivosti):
+    // (1) Conflict detection je tekel SAMO, če sta bila poslana OBA polja
+    //     (tableId + dateTime) — hitri premik časa (samo dateTime) je
+    //     popolnoma PRESKOČIL preverjanje zasedenosti mize!
+    // (2) findFirst brez orderBy vrne arbitrarno vrstico — lahko "poišče"
+    //     neprekrivajočo rezervacijo (lažni pozitiv/NEGATIV). Pravo
+    //     prekrivanje intervalov preverimo eksplicitno (intervalsOverlap)
+    //     nad VSEMI aktivnimi rezervacijami mize, ki se začnejo pred
+    //     našim koncem.
+    if (data.dateTime !== undefined && Number.isNaN(new Date(data.dateTime).getTime())) {
+      return NextResponse.json({ error: 'Neveljaven datum/čas' }, { status: 400 })
+    }
+    if (data.dateTime !== undefined || data.tableId !== undefined) {
+      // Efektivne vrednosti: poslano polje ali obstoječe (prej samo "oba ali nič")
+      const effTableId = data.tableId !== undefined ? (data.tableId || null) : existing.tableId
+      if (effTableId) {
+        const newDateTime = data.dateTime !== undefined ? new Date(data.dateTime) : new Date(existing.dateTime)
+        const duration = data.duration ?? existing.duration ?? 120 // minut
+        const newEnd = new Date(newDateTime.getTime() + duration * 60000)
 
-      const conflicting = await db.reservation.findFirst({
-        where: {
-          id: { not: id }, // izključi trenutno rezervacijo
-          tableId: data.tableId,
-          status: { in: ['confirmed', 'seated'] },
-          dateTime: { lte: newEnd },
-        },
-      })
+        // Prekrivanje zahteva start kandidata < naš konec (polodprti intervali)
+        const candidates = await db.reservation.findMany({
+          where: {
+            id: { not: id }, // izključi trenutno rezervacijo
+            tableId: effTableId,
+            status: { in: ['confirmed', 'seated'] },
+            dateTime: { lt: newEnd },
+          },
+          select: { id: true, customerName: true, dateTime: true, duration: true },
+        })
 
-      if (conflicting) {
-        const conflictEnd = new Date(new Date(conflicting.dateTime).getTime() + (conflicting.duration || 120) * 60000)
-        if (conflictEnd > newDateTime) {
+        const conflicting = candidates.find(c =>
+          intervalsOverlap(
+            newDateTime.getTime(),
+            newEnd.getTime(),
+            new Date(c.dateTime).getTime(),
+            new Date(c.dateTime).getTime() + (c.duration || 120) * 60000,
+          ),
+        )
+
+        if (conflicting) {
           return NextResponse.json(
             { error: `Miza je že rezervirana ob tem času (${conflicting.customerName}, ${new Date(conflicting.dateTime).toLocaleTimeString('sl-SI')})` },
-            { status: 409 }
+            { status: 409 },
           )
         }
       }

@@ -69,6 +69,8 @@ export interface ReservationCardProps {
   reservation: ReservationType
   onEdit: () => void
   onStatusChange: (_id: string, _status: string) => void
+  /** RUNDA 53: hitri premik časa ±N minut (PUT dateTime; 409 konflikt → toast) */
+  onTimeShift?: (_id: string, _deltaMinutes: number) => void
 }
 
 export interface TimelineViewProps {
@@ -76,12 +78,14 @@ export interface TimelineViewProps {
   tables: TableType[]
   onEdit: (_r: ReservationType) => void
   onStatusChange: (_id: string, _status: string) => void
+  onTimeShift?: (_id: string, _deltaMinutes: number) => void
 }
 
 export interface ListViewProps {
   reservations: ReservationType[]
   onEdit: (_r: ReservationType) => void
   onStatusChange: (_id: string, _status: string) => void
+  onTimeShift?: (_id: string, _deltaMinutes: number) => void
 }
 
 export interface ReservationDialogProps {

@@ -49,3 +49,34 @@ export function shiftHm(hm: string, deltaMinutes: number): string | null {
   const m = shifted % 60
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
+
+// ─── RUNDA 53: pravi interval-overlap za konflikt detekcijo ───
+// Prej je PUT /api/reservations/[id] iskal findFirst kandidatko z
+// dateTime <= newEnd in preveril SAMO njo — findFirst brez orderBy vrne
+// arbitrarno vrstico, lahko torej "poišče" rezervacijo, ki se konča PREJ
+// našega začetka (ni konflikt), medtem ko pravi konflikt obstaja drugje
+// (lažni negativ) ali pa prijavi neprekrivajočo (lažni pozitiv).
+//
+// Kanonični pogoj prekrivanja polodprtih intervalov [start, end):
+//   startA < endB  &&  endA > startB
+// Dotikajoča se robova (konec == začetek) NE štejeta — miza je ob
+// polnoči prostih takoj, ko se prejšnja gostija zaključi.
+
+/**
+ * Prekrivanje dveh časovnih intervalov (epoch ms). Dotik robov NI
+ * prekrivanje. Obrnjeni argumenti se normalizirajo (varnost), ne-finite
+ * vrednosti (NaN/Infinity) → false (pokvarjen vnos nikoli ni konflikt).
+ * Ničelni interval (start == end) je "trenutek": trenutek ZNOTRAJ
+ * zasedenega okna je konflikt, na robu ali zunaj pa ne.
+ */
+export function intervalsOverlap(
+  aStartMs: number,
+  aEndMs: number,
+  bStartMs: number,
+  bEndMs: number,
+): boolean {
+  if (![aStartMs, aEndMs, bStartMs, bEndMs].every(Number.isFinite)) return false
+  const [aS, aE] = aStartMs <= aEndMs ? [aStartMs, aEndMs] : [aEndMs, aStartMs]
+  const [bS, bE] = bStartMs <= bEndMs ? [bStartMs, bEndMs] : [bEndMs, bStartMs]
+  return aS < bE && aE > bS
+}

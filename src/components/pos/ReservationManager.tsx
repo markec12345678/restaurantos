@@ -106,10 +106,38 @@ export const ReservationManager = memo(function ReservationManager() {
     },
   })
 
+  // RUNDA 53: hitri premik časa (±30 min na kartici) — PUT dateTime.
+  // 409 (miza zasedena) pokaže NATAKNO API sporočilo v toastu
+  // ("Miza je že rezervirana ob tem času (Ime, čas)").
+  const timeShiftMutation = useMutation({
+    mutationFn: async ({ id, dateTime }: { id: string; dateTime: string }) => {
+      const res = await authFetch(`/api/reservations/${id}`, { method: 'PUT', body: JSON.stringify({ dateTime }) })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}) as { error?: string })
+        throw new Error(err.error || 'Napaka pri premiku rezervacije')
+      }
+      return res.json()
+    },
+    onSuccess: (_, variables) => {
+      toast.success(`Rezervacija premaknjena na ${format(new Date(variables.dateTime), 'HH:mm')}`)
+      queryClient.invalidateQueries({ queryKey: queryKeys.reservations.all })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
   const handleOpenNew = useCallback(() => { setEditingReservation(null); setDialogOpen(true) }, [])
   const handleDialogClose = useCallback(() => { setDialogOpen(false); setEditingReservation(null) }, [])
   const handleEdit = useCallback((r: ReservationType) => { setEditingReservation(r); setDialogOpen(true) }, [])
   const handleStatusChange = useCallback((id: string, status: string) => { statusMutation.mutate({ id, status }) }, [statusMutation])
+
+  // RUNDA 53: premik za ±deltaMinutes — izračun iz trenutnega dateTime v
+  // selectorju (ne v komponenti kartice), izostring ISO (UTC-varno).
+  const handleTimeShift = useCallback((id: string, deltaMinutes: number) => {
+    const target = reservations.find(r => r.id === id)
+    if (!target) return
+    const next = new Date(new Date(target.dateTime).getTime() + deltaMinutes * 60000)
+    timeShiftMutation.mutate({ id, dateTime: next.toISOString() })
+  }, [reservations, timeShiftMutation])
 
   // RUNDA 52: podnaslov SLEDI izbranemu dnevu — prej vedno "danes", tudi ko
   // je uporabnik brskal po drugih dnevih (prikaz ≡ podatki varnost);
@@ -145,9 +173,9 @@ export const ReservationManager = memo(function ReservationManager() {
         {isLoading ? (
           <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>
         ) : viewMode === 'timeline' ? (
-          <TimelineView reservations={filteredReservations} tables={tables || []} onEdit={handleEdit} onStatusChange={handleStatusChange} isToday={isToday(selectedDate)} />
+          <TimelineView reservations={filteredReservations} tables={tables || []} onEdit={handleEdit} onStatusChange={handleStatusChange} onTimeShift={handleTimeShift} isToday={isToday(selectedDate)} />
         ) : (
-          <ListView reservations={filteredReservations} onEdit={handleEdit} onStatusChange={handleStatusChange} />
+          <ListView reservations={filteredReservations} onEdit={handleEdit} onStatusChange={handleStatusChange} onTimeShift={handleTimeShift} />
         )}
       </div>
 

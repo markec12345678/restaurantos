@@ -13,6 +13,7 @@ export const ListView = memo(function ListView({
   reservations,
   onEdit,
   onStatusChange,
+  onTimeShift,
 }: ListViewProps) {
   if (reservations.length === 0) {
     return (
@@ -32,6 +33,7 @@ export const ListView = memo(function ListView({
           index={idx}
           onEdit={() => onEdit(r)}
           onStatusChange={onStatusChange}
+          onTimeShift={onTimeShift}
         />
       ))}
     </div>

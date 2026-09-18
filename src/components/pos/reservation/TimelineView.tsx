@@ -20,6 +20,7 @@ export const TimelineView = memo(function TimelineView({
   tables: _tables,
   onEdit,
   onStatusChange,
+  onTimeShift,
   isToday = false,
 }: TimelineViewProps & { isToday?: boolean }) {
   // Najbližji slot sedanjosti (samo ob današnjem dnevu — "zdaj" oznaka).
@@ -98,6 +99,7 @@ export const TimelineView = memo(function TimelineView({
                   index={idx}
                   onEdit={() => onEdit(r)}
                   onStatusChange={onStatusChange}
+                  onTimeShift={onTimeShift}
                 />
               ))}
             </div>

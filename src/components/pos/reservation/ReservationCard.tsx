@@ -8,6 +8,13 @@
 //  • časovni chip s tabular-nums + hex plosčica (stolpci ne poskakujejo)
 //  • staggered animate-fade-in-up (40 ms, index-driven)
 //  • akcijski gumbi s focus ringi; hover lift na kartici
+// RUNDA 53:
+//  • hitri premik časa ±30 min (razdeljen gumb pod časovnim chipom —
+//    semantično vezan na čas; PUT dateTime, 409 konflikt → toast)
+//  • partySize chip s pravo slovensko sklanjatvijo (dvojina: "2 osebi" —
+//    prej trdo kodirano "2 oseb"; OSEBA_FORMS prek sl-plural)
+//  • terminalna stanja (zaključena/preklicana/ni prišel) dušena
+//    (opacity) — vizualna hijerarhija: aktivno naprej, mrtvo nazaj
 // ============================================
 
 import { memo } from 'react'
@@ -15,9 +22,10 @@ import { format } from 'date-fns'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Clock, Users, Phone, Check, X, Edit, UserCheck, AlertCircle, UtensilsCrossed, Star, MessageSquare } from 'lucide-react'
+import { Clock, Users, Phone, Check, X, Edit, UserCheck, AlertCircle, UtensilsCrossed, Star, MessageSquare, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { statusLabels, statusColors, sourceLabels } from './constants'
 import type { ReservationCardProps } from './constants'
+import { slCount, OSEBA_FORMS } from '@/lib/sl-plural'
 
 /** Levo-obrobna barva per status (izrazitejša kot badge-only) */
 const statusBorder: Record<string, string> = {
@@ -37,15 +45,21 @@ const statusDot: Record<string, string> = {
   no_show: 'bg-amber-500',
 }
 
+/** Terminalna stanja: ni več akcij, kartica se duši (vizualna hijerarhija) */
+const isTerminalStatus = (status: string) =>
+  status === 'completed' || status === 'cancelled' || status === 'no_show'
+
 export const ReservationCard = memo(function ReservationCard({
   reservation,
   onEdit,
   onStatusChange,
+  onTimeShift,
   index = 0,
 }: ReservationCardProps & { index?: number }) {
   const r = reservation
   const time = format(new Date(r.dateTime), 'HH:mm')
   const endTime = format(new Date(new Date(r.dateTime).getTime() + r.duration * 60000), 'HH:mm')
+  const terminal = isTerminalStatus(r.status)
 
   const nextActions: Record<string, { status: string; label: string; icon: React.ReactNode }[]> = {
     confirmed: [
@@ -60,16 +74,49 @@ export const ReservationCard = memo(function ReservationCard({
 
   return (
     <Card
-      className={`border border-l-4 ${statusBorder[r.status] ?? 'border-l-border'} card-lift transition-all duration-200 hover:shadow-md animate-fade-in-up`}
+      className={`border border-l-4 ${statusBorder[r.status] ?? 'border-l-border'} card-lift transition-all duration-200 hover:shadow-md animate-fade-in-up ${
+        terminal ? 'opacity-75 saturate-[.85] hover:opacity-100' : ''
+      }`}
       style={{ animationDelay: `${Math.min(index * 40, 200)}ms` }}
     >
       <CardContent className="p-3">
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-3">
-            {/* Čas — chip s plosčico */}
-            <div className="text-center min-w-12 rounded-md bg-muted/70 px-1.5 py-1">
-              <p className="text-lg font-bold leading-none tabular-nums">{time}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">do {endTime}</p>
+            {/* Levi stolpec: časovni chip + (ob potrjeni) hitri premik ±30 min */}
+            <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+              <div className="text-center min-w-14 rounded-md bg-muted/70 px-1.5 py-1">
+                <p className="text-lg font-bold leading-none tabular-nums">{time}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">do {endTime}</p>
+              </div>
+              {r.status === 'confirmed' && onTimeShift && (
+                <div
+                  role="group"
+                  aria-label="Hitri premik časa"
+                  className="flex items-center rounded-md border border-border/70 overflow-hidden bg-background/60"
+                >
+                  <button
+                    type="button"
+                    onClick={() => onTimeShift(r.id, -30)}
+                    title={`Premakni 30 min prej (iz ${time})`}
+                    aria-label={`Premakni 30 min prej (iz ${time})`}
+                    className="inline-flex h-6 w-9 items-center justify-center gap-px text-[10px] font-semibold text-muted-foreground hover:bg-blue-500/10 hover:text-blue-700 dark:hover:text-blue-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors touch-manipulation"
+                  >
+                    <ChevronsLeft className="h-3 w-3" aria-hidden="true" />
+                    <span className="tabular-nums">30</span>
+                  </button>
+                  <span className="w-px self-stretch bg-border/70" aria-hidden="true" />
+                  <button
+                    type="button"
+                    onClick={() => onTimeShift(r.id, 30)}
+                    title={`Premakni 30 min kasneje (iz ${time})`}
+                    aria-label={`Premakni 30 min kasneje (iz ${time})`}
+                    className="inline-flex h-6 w-9 items-center justify-center gap-px text-[10px] font-semibold text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-700 dark:hover:text-emerald-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors touch-manipulation"
+                  >
+                    <span className="tabular-nums">30</span>
+                    <ChevronsRight className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Podatki */}
@@ -88,7 +135,8 @@ export const ReservationCard = memo(function ReservationCard({
               </div>
 
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 tabular-nums"><Users className="h-3 w-3" />{r.partySize} oseb</span>
+                {/* RUNDA 53: prava sklanjatev — 1 oseba · 2 osebi · 3 osebe · 5 oseb (prej trdo "oseb") */}
+                <span className="flex items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 tabular-nums"><Users className="h-3 w-3" />{slCount(r.partySize, OSEBA_FORMS)}</span>
                 {r.table && (
                   <span className="flex items-center gap-1 rounded bg-muted/60 px-1.5 py-0.5 tabular-nums"><UtensilsCrossed className="h-3 w-3" />Miza {r.table.number}</span>
                 )}
