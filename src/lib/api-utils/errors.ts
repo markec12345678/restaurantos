@@ -287,12 +287,17 @@ export function handleApiError(
   // V produkciji ne razkrivamo internih podrobnosti napake
   // (stack/SQL/secrets se klientu NE vračajo — samo v dev se prikaže
   // prvih 5 vrstic stack-a za lažje debugiranje lokalno)
+  //
+  // FIX R36 (diagnostika): API_DEBUG_DETAIL=true (Vercel env) začasno
+  // razkrije stack v produkciji za debugiranje napak, ki jih runtime
+  // logi (Hobby plan) ne izpostavljajo prek API-ja. Privzeto IZKLOPLJENO.
+  const debugDetail = isDev || process.env.API_DEBUG_DETAIL === 'true'
   return NextResponse.json(
     {
       error: isDev ? message : userMessage,
       code: ERROR_CODES.INTERNAL_ERROR,
       requestId,
-      ...(isDev && error instanceof Error && { detail: error.stack?.split('\n').slice(0, 5).join('\n') }),
+      ...(debugDetail && error instanceof Error && { detail: error.stack?.split('\n').slice(0, 5).join('\n') }),
     },
     { status: statusCode, headers: { 'X-Request-Id': requestId } }
   )
