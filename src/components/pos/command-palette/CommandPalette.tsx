@@ -223,20 +223,21 @@ export function CommandPalette() {
   }
 
   // NOVO (runda 33): skupen renderer za artikel (recents + glavni seznam).
-  // value = unikaten id-prefix (cmdk selekcija je po value nizu — duplikati
-  // bi highlightali obe vrstici hkrati); iskalno besedilo (ime, kategorija,
-  // OPIS, alergeni) živi v `keywords`, ki ga default filter združi z value.
+  // FIX (E2E QA runda 33): value NE SME vsebovati UUID-ja — cmdk default
+  // fuzzy filter seže čez value+keywords, naključne črke v ID-ju
+  // (art-cmtpkdbh700ex8qy90…) so povzročile JUNK matche za gibberish
+  // iskanja ("xyzabc" je zadelo 7 naključnih artiklov). Value = samo
+  // human-readable besedilo; recents dobi "nedavno" priponek za unikatnost
+  // (cmdk selekcija highlighta po value nizu). Opis+alergeni živijo v
+  // keywords, ki jih filter enakovredno upošteva.
+  const articleSearchValue = (item: MenuItemType, recent?: boolean) =>
+    `${item.name} ${item.category?.name ?? ''} artikel${recent ? ' nedavno' : ''}`
+
   const renderArticleItem = (item: MenuItemType, opts: { recent?: boolean }) => (
     <CommandItem
       key={`${opts.recent ? 'recent' : 'art'}-${item.id}`}
-      value={`${opts.recent ? 'recent' : 'art'}-${item.id}`}
-      keywords={[
-        item.name,
-        item.category?.name ?? '',
-        item.description ?? '',
-        item.allergens ?? '',
-        'artikel',
-      ]}
+      value={articleSearchValue(item, opts.recent)}
+      keywords={[item.description ?? '', item.allergens ?? '']}
       onSelect={() => handleArticleSelect(item)}
       className="cursor-pointer"
     >
