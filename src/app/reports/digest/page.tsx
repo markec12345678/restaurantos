@@ -1,7 +1,8 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, Suspense } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -72,15 +73,20 @@ function ChangeBadge({ pct }: { pct: number | null }) {
   )
 }
 
-export default function DigestPrintPage() {
+function DigestPrintInner() {
   const [date, setDate] = useState('')
   const [data, setData] = useState<DigestData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const searchParams = useSearchParams()
 
   useEffect(() => {
-    setDate(ljubljanaYesterdayStr())
-  }, [])
+    // RUNDA 45: podpora ?date=YYYY-MM-DD (EOD modul linka DANAŠNJI dan;
+    // brez parametra ostane privzeta digest semantika = včeraj po LJ)
+    const q = searchParams.get('date')
+    const initial = q && /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : ljubljanaYesterdayStr()
+    setDate(initial)
+  }, [searchParams])
 
   const load = useCallback(async (targetDate: string) => {
     setLoading(true)
@@ -294,5 +300,14 @@ export default function DigestPrintPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// RUNDA 45: useSearchParams zahteva Suspense mejo pri statičnem prerenderju
+export default function DigestPrintPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-muted/30 dark:bg-background" />}>
+      <DigestPrintInner />
+    </Suspense>
   )
 }

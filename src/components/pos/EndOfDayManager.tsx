@@ -8,7 +8,7 @@
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { CheckCircle2, FileText, Lock } from 'lucide-react'
+import { CheckCircle2, ExternalLink, FileText, Lock, Printer } from 'lucide-react'
 import { memo } from 'react'
 import { format } from 'date-fns'
 import dynamic from 'next/dynamic'
@@ -72,6 +72,15 @@ export const EndOfDayManager = memo(function EndOfDayManager() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* RUNDA 45: povezava na tiskani dnevni povzetek za isti dan (digest
+              podpira ?date= od zdaj) — prej le v Nastavitve → Email zavihek */}
+          <Button variant="outline" asChild className="gap-1" title="Tiskana verzija dnevnega povzetka (A4, Shrani kot PDF)">
+            <a href={`/reports/digest?date=${data.date}`} target="_blank" rel="noopener noreferrer">
+              <Printer className="h-4 w-4" />
+              Dnevni povzetek
+              <ExternalLink className="h-3 w-3 text-muted-foreground" />
+            </a>
+          </Button>
           {data.eodCompleted ? (
             <Badge className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 text-sm px-3 py-1">
               <CheckCircle2 className="h-4 w-4 mr-1" /> Dan zaključen

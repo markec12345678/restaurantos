@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calculateTier, tierProgress, tierRank, TIER_THRESHOLDS } from '@/lib/loyalty-tiers'
+import { calculateTier, tierProgress, tierRank, TIER_THRESHOLDS, tierEarnBonusPct, applyTierBonus } from '@/lib/loyalty-tiers'
 
 // R44: tier engine — pragovi po lifetimePoints (doslej zbrane točke).
 // Pragovi: bronze 0, silver 500, gold 2000, platinum 5000.
@@ -110,5 +110,58 @@ describe('TIER_THRESHOLDS', () => {
     for (let i = 1; i < TIER_THRESHOLDS.length; i++) {
       expect(TIER_THRESHOLDS[i].minLifetime).toBeGreaterThan(TIER_THRESHOLDS[i - 1].minLifetime)
     }
+  })
+})
+
+// ─── RUNDA 45: bonus točk po nivoju (perk izkoriščanje) ───
+
+describe('tierEarnBonusPct', () => {
+  it('vraca 0 za bronze in neznan nivo', () => {
+    expect(tierEarnBonusPct('bronze')).toBe(0)
+    expect(tierEarnBonusPct('')).toBe(0)
+    expect(tierEarnBonusPct('neznano')).toBe(0)
+    expect(tierEarnBonusPct('GOLD')).toBe(0) // case-sensitive po zasnovi
+  })
+
+  it('vraca perk odstotke po nivojih (5/10/15)', () => {
+    expect(tierEarnBonusPct('silver')).toBe(5)
+    expect(tierEarnBonusPct('gold')).toBe(10)
+    expect(tierEarnBonusPct('platinum')).toBe(15)
+  })
+})
+
+describe('applyTierBonus', () => {
+  it('bron: bonus 0, total = base', () => {
+    const b = applyTierBonus(25, 'bronze')
+    expect(b.base).toBe(25)
+    expect(b.bonus).toBe(0)
+    expect(b.total).toBe(25)
+    expect(b.pct).toBe(0)
+  })
+
+  it('silver 5 %: floor zaokrozevanje navzdol', () => {
+    const b = applyTierBonus(100, 'silver')
+    expect(b).toEqual({ base: 100, bonus: 5, total: 105, pct: 5 })
+    // 33 × 5 % = 1.65 → floor 1
+    expect(applyTierBonus(33, 'silver').bonus).toBe(1)
+  })
+
+  it('gold 10 % in platinum 15 %', () => {
+    expect(applyTierBonus(50, 'gold')).toEqual({ base: 50, bonus: 5, total: 55, pct: 10 })
+    expect(applyTierBonus(200, 'platinum')).toEqual({ base: 200, bonus: 30, total: 230, pct: 15 })
+    // 7 × 15 % = 1.05 → floor 1
+    expect(applyTierBonus(7, 'platinum').bonus).toBe(1)
+  })
+
+  it('neveljavni vhodi: NaN/negativno → base 0, brez bonusa', () => {
+    expect(applyTierBonus(NaN, 'platinum')).toEqual({ base: 0, bonus: 0, total: 0, pct: 0 })
+    expect(applyTierBonus(-5, 'gold')).toEqual({ base: 0, bonus: 0, total: 0, pct: 0 })
+    expect(applyTierBonus(0, 'gold')).toEqual({ base: 0, bonus: 0, total: 0, pct: 0 })
+    // decimalni base → floor
+    expect(applyTierBonus(10.9, 'gold')).toEqual({ base: 10, bonus: 1, total: 11, pct: 10 })
+  })
+
+  it('neznan nivo z veljavnim base → brez bonusa', () => {
+    expect(applyTierBonus(100, 'nesmisel')).toEqual({ base: 100, bonus: 0, total: 100, pct: 0 })
   })
 })

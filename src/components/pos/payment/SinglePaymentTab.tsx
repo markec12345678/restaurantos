@@ -9,6 +9,7 @@ import { GiftCardSection } from './GiftCardSection'
 import { LoyaltySection } from './LoyaltySection'
 import { AlternatePaymentSection } from './AlternatePaymentSection'
 import { formatEUR } from '@/lib/safe-format'
+import { applyTierBonus } from '@/lib/loyalty-tiers'
 import type { GiftCardItem, LoyaltyAccountItem, AltPaymentItem } from './types'
 
 // ============================================
@@ -73,6 +74,16 @@ export const SinglePaymentTab = memo(function SinglePaymentTab({
   selectedAltPayment,
   setSelectedAltPayment,
 }: SinglePaymentTabProps) {
+  // RUNDA 45: tier-aware earn preview — izbrani račun določa bonus %
+  // (silver +5 % / gold +10 % / platinum +15 %), ista matematika kot
+  // backend handleLoyaltyEarn (applyTierBonus) → preview = dejansko nakazilo.
+  const selectedLoyalty = loyaltyResults.find(la => la.id === selectedLoyaltyId) || null
+  const earnPreview = (() => {
+    if (!loyaltyConfig?.enabled) return { points: 0, bonusPct: 0, tier: '' }
+    const base = Math.max(0, Math.floor((totalWithTip - tipAmount) * (loyaltyConfig.pointsPerEuro || 1)))
+    const breakdown = applyTierBonus(base, selectedLoyalty?.tier ?? 'bronze')
+    return { points: breakdown.total, bonusPct: breakdown.pct, tier: selectedLoyalty?.tier ?? '' }
+  })()
   return (
     <div className="space-y-3">
       <div>
@@ -131,10 +142,10 @@ export const SinglePaymentTab = memo(function SinglePaymentTab({
         previewPoints={
           paymentMethod === 'loyalty'
             ? Math.ceil(totalWithTip / (loyaltyConfig?.pointsValue && loyaltyConfig.pointsValue > 0 ? loyaltyConfig.pointsValue : 0.01))
-            : loyaltyConfig?.enabled
-              ? Math.max(0, Math.floor((totalWithTip - tipAmount) * (loyaltyConfig.pointsPerEuro || 1)))
-              : 0
+            : earnPreview.points
         }
+        tierBonusPct={paymentMethod === 'loyalty' ? 0 : earnPreview.bonusPct}
+        tierBonusTier={paymentMethod === 'loyalty' ? '' : earnPreview.tier}
         loyaltyEnabled={loyaltyConfig?.enabled ?? false}
       />
       {/* Alternativno plačilo */}

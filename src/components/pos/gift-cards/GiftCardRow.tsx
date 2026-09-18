@@ -35,12 +35,19 @@ export const GiftCardRow = memo(function GiftCardRow({
 }: GiftCardRowProps) {
   const cfg = statusConfig[card.status] || statusConfig.active
 
+  // RUNDA 45: mini vrstica porabe (kot napredek nivoja v Zvestobi) —
+  // prikaže delež preostanka; title tooltip razkrije porabljeno
+  const initial = Number(card.initialBalance) || 0
+  const remainingPct =
+    initial > 0 ? Math.max(0, Math.min(100, Math.round((Number(card.balance) / initial) * 100))) : 0
+  const spent = Math.max(0, initial - (Number(card.balance) || 0))
+
   return (
-    <TableRow className="hover:bg-muted/50">
+    <TableRow className="hover:bg-muted/40 transition-colors">
       <TableCell>
         <div className="flex items-center gap-2">
           <Hash className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="font-mono text-sm font-medium">{card.cardNumber}</span>
+          <span className="font-mono text-sm font-medium tabular-nums">{card.cardNumber}</span>
         </div>
       </TableCell>
       <TableCell>
@@ -49,13 +56,41 @@ export const GiftCardRow = memo(function GiftCardRow({
           <span className="text-sm">{card.ownerName || '—'}</span>
         </div>
       </TableCell>
-      <TableCell className="text-right font-medium text-sm">
+      <TableCell className="text-right font-medium text-sm tabular-nums text-muted-foreground">
         {formatCurrency(card.initialBalance)}
       </TableCell>
       <TableCell className="text-right">
-        <span className={`font-bold text-sm ${card.balance > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}`}>
-          {formatCurrency(card.balance)}
-        </span>
+        <div className="flex flex-col items-end gap-1">
+          <span className={`font-bold text-sm tabular-nums ${card.balance > 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+            {formatCurrency(card.balance)}
+          </span>
+          {/* RUNDA 45: delež preostanka — chip vrstica pod zneskom (ARIA progressbar) */}
+          <div
+            className="flex items-center gap-1.5"
+            title={`Porabljeno ${formatCurrency(spent)} od ${formatCurrency(initial)}`}
+          >
+            <div
+              role="progressbar"
+              aria-label={`Preostanek kartice ${card.cardNumber}`}
+              aria-valuenow={remainingPct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              className="h-1 w-14 overflow-hidden rounded-full bg-muted"
+            >
+              <div
+                className={`h-full rounded-full transition-all ${
+                  remainingPct > 25
+                    ? 'bg-emerald-500'
+                    : remainingPct > 0
+                      ? 'bg-amber-500'
+                      : 'bg-red-400'
+                }`}
+                style={{ width: `${remainingPct}%` }}
+              />
+            </div>
+            <span className="text-[9px] tabular-nums text-muted-foreground">{remainingPct} %</span>
+          </div>
+        </div>
       </TableCell>
       <TableCell>
         <Badge className={`text-[10px] px-2 py-0.5 ${cfg.bgColor}`}>

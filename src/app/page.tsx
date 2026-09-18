@@ -19,6 +19,7 @@ import { AuthLoadingScreen, AuthLoginScreen } from '@/app/components/auth-screen
 import { ActiveModuleView } from '@/app/components/active-module-view'
 import { SetupRedirect } from '@/components/setup/setup-redirect'
 import { PwaInstallPrompt } from '@/components/pwa/pwa-install-prompt'
+import { SwUpdateToast } from '@/components/pwa/sw-update-toast'
 
 export const dynamic = "force-dynamic"
 
@@ -91,6 +92,8 @@ export default function POSPage() {
       <KeyboardShortcutsHandler />
       {/* PWA install prompt — prikaže se ko brskalnik dovoljuje namestitev */}
       <PwaInstallPrompt />
+      {/* RUNDA 45: PWA update toast — nova verzija SW → toast z "Osveži zdaj" (brez prisilnega reloada) */}
+      <SwUpdateToast />
     </div>
   )
 }

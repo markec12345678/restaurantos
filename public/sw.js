@@ -5,7 +5,7 @@
 // FIX MEDIUM: Cache version auto-incremented — change version when deploying
 // ============================================
 
-const CACHE_VERSION = 'v9' // Increment this when deploying new code
+const CACHE_VERSION = 'v10' // RUNDA 45: bump — message handler + smart update flow
 const CACHE_NAME = `restos-pos-${CACHE_VERSION}`
 const STATIC_CACHE = `restos-static-${CACHE_VERSION}`
 const API_CACHE = `restos-api-${CACHE_VERSION}`
@@ -96,6 +96,18 @@ self.addEventListener('activate', (event) => {
   )
   // Prevzemi nadzor nad vsemi odjemalci takoj
   event.waitUntil(self.clients.claim())
+})
+
+// ============================================
+// MESSAGE — ukazi od odjemalcev (register-sw.ts)
+// RUNDA 45: register-sw.ts pošilja SKIP_WAITING ob updatefound; doslej NI
+// bilo poslušalca → sporočila so padla v prazno (delovalo je samo
+// skipWaiting-on-install). Zdaj obravnava oba vzorca.
+// ============================================
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting()
+  }
 })
 
 // ============================================

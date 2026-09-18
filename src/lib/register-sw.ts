@@ -53,6 +53,34 @@ export function registerServiceWorker() {
   // pogosto zaključi ŠELE PO `load` dogodku (Turbopack/dev overhead, počasne
   // tablice) → listener NI Nikoli sprožen → Service Worker NI bil registriran
   // → offline način PWA je bil mrtav. Če je load že mimo, registriraj takoj.
+
+  // RUNDA 45: pameten update flow — samodejni reload je VAREN samo, ko je
+  // stran SVEŽA (< 15 s od nalaganja) ali SKRITA (uporabnik ne dela ničesar).
+  // Sicer bi reload UNIČIL potekajoče naročilo (nezapisano stanje v Reactu).
+  // Namesto tega odpremo sonner toast "Nova verzija" z gumbom Osveži
+  // (glej SwUpdateToast — posluša CustomEvent 'ros:sw-update').
+  const PAGE_FRESH_MS = 15_000
+  const pageLoadedAt = Date.now()
+  const isPageFresh = () => Date.now() - pageLoadedAt < PAGE_FRESH_MS
+
+  const scheduleReloadOrNotify = () => {
+    if (isPageFresh() || document.hidden) {
+      logger.info('SW', 'Samodejni reload (stran sveža ali skrita)')
+      window.location.reload()
+      return
+    }
+    // Uporabnik aktivno dela — ne prekinjaj. Obvesti prek dogodka.
+    logger.info('SW', 'Posodobitev na voljo — čakam na potrditev uporabnika')
+    window.dispatchEvent(new CustomEvent('ros:sw-update'))
+    // Avtomatski reload ob vrnitvi na zavihek (uporabnik ni sredi dela,
+    // ker je zavihek bil skrit) — varna točka za zamenjavo chunkov.
+    window.addEventListener('focus', () => {
+      if (document.hidden) return
+      logger.info('SW', 'Zavihek spet viden po posodobitvi — reload')
+      window.location.reload()
+    }, { once: true })
+  }
+
   const register = () => {
     navigator.serviceWorker.register('/sw.js').then((registration) => {
       logger.info('SW', 'Service Worker registriran', { scope: registration.scope })
@@ -75,9 +103,8 @@ export function registerServiceWorker() {
             logger.info('SW', 'Nov SW nameščen — pošiljam SKIP_WAITING')
           }
           if (newWorker.state === 'activated' && navigator.serviceWorker.controller) {
-            // Nov SW je aktiviran — osveži stran da naloži sveže JS chunk-e
-            logger.info('SW', 'Nov SW aktiviran — osvežujem stran')
-            window.location.reload()
+            // Nov SW je aktiviran — pametno osveži (glej RUNDA 45 zgoraj)
+            scheduleReloadOrNotify()
           }
         })
       })
@@ -90,8 +117,7 @@ export function registerServiceWorker() {
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (refreshing) return
       refreshing = true
-      logger.info('SW', 'SW kontrolni spremenjen — osvežujem stran')
-      window.location.reload()
+      scheduleReloadOrNotify()
     })
   }
 

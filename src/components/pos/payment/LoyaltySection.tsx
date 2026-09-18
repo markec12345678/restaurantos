@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Star, TrendingUp, Ticket } from 'lucide-react'
+import { Star, TrendingUp, Ticket, Award } from 'lucide-react'
 import type { LoyaltyAccountItem } from './types'
 
 interface LoyaltySectionProps {
@@ -17,7 +17,20 @@ interface LoyaltySectionProps {
   variant?: 'earn' | 'redeem'
   /** earn: koliko točk bo pridobljenih | redeem: koliko točk je potrebnih */
   previewPoints?: number
+  /** RUNDA 45: bonus % izbranega nivoja (silver 5 / gold 10 / platinum 15) —
+   *  že VKLJUČEN v previewPoints; prikazan kot ločena značka za transparentnost */
+  tierBonusPct?: number
+  /** RUNDA 45: ime nivoja, iz katerega bonus izhaja (za oznako) */
+  tierBonusTier?: string
   loyaltyEnabled?: boolean
+}
+
+/** Slovenske oznake nivojev (za bonus značko) */
+const TIER_LABELS_SI: Record<string, string> = {
+  bronze: 'Bronasti',
+  silver: 'Srebrni',
+  gold: 'Zlati',
+  platinum: 'Platinasti',
 }
 
 export const LoyaltySection = memo(function LoyaltySection({
@@ -28,6 +41,8 @@ export const LoyaltySection = memo(function LoyaltySection({
   setSelectedLoyaltyId,
   variant = 'earn',
   previewPoints = 0,
+  tierBonusPct = 0,
+  tierBonusTier = '',
   loyaltyEnabled = false,
 }: LoyaltySectionProps) {
   const isRedeem = variant === 'redeem'
@@ -46,19 +61,32 @@ export const LoyaltySection = memo(function LoyaltySection({
         </p>
         {/* RUNDA 42: živi preview — earn: +N točk za to plačilo; redeem: N točk potrebnih */}
         {previewPoints > 0 && (
-          <Badge
-            variant="outline"
-            className={
-              isRedeem
-                ? 'text-[10px] h-5 gap-1 border-primary/40 bg-primary/5 text-primary'
-                : 'text-[10px] h-5 gap-1 border-emerald-500/40 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400'
-            }
-          >
-            <TrendingUp className="h-3 w-3" aria-hidden="true" />
-            {isRedeem
-              ? `potrebno ${previewPoints} točk`
-              : `+${previewPoints} točk za to plačilo`}
-          </Badge>
+          <div className="flex items-center gap-1">
+            {/* RUNDA 45: bonus nivoja — ločena značka (bonus je že v previewPoints) */}
+            {!isRedeem && tierBonusPct > 0 && (
+              <Badge
+                variant="outline"
+                className="text-[10px] h-5 gap-1 border-amber-500/40 bg-amber-500/5 text-amber-600 dark:text-amber-400"
+                title={`Bonus nivoa ${TIER_LABELS_SI[tierBonusTier] ?? tierBonusTier}: dodatnih ${tierBonusPct} % točk na vsako pridobitev`}
+              >
+                <Award className="h-3 w-3" aria-hidden="true" />
+                +{tierBonusPct} % bonus
+              </Badge>
+            )}
+            <Badge
+              variant="outline"
+              className={
+                isRedeem
+                  ? 'text-[10px] h-5 gap-1 border-primary/40 bg-primary/5 text-primary'
+                  : 'text-[10px] h-5 gap-1 border-emerald-500/40 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400'
+              }
+            >
+              <TrendingUp className="h-3 w-3" aria-hidden="true" />
+              {isRedeem
+                ? `potrebno ${previewPoints} točk`
+                : `+${previewPoints} točk za to plačilo`}
+            </Badge>
+          </div>
         )}
       </div>
       <Input

@@ -57,6 +57,49 @@ export function tierRank(tier: string): number {
   return TIER_THRESHOLDS.findIndex(t => t.tier === tier)
 }
 
+// ─── RUNDA 45: bonus točk po nivoju (perk izkoriščanje) ───
+// Ugodnosti iz perk opisov so ZDAJ DEJANSKO izkoriščene ob earn:
+//   silver +5 % / gold +10 % / platinum +15 % dodatnih točk na vsako
+// pridobitev. Bonus se šteje na OSNOVNE točke (base = floor(earnBase ×
+// pointsPerEuro)), zaokroži se NAVZDOL (nikoli ne darimo frakcij),
+// in se zapiše kot LOČENA transakcija ('earn', reason "Bonus nivoa …"),
+// da je zgodovina pregledna in revizijsko sledljiva.
+
+/** Bonus odstotkov dodatnih točk per nivo (0 pri bronze) */
+export const TIER_EARN_BONUS_PCT: Readonly<Record<TierName, number>> = {
+  bronze: 0,
+  silver: 5,
+  gold: 10,
+  platinum: 15,
+} as const
+
+/** Bonus % za znani nivo; neznano ime → 0 (varno privzeto brez bonusa) */
+export function tierEarnBonusPct(tier: string): number {
+  const pct = (TIER_EARN_BONUS_PCT as Record<string, number | undefined>)[tier]
+  return typeof pct === 'number' && Number.isFinite(pct) && pct > 0 ? pct : 0
+}
+
+export interface TierBonusBreakdown {
+  /** Osnovne točke brez bonusa (floor) */
+  base: number
+  /** Bonus točke (floor(base × pct / 100)) */
+  bonus: number
+  /** Skupaj za nakazati = base + bonus */
+  total: number
+  /** Uveljavljen bonus odstotek (0–15) */
+  pct: number
+}
+
+/** Razčleni earn točke na osnovne + bonus za dani nivo.
+ *  Enoten vir resnice za BACKEND (handleLoyaltyEarn) in UI (preview badge),
+ *  da se preview NIKOLI ne razlikuje od dejanskega nakazila. */
+export function applyTierBonus(basePoints: number, tier: string): TierBonusBreakdown {
+  const base = Number.isFinite(basePoints) && basePoints > 0 ? Math.floor(basePoints) : 0
+  const pct = base > 0 ? tierEarnBonusPct(tier) : 0
+  const bonus = pct > 0 ? Math.floor((base * pct) / 100) : 0
+  return { base, bonus, total: base + bonus, pct }
+}
+
 /** Napredek do naslednjega nivoja — za UI vrstico napredka.
  *  currentTierOverride: ročno nastavljen nivo na računu; če je VIŠJI od
  *  izračunanega, se šteje kot trenutni (samodejno povišanje NIKOLI ne

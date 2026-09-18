@@ -18,7 +18,7 @@
 import { Prisma } from '@prisma/client'
 import { toNum, round2, subtract } from '@/lib/decimal'
 import { logger } from '@/lib/logger'
-import { calculateTier, tierRank, TIER_THRESHOLDS } from '@/lib/loyalty-tiers'
+import { calculateTier, tierRank, TIER_THRESHOLDS, applyTierBonus } from '@/lib/loyalty-tiers'
 import type { PaymentInput } from './types'
 
 /** Slovenska oznaka nivoja (za zapis transakcije ob povišanju) */
@@ -171,9 +171,18 @@ export async function handleLoyaltyEarn(
   const pointsPerEuro = config.pointsPerEuro || 1
   // Točke se računajo po znesku plačila (brez napitnine)
   const earnBase = round2(subtract(toNum(data.amount), toNum(data.tipAmount)))
-  const pointsToEarn = Math.max(0, Math.floor(earnBase * pointsPerEuro))
+  const basePoints = Math.max(0, Math.floor(earnBase * pointsPerEuro))
+  if (basePoints <= 0) return
 
-  if (pointsToEarn <= 0) return
+  // RUNDA 45: bonus točk po nivoju (perk: silver +5 % / gold +10 % /
+  // platinum +15 %). Nivo se bere PRED prištevanjem (status quo ob plačilu);
+  // bonus je ločena transakcija → pregledna zgodovina + revizija.
+  const accountBefore = await tx.loyaltyAccount.findUnique({
+    where: { id: data.loyaltyAccountId },
+    select: { tier: true },
+  })
+  const breakdown = applyTierBonus(basePoints, accountBefore?.tier ?? 'bronze')
+  const pointsToEarn = breakdown.total
 
   // Atomic increment — prepreči race condition
   await tx.loyaltyAccount.updateMany({
@@ -188,13 +197,32 @@ export async function handleLoyaltyEarn(
     data: {
       loyaltyAccountId: data.loyaltyAccountId,
       type: 'earn',
-      points: pointsToEarn,
+      points: breakdown.base,
       reason: `Točke za plačilo ${toNum(data.amount).toFixed(2)} EUR`,
       orderId: checkOrderId || null,
       checkId: data.checkId,
       monetaryValue: earnBase,
     },
   })
+
+  // RUNDA 45: ločena bonus transakcija (samo kadar nivo uveljavlja perk)
+  if (breakdown.bonus > 0 && accountBefore?.tier) {
+    await tx.loyaltyTransaction.create({
+      data: {
+        loyaltyAccountId: data.loyaltyAccountId,
+        type: 'earn',
+        points: breakdown.bonus,
+        reason: `Bonus nivoa ${TIER_LABELS_SI[accountBefore.tier] ?? accountBefore.tier} (+${breakdown.pct} %)`,
+        orderId: checkOrderId || null,
+        checkId: data.checkId,
+        monetaryValue: 0,
+      },
+    })
+    logger.info(
+      { loyaltyAccountId: data.loyaltyAccountId, tier: accountBefore.tier, bonus: breakdown.bonus },
+      'Loyalty tier bonus applied',
+    )
+  }
 
   // R44: SAMODEJNO povišanje nivoja (tier) ob pridobitvi točk.
   // Prej je bil tier izključno ročen string (privzeto 'bronze') — noben earn
