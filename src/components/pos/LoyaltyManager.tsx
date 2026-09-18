@@ -15,6 +15,7 @@ const LoyaltyAdjustPointsDialog = dynamic(() => import('./loyalty/LoyaltyAdjustP
 const LoyaltyHistoryDialog = dynamic(() => import('./loyalty/LoyaltyHistoryDialog').then(m => ({ default: m.LoyaltyHistoryDialog })), { ssr: false })
 const LoyaltyDeleteDialog = dynamic(() => import('./loyalty/LoyaltyDeleteDialog').then(m => ({ default: m.LoyaltyDeleteDialog })), { ssr: false })
 const LoyaltyLoadingSkeleton = dynamic(() => import('./loyalty/LoyaltyLoadingSkeleton').then(m => ({ default: m.LoyaltyLoadingSkeleton })), { ssr: false })
+const LoyaltyTierDistribution = dynamic(() => import('./loyalty/LoyaltyTierDistribution').then(m => ({ default: m.LoyaltyTierDistribution })), { ssr: false })
 
 // ============================================
 // GLAVNA KOMPONENTA
@@ -61,6 +62,13 @@ export const LoyaltyManager = memo(function LoyaltyManager() {
         activeAccounts={s.activeAccounts.length}
         totalPointsIssued={s.totalPointsIssued}
         totalPointsRedeemed={s.totalPointsRedeemed}
+      />
+
+      {/* R44: porazdelitev nivojev — klik na ploščico filtrira tabelo */}
+      <LoyaltyTierDistribution
+        accounts={s.allAccounts}
+        activeFilter={s.tierFilter}
+        onSelectTier={s.setTierFilter}
       />
 
       {/* Filtri */}

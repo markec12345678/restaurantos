@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Plus, Pencil, Trash2, Award, Coins, History } from 'lucide-react'
 import { type LoyaltyAccount, tierConfig, tierBadgeStyles, formatPoints } from './constants'
+import { LoyaltyTierProgress } from './LoyaltyTierProgress'
 
 // --- Props ---
 
@@ -78,7 +79,7 @@ export const LoyaltyAccountTable = memo(function LoyaltyAccountTable({
                 const TierIcon = tier.icon
 
                 return (
-                  <TableRow key={account.id} className={!account.isActive ? 'opacity-60' : ''}>
+                  <TableRow key={account.id} className={`transition-colors hover:bg-muted/40 ${!account.isActive ? 'opacity-60' : ''}`}>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${tier.bgColor} ${tier.color} flex-shrink-0`}>
@@ -97,9 +98,13 @@ export const LoyaltyAccountTable = memo(function LoyaltyAccountTable({
                       <Badge className={`text-xs ${tierBadgeStyles[account.tier] || tierBadgeStyles.bronze}`}>
                         {tier.label}
                       </Badge>
+                      {/* R44: miniaturna vrstica napredka do naslednjega nivoja */}
+                      <div className="mt-1.5 w-28">
+                        <LoyaltyTierProgress lifetimePoints={account.lifetimePoints} tier={account.tier} variant="inline" />
+                      </div>
                     </TableCell>
-                    <TableCell className="text-right font-semibold text-sm">{formatPoints(account.pointsBalance)}</TableCell>
-                    <TableCell className="text-right text-sm text-muted-foreground">{formatPoints(account.lifetimePoints)}</TableCell>
+                    <TableCell className="text-right font-semibold text-sm tabular-nums">{formatPoints(account.pointsBalance)}</TableCell>
+                    <TableCell className="text-right text-sm text-muted-foreground tabular-nums">{formatPoints(account.lifetimePoints)}</TableCell>
                     <TableCell>
                       {account.isActive ? (
                         <Badge className="text-xs bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">

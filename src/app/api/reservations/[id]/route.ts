@@ -114,6 +114,29 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       },
     })
 
+    // FIX R44: posedanje mora povišati status mize v 'occupied', zaključek jo sprosti.
+    // Prej je UI assignal tableId + status seated, DB status mize pa je ostal 'available' →
+    // KPI "Proste mize" napačen, tloris pokazal zasedeno mizo kot prosto.
+    const effectiveTableId = data.tableId !== undefined ? (data.tableId || null) : existing.tableId
+    if (data.status === 'seated' && effectiveTableId) {
+      await db.table.updateMany({
+        where: { id: effectiveTableId, status: { in: ['available', 'occupied'] } },
+        data: { status: 'occupied' },
+      })
+    } else if (data.status === 'completed' && existing.tableId) {
+      // Sprosti mizo SAMO če nima odprtega naročila (isti vzorec kot /api/tables)
+      const activeOrder = await db.order.findFirst({
+        where: { tableId: existing.tableId, status: { in: ['pending', 'in-progress', 'ready'] } },
+        select: { id: true },
+      })
+      if (!activeOrder) {
+        await db.table.updateMany({
+          where: { id: existing.tableId, status: 'occupied' },
+          data: { status: 'available' },
+        })
+      }
+    }
+
     await createAuditLog({
       userId: authResult.session?.employeeId,
       action: 'UPDATE_RESERVATION',

@@ -18,7 +18,13 @@
 import { Prisma } from '@prisma/client'
 import { toNum, round2, subtract } from '@/lib/decimal'
 import { logger } from '@/lib/logger'
+import { calculateTier, tierRank, TIER_THRESHOLDS } from '@/lib/loyalty-tiers'
 import type { PaymentInput } from './types'
+
+/** Slovenska oznaka nivoja (za zapis transakcije ob povišanju) */
+const TIER_LABELS_SI: Record<string, string> = Object.fromEntries(
+  TIER_THRESHOLDS.map(t => [t.tier, t.tier.charAt(0).toUpperCase() + t.tier.slice(1)])
+)
 
 // ─── Loyalty konfiguracija — per-location override z global fallbackom ───
 
@@ -189,4 +195,36 @@ export async function handleLoyaltyEarn(
       monetaryValue: earnBase,
     },
   })
+
+  // R44: SAMODEJNO povišanje nivoja (tier) ob pridobitvi točk.
+  // Prej je bil tier izključno ročen string (privzeto 'bronze') — noben earn
+  // ga ni nikoli spremenil. Napredek se šteje po lifetimePoints (doslej
+  // zbrane), ki z unovčenjem NE padajo → nivo se nikoli ne "izgubi".
+  const afterEarn = await tx.loyaltyAccount.findUnique({
+    where: { id: data.loyaltyAccountId },
+    select: { tier: true, lifetimePoints: true },
+  })
+  if (afterEarn) {
+    const computedTier = calculateTier(afterEarn.lifetimePoints)
+    // Upgrade-only: ročno (ali prej) dodeljen VIŠJI nivo se nikoli ne poniži;
+    // neznana vrednost (rank -1) se normalizira na izračun.
+    if (tierRank(computedTier) > tierRank(afterEarn.tier)) {
+      await tx.loyaltyAccount.update({
+        where: { id: data.loyaltyAccountId },
+        data: { tier: computedTier },
+      })
+      await tx.loyaltyTransaction.create({
+        data: {
+          loyaltyAccountId: data.loyaltyAccountId,
+          type: 'earn',
+          points: 0,
+          reason: `Povišanje nivoa v ${TIER_LABELS_SI[computedTier]}`,
+          orderId: checkOrderId || null,
+          checkId: data.checkId,
+          monetaryValue: 0,
+        },
+      })
+      logger.info({ loyaltyAccountId: data.loyaltyAccountId, tier: computedTier }, 'Loyalty tier upgraded')
+    }
+  }
 }

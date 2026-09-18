@@ -1,0 +1,114 @@
+import { describe, it, expect } from 'vitest'
+import { calculateTier, tierProgress, tierRank, TIER_THRESHOLDS } from '@/lib/loyalty-tiers'
+
+// R44: tier engine — pragovi po lifetimePoints (doslej zbrane točke).
+// Pragovi: bronze 0, silver 500, gold 2000, platinum 5000.
+
+describe('calculateTier', () => {
+  it('vraca bronze za 0 in nizke vrednosti', () => {
+    expect(calculateTier(0)).toBe('bronze')
+    expect(calculateTier(1)).toBe('bronze')
+    expect(calculateTier(499)).toBe('bronze')
+  })
+
+  it('vraca silver ob prag 500 (vkljucno)', () => {
+    expect(calculateTier(500)).toBe('silver')
+    expect(calculateTier(1999)).toBe('silver')
+  })
+
+  it('vraca gold ob prag 2000 in platinum ob 5000', () => {
+    expect(calculateTier(2000)).toBe('gold')
+    expect(calculateTier(4999)).toBe('gold')
+    expect(calculateTier(5000)).toBe('platinum')
+    expect(calculateTier(100000)).toBe('platinum')
+  })
+
+  it(' tolerantna do neveljavnih vhodov (NaN, negativno, decimalno)', () => {
+    expect(calculateTier(NaN)).toBe('bronze')
+    expect(calculateTier(-50)).toBe('bronze')
+    expect(calculateTier(1234.9)).toBe('silver') // floor(1234.9)=1234
+  })
+})
+
+describe('tierProgress', () => {
+  it('bronze na 0: napredek 0 %, do silver manjka 500', () => {
+    const p = tierProgress(0)
+    expect(p.current).toBe('bronze')
+    expect(p.next).toBe('silver')
+    expect(p.pointsToNext).toBe(500)
+    expect(p.progressPct).toBe(0)
+    expect(p.nextThreshold).toBe(500)
+  })
+
+  it('sredina razpona: 250 tock = pol poti bronze→silver', () => {
+    const p = tierProgress(250)
+    expect(p.current).toBe('bronze')
+    expect(p.next).toBe('silver')
+    expect(p.pointsToNext).toBe(250)
+    expect(p.progressPct).toBe(50)
+  })
+
+  it('silver gost: napredek merjen proti gold', () => {
+    const p = tierProgress(1250)
+    expect(p.current).toBe('silver')
+    expect(p.next).toBe('gold')
+    expect(p.pointsToNext).toBe(750)
+    expect(p.progressPct).toBe(50) // (1250-500)/(2000-500)
+  })
+
+  it('gold gost: napredek merjen proti platinum', () => {
+    const p = tierProgress(3500)
+    expect(p.current).toBe('gold')
+    expect(p.next).toBe('platinum')
+    expect(p.pointsToNext).toBe(1500)
+    expect(p.progressPct).toBe(50) // (3500-2000)/(5000-2000)
+  })
+
+  it('platinum: brez naslednjega nivoja, 100 %', () => {
+    const p = tierProgress(99999)
+    expect(p.current).toBe('platinum')
+    expect(p.next).toBeNull()
+    expect(p.pointsToNext).toBeNull()
+    expect(p.progressPct).toBe(100)
+    expect(p.nextThreshold).toBeNull()
+  })
+
+  it('napredek se ne zmanjsa z unovcenjem (pointsBalance ne vpliva)', () => {
+    // lifetimePoints ostaja visok tudi ko je pointsBalance=0 (unovceno)
+    expect(tierProgress(5200).current).toBe('platinum')
+  })
+})
+
+describe('tierRank', () => {
+  it('rangi naraščajo bronze→platinum, neznano ime → -1', () => {
+    expect(tierRank('bronze')).toBe(0)
+    expect(tierRank('silver')).toBe(1)
+    expect(tierRank('gold')).toBe(2)
+    expect(tierRank('platinum')).toBe(3)
+    expect(tierRank('diamant')).toBe(-1)
+    expect(tierRank('')).toBe(-1)
+  })
+})
+
+describe('tierProgress — ročni override (upgrade-only)', () => {
+  it('višji ročni nivo SE NE poniži: gold račun z 100 lifetime ostane gold', () => {
+    const p = tierProgress(100, 'gold')
+    expect(p.current).toBe('gold')
+    expect(p.next).toBe('platinum')
+    expect(p.pointsToNext).toBe(4900)
+  })
+
+  it('nižji/neznan ročni nivo NE vpliva: izračun je avtoriteta', () => {
+    expect(tierProgress(3000, 'bronze').current).toBe('gold')
+    expect(tierProgress(3000, 'neznano').current).toBe('gold')
+  })
+})
+
+describe('TIER_THRESHOLDS', () => {
+  it('je urejen narascajoce in zacne z 0', () => {
+    expect(TIER_THRESHOLDS[0].minLifetime).toBe(0)
+    for (let i = 1; i < TIER_THRESHOLDS.length; i++) {
+      expect(TIER_THRESHOLDS[i].minLifetime).toBeGreaterThan(TIER_THRESHOLDS[i - 1].minLifetime)
+    }
+  })
+})

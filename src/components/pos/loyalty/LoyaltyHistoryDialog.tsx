@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { History } from 'lucide-react'
 import { type LoyaltyAccount, tierConfig, tierBadgeStyles, transactionTypeConfig, transactionBadgeStyles, formatDateSI, formatPoints } from './constants'
+import { LoyaltyTierProgress } from './LoyaltyTierProgress'
 import { formatEUR } from '@/lib/safe-format'
 
 // --- Props ---
@@ -67,10 +68,13 @@ export const LoyaltyHistoryDialog = memo(function LoyaltyHistoryDialog({
             </div>
           </div>
           <div className="text-right">
-            <p className="font-bold text-lg">{formatPoints(account.pointsBalance)}</p>
+            <p className="font-bold text-lg tabular-nums">{formatPoints(account.pointsBalance)}</p>
             <p className="text-xs text-muted-foreground">Stanje točk</p>
           </div>
         </div>
+
+        {/* R44: živ napredek do naslednjega nivoja (isti izračun kot samodejno povišanje) */}
+        <LoyaltyTierProgress lifetimePoints={account.lifetimePoints} tier={account.tier} />
 
         <Separator />
 
@@ -98,25 +102,27 @@ export const LoyaltyHistoryDialog = memo(function LoyaltyHistoryDialog({
                   const txConfig = transactionTypeConfig[tx.type] || transactionTypeConfig.adjust
                   const TxIcon = txConfig.icon
                   return (
-                    <TableRow key={tx.id}>
+                    <TableRow key={tx.id} className="transition-colors hover:bg-muted/40">
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <TxIcon className={`h-4 w-4 ${txConfig.color}`} />
+                          <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${transactionBadgeStyles[tx.type] || transactionBadgeStyles.adjust}`}>
+                            <TxIcon className="h-3.5 w-3.5" />
+                          </div>
                           <Badge className={`text-xs ${transactionBadgeStyles[tx.type] || transactionBadgeStyles.adjust}`}>
                             {txConfig.label}
                           </Badge>
                         </div>
                       </TableCell>
-                      <TableCell className={`text-right font-semibold ${tx.points >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                        {tx.points >= 0 ? '+' : ''}{formatPoints(tx.points)}
+                      <TableCell className={`text-right font-semibold tabular-nums ${tx.points > 0 ? 'text-emerald-600 dark:text-emerald-400' : tx.points < 0 ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>
+                        {tx.points > 0 ? '+' : ''}{formatPoints(tx.points)}
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground max-w-40 truncate">
+                      <TableCell className="text-sm text-muted-foreground max-w-40 truncate" title={tx.reason || undefined}>
                         {tx.reason || '—'}
                       </TableCell>
-                      <TableCell className="text-right text-sm">
+                      <TableCell className="text-right text-sm tabular-nums">
                         {tx.monetaryValue > 0 ? `${formatEUR(tx.monetaryValue)}` : '—'}
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap tabular-nums">
                         {formatDateSI(tx.createdAt)}
                       </TableCell>
                     </TableRow>
