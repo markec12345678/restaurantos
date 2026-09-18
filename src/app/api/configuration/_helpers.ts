@@ -88,7 +88,36 @@ import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
-import { resolveWriteLocationId, sessionLocationId } from '@/lib/tenant-scope'
+import { sessionLocationId } from '@/lib/tenant-scope'
+import { resolveLocationId } from '@/lib/location-fallback'
+
+/** RUNDA 41: lokacijska resolucija za config WRITE — seja → ?locationId= →
+ *  employee.locationId → prva lokacija. Nadgradnja resolveWriteLocationId:
+ *  admin brez seje lokacije (Ana) NI več blokiran z 400 — UI ne more vedeti
+ *  lokacije, isti fallback kot reservations/time-entries (R37 vzorec).
+ *  Anti-forgery ostane: če seja IMA lokacijo, je ?locationId= ignoriran. */
+export async function resolveConfigWriteLocation(
+  authResult: AuthResultLike,
+  req: Request,
+): Promise<{ ok: true; locationId: string } | { ok: false; response: NextResponse }> {
+  const sessLoc = sessionLocationId(authResult)
+  if (sessLoc) return { ok: true, locationId: sessLoc }
+  const { searchParams } = new URL(req.url)
+  const explicit = searchParams.get('locationId')
+  if (explicit && explicit.trim().length > 0) {
+    return { ok: true, locationId: explicit.trim() }
+  }
+  const employeeId = authResult?.session?.employeeId ?? null
+  const fallback = await resolveLocationId(null, employeeId)
+  if (fallback) return { ok: true, locationId: fallback }
+  return {
+    ok: false,
+    response: NextResponse.json(
+      { error: 'locationId je obvezen (MODEL A): seja nima lokacije, ?locationId= ni podan in ni zaposlenega/lokacije v sistemu.' },
+      { status: 400 },
+    ),
+  }
+}
 
 /** Iz body izlušči konfiguracijske podatke: sprejme {data:{...}} ovojnico
  *  (root POST vzorec) ALI goli objekt (tab POST vzorec iz ConfigurationManager). */
@@ -130,10 +159,10 @@ export async function createConfigItem(
     coerceFieldTypes(filteredData)
 
     // MODEL A: konfiguracija je PO LOKACIJI (NOT NULL) — locationId se izpelje
-    // IZKLJUČNO iz seje (zaposleni) ali izrecnega ?locationId= (admin).
-    // locationId NI v allowedFields — klient ga NE more podati sam (anti-forgery).
-    const { searchParams } = new URL(req.url)
-    const loc = resolveWriteLocationId(sessionLocationId(authResult), searchParams.get('locationId'))
+    // IZKLJUČNO iz seje (zaposleni), izrecnega ?locationId= (admin) ali
+    // fallback verige employee → prva lokacija (runda 41, glej helper).
+    // locationId NI v allowedFields — klient ga NE more podati v body (anti-forgery).
+    const loc = await resolveConfigWriteLocation(authResult, req)
     if (!loc.ok) return loc.response
     filteredData.locationId = loc.locationId
 
