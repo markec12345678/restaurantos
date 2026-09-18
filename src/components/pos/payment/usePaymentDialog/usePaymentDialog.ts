@@ -32,7 +32,7 @@ export function usePaymentDialog({ order, open, onClose, onPaymentSuccess }: Pay
     resetAndClose, scheduleClose,
   } = usePaymentState({ order, open, onClose, onPaymentSuccess })
 
-  const { altPayments, giftCards, loyaltyResults } = usePaymentQueries(open, paymentMethod, loyaltySearch)
+  const { altPayments, giftCards, loyaltyResults, loyaltyConfig } = usePaymentQueries(open, paymentMethod, loyaltySearch)
 
   // ============================================
   // PROCESS PAYMENT (iz pod-hooka)
@@ -46,6 +46,7 @@ export function usePaymentDialog({ order, open, onClose, onPaymentSuccess }: Pay
       selectedAltPayment,
       selectedGiftCardId,
       selectedLoyaltyId,
+      loyaltyPointsValue: loyaltyConfig?.pointsValue ?? 0.01,
     },
     {
       onPaymentSuccess: onPaymentSuccess ?? (() => {}),
@@ -121,6 +122,7 @@ export function usePaymentDialog({ order, open, onClose, onPaymentSuccess }: Pay
     altPayments,
     giftCards,
     loyaltyResults,
+    loyaltyConfig,
     // Handlerji
     handleTipPercent, handleCustomTip,
     processPaymentIsPending: processPaymentMutation.isPending,

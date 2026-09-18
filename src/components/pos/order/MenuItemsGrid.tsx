@@ -1,11 +1,11 @@
 'use client'
 
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { History, Plus, Search, Star, X } from 'lucide-react'
+import { ChevronDown, History, Loader2, Plus, Search, Star, X } from 'lucide-react'
 import { MenuItemCard, stringToColor } from './MenuItemCard'
 import { formatEUR } from '@/lib/safe-format'
 import { useFavoritesStore } from '@/lib/favorites-store'
@@ -30,6 +30,13 @@ interface MenuItemsGridProps {
 }
 
 // --- Komponenta ---
+
+/** NOVO (runda 42): inkrementalno renderiranje — 437+ artiklov ne renderiramo
+ *  vseh naenkrat (437 kartic × slika ≈ 8k+ DOM vozlišč → layout trrki na
+ *  tabletih). Prvi bakec 48, nato +48 ob dosegu sentinela (IntersectionObserver).
+ *  Enak vzorec zmogljivosti kot palette windowing (runda 41), le da grid
+ *  ohrani naravni scroll (brez fiksne višine vrstic). */
+const RENDER_BATCH = 48
 
 export const MenuItemsGrid = memo(function MenuItemsGrid({
   filteredMenuItems,
@@ -82,6 +89,20 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
     return filteredMenuItems.filter((i) => favoriteSet.has(i.id))
   }, [filteredMenuItems, favoritesOnly, favoriteSet])
 
+  // RUNDA 42: OKNO UPODAUBLJANJA — "Vse kategorije" pokaže do 241 artiklov
+  // (merjeno na prod) = 3500+ DOM vozlišč → upočasni drsenje/odpiranje na
+  // slabših tablicah. Okno: 60 kartic + "Prikaži še" gumb (inkrementalno,
+  // Square/Linear pattern). Iskanje NI okvirano (popolni zadetki).
+  // Reset ob zamenjavi kategorije/menija dela MENU BROWSER prek `key` propa
+  // (remount = čisto stanje, brez setState-in-effect).
+  const WINDOW_STEP = 60
+  const [visibleCount, setVisibleCount] = useState(WINDOW_STEP)
+  const windowedItems = useMemo(() => {
+    if (itemSearch) return visibleItems // iskanje = popolni zadetki
+    return visibleItems.slice(0, visibleCount)
+  }, [visibleItems, visibleCount, itemSearch])
+  const hiddenCount = itemSearch ? 0 : visibleItems.length - windowedItems.length
+
   // Števec priljubljenih ZA NOTRANJI prikaz (med trenutno vidnimi artikli)
   const favoritesInView = useMemo(
     () => filteredMenuItems.filter((i) => favoriteSet.has(i.id)).length,
@@ -91,6 +112,39 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
   const toggleFav = (id: string) => {
     toggleFavorite(id)
   }
+
+  // ── INKREMENTALNO RENDERIRANJE (runda 42) ─────────────────────────
+  // renderLimit se resetira ob vsaki spremembi filtra (iskanje, kategorija,
+  // priljubljeni) — uporabnik vedno začne na zgornjem delu seznama.
+  const [renderLimit, setRenderLimit] = useState(RENDER_BATCH)
+  const sentinelRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    setRenderLimit(RENDER_BATCH)
+  }, [itemSearch, favoritesOnly, filteredMenuItems])
+
+  const hasMore = visibleItems.length > renderLimit
+
+  useEffect(() => {
+    if (!hasMore) return
+    const el = sentinelRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setRenderLimit((limit) => limit + RENDER_BATCH)
+        }
+      },
+      { rootMargin: '600px 0px' }, // prednalaganje — bakec je pripravljen PRED scrollom do roba
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [hasMore])
+
+  const renderedItems = useMemo(
+    () => (hasMore ? visibleItems.slice(0, renderLimit) : visibleItems),
+    [visibleItems, hasMore, renderLimit],
+  )
 
   return (
     <>
@@ -246,7 +300,7 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
-            {visibleItems.map((item: MenuItemType, idx: number) => {
+            {windowedItems.map((item: MenuItemType, idx: number) => {
               const inCart = cart.filter(c => c.id === item.id)
               const totalQty = inCart.reduce((sum, c) => sum + c.quantity, 0)
               const stockInfo = menuStockMap?.[item.id]
@@ -283,6 +337,21 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
                 </div>
               )
             })}
+            {/* RUNDA 42: "Prikaži še" — inkrementalno okno (60 na klik).
+                Gradient fade + števec, disabled ni — vedno en korak do vseh. */}
+            {hiddenCount > 0 && (
+              <button
+                onClick={() => setVisibleCount((c) => c + WINDOW_STEP)}
+                className="col-span-full flex items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-gradient-to-b from-transparent to-muted/60 py-3 text-sm font-medium text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-foreground pointer-coarse:py-4"
+                aria-label={`Prikaži še ${Math.min(hiddenCount, WINDOW_STEP)} od ${hiddenCount} preostalih artiklov`}
+              >
+                <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                <span>
+                  Prikaži še <span className="font-bold tabular-nums text-foreground">{Math.min(hiddenCount, WINDOW_STEP)}</span>
+                  {' '}(skupaj {visibleItems.length})
+                </span>
+              </button>
+            )}
           </div>
         )}
       </div>

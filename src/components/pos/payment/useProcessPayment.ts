@@ -25,6 +25,8 @@ interface ProcessPaymentParams {
   selectedAltPayment: string
   selectedGiftCardId: string | null
   selectedLoyaltyId: string | null
+  // RUNDA 42: vrednost ene točke (EUR) iz settings — točen loyaltyPointsUsed
+  loyaltyPointsValue: number
 }
 
 interface ProcessPaymentCallbacks {
@@ -75,7 +77,7 @@ export function useProcessPayment(params: ProcessPaymentParams, callbacks: Proce
 
   const processPaymentMutation = useMutation({
     mutationFn: async () => {
-      const { order, orderTotal, tipAmount, paymentMethod, selectedAltPayment, selectedGiftCardId, selectedLoyaltyId } = params
+      const { order, orderTotal, tipAmount, paymentMethod, selectedAltPayment, selectedGiftCardId, selectedLoyaltyId, loyaltyPointsValue } = params
       if (!order) return null
 
       // P0 FIX: Generiraj idempotencyKey ob prvem poskusu; ohrani pri retry-ih.
@@ -124,8 +126,17 @@ export function useProcessPayment(params: ProcessPaymentParams, callbacks: Proce
           type: paymentMethod === 'cash' ? 'cash' : paymentMethod === 'card' ? 'card' : paymentMethod === 'mobile' ? 'mobile' : paymentMethod === 'giftcard' ? 'giftcard' : paymentMethod === 'loyalty' ? 'loyalty' : paymentMethod === 'alternate' ? 'alternate' : paymentMethod === 'split' ? 'split' : 'cash',
           alternatePaymentTypeId: paymentMethod === 'alternate' ? selectedAltPayment : null,
           giftCardId: paymentMethod === 'giftcard' ? selectedGiftCardId : null,
-          loyaltyAccountId: paymentMethod === 'loyalty' ? selectedLoyaltyId : null,
-          loyaltyPointsUsed: paymentMethod === 'loyalty' && selectedLoyaltyId ? Math.round(orderTotal) : 0,
+          // RUNDA 42 FIX (earn path): loyaltyAccountId gre ZA VSE načine plačila
+          // (prej samo za 'loyalty' → earn NI KOLI deloval prek UI: handleLoyaltyEarn
+          // v backendu namenoma izpušča type==='loyalty'). Pripet račun na gotovino/
+          // kartico/mobilno = točke.
+          loyaltyAccountId: selectedLoyaltyId,
+          // RUNDA 42 FIX (points math): prej Math.round(orderTotal) — EUR zmešan
+          // s točkami (61,65 € → 62 točk; pri 0,01 €/točko bi plačilo vedno
+          // FAILALO na fraud-checku). Pravilno: število točk = amount / pointsValue.
+          loyaltyPointsUsed: paymentMethod === 'loyalty' && selectedLoyaltyId
+            ? Math.ceil(orderTotal / (loyaltyPointsValue > 0 ? loyaltyPointsValue : 0.01))
+            : 0,
           idempotencyKey,
         }),
       })

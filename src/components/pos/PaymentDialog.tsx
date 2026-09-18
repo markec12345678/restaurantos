@@ -39,7 +39,7 @@ export const PaymentDialog = memo(function PaymentDialog(props: PaymentDialogPro
     loyaltySearch, setLoyaltySearch,
     selectedLoyaltyId, setSelectedLoyaltyId,
     selectedAltPayment, setSelectedAltPayment,
-    altPayments, giftCards, loyaltyResults,
+    altPayments, giftCards, loyaltyResults, loyaltyConfig,
     handleTipPercent, handleCustomTip,
     processPaymentIsPending,
     handleSinglePayment, handleSplitPayment, handlePayByItems,
@@ -134,6 +134,8 @@ export const PaymentDialog = memo(function PaymentDialog(props: PaymentDialogPro
                       setLoyaltySearch={setLoyaltySearch}
                       selectedLoyaltyId={selectedLoyaltyId}
                       setSelectedLoyaltyId={setSelectedLoyaltyId}
+                      loyaltyConfig={loyaltyConfig}
+                      tipAmount={tipAmount}
                       altPayments={altPayments}
                       selectedAltPayment={selectedAltPayment}
                       setSelectedAltPayment={setSelectedAltPayment}

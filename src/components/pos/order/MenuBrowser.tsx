@@ -156,6 +156,9 @@ export function MenuBrowser({
       />
       <AllergenFilterBar />
       <MenuItemsGrid
+        key={`${activeMenuId ?? resolvedMenuId}:${activeSuperGroup}:${activeCategory}`}
+        /* RUNDA 42: `key` remounta grid ob zamenjavi kategorije/skupine/menija —
+           reset okna upodabljanja (visibleCount) brez setState-in-effect */
         filteredMenuItems={filteredMenuItems}
         /* NOVO (runda 25): vsi artikli — Recents hitra vrstica dela ponovni
            dodatek tudi takrat, ko je artikel zunaj trenutnega filtra kategorije */

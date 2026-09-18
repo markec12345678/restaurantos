@@ -38,6 +38,9 @@ interface SinglePaymentTabProps {
   setLoyaltySearch: (_val: string) => void
   selectedLoyaltyId: string | null
   setSelectedLoyaltyId: (_val: string | null) => void
+  // RUNDA 42: loyalty konfiguracija + tip za earn-preview
+  loyaltyConfig?: { enabled: boolean; pointsPerEuro: number; pointsValue: number } | null
+  tipAmount: number
   // AlternatePaymentSection
   altPayments: AltPaymentItem[]
   selectedAltPayment: string
@@ -64,6 +67,8 @@ export const SinglePaymentTab = memo(function SinglePaymentTab({
   setLoyaltySearch,
   selectedLoyaltyId,
   setSelectedLoyaltyId,
+  loyaltyConfig,
+  tipAmount,
   altPayments,
   selectedAltPayment,
   setSelectedAltPayment,
@@ -113,16 +118,25 @@ export const SinglePaymentTab = memo(function SinglePaymentTab({
           setSelectedGiftCardId={setSelectedGiftCardId}
         />
       )}
-      {/* Zvestobni račun */}
-      {paymentMethod === 'loyalty' && (
-        <LoyaltySection
-          loyaltyResults={loyaltyResults}
-          loyaltySearch={loyaltySearch}
-          setLoyaltySearch={setLoyaltySearch}
-          selectedLoyaltyId={selectedLoyaltyId}
-          setSelectedLoyaltyId={setSelectedLoyaltyId}
-        />
-      )}
+      {/* Zvestobni račun — RUNDA 42: VEDNO viden (prej samo v 'loyalty' tabu,
+          zato earn path NI deloval — račun se lahko pripne na gotovino/kartico
+          za točke; v 'loyalty' tabu pa je plačilo s točkami) */}
+      <LoyaltySection
+        loyaltyResults={loyaltyResults}
+        loyaltySearch={loyaltySearch}
+        setLoyaltySearch={setLoyaltySearch}
+        selectedLoyaltyId={selectedLoyaltyId}
+        setSelectedLoyaltyId={setSelectedLoyaltyId}
+        variant={paymentMethod === 'loyalty' ? 'redeem' : 'earn'}
+        previewPoints={
+          paymentMethod === 'loyalty'
+            ? Math.ceil(totalWithTip / (loyaltyConfig?.pointsValue && loyaltyConfig.pointsValue > 0 ? loyaltyConfig.pointsValue : 0.01))
+            : loyaltyConfig?.enabled
+              ? Math.max(0, Math.floor((totalWithTip - tipAmount) * (loyaltyConfig.pointsPerEuro || 1)))
+              : 0
+        }
+        loyaltyEnabled={loyaltyConfig?.enabled ?? false}
+      />
       {/* Alternativno plačilo */}
       {paymentMethod === 'alternate' && (
         <AlternatePaymentSection
