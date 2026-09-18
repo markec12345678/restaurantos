@@ -29,6 +29,9 @@ export interface PaymentHandlersProps {
   paymentMethod: string
   splitAmount: number
   guestAssignments: Record<string, number>
+  /** RUNDA 46: zvestobni račun za EARN ob deljenem plačilu (prej split NIKOLI
+   *  ni pripel točk — tiha izguba za goste na deljenih računih). null = brez. */
+  loyaltyAccountId?: string | null
   onPaymentSuccess: ((_orderId: string) => void) | undefined
   resetAndClose: () => void
 }

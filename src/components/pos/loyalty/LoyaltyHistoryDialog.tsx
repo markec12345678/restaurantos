@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { History } from 'lucide-react'
+import { History, Award, Rocket } from 'lucide-react'
 import { type LoyaltyAccount, tierConfig, tierBadgeStyles, transactionTypeConfig, transactionBadgeStyles, formatDateSI, formatPoints } from './constants'
 import { LoyaltyTierProgress } from './LoyaltyTierProgress'
 import { formatEUR } from '@/lib/safe-format'
@@ -36,6 +36,21 @@ export const LoyaltyHistoryDialog = memo(function LoyaltyHistoryDialog({
   const transactions = account.transactions || []
   const tier = tierConfig[account.tier] || tierConfig.bronze
   const TierIcon = tier.icon
+
+  // RUNDA 46: posebne vrste earn transakcij (R45/R44 backend jih zapisuje):
+  //  • "Bonus nivoa …" → perk bonus (amber, Award)
+  //  • "Povišanje nivoa …" → samodejni prehod nivoja (violet, Rocket)
+  // Prej so se prikazovale kot navadne "Prislužene" z 0 točk — nejasno.
+  const specialTx = (reason: string | null | undefined): { icon: React.ElementType; chip: string; label: string } | null => {
+    if (!reason) return null
+    if (reason.startsWith('Bonus nivoa')) {
+      return { icon: Award, chip: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400', label: 'Bonus nivoa' }
+    }
+    if (reason.startsWith('Povišanje nivoa')) {
+      return { icon: Rocket, chip: 'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400', label: 'Povišanje nivoa' }
+    }
+    return null
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -100,16 +115,19 @@ export const LoyaltyHistoryDialog = memo(function LoyaltyHistoryDialog({
               <TableBody>
                 {transactions.map((tx) => {
                   const txConfig = transactionTypeConfig[tx.type] || transactionTypeConfig.adjust
-                  const TxIcon = txConfig.icon
+                  const special = specialTx(tx.reason)
+                  const TxIcon = special?.icon ?? txConfig.icon
+                  const chipStyle = special?.chip ?? transactionBadgeStyles[tx.type] ?? transactionBadgeStyles.adjust
+                  const typeLabel = special?.label ?? txConfig.label
                   return (
                     <TableRow key={tx.id} className="transition-colors hover:bg-muted/40">
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${transactionBadgeStyles[tx.type] || transactionBadgeStyles.adjust}`}>
+                          <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md ${chipStyle}`} title={special ? tx.reason ?? undefined : undefined}>
                             <TxIcon className="h-3.5 w-3.5" />
                           </div>
-                          <Badge className={`text-xs ${transactionBadgeStyles[tx.type] || transactionBadgeStyles.adjust}`}>
-                            {txConfig.label}
+                          <Badge className={`text-xs ${chipStyle}`}>
+                            {typeLabel}
                           </Badge>
                         </div>
                       </TableCell>

@@ -25,10 +25,11 @@ export const ListView = memo(function ListView({
 
   return (
     <div className="space-y-2">
-      {reservations.map(r => (
+      {reservations.map((r, idx) => (
         <ReservationCard
           key={r.id}
           reservation={r}
+          index={idx}
           onEdit={() => onEdit(r)}
           onStatusChange={onStatusChange}
         />

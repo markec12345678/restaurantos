@@ -65,6 +65,7 @@ export const FilterBar = memo(function FilterBar({
           key={status}
           variant={filterStatus === status ? 'default' : 'outline'}
           size="sm"
+          aria-pressed={filterStatus === status}
           className="h-7 text-[10px] px-2"
           onClick={() => onFilterChange(status)}
         >

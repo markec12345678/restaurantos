@@ -55,13 +55,14 @@ export const TimelineView = memo(function TimelineView({
         return (
           <div key={slot} className="flex gap-3">
             <div className="w-14 flex-shrink-0 pt-2">
-              <span className="text-sm font-mono font-bold text-muted-foreground">{slot}</span>
+              <span className="text-sm font-mono font-bold text-muted-foreground tabular-nums rounded-md bg-muted/60 px-1.5 py-0.5 inline-block">{slot}</span>
             </div>
             <div className="flex-1 space-y-2">
-              {slotReservations.map(r => (
+              {slotReservations.map((r, idx) => (
                 <ReservationCard
                   key={r.id}
                   reservation={r}
+                  index={idx}
                   onEdit={() => onEdit(r)}
                   onStatusChange={onStatusChange}
                 />

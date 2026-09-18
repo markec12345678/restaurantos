@@ -97,6 +97,8 @@ export function usePaymentDialog({ order, open, onClose, onPaymentSuccess }: Pay
     paymentMethod,
     splitAmount,
     guestAssignments,
+    // RUNDA 46: earn točk tudi ob deljenem plačilu — pripet račun iz shared stanja
+    loyaltyAccountId: selectedLoyaltyId,
     onPaymentSuccess,
     resetAndClose,
   })

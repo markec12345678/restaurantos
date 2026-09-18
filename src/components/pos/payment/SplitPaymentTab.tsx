@@ -3,8 +3,11 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { Split } from 'lucide-react'
+import { Split, TrendingUp } from 'lucide-react'
 import { formatEUR } from '@/lib/safe-format'
+import { applyTierBonus } from '@/lib/loyalty-tiers'
+import { LoyaltySection } from './LoyaltySection'
+import type { LoyaltyAccountItem, AltPaymentItem } from './types'
 
 interface SplitPaymentTabProps {
   splitCount: number
@@ -15,6 +18,15 @@ interface SplitPaymentTabProps {
   isProcessing: boolean
   processPaymentIsPending: boolean
   onPaySplit: () => void
+  // RUNDA 46: zvestobni earn ob deljenem plačilu (isti shared stanje kot Eno plačilo)
+  loyaltyResults: LoyaltyAccountItem[]
+  loyaltySearch: string
+  setLoyaltySearch: (_val: string) => void
+  selectedLoyaltyId: string | null
+  setSelectedLoyaltyId: (_val: string | null) => void
+  loyaltyConfig?: { enabled: boolean; pointsPerEuro: number; pointsValue: number } | null
+  // AlternatePaymentSection (typy, ki jih tab ni uporabljal — ostane za združljivost klica)
+  altPayments?: AltPaymentItem[]
 }
 
 export const SplitPaymentTab = memo(function SplitPaymentTab({
@@ -26,7 +38,24 @@ export const SplitPaymentTab = memo(function SplitPaymentTab({
   isProcessing,
   processPaymentIsPending,
   onPaySplit,
+  loyaltyResults,
+  loyaltySearch,
+  setLoyaltySearch,
+  selectedLoyaltyId,
+  setSelectedLoyaltyId,
+  loyaltyConfig,
 }: SplitPaymentTabProps) {
+  // RUNDA 46: tier-aware earn preview za deljeno plačilo — vsako delno plačilo
+  // prisluži svoj del (backend handleLoyaltyEarn teče PER plačilo). Prikazujemo
+  // per-osobo in skupaj; ista matematika kot backend (applyTierBonus).
+  const selectedLoyalty = loyaltyResults.find(la => la.id === selectedLoyaltyId) || null
+  const earnPreview = (() => {
+    if (!loyaltyConfig?.enabled || !selectedLoyalty) return { perPerson: 0, total: 0, bonusPct: 0 }
+    const basePer = Math.max(0, Math.floor(Math.max(0, splitAmount - tipAmount / splitCount) * (loyaltyConfig.pointsPerEuro || 1)))
+    const breakdown = applyTierBonus(basePer, selectedLoyalty.tier)
+    return { perPerson: breakdown.total, total: breakdown.total * splitCount, bonusPct: breakdown.pct }
+  })()
+
   return (
     <div className="space-y-3">
       <div>
@@ -76,7 +105,33 @@ export const SplitPaymentTab = memo(function SplitPaymentTab({
             <span>{formatEUR(tipAmount)} ({formatEUR(tipAmount / splitCount)}/osebo)</span>
           </div>
         )}
+        {/* RUNDA 46: earn preview — vsako delno plačilo prisluži točke */}
+        {earnPreview.total > 0 && (
+          <div className="flex items-center justify-between rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-1.5">
+            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <TrendingUp className="h-3 w-3 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+              Točke (skupaj)
+            </span>
+            <span className="text-xs font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+              +{earnPreview.total}
+              <span className="font-normal text-muted-foreground"> ({splitCount} × {earnPreview.perPerson})</span>
+            </span>
+          </div>
+        )}
       </div>
+      {/* RUNDA 46: pripni zvestobni račun — earn tudi ob deljenem plačilu */}
+      <LoyaltySection
+        loyaltyResults={loyaltyResults}
+        loyaltySearch={loyaltySearch}
+        setLoyaltySearch={setLoyaltySearch}
+        selectedLoyaltyId={selectedLoyaltyId}
+        setSelectedLoyaltyId={setSelectedLoyaltyId}
+        variant="earn"
+        previewPoints={earnPreview.perPerson}
+        tierBonusPct={earnPreview.bonusPct}
+        tierBonusTier={selectedLoyalty?.tier ?? ''}
+        loyaltyEnabled={loyaltyConfig?.enabled ?? false}
+      />
       <Button
         className="w-full h-12 text-base font-bold"
         disabled={processPaymentIsPending || isProcessing}

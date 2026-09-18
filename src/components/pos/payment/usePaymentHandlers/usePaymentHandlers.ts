@@ -20,6 +20,7 @@ export function usePaymentHandlers({
   paymentMethod,
   splitAmount: _splitAmount,
   guestAssignments,
+  loyaltyAccountId,
   onPaymentSuccess,
   resetAndClose,
 }: PaymentHandlersProps) {
@@ -36,6 +37,7 @@ export function usePaymentHandlers({
         tipAmount,
         splitCount,
         paymentMethod,
+        loyaltyAccountId: loyaltyAccountId ?? null,
         queryClient,
         onPaymentSuccess,
         resetAndClose,
@@ -53,7 +55,7 @@ export function usePaymentHandlers({
     } finally {
       setIsProcessing(false)
     }
-  }, [order, isProcessing, orderTotal, splitCount, tipAmount, paymentMethod, queryClient, onPaymentSuccess, resetAndClose, setIsProcessing])
+  }, [order, isProcessing, orderTotal, splitCount, tipAmount, paymentMethod, loyaltyAccountId, queryClient, onPaymentSuccess, resetAndClose, setIsProcessing])
 
   // FIX: By-items payment handler — ustvari ločen check za vsakega gosta
   const handlePayByItems = useCallback(async () => {

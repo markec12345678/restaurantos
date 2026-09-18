@@ -16,6 +16,7 @@ export async function executeSplitPayment({
   tipAmount,
   splitCount,
   paymentMethod,
+  loyaltyAccountId,
   queryClient,
   onPaymentSuccess,
   resetAndClose,
@@ -25,6 +26,9 @@ export async function executeSplitPayment({
   tipAmount: number
   splitCount: number
   paymentMethod: string
+  /** RUNDA 46: zvestobni račun za earn (vsako delno plačilo prisluži svoj del
+   *  točk — enako semantiko kot posamezno plačilo); null = brez pripetega računa */
+  loyaltyAccountId?: string | null
 } & PaymentExecContext) {
   // FIX BUG-04: Prepreči podvojene čeke — ponovno uporabi obstoječi neplačani ček
   let splitCheckId: string | undefined
@@ -71,6 +75,8 @@ export async function executeSplitPayment({
         tipAmount: payments[i].tipPortion,
         type: paymentMethod === 'cash' ? 'cash' : paymentMethod === 'card' ? 'card' : paymentMethod === 'mobile' ? 'mobile' : paymentMethod === 'split' ? 'split' : 'cash',
         idempotencyKey: `split-${check.id}-s${i}-${payments[i].amount.toFixed(2)}`,
+        // RUNDA 46: earn točk tudi ob deljenem plačilu (prej tiho izgubljeno)
+        ...(loyaltyAccountId ? { loyaltyAccountId } : {}),
       }),
     })
     if (!paymentRes.ok) throw new Error(`Napaka pri ustvarjanju plačila ${i + 1}`)
