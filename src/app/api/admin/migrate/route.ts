@@ -275,6 +275,33 @@ export async function POST(req: Request) {
       details: `${rsColsAdded} stolpcev dodanih${rsColsAddedList.length ? `: ${rsColsAddedList.join(', ')}` : ''}; tabela ${rsTableCreated ? 'NOVA' : 'obstaja'}; vrstice: total=${rsTotal} active=${rsActive}${rsReactivated > 0 ? ` (reaktiviranih ${rsReactivated})` : ''}`,
     })
 
+    // Phase 0.7d (QA runda 41): TaxRate vrstice + indexes dump — typed
+    // db.taxRate.update 500-a na STARIH vrsticah (nove delujejo); diagnoza
+    // potrebuje realne vrednosti (locationId NULL? updatedAt?) + indekse.
+    try {
+      const trRows = await db.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        `SELECT id, name, rate::text, code, "isActive", "sortOrder", "locationId", "createdAt"::text, "updatedAt"::text FROM "TaxRate" ORDER BY "createdAt" ASC LIMIT 20`
+      )
+      let trIdx = 'N/A'
+      try {
+        const idx = await db.$queryRawUnsafe<Array<{ indexdef: string }>>(
+          `SELECT indexdef FROM pg_indexes WHERE tablename = 'TaxRate'`
+        )
+        trIdx = idx.map((i) => i.indexdef).join(' ; ')
+      } catch { /* ignore */ }
+      results.push({
+        phase: 'Phase 0.7d: TaxRate rows+indexes dump (runda 41)',
+        status: 'done',
+        details: `${trRows.length} rows: ${JSON.stringify(trRows).slice(0, 2400)} || IDX: ${trIdx.slice(0, 900)}`,
+      })
+    } catch (err) {
+      results.push({
+        phase: 'Phase 0.7d: TaxRate rows+indexes dump (runda 41)',
+        status: 'error',
+        details: err instanceof Error ? err.message.slice(0, 300) : 'unknown',
+      })
+    }
+
     // ═══════════════════════════════════════════════════
     // Phase 1: P0-C4 — Backfill NULL locationId
     // ═══════════════════════════════════════════════════
