@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { formatEUR, formatNumberSl, parseDecimalInput, safeToFixed, safeNum } from '@/lib/safe-format'
-import { ljubljanaDayBounds, ljubljanaTodayStr } from '@/lib/timezone-sl'
+import { ljubljanaDayBounds, ljubljanaTodayStr, ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 import { errorSl } from '@/lib/error-messages'
 
 // ─────────────────────────────────────────────
@@ -131,6 +131,40 @@ describe('P2-UX: ljubljanaDayBounds (Europe/Ljubljana)', () => {
     expect(ljubljanaTodayStr(earlyMorningUTC)).toBe('2026-01-16')
     const noonUTC = new Date('2026-01-15T12:00:00Z') // 13:00 LJ 15.1.
     expect(ljubljanaTodayStr(noonUTC)).toBe('2026-01-15')
+  })
+})
+
+// ─────────────────────────────────────────────
+// ljubljanaDateTimeParts (FIX R43) — rezervacije: UTC ISO → LJ datum + 'HH:mm'
+// ─────────────────────────────────────────────
+describe('P2-UX: ljubljanaDateTimeParts (Europe/Ljubljana)', () => {
+  it('zimski čas (CET, UTC+1): 19:00 UTC → 20:00 isti dan', () => {
+    const out = ljubljanaDateTimeParts('2026-01-15T19:00:00.000Z')
+    expect(out).toEqual({ date: '2026-01-15', time: '20:00' })
+  })
+
+  it('letni čas (CEST, UTC+2): 19:00 UTC → 21:00 isti dan', () => {
+    const out = ljubljanaDateTimeParts('2026-07-15T19:00:00.000Z')
+    expect(out).toEqual({ date: '2026-07-15', time: '21:00' })
+  })
+
+  it('POLNOČNI PREHOD: 23:00 UTC pozimi → NASLEDNJI koledarski dan po LJ (razlog za FIX R43)', () => {
+    // Rezervacija "18. januar ob 24:00" ne obstaja; 19:00 UTC 18.1. je 20:00 18.1.,
+    // ampak pozni večerni UTC časi drsijo v naslednji LJ dan:
+    const out = ljubljanaDateTimeParts('2026-01-18T23:30:00.000Z') // 00:30 LJ 19.1.
+    expect(out.date).toBe('2026-01-19')
+    expect(out.time).toBe('00:30')
+  })
+
+  it('prazen/napačen vhod: varno vrne prazen datum (ne Invalid Date)', () => {
+    expect(ljubljanaDateTimeParts(null)).toEqual({ date: '', time: '' })
+    expect(ljubljanaDateTimeParts(undefined)).toEqual({ date: '', time: '' })
+    expect(ljubljanaDateTimeParts('')).toEqual({ date: '', time: '' })
+  })
+
+  it("ne-ISO vhod s surovim rezom: 'YYYY-MM-DDTHH:mm' → prebere rez", () => {
+    const out = ljubljanaDateTimeParts('2026-01-15T19:00')
+    expect(out.date).toBe('2026-01-15')
   })
 })
 
