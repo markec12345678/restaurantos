@@ -41,7 +41,7 @@ import {
   UtensilsCrossed,
   History,
 } from 'lucide-react'
-import type { ComponentType } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import type { MenuItemType } from '@/components/pos/order/types'
 
 type IconType = ComponentType<{ className?: string }>
@@ -83,6 +83,30 @@ function PaletteEmpty() {
         'Ni rezultatov.'
       )}
     </div>
+  )
+}
+
+/** NOVO (runda 33, E2E QA): Nedavno skupina SAMO pri praznem iskanju.
+ *  cmdk sortira znotraj skupin, skupine pa ostanejo v DOM vrstnem redu —
+ *  recents z šibkimi fuzzy matchi bi plavali nad relevatnejšimi zadetki
+ *  v Artikli skupini. Square vzorec: recents = hitri re-add ob odprtju,
+ *  iskanje = čisto po relevanci. */
+function RecentsGroup({
+  items,
+  renderItem,
+}: {
+  items: MenuItemType[]
+  renderItem: (item: MenuItemType, opts: { recent?: boolean }) => ReactNode
+}) {
+  const search = useCommandState((state) => state.search)
+  if (search) return null
+  return (
+    <>
+      <CommandGroup heading={`🕘 Nedavno (${items.length})`}>
+        {items.map((item) => renderItem(item, { recent: true }))}
+      </CommandGroup>
+      <CommandSeparator />
+    </>
   )
 }
 
@@ -267,14 +291,10 @@ export function CommandPalette() {
       <CommandList>
         <PaletteEmpty />
 
-        {/* NOVO (runda 33): Nedavno — hitri ponovni dodatek (Square Recents) */}
+        {/* NOVO (runda 33): Nedavno — hitri ponovni dodatek (Square Recents),
+            SAMO pri praznem iskanju (glej RecentsGroup) */}
         {recentArticles.length > 0 && (
-          <>
-            <CommandGroup heading={`🕘 Nedavno (${recentArticles.length})`}>
-              {recentArticles.map((item) => renderArticleItem(item, { recent: true }))}
-            </CommandGroup>
-            <CommandSeparator />
-          </>
+          <RecentsGroup items={recentArticles} renderItem={renderArticleItem} />
         )}
 
         {/* (runda 32) Artikli — ⌘K išče ime + kategorijo; (runda 33) + OPIS
