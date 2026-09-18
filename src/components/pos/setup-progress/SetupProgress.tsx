@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { CheckCircle2, AlertCircle, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { authFetch } from '@/components/pos/PinLogin'
 
 // ============================================
 // SETUP PROGRESS — Pokaže kaj je nastavljeno, kaj manjka
@@ -22,7 +23,9 @@ export function SetupProgress() {
   const { data: settings, isLoading } = useQuery({
     queryKey: ['settings'],
     queryFn: async () => {
-      const res = await fetch('/api/settings')
+      // FIX r35: authFetch — /api/settings zahteva auth (gol fetch = 401 → vedno error stanje);
+      // isti queryKey ['settings'] kot useSettingsManager (dela cache, ne zastruplja ga z 401)
+      const res = await authFetch('/api/settings')
       if (!res.ok) throw new Error('Napaka')
       return res.json()
     },

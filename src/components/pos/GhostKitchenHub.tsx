@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 // odstranjen prazen import (runda 12 lint cleanup)
 
+import { authFetch } from '@/components/pos/PinLogin'
 import { formatEUR } from '@/lib/safe-format'
 // --- Tipi ---
 interface VirtualBrand {
@@ -84,7 +85,8 @@ export function GhostKitchenHub() {
   const { data: brandsData, isLoading: brandsLoading } = useQuery<{ virtualBrands: VirtualBrand[] }>({
     queryKey: ['virtual-brands'],
     queryFn: async () => {
-      const res = await fetch('/api/virtual-brands')
+      // FIX r35: authFetch — /api/virtual-brands zahteva view_reports (gol fetch = 401)
+      const res = await authFetch('/api/virtual-brands')
       if (!res.ok) throw new Error('Failed to fetch brands')
       return res.json()
     },
@@ -96,7 +98,7 @@ export function GhostKitchenHub() {
     queryFn: async () => {
       const params = new URLSearchParams({ limit: '100' })
       if (selectedBrand !== 'all') params.set('virtualBrandId', selectedBrand)
-      const res = await fetch(`/api/orders?${params}`)
+      const res = await authFetch(`/api/orders?${params}`)
       if (!res.ok) throw new Error('Failed to fetch orders')
       return res.json()
     },

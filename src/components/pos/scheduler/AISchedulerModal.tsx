@@ -18,6 +18,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { Loader2, Sparkles, AlertTriangle, CheckCircle2, TrendingUp, Clock, Users } from 'lucide-react'
 import { format } from 'date-fns'
+import { authFetch } from '@/components/pos/PinLogin'
 
 import { formatEUR } from '@/lib/safe-format'
 // ─── Tipi (skladno z /api/ai/staff-scheduler response) ────────
@@ -81,9 +82,8 @@ export function AISchedulerModal({
     setError(null)
     setData(null)
     try {
-      const res = await fetch('/api/ai/staff-scheduler', {
+      const res = await authFetch('/api/ai/staff-scheduler', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ startDate, days, locationId, dryRun: true }),
       })
       if (!res.ok) {
@@ -105,9 +105,8 @@ export function AISchedulerModal({
     setApplying(true)
     setError(null)
     try {
-      const res = await fetch('/api/ai/staff-scheduler', {
+      const res = await authFetch('/api/ai/staff-scheduler', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ startDate, days, locationId, apply: true }),
       })
       if (!res.ok) {

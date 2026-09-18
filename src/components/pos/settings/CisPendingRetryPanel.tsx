@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { RefreshCw, Inbox, CheckCircle2, Loader2 } from 'lucide-react'
+import { authFetch } from '@/components/pos/PinLogin'
 
 interface RetryStats {
   ok: boolean
@@ -41,7 +42,9 @@ export const CisPendingRetryPanel = memo(function CisPendingRetryPanel() {
 
   const loadStats = useCallback(async () => {
     try {
-      const res = await fetch('/api/cis/echo?resource=pending', { cache: 'no-store' })
+      // FIX r35: authFetch (Bearer) — /api/cis/echo zahteva admin auth; gol fetch je
+      // vedno dobil 401 → badge števec se nikoli ni napolnil (r35 QA repro na produkciji)
+      const res = await authFetch('/api/cis/echo?resource=pending', { cache: 'no-store' })
       if (res.ok) setStats((await res.json()) as RetryStats)
     } catch {
       // Badge ni kritičen — tiho; panel pokaže nevtralno stanje
@@ -57,13 +60,16 @@ export const CisPendingRetryPanel = memo(function CisPendingRetryPanel() {
   const onRetry = useCallback(async () => {
     setRetrying(true)
     try {
-      const res = await fetch('/api/cis/echo', {
+      const res = await authFetch('/api/cis/echo', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'retry-pending' }),
       })
       if (res.status === 429) {
         toast.error('Preveč poskusov — poskusite znova čez nekaj minut.')
+        return
+      }
+      if (res.status === 401) {
+        toast.error('Seja je potekla — prijavite se znova.')
         return
       }
       if (!res.ok) {

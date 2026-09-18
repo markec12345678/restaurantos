@@ -24,6 +24,7 @@ import {
   Clock, XCircle, Loader2, Server, Activity,
 } from 'lucide-react'
 import { format } from 'date-fns'
+import { authFetch } from '@/components/pos/PinLogin'
 
 // --- Tipi ---
 interface OutboxStats {
@@ -84,7 +85,8 @@ export function OutboxDashboard() {
   const { data, isLoading, refetch } = useQuery<OutboxResponse>({
     queryKey: ['outbox', filterStatus],
     queryFn: async () => {
-      const res = await fetch(`/api/outbox?status=${filterStatus}&limit=100`)
+      // FIX r35: authFetch — /api/outbox zahteva view_reports (gol fetch = 401)
+      const res = await authFetch(`/api/outbox?status=${filterStatus}&limit=100`)
       if (!res.ok) throw new Error('Ni povezave s strežnikom')
       return res.json()
     },
@@ -94,9 +96,8 @@ export function OutboxDashboard() {
   // Manual process mutation
   const processMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch('/api/outbox', {
+      const res = await authFetch('/api/outbox', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'process', limit: 25 }),
       })
       if (!res.ok) throw new Error('Obdelava ni uspela')
@@ -110,9 +111,8 @@ export function OutboxDashboard() {
   // Cleanup mutation
   const cleanupMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch('/api/outbox', {
+      const res = await authFetch('/api/outbox', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'cleanup', days: 30 }),
       })
       if (!res.ok) throw new Error('Čiščenje ni uspelo')

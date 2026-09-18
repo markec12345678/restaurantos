@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 
+import { authFetch } from '@/components/pos/PinLogin'
 import { formatEUR } from '@/lib/safe-format'
 // --- Tipi ---
 interface FraudAlert {
@@ -83,7 +84,8 @@ export function FraudDetectionDashboard() {
   const { data, isLoading, refetch: _refetch } = useQuery<FraudResponse>({
     queryKey: ['fraud-alerts'],
     queryFn: async () => {
-      const res = await fetch('/api/fraud-detection')
+      // FIX r35: authFetch — /api/fraud-detection zahteva admin auth (gol fetch = 401)
+      const res = await authFetch('/api/fraud-detection')
       if (!res.ok) throw new Error('Failed to fetch fraud alerts')
       return res.json()
     },
@@ -93,9 +95,8 @@ export function FraudDetectionDashboard() {
   // Re-run detection
   const rerunMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch('/api/fraud-detection', {
+      const res = await authFetch('/api/fraud-detection', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'run_checks' }),
       })
       if (!res.ok) throw new Error('Re-run failed')
