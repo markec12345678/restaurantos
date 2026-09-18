@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
-import { Mail, Eye, EyeOff, Send, Settings2, Clock, Inbox, FileText, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Mail, Eye, EyeOff, Send, Settings2, Clock, Inbox, FileText, AlertTriangle, CheckCircle2, Printer } from 'lucide-react'
 import { authFetch } from '@/components/pos/PinLogin'
 import { formatEUR } from '@/lib/safe-format'
 import { buildDailyDigestHtml } from '@/lib/email/digest-html'
@@ -438,6 +438,14 @@ export const EmailTab = memo(function EmailTab({ form, updateField }: {
                 Odpri HTML predogled
               </Button>
             )}
+            {/* Runda 42: tiskana/PDF verzija — lastna stran z datumskim izbirnikom
+                in window.print() (brskalnik "Shrani kot PDF", brez odvisnosti) */}
+            <Button variant="outline" asChild className="btn-press">
+              <a href="/reports/digest" target="_blank" rel="noopener noreferrer">
+                <Printer className="h-4 w-4 mr-1" />
+                Tiskana verzija / PDF
+              </a>
+            </Button>
             <Button
               onClick={handleSendNow}
               disabled={sending || !emailEnabled || !hasSmtpConfig || !hasRecipients}
