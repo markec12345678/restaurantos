@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateReportDateRange } from '@/lib/validations'
 import { toNum, multiply, round2 } from '@/lib/decimal'
-import { handleApiError } from '@/lib/api-utils'
+import { endOfDayParam, handleApiError } from '@/lib/api-utils'
 
 
 export const dynamic = 'force-dynamic'
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     if (startDate || endDate) {
       const paidAt: Record<string, Date> = {}
       if (startDate) paidAt.gte = new Date(startDate)
-      if (endDate) paidAt.lte = new Date(endDate)
+      if (endDate) paidAt.lte = endOfDayParam(endDate) // FIX r35: konec dneva, ne polnoč
       orderWhere.paidAt = paidAt
     }
 

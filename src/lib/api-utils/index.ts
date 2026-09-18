@@ -13,3 +13,4 @@ export {
   BULK_MAX_LIMIT,
 } from './pagination'
 export { checkSeedAllowed } from './seed-guard'
+export { endOfDayParam } from './date-range'

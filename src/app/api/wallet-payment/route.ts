@@ -4,7 +4,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-middleware'
-import { handleApiError, parsePaginationParams } from '@/lib/api-utils'
+import { endOfDayParam, handleApiError, parsePaginationParams } from '@/lib/api-utils'
 import { z } from 'zod'
 import {
   initiateWalletPayment,
@@ -57,7 +57,7 @@ export async function GET(req: Request) {
     if (dateFrom || dateTo) {
       where.createdAt = {}
       if (dateFrom) (where.createdAt as Record<string, unknown>).gte = new Date(dateFrom)
-      if (dateTo) (where.createdAt as Record<string, unknown>).lte = new Date(dateTo)
+      if (dateTo) (where.createdAt as Record<string, unknown>).lte = endOfDayParam(dateTo) // FIX r35: konec dneva
     }
 
     const payments = await db.walletPayment.findMany({

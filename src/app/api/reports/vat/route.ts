@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateReportDateRange } from '@/lib/validations'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
-import { handleApiError } from '@/lib/api-utils'
+import { endOfDayParam, handleApiError } from '@/lib/api-utils'
 import { computeVatBreakdown, computeTimeVatDistribution } from './_helpers'
 
 
@@ -46,7 +46,7 @@ export async function GET(req: Request) {
     if (startDate || endDate) {
       const paidAt: Record<string, Date> = {}
       if (startDate) paidAt.gte = new Date(startDate)
-      if (endDate) paidAt.lte = new Date(endDate)
+      if (endDate) paidAt.lte = endOfDayParam(endDate) // FIX r35: konec dneva, ne polnoč
       // FIX CRITICAL: Uporabi paidAt za finančno/DDV poročilo namesto createdAt
       where.paidAt = paidAt
     }

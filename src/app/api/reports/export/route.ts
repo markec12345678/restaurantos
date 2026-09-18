@@ -7,7 +7,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { validateReportDateRange } from '@/lib/validations'
-import { handleApiError } from '@/lib/api-utils'
+import { endOfDayParam, handleApiError } from '@/lib/api-utils'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 import {
   generateOrdersCsv, generateItemsCsv, generateVatCsv,
@@ -45,7 +45,7 @@ export async function GET(req: Request) {
 
     const dateFilter: Record<string, Date> = {}
     if (startDate) dateFilter.gte = new Date(startDate)
-    if (endDate) dateFilter.lte = new Date(endDate)
+    if (endDate) dateFilter.lte = endOfDayParam(endDate) // FIX r35: konec dneva, ne polnoč
 
     const reportType = type as ReportType
     const filename = getFilename(reportType, startDate, endDate, format)

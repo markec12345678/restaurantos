@@ -6,7 +6,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createShiftSchema } from '@/lib/validations'
 import { emitEvent } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
-import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
+import { endOfDayParam, handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
     if (dateFrom || dateTo) {
       const dateFilter: Record<string, unknown> = {}
       if (dateFrom) dateFilter.gte = new Date(dateFrom)
-      if (dateTo) dateFilter.lte = new Date(dateTo)
+      if (dateTo) dateFilter.lte = endOfDayParam(dateTo) // FIX r35: konec dneva
       where.date = dateFilter
     }
 
