@@ -11,6 +11,8 @@ import { toNum } from '@/lib/decimal'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { ljubljanaDayBounds, ljubljanaTodayStr } from '@/lib/timezone-sl'
 import { fetchEodData, computeEodMetrics, closeShift } from './_helpers'
+import { upsertZReportForDay } from '@/app/api/z-report/_helpers'
+import { logger } from '@/lib/logger'
 
 
 export const dynamic = 'force-dynamic'
@@ -129,15 +131,52 @@ export async function POST(req: Request) {
 
     const cashDiff = await closeShift(date, actualCash, notes, locationId, authResult.session?.employeeId)
 
-    // FIX CRITICAL: Prejšnja koda je vrnila success tudi ko ni bilo odprte izmene
-    if (!cashDiff) {
-      return NextResponse.json({ error: 'Ni odprte blagajniške izmene za zaključek' }, { status: 400 })
+    // FIX QA runda 37 (UX/state machine): EOD checklist zahteva "Izmena zaprta", a je
+    // endpoint VRAČAL 400, če izmena ni bila odprta (zapreta prek Blagajne) → UI tok
+    // je bil nemogoče dokončati. Sedaj je EOD IDEMPOTENTEN in v obeh stanjih zaključi
+    // tudi Z-poročilo (prej je ostalo draft — finalizacija je bila samo na Z-Poročilo strani):
+    const finalizeReport = async (extraNote: string) => {
+      try {
+        await upsertZReportForDay({
+          date,
+          actualCash: actualCash ?? 0,
+          notes: [notes, extraNote].filter(Boolean).join(' — '),
+          employeeId: authResult.session?.employeeId ?? null,
+          finalize: true,
+        })
+        return true
+      } catch (zErr) {
+        // Že finalizirano = idempotentno OK; OPEN_SHIFTS ne bi smel (izmena je zaprta zgoraj);
+        // Z_REPORT_NO_LOCATION → pusti draft (ne podre EOD odgovora)
+        const msg = zErr instanceof Error ? zErr.message : String(zErr)
+        if (msg === 'Z_REPORT_FINALIZED' || msg.startsWith('OPEN_SHIFTS')) return true
+        logger.warn('EOD', `Z-poročilo ni bilo finalizirano: ${msg}`)
+        return false
+      }
     }
+
+    if (!cashDiff) {
+      // Ni odprte izmene (že zaprta prek Blagajne) — vseeno finaliziraj Z-poročilo dneva
+      const reportFinalized = await finalizeReport('EOD: izmena že zaprta')
+      return NextResponse.json({
+        success: true,
+        message: reportFinalized
+          ? `Dan ${date} je uspešno zaključen (izmena že zaprta, Z-poročilo finalizirano)`
+          : `Dan ${date} je zaključen (izmena že zaprta; Z-poročilo ostaja draft)`,
+        cashDiff: 0,
+        shiftId: null,
+      })
+    }
+
+    // Z-poročilo za ta dan finaliziraj kot del EOD
+    const reportFinalized = await finalizeReport('EOD zaključek dneva')
 
     // FIX BUG-6 HIGH: Vrni PRAVI cashDifference (ne totalTips, ampak cashTips-only izračun)
     return NextResponse.json({
       success: true,
-      message: `Dan ${date} je uspešno zaključen`,
+      message: reportFinalized
+        ? `Dan ${date} je uspešno zaključen (Z-poročilo finalizirano)`
+        : `Dan ${date} je uspešno zaključen`,
       cashDiff: toNum(cashDiff?.cashDifference) ?? 0,
       shiftId: cashDiff?.shiftId ?? null,
     })
