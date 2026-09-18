@@ -6,7 +6,6 @@ import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { usePOSStore } from '@/lib/store'
 import { getCountryConfig, type CountryCode } from '@/lib/country-config'
-import { setLocale } from '@/lib/i18n'
 import type { SettingsData, FursStatus, SettingsFormWithFlags } from './constants'
 import { useSettingsSave } from './useSettingsSave'
 import { mapCisEchoResponseToStatus } from './cis-status'
@@ -19,7 +18,7 @@ import type { CisSendResponse } from './cis-send-status'
 // ============================================
 
 export function useSettingsManager() {
-  const { country: storeCountry, setCountry: setStoreCountry, setLocale: setStoreLocale } = usePOSStore()
+  const { country: storeCountry } = usePOSStore()
   const [activeTab, setActiveTab] = useState('country')
   const [fursStatus, setFursStatus] = useState<FursStatus>('disconnected')
   const [cisStatus, setCisStatus] = useState<FursStatus>('disconnected')
@@ -54,8 +53,12 @@ export function useSettingsManager() {
   }, [settings])
 
   const handleCountryChange = useCallback((code: CountryCode) => {
+    // FIX r35: izbira države je SAMO predogled (lokalni state) — persistiran store
+    // (pos_country v localStorage + i18n jezik + store taxRate) se posodobi šele ob
+    // uspešnem Shrani (useSettingsSave onSuccess). Prej je klik na državo TAKOJ
+    // preklopil jezik cele aplikacije in preživel reload brez shranjevanja
+    // (r35 QA repro: klik HR → cel UI v hr, preživel reload).
     setSelectedCountry(code)
-    setStoreCountry(code)
     const config = getCountryConfig(code)
     setForm(prev => ({
       ...prev,
@@ -65,9 +68,7 @@ export function useSettingsManager() {
       defaultVatRate: config.taxRates.standard,
       reducedVatRate: config.taxRates.reduced,
     }))
-    setStoreLocale(config.primaryLanguage as 'sl' | 'en' | 'it' | 'hr' | 'de')
-    setLocale(config.primaryLanguage as 'sl' | 'en' | 'it' | 'hr' | 'de')
-  }, [setStoreCountry, setStoreLocale])
+  }, [])
 
   const currentCountryConfig = getCountryConfig(selectedCountry)
 

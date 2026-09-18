@@ -5,6 +5,9 @@ import { toast } from 'sonner'
 import { useCallback } from 'react'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
+import { usePOSStore } from '@/lib/store'
+import { getCountryConfig, type CountryCode } from '@/lib/country-config'
+import type { Locale } from '@/lib/i18n'
 import type { SettingsData } from './constants'
 
 // ============================================
@@ -19,6 +22,9 @@ interface UseSettingsSaveParams {
 
 export function useSettingsSave({ form, bulkVatFrom, bulkVatTo }: UseSettingsSaveParams) {
   const queryClient = useQueryClient()
+  // FIX r35: store seterji za persistiran country/locale (prej jih je handleCountryChange
+  // apliciral TAKOJ ob kliku — brez Shrani, preživel reload; glej QA repro r35)
+  const { setCountry: setStoreCountry, setLocale: setStoreLocale } = usePOSStore()
 
   const saveMutation = useMutation({
     mutationFn: async (data: Partial<SettingsData>) => {
@@ -29,9 +35,16 @@ export function useSettingsSave({ form, bulkVatFrom, bulkVatTo }: UseSettingsSav
       if (!res.ok) throw new Error('Napaka pri shranjevanju')
       return res.json()
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       toast.success('Nastavitve shranjene!')
       queryClient.invalidateQueries({ queryKey: ['settings'] })
+      // FIX r35: persistiran store se posodobi ŠELE po uspešnem shranjevanju —
+      // setCountry nastavi tudi store taxRate, setLocale tudi globalni i18n jezik
+      const savedCountry = variables.country as CountryCode | undefined
+      if (savedCountry) {
+        setStoreCountry(savedCountry)
+        setStoreLocale(getCountryConfig(savedCountry).primaryLanguage as Locale)
+      }
     },
     onError: () => toast.error('Napaka pri shranjevanju nastavitev'),
   })
