@@ -4,6 +4,7 @@
 
 import type { LucideIcon } from 'lucide-react'
 import { CheckCircle, AlertTriangle, BarChart3 } from 'lucide-react'
+import { formatEUR } from '@/lib/safe-format'
 
 // --- TIPI ---
 
@@ -61,9 +62,8 @@ export function getScoreBg(score: number): string {
   return 'bg-red-500'
 }
 
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('sl-SI', { style: 'currency', currency: 'EUR' }).format(amount)
-}
+// R38: kanonični formatEUR — determinističen čez ICU build-e (small-ICU Node nima sl-SI podatkov)
+export const formatCurrency = formatEUR
 
 // --- PROPS INTERFACI ZA POD-KOMPONENTE ---
 

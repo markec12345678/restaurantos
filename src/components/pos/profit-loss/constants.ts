@@ -1,3 +1,4 @@
+import { formatEUR } from '@/lib/safe-format'
 // ═══════════════════════════════════════════════════════════════
 // RestaurantOS — Skupne konstante za P&L porocilo
 // ═══════════════════════════════════════════════════════════════
@@ -63,9 +64,8 @@ export const PERIOD_NAMES: Record<PnLPeriod, string> = {
 
 // ─── Pomozne funkcije ──────────────────────────────────────────
 
-export const formatCurrency = (amount: number): string => {
-  return new Intl.NumberFormat('sl-SI', { style: 'currency', currency: 'EUR' }).format(amount)
-}
+// R38: kanonični formatEUR — determinističen čez ICU build-e (small-ICU Node nima sl-SI podatkov)
+export const formatCurrency = formatEUR
 
 export const formatPercent = (value: number): string => {
   return `${value.toFixed(1)}%`

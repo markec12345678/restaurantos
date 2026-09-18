@@ -1,3 +1,4 @@
+import { formatEUR } from '@/lib/safe-format'
 // ============================================
 // DELJENI TIPI IN KONSTANTE ZA RECIPE SCALING
 // ============================================
@@ -56,9 +57,8 @@ export const SAMPLE_RECIPES: Recipe[] = [
 ]
 
 // Pomožna funkcija za formatiranje valute
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('sl-SI', { style: 'currency', currency: 'EUR' }).format(amount)
-}
+// R38: kanonični formatEUR — determinističen čez ICU build-e (small-ICU Node nima sl-SI podatkov)
+export const formatCurrency = formatEUR
 
 // ============================================
 // VMESNIKI ZA PROPS PODKOMPONENT

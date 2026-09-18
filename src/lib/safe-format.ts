@@ -58,26 +58,27 @@ export function safeNum(val: unknown): number {
  *
  * Deluje z: number, string, Prisma.Decimal, null, undefined (prek safeNum).
  */
-function formatSlNumber(val: unknown): string {
+function formatSlNumber(val: unknown, decimals = 2): string {
   const n = safeNum(val)
   const neg = n < 0
-  const fixed = Math.abs(n).toFixed(2)
+  const fixed = Math.abs(n).toFixed(decimals)
   const [int, dec] = fixed.split('.')
   // Ločila tisočic: pika na vsake 3 mesta od desne ("1.234.567")
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-  return `${neg ? '-' : ''}${grouped},${dec}`
+  // R38: decimals=0 → brez decimalnega dela (kompaktni badge-i: "15 €")
+  return dec ? `${neg ? '-' : ''}${grouped},${dec}` : `${neg ? '-' : ''}${grouped}`
 }
 
-export function formatEUR(val: unknown): string {
-  return `${formatSlNumber(val)} €`
+export function formatEUR(val: unknown, decimals = 2): string {
+  return `${formatSlNumber(val, decimals)} €`
 }
 
 /**
  * Isto kot formatEUR, a brez simbola valute ("1.234,56").
  * Za kolone, kjer je € že v glavi tabele.
  */
-export function formatNumberSl(val: unknown): string {
-  return formatSlNumber(val)
+export function formatNumberSl(val: unknown, decimals = 2): string {
+  return formatSlNumber(val, decimals)
 }
 
 /**

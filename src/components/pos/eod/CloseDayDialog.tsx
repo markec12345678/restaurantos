@@ -7,7 +7,7 @@ import { DecimalInput } from '@/components/ui/decimal-input'
 import { Textarea } from '@/components/ui/textarea'
 import { Lock, AlertTriangle } from 'lucide-react'
 import type { CloseDayDialogProps } from './constants'
-import { safeToFixed } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 // ============================================
 // CLOSE DAY DIALOG - Potrditev zaključka dneva
@@ -43,8 +43,8 @@ export const CloseDayDialog = memo(function CloseDayDialog({
             <DecimalInput id="eod-actual-cash" value={actualCash} onValueChange={n => onActualCashChange(String(n))} placeholder="0.00" aria-label="Dejanska gotovina v blagajni" autoFocus />
             {startingCash > 0 || cashSales > 0 ? (
               <p className="text-xs text-muted-foreground mt-1">
-                Pričakovano: &euro;{safeToFixed(expectedCash, 2)}
-                {' '}(začetna &euro;{safeToFixed(startingCash, 2)} + prodaja &euro;{safeToFixed(cashSales, 2)})
+                Pričakovano: {formatEUR(expectedCash)}
+                {' '}(začetna {formatEUR(startingCash)} + prodaja {formatEUR(cashSales)})
               </p>
             ) : null}
           </div>

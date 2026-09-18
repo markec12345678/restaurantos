@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { DecimalInput } from '@/components/ui/decimal-input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Truck, FileText, Calendar, Clock, Package, Send, CheckCircle2 } from 'lucide-react'
-import { safeToFixed } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import type { PurchaseOrderType, PurchaseOrderItemType } from './constants'
@@ -234,8 +234,8 @@ export const PurchaseOrdersList = memo(function PurchaseOrdersList({ orders, onR
                   </div>
                   <div className="flex items-center gap-4 mt-2">
                     <span className="text-xs text-muted-foreground">{po.items?.length || 0} artiklov</span>
-                    <span className="font-bold text-sm">&euro;{safeToFixed(po.totalAmount, 2)}</span>
-                    <span className="text-xs text-muted-foreground">(DDV: &euro;{safeToFixed(po.vatAmount, 2)})</span>
+                    <span className="font-bold text-sm">{formatEUR(po.totalAmount)}</span>
+                    <span className="text-xs text-muted-foreground">(DDV: {formatEUR(po.vatAmount)})</span>
                   </div>
                   {/* Prikaz postavk z napredkom prejema */}
                   {Array.isArray(po.items) && po.items.length > 0 && po.status !== 'draft' && (

@@ -6,7 +6,7 @@ import { DecimalInput } from '@/components/ui/decimal-input'
 import { DialogFooter } from '@/components/ui/dialog'
 import { Plus, Trash2, CheckCircle2 } from 'lucide-react'
 import type { CustomSplitTabProps } from './constants'
-import { formatEUR, safeToFixed } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 export const CustomSplitTab = memo(function CustomSplitTab({
   parties,
@@ -68,7 +68,7 @@ export const CustomSplitTab = memo(function CustomSplitTab({
           </span>
           {customDifference !== 0 && (
             <p className="text-xs text-red-600 dark:text-red-400">
-              {customDifference > 0 ? `Manjka ${formatEUR(customDifference)}` : `Preseženo za €${safeToFixed(Math.abs(customDifference), 2)}`}
+              {customDifference > 0 ? `Manjka ${formatEUR(customDifference)}` : `Preseženo za ${formatEUR(Math.abs(customDifference))}`}
             </p>
           )}
         </div>

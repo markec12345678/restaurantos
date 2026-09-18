@@ -8,7 +8,7 @@ import { memo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Lock, Clock, Banknote, CreditCard, TrendingUp, TrendingDown } from 'lucide-react'
-import { safeToFixed } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 import { format } from 'date-fns'
 import type { RecentShiftType } from './constants'
 
@@ -41,7 +41,7 @@ export const RecentShiftsList = memo(function RecentShiftsList({ shifts }: Recen
                     {shift.employeeName && ` · ${shift.employeeName}`}
                   </p>
                   <div className="flex gap-2 text-xs text-muted-foreground">
-                    <span>&euro;{safeToFixed(shift.startingCash, 2)} → &euro;{safeToFixed(shift.closingCash, 2)}</span>
+                    <span>{formatEUR(shift.startingCash)} → {formatEUR(shift.closingCash)}</span>
                     <span>·</span>
                     <span>{shift.totalOrders} naročil</span>
                   </div>
@@ -49,13 +49,13 @@ export const RecentShiftsList = memo(function RecentShiftsList({ shifts }: Recen
               </div>
               <div className="text-right flex items-center gap-3">
                 <div>
-                  <p className="font-semibold text-sm">&euro;{safeToFixed(shift.totalSales, 2)}</p>
+                  <p className="font-semibold text-sm">{formatEUR(shift.totalSales)}</p>
                   <div className="flex gap-1.5">
                     <Badge variant="outline" className="text-[9px] h-4 px-1">
-                      <Banknote className="h-2.5 w-2.5 mr-0.5" />&euro;{safeToFixed(shift.cashSales, 0)}
+                      <Banknote className="h-2.5 w-2.5 mr-0.5" />{formatEUR(shift.cashSales, 0)}
                     </Badge>
                     <Badge variant="outline" className="text-[9px] h-4 px-1">
-                      <CreditCard className="h-2.5 w-2.5 mr-0.5" />&euro;{safeToFixed(shift.cardSales, 0)}
+                      <CreditCard className="h-2.5 w-2.5 mr-0.5" />{formatEUR(shift.cardSales, 0)}
                     </Badge>
                   </div>
                 </div>
@@ -65,9 +65,9 @@ export const RecentShiftsList = memo(function RecentShiftsList({ shifts }: Recen
                     className="text-[9px] h-5"
                   >
                     {shift.cashDifference > 0 ? (
-                      <><TrendingUp className="h-2.5 w-2.5 mr-0.5" />+&euro;{safeToFixed(shift.cashDifference, 2)}</>
+                      <><TrendingUp className="h-2.5 w-2.5 mr-0.5" />+{formatEUR(shift.cashDifference)}</>
                     ) : (
-                      <><TrendingDown className="h-2.5 w-2.5 mr-0.5" />&euro;{safeToFixed(shift.cashDifference, 2)}</>
+                      <><TrendingDown className="h-2.5 w-2.5 mr-0.5" />{formatEUR(shift.cashDifference)}</>
                     )}
                   </Badge>
                 )}

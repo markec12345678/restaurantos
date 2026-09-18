@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { Receipt } from 'lucide-react'
-import { safeToFixed } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EodData = any
@@ -31,16 +31,16 @@ export const EodVatBreakdown = memo(function EodVatBreakdown({ eodData }: EodVat
           {eodData.vatBreakdown.map((vb: { rate: number; base: number; vat: number }, i: number) => (
             <tr key={i} className="border-b last:border-0">
               <td className="p-2 font-medium">{vb.rate}%</td>
-              <td className="p-2 text-right">&euro;{safeToFixed(vb.base, 2)}</td>
-              <td className="p-2 text-right">&euro;{safeToFixed(vb.vat, 2)}</td>
-              <td className="p-2 text-right font-semibold">&euro;{safeToFixed(vb.base + vb.vat, 2)}</td>
+              <td className="p-2 text-right">{formatEUR(vb.base)}</td>
+              <td className="p-2 text-right">{formatEUR(vb.vat)}</td>
+              <td className="p-2 text-right font-semibold">{formatEUR(vb.base + vb.vat)}</td>
             </tr>
           ))}
           <tr className="bg-muted/30 font-bold">
             <td className="p-2">SKUPAJ</td>
-            <td className="p-2 text-right">&euro;{safeToFixed(eodData.summary.totalSubtotal, 2)}</td>
-            <td className="p-2 text-right">&euro;{safeToFixed(eodData.summary.totalTax, 2)}</td>
-            <td className="p-2 text-right">&euro;{safeToFixed(eodData.summary.totalRevenue, 2)}</td>
+            <td className="p-2 text-right">{formatEUR(eodData.summary.totalSubtotal)}</td>
+            <td className="p-2 text-right">{formatEUR(eodData.summary.totalTax)}</td>
+            <td className="p-2 text-right">{formatEUR(eodData.summary.totalRevenue)}</td>
           </tr>
         </tbody>
       </table>

@@ -1,3 +1,4 @@
+import { formatEUR } from '@/lib/safe-format'
 // ============================================
 // TIPI IN KONSTANTE ZA WASTE TRACKER
 // ============================================
@@ -61,9 +62,8 @@ export const SAMPLE_ITEMS = [
 ]
 
 /** Format valuta v EUR (slovensko) */
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('sl-SI', { style: 'currency', currency: 'EUR' }).format(amount)
-}
+// R38: kanonični formatEUR — determinističen čez ICU build-e (small-ICU Node nima sl-SI podatkov)
+export const formatCurrency = formatEUR
 
 /** Props za WasteHeader */
 export interface WasteHeaderProps {

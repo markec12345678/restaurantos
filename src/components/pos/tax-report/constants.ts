@@ -1,3 +1,4 @@
+import { formatEUR } from '@/lib/safe-format'
 // ============================================
 // TIPI IN KONSTANTE — Davčno poročilo
 // ============================================
@@ -30,6 +31,5 @@ export interface TaxReportData {
   }[]
 }
 
-export const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('sl-SI', { style: 'currency', currency: 'EUR' }).format(amount)
-}
+// R38: kanonični formatEUR — determinističen čez ICU build-e (small-ICU Node nima sl-SI podatkov)
+export const formatCurrency = formatEUR

@@ -6,7 +6,7 @@ import { DecimalInput } from '@/components/ui/decimal-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { X } from 'lucide-react'
-import { safeToFixed } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 
 export interface POItemDraft {
   description: string
@@ -83,7 +83,7 @@ export const POItemRow = memo(function POItemRow({
         </div>
         <div className="col-span-1">
           <label className="text-[9px] text-muted-foreground">Skupaj</label>
-          <span className="text-xs font-medium block">&euro;{safeToFixed(item.quantityOrdered * item.unitPrice, 2)}</span>
+          <span className="text-xs font-medium block">{formatEUR(item.quantityOrdered * item.unitPrice)}</span>
         </div>
         <div className="col-span-1">
           {canRemove && (

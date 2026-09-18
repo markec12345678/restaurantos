@@ -8,7 +8,7 @@ import { memo } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { DecimalInput } from '@/components/ui/decimal-input'
-import { safeToFixed } from '@/lib/safe-format'
+import { formatEUR } from '@/lib/safe-format'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Lock, TrendingUp, AlertTriangle, CheckCircle2 } from 'lucide-react'
@@ -48,20 +48,20 @@ export const CloseShiftDialog = memo(function CloseShiftDialog({
             <div className="bg-muted/50 rounded-lg p-3 space-y-2 text-sm">
               <div className="flex justify-between">
                 <span>Prodaja v gotovini:</span>
-                <span className="font-semibold">&euro;{safeToFixed(liveStats.cashSales, 2)}</span>
+                <span className="font-semibold">{formatEUR(liveStats.cashSales)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Kartična prodaja:</span>
-                <span className="font-semibold">&euro;{safeToFixed(liveStats.cardSales, 2)}</span>
+                <span className="font-semibold">{formatEUR(liveStats.cardSales)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Mobilna prodaja:</span>
-                <span className="font-semibold">&euro;{safeToFixed(liveStats.mobileSales, 2)}</span>
+                <span className="font-semibold">{formatEUR(liveStats.mobileSales)}</span>
               </div>
               <Separator />
               <div className="flex justify-between font-bold">
                 <span>Skupna prodaja:</span>
-                <span>&euro;{safeToFixed(liveStats.totalSales, 2)}</span>
+                <span>{formatEUR(liveStats.totalSales)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Skupaj naročil:</span>
@@ -70,7 +70,7 @@ export const CloseShiftDialog = memo(function CloseShiftDialog({
               <Separator />
               <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
                 <span>Pričakovana gotovina:</span>
-                <span className="font-bold">&euro;{safeToFixed(liveStats.expectedCash, 2)}</span>
+                <span className="font-bold">{formatEUR(liveStats.expectedCash)}</span>
               </div>
             </div>
           )}
@@ -96,9 +96,9 @@ export const CloseShiftDialog = memo(function CloseShiftDialog({
                   : 'text-muted-foreground'
               }`}>
                 {parseFloat(form.closingCash) - liveStats.expectedCash > 0.01 ? (
-                  <><TrendingUp className="h-4 w-4" /> Prihranek: &euro;{(parseFloat(form.closingCash) - liveStats.expectedCash).toFixed(2)}</>
+                  <><TrendingUp className="h-4 w-4" /> Prihranek: {formatEUR(parseFloat(form.closingCash) - liveStats.expectedCash)}</>
                 ) : parseFloat(form.closingCash) - liveStats.expectedCash < -0.01 ? (
-                  <><AlertTriangle className="h-4 w-4" /> Manjka: &euro;{(liveStats.expectedCash - parseFloat(form.closingCash)).toFixed(2)}</>
+                  <><AlertTriangle className="h-4 w-4" /> Manjka: {formatEUR(liveStats.expectedCash - parseFloat(form.closingCash))}</>
                 ) : (
                   <><CheckCircle2 className="h-4 w-4" /> Gotovina se ujema</>
                 )}

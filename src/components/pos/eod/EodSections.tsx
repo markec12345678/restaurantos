@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CreditCard, Banknote, DollarSign, Receipt, Shield, ChevronDown, ChevronUp } from 'lucide-react'
 import type { EodSectionsProps } from './constants'
 import dynamic from 'next/dynamic'
-import { safeToFixed, formatNumberSl } from '@/lib/safe-format'
+import { formatEUR, formatNumberSl } from '@/lib/safe-format'
 
 const EodTopItems = dynamic(() => import('./EodTopItems').then(m => ({ default: m.EodTopItems })), { ssr: false })
 
@@ -30,7 +30,7 @@ export const EodSections = memo(function EodSections({
               <div className="p-2 rounded-lg bg-muted/50"><p className="text-xs text-muted-foreground">Skupaj</p><p className="font-bold">{data.orders.total}</p></div>
               <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/10"><p className="text-xs text-muted-foreground">Zaključena</p><p className="font-bold text-emerald-600">{data.orders.completed}</p></div>
               <div className="p-2 rounded-lg bg-red-50 dark:bg-red-900/10"><p className="text-xs text-muted-foreground">Preklicana</p><p className="font-bold text-red-600">{data.orders.cancelled}</p></div>
-              <div className="p-2 rounded-lg bg-muted/50"><p className="text-xs text-muted-foreground">Povpr. naročilo</p><p className="font-bold">&euro;{safeToFixed(data.orders.avgOrderValue, 2)}</p></div>
+              <div className="p-2 rounded-lg bg-muted/50"><p className="text-xs text-muted-foreground">Povpr. naročilo</p><p className="font-bold">{formatEUR(data.orders.avgOrderValue)}</p></div>
             </div>
           </CardContent>
         )}
@@ -55,8 +55,8 @@ export const EodSections = memo(function EodSections({
                     <span className="text-xs text-muted-foreground">({info.count}x)</span>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-bold">&euro;{safeToFixed(info.total, 2)}</p>
-                    {info.tips > 0 && <p className="text-[10px] text-amber-600">Napitnine: &euro;{safeToFixed(info.tips, 2)}</p>}
+                    <p className="text-sm font-bold">{formatEUR(info.total)}</p>
+                    {info.tips > 0 && <p className="text-[10px] text-amber-600">Napitnine: {formatEUR(info.tips)}</p>}
                   </div>
                 </div>
               ))}
@@ -78,8 +78,8 @@ export const EodSections = memo(function EodSections({
             <div className="space-y-2">
               {Object.entries(data.vat).map(([rate, info]) => (
                 <div key={rate} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
-                  <div><span className="text-sm font-medium">DDV {formatNumberSl(Number(rate))}%</span><p className="text-xs text-muted-foreground">Osnova: &euro;{safeToFixed(info.base, 2)}</p></div>
-                  <div className="text-right"><p className="text-sm font-bold">&euro;{safeToFixed(info.vat, 2)}</p><p className="text-[10px] text-muted-foreground">Skupaj: &euro;{safeToFixed(info.base + info.vat, 2)}</p></div>
+                  <div><span className="text-sm font-medium">DDV {formatNumberSl(Number(rate))}%</span><p className="text-xs text-muted-foreground">Osnova: {formatEUR(info.base)}</p></div>
+                  <div className="text-right"><p className="text-sm font-bold">{formatEUR(info.vat)}</p><p className="text-[10px] text-muted-foreground">Skupaj: {formatEUR(info.base + info.vat)}</p></div>
                 </div>
               ))}
             </div>

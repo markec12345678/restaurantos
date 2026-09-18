@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { DollarSign, Target, Zap, TrendingUp } from 'lucide-react'
 import type { KpiCardsProps } from './constants'
+import { formatEUR } from '@/lib/safe-format'
 
 // ============================================
 // KPI KARTICE — Prikaz kljucnih kazalnikov upsell
@@ -15,7 +16,7 @@ export const KpiCards = memo(function KpiCards({ totalPotentialRevenue, avgConve
       <Card>
         <CardContent className="p-3 text-center">
           <DollarSign className="h-5 w-5 text-green-500 mx-auto mb-1" />
-          <p className="text-xl font-bold">{new Intl.NumberFormat('sl-SI', { style: 'currency', currency: 'EUR' }).format(totalPotentialRevenue)}</p>
+          <p className="text-xl font-bold">{formatEUR(totalPotentialRevenue)}</p>
           <p className="text-xs text-muted-foreground">Potencialni prihodek</p>
         </CardContent>
       </Card>
