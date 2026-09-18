@@ -3,7 +3,7 @@
 // za podkomponente upravljanja zvestobnega programa
 // ============================================
 
-import { Star, Award, Trophy, Gem, ArrowUpCircle, ArrowDownCircle, RotateCcw, TrendingUp } from 'lucide-react'
+import { Star, Award, Trophy, Gem } from 'lucide-react'
 
 // --- Tipi ---
 
@@ -73,19 +73,9 @@ export const tierBadgeStyles: Record<string, string> = {
   platinum: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
 }
 
-export const transactionTypeConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  earn: { label: 'Prislužene', color: 'text-emerald-600 dark:text-emerald-400', icon: ArrowUpCircle },
-  redeem: { label: 'Unovčene', color: 'text-blue-600 dark:text-blue-400', icon: ArrowDownCircle },
-  adjust: { label: 'Prilagojene', color: 'text-amber-600 dark:text-amber-400', icon: RotateCcw },
-  expire: { label: 'Potekle', color: 'text-red-600 dark:text-red-400', icon: TrendingUp },
-}
-
-export const transactionBadgeStyles: Record<string, string> = {
-  earn: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
-  redeem: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-  adjust: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
-  expire: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-}
+// RUNDA 50: transactionTypeConfig/transactionBadgeStyles preseljena v
+// src/lib/loyalty-tx-category.ts (LOYALTY_TX_CATEGORY_META) — enoten vir
+// za oznake/barve/kategorizacijo, s testi.
 
 // --- Pomožne funkcije ---
 
