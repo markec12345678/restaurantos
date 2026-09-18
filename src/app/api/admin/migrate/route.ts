@@ -89,6 +89,34 @@ export async function POST(req: Request) {
     })
 
     // ═══════════════════════════════════════════════════
+    // Phase 0.5 (QA runda 39): 11 konfiguracijskih tabel NIMA stolpca locationId
+    // (Prisma schema MODEL A jih je razglasil za po lokaciji, ampak db push/migrate
+    // ni bil pognan → P2022 "column locationId does not exist" na VSAKEM create/read
+    // s filtrom). Empirično potrjeno na prod runda 39; TaxRate IMA stolpec (edina).
+    // ═══════════════════════════════════════════════════
+    const configModelsWithLocationId = [
+      'DiningOption', 'RevenueCenter', 'SalesCategory', 'PriceGroup',
+      'ServiceCharge', 'PrepStation', 'VoidReason', 'NoSaleReason',
+      'AlternatePaymentType', 'Printer', 'Discount',
+    ]
+    let configColsAdded = 0
+    for (const model of configModelsWithLocationId) {
+      try {
+        await db.$executeRawUnsafe(
+          `ALTER TABLE "${model}" ADD COLUMN IF NOT EXISTS "locationId" TEXT`
+        )
+        configColsAdded++
+      } catch (err) {
+        logger.warn('Migrate', `ADD COLUMN ${model}.locationId: ${err instanceof Error ? err.message : 'unknown'}`)
+      }
+    }
+    results.push({
+      phase: 'Phase 0.5: Config tables locationId (runda 39)',
+      status: configColsAdded === configModelsWithLocationId.length ? 'applied' : 'partial',
+      details: `${configColsAdded}/${configModelsWithLocationId.length} tables ensured locationId column`,
+    })
+
+    // ═══════════════════════════════════════════════════
     // Phase 1: P0-C4 — Backfill NULL locationId
     // ═══════════════════════════════════════════════════
     const modelsToBackfill = [
@@ -99,6 +127,12 @@ export async function POST(req: Request) {
       'AccountsPayable', 'AccountsReceivable',
       'SustainabilityReport', 'DeviceRegistry', 'VideoAnalyticsSession',
       'JournalEntry', 'JournalLine', 'Receipt',
+      // QA runda 39: 11 konfiguracijskih tabel — stolpec dodan v Phase 0.5,
+      // backfill jih nastavi na prvo lokacijo; Phase 2 nato NOT NULL + FK.
+      // (updateMany na tabeli brez stolpca → catch "Skipping" — varno.)
+      'DiningOption', 'RevenueCenter', 'SalesCategory', 'PriceGroup',
+      'ServiceCharge', 'PrepStation', 'VoidReason', 'NoSaleReason',
+      'AlternatePaymentType', 'Printer', 'Discount',
     ]
 
     // Get first active location for fallback
