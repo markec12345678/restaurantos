@@ -73,6 +73,11 @@ export const EmailTab = memo(function EmailTab({ form, updateField }: {
   // pošiljal samo včeraj). Privzeto včeraj (ista semantika kot cron).
   const [digestDate, setDigestDate] = useState<string>(() => ljubljanaYesterdayStr())
   const maxDigestDate = ljubljanaTodayStr() // brez prihodnjih dni
+  // RUNDA 51: mehka validacija — max atribut HTML inputa je SOFT (brskalnik
+  // še vedno dovoli vnos prihodnjega datuma ročno). Povzetek za prihodnji
+  // dan je smiseln samo kot prazen papir → opozorilo + zaklep akcij.
+  // DANES je dovoljen (max) — delni podatki do trenutka so veljaven primer.
+  const isFutureDigestDate = !!digestDate && digestDate > maxDigestDate
   const handleDigestDateChange = useCallback((value: string) => {
     setDigestDate(value)
     // STARA PREDGLED/ZAKLJUČEK = NEVEDEČE ZAMENJAVA DATUMA → počisti, sicer
@@ -457,7 +462,7 @@ export const EmailTab = memo(function EmailTab({ form, updateField }: {
           {/* R48: datumski izbirnik — predogled/tisk/ponovno pošiljanje za poljuben
               pretekli dan; max = danes po LJ (brez prihodnjih povzetkov). Zamenjava
               datuma počisti predogled in rezultat pošiljanja (prikaz ≡ akcija). */}
-          <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-muted/30 p-3">
+          <div className={`flex flex-wrap items-end gap-3 rounded-lg border bg-muted/30 p-3 ${isFutureDigestDate ? 'border-amber-500/50' : ''}`}>
             <div className="space-y-1.5">
               <Label htmlFor="digestDate" className="flex items-center gap-1.5 text-xs font-medium">
                 <CalendarDays className="h-3.5 w-3.5 text-sky-600" aria-hidden="true" />
@@ -469,6 +474,7 @@ export const EmailTab = memo(function EmailTab({ form, updateField }: {
                 value={digestDate}
                 max={maxDigestDate}
                 onChange={e => handleDigestDateChange(e.target.value)}
+                aria-invalid={isFutureDigestDate}
                 className="w-44 tabular-nums"
               />
             </div>
@@ -476,8 +482,18 @@ export const EmailTab = memo(function EmailTab({ form, updateField }: {
               Izberi pretekli dan za predogled, tisk ali ponovno pošiljanje povzetka.
             </p>
           </div>
+          {isFutureDigestDate && (
+            <p
+              role="alert"
+              className="flex items-start gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400 animate-fade-in-up"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              Izbrani datum je v prihodnosti — povzetek za tak dan je vedno prazen.
+              Izberi današnji ali pretekli dan.
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={handlePreview} disabled={previewLoading} className="btn-press">
+            <Button variant="outline" onClick={handlePreview} disabled={previewLoading || isFutureDigestDate} className="btn-press">
               {previewLoading ? 'Nalagam...' : 'Naloži predogled'}
             </Button>
             {preview && (
@@ -488,24 +504,32 @@ export const EmailTab = memo(function EmailTab({ form, updateField }: {
             )}
             {/* Runda 42 + R48: tiskana/PDF verzija z ISTM datumom kot predogled
                 (?date= — prej vedno včeraj, ne glede na izbiro v tem zavihku) */}
-            <Button variant="outline" asChild className="btn-press">
-              <a
-                href={digestDate ? `/reports/digest?date=${encodeURIComponent(digestDate)}` : '/reports/digest'}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <Printer className="h-4 w-4 mr-1" />
-                Tiskana verzija / PDF
-              </a>
+            {/* RUNDA 51: prihodnji datum zaklepa tudi tisk (isti razlog kot
+                predogled/pošiljanje); window.open namesto asChild <a>, da
+                disabled stanje sploh deluje na gumbu. */}
+            <Button
+              variant="outline"
+              disabled={isFutureDigestDate}
+              onClick={
+                isFutureDigestDate
+                  ? undefined
+                  : () => { window.open(digestDate ? `/reports/digest?date=${encodeURIComponent(digestDate)}` : '/reports/digest', '_blank', 'noopener') }
+              }
+              className="btn-press"
+            >
+              <Printer className="h-4 w-4 mr-1" />
+              Tiskana verzija / PDF
             </Button>
             <Button
               onClick={handleSendNow}
-              disabled={sending || !emailEnabled || !hasSmtpConfig || !hasRecipients}
+              disabled={sending || !emailEnabled || !hasSmtpConfig || !hasRecipients || isFutureDigestDate}
               className="btn-press"
               title={
-                !emailEnabled || !hasSmtpConfig || !hasRecipients
-                  ? 'Omogoči samodejna pošiljanja, SMTP in prejemnike (in shrani)'
-                  : `Pošlji povzetek za ${digestDate || 'včeraj'} takoj`
+                isFutureDigestDate
+                  ? 'Povzetka za prihodnji datum ni mogoče poslati'
+                  : !emailEnabled || !hasSmtpConfig || !hasRecipients
+                    ? 'Omogoči samodejna pošiljanja, SMTP in prejemnike (in shrani)'
+                    : `Pošlji povzetek za ${digestDate || 'včeraj'} takoj`
               }
             >
               <Send className="h-4 w-4 mr-1" />

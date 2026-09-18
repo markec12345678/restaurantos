@@ -3,9 +3,10 @@
 // za podkomponente upravljanja darilnih kartic
 // ============================================
 
-import { ArrowDownToLine, Wallet, ArrowUpDown, RefreshCw } from 'lucide-react'
-
 import { formatEUR } from '@/lib/safe-format'
+
+// RUNDA 51: transactionTypeConfig preseljena v src/lib/gift-card-tx-category.ts
+// (GIFT_CARD_TX_CATEGORY_META — ENOTEN VIR; ikone ostanejo v TransactionHistoryDialog)
 // --- Tipi ---
 
 export interface GiftCardTransaction {
@@ -60,33 +61,6 @@ export const statusConfig: Record<string, { label: string; color: string; bgColo
     color: 'text-amber-700 dark:text-amber-400',
     bgColor: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
     dotColor: 'bg-amber-500',
-  },
-}
-
-export const transactionTypeConfig: Record<string, { label: string; color: string; bgColor: string; icon: React.ElementType }> = {
-  load: {
-    label: 'Naloži',
-    color: 'text-emerald-700 dark:text-emerald-400',
-    bgColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
-    icon: ArrowDownToLine,
-  },
-  redeem: {
-    label: 'Unovči',
-    color: 'text-red-700 dark:text-red-400',
-    bgColor: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-    icon: Wallet,
-  },
-  adjust: {
-    label: 'Prilagodi',
-    color: 'text-blue-700 dark:text-blue-400',
-    bgColor: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-    icon: ArrowUpDown,
-  },
-  transfer: {
-    label: 'Prenesi',
-    color: 'text-purple-700 dark:text-purple-400',
-    bgColor: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
-    icon: RefreshCw,
   },
 }
 
