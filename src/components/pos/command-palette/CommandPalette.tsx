@@ -8,16 +8,17 @@
 // Funkcije:
 // 1. Hitra navigacija med moduli (orders, kitchen, tables, inventory, ...)
 // 2. Hitre akcije (nov naročilo, plačaj, počisti košarico, ...)
-// 3. Iskanje po modulih (fuzzy)
+// 3. Iskanje ARTIKLOV — ime + kategorija + OPIS + alergeni (runda 33)
+// 4. 🕘 Nedavno — zadnjih 5 dodanih artiklov na vrhu (Square Recents vzorec)
 //
 // Inspiracija: Linear, Vercel, GitHub, Raycast — vsi imajo global Cmd+K.
 // ============================================
 
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useCommandState } from 'cmdk'
 import {
   CommandDialog,
-  CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
@@ -26,6 +27,7 @@ import {
 } from '@/components/ui/command'
 import { navItems } from '@/components/pos/sidebar/navItems'
 import { usePOSStore } from '@/lib/store'
+import { useRecentsStore } from '@/lib/recents-store'
 import { haptic } from '@/lib/haptic'
 import { t } from '@/lib/i18n'
 import { authFetch } from '@/components/pos/PinLogin'
@@ -37,6 +39,7 @@ import {
   LayoutDashboard,
   Settings,
   UtensilsCrossed,
+  History,
 } from 'lucide-react'
 import type { ComponentType } from 'react'
 import type { MenuItemType } from '@/components/pos/order/types'
@@ -60,13 +63,30 @@ interface CommandNav {
   group: 'navigation'
 }
 
+/** NOVO (runda 33): dinamično prazno stanje — pokaže tipano iskanje
+ *  (isto vzorci kot MenuItemsGrid "Ni zadetkov za 'xyz'"). */
+function PaletteEmpty() {
+  const search = useCommandState((state) => state.search)
+  return (
+    <div className="py-6 text-center text-sm text-muted-foreground" role="status">
+      {search ? (
+        <>
+          Ni zadetkov za{' '}
+          <span className="font-semibold text-foreground">&quot;{search}&quot;</span>.
+        </>
+      ) : (
+        'Ni rezultatov.'
+      )}
+    </div>
+  )
+}
+
 export function CommandPalette() {
   const [open, setOpen] = useState(false)
   const { setActiveModule, activeModule, setPendingItemClickId } = usePOSStore()
 
-  // NOVO (runda 32): artikli v paleti — ⌘K napoveduje "Išči artikel" in TAUTI
-  // obljubi. Deli query cache s POS gridom (isti queryKey) → brez dodatnih
-  // klicev; fetch šele ob prvem odprtju (enabled: open).
+  // (runda 32): artikli v paleti — deli query cache s POS gridom (isti
+  // queryKey) → brez dodatnih klicev; fetch šele ob prvem odprtju (enabled).
   const { data: menuItems } = useQuery({
     queryKey: queryKeys.menuItems.all,
     enabled: open,
@@ -76,6 +96,14 @@ export function CommandPalette() {
       return Array.isArray(json) ? json : (json.menuItems ?? json.items ?? [])
     },
   })
+
+  // NOVO (runda 33): recents iz persist store-a (pos-recents-v1).
+  // skipHydration: ročna rehidracija — paleta se lahko odpre neodvisno od
+  // grid monta, rehydrate je idempotenten in poceni.
+  const recentIds = useRecentsStore((s) => s.ids)
+  useEffect(() => {
+    void useRecentsStore.persist.rehydrate()
+  }, [])
 
   // Registriraj globalni keyboard shortcut
   useEffect(() => {
@@ -158,6 +186,17 @@ export function CommandPalette() {
       .filter((i) => i.isAvailable !== false)
   }, [menuItems])
 
+  // NOVO (runda 33): zadnjih 5 nedavno dodanih artiklov (Square Recents) —
+  // lookup čez razpoložljive (izgubljeni/izprodani id-ji tiho spusti).
+  const recentArticles: MenuItemType[] = useMemo(() => {
+    if (recentIds.length === 0 || paletteArticles.length === 0) return []
+    const byId = new Map(paletteArticles.map((i) => [i.id, i]))
+    return recentIds
+      .map((id) => byId.get(id))
+      .filter((i): i is MenuItemType => Boolean(i))
+      .slice(0, 5)
+  }, [recentIds, paletteArticles])
+
   // NOVO (runda 32): izbira artikla v paleti = IDENTIČNA pot kot klik na
   // kartico (modifier dialog ali direkten dodatek) prek pendingItemClickId
   // signala, ki ga MenuBrowser prevzame ko je Prodaja vidna.
@@ -178,31 +217,66 @@ export function CommandPalette() {
     }
   }
 
+  // NOVO (runda 33): skupen renderer za artikel (recents + glavni seznam).
+  // value = unikaten id-prefix (cmdk selekcija je po value nizu — duplikati
+  // bi highlightali obe vrstici hkrati); iskalno besedilo (ime, kategorija,
+  // OPIS, alergeni) živi v `keywords`, ki ga default filter združi z value.
+  const renderArticleItem = (item: MenuItemType, opts: { recent?: boolean }) => (
+    <CommandItem
+      key={`${opts.recent ? 'recent' : 'art'}-${item.id}`}
+      value={`${opts.recent ? 'recent' : 'art'}-${item.id}`}
+      keywords={[
+        item.name,
+        item.category?.name ?? '',
+        item.description ?? '',
+        item.allergens ?? '',
+        'artikel',
+      ]}
+      onSelect={() => handleArticleSelect(item)}
+      className="cursor-pointer"
+    >
+      {opts.recent ? (
+        <History className="mr-2 h-4 w-4 flex-shrink-0 text-primary" aria-hidden="true" />
+      ) : (
+        <UtensilsCrossed className="mr-2 h-4 w-4 flex-shrink-0 text-primary" aria-hidden="true" />
+      )}
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate">{item.name}</span>
+        {item.description && (
+          <span className="truncate text-[11px] leading-tight text-muted-foreground">
+            {item.description}
+          </span>
+        )}
+      </span>
+      {item.category?.name && (
+        <span className="mr-2 hidden text-xs text-muted-foreground sm:inline">{item.category.name}</span>
+      )}
+      <span className="text-xs font-semibold tabular-nums text-muted-foreground">{formatEUR(item.price)}</span>
+    </CommandItem>
+  )
+
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
       <CommandInput placeholder="Išči artikel, modul ali akcijo..." />
       <CommandList>
-        <CommandEmpty>Ni najdenih rezultatov.</CommandEmpty>
+        <PaletteEmpty />
 
-        {/* NOVO (runda 32): Artikli — ⌘K zdaj RES išče artikle */}
+        {/* NOVO (runda 33): Nedavno — hitri ponovni dodatek (Square Recents) */}
+        {recentArticles.length > 0 && (
+          <>
+            <CommandGroup heading={`🕘 Nedavno (${recentArticles.length})`}>
+              {recentArticles.map((item) => renderArticleItem(item, { recent: true }))}
+            </CommandGroup>
+            <CommandSeparator />
+          </>
+        )}
+
+        {/* (runda 32) Artikli — ⌘K išče ime + kategorijo; (runda 33) + OPIS
+            in alergene, z opisom pod imenom in števcem v naslovu */}
         {paletteArticles.length > 0 && (
           <>
-            <CommandGroup heading="🍽️ Artikli — tapni za dodajanje">
-              {paletteArticles.map((item) => (
-                <CommandItem
-                  key={`art-${item.id}`}
-                  value={`${item.name} ${item.category?.name ?? ''} artikel`}
-                  onSelect={() => handleArticleSelect(item)}
-                  className="cursor-pointer"
-                >
-                  <UtensilsCrossed className="mr-2 h-4 w-4 flex-shrink-0 text-primary" />
-                  <span className="flex-1 truncate">{item.name}</span>
-                  {item.category?.name && (
-                    <span className="mr-2 hidden text-xs text-muted-foreground sm:inline">{item.category.name}</span>
-                  )}
-                  <span className="text-xs font-semibold tabular-nums text-muted-foreground">{formatEUR(item.price)}</span>
-                </CommandItem>
-              ))}
+            <CommandGroup heading={`🍽️ Artikli (${paletteArticles.length})`}>
+              {paletteArticles.map((item) => renderArticleItem(item, {}))}
             </CommandGroup>
             <CommandSeparator />
           </>

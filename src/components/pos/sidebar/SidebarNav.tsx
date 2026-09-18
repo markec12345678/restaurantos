@@ -111,18 +111,18 @@ export const SidebarNav = memo(function SidebarNav({
         <Icon className={cn('h-4 w-4 shrink-0', isActive && 'text-primary', item.highlight && isActive && 'text-primary-foreground')} />
         {t(item.labelKey)}
         {item.id === 'orders' && activeOrderCount > 0 && (
-          <span className="ml-auto flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1" aria-label={`${activeOrderCount} aktivnih naročil`}>
+          <span className="ml-auto flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1" title={`${activeOrderCount} aktivnih naročil (čakajoča + v pripravi)`} aria-label={`${activeOrderCount} aktivnih naročil`}>
             {activeOrderCount}
           </span>
         )}
         {item.id === 'kitchen' && activeOrderCount > 0 && (
-          <span className="ml-auto flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-orange-500 text-white text-[9px] font-bold px-1" aria-label={`${activeOrderCount} v pripravi`}>
+          <span className="ml-auto flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-orange-500 text-white text-[9px] font-bold px-1" title={`${activeOrderCount} naročil v pripravi v kuhinji`} aria-label={`${activeOrderCount} v pripravi`}>
             {activeOrderCount}
           </span>
         )}
         {/* P1-15/P1-16: offline konflikti čakajo ročni pregled — rdeč badge */}
         {item.id === 'offline-queue' && offlineReviewCount > 0 && (
-          <span className="ml-auto flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1 animate-pulse" aria-label={`${offlineReviewCount} offline vnosov za ročni pregled`}>
+          <span className="ml-auto flex h-4.5 min-w-4.5 items-center justify-center rounded-full bg-red-500 text-white text-[9px] font-bold px-1 animate-pulse" title={`${offlineReviewCount} offline vnosov čaka ročni pregled (konflikti)`} aria-label={`${offlineReviewCount} offline vnosov za ročni pregled`}>
             {offlineReviewCount}
           </span>
         )}
