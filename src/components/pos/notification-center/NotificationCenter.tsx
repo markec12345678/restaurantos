@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, memo } from 'react'
+import { useState, useEffect, useRef, useCallback, memo } from 'react'
 import { Bell, CheckCircle2, AlertTriangle, Info, ShoppingCart } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { authFetch } from '@/components/pos/PinLogin'
 
 // ============================================
 // NOTIFICATION CENTER — Real-time obvestila
@@ -51,6 +52,15 @@ export const NotificationCenter = memo(function NotificationCenter() {
   const [wsConnected, setWsConnected] = useState(false)
 
   const unreadCount = notifications.filter(n => !n.read).length
+
+  const pushNotification = useCallback((type: NotificationType, title: string, message?: string) => {
+    const newNotif: Notification = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      type, title, message,
+      timestamp: new Date(), read: false,
+    }
+    setNotifications(prev => [newNotif, ...prev].slice(0, 50))
+  }, [])
 
   useEffect(() => {
     const handleWsMessage = (event: MessageEvent) => {
@@ -106,12 +116,7 @@ export const NotificationCenter = memo(function NotificationCenter() {
             return
         }
 
-        const newNotif: Notification = {
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          type: notifType, title, message,
-          timestamp: new Date(), read: false,
-        }
-        setNotifications(prev => [newNotif, ...prev].slice(0, 50))
+        pushNotification(notifType, title, message)
       } catch { /* ignore */ }
     }
 
@@ -132,7 +137,42 @@ export const NotificationCenter = memo(function NotificationCenter() {
       ws.onmessage = handleWsMessage
       return () => ws.close()
     } catch { /* WS not available */ }
-  }, [])
+  }, [pushNotification])
+
+  // FIX r35: POLLING FALLBACK — Vercel serverless nima trajnega WS (/ws ne obstaja
+  // na produkciji → zvonček je bil vedno "Nepovezano" in prazen). Ko WS ni povezan,
+  // diffamo /api/kitchen vsakih 20s: nov order id z statusom 'pending' = novo
+  // naročilo. Baseline prepreči lažne alarme ob prvi vožnji/povratku WS.
+  const lastOrderIdsRef = useRef<Set<string> | null>(null)
+  useEffect(() => {
+    if (wsConnected) return // WS dela → polling ni potreben
+    let alive = true
+    const poll = async () => {
+      try {
+        const res = await authFetch('/api/kitchen')
+        if (!res.ok || !alive) return
+        const data = (await res.json()) as { orders?: Array<{ id: string; orderNumber: number; status: string; table?: { number: number } | null }> }
+        const orders = data?.orders || []
+        const prev = lastOrderIdsRef.current
+        const ids = new Set(orders.map(o => String(o.id)))
+        if (prev) {
+          for (const o of orders) {
+            if (o.status === 'pending' && !prev.has(String(o.id))) {
+              pushNotification(
+                'order',
+                `Novo naročilo #${o.orderNumber}`,
+                o.table ? `Miza ${o.table.number}` : 'Za s seboj / dostava'
+              )
+            }
+          }
+        }
+        lastOrderIdsRef.current = ids
+      } catch { /* tiho — fallback polling ni kritičen */ }
+    }
+    void poll()
+    const timer = setInterval(poll, 20_000)
+    return () => { alive = false; clearInterval(timer) }
+  }, [wsConnected, pushNotification])
 
   function markAllRead() {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })))
@@ -239,7 +279,7 @@ export const NotificationCenter = memo(function NotificationCenter() {
                 {wsConnected ? (
                   <><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Povezano</>
                 ) : (
-                  <><span className="h-1.5 w-1.5 rounded-full bg-muted-foreground" /> Nepovezano</>
+                  <><span className="h-1.5 w-1.5 rounded-full bg-amber-500" /> Polling vsakih 20 s</>
                 )}
               </span>
               <span>WebSocket real-time</span>
