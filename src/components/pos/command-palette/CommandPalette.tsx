@@ -149,12 +149,13 @@ export function CommandPalette() {
       group: 'navigation' as const,
     }))
 
-  // Artikli za paletu: samo razpoložljivi, kap 12 (perf — cmdk render)
+  // Artikli za paletu: samo razpoložljivi (BREZ slice-cap — cap 12 bi search
+  // naredil slepega za artikle pozicionirane kasneje v meniju; cmdk filtrira
+  // čez celoten seznam, ~30 itemov je za dialog zanemarljivo)
   const paletteArticles: MenuItemType[] = useMemo(() => {
     if (!Array.isArray(menuItems)) return []
     return (menuItems as MenuItemType[])
       .filter((i) => i.isAvailable !== false)
-      .slice(0, 12)
   }, [menuItems])
 
   // NOVO (runda 32): izbira artikla v paleti = IDENTIČNA pot kot klik na
