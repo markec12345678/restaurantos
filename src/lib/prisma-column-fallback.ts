@@ -22,16 +22,18 @@
 //   const item = await withLocationColumnFallback('config:noSaleReason', (withLoc) =>
 //     db.noSaleReason.create({ data: withLoc ? dataWithLoc : dataWithoutLoc }))
 
-// P1054 "column locationId does not exist" detektor.
+// P1054/P2022 "column locationId does not exist" detektor.
 //
-// FIX QA runda 39 (hotfix): NE uporabljaj `instanceof Prisma.PrismaClientKnownRequestError` —
+// FIX QA runda 39 (hotfix 2): Prisma koda za "column does not exist" je P2022
+// (ne P1054 kot sem prvotno zmotno predpostavil). Sprejmi oba za varnost.
+// Poleg tega NE uporabljaj `instanceof Prisma.PrismaClientKnownRequestError` —
 // v Next.js bundleju obstajata DVE kopiji @prisma/client (app koda vs. generated
 // engine client) → instanceof vedno false → fallback se nikoli ne sproži.
 // Duck-typing po `code` + `message` je odporen na dual-copy problem.
 export function isMissingLocationColumnError(e: unknown): boolean {
   if (typeof e !== 'object' || e === null) return false
   const err = e as { code?: unknown; message?: unknown; name?: unknown }
-  if (err.code !== 'P1054') return false
+  if (err.code !== 'P2022' && err.code !== 'P1054') return false
   const msg = String(err.message ?? '')
   return /locationId.*does not exist|does not exist.*locationId/i.test(msg)
 }
