@@ -88,10 +88,20 @@ export async function calculateLiveStats(activeShift: { openedAt: Date; location
 
 /** Odpri novo izmeno znotraj transakcije */
 export async function openShift(data: { employeeId?: string; employeeName: string; startingCash: number }) {
+  // FIX QA runda 37: fallback lokacijo resolvi PRED interactive transakcijo.
+  // getFirstLocationId() uporablja base db client — klic znotraj tx je ob Neon
+  // poolerju povečal trajanje tx (pool wait) → "Transaction already closed"
+  // (Prisma interactive tx timeout 5 s). Prav tako združita se 2× employee lookup.
+  const fallbackLocationId = await getFirstLocationId()
+
   const shift = await db.$transaction(async (tx) => {
     const shiftWhere: Record<string, unknown> = { status: 'open' }
+    let emp: { locationId: string | null } | null = null
     if (data.employeeId) {
-      const emp = await tx.employee.findUnique({ where: { id: data.employeeId } })
+      emp = await tx.employee.findUnique({
+        where: { id: data.employeeId },
+        select: { locationId: true },
+      })
       if (emp?.locationId) shiftWhere.locationId = emp.locationId
     }
     const existingShift = await tx.cashRegisterShift.findFirst({
@@ -106,16 +116,9 @@ export async function openShift(data: { employeeId?: string; employeeName: strin
       throw new Error('EMPLOYEE_ID_REQUIRED')
     }
 
-    let shiftLocationId: string | null = null
-    if (data.employeeId) {
-      const emp = await tx.employee.findUnique({ where: { id: data.employeeId } })
-      shiftLocationId = emp?.locationId || null
-    }
     // FIX QA runda 37: DB stolpec CashRegisterShift.locationId je NOT NULL (schema drift)
     // — create z null je vrgel P2011 (Ana = admin brez employee.locationId)
-    if (!shiftLocationId) {
-      shiftLocationId = await getFirstLocationId()
-    }
+    const shiftLocationId = emp?.locationId || fallbackLocationId
 
     const previousShift = await tx.cashRegisterShift.findFirst({
       where: {
