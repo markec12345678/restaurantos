@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createGuestFeedbackSchema } from '@/lib/validations'
 import { handleApiError, parseJsonBody, parsePaginationParams, validateBody } from '@/lib/api-utils'
+import { resolveLocationId } from '@/lib/location-fallback'
 
 export const dynamic = 'force-dynamic'
 
@@ -107,9 +108,17 @@ export async function POST(req: Request) {
     const { data, error: validationError } = validateBody(createGuestFeedbackSchema, bodyResult.data)
     if (validationError) return validationError
 
+    // FIX QA runda 38: DB stolpec GuestFeedback.locationId je NOT NULL (schema drift,
+    // P2011 potrjen na prod) — resolvi lokacijo pred create
+    const locationId = await resolveLocationId(
+      authResult.session?.locationId,
+      authResult.session?.employeeId,
+    )
+
     const feedback = await db.guestFeedback.create({
       data: {
         guestId: data.guestId || null,
+        locationId,
         guestName: data.guestName,
         orderId: data.orderId || null,
         overallRating: data.overallRating,

@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createTimeEntrySchema } from '@/lib/validations'
 import { toNum, round2, multiply, deepToNumbers } from '@/lib/decimal'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
+import { resolveLocationId } from '@/lib/location-fallback'
 
 export const dynamic = 'force-dynamic'
 
@@ -104,9 +105,17 @@ export async function POST(req: Request) {
       totalPay = round2(multiply(totalMinutes / 60, payRate))
     }
 
+    // FIX QA runda 38: DB stolpec TimeEntry.locationId je NOT NULL (schema drift,
+    // P2011 potrjen na prod) — resolvi lokacijo pred create (session → employee → prva)
+    const locationId = await resolveLocationId(
+      authResult.session?.locationId,
+      authResult.session?.employeeId,
+    )
+
     const timeEntry = await db.timeEntry.create({
       data: {
         employeeId: data.employeeId,
+        locationId,
         jobId: data.jobId || null,
         clockIn,
         clockOut,

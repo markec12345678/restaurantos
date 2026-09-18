@@ -12,6 +12,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createPurchaseOrderSchema } from '@/lib/validations'
 import { getNextCounter } from '@/lib/counters'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
+import { resolveLocationId } from '@/lib/location-fallback'
 
 export const dynamic = 'force-dynamic'
 
@@ -77,6 +78,13 @@ export async function POST(req: Request) {
     const { data, error: validationError } = await validateRequest(req, createPurchaseOrderSchema)
     if (validationError) return validationError
 
+    // FIX QA runda 38: DB stolpec PurchaseOrder.locationId je NOT NULL (schema drift,
+    // P2011 potrjen na prod) — resolvi lokacijo pred create (tudi pred counter/tx logiko)
+    const locationId = await resolveLocationId(
+      authResult.session?.locationId,
+      authResult.session?.employeeId,
+    )
+
     // FIX HIGH: Atomna številka naročila — prepreči race condition (kot orderNumber/receiptNumber)
     const year = new Date().getFullYear()
     const counterName = `purchaseOrderNumber-${year}`
@@ -114,6 +122,7 @@ export async function POST(req: Request) {
       data: {
         poNumber,
         supplierId: data.supplierId,
+        locationId,
         status: 'draft',
         orderDate: new Date(),
         expectedDate: data.expectedDate ? new Date(data.expectedDate) : null,
