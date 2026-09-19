@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeDigestTrend, slShortDayLabel, formatEURShort } from '@/lib/digest-trend'
+import { computeDigestTrend, slShortDayLabel, formatEURShort, isWeekStart } from '@/lib/digest-trend'
 
 // R71: 7-dnevni trend za dnevni povzetek (podaljšek R65). Lib je ČIST
 // (isti vzorec kot pctChange R65) — testi pokrivajo skaliranje, "najboljši
@@ -155,5 +155,101 @@ describe('computeDigestTrend', () => {
     expect(t.points[0].dayNum).toBe(14)
     expect(t.points[3].dayLabel).toBe('čet') // 17.9.
     expect(t.points[6].dayLabel).toBe('ned') // 20.9.
+  })
+})
+
+// ============================================
+// R72: 7/30 toggle — tedenski ločilniki + gosto/redko oznake
+// ============================================
+
+describe('isWeekStart (R72 tedenski ločilnik)', () => {
+  it('ponedeljek → true', () => {
+    expect(isWeekStart('2026-09-14')).toBe(true) // pon
+    expect(isWeekStart('2026-09-21')).toBe(true)
+  })
+
+  it('ostali dnevi → false', () => {
+    expect(isWeekStart('2026-09-19')).toBe(false) // sob
+    expect(isWeekStart('2026-09-20')).toBe(false) // ned
+    expect(isWeekStart('2026-09-18')).toBe(false) // pet
+  })
+
+  it('neveljaven vhod → false (fail-safe, polni range-check)', () => {
+    expect(isWeekStart('')).toBe(false)
+    expect(isWeekStart('ni-datum')).toBe(false)
+    expect(isWeekStart('2026-13-99')).toBe(false)
+    expect(isWeekStart('2026-02-30')).toBe(false) // 30. feb NE obstaja — Date.UTC bi ga tiho normaliziral na 1. mar (pon) → round-trip check to ujame
+    expect(isWeekStart('2026-02-29')).toBe(false) // 2026 ni prestopno leto
+  })
+})
+
+describe('computeDigestTrend — oznake gostota (R72)', () => {
+  // lokalen dnevni vzorec (DAYS v zgornjem describe ni v obsegu)
+  const DAYS7 = [
+    { date: '2026-09-14', revenue: 1000, ordersCount: 10 }, // pon
+    { date: '2026-09-15', revenue: 2000, ordersCount: 20 },
+    { date: '2026-09-16', revenue: 1500, ordersCount: 15 },
+    { date: '2026-09-17', revenue: 3000, ordersCount: 30 },
+    { date: '2026-09-18', revenue: 500, ordersCount: 5 },
+    { date: '2026-09-19', revenue: 2500, ordersCount: 25 },
+    { date: '2026-09-20', revenue: 2000, ordersCount: 18 },
+  ]
+
+  it('7 dni (≤ prag) → VSE točke showLabel=true', () => {
+    const t = computeDigestTrend(DAYS7)
+    expect(t.points.every(p => p.showLabel)).toBe(true)
+  })
+
+  it('točke nosijo isWeekStart (PON detekcija na vsaki točki)', () => {
+    const t = computeDigestTrend(DAYS7) // 14.9.(pon) … 20.9.(ned)
+    expect(t.points[0].isWeekStart).toBe(true) // pon 14.
+    expect(t.points[5].isWeekStart).toBe(false) // sob 19.
+    expect(t.points[6].isWeekStart).toBe(false) // ned 20.
+  })
+
+  it('30 dni (> prag) → redke oznake: vsak 5. + zadnji + najboljši', () => {
+    // 30 dni: 22.8.–20.9.2026; najboljši = 5.9. (rev 9000)
+    const days30 = Array.from({ length: 30 }, (_, i) => {
+      const d = new Date(Date.UTC(2026, 7, 22 + i))
+      const iso = d.toISOString().slice(0, 10)
+      return { date: iso, revenue: i === 14 ? 9000 : 1000 + i * 10, ordersCount: 10 }
+    })
+    const t = computeDigestTrend(days30, 30)
+    expect(t.dayCount).toBe(30)
+    const labeled = t.points.filter(p => p.showLabel)
+    // vsak 5. (i%5===4 → 4,9,14,19,24,29 = 6); zadnji (29) in najboljši (14,
+    // 14%5===4) sta že v množici → točno 6 unikatnih
+    expect(t.points[4].showLabel).toBe(true)
+    expect(t.points[9].showLabel).toBe(true)
+    expect(t.points[29].showLabel).toBe(true) // zadnji
+    expect(t.points[14].showLabel).toBe(true) // najboljši
+    expect(t.points[0].showLabel).toBe(false)
+    expect(t.points[1].showLabel).toBe(false)
+    expect(labeled.length).toBe(6)
+  })
+
+  it('14 dni (= prag) → VSE oznake; 15 dni (> prag) → redke', () => {
+    const mk = (n: number) => Array.from({ length: n }, (_, i) => ({
+      date: new Date(Date.UTC(2026, 7, 10 + i)).toISOString().slice(0, 10),
+      revenue: 1000, ordersCount: 5,
+    }))
+    expect(computeDigestTrend(mk(14), 14).points.every(p => p.showLabel)).toBe(true)
+    const t15 = computeDigestTrend(mk(15), 15)
+    expect(t15.points.some(p => !p.showLabel)).toBe(true)
+    expect(t15.points[14].showLabel).toBe(true) // zadnji VEDNO
+  })
+
+  it('30-dnevni trend: višine in povprečje ostanejo pravilne (skaliranje neodvisno od gostote)', () => {
+    const days30 = Array.from({ length: 30 }, (_, i) => ({
+      date: new Date(Date.UTC(2026, 7, 22 + i)).toISOString().slice(0, 10),
+      revenue: i === 14 ? 9000 : 1000, ordersCount: 10,
+    }))
+    const t = computeDigestTrend(days30, 30)
+    expect(t.total).toBe(29 * 1000 + 9000)
+    expect(t.bestDate).toBe(days30[14].date)
+    const best = t.points.find(p => p.isBest)!
+    expect(best.heightPct).toBe(100)
+    // vsi ostali (rev 1000) → 1000/9000 = 11.1% → min 2% prag ne smeta spremenit
+    expect(t.points[0].heightPct).toBeCloseTo((1000 / 9000) * 100, 1)
   })
 })

@@ -1,5 +1,5 @@
 // ============================================
-// DIGEST TREND — 7-dnevni trend za dnevni povzetek (R71)
+// DIGEST TREND — trend za dnevni povzetek (R71: 7 dni, R72: 7/30 toggle)
 // ============================================
 // Čista, strežniško-varna biblioteka (isti vzorec kot pctChange R65 /
 // tierLabelSl R62 / paymentMethodLabelSl R62):
@@ -40,6 +40,12 @@ export interface TrendPoint {
   heightPct: number
   /** Najboljši dan v obdobju (najvišji promet; izenačeni → prvi zasede) */
   isBest: boolean
+  /** R72: ali stolpec pokaže tekstovno oznako (gostota: >14 dni → redkejše:
+   * vsak 5. + zadnji + najboljši; ≤14 dni → vsi) — oznake ostanejo v
+   * aria-labelih stolpcev za bralnike zapisa */
+  showLabel: boolean
+  /** R72: je dan PONEDELJEK (tedenski ločilnik v mesecni sparkline) */
+  isWeekStart: boolean
 }
 
 export interface DigestTrend {
@@ -60,19 +66,41 @@ export interface DigestTrend {
 
 const SL_DAYS_SHORT = ['ned', 'pon', 'tor', 'sre', 'čet', 'pet', 'sob'] as const
 
-/** Kratka slovenska oznaka dneva za 'YYYY-MM-DD' (brez Intl — deterministično).
- *  Validira tudi obseg (mesec 1–12, dan 1–31) — Date.UTC sicer TIHO normalizira
- *  izven obsega (npr. '2026-13-99' → veljaven datum!) in vrne napačno oznako. */
-export function slShortDayLabel(dateStr: string): string {
+/** Notranji: razčleni 'YYYY-MM-DD' → UTC dele ali null. Polni range-check:
+ *  Date.UTC TIHO normalizira izven-obseg dneve ('2026-02-30' → 1. mar!),
+ *  zato zahtevamo round-trip (konstruirani UTC deli = vhodni deli). */
+function parseUTCDateStrict(dateStr: string): { y: number; mo: number; d: number } | null {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateStr).trim())
-  if (!m) return ''
+  if (!m) return null
+  const y = Number(m[1])
   const mo = Number(m[2])
   const d = Number(m[3])
-  if (mo < 1 || mo > 12 || d < 1 || d > 31) return ''
-  const dt = new Date(Date.UTC(Number(m[1]), mo - 1, d))
-  if (Number.isNaN(dt.getTime())) return ''
-  return SL_DAYS_SHORT[dt.getUTCDay()]
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null
+  const dt = new Date(Date.UTC(y, mo - 1, d))
+  if (Number.isNaN(dt.getTime())) return null
+  if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) return null
+  return { y, mo, d }
 }
+
+/** Kratka slovenska oznaka dneva za 'YYYY-MM-DD' (brez Intl — deterministično).
+ *  Validira obseg (mesec 1–12, dolžina meseca — Date.UTC sicer TIHO normalizira
+ *  izven obsega, npr. '2026-02-30' → 1. mar) in vrne napačno oznako. */
+export function slShortDayLabel(dateStr: string): string {
+  const p = parseUTCDateStrict(dateStr)
+  if (!p) return ''
+  return SL_DAYS_SHORT[new Date(Date.UTC(p.y, p.mo - 1, p.d)).getUTCDay()]
+}
+
+/** R72: tedenski ločilnik — je 'YYYY-MM-DD' ponedeljek? (neveljaven vhod → false;
+ *  polni range-check — Date.UTC tiho normalizira '2026-02-30' → 1. mar) */
+export function isWeekStart(dateStr: string): boolean {
+  const p = parseUTCDateStrict(dateStr)
+  if (!p) return false
+  return new Date(Date.UTC(p.y, p.mo - 1, p.d)).getUTCDay() === 1
+}
+
+/** Prag gosto/redko oznake: >14 stolpcev → oznake vsak 5. dan (R72). */
+export const SPARSE_LABEL_THRESHOLD = 14
 
 /** Kompakten format za oznake nad stolpci: brez centov, tisočice s piko.
  *  Ročna implementacija (NE Intl) — isti razlog kot formatEUR v safe-format:
@@ -135,9 +163,17 @@ export function computeDigestTrend(raw: TrendDayRaw[], days = 7): DigestTrend {
     }
   }
 
-  const points: TrendPoint[] = sorted.map(d => {
+  // R72: gosto/redko oznake — pri >SPARSE_LABEL_THRESHOLD stolpcih se tekstovne
+  // oznake izpisujejo vsak 5. dan + zadnji + najboljši (ostali ostanejo prazni,
+  // a ohranijo višino vrstice — brez layout shift-a); podatki ostanejo v
+  // aria-labelih in title nasvetih
+  const sparse = sorted.length > SPARSE_LABEL_THRESHOLD
+  const lastIdx = sorted.length - 1
+
+  const points: TrendPoint[] = sorted.map((d, i) => {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d.date)!
     const dayNum = Number(m[3])
+    const isBest = bestDate === d.date
     return {
       date: d.date,
       revenue: d.revenue,
@@ -147,7 +183,9 @@ export function computeDigestTrend(raw: TrendDayRaw[], days = 7): DigestTrend {
       // 0 promet → višina 0 (UI nariše 2px stub prek minHeight); min 2 % velja
       // samo za pozitivne vrednosti da so majhni stolpci očesno vidni
       heightPct: d.revenue > 0 && max > 0 ? Math.max((d.revenue / max) * 100, 2) : 0,
-      isBest: bestDate === d.date,
+      isBest,
+      showLabel: !sparse || i % 5 === 4 || i === lastIdx || isBest,
+      isWeekStart: isWeekStart(d.date),
     }
   })
 

@@ -26,7 +26,7 @@ import { formatEUR } from '@/lib/safe-format'
 import { paymentMethodLabelSl } from '@/lib/payment-methods-sl' // R62: enoten vir (prej surov enum "cash" na tiskanem poročilu)
 import { ljubljanaYesterdayStr } from '@/lib/timezone-sl' // R48: yesterday iz lib (prej lokalna kopija)
 import { asArray } from '@/lib/as-array' // R71: QA fix — "(x || []).map" ne ščiti pred truthy non-array (R69 Happy Hour crash vzorec)
-import { formatEURShort, type DigestTrend } from '@/lib/digest-trend' // R71: trend sparkline
+import { formatEURShort, SPARSE_LABEL_THRESHOLD, type DigestTrend } from '@/lib/digest-trend' // R71: trend sparkline · R72: 7/30 toggle
 
 // ============================================
 // TISKANA VERZIJA DNEVNEGA POVZETKA (/reports/digest)
@@ -177,18 +177,56 @@ function CompareRow({
   )
 }
 
-// R71: CSS-only sparkline — 7-dnevni trend prometa (brez chart knjižnic,
-// deluje tudi na A4 tisku: višine so %, barve so print-color-adjust: exact).
+// R71: CSS-only sparkline — trend prometa (brez chart knjižnic, deluje tudi na
+// A4 tisku: višine so %, barve so print-color-adjust: exact).
 // Legenda + črtkana linija povprečja + "najboljši dan" poudarek (amber).
-function TrendSparkline({ trend }: { trend: DigestTrend & { endDate: string } }) {
+// R72: 7/30-dnevni toggle (segmentni control, aria-pressed) + mesecna adaptacija:
+//   • gostota >SPARSE_LABEL_THRESHOLD → oznake vsak 5. dan (showLabel iz lib)
+//   • tedenski ločilniki (PON) — črtkana navpična linija na stolpcu
+//   • ozki stolpci (gap 2px, brez max-w) + vrednosti samo za najboljši dan
+function TrendSparkline({
+  trend,
+  days,
+  onDaysChange,
+}: {
+  trend: DigestTrend & { endDate: string }
+  days: 7 | 30
+  onDaysChange: (d: 7 | 30) => void
+}) {
   const hasAnyRevenue = trend.total > 0
   const bestPoint = trend.points.find(p => p.isBest)
+  const dense = trend.dayCount > SPARSE_LABEL_THRESHOLD
   return (
     <section className="break-inside-avoid" aria-label="Trend zadnjih dni">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Trendi — zadnjih {trend.dayCount} dni
-        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Trendi — zadnjih {trend.dayCount} dni
+          </h2>
+          {/* R72: segmentni toggle obdobja — aria-pressed; load je
+              fail-tiho (stari trend ostane do uspešnega odgovora) */}
+          <div
+            role="group"
+            aria-label="Obdobje trenda"
+            className="inline-flex overflow-hidden rounded-md border border-border bg-muted/40 print:bg-white"
+          >
+            {([7, 30] as const).map(d => (
+              <button
+                key={d}
+                type="button"
+                aria-pressed={days === d}
+                onClick={() => onDaysChange(d)}
+                className={`px-2 py-0.5 text-[11px] font-medium tabular-nums transition-colors ${
+                  days === d
+                    ? 'bg-teal-600 text-white print:bg-teal-600/90'
+                    : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground print:text-muted-foreground'
+                }`}
+              >
+                {d} dni
+              </button>
+            ))}
+          </div>
+        </div>
         {hasAnyRevenue && (
           <div className="flex flex-wrap items-center gap-1.5 text-xs">
             <span className="rounded-full bg-muted/60 px-2 py-0.5 font-medium tabular-nums print:bg-muted/30">
@@ -226,27 +264,34 @@ function TrendSparkline({ trend }: { trend: DigestTrend & { endDate: string } })
               </div>
             )}
             <div
-              className="flex h-full items-end gap-2"
+              className={`flex h-full items-end ${dense ? 'gap-[2px]' : 'gap-2'}`}
               role="group"
               aria-label={`Promet po dnevih, zadnjih ${trend.dayCount} dni`}
             >
-              {trend.points.map(p => (
+              {trend.points.map((p, i) => (
                 <div
                   key={p.date}
-                  className="flex h-full flex-1 flex-col items-center justify-end gap-1"
+                  // R72: tedenski ločilnik — črtkana navpična črta pred PON
+                  // (samo v gostem nalogu; v 7-dnevnem pogledu so oznake dovolj)
+                  className={`flex h-full flex-1 flex-col items-center justify-end gap-1 ${
+                    dense && p.isWeekStart && i > 0
+                      ? 'border-l border-dashed border-slate-300/70 dark:border-slate-600/60'
+                      : ''
+                  }`}
                   title={`${p.date}: ${formatEUR(p.revenue)} (${p.ordersCount} naročil)`}
                 >
                   <span
                     className={`text-[9px] font-semibold tabular-nums ${
                       p.isBest ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'
-                    }`}
+                    } ${dense && !p.isBest ? 'invisible' : ''}`}
+                    aria-hidden="true"
                   >
                     {p.revenue > 0 ? formatEURShort(p.revenue) : '–'}
                   </span>
                   <div
                     role="img"
                     aria-label={`${p.dayLabel} ${p.dayNum}.: ${formatEUR(p.revenue)}${p.isBest ? ' — najboljši dan' : ''}`}
-                    className={`w-full max-w-[2.5rem] rounded-t-md transition-colors ${
+                    className={`w-full ${dense ? '' : 'max-w-[2.5rem]'} rounded-t-sm transition-colors hover:opacity-80 ${
                       p.isBest
                         ? 'bg-gradient-to-t from-amber-500 to-amber-400'
                         : p.revenue > 0
@@ -260,14 +305,16 @@ function TrendSparkline({ trend }: { trend: DigestTrend & { endDate: string } })
             </div>
           </div>
           {/* oznake dni — ločen trak (flex-1 se poravnajo s stolpci; vsebina
-              je že v aria-labelih stolpcev → aria-hidden proti duplikatom) */}
-          <div className="mt-1 flex gap-2" aria-hidden="true">
+              je že v aria-labelih stolpcev → aria-hidden proti duplikatom).
+              R72: gost naloga → oznake samo na showLabel stolpcih (višina
+              vrstice ostane — brez layout shift-a) */}
+          <div className={`mt-1 flex ${dense ? 'gap-[2px]' : 'gap-2'}`} aria-hidden="true">
             {trend.points.map(p => (
               <div key={p.date} className="flex-1 text-center">
                 <div className={`text-[10px] leading-none ${p.isBest ? 'font-bold text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}>
-                  {p.dayLabel}
+                  {p.showLabel ? p.dayLabel : '\u00A0'}
                 </div>
-                <div className="mt-0.5 text-[9px] leading-none text-muted-foreground/70">{p.dayNum}.</div>
+                <div className={`mt-0.5 text-[9px] leading-none text-muted-foreground/70 ${p.showLabel ? '' : 'invisible'}`}>{p.dayNum}.</div>
               </div>
             ))}
           </div>
@@ -285,6 +332,11 @@ function TrendSparkline({ trend }: { trend: DigestTrend & { endDate: string } })
             <span className="inline-flex items-center gap-1">
               <span className="h-2 w-2 rounded-sm ring-2 ring-teal-600/40" aria-hidden="true" /> izbrani dan
             </span>
+            {dense && (
+              <span className="inline-flex items-center gap-1">
+                <span className="h-0 w-3 border-l border-dashed border-slate-400" aria-hidden="true" /> začetek tedna
+              </span>
+            )}
           </div>
         </div>
       )}
@@ -315,6 +367,9 @@ function DigestPrintInner() {
   // R71: trend zadnjih 7 dni (neodvisen od glavnega nalaganja — tudi če trend
   // API odpove, digest ostane POPOLN; sekcijski optionality vzorec R65)
   const [trend, setTrend] = useState<(DigestTrend & { endDate: string }) | null>(null)
+  // R72: obdobje trenda (7 ali 30 dni) — toggle v glavi sekcije; ločen od
+  // glavnega digesta (klik NE sproži reload digesta, samo trend API)
+  const [trendDays, setTrendDays] = useState<7 | 30>(7)
   const searchParams = useSearchParams()
 
   useEffect(() => {
@@ -353,10 +408,11 @@ function DigestPrintInner() {
     }
   }, [])
 
-  // R71: trend zadnjih 7 dni — ločen load (fail tiho: sekcija samo manjka)
-  const loadTrend = useCallback(async (targetDate: string) => {
+  // R71: trend zadnjih N dni — ločen load (fail tiho: sekcija samo manjka)
+  // R72: days parametriziran (7 | 30 toggle)
+  const loadTrend = useCallback(async (targetDate: string, days: 7 | 30) => {
     try {
-      const res = await authFetch(`/api/reports/digest-trend?date=${encodeURIComponent(targetDate)}&days=7`)
+      const res = await authFetch(`/api/reports/digest-trend?date=${encodeURIComponent(targetDate)}&days=${days}`)
       if (!res.ok) {
         setTrend(null)
         return
@@ -372,9 +428,9 @@ function DigestPrintInner() {
   useEffect(() => {
     if (date) {
       void load(date)
-      void loadTrend(date) // R71: trend gre vzporedno z glavnim digestom
+      void loadTrend(date, trendDays) // R71: trend gre vzporedno z glavnim digestom
     }
-  }, [date, load, loadTrend])
+  }, [date, trendDays, load, loadTrend]) // R72: trendDays sprememba → SAMO trend se pridobi (digest ostane)
 
   // R62: zamenjava datuma → počisti rezultat pošiljanja (prikaz IN akcija
   // vedno istega datuma — varnostni vzorec EmailTab R51)
@@ -610,7 +666,9 @@ function DigestPrintInner() {
 
               {/* R71: Trendi — zadnjih 7 dni (CSS-only sparkline; API odpoved →
                   sekcija graciozno manjka, osnovni digest ostane POPOLN) */}
-              {trend && trend.points.length > 0 && <TrendSparkline trend={trend} />}
+              {trend && trend.points.length > 0 && (
+                <TrendSparkline trend={trend} days={trendDays} onDaysChange={setTrendDays} />
+              )}
 
               {/* Metode plačila */}
               <section className="break-inside-avoid">
