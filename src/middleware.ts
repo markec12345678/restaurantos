@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { generateRequestId } from '@/lib/logger'
 import { handleApiProtection } from '@/lib/middleware/api-protection'
-import { applySecurityHeaders } from '@/lib/middleware/security-headers'
+import { applySecurityHeaders, buildContentSecurityPolicy } from '@/lib/middleware/security-headers'
 
 // =====================================================================
 // MIDDLEWARE - Varnostni headers + locale cookie + API rate limiting
@@ -24,7 +24,18 @@ export default function middleware(request: NextRequest) {
   const apiBlock = handleApiProtection(request, requestId)
   if (apiBlock) return apiBlock
 
-  const response = NextResponse.next()
+  // BUG-HUNT FIX 2026-09-19 (CSP nonce propagacija): Next.js injektira nonce v
+  // svoje inline bootstrap/RSC skripte LE, če vidi CSP header na REQUEST
+  // headerjih (NextResponse.next({ request: { headers } })). Prej je bil CSP
+  // nastavljen SAMO na response → renderer ni videl nonce-a → v produkciji bi
+  // `script-src 'self' 'nonce-…'` blokiral Next inline skripte, nonce pa nikoli
+  // dejansko ne bi zaščitil ničesar. Politika se zdaj zgradi ENKRAT in nastavi
+  // na request (za Next nonce injekcijo) IN response (za brskalnik).
+  const policy = buildContentSecurityPolicy()
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('Content-Security-Policy', policy.cspHeader)
+
+  const response = NextResponse.next({ request: { headers: requestHeaders } })
 
   // FIX: Dodaj X-Request-ID v odzivne headerje za klient-side tracing
   response.headers.set('X-Request-ID', requestId)
@@ -36,7 +47,7 @@ export default function middleware(request: NextRequest) {
   // ═══════════════════════════════════════════
   // VARNOSTNI HEADERS
   // ═══════════════════════════════════════════
-  applySecurityHeaders(response, request)
+  applySecurityHeaders(response, request, policy)
 
   return response
 }

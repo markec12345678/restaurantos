@@ -41,9 +41,16 @@ export async function requireAuth(
     return { session: null, error: null }
   }
 
-  // FIX WORKFLOW-49: /api/setup POST je dovoljen brez avtentikacije (first-run inicializacija)
-  // Po inicializaciji sistem sam prepreči re-init (POST vrne 409 Conflict)
-  if (pathname.startsWith('/api/setup')) {
+  // FIX WORKFLOW-49: first-run setup endpointi so dovoljeni brez avtentikacije.
+  // BUG-HUNT FIX 2026-09-19 (CRITICAL, auth bypass): prej je `startsWith('/api/setup')`
+  // pokril TUDI /api/setup/db — DDL endpoint (CREATE TABLE + ~90 ALTER TABLE),
+  // katerega isAuthorized() je nato gledal samo `!authResult.error`. Ker je
+  // requireAuth za prefix vrnil { session: null, error: null }, je bil rezultat
+  // "avtorizirano" → ANONIMNA DDL nad produkcijsko bazo. Izjema je zdaj
+  // ekspliciten seznam first-run endpointov; /api/setup/db vedno gre skozi
+  // normalno auth (CRON_SECRET bearer ALI admin seja z admin dovoljenjem).
+  const SETUP_PUBLIC_PATHS = new Set(['/api/setup/init', '/api/setup/status', '/api/setup/super-admin'])
+  if (SETUP_PUBLIC_PATHS.has(pathname)) {
     return { session: null, error: null }
   }
 

@@ -1,7 +1,8 @@
 // ============================================
 // ZOI — ZAŠČITNI OZNAK IZDAJATELJA
-// Po FURS specifikaciji: RSA-SHA256 podpis podatkov računa
-// ZOI = Base64(SHA256Sign(data, privateKey))
+// Po FURS specifikaciji (ZDDV-1, Tehnična dokumentacija v3.2):
+//   podpis = RSA-SHA256(združeni podatki računa, privateKey)
+//   ZOI = Base64(MD5(podpis))   — MD5 digest je točno 16 bajtov
 // ============================================
 
 import crypto from 'crypto'
@@ -15,7 +16,10 @@ import { toSlovenianDate } from '../helpers'
  * Postopek:
  * 1. Združi podatke: TaxNumber + IssueDateTime + InvoiceNumber + PremisesId + DeviceIp + TotalAmount
  * 2. Podpiši z RSA-SHA256 (uporabi privatni ključ iz certifikata)
- * 3. ZOI = Base64(prvih 16 bajtov SHA256 hasha podpisa)
+ * 3. ZOI = Base64(MD5 podpisa)
+ *    BUG-HUNT FIX 2026-09-19 (CRITICAL, ZDDV-1): prej SHA-256 + subarray(0,16) —
+ *    specifikacija zahteva MD5 podpisa (16 bajtov). Enako počne HR ZKI
+ *    (src/lib/cis/zki.ts). SHA-256 ZOI bi FURS verifier zavrnil.
  *
  * SECURITY: Če certifikat (privateKey) ni na voljo:
  *   - V production okolju: VRŽI NAPAKO (prejšnja koda je tiho padla na
@@ -77,10 +81,9 @@ export function generateZOI(
       signer.update(concatenatedData, 'utf8')
       const signature = signer.sign(privateKey)
 
-      // ZOI = Base64(prvih 16 bajtov SHA256 hash podpisa)
-      const signatureHash = crypto.createHash('sha256').update(signature).digest()
-      const zoiBytes = signatureHash.subarray(0, 16)
-      return zoiBytes.toString('base64')
+      // ZOI = Base64(MD5(podpis)) — ZDDV-1 (MD5 digest = 16 bajtov)
+      const signatureHash = crypto.createHash('md5').update(signature).digest()
+      return signatureHash.toString('base64')
     } catch (err: unknown) {
       // FIX F1 CRITICAL: V produkciji vrni napako namesto tihi SHA-256 fallback
       logger.warn('FURS', 'Napaka pri RSA podpisovanju:', err)

@@ -7,6 +7,7 @@ import { configPostSchema, createConfigItem } from './_helpers'
 import { withETag } from '@/lib/middleware/cache-headers'
 import { sessionLocationId, locationFilter } from '@/lib/tenant-scope'
 import { isMissingLocationColumnError } from '@/lib/prisma-column-fallback'
+import { logger } from '@/lib/logger'
 
 
 // FIX CRITICAL: Zahtevaj avtentikacijo za GET — konfiguracija vsebuje
@@ -41,7 +42,8 @@ async function fetchConfigBatch(w: Record<string, unknown>) {
     return await run()
   } catch (e) {
     if (!isMissingLocationColumnError(e)) throw e
-    console.warn('[column-fallback] configuration GET: locationId stolpec manjka — batch brez filtra (db push to odpravi)')
+    // FIX lint (no-console): strukturirani logger namesto console.warn
+    logger.warn('column-fallback', 'configuration GET: locationId stolpec manjka — batch brez filtra (db push to odpravi)')
     return await run()
   }
 }

@@ -17,7 +17,7 @@ import {
   linkOrderItemsToCheck,
 } from './transaction'
 
-export async function handlePostCheck(req: Request, _authResult: { session?: { employeeId?: string } | null }) {
+export async function handlePostCheck(req: Request, authResult: { session?: { employeeId?: string; locationId?: string | null } | null }) {
   const bodyResult = await parseJsonBody(req)
   if (bodyResult.error) return bodyResult.error
 
@@ -26,8 +26,14 @@ export async function handlePostCheck(req: Request, _authResult: { session?: { e
   if (validationError) return validationError
 
   // Preveri, da order obstaja
-  const order = await db.order.findUnique({
-    where: { id: data.orderId },
+  // BUG-HUNT FIX 2026-09-19 (HIGH, cross-tenant): findUnique → findFirst z
+  // locationId scope — prej je bilo mogoče ustvariti ček na tujem naročilu.
+  const sessionLocationId = authResult.session?.locationId ?? undefined
+  const order = await db.order.findFirst({
+    where: {
+      id: data.orderId,
+      ...(sessionLocationId ? { locationId: sessionLocationId } : {}),
+    },
     include: { orderItems: { include: { check: { select: { id: true, paymentStatus: true } } } } },
   })
 
@@ -68,7 +74,13 @@ export async function handlePostCheck(req: Request, _authResult: { session?: { e
   const { subtotal, tax } = calculateCheckAmounts(checkOrderItems)
 
   // FIX H-03: Popust ne more preseči vmesne vsote
-  const { discount, discountId: discountIdForTx, error: discountError } = await validateAndCalculateDiscount(data.appliedDiscountId, subtotal)
+  // BUG-HUNT FIX 2026-09-19: popust se rešuje z locationId scope-om naročila
+  // (prej je bil sprejemljiv popust KATERE KOLI lokacije)
+  const { discount, discountId: discountIdForTx, error: discountError } = await validateAndCalculateDiscount(
+    data.appliedDiscountId,
+    subtotal,
+    order.locationId ?? undefined,
+  )
   if (discountError) {
     return NextResponse.json({ error: discountError }, { status: 400 })
   }
@@ -98,11 +110,14 @@ export async function handlePostCheck(req: Request, _authResult: { session?: { e
     })
 
     // Poveži OrderItem-e s tem Check-om
+    // BUG-HUNT FIX 2026-09-19 (HIGH): orderId filter — prej je updateMany premaknil
+    // KATERE KOLI item-ID-je (tudi iz drugih naročil/lokacij ali plačanih čekov)
     await linkOrderItemsToCheck(
       tx,
       newCheck.id,
       data.orderItemIds || [],
-      order.orderItems.map(oi => ({ id: oi.id, checkId: oi.checkId }))
+      order.orderItems.map(oi => ({ id: oi.id, checkId: oi.checkId })),
+      data.orderId,
     )
 
     return newCheck

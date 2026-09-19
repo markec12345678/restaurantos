@@ -15,12 +15,14 @@
 // MOST: operacijo izvedemo z locationId; pri P1054 ponovimo BREZ njega
 // (vrstica postane "globalna"). To je varno za trenutno produkcijsko
 // realnost (ENA lokacija / EN najemnik), a NE za pravi multi-tenant —
-// zato je TRAJNA REŠITEV `prisma db push` na Neonu, po kateri fallback
+// zato je TRAJNA REŠITEV `prisma db push` na Neonu, po katerem fallback
 // samodejno izgubi vlogo (P1054 se ne zgodi več).
 //
 // Uporaba:
 //   const item = await withLocationColumnFallback('config:noSaleReason', (withLoc) =>
 //     db.noSaleReason.create({ data: withLoc ? dataWithLoc : dataWithoutLoc }))
+
+import { logger } from './logger'
 
 // P1054/P2022 "column locationId does not exist" detektor.
 //
@@ -43,8 +45,10 @@ const warnedOps = new Set<string>()
 function warnOnce(op: string): void {
   if (warnedOps.has(op)) return
   warnedOps.add(op)
-  console.warn(
-    `[column-fallback] ${op}: DB nima stolpca locationId — operacija izvedena BREZ lokacijskega filtra. ` +
+  // FIX lint (no-console): strukturirani logger namesto console.warn
+  logger.warn(
+    'column-fallback',
+    `${op}: DB nima stolpca locationId — operacija izvedena BREZ lokacijskega filtra. ` +
     `TRAJNA REŠITEV: prisma db push (dodaj locationId stolpec). Gl. src/lib/prisma-column-fallback.ts`,
   )
 }

@@ -3,7 +3,11 @@ import { PGlite } from '@electric-sql/pglite'
 import { existsSync, mkdirSync } from 'fs'
 import { execSync } from 'child_process'
 
-const dataDir = process.env.PGLITE_DATA_DIR || '/home/z/my-project/pglite-data'
+// FIX (bug-hunt 2026-09-19): privzeta mapa MORA biti enaka kot v src/lib/db.ts
+// ('/tmp/pglite-data'). Prej je bil tu trdo kodiran zunanji sandbox path, zato je
+// init napolnil DRUGO bazo, kot so jo testi odprli → P2021 "table does not exist"
+// v tests/integration/db-invariants.test.ts. PGLITE_DATA_DIR override ostaja.
+const dataDir = process.env.PGLITE_DATA_DIR || '/tmp/pglite-data'
 
 if (!existsSync(dataDir)) {
   mkdirSync(dataDir, { recursive: true })

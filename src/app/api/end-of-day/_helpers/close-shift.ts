@@ -40,7 +40,7 @@ export async function closeShift(
           select: {
             payments: {
               where: { status: 'completed' },
-              select: { type: true, amount: true, tipAmount: true },
+              select: { type: true, amount: true, tipAmount: true, refundAmount: true },
             },
           },
         },
@@ -48,11 +48,16 @@ export async function closeShift(
     })
 
     const allPayments = paidOrdersInShift.flatMap(o => o.checks.flatMap(c => c.payments))
-    const cashSales = toNum(sumBy(allPayments.filter(p => p.type === 'cash'), p => p.amount))
-    const cardSales = toNum(sumBy(allPayments.filter(p => p.type === 'card'), p => p.amount))
-    const mobileSales = toNum(sumBy(allPayments.filter(p => p.type === 'mobile'), p => p.amount))
-    const alternateSales = toNum(sumBy(allPayments.filter(p => ['voucher', 'loyalty', 'giftcard', 'alternate'].includes(p.type)), p => p.amount))
-    const totalSales = toNum(sumBy(allPayments, p => p.amount))
+    // BUG-HUNT FIX 2026-09-19 (refund netting): neto zneski (amount − refundAmount)
+    // — isti vzorec kot netPaymentAmount pri zaprtju izmene prek /api/cash-register.
+    // Prej so EOD izračuni uporabljali BRUTO zneske → delni povračila so napihnila
+    // expectedCash → lažni denarni primanjkljaj ob zaključku dneva.
+    const netOf = (p: (typeof allPayments)[number]) => Math.max(0, toNum(p.amount) - toNum(p.refundAmount))
+    const cashSales = toNum(sumBy(allPayments.filter(p => p.type === 'cash'), netOf))
+    const cardSales = toNum(sumBy(allPayments.filter(p => p.type === 'card'), netOf))
+    const mobileSales = toNum(sumBy(allPayments.filter(p => p.type === 'mobile'), netOf))
+    const alternateSales = toNum(sumBy(allPayments.filter(p => ['voucher', 'loyalty', 'giftcard', 'alternate'].includes(p.type)), netOf))
+    const totalSales = toNum(sumBy(allPayments, netOf))
     const totalDiscounts = toNum(sumBy(paidOrdersInShift, o => o.discount))
     const totalTips = toNum(sumBy(allPayments, p => p.tipAmount))
     const totalOrders = paidOrdersInShift.length

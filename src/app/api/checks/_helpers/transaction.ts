@@ -88,11 +88,15 @@ export async function linkOrderItemsToCheck(
   tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
   checkId: string,
   orderItemIds: string[],
-  allOrderItems: OrderItemBrief[]
+  allOrderItems: OrderItemBrief[],
+  orderId?: string,
 ): Promise<void> {
   if (orderItemIds.length > 0) {
+    // BUG-HUNT FIX 2026-09-19 (HIGH): orderId filter — brez njega je updateMany
+    // premaknil KATERE KOLI item-ID-je (tudi iz drugih naročil/lokacij ali
+    // plačanih čekov) na ta ček → napačni totali pod obstoječimi plačili.
     await tx.orderItem.updateMany({
-      where: { id: { in: orderItemIds } },
+      where: { id: { in: orderItemIds }, ...(orderId ? { orderId } : {}) },
       data: { checkId },
     })
   } else {
@@ -100,7 +104,7 @@ export async function linkOrderItemsToCheck(
     const unassignedItems = allOrderItems.filter(oi => !oi.checkId)
     if (unassignedItems.length > 0) {
       await tx.orderItem.updateMany({
-        where: { id: { in: unassignedItems.map(oi => oi.id) } },
+        where: { id: { in: unassignedItems.map(oi => oi.id) }, ...(orderId ? { orderId } : {}) },
         data: { checkId },
       })
     }

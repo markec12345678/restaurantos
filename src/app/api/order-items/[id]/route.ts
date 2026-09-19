@@ -34,35 +34,67 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (data.status) updateData.status = data.status
     if (data.notes !== undefined) updateData.notes = data.notes
 
+    // FIX (IDOR doslednost): tenant scope za VSE update-e (prej samo za void)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existingItem = await db.orderItem.findFirst({
+      where: {
+        id,
+        ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}),
+      },
+    })
+    if (!existingItem) {
+      return NextResponse.json({ error: 'Artikel ni najden' }, { status: 404 })
+    }
+
     // === VOID OPERACIJA ===
     if (data.voided === true) {
-      // FIX P0-C1 (IDOR): findUnique → findFirst z order.locationId scope
-      const sessionLocationId = authResult.session?.locationId ?? undefined
-      const existingItem = await db.orderItem.findFirst({
-        where: {
-          id,
-          ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}),
-        },
-      })
-      if (!existingItem) {
-        return NextResponse.json({ error: 'Artikel ni najden' }, { status: 404 })
-      }
-      if (existingItem.voided) {
-        return NextResponse.json({ error: 'Artikel je že bil voidan' }, { status: 409 })
+      // BUG-HUNT FIX 2026-09-19: void na plačanem/delno plačanem čeku bi znižal
+      // total čeka POD obstoječimi plačili (nastrojena preplačila, napačna
+      // prihodkovna poročila). Po FURS je odstranitev artikla po računu STORNO,
+      // ne void — usmerimo na storno/povračilo.
+      if (existingItem.checkId) {
+        const itemCheck = await db.check.findUnique({
+          where: { id: existingItem.checkId },
+          select: { paymentStatus: true },
+        })
+        if (itemCheck && itemCheck.paymentStatus !== 'unpaid') {
+          return NextResponse.json(
+            { error: 'Artikla na plačanem ali delno plačanem čeku ni mogoče voidati — uporabi storno/povračilo.' },
+            { status: 409 }
+          )
+        }
       }
       updateData.voided = true
       if (data.voidReasonId) updateData.voidReasonId = data.voidReasonId
       updateData.status = 'voided'
+
+      // BUG-HUNT FIX 2026-09-19 (race, P1-19 vzorec): prej je bila preverba
+      // `voided` IZVEN transakcije, update pa brezpogojen — dva vzporedna voida
+      // sta oba prestala preverbo → DVOJNO vračilo zaloge. Pogojni updateMany
+      // (samo prvi void zmaga) je avtoritativen.
+      const claim = await db.orderItem.updateMany({
+        where: { id, voided: false },
+        data: updateData,
+      })
+      if (claim.count === 0) {
+        return NextResponse.json({ error: 'Artikel je že bil voidan' }, { status: 409 })
+      }
+    } else if (Object.keys(updateData).length > 0) {
+      // Preostali update-i (status/notes) — brez race problematike
+      await db.orderItem.update({ where: { id }, data: updateData })
     }
 
-    const orderItem = await db.orderItem.update({
+    const orderItem = await db.orderItem.findUnique({
       where: { id },
-      data: updateData,
       include: { menuItem: true, order: { include: { table: true } } },
     })
+    if (!orderItem) {
+      // Teoretično (race z brisanjem) — claim je že stekel, ampak brez itema ne moremo nadaljevati
+      return NextResponse.json({ error: 'Artikel ni najden' }, { status: 404 })
+    }
 
     // Če je void, preračunaj zneske naročila
-    if (data.voided === true) {
+    if (data.voided === true && orderItem) {
       await recalculateOrderTotals(id, orderItem.orderId)
 
       // Preračunaj totale čeka
@@ -87,13 +119,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         },
       })
 
-      // Vrni zalogo za voidan artikel
-      const voidReason = data.voidReasonText || data.voidReasonId || 'Razlog ni naveden'
-      await returnStockForVoidedItem(
-        id, orderItem.menuItemId, orderItem.quantity,
-        orderItem.menuItem.name, voidReason, orderItem.orderId,
-        authResult.session?.employeeId,
-      )
+      // Vrni zalogo za voidan artikel — SAMO, če je bila zalogo sploh odtegljena
+      // (BUG-HUNT FIX: odtegljaj ob ustvarjanju je lahko spodletel — prej je bilo
+      // vračanje slepo in je napihnilo zalogo, ki ni bila nikoli odtegnjena)
+      if (orderItem.order.inventoryDeducted) {
+        const voidReason = data.voidReasonText || data.voidReasonId || 'Razlog ni naveden'
+        await returnStockForVoidedItem(
+          id, orderItem.menuItemId, orderItem.quantity,
+          orderItem.menuItem.name, voidReason, orderItem.orderId,
+          authResult.session?.employeeId,
+        )
+      }
     }
 
     // Check if all items in the order are ready — auto-update order status

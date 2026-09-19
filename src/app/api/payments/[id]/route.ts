@@ -8,6 +8,7 @@ import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
 import { reverseGiftCard, reverseLoyaltyPoints, recalculatePaymentStatus, deepToNumbers } from './_helpers'
+import { toNum, round2 } from '@/lib/decimal'
 
 
 const updatePaymentSchema = createPaymentSchema.partial().extend({
@@ -172,20 +173,41 @@ export async function PUT(
         // Zakleni vrstico plačila — vzporedne statusne spremembe čakajo
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'payment-void:' + id}))`
 
+        // BUG-HUNT FIX 2026-09-19 (CRITICAL, dvojno povračilo): reversal prej NI
+        // posodobil refundAmount → /refund je videl refundAmount=0 in status brez
+        // preverjanja → ista plačila je bilo mogoče povrniti ŠE ENKRAT (dvojni
+        // gift-card/loyalty kredit). Zdaj reversal zapiše reverzo v refundAmount,
+        // /refund pa dodatno zavrne vsak status ≠ completed.
+        const paidAmount = toNum(existingPayment.amount)
+        const alreadyRefunded = toNum(existingPayment.refundAmount)
+        const remaining = round2(paidAmount - alreadyRefunded)
+
         // Pogojna transicija completed → refunded/voided (samo prvi zmaga)
         const claim = await tx.payment.updateMany({
           where: { id, status: 'completed' },
-          data: updateData,
+          data: { ...updateData, refundAmount: paidAmount },
         })
         if (claim.count === 0) {
           throw new Error('PAYMENT_STATUS_CONFLICT')
         }
 
-        // Reverse gift card balance if it was a giftcard payment
-        await reverseGiftCard(tx, existingPayment, id)
+        // Reverse gift card / loyalty SAMO za še nepovrnjeni del — če je bil
+        // delni refund že izveden prek /refund, bi poln reverz dvakrat kreditiral.
+        if (remaining > 0) {
+          const scaledLoyaltyPoints = alreadyRefunded > 0 && paidAmount > 0
+            ? Math.max(0, Math.round(existingPayment.loyaltyPointsUsed * (remaining / paidAmount)))
+            : existingPayment.loyaltyPointsUsed
+          const reversalBase = {
+            ...existingPayment,
+            amount: remaining,
+            loyaltyPointsUsed: scaledLoyaltyPoints,
+          }
+          // Reverse gift card balance if it was a giftcard payment
+          await reverseGiftCard(tx, reversalBase, id)
 
-        // Reverse loyalty points if it was a loyalty payment
-        await reverseLoyaltyPoints(tx, existingPayment, id)
+          // Reverse loyalty points if it was a loyalty payment
+          await reverseLoyaltyPoints(tx, reversalBase, id)
+        }
 
         // FIX HIGH: Zmanjšaj discount.currentUses ob povračilu/poničitvi plačila
         const checkForDiscount = await tx.check.findUnique({ where: { id: existingPayment.checkId } })

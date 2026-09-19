@@ -8,6 +8,7 @@ import { decimalsToNumbers } from '@/lib/decimal'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 import { sessionLocationId, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
+import type { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -118,7 +119,7 @@ export async function POST(req: Request) {
         isActive: data.isActive,
         sortOrder: 0,
         locationId: withLoc ? loc.locationId : undefined,
-      } as any,
+      } as Prisma.DiscountUncheckedCreateInput,
     }))
 
     return NextResponse.json(decimalsToNumbers(discount, ['amount']), { status: 201 })

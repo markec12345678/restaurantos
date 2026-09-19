@@ -22,9 +22,9 @@ export function loadCertificatePrivateKey(
   certPath: string,
   password: string
 ): string | Buffer | null {
-  // Preveri cache (veljaven 1 uro)
-  const cached = getCachedPrivateKey()
-  if (cached && cached.loadedAt > Date.now() - 3600000) {
+  // Preveri cache (veljaven 1 uro, ključano po certPath — glej pkcs12-loader)
+  const cached = getCachedPrivateKey(certPath)
+  if (cached) {
     return cached.key
   }
 
@@ -41,7 +41,7 @@ export function loadCertificatePrivateKey(
       return loadFromPKCS12(certPath, password)
     } else if (certType === 'pem') {
       const result = loadFromPEM(certPath)
-      if (result) setCachedPrivateKey(result)
+      if (result) setCachedPrivateKey(certPath, result)
       return result
     } else {
       // Poskusi kot PKCS12

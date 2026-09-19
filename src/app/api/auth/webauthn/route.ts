@@ -170,6 +170,10 @@ export async function POST(req: Request) {
       id: employee.id,
       role: employee.role,
       permissions,
+      // BUG-HUNT FIX 2026-09-19 (HIGH): lokacija je manjkala → session.locationId
+      // = null = GLOBALNI dostop (tenant-scope) namesto lokacije zaposlenega.
+      // PIN prijava (auth/_helpers.ts) posreduje locationId — zdaj še WebAuthn.
+      locationId: employee.locationId,
     },
     clientIp,
     userAgent,

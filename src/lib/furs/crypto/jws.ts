@@ -163,14 +163,18 @@ export function buildFursJws(
   privateKeyPem: string | Buffer,
   payload: Record<string, unknown>,
 ): string {
-  const header = {
-    alg: 'RS256',
-    subject_name: identity.subjectName,
-    issuer_name: identity.issuerName,
-    serial: Number(identity.serial), // spec primer: številka (ne niz)
-  }
+  // BUG-HUNT FIX 2026-09-19 (HIGH, BigInt preciznost): CertIdentity.serial je
+  // STRING decimalnih števk in lahko preseže Number.MAX_SAFE_INTEGER (2^53).
+  // `Number(identity.serial)` je izgubil preciznost (npr. spec primer
+  // 2575988469811686647 → 2575988469811686656) — FURS server (Java long) ne bi
+  // našel ujemajočega certifikata → zavrnitev podpisa. Serijsko številko izpišemo
+  // direktno kot natančne decimalne števke (ostane veljavna JSON številka).
+  const serialDigits = /^\d+$/.test(identity.serial)
+    ? identity.serial
+    : String(Number(identity.serial)) // defenzivni fallback za nestsalicne vnose
+  const headerJson = `{"alg":"RS256","subject_name":${JSON.stringify(identity.subjectName)},"issuer_name":${JSON.stringify(identity.issuerName)},"serial":${serialDigits}}`
 
-  const headerB64 = b64url(JSON.stringify(header))
+  const headerB64 = b64url(headerJson)
   // Pomembno: payload se serializira BREZ presledkov? Ne — spec primer ima
   // pretty-printed JSON (\n + 2 presledki). FURS sprejme poljuben veljaven JSON;
   // podpis pokriva točno poslane bajte, zato je format prost.

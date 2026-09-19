@@ -18,7 +18,13 @@ export async function GET(req: Request) {
     const orderId = searchParams.get('orderId')
     const paymentStatus = searchParams.get('paymentStatus')
 
-    const where: Record<string, unknown> = {}
+    // BUG-HUNT FIX 2026-09-19 (HIGH, cross-tenant): prej je where vseboval SAMO
+    // orderId/paymentStatus — GET je vračal čeke VSEH lokacij (vključno s
+    // plačili in popusti). Enak razred napake kot /api/payments (fix 2026-09-09).
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const where: Record<string, unknown> = {
+      ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}),
+    }
     if (orderId) where.orderId = orderId
     if (paymentStatus) where.paymentStatus = paymentStatus
 

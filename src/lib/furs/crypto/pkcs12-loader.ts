@@ -5,13 +5,28 @@ import fs from 'fs'
 import { execFileSync } from 'child_process'
 import { logger } from '../../logger'
 
-// Cache naloženega ključa (da ne beremo certifikata pri vsakem klicu)
-let cachedPrivateKey: { key: string | Buffer; loadedAt: number } | null = null
+// Cache naloženih ključev — KLJUČANO PO certPath.
+// BUG-HUNT FIX 2026-09-19 (HIGH): prej EN globalni slot — v multi-lokacijskem
+// setupu (Location.fursCertPath per lokacija) je vsaka naslednja lokacija eno
+// uro podpisovala s ključem PRVE lokacije → FURS zavrne, plus cross-tenant raba
+// ključa. TTL (1 ura) je zdaj del getCachedPrivateKey.
+const privateKeyCache = new Map<string, { key: string | Buffer; loadedAt: number }>()
+const PRIVATE_KEY_CACHE_TTL_MS = 3600000
 
 // Export za cache
-export function getCachedPrivateKey() { return cachedPrivateKey }
-export function setCachedPrivateKey(key: string | Buffer) { cachedPrivateKey = { key, loadedAt: Date.now() } }
-export function clearPrivateKeyCache(): void { cachedPrivateKey = null }
+export function getCachedPrivateKey(certPath: string) {
+  const entry = privateKeyCache.get(certPath)
+  if (!entry) return null
+  if (entry.loadedAt <= Date.now() - PRIVATE_KEY_CACHE_TTL_MS) {
+    privateKeyCache.delete(certPath)
+    return null
+  }
+  return entry
+}
+export function setCachedPrivateKey(certPath: string, key: string | Buffer) {
+  privateKeyCache.set(certPath, { key, loadedAt: Date.now() })
+}
+export function clearPrivateKeyCache(): void { privateKeyCache.clear() }
 
 /**
  * Ekstrahiraj privatni ključ iz PKCS12 datoteke z OpenSSL
@@ -54,8 +69,8 @@ export function loadFromPKCS12(certPath: string, password: string): string | nul
       return tryNodeCryptoPKCS12(certPath, password)
     }
 
-    // Cache
-    setCachedPrivateKey(pemKey)
+    // Cache (ključano po certPath)
+    setCachedPrivateKey(certPath, pemKey)
     logger.info('FURS', 'Privatni ključ uspešno naložen iz PKCS12 (OpenSSL)')
     return pemKey
   } catch (err: unknown) {
@@ -84,7 +99,7 @@ export function tryNodeCryptoPKCS12(certPath: string, password: string): string 
 
     const pemKey = keyObject.export({ type: 'pkcs8', format: 'pem' }) as string
 
-    setCachedPrivateKey(pemKey)
+    setCachedPrivateKey(certPath, pemKey)
     logger.info('FURS', 'Privatni ključ naložen iz PKCS12 (Node.js crypto)')
     return pemKey
   } catch (err: unknown) {

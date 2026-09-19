@@ -18,7 +18,10 @@ export function toSlovenianDate(dt: Date): { year: number; month: number; day: n
 
   const utcMs = dt.getTime()
   const marchTransition = Date.UTC(year, 2, marchLastSun, 1, 0, 0) // 01:00 UTC = 02:00 CET
-  const octTransition = Date.UTC(year, 9, octLastSun, 0, 0, 0)     // 00:00 UTC = 02:00 CEST
+  // BUG-HUNT FIX 2026-09-19: EU prehod CEST→CET je ob 01:00 UTC (03:00 CEST →
+  // 02:00 CET), ne 00:00 UTC. V enemurnem oknu (00:00–01:00 UTC) je lokalni čas
+  // ŠE vedno CEST (+2) — prej je koda napačno računala +1 (ura off-by-one).
+  const octTransition = Date.UTC(year, 9, octLastSun, 1, 0, 0)     // 01:00 UTC = 03:00 CEST
 
   const isDST = utcMs >= marchTransition && utcMs < octTransition
   const offsetMs = isDST ? (2 * 60 * 60 * 1000) : (1 * 60 * 60 * 1000)
@@ -59,7 +62,8 @@ export function toSlovenianISO(dt: Date): string {
 
   const utcMs = dt.getTime()
   const marchTransition = Date.UTC(year, 2, marchLastSun, 1, 0, 0) // 01:00 UTC = 02:00 CET
-  const octTransition = Date.UTC(year, 9, octLastSun, 0, 0, 0)     // 00:00 UTC = 02:00 CEST
+  // BUG-HUNT FIX 2026-09-19: glej toSlovenianDate — prehod CEST→CET ob 01:00 UTC
+  const octTransition = Date.UTC(year, 9, octLastSun, 1, 0, 0)     // 01:00 UTC = 03:00 CEST
 
   const isDST = utcMs >= marchTransition && utcMs < octTransition
   const offsetHours = isDST ? 2 : 1 // CEST=+2, CET=+1

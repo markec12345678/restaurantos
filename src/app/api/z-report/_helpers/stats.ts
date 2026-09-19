@@ -116,11 +116,15 @@ export async function calculateReportStats(
     for (const check of order.checks) {
       for (const payment of check.payments) {
         if (payment.status !== 'completed') continue
+        // BUG-HUNT FIX 2026-09-19 (refund netting): neto znesek = amount −
+        // refundAmount (isti vzorec kot netPaymentAmount pri zaprtju blagajniške
+        // izmene) — sicer delni povračila napihnejo prodajo po načinih plačila.
+        const netAmount = Math.max(0, toNum(payment.amount) - toNum(payment.refundAmount))
         switch (payment.type) {
-          case 'cash': cashSales += toNum(payment.amount); break
-          case 'card': cardSales += toNum(payment.amount); break
-          case 'mobile': mobileSales += toNum(payment.amount); break
-          default: alternateSales += toNum(payment.amount); break
+          case 'cash': cashSales += netAmount; break
+          case 'card': cardSales += netAmount; break
+          case 'mobile': mobileSales += netAmount; break
+          default: alternateSales += netAmount; break
         }
       }
     }

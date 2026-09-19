@@ -83,6 +83,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         throw new Error('PAYMENT_NOT_FOUND')
       }
 
+      // BUG-HUNT FIX 2026-09-19 (CRITICAL, dvojno povračilo): status je bil
+      // selektiran, a NIKOLI preverjen. Plačilo v stanju refunded/voided (prek
+      // PUT /api/payments/[id]) ali pending/failed NI refundabilno — prej je
+      // refund potekel znova → gift card/loyalty DVAJKRAT kreditirana.
+      if (lockedPayment.status !== 'completed') {
+        throw new Error(`PAYMENT_NOT_REFUNDABLE:${lockedPayment.status}`)
+      }
+
       const lockedRefunded = toNum(lockedPayment.refundAmount)
       const lockedMaxRefundable = toNum(lockedPayment.amount) - lockedRefunded
       if (amount > lockedMaxRefundable) {
@@ -195,10 +203,28 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         })
 
         // 6. FIX: Posodobi Order paymentStatus
+        // BUG-HUNT FIX 2026-09-19 (split-check): prej je order status bil deriviran
+        // iz ENEGA čeka — refund enega čeka je flipnil celoten order na
+        // 'partial'/'storno', čeprav so ostali čeki še vedno plačani (EOD/Z in
+        // zaprtje izmene nato napačno filtrirajo). Agregiramo VSE čeke orderja.
         if (payment.check.orderId) {
+          const allOrderChecks = await tx.check.findMany({
+            where: { orderId: payment.check.orderId },
+            select: { paymentStatus: true },
+          })
+          const allPaid = allOrderChecks.length > 0 && allOrderChecks.every(c => c.paymentStatus === 'paid')
+          const allStorno = allOrderChecks.length > 0 && allOrderChecks.every(c => c.paymentStatus === 'storno')
+          const anyPaidOrPartial = allOrderChecks.some(c => c.paymentStatus === 'paid' || c.paymentStatus === 'partial')
+          const orderPaymentStatus = allPaid
+            ? 'paid'
+            : allStorno
+              ? 'storno'
+              : anyPaidOrPartial
+                ? 'partial'
+                : 'unpaid'
           await tx.order.update({
             where: { id: payment.check.orderId },
-            data: { paymentStatus: checkStatus },
+            data: { paymentStatus: orderPaymentStatus },
           })
         }
       }
@@ -283,6 +309,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
       if (error.message.includes('PAYMENT_NOT_FOUND')) {
         return NextResponse.json({ error: 'Plačilo ni najdeno' }, { status: 404 })
+      }
+      if (error.message.includes('PAYMENT_NOT_REFUNDABLE')) {
+        const status = error.message.split(':')[1] || 'unknown'
+        return NextResponse.json(
+          { error: `Plačilo v stanju '${status}' ni povračljivo. Povračilo je dovoljeno samo za zaključena (completed) plačila.` },
+          { status: 409 }
+        )
       }
     }
     return handleApiError(error, 'POST /api/payments/[id]/refund', 'Napaka pri povračilu plačila')

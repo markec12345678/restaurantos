@@ -11,6 +11,7 @@ import { loadCertificatePrivateKey, generateZOI, verifyInvoiceWithFURS, type Fur
 import { buildFursConfigFromSettings } from '../build-config'
 import { parseVatBreakdown } from '../../shared'
 import { logger } from '@/lib/logger'
+import { ensureDecrypted } from '@/lib/crypto/secrets'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { parseJsonBody, validateBody } from '@/lib/api-utils'
 import { fursStornoSchema } from '@/lib/validations'
@@ -114,9 +115,16 @@ export async function validateAndSubmitStorno(req: Request): Promise<StornoValid
   const stornoNumber = await getNextReceiptNumber(orderForConfig?.locationId)
 
   // Naloži privatni ključ
-  const privateKey = (settings.fursCertPath && settings.fursCertPassword)
-    ? loadCertificatePrivateKey(settings.fursCertPath, settings.fursCertPassword)
-    : undefined
+  // BUG-HUNT FIX 2026-09-19 (HIGH): ZOI je bil podpisan z GLOBALNIM
+  // RestaurantSettings ključem, JWS pa s per-lokacijskim config ključem →
+  // v multi-lokacijskem setupu različna ključa → FURS zavrne. Zdaj oba iz
+  // config. ensureDecrypted: certPassword je lahko shranjen šifriran
+  // (isti vzorec kot config-resolver.ts).
+  const privateKey = (config.certPath && config.certPassword)
+    ? loadCertificatePrivateKey(config.certPath, ensureDecrypted(config.certPassword))
+    : (settings.fursCertPath && settings.fursCertPassword)
+      ? loadCertificatePrivateKey(settings.fursCertPath, ensureDecrypted(settings.fursCertPassword))
+      : undefined
 
   // Generiraj ZOI za storno račun
   const zoi = generateZOI({

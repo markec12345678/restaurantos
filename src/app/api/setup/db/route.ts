@@ -17,7 +17,10 @@ async function isAuthorized(req: Request): Promise<boolean> {
   if (cronSecret && authHeader === `Bearer ${cronSecret}`) return true
   const { requireAuth } = await import('@/lib/auth-middleware')
   const authResult = await requireAuth(req, { permission: 'admin' })
-  return !authResult.error
+  // BUG-HUNT FIX 2026-09-19 (CRITICAL): `session: null, error: null` je JAVNA pot
+  // (npr. first-run izjema), NE avtorizacija. Prej je `!authResult.error` sprejel
+  // tudi neavtentificirane zahteve → anonimna DDL. Zahtevamo DEJANSKO sejo.
+  return !authResult.error && authResult.session !== null
 }
 
 export async function GET(req: Request) {

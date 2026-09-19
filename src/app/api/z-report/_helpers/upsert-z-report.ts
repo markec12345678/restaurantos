@@ -86,7 +86,20 @@ async function buildAndUpsert(params: UpsertZReportParams) {
   })
   const paidOrders = orders
 
-  const stats = await calculateReportStats(paidOrders, orders, dayStart, dayEnd, locationId)
+  // BUG-HUNT FIX 2026-09-19 (totalStorno): storno naročila so bila izključena že
+  // v osnovnem query-ju (paymentStatus in ['paid','partial']) → storno filter v
+  // calculateReportStats se NI NIKOLI ujemale → totalStorno VEDNO 0 (fiskalno
+  // poročilo brez storno vrstic = napačen promet). Pridobi storno naročila
+  // posebej (obdržijo paidAt iz dneva izdaje računa).
+  const stornoOrders = await db.order.findMany({
+    where: {
+      paidAt: { gte: dayStart, lt: dayEnd },
+      paymentStatus: 'storno',
+      locationId,
+    },
+  })
+
+  const stats = await calculateReportStats(paidOrders, stornoOrders, dayStart, dayEnd, locationId)
 
   const cashShifts = await db.cashRegisterShift.findMany({
     where: {

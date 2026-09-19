@@ -46,13 +46,19 @@ export interface DiscountValidation {
 
 export async function validateAndCalculateDiscount(
   appliedDiscountId: string | null | undefined,
-  subtotal: number
+  subtotal: number,
+  locationId?: string
 ): Promise<DiscountValidation> {
   if (!appliedDiscountId) {
     return { discount: 0, discountId: null, error: null }
   }
 
-  const discountObj = await db.discount.findUnique({ where: { id: appliedDiscountId } })
+  // BUG-HUNT FIX 2026-09-19: locationId scope — popust druge lokacije ni uporabljiv
+  // (Discount.locationId je NOT NULL po MODEL A). findFirst ohranja staro
+  // semantiko "ni najden → brez popusta" namesto findUnique + ročni filter.
+  const discountObj = await db.discount.findFirst({
+    where: { id: appliedDiscountId, ...(locationId ? { locationId } : {}) },
+  })
   if (!discountObj) {
     return { discount: 0, discountId: null, error: null }
   }

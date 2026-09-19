@@ -19,14 +19,50 @@ export interface SecurityHeadersResult {
 }
 
 /**
+ * Zgradi CSP header + nonce (ločeno od applySecurityHeaders, da lahko middleware
+ * ista politika nastavi TUDI na request headerje — glej middleware.ts).
+ */
+export function buildContentSecurityPolicy(): { nonce: string; cspHeader: string } {
+  const nonce = generateCspNonce()
+  const nonceDirective = formatNonceForCsp(nonce)
+
+  const isDev = process.env.NODE_ENV === 'development'
+  const scriptSrc = isDev
+    ? `script-src 'self' 'unsafe-eval' ${nonceDirective}`
+    : `script-src 'self' ${nonceDirective}`
+  const styleSrc = `style-src 'self' ${nonceDirective} https://fonts.googleapis.com`
+
+  const cspHeader = [
+    "default-src 'self'",
+    scriptSrc,
+    styleSrc,
+    "font-src 'self' https://fonts.gstatic.com data:",
+    "img-src 'self' data: blob: https:",
+    "connect-src 'self' ws: wss: https:",
+    "frame-src 'none'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'self'",
+    "manifest-src 'self'",
+  ].join('; ')
+
+  return { nonce, cspHeader }
+}
+
+/**
  * Nastavi vse varnostne headerje na response + vrne nonce.
+ * BUG-HUNT FIX 2026-09-19: prej je bil CSP nastavljen SAMO na response —
+ * Next.js pa injektira nonce v svoje inline skripte LE, če vidi CSP na REQUEST
+ * headerjih (glej middleware.ts). Politika se zdaj gradi ENKRAT in nastavi
+ * na obe mesti (prebuilt param).
  */
 export function applySecurityHeaders(
   response: NextResponse,
   _request: NextRequest,
+  prebuilt?: { nonce: string; cspHeader: string },
 ): SecurityHeadersResult {
-  const nonce = generateCspNonce()
-  const nonceDirective = formatNonceForCsp(nonce)
+  const { nonce, cspHeader } = prebuilt ?? buildContentSecurityPolicy()
 
   if (_request.nextUrl.protocol === 'https:' || process.env.NODE_ENV === 'production') {
     response.headers.set(
@@ -65,31 +101,6 @@ export function applySecurityHeaders(
     response.headers.set('Access-Control-Max-Age', '86400') // 24h preflight cache
     response.headers.set('Vary', 'Origin')
   }
-
-  // Content-Security-Policy — nonce-based (Issue #34)
-  // FIX: nonce za script-src IN style-src — 'unsafe-inline' popolnoma odstranjen
-  const isDev = process.env.NODE_ENV === 'development'
-  const scriptSrc = isDev
-    ? `script-src 'self' 'unsafe-eval' ${nonceDirective}`
-    : `script-src 'self' ${nonceDirective}`
-  // FIX Issue #34 (del 2): style-src zdaj uporablja nonce namesto 'unsafe-inline'
-  // Tailwind CSS 4 + Radix UI delujeta z nonce, ker Next.js injektira nonce v style tag-e
-  const styleSrc = `style-src 'self' ${nonceDirective} https://fonts.googleapis.com`
-
-  const cspHeader = [
-    "default-src 'self'",
-    scriptSrc,
-    styleSrc,
-    "font-src 'self' https://fonts.gstatic.com data:",
-    "img-src 'self' data: blob: https:",
-    "connect-src 'self' ws: wss: https:",
-    "frame-src 'none'",
-    "object-src 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "frame-ancestors 'self'",
-    "manifest-src 'self'",
-  ].join('; ')
 
   response.headers.set('Content-Security-Policy', cspHeader)
   response.headers.set('x-csp-nonce', nonce)
