@@ -1,11 +1,11 @@
-# RestaurantOS v1.8.0
+# RestaurantOS v1.8.1
 
-[![Version](https://img.shields.io/badge/version-1.8.0-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.8.1-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-2031%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-67%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-2041%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-68%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,18 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (68 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (69 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.8.1 (QA runda 68 — Skupine dodatkov DODAJ + UREDI + IZBRIŠI)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| ➕✏️🗑️ **Dodatki upravljani do konca** | ModifiersTab je bil SAMO read-only prikaz — POST/PUT/DELETE API je obstajal, UI ga ni klical (zadnji neupravljani kot jedilnika: artikli ✓, kategorije ✓ R66, meniji ✓ R67). Zdaj: Dodaj skupino, urejanje z dinamičnimi vrsticami opcij (ime + doplačilo, dodaj/odstrani), Obvezno stikalo + min/max omejitve izbire, izbris s potrditvijo |
+| 🛡️ **Zaščita brisanja skupine (popravljen realen bug)** | Prej goli DELETE: join `MenuItemModifierGroup` ima Cascade → izbris skupine bi TIHO odstranil vezave dodatkov z vseh pripetih artiklov. NOV enoten vir `lib/modifier-guard.ts` (`canDeleteModifierGroup`): pripeta artikli > 0 → 409 ("Skupina je pripeta 26 artiklov — izbris bi odstranil dodatke…"); nepripeta → dovoljeno; FAIL-SAFE pokvarjeni števec → blokada |
+| 🐛 **FIX: MODEL A locationId pri UI kreaciji** | UI POST menijev (R67 latentni bug!) in skupin dodatkov je padal na 400 "locationId je obvezen" za seje brez dodeljene lokacije (vsi demo zaposleni imajo locationId=null). Mutaciji zdaj pripneta `?locationId=` prve aktivne lokacije (cache, vzorec MultiLocationDashboard); seje Z lokacijo ostanejo pod nadzorom scopa (scope > query — varno) |
+| 🎨 **ModifiersTab poliš** | Barvni akcenti (8-barvna paleta po indeksu), ikonska ploščica z hover skaliranjem, čip "N opcij" + badge "pripeta N artiklov" / "ni pripeta" + vsota doplačil, hover uredi/izbriši (dotik: vedno vidna), AlertDialog z blokado (onemogočen gumb + rdeče opozorilo), prazno stanje s CTA |
+| 🇸🇮 **+OPCIJA_FORMS** | `sl-plural.ts` dobi družino "opcija" (1 opcija · 2 opciji · 3 opcije · 5 opcij) |
+| 🧪 **+10 testov** | `canDeleteModifierGroup` (blokada, ednina, dvojina, dovoljeno pri 0, fail-safe NaN/negativno/Infinity/decimalke) + OPCIJA_FORMS sklanjatev — **2041/2041 unit (120 datotek)** |
 
 ### ✨ Nove funkcije v v1.8.0 (QA runda 67 — Meniji UREDI + IZBRIŠI)
 
