@@ -22,11 +22,11 @@ import {
   Ticket,
 } from 'lucide-react'
 import { authFetch } from '@/components/pos/PinLogin'
-import { formatEUR } from '@/lib/safe-format'
+import { formatEUR, formatNumberSl } from '@/lib/safe-format'
 import { paymentMethodLabelSl } from '@/lib/payment-methods-sl' // R62: enoten vir (prej surov enum "cash" na tiskanem poročilu)
 import { ljubljanaYesterdayStr } from '@/lib/timezone-sl' // R48: yesterday iz lib (prej lokalna kopija)
 import { asArray } from '@/lib/as-array' // R71: QA fix — "(x || []).map" ne ščiti pred truthy non-array (R69 Happy Hour crash vzorec)
-import { formatEURShort, SPARSE_LABEL_THRESHOLD, type DigestTrend } from '@/lib/digest-trend' // R71: trend sparkline · R72: 7/30 toggle
+import { formatEURShort, SPARSE_LABEL_THRESHOLD, type DigestTrend, type TrendComparison } from '@/lib/digest-trend' // R71: trend sparkline · R72: 7/30 toggle · R73: primerjava
 
 // ============================================
 // TISKANA VERZIJA DNEVNEGA POVZETKA (/reports/digest)
@@ -68,7 +68,7 @@ interface DigestData {
 // R71: trend za sekcijo "Trendi — zadnjih 7 dni" (opcionalen — API odpoved →
 // sekcija graciozno manjka, osnovni digest ostane delujoč; vzorec R65)
 interface TrendResponse {
-  data: DigestTrend & { endDate: string }
+  data: DigestTrend & { endDate: string; comparison?: TrendComparison } // R73: primerjava z predhodnim obdobjem
 }
 
 // R48: ljubljanaYesterdayStr zdaj živi v @/lib/timezone-sl (ENOTEN vir resnice —
@@ -189,7 +189,7 @@ function TrendSparkline({
   days,
   onDaysChange,
 }: {
-  trend: DigestTrend & { endDate: string }
+  trend: DigestTrend & { endDate: string; comparison?: TrendComparison }
   days: 7 | 30
   onDaysChange: (d: 7 | 30) => void
 }) {
@@ -235,6 +235,43 @@ function TrendSparkline({
             <span className="rounded-full bg-muted/60 px-2 py-0.5 font-medium tabular-nums print:bg-muted/30">
               Povp. {formatEURShort(trend.avgPerDay)}/dan
             </span>
+            {/* R73: primerjava s predhodnim enako dolgim obdobjem — ▲ zeleno /
+                ▼ rožnato / = sivo; brez podlage (prevTotal=0) → čip SKRIT
+                (primerjava brez osnove bi goljufala). Barva ostane na tisku
+                (nosí pomen — isti vzorec kot 'najboljši dan' amber). */}
+            {(() => {
+              const cmp = trend.comparison
+              if (!cmp || cmp.deltaPct == null) return null
+              const fmt = formatNumberSl(Math.abs(cmp.deltaPct), 1)
+              if (cmp.direction === 'up') {
+                return (
+                  <span
+                    className="rounded-full bg-emerald-500/10 px-2 py-0.5 font-semibold tabular-nums text-emerald-700 dark:text-emerald-400 print:bg-emerald-500/10"
+                    aria-label={`Rast ${fmt} odstotkov glede na predhodnih ${trend.dayCount} dni`}
+                  >
+                    ▲ +{fmt} % vs. predhodnih {trend.dayCount} dni
+                  </span>
+                )
+              }
+              if (cmp.direction === 'down') {
+                return (
+                  <span
+                    className="rounded-full bg-rose-500/10 px-2 py-0.5 font-semibold tabular-nums text-rose-700 dark:text-rose-400 print:bg-rose-500/10"
+                    aria-label={`Padec ${fmt} odstotkov glede na predhodnih ${trend.dayCount} dni`}
+                  >
+                    ▼ −{fmt} % vs. predhodnih {trend.dayCount} dni
+                  </span>
+                )
+              }
+              return (
+                <span
+                  className="rounded-full bg-muted/60 px-2 py-0.5 font-semibold tabular-nums text-muted-foreground print:bg-muted/30"
+                  aria-label={`Enak promet kot v predhodnih ${trend.dayCount} dneh`}
+                >
+                  = ±0 % vs. predhodnih {trend.dayCount} dni
+                </span>
+              )
+            })()}
             {bestPoint && (
               <span className="rounded-full bg-amber-500/15 px-2 py-0.5 font-semibold tabular-nums text-amber-700 dark:text-amber-400">
                 ★ najboljši: {bestPoint.dayLabel} {bestPoint.dayNum}. ({formatEURShort(bestPoint.revenue)})

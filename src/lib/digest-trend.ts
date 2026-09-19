@@ -102,6 +102,39 @@ export function isWeekStart(dateStr: string): boolean {
 /** Prag gosto/redko oznake: >14 stolpcev → oznake vsak 5. dan (R72). */
 export const SPARSE_LABEL_THRESHOLD = 14
 
+// ============================================
+// R73: PRIMERJAVA Z PREDHODNIM OBDOBJEM
+// Trenutno okno (zadnjih N dni) vs. predhodno enako dolgo okno
+// (dni N+1..2N pred končnim dnem). Isti vzorec kot pctChange R65
+// (vzame vzrok: deljeni izračun za UI in API — nikoli ne različici).
+// ============================================
+
+export interface TrendComparison {
+  /** Skupni promet predhodnega enako dolgega okna */
+  prevTotal: number
+  /** Odstotkovna sprememba trenutnega vs. predhodnega (−100…+∞),
+   *  zaokrožena na 1 decimalko. NULL ko predhodno obdobje nima prometa
+   *  (primerjava brez podlage bi goljufala — UI čip takrat skrije). */
+  deltaPct: number | null
+  /** 'up' | 'down' | 'flat' (flat pri |delta| < 0.05 % ali brez podlage) */
+  direction: 'up' | 'down' | 'flat'
+}
+
+/** Primerjava trenutnega skupka s predhodnim obdobjem. Čista funkcija:
+ *  • ne-finitne/negativne vrednosti → 0 (fail-safe, kot povsod v tej lib)
+ *  • prevTotal <= 0 → deltaPct null, direction 'flat' (brez primerjave)
+ *  • deltaPct zaokrožena na 1 decimalko (0.1 % ločljivost je dovolj za čip)
+ *  • |delta| < 0.05 % → 'flat' (plovček ±0 % namesto lažnega ▲/▼) */
+export function computeTrendComparison(currentTotal: number, prevTotal: number): TrendComparison {
+  const cur = Number.isFinite(currentTotal) && currentTotal > 0 ? currentTotal : 0
+  const prev = Number.isFinite(prevTotal) && prevTotal > 0 ? prevTotal : 0
+  if (prev <= 0) return { prevTotal: 0, deltaPct: null, direction: 'flat' }
+  const rawDelta = ((cur - prev) / prev) * 100
+  const deltaPct = Math.round(rawDelta * 10) / 10
+  const direction: TrendComparison['direction'] = Math.abs(rawDelta) < 0.05 ? 'flat' : rawDelta > 0 ? 'up' : 'down'
+  return { prevTotal: prev, deltaPct, direction }
+}
+
 /** Kompakten format za oznake nad stolpci: brez centov, tisočice s piko.
  *  Ročna implementacija (NE Intl) — isti razlog kot formatEUR v safe-format:
  *  Node small-ICU nima podatkov za lokalo → deterministično povsod. */

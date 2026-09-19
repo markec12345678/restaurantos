@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeDigestTrend, slShortDayLabel, formatEURShort, isWeekStart } from '@/lib/digest-trend'
+import { computeDigestTrend, slShortDayLabel, formatEURShort, isWeekStart, computeTrendComparison } from '@/lib/digest-trend'
 
 // R71: 7-dnevni trend za dnevni povzetek (podaljšek R65). Lib je ČIST
 // (isti vzorec kot pctChange R65) — testi pokrivajo skaliranje, "najboljši
@@ -251,5 +251,58 @@ describe('computeDigestTrend — oznake gostota (R72)', () => {
     expect(best.heightPct).toBe(100)
     // vsi ostali (rev 1000) → 1000/9000 = 11.1% → min 2% prag ne smeta spremenit
     expect(t.points[0].heightPct).toBeCloseTo((1000 / 9000) * 100, 1)
+  })
+})
+
+// ============================================
+// R73: primerjava z predhodnim obdobjem
+// ============================================
+
+describe('computeTrendComparison (R73)', () => {
+  it('rast: 125 vs 100 → +25 %, direction up', () => {
+    const c = computeTrendComparison(125, 100)
+    expect(c.prevTotal).toBe(100)
+    expect(c.deltaPct).toBe(25)
+    expect(c.direction).toBe('up')
+  })
+
+  it('padec: 50 vs 100 → −50 %, direction down', () => {
+    const c = computeTrendComparison(50, 100)
+    expect(c.deltaPct).toBe(-50)
+    expect(c.direction).toBe('down')
+  })
+
+  it('izenačeno (< 0.05 % razlike) → flat', () => {
+    const c = computeTrendComparison(100.04, 100)
+    expect(c.deltaPct).toBe(0)
+    expect(c.direction).toBe('flat')
+  })
+
+  it('brez podlage: prevTotal 0 → deltaPct null (UI čip skrit)', () => {
+    const c = computeTrendComparison(500, 0)
+    expect(c.prevTotal).toBe(0)
+    expect(c.deltaPct).toBeNull()
+    expect(c.direction).toBe('flat')
+  })
+
+  it('trenutno 0 vs predhodnega 100 → −100 % (polni padec)', () => {
+    const c = computeTrendComparison(0, 100)
+    expect(c.deltaPct).toBe(-100)
+    expect(c.direction).toBe('down')
+  })
+
+  it('fail-safe: NaN/Infinity/negativno → 0 (kot povsod v lib)', () => {
+    expect(computeTrendComparison(NaN, 100).deltaPct).toBe(-100) // NaN cur → 0
+    expect(computeTrendComparison(100, NaN).deltaPct).toBeNull() // NaN prev → brez podlage
+    expect(computeTrendComparison(100, Infinity).deltaPct).toBeNull()
+    expect(computeTrendComparison(-5, 100).deltaPct).toBe(-100) // negativen cur → 0
+    expect(computeTrendComparison(100, -5).prevTotal).toBe(0)
+  })
+
+  it('zaokroževanje na 1 decimalko (0.1 % ločljivost)', () => {
+    // 111 vs 90 = +23.333... % → +23.3
+    expect(computeTrendComparison(111, 90).deltaPct).toBe(23.3)
+    // 105 vs 104 = +0.96...% → +1 (1 decimalna)
+    expect(computeTrendComparison(105, 104).deltaPct).toBe(1)
   })
 })

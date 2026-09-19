@@ -14,7 +14,10 @@
 // Auth: admin. Rate limit: AUTHENTICATED_LIMIT.
 // Query: ?date=YYYY-MM-DD (končni dan okna; privzeto včeraj po LJ — ista
 //        digest semantika), ?days=1..31 (privzeto 7).
-// Odgovor: { data: DigestTrend & { endDate: string } }
+// Odgovor: { data: DigestTrend & { endDate: string, comparison: TrendComparison } }
+// R73: ENA razširjena poizvedba pokrije TRENUTNO (N dni) in PREDHODNO
+//      (dni N+1..2N) okno — vedra že imajo ključ po LJ dnevu, rawPrev je
+//      samo slice istega bucketiziranega nabora (brez druge povedbe).
 // ============================================
 
 import { NextResponse } from 'next/server'
@@ -24,7 +27,7 @@ import { handleApiError } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { db } from '@/lib/db'
 import { ljubljanaDayBounds, ljubljanaYesterdayStr, ljubljanaDateTimeParts } from '@/lib/timezone-sl'
-import { computeDigestTrend, type TrendDayRaw } from '@/lib/digest-trend'
+import { computeDigestTrend, computeTrendComparison, type TrendDayRaw } from '@/lib/digest-trend'
 
 export const dynamic = 'force-dynamic'
 
@@ -61,12 +64,14 @@ export async function GET(req: Request) {
     const endDateStr = parsed.date || ljubljanaYesterdayStr()
     const dayCount = parsed.days || 7
 
-    // Okno: (končni dan − (dayCount−1)) → končni dan, po LJ koledarju
+    // Okna: TRENUTNO (končni dan − (dayCount−1)) → končni dan in PREDHODNO
+    // (končni dan − (2·dayCount−1)) → (končni dan − dayCount), po LJ koledarju.
+    // ENA poizvedba od okna predhodnega okna naprej — vedra delita bucket map.
     const [ey, em, ed] = endDateStr.split('-').map(Number)
-    const firstDateStr = new Date(Date.UTC(ey, em - 1, ed - (dayCount - 1)))
+    const prevFirstDateStr = new Date(Date.UTC(ey, em - 1, ed - (2 * dayCount - 1)))
       .toISOString()
       .slice(0, 10)
-    const windowStart = ljubljanaDayBounds(firstDateStr).start
+    const windowStart = ljubljanaDayBounds(prevFirstDateStr).start
     const windowEnd = ljubljanaDayBounds(endDateStr).end
 
     // Ena poizvedba za celo okno → bucketizacija po LJ dnevih v JS
@@ -88,18 +93,28 @@ export async function GET(req: Request) {
       buckets.set(key, b)
     }
 
-    // Polni niz dni (tudi brez prometa → 0) v kronološkem vrstnem redu
+    // Polni niz dni (tudi brez prometa → 0) v kronološkem vrstnem redu —
+    // TRENUTNO okno (zadnjih dayCount dni) + PREDHODNO (dayCount dni pred tem)
     const raw: TrendDayRaw[] = []
+    const rawPrev: TrendDayRaw[] = []
     for (let i = 0; i < dayCount; i++) {
       const d = new Date(Date.UTC(ey, em - 1, ed - i))
       const key = d.toISOString().slice(0, 10)
       raw.push(buckets.get(key) ?? { date: key, revenue: 0, ordersCount: 0 })
     }
     raw.reverse() // ASC — computeDigestTrend pričakuje rast po datumu
+    for (let i = dayCount; i < 2 * dayCount; i++) {
+      const d = new Date(Date.UTC(ey, em - 1, ed - i))
+      const key = d.toISOString().slice(0, 10)
+      rawPrev.push(buckets.get(key) ?? { date: key, revenue: 0, ordersCount: 0 })
+    }
+    rawPrev.reverse() // ASC (isti vzrok)
 
     const trend = computeDigestTrend(raw, dayCount)
+    const prevTotal = rawPrev.reduce((s, d) => s + d.revenue, 0)
+    const comparison = computeTrendComparison(trend.total, prevTotal)
 
-    return NextResponse.json({ data: { ...trend, endDate: endDateStr } })
+    return NextResponse.json({ data: { ...trend, endDate: endDateStr, comparison } })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/reports/digest-trend', 'Napaka pri izračunu trenda')
   }
