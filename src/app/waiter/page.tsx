@@ -3,6 +3,7 @@
 import { cn } from '@/lib/utils'
 import { Bell, BellRing, ShoppingCart, UtensilsCrossed, RefreshCw, Wifi, WifiOff, HandMetal } from 'lucide-react'
 import { ErrorBoundary } from '@/components/error-boundary'
+import { NetworkStatusBar } from '@/components/pos/NetworkStatusBar' // R77: nivo naprave offline/predpomnilnik — WS čip pokriva samo Live povezavo
 import dynamic from 'next/dynamic'
 
 import { useWaiterPage } from './useWaiterPage'
@@ -45,6 +46,10 @@ export default function WaiterPage() {
   return (
     <ErrorBoundary context="Waiter" maxRetries={3}>
     <div className="flex flex-col h-screen bg-background">
+      {/* R77: nivo naprave (navigator.onLine + čakajoča offline vrsta) —
+          WS čip v glavi pokriva SAMO Live povezavo, ne ugašenega wifi-ja.
+          Online + nič čakajočih → diskreten trak (ne zasede prostora). */}
+      <NetworkStatusBar />
       {/* ─── HEADER ─── */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b bg-card shadow-sm">
         <div className="flex items-center gap-3">

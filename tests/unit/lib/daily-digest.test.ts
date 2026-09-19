@@ -345,6 +345,83 @@ describe('buildDailyDigestHtml', () => {
       else process.env.NEXT_PUBLIC_APP_URL = prev
     }
   })
+
+  // ─── R77: urna razporeditev v emailu (email-safe graf) ───
+  // Helper: ročno sestavljeni HourlyPoint[24] (HTML builder testiramo izolirano —
+  // mapping heightPct→px, isPeak→amber, showLabel→oznaka je čista funkcija).
+  function hourlyFixture(opts: { peakHour?: number; peakRevenue?: number; secondHour?: number; secondRevenue?: number } = {}) {
+    const peakHour = opts.peakHour ?? 8
+    const peakRevenue = opts.peakRevenue ?? 100
+    const secondHour = opts.secondHour ?? 6
+    const secondRevenue = opts.secondRevenue ?? 50
+    return Array.from({ length: 24 }, (_, hour) => {
+      let revenue = 0
+      let orders = 0
+      if (hour === peakHour) { revenue = peakRevenue; orders = 1 }
+      else if (hour === secondHour) { revenue = secondRevenue; orders = 2 }
+      const isPeak = hour === peakHour && revenue > 0
+      // okno 6–8 (3 h): začne se ob 6 (busyWindow se računa v summarizeHourly —
+      // tu je showLabel vzorčno: vsaka 3. ura (h%3===0) + vrh)
+      return {
+        hour,
+        revenue,
+        orders,
+        heightPct: peakRevenue > 0 ? (revenue / peakRevenue) * 100 : 0,
+        isPeak,
+        showLabel: hour % 3 === 0 || isPeak,
+      }
+    })
+  }
+
+  it('R77: hourly s prometom → sekcija z čipi, 24 stolpci in legendo', () => {
+    const html = buildDailyDigestHtml({ ...base, hourly: hourlyFixture() })
+    expect(html).toContain('Promet po urah')
+    expect(html).toContain('★ vrh: 8. ura (100,00 €)')
+    expect(html).toContain('▦ najboljše okno 06–09 h (150,00 €)') // okno 6–8 → končna ura izpisana kot 09
+    // 24 stolpcev (td z višino 80px + baseline border)
+    const barCells = html.match(/height:80px;vertical-align:bottom/g) ?? []
+    expect(barCells).toHaveLength(24)
+    // legenda z zasedenostjo (2 uri s prometom)
+    expect(html).toContain('zasedenih 2 ur')
+  })
+
+  it('R77: vrh amber, redna ura teal, višine po heightPct (100%→80px, 50%→40px)', () => {
+    const html = buildDailyDigestHtml({ ...base, hourly: hourlyFixture() })
+    // vrh: amber bar s polno višino
+    expect(html).toContain('<div style="height:80px;background:#f59e0b;')
+    // redna ura 6 (50 %) → teal, 40px
+    expect(html).toContain('<div style="height:40px;background:#14b8a6;')
+  })
+
+  it('R77: ura brez prometa → brez bar diva (baseline ostane čez vse 24)', () => {
+    const html = buildDailyDigestHtml({ ...base, hourly: hourlyFixture() })
+    // stolpec 12 (nič prometa): td obstaja (baseline), ampak brez <div style="height:
+    const td12 = html.split('title="12. ura: 0,00 € (0 naročil)"')[1]?.split('</td>')[0] ?? ''
+    expect(td12).not.toContain('<div')
+    expect(html).toContain('title="8. ura: 100,00 € (1 naročilo) — vrh dneva"')
+    expect(html).toContain('title="6. ura: 50,00 € (2 naročil)"')
+  })
+
+  it('R77: oznake — showLabel ure pokažejo številko, ostale &nbsp; placeholder', () => {
+    const html = buildDailyDigestHtml({ ...base, hourly: hourlyFixture() })
+    // število oznak = ure %3===0 (0,3,6,9,12,15,18,21) + vrh 8 = 9 oznak
+    const labelCells = html.match(/font-size:9px;color:#6b7480;text-align:center;padding-top:4px;">(\d+|&nbsp;)<\/td>/g) ?? []
+    expect(labelCells).toHaveLength(24)
+    const labeled = labelCells.filter(c => !c.includes('&nbsp;'))
+    expect(labeled).toHaveLength(9) // 0,3,6,9,12,15,18,21 + vrh 8
+    expect(labeled.join('')).toContain('>8<') // vrh 8. ura ima oznako
+    expect(labeled.join('')).toContain('>21<')
+  })
+
+  it('R77: brez hourly polja (stari klicatelj) → sekcija IZPUŠČENA', () => {
+    const html = buildDailyDigestHtml(base)
+    expect(html).not.toContain('Promet po urah')
+  })
+
+  it('R77: hourly vsi nič → sekcija izpuščena (brez praznih obljub)', () => {
+    const html = buildDailyDigestHtml({ ...base, hourly: hourlyFixture({ peakRevenue: 0, secondRevenue: 0 }) })
+    expect(html).not.toContain('Promet po urah')
+  })
 })
 
 describe('sendDailyDigestEmail / ensureDailySummaryLog', () => {
