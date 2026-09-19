@@ -22,12 +22,15 @@ import { REZERVACIJA_FORMS, GOST_FORMS, slCount } from '@/lib/sl-plural'
 // Lazy-loaded podkomponente
 const TimelineView = dynamic(() => import('./reservation/TimelineView').then(m => ({ default: m.TimelineView })), { ssr: false })
 const ListView = dynamic(() => import('./reservation/ListView').then(m => ({ default: m.ListView })), { ssr: false })
+// RUNDA 58: tloris pogled (geometrija miz + današnje rezervacije, "zdaj" okna)
+const FloorPlanView = dynamic(() => import('./reservation/FloorPlanView').then(m => ({ default: m.FloorPlanView })), { ssr: false })
 const ReservationDialog = dynamic(() => import('./reservation/ReservationDialog').then(m => ({ default: m.ReservationDialog })), { ssr: false })
 
 export const ReservationManager = memo(function ReservationManager() {
   const queryClient = useQueryClient()
   const [selectedDate, setSelectedDate] = useState(new Date())
-  const [viewMode, setViewMode] = useState<'list' | 'timeline'>('timeline')
+  // RUNDA 58: tretji pogled "tloris" — vizualna sinhr. miz in rezervacij
+  const [viewMode, setViewMode] = useState<'list' | 'timeline' | 'tloris'>('timeline')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingReservation, setEditingReservation] = useState<ReservationType | null>(null)
   const [filterStatus, setFilterStatus] = useState('all')
@@ -201,8 +204,29 @@ export const ReservationManager = memo(function ReservationManager() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => setViewMode(viewMode === 'list' ? 'timeline' : 'list')}>
-            {viewMode === 'list' ? 'Časovni trak' : 'Seznam'}
+          {/* RUNDA 58: 3-nivojski segmentni preklopnik (Seznam · Časovni trak · Tloris)
+              — zamenja prejšnji 2-strojni toggle; aria-selected za screen readere */}
+          <div role="tablist" aria-label="Pogled rezervacij" className="hidden sm:flex items-center rounded-md border border-border bg-muted/40 p-0.5">
+            {([['list', 'Seznam'], ['timeline', 'Časovni trak'], ['tloris', 'Tloris']] as const).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                role="tab"
+                aria-selected={viewMode === mode}
+                onClick={() => setViewMode(mode)}
+                className={`rounded px-2.5 py-1 text-xs font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                  viewMode === mode
+                    ? 'bg-background text-foreground shadow-sm animate-fade-in-up'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {/* Mobilni fallback: krožni preklop (segmentni je na ozkem zaslonu skrit) */}
+          <Button variant="outline" size="sm" className="sm:hidden" onClick={() => setViewMode(viewMode === 'list' ? 'timeline' : viewMode === 'timeline' ? 'tloris' : 'list')} aria-label={`Pogled: ${viewMode === 'list' ? 'Seznam' : viewMode === 'timeline' ? 'Časovni trak' : 'Tloris'}`}>
+            {viewMode === 'list' ? 'Časovni trak' : viewMode === 'timeline' ? 'Tloris' : 'Seznam'}
           </Button>
           <Button size="sm" onClick={handleOpenNew}><Plus className="h-4 w-4 mr-1" /> Nova rezervacija</Button>
         </div>
@@ -218,6 +242,8 @@ export const ReservationManager = memo(function ReservationManager() {
           <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>
         ) : viewMode === 'timeline' ? (
           <TimelineView reservations={filteredReservations} tables={tables || []} onEdit={handleEdit} onStatusChange={handleStatusChange} onTimeShift={handleTimeShift} onSendReminder={handleSendReminder} isToday={isToday(selectedDate)} />
+        ) : viewMode === 'tloris' ? (
+          <FloorPlanView reservations={filteredReservations} tables={tables || []} isToday={isToday(selectedDate)} onEdit={handleEdit} />
         ) : (
           <ListView reservations={filteredReservations} onEdit={handleEdit} onStatusChange={handleStatusChange} onTimeShift={handleTimeShift} onSendReminder={handleSendReminder} />
         )}

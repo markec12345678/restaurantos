@@ -10,6 +10,13 @@ export interface TableType {
   capacity: number
   area: string
   status: string
+  /** RUNDA 58: geometrija iz vizualnega tlorisa (/api/tables) — za Tloris pogled rezervacij */
+  posX?: number
+  posY?: number
+  width?: number
+  height?: number
+  shape?: string
+  rotation?: number
 }
 
 export interface ReservationType {

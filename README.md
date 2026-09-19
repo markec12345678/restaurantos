@@ -1,11 +1,11 @@
-# RestaurantOS v1.6.2
+# RestaurantOS v1.7.0
 
-[![Version](https://img.shields.io/badge/version-1.6.2-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.7.0-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-1918%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-57%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-1949%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-58%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,18 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (57 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (58 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.7.0 (QA runda 58)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| 🗺️ **Tloris pogled rezervacij** | Novi **"Tloris"** pogled v Rezervacijah: vizualni kanvas z geometrijo miz iz prodajnega tlorisa (posX/posY/oblika/rotacija, runda 43 sinhronizacija), današnje rezervacije kot čipi na mizah ("18:00 · Ana · 4"), izpeljan status mize (prosta/rezervirana/zasedena — enotne barve z orders tlorisom) in **"zdaj"** poudarek za rezervacije v polodprtem oknu [start, end) |
+| 🎛️ **Segmentni preklopnik pogledov** | 2-strojni toggle → 3-nivojski segmentni preklopnik (Seznam · Časovni trak · Tloris) z `role=tablist`/`aria-selected`, mobilni krožni fallback; klik na mizo → detail panel z vsemi rezervacijami (preklicane prečrtane, "Uredi" odpre obstoječi dialog) |
+| 🧩 **Nov lib `reservation-floorplan`** | Čiste pomožne funkcije: `groupReservationsByTable` (kronološko, brez preklicanih), `deriveTableFloorStatus` (seated ima prednost), `splitTablesByGeometry` (fallback mreža za nepozicionirane mize), `formatFloorChip`/`formatFloorTime` (LJ cona, `--:--` varni nadomestek), `sliceWithMore` ("+N" strnjenež) |
+| 🇸🇮 **KDS/kuhinja — glagolsko soglasje (R57c)** | Footer moški rod: "2 čakata", "0 pripravljenih" (`CAKA_GLAGOL_FORMS` + `PRIPRAVLJEN_FORMS`) — živa QA ugotovitev iz produkcijskega QA prehoda |
+| ✨ **Stilski detajlji** | Dot-mreža "risovalni papir" ozadje kanvasa, staggered `animate-fade-in-up` vstopi (cap 360 ms), hover lift + `scale-[1.03]`, pulzirajoče statusne pike, `tabular-nums` časi, prazna stanja z ikonami, `aria-label`/`aria-pressed` na mizah, dark-mode variante |
+| 🧪 **Kakovost** | 1949/1949 unit testov (111 datotek, +22 floorplan testov), 0 tsc napak, 0 eslint errorjev |
 
 ### ✨ Nove funkcije v v1.6.2 (QA runda 57)
 
