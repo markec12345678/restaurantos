@@ -159,3 +159,39 @@ export function findFreeTableSlot(
   const n = existing.length
   return { posX: snapFloorPos(46 + (n % 3) * 8), posY: snapFloorPos(38 + (n % 4) * 10) }
 }
+
+// ============================================
+// RUNDA 61: ŽIVI TLORIS — svežina podatkov + detekcija sprememb
+// (avtomatsko osveževanje, "zadnja posodobitev" pilula, utrip spremembe)
+// ============================================
+
+/**
+ * Primerja statusi miz med dvema osvežitvama in vrne ID-je miz, katerih
+ * izpeljani status se je SPREMENIL (npr. sosed jo posedel medtem, ko gledamo).
+ * Pravila: mize, ki obstajajo samo v eni od zemljevidov (nove/izbrisane),
+ * NE sprožijo utripa — ta je namenjen samo prehodom pri obstoječih mizah.
+ */
+export function diffFloorStatuses(
+  prev: ReadonlyMap<string, FloorStatus>,
+  next: ReadonlyMap<string, FloorStatus>,
+): string[] {
+  const changed: string[] = []
+  for (const [id, status] of next) {
+    const before = prev.get(id)
+    if (before !== undefined && before !== status) changed.push(id)
+  }
+  return changed
+}
+
+/**
+ * Relativni čas v slovenščini za "zadnja posodobitev" indikator.
+ * Okrajšave se ne sklanjajo (s/min/h) → deterministične oblike:
+ * < 10 s → "pravkar" · < 60 s → "pred 25 s" · < 60 min → "pred 3 min" · sicer "pred 2 h"
+ */
+export function relativeTimeSl(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 10) return 'pravkar'
+  if (seconds < 60) return `pred ${Math.floor(seconds)} s`
+  const min = Math.floor(seconds / 60)
+  if (min < 60) return `pred ${min} min`
+  return `pred ${Math.floor(min / 60)} h`
+}

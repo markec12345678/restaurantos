@@ -46,7 +46,8 @@ export interface ReservationType {
 
 export const statusLabels: Record<string, string> = {
   confirmed: 'Potrjena',
-  seated: 'Sedeči',
+  // RUNDA 61: bolj naravno — "gost sedeč" (oseba), ne "sedeči" (pasivni Pridevnik)
+  seated: 'Gost sedeč',
   completed: 'Zaključena',
   cancelled: 'Preklicana',
   no_show: 'Ni prišel',

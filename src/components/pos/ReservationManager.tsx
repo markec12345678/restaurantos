@@ -36,13 +36,17 @@ export const ReservationManager = memo(function ReservationManager() {
   const [filterStatus, setFilterStatus] = useState('all')
 
   const dateStr = format(selectedDate, 'yyyy-MM-dd')
-  const { data, isLoading } = useQuery({
+  // RUNDA 61: ŽIVI TLORIS — avtomatsko osveževanje (30 s rezervacije, 45 s mize).
+  // refetchIntervalInBackground: false (privzeto) → pavza, ko je zavihek v ozadju;
+  // dataUpdatedAt + isFetching gresta v "zadnja posodobitev" pilulo na tlorisu.
+  const { data, isLoading, dataUpdatedAt, isFetching, refetch: refetchReservations } = useQuery({
     queryKey: [...queryKeys.reservations.all, dateStr],
     queryFn: async () => {
       const res = await authFetch(`/api/reservations?date=${dateStr}`)
       if (!res.ok) throw new Error('Napaka pri nalaganju')
       return res.json()
     },
+    refetchInterval: 30_000,
   })
 
   const { data: _upcomingData } = useQuery({
@@ -61,7 +65,16 @@ export const ReservationManager = memo(function ReservationManager() {
       if (!res.ok) throw new Error('Napaka pri nalaganju')
       return res.json()
     },
+    // RUNDA 61: miz se navadno ne dotika samo ta pogled (postavitev/urejevalnik,
+    // hitre akcije sinhronizirajo status) → redkejši interval kot rezervacije
+    refetchInterval: 45_000,
   })
+
+  // RUNDA 61: ročna osvežitev (gumb na tlorisu) — rezervacije + mize hkrati
+  const handleManualRefresh = useCallback(() => {
+    void refetchReservations()
+    void queryClient.invalidateQueries({ queryKey: queryKeys.tables.all })
+  }, [refetchReservations, queryClient])
 
   const reservations: ReservationType[] = data?.reservations || []
   const filteredReservations = useMemo(() => filterStatus === 'all'
@@ -249,7 +262,7 @@ export const ReservationManager = memo(function ReservationManager() {
         ) : viewMode === 'timeline' ? (
           <TimelineView reservations={filteredReservations} tables={tables || []} onEdit={handleEdit} onStatusChange={handleStatusChange} onTimeShift={handleTimeShift} onSendReminder={handleSendReminder} isToday={isToday(selectedDate)} />
         ) : viewMode === 'tloris' ? (
-          <FloorPlanView reservations={filteredReservations} tables={tables || []} isToday={isToday(selectedDate)} onEdit={handleEdit} onStatusChange={handleStatusChange} />
+          <FloorPlanView reservations={filteredReservations} tables={tables || []} isToday={isToday(selectedDate)} onEdit={handleEdit} onStatusChange={handleStatusChange} dataUpdatedAt={dataUpdatedAt} isRefreshing={isFetching} onManualRefresh={handleManualRefresh} />
         ) : (
           <ListView reservations={filteredReservations} onEdit={handleEdit} onStatusChange={handleStatusChange} onTimeShift={handleTimeShift} onSendReminder={handleSendReminder} />
         )}

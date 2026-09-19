@@ -231,7 +231,9 @@ html {
   .animate-pulse,
   .animate-ping,
   .animate-bounce,
-  .animate-spin {
+  .animate-spin,
+  /* RUNDA 61: utrip spremembe tlorisa (živi pregled) */
+  .animate-live-flash {
     animation: none !important;
   }
 }
@@ -399,6 +401,24 @@ html {
 }
 .animate-pulse-glow-amber {
   animation: pulse-glow-amber 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* RUNDA 61: ŽIVI TLORIS — enkraten utrip obroča, ko se izpeljani status mize
+   spremeni med osvežitvami (sosed jo posedel / rezervacija prišla na vrsto).
+   Raba: .animate-live-flash — 2 utripa ≈ 2,1 s, potem miruje. */
+@keyframes live-flash-ring {
+  0% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 14px hsl(var(--primary) / 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
+  }
+}
+.animate-live-flash {
+  animation: live-flash-ring 1.05s ease-out 2;
 }
 
 /* ─── 2. NEGATIVNI PROSTOR — Square-inspired spacing ─── */

@@ -21,8 +21,8 @@
 // (lokalni prikaz) + PUT /api/tables/[id] { posX, posY }; napaka → povratek
 // + toast. Snap na 2 % mrežo, omejeno na rob tlorisa.
 
-import { memo, useMemo, useState, useCallback, useEffect, useRef } from 'react'
-import { MapPin, Users, Pencil, Clock, UserCheck, AlertCircle, X, Check, Loader2, Move, MoveHorizontal } from 'lucide-react'
+import { memo, useMemo, useState, useCallback, useEffect, useRef, useReducer } from 'react'
+import { MapPin, Users, Pencil, Clock, UserCheck, AlertCircle, X, Check, Loader2, Move, MoveHorizontal, RefreshCw } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
@@ -37,6 +37,8 @@ import {
   formatFloorChip,
   findFreeTableSlot,
   snapFloorPos,
+  diffFloorStatuses,
+  relativeTimeSl,
   type FloorStatus,
   type FloorRect,
   type TableReservations,
@@ -60,6 +62,12 @@ export interface FloorPlanViewProps {
   onEdit: (_r: ReservationType) => void
   /** RUNDA 59: hitre akcije statusa (ista mutacija kot kartice). */
   onStatusChange?: (_id: string, _status: string) => void
+  /** RUNDA 61: ŽIVI TLORIS — timestamp zadnjega uspešnega fetcha (ms) za pilulo svežine. */
+  dataUpdatedAt?: number
+  /** RUNDA 61: trenutno teče osvežitev (vrtinček na gumbu). */
+  isRefreshing?: boolean
+  /** RUNDA 61: ročna osvežitev (gumb). */
+  onManualRefresh?: () => void
 }
 
 // RUNDA 59: semantične barve akcij (enoten jezik z ReservationCard) —
@@ -103,12 +111,68 @@ function floorLabel(status: FloorStatus, count: number): string {
   return count === 1 ? 'zasedena' : count === 2 ? 'zasedeni' : 'zasedenih'
 }
 
+// ============================================
+// RUNDA 61: FRESHNESS PILL — "zadnja posodobitev pred X" + ročni gumb
+// ============================================
+// Tikalko vsakih 10 s (relativni čas živi tudi brez novega fetcha); > 90 s
+// pomeni zastarelost (npr. zavihek je bil v ozadju) → amber poudarek.
+const FRESH_TICK_MS = 10_000
+const FRESH_STALE_SEC = 90
+
+const FreshnessPill = memo(function FreshnessPill({
+  dataUpdatedAt,
+  isRefreshing,
+  onManualRefresh,
+}: {
+  dataUpdatedAt?: number
+  isRefreshing?: boolean
+  onManualRefresh?: () => void
+}) {
+  const [, tick] = useReducer((x: number) => x + 1, 0)
+  useEffect(() => {
+    const iv = setInterval(tick, FRESH_TICK_MS)
+    return () => clearInterval(iv)
+  }, [])
+
+  if (dataUpdatedAt === undefined || dataUpdatedAt <= 0) return null
+  const seconds = Math.max(0, Math.floor((Date.now() - dataUpdatedAt) / 1000))
+  const stale = seconds >= FRESH_STALE_SEC
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 tabular-nums transition-colors duration-300 ${
+        stale
+          ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+          : 'border-border/60 bg-background/60 text-muted-foreground'
+      }`}
+    >
+      <span
+        aria-hidden="true"
+        className={`h-1.5 w-1.5 rounded-full ${stale ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}
+      />
+      <span aria-live="polite">osveženo {relativeTimeSl(seconds)}</span>
+      {onManualRefresh && (
+        <button
+          type="button"
+          onClick={onManualRefresh}
+          aria-label="Ročno osveži tloris in rezervacije"
+          className="ml-0.5 inline-flex items-center rounded-full p-0.5 transition-all duration-150 hover:scale-110 hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
+        </button>
+      )}
+    </span>
+  )
+})
+
 export const FloorPlanView = memo(function FloorPlanView({
   reservations,
   tables,
   isToday,
   onEdit,
   onStatusChange,
+  dataUpdatedAt,
+  isRefreshing,
+  onManualRefresh,
 }: FloorPlanViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   // RUNDA 59: "zaposlen" marker za pending UX — gumb pokaže vrtinčko, ostali
@@ -293,6 +357,32 @@ export const FloorPlanView = memo(function FloorPlanView({
     return c
   }, [tables, statusOf])
 
+  // ============================================
+  // RUNDA 61: ŽIVI TLORIS — utrip spremembe statusa mize
+  // ============================================
+  // Med osvežitvami (avtomatske 30/45 s ali refetch po akciji) primerjamo
+  // izpeljane statuse; miza s prehodom (npr. Prosta → Zasedena, ker jo je
+  // sosed posedel) dobi 2× utrip obroča (~2,1 s). Prva predstavitev (prev
+  // prazen) ne utripa. Utrip se samočisti po 3 s.
+  const prevStatusesRef = useRef<Map<string, FloorStatus> | null>(null)
+  const [flashIds, setFlashIds] = useState<Set<string>>(() => new Set<string>())
+
+  useEffect(() => {
+    const current = new Map<string, FloorStatus>()
+    for (const t of tables) current.set(t.id, statusOf(t.id))
+    const prev = prevStatusesRef.current
+    prevStatusesRef.current = current
+    if (!prev || prev.size === 0) return
+    const changed = diffFloorStatuses(prev, current)
+    if (changed.length > 0) setFlashIds(new Set(changed))
+  }, [tables, statusOf])
+
+  useEffect(() => {
+    if (flashIds.size === 0) return
+    const timer = setTimeout(() => setFlashIds(new Set()), 3000)
+    return () => clearTimeout(timer)
+  }, [flashIds])
+
   const selected = selectedId ? tables.find(t => t.id === selectedId) ?? null : null
   const selectedEntry = selectedId && isToday ? grouped.get(selectedId) : undefined
 
@@ -352,7 +442,7 @@ export const FloorPlanView = memo(function FloorPlanView({
 
   return (
     <div className="space-y-3">
-      {/* Legenda + števec (sl-plural: 1 prosta · 2 prosti · 5 prostih) + RUNDA 60: urejevalnik */}
+      {/* Legenda + števec (sl-plural: 1 prosta · 2 prosti · 5 prostih) + RUNDA 61: svežina + RUNDA 60: urejevalnik */}
       <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground" aria-live="polite">
         {(['available', 'reserved', 'occupied'] as const).map(s => (
           <span key={s} className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/60 px-2 py-0.5">
@@ -363,19 +453,23 @@ export const FloorPlanView = memo(function FloorPlanView({
         {!isToday && (
           <span className="rounded-full bg-muted px-2 py-0.5 text-[10px]">arhivski dan — brez "zdaj" logike</span>
         )}
-        <button
-          type="button"
-          onClick={() => { setEditor(prev => !prev); setSelectedId(null) }}
-          aria-pressed={editor}
-          className={`ml-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-            editor
-              ? 'border-primary/50 bg-primary/10 text-primary shadow-sm'
-              : 'border-border/60 bg-background/60 text-muted-foreground hover:border-primary/40 hover:text-primary'
-          }`}
-        >
-          <Move className="h-3 w-3" aria-hidden="true" />
-          {editor ? 'Zaključi urejanje' : 'Uredi pozicije'}
-        </button>
+        {/* RUNDA 61: živost podatkov — zadnja posodobitev + ročni gumb (desna skupina z urejevalnikom) */}
+        <span className="ml-auto inline-flex items-center gap-2">
+          <FreshnessPill dataUpdatedAt={dataUpdatedAt} isRefreshing={isRefreshing} onManualRefresh={onManualRefresh} />
+          <button
+            type="button"
+            onClick={() => { setEditor(prev => !prev); setSelectedId(null) }}
+            aria-pressed={editor}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              editor
+                ? 'border-primary/50 bg-primary/10 text-primary shadow-sm'
+                : 'border-border/60 bg-background/60 text-muted-foreground hover:border-primary/40 hover:text-primary'
+            }`}
+          >
+            <Move className="h-3 w-3" aria-hidden="true" />
+            {editor ? 'Zaključi urejanje' : 'Uredi pozicije'}
+          </button>
+        </span>
       </div>
 
       {tables.length === 0 ? (
@@ -414,6 +508,8 @@ export const FloorPlanView = memo(function FloorPlanView({
             const status = deriveTableFloorStatus(entry)
             const rect = effRect(t)
             const isDragging = drag?.id === t.id
+            // RUNDA 61: živi tloris — miza s spremembo statusa dobi 2× utrip obroča
+            const isFlashing = flashIds.has(t.id)
             return (
               <button
                 key={t.id}
@@ -427,7 +523,7 @@ export const FloorPlanView = memo(function FloorPlanView({
                 aria-pressed={selectedId === t.id}
                 className={`${tableButtonClass(t.id, rect.shape)} ${editor ? 'cursor-grab touch-none active:cursor-grabbing' : ''} ${
                   isDragging ? 'z-50 scale-[1.06] shadow-xl ring-2 ring-primary/70 transition-none cursor-grabbing' : ''
-                }`}
+                } ${isFlashing ? 'animate-live-flash' : ''}`}
                 style={{
                   left: `${rect.posX}%`,
                   top: `${rect.posY}%`,
@@ -436,7 +532,8 @@ export const FloorPlanView = memo(function FloorPlanView({
                   transform: `rotate(${rect.rotation}deg)`,
                   minWidth: '64px',
                   minHeight: '56px',
-                  animationDelay: `${Math.min(i * 45, 360)}ms`,
+                  // utrip ne sme čakati na vstopni stagger
+                  animationDelay: isFlashing ? '0ms' : `${Math.min(i * 45, 360)}ms`,
                 }}
               >
                 {renderTableBody(t, entry)}
@@ -466,11 +563,13 @@ export const FloorPlanView = memo(function FloorPlanView({
               const status = deriveTableFloorStatus(entry)
               const colors = floorStatusColors[status] ?? floorStatusColors.available
               const isPlacing = positionMutation.isPending && positionMutation.variables?.id === t.id
+              // RUNDA 61: živi tloris — tudi fallback mreža utripne ob spremembi
+              const isFlashing = flashIds.has(t.id)
               return (
                 <div
                   key={t.id}
-                  className={`relative flex items-stretch gap-1 rounded-lg border-2 ${colors.border} ${colors.bg} p-1 pr-2 transition-all duration-200 animate-fade-in-up ${editor ? 'border-dashed shadow-sm' : ''}`}
-                  style={{ animationDelay: `${Math.min(i * 40, 320)}ms` }}
+                  className={`relative flex items-stretch gap-1 rounded-lg border-2 ${colors.border} ${colors.bg} p-1 pr-2 transition-all duration-200 animate-fade-in-up ${editor ? 'border-dashed shadow-sm' : ''} ${isFlashing ? 'animate-live-flash' : ''}`}
+                  style={{ animationDelay: isFlashing ? '0ms' : `${Math.min(i * 40, 320)}ms` }}
                 >
                   <button
                     type="button"
