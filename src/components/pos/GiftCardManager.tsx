@@ -2,7 +2,15 @@
 
 import { memo } from 'react'
 import dynamic from 'next/dynamic'
+import { toast } from 'sonner'
 import { useGiftCardManager } from './gift-cards/useGiftCardManager'
+import { statusConfig } from './gift-cards/constants'
+import { slCount, KARTICA_FORMS } from '@/lib/sl-plural'
+import {
+  downloadCsv,
+  giftCardRegistryCsv,
+  giftCardRegistryCsvFilename,
+} from '@/lib/csv-export'
 
 // Lazy-loaded podkomponente
 const GiftCardLoadingSkeleton = dynamic(() => import('./gift-cards/GiftCardLoadingSkeleton').then(m => ({ default: m.GiftCardLoadingSkeleton })), { ssr: false })
@@ -39,6 +47,27 @@ export const GiftCardManager = memo(function GiftCardManager() {
 
   const { totalCards, activeCards, totalBalanceOutstanding, totalLoadedThisMonth } = summaryStats
 
+  // RUNDA 56: izvoz REGISTRA kartic (trenutno filtriran + sortiran seznam —
+  // isti, ki ga uporabnik vidi v tabeli). decimalna vejica + podpičje + BOM
+  // = dvoklik v slovenskem Excelu takoj uporaben.
+  const handleExportRegistry = () => {
+    if (filteredCards.length === 0) return
+    try {
+      const statusLabels = Object.fromEntries(
+        Object.entries(statusConfig).map(([k, v]) => [k, v.label]),
+      )
+      const content = giftCardRegistryCsv(filteredCards, statusLabels)
+      const filename = giftCardRegistryCsvFilename()
+      if (downloadCsv(filename, content)) {
+        toast.success(`Register izvožen — ${slCount(filteredCards.length, KARTICA_FORMS)}`)
+      } else {
+        toast.error('Prenosa ni bilo mogoče začeti')
+      }
+    } catch {
+      toast.error('Izvoz registra ni uspel — poskusite znova')
+    }
+  }
+
   // --- Nalagalni skeleton ---
   if (isLoading) {
     return <GiftCardLoadingSkeleton />
@@ -48,7 +77,11 @@ export const GiftCardManager = memo(function GiftCardManager() {
   return (
     <div className="space-y-6 p-6">
       {/* Glava */}
-      <GiftCardPageHeader onOpenNewCard={openNewCard} />
+      <GiftCardPageHeader
+        onOpenNewCard={openNewCard}
+        onExportRegistry={handleExportRegistry}
+        exportRegistryDisabled={filteredCards.length === 0}
+      />
 
       {/* Povzetek */}
       <GiftCardSummaryCards

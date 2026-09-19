@@ -1,12 +1,18 @@
 'use client'
 
 import { memo, useState } from 'react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { Clock, History, ArrowDownToLine, Wallet, RefreshCw, ArrowUpDown, Filter, Sigma } from 'lucide-react'
+import { Clock, History, ArrowDownToLine, Wallet, RefreshCw, ArrowUpDown, Filter, Sigma, Download } from 'lucide-react'
 import { type GiftCard, statusConfig, formatCurrency, formatDateTimeSI } from './constants'
+import {
+  downloadCsv,
+  giftCardCsvFilename,
+  giftCardHistoryCsv,
+} from '@/lib/csv-export'
 import {
   type GiftCardTxCategory,
   giftCardTxCategory,
@@ -55,10 +61,43 @@ const TransactionHistoryDialogInner = memo(function TransactionHistoryDialogInne
   target,
 }: TransactionHistoryDialogProps) {
   const [filter, setFilter] = useState<FilterValue>('all')
+  const [exporting, setExporting] = useState(false)
 
   if (!target) return null
 
   const transactions = target.transactions || []
+
+  // RUNDA 56: CSV izvoz TOČNO filtrirane množice (ob "Vse" = celotna
+  // zgodovina) — knjigovodja dobi isti seznam, ki ga vidi na ekranu.
+  const handleExportCsv = () => {
+    if (filtered.length === 0 || exporting) return
+    setExporting(true)
+    try {
+      const content = giftCardHistoryCsv(
+        filtered.map((tx) => ({
+          type: tx.type,
+          amount: tx.amount,
+          balanceAfter: tx.balanceAfter,
+          note: tx.note,
+          createdAt: tx.createdAt,
+        })),
+        Object.fromEntries(
+          Object.entries(GIFT_CARD_TX_CATEGORY_META).map(([k, m]) => [k, m.label]),
+        ),
+      )
+      const filename = giftCardCsvFilename(target.cardNumber)
+      const ok = downloadCsv(filename, content)
+      if (ok) {
+        toast.success(`CSV izvožen — ${filename}`)
+      } else {
+        toast.error('Prenosa ni bilo mogoče začeti')
+      }
+    } catch {
+      toast.error('Izvoz ni uspel — poskusite znova')
+    } finally {
+      setExporting(false)
+    }
+  }
 
   // RUNDA 51: kategorizacija prek skupne knjižnice (ENOTEN VIR — prej
   // transactionTypeConfig v constants.ts). Filter čipi samo za prisotne
@@ -157,9 +196,17 @@ const TransactionHistoryDialogInner = memo(function TransactionHistoryDialogInne
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Status</p>
-            <Badge className={`text-[10px] px-2 py-0.5 ${(statusConfig[target.status] || statusConfig.active).bgColor}`}>
-              {(statusConfig[target.status] || statusConfig.active).label}
-            </Badge>
+            {/* RUNDA 56: pika po statusu (dotColor iz konfig); utripa SAMO pri
+                aktivni (živa kartica), pri ostalih statična — manj šuma */}
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className={`h-2 w-2 rounded-full flex-shrink-0 ${(statusConfig[target.status] || statusConfig.active).dotColor} ${target.status === 'active' ? 'animate-pulse' : ''}`}
+                aria-hidden="true"
+              />
+              <Badge className={`text-[10px] px-2 py-0.5 ${(statusConfig[target.status] || statusConfig.active).bgColor}`}>
+                {(statusConfig[target.status] || statusConfig.active).label}
+              </Badge>
+            </span>
           </div>
         </div>
 
@@ -238,6 +285,21 @@ const TransactionHistoryDialogInner = memo(function TransactionHistoryDialogInne
               <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums" aria-hidden>
                 {filtered.length}/{transactions.length}
               </span>
+              {/* RUNDA 56: CSV izvoz — točno filtrirana množica, SI Excel
+                  prijazno (podpičje, decimalna vejica, BOM). Onemogočen pri
+                  prazni množici; aria-label opisuje dejanje. */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5 rounded-full px-3 text-xs font-medium border-border/70 bg-background/60 hover:bg-primary/5 hover:text-primary hover:border-primary/40 transition-colors touch-manipulation disabled:opacity-50"
+                onClick={handleExportCsv}
+                disabled={filtered.length === 0 || exporting}
+                aria-label={`Izvozi ${filtered.length} transakcij kot CSV datoteko`}
+              >
+                <Download className="h-3.5 w-3.5" aria-hidden />
+                Izvozi CSV
+              </Button>
             </div>
             <p className="sr-only" aria-live="polite">
               Prikazanih {filtered.length} od {transactions.length} transakcij
@@ -274,6 +336,13 @@ const TransactionHistoryDialogInner = memo(function TransactionHistoryDialogInne
                         </div>
                         <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
                           <span>Stanje po: <span className="font-medium text-foreground tabular-nums">{formatCurrency(tx.balanceAfter)}</span></span>
+                          {/* RUNDA 56: referenca naročila (zadnjih 8 znakov cuid,
+                              monospace) — sledljivost brez odpiranja naročila */}
+                          {tx.orderId && (
+                            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted/60 border border-border/40" title={`Naročilo: ${tx.orderId}`}>
+                              Naročilo …{tx.orderId.slice(-8)}
+                            </span>
+                          )}
                           {tx.note && <span className="truncate">Opomba: {tx.note}</span>}
                         </div>
                       </div>

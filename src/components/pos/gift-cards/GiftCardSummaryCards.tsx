@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { CreditCard, CheckCircle2, Wallet, TrendingUp } from 'lucide-react'
+import { slCount, NEAKTIVNA_KARTICA_FORMS } from '@/lib/sl-plural'
 import { formatCurrency } from './constants'
 
 // --- Props ---
@@ -52,7 +53,7 @@ export const GiftCardSummaryCards = memo(function GiftCardSummaryCards({
     {
       label: 'Skupaj kartic',
       value: String(totalCards),
-      sub: `${inactiveCards} neaktivnih ali blokiranih`,
+      sub: slCount(inactiveCards, NEAKTIVNA_KARTICA_FORMS),
       accent: 'border-sky-500',
       iconClass: 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400',
       icon: CreditCard,

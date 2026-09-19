@@ -29,6 +29,20 @@ export const OSEBA_FORMS: SlPluralForms = ['oseba', 'osebi', 'osebe', 'oseb']
 export const MINUTA_FORMS: SlPluralForms = ['minuta', 'minuti', 'minute', 'minut']
 // RUNDA 54: opomniki gostom (reminderSent flow) — KPI čip "N brez opomnika"
 export const OPOMNIK_FORMS: SlPluralForms = ['opomnik', 'opomnika', 'opomniki', 'opomnikov']
+// RUNDA 56: eliotska ženska oblika (samostalnik "kartica" je izpuščen) —
+// KPI "N neaktivnih ali blokiranih" na darilnih karticah je pri 1/2/3/4
+// slovnično napačen (živa QA ugotovitev R56: "1 neaktivnih ali blokiranih").
+// 1 neaktivna ali blokirana (kartica) · 2 neaktivni ali blokirani (dvojina)
+// · 3 neaktivne ali blokirane · 5 neaktivnih ali blokiranih
+export const NEAKTIVNA_KARTICA_FORMS: SlPluralForms = [
+  'neaktivna ali blokirana',
+  'neaktivni ali blokirani',
+  'neaktivne ali blokirane',
+  'neaktivnih ali blokiranih',
+]
+// RUNDA 56: osnovna družina "kartica" (toast registra darilnih kartic:
+// "Register izvožen — 2 kartici" ne "2 kartic")
+export const KARTICA_FORMS: SlPluralForms = ['kartica', 'kartici', 'kartice', 'kartic']
 
 /**
  * Katera množinska oblika za n? Tradicionalna slovenska norma:
