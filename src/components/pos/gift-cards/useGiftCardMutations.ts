@@ -114,7 +114,12 @@ export function useGiftCardMutations({
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await authFetch(`/api/gift-cards/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Napaka pri brisanju kartice')
+      // RUNDA 69: pokaži razlog zavrnitve (guard 409: "Kartica ima N transakcij…")
+      // namesto generične napake — API in dialog delita isti guard lib.
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null
+        throw new Error(body?.error || 'Napaka pri brisanju kartice')
+      }
       return res.json()
     },
     onSuccess: () => {
@@ -123,8 +128,8 @@ export function useGiftCardMutations({
       setDeleteDialogOpen(false)
       setDeleteTarget(null)
     },
-    onError: () => {
-      toast.error('Napaka pri brisanju darilne kartice')
+    onError: (e: Error) => {
+      toast.error(e.message || 'Napaka pri brisanju darilne kartice')
     },
   })
 

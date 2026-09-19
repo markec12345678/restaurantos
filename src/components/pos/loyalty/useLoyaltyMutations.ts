@@ -88,7 +88,12 @@ export function useLoyaltyMutations({
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await authFetch(`/api/loyalty/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Napaka pri brisanju računa')
+      // RUNDA 69: pokaži razlog zavrnitve (guard 409: "Račun ima N transakcij…")
+      // namesto generične napake — API in dialog delita isti guard lib.
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null
+        throw new Error(body?.error || 'Napaka pri brisanju računa')
+      }
       return res.json()
     },
     onSuccess: () => {
@@ -97,7 +102,7 @@ export function useLoyaltyMutations({
       onCloseDeleteDialog()
       onClearDeleteTarget()
     },
-    onError: () => { toast.error('Napaka pri brisanju zvestobnega računa') },
+    onError: (e: Error) => { toast.error(e.message || 'Napaka pri brisanju zvestobnega računa') },
   })
 
   return {

@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { updateGiftCardSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { toNum, greaterThan, deepToNumbers } from '@/lib/decimal'
+import { canDeleteGiftCard } from '@/lib/gift-card-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -124,5 +125,40 @@ export async function PUT(
     return NextResponse.json(deepToNumbers(giftCard))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/gift-cards/[id]', 'Napaka pri posodobitvi darilne kartice')
+  }
+}
+
+// ============================================
+// RUNDA 69: DELETE /api/gift-cards/[id] — brisanje darilne kartice
+// Zaščita (gift-card-guard, ENOTEN VIR z UI dialogom): kartica z
+// transakcijami (fiskalna zgodovina, FK Restrict) ali stanjem > 0 je
+// BLOKIRANA (409) s predlogom suspendiranja; prazna kartica se izbriše.
+// Prej: endpoint sploh ni obstajal → UI delete gumb = vedno 405.
+// ============================================
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    // Brisanje denarne entitete je admin akcija (ostržnejša od PUT take_orders)
+    const authResult = await requireAuth(req, { permission: 'admin' })
+    if (authResult.error) return authResult.error
+    const { id } = await params
+    const existing = await db.giftCard.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Darilna kartica ni najdena' }, { status: 404 })
+    }
+    const [txnCount, fresh] = await Promise.all([
+      db.giftCardTransaction.count({ where: { giftCardId: id } }),
+      db.giftCard.findUnique({ where: { id }, select: { balance: true } }),
+    ])
+    const decision = canDeleteGiftCard(txnCount, toNum(fresh?.balance ?? existing.balance))
+    if (!decision.allowed) {
+      return NextResponse.json({ error: decision.messageSl }, { status: decision.status })
+    }
+    await db.giftCard.delete({ where: { id } })
+    return NextResponse.json({ ok: true, id })
+  } catch (error: unknown) {
+    return handleApiError(error, 'DELETE /api/gift-cards/[id]', 'Napaka pri brisanju darilne kartice')
   }
 }

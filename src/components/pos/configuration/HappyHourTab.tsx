@@ -14,6 +14,7 @@ import { type HappyHourSchedule, type HappyHourFormState, EMPTY_HH_FORM } from '
 // Lazy-loaded podkomponente
 const HappyHourScheduleCard = dynamic(() => import('../happyhour/HappyHourScheduleCard').then(m => ({ default: m.HappyHourScheduleCard })), { ssr: false })
 const HappyHourForm = dynamic(() => import('../happyhour/HappyHourForm').then(m => ({ default: m.HappyHourForm })), { ssr: false })
+const HappyHourDeleteDialog = dynamic(() => import('../happyhour/HappyHourDeleteDialog').then(m => ({ default: m.HappyHourDeleteDialog })), { ssr: false })
 
 // ============================================
 // CUSTOM TAB: HAPPY HOUR
@@ -33,6 +34,8 @@ export function HappyHourTab() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState<HappyHourFormState>({ ...EMPTY_HH_FORM })
   const [saving, setSaving] = useState(false)
+  // RUNDA 69: potrditveni dialog za izbris (prej nevaren instant delete)
+  const [deleteTarget, setDeleteTarget] = useState<HappyHourSchedule | null>(null)
   const schedules: HappyHourSchedule[] = data?.schedules || []
   const currentlyActive = data?.currentlyActive || false
   const { data: priceGroups } = useQuery({
@@ -75,16 +78,22 @@ export function HappyHourTab() {
     }))
   }
 
+  // RUNDA 69: parse error body — API zdaj obstaja in vrača slovenska sporočila
+  // (404 "urnik ni najden"). Prej: 200 + HTML lažni uspeh (toast brez efekta).
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
       const res = await authFetch(`/api/happy-hour/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Napaka')
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null
+        throw new Error(body?.error || 'Napaka pri brisanju urnika')
+      }
     },
-    onSuccess: () => {
-      toast.success('Izbrisano')
+    onSuccess: (_data, id) => {
+      toast.success('Urnik izbrisan')
       queryClient.invalidateQueries({ queryKey: ['happy-hour-config'] })
+      setDeleteTarget(prev => (prev?.id === id ? null : prev))
     },
-    onError: () => toast.error('Napaka pri brisanju'),
+    onError: (e: Error) => toast.error(e.message || 'Napaka pri brisanju urnika'),
   })
 
   const toggleMutation = useMutation({
@@ -94,9 +103,13 @@ export function HappyHourTab() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isActive }),
       })
-      if (!res.ok) throw new Error('Napaka')
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null
+        throw new Error(body?.error || 'Napaka pri preklopu urnika')
+      }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['happy-hour-config'] }),
+    onError: (e: Error) => toast.error(e.message || 'Napaka pri preklopu urnika'),
   })
 
   if (isLoading) return <div className="space-y-3">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-28" />)}</div>
@@ -126,11 +139,20 @@ export function HappyHourTab() {
               schedule={s}
               currentlyActive={currentlyActive}
               onToggleActive={(id, isActive) => toggleMutation.mutate({ id, isActive })}
-              onDelete={(id) => deleteMutation.mutate(id)}
+              onDelete={() => setDeleteTarget(s)}
             />
           ))}
         </div>
       )}
+
+      {/* RUNDA 69: potrditev pred izbrisom (prej instant, brez dialoga) */}
+      <HappyHourDeleteDialog
+        open={!!deleteTarget}
+        onOpenChange={(o) => { if (!o) setDeleteTarget(null) }}
+        target={deleteTarget}
+        onConfirm={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id) }}
+        isPending={deleteMutation.isPending}
+      />
 
       {/* Obrazec za nov urnik */}
       {showForm ? (

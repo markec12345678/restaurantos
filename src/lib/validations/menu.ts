@@ -161,3 +161,8 @@ export const createHappyHourSchema = z.object({
   isActive: z.boolean().default(true),
   autoActivate: z.boolean().default(true),
 })
+
+// RUNDA 69: PATCH /api/happy-hour/[id] — samo preklop aktivnosti (toggle v UI)
+export const happyHourStatusSchema = z.object({
+  isActive: z.boolean(),
+})

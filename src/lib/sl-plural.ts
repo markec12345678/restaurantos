@@ -91,6 +91,19 @@ export const MENI_FORMS: SlPluralForms = ['meni', 'menija', 'meniji', 'menijev']
 // RUNDA 68: ženska družina "opcija" (števec opcij v ModifiersTab + blokada
 // izbrisa skupine dodatkov: 1 opcija · 2 opciji · 3 opcije · 5 opcij).
 export const OPCIJA_FORMS: SlPluralForms = ['opcija', 'opciji', 'opcije', 'opcij']
+// RUNDA 69: ženska družina "transakcija" (zaščiti brisanja darilnih kartic in
+// zvestobnih računov: "Kartica ima 1 transakcijo… 2 transakciji… 26 transakcij" —
+// fiskalna zgodovina je Restrict, zato brisanje blokiramo s števcem).
+export const TRANSAKCIJA_FORMS: SlPluralForms = ['transakcija', 'transakciji', 'transakcije', 'transakcij']
+// RUNDA 69: TOŽILNIK za glagolom "ima" ("ima 1 transakcijo · 2 transakciji ·
+// 3,4 transakcije · 5+ transakcij" — glej OSEBA_TOZILNIK_FORMS vzorec R59).
+export const TRANSAKCIJA_TOZILNIK_FORMS: SlPluralForms = ['transakcijo', 'transakciji', 'transakcije', 'transakcij']
+// RUNDA 69: ženska družina "točka" (blokada brisanja zvestobnega računa:
+// "Račun ima še 1 točko… 2 točki… 100 točk" — računov s točkami ne brišemo).
+export const TOCKA_FORMS: SlPluralForms = ['točka', 'točki', 'točke', 'točk']
+// RUNDA 69: tožilnik za predlogom "še" pri točkah (glej OSEBA_TOZILNIK_FORMS
+// vzorec R59): "ima še 1 točko · 2 točki · 3,4 točke · 5+ točk".
+export const TOCKA_TOZILNIK_FORMS: SlPluralForms = ['točko', 'točki', 'točke', 'točk']
 
 /**
  * Katera množinska oblika za n? Tradicionalna slovenska norma:

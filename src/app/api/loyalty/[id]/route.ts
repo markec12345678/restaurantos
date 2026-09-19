@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateLoyaltySchema } from '@/lib/validations'
 import { handleRouteError, parseJsonBody, validateBody } from '@/lib/api-utils'
+import { canDeleteLoyaltyAccount } from '@/lib/loyalty-guard'
 import { maybeTierUpgrade, tierLabelSi } from '@/lib/loyalty-tiers'
 import { triggerTierUpgrade } from '@/lib/loyalty-automation'
 import { logger } from '@/lib/logger'
@@ -169,5 +170,42 @@ export async function PUT(
       { match: 'ne more preseči', substring: true, status: 400, message: error instanceof Error ? error.message : 'Omejitev presežena' },
       { match: 'Ni dovolj točk', substring: true, status: 400, message: error instanceof Error ? error.message : 'Ni dovolj točk' },
     ], 'Napaka pri posodobitvi zvestobnega računa')
+  }
+}
+
+// ============================================
+// RUNDA 69: DELETE /api/loyalty/[id] — brisanje zvestobnega računa
+// Zaščita (loyalty-guard, ENOTEN VIR z UI dialogom): račun z transakcijami
+// (zgodovina točk, FK Restrict) ali točkami > 0 je BLOKIRAN (409) s predlogom
+// deaktivacije (isActive=false prek PUT); prazen račun se izbriše.
+// Prej: endpoint ni obstajal → UI delete gumb = vedno 405, dialog pa je
+// LAŽNO trdil, da "bodo transakcije izbrisane".
+// ============================================
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    // Brisanje računa z zgodovino točk je admin akcija
+    const authResult = await requireAuth(req, { permission: 'admin' })
+    if (authResult.error) return authResult.error
+    const { id } = await params
+    // IDOR zaščita: isti scope vzorec kot PUT zgoraj (session location)
+    const sessionLocationId = authResult.session?.locationId ?? undefined
+    const existing = await db.loyaltyAccount.findFirst({
+      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+    })
+    if (!existing) {
+      return NextResponse.json({ error: 'Zvestobni račun ni najden' }, { status: 404 })
+    }
+    const txnCount = await db.loyaltyTransaction.count({ where: { loyaltyAccountId: id } })
+    const decision = canDeleteLoyaltyAccount(txnCount, existing.pointsBalance)
+    if (!decision.allowed) {
+      return NextResponse.json({ error: decision.messageSl }, { status: decision.status })
+    }
+    await db.loyaltyAccount.delete({ where: { id } })
+    return NextResponse.json({ ok: true, id })
+  } catch (error: unknown) {
+    return handleRouteError(error, 'DELETE /api/loyalty/[id]', [], 'Napaka pri brisanju zvestobnega računa')
   }
 }
