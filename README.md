@@ -1,11 +1,11 @@
-# RestaurantOS v1.8.5
+# RestaurantOS v1.8.6
 
-[![Version](https://img.shields.io/badge/version-1.8.5-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.8.6-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-2121%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-70%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-2144%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-74%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,17 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (73 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (74 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.8.6 (QA runda 74 — Z-poročilo tiskanje + digest print fix)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| 🖨️ **Z-poročilo tiskanje / PDF izvoz** | Z-poročilo modul zdaj ima **"Natisni"** gumb — print-only fiskalno oblikovan dokument (isti .print-area vzorec kot račun): monospace, pikčaste vodilne črte, črtkani ločilniki sekcij, žig stanja (ZAKLJUČENO zelen / OSNUTEK amber, rahlo zasukan), DDV tabela po stopnjah, metode plačila + kanali z deleži %, blagajniška reconciliacija z obarvano razliko (uravnoteženo sivo / višek zelen / manko rožnato), FURS/FINA disklejmer v nogi. Deluje prek brskalnikovega "Shrani kot PDF" — brez PDF odvisnosti |
+| 🚪 **PORTAL na document.body** | Tiskalni dokument se renderira prek React portala NEHODNO izven POS lupine — lupina ima overflow-hidden verigo + framer-motion transform (motion.div ustvari CSS containing block), kar bi abspos dokument odsekalo/premaknilo. Portal → containing block = začetni → večstranski tisk zanesljiv |
+| 🐛 **FIX: digest tisk PRAZNA STRAN (latent od R42!)** | Globalni print CSS je veljal `body * { visibility: hidden }` POVSEOD — strani brez .print-area (digest!) so tiskale prazno stran. Sedaj pogojno: `body:has(.print-area) *` — strani s .print-area (račun, Z-poročilo) fokusiran tisk, strani brez (digest) navaden tisk prek lastnih print: variant. Re-show specificity popravljen (body .print-area = (0,1,1) zmaga po vrstnem redu) |
+| 🧰 **`lib/z-report-print.ts`: buildZPrintModel** | Čista funkcija (vzorec R71–R73): sekcije samo z vsebino (DDV vrstice z osnovo > 0, metode/kanali ne-ničelni z deležem % zaokroženim na 1 decimalko), blagajna razlika kind even/surplus/missing (|delta| < 0,005 € = zaokrožitveni šum brez znaka), fail-safe num() (NaN/Infinity/string → 0), `slFullDateLabel`/`slShortDateTime` string-parsing BREZ Intl z obseg-validacijo ('2026-02-30' → '—' — R72 lekcija sistemsko) |
+| 🧪 **+23 testov** | buildZPrintModel: sekcije, DDV filtri, deleži (60/35/5, 33.3 zaokroževanje), cash kind (missing/surplus/even/null), dodatki + storno seštevek, dobiček z maržo, fail-safe (null → prazen OSNUTEK, NaN/Inf → 0, nemogoče št. računov ostane VIDEN anomalija), footer disklejmer — **2144/2144 unit (126 datotek)** |
 
 ### ✨ Nove funkcije v v1.8.5 (QA runda 73 — Trend vs. predhodno obdobje)
 
