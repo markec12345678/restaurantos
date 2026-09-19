@@ -1,11 +1,11 @@
-# RestaurantOS v1.8.8
+# RestaurantOS v1.8.9
 
-[![Version](https://img.shields.io/badge/version-1.8.8-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.8.9-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-2164%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-76%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-2170%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-77%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,15 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (76 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (77 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.8.9 (QA runda 77 — urna razporeditev v email digestu + waiter offline)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| 📧 **Digest email: "Promet po urah"** | Email digest (cron ob 2:00 UTC + predogled) zdaj vsebuje **24-urno razporeditev prometa** — email-safe različica R76 UI sekcije, dokončana povezava podatkovnega toka R76 (podatki so tekli v builder, HTML jih je izrecno ignoriral). Email-safe omejitve upoštevane: samo tabele + inline stili (Gmail odstrani `<style>`, Outlook Word engine brez flex/% višin) — stolpci so div-i s fiksnimi px višinami znotraj td-jev (`vertical-align: bottom` = skupna bazna črta prek border-bottom), vrh **amber**, redne ure **teal**, oznake vsaka 3. ura (`showLabel` iz R76), legenda z zasedenostjo, `title` nasveti per stolpec. Čipi v istem formatu kot UI: "★ vrh: 8. ura (61,65 €)" + "▦ najboljše okno 06–09 h (150,00 €)". Sekcija se graciozno izpusti, ko `hourly` manjka ali je brez prometa (vzorec R65 — brez praznih obljub) |
+| 📶 **NetworkStatusBar na waiter** | Natakarjeva tablica (/waiter) zdaj vidi **nivo naprave** (navigator.onLine + števec čakajočih offline naročil iz IndexedDB vrste) — obstoječi WS čip v glavi pokriva SAMO Live povezavo, ne ugašenega wifi-ja. Online + nič čakajočih → diskreten trak (ne zasede prostora); offline → izrazit rdeč trak "BREZ POVEZAVE". PWA polish iz R76 kandidatov |
+| 🧪 **+6 testov** | daily-digest HTML: sekcija prisotna (čipi, 24 stolpcev, legenda), bar višine (100 %→80px, 50 %→40px), vrh amber/teal barve, ura brez prometa → brez diva (bazna črta ostane), oznake 9/24 (vsaka 3. + vrh), star klicatelj brez `hourly` → izpuščena, vsi-nič → izpuščena — **2170/2170 unit (127 datotek)** |
 
 ### ✨ Nove funkcije v v1.8.8 (QA runda 76 — Promet po urah + deploy-recovery R75)
 
