@@ -1,10 +1,10 @@
-# RestaurantOS v1.8.2
+# RestaurantOS v1.8.3
 
-[![Version](https://img.shields.io/badge/version-1.8.2-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.8.3-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-2084%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Tests](https://img.shields.io/badge/tests-2106%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
 [![Audit](https://img.shields.io/badge/razvoj-70%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
@@ -24,7 +24,17 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (70 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (71 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.8.3 (QA runda 71 — Trendi 7 dni sparkline + asArray hardening)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| 📈 **Trendi — zadnjih 7 dni (nov digest odsek)** | CSS-only sparkline na tiskanem dnevnem povzetku: 7 gradient stolpcev (višine % relativno na najboljši dan), črtkana linija povprečja (pozicionirana na stolpčno območje — dvo-trakasti layout), "najboljši dan" poudarek (amber + ★ čip), izbrani dan ring, legenda (dnevni promet / najboljši dan / povprečje/dan / izbrani dan), čipi Skupaj + Povp./dan, aria-labeli per stolpec, print-varno (višine so %, print-color-adjust: exact) |
+| 🔌 **NOV API GET /api/reports/digest-trend** | `?date=YYYY-MM-DD&days=1..31` — okno po LJUBLJANSKEM koledarju (ljubljanaDayBounds, CET/CEST-varen), bucketizacija naročil po LJ dnevih (ljubljanaDateTimeParts — 00:30 UTC = 2:30 LJ spada v pravilni dan), paymentStatus='paid' (Z-report semantika, konsistentno z glavnim digestom), admin auth + rate limit + zod validacija (400/401/429) |
+| 🧰 **NOV enoten vir `lib/digest-trend.ts`** | `computeDigestTrend` (čista lib: višine %, najboljši dan, avgLine, duplikati datumov → združi, fail-safe NaN/negativno → 0, obrez na zadnjih N dni, sort ASC) + `slShortDayLabel` (brez Intl, obseg-validacija — Date.UTC tiho normalizira '2026-13-99'!) + `formatEURShort` (ročne tisočice — NE toLocaleString, small-ICU past) |
+| 🛡️ **QA-vojen fix: `lib/as-array.ts`** | Produkcija crash "(m \|\| []).map is not a function" (POS:configuration 2026-09-19) — `(x \|\| [])` NE ščiti pred truthy non-array (R69 Happy Hour vzorec: API vrne objekt, koda pričakuje array). `asArray<T>()` (Array.isArray normalizacija) aplikirano na 7 ranljivih klicev: digest page (paymentMethods/topItems), LaborReportsDashboard (3× entries), HistoryTab (2× transactions), HappyHourTab (schedules) |
+| 🧪 **+22 testov** | `digest-trend` (13: oznake dni, formatEURShort, skaliranje, najboljši dan, obrez, sort, duplikati, fail-safe, prazni vhodi) + `as-array` (9: array passthrough, truthy objekt/string/NaN/številka, generik) — **2106/2106 unit (125 datotek)** |
 
 ### ✨ Nove funkcije v v1.8.2 (QA runda 70 — Vezave dodatkov zaključene: group-side attach + varnost)
 
