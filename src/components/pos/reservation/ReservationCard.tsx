@@ -26,6 +26,11 @@
 //    scale. Tipkovnica/terminalske kartice so izključene (±30 gumbi in
 //    dialog ostajajo dostopna alternativa) — native DnD ni keyboard-
 //    dostopen, kar dokumentiramo; a11y tok je ločen.
+// RUNDA 57:
+//  • značka opomnika pokaže tudi KDY: "Opomnik poslan ob 19:00"
+//    (reminderSentAt, LJ cona prek reminderBadgeLabel); starejše vrstice
+//    brez žiga padejo nazaj na suho "Opomnik poslan". tabular-nums, da
+//    številke ne poskakujejo med renderi.
 // ============================================
 
 import { memo } from 'react'
@@ -37,6 +42,7 @@ import { Clock, Users, Phone, Check, X, Edit, UserCheck, AlertCircle, UtensilsCr
 import { statusLabels, statusColors, sourceLabels } from './constants'
 import type { ReservationCardProps } from './constants'
 import { slCount, OSEBA_FORMS } from '@/lib/sl-plural'
+import { reminderBadgeLabel } from '@/lib/reservation-timeline'
 
 /** Levo-obrobna barva per status (izrazitejša kot badge-only) */
 const statusBorder: Record<string, string> = {
@@ -76,6 +82,8 @@ export const ReservationCard = memo(function ReservationCard({
   const time = format(new Date(r.dateTime), 'HH:mm')
   const endTime = format(new Date(new Date(r.dateTime).getTime() + r.duration * 60000), 'HH:mm')
   const terminal = isTerminalStatus(r.status)
+  // RUNDA 57: "Opomnik poslan ob HH:MM" (ali suho "Opomnik poslan")
+  const reminderBadge = r.status === 'confirmed' ? reminderBadgeLabel(r.reminderSent, r.reminderSentAt) : null
 
   const nextActions: Record<string, { status: string; label: string; icon: React.ReactNode }[]> = {
     confirmed: [
@@ -185,15 +193,17 @@ export const ReservationCard = memo(function ReservationCard({
                   <span className="truncate">{r.notes}</span>
                 </div>
               )}
-              {/* RUNDA 54: opomnik poslan — smaragdna značka v metapodatkovni vrsti */}
-              {r.status === 'confirmed' && r.reminderSent && (
+              {/* RUNDA 54/57: opomnik poslan — smaragdna značka z časovnim
+                  žigom ("poslan ob 19:00") v metapodatkovni vrsti */}
+              {reminderBadge && (
                 <Badge
                   variant="outline"
-                  className="mt-1.5 text-[10px] h-5 px-1.5 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 gap-1 animate-fade-in-up"
+                  className="mt-1.5 text-[10px] h-5 px-1.5 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 gap-1 animate-fade-in-up tabular-nums"
                   aria-label={`Opomnik za ${r.customerName} je poslan`}
+                  title={reminderBadge}
                 >
                   <BellRing className="h-3 w-3" aria-hidden="true" />
-                  Opomnik poslan
+                  {reminderBadge}
                 </Badge>
               )}
             </div>

@@ -9,6 +9,7 @@ import {
   Grid3X3, List, Maximize, Minimize, Undo2,
 } from 'lucide-react'
 import type { KDSData } from './types'
+import { slCount, CAKAJOC_FORMS, PRIPRAVLJENO_FORMS, NUJNO_FORMS } from '@/lib/sl-plural'
 
 const KitchenFilterTabs = dynamic(
   () => import('./KitchenFilterTabs').then(m => ({ default: m.KitchenFilterTabs })),
@@ -77,24 +78,27 @@ export const KitchenHeader = memo(function KitchenHeader({
           <KitchenStationFilter stationFilter={stationFilter} onStationFilterChange={onStationFilterChange} />
           {stats && (
             <div className="flex gap-2">
-              <Badge variant="outline" className="text-xs h-6">
+              {/* RUNDA 57: eliotska srednja oblika (naročilo izpuščeno, srednji
+                  rod) — 2 čakajoči · 3 čakajoča · 5 čakajočih (prej trdo
+                  "čakajočih"); tabular-nums za stabilne števce */}
+              <Badge variant="outline" className="text-xs h-6 font-medium tabular-nums">
                 <span className="h-2 w-2 rounded-full bg-yellow-400 mr-1.5" />
-                {stats.pendingOrders} čakajočih
+                {slCount(stats.pendingOrders, CAKAJOC_FORMS)}
               </Badge>
-              <Badge variant="outline" className="text-xs h-6">
+              <Badge variant="outline" className="text-xs h-6 font-medium tabular-nums">
                 <span className="h-2 w-2 rounded-full bg-blue-400 mr-1.5" />
                 {stats.inProgressOrders} v pripravi
               </Badge>
               {(stats.readyOrdersCount ?? 0) > 0 && (
-                <Badge variant="outline" className="text-xs h-6 border-emerald-400 text-emerald-700 dark:text-emerald-400">
+                <Badge variant="outline" className="text-xs h-6 border-emerald-400 text-emerald-700 dark:text-emerald-400 font-medium tabular-nums">
                   <span className="h-2 w-2 rounded-full bg-emerald-500 mr-1.5 animate-pulse" />
-                  {(stats.readyOrdersCount ?? 0)} pripravljenih
+                  {slCount(stats.readyOrdersCount ?? 0, PRIPRAVLJENO_FORMS)}
                 </Badge>
               )}
               {stats.criticalOrders > 0 && (
-                <Badge variant="destructive" className="text-xs h-6">
+                <Badge variant="destructive" className="text-xs h-6 font-medium tabular-nums">
                   <AlertTriangle className="h-3 w-3 mr-1" />
-                  {stats.criticalOrders} nujnih!
+                  {slCount(stats.criticalOrders, NUJNO_FORMS)}!
                 </Badge>
               )}
             </div>

@@ -1699,6 +1699,7 @@ model Reservation {
   // --- Potrditev ---
   confirmedAt     DateTime?
   reminderSent    Boolean  @default(false)
+  reminderSentAt  DateTime?                     // RUNDA 57: kdaj je opomnik odšel (značka "poslan ob HH:mm")
   // --- Obisk ---
   actualArrival   DateTime?
   actualDeparture DateTime?

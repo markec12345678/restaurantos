@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import { cn } from '@/lib/utils'
+import { slCount, NAROCILO_FORMS } from '@/lib/sl-plural'
 import { ChefHat, Minimize, Maximize, RefreshCw, Wifi, WifiOff, Grid3X3, List, Volume2, VolumeX, RotateCcw } from 'lucide-react'
 
 // ─── Glava KDS zaslona ─────────────────────────────────────────
@@ -47,8 +48,11 @@ export const KDSHeader = memo(function KDSHeader({
         <ChefHat className="w-6 h-6 text-orange-500" />
         <h1 className="text-lg font-bold">KDS</h1>
         <span className="text-sm text-muted-foreground">{employeeName}</span>
-        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
-          {activeOrderCount} {activeOrderCount === 1 ? 'naročilo' : 'naročil'}
+        {/* RUNDA 57: prava sklanjatev — 1 naročilo · 2 naročili (DVOJINA) ·
+            3 naročila · 5 naročil (prej ternarek 1→naročilo : naročil);
+            tabular-nums, da števec ne poskakuje ob live posodobitvah */}
+        <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded font-medium tabular-nums">
+          {slCount(activeOrderCount, NAROCILO_FORMS)}
         </span>
       </div>
       <div className="flex items-center gap-2">

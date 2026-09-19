@@ -607,6 +607,31 @@ export async function POST(req: Request) {
     }
 
     // ═══════════════════════════════════════════════════
+    // Phase R57 (runda 57): Reservation.reminderSentAt — timestamp opomnika
+    // Schema (v2.3+ → R57) ima stolpec, produkcijska Neon DB pa ga lahko še
+    // ne (sandbox ne doseže Neon 5432 → db:push nemogoč; ensure-column gre
+    // prek tega endpointa, isti vzorec kot Phase 0.7b ensure).
+    // ═══════════════════════════════════════════════════
+    try {
+      const r57col = await db.$queryRawUnsafe<Array<{ n: number }>>(
+        `SELECT COUNT(*)::int AS n FROM information_schema.columns WHERE table_name = 'Reservation' AND column_name = 'reminderSentAt'`
+      )
+      const r57has = (r57col[0]?.n ?? 0) > 0
+      if (!r57has) {
+        if (apply) {
+          await db.$executeRawUnsafe(`ALTER TABLE "Reservation" ADD COLUMN "reminderSentAt" TIMESTAMP(3)`)
+          results.push({ phase: 'R57 Reservation.reminderSentAt', status: 'applied', details: 'Stolpec reminderSentAt dodan (TIMESTAMP(3), nullable)' })
+        } else {
+          results.push({ phase: 'R57 Reservation.reminderSentAt', status: 'dry-run', details: 'Stolpec reminderSentAt MANJKA (uporabi ?apply=true)' })
+        }
+      } else {
+        results.push({ phase: 'R57 Reservation.reminderSentAt', status: 'skipped', details: 'Stolpec že obstaja' })
+      }
+    } catch (err) {
+      results.push({ phase: 'R57 Reservation.reminderSentAt', status: 'error', details: err instanceof Error ? err.message : 'unknown' })
+    }
+
+    // ═══════════════════════════════════════════════════
     // Summary
     // ═══════════════════════════════════════════════════
     return NextResponse.json({

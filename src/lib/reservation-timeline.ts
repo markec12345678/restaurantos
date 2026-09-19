@@ -87,6 +87,26 @@ export function formatLjubljanaTime(date: Date | string | number): string | null
   }).format(d)
 }
 
+// ─── RUNDA 57: oznaka značke opomnika z časovnim žigom ───
+// reminderSent flag (R54) pove SAMO DA je opomnik odšel — gostiteljica ne
+// ve KDY. reminderSentAt (schema R57) nosi timestamp; značka tako pokaže
+// "Opomnik poslan ob 19:00". Starejše vrstice (flag brez timestampa) in
+// pokvarjen datum padejo nazaj na suho "Opomnik poslan".
+
+/**
+ * Besedilo značke opomnika: "Opomnik poslan ob HH:MM" (LJ cona), ali
+ * "Opomnik poslan", če timestamp manjka/neveljaven. `reminderSent=false`
+ * → null (klicatelj značke ne izriše).
+ */
+export function reminderBadgeLabel(
+  reminderSent: boolean,
+  reminderSentAt: Date | string | number | null | undefined,
+): string | null {
+  if (!reminderSent) return null
+  const at = reminderSentAt == null ? null : formatLjubljanaTime(reminderSentAt)
+  return at ? `Opomnik poslan ob ${at}` : 'Opomnik poslan'
+}
+
 // ─── RUNDA 53: pravi interval-overlap za konflikt detekcijo ───
 // Prej je PUT /api/reservations/[id] iskal findFirst kandidatko z
 // dateTime <= newEnd in preveril SAMO njo — findFirst brez orderBy vrne

@@ -12,6 +12,7 @@ import { formatEUR } from '@/lib/safe-format'
 import { authFetch } from '@/components/pos/PinLogin'
 import { STATUS_COLORS, STATUS_LABELS, TYPE_LABELS, DAY_NAMES } from './dashboard/constants'
 import type { DashboardData, WowChartDataPoint, ComputedValues } from './dashboard/constants'
+import { slCount, CAKAJOC_FORMS, PRIPRAVLJENO_FORMS } from '@/lib/sl-plural'
 
 // Lazy-loaded podkomponente
 const WoWComparison = dynamic(() => import('./dashboard/WoWComparison').then((m) => m.WoWComparison), { ssr: false })
@@ -92,10 +93,11 @@ export const Dashboard = memo(function Dashboard() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        <StatsCard title="Današnji prihodek" value={`${formatEUR(data?.todayRevenue || 0)}`} subtitle={(data?.pendingOrders || 0) > 0 ? `${data?.pendingOrders} čakajočih` : undefined} icon={DollarSign} trend="up" />
+        {/* RUNDA 57: eliotska srednja oblika — "2 čakajoči", ne "2 čakajočih" */}
+        <StatsCard title="Današnji prihodek" value={`${formatEUR(data?.todayRevenue || 0)}`} subtitle={(data?.pendingOrders || 0) > 0 ? slCount(data?.pendingOrders || 0, CAKAJOC_FORMS) : undefined} icon={DollarSign} trend="up" />
         <StatsCard title="Skupno naročil" value={data?.totalOrders || 0} subtitle={`${data?.completedOrders || 0} končanih · ${data?.cancelledOrders || 0} preklicanih`} icon={ShoppingBag} />
         <StatsCard title="Povpr. naročilo" value={`${formatEUR(data?.avgOrderValue || 0)}`} subtitle={(data?.todayTips || 0) > 0 ? `Napitnine: ${formatEUR(data?.todayTips || 0)}` : undefined} icon={Calculator} />
-        <StatsCard title="Zasedene mize" value={`${data?.activeTables || 0}/${data?.totalTables || 0}`} subtitle={(data?.readyOrders || 0) > 0 ? `${data?.readyOrders} pripravljenih` : undefined} icon={BarChartBig} />
+        <StatsCard title="Zasedene mize" value={`${data?.activeTables || 0}/${data?.totalTables || 0}`} subtitle={(data?.readyOrders || 0) > 0 ? slCount(data?.readyOrders || 0, PRIPRAVLJENO_FORMS) : undefined} icon={BarChartBig} />
         <StatsCard title="Bruto dobiček" value={`${formatEUR(data?.grossProfit || 0)}`} subtitle={(data?.grossMargin || 0) > 0 ? `Marža: ${data?.grossMargin}%` : undefined} icon={PiggyBank} trend={(data?.grossMargin || 0) > 50 ? 'up' : 'down'} />
         <StatsCard title="FURS overjeno" value={data?.fursStatus?.todayVerified || 0} subtitle={(data?.fursStatus?.todayUnverified || 0) > 0 ? `${data?.fursStatus?.todayUnverified} brez overjanja` : 'Vse overjeno'} icon={Shield} trend={(data?.fursStatus?.todayUnverified || 0) === 0 ? 'up' : 'down'} />
       </div>

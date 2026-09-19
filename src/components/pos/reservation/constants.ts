@@ -30,6 +30,8 @@ export interface ReservationType {
   actualArrival: string | null
   actualDeparture: string | null
   reminderSent: boolean
+  /** RUNDA 57: časovni žig opomnika (značka "Opomnik poslan ob HH:MM") */
+  reminderSentAt: string | null
   createdAt: string
 }
 

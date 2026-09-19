@@ -133,7 +133,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (data.notes !== undefined) updateData.notes = data.notes
     if (data.specialRequests !== undefined) updateData.specialRequests = data.specialRequests
     // RUNDA 54: opomnik gostu (reminderSent flag — UI "Pošlji opomnik")
-    if (data.reminderSent !== undefined) updateData.reminderSent = data.reminderSent
+    // RUNDA 57: ob poslanem opomniku se zapiše tudi časovni žig
+    // (reminderSentAt → značka "poslan ob HH:MM"); ponastavitev flaga
+    // (reminderSent=false) ga počisti — flag in timestamp ostajata skladna.
+    if (data.reminderSent !== undefined) {
+      updateData.reminderSent = data.reminderSent
+      updateData.reminderSentAt = data.reminderSent ? new Date() : null
+    }
 
     const reservation = await db.reservation.update({
       where: { id },

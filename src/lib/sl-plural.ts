@@ -43,6 +43,18 @@ export const NEAKTIVNA_KARTICA_FORMS: SlPluralForms = [
 // RUNDA 56: osnovna družina "kartica" (toast registra darilnih kartic:
 // "Register izvožen — 2 kartici" ne "2 kartic")
 export const KARTICA_FORMS: SlPluralForms = ['kartica', 'kartici', 'kartice', 'kartic']
+// RUNDA 57: osnovna družina "naročilo" (srednji rod; KDS glava je imela
+// ternarek 1→'naročilo' : 'naročil' — dvojina "2 naročili" je manjkala)
+export const NAROCILO_FORMS: SlPluralForms = ['naročilo', 'naročili', 'naročila', 'naročil']
+// RUNDA 57: ELIOTSKA SREDNJA OBLIKA (samostalnik "naročilo" izpuščen) za
+// KPI/števce kuhinje — pridevnik/particip se sklada v SREDNJEM rodu:
+//   1 čakajoče (naročilo) · 2 čakajoči (naročili — DVOJINA, končnica -i!)
+//   · 3,4 čakajoča (naročila) · 5+ čakajočih (naročil)
+// Živa QA ugotovitev R56: "2 čakajočih", "3 pripravljenih", "4 nujnih!"
+// (rodilniške oblike pri 2–4 so slovnično napačne).
+export const CAKAJOC_FORMS: SlPluralForms = ['čakajoče', 'čakajoči', 'čakajoča', 'čakajočih']
+export const PRIPRAVLJENO_FORMS: SlPluralForms = ['pripravljeno', 'pripravljeni', 'pripravljena', 'pripravljenih']
+export const NUJNO_FORMS: SlPluralForms = ['nujno', 'nujni', 'nujna', 'nujnih']
 
 /**
  * Katera množinska oblika za n? Tradicionalna slovenska norma:
