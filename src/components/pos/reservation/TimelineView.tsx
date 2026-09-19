@@ -10,14 +10,19 @@
 // oznako (timeline metafora: sloti so postaje, kartice dogodki),
 // (2) števec kartic na zasedenih slotih (≥2 → hitro prepoznavanje
 // prometnih ur brez branja kartic), (3) prepust onSendReminder.
+// RUNDA 55: drag-to-reschedule — potrjeno kartico povlečeš na drug
+// slot (HTML5 DnD, nativni ghost); ciljni slot dobi modri prstan,
+// spuščanje izračuna delta (hmDelta) in pokliče onTimeShift (isti
+// PUT + 409 konflikt tok kot ±30 gumbi). Tipkovnica ima ±30 gumbi
+// in dialog — drag je napredna miškina/trackpad pot.
 
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useState, useCallback } from 'react'
 import { format } from 'date-fns'
 import { Calendar } from 'lucide-react'
 import { timeSlots } from './constants'
 import type { TimelineViewProps, ReservationType } from './constants'
 import { ReservationCard } from './ReservationCard'
-import { closestTimeSlot } from '@/lib/reservation-timeline'
+import { closestTimeSlot, hmDelta } from '@/lib/reservation-timeline'
 
 export const TimelineView = memo(function TimelineView({
   reservations,
@@ -35,6 +40,25 @@ export const TimelineView = memo(function TimelineView({
     if (!isToday) return null
     return closestTimeSlot(format(new Date(), 'HH:mm'), timeSlots)
   }, [isToday])
+
+  // RUNDA 55: drag stanje — katera kartica se vleče (dimming) + kateri
+  // slot je aktivni drop target (modri prstan).
+  const [dragging, setDragging] = useState<{ id: string; time: string } | null>(null)
+  const [hoverSlot, setHoverSlot] = useState<string | null>(null)
+  const handleDragStarted = useCallback((id: string, time: string) => {
+    setDragging({ id, time })
+  }, [])
+  const handleDragEnded = useCallback(() => {
+    setDragging(null)
+    setHoverSlot(null)
+  }, [])
+  const handleDrop = useCallback((slot: string) => {
+    if (!dragging) return
+    const delta = hmDelta(dragging.time, slot)
+    if (delta !== null && delta !== 0) onTimeShift?.(dragging.id, delta)
+    setDragging(null)
+    setHoverSlot(null)
+  }, [dragging, onTimeShift])
   // Grupiraj po časovnih intervalih
   // RUNDA 52 FIX (reservation-timeline.ts): prej localeCompare —
   // leksikografska razdalja NI časovna (15:00 je padla v slot '14:00'
@@ -70,6 +94,8 @@ export const TimelineView = memo(function TimelineView({
         const slotReservations = groupedByTime[slot]
         if (slotReservations.length === 0 && slot !== nowSlot) return null
         const isNow = slot === nowSlot
+        // RUNDA 55: ta slot je aktivni drop target (modri prstan + tint)
+        const isDropTarget = dragging !== null && hoverSlot === slot
 
         return (
           <div key={slot} className={`flex gap-3 relative ${isNow ? 'animate-fade-in-up' : ''}`}>
@@ -83,9 +109,11 @@ export const TimelineView = memo(function TimelineView({
                 className={`text-sm font-mono font-bold tabular-nums rounded-md px-1.5 py-0.5 inline-flex items-center gap-1 ${
                   isNow
                     ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 ring-1 ring-amber-500/50'
-                    : slotReservations.length >= 2
-                      ? 'text-foreground bg-muted ring-1 ring-border/60'
-                      : 'text-muted-foreground bg-muted/60'
+                    : isDropTarget
+                      ? 'bg-blue-500/15 text-blue-700 dark:text-blue-400 ring-1 ring-blue-500/60'
+                      : slotReservations.length >= 2
+                        ? 'text-foreground bg-muted ring-1 ring-border/60'
+                        : 'text-muted-foreground bg-muted/60'
                 }`}
               >
                 {slot}
@@ -112,9 +140,30 @@ export const TimelineView = memo(function TimelineView({
                 </span>
               )}
             </div>
-            <div className="flex-1 space-y-2">
+            <div
+              className={`flex-1 space-y-2 rounded-lg transition-all duration-150 ${
+                isDropTarget ? 'ring-2 ring-blue-500/60 bg-blue-500/5 ring-offset-1' : ''
+              }`}
+              onDragOver={(e) => {
+                if (!dragging) return
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+                setHoverSlot(slot)
+              }}
+              onDragLeave={() => { if (hoverSlot === slot) setHoverSlot(null) }}
+              onDrop={(e) => {
+                e.preventDefault()
+                handleDrop(slot)
+              }}
+            >
               {isNow && slotReservations.length === 0 && (
                 <p className="text-xs italic text-muted-foreground/70 pt-2">— zdaj brez rezervacij —</p>
+              )}
+              {/* RUNDA 55: drop namig na praznem ciljnem slotu */}
+              {isDropTarget && slotReservations.length === 0 && (
+                <div className="h-14 rounded-md border-2 border-dashed border-blue-500/50 bg-blue-500/5 flex items-center justify-center text-[11px] font-medium text-blue-600 dark:text-blue-400 animate-fade-in-up">
+                  Spusti za premik na {slot}
+                </div>
               )}
               {slotReservations.map((r, idx) => (
                 <ReservationCard
@@ -125,6 +174,10 @@ export const TimelineView = memo(function TimelineView({
                   onStatusChange={onStatusChange}
                   onTimeShift={onTimeShift}
                   onSendReminder={onSendReminder}
+                  dragEnabled={r.status === 'confirmed'}
+                  isDragging={dragging?.id === r.id}
+                  onDragStarted={handleDragStarted}
+                  onDragEnded={handleDragEnded}
                 />
               ))}
             </div>

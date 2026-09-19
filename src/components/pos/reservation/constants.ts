@@ -73,6 +73,11 @@ export interface ReservationCardProps {
   onTimeShift?: (_id: string, _deltaMinutes: number) => void
   /** RUNDA 54: opomnik gostu (PUT reminderSent=true; samo potrjene brez flaga) */
   onSendReminder?: (_id: string) => void
+  /** RUNDA 55: timeline drag-to-reschedule (samo potrjene, samo timeline pogled) */
+  dragEnabled?: boolean
+  isDragging?: boolean
+  onDragStarted?: (_id: string, _timeHm: string) => void
+  onDragEnded?: () => void
 }
 
 export interface TimelineViewProps {

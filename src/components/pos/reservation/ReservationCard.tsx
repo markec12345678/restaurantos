@@ -19,6 +19,13 @@
 //  • opomnik gostu: potrjena brez flaga → jantarni gumb "Pošlji opomnik"
 //    v akcijski vrsti; s flagom → smaragdna značka "Opomnik poslan" v
 //    metapodatkovni vrsti (bralcem zaslona: aria-label z gostom)
+// RUNDA 55:
+//  • drag-to-reschedule (samo timeline pogled, samo potrjene): celotna
+//    kartica je HTML5 draggable (nativni ghost = celotna kartica); ročaj
+//    GripVertical kot vizualna poka, dragging stanje = znižana opacity +
+//    scale. Tipkovnica/terminalske kartice so izključene (±30 gumbi in
+//    dialog ostajajo dostopna alternativa) — native DnD ni keyboard-
+//    dostopen, kar dokumentiramo; a11y tok je ločen.
 // ============================================
 
 import { memo } from 'react'
@@ -26,7 +33,7 @@ import { format } from 'date-fns'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Clock, Users, Phone, Check, X, Edit, UserCheck, AlertCircle, UtensilsCrossed, Star, MessageSquare, ChevronsLeft, ChevronsRight, Bell, BellRing } from 'lucide-react'
+import { Clock, Users, Phone, Check, X, Edit, UserCheck, AlertCircle, UtensilsCrossed, Star, MessageSquare, ChevronsLeft, ChevronsRight, Bell, BellRing, GripVertical } from 'lucide-react'
 import { statusLabels, statusColors, sourceLabels } from './constants'
 import type { ReservationCardProps } from './constants'
 import { slCount, OSEBA_FORMS } from '@/lib/sl-plural'
@@ -59,6 +66,10 @@ export const ReservationCard = memo(function ReservationCard({
   onStatusChange,
   onTimeShift,
   onSendReminder,
+  dragEnabled = false,
+  isDragging = false,
+  onDragStarted,
+  onDragEnded,
   index = 0,
 }: ReservationCardProps & { index?: number }) {
   const r = reservation
@@ -81,8 +92,17 @@ export const ReservationCard = memo(function ReservationCard({
     <Card
       className={`border border-l-4 ${statusBorder[r.status] ?? 'border-l-border'} card-lift transition-all duration-200 hover:shadow-md animate-fade-in-up ${
         terminal ? 'opacity-75 saturate-[.85] hover:opacity-100' : ''
-      }`}
+      } ${isDragging ? 'opacity-40 scale-[.98] ring-2 ring-blue-500/30' : ''}`}
       style={{ animationDelay: `${Math.min(index * 40, 200)}ms` }}
+      draggable={dragEnabled}
+      onDragStart={(e) => {
+        if (!dragEnabled) return
+        // FF zahteva setData, sicer drag ne starta; format 'id|HH:MM'
+        e.dataTransfer.setData('text/plain', `${r.id}|${time}`)
+        e.dataTransfer.effectAllowed = 'move'
+        onDragStarted?.(r.id, time)
+      }}
+      onDragEnd={() => onDragEnded?.()}
     >
       <CardContent className="p-3">
         <div className="flex items-start justify-between">
@@ -181,6 +201,16 @@ export const ReservationCard = memo(function ReservationCard({
 
           {/* Akcije */}
           <div className="flex items-center gap-1 flex-shrink-0">
+            {/* RUNDA 55: drag poka — samo timeline pogled + potrjene */}
+            {dragEnabled && (
+              <span
+                aria-hidden="true"
+                title="Povleci na drug časovni slot"
+                className="inline-flex h-7 w-5 items-center justify-center cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+              >
+                <GripVertical className="h-3.5 w-3.5" />
+              </span>
+            )}
             {nextActions[r.status]?.map(action => (
               <Button
                 key={action.status}

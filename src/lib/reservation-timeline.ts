@@ -50,6 +50,20 @@ export function shiftHm(hm: string, deltaMinutes: number): string | null {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
+// ─── RUNDA 55: delta za drag-to-reschedule ───
+// Drag na timeline: karta se spusti na slot; delta (v minutah) pove,
+// KOLIKO se dateTime premakne — lahko tudi negativno (drag navzgor).
+// Rezervacija NI vedno točno na slotu (npr. 19:15), zato delta = cilj −
+// trenutno, ne "na najbližji slot od polnoči".
+
+/** Minute med dvema 'HH:MM' vrednostma (to − from). Neveljaven vnos → null. */
+export function hmDelta(fromHm: string, toHm: string): number | null {
+  const from = hmToMinutes(fromHm)
+  const to = hmToMinutes(toHm)
+  if (from === null || to === null) return null
+  return to - from
+}
+
 // ─── RUNDA 54: LJ-časovni žig za API sporočila ───
 // BUG (živ na produkciji, ujet v QA R54): 409 konfliktno sporočilo je
 // gradilo čas z new Date(...).toLocaleTimeString('sl-SI') NA STREŽNIKU —
