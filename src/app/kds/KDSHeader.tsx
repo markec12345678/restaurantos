@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import { cn } from '@/lib/utils'
 import { slCount, NAROCILO_FORMS } from '@/lib/sl-plural'
-import { ChefHat, Minimize, Maximize, RefreshCw, Wifi, WifiOff, Grid3X3, List, Volume2, VolumeX, RotateCcw } from 'lucide-react'
+import { ChefHat, Minimize, Maximize, RefreshCw, Wifi, WifiOff, Grid3X3, List, Volume2, VolumeX, RotateCcw, BellRing } from 'lucide-react'
 
 // ─── Glava KDS zaslona ─────────────────────────────────────────
 
@@ -19,6 +19,7 @@ interface KDSHeaderProps {
   onToggleSound: () => void
   bumpedCount: number
   onRecall: () => void
+  dangerCount: number
   onRefresh: () => void
   wsConnected: boolean
   isFullscreen: boolean
@@ -37,6 +38,7 @@ export const KDSHeader = memo(function KDSHeader({
   onToggleSound,
   bumpedCount,
   onRecall,
+  dangerCount,
   onRefresh,
   wsConnected,
   isFullscreen,
@@ -100,6 +102,20 @@ export const KDSHeader = memo(function KDSHeader({
             <RotateCcw className="w-3.5 h-3.5" />
             Prikljuki ({bumpedCount})
           </button>
+        )}
+        {/* R64: nevarna cona — rdeče utripajoči čip (vizualna dvojica zvočnega
+            opomnika; animate-pulse samodejno ugasne ob prefers-reduced-motion
+            prek globalnega WCAG 2.3.3 bloka) */}
+        {dangerCount > 0 && (
+          <span
+            role="status"
+            aria-label={`${slCount(dangerCount, NAROCILO_FORMS)} v nevarni coni (čakajo več kot 25 minut)`}
+            title="Naročila v nevarni coni (≥ 25 min) — zvočni opomnik vsakih 60 s (če je zvok vklopljen)"
+            className="flex items-center gap-1 text-xs px-2 py-1.5 rounded-lg font-bold tabular-nums bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300 animate-pulse"
+          >
+            <BellRing className="w-3 h-3" aria-hidden="true" />
+            {dangerCount}
+          </span>
         )}
         {/* Osveži */}
         <button onClick={onRefresh}

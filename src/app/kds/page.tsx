@@ -22,6 +22,7 @@ export default function KDSPage() {
     stationFilter, setStationFilter,
     wsConnected,
     isSoundEnabled, toggleSound,
+    dangerCount,
     isLoading,
     activeOrders,
     stations,
@@ -50,6 +51,7 @@ export default function KDSPage() {
         onViewModeToggle={() => setViewMode(v => v === 'grid' ? 'list' : 'grid')}
         isSoundEnabled={isSoundEnabled}
         onToggleSound={toggleSound}
+        dangerCount={dangerCount}
         bumpedCount={bumpedOrders.length}
         onRecall={handleRecall}
         onRefresh={() => refetch()}

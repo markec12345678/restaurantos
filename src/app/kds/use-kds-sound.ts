@@ -73,6 +73,22 @@ export function useKDSSound() {
   }, [ensureCtx, tone])
 
   /**
+   * R64: opomnik nevarne cone (naročilo čaka ≥ 25 min) — DVA KRATKA VISOKA
+   * G5 piska (razločljiv od prihodnjega C5-E5-G5 trojčka IN bump E5→C5:
+   * kuhar sliši, da NI nova naročila, ampak »nekaj zdavnaj čaka«).
+   */
+  const playReminder = useCallback(() => {
+    if (!enabledRef.current) return
+    try {
+      const ctx = ensureCtx()
+      tone(ctx, 783.99, 0, 0.18, 0.26)    // G5
+      tone(ctx, 783.99, 190, 0.22, 0.26)  // G5 (drugi, malo daljši)
+    } catch {
+      // tiho ignoriraj
+    }
+  }, [ensureCtx, tone])
+
+  /**
    * R63: sprosti suspended AudioContext (autoplay politika).
    * resume() + en 0-glasnostni ton (poln unlock tudi v brskalnikih, ki
    * zahtevajo dejansko predvajanje). Idempotentno — varno poklicati večkrat.
@@ -111,5 +127,5 @@ export function useKDSSound() {
 
   const isEnabled = useCallback(() => enabledRef.current, [])
 
-  return { play, playBump, toggle, isEnabled, unlock }
+  return { play, playBump, playReminder, toggle, isEnabled, unlock }
 }

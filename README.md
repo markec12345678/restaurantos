@@ -1,11 +1,11 @@
-# RestaurantOS v1.7.6
+# RestaurantOS v1.7.7
 
-[![Version](https://img.shields.io/badge/version-1.7.6-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.7.7-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-1987%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-63%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-1993%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-64%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,17 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (64 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (65 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.7.7 (QA runda 64 — KDS opomnik nevarne cone)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| ⏰ **Zvočni opomnik nevarne cone** | Naročila, ki čakajo ≥ 25 min (rdeča cona OrderCard), dobijo ZVOČNI opomnik vsakih 60 s, dokler ostajajo nebumpirana — prej je bil opomin samo vizualen (kuhar, ki gleda drugam, ga ne sliši); dva kratka visoka G5 piska, razločljiva od prihodnjega trojčka (C5-E5-G5) IN bump potrditve (E5→C5) |
+| 🚨 **Rdeči čip v glavi** | Vizualna dvojica opomnika: utripajoči čip z zvončkom (BellRing) + števec naročil v nevarni coni, role=status, aria-label s pravimi sklanjatvami (slCount/NAROCILO_FORMS — dvojina!); animate-pulse samodejno ugasne ob prefers-reduced-motion (WCAG 2.3.3 global) |
+| 🧠 **Čista logika v lib** | NOV `lib/kds-reminder.ts`: `shouldRemind` (interval + pogoji) + `countDangerOrders` — testabilna čista logika, hook je tanek ovoj; ref vzorec za getElapsed (session tiktaka vsako sekundo → brez ref-a bi se interval resetiral in NIKOLI ne stekel); React Compiler lekcija: destrukturiraj `getElapsed`, sicer preserve-manual-memoization uveljavlja širši dep |
+| 🔇 **Spoštuje preferenco zvoka** | Utišan zaslon (R63 persistenca) ne opominja — pregled preverja isEnabled() ob vsakem tiktaku |
+| 🧪 **+6 testov** | `shouldRemind` (prvi pregled takoj, 59 999/60 000 meja, utišan/noben nevarni → nikoli) + `countDangerOrders` (meja 24/25, negativni, konfigurabilen prag) — **1993/1993 unit (115 datotek)** |
 
 ### ✨ Nove funkcije v v1.7.6 (QA runda 63 — KDS zvok 2.0)
 

@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useKDSSound } from './use-kds-sound'
+import { useKDSReminder } from './use-kds-reminder'
 import { useKDSSession, useKDSWebSocket } from './use-kds-page/use-kds-session'
 import { useKDSOrders } from './use-kds-page/use-kds-orders'
+import { KDS_DANGER_MINUTES } from '@/lib/kds-reminder'
 
 // ═══════════════════════════════════════════════════════════════
 // RestaurantOS — KDS Page Hook (Barrel)
@@ -14,7 +16,7 @@ export function useKDSPage() {
   const [stationFilter, setStationFilter] = useState<string>('all')
   const [_showRecall, setShowRecall] = useState(false)
   const [bumpedOrders, setBumpedOrders] = useState<string[]>([])
-  const { play: playSound, playBump, toggle: toggleSound, isEnabled: isSoundEnabled, unlock: unlockSound } = useKDSSound()
+  const { play: playSound, playBump, playReminder, toggle: toggleSound, isEnabled: isSoundEnabled, unlock: unlockSound } = useKDSSound()
 
   // R63: Web Audio autoplay politika — kuhinjski zaslon po reloadu ni
   // interaktiral → AudioContext suspended → pisk TIHO odpadejo. Prvi
@@ -32,6 +34,17 @@ export function useKDSPage() {
   const session = useKDSSession()
   const { wsConnected } = useKDSWebSocket(session.employee, playSound)
   const orders = useKDSOrders(session.employee, bumpedOrders, stationFilter, setBumpedOrders)
+  const { getElapsed } = session
+
+  // R64: opomnik nevarne cone — zvočna eskalacija vsakih 60 s za naročila
+  // ≥ 25 min (rdeča cona), spoštuje preferenco zvoka (R63)
+  useKDSReminder(orders.activeOrders, getElapsed, isSoundEnabled, playReminder)
+
+  // R64: števec za rdeči čip v glavi (isti prag kot opomnik/rdeča kartica)
+  const dangerCount = useMemo(
+    () => orders.activeOrders.filter(o => getElapsed(o.firedAt) >= KDS_DANGER_MINUTES).length,
+    [orders.activeOrders, getElapsed]
+  )
 
   const handleRecall = useCallback(() => {
     setBumpedOrders([])
@@ -57,6 +70,7 @@ export function useKDSPage() {
     stationFilter, setStationFilter,
     wsConnected,
     isSoundEnabled, toggleSound,
+    dangerCount,
     isLoading: orders.isLoading,
     activeOrders: orders.activeOrders,
     stations: orders.stations,
