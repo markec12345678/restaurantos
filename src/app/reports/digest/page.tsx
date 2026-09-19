@@ -1,14 +1,29 @@
 'use client'
 
-import { useCallback, useEffect, useState, Suspense } from 'react'
+import { useCallback, useEffect, useState, Suspense, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { AlertTriangle, ArrowLeft, CheckCircle2, Printer } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Banknote,
+  CheckCircle2,
+  CircleDot,
+  CreditCard,
+  Gem,
+  Gift,
+  Loader2,
+  Mail,
+  Printer,
+  Smartphone,
+  Ticket,
+} from 'lucide-react'
 import { authFetch } from '@/components/pos/PinLogin'
 import { formatEUR } from '@/lib/safe-format'
+import { paymentMethodLabelSl } from '@/lib/payment-methods-sl' // R62: enoten vir (prej surov enum "cash" na tiskanem poročilu)
 import { ljubljanaYesterdayStr } from '@/lib/timezone-sl' // R48: yesterday iz lib (prej lokalna kopija)
 
 // ============================================
@@ -66,11 +81,26 @@ function ChangeBadge({ pct }: { pct: number | null }) {
   )
 }
 
+// R62: ikone metod — SAMO client (lib ostane čista/strežniško-varna)
+const PAYMENT_METHOD_ICONS: Record<string, ReactNode> = {
+  cash: <Banknote className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />, // R62: scannable UI; tisk ostane tipografsko čist (ikone imajo print varljivo barvo — muted ozadje)
+  card: <CreditCard className="h-3.5 w-3.5 text-sky-600 dark:text-sky-400" />,
+  mobile: <Smartphone className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />,
+  voucher: <Ticket className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />,
+  loyalty: <Gem className="h-3.5 w-3.5 text-fuchsia-600 dark:text-fuchsia-400" />,
+  giftcard: <Gift className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />,
+}
+
 function DigestPrintInner() {
   const [date, setDate] = useState('')
   const [data, setData] = useState<DigestData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // R62: "Pošlji po e-pošti" — wire obstoječega POST /api/reports/digest-send (Task 22)
+  // na tiskano stran (prek samo v Nastavitve → E-pošta). Idempotentnost na strani
+  // API-ja (pending/failed logika) → gumb je varen za ponovne klikе.
+  const [sendState, setSendState] = useState<'idle' | 'sending' | 'done' | 'error'>('idle')
+  const [sendMsg, setSendMsg] = useState<string | null>(null)
   const searchParams = useSearchParams()
 
   useEffect(() => {
@@ -106,6 +136,49 @@ function DigestPrintInner() {
     if (date) void load(date)
   }, [date, load])
 
+  // R62: zamenjava datuma → počisti rezultat pošiljanja (prikaz IN akcija
+  // vedno istega datuma — varnostni vzorec EmailTab R51)
+  useEffect(() => {
+    setSendState('idle')
+    setSendMsg(null)
+  }, [date])
+
+  async function handleSend() {
+    if (!date || sendState === 'sending') return
+    setSendState('sending')
+    setSendMsg(null)
+    try {
+      const res = await authFetch('/api/reports/digest-send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date }),
+      })
+      const json = (await res.json().catch(() => ({}))) as {
+        success?: boolean
+        skipped?: boolean
+        reason?: string
+        error?: string
+        sent?: number
+        failed?: number
+      }
+      if (res.status === 401) throw new Error('Nisi prijavljen — odpri POS in se prijavi (PIN), nato poskusi znova.')
+      if (res.status === 429) throw new Error('Preveč zahtevkov — poskusi čez približno minuto.')
+      if (!res.ok) throw new Error(json.error || `Napaka ${res.status}`)
+      if (json.skipped) {
+        setSendState('done')
+        setSendMsg(json.reason || 'Povzetek je že bil poslan vsem prejemnikom.')
+      } else {
+        setSendState('done')
+        setSendMsg(
+          `Povzetek poslan — ${json.sent ?? 0} uspešno${json.failed ? `, ${json.failed} neuspešno` : ''}.`
+        )
+      }
+    } catch (e) {
+      setSendState('error')
+      setSendMsg(e instanceof Error ? e.message : 'Pošiljanje ni uspelo — poskusi znova.')
+    }
+  }
+
   const generatedAt = new Date().toLocaleString('sl-SI', { dateStyle: 'short', timeStyle: 'short' })
 
   return (
@@ -138,11 +211,46 @@ function DigestPrintInner() {
               aria-label="Datum povzetka"
             />
           </label>
-          <Button size="sm" className="btn-press ml-auto" onClick={() => window.print()} disabled={!data}>
-            <Printer className="h-4 w-4" />
-            Natisni / shrani PDF
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="btn-press"
+              onClick={() => void handleSend()}
+              disabled={!data || sendState === 'sending'}
+            >
+              {sendState === 'sending' ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <Mail className="h-4 w-4" aria-hidden="true" />
+              )}
+              Pošlji po e-pošti
+            </Button>
+            <Button size="sm" className="btn-press" onClick={() => window.print()} disabled={!data}>
+              <Printer className="h-4 w-4" />
+              Natisni / shrani PDF
+            </Button>
+          </div>
         </div>
+        {/* R62: povratna informacija o pošiljanju — pod orodno vrstico, skrito pri tisku */}
+        {sendMsg && (
+          <div
+            role="status"
+            aria-live="polite"
+            className={`mx-auto flex max-w-3xl items-start gap-2 px-4 pb-3 text-sm print:hidden ${
+              sendState === 'error'
+                ? 'text-red-600 dark:text-red-400'
+                : 'text-emerald-600 dark:text-emerald-400'
+            }`}
+          >
+            {sendState === 'error' ? (
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            ) : (
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            )}
+            <span>{sendMsg}</span>
+          </div>
+        )}
       </div>
 
       {/* A4 list */}
@@ -224,9 +332,26 @@ function DigestPrintInner() {
                     {data.paymentMethods.length === 0 ? (
                       <tr><td colSpan={3} className="py-2 text-muted-foreground">Ni plačanih naročil za izbrani dan.</td></tr>
                     ) : (
-                      data.paymentMethods.map((m) => (
-                        <tr key={m.method} className="border-b last:border-0">
-                          <td className="py-2 pr-3 font-medium">{m.method}</td>
+                      data.paymentMethods.map((m, i) => (
+                        <tr
+                          key={m.method}
+                          className={`border-b transition-colors last:border-0 hover:bg-muted/40 print:hover:bg-white ${
+                            i % 2 === 1 ? 'bg-muted/20 print:bg-white' : ''
+                          }`}
+                        >
+                          <td className="py-2 pr-3 font-medium">
+                            <span className="inline-flex items-center gap-2">
+                              <span
+                                className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted/60 print:bg-muted/30"
+                                aria-hidden="true"
+                              >
+                                {PAYMENT_METHOD_ICONS[m.method] ?? (
+                                  <CircleDot className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                              </span>
+                              {paymentMethodLabelSl(m.method)}
+                            </span>
+                          </td>
                           <td className="py-2 pr-3 text-right tabular-nums">{m.count}</td>
                           <td className="py-2 text-right font-semibold tabular-nums">{formatEUR(m.amount)}</td>
                         </tr>
@@ -253,11 +378,26 @@ function DigestPrintInner() {
                       <tr><td colSpan={4} className="py-2 text-muted-foreground">Ni prodanih artiklov za izbrani dan.</td></tr>
                     ) : (
                       data.topItems.map((it, i) => (
-                        <tr key={`${it.name}-${i}`} className="border-b last:border-0">
-                          <td className="py-2 pr-3 tabular-nums text-muted-foreground">{i + 1}.</td>
+                        <tr
+                          key={`${it.name}-${i}`}
+                          className={`border-b transition-colors last:border-0 hover:bg-muted/40 print:hover:bg-white ${
+                            i % 2 === 1 ? 'bg-muted/20 print:bg-white' : ''
+                          }`}
+                        >
+                          <td className="py-2 pr-3">
+                            <span
+                              className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold tabular-nums ${
+                                i === 0
+                                  ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                                  : 'bg-muted/60 text-muted-foreground print:bg-muted/30'
+                              }`}
+                            >
+                              {i + 1}
+                            </span>
+                          </td>
                           <td className="py-2 pr-3 font-medium">{it.name}</td>
                           <td className="py-2 pr-3 text-right tabular-nums">{it.quantity}</td>
-                          <td className="py-2 text-right tabular-nums">{formatEUR(it.revenue)}</td>
+                          <td className="py-2 text-right font-semibold tabular-nums">{formatEUR(it.revenue)}</td>
                         </tr>
                       ))
                     )}

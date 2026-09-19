@@ -1,11 +1,11 @@
-# RestaurantOS v1.7.4
+# RestaurantOS v1.7.5
 
-[![Version](https://img.shields.io/badge/version-1.7.4-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.7.5-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-1980%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-61%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-1983%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-62%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,16 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (62 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (63 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.7.5 (QA runda 62 — Povzetek na daljavo)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| 📧 **"Pošlji po e-pošti" na povzetku** | Tiskana stran dnevnega povzetka (/reports/digest) zdaj sproži obstoječi POST /api/reports/digest-send (Task 22) — menedžer natisne IN pošlje iz istega mesta, brez poti prek Nastavitve → E-pošta; idempotentnost API-ja (pending/failed logika) → gumb varen za ponovne klike; živo povratno sporočilo ("Povzetek poslan — 2 uspešno" / "že poslano vsem prejemnikom" / napaka 401/429/5xx) |
+| 🇸🇮 **Slovenizacija plačilnih metod — enoten vir** | NOV `lib/payment-methods-sl.ts` (`paymentMethodLabelSl`): tiskani povzetek je do zdaj pokazal surov enum **"cash"** na tiskanem poročilu; zdaj "Gotovina" — in 4 razpršene inline mape (escpos račun, EodPaymentMethods, EodSections, eod-summary-sections) refaktorirane na enoten vir (isti lekcija kot tierLabelSi R61b); dopolnjen zemljevid: loyalty → "Zvestoba", giftcard → "Darilna kartica" |
+| 🎨 **Tabelni poliš povzetka** | Ikone plačilnih metod (Gotovina banknote, Kartica kartica, Mobilno telefon …), izmenične vrstice + hover, lestvica Top 5 kot čipi (1. mesto amber) — vse tiskalo-varno (print:bg) |
+| 🧪 **+3 testa** | `paymentMethodLabelSl` (vse enum vrednosti, kapitalizacija neznanega, prazne vrednosti) — **1983/1983 unit (113 datotek)** |
 
 ### ✨ Nove funkcije v v1.7.4 (QA runda 61b — Zaključitev nivo toka zvestobe)
 

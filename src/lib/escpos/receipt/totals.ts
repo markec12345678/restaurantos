@@ -5,6 +5,7 @@
 
 import type { ESCPOSBuilder } from '../types'
 import type { ReceiptPrintData } from '../types'
+import { paymentMethodLabelSl } from '@/lib/payment-methods-sl' // R62: enoten vir oznak (prej lokalna kopija brez loyalty/giftcard)
 
 /**
  * P2-UX FIX (decimalna vejica na tiskanem računu): slovenski zapis 12,50.
@@ -79,14 +80,7 @@ export function buildReceiptTotals(b: ESCPOSBuilder, data: ReceiptPrintData, LIN
   }
 
   // ─── NAČIN PLAČILA ───
-  const paymentLabels: Record<string, string> = {
-    cash: 'Gotovina',
-    card: 'Kartica',
-    mobile: 'Mobilno',
-    voucher: 'Bon',
-    alternate: 'Drugo',
-  }
-  b.text(`Nacin placila: ${paymentLabels[data.paymentMethod] || data.paymentMethod}`).lineFeed()
+  b.text(`Nacin placila: ${paymentMethodLabelSl(data.paymentMethod)}`).lineFeed()
 
   b.separator('=')
 }

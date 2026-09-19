@@ -6,6 +6,7 @@ import { CreditCard, Banknote, DollarSign, Receipt, Shield, ChevronDown, Chevron
 import type { EodSectionsProps } from './constants'
 import dynamic from 'next/dynamic'
 import { formatEUR, formatNumberSl } from '@/lib/safe-format'
+import { paymentMethodLabelSl } from '@/lib/payment-methods-sl' // R62: enoten vir oznak
 
 const EodTopItems = dynamic(() => import('./EodTopItems').then(m => ({ default: m.EodTopItems })), { ssr: false })
 
@@ -51,7 +52,7 @@ export const EodSections = memo(function EodSections({
                 <div key={method} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
                   <div className="flex items-center gap-2">
                     {method === 'cash' ? <Banknote className="h-4 w-4 text-green-600" /> : method === 'card' ? <CreditCard className="h-4 w-4 text-blue-600" /> : <DollarSign className="h-4 w-4 text-purple-600" />}
-                    <span className="text-sm font-medium capitalize">{method === 'cash' ? 'Gotovina' : method === 'card' ? 'Kartica' : method}</span>
+                    <span className="text-sm font-medium">{paymentMethodLabelSl(method)}</span>
                     <span className="text-xs text-muted-foreground">({info.count}x)</span>
                   </div>
                   <div className="text-right">

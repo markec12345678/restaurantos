@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Receipt, Wallet } from 'lucide-react'
 import { formatEUR, safeToFixed } from '@/lib/safe-format'
+import { paymentMethodLabelSl } from '@/lib/payment-methods-sl' // R62: enoten vir oznak
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type EodData = any
@@ -82,7 +83,7 @@ export const EodPaymentMethods = memo(function EodPaymentMethods({ eodData }: Eo
       <div className="space-y-1 p-2">
         {eodData.paymentMethods.map((pm: { method: string; count: number; revenue: number; tips: number }, i: number) => (
           <div key={i} className="flex items-center justify-between text-sm py-1">
-            <span className="capitalize">{pm.method === 'cash' ? 'Gotovina' : pm.method === 'card' ? 'Kartica' : pm.method === 'mobile' ? 'Mobilno' : pm.method}</span>
+            <span>{paymentMethodLabelSl(pm.method)}</span>
             <div className="flex items-center gap-3">
               <span className="text-muted-foreground">{pm.count}&times;</span>
               <span className="font-semibold">{formatEUR(pm.revenue)}</span>
