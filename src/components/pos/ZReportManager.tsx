@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
-import { FileText, CheckCircle2, Calculator } from 'lucide-react'
+import { FileText, CheckCircle2, Calculator, Printer } from 'lucide-react'
 import { format } from 'date-fns'
 import { sl } from 'date-fns/locale'
 import dynamic from 'next/dynamic'
@@ -20,6 +20,8 @@ const VatCashSection = dynamic(() => import('./zreport/VatCashSection').then(m =
 const ProfitDiscountSection = dynamic(() => import('./zreport/ProfitDiscountSection').then(m => ({ default: m.ProfitDiscountSection })), { ssr: false })
 const ZReportHistory = dynamic(() => import('./zreport/ZReportHistory').then(m => ({ default: m.ZReportHistory })), { ssr: false })
 const ZReportCloseDialog = dynamic(() => import('./zreport/ZReportCloseDialog').then(m => ({ default: m.ZReportCloseDialog })), { ssr: false })
+// R74: tiskalni dokument (print-only, .print-area vzorec) — lazy, ker je vseeno znotraj istega chunka ob tisku
+const ZPrintDocument = dynamic(() => import('./zreport/ZPrintDocument').then(m => ({ default: m.ZPrintDocument })), { ssr: false })
 
 export const ZReportManager = memo(function ZReportManager() {
   const {
@@ -75,6 +77,17 @@ export const ZReportManager = memo(function ZReportManager() {
             className="w-44"
             aria-label="Izberi datum poročila"
           />
+          {report && (
+            <Button
+              onClick={() => window.print()}
+              variant="outline"
+              aria-label="Natisni ali shrani Z-poročilo kot PDF"
+              title="Natisni / shrani PDF"
+            >
+              <Printer className="h-4 w-4 mr-2" />
+              Natisni
+            </Button>
+          )}
           {report?.status === 'draft' ? (
             <Button onClick={handleOpenCloseDialog} className="bg-amber-600 hover:bg-amber-700" aria-label="Zaključi dan">
               <CheckCircle2 className="h-4 w-4 mr-2" />
@@ -96,6 +109,8 @@ export const ZReportManager = memo(function ZReportManager() {
 
       {report && (
         <>
+          {/* R74: print-only fiskalni dokument — skrit na zaslonu, viden le pri tisku */}
+          <ZPrintDocument report={report} />
           <ZReportStats report={report} />
           <PaymentBreakdown report={report} />
           <VatCashSection report={report} />

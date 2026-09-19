@@ -137,12 +137,22 @@
 }
 
 /* Print styles */
+/* R74 FIX: pogojno skrivanje. Prej je `body * { visibility: hidden }` veljal
+   POVSEOD — strani brez .print-area (npr. /reports/digest od R42) so tiskale
+   PRAZNO STRAN (njihihove print: variante niso mogle premagati visibility).
+   Sedaj: strani Z .print-area (račun, Z-poročilo) → fokusiran tisk kot prej;
+   strani BREZ .print-area → navaden tisk prek lastnih print: variant.
+   :has() — Chrome 105+/Safari 15.4+ (2022); starejši brskalniki ignorirajo
+   pravilo (= prejšnje stanje), ni regresije za obstoječe .print-area strani. */
 @media print {
-  body * {
+  body:has(.print-area) * {
     visibility: hidden;
   }
-  .print-area,
-  .print-area * {
+  /* Re-show mora biti STROŽJI od skrivanja: body .print-area = (0,1,1)
+     izenači body:has(.print-area) * (0,1,1) in zmaga po vrstnem redu;
+     .print-area * (0,1,1) bi IZGUBIL proti (0,1,1) na korenu. */
+  body .print-area,
+  body .print-area * {
     visibility: visible;
   }
   .print-area {
