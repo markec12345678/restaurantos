@@ -1,11 +1,11 @@
-# RestaurantOS v1.6.1
+# RestaurantOS v1.6.2
 
-[![Version](https://img.shields.io/badge/version-1.6.1-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.6.2-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-1900%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-56%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-1918%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-57%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -25,6 +25,17 @@
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
 > Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (56 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.6.2 (QA runda 57)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| ⏰ **Opomniki s časovnim žigom** | `reminderSentAt` (schema + migrate faza "R57"): značka pokaže **"Opomnik poslan ob 19:00"** (LJ cona prek `reminderBadgeLabel`); starejše vrstice brez žiga padejo nazaj na suho "Opomnik poslan"; ponastavitev flaga počisti žig (flag+žig ostajata skladna) |
+| 🇸🇮 **KDS/kuhinja slovnica — srednji rod** | Eliotske oblike ("naročilo" izpuščeno): `NAROCILO_FORMS` (dvojina "2 naročili" — prej ternarek!), `CAKAJOC_FORMS` (1 čakajoče · 2 čakajoči · 3 čakajoča · 5 čakajočih), `PRIPRAVLJENO_FORMS`, `NUJNO_FORMS` — žive napake "2 čakajočih", "4 nujnih!" popravljene (KDS glava, Kuhinja KPI, Dashboard subtitle) |
+| 🐛 **Čip tavtologija fix** | "1 opomnik brez opomnika" → "1 rezervacija brez opomnika" (`REZERVACIJA_FORMS` — čip šteje rezervacije, ne opomnike); živa QA ugotovitev runde 57 |
+| ✨ **Stilski detajlji** | `tabular-nums` + `font-medium` na vseh novih badge/števcih (KDS glava, kuhinjski KPI, opomnik značka) — stabilni števci ob live posodobitvah |
+| 🔧 **Migrate faza R57** | `/api/admin/migrate` ensure-column za `reminderSentAt` (information_schema check → ALTER TABLE; dry-run/apply vzorec) — sandbox ne doseže Neon 5432, produkcijski stolpec gre prek endpointa |
+| 🧪 **Kakovost** | 1918/1918 unit testov (110 datotek), 0 tsc napak, 0 eslint errorjev |
 
 ### ✨ Nove funkcije v v1.6.1 (QA runde 55–56)
 
