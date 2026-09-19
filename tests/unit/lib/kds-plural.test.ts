@@ -7,7 +7,7 @@
 // Plus osnovna družina NAROCILO_FORMS (KDS glava: dvojina "2 naročili"
 // je manjkala — ternarek je poznal samo ednino/rodilnik).
 import { describe, it, expect } from 'vitest'
-import { slCount, slPluralWord, NAROCILO_FORMS, CAKAJOC_FORMS, PRIPRAVLJENO_FORMS, NUJNO_FORMS } from '@/lib/sl-plural'
+import { slCount, slPluralWord, NAROCILO_FORMS, CAKAJOC_FORMS, PRIPRAVLJENO_FORMS, NUJNO_FORMS, PRIPRAVLJEN_FORMS, CAKA_GLAGOL_FORMS } from '@/lib/sl-plural'
 
 describe('NAROCILO_FORMS (KDS glava)', () => {
   it('osnovne oblike: 1 naročilo · 2 naročili · 3 naročila · 5 naročil', () => {
@@ -80,5 +80,32 @@ describe('NUJNO_FORMS (eliotska srednja oblika, destruktivni badge)', () => {
   it('slPluralWord posamezne besede sovpadajo s slCount priključkom', () => {
     expect(slPluralWord(3, NUJNO_FORMS)).toBe('nujna')
     expect(slPluralWord(7, CAKAJOC_FORMS)).toBe('čakajočih')
+  })
+})
+
+describe('PRIPRAVLJEN_FORMS (moški rod — artikli, KDS footer)', () => {
+  it('1 pripravljen · 2 pripravljena · 3 pripravljeni · 5 pripravljenih', () => {
+    expect(slPluralWord(1, PRIPRAVLJEN_FORMS)).toBe('pripravljen')
+    expect(slPluralWord(2, PRIPRAVLJEN_FORMS)).toBe('pripravljena')
+    expect(slPluralWord(3, PRIPRAVLJEN_FORMS)).toBe('pripravljeni')
+    expect(slPluralWord(4, PRIPRAVLJEN_FORMS)).toBe('pripravljeni')
+    expect(slPluralWord(5, PRIPRAVLJEN_FORMS)).toBe('pripravljenih')
+  })
+
+  it('živa napaka R57: "0 pripravljeni" → "0 pripravljenih" (rodilnik pri 0)', () => {
+    expect(slPluralWord(0, PRIPRAVLJEN_FORMS)).toBe('pripravljenih')
+    expect(slPluralWord(0, PRIPRAVLJEN_FORMS)).not.toBe('pripravljeni')
+  })
+})
+
+describe('CAKA_GLAGOL_FORMS (glagolsko soglasje — KDS footer)', () => {
+  it('1 čaka · 2 čakata (dvojina) · 3 čakajo · 0/5 čaka (ednina ob rodilniku)', () => {
+    expect(slPluralWord(1, CAKA_GLAGOL_FORMS)).toBe('čaka')
+    expect(slPluralWord(2, CAKA_GLAGOL_FORMS)).toBe('čakata')
+    expect(slPluralWord(3, CAKA_GLAGOL_FORMS)).toBe('čakajo')
+    expect(slPluralWord(4, CAKA_GLAGOL_FORMS)).toBe('čakajo')
+    expect(slPluralWord(0, CAKA_GLAGOL_FORMS)).toBe('čaka')
+    expect(slPluralWord(5, CAKA_GLAGOL_FORMS)).toBe('čaka')
+    expect(slPluralWord(11, CAKA_GLAGOL_FORMS)).toBe('čaka')
   })
 })

@@ -55,6 +55,14 @@ export const NAROCILO_FORMS: SlPluralForms = ['naročilo', 'naročili', 'naroči
 export const CAKAJOC_FORMS: SlPluralForms = ['čakajoče', 'čakajoči', 'čakajoča', 'čakajočih']
 export const PRIPRAVLJENO_FORMS: SlPluralForms = ['pripravljeno', 'pripravljeni', 'pripravljena', 'pripravljenih']
 export const NUJNO_FORMS: SlPluralForms = ['nujno', 'nujni', 'nujna', 'nujnih']
+// RUNDA 57c: MOŠKI ROD (artikli) — KDS footer "N pripravljeni":
+//   1 pripravljen · 2 pripravljena (dvojina) · 3,4 pripravljeni · 5+ pripravljenih
+// Živa QA ugotovitev R57: "0 pripravljeni" (0/5+ zahteva rodilnik -ih).
+export const PRIPRAVLJEN_FORMS: SlPluralForms = ['pripravljen', 'pripravljena', 'pripravljeni', 'pripravljenih']
+// RUNDA 57c: GLAGOLSKE oblike (subjekt = števec + artikli): 1 čaka · 2 čakata
+// (dvojina!) · 3,4 čakajo · 0/5+ čaka (za rodilnik kvantifikatorja gre glagol
+// v ednino: "pet artiklov čaka"). Isti 4-tuple API, pomensko glagol.
+export const CAKA_GLAGOL_FORMS: SlPluralForms = ['čaka', 'čakata', 'čakajo', 'čaka']
 
 /**
  * Katera množinska oblika za n? Tradicionalna slovenska norma:
