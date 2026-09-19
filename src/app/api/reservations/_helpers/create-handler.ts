@@ -19,6 +19,11 @@ import { db, createAuditLog } from '@/lib/db'
 import { resolveLocationId } from '@/lib/location-fallback'
 import { logger } from '@/lib/logger'
 import { emitEvent } from '@/lib/event-emitter'
+// RUNDA 58 FIX (živa QA): konfliktno sporočilo POST ustvarjanja je pokazovalo
+// UTC čas ("od 18:00 do 20:00" namesto LJ "od 20:00 do 22:00") — toLocaleTimeString
+// brez timeZone uporabi strežniško cono (UTC). formatLjubljanaTime vsadi
+// eksplicitno Europe/Ljubljana (isti vzorec kot R54 fix v [id]/route.ts).
+import { formatLjubljanaTime } from '@/lib/reservation-timeline'
 
 export async function handleCreateReservation(
   data: {
@@ -72,7 +77,7 @@ export async function handleCreateReservation(
       // Overlap pogoj: start1 < end2 AND end1 > start2
       if (reservationStart < existingEnd && reservationEnd > existingStart) {
         return {
-          error: `Miza ${table.number} je že rezervirana od ${existingStart.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })} do ${existingEnd.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })}`,
+          error: `Miza ${table.number} je že rezervirana od ${formatLjubljanaTime(existingStart) ?? '--:--'} do ${formatLjubljanaTime(existingEnd) ?? '--:--'}`,
           status: 409,
         }
       }
@@ -123,7 +128,7 @@ export async function handleCreateReservation(
         const existingEnd = new Date(existingStart.getTime() + (existing.duration || 120) * 60000)
         if (reservationStart < existingEnd && reservationEnd > existingStart) {
           throw {
-            error: `Miza ${table.number} je že rezervirana od ${existingStart.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })} do ${existingEnd.toLocaleTimeString('sl-SI', { hour: '2-digit', minute: '2-digit' })}`,
+            error: `Miza ${table.number} je že rezervirana od ${formatLjubljanaTime(existingStart) ?? '--:--'} do ${formatLjubljanaTime(existingEnd) ?? '--:--'}`,
             status: 409,
           }
         }
