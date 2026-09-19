@@ -1,11 +1,11 @@
-# RestaurantOS v1.7.7
+# RestaurantOS v1.7.8
 
-[![Version](https://img.shields.io/badge/version-1.7.7-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.7.8-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-1993%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-64%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-2007%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-65%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,17 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (65 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (66 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.7.8 (QA runda 65 — Digest primerjava 2.0)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| 📊 **Polna dnevna primerjava** | Dnevni povzetek je primerjal SAMO promet (prejšnji dan aggregate je poštekal le `_sum.total`). Zdaj primerjava pokrije VSE KPI: promet, naročila, povprečni račun IN napitnine — vsaka z "včeraj" bazo in delta % |
+| 📈 **Primerjavna sekcija na tiskani strani** | NOVA sekcija "Primerjava s prejšnjim dnem" na /reports/digest: 4 vrstice z DVOJNIMI CSS vrsticami (danes teal / včeraj siva, proporcionalno na max), vrednosti oba dni + delta čipi (▲/▼, emerald/rdeča); tiskalo-varno (break-inside-avoid, print barve); graciozno stanje "Prejšnji dan ni imel prometa" |
+| 🧮 **ENOTEN vir delta izračuna** | NOV `lib/percent-change.ts`: `pctChange(cur, prev)` — čista, strežniško-varna (vzorec tierLabelSi R61b / paymentMethodLabelSl R62); null ko prejšnja vrednost ni primerljiva (0/negativna/NaN → NE "neskončen %"); `revenueChangePct` refaktoriran na isti vir |
+| 📧 **Primerjava tudi v emailu** | Email digest (in predogled v Nastavitve → E-pošta) dobi primerjavno kartico Kazalnik/Danes/Včeraj/Sprememba — prikaže se SAMO, ko ima prejšnji dan promet (brez praznih obljub); OPTIONAL polja → stari klicatelji ostanejo združljivi |
+| 🧪 **+14 testov** | `pctChange` (rast/padec/zaokroževanje/nič/negativna/NaN/string), polna primerjava agregatov, null baza, query oblika, comparison card render/izpust — **2007/2007 unit (116 datotek)** |
 
 ### ✨ Nove funkcije v v1.7.7 (QA runda 64 — KDS opomnik nevarne cone)
 

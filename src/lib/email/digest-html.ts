@@ -32,6 +32,14 @@ export interface DailyDigestData {
   avgTicket: number
   prevRevenue: number
   revenueChangePct: number | null // null če ni prejšnjega dne za primerjavo
+  // R65: polna dnevna primerjava (OPTIONAL — stari klicatelji/testni
+  // fixture-i brez teh polj ostanejo veljavni; UI/email graciozno izpustita)
+  prevOrdersCount?: number
+  ordersChangePct?: number | null
+  prevTips?: number
+  tipsChangePct?: number | null
+  prevAvgTicket?: number
+  avgTicketChangePct?: number | null
   paymentMethods: PaymentMethodRow[]
   topItems: TopItemRow[]
   furs: { sent: number; failed: number }
@@ -48,8 +56,8 @@ const C = {
   down: '#b91c1c',
 } as const
 
-function th(label: string): string {
-  return `<th align="left" style="padding:8px 10px;border-bottom:2px solid ${C.border};font-size:12px;color:${C.muted};text-transform:uppercase;letter-spacing:.04em;">${label}</th>`
+function th(label: string, opts: { right?: boolean } = {}): string {
+  return `<th align="${opts.right ? 'right' : 'left'}" style="padding:8px 10px;border-bottom:2px solid ${C.border};font-size:12px;color:${C.muted};text-transform:uppercase;letter-spacing:.04em;">${label}</th>`
 }
 
 function td(value: string, opts: { strong?: boolean; color?: string; right?: boolean } = {}): string {
@@ -63,6 +71,40 @@ function changeBadge(pct: number | null): string {
   const color = up ? C.up : C.down
   const arrow = up ? '▲' : '▼'
   return `<span style="color:${color};font-weight:600;">${arrow} ${Math.abs(pct)}%</span>`
+}
+
+// R65: primerjavna kartica v emailu — enaka semantika kot tiskana stran
+// (Primerjava s prejšnjim dnem). Prikaže se SAMO, če ima dan včerajšnjo
+// bazo (prejšnji dan je imel vsa eno naročilo), sicer je kartica izpuščena
+// (email ostane čist, brez praznih obljub).
+function comparisonCard(data: DailyDigestData): string {
+  if (typeof data.prevOrdersCount !== 'number' || data.prevOrdersCount <= 0) return ''
+  const rows: Array<{ label: string; today: string; yesterday: string; pct: number | null | undefined }> = [
+    { label: 'Promet', today: formatEUR(data.revenue), yesterday: formatEUR(data.prevRevenue), pct: data.revenueChangePct },
+    { label: 'Naročila', today: String(data.ordersCount), yesterday: String(data.prevOrdersCount), pct: data.ordersChangePct },
+    { label: 'Povp. račun', today: formatEUR(data.avgTicket), yesterday: formatEUR(data.prevAvgTicket ?? 0), pct: data.avgTicketChangePct },
+    { label: 'Napitnine', today: formatEUR(data.tips), yesterday: formatEUR(data.prevTips ?? 0), pct: data.tipsChangePct },
+  ]
+  const trs = rows
+    .map(
+      r => `<tr>
+        <td style="padding:6px 10px;border-bottom:1px solid ${C.border};font-size:13px;color:${C.muted};">${r.label}</td>
+        <td align="right" style="padding:6px 10px;border-bottom:1px solid ${C.border};font-size:13px;font-weight:600;">${r.today}</td>
+        <td align="right" style="padding:6px 10px;border-bottom:1px solid ${C.border};font-size:13px;color:${C.muted};">včeraj ${r.yesterday}</td>
+        <td align="right" style="padding:6px 10px;border-bottom:1px solid ${C.border};font-size:13px;">${changeBadge(r.pct ?? null)}</td>
+      </tr>`
+    )
+    .join('')
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.card};border:1px solid ${C.border};border-radius:8px;margin-bottom:16px;">
+      <tr><td style="padding:14px 20px 6px;font-size:14px;font-weight:600;">Primerjava s prejšnjim dnem</td></tr>
+      <tr><td style="padding:0 12px 12px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+          <tr>${th('Kazalnik')}${th('Danes', { right: true })}${th('Včeraj', { right: true })}${th('Sprememba', { right: true })}</tr>
+          ${trs}
+        </table>
+      </td></tr>
+    </table>`
 }
 
 /** Zgradi HTML vsebino digesta (podatki NE morejo priti iz user inputa — številke + imena artiklov escape). */
@@ -123,6 +165,8 @@ export function buildDailyDigestHtml(data: DailyDigestData): string {
         </td>
       </tr>
     </table>
+
+    ${comparisonCard(data)}
 
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.card};border:1px solid ${C.border};border-radius:8px;margin-bottom:16px;">
       <tr><td style="padding:14px 20px 6px;font-size:14px;font-weight:600;">Metode plačila</td></tr>

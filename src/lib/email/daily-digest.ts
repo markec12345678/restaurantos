@@ -18,6 +18,9 @@
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { formatEUR } from '@/lib/safe-format'
+// R65: enoten vir "sprememba v %" (prej samo inline za promet — zdaj deli
+// z naročili, povprečnim računom IN napitninami)
+import { pctChange } from '@/lib/percent-change'
 import { sendEmail, createScheduledEmailLog, type CreateScheduledEmailResult } from '@/lib/email'
 // Task 21: HTML builder izluščen v client-safe modul (brez db) — enak HTML
 // uporablja produkcija (email) IN predogled v Email zavihku (client).
@@ -71,7 +74,10 @@ export async function fetchDailyDigestData(date: Date): Promise<DailyDigestData>
     }),
     db.order.aggregate({
       where: { paymentStatus: 'paid', createdAt: prevBounds },
-      _sum: { total: true },
+      // R65: polna primerjava — prej SAMO _sum.total (naročila/napitnine/
+      // povp. račun brez "včeraj" baze)
+      _count: { _all: true },
+      _sum: { total: true, tip: true },
     }),
     // 2) Metode plačila (Order-level, konsistentno z Z-quick-view)
     db.order.groupBy({
@@ -96,6 +102,10 @@ export async function fetchDailyDigestData(date: Date): Promise<DailyDigestData>
   const ordersCount = todayAgg._count._all
   const revenue = toNum(todayAgg._sum.total)
   const prevRevenue = toNum(prevAgg._sum.total)
+  // R65: polna dnevna primerjava — vse KPI vrednosti imajo "včeraj" bazo
+  const prevOrdersCount = prevAgg._count._all
+  const prevTips = toNum(prevAgg._sum.tip)
+  const prevAvgTicket = prevOrdersCount > 0 ? prevRevenue / prevOrdersCount : 0
 
   const topMap = new Map<string, TopItemRow>()
   for (const item of orderItems) {
@@ -132,7 +142,14 @@ export async function fetchDailyDigestData(date: Date): Promise<DailyDigestData>
     tax: toNum(todayAgg._sum.tax),
     avgTicket: ordersCount > 0 ? revenue / ordersCount : 0,
     prevRevenue,
-    revenueChangePct: prevRevenue > 0 ? Math.round(((revenue - prevRevenue) / prevRevenue) * 1000) / 10 : null,
+    // R65: pctChange (enoten vir) — ista semantika kot prej (null če prev <= 0)
+    revenueChangePct: pctChange(revenue, prevRevenue),
+    prevOrdersCount,
+    ordersChangePct: pctChange(ordersCount, prevOrdersCount),
+    prevTips,
+    tipsChangePct: pctChange(toNum(todayAgg._sum.tip), prevTips),
+    prevAvgTicket,
+    avgTicketChangePct: pctChange(ordersCount > 0 ? revenue / ordersCount : 0, prevAvgTicket),
     paymentMethods,
     topItems,
     furs,

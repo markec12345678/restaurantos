@@ -50,6 +50,14 @@ interface DigestData {
   avgTicket: number
   prevRevenue: number
   revenueChangePct: number | null
+  // R65: polna dnevna primerjava (OPTIONAL — starejši odgovori brez teh polj
+  // ostanejo veljavni; sekcija se potem graciozno ne upodobi)
+  prevOrdersCount?: number
+  ordersChangePct?: number | null
+  prevTips?: number
+  tipsChangePct?: number | null
+  prevAvgTicket?: number
+  avgTicketChangePct?: number | null
   paymentMethods: Array<{ method: string; count: number; amount: number }>
   topItems: Array<{ name: string; quantity: number; revenue: number }>
   furs: { sent: number; failed: number }
@@ -78,6 +86,86 @@ function ChangeBadge({ pct }: { pct: number | null }) {
     >
       {up ? '▲' : '▼'} {Math.abs(pct)}%
     </span>
+  )
+}
+
+// R65: kompakten delta čip za vrstice primerjave (brez "ni primerjave"
+// besedila — to rešuje sekcija sama; undefined = se vrstica ne čipiči)
+function DeltaChip({ pct }: { pct: number | null | undefined }) {
+  if (pct === undefined) return null
+  if (pct === null) {
+    return <span className="text-xs text-muted-foreground">—</span>
+  }
+  const up = pct >= 0
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums print:bg-transparent ${
+        up
+          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+          : 'bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+      }`}
+      aria-label={`Sprememba ${up ? 'nazaj' : 'dol'} ${Math.abs(pct)} %`}
+    >
+      {up ? '▲' : '▼'} {Math.abs(pct)}%
+    </span>
+  )
+}
+
+// R65: ena vrstica primerjave — label + DVOJNA CSS vrstica (danes teal /
+// včeraj muted, proporcionalno na max obeh dni) + vrednosti + delta čip.
+// Tiskalo-varno: barve so tinti ozadij (print-color-adjust: exact je že
+// globalno nastavljen), širine so % — delujejo tudi na A4.
+function CompareRow({
+  label,
+  today,
+  yesterday,
+  pct,
+  formatter,
+}: {
+  label: string
+  today: number
+  yesterday: number
+  pct: number | null | undefined
+  formatter: (v: number) => string
+}) {
+  const max = Math.max(today, yesterday)
+  const width = (v: number) => {
+    if (v <= 0 || max <= 0) return '0%'
+    return `${Math.max((v / max) * 100, 3)}%` // min 3 % da je očesno viden
+  }
+  return (
+    <div
+      className="grid grid-cols-[7.5rem_1fr_auto] items-center gap-x-3 gap-y-1 border-b py-2.5 last:border-0 sm:grid-cols-[9rem_1fr_10rem] print:gap-y-0"
+    >
+      <span className="text-sm font-medium text-muted-foreground">{label}</span>
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          <span className="w-11 shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">danes</span>
+          <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted/50 print:bg-muted/30">
+            <div
+              className="h-full rounded-full bg-teal-600 dark:bg-teal-500"
+              style={{ width: width(today) }}
+              role="presentation"
+            />
+          </div>
+          <span className="w-20 shrink-0 text-right text-sm font-semibold tabular-nums">{formatter(today)}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-11 shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">včeraj</span>
+          <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted/50 print:bg-muted/30">
+            <div
+              className="h-full rounded-full bg-slate-300 dark:bg-slate-600 print:bg-slate-300"
+              style={{ width: width(yesterday) }}
+              role="presentation"
+            />
+          </div>
+          <span className="w-20 shrink-0 text-right text-sm tabular-nums text-muted-foreground">{formatter(yesterday)}</span>
+        </div>
+      </div>
+      <div className="justify-self-end sm:justify-self-start">
+        <DeltaChip pct={pct} />
+      </div>
+    </div>
   )
 }
 
@@ -305,6 +393,12 @@ function DigestPrintInner() {
                     <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Naročila</p>
                     <p className="mt-0.5 text-lg font-bold tabular-nums">{data.ordersCount}</p>
                     <p className="mt-1 text-xs text-muted-foreground">povp. račun {formatEUR(data.avgTicket)}</p>
+                    {/* R65: delta naročil — samo ko je realna vrednost (null/undefined = brez baze, razloži sekcija primerjave) */}
+                    {data.ordersChangePct != null && (
+                      <div className="mt-1">
+                        <ChangeBadge pct={data.ordersChangePct} />
+                      </div>
+                    )}
                   </div>
                   <div className="rounded-lg border-t-2 border-t-amber-500 bg-muted/40 p-3 print:bg-white">
                     <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Napitnine</p>
@@ -316,6 +410,51 @@ function DigestPrintInner() {
                   </div>
                 </div>
               </section>
+
+              {/* R65: Primerjava s prejšnjim dnem — polna (prej samo promet čip) */}
+              {typeof data.prevOrdersCount === 'number' && (
+                <section className="break-inside-avoid" aria-label="Primerjava s prejšnjim dnem">
+                  <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    Primerjava s prejšnjim dnem
+                  </h2>
+                  {data.prevOrdersCount > 0 ? (
+                    <div className="rounded-lg border bg-muted/30 px-3 py-1 print:bg-white">
+                      <CompareRow
+                        label="Promet"
+                        today={data.revenue}
+                        yesterday={data.prevRevenue}
+                        pct={data.revenueChangePct}
+                        formatter={formatEUR}
+                      />
+                      <CompareRow
+                        label="Naročila"
+                        today={data.ordersCount}
+                        yesterday={data.prevOrdersCount}
+                        pct={data.ordersChangePct}
+                        formatter={v => String(Math.round(v))}
+                      />
+                      <CompareRow
+                        label="Povp. račun"
+                        today={data.avgTicket}
+                        yesterday={data.prevAvgTicket ?? 0}
+                        pct={data.avgTicketChangePct}
+                        formatter={formatEUR}
+                      />
+                      <CompareRow
+                        label="Napitnine"
+                        today={data.tips}
+                        yesterday={data.prevTips ?? 0}
+                        pct={data.tipsChangePct}
+                        formatter={formatEUR}
+                      />
+                    </div>
+                  ) : (
+                    <p className="rounded-lg border bg-muted/30 px-3 py-3 text-sm text-muted-foreground print:bg-white">
+                      Prejšnji dan ni imel prometa — dnevna primerjava ni na voljo.
+                    </p>
+                  )}
+                </section>
+              )}
 
               {/* Metode plačila */}
               <section className="break-inside-avoid">

@@ -123,6 +123,44 @@ describe('fetchDailyDigestData — agregacije', () => {
     const whereArg = mocks.orderAggregate.mock.calls[0][0].where
     expect(whereArg.paymentStatus).toBe('paid')
   })
+
+  // ─── R65: polna dnevna primerjava (prej samo promet) ───
+  it('R65: polna primerjava — prevOrdersCount/ordersChangePct/prevAvgTicket/prevTips', async () => {
+    mocks.orderAggregate
+      .mockResolvedValueOnce(mockAgg({ count: 10, total: '543.21', tip: '30.00' })) // danes
+      .mockResolvedValueOnce(mockAgg({ count: 8, total: 400, tip: 10 })) // prejšnji dan
+
+    const d = await fetchDailyDigestData(new Date(2026, 8, 17))
+
+    expect(d.prevOrdersCount).toBe(8)
+    expect(d.ordersChangePct).toBe(25) // (10−8)/8
+    expect(d.prevTips).toBe(10)
+    expect(d.tipsChangePct).toBe(200) // (30−10)/10
+    expect(d.prevAvgTicket).toBeCloseTo(50, 3) // 400/8
+    expect(d.avgTicketChangePct).toBeCloseTo(8.6, 1) // (54.321−50)/50
+  })
+
+  it('R65: prejšnji dan brez naročil → vsa pct polja null (NE neskončnost)', async () => {
+    mocks.orderAggregate
+      .mockResolvedValueOnce(mockAgg({ count: 3, total: 120, tip: 5 }))
+      .mockResolvedValueOnce(mockAgg({ count: 0, total: 0, tip: 0 }))
+
+    const d = await fetchDailyDigestData(new Date())
+
+    expect(d.prevOrdersCount).toBe(0)
+    expect(d.ordersChangePct).toBeNull()
+    expect(d.tipsChangePct).toBeNull()
+    expect(d.avgTicketChangePct).toBeNull()
+    expect(d.prevAvgTicket).toBe(0)
+  })
+
+  it('R65: prejšnji dan aggregate dobi _count in _sum.tip (query oblika)', async () => {
+    await fetchDailyDigestData(new Date())
+    const prevCall = mocks.orderAggregate.mock.calls[1][0]
+    expect(prevCall.where.paymentStatus).toBe('paid')
+    expect(prevCall._count).toEqual({ _all: true })
+    expect(prevCall._sum).toEqual({ total: true, tip: true })
+  })
 })
 
 describe('fetchDailyDigestData — topItems / plačila / FURS', () => {
@@ -234,6 +272,34 @@ describe('buildDailyDigestHtml', () => {
   it('ni primerjave → muted obvestilo namesto badgea', () => {
     const html = buildDailyDigestHtml({ ...base, revenueChangePct: null })
     expect(html).toContain('ni primerjave')
+  })
+
+  // ─── R65: primerjavna kartica v emailu ───
+  it('R65: comparison card s polnimi polji — Kazalnik/Danes/Včeraj/Sprememba', () => {
+    const html = buildDailyDigestHtml({
+      ...base,
+      prevOrdersCount: 8,
+      ordersChangePct: 25,
+      prevAvgTicket: 50,
+      avgTicketChangePct: 8.6,
+      prevTips: 10,
+      tipsChangePct: 200,
+    })
+    expect(html).toContain('Primerjava s prejšnjim dnem')
+    expect(html).toContain('Kazalnik')
+    expect(html).toContain('včeraj 300,00') // base.prevRevenue=300 → formatEUR
+    expect(html).toContain('▲ 25%') // ordersChangePct
+    expect(html).toContain('▲ 200%') // tipsChangePct
+  })
+
+  it('R65: brez prevOrdersCount (stari klicatelj) → comparison card IZPUŠČENA', () => {
+    const html = buildDailyDigestHtml(base) // base nima R65 polj
+    expect(html).not.toContain('Primerjava s prejšnjim dnem')
+  })
+
+  it('R65: prevOrdersCount 0 → comparison card izpuščena (brez praznih obljub)', () => {
+    const html = buildDailyDigestHtml({ ...base, prevOrdersCount: 0, ordersChangePct: null })
+    expect(html).not.toContain('Primerjava s prejšnjim dnem')
   })
 
   it('CTA uporablja absoluten URL iz NEXT_PUBLIC_APP_URL', () => {
