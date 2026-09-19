@@ -1,11 +1,11 @@
-# RestaurantOS v1.7.8
+# RestaurantOS v1.7.9
 
-[![Version](https://img.shields.io/badge/version-1.7.8-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.7.9-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-2007%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-65%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-2023%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-66%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,18 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (66 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (67 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.7.9 (QA runda 66 — Kategorije UREDI + IZBRIŠI)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| ✏️🗑️ **Kategorije upravljane do konca** | Kategorije so bile create-only (napačno ustvarjena je ostala ZA VEDNO). NOV `/api/categories/[id]`: GET / PUT (ime, ikona, barva, sortOrder, premik med meniji) / DELETE — vzorec menijev [id] PUT+DELETE, admin permission + MODEL A scope prek Menu verige |
+| 🛡️ **Referenčna zaščita brisanja** | Kategorija z artikli → 409 z razumljivim slovenskim sporočilom ("Kategorija vsebuje 12 artiklov — najprej premakni …"); ENOTEN VIR `lib/category-guard.ts` (`canDeleteCategory`) za API IN UI; FAIL-SAFE: pokvarjen števec → blokada |
+| 🇸🇮 **Slovenski števci kot enoten vir** | `sl-plural.ts` dobi `ARTIKEL_FORMS` (1 artikel · 2 artikla · 3 artikli · 5 artiklov) in `KATEGORIJA_FORMS` (dvojina! — prej trdo kodirano "N kategorij/artiklov" pri 1–4) |
+| 🎨 **CategoriesTab poliš** | Barvni akcent trak kategorije, ikonska ploščica, čip "N artiklov" (gramatično pravilen), hover-dejanja uredi/izbriši (na dotiku vedno vidna), prazno stanje po meniju s CTA-klikom, AlertDialog potrditev z blokado ko artikli > 0 |
+| 👁️ **Živi predogled v dialogu** | CategoryDialog v urejevalnem načinu: isti vizual kot kartica, se posodablja med izbiro barve/ikone; naslov/gumb se spremenita ("Uredi kategorijo" / "Shrani spremembe") |
+| 🧪 **+16 testov** | `canDeleteCategory` (prazna/1/2/3–4/5+/11–14/decimalke/fail-safe NaN), `updateCategorySchema` (partial, hex refine, meje, strip tujih polj), plural forme — **2023/2023 unit (118 datotek)** |
 
 ### ✨ Nove funkcije v v1.7.8 (QA runda 65 — Digest primerjava 2.0)
 
