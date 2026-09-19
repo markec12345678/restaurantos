@@ -10,6 +10,7 @@
 // ============================================
 
 import { formatEUR } from '@/lib/safe-format'
+import type { HourlyPoint } from '@/lib/digest-hours' // R76: urna razporeditev (type-only — digest-html ostane client-safe)
 
 export interface PaymentMethodRow {
   method: string
@@ -43,6 +44,10 @@ export interface DailyDigestData {
   paymentMethods: PaymentMethodRow[]
   topItems: TopItemRow[]
   furs: { sent: number; failed: number }
+  // R76: urna razporeditev prometa (OPTIONAL — stari klicatelji/testni
+  // fixture-i brez tega polja ostanejo veljavni; UI sekcijo graciozno
+  // izpusti, email HTML ga (zaenkrat) ignorira)
+  hourly?: HourlyPoint[]
 }
 
 const C = {

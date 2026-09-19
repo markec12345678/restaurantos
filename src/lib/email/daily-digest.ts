@@ -21,6 +21,7 @@ import { formatEUR } from '@/lib/safe-format'
 // R65: enoten vir "sprememba v %" (prej samo inline za promet — zdaj deli
 // z naročili, povprečnim računom IN napitninami)
 import { pctChange } from '@/lib/percent-change'
+import { computeHourlyDistribution } from '@/lib/digest-hours' // R76: urna razporeditev prometa
 import { sendEmail, createScheduledEmailLog, type CreateScheduledEmailResult } from '@/lib/email'
 // Task 21: HTML builder izluščen v client-safe modul (brez db) — enak HTML
 // uporablja produkcija (email) IN predogled v Email zavihku (client).
@@ -66,7 +67,7 @@ export async function fetchDailyDigestData(date: Date): Promise<DailyDigestData>
   } as const
 
   // 1) Dnešni aggregate + prejšnji dan (vzporedno)
-  const [todayAgg, prevAgg, paymentGroups, orderItems, fursGroups] = await Promise.all([
+  const [todayAgg, prevAgg, paymentGroups, orderItems, hourRows, fursGroups] = await Promise.all([
     db.order.aggregate({
       where: orderWhere,
       _count: { _all: true },
@@ -91,7 +92,14 @@ export async function fetchDailyDigestData(date: Date): Promise<DailyDigestData>
       where: { voided: false, order: orderWhere },
       select: { menuItemName: true, quantity: true, price: true },
     }),
-    // 4) FURS outbox status za ta dan
+    // 4) R76: urna razporeditev — minimal fetch (total + createdAt) + JS
+    //    vedrčenje v digest-hours (dan ima ~50–200 naročil — poceni); lokacija
+    //    v isti transakcijski vsoti kot ostale poizvedbe
+    db.order.findMany({
+      where: orderWhere,
+      select: { total: true, createdAt: true },
+    }),
+    // 5) FURS outbox status za ta dan
     db.outboxEvent.groupBy({
       by: ['status'],
       where: { target: 'furs', createdAt: bounds, status: { in: ['sent', 'failed', 'dead_letter'] } },
@@ -153,6 +161,8 @@ export async function fetchDailyDigestData(date: Date): Promise<DailyDigestData>
     paymentMethods,
     topItems,
     furs,
+    // R76: urna razporeditev (24 točk, optional polje — vzorec R65)
+    hourly: computeHourlyDistribution(hourRows),
   }
 }
 

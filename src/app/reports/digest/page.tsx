@@ -27,6 +27,7 @@ import { paymentMethodLabelSl } from '@/lib/payment-methods-sl' // R62: enoten v
 import { ljubljanaYesterdayStr } from '@/lib/timezone-sl' // R48: yesterday iz lib (prej lokalna kopija)
 import { asArray } from '@/lib/as-array' // R71: QA fix — "(x || []).map" ne ščiti pred truthy non-array (R69 Happy Hour crash vzorec)
 import { formatEURShort, SPARSE_LABEL_THRESHOLD, type DigestTrend, type TrendComparison } from '@/lib/digest-trend' // R71: trend sparkline · R72: 7/30 toggle · R73: primerjava
+import { summarizeHourly, type HourlyPoint } from '@/lib/digest-hours' // R76: promet po urah
 
 // ============================================
 // TISKANA VERZIJA DNEVNEGA POVZETKA (/reports/digest)
@@ -63,6 +64,9 @@ interface DigestData {
   paymentMethods: Array<{ method: string; count: number; amount: number }>
   topItems: Array<{ name: string; quantity: number; revenue: number }>
   furs: { sent: number; failed: number }
+  // R76: urna razporeditev (optional — stari odgovori / SW cache brez polja
+  // ostanejo veljavni; sekcija se graciozno ne upodobi — vzorec R65)
+  hourly?: HourlyPoint[]
 }
 
 // R71: trend za sekcijo "Trendi — zadnjih 7 dni" (opcionalen — API odpoved →
@@ -377,6 +381,130 @@ function TrendSparkline({
           </div>
         </div>
       )}
+    </section>
+  )
+}
+
+// R76: CSS-only urni graf — promet po urah (isti vzorec kot TrendSparkline
+// R71/72: brez chart knjižnic, % višine, print-color-adjust: exact).
+// Stilna plast:
+//   • 24 stolpcev (vedno polna širina — stabilna postavitev, vzorec R72)
+//   • vrh urnika: amber gradient + ★ vrednost nad stolpcem (dense režim →
+//     vrednosti SAMO za vrh, brez layout shift-a)
+//   • najboljše zvezno 3-urno okno: obarvana psevdo-pasica za stolpci
+//     (pozicionirana % na območju stolpcev)
+//   • oznake: vsaka 3. ura + vrh (\u00A0 placeholder — brez layout shift-a)
+//   • legenda + title nasveti + aria-labeli (bralniki zaslona)
+function HourlyDistribution({ hourly }: { hourly: HourlyPoint[] }) {
+  const summary = summarizeHourly(hourly)
+  if (!summary || summary.activeHours === 0) return null // dan brez prometa → sekcija ne upodobi se
+  const { peakHour, peakRevenue, activeHours, busyWindow } = summary
+  const two = (n: number) => String(n).padStart(2, '0')
+  return (
+    <section className="break-inside-avoid" aria-label="Promet po urah">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Promet po urah
+        </h2>
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          {peakHour != null && (
+            <span
+              className="rounded-full bg-amber-500/15 px-2 py-0.5 font-semibold tabular-nums text-amber-700 dark:text-amber-400 print:bg-amber-500/15"
+              aria-label={`Vrh urnika: ${peakHour}. ura, ${formatEUR(peakRevenue)}`}
+            >
+              ★ vrh: {peakHour}. ura ({formatEURShort(peakRevenue)})
+            </span>
+          )}
+          <span className="rounded-full bg-muted/60 px-2 py-0.5 font-medium tabular-nums print:bg-muted/30">
+            promet v {activeHours} {activeHours === 1 ? 'uri' : 'urah'}
+          </span>
+          {busyWindow && (
+            <span
+              className="rounded-full bg-muted/60 px-2 py-0.5 font-medium tabular-nums print:bg-muted/30"
+              aria-label={`Najboljše okno med ${busyWindow.startHour} in ${busyWindow.endHour + 1} uro, ${formatEUR(busyWindow.revenue)}`}
+            >
+              ▦ najboljše okno {two(busyWindow.startHour)}–{two(busyWindow.endHour + 1)} h
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="rounded-lg border bg-muted/30 px-3 pb-2 pt-2 print:bg-white">
+        <div className="relative" style={{ height: '6rem' }}>
+          {/* najboljše okno — psevdo-pasica za stolpci (% od širine območja;
+              2px vrzeli ustvarijo ~1px odmik na stolpec — vizualno zanemarljivo) */}
+          {busyWindow && (
+            <div
+              className="pointer-events-none absolute inset-y-1 rounded-md bg-amber-500/10 ring-1 ring-inset ring-amber-500/20 print:bg-amber-500/15 print:ring-amber-500/25"
+              style={{
+                left: `${(busyWindow.startHour / 24) * 100}%`,
+                width: `${(3 / 24) * 100}%`,
+              }}
+              aria-hidden="true"
+            />
+          )}
+          <div
+            className="relative flex h-full items-end gap-[2px]"
+            role="group"
+            aria-label="Promet po urah dneva, od polnoči do polnoči"
+          >
+            {hourly.map(p => (
+              <div
+                key={p.hour}
+                className="flex h-full flex-1 flex-col items-center justify-end"
+                title={`${two(p.hour)}:00–${two(p.hour)}:59 · ${formatEUR(p.revenue)} · ${p.orders} naročil${p.isPeak ? ' · vrh dneva' : ''}`}
+              >
+                <span
+                  className={`text-[9px] font-semibold tabular-nums ${
+                    p.isPeak ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground invisible'
+                  }`}
+                  aria-hidden="true"
+                >
+                  {p.revenue > 0 ? formatEURShort(p.revenue) : '–'}
+                </span>
+                <div
+                  role="img"
+                  aria-label={`${p.hour}. ura: ${formatEUR(p.revenue)}, ${p.orders} naročil${p.isPeak ? ' — vrh dneva' : ''}`}
+                  className={`w-full rounded-t-sm transition-colors hover:opacity-80 ${
+                    p.isPeak
+                      ? 'bg-gradient-to-t from-amber-500 to-amber-400'
+                      : p.revenue > 0
+                        ? 'bg-gradient-to-t from-teal-600 to-teal-400/80'
+                        : 'bg-muted/70 print:bg-muted/40'
+                  }`}
+                  style={{ height: `${p.heightPct}%`, minHeight: p.revenue > 0 ? 3 : 2 }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* oznake ur — ločen trak (aria stolpci jih že nosijo → aria-hidden) */}
+        <div className="mt-1 flex gap-[2px]" aria-hidden="true">
+          {hourly.map(p => (
+            <div key={p.hour} className="flex-1 text-center">
+              <div
+                className={`text-[9px] leading-none ${
+                  p.isPeak ? 'font-bold text-amber-700 dark:text-amber-400' : 'text-muted-foreground'
+                } ${p.showLabel ? '' : 'invisible'}`}
+              >
+                {p.hour}
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* legenda — interpretacija na papirju (barve so tiskane) */}
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2 w-2 rounded-sm bg-teal-600" aria-hidden="true" /> promet
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2 w-2 rounded-sm bg-amber-500" aria-hidden="true" /> vrh urnika
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="h-2 w-3 rounded-sm bg-amber-500/15 ring-1 ring-inset ring-amber-500/20" aria-hidden="true" /> najboljše 3-h okno
+          </span>
+          <span>oznake: vsaka 3. ura</span>
+        </div>
+      </div>
     </section>
   )
 }
@@ -706,6 +834,11 @@ function DigestPrintInner() {
               {trend && trend.points.length > 0 && (
                 <TrendSparkline trend={trend} days={trendDays} onDaysChange={setTrendDays} />
               )}
+
+              {/* R76: Promet po urah — urna razporeditev plačanih naročil
+                  (optional polje — stari odgovori / SW cache brez njega →
+                  sekcija graciozno ne upodobi se; vzorec R65) */}
+              <HourlyDistribution hourly={data.hourly ?? []} />
 
               {/* Metode plačila */}
               <section className="break-inside-avoid">

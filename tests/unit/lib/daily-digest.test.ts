@@ -16,6 +16,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   orderAggregate: vi.fn(),
   orderGroupBy: vi.fn(),
+  orderFindMany: vi.fn(), // R76: urna razporeditev (total + createdAt)
   orderItemFindMany: vi.fn(),
   outboxEventGroupBy: vi.fn(),
   sendEmail: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock('@/lib/db', () => ({
     order: {
       aggregate: mocks.orderAggregate,
       groupBy: mocks.orderGroupBy,
+      findMany: mocks.orderFindMany, // R76
     },
     orderItem: {
       findMany: mocks.orderItemFindMany,
@@ -66,6 +68,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.orderAggregate.mockResolvedValue(mockAgg())
   mocks.orderGroupBy.mockResolvedValue([])
+  mocks.orderFindMany.mockResolvedValue([]) // R76: privzeto brez naročil
   mocks.orderItemFindMany.mockResolvedValue([])
   mocks.outboxEventGroupBy.mockResolvedValue([])
 })
@@ -160,6 +163,35 @@ describe('fetchDailyDigestData — agregacije', () => {
     expect(prevCall.where.paymentStatus).toBe('paid')
     expect(prevCall._count).toEqual({ _all: true })
     expect(prevCall._sum).toEqual({ total: true, tip: true })
+  })
+
+  it('R76: urna razporeditev — findMany dobi where/select obliko, hourly teče iz vrstic', async () => {
+    // naročila: 2 ob 12. uri (po lokalni uri serverja), 1 ob 19. uri
+    const base = new Date(2026, 8, 17)
+    const at = (h: number, m = 0) => new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, m, 0)
+    mocks.orderFindMany.mockResolvedValue([
+      { total: '25.50', createdAt: at(12) },
+      { total: 14.5, createdAt: at(12, 30) },
+      { total: 100, createdAt: at(19) },
+    ])
+
+    const d = await fetchDailyDigestData(new Date())
+
+    // query oblika: isti where kot aggregate (paid + dnevski bounds), minimal select
+    const call = mocks.orderFindMany.mock.calls[0][0]
+    expect(call.where.paymentStatus).toBe('paid')
+    expect(call.select).toEqual({ total: true, createdAt: true })
+
+    expect(d.hourly).toHaveLength(24)
+    expect(d.hourly![12]).toMatchObject({ hour: 12, revenue: 40, orders: 2 })
+    expect(d.hourly![19]).toMatchObject({ hour: 19, revenue: 100, orders: 1 })
+    expect(d.hourly!.filter(p => p.isPeak).map(p => p.hour)).toEqual([19])
+  })
+
+  it('R76: dan brez naročil → hourly 24 praznih točk (brez vrha)', async () => {
+    const d = await fetchDailyDigestData(new Date())
+    expect(d.hourly).toHaveLength(24)
+    expect(d.hourly!.every(p => !p.isPeak && p.revenue === 0)).toBe(true)
   })
 })
 
