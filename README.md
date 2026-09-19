@@ -1,11 +1,11 @@
-# RestaurantOS v1.8.7
+# RestaurantOS v1.8.8
 
-[![Version](https://img.shields.io/badge/version-1.8.7-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.8.8-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-2144%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-75%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-2164%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-76%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,18 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (75 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (76 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.8.8 (QA runda 76 — Promet po urah + deploy-recovery R75)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| 📊 **Digest "Promet po urah"** | Dnevni digest (/reports/digest) zdaj prikazuje **24-urno razporeditev plačanih naročil** — CSS-only urni graf v istem vizualnem jeziku kot Trendi sparkline (R71/72): 24 stolpcev (vedno polna širina — stabilna postavitev), vrh urnika z amber gradientom + ★ vrednostjo nad stolpcem, oznake vsaka 3. ura (\u00A0 placeholder — brez layout shift-a), legenda, title nasveti, aria-labeli per stolpec, print-varen (break-inside-avoid + print: variante). Sekcija se skrije, ko dan nima prometa — optional polje (vzorec R65) | 
+| 🧠 **`lib/digest-hours.ts`: urni vzorec** | Čista biblioteka (vzorec digest-trend R71–R73): `computeHourlyDistribution` — 24 polnih vedrov po **lokalni uri** (konsistentno z dayBounds), fail-safe totali (Decimal/string/null/NaN/negativno → 0), neveljavni datumi preskočeni (date-only nizi zavrnjeni — R72 lekcija sistemsko), vrh izenačen → najzgodnejša ura, brez prometa → brez vrha; `summarizeHourly` — vrh, zasedenost (št. ur s prometom) in **najboljše zvezno 3-urno okno** (izenačena → najzgodnejše) |
+| ▦ **Najboljše okno psevdo-pasica** | Stilna plast: obarvana psevdo-pasica (amber tint + ring-inset) za stolpci na območju najboljšega zveznega 3-urnega okna — menedžer takrat vidi, KDOD prihajajo gostje, ne samo katera ura je bila najvišja. Čipi: "★ vrh: 8. ura (62 €)", "promet v N urah", "▦ najboljše okno 06–09 h" |
+| 🔌 **5. vzporedna poizvedba** | `fetchDailyDigestData` dodaja `db.order.findMany({ total, createdAt })` (minimal select — ~50–200 naročil/dan, JS vedrčenje v lib) v obstoječo `Promise.all` skupino — brez dodatnega latency-ja; `DailyDigestData.hourly?` optional polje (stari klicatelji/testni fixture-i ostanejo veljavni) |
+| 🛡️ **Deploy-recovery R75** | R75 varnostni popravki (tenant scope blagajna/mize — 996f58e0→df80e31a) NIKOLI niso dosegli produkcije (webhook miss); prazen commit re-trigger (6ded2d1c) vzpostavil R75 na produkciji; nadaljnji webhook miss za R76 rešen z **direktnim API deploymentom** (`POST /v13/deployments` + gitSource) — nov zanesljiv vzorec ob podaljšanim webhook izpadom |
+| 🧪 **+20 testov** | digest-hours: vedrčenje (lokalne ure, 24 polnih vedrov), fail-safe (Decimal-string, null/NaN/negativno → 0 + naročilo vseeno šteje, neveljavni datumi preskočeni), vrh (izenačeni → najzgodnejši, brez prometa → brez vrha), višine (min 2 %), oznake (vsaka 3. + vrh, brez podvajanja), okno (izenačena → najzgodnejše, 21–23 konec dneva, brez preloma 23→0); daily-digest: query oblika + kontrolna vsota — **2164/2164 unit (127 datotek)** |
 
 ### 🔧 Popravki v v1.8.7 (QA runda 75 — globinski bug-hunt: 19 popravkov)
 
