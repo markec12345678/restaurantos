@@ -1,11 +1,11 @@
-# RestaurantOS v1.8.1
+# RestaurantOS v1.8.2
 
-[![Version](https://img.shields.io/badge/version-1.8.1-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.8.2-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-2041%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-68%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-2084%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-70%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,19 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (69 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (70 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.8.2 (QA runda 70 — Vezave dodatkov zaključene: group-side attach + varnost)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| 📎 **Group-side attach (nov tok)** | `menuItemIds` na skupinah dodatkov je bil VALIDIRAN ampak TIHO IGNORIRAN s strani API-ja — polje za vedno mrtvo. Zdaj: POST /api/modifier-groups ustvari vezave že ob kreaciji skupine, PUT jih zamenja v transakciji (deleteMany + createMany, vzorec PUT /api/menu-items). Scope check: artikli morajo pripadati ISTI lokaciji kot skupina (veriga Category → Menu → locationId) |
+| 🛡️ **PUT varnostna pariteta (popravljen realen hole)** | PUT /api/menu-items/[id] je sprejel `modifierGroupIds` BREZ location-scope checka — cross-lokacijska vezava prek PUT je bila možna, čeprav POST jo blokira (MODEL A #9). Zdaj: skupine se preverjajo proti lokaciji artikla, manjkajoč id → 404 z slovenskim sporočilom |
+| 🧰 **NOV enoten vir `lib/modifier-attach.ts`** | `dedupeIds` (vrstni red ohranjen, duplikati/prazne/ne-nizi ven — duplikati bi sicer sprožili P2002 unique constraint!) + `attachmentScopeDecision` (requested == inScope sicer 404; FAIL-SAFE NaN/Infinity/negativno/necelo → 400). isti kontrakt za oba API — vzorec R66–R68 guardov |
+| 🎨 **ModifierDialog: "Pripni artikle"** | NOVA sekcija v obrazcu skupine dodatkov: iskalni vnos po imenu + checkbox seznam (cap 50 vrstic + hint za ostale, max-h-48 scroll), izbrani čipi z X odstranitvijo, živi števec "N artiklov izbranih" (slCount ARTIKEL_FORMS, aria-live), prazni stanji (ni artiklov / ni zadetkov) |
+| ✨ **ItemDialog: izbirne kartice** | Dodatki sekcija povrh: checkbox vrstice → izbirne kartice (CheckCircle2/Circle ikona, ring + bg-primary/5 + shadow pri izbranih, hover border), "N opcij" čip (OPCIJA_FORMS), predogled opcij (prvi 2 + "+N"), "od X €" min doplačilo (formatEUR), števec "N/M izbranih" v glavi, prazno stanje z CTA namigom, sr-only checkboxi + role=group aria |
+| 🐛 **R69 zaključena v produkciji** | cb456f71 (GET /api/happy-hour vrne VSE urnike — izklop stikala ni več enosmerna vrata) je zdaj ŽIVO na theta; R69 varnosti tokovi (catch-all 404 JSON, gift-card/loyalty guard 409) verifikovani v produkciji |
+| 🧪 **+18 testov** | `dedupeIds` (6: vrstni red, duplikati, prazne, ne-nizi, fail-safe) + `attachmentScopeDecision` (8: ujema/0/mismatch/fail-safe ×4) + schema `menuItemIds` (4: sprejme/opcijsko/prazno/max 200 meja) — **2084/2084 unit (123 datotek)** |
 
 ### ✨ Nove funkcije v v1.8.1 (QA runda 68 — Skupine dodatkov DODAJ + UREDI + IZBRIŠI)
 
