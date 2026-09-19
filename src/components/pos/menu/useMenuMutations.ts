@@ -195,6 +195,9 @@ export function useMenuMutations({
       // Artikli nosijo vezave na skupine (modifierGroups include) → invalidiraj OBE
       queryClient.invalidateQueries({ queryKey: queryKeys.modifierGroups.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.menuItems.all })
+      // RUNDA 70 FIX (živa QA ugotovitev): POTRDI in ZAPRI — create je zaprl dialog,
+      // update pa ne (R68 nadzornost); uporabnik je moral ročno klikniti Prekliči.
+      onCloseModGroupDialog()
     },
     onError: (err: Error) => { toast.error(errorSl(err, 'Napaka pri posodabljanju skupine dodatkov')) },
   })
