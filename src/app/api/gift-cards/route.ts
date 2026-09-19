@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createGiftCardSchema } from '@/lib/validations'
-import { isPositive, deepToNumbers } from '@/lib/decimal'
+import { greaterThan, deepToNumbers } from '@/lib/decimal'
 import { logger } from '@/lib/logger'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
@@ -83,7 +83,11 @@ export async function POST(req: Request) {
       })
 
       // Ustvari začetno transakcijo nalaganja
-      if (isPositive(card.balance)) {
+      // FIX R69: greaterThan namesto isPositive — decimal.js isPositive() je
+      // true TUDI za 0 (preverja PREDZNAK, ne > 0)! Prej je kartica s stanjem 0
+      // dobila lažno transakcijo "load, 0, Začetno nalaganje" → umazana
+      // zgodovina + gift-card-guard jo je napačno blokiral pred brisanjem.
+      if (greaterThan(card.balance, 0)) {
         await tx.giftCardTransaction.create({
           data: {
             giftCardId: card.id,
