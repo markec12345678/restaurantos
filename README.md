@@ -1,10 +1,10 @@
-# RestaurantOS v1.8.3
+# RestaurantOS v1.8.4
 
-[![Version](https://img.shields.io/badge/version-1.8.3-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.8.4-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-2106%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Tests](https://img.shields.io/badge/tests-2114%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
 [![Audit](https://img.shields.io/badge/razvoj-70%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
@@ -24,7 +24,16 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (71 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (72 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.8.4 (QA runda 72 — Trendi 7/30 dni toggle + mesečna sparkline)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| 📈 **Trendi toggle 7/30 dni** | Segmentni control v glavi trend sekcije (aria-pressed, print-varen): 7-dnevni tedenski pogled ↔ 30-dnevni mesečni pogled. Sprememba obdobja reloada SAMO trend API (glavni digest ostane — ločen load vzorec R71); fail-tiho (stari trend ostane do uspešnega odgovora). API `?days=` je že podpiral 1..31 (R71) — UI je bila manjkajoča povezava |
+| 🗓️ **Mesečna sparkline adaptacija (gost način)** | >14 stolpcev: ozki stolpci (gap 2px, brez max-w), vrednosti SAMO za najboljši dan (brez zmede), tekstovne oznake vsak 5. dan + zadnji + najboljši (showLabel iz lib — brez layout shift-a, prazne celice ohranijo višino vrstice), TEDENSKI LOČILNIKI (črtkana navpična črta na vsak ponedeljek + legenda "začetek tedna"), hover:opacity na stolpcih, title nasveti za VSE stolpce (datum + znesek + št. naročil) |
+| 🧰 **`lib/digest-trend.ts` razširitev** | `isWeekStart` (PON detekcija — tedenski ločilnik) + `SPARSE_LABEL_THRESHOLD` (prag 14) + showLabel/isWeekStart na TrendPoint. NOV `parseUTCDateStrict`: polni round-trip range-check — Date.UTC tiho normalizira '2026-02-30' → 1. mar (pon!) — round-trip (konstruirani UTC deli = vhodni) to ujame; aplikirano na OBA helperja (slShortDayLabel + isWeekStart) |
+| 🧪 **+8 testov** | `isWeekStart` (3: ponedeljek, ostali dnevi, fail-safe vključno s '2026-02-30'/'2026-02-29' ne-prestopno) + gostota oznak (5: 7 dni vsi, isWeekStart na točkah, 30 dni redke = točno 6, prag 14/15 meja, skaliranje neodvisno od gostote) — **2114/2114 unit (125 datotek)** |
 
 ### ✨ Nove funkcije v v1.8.3 (QA runda 71 — Trendi 7 dni sparkline + asArray hardening)
 
