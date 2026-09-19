@@ -16,10 +16,13 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // RUNDA 69 FIX: vrni VSE urnike (tudi neaktivne) — prej je GET filtriral
+    // isActive:true, kar je pomenilo, da je bil IZKLOP stikala ENOSMERNA VRATA:
+    // neaktiven urnik je izginil iz seznama in ga NI več bilo mogoče vklopiti
+    // nazaj prek UI. activeSchedules/currentlyActive se še vedno računata spodaj.
     const schedules = await db.happyHourSchedule.findMany({
-      where: { isActive: true },
       include: { priceGroup: true },
-      orderBy: { startTime: 'asc' },
+      orderBy: [{ isActive: 'desc' }, { startTime: 'asc' }],
     })
 
     // Preveri, kateri so trenutno aktivni
