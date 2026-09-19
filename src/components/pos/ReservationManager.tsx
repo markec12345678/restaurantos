@@ -17,7 +17,7 @@ import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
 import { statusLabels, type ReservationType, type TableType } from './reservation/constants'
 import { DateNavigation, FilterBar } from './reservation/DateNavigation'
-import { REZERVACIJA_FORMS, GOST_FORMS, OPOMNIK_FORMS, slCount } from '@/lib/sl-plural'
+import { REZERVACIJA_FORMS, GOST_FORMS, slCount } from '@/lib/sl-plural'
 
 // Lazy-loaded podkomponente
 const TimelineView = dynamic(() => import('./reservation/TimelineView').then(m => ({ default: m.TimelineView })), { ssr: false })
@@ -164,8 +164,11 @@ export const ReservationManager = memo(function ReservationManager() {
     reminderMutation.mutate({ id, name: target.customerName })
   }, [reservations, reminderMutation])
 
-  // RUNDA 54: KPI — potrjene rezervacije brez opomnika (amber čip v glavi,
-  // prava sklanjatev: 1 opomnik · 2 opomnika · 3 opomniki · 5 opomnikov)
+  // RUNDA 54: KPI — potrjene rezervacije brez opomnika (amber čip v glavi.
+  // RUNDA 57 FIX (živa QA ugotovitev): čip je pokažal TAVTOLOGIJO
+  // "1 opomnik brez opomnika" (OPOMNIK_FORMS + "brez opomnika") — čip
+  // šteje REZERVACIJE, torej REZERVACIJA_FORMS: "1 rezervacija brez
+  // opomnika" · "2 rezervaciji brez opomnika" (dvojina) · "5 rezervacij".
   const pendingReminders = useMemo(
     () => reservations.filter(r => r.status === 'confirmed' && !r.reminderSent).length,
     [reservations],
@@ -193,7 +196,7 @@ export const ReservationManager = memo(function ReservationManager() {
               title="Potrjene rezervacije brez poslanega opomnika"
             >
               <BellRing className="h-3 w-3" aria-hidden="true" />
-              {slCount(pendingReminders, OPOMNIK_FORMS)} brez opomnika
+              {slCount(pendingReminders, REZERVACIJA_FORMS)} brez opomnika
             </p>
           )}
         </div>
