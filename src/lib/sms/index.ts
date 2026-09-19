@@ -6,6 +6,7 @@
 // ============================================
 
 import { logger } from '@/lib/logger'
+import { slCount, OSEBA_FORMS } from '../sl-plural'
 
 // SMS provider konfiguracija
 const SMS_PROVIDER = process.env.SMS_PROVIDER || '' // 'twilio' | 'messagebird' | ''
@@ -128,7 +129,7 @@ export function reservationConfirmationSms(
   partySize: number,
   tableNumber?: number
 ): string {
-  return `${restaurantName}: Vaša rezervacija je potrjena! ${dateTime}, ${partySize} oseb${
+  return `${restaurantName}: Vaša rezervacija je potrjena! ${dateTime}, ${slCount(partySize, OSEBA_FORMS)}${
     tableNumber ? `, miza ${tableNumber}` : ''
   }. Lepo dobrodošli!`
 }

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Clock, Users, Timer, BookOpen, ArrowRight, XCircle, CheckCircle, Armchair } from 'lucide-react'
 import { RESERVATION_STATUS_CONFIG } from './constants'
 import type { ReservationsListProps, TableInfo } from './constants'
+import { slCount, OSEBA_FORMS } from '@/lib/sl-plural'
 
 /** Barva leve obrobe per status rezervacije (vizualna kodiranje brez regex čaranja) */
 const STATUS_ACCENT: Record<string, string> = {
@@ -96,7 +97,7 @@ export const ReservationsList = memo(function ReservationsList({
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 tabular-nums">
                         <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {res.time}</span>
-                        <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {res.partySize} oseb</span>
+                        <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {slCount(res.partySize, OSEBA_FORMS)}</span>
                         <span className="flex items-center gap-1"><Timer className="h-3 w-3" /> {res.duration} min</span>
                       </div>
                       {res.guestPhone && (

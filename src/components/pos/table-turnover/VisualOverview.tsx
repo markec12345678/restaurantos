@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Clock, CheckCircle2, LayoutGrid } from 'lucide-react'
 import type { VisualOverviewProps } from './constants'
+import { slCount, OSEBA_FORMS } from '@/lib/sl-plural'
 
 export const VisualOverview = memo(function VisualOverview({ tables, analytics }: VisualOverviewProps) {
   return (
@@ -38,7 +39,7 @@ export const VisualOverview = memo(function VisualOverview({ tables, analytics }
                 }`}
               >
                 <p className="font-bold text-sm">{table.name || `Miza ${table.number}`}</p>
-                <p className="text-[10px] text-muted-foreground">{table.capacity} oseb</p>
+                <p className="text-[10px] text-muted-foreground">{slCount(table.capacity, OSEBA_FORMS)}</p>
                 {isOccupied && minutes > 0 && (
                   <div className="mt-1">
                     <Badge variant="outline" className={`text-[9px] font-mono ${

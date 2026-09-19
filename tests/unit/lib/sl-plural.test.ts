@@ -6,6 +6,8 @@ import {
   REZERVACIJA_FORMS,
   GOST_FORMS,
   OSEBA_FORMS,
+  OSEBA_TOZILNIK_FORMS,
+  AKTIVNA_REZERVACIJA_FORMS,
 } from '@/lib/sl-plural'
 
 describe('slPluralForm', () => {
@@ -101,6 +103,27 @@ describe('slPluralWord / slCount', () => {
     expect(slCount(2, OSEBA_FORMS)).toBe('2 osebi')
     expect(slCount(3, OSEBA_FORMS)).toBe('3 osebe')
     expect(slCount(5, OSEBA_FORMS)).toBe('5 oseb')
+  })
+
+  // RUNDA 59: tožilnik za predlogom "za" (API napaka, čakalna vrsta)
+  it('oseba (tožilnik, za): 1 osebo · 2 osebi · 3 osebe · 5 oseb', () => {
+    expect(slCount(1, OSEBA_TOZILNIK_FORMS)).toBe('1 osebo')
+    expect(slCount(2, OSEBA_TOZILNIK_FORMS)).toBe('2 osebi')
+    expect(slCount(3, OSEBA_TOZILNIK_FORMS)).toBe('3 osebe')
+    expect(slCount(5, OSEBA_TOZILNIK_FORMS)).toBe('5 oseb')
+    // živa QA runda 59: "premajhna za 2 oseb" → "premajhna za 2 osebi"
+    expect(slCount(22, OSEBA_TOZILNIK_FORMS)).toBe('22 osebi')
+    expect(slCount(12, OSEBA_TOZILNIK_FORMS)).toBe('12 oseb')
+  })
+
+  // RUNDA 59: pridnevniška družina "aktivna rezervacija" (detail panel tlorisa)
+  it('aktivna rezervacija: 1 aktivna · 2 aktivni · 3 aktivne · 5 aktivnih', () => {
+    expect(slCount(1, AKTIVNA_REZERVACIJA_FORMS)).toBe('1 aktivna rezervacija')
+    expect(slCount(2, AKTIVNA_REZERVACIJA_FORMS)).toBe('2 aktivni rezervaciji')
+    expect(slCount(3, AKTIVNA_REZERVACIJA_FORMS)).toBe('3 aktivne rezervacije')
+    expect(slCount(4, AKTIVNA_REZERVACIJA_FORMS)).toBe('4 aktivne rezervacije')
+    expect(slCount(5, AKTIVNA_REZERVACIJA_FORMS)).toBe('5 aktivnih rezervacij')
+    expect(slCount(0, AKTIVNA_REZERVACIJA_FORMS)).toBe('0 aktivnih rezervacij')
   })
 
   it('slPluralWord vrne samo obliko (brez števca)', () => {

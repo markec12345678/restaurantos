@@ -5,6 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { formatWait } from './constants'
 import type { WaitEstimateCardProps } from './constants'
+import { slCount, OSEBA_TOZILNIK_FORMS } from '@/lib/sl-plural'
 
 // ============================================
 // OCENA ČAKANJA — Kartica z glavno oceno
@@ -39,7 +40,7 @@ export const WaitEstimateCard = memo(function WaitEstimateCard({ estimation, par
           </Badge>
         </div>
         <p className="text-sm text-muted-foreground">
-          Za {partySize} {parseInt(partySize) === 1 ? 'osebo' : parseInt(partySize) < 5 ? 'osebe' : 'oseb'}
+          Za {slCount(parseInt(partySize), OSEBA_TOZILNIK_FORMS)}
           {' · '}{diningType === 'dine-in' ? 'na mestu' : diningType === 'takeout' ? 'za s seboj' : 'dostava'}
         </p>
       </CardContent>

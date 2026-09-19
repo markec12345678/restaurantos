@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { format } from 'date-fns'
 import { sl } from 'date-fns/locale'
 import { Calendar, Clock, Users, Mail, CheckCircle2 } from 'lucide-react'
+import { slCount, OSEBA_FORMS } from '@/lib/sl-plural'
 
 // =====================================================================
 // Prikaz uspešne rezervacije
@@ -43,7 +44,7 @@ export const SuccessView = memo(function SuccessView({
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Users className="h-4 w-4 text-emerald-600" />
-            <span>{partySize} {partySize === 1 ? 'oseba' : partySize <= 4 ? 'osebe' : 'oseb'}</span>
+            <span>{slCount(partySize, OSEBA_FORMS)}</span>
           </div>
           {customerEmail && (
             <div className="flex items-center gap-2 text-sm">

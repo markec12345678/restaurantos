@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
+import { slCount, OSEBA_FORMS } from '@/lib/sl-plural'
 import { Timer } from 'lucide-react'
 import { useState, useMemo, useCallback, memo } from 'react'
 import dynamic from 'next/dynamic'
@@ -96,7 +97,7 @@ export const WaitTimeEstimator = memo(function WaitTimeEstimator() {
             </SelectTrigger>
             <SelectContent>
               {[1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20].map(n => (
-                <SelectItem key={n} value={String(n)}>{n} {n === 1 ? 'oseba' : n < 5 ? 'osebe' : 'oseb'}</SelectItem>
+                <SelectItem key={n} value={String(n)}>{slCount(n, OSEBA_FORMS)}</SelectItem>
               ))}
             </SelectContent>
           </Select>

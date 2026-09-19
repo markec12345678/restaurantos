@@ -6,6 +6,7 @@ import { DecimalInput } from '@/components/ui/decimal-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { timeSlots } from './constants'
 import type { TableType } from './constants'
+import { slCount, OSEBA_TOZILNIK_FORMS } from '@/lib/sl-plural'
 
 // ============================================
 // Date, time & table fields sub-component
@@ -73,7 +74,7 @@ export const DateTimeTableFields = memo(function DateTimeTableFields({
           <SelectContent>
             <SelectItem value="none">Brez mize</SelectItem>
             {suitableTables.map(t => (<SelectItem key={t.id} value={t.id}>Miza {t.number} ({t.capacity} mest) — {t.area}</SelectItem>))}
-            {suitableTables.length === 0 && partySize > 0 && (<SelectItem value="no-tables" disabled>Ni primernih miz za {partySize} oseb</SelectItem>)}
+            {suitableTables.length === 0 && partySize > 0 && (<SelectItem value="no-tables" disabled>Ni primernih miz za {slCount(partySize, OSEBA_TOZILNIK_FORMS)}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>

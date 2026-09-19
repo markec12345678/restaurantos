@@ -107,6 +107,12 @@ export const ReservationManager = memo(function ReservationManager() {
       toast.success(`Status spremenjen: ${statusLabels[variables.status]}`)
       queryClient.invalidateQueries({ queryKey: queryKeys.reservations.all })
     },
+    // RUNDA 59c: tih slučaj napake — prej je neuspešen PUT ostal brez
+    // povratne informacije (samo konzola); uporabnik vidi zakaj akcija
+    // ni "zalegla" (tloris busy varovalka sprosti UI po 8 s).
+    onError: () => {
+      toast.error('Statusa ni bilo mogoče spremeniti — poskusite znova')
+    },
   })
 
   // RUNDA 53: hitri premik časa (±30 min na kartici) — PUT dateTime.
@@ -243,7 +249,7 @@ export const ReservationManager = memo(function ReservationManager() {
         ) : viewMode === 'timeline' ? (
           <TimelineView reservations={filteredReservations} tables={tables || []} onEdit={handleEdit} onStatusChange={handleStatusChange} onTimeShift={handleTimeShift} onSendReminder={handleSendReminder} isToday={isToday(selectedDate)} />
         ) : viewMode === 'tloris' ? (
-          <FloorPlanView reservations={filteredReservations} tables={tables || []} isToday={isToday(selectedDate)} onEdit={handleEdit} />
+          <FloorPlanView reservations={filteredReservations} tables={tables || []} isToday={isToday(selectedDate)} onEdit={handleEdit} onStatusChange={handleStatusChange} />
         ) : (
           <ListView reservations={filteredReservations} onEdit={handleEdit} onStatusChange={handleStatusChange} onTimeShift={handleTimeShift} onSendReminder={handleSendReminder} />
         )}

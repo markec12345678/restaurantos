@@ -63,6 +63,19 @@ export const PRIPRAVLJEN_FORMS: SlPluralForms = ['pripravljen', 'pripravljena', 
 // (dvojina!) · 3,4 čakajo · 0/5+ čaka (za rodilnik kvantifikatorja gre glagol
 // v ednino: "pet artiklov čaka"). Isti 4-tuple API, pomensko glagol.
 export const CAKA_GLAGOL_FORMS: SlPluralForms = ['čaka', 'čakata', 'čakajo', 'čaka']
+// RUNDA 59: TOŽILNIK za predlogom "za" ("premajhna za …", "Ni miz za …",
+// "Za … oseb" pri čakanju): 1 osebo · 2 osebi · 3,4 osebe · 5+ oseb.
+// Živa QA ugotovitev R59: "premajhna za 2 oseb" (API 400) — dvojina manjka.
+export const OSEBA_TOZILNIK_FORMS: SlPluralForms = ['osebo', 'osebi', 'osebe', 'oseb']
+// RUNDA 59: pridnevniška družina "aktivna rezervacija" (detail panel tlorisa:
+// "1 aktivna rezervacija · 2 aktivni rezervaciji · 3 aktivne rezervacije ·
+// 5 aktivnih rezervacij" — prej trdo kodiran ternarek brez oblike 3/4).
+export const AKTIVNA_REZERVACIJA_FORMS: SlPluralForms = [
+  'aktivna rezervacija',
+  'aktivni rezervaciji',
+  'aktivne rezervacije',
+  'aktivnih rezervacij',
+]
 
 /**
  * Katera množinska oblika za n? Tradicionalna slovenska norma:

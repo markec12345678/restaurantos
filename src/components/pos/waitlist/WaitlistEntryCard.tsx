@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { type WaitlistEntryCardProps, getWaitTimeColor } from './constants'
+import { slCount, OSEBA_FORMS } from '@/lib/sl-plural'
 
 // Posamezen vnos v čakalni vrsti
 export const WaitlistEntryCard = memo(function WaitlistEntryCard({
@@ -34,7 +35,7 @@ export const WaitlistEntryCard = memo(function WaitlistEntryCard({
           <div className="flex items-center gap-2">
             <span className="font-semibold text-sm">{entry.guestName}</span>
             <span className="bg-muted text-muted-foreground px-1.5 py-0.5 rounded text-[10px]">
-              {entry.partySize} oseb
+              {slCount(entry.partySize, OSEBA_FORMS)}
             </span>
             {isNotified && (
               <span className="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded text-[10px] animate-pulse">

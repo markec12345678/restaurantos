@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Clock } from 'lucide-react'
 import type { WaitlistQueueProps, WaitlistData } from './constants'
+import { slCount, OSEBA_FORMS } from '@/lib/sl-plural'
 
 // ============================================
 // ČAKALNA VRSTA — Prikaz trenutne čakalne vrste
@@ -28,7 +29,7 @@ export const WaitlistQueue = memo(function WaitlistQueue({ waitlist, waitlistCou
                 <span className="text-lg font-bold text-muted-foreground">#{idx + 1}</span>
                 <div>
                   <div className="font-medium text-sm">{w.customerName}</div>
-                  <div className="text-xs text-muted-foreground">{w.partySize} oseb</div>
+                  <div className="text-xs text-muted-foreground">{slCount(w.partySize, OSEBA_FORMS)}</div>
                 </div>
               </div>
               <Badge variant="outline">

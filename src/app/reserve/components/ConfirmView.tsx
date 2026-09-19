@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { format } from 'date-fns'
 import { sl } from 'date-fns/locale'
 import { Calendar, Clock, Users, Phone, Mail, Star, Loader2 } from 'lucide-react'
+import { slCount, OSEBA_FORMS } from '@/lib/sl-plural'
 
 // =====================================================================
 // Potrditev rezervacije
@@ -57,7 +58,7 @@ export const ConfirmView = memo(function ConfirmView({
             <Users className="h-5 w-5 text-primary" />
             <div>
               <p className="text-xs text-muted-foreground">Število oseb</p>
-              <p className="font-bold">{partySize} {partySize === 1 ? 'oseba' : partySize <= 4 ? 'osebe' : 'oseb'}</p>
+              <p className="font-bold">{slCount(partySize, OSEBA_FORMS)}</p>
             </div>
           </div>
           <div className="flex items-center gap-3">

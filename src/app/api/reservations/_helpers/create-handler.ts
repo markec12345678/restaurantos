@@ -24,6 +24,7 @@ import { emitEvent } from '@/lib/event-emitter'
 // brez timeZone uporabi strežniško cono (UTC). formatLjubljanaTime vsadi
 // eksplicitno Europe/Ljubljana (isti vzorec kot R54 fix v [id]/route.ts).
 import { formatLjubljanaTime } from '@/lib/reservation-timeline'
+import { slCount, OSEBA_TOZILNIK_FORMS } from '@/lib/sl-plural'
 
 export async function handleCreateReservation(
   data: {
@@ -47,7 +48,7 @@ export async function handleCreateReservation(
       return { error: 'Miza ne obstaja', status: 404 }
     }
     if (table.capacity < data.partySize) {
-      return { error: `Miza ${table.number} ima kapaciteto ${table.capacity}, premajhna za ${data.partySize} oseb`, status: 400 }
+      return { error: `Miza ${table.number} ima kapaciteto ${table.capacity}, premajhna za ${slCount(data.partySize, OSEBA_TOZILNIK_FORMS)}`, status: 400 }
     }
 
     // FIX #47: Preveri overlap z obstoječimi rezervacijami
@@ -102,7 +103,7 @@ export async function handleCreateReservation(
         throw { error: 'Miza ne obstaja', status: 404 }
       }
       if (table.capacity < data.partySize) {
-        throw { error: `Miza ${table.number} ima kapaciteto ${table.capacity}, premajhna za ${data.partySize} oseb`, status: 400 }
+        throw { error: `Miza ${table.number} ima kapaciteto ${table.capacity}, premajhna za ${slCount(data.partySize, OSEBA_TOZILNIK_FORMS)}`, status: 400 }
       }
 
       const reservationStart = new Date(data.dateTime)

@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { format } from 'date-fns'
 import { sl } from 'date-fns/locale'
 import { Phone, Calendar, Clock, Users, Star } from 'lucide-react'
+import { slCount, OSEBA_FORMS } from '@/lib/sl-plural'
 
 // =====================================================================
 // Podatki stranke, posebne želje in povzetek rezervacije
@@ -159,7 +160,7 @@ export const CustomerFormSection = memo(function CustomerFormSection({
           </div>
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-primary" />
-            <span>{partySize} {partySize === 1 ? 'oseba' : partySize <= 4 ? 'osebe' : 'oseb'}</span>
+            <span>{slCount(partySize, OSEBA_FORMS)}</span>
           </div>
         </div>
         <button

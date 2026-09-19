@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Progress } from '@/components/ui/progress'
 import type { KpiCardsProps } from './constants'
 import { safeToFixed } from '@/lib/safe-format'
+import { slPluralWord, OSEBA_FORMS } from '@/lib/sl-plural'
 
 export const KpiCards = memo(function KpiCards({ analytics }: KpiCardsProps) {
   return (
@@ -28,7 +29,7 @@ export const KpiCards = memo(function KpiCards({ analytics }: KpiCardsProps) {
         <CardContent className="p-3">
           <p className="text-[10px] text-muted-foreground font-medium">Kapaciteta</p>
           <p className="text-xl font-bold">{safeToFixed(analytics.capacityUtilization, 0)}%</p>
-          <p className="text-[10px] text-muted-foreground">{analytics.occupiedCapacity}/{analytics.totalCapacity} oseb</p>
+          <p className="text-[10px] text-muted-foreground">{analytics.occupiedCapacity}/{analytics.totalCapacity} {slPluralWord(analytics.totalCapacity, OSEBA_FORMS)}</p>
         </CardContent>
       </Card>
       <Card>

@@ -2,15 +2,22 @@
 
 // ============================================
 // RUNDA 58: Tloris pogled rezervacij (read-only kanvas)
+// RUNDA 59: OPERATIVNI tloris — hitre akcije statusa v detail panelu
 // ============================================
 // Vizualni tloris (geometrija miz iz vizualnega urejevalnika, runda 43)
 // z današnjimi rezervaciami: naslednja rezervacija kot čip na mizi,
 // "zdaj" poudarek (polodprt interval), izpeljan status mize in
 // detail panel z vsemi rezervacijami izbrane mize.
-// Read-mostly: edina akcija je "Uredi" (odpre obstoječi dialog).
+// RUNDA 59: detail panel z hitrimi akcijami (Posedljeno / Ni prišel /
+// Prekliči / Zaključi) — ista mutacija kot kartice (toast + refetch).
+// Miza se ob "Posedljeno" ŽIVO preklopi v Zasedena (API sinhronizira
+// status mize) — tloris je zdaj tudi operativna površina, ne samo prikaz.
+// RUNDA 59c: varovalka zaskočenega busy — če PUT ne uspe (refetch nikoli
+// ne odbije target statusa), je busy po 8 s samodejno sproščen (determinističen
+// useEffect timeout; uspešna pot se očisti prek izpeljave prej).
 
-import { memo, useMemo, useState, useCallback } from 'react'
-import { MapPin, Users, Pencil, Clock } from 'lucide-react'
+import { memo, useMemo, useState, useCallback, useEffect } from 'react'
+import { MapPin, Users, Pencil, Clock, UserCheck, AlertCircle, X, Check, Loader2 } from 'lucide-react'
 import type { ReservationType, TableType } from './constants'
 import { statusLabels } from './constants'
 import {
@@ -22,8 +29,15 @@ import {
   type FloorStatus,
   type TableReservations,
 } from '@/lib/reservation-floorplan'
+import {
+  slCount,
+  OSEBA_FORMS,
+  OSEBA_TOZILNIK_FORMS,
+  AKTIVNA_REZERVACIJA_FORMS,
+} from '@/lib/sl-plural'
 
 // Barve statusov miz — posojene iz orders tlorisa (enoten vizualni jezik)
+// (runda 59c: glej varovalko busy timeout v komponenti)
 import { statusColors as floorStatusColors } from '../floorplan/constants'
 
 export interface FloorPlanViewProps {
@@ -32,6 +46,34 @@ export interface FloorPlanViewProps {
   /** True, ko gledamo današnji dan — samo takrat je "zdaj" logika živa. */
   isToday: boolean
   onEdit: (_r: ReservationType) => void
+  /** RUNDA 59: hitre akcije statusa (ista mutacija kot kartice). */
+  onStatusChange?: (_id: string, _status: string) => void
+}
+
+// RUNDA 59: semantične barve akcij (enoten jezik z ReservationCard) —
+// emerald = gost sedel, amber = ni prišel, red = preklic, primary = zaključek.
+const actionStyles: Record<string, string> = {
+  seated: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20',
+  no_show: 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20',
+  cancelled: 'border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-400 hover:bg-red-500/20',
+  completed: 'border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-400 hover:bg-sky-500/20',
+}
+
+const actionIcons: Record<string, React.ReactNode> = {
+  seated: <UserCheck className="h-3 w-3" aria-hidden="true" />,
+  no_show: <AlertCircle className="h-3 w-3" aria-hidden="true" />,
+  cancelled: <X className="h-3 w-3" aria-hidden="true" />,
+  completed: <Check className="h-3 w-3" aria-hidden="true" />,
+}
+
+// Naslednji dovoljeni prehodi (zrcali API VALID_TRANSITIONS):
+const nextActionsByStatus: Record<string, { status: string; label: string }[]> = {
+  confirmed: [
+    { status: 'seated', label: 'Posedljeno' },
+    { status: 'no_show', label: 'Ni prišel' },
+    { status: 'cancelled', label: 'Prekliči' },
+  ],
+  seated: [{ status: 'completed', label: 'Zaključi' }],
 }
 
 const shapeClass = (shape: string): string =>
@@ -54,8 +96,40 @@ export const FloorPlanView = memo(function FloorPlanView({
   tables,
   isToday,
   onEdit,
+  onStatusChange,
 }: FloorPlanViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  // RUNDA 59: "zaposlen" marker za pending UX — gumb pokaže vrtinčko, ostali
+  // ostanejo onemogočeni, dokler refetch ne potrdi novega statusa (ali vnos
+  // izgine). Stanje je IZPELJANO med render (ni setState v efektu, ni refov):
+  // ko reservations reflektirajo target status, je busy samodejno "gotov".
+  const [clicked, setClicked] = useState<{ id: string; target: string } | null>(null)
+  const busy = useMemo(() => {
+    if (!clicked) return null
+    const r = reservations.find(x => x.id === clicked.id)
+    if (!r || r.status === clicked.target) return null
+    return clicked
+  }, [clicked, reservations])
+
+  // RUNDA 59c: napaka pot — mutacija brez optimistic updatea pomeni, da ob
+  // neuspešnem PUT status nikoli ne doseže target, izpeljani busy pa bi
+  // ostal zaskočen (vsi gumbi onemogočeni za vedno). Varovalka: 8 s po
+  // kliku sprostimo clicked; uspešna pot očisti busy prek izpeljave prej,
+  // timeout pa je takrat neškodljiv (setClicked(null) na že mrtvem stanju).
+  useEffect(() => {
+    if (!clicked) return
+    const timer = setTimeout(() => setClicked(null), 8000)
+    return () => clearTimeout(timer)
+  }, [clicked])
+
+  const handleAction = useCallback(
+    (id: string, status: string) => {
+      if (!onStatusChange) return
+      setClicked({ id, target: status })
+      onStatusChange(id, status)
+    },
+    [onStatusChange],
+  )
 
   const grouped = useMemo(
     () => (isToday ? groupReservationsByTable(reservations) : new Map<string, TableReservations>()),
@@ -243,7 +317,7 @@ export const FloorPlanView = memo(function FloorPlanView({
             <p className="text-sm font-semibold">
               Miza {selected.number}
               <span className="ml-2 text-xs font-normal text-muted-foreground">
-                {isToday && selectedEntry ? `${selectedEntry.active.length} ${selectedEntry.active.length === 1 ? 'aktivna rezervacija' : selectedEntry.active.length === 2 ? 'aktivni rezervaciji' : 'aktivnih rezervacij'}` : 'arhivski dan'}
+                {isToday && selectedEntry ? slCount(selectedEntry.active.length, AKTIVNA_REZERVACIJA_FORMS) : 'arhivski dan'}
               </span>
             </p>
             <button
@@ -275,16 +349,42 @@ export const FloorPlanView = memo(function FloorPlanView({
                     <span className={`truncate font-medium ${r.status === 'cancelled' ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
                       {r.customerName}
                     </span>
-                    <span className="shrink-0 tabular-nums text-muted-foreground">{r.partySize} oseb</span>
+                    {/* RUNDA 59: prava sklanjatev — "2 osebi" (dvojina), ne trdo "oseb" */}
+                    <span className="shrink-0 tabular-nums text-muted-foreground">
+                      {slCount(r.partySize, OSEBA_FORMS)}
+                    </span>
                   </span>
                   <span className="flex shrink-0 items-center gap-1.5">
                     <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
                       {statusLabels[r.status] ?? r.status}
                     </span>
+                    {/* RUNDA 59: hitre akcije statusa — enake prehode kot kartice.
+                        Busy: vrtinčka na kliknjenem gumbu, ostali disabled. */}
+                    {onStatusChange && nextActionsByStatus[r.status]?.map(action => {
+                      const isBusy = busy?.id === r.id && busy.target === action.status
+                      const anyBusy = Boolean(busy)
+                      return (
+                        <button
+                          key={action.status}
+                          type="button"
+                          disabled={anyBusy}
+                          onClick={() => handleAction(r.id, action.status)}
+                          aria-busy={isBusy}
+                          aria-label={`${action.label}: ${r.customerName}, ${slCount(r.partySize, OSEBA_TOZILNIK_FORMS)} — ${formatFloorTime(r.dateTime)}`}
+                          className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 ${actionStyles[action.status]} ${!anyBusy ? 'hover:scale-[1.05]' : ''} animate-fade-in-up`}
+                          style={{ animationDelay: `${Math.min(120 + (r.status === 'confirmed' ? nextActionsByStatus[r.status]?.indexOf(action) ?? 0 : 0) * 40, 240)}ms` }}
+                        >
+                          {isBusy ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : actionIcons[action.status]}
+                          {action.label}
+                        </button>
+                      )
+                    })}
                     <button
                       type="button"
                       onClick={() => onEdit(r)}
-                      className="inline-flex items-center gap-1 rounded-md border border-border/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      disabled={Boolean(busy)}
+                      className="inline-flex items-center gap-1 rounded-md border border-border/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                      aria-label={`Uredi rezervacijo za ${r.customerName}`}
                     >
                       <Pencil className="h-2.5 w-2.5" aria-hidden="true" /> Uredi
                     </button>

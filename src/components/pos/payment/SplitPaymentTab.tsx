@@ -9,6 +9,7 @@ import { applyTierBonus, redeemPointsNeeded } from '@/lib/loyalty-tiers'
 import { splitAmountBreakdown } from '@/lib/split-math'
 import { LoyaltySection } from './LoyaltySection'
 import type { LoyaltyAccountItem, AltPaymentItem } from './types'
+import { slCount, OSEBA_FORMS } from '@/lib/sl-plural'
 
 interface SplitPaymentTabProps {
   splitCount: number
@@ -90,7 +91,7 @@ export const SplitPaymentTab = memo(function SplitPaymentTab({
             <button
               key={n}
               onClick={() => setSplitCount(n)}
-              aria-label={`${n} oseb`}
+              aria-label={slCount(n, OSEBA_FORMS)}
               aria-pressed={splitCount === n}
               className={`flex-1 py-2 rounded-md text-sm font-bold transition-colors touch-manipulation pointer-coarse:py-3 ${
                 splitCount === n
@@ -121,7 +122,7 @@ export const SplitPaymentTab = memo(function SplitPaymentTab({
         </div>
         <Separator />
         <div className="flex justify-between text-xs text-muted-foreground">
-          <span>Skupaj ({splitCount} oseb)</span>
+          <span>Skupaj ({slCount(splitCount, OSEBA_FORMS)})</span>
           <span className="font-bold">{formatEUR(totalWithTip)}</span>
         </div>
         {tipAmount > 0 && (

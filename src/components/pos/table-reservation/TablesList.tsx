@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { ArrowRight, LayoutGrid, Armchair, User } from 'lucide-react'
 import { STATUS_CONFIG } from './constants'
 import type { TablesListProps } from './constants'
+import { slCount, OSEBA_FORMS } from '@/lib/sl-plural'
 
 // ============================================
 // SEZNAM MIZ Z REZERVACIJAMI
@@ -79,7 +80,7 @@ export const TablesList = memo(function TablesList({
                   {table.reservation && (
                     <div className="text-right rounded-md bg-blue-50 dark:bg-blue-900/30 px-2 py-1">
                       <p className="text-xs font-medium text-blue-700 dark:text-blue-300">{table.reservation.guestName}</p>
-                      <p className="text-xs text-muted-foreground tabular-nums">{table.reservation.time} · {table.reservation.partySize} oseb</p>
+                      <p className="text-xs text-muted-foreground tabular-nums">{table.reservation.time} · {slCount(table.reservation.partySize, OSEBA_FORMS)}</p>
                     </div>
                   )}
                   {table.reservation && table.reservation.status === 'confirmed' && (

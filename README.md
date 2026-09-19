@@ -1,11 +1,11 @@
-# RestaurantOS v1.7.0
+# RestaurantOS v1.7.1
 
-[![Version](https://img.shields.io/badge/version-1.7.0-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.7.1-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-1949%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-58%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-1951%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-59%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,19 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (58 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (59 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.7.1 (QA runda 59)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| ⚡ **Operativni tloris — hitre akcije** | Detail panel tlorisa: gumbi **Posedljeno / Ni prišel / Prekliči / Zaključi** (zrcalijo API `VALID_TRANSITIONS`) — ista mutacija kot kartice; miza ob "Posedljeno" ŽIVO preklopi v Zasedena; izpeljani busy marker (vrtinčka na kliknjenem gumbu, ostali disabled do refetcha) |
+| 🛡️ **R59c: varovalka busy + onError toast** | Neuspešen PUT ne zaskoči UI-ja: 8 s timeout sprosti busy (determinističen `useEffect`), `onError` toast pokaže "Statusa ni bilo mogoče spremeniti" (prej tiha napaka, samo konzola) |
+| 🇸🇮 **Slovnična očistka — tožilnik po "za"** | Nova družina `OSEBA_TOZILNIK_FORMS`: "premajhna za 2 osebi" (dvojina!), "Ni primernih miz za 3 osebe", "Za 5 oseb" — API 400 kapaciteta napake, čakalna vrsta, javna rezervacijska stran; živa QA ugotovitev runde 59 |
+| 🇸🇮 **Pridnevnik "aktivna rezervacija"** | `AKTIVNA_REZERVACIJA_FORMS`: 1 aktivna · 2 aktivni · 3 aktivne · 5 aktivnih (prej ternarek brez oblike 3/4) |
+| 🧹 **13 površin sklanjatve** | Javna stran (ConfirmView/CustomerForm/Success), WaitTime ocena + izbirnik, čakalna vrsta + vnosi, SplitPayment (tudi `aria-label`!), table-turnover KPI + vizualni pregled, table-reservation seznami, SMS potrdilo, API capacity napake — vse prek `slCount`/`slPluralWord` |
+| ✨ **Stilski detajlji** | Semantične barve akcij (emerald/amber/red/sky — enoten jezik z ReservationCard), staggered `animate-fade-in-up` (cap 240 ms), hover `scale-[1.05]`, `aria-busy` + `aria-label` s pravo sklanjatvijo |
+| 🧪 **Kakovost** | 1951/1951 unit testov (111 datotek, +2 slovnični družini), 0 tsc napak, 0 eslint errorjev |
 
 ### ✨ Nove funkcije v v1.7.0 (QA runda 58)
 
@@ -242,13 +254,13 @@ bun run dev
 
 | Metrika | Vrednost |
 |---------|----------|
-| Commitov | 886 |
+| Commitov | 895 |
 | API endpointov | 242 |
 | React komponent | 679 |
 | Prisma modelov | 95 |
 | Tabel v bazi | 95 |
 | Jezikov | 5 (sl, en, it, hr, de) |
-| Unit testov PASS | 1900/1900 (100 %) — 108 datotek, 0 errorjev |
+| Unit testov PASS | 1951/1951 (100 %) — 111 datotek, 0 errorjev |
 | E2E testov PASS | 144/149 (96.6%) — 5 odprtih, glej [Known Issues](docs/KNOWN_ISSUES.md) |
 | Varnostna ocena | A+ (0 HIGH odprtih, P0-C1..C5 complete, glej [Security Policy](SECURITY.md)) |
 | Koda (src + tests) | 204.594 vrstic |
