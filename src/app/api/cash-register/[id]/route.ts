@@ -24,9 +24,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     // FIX CASH-05 HIGH: Premakni status check ZNOTRAJ transakcije — prepreči race condition
     // Prejšnja koda je preverila status PRED transakcijo, kar je dovoljevalo double-close
+    // BUG-HUNT FIX 2026-09-19 (HIGH, cross-tenant): findUnique je dovolil zapreti
+    // izmeno KATERE KOLI lokacije z ID-jem. Zaposleni z lokacijo sme zapreti SAMO
+    // svojo izmeno; admin brez lokacije = globalni nadzor (isti vzorec kot P0-C1/C2).
+    // Ne obstoječa ali tuja izmena = enak odgovor (ne razkrivamo obstoja tujih izmen).
+    const sessionLocationId = authResult.session?.locationId ?? undefined
     const closedShift = await db.$transaction(async (tx) => {
       const shift = await tx.cashRegisterShift.findUnique({ where: { id } })
-      if (!shift) {
+      if (!shift || (sessionLocationId && shift.locationId && shift.locationId !== sessionLocationId)) {
         throw new Error('SHIFT_NOT_FOUND')
       }
       if (shift.status === 'closed') {

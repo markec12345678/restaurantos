@@ -87,7 +87,14 @@ export async function calculateLiveStats(activeShift: { openedAt: Date; location
 }
 
 /** Odpri novo izmeno znotraj transakcije */
-export async function openShift(data: { employeeId?: string; employeeName: string; startingCash: number }) {
+// BUG-HUNT FIX 2026-09-19: dodan auth scope — lokacija izmena se rešuje iz SESSIONE
+// (zaposleni z lokacijo odpre izmeno SAMO na svoji lokaciji), ne iz klientovega
+// employeeId. Admin brez lokacije ohrani staro vedenje (employee.locationId →
+// fallback prva lokacija).
+export async function openShift(
+  data: { employeeId?: string; employeeName: string; startingCash: number },
+  auth?: { sessionEmployeeId?: string; sessionLocationId?: string | null },
+) {
   // FIX QA runda 37: fallback lokacijo resolvi PRED interactive transakcijo.
   // getFirstLocationId() uporablja base db client — klic znotraj tx je ob Neon
   // poolerju povečal trajanje tx (pool wait) → "Transaction already closed"
@@ -102,7 +109,17 @@ export async function openShift(data: { employeeId?: string; employeeName: strin
         where: { id: data.employeeId },
         select: { locationId: true },
       })
-      if (emp?.locationId) shiftWhere.locationId = emp.locationId
+    }
+    // Tenant scope: zaposleni z lokacijo sme odpreti izmeno SAMO na svoji lokaciji
+    // (prej: lokacija po klientovem employeeId → poljubna lokacija)
+    if (auth?.sessionLocationId && emp?.locationId && emp.locationId !== auth.sessionLocationId) {
+      throw new Error('CROSS_LOCATION_SHIFT')
+    }
+    // Lokacija izmene: session lokacija ima PREDNOST, sicer employee lokacija
+    if (auth?.sessionLocationId) {
+      shiftWhere.locationId = auth.sessionLocationId
+    } else if (emp?.locationId) {
+      shiftWhere.locationId = emp.locationId
     }
     const existingShift = await tx.cashRegisterShift.findFirst({
       where: shiftWhere,
@@ -118,7 +135,7 @@ export async function openShift(data: { employeeId?: string; employeeName: strin
 
     // FIX QA runda 37: DB stolpec CashRegisterShift.locationId je NOT NULL (schema drift)
     // — create z null je vrgel P2011 (Ana = admin brez employee.locationId)
-    const shiftLocationId = emp?.locationId || fallbackLocationId
+    const shiftLocationId = auth?.sessionLocationId || emp?.locationId || fallbackLocationId
 
     const previousShift = await tx.cashRegisterShift.findFirst({
       where: {

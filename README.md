@@ -1,11 +1,11 @@
-# RestaurantOS v1.8.6
+# RestaurantOS v1.8.7
 
-[![Version](https://img.shields.io/badge/version-1.8.6-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.8.7-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
 [![Tests](https://img.shields.io/badge/tests-2144%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-74%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Audit](https://img.shields.io/badge/razvoj-75%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,25 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (74 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (75 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### 🔧 Popravki v v1.8.7 (QA runda 75 — globinski bug-hunt: 19 popravkov)
+
+| Kategorija | Popravek |
+|------------|----------|
+| 🚨 **KRITIČNO: `/api/setup/db` auth bypass** | `startsWith('/api/setup')` izjema v auth-middleware je pustila DDL endpoint (CREATE TABLE + ~90 ALTER TABLE) javno dostopnega → ANONIMNA DDL na produkcijski bazi. Izjema zdaj ekspliciten seznam first-run endpointov (init/status/super-admin) + `isAuthorized()` zahteva DEJANSKO sejo |
+| 🚨 **KRITIČNO: ZOI po ZDDV-1** | ZOI = Base64(**MD5**(RSA-SHA256 podpis)) — prej SHA-256 + subarray(0,16) → FURS verifier bi zavrnil vsak račun. Enak algoritem kot HR ZKI (zlati vektor: isti podpis, različen ZOI) |
+| 🚨 **KRITIČNO: dvojno povračilo plačil** | `/refund` zdaj zahteva status `completed` (prej status bran, a nikoli preverjen); PUT reversal zapiše `refundAmount` in reverzira SAMO nepovrnjeni del — prej: PUT void + POST refund = DVOJNI gift-card/loyalty kredit |
+| 🔒 **Čeki — tenant scope** | GET/POST/discount-lookup zdaj po lokaciji (isti P0-C1 razred kot payments fix 2026-09-09); `linkOrderItemsToCheck` z `orderId` filter — prej je updateMany premaknil KATERE KOLI item-ID-je (cross-order/cross-tenant item hijack, plačani čeki s podtekanimi totali) |
+| 🔒 **Blagajna — tenant scope** | PUT zapre izmeno samo svoje lokacije (prej katera koli po ID-ju); POST odpira izmeno na SESSION lokaciji (prej po klientovem employeeId → poljubna lokacija; `CROSS_LOCATION_SHIFT` → 403) |
+| 🔒 **Združevanje miz** | lokacijski scope na mizah + prepoved združevanja DELNO PLAČANIH naročil (plačila bi ostala vešča na preklicanem naročilu); recalc ohrani popust in tip ciljnega naročila (prej izgubljena) |
+| 🔒 **WebAuthn `locationId`** | biometrična seja je dobila `locationId: null` = GLOBALNI tenant dostop namesto lokacije zaposlenega — zdaj kot PIN prijava |
+| 💰 **Void zaščite (order-items)** | prepoved voida na plačanem/delno plačanem čeku (FURS: to je storno); pogojni claim `updateMany` (dva vzporedna voida = prej dvojno vračilo zaloge); vračilo zaloge samo, če `order.inventoryDeducted` (prej slepo napihnilo zalogo) |
+| 🧾 **Z-poročilo + EOD — storno & neto** | storno naročila zdaj vključena (totalStorno je bil STRUKTURNO vedno 0 — mrtav filter); neto zneski (amount − refundAmount) pri prodaji po načinih plačila in expectedCash — brez lažnega denarnega primanjkljaja ob zaključku dneva; order status po refundu agregira VSE čeke (split-check fix) |
+| 🇸🇮 **FURS multi-lokacija** | certifikatni cache KLJUČAN po `certPath` (prej 1 globalni slot 1 h → lokacija B podpisovala s ključem lokacije A); ZOI ključ iz per-lokacijskega configa + `ensureDecrypted` (prej globalni settings ključ ≠ JWS ključ); JWS serial brez izgube preciznosti (Number() poči > 2^53 — FURS Java long); DST prehod CEST→CET ob 01:00 UTC (ura off-by-one v 60-min oknu 1×/leto) |
+| 🛡️ **CSP nonce — dejansko delujoč** | nonce zdaj propagiran na REQUEST headerje (`NextResponse.next({ request: { headers } })`) — Next.js injektira nonce v inline skripte LE iz request CSP; prej response-only → nonce nikoli ni zaščitil ničesar, prod CSP bi blokiral hydration |
+| 🧰 **Infra fix** | `init-pglite.mjs` privzeta mapa usklajena z `db.ts` (`/tmp/pglite-data`) — prej trdo kodiran zunanji path → 9/9 DB invariant integracijskih testov P2021 "table does not exist"; lint cleanup (console → strukturirani logger, `as any` → Prisma tip) |
+| 🧪 **Regresija — vse zelene** | lint **0/0** · tsc **0** · **2144/2144 unit** (126 datotek) · **9/9 integracija** |
 
 ### ✨ Nove funkcije v v1.8.6 (QA runda 74 — Z-poročilo tiskanje + digest print fix)
 

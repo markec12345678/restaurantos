@@ -4,7 +4,7 @@
 // Če ima target miza že odprto naročilo, se artikli združijo v obstoječe naročilo.
 // Source miza se sprosti (status=available).
 import { db } from '@/lib/db'
-import { toNum } from '@/lib/decimal'
+import { toNum, round2 } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
@@ -35,12 +35,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Izvorna in ciljna miza sta isti' }, { status: 400 })
     }
 
+    // BUG-HUNT FIX 2026-09-19 (HIGH, cross-tenant): mize so bile iskane brez
+    // lokacijskega scope-a — združljive so bile mize RAZLIČNIH lokacij.
+    const sessionLocationId = authResult.session?.locationId ?? undefined
     const [sourceTable, targetTable] = await Promise.all([
-      db.table.findUnique({ where: { id: data.sourceTableId } }),
-      db.table.findUnique({ where: { id: data.targetTableId } }),
+      db.table.findFirst({
+        where: { id: data.sourceTableId, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      }),
+      db.table.findFirst({
+        where: { id: data.targetTableId, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      }),
     ])
     if (!sourceTable) return NextResponse.json({ error: 'Izvorna miza ni najdena' }, { status: 404 })
     if (!targetTable) return NextResponse.json({ error: 'Ciljna miza ni najdena' }, { status: 404 })
+    // Admin (brez lokacijske seje): obe mizi morata biti vsaj na isti lokaciji
+    if (sourceTable.locationId && targetTable.locationId && sourceTable.locationId !== targetTable.locationId) {
+      return NextResponse.json({ error: 'Mizi nista na isti lokaciji' }, { status: 400 })
+    }
 
     // Pridobi aktivna naročila na obeh mizah
     const [sourceOrders, targetOrders] = await Promise.all([
@@ -64,6 +75,16 @@ export async function POST(req: Request) {
 
     if (sourceOrders.length === 0) {
       return NextResponse.json({ error: 'Izvorna miza nima aktivnih naročil za združitev' }, { status: 400 })
+    }
+
+    // BUG-HUNT FIX 2026-09-19: prej so bila tudi DELNO PLAČANA naročila cancelled,
+    // plačila pa so ostala vešča na preklicanem naročilu (izgubljena denarna sled).
+    const partiallyPaid = sourceOrders.filter(o => o.paymentStatus === 'partial')
+    if (partiallyPaid.length > 0) {
+      return NextResponse.json(
+        { error: 'Naročilo že ima delno plačilo — združitev ni mogoča. Uporabi prenos/povračilo.' },
+        { status: 400 }
+      )
     }
 
     const result = await db.$transaction(async (tx) => {
@@ -104,16 +125,22 @@ export async function POST(req: Request) {
         mergedOrderIds = [targetOrder.id]
 
         // Preračunaj totale target naročila po združitvi
+        // BUG-HUNT FIX 2026-09-19: prej je recalc NASTAVIL total = subtotal + tax in
+        // totalWithTip = total — izgubil je obstoječi POPUST in TIP ciljnega naročila.
         const updatedItems = await tx.orderItem.findMany({
           where: { orderId: targetOrder.id, voided: false },
           select: { price: true, quantity: true, vatAmount: true },
         })
-        const subtotal = updatedItems.reduce((s, oi) => s + toNum(oi.price) * oi.quantity, 0)
-        const tax = updatedItems.reduce((s, oi) => s + toNum(oi.vatAmount), 0)
-        const total = subtotal + tax
+        const subtotal = round2(updatedItems.reduce((s, oi) => s + toNum(oi.price) * oi.quantity, 0))
+        const tax = round2(updatedItems.reduce((s, oi) => s + toNum(oi.vatAmount), 0))
+        // Ohrani absolutni popust in tip ciljnega naročila (isti vzorec kot
+        // recalculateAffectedChecks v checks API). Popust ne more preseči osnove.
+        const discount = Math.min(toNum(targetOrder.discount), subtotal)
+        const tip = toNum(targetOrder.tip)
+        const total = round2(subtotal + tax - discount)
         await tx.order.update({
           where: { id: targetOrder.id },
-          data: { subtotal, tax, total, totalWithTip: total },
+          data: { subtotal, tax, total, totalWithTip: round2(total + tip) },
         })
       }
 

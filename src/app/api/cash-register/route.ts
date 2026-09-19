@@ -75,7 +75,13 @@ export async function POST(req: Request) {
     if (validationError) return validationError
 
     // FIX BUG-09: Preveri in ustvari izmeno v transakciji — prepreči race condition
-    const shift = await openShift(data)
+    // BUG-HUNT FIX 2026-09-19: session scope — lokacija izmena se rešuje iz SESSIONE,
+    // ne iz klientovega employeeId (prej je manage_cash uporabnik lahko odprl izmeno
+    // na poljubni lokaciji z izbranim zaposlenim)
+    const shift = await openShift(data, {
+      sessionEmployeeId: authResult.session?.employeeId,
+      sessionLocationId: authResult.session?.locationId ?? null,
+    })
 
     // Webhook: cash_register.opened
     emitEvent('cash_register.opened', {
@@ -89,6 +95,7 @@ export async function POST(req: Request) {
     return handleRouteError(error, 'POST /api/cash-register', [
       { match: 'ALREADY_OPEN', message: 'Že obstaja odprta izmena. Najprej zaprite trenutno izmeno.', status: 400 },
       { match: 'EMPLOYEE_ID_REQUIRED', message: 'Identifikacija zaposlenega je obvezna za odpiranje izmene.', status: 400 },
+      { match: 'CROSS_LOCATION_SHIFT', message: 'Izmeno lahko odprete samo na svoji lokaciji.', status: 403 },
       { match: 'STARTING_CASH_MISMATCH', message: 'Začetna gotovina se ne ujema s končnim stanjem prejšnje izmene. Preverite in vnesite pravilen znesek.', status: 409, extra: (parts) => ({ expectedCash: toNum(parts[1] || '0'), actualCash: toNum(parts[2] || '0') }) },
     ], 'Napaka pri odpiranju izmene')
   }
