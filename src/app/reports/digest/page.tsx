@@ -25,6 +25,8 @@ import { authFetch } from '@/components/pos/PinLogin'
 import { formatEUR } from '@/lib/safe-format'
 import { paymentMethodLabelSl } from '@/lib/payment-methods-sl' // R62: enoten vir (prej surov enum "cash" na tiskanem poročilu)
 import { ljubljanaYesterdayStr } from '@/lib/timezone-sl' // R48: yesterday iz lib (prej lokalna kopija)
+import { asArray } from '@/lib/as-array' // R71: QA fix — "(x || []).map" ne ščiti pred truthy non-array (R69 Happy Hour crash vzorec)
+import { formatEURShort, type DigestTrend } from '@/lib/digest-trend' // R71: trend sparkline
 
 // ============================================
 // TISKANA VERZIJA DNEVNEGA POVZETKA (/reports/digest)
@@ -61,6 +63,12 @@ interface DigestData {
   paymentMethods: Array<{ method: string; count: number; amount: number }>
   topItems: Array<{ name: string; quantity: number; revenue: number }>
   furs: { sent: number; failed: number }
+}
+
+// R71: trend za sekcijo "Trendi — zadnjih 7 dni" (opcionalen — API odpoved →
+// sekcija graciozno manjka, osnovni digest ostane delujoč; vzorec R65)
+interface TrendResponse {
+  data: DigestTrend & { endDate: string }
 }
 
 // R48: ljubljanaYesterdayStr zdaj živi v @/lib/timezone-sl (ENOTEN vir resnice —
@@ -169,6 +177,113 @@ function CompareRow({
   )
 }
 
+// R71: CSS-only sparkline — 7-dnevni trend prometa (brez chart knjižnic,
+// deluje tudi na A4 tisku: višine so %, barve so print-color-adjust: exact).
+// Legenda + črtkana linija povprečja + "najboljši dan" poudarek (amber).
+function TrendSparkline({ trend }: { trend: DigestTrend & { endDate: string } }) {
+  const hasAnyRevenue = trend.total > 0
+  const bestPoint = trend.points.find(p => p.isBest)
+  return (
+    <section className="break-inside-avoid" aria-label="Trend zadnjih dni">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          Trendi — zadnjih {trend.dayCount} dni
+        </h2>
+        {hasAnyRevenue && (
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="rounded-full bg-muted/60 px-2 py-0.5 font-medium tabular-nums print:bg-muted/30">
+              Skupaj {formatEURShort(trend.total)}
+            </span>
+            <span className="rounded-full bg-muted/60 px-2 py-0.5 font-medium tabular-nums print:bg-muted/30">
+              Povp. {formatEURShort(trend.avgPerDay)}/dan
+            </span>
+            {bestPoint && (
+              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 font-semibold tabular-nums text-amber-700 dark:text-amber-400">
+                ★ najboljši: {bestPoint.dayLabel} {bestPoint.dayNum}. ({formatEURShort(bestPoint.revenue)})
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+      {!hasAnyRevenue ? (
+        <p className="rounded-lg border bg-muted/30 px-3 py-3 text-sm text-muted-foreground print:bg-white">
+          V zadnjih {trend.dayCount} dneh ni plačanih naročil.
+        </p>
+      ) : (
+        <div className="rounded-lg border bg-muted/30 px-3 pb-2 pt-2 print:bg-white">
+          <div
+            className="relative flex items-end gap-2"
+            role="group"
+            aria-label={`Promet po dnevih, zadnjih ${trend.dayCount} dni`}
+            style={{ height: '8rem' }}
+          >
+            {/* črtkana linija povprečja — absolutno na avgLinePct višini */}
+            {trend.avgLinePct != null && (
+              <div
+                className="pointer-events-none absolute inset-x-0 border-t border-dashed border-slate-400/70 dark:border-slate-500/70"
+                style={{ bottom: `${trend.avgLinePct}%` }}
+                aria-hidden="true"
+              >
+                <span className="absolute -top-4 right-0 rounded bg-muted/80 px-1 text-[9px] font-medium text-muted-foreground">povp.</span>
+              </div>
+            )}
+            {trend.points.map(p => (
+              <div
+                key={p.date}
+                className="flex h-full flex-1 flex-col items-center justify-end gap-1"
+                title={`${p.date}: ${formatEUR(p.revenue)} (${p.ordersCount} naročil)`}
+              >
+                <span
+                  className={`text-[9px] font-semibold tabular-nums ${
+                    p.isBest ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'
+                  }`}
+                >
+                  {p.revenue > 0 ? formatEURShort(p.revenue) : '–'}
+                </span>
+                <div
+                  role="img"
+                  aria-label={`${p.dayLabel} ${p.dayNum}.: ${formatEUR(p.revenue)}${p.isBest ? ' — najboljši dan' : ''}`}
+                  className={`w-full max-w-[2.5rem] rounded-t-md transition-colors ${
+                    p.isBest
+                      ? 'bg-gradient-to-t from-amber-500 to-amber-400'
+                      : p.revenue > 0
+                        ? 'bg-gradient-to-t from-teal-600 to-teal-400/80'
+                        : 'bg-muted/70 print:bg-muted/40'
+                  } ${p.date === trend.endDate ? 'ring-2 ring-teal-600/40 print:ring-teal-600/50' : ''}`}
+                  style={{ height: `${p.heightPct}%`, minHeight: p.revenue > 0 ? 4 : 2 }}
+                />
+                <span
+                  className={`text-[10px] leading-none ${
+                    p.isBest ? 'font-bold text-amber-700 dark:text-amber-400' : 'text-muted-foreground'
+                  }`}
+                >
+                  {p.dayLabel}
+                </span>
+                <span className="text-[9px] leading-none text-muted-foreground/70">{p.dayNum}.</span>
+              </div>
+            ))}
+          </div>
+          {/* legenda — pomaga interpretaciji na papirju (barve so tiskane) */}
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-sm bg-teal-600" aria-hidden="true" /> dnevni promet
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-sm bg-amber-500" aria-hidden="true" /> najboljši dan
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-0 w-3 border-t border-dashed border-slate-400" aria-hidden="true" /> povprečje/dan
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-sm ring-2 ring-teal-600/40" aria-hidden="true" /> izbrani dan
+            </span>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 // R62: ikone metod — SAMO client (lib ostane čista/strežniško-varna)
 const PAYMENT_METHOD_ICONS: Record<string, ReactNode> = {
   cash: <Banknote className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />, // R62: scannable UI; tisk ostane tipografsko čist (ikone imajo print varljivo barvo — muted ozadje)
@@ -189,6 +304,9 @@ function DigestPrintInner() {
   // API-ja (pending/failed logika) → gumb je varen za ponovne klikе.
   const [sendState, setSendState] = useState<'idle' | 'sending' | 'done' | 'error'>('idle')
   const [sendMsg, setSendMsg] = useState<string | null>(null)
+  // R71: trend zadnjih 7 dni (neodvisen od glavnega nalaganja — tudi če trend
+  // API odpove, digest ostane POPOLN; sekcijski optionality vzorec R65)
+  const [trend, setTrend] = useState<(DigestTrend & { endDate: string }) | null>(null)
   const searchParams = useSearchParams()
 
   useEffect(() => {
@@ -211,7 +329,14 @@ function DigestPrintInner() {
       }
       if (!res.ok) throw new Error(`Napaka ${res.status}`)
       const json = (await res.json()) as { data: DigestData }
-      setData(json.data)
+      // R71: asArray — API kršitve oblike (truthy non-array) → prazen array,
+      // ne crash "(x || []).map is not a function"
+      const safe = json.data
+      setData({
+        ...safe,
+        paymentMethods: asArray(safe?.paymentMethods),
+        topItems: asArray(safe?.topItems),
+      })
     } catch {
       setError('Povzetek ni uspel — preveri povezavo ali poskusi drug datum.')
       setData(null)
@@ -220,9 +345,28 @@ function DigestPrintInner() {
     }
   }, [])
 
+  // R71: trend zadnjih 7 dni — ločen load (fail tiho: sekcija samo manjka)
+  const loadTrend = useCallback(async (targetDate: string) => {
+    try {
+      const res = await authFetch(`/api/reports/digest-trend?date=${encodeURIComponent(targetDate)}&days=7`)
+      if (!res.ok) {
+        setTrend(null)
+        return
+      }
+      const json = (await res.json()) as TrendResponse
+      const d = json?.data
+      setTrend(d && Array.isArray(d.points) ? d : null)
+    } catch {
+      setTrend(null)
+    }
+  }, [])
+
   useEffect(() => {
-    if (date) void load(date)
-  }, [date, load])
+    if (date) {
+      void load(date)
+      void loadTrend(date) // R71: trend gre vzporedno z glavnim digestom
+    }
+  }, [date, load, loadTrend])
 
   // R62: zamenjava datuma → počisti rezultat pošiljanja (prikaz IN akcija
   // vedno istega datuma — varnostni vzorec EmailTab R51)
@@ -455,6 +599,10 @@ function DigestPrintInner() {
                   )}
                 </section>
               )}
+
+              {/* R71: Trendi — zadnjih 7 dni (CSS-only sparkline; API odpoved →
+                  sekcija graciozno manjka, osnovni digest ostane POPOLN) */}
+              {trend && trend.points.length > 0 && <TrendSparkline trend={trend} />}
 
               {/* Metode plačila */}
               <section className="break-inside-avoid">

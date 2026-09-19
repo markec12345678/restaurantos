@@ -25,6 +25,7 @@ import {
 import { format, subDays } from 'date-fns'
 
 import { formatEUR } from '@/lib/safe-format'
+import { asArray } from '@/lib/as-array' // R71: "(x || []).map" ne ščiti pred truthy non-array (produkcija crash 2026-09-19)
 // --- Tipi ---
 interface ScheduledVsActualEntry {
   employeeId: string
@@ -151,7 +152,7 @@ export function LaborReportsDashboard() {
                 <CardContent>
                   <ScrollArea className="h-96">
                     <div className="space-y-2">
-                      {(data.entries || []).map((entry: ScheduledVsActualEntry, i: number) => {
+                      {asArray<ScheduledVsActualEntry>(data.entries).map((entry: ScheduledVsActualEntry, i: number) => {
                         const cfg = statusConfig[entry.status] || statusConfig.present
                         return (
                           <div key={i} className="flex items-center gap-3 p-3 border border-border rounded-lg hover:bg-muted/30">
@@ -207,7 +208,7 @@ export function LaborReportsDashboard() {
                 <CardContent>
                   <ScrollArea className="h-96">
                     <div className="space-y-2">
-                      {(data.entries || []).map((entry: OvertimeEntry, i: number) => (
+                      {asArray<OvertimeEntry>(data.entries).map((entry: OvertimeEntry, i: number) => (
                         <div key={i} className="flex items-center gap-3 p-3 border border-border rounded-lg hover:bg-muted/30">
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium">{entry.employeeName}</div>
@@ -248,7 +249,7 @@ export function LaborReportsDashboard() {
                 <CardContent>
                   <ScrollArea className="h-96">
                     <div className="space-y-2">
-                      {(data.entries || []).map((entry: AttendanceEntry, i: number) => (
+                      {asArray<AttendanceEntry>(data.entries).map((entry: AttendanceEntry, i: number) => (
                         <div key={i} className="flex items-center gap-3 p-3 border border-border rounded-lg hover:bg-muted/30">
                           <div className="flex-1 min-w-0">
                             <div className="text-sm font-medium">{entry.employeeName}</div>

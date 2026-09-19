@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton'
 import { RotateCcw } from 'lucide-react'
 import { formatEUR } from '@/lib/safe-format'
+import { asArray } from '@/lib/as-array' // R71: "(x || []).map" ne ščiti pred truthy non-array (produkcija crash 2026-09-19)
 import {
   type TransactionData,
   type TransactionSummary,
@@ -119,7 +120,7 @@ export const HistoryTab = memo(function HistoryTab({
                   </tr>
                 </thead>
                 <tbody>
-                  {(transactionsData?.transactions || []).map((tx: TransactionData) => (
+                  {asArray<TransactionData>(transactionsData?.transactions).map((tx: TransactionData) => (
                     <tr key={tx.id} className="border-b hover:bg-muted/30 transition-colors">
                       <td className="p-3 whitespace-nowrap">{formatDateTimeSI(tx.createdAt)}</td>
                       <td className="p-3">
@@ -148,7 +149,7 @@ export const HistoryTab = memo(function HistoryTab({
                 </tbody>
               </table>
             </div>
-            {(transactionsData?.transactions || []).length === 0 && (
+            {asArray<TransactionData>(transactionsData?.transactions).length === 0 && (
               <p className="text-center py-8 text-muted-foreground">Ni najdenih transakcij</p>
             )}
           </CardContent>

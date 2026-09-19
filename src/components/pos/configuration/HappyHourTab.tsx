@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { asArray } from '@/lib/as-array' // R71: "(x || []).map" ne ščiti pred truthy non-array
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
@@ -37,7 +38,7 @@ export function HappyHourTab() {
   const [saving, setSaving] = useState(false)
   // RUNDA 69: potrditveni dialog za izbris (prej nevaren instant delete)
   const [deleteTarget, setDeleteTarget] = useState<HappyHourSchedule | null>(null)
-  const schedules: HappyHourSchedule[] = data?.schedules || []
+  const schedules: HappyHourSchedule[] = asArray(data?.schedules) // R71: fail-safe (truthy non-array → [])
   const currentlyActive = data?.currentlyActive || false
   const { data: priceGroups } = useQuery({
     queryKey: ['price-groups-hh'],
