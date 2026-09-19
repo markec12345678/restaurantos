@@ -104,7 +104,7 @@ function DeltaChip({ pct }: { pct: number | null | undefined }) {
           ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
           : 'bg-red-50 text-red-700 dark:bg-red-900/40 dark:text-red-300'
       }`}
-      aria-label={`Sprememba ${up ? 'nazaj' : 'dol'} ${Math.abs(pct)} %`}
+      aria-label={`Sprememba ${up ? 'gor' : 'dol'} ${Math.abs(pct)} %`}
     >
       {up ? '▲' : '▼'} {Math.abs(pct)}%
     </span>
