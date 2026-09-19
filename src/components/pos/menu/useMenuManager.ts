@@ -8,7 +8,7 @@ import { useState, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import type { ItemFormState, CategoryFormState, MenuFormState } from './constants'
+import type { ItemFormState, CategoryFormState, MenuFormState, ModifierGroupFormState } from './constants'
 import { useMenuMutations } from './useMenuMutations'
 
 export function useMenuManager() {
@@ -28,6 +28,12 @@ export function useMenuManager() {
   const [menuForm, setMenuForm] = useState<MenuFormState>({ name: '', icon: '📋', color: '#f59e0b', isActive: true })
   // RUNDA 67: urejanje menija — null = ustvarjanje, objekt = urejanje
   const [editingMenu, setEditingMenu] = useState<Record<string, unknown> | null>(null)
+  // RUNDA 68: skupine dodatkov — dialog + forma + urejanje
+  const [modGroupDialogOpen, setModGroupDialogOpen] = useState(false)
+  const [modGroupForm, setModGroupForm] = useState<ModifierGroupFormState>({
+    name: '', required: false, minSelect: '0', maxSelect: '', modifiers: [{ name: '', price: '' }],
+  })
+  const [editingModifierGroup, setEditingModifierGroup] = useState<Record<string, unknown> | null>(null)
 
   // ============================================
   // QUERIES
@@ -91,11 +97,15 @@ export function useMenuManager() {
     createCatMutation,
     updateCatMutation,
     deleteCatMutation,
+    createModGroupMutation,
+    updateModGroupMutation,
+    deleteModGroupMutation,
   } = useMenuMutations({
     onCloseItemDialog: () => setDialogOpen(false),
     onClearEditingItem: () => setEditingItem(null),
     onCloseCatDialog: () => setCatDialogOpen(false),
     onCloseMenuDialog: () => setMenuDialogOpen(false),
+    onCloseModGroupDialog: () => setModGroupDialogOpen(false),
   })
 
   // ============================================
@@ -185,6 +195,47 @@ export function useMenuManager() {
     }
   }, [menuForm, editingMenu, updateMenuMutation, createMenuMutation])
 
+  // RUNDA 68: skupine dodatkov — ustvarjanje/urejanje
+  const openCreateModifierGroup = useCallback(() => {
+    setEditingModifierGroup(null)
+    setModGroupForm({ name: '', required: false, minSelect: '0', maxSelect: '', modifiers: [{ name: '', price: '' }] })
+    setModGroupDialogOpen(true)
+  }, [])
+
+  const openEditModifierGroup = useCallback((group: Record<string, unknown>) => {
+    setEditingModifierGroup(group)
+    const mods = Array.isArray(group.modifiers) ? group.modifiers : []
+    setModGroupForm({
+      name: String(group.name ?? ''),
+      required: Boolean(group.required),
+      minSelect: String(group.minSelect ?? 0),
+      maxSelect: group.maxSelect === null || group.maxSelect === undefined ? '' : String(group.maxSelect),
+      modifiers: mods.length > 0
+        ? mods.map((m) => ({ name: String((m as { name?: unknown }).name ?? ''), price: String((m as { price?: unknown }).price ?? '') }))
+        : [{ name: '', price: '' }],
+    })
+    setModGroupDialogOpen(true)
+  }, [])
+
+  const handleModGroupSubmit = useCallback(() => {
+    // maxSelect: prazen niz → null (neomejeno); sicer število
+    const maxNum = modGroupForm.maxSelect.trim() === '' ? null : parseInt(modGroupForm.maxSelect, 10)
+    const payload = {
+      name: modGroupForm.name.trim(),
+      required: modGroupForm.required,
+      minSelect: parseInt(modGroupForm.minSelect, 10) || 0,
+      maxSelect: maxNum !== null && Number.isNaN(maxNum) ? null : maxNum,
+      modifiers: modGroupForm.modifiers
+        .filter((m) => m.name.trim() !== '')
+        .map((m, i) => ({ name: m.name.trim(), price: parseFloat(m.price) || 0, sortOrder: i })),
+    }
+    if (editingModifierGroup) {
+      updateModGroupMutation.mutate({ id: editingModifierGroup.id as string, ...payload })
+    } else {
+      createModGroupMutation.mutate(payload)
+    }
+  }, [modGroupForm, editingModifierGroup, updateModGroupMutation, createModGroupMutation])
+
   return {
     // Stanja
     viewMode, setViewMode, search, setSearch,
@@ -193,14 +244,16 @@ export function useMenuManager() {
     dialogOpen, setDialogOpen, editingItem, itemForm, setItemForm,
     catDialogOpen, setCatDialogOpen, catForm, setCatForm, editingCategory,
     menuDialogOpen, setMenuDialogOpen, menuForm, setMenuForm, editingMenu,
+    modGroupDialogOpen, setModGroupDialogOpen, modGroupForm, setModGroupForm, editingModifierGroup,
     // Poizvedbe
     menus, categories, modifierGroups, menuItems, isLoading, filteredItems,
     // Mutacije
     deleteItemMutation, toggleAvailabilityMutation,
-    deleteCatMutation, deleteMenuMutation,
+    deleteCatMutation, deleteMenuMutation, deleteModGroupMutation,
     // Handlerji
     openCreateItem, openEditItem, handleItemSubmit,
     openCreateCategory, openEditCategory, handleCatSubmit,
     openCreateMenu, openEditMenu, handleMenuSubmit,
+    openCreateModifierGroup, openEditModifierGroup, handleModGroupSubmit,
   }
 }

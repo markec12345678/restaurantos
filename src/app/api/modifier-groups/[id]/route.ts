@@ -6,6 +6,7 @@ import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { sessionLocationId, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
+import { canDeleteModifierGroup } from '@/lib/modifier-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -83,6 +84,15 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     // MODEL A (#9): scope guard — prej findUnique BREZ scopa (IDOR čez lokacije)
     const inScope = await getGroupInScope(id, sessionLocationId(authResult))
     if ('notFound' in inScope) return notInScopeResponse('Skupina modifikatorjev')
+
+    // RUNDA 68: zaščita brisanja — join MenuItemModifierGroup kaskade, zato bi
+    // goli delete TIHO odstranil vezavo dodatkov z vseh pripetih artiklov.
+    // ENOTEN VIR (modifier-guard): 409 s slovenskim sporočilom namesto tihe izgube.
+    const attachedItems = await db.menuItemModifierGroup.count({ where: { modifierGroupId: id } })
+    const decision = canDeleteModifierGroup(attachedItems)
+    if (!decision.allowed) {
+      return NextResponse.json({ error: decision.messageSl }, { status: decision.status })
+    }
 
     await db.modifierGroup.delete({ where: { id } })
     return NextResponse.json({ success: true })

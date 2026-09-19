@@ -88,6 +88,9 @@ export const KATEGORIJA_FORMS: SlPluralForms = ['kategorija', 'kategoriji', 'kat
 // RUNDA 67: moška družina "meni" (števec menijev v UI + sporočila zaščite:
 // 1 meni · 2 menija · 3 meniji · 5 menijev).
 export const MENI_FORMS: SlPluralForms = ['meni', 'menija', 'meniji', 'menijev']
+// RUNDA 68: ženska družina "opcija" (števec opcij v ModifiersTab + blokada
+// izbrisa skupine dodatkov: 1 opcija · 2 opciji · 3 opcije · 5 opcij).
+export const OPCIJA_FORMS: SlPluralForms = ['opcija', 'opciji', 'opcije', 'opcij']
 
 /**
  * Katera množinska oblika za n? Tradicionalna slovenska norma:

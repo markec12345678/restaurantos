@@ -14,6 +14,7 @@ const ModifiersTab = dynamic(() => import('./menu/ModifiersTab').then(m => ({ de
 const ItemDialog = dynamic(() => import('./menu/ItemDialog').then(m => ({ default: m.ItemDialog })), { ssr: false })
 const CategoryDialog = dynamic(() => import('./menu/CategoryDialog').then(m => ({ default: m.CategoryDialog })), { ssr: false })
 const MenuDialog = dynamic(() => import('./menu/MenuDialog').then(m => ({ default: m.MenuDialog })), { ssr: false })
+const ModifierDialog = dynamic(() => import('./menu/ModifierDialog').then(m => ({ default: m.ModifierDialog })), { ssr: false })
 
 // ============================================
 // GLAVNA KOMPONENTA
@@ -26,12 +27,14 @@ export const MenuManager = memo(function MenuManager() {
     dialogOpen, setDialogOpen, editingItem, itemForm, setItemForm,
     catDialogOpen, setCatDialogOpen, catForm, setCatForm, editingCategory,
     menuDialogOpen, setMenuDialogOpen, menuForm, setMenuForm, editingMenu,
+    modGroupDialogOpen, setModGroupDialogOpen, modGroupForm, setModGroupForm, editingModifierGroup,
     menus, categories, modifierGroups, menuItems: _menuItems, isLoading, filteredItems,
     deleteItemMutation, toggleAvailabilityMutation,
-    deleteCatMutation, deleteMenuMutation,
+    deleteCatMutation, deleteMenuMutation, deleteModGroupMutation,
     openCreateItem, openEditItem, handleItemSubmit,
     openCreateCategory, openEditCategory, handleCatSubmit,
     openCreateMenu, openEditMenu, handleMenuSubmit,
+    openCreateModifierGroup, openEditModifierGroup, handleModGroupSubmit,
   } = useMenuManager()
 
   return (
@@ -107,7 +110,12 @@ export const MenuManager = memo(function MenuManager() {
         </TabsContent>
         {/* Tab dodatkov */}
         <TabsContent value="modifiers" className="space-y-4">
-          <ModifiersTab modifierGroups={modifierGroups} />
+          <ModifiersTab
+            modifierGroups={modifierGroups}
+            onAddGroup={openCreateModifierGroup}
+            onEditGroup={openEditModifierGroup}
+            onConfirmDelete={(id) => deleteModGroupMutation.mutate(id)}
+          />
         </TabsContent>
       </Tabs>
       {/* Item Dialog */}
@@ -140,6 +148,15 @@ export const MenuManager = memo(function MenuManager() {
         onMenuFormChange={setMenuForm}
         editingMenu={editingMenu}
         onSubmit={handleMenuSubmit}
+      />
+      {/* RUNDA 68: Modifier Group Dialog */}
+      <ModifierDialog
+        open={modGroupDialogOpen}
+        onOpenChange={setModGroupDialogOpen}
+        modGroupForm={modGroupForm}
+        onModGroupFormChange={setModGroupForm}
+        editingModifierGroup={editingModifierGroup}
+        onSubmit={handleModGroupSubmit}
       />
     </div>
   )

@@ -15,6 +15,7 @@ interface UseMenuMutationsCallbacks {
   onClearEditingItem: () => void
   onCloseCatDialog: () => void
   onCloseMenuDialog: () => void
+  onCloseModGroupDialog: () => void
 }
 
 export function useMenuMutations({
@@ -22,6 +23,7 @@ export function useMenuMutations({
   onClearEditingItem,
   onCloseCatDialog,
   onCloseMenuDialog,
+  onCloseModGroupDialog,
 }: UseMenuMutationsCallbacks) {
   const queryClient = useQueryClient()
 
@@ -142,6 +144,44 @@ export function useMenuMutations({
     onError: (err: Error) => { toast.error(errorSl(err, 'Napaka pri brisanju kategorije')) },
   })
 
+  // RUNDA 68: ustvari skupino dodatkov (POST /api/modifier-groups)
+  const createModGroupMutation = useMutation({
+    mutationFn: async (data: Record<string, unknown>) => {
+      const res = await authFetch('/api/modifier-groups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Napaka pri ustvarjanju skupine dodatkov') }
+      return res.json()
+    },
+    onSuccess: () => { toast.success('Skupina dodatkov ustvarjena'); queryClient.invalidateQueries({ queryKey: queryKeys.modifierGroups.all }); onCloseModGroupDialog() },
+    onError: (err: Error) => { toast.error(errorSl(err, 'Napaka pri ustvarjanju skupine dodatkov')) },
+  })
+
+  // RUNDA 68: posodobi skupino dodatkov (PUT /api/modifier-groups/[id] že obstaja — UI je mankal)
+  const updateModGroupMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
+      const res = await authFetch(`/api/modifier-groups/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Napaka pri posodabljanju skupine dodatkov') }
+      return res.json()
+    },
+    onSuccess: () => {
+      toast.success('Skupina dodatkov posodobljena')
+      // Artikli nosijo vezave na skupine (modifierGroups include) → invalidiraj OBE
+      queryClient.invalidateQueries({ queryKey: queryKeys.modifierGroups.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.menuItems.all })
+    },
+    onError: (err: Error) => { toast.error(errorSl(err, 'Napaka pri posodabljanju skupine dodatkov')) },
+  })
+
+  // RUNDA 68: izbriši skupino dodatkov (DELETE z zaščito modifier-guard: pripeti artikli → 409)
+  const deleteModGroupMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await authFetch(`/api/modifier-groups/${id}`, { method: 'DELETE' })
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Napaka pri brisanju skupine dodatkov') }
+      return res.json()
+    },
+    onSuccess: () => { toast.success('Skupina dodatkov izbrisana'); queryClient.invalidateQueries({ queryKey: queryKeys.modifierGroups.all }) },
+    onError: (err: Error) => { toast.error(errorSl(err, 'Napaka pri brisanju skupine dodatkov')) },
+  })
+
   return {
     createMenuMutation,
     updateMenuMutation,
@@ -153,5 +193,8 @@ export function useMenuMutations({
     createCatMutation,
     updateCatMutation,
     deleteCatMutation,
+    createModGroupMutation,
+    updateModGroupMutation,
+    deleteModGroupMutation,
   }
 }

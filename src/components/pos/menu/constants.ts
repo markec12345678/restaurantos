@@ -58,6 +58,22 @@ export interface ItemFormState {
   modifierGroupIds: string[]
 }
 
+/** RUNDA 68: vrsta modifikatorja v obrazcu skupine dodatkov (dinamične vrstice) */
+export interface ModifierRowState {
+  name: string
+  price: string
+}
+
+/** RUNDA 68: stanje obrazca za skupino dodatkov */
+export interface ModifierGroupFormState {
+  name: string
+  required: boolean
+  minSelect: string
+  maxSelect: string
+  /** prazno maxSelect = neomejeno */
+  modifiers: ModifierRowState[]
+}
+
 /** Stanje obrazca za kategorijo */
 export interface CategoryFormState {
   name: string
@@ -123,6 +139,12 @@ export interface MenusTabProps {
 /** Props za ModifiersTab podkomponento */
 export interface ModifiersTabProps {
   modifierGroups: ModifierGroupData[] | undefined
+  /** RUNDA 68: odpri dialog za NOVO skupino dodatkov */
+  onAddGroup: () => void
+  /** RUNDA 68: odpri urejanje skupine dodatkov */
+  onEditGroup: (_group: Record<string, unknown>) => void
+  /** RUNDA 68: POTRJEN izbris skupine (po AlertDialog potrditvi) */
+  onConfirmDelete: (_id: string) => void
 }
 
 /** Props za ItemDialog podkomponento */
@@ -158,5 +180,16 @@ export interface MenuDialogProps {
   onMenuFormChange: (_form: MenuFormState) => void
   /** RUNDA 67: null = ustvarjanje, objekt = urejanje (naslov/gumb se spremenita) */
   editingMenu: Record<string, unknown> | null
+  onSubmit: () => void
+}
+
+/** RUNDA 68: Props za ModifierDialog podkomponento (skupine dodatkov) */
+export interface ModifierDialogProps {
+  open: boolean
+  onOpenChange: (_open: boolean) => void
+  modGroupForm: ModifierGroupFormState
+  onModGroupFormChange: (_form: ModifierGroupFormState) => void
+  /** null = ustvarjanje, objekt = urejanje (naslov/gumb se spremenita) */
+  editingModifierGroup: Record<string, unknown> | null
   onSubmit: () => void
 }
