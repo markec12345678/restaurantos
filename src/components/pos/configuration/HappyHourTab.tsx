@@ -10,6 +10,7 @@ import { useState } from 'react'
 import { authFetch } from '@/components/pos/PinLogin'
 import dynamic from 'next/dynamic'
 import { type HappyHourSchedule, type HappyHourFormState, EMPTY_HH_FORM } from '../happyhour/types'
+import type { PriceGroupRow } from '@/lib/types'
 
 // Lazy-loaded podkomponente
 const HappyHourScheduleCard = dynamic(() => import('../happyhour/HappyHourScheduleCard').then(m => ({ default: m.HappyHourScheduleCard })), { ssr: false })
@@ -43,7 +44,14 @@ export function HappyHourTab() {
     queryFn: async () => {
       const res = await authFetch('/api/configuration/price-groups')
       if (!res.ok) return []
-      return res.json()
+      // FIX R69: API vrne { priceGroups: [...] } — prej smo podali CEL objekt
+      // v HappyHourForm, ki kliče .map() → "(m || []).map is not a function"
+      // → CRASH celotnega konfiguracijskega modula ob odprtju obrazca. Obrazec
+      // Happy Hour je bil s tem mrtv od vedno (nikoli testiran — toggle/izbris
+      // taba sta bila tudi pokvarjena, glej R69).
+      const d = (await res.json().catch(() => null)) as { priceGroups?: PriceGroupRow[] } | PriceGroupRow[] | null
+      if (Array.isArray(d)) return d
+      return d?.priceGroups ?? []
     },
   })
 
