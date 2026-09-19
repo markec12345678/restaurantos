@@ -10,6 +10,29 @@ import { errorSl } from '@/lib/error-messages'
 // HOOK: Mutacije za menije, artikle in kategorije
 // ============================================
 
+// RUNDA 68 FIX (MODEL A): seja brez dodeljene lokacije (admin / demo zaposleni
+// brez locationId) MORA pri POST /api/menus in /api/modifier-groups podati
+// izrecen ?locationId — sicer API vrne 400 "locationId je obvezen". UI ne ve,
+// ali seja ima lokacijo, zato PONUDBO vedno pripne prvo aktivno lokacijo;
+// če seja lokacijo IMA, jo strežnik vseeno uporabi (scope ima prednost pred
+// query parametrom — resolveWriteLocationId: session scope → candidates).
+// Vzorec MultiLocationDashboard (?locationId=) je že bil v uporabi za GET-e.
+let cachedLocationParam: string | null = null
+async function ensureLocationParam(): Promise<string> {
+  if (cachedLocationParam !== null) return cachedLocationParam
+  try {
+    const res = await authFetch('/api/locations')
+    if (!res.ok) return (cachedLocationParam = '')
+    const json = await res.json()
+    const list = Array.isArray(json) ? json : (json.locations ?? [])
+    const first = list.find((l: { isActive?: boolean }) => l.isActive !== false) || list[0]
+    cachedLocationParam = first?.id ? `?locationId=${first.id}` : ''
+  } catch {
+    cachedLocationParam = ''
+  }
+  return cachedLocationParam
+}
+
 interface UseMenuMutationsCallbacks {
   onCloseItemDialog: () => void
   onClearEditingItem: () => void
@@ -30,7 +53,9 @@ export function useMenuMutations({
   // Ustvari meni
   const createMenuMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const res = await authFetch('/api/menus', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      // RUNDA 68 FIX: + ?locationId (MODEL A — seja brez lokacije sicer 400)
+      const loc = await ensureLocationParam()
+      const res = await authFetch(`/api/menus${loc}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Napaka pri ustvarjanju menija') }
       return res.json()
     },
@@ -147,7 +172,10 @@ export function useMenuMutations({
   // RUNDA 68: ustvari skupino dodatkov (POST /api/modifier-groups)
   const createModGroupMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const res = await authFetch('/api/modifier-groups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      // RUNDA 68 FIX: + ?locationId (MODEL A — seja brez lokacije sicer 400;
+      // ujeto v produkciji E2E te runde!)
+      const loc = await ensureLocationParam()
+      const res = await authFetch(`/api/modifier-groups${loc}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Napaka pri ustvarjanju skupine dodatkov') }
       return res.json()
     },
