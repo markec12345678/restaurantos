@@ -22,6 +22,8 @@ export function useMenuManager() {
   const [itemForm, setItemForm] = useState<ItemFormState>({ name: '', description: '', price: '', categoryId: '', isAvailable: true, image: '', modifierGroupIds: [] })
   const [catDialogOpen, setCatDialogOpen] = useState(false)
   const [catForm, setCatForm] = useState<CategoryFormState>({ name: '', icon: '🍽️', color: '#f59e0b', menuId: '' })
+  // RUNDA 66: urejanje kategorije — null = ustvarjanje, objekt = urejanje
+  const [editingCategory, setEditingCategory] = useState<Record<string, unknown> | null>(null)
   const [menuDialogOpen, setMenuDialogOpen] = useState(false)
   const [menuForm, setMenuForm] = useState<MenuFormState>({ name: '', icon: '📋', color: '#f59e0b' })
 
@@ -83,6 +85,8 @@ export function useMenuManager() {
     deleteItemMutation,
     toggleAvailabilityMutation,
     createCatMutation,
+    updateCatMutation,
+    deleteCatMutation,
   } = useMenuMutations({
     onCloseItemDialog: () => setDialogOpen(false),
     onClearEditingItem: () => setEditingItem(null),
@@ -124,9 +128,31 @@ export function useMenuManager() {
   }, [itemForm, editingItem, updateItemMutation, createItemMutation])
 
   const openCreateCategory = useCallback(() => {
+    setEditingCategory(null)
     setCatForm({ name: '', icon: '🍽️', color: '#f59e0b', menuId: menus?.[0]?.id || '' })
     setCatDialogOpen(true)
   }, [menus])
+
+  // RUNDA 66: odpri dialog v urejevalnem načinu z izpolnjeno formo
+  const openEditCategory = useCallback((cat: Record<string, unknown>) => {
+    setEditingCategory(cat)
+    setCatForm({
+      name: String(cat.name ?? ''),
+      icon: String(cat.icon ?? '🍽️'),
+      color: String(cat.color ?? '#f59e0b'),
+      menuId: String(cat.menuId ?? (cat.menu as { id?: string } | undefined)?.id ?? ''),
+    })
+    setCatDialogOpen(true)
+  }, [])
+
+  // RUNDA 66: skupni submit — ustvari ali posodobi glede na editingCategory
+  const handleCatSubmit = useCallback(() => {
+    if (editingCategory) {
+      updateCatMutation.mutate({ id: editingCategory.id as string, ...catForm })
+    } else {
+      createCatMutation.mutate(catForm as unknown as Record<string, unknown>)
+    }
+  }, [catForm, editingCategory, updateCatMutation, createCatMutation])
 
   const openCreateMenu = useCallback(() => {
     setMenuForm({ name: '', icon: '📋', color: '#f59e0b' })
@@ -139,14 +165,15 @@ export function useMenuManager() {
     filterCategory, setFilterCategory, filterMenu, setFilterMenu,
     activeTab, setActiveTab,
     dialogOpen, setDialogOpen, editingItem, itemForm, setItemForm,
-    catDialogOpen, setCatDialogOpen, catForm, setCatForm,
+    catDialogOpen, setCatDialogOpen, catForm, setCatForm, editingCategory,
     menuDialogOpen, setMenuDialogOpen, menuForm, setMenuForm,
     // Poizvedbe
     menus, categories, modifierGroups, menuItems, isLoading, filteredItems,
     // Mutacije
-    createMenuMutation, deleteItemMutation, toggleAvailabilityMutation, createCatMutation,
+    createMenuMutation, deleteItemMutation, toggleAvailabilityMutation,
+    createCatMutation, updateCatMutation, deleteCatMutation,
     // Handlerji
     openCreateItem, openEditItem, handleItemSubmit,
-    openCreateCategory, openCreateMenu,
+    openCreateCategory, openEditCategory, handleCatSubmit, openCreateMenu,
   }
 }

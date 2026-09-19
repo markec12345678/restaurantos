@@ -21,6 +21,7 @@ export interface CategoryData {
   menuId?: string
   menu?: { id: string; name: string }
   menuItems?: unknown[]
+  sortOrder?: number
 }
 
 /** Podatki artikla */
@@ -100,6 +101,10 @@ export interface CategoriesTabProps {
   menus: MenuData[] | undefined
   categories: CategoryData[] | undefined
   onAddCategory: () => void
+  /** RUNDA 66: odpri urejanje kategorije */
+  onEditCategory: (_cat: Record<string, unknown>) => void
+  /** RUNDA 66: POTRJEN izbris kategorije (po AlertDialog potrditvi) */
+  onConfirmDelete: (_id: string) => void
 }
 
 /** Props za MenusTab podkomponento */
@@ -134,6 +139,8 @@ export interface CategoryDialogProps {
   catForm: CategoryFormState
   onCatFormChange: (_form: CategoryFormState) => void
   menus: MenuData[] | undefined
+  /** RUNDA 66: null = ustvarjanje, objekt = urejanje (naslov/gumb se spremenita) */
+  editingCategory: Record<string, unknown> | null
   onSubmit: () => void
 }
 

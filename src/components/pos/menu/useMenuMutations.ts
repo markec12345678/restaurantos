@@ -88,6 +88,31 @@ export function useMenuMutations({
       return res.json()
     },
     onSuccess: () => { toast.success('Kategorija ustvarjena'); queryClient.invalidateQueries({ queryKey: queryKeys.categories.all }); onCloseCatDialog() },
+    onError: (err: Error) => { toast.error(errorSl(err, 'Napaka pri ustvarjanju kategorije')) },
+  })
+
+  // RUNDA 66: posodobi kategorijo (PUT /api/categories/[id]) — ime/ikona/barva
+  // + premik med meniji (menuId). Toast uspeha + invalidacija kategorij.
+  const updateCatMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
+      const res = await authFetch(`/api/categories/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Napaka pri posodabljanju kategorije') }
+      return res.json()
+    },
+    onSuccess: () => { toast.success('Kategorija posodobljena'); queryClient.invalidateQueries({ queryKey: queryKeys.categories.all }); onCloseCatDialog() },
+    onError: (err: Error) => { toast.error(errorSl(err, 'Napaka pri posodabljanju kategorije')) },
+  })
+
+  // RUNDA 66: izbriši kategorijo (DELETE /api/categories/[id]) — API blokira
+  // brisanje z artikli (409 + slovensko sporočilo iz category-guard).
+  const deleteCatMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await authFetch(`/api/categories/${id}`, { method: 'DELETE' })
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Napaka pri brisanju kategorije') }
+      return res.json()
+    },
+    onSuccess: () => { toast.success('Kategorija izbrisana'); queryClient.invalidateQueries({ queryKey: queryKeys.categories.all }) },
+    onError: (err: Error) => { toast.error(errorSl(err, 'Napaka pri brisanju kategorije')) },
   })
 
   return {
@@ -97,5 +122,7 @@ export function useMenuMutations({
     deleteItemMutation,
     toggleAvailabilityMutation,
     createCatMutation,
+    updateCatMutation,
+    deleteCatMutation,
   }
 }

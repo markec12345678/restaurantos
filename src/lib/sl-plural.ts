@@ -76,6 +76,15 @@ export const AKTIVNA_REZERVACIJA_FORMS: SlPluralForms = [
   'aktivne rezervacije',
   'aktivnih rezervacij',
 ]
+// RUNDA 66: osnovna družina "artikel" (moški rod, -el izpade v dvojini/mn.):
+//   1 artikel · 2 artikla (dvojina) · 3,4 artikli · 5+ artiklov
+// Uporaba: čip kategorije v CategoriesTab ("12 artiklov", "1 artikel") +
+// zaščita brisanja kategorije (409 sporočilo "Kategorija vsebuje 2 artikla").
+export const ARTIKEL_FORMS: SlPluralForms = ['artikel', 'artikla', 'artikli', 'artiklov']
+// RUNDA 66: ženska družina "kategorija" (glava sekcije v CategoriesTab:
+// "1 kategorija · 2 kategoriji · 3 kategorije · 5 kategorij" — prej vedno
+// "N kategorij", kar je pri 1–4 slovnično napačno).
+export const KATEGORIJA_FORMS: SlPluralForms = ['kategorija', 'kategoriji', 'kategorije', 'kategorij']
 
 /**
  * Katera množinska oblika za n? Tradicionalna slovenska norma:

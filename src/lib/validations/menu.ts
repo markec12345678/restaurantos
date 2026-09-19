@@ -50,6 +50,18 @@ export const createCategorySchema = z.object({
   menuId: z.string().min(1, 'menuId je obvezen'),
 })
 
+// RUNDA 66: posodobitev kategorije — partial (vsako polje neodvisno) + menuId
+// za premik med meniji. Hex refine za barvo — konsistentno z createMenuSchema.
+export const updateCategorySchema = z.object({
+  name: z.string().min(1, 'Ime je obvezno').max(100).optional(),
+  icon: z.string().max(10).optional(),
+  color: z.string().max(20)
+    .refine(val => /^#[0-9a-fA-F]{6}$/.test(val), 'Barva mora biti veljaven hex format')
+    .optional(),
+  sortOrder: z.number().int().min(0).max(9999).optional(),
+  menuId: z.string().min(1, 'menuId ne sme biti prazen').optional(),
+})
+
 // ============================================
 // MENIJI (Menus) — FIX HIGH: Input validation
 // ============================================

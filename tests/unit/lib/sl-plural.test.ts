@@ -8,6 +8,8 @@ import {
   OSEBA_FORMS,
   OSEBA_TOZILNIK_FORMS,
   AKTIVNA_REZERVACIJA_FORMS,
+  ARTIKEL_FORMS,
+  KATEGORIJA_FORMS,
 } from '@/lib/sl-plural'
 
 describe('slPluralForm', () => {
@@ -124,6 +126,27 @@ describe('slPluralWord / slCount', () => {
     expect(slCount(4, AKTIVNA_REZERVACIJA_FORMS)).toBe('4 aktivne rezervacije')
     expect(slCount(5, AKTIVNA_REZERVACIJA_FORMS)).toBe('5 aktivnih rezervacij')
     expect(slCount(0, AKTIVNA_REZERVACIJA_FORMS)).toBe('0 aktivnih rezervacij')
+  })
+
+  // RUNDA 66: moška družina "artikel" (CategoriesTab čip + zaščita brisanja)
+  it('artikel: 1 artikel · 2 artikla · 3 artikli · 5 artiklov', () => {
+    expect(slCount(1, ARTIKEL_FORMS)).toBe('1 artikel')
+    expect(slCount(2, ARTIKEL_FORMS)).toBe('2 artikla')
+    expect(slCount(3, ARTIKEL_FORMS)).toBe('3 artikli')
+    expect(slCount(4, ARTIKEL_FORMS)).toBe('4 artikli')
+    expect(slCount(5, ARTIKEL_FORMS)).toBe('5 artiklov')
+    // dvojina po številki 22 (ne rodilnik!), sklop 11–14 vedno rodilnik
+    expect(slCount(22, ARTIKEL_FORMS)).toBe('22 artikla')
+    expect(slCount(12, ARTIKEL_FORMS)).toBe('12 artiklov')
+  })
+
+  // RUNDA 66: ženska družina "kategorija" (glava sekcije po meniju)
+  it('kategorija: 1 kategorija · 2 kategoriji · 3 kategorije · 5 kategorij', () => {
+    expect(slCount(1, KATEGORIJA_FORMS)).toBe('1 kategorija')
+    expect(slCount(2, KATEGORIJA_FORMS)).toBe('2 kategoriji')
+    expect(slCount(3, KATEGORIJA_FORMS)).toBe('3 kategorije')
+    expect(slCount(5, KATEGORIJA_FORMS)).toBe('5 kategorij')
+    expect(slCount(0, KATEGORIJA_FORMS)).toBe('0 kategorij')
   })
 
   it('slPluralWord vrne samo obliko (brez števca)', () => {

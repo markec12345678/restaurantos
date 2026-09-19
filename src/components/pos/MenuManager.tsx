@@ -24,12 +24,13 @@ export const MenuManager = memo(function MenuManager() {
     filterCategory, setFilterCategory, filterMenu, setFilterMenu,
     activeTab, setActiveTab,
     dialogOpen, setDialogOpen, editingItem, itemForm, setItemForm,
-    catDialogOpen, setCatDialogOpen, catForm, setCatForm,
+    catDialogOpen, setCatDialogOpen, catForm, setCatForm, editingCategory,
     menuDialogOpen, setMenuDialogOpen, menuForm, setMenuForm,
     menus, categories, modifierGroups, menuItems: _menuItems, isLoading, filteredItems,
-    createMenuMutation, deleteItemMutation, toggleAvailabilityMutation, createCatMutation,
+    createMenuMutation, deleteItemMutation, toggleAvailabilityMutation,
+    deleteCatMutation,
     openCreateItem, openEditItem, handleItemSubmit,
-    openCreateCategory, openCreateMenu,
+    openCreateCategory, openEditCategory, handleCatSubmit, openCreateMenu,
   } = useMenuManager()
 
   return (
@@ -89,6 +90,8 @@ export const MenuManager = memo(function MenuManager() {
             menus={menus}
             categories={categories}
             onAddCategory={openCreateCategory}
+            onEditCategory={openEditCategory}
+            onConfirmDelete={(id) => deleteCatMutation.mutate(id)}
           />
         </TabsContent>
         {/* Tab menijev */}
@@ -123,7 +126,8 @@ export const MenuManager = memo(function MenuManager() {
         catForm={catForm}
         onCatFormChange={setCatForm}
         menus={menus}
-        onSubmit={() => createCatMutation.mutate(catForm as unknown as Record<string, unknown>)}
+        editingCategory={editingCategory}
+        onSubmit={handleCatSubmit}
       />
       {/* Menu Dialog */}
       <MenuDialog
