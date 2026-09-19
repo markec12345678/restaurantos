@@ -1,13 +1,14 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Pencil, Plus, Trash2, Layers } from 'lucide-react'
+import { Pencil, Plus, Trash2, Layers, Search, X, Paperclip } from 'lucide-react'
 import { formatEUR } from '@/lib/safe-format'
+import { slCount, ARTIKEL_FORMS } from '@/lib/sl-plural'
 import type { ModifierDialogProps, ModifierRowState } from './constants'
 
 // ============================================
@@ -17,6 +18,8 @@ import type { ModifierDialogProps, ModifierRowState } from './constants'
 // Obvezno stikalo + min/max omejitve izbire, ŽIVI PREDOGLED opcij s cenami.
 // PUT API zamenja celoten nabor modifierjev (transakcija) — urejanje vrstic
 // torej pravilno preimenuje/doda/odstrani opcije v enem koraku.
+// RUNDA 70: group-side attach — iskalni seznam artiklov z checkboxi
+// (menuItemIds → API zamenja celoten nabor vezav v transakciji).
 // ============================================
 export const ModifierDialog = memo(function ModifierDialog({
   open,
@@ -24,9 +27,30 @@ export const ModifierDialog = memo(function ModifierDialog({
   modGroupForm,
   onModGroupFormChange,
   editingModifierGroup,
+  menuItems,
   onSubmit,
 }: ModifierDialogProps) {
   const isEditing = !!editingModifierGroup
+  const [itemSearch, setItemSearch] = useState('')
+
+  const toggleItem = (id: string) => {
+    onModGroupFormChange({
+      ...modGroupForm,
+      menuItemIds: modGroupForm.menuItemIds.includes(id)
+        ? modGroupForm.menuItemIds.filter((x) => x !== id)
+        : [...modGroupForm.menuItemIds, id],
+    })
+  }
+
+  // RUNDA 70: filtriran seznam artiklov za attach (cap 50 vrstic za hitrost)
+  const matchedItems = useMemo(() => {
+    const items = Array.isArray(menuItems) ? menuItems : []
+    const q = itemSearch.trim().toLowerCase()
+    const filtered = q
+      ? items.filter((it) => String(it.name ?? '').toLowerCase().includes(q))
+      : items
+    return { filtered, total: items.length, capped: filtered.slice(0, 50) }
+  }, [menuItems, itemSearch])
 
   const setRow = (idx: number, patch: Partial<ModifierRowState>) => {
     onModGroupFormChange({
@@ -141,6 +165,107 @@ export const ModifierDialog = memo(function ModifierDialog({
                 />
               </div>
             </div>
+          </div>
+
+          {/* ═══ RUNDA 70: Pripni artikle — iskalni seznam z checkboxi ═══ */}
+          <div className="space-y-2 rounded-lg border p-3">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-sm flex items-center gap-1.5">
+                <Paperclip className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                Pripni artikle
+              </Label>
+              <span
+                className={"text-xs tabular-nums " + (modGroupForm.menuItemIds.length > 0 ? 'font-medium text-primary' : 'text-muted-foreground')}
+                aria-live="polite"
+              >
+                {modGroupForm.menuItemIds.length > 0
+                  ? slCount(modGroupForm.menuItemIds.length, ARTIKEL_FORMS) + ' izbranih'
+                  : 'ni izbranih'}
+              </span>
+            </div>
+
+            {/* Izbrani čipi z X odstranitvijo */}
+            {modGroupForm.menuItemIds.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {modGroupForm.menuItemIds.map((id) => {
+                  const it = (menuItems || []).find((m) => String(m.id) === id)
+                  return (
+                    <span
+                      key={id}
+                      className="inline-flex items-center gap-1 rounded-full border bg-primary/5 px-2 py-0.5 text-xs font-medium"
+                    >
+                      {String(it?.name ?? 'artikel')}
+                      <button
+                        type="button"
+                        onClick={() => toggleItem(id)}
+                        aria-label={"Odpni " + String(it?.name ?? 'artikel')}
+                        className="rounded-full hover:bg-muted-foreground/15 transition"
+                      >
+                        <X className="h-3 w-3" aria-hidden="true" />
+                      </button>
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className="relative">
+              <Search className="pointer-events-none absolute inset-y-0 left-2.5 my-auto h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+              <Input
+                value={itemSearch}
+                onChange={(e) => setItemSearch(e.target.value)}
+                placeholder="Išči artikel po imenu…"
+                aria-label="Išči artikel za pripetitev"
+                className="pl-8 h-8 text-sm"
+              />
+            </div>
+
+            {matchedItems.total === 0 ? (
+              <p className="py-3 text-center text-xs text-muted-foreground">
+                Ni artiklov — ustvari jih v zavihku Artikli
+              </p>
+            ) : matchedItems.filtered.length === 0 ? (
+              <p className="py-3 text-center text-xs text-muted-foreground">
+                Ni zadetkov za „{itemSearch.trim()}“
+              </p>
+            ) : (
+              <>
+                <div
+                  role="group"
+                  aria-label="Artikli za pripetitev"
+                  className="max-h-48 space-y-1 overflow-y-auto pr-1"
+                >
+                  {matchedItems.capped.map((it) => {
+                    const id = String(it.id ?? '')
+                    const checked = modGroupForm.menuItemIds.includes(id)
+                    return (
+                      <label
+                        key={id}
+                        className={
+                          'flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-sm transition ' +
+                          (checked
+                            ? 'border-primary/50 bg-primary/5 font-medium'
+                            : 'border-border hover:border-primary/30 hover:bg-accent/50')
+                        }
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleItem(id)}
+                          className="h-3.5 w-3.5 rounded accent-primary"
+                        />
+                        <span className="min-w-0 flex-1 truncate">{String(it.name ?? '')}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+                {matchedItems.filtered.length > 50 && (
+                  <p className="text-center text-[11px] text-muted-foreground">
+                    Prikazanih 50 od {matchedItems.filtered.length} — izklopi iskanje za ostale
+                  </p>
+                )}
+              </>
+            )}
           </div>
 
           {/* Dinamične vrstice opcij */}

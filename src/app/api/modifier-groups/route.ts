@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { sessionLocationId, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
+import { dedupeIds, attachmentScopeDecision } from '@/lib/modifier-attach'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,6 +51,24 @@ export async function POST(request: Request) {
     const loc = resolveWriteLocationId(sessionLocationId(authResult), searchParams.get('locationId'))
     if (!loc.ok) return loc.response
 
+    // RUNDA 70: group-side attach — menuItemIds (prej validirana ampak TIHO
+    // IGNORIRANA polja!). Artikli morajo pripadati ISTI lokaciji kot skupina
+    // (veriga MenuItem → Category → Menu → locationId) — isti kontrakt kot
+    // POST /api/menu-items modifierGroupIds (MODEL A #9).
+    const requestedItemIds = dedupeIds(data.menuItemIds ?? [])
+    let inScopeItemCount = 0
+    if (requestedItemIds.length > 0) {
+      const itemsInLocation = await db.menuItem.findMany({
+        where: { id: { in: requestedItemIds }, category: { menu: { locationId: loc.locationId } } },
+        select: { id: true },
+      })
+      inScopeItemCount = itemsInLocation.length
+    }
+    const attachDecision = attachmentScopeDecision(requestedItemIds.length, inScopeItemCount)
+    if (!attachDecision.allowed) {
+      return NextResponse.json({ error: attachDecision.messageSl }, { status: attachDecision.status })
+    }
+
     const modifierGroup = await db.modifierGroup.create({
       data: {
         name: data.name,
@@ -65,10 +84,16 @@ export async function POST(request: Request) {
             sortOrder: m.sortOrder ?? i,
           })),
         },
+        // RUNDA 70: pripni artikle že ob ustvarjanju skupine
+        ...(requestedItemIds.length > 0 && {
+          menuItems: {
+            create: requestedItemIds.map((menuItemId, i) => ({ menuItemId, sortOrder: i })),
+          },
+        }),
       },
-      include: { modifiers: true },
+      include: { modifiers: true, menuItems: { include: { menuItem: { select: { id: true, name: true } } } } },
     })
-    return NextResponse.json(modifierGroup, { status: 201 })
+    return NextResponse.json(deepToNumbers(modifierGroup), { status: 201 })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/modifier-groups', 'Failed to create modifier group')
   }

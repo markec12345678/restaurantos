@@ -72,6 +72,8 @@ export interface ModifierGroupFormState {
   maxSelect: string
   /** prazno maxSelect = neomejeno */
   modifiers: ModifierRowState[]
+  /** RUNDA 70: group-side attach — artikli pripeti skupini (menuItemIds) */
+  menuItemIds: string[]
 }
 
 /** Stanje obrazca za kategorijo */
@@ -156,7 +158,8 @@ export interface ItemDialogProps {
   onItemFormChange: (_form: ItemFormState) => void
   menus: MenuData[] | undefined
   categories: CategoryData[] | undefined
-  modifierGroups: { id: string; name: string; required: boolean }[] | undefined
+  /** RUNDA 70: polni podatki skupin (opcije za predogled + števec) */
+  modifierGroups: ModifierGroupData[] | undefined
   onSubmit: () => void
 }
 
@@ -191,5 +194,7 @@ export interface ModifierDialogProps {
   onModGroupFormChange: (_form: ModifierGroupFormState) => void
   /** null = ustvarjanje, objekt = urejanje (naslov/gumb se spremenita) */
   editingModifierGroup: Record<string, unknown> | null
+  /** RUNDA 70: artikli za group-side attach (iskalni seznam) */
+  menuItems: Record<string, unknown>[] | undefined
   onSubmit: () => void
 }

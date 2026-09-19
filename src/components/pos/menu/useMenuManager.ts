@@ -31,7 +31,7 @@ export function useMenuManager() {
   // RUNDA 68: skupine dodatkov — dialog + forma + urejanje
   const [modGroupDialogOpen, setModGroupDialogOpen] = useState(false)
   const [modGroupForm, setModGroupForm] = useState<ModifierGroupFormState>({
-    name: '', required: false, minSelect: '0', maxSelect: '', modifiers: [{ name: '', price: '' }],
+    name: '', required: false, minSelect: '0', maxSelect: '', modifiers: [{ name: '', price: '' }], menuItemIds: [],
   })
   const [editingModifierGroup, setEditingModifierGroup] = useState<Record<string, unknown> | null>(null)
 
@@ -198,13 +198,15 @@ export function useMenuManager() {
   // RUNDA 68: skupine dodatkov — ustvarjanje/urejanje
   const openCreateModifierGroup = useCallback(() => {
     setEditingModifierGroup(null)
-    setModGroupForm({ name: '', required: false, minSelect: '0', maxSelect: '', modifiers: [{ name: '', price: '' }] })
+    setModGroupForm({ name: '', required: false, minSelect: '0', maxSelect: '', modifiers: [{ name: '', price: '' }], menuItemIds: [] })
     setModGroupDialogOpen(true)
   }, [])
 
   const openEditModifierGroup = useCallback((group: Record<string, unknown>) => {
     setEditingModifierGroup(group)
     const mods = Array.isArray(group.modifiers) ? group.modifiers : []
+    // RUNDA 70: prefill pripetih artiklov (group-side attach)
+    const attachedItems = Array.isArray(group.menuItems) ? group.menuItems : []
     setModGroupForm({
       name: String(group.name ?? ''),
       required: Boolean(group.required),
@@ -213,6 +215,7 @@ export function useMenuManager() {
       modifiers: mods.length > 0
         ? mods.map((m) => ({ name: String((m as { name?: unknown }).name ?? ''), price: String((m as { price?: unknown }).price ?? '') }))
         : [{ name: '', price: '' }],
+      menuItemIds: attachedItems.map((mi) => String((mi as { menuItem?: { id?: unknown } }).menuItem?.id ?? '')).filter(Boolean),
     })
     setModGroupDialogOpen(true)
   }, [])
@@ -228,6 +231,8 @@ export function useMenuManager() {
       modifiers: modGroupForm.modifiers
         .filter((m) => m.name.trim() !== '')
         .map((m, i) => ({ name: m.name.trim(), price: parseFloat(m.price) || 0, sortOrder: i })),
+      // RUNDA 70: group-side attach — vezave artiklov (API zamenja celoten nabor)
+      menuItemIds: modGroupForm.menuItemIds,
     }
     if (editingModifierGroup) {
       updateModGroupMutation.mutate({ id: editingModifierGroup.id as string, ...payload })

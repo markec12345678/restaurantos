@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateMenuItemSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
+import { dedupeIds, attachmentScopeDecision } from '@/lib/modifier-attach'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +28,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           ? { category: { menu: { locationId: sessionLocationId } } }
           : {}),
       },
+      // RUNDA 70: potrebujemo artikelovo lokacijo za scope check skupin dodatkov
+      select: { id: true, categoryId: true, category: { select: { menu: { select: { locationId: true } } } } },
     })
     if (!existing) {
       return NextResponse.json({ error: 'Menu item not found' }, { status: 404 })
@@ -38,6 +41,27 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     // Zod validation
     const { data, error: validationError } = validateBody(updateMenuItemSchema, bodyResult.data)
     if (validationError) return validationError
+
+    // RUNDA 70: scope check modifierGroupIds (PARITETA s POST — MODEL A #9).
+    // Prej: PUT je sprejel skupino KATEREKOLI lokacije → cross-lokacijska vezava
+    // možna prek PUT, čeprav POST jo blokira. Skupine morajo pripadati ISTI
+    // lokaciji kot artikel (veriga MenuItem → Category → Menu → locationId).
+    if (data.modifierGroupIds !== undefined) {
+      const uniqueIds = dedupeIds(data.modifierGroupIds)
+      let inScopeCount = 0
+      if (uniqueIds.length > 0) {
+        const itemLocationId = existing.category.menu.locationId
+        const groupsInLocation = await db.modifierGroup.findMany({
+          where: { id: { in: uniqueIds }, locationId: itemLocationId },
+          select: { id: true },
+        })
+        inScopeCount = groupsInLocation.length
+      }
+      const decision = attachmentScopeDecision(uniqueIds.length, inScopeCount)
+      if (!decision.allowed) {
+        return NextResponse.json({ error: decision.messageSl }, { status: decision.status })
+      }
+    }
 
     // MODEL A: premik artikla v DRUGO kategorijo — preveri, da ciljna kategorija
     // pripada meniju v ISTEM scope-u (sicer cross-lokacijski premik verige)
@@ -55,12 +79,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     // Update modifier group associations and menu item in a transaction
     const item = await db.$transaction(async (tx) => {
-      // Update modifier group associations if provided
+      // Update modifier group associations if provided (RUNDA 70: dedupeIds —
+      // duplikati v payloadu bi sprožili P2002 unique constraint)
       if (data.modifierGroupIds !== undefined) {
+        const uniqueIds = dedupeIds(data.modifierGroupIds)
         await tx.menuItemModifierGroup.deleteMany({ where: { menuItemId: id } })
-        if (data.modifierGroupIds.length > 0) {
+        if (uniqueIds.length > 0) {
           await tx.menuItemModifierGroup.createMany({
-            data: data.modifierGroupIds.map((groupId: string, i: number) => ({
+            data: uniqueIds.map((groupId, i) => ({
               menuItemId: id,
               modifierGroupId: groupId,
               sortOrder: i,

@@ -28,7 +28,7 @@ export const MenuManager = memo(function MenuManager() {
     catDialogOpen, setCatDialogOpen, catForm, setCatForm, editingCategory,
     menuDialogOpen, setMenuDialogOpen, menuForm, setMenuForm, editingMenu,
     modGroupDialogOpen, setModGroupDialogOpen, modGroupForm, setModGroupForm, editingModifierGroup,
-    menus, categories, modifierGroups, menuItems: _menuItems, isLoading, filteredItems,
+    menus, categories, modifierGroups, menuItems, isLoading, filteredItems,
     deleteItemMutation, toggleAvailabilityMutation,
     deleteCatMutation, deleteMenuMutation, deleteModGroupMutation,
     openCreateItem, openEditItem, handleItemSubmit,
@@ -156,6 +156,7 @@ export const MenuManager = memo(function MenuManager() {
         modGroupForm={modGroupForm}
         onModGroupFormChange={setModGroupForm}
         editingModifierGroup={editingModifierGroup}
+        menuItems={menuItems}
         onSubmit={handleModGroupSubmit}
       />
     </div>

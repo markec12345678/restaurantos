@@ -11,9 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Search, Loader2, Sparkles } from 'lucide-react'
+import { Search, Loader2, Sparkles, CheckCircle2, Circle, Layers } from 'lucide-react'
 import { authFetch } from '@/components/pos/PinLogin'
 import { toast } from 'sonner'
+import { slCount, OPCIJA_FORMS } from '@/lib/sl-plural'
+import { formatEUR } from '@/lib/safe-format'
 import type { ItemDialogProps } from './constants'
 
 // ============================================
@@ -173,27 +175,90 @@ export const ItemDialog = memo(function ItemDialog({
             </Select>
           </div>
           <div>
-            <Label>Dodatki (modifier skupine)</Label>
-            <div className="space-y-1 mt-1">
-              {modifierGroups?.map((mg) => (
-                <label key={mg.id} className="flex items-center gap-2 p-2 rounded border cursor-pointer hover:bg-accent text-sm">
-                  <input
-                    type="checkbox"
-                    checked={itemForm.modifierGroupIds.includes(mg.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        onItemFormChange({ ...itemForm, modifierGroupIds: [...itemForm.modifierGroupIds, mg.id] })
-                      } else {
-                        onItemFormChange({ ...itemForm, modifierGroupIds: itemForm.modifierGroupIds.filter(id => id !== mg.id) })
-                      }
-                    }}
-                    className="rounded"
-                  />
-                  <span>{mg.name}</span>
-                  {mg.required && <Badge variant="destructive" className="text-[9px] h-3.5 px-1 ml-auto">Obvezno</Badge>}
-                </label>
-              ))}
+            <div className="flex items-center justify-between gap-2">
+              <Label>Dodatki (modifier skupine)</Label>
+              {itemForm.modifierGroupIds.length > 0 && (
+                <span
+                  className="text-xs tabular-nums font-medium text-primary"
+                  aria-live="polite"
+                >
+                  {itemForm.modifierGroupIds.length}/{modifierGroups?.length ?? 0} izbranih
+                </span>
+              )}
             </div>
+            {!modifierGroups || modifierGroups.length === 0 ? (
+              <div className="mt-1 rounded-md border border-dashed p-3 text-center">
+                <Layers className="mx-auto h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Ni skupin dodatkov — ustvari jih v zavihku Dodatki
+                </p>
+              </div>
+            ) : (
+              <div
+                role="group"
+                aria-label="Skupine dodatkov za artikel"
+                className="space-y-1.5 mt-1"
+              >
+                {modifierGroups.map((mg) => {
+                  const checked = itemForm.modifierGroupIds.includes(mg.id)
+                  const mods = Array.isArray(mg.modifiers) ? mg.modifiers : []
+                  const names = mods.map((m) => String(m.name))
+                  const prices = mods
+                    .map((m) => Number(m.price) || 0)
+                    .filter((p) => p > 0)
+                  const minPrice = prices.length > 0 ? Math.min(...prices) : 0
+                  return (
+                    <label
+                      key={mg.id}
+                      className={
+                        'flex cursor-pointer items-start gap-2.5 rounded-md border p-2.5 text-sm transition ' +
+                        (checked
+                          ? 'border-primary/60 bg-primary/5 shadow-sm'
+                          : 'border-border hover:border-primary/30 hover:bg-accent/50')
+                      }
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            onItemFormChange({ ...itemForm, modifierGroupIds: [...itemForm.modifierGroupIds, mg.id] })
+                          } else {
+                            onItemFormChange({ ...itemForm, modifierGroupIds: itemForm.modifierGroupIds.filter(id => id !== mg.id) })
+                          }
+                        }}
+                        className="sr-only"
+                        aria-label={mg.name + (mg.required ? ' (obvezna skupina)' : '')}
+                      />
+                      {checked
+                        ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                        : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <span className={"font-medium" + (checked ? ' text-primary' : '')}>{mg.name}</span>
+                          {mg.required && <Badge variant="destructive" className="text-[9px] h-3.5 px-1">Obvezno</Badge>}
+                        </span>
+                        {names.length > 0 && (
+                          <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                            {names.slice(0, 2).join(', ')}{names.length > 2 ? ` +${names.length - 2}` : ''}
+                          </span>
+                        )}
+                        <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <span className="inline-flex items-center rounded-full border bg-background px-1.5 py-px text-[10px] tabular-nums">
+                            {slCount(mods.length, OPCIJA_FORMS)}
+                          </span>
+                          {minPrice > 0 && (
+                            <span className="inline-flex items-center rounded-full border bg-background px-1.5 py-px text-[10px] tabular-nums font-medium text-primary">
+                              od {formatEUR(minPrice)}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Switch id="item-available" checked={itemForm.isAvailable} onCheckedChange={(c) => onItemFormChange({ ...itemForm, isAvailable: c })} />

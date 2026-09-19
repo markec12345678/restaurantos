@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { sessionLocationId, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { canDeleteModifierGroup } from '@/lib/modifier-guard'
+import { dedupeIds, attachmentScopeDecision } from '@/lib/modifier-attach'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,12 +38,45 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const { data, error: validationError } = validateBody(updateModifierGroupSchema, body)
     if (validationError) return validationError
 
+    // RUNDA 70: group-side attach — menuItemIds (prej validirana ampak TIHO
+    // IGNORIRANA!). Zamenjava vezav v transakciji (vzorec PUT /api/menu-items):
+    // deleteMany + createMany. Artikli morajo pripadati lokaciji skupine.
+    const requestedItemIds = dedupeIds(data.menuItemIds ?? [])
+    if (data.menuItemIds !== undefined) {
+      let inScopeItemCount = 0
+      if (requestedItemIds.length > 0) {
+        const itemsInLocation = await db.menuItem.findMany({
+          where: { id: { in: requestedItemIds }, category: { menu: { locationId: inScope.group.locationId } } },
+          select: { id: true },
+        })
+        inScopeItemCount = itemsInLocation.length
+      }
+      const attachDecision = attachmentScopeDecision(requestedItemIds.length, inScopeItemCount)
+      if (!attachDecision.allowed) {
+        return NextResponse.json({ error: attachDecision.messageSl }, { status: attachDecision.status })
+      }
+    }
+
     // FIX BUG5: Wrap deleteMany + createMany in a transaction
     // Previously, if createMany failed after deleteMany, all modifiers were permanently deleted
     const modifierGroup = await db.$transaction(async (tx) => {
       if (data.modifiers) {
         // Delete existing modifiers and recreate — within transaction for atomicity
         await tx.modifier.deleteMany({ where: { modifierGroupId: id } })
+      }
+
+      // RUNDA 70: zamenjava vezav artiklov (deleteMany + createMany v isti transakciji)
+      if (data.menuItemIds !== undefined) {
+        await tx.menuItemModifierGroup.deleteMany({ where: { modifierGroupId: id } })
+        if (requestedItemIds.length > 0) {
+          await tx.menuItemModifierGroup.createMany({
+            data: requestedItemIds.map((menuItemId, i) => ({
+              modifierGroupId: id,
+              menuItemId,
+              sortOrder: i,
+            })),
+          })
+        }
       }
 
       // Build update data from validated fields only
@@ -65,7 +99,10 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       return tx.modifierGroup.update({
         where: { id },
         data: updateData,
-        include: { modifiers: true },
+        include: {
+          modifiers: true,
+          menuItems: { include: { menuItem: { select: { id: true, name: true } } } },
+        },
       })
     })
     return NextResponse.json(deepToNumbers(modifierGroup))
