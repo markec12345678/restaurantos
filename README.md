@@ -34,6 +34,17 @@
 | 📶 **NetworkStatusBar na waiter** | Natakarjeva tablica (/waiter) zdaj vidi **nivo naprave** (navigator.onLine + števec čakajočih offline naročil iz IndexedDB vrste) — obstoječi WS čip v glavi pokriva SAMO Live povezavo, ne ugašenega wifi-ja. Online + nič čakajočih → diskreten trak (ne zasede prostora); offline → izrazit rdeč trak "BREZ POVEZAVE". PWA polish iz R76 kandidatov |
 | 🧪 **+6 testov** | daily-digest HTML: sekcija prisotna (čipi, 24 stolpcev, legenda), bar višine (100 %→80px, 50 %→40px), vrh amber/teal barve, ura brez prometa → brez diva (bazna črta ostane), oznake 9/24 (vsaka 3. + vrh), star klicatelj brez `hourly` → izpuščena, vsi-nič → izpuščena — **2170/2170 unit (127 datotek)** |
 
+### 🔧 Popravki v v1.8.9 (QA runda 77 — tenant scope zaključek: 5 popravkov)
+
+| Kategorija | Popravek |
+|------------|----------|
+| 🚨 **KRITIČNO: e-invoice-book tenant override** | Super-admin `?locationId` override je veljal SAMO za storno query (izdani so ostali na session.locationId) → isti poročili sta lahko mešali DVA tenant-a; hkrati `session.locationId=null` → fail-open pogled računov VSEH tenantov. Zdaj centralni `resolveTenantLocationIdOrThrow`: enoten scope za izdane + storno + izdajatelja, fail-closed 403 za uporabnika brez lokacije, super-admin override konzistentno za OBE query |
+| 🚨 **KRITIČNO: locations/sync tenant scope** | Vsak admin je lahko sinhroniziral meni iz KATERE KOLI izvorne lokacije na KATERE KOLI ciljne (cross-tenant overwrite tujega menija + branje izvora); GET je poleg tega puščal dnevne/mesečne prihodke VSEH lokacij (order.groupBy BREZ locationId filtra). Zdaj: lokacijsko vezana seja sme samo source=own + targets⊆{own} (cross-location = 403, rezervirano za super-admina); GET seznam lokacij + groupBy poročila po lokaciji |
+| 🟠 **FURS fail-closed: neveljavna lokacija** | `getFursConfig('ne-obstaja')` je tiho padel na globalni RestaurantSettings/env cert → podpis računa s TUJIM certifikatom (cross-tenant key use, napačen premisesId, davčna kršitev). Zdaj: ekspliciten locationId brez Location → 503 BREZ fallbacka (lokacija, ki obstaja a ni konfigurirana, še vedno pade na legacy fallback — issue #37 compat); `getRestaurantInfoForLocation` enako — prazna identiteta (`source='not-found'`) namesto tuje davčne št. na fiskalnem dokumentu |
+| 🟠 **`/api/setup/db` error reporting** | Vse DDL napake so bile tiho požrte (`catch {}`) — operater ni videl, KATERI stavki so padli in zakaj (permission denied, sintaksna napaka …). Zdaj odgovor vsebuje `failedStatements` (prvih 25: stavek + napaka), `schemaStatementsApplied`, `alterStatementsFailed`, `failedStatementsCount` — diagnostika namesto tihega "success: true" |
+| 🟠 **Centralizacija tenant resolverja** | 5 rut z ročnim `if (session?.locationId)` fail-open pogojem (GET tables, inventory, employees, gift-cards, loyalty — null locationId = globalni pogled za kdor koli) migriranih na `resolveTenantLocationIdOrThrow` (fail-closed 403 brez lokacije; super-admin globalni pogled ohranjen); e-invoice-book + locations/sync prav tako na centralnem vzorcu — **28 API datotek zdaj na resolverju (prej 22)** |
+| 🧪 **Regresija — vse zelene** | lint **0/0** · tsc **0** · **2144/2144 unit** (126 datotek) · **9/9 integracija** |
+
 ### ✨ Nove funkcije v v1.8.8 (QA runda 76 — Promet po urah + deploy-recovery R75)
 
 | Kategorija | Funkcija |

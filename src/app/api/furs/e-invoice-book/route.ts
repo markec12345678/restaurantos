@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server'
 import { safeJsonParse } from '@/lib/json-fields'
 import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 
@@ -25,13 +25,22 @@ export async function GET(req: Request) {
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
     const format = searchParams.get('format') || 'json' // json | xml | csv
-    // Super-admin override: lahko specificira locationId za cross-tenant view
-    // Regular user: uporabi session.locationId (avtoritativen)
-    const requestedLocationId = searchParams.get('locationId')
 
     if (!dateFrom || !dateTo) {
       return NextResponse.json({ error: 'dateFrom in dateTo sta obvezna' }, { status: 400 })
     }
+
+    // FIX R76 (tenant override): Centralni tenant scope resolver namesto ročnih checkov.
+    // Prej: (1) izdani racuni so uporabili samo session.locationId — super-admin override
+    // je bil aplikiran SAMO na storno (inkonzistentno: isti report, dva razlicna tenanta),
+    // (2) session.locationId=null (npr. WebAuthn admin) je videl VSE tenant-e (fail-open).
+    // Zdaj: resolveTenantLocationIdOrThrow — fail-closed za regular usera brez lokacije,
+    // super-admin ?locationId=X override se velja za OBE query (izdane + storno).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/furs/e-invoice-book',
+    })
+    if ('error' in scope) return scope.error
+    const scopedLocationId = scope.locationId
 
     const startDate = new Date(dateFrom)
     const endDate = new Date(dateTo + 'T23:59:59')
@@ -39,10 +48,10 @@ export async function GET(req: Request) {
     // FIX Test 4.3: Filter by order.paidAt (not receipt.createdAt) for reconciliation with VAT report
     // Prej: createdAt filter je povzročal mismatch z VAT report (ki uporablja paidAt)
     // Sedaj: queryamo vse receipts in filtriramo po order.paidAt v aplikaciji
-    // FIX Test 7.2: Multi-tenant isolation
+    // FIX Test 7.2: Multi-tenant isolation (R76: enoten scope prek resolverja)
     const receiptWhere: Record<string, unknown> = { isStorno: false }
-    if (authResult.session?.locationId) {
-      receiptWhere.locationId = authResult.session.locationId
+    if (scopedLocationId) {
+      receiptWhere.locationId = scopedLocationId
     }
 
     const allReceipts = await db.receipt.findMany({
@@ -67,15 +76,12 @@ export async function GET(req: Request) {
       return dateToCheck >= startDate && dateToCheck <= endDate
     })
 
-    // Pridobi storno račune (isti filter — vključno z locationId izolacijo)
-    // FIX: Prej storno query ni imel locationId filtra — multi-tenant isolation bug
+    // Pridobi storno račune (isti scope kot izdani — R76: prej je super-admin override
+    // veljal samo za storno, izdani so ostali na session.locationId → inkonzistenca)
     const stornoWhere: Record<string, unknown> = { isStorno: true }
-    if (authResult.session?.locationId) {
-      stornoWhere.locationId = authResult.session.locationId
+    if (scopedLocationId) {
+      stornoWhere.locationId = scopedLocationId
     }
-    // Super-admin override (samo če je super_admin in specificira requestedLocationId)
-    const isSuperAdmin = authResult.session?.role === 'super_admin'
-    if (requestedLocationId && isSuperAdmin) stornoWhere.locationId = requestedLocationId
 
     const allStornos = await db.receipt.findMany({
       where: stornoWhere,
@@ -90,18 +96,11 @@ export async function GET(req: Request) {
       return dateToCheck >= startDate && dateToCheck <= endDate
     })
 
-    // FIX P0-C3A: Pridobi poslovne podatke iz Location (vezano na session.locationId)
+    // FIX P0-C3A: Pridobi poslovne podatke iz Location (vezano na resolved scope)
     // Prej: settings.findFirst({isActive:true}) — globalno, v multi-tenant napačna lokacija
-    // OPOMBA: receipti so že filtrirani po session.locationId (P0-C2 fix), zato je pravilno
-    // da tudi izdajateljevi podatki prihajajo iz iste lokacije.
-    const sessionLocId = authResult.session?.locationId
-    const isAdminRole = authResult.session?.role === 'admin' || authResult.session?.role === 'super_admin'
-    // Super admin brez locationId: uporabi requestedLocationId ali prvo aktivno lokacijo
-    let infoLocationId = sessionLocId
-    if (!infoLocationId && isAdminRole && requestedLocationId) {
-      infoLocationId = requestedLocationId
-    }
-    const info = await getRestaurantInfoForLocation(infoLocationId)
+    // R76: scope.locationId že vključuje super-admin ?locationId override (konzistentno
+    // z receipt Where pogoji) — izdajateljevi podatki prihajajo iz iste lokacije kot računi.
+    const info = await getRestaurantInfoForLocation(scopedLocationId)
 
     // Zgradi knjigo računov
     const issuedInvoices = receipts.map(r => ({

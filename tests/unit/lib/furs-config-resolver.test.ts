@@ -176,7 +176,7 @@ describe('getFursConfig — Issue #37 prioritetna veriga', () => {
     expect(result.error).not.toBeNull()
   })
 
-  it('locationId ki ne obstaja → fallback na RestaurantSettings', async () => {
+  it('R76 fail-closed: locationId ki ne obstaja → NI fallbacka na RestaurantSettings', async () => {
     mocks.mockLocationFindUnique.mockResolvedValue(null)
     mocks.mockRestaurantSettingsFindFirst.mockResolvedValue({
       businessId: '11111111',
@@ -186,11 +186,16 @@ describe('getFursConfig — Issue #37 prioritetna veriga', () => {
       fursCertPassword: 'fbpass',
       fursEnvironment: 'test',
     })
+    setEnv('FURS_CERT_PATH', '/env/cert.p12')
 
     const result = await getFursConfig('nonexistent-loc')
 
-    expect(result.source).toBe('restaurant-settings')
-    expect(result.fursConfig?.certPath).toBe('/certs/fallback.p12')
+    // Prej (fail-open): fallback na globalni cert → podpis s TUJIM certifikatom.
+    // Zdaj (fail-closed): brez configa + error 503 — globalni cert NI dovoljen.
+    expect(result.source).toBe('missing')
+    expect(result.fursConfig).toBeNull()
+    expect(result.error).not.toBeNull()
+    expect(mocks.mockRestaurantSettingsFindFirst).not.toHaveBeenCalled()
   })
 })
 

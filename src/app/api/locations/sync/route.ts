@@ -23,6 +23,29 @@ export async function POST(req: Request) {
     const { data, error: validationError } = await validateRequest(req, locationSyncSchema)
     if (validationError) return validationError
 
+    // FIX R76 (tenant scope): cross-location menu sync je super-admin operacija.
+    // Prej: vsak admin Permission='admin' je lahko sinhroniziral iz KATERE KOLI izvorne
+    // lokacije na KATERE KOLI ciljne — cross-tenant pisanje (uničenje tujega menija)
+    // in branje (izvor menija drugega tenant-a). Zdaj: lokacijsko vezana seja (admin
+    // z session.locationId) sme samo source=own IN targets⊆{own}; globalna seja
+    // (super-admin, locationId=null) sme cross-location.
+    const sessionLocId = authResult.session?.locationId ?? null
+    if (sessionLocId) {
+      if (data.sourceLocationId !== sessionLocId) {
+        return NextResponse.json(
+          { error: 'Cross-location sync ni dovoljen: izvorna lokacija ni vaša lokacija.' },
+          { status: 403 },
+        )
+      }
+      const foreignTargets = data.targetLocationIds.filter(id => id !== sessionLocId)
+      if (foreignTargets.length > 0) {
+        return NextResponse.json(
+          { error: 'Cross-location sync ni dovoljen: ciljne lokacije niso vaša lokacija. Cross-location sinhronizacija zahteva globalnega administratorja.' },
+          { status: 403 },
+        )
+      }
+    }
+
     // Preveri izvorno lokacijo
     const sourceLocation = await db.location.findUnique({
       where: { id: data.sourceLocationId },
@@ -85,8 +108,12 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // FIX R76 (tenant scope): lokacijsko vezana seja vidi samo svojo lokacijo.
+    // Prej: seznam VSIH aktivnih lokacij + centralizirana poročila o prihodkih
+    // (groupBy po narocilih BREZ locationId filtra) → puščanje prihodkov vseh tenant-ov.
+    const sessionLocId = authResult.session?.locationId ?? null
     const locations = await db.location.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...(sessionLocId ? { id: sessionLocId } : {}) },
       select: {
         id: true,
         name: true,
@@ -113,13 +140,16 @@ export async function GET(req: Request) {
     const [dailyStats, monthlyStats] = await Promise.all([
       db.order.groupBy({
         by: ['type'],
-        where: { createdAt: { gte: today } },
+        where: { createdAt: { gte: today }, ...(sessionLocId ? { locationId: sessionLocId } : {}) },
         _sum: { total: true },
         _count: true,
       }),
       db.order.groupBy({
         by: ['type'],
-        where: { createdAt: { gte: new Date(today.getFullYear(), today.getMonth(), 1) } },
+        where: {
+          createdAt: { gte: new Date(today.getFullYear(), today.getMonth(), 1) },
+          ...(sessionLocId ? { locationId: sessionLocId } : {}),
+        },
         _sum: { total: true },
         _count: true,
       }),

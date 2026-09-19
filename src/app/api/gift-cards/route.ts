@@ -1,7 +1,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { createGiftCardSchema } from '@/lib/validations'
 import { greaterThan, deepToNumbers } from '@/lib/decimal'
 import { logger } from '@/lib/logger'
@@ -24,9 +24,14 @@ export async function GET(req: Request) {
     const cardNumber = searchParams.get('cardNumber')
 
     const where: Record<string, unknown> = {}
-    // FIX Test 7.2: Multi-tenant isolation — filtriraj po session.locationId
-    if (authResult.session?.locationId) {
-      where.locationId = authResult.session.locationId
+    // FIX Test 7.2 + R76 (centralizacija): centralni tenant scope namesto ročnega pogoja
+    // (fail-open: session.locationId=null → globalni seznam darilnih kartic vseh tenantov).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/gift-cards',
+    })
+    if ('error' in scope) return scope.error
+    if (scope.locationId) {
+      where.locationId = scope.locationId
     }
     if (status) where.status = status
     if (cardNumber) where.cardNumber = cardNumber

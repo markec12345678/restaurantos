@@ -203,15 +203,20 @@ describe('P0-C3A: Cross-Tenant FURS Config Regression', () => {
       expect(info.taxId).toBe('SI-GLOBAL')
     })
 
-    it('Location ne obstaja (data integrity issue): fallback na RestaurantSettings', async () => {
+    it('R76 fail-closed: Location ne obstaja → PRAZNA identiteta, ne globalni fallback', async () => {
       mockLocationFindUnique.mockResolvedValue(null)
       mockRestaurantSettingsFindFirst.mockResolvedValue(settingsGlobal)
 
       const info = await getRestaurantInfoForLocation('nonexistent-loc')
 
-      expect(info.source).toBe('restaurant-settings')
-      expect(info.locationId).toBeNull()
-      expect(info.name).toBe('Global RestaurantOS')
+      // Prej (fail-open): globalna identiteta druge lokacije na fiskalnem dokumentu.
+      // Zdaj (fail-closed): prazna identiteta + source='not-found', settings NISO uporabljeni.
+      expect(info.source).toBe('not-found')
+      expect(info.locationId).toBe('nonexistent-loc')
+      expect(info.name).toBe('')
+      expect(info.taxId).toBe('')
+      expect(info.businessId).toBe('')
+      expect(mockRestaurantSettingsFindFirst).not.toHaveBeenCalled()
     })
 
     it('order.locationId null + nobeni settings: vrne prazne podatke (ne crash)', async () => {

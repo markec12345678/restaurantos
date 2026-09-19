@@ -1,6 +1,6 @@
 
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { createInventorySchema } from '@/lib/validations'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
@@ -37,9 +37,16 @@ export async function GET(req: Request) {
 
     // Zgradi filtrirne pogoje in pridobi artikle
     const { where, fetchAll, limit, offset } = buildFilterConditions(searchParams)
-    // FIX Test 7.2: Multi-tenant isolation
-    if (authResult.session?.locationId) {
-      where.locationId = authResult.session.locationId
+    // FIX Test 7.2 + R76 (centralizacija): centralni tenant scope namesto ročnega pogoja.
+    // Prej: session.locationId=null → where.locationId NI nastavljen → fail-open globalni
+    // pogled za kdor koli brez lokacije. Zdaj: fail-closed (403) za regular usera brez
+    // lokacije; super-admin obdrži globalni pogled oz. ?locationId override.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/inventory',
+    })
+    if ('error' in scope) return scope.error
+    if (scope.locationId) {
+      where.locationId = scope.locationId
     }
     const lowStock = searchParams.get('lowStock')
     const response = await getItemsWithMeta(where, fetchAll, limit, offset, lowStock)

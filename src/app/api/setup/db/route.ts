@@ -43,13 +43,26 @@ export async function GET(req: Request) {
     await db.$queryRaw`SELECT 1`
     
     // Create missing tables
+    // FIX R76 (error reporting): prej so bile vse napake tiho požrte (catch {}) —
+    // operater ni videl, KATERI stavki so padli in ZAKAJ (npr. permission denied,
+    // sintaksna napaka v schema.sql). Zdaj: sledimo uspešnim + neuspelim stavkom.
+    const failedStatements: Array<{ statement: string; error: string }> = []
+    let appliedSchemaStatements = 0
     const sqlPath = path.join(process.cwd(), 'prisma', 'schema.sql')
     let sql = ''
     try { sql = readFileSync(sqlPath, 'utf8') } catch {}
     if (sql) {
       const statements = sql.split(';').filter(s => s.trim().length > 0)
       for (const stmt of statements) {
-        try { await db.$executeRawUnsafe(stmt + ';') } catch {}
+        try {
+          await db.$executeRawUnsafe(stmt + ';')
+          appliedSchemaStatements++
+        } catch (err: unknown) {
+          failedStatements.push({
+            statement: stmt.trim().substring(0, 120),
+            error: err instanceof Error ? err.message.substring(0, 200) : 'Unknown',
+          })
+        }
       }
     }
     
@@ -184,11 +197,20 @@ export async function GET(req: Request) {
     ]
     
     let added = 0
+    let alterFailed = 0
     for (const stmt of alterStatements) {
       try {
         await db.$executeRawUnsafe(stmt)
         added++
-      } catch {}
+      } catch (err: unknown) {
+        alterFailed++
+        if (failedStatements.length < 50) {
+          failedStatements.push({
+            statement: stmt.trim().substring(0, 120),
+            error: err instanceof Error ? err.message.substring(0, 200) : 'Unknown',
+          })
+        }
+      }
     }
     
     const afterTables = await db.$queryRaw`
@@ -258,13 +280,20 @@ export async function GET(req: Request) {
       tableCount: afterTables.length,
       columnsAdded: added,
       migrationSet: 'r31',
+      // R76: error reporting — operater vidi, kaj je USPELO in kaj NE
+      schemaStatementsApplied: appliedSchemaStatements,
+      alterStatementsFailed: alterFailed,
+      failedStatementsCount: failedStatements.length,
+      // Prvih 25 neuspelih (idempotentni ponovni run-i lahko poročajo benign
+      // "already exists" napake — zato je to diagnostika, ne alarm)
+      failedStatements: failedStatements.slice(0, 25),
       cisReady,
       cisColumns,
       cisIndexPresent,
       modifierReady,
       driftChecked,
       missingColumns,
-      message: `${afterTables.length} tables, ${added} columns added`,
+      message: `${afterTables.length} tables, ${added} columns added${failedStatements.length > 0 ? `, ${failedStatements.length} statements failed (see failedStatements)` : ''}`,
     })
   } catch (error: unknown) {
     return NextResponse.json({

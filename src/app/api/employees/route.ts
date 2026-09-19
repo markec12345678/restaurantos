@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { createEmployeeSchema } from '@/lib/validations'
 import { logger } from '@/lib/logger'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
@@ -37,9 +37,14 @@ export async function GET(req: Request) {
     // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
     const { limit, offset } = parsePaginationParams(searchParams)
     const where: Record<string, unknown> = {}
-    // FIX Test 7.2: Multi-tenant isolation — filtriraj po session.locationId
-    if (authResult.session?.locationId) {
-      where.locationId = authResult.session.locationId
+    // FIX Test 7.2 + R76 (centralizacija): centralni tenant scope namesto ročnega pogoja
+    // (fail-open: session.locationId=null → globalni seznam zaposlenih vseh tenantov).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/employees',
+    })
+    if ('error' in scope) return scope.error
+    if (scope.locationId) {
+      where.locationId = scope.locationId
     }
     if (role) where.role = role
     // FIX MEDIUM: Privzeto izključi odpuščene zaposlene, razen če izrecno zahtevani

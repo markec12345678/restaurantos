@@ -2,7 +2,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { createTableSchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { withETag } from '@/lib/middleware/cache-headers'
@@ -16,10 +16,15 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
-    // FIX Test 7.2: Multi-tenant isolation
+    // FIX Test 7.2 + R76 (centralizacija): centralni tenant scope namesto ročnega pogoja
+    // (fail-open: session.locationId=null → globalni seznam miz vseh tenantov).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, null, {
+      endpoint: 'GET /api/tables',
+    })
+    if ('error' in scope) return scope.error
     const tableWhere: Record<string, unknown> = {}
-    if (authResult.session?.locationId) {
-      tableWhere.locationId = authResult.session.locationId
+    if (scope.locationId) {
+      tableWhere.locationId = scope.locationId
     }
 
     const tables = await db.table.findMany({

@@ -108,6 +108,28 @@ export async function getFursConfig(locationId?: string | null): Promise<FursCon
     }
   }
 
+  // 2. FIX R76 (fail-closed): explicit locationId, ki NE obstaja → NI fallbacka na
+  // globalni RestaurantSettings/env. Prej: neveljaven/izbrisan locationId je utihnil
+  // padel na globalni cert drugi lokacije → podpis računa s TUJIM certifikatom
+  // (cross-tenant key use, napačen premisesId, ZOI/JWS mismatch, davčna kršitev).
+  // Lokacija, ki OBSTAJA ampak ni konfigurirana, ŠE VEDNO pade na settings fallback
+  // (single-tenant backward compat, issue #37) — spreminjamo samo invalid-location pot.
+  if (locationId && !location) {
+    return {
+      fursConfig: null,
+      source: 'missing',
+      locationId,
+      error: NextResponse.json(
+        {
+          error: 'FURS: lokacija ne obstaja — fiskalizacija zavrnjena (fail-closed).',
+          hint: `LocationId '${locationId}' ni najden. Preverite Receipt.locationId / Location tabelo. Globalni fallback ni dovoljen (cross-tenant cert zaščita).`,
+          docs: '/SECURITY.md#furs',
+        },
+        { status: 503 },
+      ),
+    }
+  }
+
   // 3. Fallback na RestaurantSettings (single-tenant backward compat)
   const settings = await db.restaurantSettings.findFirst({
     select: {
@@ -247,7 +269,7 @@ export interface RestaurantInfo {
   currency: string
   locale: string
   /** Vir podatkov (za diagnosticiranje) */
-  source: 'location' | 'restaurant-settings'
+  source: 'location' | 'restaurant-settings' | 'not-found'
   /** ID uporabljene lokacije (ali null če fallback) */
   locationId: string | null
 }
@@ -258,7 +280,11 @@ export interface RestaurantInfo {
  *
  * Logika:
  * 1. Če je podan locationId → preberi iz Location (source of truth)
- * 2. Če locationId manjka ali Location ne obstaja → fallback na RestaurantSettings (single-tenant)
+ * 2. Če locationId manjka → fallback na RestaurantSettings (single-tenant)
+ * 3. FIX R76 (fail-closed): Če je locationId PODAN ampak Location ne obstaja →
+ *    NI fallbacka na globalne podatke (prej: napačna poslovna identiteta druge
+ *    lokacije na fiskalnem dokumentu). Vrne prazno identiteto s source='not-found'
+ *    + error log — klicatelj vidi, da identitete ni, namesto da utiha natisne tujega.
  *
  * @param locationId - ID lokacije. Če manjka, fallback na RestaurantSettings.
  *
@@ -308,7 +334,31 @@ export async function getRestaurantInfoForLocation(
     }
   }
 
-  // 2. Fallback na RestaurantSettings (single-tenant backward compat)
+  // 2. FIX R76 (fail-closed): locationId PODAN, Location ne obstaja → ne uporabljaj
+  // globalne identitete (prej: tuja davčna št. / naziv na fiskalnem dokumentu).
+  if (locationId) {
+    logger.error(
+      'restaurant-info',
+      `Location ${locationId} ne obstaja — vračam prazno identiteto (fail-closed). ` +
+        'Globalni RestaurantSettings fallback NI dovoljen (cross-tenant zaščita identitete).',
+    )
+    return {
+      name: '',
+      address: '',
+      postCode: '',
+      city: '',
+      phone: '',
+      businessId: '',
+      taxId: '',
+      registerNumber: '',
+      currency: 'EUR',
+      locale: 'sl-SI',
+      source: 'not-found',
+      locationId,
+    }
+  }
+
+  // 3. Fallback na RestaurantSettings (single-tenant backward compat)
   // ⚠️ P0-C3A: deprecated v multi-tenant — admin naj nastavi podatke na Location nivoju
   const settings = await db.restaurantSettings.findFirst({
     where: { isActive: true },
@@ -327,14 +377,6 @@ export async function getRestaurantInfoForLocation(
   })
 
   if (settings) {
-    if (locationId) {
-      // Warning samo če je bil locationId podan ampak Location ni najden — data integrity issue
-      logger.warn(
-        'restaurant-info',
-        `Location ${locationId} ni najdena — fallback na RestaurantSettings. ` +
-          'Prosimo, nastavite poslovne podatke na Location nivoju za multi-tenant podporo.',
-      )
-    }
     return {
       name: settings.name || '',
       address: settings.address || '',
