@@ -211,13 +211,11 @@ function TrendSparkline({ trend }: { trend: DigestTrend & { endDate: string } })
         </p>
       ) : (
         <div className="rounded-lg border bg-muted/30 px-3 pb-2 pt-2 print:bg-white">
-          <div
-            className="relative flex items-end gap-2"
-            role="group"
-            aria-label={`Promet po dnevih, zadnjih ${trend.dayCount} dni`}
-            style={{ height: '8rem' }}
-          >
-            {/* črtkana linija povprečja — absolutno na avgLinePct višini */}
+          {/* R71 QA-polish: dvo-trakasti layout — črtkana linija povprečja je
+              pozicionirana na OBMOČJU STOLPCEV (labels so LOČEN trak spodaj),
+              prej je bila % od celotnega vsebnika in je padla POD bazno črto */}
+          <div className="relative" style={{ height: '7rem' }}>
+            {/* črtkana linija povprečja — % od višine stolpčnega območja */}
             {trend.avgLinePct != null && (
               <div
                 className="pointer-events-none absolute inset-x-0 border-t border-dashed border-slate-400/70 dark:border-slate-500/70"
@@ -227,39 +225,49 @@ function TrendSparkline({ trend }: { trend: DigestTrend & { endDate: string } })
                 <span className="absolute -top-4 right-0 rounded bg-muted/80 px-1 text-[9px] font-medium text-muted-foreground">povp.</span>
               </div>
             )}
-            {trend.points.map(p => (
-              <div
-                key={p.date}
-                className="flex h-full flex-1 flex-col items-center justify-end gap-1"
-                title={`${p.date}: ${formatEUR(p.revenue)} (${p.ordersCount} naročil)`}
-              >
-                <span
-                  className={`text-[9px] font-semibold tabular-nums ${
-                    p.isBest ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'
-                  }`}
-                >
-                  {p.revenue > 0 ? formatEURShort(p.revenue) : '–'}
-                </span>
+            <div
+              className="flex h-full items-end gap-2"
+              role="group"
+              aria-label={`Promet po dnevih, zadnjih ${trend.dayCount} dni`}
+            >
+              {trend.points.map(p => (
                 <div
-                  role="img"
-                  aria-label={`${p.dayLabel} ${p.dayNum}.: ${formatEUR(p.revenue)}${p.isBest ? ' — najboljši dan' : ''}`}
-                  className={`w-full max-w-[2.5rem] rounded-t-md transition-colors ${
-                    p.isBest
-                      ? 'bg-gradient-to-t from-amber-500 to-amber-400'
-                      : p.revenue > 0
-                        ? 'bg-gradient-to-t from-teal-600 to-teal-400/80'
-                        : 'bg-muted/70 print:bg-muted/40'
-                  } ${p.date === trend.endDate ? 'ring-2 ring-teal-600/40 print:ring-teal-600/50' : ''}`}
-                  style={{ height: `${p.heightPct}%`, minHeight: p.revenue > 0 ? 4 : 2 }}
-                />
-                <span
-                  className={`text-[10px] leading-none ${
-                    p.isBest ? 'font-bold text-amber-700 dark:text-amber-400' : 'text-muted-foreground'
-                  }`}
+                  key={p.date}
+                  className="flex h-full flex-1 flex-col items-center justify-end gap-1"
+                  title={`${p.date}: ${formatEUR(p.revenue)} (${p.ordersCount} naročil)`}
                 >
+                  <span
+                    className={`text-[9px] font-semibold tabular-nums ${
+                      p.isBest ? 'text-amber-700 dark:text-amber-400' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {p.revenue > 0 ? formatEURShort(p.revenue) : '–'}
+                  </span>
+                  <div
+                    role="img"
+                    aria-label={`${p.dayLabel} ${p.dayNum}.: ${formatEUR(p.revenue)}${p.isBest ? ' — najboljši dan' : ''}`}
+                    className={`w-full max-w-[2.5rem] rounded-t-md transition-colors ${
+                      p.isBest
+                        ? 'bg-gradient-to-t from-amber-500 to-amber-400'
+                        : p.revenue > 0
+                          ? 'bg-gradient-to-t from-teal-600 to-teal-400/80'
+                          : 'bg-muted/70 print:bg-muted/40'
+                    } ${p.date === trend.endDate ? 'ring-2 ring-teal-600/40 print:ring-teal-600/50' : ''}`}
+                    style={{ height: `${p.heightPct}%`, minHeight: p.revenue > 0 ? 4 : 2 }}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* oznake dni — ločen trak (flex-1 se poravnajo s stolpci; vsebina
+              je že v aria-labelih stolpcev → aria-hidden proti duplikatom) */}
+          <div className="mt-1 flex gap-2" aria-hidden="true">
+            {trend.points.map(p => (
+              <div key={p.date} className="flex-1 text-center">
+                <div className={`text-[10px] leading-none ${p.isBest ? 'font-bold text-amber-700 dark:text-amber-400' : 'text-muted-foreground'}`}>
                   {p.dayLabel}
-                </span>
-                <span className="text-[9px] leading-none text-muted-foreground/70">{p.dayNum}.</span>
+                </div>
+                <div className="mt-0.5 text-[9px] leading-none text-muted-foreground/70">{p.dayNum}.</div>
               </div>
             ))}
           </div>
