@@ -36,6 +36,33 @@ export function useMenuMutations({
     onError: (err: Error) => { toast.error(errorSl(err, 'Napaka pri ustvarjanju menija')) },
   })
 
+  // RUNDA 67: posodobi meni (PUT /api/menus/[id] že obstaja — UI je manjal)
+  const updateMenuMutation = useMutation({
+    mutationFn: async ({ id, ...data }: { id: string } & Record<string, unknown>) => {
+      const res = await authFetch(`/api/menus/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) })
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Napaka pri posodabljanju menija') }
+      return res.json()
+    },
+    onSuccess: () => { toast.success('Meni posodobljen'); queryClient.invalidateQueries({ queryKey: queryKeys.menus.all }); onCloseMenuDialog() },
+    onError: (err: Error) => { toast.error(errorSl(err, 'Napaka pri posodabljanju menija')) },
+  })
+
+  // RUNDA 67: izbriši meni (DELETE z zaščito menu-guard: artikli → 409)
+  const deleteMenuMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await authFetch(`/api/menus/${id}`, { method: 'DELETE' })
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Napaka pri brisanju menija') }
+      return res.json()
+    },
+    onSuccess: () => {
+      toast.success('Meni izbrisan')
+      // kaskada: kategorije gredo tudi → invalidiraj OBE poizvedbi
+      queryClient.invalidateQueries({ queryKey: queryKeys.menus.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.categories.all })
+    },
+    onError: (err: Error) => { toast.error(errorSl(err, 'Napaka pri brisanju menija')) },
+  })
+
   // Ustvari artikel
   const createItemMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
@@ -117,6 +144,8 @@ export function useMenuMutations({
 
   return {
     createMenuMutation,
+    updateMenuMutation,
+    deleteMenuMutation,
     createItemMutation,
     updateItemMutation,
     deleteItemMutation,

@@ -6,6 +6,7 @@ import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { sessionLocationId, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
+import { canDeleteMenu } from '@/lib/menu-guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,6 +59,20 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     if (!existing || !isWithinScope(sessionLocationId(authResult), existing.locationId)) {
       return notInScopeResponse('Meni')
     }
+
+    // RUNDA 67: zaščita brisanja (enoten vir menu-guard) — prej goli delete:
+    // artikli → P2003 generični 500; prazne kategorije → tiha kaskada.
+    // Zdaj: artikli → 409 z razlago; kaskada kategorij ostane schema vednost,
+    // ampak API je konsistenten (UI prikaže isto odločitev).
+    const [categoryCount, itemCount] = await Promise.all([
+      db.category.count({ where: { menuId: id } }),
+      db.menuItem.count({ where: { category: { menuId: id } } }),
+    ])
+    const decision = canDeleteMenu(categoryCount, itemCount)
+    if (!decision.allowed) {
+      return NextResponse.json({ error: decision.messageSl }, { status: decision.status })
+    }
+
     await db.menu.delete({ where: { id } })
     return NextResponse.json({ success: true })
   } catch (error: unknown) {

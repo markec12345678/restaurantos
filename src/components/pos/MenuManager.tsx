@@ -25,12 +25,13 @@ export const MenuManager = memo(function MenuManager() {
     activeTab, setActiveTab,
     dialogOpen, setDialogOpen, editingItem, itemForm, setItemForm,
     catDialogOpen, setCatDialogOpen, catForm, setCatForm, editingCategory,
-    menuDialogOpen, setMenuDialogOpen, menuForm, setMenuForm,
+    menuDialogOpen, setMenuDialogOpen, menuForm, setMenuForm, editingMenu,
     menus, categories, modifierGroups, menuItems: _menuItems, isLoading, filteredItems,
-    createMenuMutation, deleteItemMutation, toggleAvailabilityMutation,
-    deleteCatMutation,
+    deleteItemMutation, toggleAvailabilityMutation,
+    deleteCatMutation, deleteMenuMutation,
     openCreateItem, openEditItem, handleItemSubmit,
-    openCreateCategory, openEditCategory, handleCatSubmit, openCreateMenu,
+    openCreateCategory, openEditCategory, handleCatSubmit,
+    openCreateMenu, openEditMenu, handleMenuSubmit,
   } = useMenuManager()
 
   return (
@@ -100,6 +101,8 @@ export const MenuManager = memo(function MenuManager() {
             menus={menus}
             categories={categories}
             onAddMenu={openCreateMenu}
+            onEditMenu={openEditMenu}
+            onConfirmDelete={(id) => deleteMenuMutation.mutate(id)}
           />
         </TabsContent>
         {/* Tab dodatkov */}
@@ -135,7 +138,8 @@ export const MenuManager = memo(function MenuManager() {
         onOpenChange={setMenuDialogOpen}
         menuForm={menuForm}
         onMenuFormChange={setMenuForm}
-        onSubmit={() => createMenuMutation.mutate(menuForm as unknown as Record<string, unknown>)}
+        editingMenu={editingMenu}
+        onSubmit={handleMenuSubmit}
       />
     </div>
   )

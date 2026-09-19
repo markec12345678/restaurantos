@@ -71,6 +71,8 @@ export interface MenuFormState {
   name: string
   icon: string
   color: string
+  // RUNDA 67: aktivnost menija (PUT podporo že ima; UI stikalo v urejanju)
+  isActive: boolean
 }
 
 // ============================================
@@ -112,6 +114,10 @@ export interface MenusTabProps {
   menus: MenuData[] | undefined
   categories: CategoryData[] | undefined
   onAddMenu: () => void
+  /** RUNDA 67: odpri urejanje menija */
+  onEditMenu: (_menu: Record<string, unknown>) => void
+  /** RUNDA 67: POTRJEN izbris menija (po AlertDialog potrditvi) */
+  onConfirmDelete: (_id: string) => void
 }
 
 /** Props za ModifiersTab podkomponento */
@@ -150,5 +156,7 @@ export interface MenuDialogProps {
   onOpenChange: (_open: boolean) => void
   menuForm: MenuFormState
   onMenuFormChange: (_form: MenuFormState) => void
+  /** RUNDA 67: null = ustvarjanje, objekt = urejanje (naslov/gumb se spremenita) */
+  editingMenu: Record<string, unknown> | null
   onSubmit: () => void
 }

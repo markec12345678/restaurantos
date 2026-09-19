@@ -85,6 +85,9 @@ export const ARTIKEL_FORMS: SlPluralForms = ['artikel', 'artikla', 'artikli', 'a
 // "1 kategorija · 2 kategoriji · 3 kategorije · 5 kategorij" — prej vedno
 // "N kategorij", kar je pri 1–4 slovnično napačno).
 export const KATEGORIJA_FORMS: SlPluralForms = ['kategorija', 'kategoriji', 'kategorije', 'kategorij']
+// RUNDA 67: moška družina "meni" (števec menijev v UI + sporočila zaščite:
+// 1 meni · 2 menija · 3 meniji · 5 menijev).
+export const MENI_FORMS: SlPluralForms = ['meni', 'menija', 'meniji', 'menijev']
 
 /**
  * Katera množinska oblika za n? Tradicionalna slovenska norma:

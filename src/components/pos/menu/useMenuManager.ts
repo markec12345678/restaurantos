@@ -25,7 +25,9 @@ export function useMenuManager() {
   // RUNDA 66: urejanje kategorije — null = ustvarjanje, objekt = urejanje
   const [editingCategory, setEditingCategory] = useState<Record<string, unknown> | null>(null)
   const [menuDialogOpen, setMenuDialogOpen] = useState(false)
-  const [menuForm, setMenuForm] = useState<MenuFormState>({ name: '', icon: '📋', color: '#f59e0b' })
+  const [menuForm, setMenuForm] = useState<MenuFormState>({ name: '', icon: '📋', color: '#f59e0b', isActive: true })
+  // RUNDA 67: urejanje menija — null = ustvarjanje, objekt = urejanje
+  const [editingMenu, setEditingMenu] = useState<Record<string, unknown> | null>(null)
 
   // ============================================
   // QUERIES
@@ -80,6 +82,8 @@ export function useMenuManager() {
   // ============================================
   const {
     createMenuMutation,
+    updateMenuMutation,
+    deleteMenuMutation,
     createItemMutation,
     updateItemMutation,
     deleteItemMutation,
@@ -155,9 +159,31 @@ export function useMenuManager() {
   }, [catForm, editingCategory, updateCatMutation, createCatMutation])
 
   const openCreateMenu = useCallback(() => {
-    setMenuForm({ name: '', icon: '📋', color: '#f59e0b' })
+    setEditingMenu(null)
+    setMenuForm({ name: '', icon: '📋', color: '#f59e0b', isActive: true })
     setMenuDialogOpen(true)
   }, [])
+
+  // RUNDA 67: odpri dialog v urejevalnem načinu z izpolnjeno formo
+  const openEditMenu = useCallback((menu: Record<string, unknown>) => {
+    setEditingMenu(menu)
+    setMenuForm({
+      name: String(menu.name ?? ''),
+      icon: String(menu.icon ?? '📋'),
+      color: String(menu.color ?? '#f59e0b'),
+      isActive: menu.isActive !== false,
+    })
+    setMenuDialogOpen(true)
+  }, [])
+
+  // RUNDA 67: skupni submit — ustvari ali posodobi glede na editingMenu
+  const handleMenuSubmit = useCallback(() => {
+    if (editingMenu) {
+      updateMenuMutation.mutate({ id: editingMenu.id as string, ...menuForm })
+    } else {
+      createMenuMutation.mutate(menuForm as unknown as Record<string, unknown>)
+    }
+  }, [menuForm, editingMenu, updateMenuMutation, createMenuMutation])
 
   return {
     // Stanja
@@ -166,14 +192,15 @@ export function useMenuManager() {
     activeTab, setActiveTab,
     dialogOpen, setDialogOpen, editingItem, itemForm, setItemForm,
     catDialogOpen, setCatDialogOpen, catForm, setCatForm, editingCategory,
-    menuDialogOpen, setMenuDialogOpen, menuForm, setMenuForm,
+    menuDialogOpen, setMenuDialogOpen, menuForm, setMenuForm, editingMenu,
     // Poizvedbe
     menus, categories, modifierGroups, menuItems, isLoading, filteredItems,
     // Mutacije
-    createMenuMutation, deleteItemMutation, toggleAvailabilityMutation,
-    createCatMutation, updateCatMutation, deleteCatMutation,
+    deleteItemMutation, toggleAvailabilityMutation,
+    deleteCatMutation, deleteMenuMutation,
     // Handlerji
     openCreateItem, openEditItem, handleItemSubmit,
-    openCreateCategory, openEditCategory, handleCatSubmit, openCreateMenu,
+    openCreateCategory, openEditCategory, handleCatSubmit,
+    openCreateMenu, openEditMenu, handleMenuSubmit,
   }
 }
