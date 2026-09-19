@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Fingerprint, Loader2 } from 'lucide-react'
 import { startAuthentication } from '@simplewebauthn/browser'
@@ -33,27 +33,32 @@ export function BiometricLogin({
   const [isLoading, setIsLoading] = useState(false)
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null)
 
-  const checkAvailability = async (): Promise<boolean> => {
-    if (isAvailable !== null) return isAvailable
-
-    if (typeof window === 'undefined' || !window.PublicKeyCredential) {
-      setIsAvailable(false)
-      return false
-    }
-
-    try {
-      const res = await fetch('/api/auth/webauthn', { method: 'GET' })
-      if (!res.ok) {
-        setIsAvailable(false)
-        return false
+  // FIX R78 (QA 2026-09-19): checkAvailability je bil prej klican MED RENDERJEM
+  // (`if (isAvailable === null) { void checkAvailability(); return null }`) —
+  // side-effect v render fazi. Ko se je komponenta unmountala pred resolvm
+  // (Fast Refresh, navigacija, WebAuthn 503 retry), je setIsAvailable zadela
+  // unmounted komponento → React warning "state update on a component that
+  // hasn't mounted" (viden v konzoli ob vsaki prijavi). Zdaj: useEffect z
+  // cancelled guard — idempotentno, brez render side-effectov.
+  useEffect(() => {
+    let cancelled = false
+    const check = async () => {
+      let available = false
+      if (typeof window !== 'undefined' && window.PublicKeyCredential) {
+        try {
+          const res = await fetch('/api/auth/webauthn', { method: 'GET' })
+          available = res.ok
+        } catch {
+          available = false
+        }
       }
-      setIsAvailable(true)
-      return true
-    } catch {
-      setIsAvailable(false)
-      return false
+      if (!cancelled) setIsAvailable(available)
     }
-  }
+    void check()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleBiometricLogin = async () => {
     setIsLoading(true)
@@ -99,9 +104,6 @@ export function BiometricLogin({
   }
 
   if (isAvailable === null) {
-    if (typeof window !== 'undefined') {
-      void checkAvailability()
-    }
     return null
   }
 

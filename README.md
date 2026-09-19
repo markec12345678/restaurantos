@@ -1,11 +1,11 @@
-# RestaurantOS v1.8.9
+# RestaurantOS v1.8.10
 
-[![Version](https://img.shields.io/badge/version-1.8.9-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.8.10-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
 [![Tests](https://img.shields.io/badge/tests-2170%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-77%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Audit](https://img.shields.io/badge/razvoj-78%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,17 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (77 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (78 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### 🔧 Popravki v v1.8.10 (QA runda 78 — brskalniška QA end-to-end: 2 popravka)
+
+| Kategorija | Popravek |
+|------------|----------|
+| 🐛 **Samodejni tisk kuhinjskega naročila NIKOLI deloval** | `autoPrintKitchenOrder` (orders post-handler) je pošiljal INTERNI HTTP fetch na `/api/print` BREZ `Authorization` glave → 401 na VSAKO naročilo, tiho poginilo v catch (isti razred napake kot WS broadcast — WS AUDIT 2026-09-09 — ta klicatelj je bil izpuščen). Zdaj: direkten in-process klic `handleOrderPrint()` — brez HTTP hopa, brez auth potrebe (klicatelj je že avtenticiran). Verificirano v brskalniški QA: 0× `POST /api/print 401` po fixu |
+| 🐛 **BiometricLogin: render side-effect** | `checkAvailability()` je bil klican MED renderjem (`if (isAvailable === null) { void checkAvailability(); return null }`) → ko se je komponenta unmountala pred resolvm (Fast Refresh, navigacija, WebAuthn 503), je `setIsAvailable` zadela unmounted komponento → React warning "state update on a component that hasn't mounted" ob vsaki prijavi. Zdaj: `useEffect` z `cancelled` guard. Verificirano: 0 napak v konzoli na login strani |
+| 🧪 **Brskalniška QA (agent-browser, end-to-end)** | Potrjen zlati tok: setup/init first-run → PIN prijava (tipkovnica + numpad) → POS meni/kategorije → košarica → oddaja naročila (DDV matematika: 3,50 € + 22 % = 4,27 €) → plačilni modal (metode, hitra gotovina, zvestoba skip) → predogled računa → tisk 200 → digest (SKUPNI PROMET, TRENDI 7/30, METODE PLAČILA, **PROMET PO URAH** ★ vrh 19. ura) — vse zelene |
+| 🧰 **Dev okolje** | `.gitignore`: `.pglite-qa/`, `qa-*.png` (QA artefakti); package.json verzija usklajena z README (v runda 77) |
+| 🧪 **Regresija — vse zelene** | lint **0/0** · tsc **0** · **2170/2170 unit** (127 datotek) · **9/9 integracija** |
 
 ### ✨ Nove funkcije v v1.8.9 (QA runda 77 — urna razporeditev v email digestu + waiter offline)
 

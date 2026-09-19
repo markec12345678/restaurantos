@@ -130,3 +130,5 @@ pnpm-lock.yaml
 test-shots/
 /data/
 .env*
+.pglite-qa/
+qa-*.png
