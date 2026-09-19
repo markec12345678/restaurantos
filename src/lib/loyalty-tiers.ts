@@ -149,3 +149,43 @@ export function redeemPointsNeeded(amount: number, pointsValue: number): number 
   const quotient = Math.round((amount / pointsValue) * 1e6) / 1e6
   return Math.max(1, Math.ceil(quotient))
 }
+
+// ============================================
+// RUNDA 61: ZAKLJUČITEV NIVO TOKA — ročni adjust + SMS vezava
+// Prej je auto-upgrade deloval IZKLJUČNO v earn flow (plačila); ročni
+// prilagoditvi točk (PUT /api/loyalty/[id]) je lifetime spremenila, tier
+// pa ostal star → "stuck" računi (živi dokaz: lifetime 543, tier bronze).
+// maybeTierUpgrade je čisti jedro tudi za UI napoved v prilagoditvenem
+// dialogu (isti izračun = isti rezultat na obeh straneh).
+// ============================================
+
+/**
+ * Vrni VIŠJI nivo, če ga `lifetimePoints` dosega, sicer null.
+ * Upgrade-only: nižji ali enak nivo → null (nikoli ne poniži).
+ * Neznana `currentTier` (rank −1) → null (varno: ročni tok naj ne
+ * ugiba; earn flow ima svojo normalizacijo iz Runde 44).
+ */
+export function maybeTierUpgrade(currentTier: string, lifetimePoints: number): TierName | null {
+  const rank = tierRank(currentTier)
+  if (rank < 0) return null
+  const computed = calculateTier(lifetimePoints)
+  return tierRank(computed) > rank ? computed : null
+}
+
+/**
+ * Slovenski label nivoja ("gold" → "Zlati"; neznana vrednost → nespremenjena).
+ * Enoten vir za zapis transakcije ("Povišanje nivoa v X") in SMS (R61 —
+ * prej je SMS odhajal z raw ang. imenom: "…na silver nivo"). Ujemna z
+ * UI konstanto tierConfig (components/pos/loyalty/constants.ts), ki je
+ * server-neuporabna (lucide ikone) — ta map je njen server-safe dvojček.
+ */
+const TIER_LABELS_SI: Record<TierName, string> = {
+  bronze: 'Bronasti',
+  silver: 'Srebrni',
+  gold: 'Zlati',
+  platinum: 'Platinasti',
+}
+
+export function tierLabelSi(tier: string): string {
+  return TIER_LABELS_SI[tier as TierName] ?? tier
+}

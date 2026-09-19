@@ -10,6 +10,7 @@ import { validateApiResponse, handleApiError } from '@/lib/api-utils'
 import { paymentResponseSchema, createPaymentSchema } from '@/lib/validations'
 import { handleGiftCardDeduction } from './gift-card'
 import { handleLoyaltyPointsDeduction, handleLoyaltyEarn } from './loyalty'
+import { triggerTierUpgrade } from '@/lib/loyalty-automation'
 import { updateCheckAndOrderStatus } from './check-status'
 import { postPaymentProcessing } from './post-processing'
 import { refreshZDraftForPayment } from '@/app/api/z-report/_helpers/refresh-draft'
@@ -152,7 +153,7 @@ export async function handleCreatePayment(
     //
     // Rešitev: Uporabi $queryRaw za SELECT ... FOR UPDATE na check-u,
     // kar fizično zaklene vrstico dokler transakcija ne konča.
-    const result = await db.$transaction(async (tx) => {
+    const { result, tierUpgrade: tierUpgradeDuringTx } = await db.$transaction(async (tx) => {
       // FIX: Neon uses PgBouncer in transaction mode — SELECT FOR UPDATE
       // ne deluje pravilno ker vsak statement je lahko na drugi povezavi.
       // Rešitev: pg_advisory_xact_lock — transaction-level lock ki deluje
@@ -214,9 +215,11 @@ export async function handleCreatePayment(
       await handleGiftCardDeduction(tx, paymentInput, check.orderId)
       await handleLoyaltyPointsDeduction(tx, paymentInput, check.orderId)
       await updateCheckAndOrderStatus(tx, data.checkId, checkRow.total, checkRow.orderId)
-      await handleLoyaltyEarn(tx, paymentInput, check.orderId)
+      const earnResult = await handleLoyaltyEarn(tx, paymentInput, check.orderId)
 
-      return payment
+      // RUNDA 61: tier upgrade info se VRNE iz transakcije — SMS odide šele
+      // PO commitu (glej spodaj), da HTTP klic nikoli ne blokira transakcije.
+      return { result: payment, tierUpgrade: earnResult?.tierUpgrade ?? null }
     }, {
       // FIX: Zmanjšan timeout iz 15s na 8s — Vercel Hobby plan ima 10s function
       // timeout. Če transakcija traja dlje kot 8s, prekinemo da klient dobi
@@ -247,6 +250,15 @@ export async function handleCreatePayment(
       where: { id: result.id },
       include: { check: true, alternatePaymentType: true, giftCard: true, loyaltyAccount: true },
     })
+
+    // RUNDA 61: SMS o napredovanju — šele po commitu in re-fetchu (telefon
+    // je na loyaltyAccount), fire-and-forget: spodleteli SMS nikoli ne
+    // pokvari uspešnega plačila (isti vzorec kot Z-osnutek/journal zgoraj).
+    if (tierUpgradeDuringTx && paymentWithRelations?.loyaltyAccountId) {
+      void triggerTierUpgrade(paymentWithRelations.loyaltyAccountId, tierUpgradeDuringTx.from, tierUpgradeDuringTx.to).catch((err: unknown) => {
+        logger.warn('LOYALTY', `Nivo-upgrade SMS spodletel (ne kritično): ${err instanceof Error ? err.message : String(err)}`)
+      })
+    }
 
     return NextResponse.json(validateApiResponse(deepToNumbers(paymentWithRelations), paymentResponseSchema, 'POST /api/payments'), { status: 201 })
   } catch (error: unknown) {

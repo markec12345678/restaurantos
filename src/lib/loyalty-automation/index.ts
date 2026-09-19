@@ -16,6 +16,7 @@ import { logger } from '@/lib/logger'
 import { sendSms, type SmsMessage } from '@/lib/sms'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { createOutboxEvent } from '@/lib/outbox'
+import { tierLabelSi } from '@/lib/loyalty-tiers'
 
 // --- Konstante ---
 export const POINTS_EXPIRY_DAYS = 365 // Točke potečejo po 1 letu
@@ -107,7 +108,9 @@ export async function triggerTierUpgrade(
   const message = TEMPLATES.tier_upgrade({
     customerName: account.customerName,
     oldTier,
-    newTier,
+    // R61: slovenski label nivoja ("silver" → "Srebrni") — prej je SMS
+    // odhajal z raw ang. imenom ("…na silver nivo")
+    newTier: tierLabelSi(newTier),
   })
 
   await sendLoyaltySms(account.customerPhone, message, 'tier_upgrade', loyaltyAccountId, config)

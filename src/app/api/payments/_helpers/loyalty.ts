@@ -18,13 +18,11 @@
 import { Prisma } from '@prisma/client'
 import { toNum, round2, subtract } from '@/lib/decimal'
 import { logger } from '@/lib/logger'
-import { calculateTier, tierRank, TIER_THRESHOLDS, applyTierBonus } from '@/lib/loyalty-tiers'
+import { calculateTier, tierRank, applyTierBonus, tierLabelSi } from '@/lib/loyalty-tiers'
 import type { PaymentInput } from './types'
 
-/** Slovenska oznaka nivoja (za zapis transakcije ob povišanju) */
-const TIER_LABELS_SI: Record<string, string> = Object.fromEntries(
-  TIER_THRESHOLDS.map(t => [t.tier, t.tier.charAt(0).toUpperCase() + t.tier.slice(1)])
-)
+/** Slovenska oznaka nivoja — R61: enoten vir v lib/loyalty-tiers (SMS + transakcije) */
+const tierLabel = tierLabelSi
 
 // ─── Loyalty konfiguracija — per-location override z global fallbackom ───
 
@@ -159,20 +157,20 @@ export async function handleLoyaltyEarn(
   tx: Prisma.TransactionClient,
   data: PaymentInput,
   checkOrderId: string | null,
-): Promise<void> {
+): Promise<{ tierUpgrade: { from: string; to: string } | null }> {
   // FIX HIGH: Samodejno pridobi zvestobne točke ob plačilu — loyalty earn
   // FIX P0-C4: konfiguracija (enabled + pointsPerEuro) se rešuje per-lokacija
   // (Location override → global) — filiala ima lahko last loyalty program
-  if (!data.loyaltyAccountId || data.type === 'loyalty') return
+  if (!data.loyaltyAccountId || data.type === 'loyalty') return { tierUpgrade: null }
 
   const config = await resolveLoyaltyConfig(tx, data.locationId)
-  if (!config.enabled) return
+  if (!config.enabled) return { tierUpgrade: null }
 
   const pointsPerEuro = config.pointsPerEuro || 1
   // Točke se računajo po znesku plačila (brez napitnine)
   const earnBase = round2(subtract(toNum(data.amount), toNum(data.tipAmount)))
   const basePoints = Math.max(0, Math.floor(earnBase * pointsPerEuro))
-  if (basePoints <= 0) return
+  if (basePoints <= 0) return { tierUpgrade: null }
 
   // RUNDA 45: bonus točk po nivoju (perk: silver +5 % / gold +10 % /
   // platinum +15 %). Nivo se bere PRED prištevanjem (status quo ob plačilu);
@@ -212,7 +210,7 @@ export async function handleLoyaltyEarn(
         loyaltyAccountId: data.loyaltyAccountId,
         type: 'earn',
         points: breakdown.bonus,
-        reason: `Bonus nivoa ${TIER_LABELS_SI[accountBefore.tier] ?? accountBefore.tier} (+${breakdown.pct} %)`,
+        reason: `Bonus nivoa ${tierLabel(accountBefore.tier)} (+${breakdown.pct} %)`,
         orderId: checkOrderId || null,
         checkId: data.checkId,
         monetaryValue: 0,
@@ -229,31 +227,34 @@ export async function handleLoyaltyEarn(
   // Prej je bil tier izključno ročen string (privzeto 'bronze') — noben earn
   // ga ni nikoli spremenil. Napredek se šteje po lifetimePoints (doslej
   // zbrane), ki z unovčenjem NE padajo → nivo se nikoli ne "izgubi".
+  // R61: info o povišanju se VRNE klicatelju — SMS odide šele PO commitu
+  // (fire-and-forget v create-payment), da HTTP nikoli ne blokira tx.
   const afterEarn = await tx.loyaltyAccount.findUnique({
     where: { id: data.loyaltyAccountId },
     select: { tier: true, lifetimePoints: true },
   })
-  if (afterEarn) {
-    const computedTier = calculateTier(afterEarn.lifetimePoints)
-    // Upgrade-only: ročno (ali prej) dodeljen VIŠJI nivo se nikoli ne poniži;
-    // neznana vrednost (rank -1) se normalizira na izračun.
-    if (tierRank(computedTier) > tierRank(afterEarn.tier)) {
-      await tx.loyaltyAccount.update({
-        where: { id: data.loyaltyAccountId },
-        data: { tier: computedTier },
-      })
-      await tx.loyaltyTransaction.create({
-        data: {
-          loyaltyAccountId: data.loyaltyAccountId,
-          type: 'earn',
-          points: 0,
-          reason: `Povišanje nivoa v ${TIER_LABELS_SI[computedTier]}`,
-          orderId: checkOrderId || null,
-          checkId: data.checkId,
-          monetaryValue: 0,
-        },
-      })
-      logger.info('LOYALTY', 'Loyalty tier upgraded', { loyaltyAccountId: data.loyaltyAccountId, tier: computedTier })
-    }
+  if (!afterEarn) return { tierUpgrade: null }
+  const computedTier = calculateTier(afterEarn.lifetimePoints)
+  // Upgrade-only: ročno (ali prej) dodeljen VIŠJI nivo se nikoli ne poniži;
+  // neznana vrednost (rank -1) se normalizira na izračun.
+  if (tierRank(computedTier) > tierRank(afterEarn.tier)) {
+    await tx.loyaltyAccount.update({
+      where: { id: data.loyaltyAccountId },
+      data: { tier: computedTier },
+    })
+    await tx.loyaltyTransaction.create({
+      data: {
+        loyaltyAccountId: data.loyaltyAccountId,
+        type: 'earn',
+        points: 0,
+        reason: `Povišanje nivoa v ${tierLabel(computedTier)}`,
+        orderId: checkOrderId || null,
+        checkId: data.checkId,
+        monetaryValue: 0,
+      },
+    })
+    logger.info('LOYALTY', 'Loyalty tier upgraded', { loyaltyAccountId: data.loyaltyAccountId, tier: computedTier })
+    return { tierUpgrade: { from: afterEarn.tier, to: computedTier } }
   }
+  return { tierUpgrade: null }
 }

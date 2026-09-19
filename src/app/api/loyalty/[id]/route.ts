@@ -4,6 +4,9 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateLoyaltySchema } from '@/lib/validations'
 import { handleRouteError, parseJsonBody, validateBody } from '@/lib/api-utils'
+import { maybeTierUpgrade, tierLabelSi } from '@/lib/loyalty-tiers'
+import { triggerTierUpgrade } from '@/lib/loyalty-automation'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +33,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Zvestobni račun ni najden' }, { status: 404 })
     }
     // FIX H-05: Atomna transakcija za posodobitev točk + transakcijski zapis
-    const _result = await db.$transaction(async (tx) => {
+    const { result: _result, tierUpgrade } = await db.$transaction(async (tx) => {
       const updateData: Record<string, unknown> = {}
       if (data.customerName !== undefined) updateData.customerName = data.customerName
       if (data.customerPhone !== undefined) updateData.customerPhone = data.customerPhone
@@ -81,6 +84,35 @@ export async function PUT(
         where: { id },
         data: updateData,
       })
+
+      // RUNDA 61: ZAKLJUČITEV NIVO TOKA — ročni adjust NE SME ostati
+      // brez povišanja. Prej je lifetime sprememba (adjust/ročni vnos) pustila
+      // tier star → "stuck" računi (živi dokaz v produkciji: lifetime 543,
+      // tier bronze). Enak upgrade-only vzorec kot earn flow (Runda 44):
+      // ročno dodeljen VIŠJI nivo se nikoli ne poniži.
+      let tierUpgrade: { from: string; to: string } | null = null
+      const upgradedTo = maybeTierUpgrade(existing.tier, account.lifetimePoints)
+      if (upgradedTo) {
+        await tx.loyaltyAccount.update({
+          where: { id },
+          data: { tier: upgradedTo },
+        })
+        await tx.loyaltyTransaction.create({
+          data: {
+            loyaltyAccountId: id,
+            type: 'earn',
+            points: 0,
+            reason: `Povišanje nivoa v ${tierLabelSi(upgradedTo)}`,
+          },
+        })
+        tierUpgrade = { from: existing.tier, to: upgradedTo }
+        logger.info('LOYALTY', 'Rocni adjust sprozil povicanje nivoa', {
+          loyaltyAccountId: id,
+          from: existing.tier,
+          to: upgradedTo,
+        })
+      }
+
       // Ustvari transakcijski zapis, če je podan
       if (data.transaction) {
         const txData = data.transaction
@@ -107,8 +139,18 @@ export async function PUT(
           },
         })
       }
-      return account
+      return { result: account, tierUpgrade }
     })
+
+    // RUNDA 61: SMS o napredovanju — šele PO commitu (nikoli znotraj
+    // transakcije: HTTP klic ne sme blokirati/zapreti DB transakcije) in
+    // fire-and-forget: spodleteli SMS NIKOLI ne pokvari uspešnega adjusta.
+    if (tierUpgrade) {
+      void triggerTierUpgrade(id, tierUpgrade.from, tierUpgrade.to).catch((err: unknown) => {
+        logger.warn('LOYALTY', `Nivo-upgrade SMS spodletel (ne kritično): ${err instanceof Error ? err.message : String(err)}`)
+      })
+    }
+
     // Re-fetch z transakcijami (FIX IDOR: tudi tukaj locationId scope)
     const account = await db.loyaltyAccount.findFirst({
       where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
@@ -117,7 +159,10 @@ export async function PUT(
     if (!account) {
       return NextResponse.json({ error: 'Zvestobni račun ni najden' }, { status: 404 })
     }
-    return NextResponse.json(deepToNumbers(account))
+    // RUNDA 61: klient dobi flag za celebrate toast ("stranka napredovala!")
+    const response = deepToNumbers(account) as Record<string, unknown>
+    if (tierUpgrade) response.tierUpgrade = tierUpgrade
+    return NextResponse.json(response)
   } catch (error: unknown) {
     return handleRouteError(error, 'PUT /api/loyalty/[id]', [
       { match: 'omejeno na', substring: true, status: 400, message: error instanceof Error ? error.message : 'Omejitev presežena' },

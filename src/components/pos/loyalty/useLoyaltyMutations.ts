@@ -4,6 +4,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
+import { toastTierUpgrade } from './tierUpgradeToast'
+
+/** R61: odgovor PUT /api/loyalty/[id] lahko nosi tierUpgrade flag */
+interface LoyaltyPutResponse {
+  tierUpgrade?: { from: string; to: string } | null
+}
 
 // ============================================
 // HOOK: Mutacije za zvestobni program
@@ -50,8 +56,10 @@ export function useLoyaltyMutations({
       if (!res.ok) throw new Error('Napaka pri posodabljanju računa')
       return res.json()
     },
-    onSuccess: () => {
+    onSuccess: (result: LoyaltyPutResponse) => {
       toast.success('Zvestobni račun uspešno posodobljen')
+      // RUNDA 61: celebrate ob samodejnem povišanju (ročni vnos točk/preimenovanja)
+      if (result?.tierUpgrade) toastTierUpgrade(result.tierUpgrade.to)
       queryClient.invalidateQueries({ queryKey: queryKeys.loyalty.all })
       onCloseDialog()
       onClearEditingAccount()
@@ -65,8 +73,10 @@ export function useLoyaltyMutations({
       if (!res.ok) throw new Error('Napaka pri prilagajanju točk')
       return res.json()
     },
-    onSuccess: () => {
+    onSuccess: (result: LoyaltyPutResponse) => {
       toast.success('Točke uspešno prilagojene')
+      // RUNDA 61: samodejno povišanje nivoja ob prilagoditvi (zaključitev toka)
+      if (result?.tierUpgrade) toastTierUpgrade(result.tierUpgrade.to)
       queryClient.invalidateQueries({ queryKey: queryKeys.loyalty.all })
       onCloseAdjustDialog()
       onClearAdjustAccount()

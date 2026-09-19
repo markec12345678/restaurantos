@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { calculateTier, tierProgress, tierRank, TIER_THRESHOLDS, tierEarnBonusPct, applyTierBonus } from '@/lib/loyalty-tiers'
+import { calculateTier, tierProgress, tierRank, TIER_THRESHOLDS, tierEarnBonusPct, applyTierBonus, maybeTierUpgrade, tierLabelSi } from '@/lib/loyalty-tiers'
 
 // R44: tier engine — pragovi po lifetimePoints (doslej zbrane točke).
 // Pragovi: bronze 0, silver 500, gold 2000, platinum 5000.
@@ -163,5 +163,47 @@ describe('applyTierBonus', () => {
 
   it('neznan nivo z veljavnim base → brez bonusa', () => {
     expect(applyTierBonus(100, 'nesmisel')).toEqual({ base: 100, bonus: 0, total: 100, pct: 0 })
+  })
+})
+
+// ─── R61: zaključitev nivo toka — maybeTierUpgrade + tierLabelSi ───
+
+describe('maybeTierUpgrade', () => {
+  it('vraca visji nivo ko lifetime preseze prag', () => {
+    expect(maybeTierUpgrade('bronze', 500)).toBe('silver')
+    expect(maybeTierUpgrade('bronze', 543)).toBe('silver') // zivi dokaz: QA R42 Zvest
+    expect(maybeTierUpgrade('silver', 2000)).toBe('gold')
+    expect(maybeTierUpgrade('gold', 5000)).toBe('platinum')
+  })
+
+  it('vraca null pod pragom ali na istem nivoju (upgrade-only)', () => {
+    expect(maybeTierUpgrade('bronze', 499)).toBeNull()
+    expect(maybeTierUpgrade('silver', 500)).toBeNull() // isti nivo — ni napredovanja
+    expect(maybeTierUpgrade('gold', 300)).toBeNull() // poniz je prepovedan
+    expect(maybeTierUpgrade('platinum', 999999)).toBeNull() // zenska stekla
+  })
+
+  it('neznan trenutni nivo → null (ne uganjaj v rocni toki)', () => {
+    expect(maybeTierUpgrade('nesmisel', 5000)).toBeNull()
+    expect(maybeTierUpgrade('', 5000)).toBeNull()
+  })
+
+  it('neveljavni lifetime → null brez izjeme', () => {
+    expect(maybeTierUpgrade('bronze', NaN)).toBeNull()
+    expect(maybeTierUpgrade('bronze', -10)).toBeNull()
+  })
+})
+
+describe('tierLabelSi', () => {
+  it('pretvori imena nivojev v slovenske labele (ujemna s tierConfig UI)', () => {
+    expect(tierLabelSi('bronze')).toBe('Bronasti')
+    expect(tierLabelSi('silver')).toBe('Srebrni')
+    expect(tierLabelSi('gold')).toBe('Zlati')
+    expect(tierLabelSi('platinum')).toBe('Platinasti')
+  })
+
+  it('neznan nivo ostane nespremenjen (fallback)', () => {
+    expect(tierLabelSi('diamond')).toBe('diamond')
+    expect(tierLabelSi('')).toBe('')
   })
 })

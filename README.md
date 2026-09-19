@@ -1,6 +1,6 @@
-# RestaurantOS v1.7.3
+# RestaurantOS v1.7.4
 
-[![Version](https://img.shields.io/badge/version-1.7.3-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.7.4-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
@@ -24,7 +24,17 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (61 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (62 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.7.4 (QA runda 61b — Zaključitev nivo toka zvestobe)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| 🏆 **Samodejno povišanje ob ročni prilagoditvi** | Ročni vnos/prilagoditev točk (PUT /api/loyalty/[id]) zdaj SAMODEJNO poviša nivo, če lifetimePoints preseže prag — prej je bil adjust »slep« za pragove (živi dokaz v produkciji: račun z lifetime 543 je ostal Bronast); enak upgrade-only vzorec kot plačilni tok (runda 44) |
+| 📱 **SMS o napredovanju — vezava živa** | `triggerTierUpgrade` (prej mrtva koda — nikoli klican) zdaj odide PO commitu v obeh tokovih (plačilo + ročni adjust), fire-and-forget: spodleteli SMS nikoli ne pokvari transakcije; slovenizirana sporočila ("Srebrni" namesto "silver") |
+| 🎉 **Praznični toast + odgovorni flag** | API vrne `tierUpgrade:{from,to}` → stiliziran toast (vijolični gradient krog ikone nivoja, perk besedilo, 8 s) |
+| 🔮 **Živi predogled v prilagoditvenem dialogu** | Isti izračun kot backend: "S to prilagoditvijo stranka samodejno napreduje v Zlati nivo!" z perk namigom ALI napredna vrstica (vijolični gradient) do naslednjega nivoja — PRED oddajo |
+| 🧪 **+6 testov** | `maybeTierUpgrade` (upgrade-only, neznani nivo varno null) + `tierLabelSi` — 1980/1980 unit (112 datotek) |
 
 ### ✨ Nove funkcije v v1.7.3 (QA runda 61 — Živi tloris)
 
