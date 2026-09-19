@@ -170,11 +170,20 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // FIX R80 (tenant scope): GET status je SCOPED na lokacijo seje
+    // (Receipt.locationId NOT NULL) — lokacijsko vezan admin ne vidi count-a
+    // + receiptNumber tujih lokacij. Super-admin (locationId=null) vidi vse.
+    // POST batch ostaja BY DESIGN multi-location (ZDDV-1 48h job čez vse
+    // lokacije — config se rešuje per račun) in se NE dotikamo.
+    const sessionLocId = authResult.session?.locationId ?? null
+    const locFilter = sessionLocId ? { locationId: sessionLocId } : {}
+
     const unverifiedCount = await db.receipt.count({
       where: {
         fiscalVerified: false,
         isStorno: false,
         createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+        ...locFilter,
       },
     })
 
@@ -183,6 +192,7 @@ export async function GET(req: Request) {
         fiscalVerified: false,
         isStorno: false,
         createdAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+        ...locFilter,
       },
       orderBy: { createdAt: 'asc' },
       select: { createdAt: true, receiptNumber: true },

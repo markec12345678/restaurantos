@@ -1,4 +1,4 @@
-// tenant-scope.ts — MODEL A: centralni helperji za multi-tenant scoping
+// tenant-scope.ts — EDINI modul za multi-tenant scoping (BUG-HUNT R80 unifikacija)
 //
 // TENANT SCOPE AUDIT 2026-09-09 (uporabnikova točka 7):
 //   Odločitev: MODEL A — katalog in konfiguracija so PO LOKACIJI
@@ -11,36 +11,242 @@
 //   zaposleni z dodeljeno lokacijo LAHKO dostopa SAMO do svoje lokacije;
 //   admin brez lokacije (super-admin/lastnik) ima cross-lokacijski nadzor
 //   (vidi vse, USTVARJA pa lahko samo z izrecnim locationId).
+//
+// R80 UNIFIKACIJA: do zdaj sta obstajala DVA modula z podvojenim pravilnikom —
+//   1) ta modul (MODEL A katalog: resolveCatalogScope/locationFilter/...)
+//   2) src/lib/auth-middleware/tenant-scope.ts (transakcijski resolver:
+//      resolveTenantLocationId/tenantScopeToWhere/...)
+//   Oba sta definiranа svoja admin role seta in svoje fail-closed sporočilo.
+//   Zdaj je tukaj EN vir resnice: skupni TENANT_ADMIN_ROLES, skupno
+//   NO_LOCATION_MESSAGE in skupni role-aware matriki. Stara pot
+//   '@/lib/auth-middleware/tenant-scope' ostane kot deprecated re-export shim,
+//   da barrel '@/lib/auth-middleware' in obstoječi importi delujejo nespremenjeno.
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+
+// --- Skupni vir resnice: role logika + fail-closed sporočilo ---
+
+/** Eduro dovoljeni admin/multi-branch role set — edini v codebase-u. */
+export const TENANT_ADMIN_ROLES = new Set(['admin', 'super_admin'])
+
+/** Enojavno preverjanje admin vloge (null/undefined = false — nikoli fail-open). */
+export function isAdminTenantRole(role: string | null | undefined): boolean {
+  return !!role && TENANT_ADMIN_ROLES.has(role)
+}
+
+/** Skupno fail-closed sporočilo za seja brez dodeljene lokacije (403). */
+export const NO_LOCATION_MESSAGE =
+  'Vaš račun nima dodeljene lokacije. Kontaktirajte administratorja.'
+
+/**
+ * Strukturno minimalen session — auth-middleware `Session` ga zadovolji
+ * (employeeId/role/locationId). Namenjeno temu modulu, da NE importira
+ * auth-middleware (prepreči ciklične importe).
+ */
+export type TenantScopeSession = {
+  employeeId?: string
+  role?: string
+  locationId?: string | null
+}
 
 /** Scope lokacije iz seje. null = admin brez dodeljene lokacije (cross-lokacijski nadzor). */
 export type LocationScope = string | null
 
+// =====================================================================
+// 1. TRANSAKCIJSKI RESOLVER (prej: auth-middleware/tenant-scope.ts)
+// =====================================================================
+// Centralni helper za multi-tenant isolation. Reši tri kritične težave:
+//
+// 1. IDOR bypass preko ?locationId parametra
+//    (regular user bi lahko pošiljal ?locationId=loc-b in dostopal do tuje lokacije)
+//
+// 2. Fail-closed za regular user brez session.locationId
+//    (če Employee.locationId ni nastavljen in role ni admin, DENY — ne dovoli vse)
+//
+// 3. Magic string past ("__DENIED__")
+//    (prejšnji načrt je uporabljal magic string — interpretacijska napaka = bypass)
+//
+// Rešitev: strukturiran rezultat z discriminatorjem (Tagged Union).
+// Klicatelj MORA obravnavati vse tri primere ali uporabiti convenient helper.
+
+export type TenantScopeResult =
+  | { ok: true; locationId: string; source: 'session' | 'query'; isCrossBranch: boolean }
+  | { ok: true; locationId: null; source: 'admin_global'; isCrossBranch: boolean }
+  | { ok: false; reason: 'no_session' | 'regular_user_without_location'; error: NextResponse }
+
 /**
- * Role-aware scope resolucija (BUG-HUNT R79 — tenant scope zaključek).
+ * Resolve tenant locationId iz session + query parametra.
  *
- * Prej je bilo edino pravilo: `sessionLocationId(authResult)` → null pomeni
- * "admin cross-lokacijski nadzor". AMPAK Employee.locationId je nullable —
- * tudi NAVADEN zaposleni (role staff/manager) lahko ima session.locationId=null
- * (data integrity issue, brisan lokacijski pivot …) → locationFilter(null) = {}
- * = VIDI KATALOG VSEH TENANTOV (isti fail-open razred kot runda 77).
+ * Pravila:
+ * 1. Regular user (non-admin): session.locationId je AVTORITATIVEN.
+ *    - Če je null → DENY (fail-closed, data integrity issue)
+ *    - Query parameter ?locationId se IGNORIRA (prepreči bypass)
  *
- * Zdaj (konsistentno z resolveTenantLocationId v auth-middleware/tenant-scope.ts):
- *   - zaposleni Z lokacijo            → scope = njegova lokacija
- *   - admin Z lokacijo                → scope = njegova lokacija (restricted)
- *   - admin BREZ lokacije (super-admin) → scope = null (cross-lokacijski nadzor)
- *   - ne-admin BREZ lokacije          → fail-closed 403 (data integrity issue)
+ * 2. Admin z session.locationId: uporabi session.locationId (admin restricted to location)
+ *    - Query parameter se IGNORIRA
  *
- * Tagged union (brez magic stringov — lekcija iz prejšnjega __DENIED__ načrta).
+ * 3. Admin z session.locationId=null (super admin): lahko dostopa do vseh lokacij
+ *    - Če je ?locationId podan, uporabi ga (cross-branch access, auditirano)
+ *    - Če ni podan, vrne null (global view)
+ *
+ * @param session - uporabniška seja iz requireAuth()
+ * @param searchParams - URLSearchParams iz req.url (lahko tudi prazno)
+ * @param options.endpoint - ime endpointa za audit log (npr. 'GET /api/orders')
+ * @param options.auditLogger - funkcija za cross-branch audit log (option)
+ *
+ * @returns TenantScopeResult — strukturiran rezultat, NIKOLI ne vrne null/undefined
+ *
+ * @example
+ * const authResult = await requireAuth(req, ...)
+ * if (authResult.error) return authResult.error
+ * const scope = resolveTenantLocationId(authResult.session, searchParams, {
+ *   endpoint: 'GET /api/orders',
+ * })
+ * if (!scope.ok) return scope.error // DENY
+ * const where = { ...(scope.locationId ? { locationId: scope.locationId } : {}) }
  */
+export function resolveTenantLocationId(
+  session: TenantScopeSession | null | undefined,
+  searchParams: URLSearchParams | null | undefined,
+  options?: {
+    endpoint?: string
+    auditLogger?: (entry: {
+      employeeId: string
+      endpoint: string
+      requestedLocationId: string
+      sessionLocationId: string | null
+    }) => void | Promise<void>
+  },
+): TenantScopeResult {
+  // 1. Brez session → DENY
+  if (!session) {
+    return {
+      ok: false,
+      reason: 'no_session',
+      error: NextResponse.json(
+        { error: 'Avtentikacija je obvezna.' },
+        { status: 401 },
+      ),
+    }
+  }
+
+  const sessionLocationId = session.locationId ?? null
+  const requestedLocationId = searchParams?.get('locationId') ?? searchParams?.get('branchId') ?? null
+  const isAdmin = isAdminTenantRole(session.role)
+
+  // 2. Regular user (non-admin) — session.locationId je avtoritativen
+  if (!isAdmin) {
+    if (!sessionLocationId) {
+      // Fail-closed: regular user brez locationId = data integrity issue
+      return {
+        ok: false,
+        reason: 'regular_user_without_location',
+        error: NextResponse.json({ error: NO_LOCATION_MESSAGE }, { status: 403 }),
+      }
+    }
+    // Regular user: vedno uporabi session.locationId, ignoriraj query
+    return {
+      ok: true,
+      locationId: sessionLocationId,
+      source: 'session',
+      isCrossBranch: false,
+    }
+  }
+
+  // 3. Admin z session.locationId — uporabi svojo lokacijo (admin restricted to location)
+  if (sessionLocationId) {
+    return {
+      ok: true,
+      locationId: sessionLocationId,
+      source: 'session',
+      isCrossBranch: false,
+    }
+  }
+
+  // 4. Admin brez session.locationId (super admin) — lahko uporabi query
+  if (requestedLocationId) {
+    // Cross-branch access — auditiraj (non-blocking)
+    if (options?.auditLogger && options?.endpoint) {
+      try {
+        Promise.resolve(
+          options.auditLogger({
+            employeeId: session.employeeId ?? '',
+            endpoint: options.endpoint,
+            requestedLocationId,
+            sessionLocationId: null,
+          }),
+        ).catch(() => {
+          // Audit log failure ne sme blokirati requesta
+        })
+      } catch {
+        // Non-blocking
+      }
+    }
+    return {
+      ok: true,
+      locationId: requestedLocationId,
+      source: 'query',
+      isCrossBranch: true,
+    }
+  }
+
+  // 5. Super admin brez query parametra — global view (locationId = null)
+  return {
+    ok: true,
+    locationId: null,
+    source: 'admin_global',
+    isCrossBranch: false,
+  }
+}
+
+/**
+ * Pomožni helper, ki iz TenantScopeResult generira Prisma where filter.
+ *
+ * @example
+ * const scope = resolveTenantLocationId(...)
+ * if (!scope.ok) return scope.error
+ * const where = { status: 'pending', ...tenantScopeToWhere(scope) }
+ * const orders = await db.order.findMany({ where })
+ */
+export function tenantScopeToWhere(
+  // Sprejeme tudi poenostavljen { locationId } (npr. rezultat
+  // resolveTenantLocationIdOrThrow) — ok-varianta je podtipska.
+  scope: { locationId: string | null },
+): { locationId?: string } {
+  return scope.locationId ? { locationId: scope.locationId } : {}
+}
+
+/**
+ * Enojni helper, ki resolve-a tenant scope in takoj vrne NextResponse na DENY.
+ * Uporabno za krajše endpointe kjer ne potrebujete podrobnosti o source.
+ *
+ * @returns { locationId: string | null } ali { error: NextResponse } — pogojno
+ *
+ * @example
+ * const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams)
+ * if ('error' in scope) return scope.error
+ * const where = { ...(scope.locationId ? { locationId: scope.locationId } : {}) }
+ */
+export function resolveTenantLocationIdOrThrow(
+  session: TenantScopeSession | null | undefined,
+  searchParams: URLSearchParams | null | undefined,
+  options?: { endpoint?: string },
+): { locationId: string | null } | { error: NextResponse } {
+  const scope = resolveTenantLocationId(session, searchParams, options)
+  if (!scope.ok) return { error: scope.error }
+  return { locationId: scope.locationId }
+}
+
+// =====================================================================
+// 2. MODEL A katalog helperji
+// =====================================================================
+
 export type CatalogScopeResult =
   | { ok: true; scope: LocationScope }
   | { ok: false; response: NextResponse }
 
-const CATALOG_ADMIN_ROLES = new Set(['admin', 'super_admin'])
-
-/** Izlušči scope iz rezultata requireAuth (session.locationId iz Employee). */
+/** Izlušči scope iz rezultata requireAuth (session.locationId iz Employee).
+ *  @deprecated Od R80 uporabljaj role-aware resolveCatalogScope / resolveTenantLocationId. */
 export function sessionLocationId(
   authResult: { session?: { locationId?: string | null } | null } | null | undefined,
 ): LocationScope {
@@ -67,13 +273,10 @@ export function resolveCatalogScope(authResult: {
   }
   const loc = session.locationId ?? null
   if (loc) return { ok: true, scope: loc }
-  if (CATALOG_ADMIN_ROLES.has(session.role ?? '')) return { ok: true, scope: null }
+  if (isAdminTenantRole(session.role)) return { ok: true, scope: null }
   return {
     ok: false,
-    response: NextResponse.json(
-      { error: 'Vaš račun nima dodeljene lokacije. Kontaktirajte administratorja.' },
-      { status: 403 },
-    ),
+    response: NextResponse.json({ error: NO_LOCATION_MESSAGE }, { status: 403 }),
   }
 }
 

@@ -51,13 +51,17 @@ export async function GET(req: Request) {
     // Preveri povezljivost s FURS strežnikom
     const connectivity = await checkFursConnectivity(environment as 'test' | 'production')
 
-    // FIX BUG-08: Opozorilo o ne-overjenih računih, starejših od 1 uro
+    // FIX BUG-08 + FIX R80 (tenant scope): Opozorilo o ne-overjenih računih,
+    // starejših od 1 uro — count je SCOPED na lokacijo seje (Receipt.locationId
+    // NOT NULL); super-admin (locationId=null) vidi vse lokacije.
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
+    const sessionLocId = authResult.session?.locationId ?? null
     const unfiscalizedCount = await db.receipt.count({
       where: {
         fiscalVerified: false,
         isStorno: false,
         createdAt: { lt: oneHourAgo },
+        ...(sessionLocId ? { locationId: sessionLocId } : {}),
       },
     })
 

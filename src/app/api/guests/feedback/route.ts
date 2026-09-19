@@ -14,6 +14,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createGuestFeedbackSchema } from '@/lib/validations'
 import { handleApiError, parseJsonBody, parsePaginationParams, validateBody } from '@/lib/api-utils'
 import { resolveLocationId } from '@/lib/location-fallback'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +28,18 @@ export async function GET(req: Request) {
     // P1-16: centralna pagination validacija (limit max, search dolžina)
     const { limit } = parsePaginationParams(searchParams, { defaultLimit: 50 })
 
-    const where: Record<string, unknown> = {}
+    // FIX R80 (tenant scope): GuestFeedback IMA locationId, a je bil GET
+    // nefiltriran — take_orders staff je videl PII gostov (guestName, comments,
+    // NPS) VSEH lokacij. Scope iz seje: session.locationId → filter; fail-closed
+    // za non-admin BREZ lokacije (403, data-integrity edge); admin brez lokacije
+    // (super-admin) = nefiltriran globalni pregled.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/guests/feedback',
+    })
+    if ('error' in scope) return scope.error
+    const locFilter = scope.locationId ? { locationId: scope.locationId } : {}
+
+    const where: Record<string, unknown> = { ...locFilter }
     if (rating) {
       where.overallRating = parseInt(rating)
     }
@@ -42,7 +54,9 @@ export async function GET(req: Request) {
     ])
 
     // FIX MEDIUM: Uporabi aggregate/groupBy namesto pridobivanja vseh zapisov
+    // FIX R80: stats aggregate je prav tako scoped na lokacijo (locFilter)
     const statsAgg = await db.guestFeedback.aggregate({
+      where: locFilter,
       _count: true,
       _avg: {
         overallRating: true,
@@ -52,10 +66,10 @@ export async function GET(req: Request) {
       },
     })
 
-    const promoterCount = await db.guestFeedback.count({ where: { overallRating: { gte: 4 } } })
-    const detractorCount = await db.guestFeedback.count({ where: { overallRating: { lte: 2 } } })
-    const wouldReturnCount = await db.guestFeedback.count({ where: { wouldReturn: true } })
-    const wouldRecommendCount = await db.guestFeedback.count({ where: { wouldRecommend: true } })
+    const promoterCount = await db.guestFeedback.count({ where: { overallRating: { gte: 4 }, ...locFilter } })
+    const detractorCount = await db.guestFeedback.count({ where: { overallRating: { lte: 2 }, ...locFilter } })
+    const wouldReturnCount = await db.guestFeedback.count({ where: { wouldReturn: true, ...locFilter } })
+    const wouldRecommendCount = await db.guestFeedback.count({ where: { wouldRecommend: true, ...locFilter } })
     const statsTotalCount = statsAgg._count
 
     const stats = {

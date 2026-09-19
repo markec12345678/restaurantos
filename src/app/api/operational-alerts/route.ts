@@ -9,7 +9,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 
 import { formatEUR } from '@/lib/safe-format'
@@ -19,6 +19,22 @@ export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'view_reports' })
     if (authResult.error) return authResult.error
+
+    const { searchParams } = new URL(req.url)
+
+    // R80 FIX HIGH (aggregate leak): celoten GET je bil brez lokacijskega filtra —
+    // naročila (številke/zneski tujih miz), nefiskalizirani računi, odprte izmene
+    // (startingCash) in zaloga VSEH tenantov (view_reports dosegljiv managerjem).
+    // Fail-closed za regular uporabnika brez lokacije. Order/Receipt/
+    // InventoryItem/Table/CashRegisterShift imajo lasten locationId; OrderItem
+    // NIMA — tenant pot gre prek relacije order.locationId.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/operational-alerts',
+    })
+    if ('error' in scope) return scope.error
+
+    // null scope (super-admin) = PRAZEN filter — NIKOLI { locationId: null }
+    const locFilter = scope.locationId ? { locationId: scope.locationId } : {}
 
     const now = new Date()
     const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
@@ -31,6 +47,7 @@ export async function GET(req: Request) {
       where: {
         status: { in: ['in-progress', 'pending'] },
         firedAt: { lt: new Date(now.getTime() - 15 * 60 * 1000) },
+        ...locFilter,
       },
       include: {
         table: { select: { number: true } },
@@ -63,6 +80,7 @@ export async function GET(req: Request) {
         status: 'in-progress',
         firedAt: { lt: new Date(now.getTime() - 5 * 60 * 1000) },
         orderItems: { every: { status: 'pending' } },
+        ...locFilter,
       },
       include: { table: { select: { number: true } } },
       take: 10,
@@ -85,6 +103,7 @@ export async function GET(req: Request) {
         paymentStatus: 'unpaid',
         status: { in: ['ready', 'in-progress'] },
         createdAt: { lt: new Date(now.getTime() - 2 * 60 * 60 * 1000) },
+        ...locFilter,
       },
       include: { table: { select: { number: true } } },
       take: 15,
@@ -112,6 +131,7 @@ export async function GET(req: Request) {
       where: {
         status: 'cancelled',
         cancelledAt: { gte: todayStart },
+        ...locFilter,
       },
     })
 
@@ -119,6 +139,8 @@ export async function GET(req: Request) {
       where: {
         status: 'cancelled',
         createdAt: { gte: todayStart },
+        // R80: OrderItem nima locationId — scope prek relacije order.locationId
+        order: { ...locFilter },
       },
     })
 
@@ -139,6 +161,7 @@ export async function GET(req: Request) {
     const lowStockItems = await db.inventoryItem.findMany({
       where: {
         quantity: { lte: db.inventoryItem.fields.minQuantity },
+        ...locFilter,
       },
       select: { id: true, name: true, quantity: true, minQuantity: true, unit: true },
       take: 20,
@@ -165,6 +188,7 @@ export async function GET(req: Request) {
         fiscalVerified: false,
         isStorno: false,
         createdAt: { lt: oneHourAgo },
+        ...locFilter,
       },
     })
 
@@ -185,6 +209,7 @@ export async function GET(req: Request) {
       where: {
         status: 'open',
         openedAt: { lt: new Date(now.getTime() - 12 * 60 * 60 * 1000) },
+        ...locFilter,
       },
       select: { id: true, openedAt: true, startingCash: true },
       take: 5,
@@ -208,6 +233,7 @@ export async function GET(req: Request) {
     const longOccupiedTables = await db.table.findMany({
       where: {
         status: 'occupied',
+        ...locFilter,
         orders: {
           some: {
             status: { in: ['pending', 'in-progress', 'ready'] },

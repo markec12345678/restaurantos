@@ -8,7 +8,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { validateReportDateRange } from '@/lib/validations'
 import { toNum, round2, add } from '@/lib/decimal'
 import { endOfDayParam, handleApiError } from '@/lib/api-utils'
@@ -23,6 +23,17 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
+
+    // R80 FIX HIGH (aggregate leak): tenant scope — prej so findMany + 2×count +
+    // aggregate (_sum totalSales/cashSales/tips/voids) zajeli izmene VSEH lokacij
+    // (finančni povzetek čez tenant-e; view_reports dosegljiv managerjem).
+    // Fail-closed za regular uporabnika brez lokacije. CashRegisterShift ima
+    // lasten locationId stolpec. null scope (super-admin) = globalni pogled.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/reports/shifts',
+    })
+    if ('error' in scope) return scope.error
+
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
     const status = searchParams.get('status')
@@ -36,7 +47,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Neveljaven status' }, { status: 400 })
     }
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = {
+      // R80: tenant filter — findMany + oba count + aggregate vsi dedijo ta where
+      // (null scope = PRAZEN filter, nikoli { locationId: null })
+      ...(scope.locationId ? { locationId: scope.locationId } : {}),
+    }
     if (startDate || endDate) {
       const openedAt: Record<string, Date> = {}
       if (startDate) openedAt.gte = new Date(startDate)

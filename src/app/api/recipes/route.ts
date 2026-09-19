@@ -3,7 +3,8 @@ import { db } from '@/lib/db'
 import { deepToNumbers, toNum, multiply } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
+import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { logger } from '@/lib/logger'
 import { handleApiError, parseJsonBody, parsePaginationParams, validateBody } from '@/lib/api-utils'
 
@@ -39,9 +40,21 @@ export async function GET(req: Request) {
     // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
     const { limit, offset } = parsePaginationParams(searchParams)
 
+    // FIX R80 (MEDIUM): findMany + count BREZ tenant pota — manage_inventory je
+    // videl stroške receptur tujih tenantov. RecipeItem NIMA locationId —
+    // scope gre prek verige menuItem → category → menu.locationId (MODEL A:
+    // Menu.locationId NOT NULL). Super-admin (null) = globalno.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/recipes',
+    })
+    if ('error' in scope) return scope.error
+
     const where: Record<string, unknown> = {}
     if (menuItemId) where.menuItemId = menuItemId
     if (inventoryItemId) where.inventoryItemId = inventoryItemId
+    if (scope.locationId) {
+      where.menuItem = { category: { menu: { locationId: scope.locationId } } }
+    }
 
     const [recipes, total] = await Promise.all([
       db.recipeItem.findMany({
@@ -83,6 +96,25 @@ export async function POST(req: Request) {
     const { data, error: validationError } = validateBody(createRecipeSchema, bodyResult.data)
     if (validationError) return validationError
 
+    // FIX R80 (WRITE IDOR): create po raw menuItemId BREZ scope checka — staff
+    // je lahko dodajal sestavine receptom TUJIH tenantov. Naloži referencirani
+    // artikel v scope-u (veriga category → menu.locationId); izven → 404.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, null, {
+      endpoint: 'POST /api/recipes',
+    })
+    if ('error' in scope) return scope.error
+
+    const menuItem = await db.menuItem.findFirst({
+      where: {
+        id: data.menuItemId,
+        ...(scope.locationId ? { category: { menu: { locationId: scope.locationId } } } : {}),
+      },
+      select: { id: true },
+    })
+    if (!menuItem) {
+      return notInScopeResponse('Artikel')
+    }
+
     const recipe = await db.recipeItem.create({
       data: {
         menuItemId: data.menuItemId,
@@ -121,6 +153,27 @@ export async function PUT(req: Request) {
     const { data, error: validationError } = validateBody(updateRecipeSchema, bodyResult.data)
     if (validationError) return validationError
 
+    // FIX R80 (WRITE IDOR): update po raw ID BREZ scope checka. Naloži recept z
+    // lokacijo prek menuItem → category → menu in izvrši scope check.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, null, {
+      endpoint: 'PUT /api/recipes',
+    })
+    if ('error' in scope) return scope.error
+
+    const existingRecipe = await db.recipeItem.findUnique({
+      where: { id: data.id },
+      select: {
+        id: true,
+        menuItem: { select: { category: { select: { menu: { select: { locationId: true } } } } } },
+      },
+    })
+    if (!existingRecipe) {
+      return notInScopeResponse('Recept')
+    }
+    if (!isWithinScope(scope.locationId, existingRecipe.menuItem.category.menu.locationId)) {
+      return notInScopeResponse('Recept')
+    }
+
     const updateData: Record<string, unknown> = {}
     if (data.quantityPerServing !== undefined) updateData.quantityPerServing = data.quantityPerServing
     if (data.unit !== undefined) updateData.unit = data.unit
@@ -153,6 +206,26 @@ export async function DELETE(req: Request) {
 
     if (!id) {
       return NextResponse.json({ error: 'Potreben je ID recepta' }, { status: 400 })
+    }
+
+    // FIX R80 (WRITE IDOR): delete po raw ID BREZ scope checka — isti vzorec kot PUT.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, null, {
+      endpoint: 'DELETE /api/recipes',
+    })
+    if ('error' in scope) return scope.error
+
+    const existingRecipe = await db.recipeItem.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        menuItem: { select: { category: { select: { menu: { select: { locationId: true } } } } } },
+      },
+    })
+    if (!existingRecipe) {
+      return notInScopeResponse('Recept')
+    }
+    if (!isWithinScope(scope.locationId, existingRecipe.menuItem.category.menu.locationId)) {
+      return notInScopeResponse('Recept')
     }
 
     await db.recipeItem.delete({ where: { id } })

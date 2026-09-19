@@ -10,7 +10,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { checkRateLimitAsync, getClientIp, AI_ASSISTANT_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
@@ -26,6 +26,22 @@ export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'view_reports' })
     if (authResult.error) return authResult.error
+
+    // R80 FIX HIGH (aggregate leak): tenant scope — vsi agregati (promet, DDV,
+    // napitnine, top artikli, performance zaposlenih) so morali biti filtrirani
+    // po lokaciji; prej so poizvedbe zajele podatke VSEH tenantov (view_reports
+    // je dosegljiv managerjem). Fail-closed za regular uporabnika brez lokacije.
+    // POST nima locationId query parametra — super-admin (null) = globalni pogled.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, null, {
+      endpoint: 'POST /api/ai/nl-query',
+    })
+    if ('error' in scope) return scope.error
+
+    // Order/Employee/Menu imajo lasten locationId stolpec; OrderItem NIMA —
+    // tenant pot gre prek relacije order.locationId (locFilter se spreada V
+    // order objekt). null scope = PRAZEN filter (nikoli { locationId: null }).
+    const locFilter = scope.locationId ? { locationId: scope.locationId } : {}
+
     const rl = await checkRateLimitAsync('ai-nl-query', getClientIp(req), AI_ASSISTANT_LIMIT)
     if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
 
@@ -85,7 +101,7 @@ export async function POST(req: Request) {
     switch (matchedType) {
       case 'revenue': {
         const orders = await db.order.findMany({
-          where: { paidAt: { gte: dateFrom, lte: dateTo }, paymentStatus: 'paid' },
+          where: { paidAt: { gte: dateFrom, lte: dateTo }, paymentStatus: 'paid', ...locFilter },
           select: { total: true, tip: true, tax: true },
         })
         const revenue = orders.reduce((s, o) => s + toNum(o.total), 0)
@@ -100,7 +116,7 @@ export async function POST(req: Request) {
         const items = await db.orderItem.groupBy({
           by: ['menuItemId'],
           where: {
-            order: { paidAt: { gte: dateFrom, lte: dateTo } },
+            order: { paidAt: { gte: dateFrom, lte: dateTo }, ...locFilter },
             voided: false,
           },
           _sum: { quantity: true },
@@ -110,7 +126,7 @@ export async function POST(req: Request) {
         })
         const menuItemIds = items.map(i => i.menuItemId)
         const menuItems = await db.menuItem.findMany({
-          where: { id: { in: menuItemIds } },
+          where: { id: { in: menuItemIds }, category: { menu: { ...locFilter } } },
           select: { id: true, name: true },
         })
         const topItems = items.map(i => {
@@ -124,7 +140,7 @@ export async function POST(req: Request) {
 
       case 'peak_hour': {
         const orders = await db.order.findMany({
-          where: { paidAt: { gte: dateFrom, lte: dateTo }, paymentStatus: 'paid' },
+          where: { paidAt: { gte: dateFrom, lte: dateTo }, paymentStatus: 'paid', ...locFilter },
           select: { paidAt: true, total: true },
         })
         const hourlyMap: Record<number, { count: number; revenue: number }> = {}
@@ -147,10 +163,10 @@ export async function POST(req: Request) {
 
       case 'cancellations': {
         const cancelled = await db.order.count({
-          where: { status: 'cancelled', cancelledAt: { gte: dateFrom, lte: dateTo } },
+          where: { status: 'cancelled', cancelledAt: { gte: dateFrom, lte: dateTo }, ...locFilter },
         })
         const voidedItems = await db.orderItem.count({
-          where: { voided: true, updatedAt: { gte: dateFrom, lte: dateTo } },
+          where: { voided: true, updatedAt: { gte: dateFrom, lte: dateTo }, order: { ...locFilter } },
         })
         answer = `${periodLabel === 'danes' ? 'Danes' : 'V izbranem obdobju'} ste imeli ${cancelled} preklicanih naročil in ${voidedItems} voidanih artiklov.`
         data_ = { cancelledOrders: cancelled, voidedItems }
@@ -159,7 +175,7 @@ export async function POST(req: Request) {
 
       case 'tips': {
         const orders = await db.order.findMany({
-          where: { paidAt: { gte: dateFrom, lte: dateTo }, paymentStatus: 'paid' },
+          where: { paidAt: { gte: dateFrom, lte: dateTo }, paymentStatus: 'paid', ...locFilter },
           select: { tip: true },
         })
         const totalTips = orders.reduce((s, o) => s + toNum(o.tip), 0)
@@ -172,7 +188,7 @@ export async function POST(req: Request) {
       case 'employee_perf': {
         const employees = await db.order.groupBy({
           by: ['employeeId'],
-          where: { paidAt: { gte: dateFrom, lte: dateTo }, paymentStatus: 'paid' },
+          where: { paidAt: { gte: dateFrom, lte: dateTo }, paymentStatus: 'paid', ...locFilter },
           _sum: { total: true, tip: true },
           _count: true,
           orderBy: { _sum: { total: 'desc' } },
@@ -180,7 +196,7 @@ export async function POST(req: Request) {
         })
         const empIds = employees.map(e => e.employeeId).filter((id): id is string => !!id)
         const empData = await db.employee.findMany({
-          where: { id: { in: empIds } },
+          where: { id: { in: empIds }, ...locFilter },
           select: { id: true, name: true },
         })
         const perf = employees.map(e => {

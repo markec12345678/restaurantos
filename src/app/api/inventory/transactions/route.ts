@@ -3,7 +3,7 @@
 // POST /api/inventory/transactions — Ročna transakcija (adjustment/write-off/restock)
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { toNum, deepToNumbers, round2, multiply } from '@/lib/decimal'
 import { handleApiError, parseJsonBody, parsePaginationParams, validateBody, BULK_MAX_LIMIT } from '@/lib/api-utils'
 import { z } from 'zod'
@@ -37,6 +37,15 @@ export async function GET(req: Request) {
     // zgodovina zaloge se izvozi/analizira kot blok (prej clamp 500)
     const { limit, offset } = parsePaginationParams(searchParams, { maxLimit: BULK_MAX_LIMIT })
 
+    // FIX R80 (HIGH): count (:prej L62) + groupBy _sum quantity/totalCost (:prej L66)
+    // BREZ tenant filtra — manage_inventory je videl količine in stroške VSEH
+    // lokacij. StockTransaction NIMA lastnega locationId (schema.prisma) —
+    // scope gre prek inventoryItem.locationId. Super-admin (null) = globalno.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/inventory/transactions',
+    })
+    if ('error' in scope) return scope.error
+
     const where: Record<string, unknown> = {}
     if (inventoryItemId) where.inventoryItemId = inventoryItemId
     if (type) where.type = type
@@ -46,6 +55,9 @@ export async function GET(req: Request) {
       if (toDate) dateFilter.lte = new Date(toDate + 'T23:59:59')
       where.createdAt = dateFilter
     }
+    // Tenant pot: StockTransaction → inventoryItem.locationId (velja za
+    // findMany + count + groupBy spodaj — vsi uporabljajo ta where)
+    if (scope.locationId) where.inventoryItem = { locationId: scope.locationId }
 
     const [transactions, total] = await Promise.all([
       db.stockTransaction.findMany({
@@ -101,9 +113,17 @@ export async function POST(req: Request) {
 
     const { inventoryItemId, type, quantity, reason, note } = data
 
-    // Preveri da inventory item obstaja
-    const invItem = await db.inventoryItem.findUnique({
-      where: { id: inventoryItemId },
+    // FIX R80 (HIGH, WRITE IDOR): item lookup je bil nescopecan (findUnique po
+    // raw ID) — staff je lahko spreminjal zalogo artiklov TUJIH lokacij.
+    // findFirst z lokacijskim filtrom iz seje; izven scope-a → 404.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, null, {
+      endpoint: 'POST /api/inventory/transactions',
+    })
+    if ('error' in scope) return scope.error
+
+    // Preveri da inventory item obstaja (scoped)
+    const invItem = await db.inventoryItem.findFirst({
+      where: { id: inventoryItemId, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!invItem) {
       return NextResponse.json({ error: 'Artikel zaloge ni najden' }, { status: 404 })

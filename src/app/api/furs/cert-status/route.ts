@@ -93,12 +93,16 @@ export async function GET(req: Request) {
     }
 
     // Preveri nepotrjene račune (starejše od 48h — ZDDV-1 rok)
+    // FIX R80 (tenant scope): oba count-a sta SCOPED na lokacijo seje
+    // (Receipt.locationId NOT NULL); super-admin (locationId=null) vidi vse.
+    const locFilter = sessionLocId ? { locationId: sessionLocId } : {}
     const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000)
     const unfiscalizedCount = await db.receipt.count({
       where: {
         fiscalVerified: false,
         isStorno: false,
         createdAt: { lt: fortyEightHoursAgo },
+        ...locFilter,
       },
     })
 
@@ -109,6 +113,7 @@ export async function GET(req: Request) {
         fiscalVerified: false,
         isStorno: false,
         createdAt: { lt: oneHourAgo, gte: fortyEightHoursAgo },
+        ...locFilter,
       },
     })
 

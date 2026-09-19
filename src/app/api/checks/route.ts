@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { handleApiError, parsePaginationParams } from '@/lib/api-utils'
 import { handlePostCheck } from './_helpers/post-handler'
 
@@ -21,9 +21,18 @@ export async function GET(req: Request) {
     // BUG-HUNT FIX 2026-09-19 (HIGH, cross-tenant): prej je where vseboval SAMO
     // orderId/paymentStatus — GET je vračal čeke VSEH lokacij (vključno s
     // plačili in popusti). Enak razred napake kot /api/payments (fix 2026-09-09).
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R80 (HIGH, fail-closed): prej raw `session?.locationId ?? undefined` —
+    // ne-admin z NULL locationId (data-integrity edge) je dobil GLOBALNI pogled
+    // (čeki + plačila vseh tenantov), kjer je tako postal nescopecan.
+    // Centralni resolver: fail-closed 403 + ignorira ?locationId bypass.
+    // Check NIMA lastnega locationId (schema.prisma) — scope gre prek relacije
+    // order.locationId (isti relacijski vzorec kot plačila prek check.order).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/checks',
+    })
+    if ('error' in scope) return scope.error
     const where: Record<string, unknown> = {
-      ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}),
+      ...(scope.locationId ? { order: { locationId: scope.locationId } } : {}),
     }
     if (orderId) where.orderId = orderId
     if (paymentStatus) where.paymentStatus = paymentStatus

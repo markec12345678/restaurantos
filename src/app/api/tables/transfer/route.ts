@@ -5,8 +5,9 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
+import { notInScopeResponse } from '@/lib/tenant-scope'
 import { z } from 'zod'
 import { createAuditLog } from '@/lib/db'
 
@@ -34,19 +35,33 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Izvorna in ciljna miza sta isti' }, { status: 400 })
     }
 
-    // Preveri obe mizi
-    const [sourceTable, targetTable] = await Promise.all([
-      db.table.findUnique({ where: { id: data.sourceTableId } }),
-      db.table.findUnique({ where: { id: data.targetTableId } }),
-    ])
-    if (!sourceTable) return NextResponse.json({ error: 'Izvorna miza ni najdena' }, { status: 404 })
-    if (!targetTable) return NextResponse.json({ error: 'Ciljna miza ni najdena' }, { status: 404 })
+    // FIX R80 (HIGH, WRITE IDOR): prej `db.table.findUnique({ where: { id } })` ×2
+    // BREZ lokacijskega checka — take_orders staff je lahko prenesel naročila
+    // med mizami TUJIH tenantov (inner order.findMany/count je dedoval
+    // nescopecan parent). P0-C1 vzorec iz orders/[id]/transfer: findFirst z
+    // lokacijskim filtrom iz seje; izven scope-a → 404 (ne razkrivamo obstoja).
+    // Super-admin brez lokacije (scope null) = globalni nadzor (kot P0-C1).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, null, {
+      endpoint: 'POST /api/tables/transfer',
+    })
+    if ('error' in scope) return scope.error
+    const tableScope = scope.locationId ? { locationId: scope.locationId } : {}
 
-    // Pridobi aktivna naročila na izvorni mizi
+    // Preveri obe mizi (scoped — findFirst namesto findUnique)
+    const [sourceTable, targetTable] = await Promise.all([
+      db.table.findFirst({ where: { id: data.sourceTableId, ...tableScope } }),
+      db.table.findFirst({ where: { id: data.targetTableId, ...tableScope } }),
+    ])
+    if (!sourceTable) return notInScopeResponse('Miza')
+    if (!targetTable) return notInScopeResponse('Miza')
+
+    // Pridobi aktivna naročila na izvorni mizi (defense-in-depth: tudi naročila
+    // so locationId-filtrirana, da agregat ne more dedovati nescopecanega konteksta)
     const activeOrdersWhere = {
       tableId: data.sourceTableId,
       status: { in: ['pending', 'in-progress', 'ready'] },
       paymentStatus: { in: ['unpaid', 'partial'] },
+      ...tableScope,
       ...(data.orderId ? { id: data.orderId } : {}),
     }
     const ordersToTransfer = await db.order.findMany({ where: activeOrdersWhere })

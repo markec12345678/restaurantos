@@ -8,7 +8,7 @@
 import { db } from '@/lib/db'
 import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { createPurchaseOrderSchema } from '@/lib/validations'
 import { getNextCounter } from '@/lib/counters'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
@@ -23,10 +23,24 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
+
+    // R80 FIX HIGH (aggregate leak): prej je GET vračal nabavna naročila VSEH
+    // lokacij (where je imel samo status/supplierId; manage_inventory dosegljiv
+    // managerjem → dobavitelji in zneski tujih tenantov). PurchaseOrder ima
+    // lasten locationId stolpec. Fail-closed; null scope (super-admin) = vse.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/purchase-orders',
+    })
+    if ('error' in scope) return scope.error
+
     const status = searchParams.get('status') || ''
     const supplierId = searchParams.get('supplierId') || ''
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = {
+      // R80: tenant filter — findMany + count oba dedita ta where
+      // (null scope = PRAZEN filter, nikoli { locationId: null })
+      ...(scope.locationId ? { locationId: scope.locationId } : {}),
+    }
     if (status) where.status = status
     if (supplierId) where.supplierId = supplierId
 

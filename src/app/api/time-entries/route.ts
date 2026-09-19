@@ -1,7 +1,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { createTimeEntrySchema } from '@/lib/validations'
 import { toNum, round2, multiply, deepToNumbers } from '@/lib/decimal'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
@@ -16,12 +16,26 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
+
+    // R80 FIX HIGH (aggregate leak): prej je GET izpostavljal plače (payRate/
+    // totalPay) in delovne ure VSEH lokacij (manage_employees dosegljiv
+    // managerjem). TimeEntry ima lasten locationId stolpec. Fail-closed;
+    // null scope (super-admin) = globalni pogled.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/time-entries',
+    })
+    if ('error' in scope) return scope.error
+
     const employeeId = searchParams.get('employeeId')
     const jobId = searchParams.get('jobId')
     const status = searchParams.get('status')
     const type = searchParams.get('type')
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = {
+      // R80: tenant filter — findMany + count oba dedita ta where
+      // (null scope = PRAZEN filter, nikoli { locationId: null })
+      ...(scope.locationId ? { locationId: scope.locationId } : {}),
+    }
     if (employeeId) where.employeeId = employeeId
     if (jobId) where.jobId = jobId
     if (status) where.status = status

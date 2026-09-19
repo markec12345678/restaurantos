@@ -1,8 +1,9 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { updateGiftCardSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
+import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { toNum, greaterThan, deepToNumbers } from '@/lib/decimal'
 import { canDeleteGiftCard } from '@/lib/gift-card-guard'
 
@@ -25,6 +26,17 @@ export async function PUT(
     const existing = await db.giftCard.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ error: 'Darilna kartica ni najdena' }, { status: 404 })
+    }
+    // FIX R80 (HIGH, cross-tenant): parent findUnique je bil nescopecan —
+    // take_orders staff je lahko bral/manipuliral STANJE kartice poljubne
+    // lokacije (giftCardTransaction.count je dedoval nescopecan parent).
+    // Scope iz seje; izven scope-a → 404 (ne razkrivamo obstoja kartice).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, null, {
+      endpoint: 'PUT /api/gift-cards/[id]',
+    })
+    if ('error' in scope) return scope.error
+    if (!isWithinScope(scope.locationId, existing.locationId)) {
+      return notInScopeResponse('Darilna kartica')
     }
     // FIX MEDIUM: Preveri, da kartica ni potekla ali suspendirana — ne dovoli sprememb
     if (existing.status === 'suspended') {
@@ -147,6 +159,16 @@ export async function DELETE(
     const existing = await db.giftCard.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ error: 'Darilna kartica ni najdena' }, { status: 404 })
+    }
+    // FIX R80 (HIGH, cross-tenant): isti scope check kot PUT — admin brez
+    // lokacijske pripadnosti ne sme brisati kartic tujih tenantov (count
+    // transakcij zraven deduje samo po uspešnem scope checku).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, null, {
+      endpoint: 'DELETE /api/gift-cards/[id]',
+    })
+    if ('error' in scope) return scope.error
+    if (!isWithinScope(scope.locationId, existing.locationId)) {
+      return notInScopeResponse('Darilna kartica')
     }
     const [txnCount, fresh] = await Promise.all([
       db.giftCardTransaction.count({ where: { giftCardId: id } }),

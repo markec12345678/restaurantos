@@ -78,30 +78,40 @@ interface RetryItemResult {
   error?: string
 }
 
-async function retryGuard(req: Request): Promise<Response | null> {
+async function retryGuard(req: Request): Promise<
+  { error: Response; sessionLocId: null } | { error: null; sessionLocId: string | null }
+> {
   const rl = await checkRateLimitAsync('cis-retry-pending', getClientIp(req), CIS_BATCH_RETRY_LIMIT)
   if (!rl.allowed) {
-    return NextResponse.json(
-      { error: 'Preveč zahtevkov' },
-      { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 300000) / 1000)) } }
-    )
+    return {
+      error: NextResponse.json(
+        { error: 'Preveč zahtevkov' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 300000) / 1000)) } }
+      ),
+      sessionLocId: null,
+    }
   }
   const authResult = await requireAuth(req, { permission: 'admin' })
-  if (authResult.error) return authResult.error
-  return null
+  if (authResult.error) return { error: authResult.error, sessionLocId: null }
+  // FIX R80 (tenant scope): vrni session.locationId, da stats/retry poti scopajo
+  // poizvedbe na lokacijo seje (Receipt.locationId NOT NULL); super-admin = null.
+  return { error: null, sessionLocId: authResult.session?.locationId ?? null }
 }
 
 /** GET ?resource=pending — števci za UI badge (pending + failed). */
-async function retryStats(): Promise<Response> {
+async function retryStats(sessionLocId: string | null): Promise<Response> {
+  // FIX R80 (tenant scope): števci so SCOPED na lokacijo seje — prej so šteli
+  // pending/failed račune VSEH lokacij (admin route). Super-admin vidi vse.
+  const locFilter = sessionLocId ? { locationId: sessionLocId } : {}
   const [pendingCount, failedCount] = await Promise.all([
-    db.receipt.count({ where: { cisStatus: 'pending' } }),
-    db.receipt.count({ where: { cisStatus: 'failed' } }),
+    db.receipt.count({ where: { cisStatus: 'pending', ...locFilter } }),
+    db.receipt.count({ where: { cisStatus: 'failed', ...locFilter } }),
   ])
   return NextResponse.json({ ok: true, pendingCount, failedCount })
 }
 
 /** POST { action:'retry-pending' } — batch ponovna oddaja (FIFO, max 25). */
-async function retryPending(req: Request, raw: unknown): Promise<Response> {
+async function retryPending(req: Request, raw: unknown, sessionLocId: string | null): Promise<Response> {
   const parsed = retrySchema.safeParse(raw ?? {})
   if (!parsed.success) {
     return NextResponse.json(
@@ -112,7 +122,12 @@ async function retryPending(req: Request, raw: unknown): Promise<Response> {
   const limit = parsed.data.limit ?? DEFAULT_BATCH
 
   const pending = await db.receipt.findMany({
-    where: { cisStatus: { in: ['pending', 'failed'] } },
+    // FIX R80 (tenant scope): retry oddaja SAMO račune lokacije seje — prej je
+    // ponovno submitiral TUJE račune na CIS. Super-admin (locationId=null) = vse.
+    where: {
+      cisStatus: { in: ['pending', 'failed'] },
+      ...(sessionLocId ? { locationId: sessionLocId } : {}),
+    },
     select: { id: true, receiptNumber: true },
     orderBy: { createdAt: 'asc' }, // FIFO — najstarejši neoddani najprej
     take: limit,
@@ -177,9 +192,9 @@ export async function GET(req: Request) {
     const url = new URL(req.url)
 
     if (url.searchParams.get('resource') === 'pending') {
-      const denied = await retryGuard(req)
-      if (denied) return denied
-      return await retryStats()
+      const guard = await retryGuard(req)
+      if (guard.error) return guard.error
+      return await retryStats(guard.sessionLocId)
     }
 
     // Privzeto: echo povezljivost (Task 23)
@@ -217,8 +232,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     // Guard PRED parse (401/429 imajo prednost pred 400 — zrcali retry-pending)
-    const denied = await retryGuard(req)
-    if (denied) return denied
+    const guard = await retryGuard(req)
+    if (guard.error) return guard.error
 
     // Telo je OPCIJSKO pri retry (prazen POST z action v query) — beri tolerantno
     let raw: unknown = {}
@@ -242,7 +257,7 @@ export async function POST(req: Request) {
       )
     }
 
-    return await retryPending(req, raw)
+    return await retryPending(req, raw, guard.sessionLocId)
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/cis/echo', 'Napaka pri ponovni oddaji računov na CIS')
   }

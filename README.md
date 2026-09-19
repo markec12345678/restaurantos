@@ -1,11 +1,11 @@
-# RestaurantOS v1.8.11
+# RestaurantOS v1.9.0
 
-[![Version](https://img.shields.io/badge/version-1.8.11-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.9.0-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-2184%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-79%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-2245%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-80%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,22 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (79 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (80 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### 🔧 Popravki v v1.9.0 (QA runda 80 — agregacijski endpointi + unifikacija tenant modulov)
+
+| Kategorija | Popravek |
+|------------|----------|
+| 🧩 **Unifikacija tenant modulov (EDINI vir resnice)** | Do zdaj 2 modula s podvojenim pravilnikom: `lib/tenant-scope.ts` (MODEL A katalog) + `auth-middleware/tenant-scope.ts` (transakcijski resolver) — vsak s svojim admin role setom in fail-closed sporočilom. Zdaj EN modul `lib/tenant-scope.ts`: skupni `TENANT_ADMIN_ROLES` + `isAdminTenantRole` + `NO_LOCATION_MESSAGE`, oba resolverja (`resolveTenantLocationId` + `resolveCatalogScope`) delita isto vlogsko matriko; stara pot ostane kot deprecated re-export shim (barrel `@/lib/auth-middleware` nespremenjen); `tenantScopeToWhere` zdaj sprejme tudi OrThrow rezultat |
+| 🔍 **Sistemski pregled agregacijskih endpointov** | 64 route fajlov z `groupBy`/`aggregate`/`count`/`$queryRaw` auditrani z 2 vzporednima read-only agentoma: 73 konstruktov → 39 SAFE, 20 LEAK (10 HIGH, 9 MEDIUM), 14 NEEDS-REVIEW; **0 injection težav** (vsak raw SQL parameteriziran/whitelist) |
+| 🚨 **HIGH: AI NL-query — celotna ruta čez tenantе** | `POST /api/ai/nl-query` (view_reports): vseh 9 query vej (revenue, top items, peak hours, cancellations, tips, employee perf) BREZ locationId → promet/DDV/napilci/imena zaposlenih VSEH tenantov. Zdaj: resolveTenantLocationIdOrThrow + scope v vsakem where (relacijske poti OrderItem→order, MenuItem→category.menu, Employee.lastna lokacija) |
+| 🚨 **HIGH: 2 write IDOR + 2 fail-open branja** | `POST /api/tables/transfer` — findUnique brez scope-a → prenos naročil med tujimi lokacijami (mirrors P0-C1: findFirst + 404); `PUT/DELETE /api/gift-cards/[id]` — parent brez isWithinScope → manipulacija stanja tujih kartic (404); `GET /api/checks` — raw session ?? undefined fail-open → fail-closed resolver; `GET /api/inventory/transactions` — count+groupBy(_sum totalCost)+POST lookup scope-ani |
+| 🚨 **HIGH: finančni agregati čez tenantе** | `reports/shifts` (aggregate _sum sales/tips), `operational-alerts` (vseh 9 query), `purchase-orders`, `time-entries` (payroll payRate/totalPay) — vsi dobili fail-closed scope (super-admin global ostaja) |
+| 🟠 **MEDIUM: FURS/CIS + gostje + HACCP + lokacije** | `furs` (unfiskalizirani count), `furs/cert-status` (2× ZDDV-1 count), `furs/batch` GET (POST več-lokacijski po zasnovi — nedotaknjen), `cis/echo` (retry findMany NE pošilja več tujih računov v CIS), `guests/feedback` (PII: 7 query + fail-closed 403), `haccp` (food-safety zapisi), `locations` (location-bound vidi samo svojo), `locations/[id]` (guard pred order.aggregate dnevne promete — isti razred kot runda 76 locations/sync) |
+| 🟠 **notifications: staff → admin + PII strip** | AuditLog nima tenant stolpca (schema fix = runda 81), zato: GET permission `take_orders` → `admin` + `stripRecipientPii()` odstrani `details.recipient` (telefon/email) iz odgovora |
+| 🧪 **+61 regresijskih testov** | `tests/unit/security/r80-aggregate-scope-*.test.ts` (A: 35, B: 13, C: 13): fail-closed 403 matrika, per-where scope wiring (relacijske poti), `?locationId` bypass ignoriran, super-admin global (filter OMETAN — nikoli `{ locationId: null }`), 404 brez razkritja obstoja — **2245/2245 unit (136 datotek)** |
+| 🧪 **Regresija — vse zelene** | lint **0/0** · tsc **0** · **2245/2245 unit** (136 datotek) · **9/9 integracija** |
+| 📌 **Odpri točke (runda 81)** | `AuditLog.locationId` stolpec + backfill (pravi fix za notifications); `haccp` PUT/DELETE by-ID scope guard; legacy NULL-location vrstice (Shift/GiftCard/InventoryItem — backfill ali produkt odločitev); monitoring/metrics + setup/status + subscription — produkt odločitve (global-by-design vs per-tenant) |
 
 ### 🔧 Popravki v v1.8.11 (QA runda 79 — tenant scope: webauthn credentials + MODEL A fail-closed)
 

@@ -9,6 +9,24 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { updateLocationSchema } from './_helpers'
 import { maskLocationSecrets } from '@/lib/secret-masks'
+import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
+
+// FIX R80 (tenant scope): lokacija JE tenant root (runda 76 /locations/sync vzorec).
+// Skupni guard za VSE handlerje v tej datoteki (GET/PUT/DELETE): lokacijsko vezana
+// seja sme dostopati SAMO do svoje lokacije (GET je vračal _count ×6 + order.aggregate
+// dnevni promet/tips za POLJUBNO lokacijo; PUT/DELETE pa pisanje po tujem tenantu).
+// Super-admin (session.locationId = null) ima cross-lokacijski nadzor.
+function guardLocationScope(
+  session: { locationId?: string | null } | null | undefined,
+  id: string,
+): NextResponse | null {
+  const sessionLocId = session?.locationId ?? null
+  if (sessionLocId && !isWithinScope(sessionLocId, id)) {
+    // Namerno 404 — ne razkrivamo obstoja tuje lokacije.
+    return notInScopeResponse('Lokacija')
+  }
+  return null
+}
 
 
 // ============================================
@@ -26,6 +44,8 @@ export async function GET(
 
   try {
     const { id } = await params
+    const denied = guardLocationScope(authResult.session, id)
+    if (denied) return denied
 
     const location = await db.location.findUnique({
       where: { id },
@@ -92,6 +112,9 @@ export async function PUT(
 
   try {
     const { id } = await params
+    const denied = guardLocationScope(authResult.session, id)
+    if (denied) return denied
+
     const { data, error: validationError } = await validateRequest(req, updateLocationSchema)
     if (validationError) return validationError
 
@@ -134,6 +157,8 @@ export async function DELETE(
 
   try {
     const { id } = await params
+    const denied = guardLocationScope(authResult.session, id)
+    if (denied) return denied
 
     const location = await db.location.findUnique({ where: { id } })
     if (!location) {

@@ -39,14 +39,20 @@ export async function GET(req: Request) {
     // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
     const { limit, offset } = parsePaginationParams(searchParams)
 
+    // FIX R80 (tenant scope): HaccpEntry IMA locationId, a je bil findMany+count
+    // nefiltriran — cross-tenant food-safety zapisi. Scope na lokacijo seje;
+    // super-admin (session.locationId=null) vidi vse lokacije.
+    const sessionLocId = authResult.session?.locationId ?? null
+    const locFilter = sessionLocId ? { locationId: sessionLocId } : {}
+
     const [entries, total] = await Promise.all([
       db.haccpEntry.findMany({
-        where,
+        where: { ...where, ...locFilter },
         orderBy: { date: 'desc' },
         take: limit,
         skip: offset,
       }),
-      db.haccpEntry.count({ where }),
+      db.haccpEntry.count({ where: { ...where, ...locFilter } }),
     ])
 
     return NextResponse.json({ entries, total, limit, offset })

@@ -9,7 +9,7 @@ import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
-import { sendNotificationSchema, sendBatchSchema, simulateSend, parseDetails } from './_helpers'
+import { sendNotificationSchema, sendBatchSchema, simulateSend, parseDetails, stripRecipientPii } from './_helpers'
 
 
 // ============================================
@@ -19,7 +19,13 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   try {
-    const authResult = await requireAuth(req, { permission: 'take_orders' })
+    // FIX R80 (HIGH, tenant scope): prej permission 'take_orders' — AuditLog NIMA
+    // locationId stolpca, zato ta ruta ne more biti varno tenant-scoped na staff
+    // nivoju (vračala je details.recipient = telefon/email prejemnikov VSEH
+    // tenantov). Zahteva admin; PII prejemnika se dodatno odstrani iz odgovora
+    // (glej stripRecipientPii). Pravilna dolgoročna rešitev = AuditLog.locationId
+    // stolpec (runda 81, shematska sprememba).
+    const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
     const { searchParams } = new URL(req.url)
     const status = searchParams.get('status') || 'all'
@@ -44,6 +50,14 @@ export async function GET(req: Request) {
       db.auditLog.count({ where }),
     ])
 
+    // FIX R80 (HIGH, PII): details.recipient (telefon/email) se NE vrača —
+    // AuditLog je trenutno globalen model, zato je prejemnik tuji tenant PII.
+    // Kanal/zadeva/ostali metapodatki ostanejo (potrebni za UI obvestilnega centra).
+    const maskedNotifications = notifications.map((n) => ({
+      ...n,
+      details: stripRecipientPii(n.details),
+    }))
+
     // Statistika
     const today = new Date()
     today.setHours(0, 0, 0, 0)
@@ -67,7 +81,7 @@ export async function GET(req: Request) {
       else if (channel === 'push') pushCount++
     }
 
-    return NextResponse.json({ notifications, total, limit, offset, stats: { totalSent: sentCount, totalFailed: failedCount, byType: { sms: smsCount, email: emailCount, push: pushCount } } })
+    return NextResponse.json({ notifications: maskedNotifications, total, limit, offset, stats: { totalSent: sentCount, totalFailed: failedCount, byType: { sms: smsCount, email: emailCount, push: pushCount } } })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/notifications', 'Napaka pri pridobivanju obvestil')
   }

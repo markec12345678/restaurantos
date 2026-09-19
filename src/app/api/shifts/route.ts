@@ -2,7 +2,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { createShiftSchema } from '@/lib/validations'
 import { emitEvent } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
@@ -24,6 +24,16 @@ export async function GET(req: Request) {
     const dateTo = searchParams.get('dateTo')
 
     const where: Record<string, unknown> = {}
+    // FIX R80 (MEDIUM): findMany + count BREZ locationId — razporedi +
+    // basePayRate VSEH tenantov (manage_employees). Shift.locationId obstaja
+    // (nullable — legacy vrstice brez lokacije so fail-closed nevidne).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/shifts',
+    })
+    if ('error' in scope) return scope.error
+    if (scope.locationId) {
+      where.locationId = scope.locationId
+    }
     if (employeeId) where.employeeId = employeeId
     if (status) where.status = status
     if (dateFrom || dateTo) {

@@ -121,7 +121,7 @@ describe('POST /api/cis/retry-pending', () => {
     )
   })
 
-  it('{ limit: 5 } → findMany take 5 + FIFO orderBy', async () => {
+  it('{ limit: 5 } → findMany take 5 + FIFO orderBy + session-location scope (FIX R80)', async () => {
     const res = await POST(post({ limit: 5 }))
 
     expect(res.status).toBe(200)
@@ -129,7 +129,9 @@ describe('POST /api/cis/retry-pending', () => {
       expect.objectContaining({
         take: 5,
         orderBy: { createdAt: 'asc' },
-        where: { cisStatus: { in: ['pending', 'failed'] } },
+        // FIX R80 (tenant scope): retry findMany je scoped na lokacijo seje
+        // (session.locationId = 'loc-1' iz requireAuth mocka zgoraj).
+        where: { cisStatus: { in: ['pending', 'failed'] }, locationId: 'loc-1' },
       })
     )
   })

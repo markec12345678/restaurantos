@@ -28,10 +28,17 @@ export async function GET(req: Request) {
     // ISSUE #32: opcijsko filtriranje po subscription (multi-tenant SaaS)
     const subscriptionId = searchParams.get('subscriptionId')
 
+    // FIX R80 (tenant scope): lokacija JE tenant root (runda 76 /locations/sync vzorec).
+    // Prej: findMany z _count (orders/tables/employees/inventory) je vračal VSE lokacije
+    // z njihovimi števci recordov tudi lokacijsko vezanemu adminu. Zdaj: seja z
+    // dodeljeno lokacijo vidi samo svojo lokacijo; super-admin (locationId=null) vse.
+    const sessionLocId = authResult.session?.locationId ?? null
+
     const where: Record<string, unknown> = {}
     if (isActive !== null) where.isActive = isActive === 'true'
     if (type) where.type = type
     if (subscriptionId) where.subscriptionId = subscriptionId
+    if (sessionLocId) where.id = sessionLocId
 
     const locations = await db.location.findMany({
       where,

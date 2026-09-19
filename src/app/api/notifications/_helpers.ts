@@ -37,3 +37,16 @@ export function parseDetails(d: unknown): Record<string, unknown> {
   }
   return (d as Record<string, unknown>) || {}
 }
+
+// FIX R80 (HIGH, tenant scope): AuditLog NIMA locationId stolpca, details pa
+// vsebuje PII prejemnika (telefon/email) VSEH tenantov. Pravilna rešitev =
+// AuditLog.locationId stolpec (runda 81, shematska sprememba). Do takoj GET
+// odgovor NIKOLI ne vrača recipient — polje se popolnoma odstrani (preprosteje
+// in varneje od delnega maskiranja: ni ostanka, ki bi ga dalo rekonstruirati).
+export function stripRecipientPii(
+  details: unknown,
+): Record<string, unknown> {
+  const parsed = parseDetails(details)
+  const { recipient: _recipient, ...safe } = parsed
+  return safe
+}
