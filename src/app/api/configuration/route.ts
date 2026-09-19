@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { configPostSchema, createConfigItem } from './_helpers'
 import { withETag } from '@/lib/middleware/cache-headers'
-import { sessionLocationId, locationFilter } from '@/lib/tenant-scope'
+import { resolveCatalogScope, locationFilter } from '@/lib/tenant-scope'
 import { isMissingLocationColumnError } from '@/lib/prisma-column-fallback'
 import { logger } from '@/lib/logger'
 
@@ -57,7 +57,9 @@ export async function GET(req: Request) {
     // Prej: findMany BREZ where je izpisal konfiguracijo VSEH lokacij/najemnikov
     // (cross-tenant leak) + globalne vrstice. Zaposleni = SAMO svoja lokacija;
     // admin brez lokacije = cross-lokacijski nadzor (vidi vse).
-    const locWhere = locationFilter(sessionLocationId(authResult))
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+    const locWhere = locationFilter(scopeRes.scope)
     const [
       taxRates,
       diningOptions,

@@ -5,7 +5,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
-import { sessionLocationId, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
+import { resolveCatalogScope, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 
 // FIX HIGH: Zod validacija za posodobitev popusta
 const updateDiscountSchema = z.object({
@@ -37,6 +37,9 @@ export async function PUT(
     const authResult = await requireAuth(req, { permission: 'apply_discounts' })
     if (authResult.error) return authResult.error
 
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+
     const { id } = await params
     const { data, error: validationError } = await validateRequest(req, updateDiscountSchema)
     if (validationError) return validationError
@@ -46,7 +49,7 @@ export async function PUT(
 
     // FIX HIGH: Preveri, da popust obstaja (MODEL A: in je v scope-u seje)
     const existing = await db.discount.findUnique({ where: { id } })
-    if (!existing || !isWithinScope(sessionLocationId(authResult), existing.locationId)) {
+    if (!existing || !isWithinScope(scopeRes.scope, existing.locationId)) {
       return notInScopeResponse('Popust')
     }
 
@@ -83,11 +86,14 @@ export async function DELETE(
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+
     const { id } = await params
 
     // FIX HIGH: Preveri, da popust obstaja (MODEL A: in je v scope-u seje)
     const existing = await db.discount.findUnique({ where: { id } })
-    if (!existing || !isWithinScope(sessionLocationId(authResult), existing.locationId)) {
+    if (!existing || !isWithinScope(scopeRes.scope, existing.locationId)) {
       return notInScopeResponse('Popust')
     }
 

@@ -17,11 +17,64 @@ import { NextResponse } from 'next/server'
 /** Scope lokacije iz seje. null = admin brez dodeljene lokacije (cross-lokacijski nadzor). */
 export type LocationScope = string | null
 
+/**
+ * Role-aware scope resolucija (BUG-HUNT R79 — tenant scope zaključek).
+ *
+ * Prej je bilo edino pravilo: `sessionLocationId(authResult)` → null pomeni
+ * "admin cross-lokacijski nadzor". AMPAK Employee.locationId je nullable —
+ * tudi NAVADEN zaposleni (role staff/manager) lahko ima session.locationId=null
+ * (data integrity issue, brisan lokacijski pivot …) → locationFilter(null) = {}
+ * = VIDI KATALOG VSEH TENANTOV (isti fail-open razred kot runda 77).
+ *
+ * Zdaj (konsistentno z resolveTenantLocationId v auth-middleware/tenant-scope.ts):
+ *   - zaposleni Z lokacijo            → scope = njegova lokacija
+ *   - admin Z lokacijo                → scope = njegova lokacija (restricted)
+ *   - admin BREZ lokacije (super-admin) → scope = null (cross-lokacijski nadzor)
+ *   - ne-admin BREZ lokacije          → fail-closed 403 (data integrity issue)
+ *
+ * Tagged union (brez magic stringov — lekcija iz prejšnjega __DENIED__ načrta).
+ */
+export type CatalogScopeResult =
+  | { ok: true; scope: LocationScope }
+  | { ok: false; response: NextResponse }
+
+const CATALOG_ADMIN_ROLES = new Set(['admin', 'super_admin'])
+
 /** Izlušči scope iz rezultata requireAuth (session.locationId iz Employee). */
 export function sessionLocationId(
   authResult: { session?: { locationId?: string | null } | null } | null | undefined,
 ): LocationScope {
   return authResult?.session?.locationId ?? null
+}
+
+/**
+ * Role-aware scope resolucija za MODEL A (katalog/konfiguracija) rute.
+ * Uporaba:
+ *
+ *   const scopeRes = resolveCatalogScope(authResult)
+ *   if (!scopeRes.ok) return scopeRes.response
+ *   const where = { ...locationFilter(scopeRes.scope) }
+ */
+export function resolveCatalogScope(authResult: {
+  session?: { locationId?: string | null; role?: string } | null
+} | null | undefined): CatalogScopeResult {
+  const session = authResult?.session
+  if (!session) {
+    return {
+      ok: false,
+      response: NextResponse.json({ error: 'Neavtenticiran.' }, { status: 401 }),
+    }
+  }
+  const loc = session.locationId ?? null
+  if (loc) return { ok: true, scope: loc }
+  if (CATALOG_ADMIN_ROLES.has(session.role ?? '')) return { ok: true, scope: null }
+  return {
+    ok: false,
+    response: NextResponse.json(
+      { error: 'Vaš račun nima dodeljene lokacije. Kontaktirajte administratorja.' },
+      { status: 403 },
+    ),
+  }
 }
 
 /**

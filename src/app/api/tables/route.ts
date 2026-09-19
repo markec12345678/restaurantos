@@ -6,7 +6,7 @@ import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middlewa
 import { createTableSchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { withETag } from '@/lib/middleware/cache-headers'
-import { sessionLocationId, resolveWriteLocationId } from '@/lib/tenant-scope'
+import { resolveCatalogScope, resolveWriteLocationId } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -55,7 +55,9 @@ export async function POST(req: Request) {
     // izrecno ?locationId= (admin). Brez obeh = 400 (miza brez lokacije je bila
     // prej nevidna za scoped poizvedbe, a je order-resolucija vrstila naročila vanjo).
     const { searchParams } = new URL(req.url)
-    const loc = resolveWriteLocationId(sessionLocationId(authResult), searchParams.get('locationId'))
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+    const loc = resolveWriteLocationId(scopeRes.scope, searchParams.get('locationId'))
     if (!loc.ok) return loc.response
 
     const table = await db.table.create({

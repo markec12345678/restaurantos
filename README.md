@@ -1,11 +1,11 @@
-# RestaurantOS v1.8.10
+# RestaurantOS v1.8.11
 
-[![Version](https://img.shields.io/badge/version-1.8.10-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.8.11-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-2170%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-78%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-2184%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-79%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,17 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (78 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (79 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### 🔧 Popravki v v1.8.11 (QA runda 79 — tenant scope: webauthn credentials + MODEL A fail-closed)
+
+| Kategorija | Popravek |
+|------------|----------|
+| 🚨 **KRITIČNO: webauthn credentials GET — cross-tenant enumeracija** | `GET /api/auth/webauthn/credentials?employeeId=` je za vsakga "admina" (role admin ALI manage_employees dovoljenje) vrnil poverilnice KATEREGA KOLI zaposlenega BREZ lokacijskega preverjanja → location-bound upravljavec je lahko enumeriral biometrične poverilnice (device fingerprinti, nicknames) vseh tenantov. Zdaj: super-admin (role admin + locationId=null) globalni; location-bound → samo zaposleni svoje lokacije; upravljavec brez lokacije → fail-closed 403 |
+| 🚨 **KRITIČNO: webauthn credentials DELETE — fail-open** | Pogoj `if (isAdmin && session.locationId)` je upravljavcu z manage_employees dovoljenjem BREZ session.locationId (Employee.locationId je nullable) CELOTEN owner-location check preskočil → lahko je BRISAL poverilnice vseh tenantov. Poleg tega role check ni poznal 'super_admin'. Zdaj: enaka matrika kot GET (fail-closed 403, super-admin izjema) |
+| 🟠 **MODEL A katalog — fail-closed scope resolucija** | `sessionLocationId(authResult)` je vrnil null za uporabnika brez lokacije → `locationFilter(null)` = {} = VIDI KATALOG VSEH TENANTOV (menus, categories, menu-items, modifier-groups, discounts, packaging, tables write, configuration — 29 klicnih mest v 15 fajlih). Nov centralni role-aware `resolveCatalogScope` v `lib/tenant-scope.ts`: admin brez lokacije = super-admin nadzor, ne-admin brez lokacije = fail-closed 403; VSA klicna mesta migrirana (dva vzporedna agenta, 16 + 13 mest), `sessionLocationId` v API plastí popolnoma umaknjen |
+| 🧪 **+14 testov** | `tests/unit/security/webauthn-credentials-tenant.test.ts`: DELETE (8 scenarijev — upravljavec isto/tujjo lokacijo, fail-closed brez lokacije, super-admin global, role admin lokacijski, lastna/tujja poverilnica navadnega uporabnika, 404) + GET (6 scenarijev — ista/tujja lokacija, fail-closed, super-admin, lasten seznam, 403 tuj ID) — **2184/2184 unit (128 datotek)** |
+| 🧪 **Regresija — vse zelene** | lint **0/0** · tsc **0** · **2184/2184 unit** (128 datotek) · **9/9 integracija** |
 
 ### 🔧 Popravki v v1.8.10 (QA runda 78 — brskalniška QA end-to-end: 2 popravka)
 

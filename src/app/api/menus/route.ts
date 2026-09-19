@@ -5,7 +5,7 @@ import { createMenuSchema } from '@/lib/validations'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
-import { sessionLocationId, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
+import { resolveCatalogScope, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,7 +16,9 @@ export async function GET(req: Request) {
 
     // MODEL A (tenant scope audit): meniji so PO LOKACIJI — zaposleni vidi SAMO
     // svoje (prej: vsi meniji vseh lokacij/najemnikov!). Admin brez lokacije vidi vse.
-    const scope = sessionLocationId(authResult)
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+    const scope = scopeRes.scope
     const menus = await db.menu.findMany({
       where: locationFilter(scope),
       orderBy: { sortOrder: 'asc' },
@@ -65,7 +67,9 @@ export async function POST(request: Request) {
     // MODEL A: Menu.locationId je NOT NULL — lokacija iz seje (zaposleni) ali
     // izrecno ?locationId= (admin brez dodeljene lokacije). Brez obeh = 400.
     const { searchParams } = new URL(request.url)
-    const loc = resolveWriteLocationId(sessionLocationId(authResult), searchParams.get('locationId'))
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+    const loc = resolveWriteLocationId(scopeRes.scope, searchParams.get('locationId'))
     if (!loc.ok) return loc.response
 
     const menu = await db.menu.create({

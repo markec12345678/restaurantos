@@ -5,7 +5,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateCategorySchema } from '@/lib/validations'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
-import { sessionLocationId, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
+import { resolveCatalogScope, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { canDeleteCategory } from '@/lib/category-guard'
 
 export const dynamic = 'force-dynamic'
@@ -32,6 +32,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const authResult = await requireAuth(request)
     if (authResult.error) return authResult.error
 
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+
     const { id } = await params
     const category = await db.category.findUnique({
       where: { id },
@@ -41,7 +44,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       },
     })
     // Scope (model A): neobstoječa IN izven-scope kategorija sta enako 404
-    if (!category || !isWithinScope(sessionLocationId(authResult), category.menu.locationId)) {
+    if (!category || !isWithinScope(scopeRes.scope, category.menu.locationId)) {
       return notInScopeResponse('Kategorija')
     }
     // locationId je notranjost scope verige — v odgovoru NE razkrivamo
@@ -57,8 +60,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const authResult = await requireAuth(request, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+
     const { id } = await params
-    const existing = await loadCategoryInScope(id, sessionLocationId(authResult))
+    const existing = await loadCategoryInScope(id, scopeRes.scope)
     if (!existing) return notInScopeResponse('Kategorija')
 
     const bodyResult = await parseJsonBody(request)
@@ -73,7 +79,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         where: { id: data.menuId },
         select: { id: true, locationId: true },
       })
-      if (!targetMenu || !isWithinScope(sessionLocationId(authResult), targetMenu.locationId)) {
+      if (!targetMenu || !isWithinScope(scopeRes.scope, targetMenu.locationId)) {
         return notInScopeResponse('Ciljni meni')
       }
     }
@@ -97,8 +103,11 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const authResult = await requireAuth(request, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+
     const { id } = await params
-    const existing = await loadCategoryInScope(id, sessionLocationId(authResult))
+    const existing = await loadCategoryInScope(id, scopeRes.scope)
     if (!existing) return notInScopeResponse('Kategorija')
 
     // Referenčna zaščita (enoten vir z UI): kategorija z artikli → 409

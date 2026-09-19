@@ -5,7 +5,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createCategorySchema } from '@/lib/validations'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
-import { sessionLocationId, categoryLocationFilter, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
+import { resolveCatalogScope, categoryLocationFilter, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +21,9 @@ export async function GET(request: Request) {
     const { limit, offset } = parsePaginationParams(searchParams)
 
     // MODEL A: kategorije nimajo lastnega locationId — scope prek Menu (veriga)
-    const scope = sessionLocationId(authResult)
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+    const scope = scopeRes.scope
     const where = { ...(menuId ? { menuId } : {}), ...categoryLocationFilter(scope) }
     const [categories, total] = await Promise.all([
       db.category.findMany({
@@ -53,6 +55,9 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req)
     if (authResult.error) return authResult.error
 
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+
     // FIX SECURITY: validateRequest() prepreči DoS z oversized payload
     const { data, error: validationError } = await validateRequest(req, createCategorySchema)
     if (validationError) return validationError
@@ -62,7 +67,7 @@ export async function POST(req: Request) {
       where: { id: data.menuId },
       select: { id: true, locationId: true },
     })
-    if (!parentMenu || !isWithinScope(sessionLocationId(authResult), parentMenu.locationId)) {
+    if (!parentMenu || !isWithinScope(scopeRes.scope, parentMenu.locationId)) {
       return notInScopeResponse('Meni')
     }
 

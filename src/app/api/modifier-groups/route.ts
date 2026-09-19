@@ -5,7 +5,7 @@ import { createModifierGroupSchema } from '@/lib/validations'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
-import { sessionLocationId, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
+import { resolveCatalogScope, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
 import { dedupeIds, attachmentScopeDecision } from '@/lib/modifier-attach'
 
 export const dynamic = 'force-dynamic'
@@ -15,9 +15,12 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req)
     if (authResult.error) return authResult.error
 
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+
     // MODEL A (#9 tenant scope audit 2026-09-09): skupine so PO LOKACIJI.
     // Prej: findMany BREZ where = izpis VSEH najemnikov (cross-tenant leak).
-    const locWhere = locationFilter(sessionLocationId(authResult))
+    const locWhere = locationFilter(scopeRes.scope)
     const modifierGroups = await db.modifierGroup.findMany({
       where: locWhere,
       orderBy: { sortOrder: 'asc' },
@@ -41,6 +44,9 @@ export async function POST(request: Request) {
     const authResult = await requireAuth(request, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+
     // FIX SECURITY: validateRequest() prepreči DoS z oversized payload
     const { data, error: validationError } = await validateRequest(request, createModifierGroupSchema)
     if (validationError) return validationError
@@ -48,7 +54,7 @@ export async function POST(request: Request) {
     // MODEL A (#9): lokacija se izpelje izključno iz seje (zaposleni) ali
     // izrecnega ?locationId= (admin brez dodeljene lokacije) — nikoli iz bodyja.
     const { searchParams } = new URL(request.url)
-    const loc = resolveWriteLocationId(sessionLocationId(authResult), searchParams.get('locationId'))
+    const loc = resolveWriteLocationId(scopeRes.scope, searchParams.get('locationId'))
     if (!loc.ok) return loc.response
 
     // RUNDA 70: group-side attach — menuItemIds (prej validirana ampak TIHO

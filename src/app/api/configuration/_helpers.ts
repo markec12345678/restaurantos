@@ -88,7 +88,7 @@ import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
-import { sessionLocationId } from '@/lib/tenant-scope'
+import { resolveCatalogScope } from '@/lib/tenant-scope'
 import { resolveLocationId } from '@/lib/location-fallback'
 
 /** RUNDA 41: lokacijska resolucija za config WRITE — seja → ?locationId= →
@@ -100,7 +100,9 @@ export async function resolveConfigWriteLocation(
   authResult: AuthResultLike,
   req: Request,
 ): Promise<{ ok: true; locationId: string } | { ok: false; response: NextResponse }> {
-  const sessLoc = sessionLocationId(authResult)
+  const scopeRes = resolveCatalogScope(authResult)
+  if (!scopeRes.ok) return scopeRes
+  const sessLoc = scopeRes.scope
   if (sessLoc) return { ok: true, locationId: sessLoc }
   const { searchParams } = new URL(req.url)
   const explicit = searchParams.get('locationId')

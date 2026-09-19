@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { handleApiError, validateRequest, parsePaginationParams, BULK_MAX_LIMIT } from '@/lib/api-utils'
 import { isItemAvailableNow } from '@/lib/mealtimes'
 import { withETag } from '@/lib/middleware/cache-headers'
-import { sessionLocationId, menuItemLocationFilter, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
+import { resolveCatalogScope, menuItemLocationFilter, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 
 const createMenuItemWithModifiersSchema = createMenuItemSchema.extend({
   modifierGroupIds: z.array(z.string().min(1)).default([]),
@@ -36,7 +36,9 @@ export async function GET(request: Request) {
 
     // MODEL A: artikel NIMA lastnega locationId — scope prek Category → Menu.
     // Prej: neufiltrirano = artikel KATEREKOLI lokacije/najemnika!
-    const scope = sessionLocationId(authResult)
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+    const scope = scopeRes.scope
     let where: Record<string, unknown> = { ...menuItemLocationFilter(scope) }
     if (categoryId) {
       where = { ...where, categoryId }
@@ -129,7 +131,9 @@ export async function POST(req: Request) {
       where: { id: itemData.categoryId },
       select: { id: true, menu: { select: { id: true, locationId: true } } },
     })
-    if (!parentCategory || !isWithinScope(sessionLocationId(authResult), parentCategory.menu.locationId)) {
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+    if (!parentCategory || !isWithinScope(scopeRes.scope, parentCategory.menu.locationId)) {
       return notInScopeResponse('Kategorija')
     }
 

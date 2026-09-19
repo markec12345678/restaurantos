@@ -13,7 +13,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
 import { modelMap, allowedFields, coerceFieldTypes, validateConfigRefs, createConfigItem, extractConfigData } from '../_helpers'
-import { sessionLocationId, locationFilter } from '@/lib/tenant-scope'
+import { resolveCatalogScope, locationFilter } from '@/lib/tenant-scope'
 import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 
 export const dynamic = 'force-dynamic'
@@ -168,7 +168,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ tab: str
 
     // MODEL A: konfiguracija PO LOKACIJI — zaposleni dobi SAMO svojo (prej: vsi
     // najemniki). Admin brez lokacije = cross-lokacijski nadzor.
-    const locWhere = locationFilter(sessionLocationId(authResult))
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+    const locWhere = locationFilter(scopeRes.scope)
     const result = await prisma.findMany({
       where: locWhere,
       select: config.select,
@@ -288,7 +290,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tab: str
       return NextResponse.json({ error: extracted.error }, { status: 400 })
     }
 
-    const sessLoc = sessionLocationId(authResult)
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+    const sessLoc = scopeRes.scope
     const scoped = await loadScopedItem(prismaModel, id, sessLoc)
     if (!scoped.item) {
       return NextResponse.json({ error: scoped.error ?? 'Zapis ne obstaja' }, { status: scoped.status ?? 404 })
@@ -376,7 +380,9 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ tab: 
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Manjka id — uporabi ?id=<zapis>' }, { status: 400 })
 
-    const sessLoc = sessionLocationId(authResult)
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+    const sessLoc = scopeRes.scope
     const scoped = await loadScopedItem(prismaModel, id, sessLoc)
     if (!scoped.item) {
       return NextResponse.json({ error: scoped.error ?? 'Zapis ne obstaja' }, { status: scoped.status ?? 404 })

@@ -5,7 +5,7 @@ import { createPackagingSchema } from '@/lib/validations'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { sessionLocationId, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
+import { resolveCatalogScope, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,10 +14,13 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req)
     if (authResult.error) return authResult.error
 
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+
     const { searchParams } = new URL(req.url)
     const isActive = searchParams.get('isActive')
 
-    const where: Record<string, unknown> = { ...locationFilter(sessionLocationId(authResult)) }
+    const where: Record<string, unknown> = { ...locationFilter(scopeRes.scope) }
     if (isActive !== null) where.isActive = isActive === 'true'
 
     const packagingConfigs = await db.packagingConfig.findMany({
@@ -41,6 +44,9 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error
 
@@ -50,7 +56,7 @@ export async function POST(req: Request) {
 
     // MODEL A: embalaža je PO LOKACIJI — iz seje ali izrecnega ?locationId=
     const { searchParams } = new URL(req.url)
-    const loc = resolveWriteLocationId(sessionLocationId(authResult), searchParams.get('locationId'))
+    const loc = resolveWriteLocationId(scopeRes.scope, searchParams.get('locationId'))
     if (!loc.ok) return loc.response
 
     const packagingConfig = await db.packagingConfig.create({

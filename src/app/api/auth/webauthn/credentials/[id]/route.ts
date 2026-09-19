@@ -40,22 +40,43 @@ export async function DELETE(
     return NextResponse.json({ error: 'Poverilnica ni najdena.' }, { status: 404 })
   }
 
-  const isAdmin = session.role === 'admin' || session.permissions.includes('manage_employees')
-  if (!isAdmin && credential.employeeId !== session.employeeId) {
+  // FIX BUG-HUNT R79 (HIGH, tenant scope fail-open): prej `if (isAdmin && session.locationId)`
+  // je pomenil, da upravljavec z manage_employees dovoljenjem BREZ session.locationId
+  // (Employee.locationId je nullable) CELOTEN owner-location check preskoči → lahko je
+  // brisal poverilnice zaposlenih VSEH tenantov (isti razred kot runda 77 fail-open GET rute).
+  // Poleg tega role check ni poznal 'super_admin' (ADMIN_ROLES konvencija).
+  //
+  // Zdaj (konsistentno z resolveTenantLocationId):
+  //   - role admin + session.locationId=null (super-admin) → globalni dostop
+  //   - location-bound upravljavec → samo poverilnice zaposlenih svoje lokacije
+  //   - upravljavec brez session.locationId → fail-closed 403
+  //   - navaden uporabnik → samo lastne poverilnice (nespremenjeno)
+  const isRoleAdmin = session.role === 'admin' || session.role === 'super_admin'
+  const hasManagePerm = session.permissions.includes('manage_employees')
+  const canManage = isRoleAdmin || hasManagePerm
+  const isOwnCredential = credential.employeeId === session.employeeId
+  const isSuperAdminGlobal = isRoleAdmin && !session.locationId
+
+  if (!canManage && !isOwnCredential) {
     return NextResponse.json(
       { error: 'Nimate dovoljenja za izbris te poverilnice.' },
       { status: 403 }
     )
   }
-  // FIX IDOR (tenant scope): location-scoped upravitelj (manage_employees) sme
-  // brisati SAMO poverilnice zaposlenih svoje lokacije (super admin z
-  // locationId=null dostopa do vseh)
-  if (isAdmin && session.locationId) {
+
+  if (canManage && !isOwnCredential && !isSuperAdminGlobal) {
+    if (!session.locationId) {
+      // Fail-closed: upravljavec brez lokacije = data integrity issue
+      return NextResponse.json(
+        { error: 'Vaš račun nima dodeljene lokacije. Kontaktirajte administratorja.' },
+        { status: 403 }
+      )
+    }
     const owner = await db.employee.findUnique({
       where: { id: credential.employeeId },
       select: { locationId: true },
     })
-    if (owner?.locationId !== session.locationId) {
+    if (!owner || owner.locationId !== session.locationId) {
       return NextResponse.json(
         { error: 'Nimate dovoljenja za izbris te poverilnice.' },
         { status: 403 }

@@ -5,7 +5,7 @@ import { updateModifierGroupSchema } from '@/lib/validations'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { sessionLocationId, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
+import { resolveCatalogScope, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { canDeleteModifierGroup } from '@/lib/modifier-guard'
 import { dedupeIds, attachmentScopeDecision } from '@/lib/modifier-attach'
 
@@ -24,10 +24,13 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const authResult = await requireAuth(request, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+
     const { id } = await params
 
     // MODEL A (#9): scope guard — 404 tudi za tuje lokacije (ne razkrivaj obstoja)
-    const inScope = await getGroupInScope(id, sessionLocationId(authResult))
+    const inScope = await getGroupInScope(id, scopeRes.scope)
     if ('notFound' in inScope) return notInScopeResponse('Skupina modifikatorjev')
 
     const bodyResult = await parseJsonBody(request)
@@ -116,10 +119,13 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     const authResult = await requireAuth(request, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+
     const { id } = await params
 
     // MODEL A (#9): scope guard — prej findUnique BREZ scopa (IDOR čez lokacije)
-    const inScope = await getGroupInScope(id, sessionLocationId(authResult))
+    const inScope = await getGroupInScope(id, scopeRes.scope)
     if ('notFound' in inScope) return notInScopeResponse('Skupina modifikatorjev')
 
     // RUNDA 68: zaščita brisanja — join MenuItemModifierGroup kaskade, zato bi

@@ -7,7 +7,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 // odstranjen prazen import (runda 12 lint cleanup)
-import { sessionLocationId, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
+import { resolveCatalogScope, locationFilter, resolveWriteLocationId } from '@/lib/tenant-scope'
 import ExcelJS from 'exceljs'
 
 
@@ -158,7 +158,9 @@ export async function POST(req: Request) {
 
     // Pridobi ali ustvari menu — MODEL A: na lokaciji seje (admin brez lokacije:
     // izrecen ?locationId=), nikoli "globalni" meni
-    const scope = sessionLocationId(authResult)
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+    const scope = scopeRes.scope
     const { searchParams } = new URL(req.url)
     const loc = resolveWriteLocationId(scope, searchParams.get('locationId'))
     if (!loc.ok) return loc.response
