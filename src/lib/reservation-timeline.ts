@@ -50,6 +50,29 @@ export function shiftHm(hm: string, deltaMinutes: number): string | null {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
+// ─── RUNDA 54: LJ-časovni žig za API sporočila ───
+// BUG (živ na produkciji, ujet v QA R54): 409 konfliktno sporočilo je
+// gradilo čas z new Date(...).toLocaleTimeString('sl-SI') NA STREŽNIKU —
+// Vercel teče v UTC, zato je gost s komaj zaznavnim odmikom videl
+// "Miza je že rezervirana ob 17:00:00", čeprav je njegova rezervacija ob
+// 19:00 po ljubljanskem času (+ sekundni prikaz = šum). Zdaj ekspliciten
+// timeZone — strežniška časovna cona NE sme uhajati v UI sporočila.
+
+/**
+ * 'HH:MM' v ljubljanski časovni coni (zimski/letni prehod iz datuma).
+ * Neveljaven datum → null (klicatelj skrije del časa, ne prikaže smeti).
+ */
+export function formatLjubljanaTime(date: Date | string | number): string | null {
+  const d = date instanceof Date ? date : new Date(date)
+  if (Number.isNaN(d.getTime())) return null
+  return new Intl.DateTimeFormat('sl-SI', {
+    timeZone: 'Europe/Ljubljana',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(d)
+}
+
 // ─── RUNDA 53: pravi interval-overlap za konflikt detekcijo ───
 // Prej je PUT /api/reservations/[id] iskal findFirst kandidatko z
 // dateTime <= newEnd in preveril SAMO njo — findFirst brez orderBy vrne

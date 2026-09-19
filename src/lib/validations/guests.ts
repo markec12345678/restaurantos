@@ -86,6 +86,8 @@ export const updateReservationSchema = z.object({
   duration: z.number().int().min(15).max(600).optional(),
   notes: z.string().max(1000).optional(),
   specialRequests: z.string().max(500).optional(),
+  // RUNDA 54: opomnik gostu (UI gum "Pošlji opomnik" na potrjeni kartici)
+  reminderSent: z.boolean().optional(),
   status: z.enum(['confirmed', 'seated', 'completed', 'cancelled', 'no_show']).optional(),
 })
 

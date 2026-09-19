@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
-import { Calendar, Plus } from 'lucide-react'
+import { Calendar, Plus, BellRing } from 'lucide-react'
 import { useState, useMemo, useCallback, memo } from 'react'
 import { format, addDays, isToday } from 'date-fns'
 import { sl } from 'date-fns/locale'
@@ -17,7 +17,7 @@ import { toast } from 'sonner'
 import dynamic from 'next/dynamic'
 import { statusLabels, type ReservationType, type TableType } from './reservation/constants'
 import { DateNavigation, FilterBar } from './reservation/DateNavigation'
-import { REZERVACIJA_FORMS, GOST_FORMS, slCount } from '@/lib/sl-plural'
+import { REZERVACIJA_FORMS, GOST_FORMS, OPOMNIK_FORMS, slCount } from '@/lib/sl-plural'
 
 // Lazy-loaded podkomponente
 const TimelineView = dynamic(() => import('./reservation/TimelineView').then(m => ({ default: m.TimelineView })), { ssr: false })
@@ -125,6 +125,24 @@ export const ReservationManager = memo(function ReservationManager() {
     onError: (err: Error) => toast.error(err.message),
   })
 
+  // RUNDA 54: opomnik gostu — PUT reminderSent=true. Kartica pokaže
+  // smaragdno značko "Opomnik poslan", KPI čip v glavi se osveži.
+  const reminderMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name: string }) => {
+      const res = await authFetch(`/api/reservations/${id}`, { method: 'PUT', body: JSON.stringify({ reminderSent: true }) })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}) as { error?: string })
+        throw new Error(err.error || 'Napaka pri pošiljanju opomnika')
+      }
+      return { name }
+    },
+    onSuccess: ({ name }) => {
+      toast.success(`Opomnik za ${name} poslan`)
+      queryClient.invalidateQueries({ queryKey: queryKeys.reservations.all })
+    },
+    onError: (err: Error) => toast.error(err.message),
+  })
+
   const handleOpenNew = useCallback(() => { setEditingReservation(null); setDialogOpen(true) }, [])
   const handleDialogClose = useCallback(() => { setDialogOpen(false); setEditingReservation(null) }, [])
   const handleEdit = useCallback((r: ReservationType) => { setEditingReservation(r); setDialogOpen(true) }, [])
@@ -138,6 +156,20 @@ export const ReservationManager = memo(function ReservationManager() {
     const next = new Date(new Date(target.dateTime).getTime() + deltaMinutes * 60000)
     timeShiftMutation.mutate({ id, dateTime: next.toISOString() })
   }, [reservations, timeShiftMutation])
+
+  // RUNDA 54: opomnik — ime potujimo iz selectorja (toast + optimistična UI)
+  const handleSendReminder = useCallback((id: string) => {
+    const target = reservations.find(r => r.id === id)
+    if (!target) return
+    reminderMutation.mutate({ id, name: target.customerName })
+  }, [reservations, reminderMutation])
+
+  // RUNDA 54: KPI — potrjene rezervacije brez opomnika (amber čip v glavi,
+  // prava sklanjatev: 1 opomnik · 2 opomnika · 3 opomniki · 5 opomnikov)
+  const pendingReminders = useMemo(
+    () => reservations.filter(r => r.status === 'confirmed' && !r.reminderSent).length,
+    [reservations],
+  )
 
   // RUNDA 52: podnaslov SLEDI izbranemu dnevu — prej vedno "danes", tudi ko
   // je uporabnik brskal po drugih dnevih (prikaz ≡ podatki varnost);
@@ -155,6 +187,15 @@ export const ReservationManager = memo(function ReservationManager() {
           <p className="text-xs text-muted-foreground" aria-live="polite">
             {slCount(summary.total || 0, REZERVACIJA_FORMS)} · {slCount(summary.totalGuests || 0, GOST_FORMS)} · {dayLabel}
           </p>
+          {pendingReminders > 0 && (
+            <p
+              className="mt-0.5 inline-flex items-center gap-1 text-[11px] font-medium rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 px-2 py-0.5 animate-fade-in-up"
+              title="Potrjene rezervacije brez poslanega opomnika"
+            >
+              <BellRing className="h-3 w-3" aria-hidden="true" />
+              {slCount(pendingReminders, OPOMNIK_FORMS)} brez opomnika
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setViewMode(viewMode === 'list' ? 'timeline' : 'list')}>
@@ -173,9 +214,9 @@ export const ReservationManager = memo(function ReservationManager() {
         {isLoading ? (
           <div className="space-y-3">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}</div>
         ) : viewMode === 'timeline' ? (
-          <TimelineView reservations={filteredReservations} tables={tables || []} onEdit={handleEdit} onStatusChange={handleStatusChange} onTimeShift={handleTimeShift} isToday={isToday(selectedDate)} />
+          <TimelineView reservations={filteredReservations} tables={tables || []} onEdit={handleEdit} onStatusChange={handleStatusChange} onTimeShift={handleTimeShift} onSendReminder={handleSendReminder} isToday={isToday(selectedDate)} />
         ) : (
-          <ListView reservations={filteredReservations} onEdit={handleEdit} onStatusChange={handleStatusChange} onTimeShift={handleTimeShift} />
+          <ListView reservations={filteredReservations} onEdit={handleEdit} onStatusChange={handleStatusChange} onTimeShift={handleTimeShift} onSendReminder={handleSendReminder} />
         )}
       </div>
 

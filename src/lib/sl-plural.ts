@@ -27,6 +27,8 @@ export const REZERVACIJA_FORMS: SlPluralForms = ['rezervacija', 'rezervaciji', '
 export const GOST_FORMS: SlPluralForms = ['gost', 'gosta', 'gosti', 'gostov']
 export const OSEBA_FORMS: SlPluralForms = ['oseba', 'osebi', 'osebe', 'oseb']
 export const MINUTA_FORMS: SlPluralForms = ['minuta', 'minuti', 'minute', 'minut']
+// RUNDA 54: opomniki gostom (reminderSent flow) — KPI čip "N brez opomnika"
+export const OPOMNIK_FORMS: SlPluralForms = ['opomnik', 'opomnika', 'opomniki', 'opomnikov']
 
 /**
  * Katera množinska oblika za n? Tradicionalna slovenska norma:

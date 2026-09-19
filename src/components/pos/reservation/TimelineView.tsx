@@ -6,6 +6,10 @@
 // RUNDA 52: "zdaj" indikator — ob današnjem dnevu je najbližji časovni
 // slot označen z amber ringom + pulzirajočo piko "zdaj" (orientacija:
 // kam se glede na sedanjost umestijo prihajajoče rezervacije).
+// RUNDA 54: vizualni pass — (1) navpišna črtkana tirnica pod slot
+// oznako (timeline metafora: sloti so postaje, kartice dogodki),
+// (2) števec kartic na zasedenih slotih (≥2 → hitro prepoznavanje
+// prometnih ur brez branja kartic), (3) prepust onSendReminder.
 
 import { memo, useMemo } from 'react'
 import { format } from 'date-fns'
@@ -21,6 +25,7 @@ export const TimelineView = memo(function TimelineView({
   onEdit,
   onStatusChange,
   onTimeShift,
+  onSendReminder,
   isToday = false,
 }: TimelineViewProps & { isToday?: boolean }) {
   // Najbližji slot sedanjosti (samo ob današnjem dnevu — "zdaj" oznaka).
@@ -67,13 +72,20 @@ export const TimelineView = memo(function TimelineView({
         const isNow = slot === nowSlot
 
         return (
-          <div key={slot} className={`flex gap-3 ${isNow ? 'animate-fade-in-up' : ''}`}>
-            <div className="w-14 flex-shrink-0 pt-2">
+          <div key={slot} className={`flex gap-3 relative ${isNow ? 'animate-fade-in-up' : ''}`}>
+            {/* RUNDA 54: črtkana tirnica — poveže slot oznake (timeline metafora) */}
+            <div
+              aria-hidden="true"
+              className="absolute left-7 top-9 bottom-0 w-px border-l border-dashed border-border/50"
+            />
+            <div className="w-14 flex-shrink-0 pt-2 relative">
               <span
                 className={`text-sm font-mono font-bold tabular-nums rounded-md px-1.5 py-0.5 inline-flex items-center gap-1 ${
                   isNow
                     ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 ring-1 ring-amber-500/50'
-                    : 'text-muted-foreground bg-muted/60'
+                    : slotReservations.length >= 2
+                      ? 'text-foreground bg-muted ring-1 ring-border/60'
+                      : 'text-muted-foreground bg-muted/60'
                 }`}
               >
                 {slot}
@@ -86,6 +98,18 @@ export const TimelineView = memo(function TimelineView({
               </span>
               {isNow && (
                 <span className="sr-only">trenutni časovni okvir</span>
+              )}
+              {/* RUNDA 54: števec na prometnih slotih (≥2 kartici) */}
+              {slotReservations.length >= 2 && (
+                <span
+                  className={`mt-1 inline-flex min-w-5 justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums ${
+                    isNow
+                      ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                      : 'bg-muted text-muted-foreground'
+                  }`}
+                >
+                  {slotReservations.length}
+                </span>
               )}
             </div>
             <div className="flex-1 space-y-2">
@@ -100,6 +124,7 @@ export const TimelineView = memo(function TimelineView({
                   onEdit={() => onEdit(r)}
                   onStatusChange={onStatusChange}
                   onTimeShift={onTimeShift}
+                  onSendReminder={onSendReminder}
                 />
               ))}
             </div>

@@ -71,6 +71,8 @@ export interface ReservationCardProps {
   onStatusChange: (_id: string, _status: string) => void
   /** RUNDA 53: hitri premik časa ±N minut (PUT dateTime; 409 konflikt → toast) */
   onTimeShift?: (_id: string, _deltaMinutes: number) => void
+  /** RUNDA 54: opomnik gostu (PUT reminderSent=true; samo potrjene brez flaga) */
+  onSendReminder?: (_id: string) => void
 }
 
 export interface TimelineViewProps {
@@ -79,6 +81,7 @@ export interface TimelineViewProps {
   onEdit: (_r: ReservationType) => void
   onStatusChange: (_id: string, _status: string) => void
   onTimeShift?: (_id: string, _deltaMinutes: number) => void
+  onSendReminder?: (_id: string) => void
 }
 
 export interface ListViewProps {
@@ -86,6 +89,7 @@ export interface ListViewProps {
   onEdit: (_r: ReservationType) => void
   onStatusChange: (_id: string, _status: string) => void
   onTimeShift?: (_id: string, _deltaMinutes: number) => void
+  onSendReminder?: (_id: string) => void
 }
 
 export interface ReservationDialogProps {

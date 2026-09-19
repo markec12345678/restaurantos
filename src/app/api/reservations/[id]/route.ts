@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateReservationSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
-import { intervalsOverlap } from '@/lib/reservation-timeline'
+import { intervalsOverlap, formatLjubljanaTime } from '@/lib/reservation-timeline'
 
 export const dynamic = 'force-dynamic'
 
@@ -97,8 +97,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         )
 
         if (conflicting) {
+          // RUNDA 54: čas v sporočilu v LJ coni (prej toLocaleTimeString na
+          // strežniku = UTC → "17:00:00" namesto "19:00" + sekundni šum)
+          const conflictHm = formatLjubljanaTime(conflicting.dateTime)
           return NextResponse.json(
-            { error: `Miza je že rezervirana ob tem času (${conflicting.customerName}, ${new Date(conflicting.dateTime).toLocaleTimeString('sl-SI')})` },
+            { error: `Miza je že rezervirana ob tem času (${conflicting.customerName}${conflictHm ? `, ${conflictHm}` : ''})` },
             { status: 409 },
           )
         }
@@ -129,6 +132,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (data.duration !== undefined) updateData.duration = data.duration
     if (data.notes !== undefined) updateData.notes = data.notes
     if (data.specialRequests !== undefined) updateData.specialRequests = data.specialRequests
+    // RUNDA 54: opomnik gostu (reminderSent flag — UI "Pošlji opomnik")
+    if (data.reminderSent !== undefined) updateData.reminderSent = data.reminderSent
 
     const reservation = await db.reservation.update({
       where: { id },

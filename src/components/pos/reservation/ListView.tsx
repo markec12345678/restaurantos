@@ -3,6 +3,8 @@
 // ============================================
 // SEZNAMSKI POGLED — List
 // ============================================
+// RUNDA 54: prepust onSendReminder (opomnik gostu — enaka kartica kot
+// v timeline pogledu, EN vir resnice za akcije).
 
 import { memo } from 'react'
 import { Calendar } from 'lucide-react'
@@ -14,6 +16,7 @@ export const ListView = memo(function ListView({
   onEdit,
   onStatusChange,
   onTimeShift,
+  onSendReminder,
 }: ListViewProps) {
   if (reservations.length === 0) {
     return (
@@ -34,6 +37,7 @@ export const ListView = memo(function ListView({
           onEdit={() => onEdit(r)}
           onStatusChange={onStatusChange}
           onTimeShift={onTimeShift}
+          onSendReminder={onSendReminder}
         />
       ))}
     </div>

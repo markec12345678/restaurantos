@@ -15,6 +15,10 @@
 //    prej trdo kodirano "2 oseb"; OSEBA_FORMS prek sl-plural)
 //  • terminalna stanja (zaključena/preklicana/ni prišel) dušena
 //    (opacity) — vizualna hijerarhija: aktivno naprej, mrtvo nazaj
+// RUNDA 54:
+//  • opomnik gostu: potrjena brez flaga → jantarni gumb "Pošlji opomnik"
+//    v akcijski vrsti; s flagom → smaragdna značka "Opomnik poslan" v
+//    metapodatkovni vrsti (bralcem zaslona: aria-label z gostom)
 // ============================================
 
 import { memo } from 'react'
@@ -22,7 +26,7 @@ import { format } from 'date-fns'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Clock, Users, Phone, Check, X, Edit, UserCheck, AlertCircle, UtensilsCrossed, Star, MessageSquare, ChevronsLeft, ChevronsRight } from 'lucide-react'
+import { Clock, Users, Phone, Check, X, Edit, UserCheck, AlertCircle, UtensilsCrossed, Star, MessageSquare, ChevronsLeft, ChevronsRight, Bell, BellRing } from 'lucide-react'
 import { statusLabels, statusColors, sourceLabels } from './constants'
 import type { ReservationCardProps } from './constants'
 import { slCount, OSEBA_FORMS } from '@/lib/sl-plural'
@@ -54,6 +58,7 @@ export const ReservationCard = memo(function ReservationCard({
   onEdit,
   onStatusChange,
   onTimeShift,
+  onSendReminder,
   index = 0,
 }: ReservationCardProps & { index?: number }) {
   const r = reservation
@@ -160,6 +165,17 @@ export const ReservationCard = memo(function ReservationCard({
                   <span className="truncate">{r.notes}</span>
                 </div>
               )}
+              {/* RUNDA 54: opomnik poslan — smaragdna značka v metapodatkovni vrsti */}
+              {r.status === 'confirmed' && r.reminderSent && (
+                <Badge
+                  variant="outline"
+                  className="mt-1.5 text-[10px] h-5 px-1.5 border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 gap-1 animate-fade-in-up"
+                  aria-label={`Opomnik za ${r.customerName} je poslan`}
+                >
+                  <BellRing className="h-3 w-3" aria-hidden="true" />
+                  Opomnik poslan
+                </Badge>
+              )}
             </div>
           </div>
 
@@ -176,6 +192,19 @@ export const ReservationCard = memo(function ReservationCard({
                 {action.icon} {action.label}
               </Button>
             ))}
+            {/* RUNDA 54: opomnik gostu — samo potrjene, še brez flaga */}
+            {r.status === 'confirmed' && !r.reminderSent && onSendReminder && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-[10px] px-2 border-amber-500/50 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10 hover:text-amber-800 dark:hover:text-amber-300 focus-visible:ring-2 focus-visible:ring-ring"
+                title={`Opomni ${r.customerName} na rezervacijo ob ${time}`}
+                aria-label={`Pošlji opomnik za ${r.customerName} ob ${time}`}
+                onClick={() => onSendReminder(r.id)}
+              >
+                <Bell className="h-3.5 w-3.5" /> Opomnik
+              </Button>
+            )}
             <Button variant="ghost" size="icon" aria-label="Uredi" className="h-7 w-7 focus-visible:ring-2 focus-visible:ring-ring" onClick={onEdit}>
               <Edit className="h-3.5 w-3.5" />
             </Button>
