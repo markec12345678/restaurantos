@@ -1,11 +1,11 @@
-# RestaurantOS v1.5.0
+# RestaurantOS v1.6.0
 
-[![Version](https://img.shields.io/badge/version-1.5.0-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.6.0-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-1798%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-51%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-1852%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-54%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,20 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (51 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (54 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.6.0 (QA runde 52–54)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| 🇸🇮 **Prava slovenska sklanjatev (dvojina!)** | Enoten vir `sl-plural` (1 rezervacija · 2 rezervaciji · 3 rezervacije · 5+ rezervacij; izjema 11–14; zavestna odstopnica od CLDR, dokumentirana); žive napake na produkciji ("2 rezervacij", "2 oseb") popravljene na karticah, podnaslovih in filtrih |
+| 📅 **Rezervacije: hitri premik ±30 min** | Razdeljen gumb pod časovnim chipom na potrjenih karticah; **pravi interval-overlap konflikti** v API (polodprti intervali, dotik robov ≠ konflikt, findMany + ekspliciten overlap — prej findFirst brez orderBy = arbitrarna vrstica); 409 toast z natančnim imenom in časom konflikta |
+| 🔔 **Opomniki gostom** | `reminderSent` tok: jantarni gumb "Opomnik" na potrjenih karticah → smaragdna značka "Opomnik poslan"; KPI čip "N brez opomnika" v glavi (prava sklanjatev — `OPOMNIK_FORMS`); flag je bil v shemi od v2.3, neuporabljen |
+| 🕐 **Rezervacije: timeline "zdaj" indikator** | Najbližji slot današnjega dneva z amber ringom + pulzirajočo piko; **prava minutna slot matematika** (`reservation-timeline` — prej leksikografska localeCompare razdalja je 15:00 uvrstila v slot 14:00!); črtkana tirnica + števci na prometnih slotih |
+| 🐛 **LJ-čas v API sporočilih** | Konfliktno sporočilo je prikazovalo strežniški UTC ("17:00:00" namesto "19:00"); `formatLjubljanaTime` z eksplicitno cono (zimski/letni prehod, sekunde odrezane) |
+| 📧 **Digest e-pošta: poljuben datum** | Datumski izbirnik povzetka (predogled/tisk/ponovno pošiljanje za poljuben pretekli dan) + mehka validacija prihodnjega datuma (amber opozorilo + zaklep akcij) |
+| 🔧 **Operativna zrelost** | Lock heartbeat (2× kolizija dveh agentov reconciliirana brez izgube dela); deploy postopek z obveznim alias check + hash verifikacijo (4× živi primeri manjkajočega alijasa!) |
+| 🧪 **Kakovost** | 1852/1852 unit testov (106 datotek), 0 tsc napak, 0 eslint errorjev |
 
 ### ✨ Nove funkcije v v1.5.0 (QA runde 42–51)
 
@@ -196,13 +209,13 @@ bun run dev
 
 | Metrika | Vrednost |
 |---------|----------|
-| Commitov | 881 |
+| Commitov | 884 |
 | API endpointov | 242 |
 | React komponent | 679 |
 | Prisma modelov | 95 |
 | Tabel v bazi | 95 |
 | Jezikov | 5 (sl, en, it, hr, de) |
-| Unit testov PASS | 1798/1798 (100 %) — 102 datotek, 0 errorjev |
+| Unit testov PASS | 1852/1852 (100 %) — 106 datotek, 0 errorjev |
 | E2E testov PASS | 144/149 (96.6%) — 5 odprtih, glej [Known Issues](docs/KNOWN_ISSUES.md) |
 | Varnostna ocena | A+ (0 HIGH odprtih, P0-C1..C5 complete, glej [Security Policy](SECURITY.md)) |
 | Koda (src + tests) | 204.594 vrstic |
