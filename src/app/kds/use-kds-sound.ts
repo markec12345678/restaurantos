@@ -1,15 +1,33 @@
 'use client'
 
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useState } from 'react'
+import { loadSoundPref, saveSoundPref } from '@/lib/kds-sound-prefs'
 
 // ─── Zvočni sistem za KDS ─────────────────────────────────────
 // Trojni ping — nizko-srednje-visoko (C5, E5, G5)
 // Task 21: bump confirmation — kratko padajoče E5→C5 (ločljivo od prihodnega
 // pinga: kuhar sliši RAZLIKO med "novo naročilo" in "potrjen bump")
+//
+// RUNDA 63 (zvok 2.0):
+//   • Preferenca PERSISTIRANA (localStorage kds_sound_enabled — lib
+//     kds-sound-prefs) — utišanje preživi reload/izmeno, prej ref-only
+//   • Lazy init (useState(() => loadSoundPref())) — SSR rendera samo
+//     prijavno formo, KDSHeader pa šele po obnovi seje client-side →
+//     brez hydration mismatcha in brez setState-v-effectu (react-hooks)
+//   • unlock(): Web Audio autoplay politika — kuhinjski zaslon po
+//     reloadu ni interaktiral → AudioContext je suspended in pisk
+//     TIHO odpadejo; unlock (resume + tih ton) sprosti prvi
+//     pointerdown/keydown (poslušalca v useKDSPage)
+//   • toggle() ob VKLOPU predvaja potrditveni ping (kuhar takoj sliši,
+//     da je zvok spet živ — hkrati odpre AudioContext)
 
 export function useKDSSound() {
   const audioRef = useRef<AudioContext | null>(null)
-  const enabledRef = useRef(true)
+  // R63: preferenca že pri prvem client renderju (lazy initializer).
+  // SSR rendera samo prijavno formo; KDSHeader (edini izpis zvoka) se
+  // rendera šele po obnovi seje client-side → brez hydration mismatcha.
+  const [soundOn, setSoundOn] = useState(() => loadSoundPref())
+  const enabledRef = useRef(soundOn)
 
   const ensureCtx = useCallback(() => {
     if (!audioRef.current) {
@@ -54,8 +72,44 @@ export function useKDSSound() {
     }
   }, [ensureCtx, tone])
 
-  const toggle = useCallback(() => { enabledRef.current = !enabledRef.current }, [])
+  /**
+   * R63: sprosti suspended AudioContext (autoplay politika).
+   * resume() + en 0-glasnostni ton (poln unlock tudi v brskalnikih, ki
+   * zahtevajo dejansko predvajanje). Idempotentno — varno poklicati večkrat.
+   */
+  const unlock = useCallback(() => {
+    try {
+      const ctx = ensureCtx()
+      if (ctx.state === 'suspended') void ctx.resume()
+      if (ctx.state === 'running') {
+        // 0-glasnostni "unlock" ton — 1 ms, neslišen
+        tone(ctx, 1, 0, 0.01, 0.0001)
+      }
+    } catch {
+      // brez Web Audio ničesar ni za odkleniti
+    }
+  }, [ensureCtx, tone])
+
+  const toggle = useCallback(() => {
+    const next = !enabledRef.current
+    enabledRef.current = next
+    setSoundOn(next)    // re-render glave (stanjska barva/ikona)
+    saveSoundPref(next) // R63: preživi reload
+    if (next) {
+      // R63: potrditveni ping ob vklopu — kuhar sliši, da je zvok živ
+      // (hkrati tudi interakcija → AudioContext se lahko odklene)
+      try {
+        const ctx = ensureCtx()
+        if (ctx.state === 'suspended') void ctx.resume()
+        tone(ctx, 659.25, 0, 0.15)
+        tone(ctx, 783.99, 110, 0.2)
+      } catch {
+        // tiho
+      }
+    }
+  }, [ensureCtx, tone])
+
   const isEnabled = useCallback(() => enabledRef.current, [])
 
-  return { play, playBump, toggle, isEnabled }
+  return { play, playBump, toggle, isEnabled, unlock }
 }

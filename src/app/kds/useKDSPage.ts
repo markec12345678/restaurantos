@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useKDSSound } from './use-kds-sound'
 import { useKDSSession, useKDSWebSocket } from './use-kds-page/use-kds-session'
 import { useKDSOrders } from './use-kds-page/use-kds-orders'
@@ -14,7 +14,20 @@ export function useKDSPage() {
   const [stationFilter, setStationFilter] = useState<string>('all')
   const [_showRecall, setShowRecall] = useState(false)
   const [bumpedOrders, setBumpedOrders] = useState<string[]>([])
-  const { play: playSound, playBump, toggle: toggleSound, isEnabled: isSoundEnabled } = useKDSSound()
+  const { play: playSound, playBump, toggle: toggleSound, isEnabled: isSoundEnabled, unlock: unlockSound } = useKDSSound()
+
+  // R63: Web Audio autoplay politika — kuhinjski zaslon po reloadu ni
+  // interaktiral → AudioContext suspended → pisk TIHO odpadejo. Prvi
+  // pointerdown/keydown odklene (enkrat; unlock je idempotenten, oba
+  // poslušalca sta once → po prvem sprožitvi sama odstanjana).
+  useEffect(() => {
+    window.addEventListener('pointerdown', unlockSound, { once: true })
+    window.addEventListener('keydown', unlockSound, { once: true })
+    return () => {
+      window.removeEventListener('pointerdown', unlockSound)
+      window.removeEventListener('keydown', unlockSound)
+    }
+  }, [unlockSound])
 
   const session = useKDSSession()
   const { wsConnected } = useKDSWebSocket(session.employee, playSound)

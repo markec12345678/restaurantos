@@ -60,6 +60,8 @@ export const KDSHeader = memo(function KDSHeader({
         <div className="flex gap-1">
           {stations.map(s => (
             <button key={s} onClick={() => onStationFilterChange(s)}
+              aria-pressed={stationFilter === s}
+              aria-label={`Postaja ${s === 'all' ? 'vse' : s}`}
               className={cn(
                 'px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors touch-manipulation min-h-[36px]',
                 stationFilter === s
@@ -72,12 +74,23 @@ export const KDSHeader = memo(function KDSHeader({
         </div>
         {/* Pogled */}
         <button onClick={onViewModeToggle}
+          aria-label={viewMode === 'grid' ? 'Preklopi na seznam' : 'Preklopi na mrežo'}
+          title={viewMode === 'grid' ? 'Seznamski pogled' : 'Mrežni pogled'}
           className="w-9 h-9 flex items-center justify-center rounded-lg bg-secondary hover:bg-secondary/80 touch-manipulation min-h-[36px]">
           {viewMode === 'grid' ? <List className="w-4 h-4" /> : <Grid3X3 className="w-4 h-4" />}
         </button>
-        {/* Zvok */}
+        {/* Zvok — R63: stanjsko barvanje (emerald = vklopljen) + aria-pressed +
+            persistenca (utišanje preživi reload — nasvet v tooltipu) */}
         <button onClick={onToggleSound}
-          className="w-9 h-9 flex items-center justify-center rounded-lg bg-secondary hover:bg-secondary/80 touch-manipulation min-h-[36px]">
+          aria-pressed={isSoundEnabled()}
+          aria-label={isSoundEnabled() ? 'Zvok vklopljen — klik za izklop' : 'Zvok izklopljen — klik za vklop'}
+          title={isSoundEnabled() ? 'Zvok vklopljen (nove naročile = trojni ping) — klik za utišanje' : 'Zvok utišan — klik za vklop (ostane tudi po osvežitvi)'}
+          className={cn(
+            'w-9 h-9 flex items-center justify-center rounded-lg touch-manipulation min-h-[36px] transition-colors',
+            isSoundEnabled()
+              ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25'
+              : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
+          )}>
           {isSoundEnabled() ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
         </button>
         {/* Recall */}
@@ -89,7 +102,10 @@ export const KDSHeader = memo(function KDSHeader({
           </button>
         )}
         {/* Osveži */}
-        <button onClick={onRefresh} className="w-9 h-9 flex items-center justify-center rounded-lg bg-secondary hover:bg-secondary/80 touch-manipulation min-h-[36px]">
+        <button onClick={onRefresh}
+          aria-label="Osveži naročila"
+          title="Osveži naročila"
+          className="w-9 h-9 flex items-center justify-center rounded-lg bg-secondary hover:bg-secondary/80 touch-manipulation min-h-[36px]">
           <RefreshCw className="w-4 h-4" />
         </button>
         {/* WS status */}
@@ -98,7 +114,11 @@ export const KDSHeader = memo(function KDSHeader({
           {wsConnected ? 'Live' : 'Offline'}
         </div>
         {/* Celozaslonski */}
-        <button onClick={onToggleFullscreen} className="w-9 h-9 flex items-center justify-center rounded-lg bg-secondary hover:bg-secondary/80 touch-manipulation min-h-[36px]">
+        <button onClick={onToggleFullscreen}
+          aria-pressed={isFullscreen}
+          aria-label={isFullscreen ? 'Izklopi celozaslonski način' : 'Vklopi celozaslonski način'}
+          title={isFullscreen ? 'Zapusti celozaslonski način' : 'Celozaslonski način'}
+          className="w-9 h-9 flex items-center justify-center rounded-lg bg-secondary hover:bg-secondary/80 touch-manipulation min-h-[36px]">
           {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
         </button>
       </div>

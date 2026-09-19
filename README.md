@@ -1,11 +1,11 @@
-# RestaurantOS v1.7.5
+# RestaurantOS v1.7.6
 
-[![Version](https://img.shields.io/badge/version-1.7.5-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.7.6-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-1983%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-62%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-1987%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-63%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,17 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (63 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (64 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### ✨ Nove funkcije v v1.7.6 (QA runda 63 — KDS zvok 2.0)
+
+| Kategorija | Funkcija |
+|------------|----------|
+| 🔊 **Utišanje preživi reload** | KDS zvok toggle (Task 21) je bil samo v ref — zamenjava izmene/SW update/reconnect in pisk se vrnejo. Zdaj `lib/kds-sound-prefs.ts` (localStorage `kds_sound_enabled`, SSR-safe, samo izrecen `"0"` utiša — pokvarjen zapis → privzeto vklopljeno) |
+| 🔓 **Autoplay unlock** | Web Audio politika: kuhinjski zaslon po reloadu NI interaktiral → AudioContext suspended → pisk tiho odpadejo (tihi security alarm!). Prvi pointerdown/keydown odklene (resume + neslišen ton; one-time poslušalca v useKDSPage) |
+| 🎛️ **Potrditveni ping + stanjske barve** | Ob vklopu zvoka kratka viž-potrditev (kuhar takoj sliši, da je zvok živ — hkrati odpre AudioContext); gumb zdaj emerald obarvan, ko je VKLOPLJEN (prej ni kazal stanja), aria-pressed + aria-label + tooltip "ostane tudi po osvežitvi" |
+| ♿ **A11y obšpil glave** | Vsi ikonski gumbi (pogled, osveži, celozaslonski, postaje) dobili aria-label/aria-pressed/title — screen reader in tipkovnica prej gladko |
+| 🧪 **+4 testi** | `loadSoundPref`/`saveSoundPref` (SSR brez storage-a, "1"/"0"/pokvarjen, zapis) — **1987/1987 unit (114 datotek)** |
 
 ### ✨ Nove funkcije v v1.7.5 (QA runda 62 — Povzetek na daljavo)
 
