@@ -100,3 +100,62 @@ export function sliceWithMore<T>(items: readonly T[], max: number): { shown: T[]
   const safeMax = Math.max(1, max)
   return { shown: items.slice(0, safeMax), extra: Math.max(0, items.length - safeMax) }
 }
+
+// ============================================
+// RUNDA 60: pozicijski urejevalnik — čista geometrijska logika
+// (postavitev nepozicioniranih miz + snap na mrežo)
+// ============================================
+
+/** Pravokotnik mize v odstotkih tlorisa. */
+export interface FloorRect {
+  posX: number
+  posY: number
+  width: number
+  height: number
+}
+
+/**
+ * Zaokroži pozicijo na mrežo (privzeto 2 %) in jo stisne v [min, max].
+ * Negativne/neštevilske vrednosti varno vrne na min.
+ */
+export function snapFloorPos(value: number, step = 2, min = 0, max = 90): number {
+  const safe = Number.isFinite(value) ? value : min
+  const snapped = Math.round(safe / step) * step
+  return Math.max(min, Math.min(max, snapped))
+}
+
+/** Ali se dva pravokotnika prekrivata (z varnostnim odmikom, privzeto 1 %)? */
+export function rectsOverlap(a: FloorRect, b: FloorRect, margin = 1): boolean {
+  return (
+    a.posX < b.posX + b.width + margin &&
+    a.posX + a.width + margin > b.posX &&
+    a.posY < b.posY + b.height + margin &&
+    a.posY + a.height + margin > b.posY
+  )
+}
+
+/**
+ * Najde prvi prost slot na kandidatski mreži (4 stolpci × 6 vrst),
+ * kjer se miza (width × height) ne prekriva z obstoječimi pravokotniki.
+ * Vsi zasedeni → determinističen kaskadni fallback (vcenter/diagonala).
+ * Nikoli ne vrne (0,0) — to je znamenje "nepozicionirana".
+ */
+export function findFreeTableSlot(
+  existing: readonly FloorRect[],
+  width: number,
+  height: number,
+): { posX: number; posY: number } {
+  const cols = [2, 26, 50, 74]
+  const rows = [4, 18, 32, 46, 60, 74]
+  for (const posY of rows) {
+    for (const posX of cols) {
+      const candidate: FloorRect = { posX, posY, width, height }
+      if (!existing.some(other => rectsOverlap(candidate, other))) {
+        return { posX, posY }
+      }
+    }
+  }
+  // Kaskadni fallback — zagotovo dosegljiv, drag ga refineira
+  const n = existing.length
+  return { posX: snapFloorPos(46 + (n % 3) * 8), posY: snapFloorPos(38 + (n % 4) * 10) }
+}

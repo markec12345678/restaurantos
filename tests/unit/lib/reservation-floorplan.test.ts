@@ -10,6 +10,9 @@ import {
   formatFloorChip,
   sliceWithMore,
   isReservationActiveNow,
+  snapFloorPos,
+  rectsOverlap,
+  findFreeTableSlot,
   type TableReservations,
 } from '@/lib/reservation-floorplan'
 import type { ReservationType, TableType } from '@/components/pos/reservation/constants'
@@ -198,5 +201,85 @@ describe('reservation-floorplan — sliceWithMore', () => {
   })
   it('prazen seznam', () => {
     expect(sliceWithMore([], 3)).toEqual({ shown: [], extra: 0 })
+  })
+})
+
+// ============================================
+// RUNDA 60: pozicijski urejevalnik — geometrija
+// ============================================
+describe('reservation-floorplan — snapFloorPos (R60)', () => {
+  it('zaokroži na 2 % mrežo', () => {
+    expect(snapFloorPos(13.4)).toBe(14)
+    expect(snapFloorPos(13.6)).toBe(14)
+    expect(snapFloorPos(51)).toBe(52) // Math.round(25.5) = 26 → 52
+  })
+  it('stisne v [min, max]', () => {
+    expect(snapFloorPos(-5)).toBe(0)
+    expect(snapFloorPos(120)).toBe(90)
+    expect(snapFloorPos(120, 2, 0, 50)).toBe(50)
+  })
+  it('neštevilska vrednost → min (defenzivno)', () => {
+    expect(snapFloorPos(NaN)).toBe(0)
+    expect(snapFloorPos(NaN, 2, 4)).toBe(4)
+  })
+  it('prilagojen korak', () => {
+    expect(snapFloorPos(13, 5)).toBe(15)
+  })
+})
+
+describe('reservation-floorplan — rectsOverlap (R60)', () => {
+  const r = (posX: number, posY: number): { posX: number; posY: number; width: number; height: number } =>
+    ({ posX, posY, width: 10, height: 12 })
+  it('prekrivanje → true', () => {
+    expect(rectsOverlap(r(0, 0), r(5, 5))).toBe(true)
+  })
+  it('ločena → false', () => {
+    expect(rectsOverlap(r(0, 0), r(20, 20))).toBe(false)
+  })
+  it('rob ob robu: brez odmika bi se dotikala — odmik 1 % jo drži narazen', () => {
+    // a: [0,11] z odmikom; b začne pri 11 → brez odmika se dotikata
+    expect(rectsOverlap(r(0, 0), r(11, 0), 0)).toBe(false) // dotik ≠ prekrivanje
+    expect(rectsOverlap(r(0, 0), r(10, 0), 1)).toBe(true) // z odmikom 1 % je preblizu
+    expect(rectsOverlap(r(0, 0), r(12, 0), 1)).toBe(false)
+  })
+})
+
+describe('reservation-floorplan — findFreeTableSlot (R60)', () => {
+  it('prazen tloris → prvi slot (2, 4)', () => {
+    expect(findFreeTableSlot([], 8, 10)).toEqual({ posX: 2, posY: 4 })
+  })
+  it('zaseden prvi slot → skoči na naslednjega', () => {
+    const slot = findFreeTableSlot([{ posX: 2, posY: 4, width: 8, height: 10 }], 8, 10)
+    expect(slot).toEqual({ posX: 26, posY: 4 })
+  })
+  it('cel prvi stolpec/vrsta → najde prostega v spodnjih vrstah', () => {
+    const existing = [
+      { posX: 2, posY: 4, width: 8, height: 10 },
+      { posX: 26, posY: 4, width: 8, height: 10 },
+      { posX: 50, posY: 4, width: 8, height: 10 },
+      { posX: 74, posY: 4, width: 8, height: 10 },
+    ]
+    const slot = findFreeTableSlot(existing, 8, 10)
+    expect(slot).toEqual({ posX: 2, posY: 18 })
+  })
+  it('uporablja dejansko width mize (ozka takne v vrzel, široka preskoči)', () => {
+    // sosedka zasede x [14..22] (+odmik [13..23])
+    const existing = [{ posX: 14, posY: 4, width: 8, height: 10 }]
+    // ozka (8) pri (2,4): x [2..10] — se ne seka s sosedko → prost
+    expect(findFreeTableSlot(existing, 8, 10)).toEqual({ posX: 2, posY: 4 })
+    // široka (22) pri (2,4): x [2..24] — seka sosedko → preskoči na (26,4)
+    expect(findFreeTableSlot(existing, 22, 10)).toEqual({ posX: 26, posY: 4 })
+  })
+  it('vsi sloti zasedeni → kaskadni fallback znotraj kanvasa', () => {
+    const existing = [2, 26, 50, 74].flatMap(posX =>
+      [4, 18, 32, 46, 60, 74].map(posY => ({ posX, posY, width: 8, height: 10 })),
+    )
+    const slot = findFreeTableSlot(existing, 8, 10)
+    expect(slot.posX).toBeGreaterThanOrEqual(0)
+    expect(slot.posX).toBeLessThanOrEqual(90)
+    expect(slot.posY).toBeGreaterThanOrEqual(0)
+    expect(slot.posY).toBeLessThanOrEqual(90)
+    // nikoli (0,0) — to je znamenje "nepozicionirana"
+    expect(slot.posX > 0 || slot.posY > 0).toBe(true)
   })
 })

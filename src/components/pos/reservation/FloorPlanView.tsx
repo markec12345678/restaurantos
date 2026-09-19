@@ -15,9 +15,18 @@
 // RUNDA 59c: varovalka zaskočenega busy — če PUT ne uspe (refetch nikoli
 // ne odbije target statusa), je busy po 8 s samodejno sproščen (determinističen
 // useEffect timeout; uspešna pot se očisti prek izpeljave prej).
+// RUNDA 60: POZICIJSKI UREJEVALNIK — način urejanja omogoči vlečenje miz po
+// kanvasu (pointer dogodki = miška + dotik + pisalo) in postavitev
+// nepozicioniranih miz na prost slot (findFreeTableSlot). Optimistic overlay
+// (lokalni prikaz) + PUT /api/tables/[id] { posX, posY }; napaka → povratek
+// + toast. Snap na 2 % mrežo, omejeno na rob tlorisa.
 
-import { memo, useMemo, useState, useCallback, useEffect } from 'react'
-import { MapPin, Users, Pencil, Clock, UserCheck, AlertCircle, X, Check, Loader2 } from 'lucide-react'
+import { memo, useMemo, useState, useCallback, useEffect, useRef } from 'react'
+import { MapPin, Users, Pencil, Clock, UserCheck, AlertCircle, X, Check, Loader2, Move, MoveHorizontal } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { authFetch } from '@/components/pos/PinLogin'
+import { queryKeys } from '@/lib/query-keys'
 import type { ReservationType, TableType } from './constants'
 import { statusLabels } from './constants'
 import {
@@ -26,7 +35,10 @@ import {
   splitTablesByGeometry,
   formatFloorTime,
   formatFloorChip,
+  findFreeTableSlot,
+  snapFloorPos,
   type FloorStatus,
+  type FloorRect,
   type TableReservations,
 } from '@/lib/reservation-floorplan'
 import {
@@ -122,6 +134,139 @@ export const FloorPlanView = memo(function FloorPlanView({
     return () => clearTimeout(timer)
   }, [clicked])
 
+  // ============================================
+  // RUNDA 60: POZICIJSKI UREJEVALNIK
+  // ============================================
+  const queryClient = useQueryClient()
+  const [editor, setEditor] = useState(false)
+  // Optimistic overlay — prikazana pozicija pred potrditvijo refetcha
+  const [overrides, setOverrides] = useState<Record<string, { posX: number; posY: number }>>({})
+  // Vlečenje: pointer dogodki (miška + dotik + pisalo, vzorec runda 12/43)
+  const [drag, setDrag] = useState<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null)
+  const movedRef = useRef(false) // razloči klik (izbira) od vlečenja
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Efektivna geometrija mize: override, sicer podatki iz API
+  const effRect = useCallback(
+    (t: TableType): FloorRect & { rotation: number; shape: string } => {
+      const o = overrides[t.id]
+      return {
+        posX: o?.posX ?? t.posX ?? 0,
+        posY: o?.posY ?? t.posY ?? 0,
+        width: t.width ?? 8,
+        height: t.height ?? 10,
+        rotation: t.rotation ?? 0,
+        shape: t.shape ?? 'round',
+      }
+    },
+    [overrides],
+  )
+
+  // Mutacija pozicije: PUT samo { posX, posY } (Zod schema vse ostalo pusti)
+  const positionMutation = useMutation({
+    mutationFn: async ({ id, posX, posY }: { id: string; posX: number; posY: number }) => {
+      const res = await authFetch(`/api/tables/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ posX, posY }),
+      })
+      if (!res.ok) throw new Error('PUT /api/tables/[id] neuspešen')
+      return res.json()
+    },
+    onSuccess: (_data, vars) => {
+      setOverrides(prev => {
+        const next = { ...prev }
+        delete next[vars.id]
+        return next
+      })
+      void queryClient.invalidateQueries({ queryKey: queryKeys.tables.all })
+    },
+    onError: (_err, _vars) => {
+      // Povratek: brisi override → prikaz skoči nazaj na zadnje znano stanje
+      setOverrides(prev => {
+        const next = { ...prev }
+        delete next[_vars.id]
+        return next
+      })
+      toast.error('Pozicijo mize ni bilo mogoče shraniti — poskusite znova')
+    },
+  })
+
+  // Vlečenje — premik: snap na 2 % mrežo, omejeno na robove kanvasa
+  const applyDrag = useCallback(
+    (id: string, deltaXpx: number, deltaYpx: number) => {
+      if (!containerRef.current) return
+      const rect = containerRef.current.getBoundingClientRect()
+      if (rect.width === 0 || rect.height === 0) return
+      const t = tables.find(x => x.id === id)
+      if (!t || !drag) return
+      const dX = (deltaXpx / rect.width) * 100
+      const dY = (deltaYpx / rect.height) * 100
+      const width = t.width ?? 8
+      const height = t.height ?? 10
+      const maxX = Math.max(0, 100 - width)
+      const maxY = Math.max(0, 100 - height)
+      const posX = snapFloorPos(drag.origX + dX, 2, 0, maxX)
+      const posY = snapFloorPos(drag.origY + dY, 2, 0, maxY)
+      movedRef.current = true
+      setOverrides(prev => ({ ...prev, [id]: { posX, posY } }))
+    },
+    [drag, tables],
+  )
+
+  // Globalni pointer move/up med vlečenjem (okno = brez trzanja zunaj kanvasa)
+  useEffect(() => {
+    if (!drag) return
+    const onMove = (e: PointerEvent) => applyDrag(drag.id, e.clientX - drag.startX, e.clientY - drag.startY)
+    const onUp = () => {
+      const t = tables.find(x => x.id === drag.id)
+      const o = overrides[drag.id]
+      const origX = t?.posX ?? 0
+      const origY = t?.posY ?? 0
+      if (movedRef.current && o && (o.posX !== origX || o.posY !== origY)) {
+        positionMutation.mutate({ id: drag.id, posX: o.posX, posY: o.posY })
+      }
+      setDrag(null)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+    // overrides namerno zamrznjen ob startu vlečenja (orig pozicija za primerjavo)
+  }, [drag, applyDrag, tables, overrides])
+
+  const handleDragStart = useCallback(
+    (id: string, e: React.PointerEvent) => {
+      if (!editor) return
+      if (e.button !== undefined && e.button !== 0) return
+      const t = tables.find(x => x.id === id)
+      if (!t) return
+      const o = overrides[id]
+      movedRef.current = false
+      setDrag({ id, startX: e.clientX, startY: e.clientY, origX: o?.posX ?? t.posX ?? 0, origY: o?.posY ?? t.posY ?? 0 })
+    },
+    [editor, tables, overrides],
+  )
+
+  // RUNDA 60: postavitev nepozicionirane mize na prvi prost slot
+  const placeTable = useCallback(
+    (t: TableType) => {
+      const width = t.width ?? 8
+      const height = t.height ?? 10
+      const existing: FloorRect[] = tables
+        .filter(x => x.id !== t.id)
+        .map(x => ({ posX: x.posX ?? 0, posY: x.posY ?? 0, width: x.width ?? 8, height: x.height ?? 10 }))
+        .filter(r => r.posX > 0 || r.posY > 0)
+      const slot = findFreeTableSlot(existing, width, height)
+      setOverrides(prev => ({ ...prev, [t.id]: slot }))
+      positionMutation.mutate({ id: t.id, posX: slot.posX, posY: slot.posY })
+    },
+    [tables, positionMutation],
+  )
+
   const handleAction = useCallback(
     (id: string, status: string) => {
       if (!onStatusChange) return
@@ -207,7 +352,7 @@ export const FloorPlanView = memo(function FloorPlanView({
 
   return (
     <div className="space-y-3">
-      {/* Legenda + števec (sl-plural: 1 prosta · 2 prosti · 5 prostih) */}
+      {/* Legenda + števec (sl-plural: 1 prosta · 2 prosti · 5 prostih) + RUNDA 60: urejevalnik */}
       <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground" aria-live="polite">
         {(['available', 'reserved', 'occupied'] as const).map(s => (
           <span key={s} className="inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/60 px-2 py-0.5">
@@ -218,6 +363,19 @@ export const FloorPlanView = memo(function FloorPlanView({
         {!isToday && (
           <span className="rounded-full bg-muted px-2 py-0.5 text-[10px]">arhivski dan — brez "zdaj" logike</span>
         )}
+        <button
+          type="button"
+          onClick={() => { setEditor(prev => !prev); setSelectedId(null) }}
+          aria-pressed={editor}
+          className={`ml-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+            editor
+              ? 'border-primary/50 bg-primary/10 text-primary shadow-sm'
+              : 'border-border/60 bg-background/60 text-muted-foreground hover:border-primary/40 hover:text-primary'
+          }`}
+        >
+          <Move className="h-3 w-3" aria-hidden="true" />
+          {editor ? 'Zaključi urejanje' : 'Uredi pozicije'}
+        </button>
       </div>
 
       {tables.length === 0 ? (
@@ -228,33 +386,54 @@ export const FloorPlanView = memo(function FloorPlanView({
         </div>
       ) : (
         <div
-          // Dot-mreža ozadja — subtilen "risovalni papir" vizualni jezik
-          className="relative w-full overflow-hidden rounded-xl border border-border/70 bg-muted/20 shadow-inner"
+          ref={containerRef}
+          // Dot-mreža ozadja — subtilen "risovalni papir" vizualni jezik.
+          // RUNDA 60: način urejanja = poudarjen okvir + koordinatni akcent.
+          className={`relative w-full overflow-hidden rounded-xl border-2 shadow-inner transition-colors duration-300 ${
+            editor
+              ? 'border-primary/50 bg-primary/[0.04]'
+              : 'border-border/70 bg-muted/20'
+          }`}
           style={{
             minHeight: '440px',
             backgroundImage: 'radial-gradient(circle, hsl(var(--border) / 0.55) 1px, transparent 1px)',
             backgroundSize: '22px 22px',
           }}
           role="group"
-          aria-label="Tloris miz z današnjimi rezervacijami"
+          aria-label={editor ? 'Tloris miz — način urejanja pozicij' : 'Tloris miz z današnjimi rezervacijami'}
         >
+          {/* RUNDA 60: urejevalni znak — lebdeča pilula z namigi */}
+          {editor && (
+            <div className="pointer-events-none absolute left-2 top-2 z-40 inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-background/90 px-2.5 py-1 text-[10px] font-bold text-primary shadow-md animate-fade-in-up">
+              <MoveHorizontal className="h-3 w-3" aria-hidden="true" />
+              UREJANJE — vleci mize po tlorisu
+            </div>
+          )}
           {positioned.map((t, i) => {
             const entry = isToday ? grouped.get(t.id) : undefined
             const status = deriveTableFloorStatus(entry)
+            const rect = effRect(t)
+            const isDragging = drag?.id === t.id
             return (
               <button
                 key={t.id}
                 type="button"
-                onClick={() => setSelectedId(prev => (prev === t.id ? null : t.id))}
-                aria-label={`Miza ${t.number}, ${statusText[status]}${entry?.next ? `, naslednja rezervacija ${formatFloorTime(entry.next.dateTime)}, ${entry.next.customerName}` : ''}`}
+                onPointerDown={e => handleDragStart(t.id, e)}
+                onClick={() => {
+                  if (editor && movedRef.current) return // to je bil drag, ne klik
+                  setSelectedId(prev => (prev === t.id ? null : t.id))
+                }}
+                aria-label={`Miza ${t.number}, ${statusText[status]}${entry?.next ? `, naslednja rezervacija ${formatFloorTime(entry.next.dateTime)}, ${entry.next.customerName}` : ''}${editor ? ' — vleci za premik' : ''}`}
                 aria-pressed={selectedId === t.id}
-                className={tableButtonClass(t.id, t.shape ?? 'round')}
+                className={`${tableButtonClass(t.id, rect.shape)} ${editor ? 'cursor-grab touch-none active:cursor-grabbing' : ''} ${
+                  isDragging ? 'z-50 scale-[1.06] shadow-xl ring-2 ring-primary/70 transition-none cursor-grabbing' : ''
+                }`}
                 style={{
-                  left: `${t.posX ?? 0}%`,
-                  top: `${t.posY ?? 0}%`,
-                  width: `${t.width ?? 8}%`,
-                  height: `${t.height ?? 10}%`,
-                  transform: `rotate(${t.rotation ?? 0}deg)`,
+                  left: `${rect.posX}%`,
+                  top: `${rect.posY}%`,
+                  width: `${rect.width}%`,
+                  height: `${rect.height}%`,
+                  transform: `rotate(${rect.rotation}deg)`,
                   minWidth: '64px',
                   minHeight: '56px',
                   animationDelay: `${Math.min(i * 45, 360)}ms`,
@@ -266,44 +445,65 @@ export const FloorPlanView = memo(function FloorPlanView({
           })}
           {positioned.length === 0 && (
             <div className="flex h-full min-h-[440px] items-center justify-center p-6 text-center text-xs text-muted-foreground">
-              Mize še niso pozicionirane na tlorisu — prikazane spodaj v mreži.
+              {editor
+                ? 'Kanvas je prazen — postavi mize iz mreže spodaj.'
+                : 'Mize še niso pozicionirane na tlorisu — prikazane spodaj v mreži.'}
             </div>
           )}
         </div>
       )}
 
-      {/* Nepozicionirane mize — kompaktna mreža (fallback) */}
+      {/* Nepozicionirane mize — kompaktna mreža (fallback) + RUNDA 60: postavitev */}
       {unpositioned.length > 0 && (
         <div>
           <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             Nepozicionirane mize
+            {editor && <span className="ml-2 font-normal normal-case text-primary/80">— postavi jih na tloris</span>}
           </p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
             {unpositioned.map((t, i) => {
               const entry = isToday ? grouped.get(t.id) : undefined
               const status = deriveTableFloorStatus(entry)
               const colors = floorStatusColors[status] ?? floorStatusColors.available
+              const isPlacing = positionMutation.isPending && positionMutation.variables?.id === t.id
               return (
-                <button
+                <div
                   key={t.id}
-                  type="button"
-                  onClick={() => setSelectedId(prev => (prev === t.id ? null : t.id))}
-                  aria-pressed={selectedId === t.id}
-                  className={`flex items-center justify-between gap-2 rounded-lg border-2 ${colors.border} ${colors.bg} px-2.5 py-2 text-left transition-all duration-200 hover:shadow-md hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${selectedId === t.id ? 'ring-2 ring-primary ring-offset-2 ring-offset-background' : ''} animate-fade-in-up`}
+                  className={`relative flex items-stretch gap-1 rounded-lg border-2 ${colors.border} ${colors.bg} p-1 pr-2 transition-all duration-200 animate-fade-in-up ${editor ? 'border-dashed shadow-sm' : ''}`}
                   style={{ animationDelay: `${Math.min(i * 40, 320)}ms` }}
                 >
-                  <span className="flex flex-col">
-                    <span className={`text-xs font-bold ${colors.text}`}>Miza {t.number}</span>
-                    <span className="text-[10px] opacity-70 tabular-nums text-muted-foreground">
-                      {t.capacity} mest · {statusText[status]}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(prev => (prev === t.id ? null : t.id))}
+                    aria-pressed={selectedId === t.id}
+                    className={`flex flex-1 items-center justify-between gap-2 rounded-md px-1.5 py-1 text-left transition-all duration-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
+                  >
+                    <span className="flex flex-col">
+                      <span className={`text-xs font-bold ${colors.text}`}>Miza {t.number}</span>
+                      <span className="text-[10px] opacity-70 tabular-nums text-muted-foreground">
+                        {t.capacity} mest · {statusText[status]}
+                      </span>
                     </span>
-                  </span>
-                  {entry?.next && (
-                    <span className="rounded-full bg-background/80 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-muted-foreground">
-                      {formatFloorTime(entry.next.dateTime)}
-                    </span>
+                    {entry?.next && (
+                      <span className="rounded-full bg-background/80 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-muted-foreground">
+                        {formatFloorTime(entry.next.dateTime)}
+                      </span>
+                    )}
+                  </button>
+                  {/* RUNDA 60: postavi na prvi prost slot na kanvasu */}
+                  {editor && (
+                    <button
+                      type="button"
+                      onClick={() => placeTable(t)}
+                      disabled={positionMutation.isPending}
+                      aria-label={`Postavi mizo ${t.number} na tloris`}
+                      className="inline-flex shrink-0 flex-col items-center justify-center gap-0.5 self-stretch rounded-md border border-primary/40 bg-primary/10 px-2 text-[9px] font-bold text-primary transition-all duration-150 hover:scale-[1.04] hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
+                    >
+                      {isPlacing ? <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" /> : <Move className="h-3 w-3" aria-hidden="true" />}
+                      Postavi
+                    </button>
                   )}
-                </button>
+                </div>
               )
             })}
           </div>
