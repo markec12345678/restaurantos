@@ -8,8 +8,10 @@ import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/api-utils'
 import { verifyApiKey } from '@/lib/api-security'
 import { toNum } from '@/lib/decimal'
-import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
+import { getNextOrderNumber } from '@/lib/counters'
 import { buildOrderItemsData, calculateOrderTotals, fetchModifierPriceMap, type MenuItemVatMap } from '@/app/api/orders/_helpers/order-items'
+import { checkRateLimitAsync, getClientIp, PUBLIC_ORDER_LIMIT } from '@/lib/rate-limit'
+import { notInScopeResponse } from '@/lib/tenant-scope'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
@@ -36,10 +38,26 @@ const orderSchema = z.object({
 // GET — pridobi status naročila (za guest tracking)
 export async function GET(req: Request) {
   try {
+    // FIX R82-C (javna pot): rate limit (prej BREZ — R81-E2)
+    const clientIp = getClientIp(req)
+    const rateCheck = await checkRateLimitAsync('mobile-order', clientIp, PUBLIC_ORDER_LIMIT)
+    if (!rateCheck.allowed) {
+      return NextResponse.json({ error: 'Preveč zahtevkov. Poskusite znova čez minuto.' }, { status: 429 })
+    }
+
     const authHeader = req.headers.get('authorization')
     const apiKeyResult = await verifyApiKey(authHeader)
     if (!apiKeyResult.valid) {
       return NextResponse.json({ error: apiKeyResult.error }, { status: 401 })
+    }
+
+    // FIX R82-C (LEAK-MEDIUM, P0-C5 uporaba): subscriptionId iz verifyApiKey
+    // je zdaj DEJANSKO porabljen za tenant scope — prej je bil nikoli bran
+    // (order.findUnique po id = cross-tenant read prek orderId iz logov/WS).
+    // Fail-closed: ključ brez naročnine ne bere ničesar.
+    const subId = apiKeyResult.subscriptionId ?? null
+    if (!subId) {
+      return NextResponse.json({ error: 'API ključ ni vezan na naročnino' }, { status: 403 })
     }
 
     const { searchParams } = new URL(req.url)
@@ -49,8 +67,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'orderId je obvezen' }, { status: 400 })
     }
 
-    const order = await db.order.findUnique({
-      where: { id: orderId },
+    const order = await db.order.findFirst({
+      where: { id: orderId, location: { subscriptionId: subId } },
       select: {
         id: true,
         orderNumber: true,
@@ -83,7 +101,17 @@ export async function POST(req: Request) {
   // FIX P4: `input` je deklariran zunaj try da je dostopen v catch bloku
   // za idempotency key lookup pri P2002 unique constraint violation.
   let input: z.infer<typeof orderSchema> | undefined
+  // R82-C: subId tudi zunaj try — P2002 replay lookup v catch bloku mora
+  // vedeti naročnino (fail-closed: brez nje = generičen 409, nikoli replay)
+  let subId: string | null = null
   try {
+    // FIX R82-C (javna pot): rate limit (prej BREZ — R81-E2)
+    const clientIp = getClientIp(req)
+    const rateCheck = await checkRateLimitAsync('mobile-order', clientIp, PUBLIC_ORDER_LIMIT)
+    if (!rateCheck.allowed) {
+      return NextResponse.json({ error: 'Preveč naročil. Poskusite znova čez minuto.' }, { status: 429 })
+    }
+
     const authHeader = req.headers.get('authorization')
     const apiKeyResult = await verifyApiKey(authHeader)
     if (!apiKeyResult.valid) {
@@ -94,14 +122,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Nimaš dovoljenja za ustvarjanje naročil' }, { status: 403 })
     }
 
+    // FIX R82-C (P0-C5 uporaba): tenant scope za VSE nadaljnje poizvedbe
+    subId = apiKeyResult.subscriptionId ?? null
+    if (!subId) {
+      return NextResponse.json({ error: 'API ključ ni vezan na naročnino' }, { status: 403 })
+    }
+
     const body = await req.json().catch(() => ({}))
     input = orderSchema.parse(body)
 
     // FIX P4: Idempotency check — če idempotencyKey obstaja, preveri ali je
     // order s tem ključem že ustvarjen. Če da, vrni obstoječi (200, ne 201).
+    // FIX R82-C: replay lookup scoped na naročnino (prej globalni @unique —
+    // tuj idempotencyKey je vrnil TUJI order z orderId/total).
     if (input.idempotencyKey) {
       const existing = await db.order.findFirst({
-        where: { idempotencyKey: input.idempotencyKey },
+        where: { idempotencyKey: input.idempotencyKey, location: { subscriptionId: subId } },
         include: { orderItems: true },
       })
       if (existing) {
@@ -116,14 +152,53 @@ export async function POST(req: Request) {
       }
     }
 
+    // P1-6: resolucija lokacije (miza → privzeta lokacija naročnine)
+    // FIX R82-C (LEAK-HIGH): lokacija se reši PRED item validacijo, ker je
+    // potrebna za meni scope (prej: items validirani GLOBALLY, potem lokacija).
+    let orderLocationId: string | null = null
+    if (input.tableId) {
+      // FIX R82-C (LEAK-HIGH): miza scoped na naročnino (prej bare findUnique
+      // po tableId — ApiKey tenanta A + tableId mize tenanta B → order zapisan
+      // na tujo lokacijo, poraba tujega per-lokacijskega counterja in KDS
+      // broadcast tuji lokaciji). Tuja/neznana miza → 404 (NE tiho fallback na
+      // default lokacijo, kot prej).
+      const table = await db.table.findFirst({
+        where: { id: input.tableId, location: { subscriptionId: subId } },
+        select: { locationId: true },
+      })
+      if (!table) {
+        return notInScopeResponse('Miza')
+      }
+      orderLocationId = table.locationId
+    }
+    if (!orderLocationId) {
+      // FIX R82-C: privzeta lokacija scoped na naročnino (prej
+      // resolveDefaultLocationId() = PRVA aktivna lokacija KATEREGA KOLI tenanta)
+      const fallback = await db.location.findFirst({
+        where: { isActive: true, subscriptionId: subId },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true },
+      })
+      orderLocationId = fallback?.id ?? null
+    }
+    if (!orderLocationId) {
+      return NextResponse.json({ error: 'Ni nastavljene lokacije — kontaktirajte podporo' }, { status: 400 })
+    }
+
     // Pridobi meni artikle za validacijo + cene
+    // FIX R82-C (existence oracle + cross-tenant injection): artikli se
+    // validirajo PROTI REŠENI LOKACIJI (category.menu.locationId) — tuji
+    // menuItemId → "ne obstaja" 400 (prej: globalni existence check).
     const menuItemIds = input.items.map((i) => i.menuItemId)
     const menuItems = await db.menuItem.findMany({
-      where: { id: { in: menuItemIds } },
+      where: {
+        id: { in: menuItemIds },
+        category: { menu: { locationId: orderLocationId } },
+      },
       select: { id: true, name: true, price: true, vatRate: true, isAvailable: true },
     })
 
-    // Validiraj razpoložljivost
+    // Validiraj razpoložljivost (in scope: tuji/neobstoječ artikel = "ne obstaja")
     for (const item of input.items) {
       const mi = menuItems.find((m) => m.id === item.menuItemId)
       if (!mi) {
@@ -132,23 +207,6 @@ export async function POST(req: Request) {
       if (!mi.isAvailable) {
         return NextResponse.json({ error: `Artikel ${mi.name} ni na voljo` }, { status: 400 })
       }
-    }
-
-    // P1-6: resolucija lokacije (miza → single-tenant fallback) — enak vzorec kot POS
-    // (premaknjeno PRED izračun — FIX BUG-13 potrebuje lokacijo za scope modifierjev)
-    let orderLocationId: string | null = null
-    if (input.tableId) {
-      const table = await db.table.findUnique({
-        where: { id: input.tableId },
-        select: { locationId: true },
-      })
-      orderLocationId = table?.locationId ?? null
-    }
-    if (!orderLocationId) {
-      orderLocationId = await resolveDefaultLocationId()
-    }
-    if (!orderLocationId) {
-      return NextResponse.json({ error: 'Ni nastavljene lokacije — kontaktirajte podporo' }, { status: 400 })
     }
 
     // P1-6/P1-8: mobilno naročilo uporablja ISTI kanonični izračun kot POS
@@ -224,21 +282,31 @@ export async function POST(req: Request) {
     // FIX P4: P2002 = unique constraint violation na idempotencyKey —
     // vzporedni request je medtem ustvaril order z istim ključem.
     // Vrni obstoječi (race condition resolve).
+    // FIX R82-C: replay lookup scoped na naročnino; če je kolizija s TUJIM
+    // ključem (globalni @unique, schema fix kasneje), vrni generičen 409 —
+    // NIKOLI tujega orderja.
     if (err && typeof err === 'object' && 'code' in err && err.code === 'P2002' && input?.idempotencyKey) {
-      const existing = await db.order.findFirst({
-        where: { idempotencyKey: input.idempotencyKey },
-        include: { orderItems: true },
-      })
-      if (existing) {
-        return NextResponse.json({
-          success: true,
-          orderId: existing.id,
-          orderNumber: existing.orderNumber,
-          total: toNum(existing.total),
-          estimatedReadyTime: new Date(new Date(existing.createdAt).getTime() + 15 * 60 * 1000).toISOString(),
-          idempotentReplay: true,
-        }, { status: 200 })
+      // Fail-closed: brez naročnine (teoretićno nemogoče — subId je checkiran
+      // prej) NE vračamo replay-a, ker ne moremo dokazati pripadnosti.
+      if (subId) {
+        const existing = await db.order.findFirst({
+          where: { idempotencyKey: input.idempotencyKey, location: { subscriptionId: subId } },
+          include: { orderItems: true },
+        })
+        if (existing) {
+          return NextResponse.json({
+            success: true,
+            orderId: existing.id,
+            orderNumber: existing.orderNumber,
+            total: toNum(existing.total),
+            estimatedReadyTime: new Date(new Date(existing.createdAt).getTime() + 15 * 60 * 1000).toISOString(),
+            idempotentReplay: true,
+          }, { status: 200 })
+        }
       }
+      // Kolizija s TUJIM ključem (globalni @unique) ali brez scope-a →
+      // generičen 409 — NIKOLI tujega orderja.
+      return NextResponse.json({ error: 'Naročilo s tem idempotency ključem že obstaja' }, { status: 409 })
     }
     return handleApiError(err, 'mobile/order POST')
   }

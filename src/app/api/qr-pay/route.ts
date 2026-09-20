@@ -16,7 +16,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
-import { qrPayTokenFor, verifyQrPayToken } from '@/lib/qr-pay-token'
+import { qrPayTokenFor, verifyQrPayToken, isQrPaySecretConfigured, QR_PAY_TOKEN_TTL_MS } from '@/lib/qr-pay-token'
 import { checkRateLimitAsync, getClientIp, QR_PAY_LIMIT } from '@/lib/rate-limit'
 import { z } from 'zod'
 
@@ -70,11 +70,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Ček je že plačan' }, { status: 400 })
     }
 
+    // FIX R82-D (production secret): brez nastavljenega HMAC secret-a v
+    // produkciji NE izdamo tokena (prej: tihi hard-code dev secret — vsak s
+    // poznavanjem repoja bi koval veljavne tokene za tuje čeke).
+    if (!isQrPaySecretConfigured()) {
+      return NextResponse.json({ error: 'QR plačilo ni konfigurirano — kontaktirajte podporo' }, { status: 503 })
+    }
+
     // FIX R81 (LEAK-HIGH): token je zdaj STATELESS HMAC VEZAVA ček↔token
     // (prej random hex, ki se ni nikjer shranil in se NIKOLI preveril).
     // Token se izda samo prek avtenticiranega init POST z lokacijskim scope-om.
+    // FIX R82-D: format v2 z vgrajenim issuedAt → stateless TTL (15 min);
+    // expiresAt v odgovoru iz ISTEGA konstantnega vira (QR_PAY_TOKEN_TTL_MS).
     const sessionToken = qrPayTokenFor(check.id)
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000) // 15 minut veljavnost (informativno; vezava je trajna — glej R82 opombo v qr-pay-token.ts)
+    const expiresAt = new Date(Date.now() + QR_PAY_TOKEN_TTL_MS)
 
     // Zgradi QR pay URL
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
@@ -151,7 +160,9 @@ export async function GET(req: Request) {
     // prej je bila vrjen PRVI neporavnan ček GLOBALNO (vsi tenanti!) ne glede
     // na token. Zdaj: poiščemo med neporavnanimi čeki tistega, čigar HMAC
     // se ujema s podanim tokenom. Tuj/izmišljen token → 404 (brez enumeracije).
-    if (!/^[a-f0-9]{64}$/.test(token)) {
+    // FIX R82-D: format v2 (`v2:<ms>:<hmac>`) — legacy 64-hex tokeni (brez
+    // TTL) so zavrnjeni; verify uveljavlja tudi TTL in future-skew.
+    if (!/^v2:\d{1,16}:[a-f0-9]{64}$/.test(token)) {
       return NextResponse.json({ error: 'Neveljaven token' }, { status: 400 })
     }
 

@@ -57,7 +57,7 @@ vi.spyOn(console, 'error').mockImplementation(() => {})
 vi.spyOn(console, 'info').mockImplementation(() => {})
 vi.spyOn(console, 'log').mockImplementation(() => {})
 
-import { qrPayTokenFor, verifyQrPayToken } from '@/lib/qr-pay-token'
+import { qrPayTokenFor, verifyQrPayToken, QR_PAY_TOKEN_TTL_MS } from '@/lib/qr-pay-token'
 import { GET as qrPayGET, POST as qrPayInit } from '@/app/api/qr-pay/route'
 import { POST as qrPayConfirm } from '@/app/api/qr-pay/confirm/route'
 import { requireAuth } from '@/lib/auth-middleware'
@@ -84,12 +84,14 @@ beforeEach(() => {
 })
 
 describe('R81: qr-pay token helper (HMAC binding)', () => {
-  it('token je determinističen HMAC za checkId (64 hex)', () => {
-    const t1 = qrPayTokenFor(CHECK_A)
-    const t2 = qrPayTokenFor(CHECK_A)
+  it('token je determinističen HMAC za checkId (v2 format, isti issuedAt)', () => {
+    const t1 = qrPayTokenFor(CHECK_A, 1700000000000)
+    const t2 = qrPayTokenFor(CHECK_A, 1700000000000)
     expect(t1).toBe(t2)
-    expect(t1).toMatch(/^[a-f0-9]{64}$/)
-    expect(qrPayTokenFor(CHECK_B)).not.toBe(t1)
+    // FIX R82-D: format v2 — `v2:<issuedAtMs>:<64 hex>` (legacy 64-hex brez
+    // TTL ni več veljaven)
+    expect(t1).toMatch(/^v2:\d{1,16}:[a-f0-9]{64}$/)
+    expect(qrPayTokenFor(CHECK_B, 1700000000000)).not.toBe(t1)
   })
 
   it('verify sprejme pravi token, zavrne tujega in napačnega formata', () => {
@@ -116,10 +118,19 @@ describe('R81: GET /api/qr-pay — token vezava na konkreten ček', () => {
   it('tuj token → 404, brez razkritja čekov', async () => {
     mocks.checkFindMany.mockResolvedValue([makeCheck(CHECK_A)])
 
-    const req = new Request(`http://localhost/api/qr-pay?token=${'f'.repeat(64)}`)
+    // v2 format, a napačen MAC → verify false → 404
+    const req = new Request(`http://localhost/api/qr-pay?token=v2:1700000000000:${'f'.repeat(64)}`)
     const res = await qrPayGET(req as never)
 
     expect(res.status).toBe(404)
+  })
+
+  it('R82-D: legacy 64-hex token (brez TTL) → 400 (format zavrnjen)', async () => {
+    const req = new Request(`http://localhost/api/qr-pay?token=${'a'.repeat(64)}`)
+    const res = await qrPayGET(req as never)
+
+    expect(res.status).toBe(400)
+    expect(mocks.checkFindMany).not.toHaveBeenCalled()
   })
 })
 
@@ -152,7 +163,7 @@ describe('R81: POST /api/qr-pay/confirm — token obvezen in vezan', () => {
 })
 
 describe('R81: POST /api/qr-pay (init) — lokacijski scope + HMAC token', () => {
-  it('location-bound staff: ček scoped prek order.locationId, token = HMAC(check.id)', async () => {
+  it('location-bound staff: ček scoped prek order.locationId, token = v2 HMAC(check.id)', async () => {
     ;(requireAuth as ReturnType<typeof vi.fn>).mockResolvedValue({
       session: { employeeId: 'emp-1', role: 'staff', locationId: 'loc-1' },
       error: null,
@@ -170,7 +181,11 @@ describe('R81: POST /api/qr-pay (init) — lokacijski scope + HMAC token', () =>
     const where = mocks.checkFindFirst.mock.calls[0][0].where
     expect(where.order.locationId).toBe('loc-1')
     expect(res.status).toBe(201)
-    expect(body.sessionToken).toBe(qrPayTokenFor(CHECK_A))
+    // R82-D: token iz init poti MORA biti v2 in MORA preiti verify za ta checkId
+    // (prej točna enakost — issuedAt je zdaj Date.now() ob izdaji)
+    expect(body.sessionToken).toMatch(/^v2:\d{1,16}:[a-f0-9]{64}$/)
+    expect(verifyQrPayToken(body.sessionToken, CHECK_A)).toBe(true)
+    expect(body.expiresAt).toBeTruthy()
     // stari random token (crypto.randomBytes) se NE uporablja več — token mora biti HMAC
     void NextResponse
   })

@@ -2,6 +2,7 @@
 // /api/security-audit — API Key management + Security audit
 // ============================================
 import { NextResponse } from 'next/server'
+import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
@@ -15,13 +16,28 @@ import {
 
 export const dynamic = 'force-dynamic'
 
+// FIX R82-C (issuance binding): izdajateljeva naročnina se izpelje iz seje —
+// lokacijsko vezan admin upravlja KLJUČE SVOJEGA tenanta (prej: listApiKeys
+// brez filtra = vsi tenanti; createApiKey = PRVA naročnina v DB). Platform
+// admin (brez lokacije) = globalni pogled / default subscription (back-compat).
+async function resolveIssuerSubscriptionId(authResult: { session: { role: string; locationId?: string | null } | null }): Promise<string | undefined> {
+  const session = authResult.session
+  if (!session?.locationId) return undefined // platform admin → global / default
+  const location = await db.location.findUnique({
+    where: { id: session.locationId },
+    select: { subscriptionId: true },
+  })
+  return location?.subscriptionId ?? undefined
+}
+
 // GET — seznam vseh API ključev (brez hash)
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
-    const keys = await listApiKeys()
+    const issuerSubId = await resolveIssuerSubscriptionId(authResult)
+    const keys = await listApiKeys(issuerSubId)
 
     // Dodaj security audit info
     const audit = {
@@ -63,12 +79,14 @@ export async function POST(req: Request) {
       if (!input.name || !input.scopes) {
         return NextResponse.json({ error: 'name in scopes sta obvezna za create' }, { status: 400 })
       }
+      const issuerSubId = await resolveIssuerSubscriptionId(authResult)
       const result = await createApiKey({
         name: input.name,
         scopes: input.scopes,
         rateLimit: input.rateLimit,
         expiresAt: input.expiresAt ? new Date(input.expiresAt) : undefined,
         createdBy: 'admin',
+        subscriptionId: issuerSubId,
       })
       // Vrni plain key samo enkrat
       return NextResponse.json({
@@ -91,7 +109,8 @@ export async function POST(req: Request) {
       if (!input.keyId) {
         return NextResponse.json({ error: 'keyId je obvezen za revoke' }, { status: 400 })
       }
-      const success = await revokeApiKey(input.keyId)
+      const issuerSubId = await resolveIssuerSubscriptionId(authResult)
+      const success = await revokeApiKey(input.keyId, issuerSubId)
       return NextResponse.json({ success })
     }
 
@@ -99,7 +118,8 @@ export async function POST(req: Request) {
       if (!input.keyId) {
         return NextResponse.json({ error: 'keyId je obvezen za delete' }, { status: 400 })
       }
-      const success = await deleteApiKey(input.keyId)
+      const issuerSubId = await resolveIssuerSubscriptionId(authResult)
+      const success = await deleteApiKey(input.keyId, issuerSubId)
       return NextResponse.json({ success })
     }
 
@@ -107,7 +127,8 @@ export async function POST(req: Request) {
       if (!input.keyId) {
         return NextResponse.json({ error: 'keyId je obvezen za rotate' }, { status: 400 })
       }
-      const result = await rotateApiKey(input.keyId)
+      const issuerSubId = await resolveIssuerSubscriptionId(authResult)
+      const result = await rotateApiKey(input.keyId, issuerSubId)
       if (!result) {
         return NextResponse.json({ error: 'Ključ ni najden' }, { status: 404 })
       }

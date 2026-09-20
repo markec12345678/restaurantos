@@ -44,10 +44,41 @@ export async function POST(req: Request) {
 
     const { orderType, items, paymentMethod, customer, promoCode, locationId } = data
 
+    // Preveri lokacijo (P1-6: body locationId se VALIDIRA — ne zaupa slepo;
+    // brez locationId → fallback na privzeto aktivno lokacijo, da naročilo
+    // ne ostane brez tenant konteksta)
+    // BY-DESIGN (R82-C dokumentirano): javna ruta NIMA identitete klicatelja —
+    // body.locationId lahko pomeni katero koli aktivno lokacijo (multi-tenant
+    // "ena domena, več restavracij" model). Hardening v prihodnji rundi:
+    // per-location public ordering token (qr-pay HMAC vzorec iz R81).
+    // FIX R82-C: lokacija se reši PRED meni poizvedbo, ker je potrebna za
+    // lokacijski scope artiklov (prej: artikli globalno, potem lokacija).
+    let onlineLocationId: string | null = null
+    if (locationId) {
+      const location = await db.location.findUnique({ where: { id: locationId } })
+      if (!location || !location.isActive) {
+        return NextResponse.json({ error: 'Izbrana lokacija ni na voljo' }, { status: 400 })
+      }
+      onlineLocationId = location.id
+    } else {
+      onlineLocationId = await resolveDefaultLocationId()
+    }
+    if (!onlineLocationId) {
+      return NextResponse.json({ error: 'Restavracija trenutno ne sprejema spletnih naročil' }, { status: 400 })
+    }
+
     // Pridobi menu iteme iz DB (strežniška cena, NE klientova!)
+    // FIX R82-C (LEAK-MEDIUM: cross-tenant item injection + existence oracle):
+    // where dobi category.menu.locationId = IZBRANA lokacija — tuji menuItemId
+    // je "ni na voljo" (isti odgovor kot neobstoječ: NI oracle o tujem meniju,
+    // NI vstavljanja tujih cen/DDV v order, NI odbijanja tuje zaloge).
     const menuItemIds = [...new Set(items.map((i: { menuItemId: string }) => i.menuItemId))]
     const menuItems = await db.menuItem.findMany({
-      where: { id: { in: menuItemIds }, isAvailable: true },
+      where: {
+        id: { in: menuItemIds },
+        isAvailable: true,
+        category: { menu: { locationId: onlineLocationId } },
+      },
       include: { recipeItems: { include: { inventoryItem: true } } },
     })
     const menuItemMap = new Map(menuItems.map(mi => [mi.id, mi]))
@@ -75,23 +106,6 @@ export async function POST(req: Request) {
       const feeResult = await calculateDeliveryFee(customer, itemsSubtotal)
       if (feeResult.error) return feeResult.error
       actualDeliveryFee = feeResult.fee
-    }
-
-    // Preveri lokacijo (P1-6: body locationId se VALIDIRA — ne zaupa slepo;
-    // brez locationId → fallback na privzeto aktivno lokacijo, da naročilo
-    // ne ostane brez tenant konteksta)
-    let onlineLocationId: string | null = null
-    if (locationId) {
-      const location = await db.location.findUnique({ where: { id: locationId } })
-      if (!location || !location.isActive) {
-        return NextResponse.json({ error: 'Izbrana lokacija ni na voljo' }, { status: 400 })
-      }
-      onlineLocationId = location.id
-    } else {
-      onlineLocationId = await resolveDefaultLocationId()
-    }
-    if (!onlineLocationId) {
-      return NextResponse.json({ error: 'Restavracija trenutno ne sprejema spletnih naročil' }, { status: 400 })
     }
 
     // Generiraj številko naročila
@@ -154,7 +168,11 @@ export async function POST(req: Request) {
 
   } catch (error: unknown) {
     return handleRouteError(error, 'POST /api/public/online-order', [
-      { match: 'INSUFFICIENT_STOCK', message: 'Artikel ni na zalogi', status: 409, extra: (parts) => ({ error: `Na žalost ${parts[1] || 'Artikel'} ni več na zalogi (${parts[2] || ''}). Prosimo, izberite drug artikel.` }) },
+      // FIX R82-C (stock oracle): INSUFFICIENT_STOCK sporočilo NE odaja več
+      // točnih količin ("potrebno X, na voljo Y") anonimnemu klicatelju —
+      // prej je bilo mogoče odmerjati zaloge do decimale. Polna detajla ostane
+      // v server logu (handleRouteError).
+      { match: 'INSUFFICIENT_STOCK', message: 'Artikel ni na zalogi', status: 409, extra: () => ({ error: 'Na žalost nekateri artikli niso več na zalogi. Prosimo, prilagodite naročilo in poskusite znova.' }) },
     ], 'Napaka pri oddaji naročila. Prosimo, poskusite znova.')
   }
 }

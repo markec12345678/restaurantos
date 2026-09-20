@@ -51,6 +51,11 @@ export interface CreateApiKeyInput {
   rateLimit?: number
   expiresAt?: Date
   createdBy?: string
+  // FIX R82-C: izdajateljeva naročnina — lokacijsko vezan admin izda ključ
+  // SVOJEGA tenanta (prej: getOrCreateDefaultSubscriptionId = PRVA naročnina
+  // v DB, kar je lahko tuji tenant). Platform admin (brez lokacije) pusti
+  // undefined → default (back-compat single-tenant).
+  subscriptionId?: string
 }
 
 export interface CreatedApiKey extends ApiKey {
@@ -99,7 +104,9 @@ export async function createApiKey(input: CreateApiKeyInput): Promise<CreatedApi
   const keyPrefix = plainKey.substring(0, 12) // "posr_xxxxxxxx"
 
   // Pridobi subscription (multi-tenant root)
-  const subscriptionId = await getOrCreateDefaultSubscriptionId()
+  // FIX R82-C: izdajateljeva naročnina ima prednost; fallback = default
+  // (single-tenant compat za platform admin / cron bootstrap).
+  const subscriptionId = input.subscriptionId || (await getOrCreateDefaultSubscriptionId())
 
   // Shrani v ApiKey tabelo
   const newKey = await db.apiKey.create({
@@ -255,9 +262,11 @@ export async function listApiKeys(subscriptionId?: string): Promise<Array<Omit<A
 }
 
 // 5. REVOKE API key
-export async function revokeApiKey(keyId: string): Promise<boolean> {
+// FIX R82-C: subscriptionScope — lokacijsko vezan admin ne more revoke-at
+// tujega ključa (tuj keyId → count 0 → success:false, brez razkritja obstoja).
+export async function revokeApiKey(keyId: string, subscriptionScope?: string): Promise<boolean> {
   const result = await db.apiKey.updateMany({
-    where: { id: keyId, isActive: true },
+    where: { id: keyId, isActive: true, ...(subscriptionScope ? { subscriptionId: subscriptionScope } : {}) },
     data: { isActive: false },
   })
   if (result.count > 0) {
@@ -268,17 +277,19 @@ export async function revokeApiKey(keyId: string): Promise<boolean> {
 }
 
 // 6. DELETE API key (popolnoma)
-export async function deleteApiKey(keyId: string): Promise<boolean> {
+export async function deleteApiKey(keyId: string, subscriptionScope?: string): Promise<boolean> {
   const result = await db.apiKey.deleteMany({
-    where: { id: keyId },
+    where: { id: keyId, ...(subscriptionScope ? { subscriptionId: subscriptionScope } : {}) },
   })
   return result.count > 0
 }
 
 // 7. ROTATE API key (revoke stari + kreiraj novi z istimi scopes)
-export async function rotateApiKey(keyId: string): Promise<CreatedApiKey | null> {
-  const oldKey = await db.apiKey.findUnique({
-    where: { id: keyId },
+export async function rotateApiKey(keyId: string, subscriptionScope?: string): Promise<CreatedApiKey | null> {
+  // FIX R82-C: scoped lookup (prej bare findUnique — tuji keyId je rotiral
+  // tuj ključ in vrnil njegov plainKey)
+  const oldKey = await db.apiKey.findFirst({
+    where: { id: keyId, ...(subscriptionScope ? { subscriptionId: subscriptionScope } : {}) },
     select: { name: true, scopes: true, rateLimit: true, expiresAt: true, createdBy: true, subscriptionId: true },
   })
 
