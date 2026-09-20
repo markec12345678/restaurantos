@@ -1,11 +1,11 @@
-# RestaurantOS v1.9.1
+# RestaurantOS v1.9.2
 
-[![Version](https://img.shields.io/badge/version-1.9.1-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.9.2-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-2316%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-81%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-2399%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-82%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,20 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (81 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **Security closure po rundi 82**: vsi potrjeni HIGH/CRITICAL (IDOR, write-through-tenant, WebAuthn ATO, QR-pay javna pot, platform gates, guest-flusi, QR-pay secret) popravljeni z dokazi in regresijskimi testi (82 QA rund); preostalo = dokumentiran R83 backlog (reports/* MEDIUM, javne guest rute, webhook-engine trigger) + PROD census odločitev. Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### 🔧 Popravki v v1.9.2 (QA runda 82 — security/data closure: platform gates + guest flusi + QR-pay lifecycle + maintenance sweep)
+
+| Kategorija | Popravek |
+|------------|----------|
+| 🚨 **R82-A/B: platform-admin gate ×2 (potrjeni R81 leftover)** | `GET/POST/PATCH /api/subscription/invoices` — lokacijski admin je videl račune VSEH tenantov, generiral račune za katero koli naročnino in s status=paid **AKTIVIRAL naročnino** (trial → active = samopodaljšanje SaaS dostopa); `POST /api/receipts/rebuild` — globalna maintenance operacija za vsakga admina. Zdaj: platform-admin gate (admin/super_admin BREZ lokacije, mirror R81 kanon); gate PRED vsakim db klicem (DB reads = 0 pri blokadi) |
+| 🚨 **R82-C: API-key tenant binding — guest flusi (audit-dokazano)** | Audit verifyApiKey() dokazal: `subscriptionId` (P0-C5) je bil **nikoli porabljen**. `POST /api/mobile/order` (**HIGH**): bare `table.findUnique` → ApiKey tenanta A + tableId mize tenanta B = naročilo na tuji lokaciji, poraba tujega per-lokacijskega counterja, KDS broadcast tuji lokaciji; tuja miza → 404 (NE tiho fallback); lokacija rešena PRED item validacijo; menuItems scoped (`category.menu.locationId`); idempotency replay scoped + P2002 s tujim ključem → generičen 409. `GET /api/mobile/order`: order.findFirst scoped na `location.subscriptionId` + fail-closed 403 brez naročnine. `POST /api/public/online-order` (**MEDIUM**, R81-E2 potrjeno nefiksano — zadnja sprememba runda 39): lokacija rešena PRED meni poizvedbo, items scoped (cross-tenant injection + existence oracle zaprt), INSUFFICIENT_STOCK brez točnih količin (stock oracle do decimale zaprt). `/api/security-audit`: izdajateljeva naročnina (session.locationId → location.subscriptionId) za list/create/revoke/delete/rotate — prej createApiKey = PRVA naročnina v DB, list brez filtra čez vse tenante. Rate limit `PUBLIC_ORDER_LIMIT` na obe mobile/order poti (prej BREZ) |
+| 🚨 **R82-D: QR-pay token lifecycle + PRODUCTION SECRET** | Token **v2** = `v2:<issuedAtMs>:<hmac>` — stateless **TTL 15 min** + future-skew guard 5 min; legacy 64-hex tokeni (brez TTL) zavrnjeni; USED = plačan ček zavrača (enkratna uporaba); REVOKED = re-issue nov token (stateless kompromis dokumentiran). **Hard-code dev secret ODSTRANJEN** — produkcija brez QR_PAY_SECRET/ENCRYPTION_KEY/NEXTAUTH_SECRET → init 503 + helper fail-closed (prej: javno znan dev secret = kovanje tokenov za tuje čeke) |
+| 🚨 **R82-F: maintenance endpoints sweep — 5 novih HIGH zaprtih** | Read-only sweep 216 auth-gated datotek (dvoprehodno pravilo) → fix wave: `end-of-day` (EOD agregati globalni + raw body.locationId = zapiranje **TUJE izmene**; zdaj scope + body strip), `menu-items/bulk-vat` (updateMany **GLOBALNO** = DDV sprememba čez vse tenante → scoped), `tables/qr-batch` (QR URL-ji vseh miz vseh tenantov → scoped), `opening-hours` (raw body.locationId = deleteMany+recreate tuje lokacije; `[id]` bare update/delete → isWithinScope 404), `reports/export` (CSV/PDF/Excel/XML izvoz **PII vseh tenantov** → scope skozi 6 generatorjev + fetchReportData) |
+| 🚨 **R82-F: 2 platform gates + 2 cron FAIL-OPEN buga** | `receipts/regenerate` + `accounting/journal/regenerate` (globalna backfill operacije → platformAdminGate, mirror rebuild); `cron/data-retention` + `cron/outbox` — guard `if (expectedAuth && ...)` je bil **brez CRON_SECRET POPOLNOMA PRESKOČEN** → anonimni GDPR deleteMany / SMS batchi! Zdaj fail-closed; `webhooks/deliveries` GET scoped prek webhook.locationId + POST global retry → platform gate |
+| 🧪 **+83 regresijskih testov** | `r82-platform-gates` (15), `r82-api-key-guest-flows` (24), `r82-qr-pay-lifecycle` (17), `r82-maintenance-sweep` (26), r81-qr-pay posodobljen na v2 (8) — vključno z ulovljenim **realnim bugom** (subId ReferenceError v P2002 catch bloku) — **2399/2399 unit (145 fajlov)** |
+| 🧪 **Regresija — vse zelene** | lint **0/0** · tsc **0** · **2399/2399 unit** (145 datotek) · **9/9 integracija** · 2 read-only final auditorja: vsi 3 commiti PASS, 0 blokatorjev |
+| 📌 **Odpri točke (runda 83)** | **Produkt prioriteta**: employees POST locationId stamp (nove NULL-location zaposlene blokirajo novi fail-closed gate-i). **Javne guest rute (sveže-oke audit)**: public/order-track (prazen-telefon bypass + global orderNumber lookup), public/kiosk (global meni + items brez scope), public/order (tableNumber globalna disambiguacija), webhook-engine trigger (komentar "samo globalni" ≠ koda — vsi webhook-i prejmejo dogodke vseh tenantov), wallet-payment stats, order-config/delivery-check, setup/init rate limit, IoT locationId atribucija. **MEDIUM/LOW**: 8× reports/* agregati, z-report F-pripombe, PROD census (`DATABASE_URL=<neon> bun scripts/audit-location.ts`) → backfill odločitev |
 
 ### 🔧 Popravki v v1.9.1 (QA runda 81 — AuditLog tenant model + finalni read/write sweep)
 
