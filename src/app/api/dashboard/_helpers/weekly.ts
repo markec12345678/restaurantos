@@ -3,12 +3,16 @@
 import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
 
+// FIX R85-H1: Tenant scope helper — null = super-admin (globalni pogled,
+// NIKOLI { locationId: null } filter).
+const locationWhere = (locationId: string | null) => (locationId ? { locationId } : {})
+
 // ─── Tedenska poraba ────────────────────────────────────────
 
-export async function computeWeeklyRevenue(sevenDaysAgo: Date): Promise<{ date: string; revenue: number }[]> {
+export async function computeWeeklyRevenue(sevenDaysAgo: Date, locationId: string | null = null): Promise<{ date: string; revenue: number }[]> {
   const weeklyRevenueByDay = await db.order.groupBy({
     by: ['createdAt'],
-    where: { createdAt: { gte: sevenDaysAgo }, status: 'completed', paymentStatus: 'paid' },
+    where: { createdAt: { gte: sevenDaysAgo }, status: 'completed', paymentStatus: 'paid', ...locationWhere(locationId) },
     _sum: { total: true },
   })
 
@@ -35,9 +39,9 @@ export async function computeWeeklyRevenue(sevenDaysAgo: Date): Promise<{ date: 
 
 // ─── Povprečni čakalni čas ──────────────────────────────────
 
-export async function computeAvgWaitTime(today: Date, tomorrow: Date): Promise<number> {
+export async function computeAvgWaitTime(today: Date, tomorrow: Date, locationId: string | null = null): Promise<number> {
   const completedOrdersForWait = await db.order.findMany({
-    where: { createdAt: { gte: today, lt: tomorrow }, status: 'completed' },
+    where: { createdAt: { gte: today, lt: tomorrow }, status: 'completed', ...locationWhere(locationId) },
     select: { createdAt: true, updatedAt: true },
   })
   const avgWaitMinutes = completedOrdersForWait.length > 0

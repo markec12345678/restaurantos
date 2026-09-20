@@ -17,12 +17,20 @@ interface ExistingCheck {
 }
 
 // Validiraj popust — preveri isActive, veljavnost, maxUses
+// FIX R85-FINAL (MEDIUM): checkLocationId — prej je bil findUnique GLOBALEN:
+// lokacijski uporabnik je lahko apliciral TUJI popust na svoj ček in
+// povečal Discount.currentUses tujega tenanta. Discount.locationId je NOT NULL
+// (MODEL A) — neujemanje = isti odgovor kot neobstoječ popust (brez oracles).
 export async function validateDiscount(
   tx: TransactionClient,
   discountId: string,
+  checkLocationId?: string | null,
 ): Promise<{ valid: boolean; error?: string; discountObj?: Awaited<ReturnType<typeof tx.discount.findUnique>> }> {
   const discountObj = await tx.discount.findUnique({ where: { id: discountId } })
   if (!discountObj) return { valid: false, error: 'Popust ni najden' }
+  if (checkLocationId && discountObj.locationId !== checkLocationId) {
+    return { valid: false, error: 'Popust ni najden' }
+  }
 
   if (!discountObj.isActive) return { valid: false, error: 'Popust ni aktiven' }
 

@@ -33,10 +33,11 @@ export async function PUT(
     if (validationError) return validationError
 
     // FIX P0-C1 (IDOR): findUnique → findFirst s scope prek order.locationId (Check nima lastnega locationId)
+    // FIX R85-FINAL: include order.locationId — potrebno za discount ownership guard spodaj
     const sessionLocationId = authResult.session?.locationId ?? undefined
     const existingCheck = await db.check.findFirst({
       where: { id, ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}) },
-      include: { orderItems: true },
+      include: { orderItems: true, order: { select: { locationId: true } } },
     })
 
     if (!existingCheck) {
@@ -52,7 +53,7 @@ export async function PUT(
         updateData.appliedDiscountId = data.appliedDiscountId || null
 
         if (data.appliedDiscountId) {
-          const { valid, error, discountObj } = await validateDiscount(tx, data.appliedDiscountId)
+          const { valid, error, discountObj } = await validateDiscount(tx, data.appliedDiscountId, existingCheck.order?.locationId)
           if (!valid || !discountObj) throw new Error(error || 'Neveljaven popust')
 
           Object.assign(updateData, calculateDiscountUpdate(discountObj, existingCheck))

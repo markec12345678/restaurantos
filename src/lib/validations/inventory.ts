@@ -22,6 +22,11 @@ export const createInventorySchema = z.object({
   servingsPerUnit: z.number().min(0).default(1),
   servingSize: z.string().max(50).default(''),
   menuItemId: z.string().nullable().optional(),
+  // R85-4c NULL-stamp: tenant dodelitev (stolpec InventoryItem.locationId, NE
+  // prosto-text `location` skladišče). Izrecen locationId je dovoljen SAMO
+  // super-adminu (scope null) — route žiga session lokacijo prek
+  // resolveWriteLocationId; lokacijskemu adminu/staffu body vrednost ne velja.
+  locationId: z.string().max(100).optional(),
 })
 
 export const updateInventorySchema = z.object({

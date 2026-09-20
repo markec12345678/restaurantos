@@ -2,6 +2,8 @@
 
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { notInScopeResponse } from '@/lib/tenant-scope'
+import { isTrackingInScope } from './tracking-queries'
 
 // ============================================
 // STATUS UPDATE HELPER
@@ -12,9 +14,18 @@ export async function handleStatusUpdate(
   status: string,
   customerRating?: number,
   customerFeedback?: string,
+  scopeLocationId: string | null = null,
 ) {
   const tracking = await db.deliveryTracking.findUnique({ where: { deliveryInfoId } })
   if (!tracking) return NextResponse.json({ error: 'Sledenje ne obstaja' }, { status: 404 })
+
+  // FIX R85-H2: Cross-tenant WRITE guard — prej je bilo spremembo statusa
+  // (picked_up/on_the_way/delivered/failed + dostavljeno DeliveryInfo) možno
+  // izvesti na dostavi KATERE KOLI lokacije po znanem deliveryInfoId.
+  if (scopeLocationId) {
+    const proven = await isTrackingInScope(tracking, scopeLocationId)
+    if (!proven) return notInScopeResponse('Sledenje')
+  }
 
   const updateData: Record<string, unknown> = { status }
 
@@ -27,6 +38,9 @@ export async function handleStatusUpdate(
       if (customerFeedback) updateData.customerFeedback = customerFeedback
       break
   }
+
+  // FIX R85-H2: self-heal žigosanje legacy NULL locationId (dokazano v scope-u)
+  if (scopeLocationId && !tracking.locationId) updateData.locationId = scopeLocationId
 
   // FIX BUG-9 MEDIUM: Oboje posodobitvi v transakciji
   const [updated] = await db.$transaction(async (tx) => {
@@ -80,19 +94,50 @@ export async function handleAssignDriver(
   driverPhone: string,
   vehicleInfo: string,
   userId?: string,
+  scopeLocationId: string | null = null,
 ) {
+  // FIX R85-H2: Cross-tenant WRITE guard — prej je bilo vozniško dodelo /
+  // ustvarjanje sledenja možno na dostavi KATERE KOLI lokacije.
+  // Anchoring: DeliveryInfo nima lastnega locationId — izpeljava prek
+  // deliveryInfo.order.locationId (kakor GET /api/delivery). Dostava brez
+  // naročila je dokazljivo vezana SAMO na lokacijo klicatelja (scope).
+  const deliveryInfo = await db.deliveryInfo.findUnique({
+    where: { id: deliveryInfoId },
+    select: { id: true, order: { select: { locationId: true } } },
+  })
+  if (!deliveryInfo) return NextResponse.json({ error: 'Dostava ne obstaja' }, { status: 404 })
+
+  const derivedLocationId = deliveryInfo.order?.locationId ?? null
+  if (scopeLocationId && derivedLocationId !== scopeLocationId) {
+    // Fail-closed: tuja lokacija ALI neizpeljiva lokacija (order brez lokacije /
+    // standalone dostava) za lokacijskega uporabnika — ne razkrivamo obstoja.
+    return notInScopeResponse('Dostava')
+  }
+  const stampLocationId = derivedLocationId ?? scopeLocationId ?? null
+
   let isUpdate = false
+  let outOfScope = false
   const result = await db.$transaction(async (tx) => {
     const existing = await tx.deliveryTracking.findUnique({ where: { deliveryInfoId } })
 
     if (existing) {
+      // Inkonzistenten zapis (tracking na tuji lokaciji, četudi order ustreza)
+      // = zavrnjen za lokacijskega uporabnika.
+      if (scopeLocationId && existing.locationId && existing.locationId !== scopeLocationId) {
+        outOfScope = true
+        return null
+      }
       if (existing.driverName && existing.driverName !== driverName) {
         throw new Error('DRIVER_ALREADY_ASSIGNED')
       }
       isUpdate = true
       const updated = await tx.deliveryTracking.update({
         where: { deliveryInfoId },
-        data: { driverName, driverPhone, vehicleInfo, status: 'assigned', assignedAt: new Date() },
+        data: {
+          driverName, driverPhone, vehicleInfo, status: 'assigned', assignedAt: new Date(),
+          // FIX R85-H2: self-heal žigosanje legacy NULL locationId
+          ...(scopeLocationId && !existing.locationId ? { locationId: stampLocationId } : {}),
+        },
       })
       return updated
     }
@@ -102,6 +147,8 @@ export async function handleAssignDriver(
         deliveryInfoId, driverName, driverPhone, vehicleInfo,
         status: 'assigned', assignedAt: new Date(),
         estimatedArrival: new Date(Date.now() + 30 * 60 * 1000),
+        // FIX R85-H2: žigosanje lokacije ob ustvarjanju (prej vedno NULL)
+        locationId: stampLocationId,
       },
     })
 
@@ -113,10 +160,12 @@ export async function handleAssignDriver(
     return created
   })
 
+  if (outOfScope) return notInScopeResponse('Sledenje')
+
   await createAuditLog({
     action: 'driver_assigned',
     entityType: 'delivery',
-    details: { driverName, message: `Voznik ${driverName} dodeljen dostavi` },
+    details: { driverName, message: `Voznik ${driverName} dodeljen dostavi`, locationId: stampLocationId },
     userId,
   })
 

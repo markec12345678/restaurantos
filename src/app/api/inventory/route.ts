@@ -1,6 +1,7 @@
 
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
+import { resolveWriteLocationId } from '@/lib/tenant-scope'
 import { createInventorySchema } from '@/lib/validations'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
@@ -71,7 +72,20 @@ export async function POST(req: Request) {
     const { data, error: validationError } = await validateRequest(req, createInventorySchema)
     if (validationError) return validationError
 
-    const item = await createInventoryItem({ ...data, menuItemId: data.menuItemId ?? undefined }, authResult.session?.employeeId)
+    // FIX R85-4c NULL-stamp: prej je createInventoryItem NIKOLI žigosal
+    // InventoryItem.locationId → legacy NULL vrstica (globalno vidna, izven vseh
+    // GET scope filtrov). Zdaj: MODEL A resolveWriteLocationId — regular user /
+    // lokacijski admin = session lokacija (body.locationId se ignorira);
+    // super-admin (scope null) MORA podati izrecen locationId, sicer 400 fail-closed.
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'POST /api/inventory',
+    })
+    if ('error' in scope) return scope.error
+    const writeLoc = resolveWriteLocationId(scope.locationId, data.locationId)
+    if (!writeLoc.ok) return writeLoc.response
+
+    const item = await createInventoryItem({ ...data, menuItemId: data.menuItemId ?? undefined }, authResult.session?.employeeId, writeLoc.locationId)
 
     return NextResponse.json(item, { status: 201 })
   } catch (error: unknown) {

@@ -29,17 +29,36 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Nimaš dovoljenja za menu' }, { status: 403 })
     }
 
-    const { searchParams } = new URL(req.url)
-    let locationId = searchParams.get('locationId')
+    // FIX R85-FINAL (MEDIUM): Tenant binding — API ključ je bil avtenticiran,
+    // ampak subscriptionId nikoli uporabljen: poljuben ?locationId + fallback
+    // "prva aktivna lokacija GLEDE NA VSE" = branje menija poljubne naročnine
+    // s katerim koli veljavnim ključem. Zdaj: lokacija MORA pripadati naročnini
+    // ključa (R82-C mobile/order vzorec); fallback = prva aktivna lokacija
+    // TE naročnine (single-tenant compat ohranjen).
+    const subId = apiKeyResult.subscriptionId ?? null
+    if (!subId) {
+      return NextResponse.json({ error: 'API ključ ni vezan na naročnino' }, { status: 403 })
+    }
 
-    // FIX P0-C2/C3B: API key auth nima session.locationId.
-    // Prej: obvezen ?locationId (vrnil 400) — restriktivno za single-tenant.
-    // Sedaj: če locationId manjka, auto-detect prvo aktivno lokacijo (single-tenant compat).
-    // V multi-tenant: API key moral vedno podati ?locationId.
-    // TO-DO (P0-C5): Dodaj `allowedLocationIds` na ApiKey model za strict enforcement.
-    if (!locationId) {
+    const { searchParams } = new URL(req.url)
+    const requestedLocationId = searchParams.get('locationId')
+    let locationId: string
+
+    if (requestedLocationId) {
+      // Lokacija mora biti dokazljivo last naročnine ključa (fail-closed)
+      const owned = await db.location.findFirst({
+        where: { id: requestedLocationId, subscriptionId: subId, isActive: true },
+        select: { id: true },
+      })
+      if (!owned) {
+        return NextResponse.json({ error: 'Lokacija ni vezana na to naročnino' }, { status: 403 })
+      }
+      locationId = owned.id
+    } else {
+      // FIX P0-C2/C3B (scoped): auto-detect prva aktivna lokacija NAROČNINE
+      // (prej prva aktivna lokacija VSEH tenantov)
       const firstActive = await db.location.findFirst({
-        where: { isActive: true },
+        where: { isActive: true, subscriptionId: subId },
         select: { id: true },
         orderBy: { createdAt: 'asc' },
       })

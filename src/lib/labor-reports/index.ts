@@ -109,15 +109,21 @@ const STANDARD_WEEKLY_HOURS = 40
 const OVERTIME_MULTIPLIER = 1.5
 
 // --- 1. SCHEDULED VS ACTUAL ---
+// R85-4b: locationId scope — prej sta oba findMany zajela izmene/ure VSEH
+// tenantov. StaffShift in TimeEntry imata LASTEN locationId stolpec
+// (schema.prisma:1602/906) → direkt filter, R84 financial vzorec.
+// null locationId (super-admin) = globalni pogled, NIKOLI { locationId: null }.
 export async function getScheduledVsActualReport(
   dateFrom: Date,
   dateTo: Date,
+  locationId: string | null = null,
 ): Promise<ScheduledVsActualReport> {
   // Pridobi scheduled shifts
   const shifts = await db.staffShift.findMany({
     where: {
       shiftDate: { gte: dateFrom, lte: dateTo },
       status: { notIn: ['cancelled'] },
+      ...(locationId ? { locationId } : {}),
     },
     include: {
       employee: { select: { id: true, name: true } },
@@ -128,6 +134,7 @@ export async function getScheduledVsActualReport(
   const timeEntries = await db.timeEntry.findMany({
     where: {
       clockIn: { gte: dateFrom, lte: dateTo },
+      ...(locationId ? { locationId } : {}),
     },
     include: {
       employee: { select: { id: true, name: true } },
@@ -235,14 +242,17 @@ export async function getScheduledVsActualReport(
 }
 
 // --- 2. OVERTIME ANALYSIS ---
+// R85-4b: locationId scope (TimeEntry.locationId, schema.prisma:906).
 export async function getOvertimeReport(
   dateFrom: Date,
   dateTo: Date,
+  locationId: string | null = null,
 ): Promise<OvertimeReport> {
   const timeEntries = await db.timeEntry.findMany({
     where: {
       clockIn: { gte: dateFrom, lte: dateTo },
       status: { notIn: ['disputed'] },
+      ...(locationId ? { locationId } : {}),
     },
     include: {
       employee: { select: { id: true, name: true } },
@@ -349,13 +359,17 @@ export async function getOvertimeReport(
 }
 
 // --- 3. ATTENDANCE HISTORY ---
+// R85-4b: locationId scope (TimeEntry.locationId, schema.prisma:906).
 export async function getAttendanceReport(
   dateFrom: Date,
   dateTo: Date,
   employeeId?: string,
+  locationId: string | null = null,
 ): Promise<AttendanceReport> {
   const where: Record<string, unknown> = {
     clockIn: { gte: dateFrom, lte: dateTo },
+    // R85: tenant filter (null scope = PRAZEN filter, nikoli { locationId: null })
+    ...(locationId ? { locationId } : {}),
   }
   if (employeeId) where.employeeId = employeeId
 

@@ -4,15 +4,19 @@
 import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
 
+// FIX R85-H1: Tenant scope helper — null = super-admin (globalni pogled,
+// NIKOLI { locationId: null } filter).
+const locationWhere = (locationId: string | null) => (locationId ? { locationId } : {})
+
 // ─── Analitika — kategorije, ure, DDV, plačila, tipi, top artikli, zaposleni ───
 
-export async function fetchAnalyticsBreakdowns(today: Date, tomorrow: Date) {
+export async function fetchAnalyticsBreakdowns(today: Date, tomorrow: Date, locationId: string | null = null) {
   const [categoryBreakdown, hourlyBreakdown, vatBreakdown, paymentMethodBreakdown, orderTypeBreakdown, topSellingItems, employeeBreakdown] = await Promise.all([
     // 1. Category breakdown — pridobi iz OrderItem s sledjo do kategorije
     db.orderItem.groupBy({
       by: ['menuItemId'],
       where: {
-        order: { createdAt: { gte: today, lt: tomorrow }, paymentStatus: 'paid' },
+        order: { createdAt: { gte: today, lt: tomorrow }, paymentStatus: 'paid', ...locationWhere(locationId) },
         voided: false,
       },
       _sum: { price: true, quantity: true },
@@ -38,7 +42,7 @@ export async function fetchAnalyticsBreakdowns(today: Date, tomorrow: Date) {
     // 2. Hourly revenue — groupBy z ekstrakcijo ure
     db.order.groupBy({
       by: ['createdAt'],
-      where: { createdAt: { gte: today, lt: tomorrow }, paymentStatus: 'paid' },
+      where: { createdAt: { gte: today, lt: tomorrow }, paymentStatus: 'paid', ...locationWhere(locationId) },
       _sum: { total: true },
     }).then((orders) => {
       const hourlyMap: Record<number, number> = {}
@@ -58,7 +62,7 @@ export async function fetchAnalyticsBreakdowns(today: Date, tomorrow: Date) {
     db.orderItem.groupBy({
       by: ['vatRate'],
       where: {
-        order: { createdAt: { gte: today, lt: tomorrow }, paymentStatus: 'paid' },
+        order: { createdAt: { gte: today, lt: tomorrow }, paymentStatus: 'paid', ...locationWhere(locationId) },
         voided: false,
       },
       _sum: { price: true, quantity: true },
@@ -77,7 +81,7 @@ export async function fetchAnalyticsBreakdowns(today: Date, tomorrow: Date) {
     // 4. Payment method breakdown
     db.order.groupBy({
       by: ['paymentMethod'],
-      where: { createdAt: { gte: today, lt: tomorrow }, paymentStatus: 'paid' },
+      where: { createdAt: { gte: today, lt: tomorrow }, paymentStatus: 'paid', ...locationWhere(locationId) },
       _sum: { total: true },
     }).then((items) =>
       items.map(item => ({
@@ -89,7 +93,7 @@ export async function fetchAnalyticsBreakdowns(today: Date, tomorrow: Date) {
     // 5. Order type breakdown
     db.order.groupBy({
       by: ['type'],
-      where: { createdAt: { gte: today, lt: tomorrow }, paymentStatus: 'paid' },
+      where: { createdAt: { gte: today, lt: tomorrow }, paymentStatus: 'paid', ...locationWhere(locationId) },
       _sum: { total: true },
       _count: true,
     }).then((items) =>
@@ -104,7 +108,7 @@ export async function fetchAnalyticsBreakdowns(today: Date, tomorrow: Date) {
     db.orderItem.groupBy({
       by: ['menuItemId'],
       where: {
-        order: { createdAt: { gte: today, lt: tomorrow }, paymentStatus: 'paid' },
+        order: { createdAt: { gte: today, lt: tomorrow }, paymentStatus: 'paid', ...locationWhere(locationId) },
         voided: false,
       },
       _sum: { price: true, quantity: true },
@@ -130,7 +134,7 @@ export async function fetchAnalyticsBreakdowns(today: Date, tomorrow: Date) {
     // 7. Employee performance — groupBy po employeeId
     db.order.groupBy({
       by: ['employeeId'],
-      where: { createdAt: { gte: today, lt: tomorrow }, paymentStatus: 'paid' },
+      where: { createdAt: { gte: today, lt: tomorrow }, paymentStatus: 'paid', ...locationWhere(locationId) },
       _sum: { total: true },
       _count: true,
     }).then((items) =>

@@ -8,15 +8,23 @@ import type { ReorderOrderResult } from './types'
 
 export async function createReorderOrder(
   items: Array<{ inventoryItemId: string; quantity: number; costPerUnit: number }>,
-  employeeName: string
+  employeeName: string,
+  // FIX R85-4c M7: tenant scope — null (super-admin) = globalno, string = samo ta lokacija
+  locationId?: string | null
 ): Promise<{ results: ReorderOrderResult[]; errors: Array<{ inventoryItemId: string; error: string }> }> {
   const results: ReorderOrderResult[] = []
   const errors: Array<{ inventoryItemId: string; error: string }> = []
 
   // FIX MEDIUM: Batch query namesto N+1 — pridobi vse artikle naenkrat
+  // FIX R85-4c: scope filter — prej globalno ({ id: { in } }) → cross-tenant WRITE
+  // (tuji artikel je bil povečan + tuj StockTransaction zapisan). Artikli izven
+  // scope-a so "ni najden" (fail-closed, brez razkritja obstoja tuje lokacije).
   const itemIds = items.map(item => item.inventoryItemId)
   const invItems = await db.inventoryItem.findMany({
-    where: { id: { in: itemIds } },
+    where: {
+      id: { in: itemIds },
+      ...(locationId ? { locationId } : {}),
+    },
   })
   const invItemMap = new Map(invItems.map(i => [i.id, i]))
 

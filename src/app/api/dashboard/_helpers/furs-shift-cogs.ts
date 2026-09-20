@@ -45,7 +45,10 @@ export async function fetchFursShiftCogs(
         orderBy: { openedAt: 'desc' },
       }).catch(() => null),
       db.stockTransaction.findMany({
-        where: { createdAt: { gte: today, lt: tomorrow }, type: 'sale' },
+        // FIX R85-H1: + tenant scope — StockTransaction nima lastnega locationId
+        // (R84 financial vzorec): scope prek inventoryItem.locationId. Prej je
+        // todayCogs zajel strosek prodaje VSEH lokacij.
+        where: { createdAt: { gte: today, lt: tomorrow }, type: 'sale', ...(locationId ? { inventoryItem: { locationId } } : {}) },
         select: { totalCost: true },
       }).catch(() => []),
     ])

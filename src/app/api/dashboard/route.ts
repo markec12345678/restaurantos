@@ -1,6 +1,6 @@
 
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
 import { deepToNumbers } from '@/lib/decimal'
@@ -33,6 +33,19 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'view_reports' })
     if (authResult.error) return authResult.error
 
+    // FIX R85-H1: Tenant scope — prej je vseh 8+ helperjev poizvedbo izvedlo
+    // GLOBALNO (prihodki, naročila, mize, zaloga, gostje vseh lokacij v enem
+    // klicu za lokacijskega admina). Fail-closed za regular uporabnika brez
+    // lokacije. null scope (super-admin) = globalni pogled, nikoli
+    // { locationId: null }. ?locationId je dovoljen samo super-adminu
+    // (cross-branch, auditirano prek resolverja).
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/dashboard',
+    })
+    if ('error' in scope) return scope.error
+    const locationId = scope.locationId
+
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const tomorrow = new Date(today)
@@ -59,14 +72,14 @@ export async function GET(req: Request) {
         heatmapData,
         guestAnalytics,
       ] = await Promise.all([
-        fetchTodayAggregation(today, tomorrow).catch(() => ({ todayRevenue: 0, todayTips: 0, todayTax: 0, todayDiscount: 0, totalOrders: 0, completedOrders: 0, cancelledOrders: 0, avgOrderValue: 0, pendingOrders: 0, inProgressOrders: 0, readyOrders: 0 })),
-        fetchTablesStockRecent().catch(() => ({ activeTables: 0, totalTables: 0, lowStockItems: [], recentOrders: [] })),
-        computeWeeklyRevenue(sevenDaysAgo).catch(() => []),
-        fetchAnalyticsBreakdowns(today, tomorrow).catch(() => ({ categoryBreakdown: [], hourlyBreakdown: [], vatBreakdown: [], paymentMethodBreakdown: [], orderTypeBreakdown: [], topSellingItems: [], employeeBreakdown: [] })),
-        computeAvgWaitTime(today, tomorrow).catch(() => 0),
-        computeWowComparison(today).catch(() => ({})),
-        computeHeatmapData().catch(() => []),
-        fetchGuestAnalytics().catch(() => ({})),
+        fetchTodayAggregation(today, tomorrow, locationId).catch(() => ({ todayRevenue: 0, todayTips: 0, todayTax: 0, todayDiscount: 0, totalOrders: 0, completedOrders: 0, cancelledOrders: 0, avgOrderValue: 0, pendingOrders: 0, inProgressOrders: 0, readyOrders: 0 })),
+        fetchTablesStockRecent(locationId).catch(() => ({ activeTables: 0, totalTables: 0, lowStockItems: [], recentOrders: [] })),
+        computeWeeklyRevenue(sevenDaysAgo, locationId).catch(() => []),
+        fetchAnalyticsBreakdowns(today, tomorrow, locationId).catch(() => ({ categoryBreakdown: [], hourlyBreakdown: [], vatBreakdown: [], paymentMethodBreakdown: [], orderTypeBreakdown: [], topSellingItems: [], employeeBreakdown: [] })),
+        computeAvgWaitTime(today, tomorrow, locationId).catch(() => 0),
+        computeWowComparison(today, locationId).catch(() => ({})),
+        computeHeatmapData(locationId).catch(() => []),
+        fetchGuestAnalytics(locationId).catch(() => ({})),
       ])
     } catch {
       // Fallback — return minimal dashboard
@@ -81,11 +94,12 @@ export async function GET(req: Request) {
     }
 
     // ─── DRUGI BATCH (odvisen od agg.todayRevenue) ───────────
-    // FIX P0-C3A: Prenos session.locationId za pravilno FURS status prikaz
+    // FIX P0-C3A: Tenant scope namesto surovega session.locationId — super-admin
+    // (locationId=null) dobi globalni pogled, ?locationId cross-branch je auditiran.
     // FIX: Wrap v try-catch — fetchFursShiftCogs morda faila na manjkajočih stolpcih
     let fursShiftCogs
     try {
-      fursShiftCogs = await fetchFursShiftCogs(today, tomorrow, agg.todayRevenue, authResult.session?.locationId)
+      fursShiftCogs = await fetchFursShiftCogs(today, tomorrow, agg.todayRevenue, locationId)
     } catch {
       fursShiftCogs = {
         fursStatus: { configured: false, environment: 'test', todayVerified: 0, todayUnverified: 0 },

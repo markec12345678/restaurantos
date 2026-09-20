@@ -23,11 +23,19 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 
-vi.mock('@/lib/auth-middleware', () => ({
-  requireAuth: vi.fn(async () => ({
-    session: { employeeId: 'emp-1', locationId: 'loc-1', role: 'admin' },
-  })),
-}))
+vi.mock('@/lib/auth-middleware', async () => {
+  // FIX R85-4a: route zdaj importira tudi resolveTenantLocationIdOrThrow —
+  // re-export REALNEGA resolverja (isti vzorec kot r84/r85 security testi).
+  const tenantScope = await import('@/lib/auth-middleware/tenant-scope')
+  return {
+    requireAuth: vi.fn(async () => ({
+      session: { employeeId: 'emp-1', locationId: 'loc-1', role: 'admin' },
+    })),
+    resolveTenantLocationId: tenantScope.resolveTenantLocationId,
+    resolveTenantLocationIdOrThrow: tenantScope.resolveTenantLocationIdOrThrow,
+    tenantScopeToWhere: tenantScope.tenantScopeToWhere,
+  }
+})
 
 import { GET } from '@/app/api/kitchen/route'
 
@@ -101,7 +109,8 @@ describe('GET /api/kitchen — ready shelf (runda 26-b)', () => {
     const calls = findManyMock.mock.calls.map(c => c[0])
     const readyCall = calls.find(c => c.where?.status === 'ready')
     expect(readyCall).toBeDefined()
-    expect(readyCall.where).toEqual({ status: 'ready' })
+    // FIX R85-4a M1: where nosi tudi tenant scope (session lokacija 'loc-1')
+    expect(readyCall.where).toEqual({ status: 'ready', locationId: 'loc-1' })
     expect(readyCall.orderBy).toEqual({ createdAt: 'asc' })
     expect(readyCall.take).toBe(10)
     // Aktivna poizvedba se NI spremenila (regresija)

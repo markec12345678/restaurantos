@@ -13,7 +13,10 @@ export async function createInventoryItem(
     category?: string; location?: string; servingsPerUnit: number;
     servingSize?: string; menuItemId?: string;
   },
-  employeeId?: string
+  employeeId?: string,
+  // R85-4c NULL-stamp: tenant dodelitev (resolveWriteLocationId izvodi iz seje v ruti;
+  // prej je create NIKOLI žigosal locationId → legacy NULL = globalno vidna vrstica).
+  locationId?: string | null
 ) {
   const costPerServing = data.servingsPerUnit > 0
     ? Math.round((data.costPerUnit / data.servingsPerUnit) * 100) / 100
@@ -37,6 +40,9 @@ export async function createInventoryItem(
         servingSize: data.servingSize,
         costPerServing,
         menuItemId: data.menuItemId || null,
+        // R85-4c NULL-stamp: žig tenant lokacije ob create (pogojni spread —
+        // NIKOLI izrecen locationId: null write)
+        ...(locationId ? { locationId } : {}),
         lastRestocked: new Date(),
       },
       include: { menuItem: true },

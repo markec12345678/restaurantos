@@ -15,12 +15,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock the auth middleware
-vi.mock('@/lib/auth-middleware', () => ({
-  requireAuth: vi.fn(),
-  resolveTenantLocationId: vi.fn(),
-  tenantScopeToWhere: vi.fn(() => ({}),
-  ),
-}))
+vi.mock('@/lib/auth-middleware', async () => {
+  // FIX R85-4a: waitlist/[id] zdaj importira tudi resolveTenantLocationIdOrThrow —
+  // re-export REALNEGA resolverja (isti vzorec kot r84/r85 security testi).
+  const tenantScope = await import('@/lib/auth-middleware/tenant-scope')
+  return {
+    requireAuth: vi.fn(),
+    resolveTenantLocationId: tenantScope.resolveTenantLocationId,
+    resolveTenantLocationIdOrThrow: tenantScope.resolveTenantLocationIdOrThrow,
+    tenantScopeToWhere: tenantScope.tenantScopeToWhere,
+  }
+})
 
 // Mock the db
 const mockOrderFindFirst = vi.fn()

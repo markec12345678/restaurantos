@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 
 
@@ -16,9 +16,24 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // FIX R85-4a M1: Tenant scope — prej je agregacija zajela aktivna
+    // naročila VSEH lokacij (matrix za kuhinjo lokacije A je štel artikle
+    // tenantov B, C, ...). Fail-closed za regularnega uporabnika brez
+    // lokacije; null scope (super-admin) = globalni pogled, nikoli
+    // { locationId: null }.
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/kitchen/matrix',
+    })
+    if ('error' in scope) return scope.error
+    const locationId = scope.locationId
+
     // Pridobi vsa aktivna naročila z postavkami (brez voided/served/cancelled)
     const orders = await db.order.findMany({
-      where: { status: { in: ['pending', 'in-progress', 'ready'] } },
+      where: {
+        status: { in: ['pending', 'in-progress', 'ready'] },
+        ...(locationId ? { locationId } : {}),
+      },
       include: {
         orderItems: {
           where: {

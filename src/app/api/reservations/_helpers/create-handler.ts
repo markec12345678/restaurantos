@@ -16,7 +16,7 @@
 // Zaenkrat application-level check zadostuje + transaction z SELECT FOR UPDATE.
 
 import { db, createAuditLog } from '@/lib/db'
-import { resolveLocationId } from '@/lib/location-fallback'
+import { resolveWriteLocationId } from '@/lib/tenant-scope'
 import { logger } from '@/lib/logger'
 import { emitEvent } from '@/lib/event-emitter'
 // RUNDA 58 FIX (živa QA): konfliktno sporočilo POST ustvarjanja je pokazovalo
@@ -40,13 +40,24 @@ export async function handleCreateReservation(
     source?: string
   },
   employeeId: string | undefined,
+  scope: { locationId: string | null },
 ) {
+  let tableLocationId: string | null = null
   // Preveri, da miza obstaja in je primerne velikosti
   if (data.tableId) {
     const table = await db.table.findUnique({ where: { id: data.tableId } })
     if (!table) {
       return { error: 'Miza ne obstaja', status: 404 }
     }
+    // FIX R85-4a M2 (cross-tenant WRITE): prej je tableId prešel nevalidiran —
+    // natakar lokacije A je lahko rezerviral MIZO lokacije B (tuja FK referenca;
+    // 'seated' prek PUT [id] bi nato preklopil status tuje mize). Miza mora biti
+    // v session scopu (Table.locationId NOT NULL); tuja ali neznana → 404
+    // (sporočilo enako notInScopeResponse('Miza') — ne razkrije obstoja).
+    if (scope.locationId && table.locationId !== scope.locationId) {
+      return { error: 'Miza ni najden', status: 404 }
+    }
+    tableLocationId = table.locationId
     if (table.capacity < data.partySize) {
       return { error: `Miza ${table.number} ima kapaciteto ${table.capacity}, premajhna za ${slCount(data.partySize, OSEBA_TOZILNIK_FORMS)}`, status: 400 }
     }
@@ -90,11 +101,23 @@ export async function handleCreateReservation(
   // dva sočasna requesta lahko oba opravita overlap check in oba kreirata rezervacijo.
   // Sedaj: $transaction s SERIALIZABLE isolationLevel atomarno izvede check + create.
 
-  // FIX QA runda 40: DB stolpec Reservation.locationId je NOT NULL (Phase 2 iz
-  // admin/migrate) — create brez locationId → P2011 Null constraint (Ana = admin
-  // brez session.locationId → celoten rezervacijski tok 500). Resolvi PRED tx
-  // (R37 lekcija: base-db query znotraj interactive tx = pooler timeout).
-  const locationId = await resolveLocationId(null, employeeId)
+  // FIX QA runda 40 + FIX R85-4a M2: DB stolpec Reservation.locationId je
+  // NOT NULL (Phase 2 iz admin/migrate) — žig PRED tx. Žig je zdaj scope-zaveden:
+  //   1. data-derived table.locationId (miza nosi svojo lokacijo — pravilno tudi
+  //      za super-admina, ki rezervira mizo na drugi lokaciji),
+  //   2. sicer scope.locationId (session lokacija),
+  //   3. super-admin brez lokacije IN brez mize → 400 fail-closed. Prej je
+  //      resolveLocationId fallback žigal PRVO lokacijo v DB (createdAt asc) —
+  //      možen tuji-tenant žig brez vednosti klicatelja.
+  const writeLoc = resolveWriteLocationId(scope.locationId, tableLocationId)
+  if (!writeLoc.ok) {
+    return {
+      error:
+        'locationId je obvezen: seja nima dodeljene lokacije — rezervacijo brez mize ustvari zaposleni z dodeljeno lokacijo ali podaj mizo.',
+      status: 400,
+    }
+  }
+  const locationId = writeLoc.locationId
 
   const reservation = await db.$transaction(async (tx) => {
     if (data.tableId) {

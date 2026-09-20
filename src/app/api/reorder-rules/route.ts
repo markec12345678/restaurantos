@@ -3,7 +3,8 @@
 // ============================================
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
+import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
 
@@ -29,8 +30,19 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const isActive = searchParams.get('isActive')
 
+    // FIX R85-4c M7: ReorderRule NIMA lastnega locationId — scope prek relacije
+    // inventoryItem.locationId (kot R84 financial stockTransaction vzorec).
+    // Prej: findMany brez filtra = pravila VSEH tenantov (fail-open).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/reorder-rules',
+    })
+    if ('error' in scope) return scope.error
+
     const where: Record<string, unknown> = {}
     if (isActive !== null) where.isActive = isActive === 'true'
+    if (scope.locationId) {
+      where.inventoryItem = { locationId: scope.locationId }
+    }
 
     const rules = await db.reorderRule.findMany({
       where,
@@ -56,6 +68,24 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}))
     const input = createSchema.parse(body)
+
+    // FIX R85-4c M7 CROSS-TENANT WRITE: inventoryItemId je GLOBALNO unique —
+    // prej je lahko lokacijski admin ustvaril/povrhnil pravilo na tujem
+    // inventarnem artiklu. Zdaj: artikel najdemo prej + isWithinScope guard
+    // (super-admin null scope = globalni nadzor; zunanji vir → 404, ne razkriva obstoja).
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'POST /api/reorder-rules',
+    })
+    if ('error' in scope) return scope.error
+
+    const invItem = await db.inventoryItem.findUnique({
+      where: { id: input.inventoryItemId },
+      select: { id: true, locationId: true },
+    })
+    if (!invItem || !isWithinScope(scope.locationId, invItem.locationId)) {
+      return notInScopeResponse('Inventarni artikel')
+    }
 
     const rule = await db.reorderRule.upsert({
       where: { inventoryItemId: input.inventoryItemId },
@@ -89,6 +119,21 @@ export async function DELETE(req: Request) {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'id je obvezen' }, { status: 400 })
+
+    // FIX R85-4c M7: cross-tenant DELETE po id — prej db.reorderRule.delete({ id })
+    // brez scope-a. Zdaj: najprej beri + isWithinScope guard prek inventoryItem.locationId.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'DELETE /api/reorder-rules',
+    })
+    if ('error' in scope) return scope.error
+
+    const rule = await db.reorderRule.findUnique({
+      where: { id },
+      select: { id: true, inventoryItem: { select: { locationId: true } } },
+    })
+    if (!rule || !isWithinScope(scope.locationId, rule.inventoryItem.locationId)) {
+      return notInScopeResponse('Pravilo naročanja')
+    }
 
     await db.reorderRule.delete({ where: { id } })
 

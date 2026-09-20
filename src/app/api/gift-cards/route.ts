@@ -2,6 +2,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
+import { resolveWriteLocationId } from '@/lib/tenant-scope'
 import { createGiftCardSchema } from '@/lib/validations'
 import { greaterThan, deepToNumbers } from '@/lib/decimal'
 import { logger } from '@/lib/logger'
@@ -73,6 +74,19 @@ export async function POST(req: Request) {
     const { data, error: validationError } = await validateRequest(req, createGiftCardSchema)
     if (validationError) return validationError
 
+    // FIX R85-4c NULL-stamp: prej je create NIKOLI žigosal locationId → legacy NULL
+    // vrstica = globalno vidna (GET filter je namesto nje slepa). Zdaj: MODEL A
+    // resolveWriteLocationId — regular user / lokacijski admin = session lokacija
+    // (body se ignorira); super-admin (scope null) MORA podati izrecen locationId,
+    // sicer 400 fail-closed (nikoli več NULL kartice).
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'POST /api/gift-cards',
+    })
+    if ('error' in scope) return scope.error
+    const writeLoc = resolveWriteLocationId(scope.locationId, data.locationId)
+    if (!writeLoc.ok) return writeLoc.response
+
     // Atomna transakcija: ustvari kartico + začetno transakcijo
     const giftCard = await db.$transaction(async (tx) => {
       const card = await tx.giftCard.create({
@@ -84,6 +98,7 @@ export async function POST(req: Request) {
           ownerName: data.ownerName,
           purchasedAt: new Date(),
           expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+          locationId: writeLoc.locationId,
         },
       })
 

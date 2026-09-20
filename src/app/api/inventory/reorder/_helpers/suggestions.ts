@@ -7,9 +7,16 @@ import { groupBy } from './utils'
 import type { ReorderSuggestion, ReorderSummary, ReorderResult } from './types'
 import { processItemForSuggestion } from './process-item'
 
-export async function getReorderSuggestions(urgency: string): Promise<ReorderResult> {
-  // Pridobi vse artikle za analizo
+export async function getReorderSuggestions(
+  urgency: string,
+  // FIX R85-4c M7: tenant scope — null (super-admin) = globalno, string = samo ta lokacija
+  locationId?: string | null
+): Promise<ReorderResult> {
+  // Pridobi vse artikle za analizo (R85-4c: scoped — prej zaloga VSEH tenantov)
   const allItems = await db.inventoryItem.findMany({
+    where: {
+      ...(locationId ? { locationId } : {}),
+    },
     orderBy: { quantity: 'asc' },
   })
 

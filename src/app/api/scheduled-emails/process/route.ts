@@ -24,6 +24,20 @@ import { fetchDailyDigestData, sendDailyDigestEmail, ensureDailySummaryLog } fro
 
 export const dynamic = 'force-dynamic'
 
+// FIX R85-4c (mirror /api/reports/digest-send platformAdminGate): pending logi,
+// statistika in recentLogs obsegajo VSE tenant-e (ScheduledEmailLog NIMA
+// locationId stolpca — gate je dogovorjen fix namesto migracije). Cron path
+// (Bearer CRON_SECRET) ostane nespremenjen — platform-level po designu.
+function platformAdminGate(authResult: { session: { role: string; locationId?: string | null } | null }): NextResponse | null {
+  const session = authResult.session
+  const isPlatformAdmin = !!session && ['admin', 'super_admin'].includes(session.role) && !session.locationId
+  if (isPlatformAdmin) return null
+  return NextResponse.json(
+    { error: 'Scheduled emaili so platformsko poročilo — dovoljeno samo platformnemu administratorju.' },
+    { status: 403 },
+  )
+}
+
 export async function POST(req: Request) {
   try {
     // FIX AUD-13: Vercel Cron pošlje Authorization: Bearer $CRON_SECRET
@@ -36,6 +50,10 @@ export async function POST(req: Request) {
       // Običajna avtentikacija
       const authResult = await requireAuth(req)
       if (authResult.error) return authResult.error
+      // FIX R85-4c: ročni klic seje = platform gate (cron path zgoraj je že
+      // secret-zaščiten platform-level; lokacijski admin → 403).
+      const platformGate = platformAdminGate(authResult)
+      if (platformGate) return platformGate
     }
 
     // Preveri ali je email omogočen
@@ -155,6 +173,10 @@ export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+    // FIX R85-4c: stats + recentLogs so globalni (vsi tenanti) — platform gate
+    // TAKOJ za requireAuth, PRED count/findMany.
+    const platformGate = platformAdminGate(authResult)
+    if (platformGate) return platformGate
 
     const [pending, sentToday, failedToday] = await Promise.all([
       db.scheduledEmailLog.count({ where: { status: 'pending' } }),

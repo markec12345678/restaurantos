@@ -11,7 +11,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { updateReservationSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { intervalsOverlap, formatLjubljanaTime } from '@/lib/reservation-timeline'
-import { notInScopeResponse } from '@/lib/tenant-scope'
+import { notInScopeResponse, resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,9 +31,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope
     // (natakar lokacije A ne more urejati rezervacij lokacije B)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R85-4a M2: resolveTenantLocationIdOrThrow — prej je bil ročni spread
+    // `session?.locationId ?? undefined` FAIL-OPEN za regularnega uporabnika
+    // brez dodeljene lokacije (prazen filter = globalni findFirst + update
+    // čez tenant-e). Zdaj: 403 fail-closed; super-admin (null) = globalni.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PUT /api/reservations/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existing = await db.reservation.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!existing) {
       return NextResponse.json({ error: 'Rezervacija ne obstaja' }, { status: 404 })
@@ -46,7 +53,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     // neznana → 404 notInScopeResponse.
     if (data.tableId) {
       const targetTable = await db.table.findFirst({
-        where: { id: data.tableId, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+        where: { id: data.tableId, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
         select: { id: true },
       })
       if (!targetTable) {
@@ -215,9 +222,13 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const { id } = await params
 
     // FIX IDOR (tenant scope): prekliči SAMO rezervacijo znotraj session lokacije
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R85-4a M2: resolver namesto ročnega fail-open spreada (403 brez lokacije)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'DELETE /api/reservations/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existing = await db.reservation.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!existing) {
       return NextResponse.json({ error: 'Rezervacija ne obstaja' }, { status: 404 })

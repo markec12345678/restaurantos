@@ -4,9 +4,13 @@ import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
 import type { WowComparisonResult } from './types'
 
+// FIX R85-H1: Tenant scope helper — null = super-admin (globalni pogled,
+// NIKOLI { locationId: null } filter).
+const locationWhere = (locationId: string | null) => (locationId ? { locationId } : {})
+
 // ─── WoW primerjava ─────────────────────────────────────────
 
-export async function computeWowComparison(today: Date): Promise<WowComparisonResult> {
+export async function computeWowComparison(today: Date, locationId: string | null = null): Promise<WowComparisonResult> {
   const thisWeekStart = new Date(today)
   thisWeekStart.setDate(today.getDate() - today.getDay() + 1) // Ponedeljek
   thisWeekStart.setHours(0, 0, 0, 0)
@@ -16,13 +20,13 @@ export async function computeWowComparison(today: Date): Promise<WowComparisonRe
 
   const [thisWeekAgg, lastWeekAgg, thisWeekDailyRaw, lastWeekDailyRaw] = await Promise.all([
     db.order.aggregate({
-      where: { createdAt: { gte: thisWeekStart }, paymentStatus: 'paid' },
+      where: { createdAt: { gte: thisWeekStart }, paymentStatus: 'paid', ...locationWhere(locationId) },
       _sum: { total: true },
       _count: true,
       _avg: { total: true },
     }),
     db.order.aggregate({
-      where: { createdAt: { gte: lastWeekStart, lt: lastWeekEnd }, paymentStatus: 'paid' },
+      where: { createdAt: { gte: lastWeekStart, lt: lastWeekEnd }, paymentStatus: 'paid', ...locationWhere(locationId) },
       _sum: { total: true },
       _count: true,
       _avg: { total: true },
@@ -30,14 +34,14 @@ export async function computeWowComparison(today: Date): Promise<WowComparisonRe
     // Daily breakdown za ta teden
     db.order.groupBy({
       by: ['createdAt'],
-      where: { createdAt: { gte: thisWeekStart }, paymentStatus: 'paid' },
+      where: { createdAt: { gte: thisWeekStart }, paymentStatus: 'paid', ...locationWhere(locationId) },
       _sum: { total: true },
       _count: true,
     }),
     // Daily breakdown za prejšnji teden
     db.order.groupBy({
       by: ['createdAt'],
-      where: { createdAt: { gte: lastWeekStart, lt: lastWeekEnd }, paymentStatus: 'paid' },
+      where: { createdAt: { gte: lastWeekStart, lt: lastWeekEnd }, paymentStatus: 'paid', ...locationWhere(locationId) },
       _sum: { total: true },
       _count: true,
     }),
@@ -88,12 +92,12 @@ export async function computeWowComparison(today: Date): Promise<WowComparisonRe
 
 // ─── Heatmap — groupBy namesto 126 filter+reduce iteracij ──
 
-export async function computeHeatmapData(): Promise<{ day: number; hour: number; revenue: number; orders: number }[]> {
+export async function computeHeatmapData(locationId: string | null = null): Promise<{ day: number; hour: number; revenue: number; orders: number }[]> {
   const fourWeeksAgo = new Date()
   fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28)
   const heatmapRaw = await db.order.groupBy({
     by: ['createdAt'],
-    where: { createdAt: { gte: fourWeeksAgo }, paymentStatus: 'paid' },
+    where: { createdAt: { gte: fourWeeksAgo }, paymentStatus: 'paid', ...locationWhere(locationId) },
     _sum: { total: true },
     _count: true,
   })
@@ -115,10 +119,19 @@ export async function computeHeatmapData(): Promise<{ day: number; hour: number;
 
 // ─── Gosti ──────────────────────────────────────────────────
 
-export async function fetchGuestAnalytics(): Promise<{ totalGuests: number; repeatGuests: number; guestReturnRate: number }> {
+// FIX R85-H1: Guest model NIMA lastnega locationId (schema backlog — R82-E
+// census). Scope je izpeljan prek order zveze (Guest → orders → locationId):
+// lokacijski uporabnik vidi goste z vsaj enim naročilom na svoji lokaciji;
+// super-admin (null) vidi globalno statistiko. Fail-closed: gost brez
+// naročil je viden samo super-adminu.
+const guestLocationWhere = (locationId: string | null) =>
+  locationId ? { orders: { some: { locationId } } } : {}
+
+export async function fetchGuestAnalytics(locationId: string | null = null): Promise<{ totalGuests: number; repeatGuests: number; guestReturnRate: number }> {
+  const scopeWhere = guestLocationWhere(locationId)
   const [repeatGuests, totalGuests] = await Promise.all([
-    db.guest.count({ where: { totalVisits: { gt: 1 } } }),
-    db.guest.count(),
+    db.guest.count({ where: { totalVisits: { gt: 1 }, ...scopeWhere } }),
+    db.guest.count({ where: scopeWhere }),
   ])
   const guestReturnRate = totalGuests > 0 ? (repeatGuests / totalGuests) * 100 : 0
   return { totalGuests, repeatGuests, guestReturnRate: round2(guestReturnRate) }

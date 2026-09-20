@@ -15,6 +15,10 @@ export const createGiftCardSchema = z.object({
   status: z.enum(['active', 'depleted', 'expired', 'suspended']).default('active'),
   ownerName: z.string().max(100).default(''),
   expiresAt: z.string().nullable().optional(),
+  // R85-4c NULL-stamp: izrecen locationId je dovoljen SAMO super-adminu (scope
+  // null) — lokacijski admin/staff ga ne more podati (route ga ignorira in žiga
+  // session lokacijo prek resolveWriteLocationId).
+  locationId: z.string().max(100).optional(),
 })
 
 export const updateGiftCardSchema = z.object({

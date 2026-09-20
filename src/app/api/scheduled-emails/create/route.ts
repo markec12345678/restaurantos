@@ -12,6 +12,20 @@ import { isEmailEnabled, getReportRecipients } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
+// FIX R85-4c (mirror /api/reports/digest-send platformAdminGate): scheduled
+// emaili so PLATFORMSKA operacija — prejemniki iz globalnih nastavitev, vsebina
+// agregira VSE lokacije, ScheduledEmailLog NIMA locationId stolpca. Lokacijsko
+// vezan admin (permission 'admin' gre na vlogo, ne na platformo) prej 403.
+function platformAdminGate(authResult: { session: { role: string; locationId?: string | null } | null }): NextResponse | null {
+  const session = authResult.session
+  const isPlatformAdmin = !!session && ['admin', 'super_admin'].includes(session.role) && !session.locationId
+  if (isPlatformAdmin) return null
+  return NextResponse.json(
+    { error: 'Scheduled emaili so platformsko poročilo — dovoljeno samo platformnemu administratorju.' },
+    { status: 403 },
+  )
+}
+
 const createScheduledEmailSchema = z.object({
   reportType: z.enum(['z_report', 'daily_summary', 'weekly_summary', 'vat_report']).default('z_report'),
   reportDate: z.string().optional(),
@@ -21,6 +35,10 @@ export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+    // FIX R85-4c: platform gate TAKOJ za requireAuth, PRED prvim branjem
+    // (parse/settings/db) — lokacijski admin → 403 z NIČ db klici.
+    const platformGate = platformAdminGate(authResult)
+    if (platformGate) return platformGate
 
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error

@@ -24,6 +24,16 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Nimaš dovoljenja za loyalty' }, { status: 403 })
     }
 
+    // FIX R85-FINAL (HIGH): Tenant binding — verifyApiKey vrne subscriptionId
+    // (P0-C5), ampak je bil tukaj nikoli uporabljen: kateri koli veljaven API
+    // ključ z read:loyalty je po telefonu/emailu prebral loyalty račun KATERE
+    // KOLI naročnine (ime, telefon, email, točke, tier, zadnjih 20 transakcij).
+    // Fail-closed: ključ brez naročnine ne bere ničesar (R82-C mobile/order vzorec).
+    const subId = apiKeyResult.subscriptionId ?? null
+    if (!subId) {
+      return NextResponse.json({ error: 'API ključ ni vezan na naročnino' }, { status: 403 })
+    }
+
     const { searchParams } = new URL(req.url)
     const phone = searchParams.get('phone')
     const email = searchParams.get('email')
@@ -34,6 +44,7 @@ export async function GET(req: Request) {
 
     const account = await db.loyaltyAccount.findFirst({
       where: {
+        location: { subscriptionId: subId },
         OR: [
           ...(phone ? [{ customerPhone: phone }] : []),
           ...(email ? [{ customerEmail: email }] : []),

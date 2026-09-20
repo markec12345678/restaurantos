@@ -6,9 +6,10 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { z } from 'zod'
+import { notInScopeResponse } from '@/lib/tenant-scope'
 
 // FIX HIGH: State machine za čakalno vrsto — prepreči neveljavne prehode
 const validWaitlistTransitions: Record<string, string[]> = {
@@ -45,12 +46,35 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     // FIX HIGH: Preveri, da vnos obstaja
     // FIX IDOR-AUDIT: findUnique → findFirst z locationId scope (cross-tenant zaščita)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R85-4a M3: resolver namesto ročnega fail-open spreada — prej je
+    // regularni uporabnik brez dodeljene lokacije dobil PRAZEN filter
+    // (globalni findFirst + update čez tenant-e). Zdaj: 403 fail-closed;
+    // super-admin (null scope) = globalni.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PUT /api/waitlist/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existing = await db.waitlistEntry.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!existing) {
       return NextResponse.json({ error: 'Vnos v čakalni vrsti ni najden' }, { status: 404 })
+    }
+
+    // FIX R85-4a M3 (cross-tenant WRITE): 'seat' dodeli tableId — prej je šel
+    // body.tableId nevalidiran na update (FK samo zahteva obstoj) → natakar
+    // lokacije A je lahko 'sedel' gosta na MIZO lokacije B. Miza mora biti v
+    // session scopu (Table.locationId NOT NULL); tuja ali neznana → 404
+    // notInScopeResponse (ne razkrije obstoja) — isti vzorec kot R81-G fix
+    // na PUT /api/reservations/[id].
+    if (data.action === 'seat' && data.tableId) {
+      const targetTable = await db.table.findFirst({
+        where: { id: data.tableId, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
+        select: { id: true },
+      })
+      if (!targetTable) {
+        return notInScopeResponse('Miza')
+      }
     }
 
     const updateData: Record<string, unknown> = {}
@@ -121,9 +145,13 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     // FIX HIGH: Preveri, da vnos obstaja
     // FIX IDOR-AUDIT: findUnique → findFirst z locationId scope (cross-tenant zaščita)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R85-4a M3: resolver namesto ročnega fail-open spreada (403 brez lokacije)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'DELETE /api/waitlist/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existing = await db.waitlistEntry.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!existing) {
       return NextResponse.json({ error: 'Vnos v čakalni vrsti ni najden' }, { status: 404 })

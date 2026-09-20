@@ -6,7 +6,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { createGuestSchema } from '@/lib/validations'
 import { emitEvent } from '@/lib/event-emitter'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
@@ -26,7 +26,20 @@ export async function GET(req: Request) {
     // limit max 100 (prej 200), offset varno
     const { limit: safeLimit, offset: safeOffset, search } = parsePaginationParams(searchParams, { defaultLimit: 50 })
 
+    // FIX R85-FINAL (HIGH): Tenant scope — prej je GET vračal celoten gost CRM
+    // VSEH lokacij (imena, telefoni, e-pošta, rojstni dnevi, alergeni, VIP).
+    // Guest NIMA lastnega locationId (schema backlog) — izpeljava prek order
+    // zveze, enako kakor dashboard guest analytics (R85-H1) in guests/[id].
+    // Fail-closed: gost brez naročil je viden samo super-adminu.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/guests',
+    })
+    if ('error' in scope) return scope.error
+
     const where: Record<string, unknown> = {}
+    if (scope.locationId) {
+      where.orders = { some: { locationId: scope.locationId } }
+    }
 
     if (search) {
       where.OR = [
@@ -71,6 +84,14 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // FIX R85-FINAL: scope tudi za webhook tenant kontekst (fail-closed 403 za
+    // regular uporabnika brez lokacije — enako kot GET zgoraj)
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'POST /api/guests',
+    })
+    if ('error' in scope) return scope.error
+
     // FIX SECURITY: validateRequest() prepreči DoS z oversized payload
     const { data, error: validationError } = await validateRequest(req, createGuestSchema)
     if (validationError) return validationError
@@ -97,12 +118,12 @@ export async function POST(req: Request) {
 
     // Webhook: guest.created
     // R83: Guest še nima locationId stolpca (schema runda) — tenant kontekst
-    // iz seje klicatelja (per-location webhook matching)
+    // iz scope-a klicatelja (per-location webhook matching)
     emitEvent('guest.created', {
       guestId: guest.id,
       name: `${guest.firstName} ${guest.lastName}`.trim(),
       email: guest.email,
-    }, authResult.session?.locationId ?? null).catch(err => logger.error('API', '[Webhook] guest.created napaka:', err))
+    }, scope.locationId).catch(err => logger.error('API', '[Webhook] guest.created napaka:', err))
 
     return NextResponse.json(guest, { status: 201 })
   } catch (error: unknown) {

@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 
 import { handleApiError, parsePaginationParams } from '@/lib/api-utils'
 
@@ -21,9 +21,21 @@ export async function GET(req: Request) {
     // P1-16: centralna pagination validacija (limit max, search dolžina)
     const { limit } = parsePaginationParams(searchParams, { defaultLimit: 50 })
 
+    // FIX R85-4a M1: Tenant scope — prej sta obe findMany poizvedbi zajeli
+    // aktivna + gotova naročila VSEH lokacij (kuhinja lokacije A je videla
+    // naročila tenantov B, C, ...). Fail-closed za regularnega uporabnika
+    // brez lokacije. null scope (super-admin) = globalni pogled, nikoli
+    // { locationId: null }. ?locationId ignoriran za ne-super-admine.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/kitchen',
+    })
+    if ('error' in scope) return scope.error
+    const locationId = scope.locationId
+
     const orders = await db.order.findMany({
       where: {
         status: { in: ['pending', 'in-progress'] },
+        ...(locationId ? { locationId } : {}),
       },
       orderBy: [
         { status: 'asc' },  // pending first
@@ -88,7 +100,7 @@ export async function GET(req: Request) {
     // VIDNA na KDS, dokler kuhar/jata ne Bump-a (bump je čisto odjemalska
     // display akcija — bumped-store.ts; zaključek ostane naloga natakarja).
     const readyRaw = await db.order.findMany({
-      where: { status: 'ready' },
+      where: { status: 'ready', ...(locationId ? { locationId } : {}) },
       orderBy: { createdAt: 'asc' },
       take: 10,
       include: {

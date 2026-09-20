@@ -5,7 +5,7 @@
 // ============================================
 
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { createReorderSchema } from '@/lib/validations'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { getReorderSuggestions, createReorderOrder } from './_helpers'
@@ -21,7 +21,15 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const urgency = searchParams.get('urgency') || '' // filter by urgency
 
-    const { summary, suggestions } = await getReorderSuggestions(urgency)
+    // FIX R85-4c M7: predlogi so izračunani IZ zalogo — prej findMany brez filtra
+    // (zaloga + nabavna zgodovina vseh tenantov). Scope: fail-closed 403 za
+    // uporabnika brez lokacije; super-admin (null) = globalni pregled.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/inventory/reorder',
+    })
+    if ('error' in scope) return scope.error
+
+    const { summary, suggestions } = await getReorderSuggestions(urgency, scope.locationId)
 
     return NextResponse.json({ summary, suggestions })
   } catch (error: unknown) {
@@ -51,9 +59,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Ni artiklov za naročilo' }, { status: 400 })
     }
 
+    // FIX R85-4c M7 CROSS-TENANT WRITE: prej je createReorderOrder poiskal artikle
+    // GLOBALNO ({ id: { in } }) in povečal zalogo TUJEMU tenantu + zapisal tuj
+    // StockTransaction. Zdaj: scope razrešen iz seje in podan helperju — artikli
+    // izven scope-a so "ni najden" (fail-closed, brez razkritja obstoja).
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'POST /api/inventory/reorder',
+    })
+    if ('error' in scope) return scope.error
+
     // FIX HIGH: Ovij VSE postavke v eno transakcijo — prej je vsaka postavka bila v svoji
     // transakciji, kar je pustilo delne posodobitve ob napaki na 3. postavki
-    const { results, errors } = await createReorderOrder(items, employeeName || '')
+    const { results, errors } = await createReorderOrder(items, employeeName || '', scope.locationId)
 
     // Če so napake in noben artikel ni veljaven, vrni napako
     if (errors.length > 0 && errors.length === items.length) {

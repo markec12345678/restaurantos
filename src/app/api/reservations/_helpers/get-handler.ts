@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { parsePaginationParams } from '@/lib/api-utils'
 
-export async function handleGetReservations(req: Request) {
+export async function handleGetReservations(req: Request, locationId: string | null) {
   const { searchParams } = new URL(req.url)
   const date = searchParams.get('date') || ''
   const status = searchParams.get('status') || ''
@@ -13,7 +13,13 @@ export async function handleGetReservations(req: Request) {
     // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
     const { limit, offset } = parsePaginationParams(searchParams)
 
-  const where: Record<string, unknown> = {}
+  // FIX R85-4a M2: Tenant scope — prej je where zajel rezervacije VSEH
+  // lokacij (PII: imena, telefoni). null scope (super-admin) = globalni
+  // pogled, NIKOLI { locationId: null } (prazen spread). Vseh 4 poizvedb
+  // spodaj (findMany, count, groupBy, aggregate) deduje ta where.
+  const where: Record<string, unknown> = {
+    ...(locationId ? { locationId } : {}),
+  }
 
   if (status) {
     where.status = status
