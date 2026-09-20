@@ -146,8 +146,13 @@ export async function POST(req: Request) {
     // closeShift).
     // FIX R82-FINAL-1 (F3): mirror GET 403 gate — staff/manager BREZ lokacije
     // ne sme niti prek body.locationId sprožiti zaključka tuje izmene.
+    // FIX R86-2a (M2 fail-open): prej je bil 403 POGOJEN na `locationId` v bodyju
+    // — staff/manager brez lokacije BREZ body.locationId je prešel naprej z
+    // effectiveLocationId=null → closeShift je zaprl PRVO ODPRTO izmeno GLOBALLY
+    // (cross-tenant WRITE) + upsertZReportForDay globalni fallback. Zdaj: 403
+    // NEPOGOJENO (isti gate kot GET zgoraj).
     const sessionLocId = authResult.session?.locationId ?? null
-    if (!sessionLocId && !isAdminTenantRole(authResult.session?.role) && locationId) {
+    if (!sessionLocId && !isAdminTenantRole(authResult.session?.role)) {
       return NextResponse.json({ error: 'EOD zahteva dodeljeno lokacijo.' }, { status: 403 })
     }
     const effectiveLocationId = sessionLocId || locationId || null
@@ -162,6 +167,10 @@ export async function POST(req: Request) {
       try {
         await upsertZReportForDay({
           date,
+          // FIX R86-2a: Z-poročilo dobí rezolvirano lokacijo (session/body) namesto
+          // internega employee→prva-globalna-lokacija fallback-a (R85-FINAL-1 nota).
+          // Super-admin brez obeh → undefined → legacy fallback (nespremenjeno).
+          locationId: effectiveLocationId ?? undefined,
           actualCash: actualCash ?? 0,
           notes: [notes, extraNote].filter(Boolean).join(' — '),
           employeeId: authResult.session?.employeeId ?? null,

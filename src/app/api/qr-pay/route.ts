@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
@@ -43,11 +44,19 @@ export async function POST(req: Request) {
     // FIX R81 (LEAK-HIGH, tenant scope): ček se pridobi LOKACIJSKO scoped
     // (Check nima lastnega locationId — pot prek order.locationId). Staff ne more
     // ustvariti QR session za tuj ček.
-    const sessionLocId = authResult.session?.locationId ?? null
+    // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a — prej je
+    // regularna NULL-location seja lahko izdala QR pay token za ček KATEREGA KOLI
+    // tenanta (HMAC token sam po sebi ne pomaga — napadalec dobi veljaven token
+    // za tuj ček in gost ga po QR-ju plača).
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'POST /api/qr-pay',
+    })
+    if ('error' in scope) return scope.error
     const check = await db.check.findFirst({
       where: {
         id: data.checkId,
-        ...(sessionLocId ? { order: { locationId: sessionLocId } } : {}),
+        ...(scope.locationId ? { order: { locationId: scope.locationId } } : {}),
       },
       include: {
         order: {

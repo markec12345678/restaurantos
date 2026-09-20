@@ -103,6 +103,17 @@ export async function POST(req: Request) {
     // FIX C-05: Zahtevaj avtentikacijo
     const authResult = await requireAuth(req, { permission: 'manage_employees' })
     if (authResult.error) return authResult.error
+    // R86-2b (M2 razred): scope resolver PRED vsem — prej je bil žig
+    // `authResult.session?.locationId ?? null` fail-open: regular user z NULL
+    // lokacijo je lahko podal body locationId (samo existence-check) in
+    // ustvaril zaposlenega na TUJI lokaciji. Resolver: non-admin brez lokacije
+    // → 403 fail-closed (body kandidat je sedaj dosegljiv SAMO null-scope
+    // super-adminu); loc-bound seja žige VEDNO svojo lokacijo.
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'POST /api/employees',
+    })
+    if ('error' in scope) return scope.error
     // FIX SECURITY: validateRequest() prepreči DoS z oversized payload
     const { data, error: validationError } = await validateRequest(req, createEmployeeSchema)
     if (validationError) return validationError
@@ -165,8 +176,8 @@ export async function POST(req: Request) {
     //     njegov lastni — setup/init pattern).
     //   - Platform admin + staff/manager/kitchen brez locationId → 400
     //     (fail-closed — nikoli ne ustvari razbite NULL-location accounta).
-    const sessionLocationId = authResult.session?.locationId ?? null
-    let newEmployeeLocationId: string | null = sessionLocationId
+    // R86-2b: kandidat je scope.locationId (resolver-izpeljan), ne raw session.
+    let newEmployeeLocationId: string | null = scope.locationId
     if (!newEmployeeLocationId) {
       const bodyLocationId = typeof data.locationId === 'string' && data.locationId.trim() ? data.locationId.trim() : null
       if (bodyLocationId) {

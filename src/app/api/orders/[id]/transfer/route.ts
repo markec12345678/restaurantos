@@ -4,6 +4,7 @@
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { z } from 'zod'
 import { logger } from '@/lib/logger'
@@ -31,9 +32,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // Pridobi naročilo
     // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a —
+    // prej je regularna NULL-location seja lahko prenesla naročilo na TUJO mizo
+    // (oba findFirst-a sta brez filtra → globalna).
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'POST /api/orders/[id]/transfer',
+    })
+    if ('error' in scope) return scope.error
     const order = await db.order.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       include: { table: true },
     })
     if (!order) {
@@ -43,7 +51,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // Preveri da novo mizo obstaja
     // FIX P0-C1 (IDOR): Ciljna miza mora biti v isti lokaciji kot uporabnik
     const newTable = await db.table.findFirst({
-      where: { id: newTableId, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id: newTableId, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!newTable) {
       return NextResponse.json({ error: 'Ciljna miza ni najdena' }, { status: 404 })

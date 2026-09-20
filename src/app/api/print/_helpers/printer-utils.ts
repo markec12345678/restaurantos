@@ -94,12 +94,20 @@ function toPrinterInfo(printer: { id: string; name: string; ipAddress: string; t
  * P2-UX FIX (tiskanje na različnih printerjih): vrni VSE aktivne tiskalnike,
  * katerih pravila ustrezajo predikatu — za fan-out naročil po postajah.
  * (findPrinter vrača SAMO prvi zadetek — zadostuje za račune.)
+ * R86-4: locationId scope (Printer.locationId NOT NULL, MODEL A) — lokacijski
+ * uporabnik nikoli ne tiska na tuj tiskalnik. null = super-admin (vse lokacije).
  */
 export async function findPrintersByRule(
   predicate: (_rule: { type: string; prepStationId?: string; port?: number }) => boolean,
+  locationId: string | null,
 ): Promise<PrinterInfo[]> {
   const printers = await db.printer.findMany({
-    where: { isActive: true, ipAddress: { not: '' } },
+    where: {
+      isActive: true,
+      ipAddress: { not: '' },
+      // R86-4: pogojni spread — NIKOLI { locationId: null }
+      ...(locationId ? { locationId } : {}),
+    },
     orderBy: { sortOrder: 'asc' },
   })
   const matched: PrinterInfo[] = []
@@ -115,7 +123,7 @@ export async function findPrintersByRule(
 /**
  * Poišči ustrezen tiskalnik glede na pravila tiskanja
  */
-export async function findPrinter(type: 'order' | 'receipt', printerId?: string): Promise<PrinterInfo | null> {
+export async function findPrinter(type: 'order' | 'receipt', printerId: string | undefined, locationId: string | null): Promise<PrinterInfo | null> {
   // FIX EP5 MEDIUM: Podpora za konfigurabilni port — prejšnja koda je hardcodirala 9100
   // Nekateri tiskalniki uporabljajo 9101, 515 (LPD), ali druge porte
   const _parsePort = (p: string | number | null | undefined, fallback = 9100): number => {
@@ -129,7 +137,9 @@ export async function findPrinter(type: 'order' | 'receipt', printerId?: string)
   // Če je podan specifičen printerId
   if (printerId) {
     const printer = await db.printer.findUnique({ where: { id: printerId } })
-    if (printer && printer.isActive && printer.ipAddress) {
+    // R86-4: tuj tiskalnik = "ni na voljo" (isti izid kot neobstoječ/neaktiven)
+    if (printer && printer.isActive && printer.ipAddress
+      && (!locationId || printer.locationId === locationId)) {
       // FIX EP5: Preberi port iz printRules če je podan, sicer default 9100
       // P1-9: Zod-validiran parser (printRules je konfiguracija routing-a)
       const rules = parsePrintRules(printer.printRules)
@@ -146,7 +156,12 @@ export async function findPrinter(type: 'order' | 'receipt', printerId?: string)
   }
   // Samodejno izberi tiskalnik glede na printRules
   const printers = await db.printer.findMany({
-    where: { isActive: true, ipAddress: { not: '' } },
+    where: {
+      isActive: true,
+      ipAddress: { not: '' },
+      // R86-4: pogojni spread — NIKOLI { locationId: null }
+      ...(locationId ? { locationId } : {}),
+    },
     orderBy: { sortOrder: 'asc' },
   })
   for (const printer of printers) {

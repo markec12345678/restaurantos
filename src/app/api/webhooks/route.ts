@@ -1,7 +1,8 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
+import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { maskWebhookSecret } from '@/lib/secret-masks'
@@ -69,8 +70,15 @@ export async function POST(req: Request) {
     // naslovi). Zdaj: lokacijski admin → webhook vezan na NJEGOVO lokacijo;
     // platformni admin (brez lokacije) → globalni webhook (pooblaščen) ali
     // izbirna validirana body.locationId.
-    const sessionLocationId = authResult.session?.locationId ?? null
-    let webhookLocationId: string | null = sessionLocationId
+    // R86-2c2 (M2 klasa): žig je izpeljan prek kanonskega resolverja — non-admin
+    // seja z NULL lokacijo (session-lifecycle sprejme null za vse role) je prej
+    // utiho ustvarila GLOBALNI webhook (dogodki vseh tenantov) ali žigala
+    // poljuben body.locationId. Zdaj: 403 fail-closed.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'POST /api/webhooks',
+    })
+    if ('error' in scope) return scope.error
+    let webhookLocationId: string | null = scope.locationId
     if (!webhookLocationId && data.locationId) {
       const loc = await db.location.findUnique({ where: { id: data.locationId }, select: { id: true } })
       if (!loc) {

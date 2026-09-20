@@ -5,6 +5,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { getNextCounter } from '@/lib/counters'
 import { parseJsonBody, validateBody } from '@/lib/api-utils'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { createCheckSchema } from '@/lib/validations'
 import {
   calculateCheckAmounts,
@@ -28,11 +29,20 @@ export async function handlePostCheck(req: Request, authResult: { session?: { em
   // Preveri, da order obstaja
   // BUG-HUNT FIX 2026-09-19 (HIGH, cross-tenant): findUnique → findFirst z
   // locationId scope — prej je bilo mogoče ustvariti ček na tujem naročilu.
-  const sessionLocationId = authResult.session?.locationId ?? undefined
+  // FIX R86-2a (M2 fail-open): raw spread `session?.locationId ?? undefined`
+  // je regularno sejo z NULL lokacijo pustil do GLOBALNEGA order lookup-a
+  // (ček na tujem naročilu). Centralni resolver: fail-closed 403 brez lokacije;
+  // super-admin (brez lokacije) = globalni nadzor. Resolver teče TUKAJ (in ne
+  // v route), ker je handlePostCheck edini lastnik authResult-a.
+  const { searchParams } = new URL(req.url)
+  const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+    endpoint: 'POST /api/checks',
+  })
+  if ('error' in scope) return scope.error
   const order = await db.order.findFirst({
     where: {
       id: data.orderId,
-      ...(sessionLocationId ? { locationId: sessionLocationId } : {}),
+      ...(scope.locationId ? { locationId: scope.locationId } : {}),
     },
     include: { orderItems: { include: { check: { select: { id: true, paymentStatus: true } } } } },
   })

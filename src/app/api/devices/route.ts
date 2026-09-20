@@ -10,6 +10,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
 
@@ -93,11 +94,22 @@ export async function POST(req: Request) {
     //   - device heartbeat (skupni ključ, brez sessiona) → locationId se
     //     validira na obstoj aktivne lokacije (naprava ne more registrirati
     //     neveljavne/tuje lokacije na slepo)
-    const sessionLoc = session?.locationId ?? null
+    // R86-2c2 (M2 klasa): session pot gre skozi kanonski resolver — prej raw
+    // `session?.locationId ?? null` je bil fail-OPEN za non-admin seja z NULL
+    // lokacijo: body.locationId uporabljen BREZ validacije → registracija/
+    // prevzem naprave poljubnega tenanta. Zdaj: 403 fail-closed.
     let resolvedLocationId: string | null = input.locationId ?? null
-    if (sessionLoc) {
-      resolvedLocationId = sessionLoc
-    } else if (!session && resolvedLocationId) {
+    if (session) {
+      const scope = resolveTenantLocationIdOrThrow(session, new URL(req.url).searchParams, {
+        endpoint: 'POST /api/devices',
+      })
+      if ('error' in scope) return scope.error
+      if (scope.locationId) {
+        resolvedLocationId = scope.locationId
+      }
+      // super-admin (scope.locationId null): body locationId (pooblaščeno,
+      // brez validacije — zaupanje platformnemu adminu) ali null (globalna naprava)
+    } else if (resolvedLocationId) {
       const loc = await db.location.findUnique({
         where: { id: resolvedLocationId },
         select: { id: true, isActive: true },
@@ -149,9 +161,14 @@ export async function DELETE(req: Request) {
 
     // FIX IDOR (tenant scope): izbriši SAMO napravo znotraj session lokacije
     // (super admin z locationId=null vidi vse)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2c2 (M2 klasa): resolver namesto raw spread — non-admin NULL lokacija
+    // → 403 fail-closed (prej: globalni deleteMany poljubne naprave).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'DELETE /api/devices',
+    })
+    if ('error' in scope) return scope.error
     const deleted = await db.deviceRegistry.deleteMany({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (deleted.count === 0) {
       return NextResponse.json({ error: 'Naprava ni najdena' }, { status: 404 })

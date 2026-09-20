@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { db } from '@/lib/db'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { getAppUrl } from '@/lib/utils'
 
 
@@ -15,18 +16,20 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     // FIX R82-F (LEAK-HIGH): QR URL-ji so bili VSEH miz VSEH tenantov
-    // (take_orders) — gost bi lahko vstopil v tujo QR sejo. Zdaj: scoped na
-    // session lokacijo; staff brez lokacije → 403 fail-closed.
-    const sessionLocId = authResult.session?.locationId ?? null
-    if (!sessionLocId && !['admin', 'super_admin'].includes(authResult.session?.role || '')) {
-      return NextResponse.json({ error: 'QR mize zahtevajo dodeljeno lokacijo.' }, { status: 403 })
-    }
+    // (take_orders) — gost bi lahko vstopil v tujo QR sejo.
+    // FIX R86-2c1: ročni role-check + raw `?? null` kanoniziran na centralni
+    // resolver (istek fail-closed semantike: regular NULL → 403; super-admin
+    // global / ?locationId; odstranjena podvojena role logika).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'GET /api/tables/qr-batch',
+    })
+    if ('error' in scope) return scope.error
 
     const baseUrl = getAppUrl()
     const tables = await db.table.findMany({
       where: {
         status: { not: 'out-of-service' },
-        ...(sessionLocId ? { locationId: sessionLocId } : {}),
+        ...(scope.locationId ? { locationId: scope.locationId } : {}),
       },
       select: { id: true, number: true, area: true, capacity: true },
       orderBy: { number: 'asc' },

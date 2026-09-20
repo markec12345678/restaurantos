@@ -7,7 +7,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
-import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
+import { isWithinScope, notInScopeResponse, resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { z } from 'zod'
 
@@ -28,6 +28,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // FIX R86-2c1 (M2): raw `session?.locationId ?? null` + isWithinScope je bil
+    // fail-open za non-admin sejo z NULL lokacijo (isWithinScope(null, …) = true
+    // "admin cross-lokacijski nadzor") — prej je tak uporabnik lahko PATCHAL
+    // delovni čas TUJE lokacije. Zdaj: resolver — non-admin NULL → 403 PRED
+    // vsako poizvedbo; admin/super-admin null = globalni (nespremenjeno).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PATCH /api/opening-hours/[id]',
+    })
+    if ('error' in scope) return scope.error
+
     const { id } = await params
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error
@@ -42,7 +52,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!existing) {
       return NextResponse.json({ error: 'Delovni čas ni najden' }, { status: 404 })
     }
-    const sessionLocId = authResult.session?.locationId ?? null
+    const sessionLocId = scope.locationId
     if (!isWithinScope(sessionLocId, existing.locationId)) {
       return notInScopeResponse('Delovni čas')
     }
@@ -69,6 +79,12 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // FIX R86-2c1 (M2): isti resolver guard kot PATCH — non-admin NULL → 403.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'DELETE /api/opening-hours/[id]',
+    })
+    if ('error' in scope) return scope.error
+
     const { id } = await params
 
     // FIX R82-F (LEAK-HIGH): isti scope guard kot PATCH — prej cross-tenant
@@ -77,7 +93,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     if (!existing) {
       return NextResponse.json({ error: 'Delovni čas ni najden' }, { status: 404 })
     }
-    const sessionLocId = authResult.session?.locationId ?? null
+    const sessionLocId = scope.locationId
     if (!isWithinScope(sessionLocId, existing.locationId)) {
       return notInScopeResponse('Delovni čas')
     }

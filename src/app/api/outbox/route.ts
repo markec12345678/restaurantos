@@ -3,6 +3,7 @@
 // ============================================
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { handleApiError, parsePaginationParams } from '@/lib/api-utils'
 import { db } from '@/lib/db'
 import {
@@ -19,7 +20,15 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'view_reports' })
     if (authResult.error) return authResult.error
 
+    // FIX R86-4 (MEDIUM): tenant scope — OutboxEvent.locationId (R84 stolpec).
+    // Prej je lokacijski admin videl evente VSEH tenantov (aggregateId, eventType,
+    // lastError, payload-idji). Super-admin = globalni pogled.
     const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/outbox',
+    })
+    if ('error' in scope) return scope.error
+
     const status = searchParams.get('status') || 'pending'
     const target = searchParams.get('target')
     // P1-16: centralna pagination validacija (limit max, search dolžina)
@@ -28,6 +37,8 @@ export async function GET(req: Request) {
     const where: Record<string, unknown> = {}
     if (status !== 'all') where.status = status
     if (target) where.target = target
+    // R86-4: pogojni spread — NIKOLI { locationId: null }
+    if (scope.locationId) where.locationId = scope.locationId
 
     const [events, stats] = await Promise.all([
       db.outboxEvent.findMany({
@@ -49,7 +60,7 @@ export async function GET(req: Request) {
           createdAt: true,
         },
       }),
-      getOutboxStats(),
+      getOutboxStats(scope.locationId),
     ])
 
     return NextResponse.json({

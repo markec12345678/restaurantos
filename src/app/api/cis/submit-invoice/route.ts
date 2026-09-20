@@ -20,6 +20,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { handleApiError } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -50,14 +51,38 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // FIX R86-4 (MEDIUM): tenant scope — Receipt NIMA lastnega locationId stolpca,
+    // scope prek order.locationId. Prej je lokacijski admin lahko oddal na CIS
+    // (HR FINA) tuj račun po receiptId/orderId — fiskalna oddaja tujega prometa.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, null, {
+      endpoint: 'POST /api/cis/submit-invoice',
+    })
+    if ('error' in scope) return scope.error
+
     const bodyResult = await parseBody(req)
     if (bodyResult.error) return bodyResult.error
 
+    // R86-4: pogojni spread — NIKOLI { order: { locationId: null } };
+    // legacy NULL-order receipti so dosegljivi samo super-adminu (fail-closed).
+    const receiptScope = scope.locationId
+      ? { order: { locationId: scope.locationId } }
+      : {}
+
     // ── Resolvcija računa: receiptId direktno ALI orderId → !isStorno račun ──
     let receiptId = bodyResult.data.receiptId
-    if (!receiptId) {
+    if (receiptId) {
+      // R86-4: lastniška preverba tudi za direktni receiptId path — tuj/neznan
+      // račun = ISTI 400 kot neobstoječ (brez existence oraklja).
+      const owned = await db.receipt.findFirst({
+        where: { id: receiptId, ...receiptScope },
+        select: { id: true },
+      })
+      if (!owned) {
+        return NextResponse.json({ error: 'Račun ni najden' }, { status: 400 })
+      }
+    } else {
       const receipt = await db.receipt.findFirst({
-        where: { orderId: bodyResult.data.orderId!, isStorno: false },
+        where: { orderId: bodyResult.data.orderId!, isStorno: false, ...receiptScope },
         select: { id: true },
       })
       if (!receipt) {

@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { toNum, deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow, isWithinScope } from '@/lib/tenant-scope'
 import { handleRouteError, validateRequest } from '@/lib/api-utils'
 import { closeShiftSchema, postShiftCloseActions } from './_helpers'
 
@@ -34,10 +35,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     // R81 policy: legacy NULL-location shift = fail-closed (404 za lokacijsko
     // vezane seje); super-admin (brez session lokacije) lahko še vedno zapre.
     // Census + masovni backfill legacy izmen ostane odprt (R82).
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R86-2a (M2 fail-open): centralni resolver — prej raw spread
+    // `session?.locationId ?? undefined` (:37) je regularno NULL-location sejo
+    // pustil skozi oba pogoja (`sessionLocationId &&` je bil false) do GLOBALNEGA
+    // close-a poljubne izmene. Zdaj: 403 za regularno brez lokacije;
+    // isWithinScope(scope.locationId, shift.locationId) — legacy NULL izmena je
+    // fail-closed 404 za lokacijsko vezane seje, super-admin pa zapre vse.
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'PUT /api/cash-register/[id]',
+    })
+    if ('error' in scope) return scope.error
     const closedShift = await db.$transaction(async (tx) => {
       const shift = await tx.cashRegisterShift.findUnique({ where: { id } })
-      if (!shift || (sessionLocationId && shift.locationId !== sessionLocationId)) {
+      if (!shift || !isWithinScope(scope.locationId, shift.locationId)) {
         throw new Error('SHIFT_NOT_FOUND')
       }
       if (shift.status === 'closed') {

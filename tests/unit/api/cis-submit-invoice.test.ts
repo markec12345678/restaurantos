@@ -76,19 +76,24 @@ describe('POST /api/cis/submit-invoice', () => {
     expect(data.cisStatus).toBe('submitted')
 
     expect(receiptFindFirstMock).toHaveBeenCalledWith({
-      where: { orderId: 'order-1', isStorno: false },
+      where: { orderId: 'order-1', isStorno: false, order: { locationId: 'loc-1' } },
       select: { id: true },
     })
     expect(submitReceiptToCisMock).toHaveBeenCalledWith('rcpt-1')
   })
 
-  it('receiptId path → direktna oddaja brez resolvcije', async () => {
+  it('receiptId path → lastniška preverba (R86-4) + direktna oddaja', async () => {
+    receiptFindFirstMock.mockResolvedValue({ id: 'rcpt-direct' })
     const res = await POST(post({ receiptId: 'rcpt-direct' }))
     const data = await res.json()
 
     expect(res.status).toBe(200)
     expect(data.ok).toBe(true)
-    expect(receiptFindFirstMock).not.toHaveBeenCalled()
+    // R86-4: scoped lastniška preverba PRED oddajo (order.locationId iz seje)
+    expect(receiptFindFirstMock).toHaveBeenCalledWith({
+      where: { id: 'rcpt-direct', order: { locationId: 'loc-1' } },
+      select: { id: true },
+    })
     expect(submitReceiptToCisMock).toHaveBeenCalledWith('rcpt-direct')
   })
 

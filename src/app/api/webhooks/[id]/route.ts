@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { maskWebhookSecret } from '@/lib/secret-masks'
@@ -28,6 +29,15 @@ export async function PUT(
   try {
     const { id } = await params
 
+    // R86-2c2 (M2 klasa): scope iz kanonskega resolverja — fail-closed PRED body
+    // parsanjem. Prej raw spread `session?.locationId ?? undefined` je bil
+    // fail-OPEN za non-admin seja z NULL lokacijo (session-lifecycle.ts:114-117
+    // jo sprejme) → prazen filter = urejanje poljubnega tujeja webhooka.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PUT /api/webhooks/[id]',
+    })
+    if ('error' in scope) return scope.error
+
     const result = await validateRequest(req, updateWebhookSchema)
     if (result.error) return result.error
 
@@ -35,9 +45,8 @@ export async function PUT(
 
     // Preveri, da webhook obstaja (FIX IDOR: findUnique → findFirst z locationId scope
     // — location-scoped admin ne more urejati webhookov tuje lokacije/tenanta)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
     const existing = await db.webhook.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!existing) {
       return NextResponse.json({ error: 'Webhook ni najden' }, { status: 404 })
@@ -75,9 +84,14 @@ export async function DELETE(
 
     // FIX IDOR (tenant scope): izbriši SAMO webhook znotraj session lokacije
     // (super admin z locationId=null vidi vse)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2c2 (M2 klasa): resolver namesto raw spread — non-admin NULL lokacija
+    // → 403 fail-closed (prej: globalni deleteMany).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'DELETE /api/webhooks/[id]',
+    })
+    if ('error' in scope) return scope.error
     const deleted = await db.webhook.deleteMany({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (deleted.count === 0) {
       return NextResponse.json({ error: 'Webhook ni najden' }, { status: 404 })

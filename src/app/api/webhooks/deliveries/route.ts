@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { processRetryQueue } from '@/lib/webhook-engine'
 
 import { handleApiError, parsePaginationParams } from '@/lib/api-utils'
@@ -22,8 +23,14 @@ export async function GET(req: Request) {
     // FIX R82-F (LEAK-MEDIUM): poln payload/responseBody VSEH tenantov.
     // WebhookDelivery NIMA lastnega tenant stolpca — scope pot prek relacije
     // webhook.locationId (nullable; pogojni spread — super-admin = global).
-    const sessionLocId = authResult.session?.locationId ?? null
-    const webhookScope = sessionLocId ? { webhook: { locationId: sessionLocId } } : {}
+    // R86-2c2 (M2 klasa): scope prek kanonskega resolverja — prej raw spread
+    // `session?.locationId ?? null` je bil fail-OPEN za non-admin seja z NULL
+    // lokacijo (prazen filter = payload VSEH tenantov). Zdaj: 403 fail-closed.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/webhooks/deliveries',
+    })
+    if ('error' in scope) return scope.error
+    const webhookScope = scope.locationId ? { webhook: { locationId: scope.locationId } } : {}
 
     // P1-16: centralna pagination validacija (limit max, search dolžina)
     const { limit } = parsePaginationParams(searchParams, { defaultLimit: 50 })

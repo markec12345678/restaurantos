@@ -11,8 +11,7 @@ import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/
 import { Prisma } from '@prisma/client'
 import { logger } from '@/lib/logger'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
-import { getFirstLocationId } from '@/lib/location-fallback'
-import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
+import { isWithinScope, notInScopeResponse, resolveWriteLocationId } from '@/lib/tenant-scope'
 import { createStaffShiftSchema, checkTimeOverlap, buildShiftsWhere, computeShiftStats } from './_helpers'
 
 // FIX R81-G (LEAK-MEDIUM): inline role-aware fail-closed gate (zrcali
@@ -124,6 +123,14 @@ export async function POST(req: Request) {
       }, { status: 409 })
     }
 
+    // R86-2b (canonical žig): resolveWriteLocationId — scope zmaga; kandidata
+    // (body, data-derived employee.locationId) sta dosegljiva SAMO null-scope
+    // super-adminu. Globalni fallback getFirstLocationId() (prva lokacija
+    // POLJUBNEGA tenanta) je ODSTRANJEN → brez kandidata 400 fail-closed
+    // (prej cross-tenant žig prve lokacije v DB).
+    const writeLoc = resolveWriteLocationId(sessionLocId, locationId, employee.locationId)
+    if (!writeLoc.ok) return writeLoc.response
+
     const shift = await db.staffShift.create({
       data: {
         employeeId,
@@ -133,11 +140,11 @@ export async function POST(req: Request) {
         endTime,
         // FIX QA runda 37: DB stolpec StaffShift.locationId je NOT NULL (schema drift)
         // — pri Ana (admin brez lokacije) je create z null vrgel P2011.
-        // Prioriteta: body → izmenina zaposlenega → seja → prva lokacija (cached)
         // FIX R81-G (LEAK-MEDIUM): za lokacijsko vezane seje je body locationId
         // STRIPPAN — razpored se NIKOLI ne ustvari na tuji lokaciji (seja je
         // avtoritativna); super-admin sme podati izrecen locationId.
-        locationId: sessionLocId || locationId || employee.locationId || (await getFirstLocationId()) || null,
+        // R86-2b: žig je rezultat resolveWriteLocationId (zgoraj) — nikoli null.
+        locationId: writeLoc.locationId,
         role: role || employee.role,
         notes,
         status,

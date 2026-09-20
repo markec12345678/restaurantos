@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { deepToNumbers, toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow, resolveWriteLocationId } from '@/lib/tenant-scope'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
@@ -87,8 +88,23 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'manage_accounting' })
     if (authResult.error) return authResult.error
 
+    // R86-2c2 (M2 klasa): resolver takoj za requireAuth (fail-closed ordering)
+    // — prej je IIFE žig `session?.locationId ?? null` non-admin sejo z NULL
+    // lokacijo utiho zapisal kot globalno (NULL) terjatev.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'POST /api/accounting/accounts-receivable',
+    })
+    if ('error' in scope) return scope.error
+
     const { data, error: validationError } = await validateRequest(req, createArSchema)
     if (validationError) return validationError
+
+    // R86-2c2: kanonski write guard (vzorec R85-FINAL expenses) — scope je
+    // avtoritativen; body locationId je kandidat SAMO za super-admina brez
+    // lokacije; brez obojega → 400 fail-closed (prej: tihi NULL žig globalnega
+    // knjigovodskega zapisa).
+    const write = resolveWriteLocationId(scope.locationId, data.locationId)
+    if (!write.ok) return write.response
 
     const year = new Date().getFullYear()
     // FIX CRITICAL (race): Atomsko generiraj arNumber z db.counter.upsert.
@@ -122,15 +138,8 @@ export async function POST(req: Request) {
         totalAmount: data.totalAmount,
         notes: data.notes,
         status: 'open',
-        // FIX P0-C2: Body locationId je dovoljen samo za admin/super_admin.
-        // Regular user: uporabi session.locationId (avtoritativen).
-        locationId: (() => {
-          const sessionLoc = authResult.session?.locationId ?? null
-          const isAdmin = authResult.session?.role === 'admin' || authResult.session?.role === 'super_admin'
-          if (sessionLoc) return sessionLoc
-          if (isAdmin && data.locationId) return data.locationId
-          return null
-        })(),
+        // R86-2c2: žig iz resolveWriteLocationId (scope → body kandidat → 400).
+        locationId: write.locationId,
       },
       include: { location: { select: { id: true, name: true, code: true } } },
     })

@@ -10,6 +10,7 @@ import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { validateFursConfig, loadCertificatePrivateKey } from '@/lib/furs'
 import { handleApiError } from '@/lib/api-utils'
 import { buildFursConfig, fetchAndLockUnverifiedReceipts, processBatchReceipt, type BatchReceiptResult } from './_helpers'
@@ -17,10 +18,30 @@ import { buildFursConfig, fetchAndLockUnverifiedReceipts, processBatchReceipt, t
 
 export const dynamic = 'force-dynamic'
 
+// R86-2c2: batch fiskalizacija je platform-level operacija (ZDDV-1 48h job —
+// obdeluje neoverjene račune VSEH lokacij; config se rešuje per račun prek
+// order.locationId, P0-C3A). Kanonični gate = mirror /api/receipts/regenerate,
+// /api/webhooks/deliveries POST in /api/reports/digest-send: lokacijsko vezan
+// admin ne sme sprožiti fiskalizacije TUJIH računov (cross-tenant fiskalni
+// write); platformni admin (brez lokacije) — da.
+function platformAdminGate(authResult: { session: { role: string; locationId?: string | null } | null }): NextResponse | null {
+  const session = authResult.session
+  const isPlatformAdmin = !!session && ['admin', 'super_admin'].includes(session.role) && !session.locationId
+  if (isPlatformAdmin) return null
+  return NextResponse.json(
+    { error: 'Množična fiskalizacija je platformska operacija (vse lokacije) — dovoljeno samo platformnemu administratorju.' },
+    { status: 403 },
+  )
+}
+
 export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+
+    // R86-2c2: platformAdminGate TAKOJ za requireAuth, PRED settings/db dostopom
+    const platformGate = platformAdminGate(authResult)
+    if (platformGate) return platformGate
 
     const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
     if (!settings) {
@@ -175,8 +196,13 @@ export async function GET(req: Request) {
     // + receiptNumber tujih lokacij. Super-admin (locationId=null) vidi vse.
     // POST batch ostaja BY DESIGN multi-location (ZDDV-1 48h job čez vse
     // lokacije — config se rešuje per račun) in se NE dotikamo.
-    const sessionLocId = authResult.session?.locationId ?? null
-    const locFilter = sessionLocId ? { locationId: sessionLocId } : {}
+    // R86-2c2 (M2 klasa): resolver namesto raw spread — non-admin seja z NULL
+    // lokacijo → 403 fail-closed (prej: globalni count + receiptNumber).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'GET /api/furs/batch',
+    })
+    if ('error' in scope) return scope.error
+    const locFilter = scope.locationId ? { locationId: scope.locationId } : {}
 
     const unverifiedCount = await db.receipt.count({
       where: {

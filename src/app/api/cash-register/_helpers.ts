@@ -1,6 +1,5 @@
 import { db } from '@/lib/db'
 import { toNum, deepToNumbers, type DecimalLike } from '@/lib/decimal'
-import { getFirstLocationId } from '@/lib/location-fallback'
 import { z } from 'zod'
 
 // ============================================
@@ -89,18 +88,17 @@ export async function calculateLiveStats(activeShift: { openedAt: Date; location
 /** Odpri novo izmeno znotraj transakcije */
 // BUG-HUNT FIX 2026-09-19: dodan auth scope — lokacija izmena se rešuje iz SESSIONE
 // (zaposleni z lokacijo odpre izmeno SAMO na svoji lokaciji), ne iz klientovega
-// employeeId. Admin brez lokacije ohrani staro vedenje (employee.locationId →
-// fallback prva lokacija).
+// employeeId. Admin brez lokacije ohrani staro vedenje (employee.locationId).
+// FIX R86-2a (M2 fail-open + R85-FINAL-2 LOW): sessionLocationId je OBAVEZEN
+// parameter (route ga poda iz resolveTenantLocationIdOrThrow) — prej je regularna
+// NULL-location seja lahko odprla izmeno na lokaciji poljubnega zaposlenega.
+// Globalni fallback getFirstLocationId (prva lokacija KATEREGA KOLI tenanta —
+// R85-FINAL-2 LOW pollucija) je odstranjen: super-admin brez lokacije seje IN
+// brez lokacije izbranega zaposlenega → SHIFT_LOCATION_REQUIRED (400 fail-closed).
 export async function openShift(
   data: { employeeId?: string; employeeName: string; startingCash: number },
-  auth?: { sessionEmployeeId?: string; sessionLocationId?: string | null },
+  auth: { sessionEmployeeId?: string; sessionLocationId: string | null },
 ) {
-  // FIX QA runda 37: fallback lokacijo resolvi PRED interactive transakcijo.
-  // getFirstLocationId() uporablja base db client — klic znotraj tx je ob Neon
-  // poolerju povečal trajanje tx (pool wait) → "Transaction already closed"
-  // (Prisma interactive tx timeout 5 s). Prav tako združita se 2× employee lookup.
-  const fallbackLocationId = await getFirstLocationId()
-
   const shift = await db.$transaction(async (tx) => {
     const shiftWhere: Record<string, unknown> = { status: 'open' }
     let emp: { locationId: string | null } | null = null
@@ -112,11 +110,12 @@ export async function openShift(
     }
     // Tenant scope: zaposleni z lokacijo sme odpreti izmeno SAMO na svoji lokaciji
     // (prej: lokacija po klientovem employeeId → poljubna lokacija)
-    if (auth?.sessionLocationId && emp?.locationId && emp.locationId !== auth.sessionLocationId) {
+    if (auth.sessionLocationId && emp?.locationId && emp.locationId !== auth.sessionLocationId) {
       throw new Error('CROSS_LOCATION_SHIFT')
     }
     // Lokacija izmene: session lokacija ima PREDNOST, sicer employee lokacija
-    if (auth?.sessionLocationId) {
+    // (data-derived; super-admin izbere zaposlenega = izrecna izbira lokacije)
+    if (auth.sessionLocationId) {
       shiftWhere.locationId = auth.sessionLocationId
     } else if (emp?.locationId) {
       shiftWhere.locationId = emp.locationId
@@ -135,7 +134,12 @@ export async function openShift(
 
     // FIX QA runda 37: DB stolpec CashRegisterShift.locationId je NOT NULL (schema drift)
     // — create z null je vrgel P2011 (Ana = admin brez employee.locationId)
-    const shiftLocationId = auth?.sessionLocationId || emp?.locationId || fallbackLocationId
+    // FIX R86-2a: NIČ več globalnega getFirstLocationId fallback-a — super-admin
+    // brez data-derived lokacije → 400 fail-closed (ne žig prve tuje lokacije).
+    const shiftLocationId = auth.sessionLocationId || emp?.locationId
+    if (!shiftLocationId) {
+      throw new Error('SHIFT_LOCATION_REQUIRED')
+    }
 
     const previousShift = await tx.cashRegisterShift.findFirst({
       where: {

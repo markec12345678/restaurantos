@@ -53,14 +53,14 @@ import { z } from 'zod'
  */
 async function findExistingPaymentByIdempotencyKey(
   idempotencyKey: string,
-  sessionLocationId?: string | null,
+  locationId: string | null,
 ) {
   return db.payment.findFirst({
     where: {
       idempotencyKey,
       // PAYMENT AUDIT: tenant scope — super admin (null) vidi vse
-      ...(sessionLocationId
-        ? { check: { order: { locationId: sessionLocationId } } }
+      ...(locationId
+        ? { check: { order: { locationId } } }
         : {}),
     },
     include: {
@@ -84,7 +84,10 @@ function isUniqueConstraintViolation(error: unknown): boolean {
 export async function handleCreatePayment(
   data: CreatePaymentInput,
   employeeId: string | null | undefined,
-  sessionLocationId?: string | null,
+  // R86-2a (R85-FINAL LOW#2 vzorec): OBAVEZEN locationId iz resolverja
+  // (GET/POST /api/payments ga poda iz resolveTenantLocationIdOrThrow) —
+  // pozabljen argument ni več možen (prej = tiho globalni dostop).
+  locationId: string | null,
 ) {
   // ─── IDEMPOTENCY: Fast path ───────────────────────────────────────────────
   // FIX Bug #2 (CRITICAL): Prej je bil idempotencyKey.optional() v Zod shemi
@@ -96,7 +99,7 @@ export async function handleCreatePayment(
   const idempotencyKey = data.idempotencyKey || `auto-${data.checkId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
   // Preveri ali plačilo z tem idempotencyKey že obstaja (z lokacijskim scope-om)
-  const existing = await findExistingPaymentByIdempotencyKey(idempotencyKey, sessionLocationId)
+  const existing = await findExistingPaymentByIdempotencyKey(idempotencyKey, locationId)
   if (existing) {
     return NextResponse.json(deepToNumbers(existing), { status: 200 })
   }
@@ -108,12 +111,12 @@ export async function handleCreatePayment(
   // check.order.locationId scope. Prej je zaposleni lokacije A lahko ustvaril
   // plačilo na ček lokacije B ("ustvariti payment za order druge lokacije") —
   // Payment podeduje lokacijo prek Check → Order verige, zato je scope kritičen.
-  // Super admin (sessionLocationId=null) brez omejitve.
+  // Super admin (locationId=null po resolverju) brez omejitve.
   const check = await db.check.findFirst({
     where: {
       id: data.checkId,
-      ...(sessionLocationId
-        ? { order: { locationId: sessionLocationId } }
+      ...(locationId
+        ? { order: { locationId } }
         : {}),
     },
     select: { id: true, total: true, orderId: true, order: { select: { locationId: true } } },
@@ -271,7 +274,7 @@ export async function handleCreatePayment(
     // plačilo dejansko uspelo. Natakar bi lahko mislil, da plačilo ni uspelo, in
     // poskusil znova z novim ključem → pravo dvojno plačilo.
     if (idempotencyKey && isUniqueConstraintViolation(error)) {
-      const existing = await findExistingPaymentByIdempotencyKey(idempotencyKey, sessionLocationId)
+      const existing = await findExistingPaymentByIdempotencyKey(idempotencyKey, locationId)
       if (existing) {
         return NextResponse.json(deepToNumbers(existing), { status: 200 })
       }

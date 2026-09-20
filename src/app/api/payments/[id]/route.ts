@@ -3,6 +3,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { createPaymentSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
@@ -52,12 +53,17 @@ export async function PUT(
     // 404 CHECK: Verify payment exists before updating
     // FIX P0-C1 (IDOR): findUnique → findFirst z check.order.locationId scope (cross-tenant zaščita)
     // Payment nima lastnega locationId — scoping prek Check → Order relation
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'PUT /api/payments/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existingPayment = await db.payment.findFirst({
       where: {
         id,
-        ...(sessionLocationId
-          ? { check: { order: { locationId: sessionLocationId } } }
+        ...(scope.locationId
+          ? { check: { order: { locationId: scope.locationId } } }
           : {}),
       },
       include: {

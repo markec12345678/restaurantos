@@ -10,6 +10,7 @@ import { db } from '@/lib/db'
 import { deepToNumbers } from '@/lib/decimal'
 import { toNum } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { handleApiError } from '@/lib/api-utils'
 
 import { formatEUR } from '@/lib/safe-format'
@@ -23,8 +24,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     // Pridobi vse povezane podatke v vzporednih poizvedbah
     // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
-    const orderScope = sessionLocationId ? { locationId: sessionLocationId } : {}
+    // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a —
+    // regularna seja z NULL lokacijo je prej dobila dosje KATEREGA KOLI naročila
+    // (artikli, plačila, FURS računi, revizijska sled).
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/orders/[id]/dossier',
+    })
+    if ('error' in scope) return scope.error
+    const orderScope = scope.locationId ? { locationId: scope.locationId } : {}
     const [orderRow, checkRows, receiptRows, kotRows, auditLogRows] = await Promise.all([
       db.order.findFirst({
         where: { id, ...orderScope },

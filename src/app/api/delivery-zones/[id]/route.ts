@@ -6,7 +6,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { parseJsonBody, handleApiError } from '@/lib/api-utils'
@@ -53,9 +53,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     // FIX R81-F (LEAK-HIGH, cross-tenant): findUnique je bil nescopecan —
     // admin je lahko spreminjal/brisal cone TUJIH tenantov. DeliveryZone.locationId
     // je nullable — legacy NULL-location cone so fail-closed (null !== 'loc-x'),
-    // super-admin (session brez lokacije) ima globalni nadzor (isWithinScope).
-    const sessionLocId = authResult.session?.locationId ?? null
-    if (!isWithinScope(sessionLocId, existing.locationId)) {
+    // super-admin (scope null) ima globalni nadzor (isWithinScope).
+    // R86-2b (M2 razred): prej RAW `session?.locationId ?? null` v isWithinScope
+    // — non-admin seja (permission 'admin' je permission, ne vloga) z NULL
+    // lokacijo = scope null = GLOBALNI patch cone. Resolver: fail-closed 403.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PATCH /api/delivery-zones/[id]',
+    })
+    if ('error' in scope) return scope.error
+    if (!isWithinScope(scope.locationId, existing.locationId)) {
       return notInScopeResponse('Dostavna cona')
     }
 
@@ -65,7 +71,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     // ni dovoljeno — legacy NULL vrstice postanejo fail-closed).
     const updateData: Record<string, unknown> = { ...parsed.data }
     if ('locationId' in updateData) {
-      if (sessionLocId || !updateData.locationId) {
+      if (scope.locationId || !updateData.locationId) {
         delete updateData.locationId
       }
     }
@@ -91,8 +97,13 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     // FIX R81-F (LEAK-HIGH, cross-tenant): isti scope check kot PATCH —
     // brisanje tuje cone je cross-tenant WRITE (NULL-location fail-closed).
-    const sessionLocId = authResult.session?.locationId ?? null
-    if (!isWithinScope(sessionLocId, existing.locationId)) {
+    // R86-2b (M2 razred): raw `?? null` → resolver (fail-closed 403 za
+    // non-admin brez lokacije; scope iz resolverja, nikoli raw session).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'DELETE /api/delivery-zones/[id]',
+    })
+    if ('error' in scope) return scope.error
+    if (!isWithinScope(scope.locationId, existing.locationId)) {
       return notInScopeResponse('Dostavna cona')
     }
 

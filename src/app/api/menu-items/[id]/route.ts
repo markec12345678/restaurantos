@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { updateMenuItemSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { dedupeIds, attachmentScopeDecision } from '@/lib/modifier-attach'
@@ -14,18 +15,26 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const { id } = await params
 
     // Auth check
-    const authResult = await requireAuth(req)
+    // FIX R86-2c1 (LOW pariteta): PUT je zahteval samo take_orders (route
+    // fallback), medtem ko POST zahteva manage_inventory — vsak natakar je
+    // lahko spreminjal cene/artikle. Zdaj: ista permission zahteva kot POST.
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
     if (authResult.error) return authResult.error
 
     // 404 check before update
     // FIX IDOR (tenant scope): najdi SAMO artikel, ki pripada session lokaciji
     // (veriga: MenuItem → Category → Menu → locationId)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R86-2c1 (M2): raw spread `?? undefined` je bil fail-open za non-admin
+    // NULL-lokacijsko sejo — cross-tenant update cene/artikla. Zdaj: resolver.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PUT /api/menu-items/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existing = await db.menuItem.findFirst({
       where: {
         id,
-        ...(sessionLocationId
-          ? { category: { menu: { locationId: sessionLocationId } } }
+        ...(scope.locationId
+          ? { category: { menu: { locationId: scope.locationId } } }
           : {}),
       },
       // RUNDA 70: potrebujemo artikelovo lokacijo za scope check skupin dodatkov
@@ -71,8 +80,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         select: { menu: { select: { locationId: true } } },
       })
       const targetLoc = target?.menu.locationId ?? null
-      const scope = authResult.session?.locationId ?? null
-      if (!target || (scope && targetLoc !== scope)) {
+      const scopeLocId = scope.locationId ?? null
+      if (!target || (scopeLocId && targetLoc !== scopeLocId)) {
         return NextResponse.json({ error: 'Ciljna kategorija ni na voljo na tej lokaciji' }, { status: 404 })
       }
     }
@@ -133,18 +142,24 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const { id } = await params
 
     // Auth check
-    const authResult = await requireAuth(req)
+    // FIX R86-2c1 (LOW pariteta): isti manage_inventory gate kot PUT/POST.
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
     if (authResult.error) return authResult.error
 
     // 404 check before delete
     // FIX IDOR (tenant scope): izbriši SAMO artikel, ki pripada session lokaciji
     // (veriga: MenuItem → Category → Menu → locationId)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R86-2c1 (M2): raw spread `?? undefined` fail-open — cross-tenant
+    // soft-delete (sabotaža tujega menija). Zdaj: resolver.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'DELETE /api/menu-items/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existing = await db.menuItem.findFirst({
       where: {
         id,
-        ...(sessionLocationId
-          ? { category: { menu: { locationId: sessionLocationId } } }
+        ...(scope.locationId
+          ? { category: { menu: { locationId: scope.locationId } } }
           : {}),
       },
     })

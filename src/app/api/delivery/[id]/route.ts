@@ -2,7 +2,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { updateDeliverySchema } from '@/lib/validations'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { handleRouteError, parseJsonBody, validateBody } from '@/lib/api-utils'
@@ -29,10 +29,16 @@ export async function PUT(
     // FIX IDOR (tenant scope): dostava je rešena prek verige DeliveryInfo → Order → locationId
     // (natakar lokacije A ne more spreminjati dostav lokacije B; dostave brez
     // povezanega naročila (order=null) so dostopne samo super adminu z locationId=null)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2b (M2 razred): prej raw spread `session?.locationId ?? undefined` —
+    // fail-open za non-admin seja z NULL lokacijo (cross-tenant status/address
+    // update dostave). Resolver: fail-closed 403 + conditional spread iz scope-a.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PUT /api/delivery/[id]',
+    })
+    if ('error' in scope) return scope.error
     const delivery = await db.$transaction(async (tx) => {
       const existing = await tx.deliveryInfo.findFirst({
-        where: { id, ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}) },
+        where: { id, ...(scope.locationId ? { order: { locationId: scope.locationId } } : {}) },
       })
       if (!existing) {
         throw new Error('DELIVERY_NOT_FOUND')

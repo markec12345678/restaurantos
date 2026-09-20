@@ -3,6 +3,7 @@
 // ============================================
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { handleApiError } from '@/lib/api-utils'
 import {
   processBirthdayBatch,
@@ -21,7 +22,13 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'view_reports' })
     if (authResult.error) return authResult.error
 
-    const stats = await getLoyaltyAutomationStats()
+    // FIX R86-4 (LOW): tenant scope — statistika samo nad lastnimi računi
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'GET /api/loyalty-automation',
+    })
+    if ('error' in scope) return scope.error
+
+    const stats = await getLoyaltyAutomationStats(scope.locationId)
     return NextResponse.json({ stats, config: DEFAULT_CONFIG })
   } catch (err) {
     return handleApiError(err, 'loyalty-automation GET')
@@ -55,6 +62,13 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // FIX R86-4 (LOW): tenant scope — brez scopa je batch poslal SMS (in dodal
+    // točke!) VSEM loyalty računom VSEH tenantov. Super-admin = globalni batch.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, null, {
+      endpoint: 'POST /api/loyalty-automation',
+    })
+    if ('error' in scope) return scope.error
+
     const body = await req.json().catch(() => ({ action: 'all' }))
     const input = actionSchema.parse(body)
     const config: LoyaltyAutomationConfig = {
@@ -67,11 +81,11 @@ export async function POST(req: Request) {
     const results: Record<string, unknown> = {}
 
     if (input.action === 'birthday_batch' || input.action === 'all') {
-      results.birthday = await processBirthdayBatch(config)
+      results.birthday = await processBirthdayBatch(config, scope.locationId)
     }
 
     if (input.action === 'winback_batch' || input.action === 'all') {
-      results.winback = await processWinbackBatch(config)
+      results.winback = await processWinbackBatch(config, scope.locationId)
     }
 
     return NextResponse.json({ success: true, results })

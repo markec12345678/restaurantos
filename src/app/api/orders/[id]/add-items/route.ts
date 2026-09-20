@@ -8,6 +8,7 @@ import { addOrderItemsSchema } from '@/lib/validations'
 import { deductStockForAddedItems, broadcastLowStockAlert } from '@/lib/stock-deduction'
 import { wsBroadcastEvent } from '@/lib/ws-server-broadcast'
 import { handleRouteError, parseJsonBody, validateBody } from '@/lib/api-utils'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { createOrderItemsAndRecalculate } from './_helpers'
 
 
@@ -30,9 +31,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // Pridobi obstoječe naročilo
     // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'POST /api/orders/[id]/add-items',
+    })
+    if ('error' in scope) return scope.error
     const order = await db.order.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       include: { orderItems: { include: { menuItem: true } }, table: true },
     })
 
@@ -98,7 +104,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // Pridobi posodobljeno naročilo
     // FIX P0-C1 (IDOR): Tudi za vračanje posodobljenega naročila uporabi locationId scope
     const updatedOrder = await db.order.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       include: {
         table: true,
         orderItems: { include: { menuItem: true } },

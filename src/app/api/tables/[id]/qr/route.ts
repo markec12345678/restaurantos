@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { db } from '@/lib/db'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import QRCode from 'qrcode'
 import { getAppUrl } from '@/lib/utils'
 
@@ -19,9 +20,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     const { id } = await params
     // FIX IDOR (tenant scope): QR kodo generiraj SAMO za mizo session lokacije
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R86-2c1 (M2): raw spread `?? undefined` je bil fail-open za non-admin
+    // NULL-lokacijsko sejo → QR poljubne (tuje) mize po ID-ju. Zdaj: resolver.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'GET /api/tables/[id]/qr',
+    })
+    if ('error' in scope) return scope.error
     const table = await db.table.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       select: { id: true, number: true, area: true },
     })
     if (!table) return NextResponse.json({ error: 'Miza ni najdena' }, { status: 404 })

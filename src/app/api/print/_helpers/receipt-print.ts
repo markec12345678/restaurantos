@@ -9,7 +9,7 @@ import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 import { parseOrderItemModifiers, parseVatBreakdown } from '@/lib/json-fields'
 
 /** Pripravi podatke in natisne račun */
-export async function handleReceiptPrint(orderId: string, printerId: string | undefined, authSession: { employeeId?: string; employeeName?: string } | null) {
+export async function handleReceiptPrint(orderId: string, printerId: string | undefined, authSession: { employeeId?: string; employeeName?: string } | null, locationId: string | null) {
   if (!orderId) {
     return { error: 'Manjka orderId', status: 400 }
   }
@@ -26,11 +26,16 @@ export async function handleReceiptPrint(orderId: string, printerId: string | un
   if (!order) {
     return { error: 'Naročilo ni najdeno', status: 404 }
   }
+  // FIX R86-4 (MEDIUM): tuj order = ISTI 404 kot neobstoječ (brez oraklja) —
+  // račun nosi FURS/CIS fiskalne podatke + PII gostov.
+  if (locationId && order.locationId !== locationId) {
+    return { error: 'Naročilo ni najdeno', status: 404 }
+  }
   const receipt = order.receipt[0]
   if (!receipt) {
     return { error: 'Račun ni najden', status: 404 }
   }
-  const printer = await findPrinter('receipt', printerId)
+  const printer = await findPrinter('receipt', printerId, locationId)
   if (!printer) {
     return { error: 'Noben blagajnski tiskalnik ni na voljo', printed: false }
   }

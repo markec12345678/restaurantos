@@ -7,7 +7,7 @@
 // GET - Pridobi posamezno naročilo
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { purchaseOrderUpdateSchema, VALID_PO_TRANSITIONS, handleReceiveAction } from './_helpers'
@@ -24,9 +24,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     const { id } = await params
     // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2b (M2 razred): prej raw spread `session?.locationId ?? undefined` —
+    // fail-open za non-admin seja z NULL lokacijo (cross-tenant read nabavnega
+    // naročila + items). Resolver: fail-closed 403 + pin.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'GET /api/purchase-orders/[id]',
+    })
+    if ('error' in scope) return scope.error
     const po = await db.purchaseOrder.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       include: { supplier: true, items: { include: { inventoryItem: true } } },
     })
     if (!po) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
@@ -50,6 +56,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const authResult = await requireAuth(req, { permission: 'manage_inventory' })
     if (authResult.error) return authResult.error
 
+    // R86-2b (M2 razred): resolver PRED vsemi vejami (receive + update) —
+    // prej sta obe veji dobili RAW `session?.locationId ?? undefined/null`:
+    // fail-open za non-admin NULL-location seja (cross-tenant prevzem blaga
+    // prek handleReceiveAction + cross-tenant status update).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PUT /api/purchase-orders/[id]',
+    })
+    if ('error' in scope) return scope.error
+
     const { id } = await params
 
     // FIX SECURITY: validateRequest prepreči oversized payload in sanatizira vnos
@@ -62,16 +77,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return await handleReceiveAction(
         id,
         body.receivedItems,
-        authResult.session?.employeeId,
-        authResult.session?.locationId ?? null,
+        authResult.session?.employeeId ?? null,
+        scope.locationId,
       )
     }
 
     // Navadna posodobitev
     // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope
-    const sessionLocationId = authResult.session?.locationId ?? undefined
     const existing = await db.purchaseOrder.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!existing) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
 
@@ -113,6 +127,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const authResult = await requireAuth(req, { permission: 'manage_inventory' })
     if (authResult.error) return authResult.error
 
+    // R86-2b (M2 razred): resolver PRED vsemi vejami (receive + update) —
+    // isti fail-open kot PUT (raw spread v handleReceiveAction + findFirst).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PATCH /api/purchase-orders/[id]',
+    })
+    if ('error' in scope) return scope.error
+
     const { id } = await params
 
     const { data: body, error: validationError } = await validateRequest(req, purchaseOrderUpdateSchema)
@@ -124,15 +145,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return await handleReceiveAction(
         id,
         body.receivedItems,
-        authResult.session?.employeeId,
-        authResult.session?.locationId ?? null,
+        authResult.session?.employeeId ?? null,
+        scope.locationId,
       )
     }
 
     // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (PATCH je zaostal za GET/PUT fixom)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
     const existing = await db.purchaseOrder.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!existing) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
 

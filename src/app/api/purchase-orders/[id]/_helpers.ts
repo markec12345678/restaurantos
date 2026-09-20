@@ -39,8 +39,11 @@ export const VALID_PO_TRANSITIONS: Record<string, string[]> = {
 export async function handleReceiveAction(
   id: string,
   receivedItems: { itemId: string; quantityReceived: number }[],
-  employeeId?: string,
-  sessionLocationId?: string | null,
+  employeeId: string | null,
+  // R86-2b (R85-FINAL LOW#2 pariteta): parameter je OBVEZEN (string | null,
+  // brez defaulta) — pozabljen argument ne sme tiho pomeniti "globalno".
+  // Klicatelj poda scope.locationId iz resolveTenantLocationIdOrThrow.
+  sessionLocationId: string | null,
 ) {
   const po = await db.purchaseOrder.findFirst({
     where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },

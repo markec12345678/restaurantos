@@ -67,10 +67,19 @@ const {
   mockTakeChallenge: vi.fn(),
 }))
 
-vi.mock('@/lib/auth-middleware', () => ({
-  requireAuth: mockRequireAuth,
-  invalidateEmployeeStatusCache: vi.fn(),
-}))
+vi.mock('@/lib/auth-middleware', async () => {
+  // R86-2b: delivery-zones/[id] PATCH/DELETE + gdpr/anonymize zdaj kličejo
+  // resolveTenantLocationIdOrThrow — re-export REALNEGA resolverja
+  // (isti vzorec kot r84/r85 security testi).
+  const tenantScope = await import('@/lib/auth-middleware/tenant-scope')
+  return {
+    requireAuth: mockRequireAuth,
+    resolveTenantLocationId: tenantScope.resolveTenantLocationId,
+    resolveTenantLocationIdOrThrow: tenantScope.resolveTenantLocationIdOrThrow,
+    tenantScopeToWhere: tenantScope.tenantScopeToWhere,
+    invalidateEmployeeStatusCache: vi.fn(),
+  }
+})
 
 // Eksplicitni db mock (overrides globalni Proxy mock iz tests/setup.ts) —
 // da lahko trdimo KATERE poizvedbe so (ne) izvedene.

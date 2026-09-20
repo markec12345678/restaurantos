@@ -1,6 +1,6 @@
 
 import { db } from '@/lib/db'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { updateTimeEntrySchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
@@ -26,9 +26,15 @@ export async function PUT(
 
     // FIX MEDIUM: Preveri da časovni vnos obstaja pred posodobitvijo
     // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2b (M2 razred): prej raw spread `session?.locationId ?? undefined` —
+    // fail-open za non-admin seja z NULL lokacijo (cross-tenant payroll PUT:
+    // payRate/totalPay tujega vnosa). Resolver: fail-closed 403 + scope pin.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PUT /api/time-entries/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existingEntry = await db.timeEntry.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!existingEntry) {
       return NextResponse.json({ error: 'Časovni vnos ni najden' }, { status: 404 })

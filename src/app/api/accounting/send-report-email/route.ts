@@ -4,6 +4,7 @@ import { round2 } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { handleApiError } from '@/lib/api-utils'
 import { sendZReportEmail, isEmailEnabled, getReportRecipients } from '@/lib/email'
 import { fetchReportData, generateReportPdf } from '@/app/api/reports/export/_helpers'
@@ -16,6 +17,17 @@ export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+
+    // FIX R86-4 (LOW): tenant scope — prej je fetchReportData potegnil Z-report
+    // podatke VSEH lokacij/tenantov in jih poslal v email. Lokovani admin =
+    // samo svoja lokacija; super-admin = globalno (fetchReportData podpira
+    // locationId od R84).
+    const scope = resolveTenantLocationIdOrThrow(
+      authResult.session,
+      new URL(req.url).searchParams,
+      { endpoint: 'POST /api/accounting/send-report-email' },
+    )
+    if ('error' in scope) return scope.error
 
     // Preveri ali je email omogočen
     const emailEnabled = await isEmailEnabled()
@@ -42,7 +54,7 @@ export async function POST(req: Request) {
       gte: new Date(reportDate + 'T00:00:00'),
       lte: new Date(reportDate + 'T23:59:59'),
     }
-    const reportData = await fetchReportData(dateFilter)
+    const reportData = await fetchReportData(dateFilter, scope.locationId)
 
     // Generiraj PDF
     const pdfBuffer = await generateReportPdf(reportData)

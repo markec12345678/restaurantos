@@ -137,11 +137,18 @@ vi.mock('@/lib/db', () => ({
   createAuditLog: vi.fn().mockResolvedValue(undefined),
 }))
 
-vi.mock('@/lib/auth-middleware', () => ({
-  requireAuth: mocks.requireAuth,
-  resolveTenantLocationId: vi.fn(),
-  tenantScopeToWhere: vi.fn(() => ({})),
-}))
+vi.mock('@/lib/auth-middleware', async () => {
+  // R86-2b: [id] rute (inventory/employees/staff-shifts/shifts/courses) zdaj
+  // uporabljajo resolveTenantLocationIdOrThrow — re-export REALNEGA resolverja
+  // (isti vzorec kot r84/r85 security testi); prej je bil tu dead vi.fn() mock.
+  const tenantScope = await import('@/lib/auth-middleware/tenant-scope')
+  return {
+    requireAuth: mocks.requireAuth,
+    resolveTenantLocationId: tenantScope.resolveTenantLocationId,
+    resolveTenantLocationIdOrThrow: tenantScope.resolveTenantLocationIdOrThrow,
+    tenantScopeToWhere: tenantScope.tenantScopeToWhere,
+  }
+})
 
 vi.mock('@/lib/auth-middleware/session-store', () => ({
   invalidateEmployeeStatusCache: mocks.invalidateEmployeeStatusCache,

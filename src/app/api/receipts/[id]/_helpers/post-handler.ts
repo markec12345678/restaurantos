@@ -7,7 +7,7 @@ import { createReceiptSchema, receiptCreatedResponseSchema } from '@/lib/validat
 import { parseJsonBody, validateBody, validateApiResponse } from '@/lib/api-utils'
 import { toNum, round2, deepToNumbers } from '@/lib/decimal'
 import { logger } from '@/lib/logger'
-import { notInScopeResponse } from '@/lib/tenant-scope'
+import { notInScopeResponse, resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { generateZOIPlaceholder, MINIMAL_SETTINGS, calculateVatBreakdownForReceipt } from './index'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 import { submitReceiptToCis } from '@/lib/cis/receipt-submission'
@@ -29,9 +29,17 @@ export async function handlePostReceipt(
   // poraba številčne serije tuje lokacije). Order.locationId je NOT NULL —
   // findFirst z lokacijskim filtrom iz seje; izven scope-a → 404
   // notInScopeResponse (isti vzorec kot GET/PUT tukaj in P0-C1 transfer).
-  const sessionLocId = _authResult.session?.locationId ?? undefined
+  // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a —
+  // regularna NULL-location seja je prej lahko fiskalizirala naročilo KATEREGA
+  // KOLI tenanta (številčna serija + FURS zoi/eor). Resolver teče TUKAJ (in ne
+  // v route), ker tudi receipts/regenerate kliče ta handler z authResult.
+  const { searchParams } = new URL(req.url)
+  const scope = resolveTenantLocationIdOrThrow(_authResult.session, searchParams, {
+    endpoint: 'POST /api/receipts/[id]',
+  })
+  if ('error' in scope) return scope.error
   const order = await db.order.findFirst({
-    where: { id, ...(sessionLocId ? { locationId: sessionLocId } : {}) },
+    where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     include: { orderItems: { include: { menuItem: true } } },
   })
 

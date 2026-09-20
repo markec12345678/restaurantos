@@ -1,7 +1,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { updateInventorySchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { toNum, round2, divide, decEquals, deepToNumbers } from '@/lib/decimal'
@@ -25,9 +25,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (validationError) return validationError
 
     // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope (cross-tenant zaščita)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2b (M2 razred): prej raw spread `session?.locationId ?? undefined` —
+    // fail-open za non-admin seja z NULL lokacijo (cross-tenant PUT/PATCH zaloge
+    // + StockTransaction zapis tujega artikla). Resolver: fail-closed 403 + pin.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PUT /api/inventory/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existing = await db.inventoryItem.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!existing) {
       return NextResponse.json({ error: 'Artikel zaloge ni najden' }, { status: 404 })
@@ -123,9 +129,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (validationError) return validationError
 
     // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope (cross-tenant zaščita)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2b (M2 razred): raw spread `?? undefined` → resolver (fail-closed 403).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PATCH /api/inventory/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existing = await db.inventoryItem.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!existing) {
       return NextResponse.json({ error: 'Artikel zaloge ni najden' }, { status: 404 })

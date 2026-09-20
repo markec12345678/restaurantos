@@ -152,10 +152,19 @@ export function calculateDaysUntilEmpty(
 }
 
 // 4. Generiraj priporočila za naročilo
-export async function generateReorderRecommendations(): Promise<PredictiveOrderingResult> {
-  // Pridobi vse aktivne reorder rules z inventory itemi
+// R86-4 (MEDIUM): MANDATORY locationId (string | null) — null = super-admin
+// globalni pogled. InventoryItem.locationId je nullable — legacy NULL artikli
+// so ločenemu uporabniku nevidni (fail-closed), super-admin jih vidi.
+export async function generateReorderRecommendations(
+  locationId: string | null,
+): Promise<PredictiveOrderingResult> {
+  // Pridobi vse aktivne reorder rules z inventory itemi (scope prek inventoryItem)
   const rules = await db.reorderRule.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      // R86-4: pogojni spread — NIKOLI { inventoryItem: { locationId: null } }
+      ...(locationId ? { inventoryItem: { locationId } } : {}),
+    },
     include: {
       inventoryItem: {
         select: {
@@ -176,6 +185,8 @@ export async function generateReorderRecommendations(): Promise<PredictiveOrderi
     where: {
       quantity: { lte: db.inventoryItem.fields.minQuantity },
       reorderRule: null,
+      // R86-4: pogojni spread — NIKOLI { locationId: null }
+      ...(locationId ? { locationId } : {}),
     },
     select: {
       id: true,

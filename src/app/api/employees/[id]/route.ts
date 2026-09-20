@@ -1,7 +1,7 @@
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
-import { requireAuth, revokeEmployeeSessions } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow, revokeEmployeeSessions } from '@/lib/auth-middleware'
 import { updateEmployeeSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import bcrypt from 'bcryptjs'
@@ -30,9 +30,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     // FIX HIGH: Preveri, da zaposleni obstaja pred posodobitvijo
     // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope
     // (manager lokacije A ne more urejati zaposlenih lokacije B)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2b (M2 razred): prej raw spread `session?.locationId ?? undefined` —
+    // fail-open za non-admin seja z NULL lokacijo (session-lifecycle sprejme
+    // null za VSAKO vlogo → prazen filter = globalni update tujega zaposlenega).
+    // Kanonični resolver: regular user brez lokacije → 403 fail-closed;
+    // loc-bound → pripet na svojo lokacijo; super-admin → globalni nadzor.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PUT /api/employees/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existing = await db.employee.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!existing) {
       return NextResponse.json({ error: 'Zaposleni ni najden' }, { status: 404 })
@@ -162,9 +170,14 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     // FIX IDOR (tenant scope): terminiraj SAMO zaposlenega znotraj session lokacije
     // (manager lokacije A ne more terminirati zaposlenega lokacije B)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2b (M2 razred): raw spread `?? undefined` → resolver (fail-closed 403
+    // za non-admin brez lokacije; lokacijski pin prek conditional spread).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'DELETE /api/employees/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existing = await db.employee.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!existing) {
       return NextResponse.json({ error: 'Zaposleni ni najden' }, { status: 404 })

@@ -9,19 +9,27 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { updateLocationSchema } from './_helpers'
 import { maskLocationSecrets } from '@/lib/secret-masks'
-import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
+import { isWithinScope, notInScopeResponse, resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 
 // FIX R80 (tenant scope): lokacija JE tenant root (runda 76 /locations/sync vzorec).
 // Skupni guard za VSE handlerje v tej datoteki (GET/PUT/DELETE): lokacijsko vezana
 // seja sme dostopati SAMO do svoje lokacije (GET je vračal _count ×6 + order.aggregate
 // dnevni promet/tips za POLJUBNO lokacijo; PUT/DELETE pa pisanje po tujem tenantu).
 // Super-admin (session.locationId = null) ima cross-lokacijski nadzor.
+// FIX R86-2c1 (M2): prej je guard pri NULL session.locationId kar spustil
+// (`if (sessionLocId && …)`), tako da je non-admin seja z 'admin' permissionom
+// in NULL lokacijo (session-lifecycle sprejme null za vse role) lahko brala/
+// pisala POLJUBNO lokacijo. Zdaj: centralni resolver — non-admin NULL → 403
+// fail-closed PRED vsako poizvedbo; admin/super-admin null = globalni.
 function guardLocationScope(
-  session: { locationId?: string | null } | null | undefined,
+  session: { locationId?: string | null; role?: string } | null | undefined,
   id: string,
 ): NextResponse | null {
-  const sessionLocId = session?.locationId ?? null
-  if (sessionLocId && !isWithinScope(sessionLocId, id)) {
+  const scope = resolveTenantLocationIdOrThrow(session, undefined, {
+    endpoint: '/api/locations/[id] scope guard',
+  })
+  if ('error' in scope) return scope.error
+  if (scope.locationId && !isWithinScope(scope.locationId, id)) {
     // Namerno 404 — ne razkrivamo obstoja tuje lokacije.
     return notInScopeResponse('Lokacija')
   }

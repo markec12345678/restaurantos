@@ -7,6 +7,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { maskLocationSecrets } from '@/lib/secret-masks'
@@ -21,24 +22,30 @@ export async function GET(req: Request) {
   const authResult = await requireAuth(req, { permission: 'admin' })
   if (authResult.error) return authResult.error
 
+  // FIX R86-2c1 (M2): raw `session?.locationId ?? null` je bil fail-open za
+  // non-admin sejo z 'admin' permissionom + NULL lokacijo (session-lifecycle
+  // sprejme null za vse role) → seznam VSEH lokacij + globalna statistika.
+  // Zdaj: resolver — non-admin NULL → 403 fail-closed; super-admin vse.
+  const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+    endpoint: 'GET /api/locations',
+  })
+  if ('error' in scope) return scope.error
+
   try {
     const { searchParams } = new URL(req.url)
     const isActive = searchParams.get('isActive')
     const type = searchParams.get('type')
     // ISSUE #32: opcijsko filtriranje po subscription (multi-tenant SaaS)
+    // OPOMBA: subscriptionId filter je varen tudi za lokacijsko vezano sejo —
+    // where.id = scope.locationId se ZDAJ vedno združi (AND), tako da tuji
+    // subscriptionId ne razkrije tujih lokacij (vrne samo prazno).
     const subscriptionId = searchParams.get('subscriptionId')
-
-    // FIX R80 (tenant scope): lokacija JE tenant root (runda 76 /locations/sync vzorec).
-    // Prej: findMany z _count (orders/tables/employees/inventory) je vračal VSE lokacije
-    // z njihovimi števci recordov tudi lokacijsko vezanemu adminu. Zdaj: seja z
-    // dodeljeno lokacijo vidi samo svojo lokacijo; super-admin (locationId=null) vse.
-    const sessionLocId = authResult.session?.locationId ?? null
 
     const where: Record<string, unknown> = {}
     if (isActive !== null) where.isActive = isActive === 'true'
     if (type) where.type = type
     if (subscriptionId) where.subscriptionId = subscriptionId
-    if (sessionLocId) where.id = sessionLocId
+    if (scope.locationId) where.id = scope.locationId
 
     const locations = await db.location.findMany({
       where,
@@ -59,10 +66,14 @@ export async function GET(req: Request) {
     // (prejšnja koda je vračala polno vrstico vključno z geslom certifikata)
     const _maskedLocations = locations.map(maskLocationSecrets)
 
-    // Statistika
-    const totalLocations = await db.location.count()
-    const activeLocations = await db.location.count({ where: { isActive: true } })
-    const openNow = await db.location.count({ where: { isOpen: true, isActive: true } })
+    // FIX R86-2c1 (cross-tenant aggregate leak): števeci so bili VEDNO
+    // globalni (db.location.count() brez filtra) — lokacijsko vezan admin je
+    // videl platformno statistiko (koliko lokacij/aktivnih/odprtih je v
+    // VSIH tenantov). Zdaj: scoped na svojo lokacijo; super-admin globalno.
+    const statsWhere: Record<string, unknown> = scope.locationId ? { id: scope.locationId } : {}
+    const totalLocations = await db.location.count({ where: statsWhere })
+    const activeLocations = await db.location.count({ where: { ...statsWhere, isActive: true } })
+    const openNow = await db.location.count({ where: { ...statsWhere, isOpen: true, isActive: true } })
 
     return NextResponse.json({
       locations: locations.map(maskLocationSecrets),
@@ -108,6 +119,17 @@ export async function POST(req: Request) {
   const authResult = await requireAuth(req, { permission: 'admin' })
   if (authResult.error) return authResult.error
 
+  // FIX R86-2c1 (M2 + subscriptionId semantika): resolver za scope; lokacijsko
+  // vezan admin sme ustvariti lokacijo SAMO v svojem tenantu (subscriptionId
+  // se IZPELJE iz njegove lokacije — prej je body.subscriptionId lahko
+  // priklical poljuben tuj subscription → nova lokacija bi se pojavila v
+  // tujem tenantu prek location.subscriptionId derivacij, npr. mobile API).
+  // Admin/super-admin brez seje-lokacije sme izrecen subscriptionId (provisioning).
+  const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+    endpoint: 'POST /api/locations',
+  })
+  if ('error' in scope) return scope.error
+
   try {
     const { data, error: validationError } = await validateRequest(req, createLocationSchema)
     if (validationError) return validationError
@@ -118,11 +140,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Lokacija s kodo "${data.code}" že obstaja` }, { status: 409 })
     }
 
+    // ISSUE #32: eksplicitno nastavi subscriptionId (lahko null za single-tenant)
+    // FIX R86-2c1: lokacijsko vezana seja → subscriptionId VEDNO iz svoje
+    // lokacije (body strip); globalna seja → izrecen body.subscriptionId.
+    let subscriptionId = data.subscriptionId || null
+    if (scope.locationId) {
+      const own = await db.location.findUnique({
+        where: { id: scope.locationId },
+        select: { subscriptionId: true },
+      })
+      subscriptionId = own?.subscriptionId ?? null
+    }
+
     const location = await db.location.create({
       data: {
         ...data,
-        // ISSUE #32: eksplicitno nastavi subscriptionId ( Lahko null za single-tenant)
-        subscriptionId: data.subscriptionId || null,
+        subscriptionId,
       },
     })
 

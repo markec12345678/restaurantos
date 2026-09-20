@@ -7,6 +7,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { updateGuestSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 
@@ -24,7 +25,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // orders include so morala biti skrita. Orders include je scopcan na
     // session.locationId (Order.locationId NOT NULL). Polna tenant izolacija
     // Guest modela zahteva shematsko spremembo.
-    const sessionLocId = authResult.session?.locationId ?? null
+    // FIX R86-2c1 (M2): raw `session?.locationId ?? null` je bil fail-open —
+    // non-admin NULL-lokacijska seja je orders include dobila PRAZEN filter
+    // (naročila gosta iz VSEH tenantov). Zdaj: resolver — regular NULL → 403
+    // fail-closed (sami Guest zapis ostane globalen po R81-E1 odločitvi);
+    // super-admin vidi vsa naročila.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'GET /api/guests/[id]',
+    })
+    if ('error' in scope) return scope.error
+    const sessionLocId = scope.locationId
 
     const { id } = await params
     const guest = await db.guest.findUnique({

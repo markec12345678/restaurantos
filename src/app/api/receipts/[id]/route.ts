@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { receiptResponseSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateApiResponse } from '@/lib/api-utils'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { deepToNumbers } from '@/lib/decimal'
 import { buildReceiptPreview } from './_route-helpers'
 import { handlePostReceipt } from './_helpers/post-handler'
@@ -20,9 +21,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const { id } = await params
 
     // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/receipts/[id]',
+    })
+    if ('error' in scope) return scope.error
     const order = await db.order.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       include: {
         table: true,
         orderItems: {
@@ -97,9 +103,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (bodyResult.error) return bodyResult.error
     const body = bodyResult.data as Record<string, unknown>
     // FIX P0-C1 (IDOR): scope prek order.locationId — prej je bil račun dostopen cross-tenant
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'PUT /api/receipts/[id]',
+    })
+    if ('error' in scope) return scope.error
     const receipt = await db.receipt.findFirst({
-      where: { orderId: id, isStorno: false, ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}) },
+      where: { orderId: id, isStorno: false, ...(scope.locationId ? { order: { locationId: scope.locationId } } : {}) },
     })
     if (!receipt) {
       return NextResponse.json({ error: 'Račun ni najden' }, { status: 404 })

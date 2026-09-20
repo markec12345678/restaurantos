@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow, notInScopeResponse } from '@/lib/tenant-scope'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
@@ -26,7 +27,15 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // FIX R86-4 (MEDIUM): tenant scope — kursi so scope-i prek Order.locationId
+    // (Course NIMA lastnega stolpca). Regular/lokovani admin = samo kursi svojega
+    // naročila na svoji lokaciji; super-admin = globalni pogled.
     const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/courses',
+    })
+    if ('error' in scope) return scope.error
+
     const orderId = searchParams.get('orderId')
 
     const parsed = getCoursesSchema.safeParse({ orderId })
@@ -38,7 +47,11 @@ export async function GET(req: Request) {
     }
 
     const courses = await db.course.findMany({
-      where: { orderId: parsed.data.orderId },
+      where: {
+        orderId: parsed.data.orderId,
+        // R86-4: pogojni spread — NIKOLI { order: { locationId: null } }
+        ...(scope.locationId ? { order: { locationId: scope.locationId } } : {}),
+      },
       include: { orderItems: { include: { menuItem: true } } },
       orderBy: { courseNumber: 'asc' },
     })
@@ -55,10 +68,27 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // FIX R86-4 (MEDIUM): tenant scope PRED body/db (gate ordering)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, null, {
+      endpoint: 'POST /api/courses',
+    })
+    if ('error' in scope) return scope.error
+
     const { data, error: validationError } = await validateRequest(req, createCourseSchema)
     if (validationError) return validationError
 
     const { orderId, courseNumber, name, pacingNote } = data
+
+    // R86-4: lastniški guard — naročilo mora biti v scope-u (drugače cross-tenant
+    // kreacija kursov na tujem naročilu). Tuj/neznan orderId = isti 404 (brez oraklja).
+    const order = await db.order.findFirst({
+      where: {
+        id: orderId,
+        ...(scope.locationId ? { locationId: scope.locationId } : {}),
+      },
+      select: { id: true },
+    })
+    if (!order) return notInScopeResponse('Naročilo')
 
     const course = await db.course.create({
       data: {

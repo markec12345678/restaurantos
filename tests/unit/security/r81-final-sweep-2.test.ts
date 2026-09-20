@@ -91,14 +91,19 @@ const {
   mockCreateTipDistChain: vi.fn(),
 }))
 
-vi.mock('@/lib/auth-middleware', () => ({
-  requireAuth: mockRequireAuth,
-  optionalAuth: vi.fn(),
-  resolveTenantLocationId: vi.fn(),
-  resolveTenantLocationIdOrThrow: vi.fn(),
-  tenantScopeToWhere: vi.fn(() => ({})),
-  invalidateEmployeeStatusCache: vi.fn(),
-}))
+vi.mock('@/lib/auth-middleware', async () => {
+  // R86-2b: purchase-orders/[id] PUT/PATCH zdaj kliče resolveTenantLocationIdOrThrow —
+  // re-export REALNEGA resolverja (prej dead vi.fn() mock, ki bi vrnil undefined).
+  const tenantScope = await import('@/lib/auth-middleware/tenant-scope')
+  return {
+    requireAuth: mockRequireAuth,
+    optionalAuth: vi.fn(),
+    resolveTenantLocationId: tenantScope.resolveTenantLocationId,
+    resolveTenantLocationIdOrThrow: tenantScope.resolveTenantLocationIdOrThrow,
+    tenantScopeToWhere: tenantScope.tenantScopeToWhere,
+    invalidateEmployeeStatusCache: vi.fn(),
+  }
+})
 
 // Eksplicitni db mock (overrides globalni Proxy mock iz tests/setup.ts) —
 // da lahko trdimo KATERE poizvedbe so (ne) izvedene.
@@ -277,10 +282,19 @@ describe('R81-G: receipts post-handler tenant scope', () => {
   it('super-admin (brez lokacije) → filter absent (nikoli { locationId: null })', async () => {
     mockOrderFindFirst.mockResolvedValue(null)
 
+    // R86-2c1: mock mora vsebovati role — realni resolver (R86-2a fix v
+    // post-handlerju) je role-aware; seja brez role = regular user brez
+    // lokacije → 403. Test intent je super-admin → izrecno role: 'super_admin'.
+    // (spremenljivka namesto literala — handlePostReceipt tip seje ne deklarira role)
+    const superAdminSession = {
+      employeeId: 'emp-9',
+      role: 'super_admin' as string,
+      locationId: null as string | null,
+    }
     const res = await handlePostReceipt(
       jsonReq('http://localhost:3000/api/receipts/order-2', 'POST', {}),
       'order-2',
-      { session: { employeeId: 'emp-9', locationId: null } },
+      { session: superAdminSession },
     )
 
     expect(res.status).toBe(404)

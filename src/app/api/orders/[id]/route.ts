@@ -5,6 +5,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { orderPatchActionSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { db } from '@/lib/db'
 import { handlePutOrder } from './_helpers'
 import { handleFireAction, handleItemStatusUpdate, performOrderSoftDelete } from './webhooks'
@@ -20,9 +21,16 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (authResult.error) return authResult.error
 
     const { id } = await params
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R86-2a (M2 fail-open): raw `session?.locationId ?? undefined` je regularno
+    // sejo z NULL locationId pustil do GLOBALNEGA findFirst (session-store sprejme
+    // null lokacijo za KATEROKOLI vlogo). Centralni resolver: fail-closed 403.
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/orders/[id]',
+    })
+    if ('error' in scope) return scope.error
     const order = await db.order.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       include: {
         table: true,
         orderItems: {
@@ -58,12 +66,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const { data: patchData, error: patchError } = validateBody(orderPatchActionSchema, bodyResult.data)
     if (patchError) return patchError
 
+    // FIX R86-2a (M2 fail-open): scope iz centralnega resolverja (prej raw spread)
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'PATCH /api/orders/[id]',
+    })
+    if ('error' in scope) return scope.error
+
     if (patchData.action === 'item_status') {
       const { itemId, status } = patchData
       // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
-      const sessionLocationId = authResult.session?.locationId ?? undefined
       const order = await db.order.findFirst({
-        where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+        where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       })
       if (!order) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
 
@@ -74,9 +88,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     if (patchData.action === 'fire') {
       // FIX P0-C1 (IDOR): Preveri locationId scope pred fire akcijo
-      const sessionLocationId = authResult.session?.locationId ?? undefined
       const orderForFire = await db.order.findFirst({
-        where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+        where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
         select: { id: true },
       })
       if (!orderForFire) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
@@ -98,9 +111,14 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'DELETE /api/orders/[id]',
+    })
+    if ('error' in scope) return scope.error
     const order = await db.order.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       include: { receipt: true },
     })
 

@@ -144,7 +144,8 @@ export function useOrderState() {
     setPromoLoading(true)
     try {
       const sub = getSubtotal(cart)
-      const result = await checkPromoCodeApi(promoCode, sub)
+      // R86-3 (M5): promo-check je zdaj vezan na izbrano lokacijo (fail-closed)
+      const result = await checkPromoCodeApi(promoCode, sub, selectedLocation)
       setPromoResult(result)
     } finally {
       setPromoLoading(false)

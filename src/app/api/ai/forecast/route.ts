@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { checkRateLimitAsync, getClientIp, AI_ASSISTANT_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
@@ -36,12 +37,22 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({ days: 7, method: 'auto' }))
     const { days, method } = forecastSchema.parse(body)
 
+    // FIX R86-4 (MEDIUM): tenant scope — prej je napoved temeljila na order
+    // zgodovini VSEH tenantov (promet, tipi, artikli konkurence). Scope PRED
+    // prvo poizvedbo.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, null, {
+      endpoint: 'POST /api/ai/forecast',
+    })
+    if ('error' in scope) return scope.error
+
     // Pridobi zadnjih 90 dni zgodovine (za vzpostavitev pattern-a)
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
     const historicalOrders = await db.order.findMany({
       where: {
         paidAt: { gte: ninetyDaysAgo },
         paymentStatus: 'paid',
+        // R86-4: pogojni spread — NIKOLI { locationId: null }
+        ...(scope.locationId ? { locationId: scope.locationId } : {}),
       },
       select: {
         paidAt: true,
@@ -131,7 +142,11 @@ export async function POST(req: Request) {
     const topItemIds = Object.entries(allItems).sort((a, b) => b[1] - a[1]).slice(0, 10)
     const menuItemIds = topItemIds.map(([id]) => id)
     const menuItems = await db.menuItem.findMany({
-      where: { id: { in: menuItemIds } },
+      where: {
+        id: { in: menuItemIds },
+        // R86-4: defense-in-depth — imena artiklov tudi scoped (scope prek menu)
+        ...(scope.locationId ? { category: { menu: { locationId: scope.locationId } } } : {}),
+      },
       select: { id: true, name: true },
     })
 

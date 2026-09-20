@@ -19,7 +19,7 @@
 
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { toNum, deepToNumbers } from '@/lib/decimal'
@@ -46,6 +46,22 @@ export async function GET(
         { error: 'Nimate dovoljenja za dostop do teh podatkov' },
         { status: 403 }
       )
+    }
+
+    // R86-2b (M2 razred, defense-in-depth): prej je :90 isWithinScope dobil RAW
+    // `session?.locationId ?? null` — isWithinScope(null,·) = true pomeni
+    // "super-admin, globalno". Danes ta vrstica ni dosegljiva za regular-null
+    // sejo (isSelf bypass / 403 zgornji gate), ampak pravilo kanona je:
+    // isWithinScope SME dobiti SAMO scope.locationId iz resolverja. isSelf pot
+    // ohrani lastno lokacijo (self-export ne sme blokirati); admin path gre
+    // skozi resolver (loc-bound admin pripet, super-admin null = globalno).
+    let scopeLocationId: string | null = authResult.session?.locationId ?? null
+    if (!isSelf) {
+      const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+        endpoint: 'GET /api/gdpr/export/[employeeId]',
+      })
+      if ('error' in scope) return scope.error
+      scopeLocationId = scope.locationId
     }
 
     // ─── 1. Osebni podatki ─────────────────────────────────────
@@ -75,19 +91,14 @@ export async function GET(
       },
     })
 
-    if (!employee) {
-      return NextResponse.json(
-        { error: 'Zaposleni ni najden' },
-        { status: 404 }
-      )
-    }
-
     // FIX R81-F (LEAK-MEDIUM, cross-tenant): admin path je smel izvoziti poln
     // GDPR export (PII + seje z IP/UA) zaposlenega POLJUBNEGA tenanta. Zdaj:
     // lokacijsko vezan admin samo za zaposlene SVOJE lokacije (tuja ALI NULL
-    // lokacija → 404 brez razkritja); super-admin (session brez lokacije,
+    // lokacija → 404 brez razkritja); super-admin (scope null,
     // isWithinScope(null,·)=true) globalen; isSelf ostane vedno dovoljen.
-    if (!isSelf && !isWithinScope(authResult.session?.locationId ?? null, employee.locationId)) {
+    // R86-2b: združen check (brez existence oracla — enako sporočilo) +
+    // scope iz resolverja (nikoli raw session).
+    if (!employee || (!isSelf && !isWithinScope(scopeLocationId, employee.locationId))) {
       return notInScopeResponse('Zaposleni')
     }
 
@@ -246,7 +257,9 @@ export async function GET(
           entityId: employeeId,
           userId: authResult.session?.employeeId,
           // FIX R81 (tenant model): vnos pripada lokaciji izvoženega zaposlenega.
-          locationId: employee.locationId ?? authResult.session?.locationId ?? null,
+          // R86-2b: fallback je scope iz resolverja (ne raw session) —
+          // NULL žig ostane samo pri super-adminu (log-vnos, ni tenant podatek).
+          locationId: employee.locationId ?? scopeLocationId ?? null,
           details: JSON.stringify({
             requestedBy: authResult.session?.employeeId,
             isSelf,

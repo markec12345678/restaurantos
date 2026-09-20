@@ -27,7 +27,7 @@
 
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { invalidateEmployeeStatusCache } from '@/lib/auth-middleware'
@@ -43,6 +43,17 @@ export async function POST(
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // R86-2b (M2 razred, fail-open zaprt): prej je :72 isWithinScope dobil RAW
+    // `session?.locationId ?? null` — non-admin seja (permission 'admin' je
+    // PERMISSION, ne vloga) z NULL lokacijo je dobila scope=null →
+    // isWithinScope(null,·)=true → GLOBALNI GDPR izbris (uničenje PII tujega
+    // tenanta). Resolver: non-admin brez lokacije → 403 fail-closed;
+    // loc-bound admin pripet; super-admin (null) globalen.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'POST /api/gdpr/anonymize/[employeeId]',
+    })
+    if ('error' in scope) return scope.error
+
     // ─── 1. Preveri, da zaposleni obstaja ──────────────────────
     const employee = await db.employee.findUnique({
       where: { id: employeeId },
@@ -56,21 +67,15 @@ export async function POST(
       },
     })
 
-    if (!employee) {
-      return NextResponse.json(
-        { error: 'Zaposleni ni najden' },
-        { status: 404 }
-      )
-    }
-
     // FIX R81-F (LEAK-HIGH, cross-tenant): parent findUnique je bil nescopecan —
     // lokacijsko vezan admin je lahko ANONIMIZIRAL (uničil PII) zaposlenega
     // TUJEGA tenanta. Scope prek employee.locationId (že selectan za audit
     // izpeljavo): tuja ALI NULL lokacija → 404 (brez razkritja); super-admin
-    // (session brez lokacije) ima globalni nadzor (isWithinScope).
+    // (scope null, isWithinScope) ima globalni nadzor.
     // GDPR izbris tujega tenanta MORA odpasti.
-    const sessionLocId = authResult.session?.locationId ?? null
-    if (!isWithinScope(sessionLocId, employee.locationId)) {
+    // R86-2b: združen check (brez existence oracla — enako sporočilo) +
+    // scope iz resolverja (nikoli raw session).
+    if (!employee || !isWithinScope(scope.locationId, employee.locationId)) {
       return notInScopeResponse('Zaposleni')
     }
 
@@ -116,7 +121,8 @@ export async function POST(
           entityId: employeeId,
           userId: authResult.session?.employeeId,
           // FIX R81 (tenant model): vnos pripada lokaciji anonimiziranega zaposlenega.
-          locationId: employee.locationId ?? authResult.session?.locationId ?? null,
+          // R86-2b: fallback je scope iz resolverja (ne raw session).
+          locationId: employee.locationId ?? scope.locationId ?? null,
           details: JSON.stringify({
             anonymizedBy: authResult.session?.employeeId,
             originalName: employee.name,
@@ -158,7 +164,8 @@ export async function POST(
           entityId: employeeId,
           userId: authResult.session?.employeeId,
           // FIX R81 (tenant model): ista izpeljava kot zgornji vnos.
-          locationId: employee.locationId ?? authResult.session?.locationId ?? null,
+          // R86-2b: fallback je scope iz resolverja (ne raw session).
+          locationId: employee.locationId ?? scope.locationId ?? null,
           details: JSON.stringify({
             anonymizedAt: new Date().toISOString(),
             status: 'anonymized',

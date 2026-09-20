@@ -72,11 +72,19 @@ export async function checkDeliveryZoneApi(
 export async function checkPromoCodeApi(
   code: string,
   subtotal: number,
+  // R86-3 (M5): strežnik zahteva izrecen ?locationId (fail-closed, brez
+  // globalnega fallbacka) — pošljemo izbrano lokacijo spletnega naročila.
+  locationId?: string | null,
 ): Promise<PromoResult> {
   if (!code.trim()) return { valid: false, message: '' }
   try {
-    const res = await fetch(`/api/public/promo-check?code=${encodeURIComponent(code.trim())}&subtotal=${subtotal}`)
+    const params = new URLSearchParams({ code: code.trim(), subtotal: String(subtotal) })
+    if (locationId) params.set('locationId', locationId)
+    const res = await fetch(`/api/public/promo-check?${params.toString()}`)
     const data = await res.json()
+    // R86-3: 400 (manjkajoča lokacija) / 404 (neznana/tuja lokacija) —
+    // prijazen odgovor za UI, brez tehničnih detajlov.
+    if (!res.ok || data?.error) return { valid: false, message: 'Koda ni veljavna za to lokacijo' }
     return data
   } catch {
     return { valid: false, message: 'Napaka pri preverjanju' }

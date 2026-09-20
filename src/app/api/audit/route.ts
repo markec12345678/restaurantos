@@ -1,7 +1,8 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
+import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { logger } from '@/lib/logger'
 
 import { handleApiError, parsePaginationParams, parseJsonBody, validateBody } from '@/lib/api-utils'
@@ -84,6 +85,16 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // R86-2c2 (M2 klasa): resolver PRED body parsanjem — prej je non-admin seja
+    // z NULL lokacijo (če prečeka 'admin' permission prek dovoljenj Job-a)
+    // utiho zapisala globalni (NULL) ročni revizijski vnos. Zdaj: 403
+    // fail-closed. Super-admin ohrani NULL žig = legacy sistemski/globalni vnos
+    // (vzorec R85-4a waitlist POST; shema NIMA locationId kandidata).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'POST /api/audit',
+    })
+    if ('error' in scope) return scope.error
+
     const parsed = await parseJsonBody(req)
     if (parsed.error) return parsed.error
     const { data, error: validationError } = validateBody(createAuditLogSchema, parsed.data)
@@ -102,13 +113,14 @@ export async function POST(req: Request) {
         details,
         ipAddress: '',
         // FIX R81: ročni vnos pripada lokaciji prijavljenega admina.
-        locationId: authResult.session?.locationId ?? null,
+        // R86-2c2: žig iz resolver scope-a (non-admin NULL → 403 prej).
+        locationId: scope.locationId ?? null,
       },
     })
 
     logger.info('AUDIT', 'Ročni revizijski vnos', {
       userId: authResult.session?.employeeId ?? null,
-      locationId: authResult.session?.locationId ?? null,
+      locationId: scope.locationId ?? null,
       action: data.action,
       entityId: data.entityId,
     })

@@ -111,12 +111,20 @@ export async function POST(req: Request) {
     // preverjanja) → wallet plačilo je bilo mogoče povezati s tujim čekom
     // (cross-tenant atribucija prihodkov). Lokacijsko vezan klicatelj: ček
     // MORA biti na njegovi lokaciji; super-admin: samo obstoj.
+    // FIX R86-2a (M2 fail-open): centralni resolver — prej raw spread
+    // `session?.locationId ?? null` (:115) je regularno NULL-location sejo pustil
+    // do globalnega check lookup-a, :132 pa je žigosal NULL lokacijo na plačilo.
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'POST /api/wallet-payment',
+    })
+    if ('error' in scope) return scope.error
+
     if (input.checkId) {
-      const sessionLocationId = authResult.session?.locationId ?? null
       const check = await db.check.findFirst({
         where: {
           id: input.checkId,
-          ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}),
+          ...(scope.locationId ? { order: { locationId: scope.locationId } } : {}),
         },
         select: { id: true },
       })
@@ -127,9 +135,10 @@ export async function POST(req: Request) {
 
     const result = await initiateWalletPayment({
       ...input,
-      // R84: tenant stamping — session/api-key lokacija (checkId-derived lokacija
-      // ima prioriteto v lib; to je fallback za plačila brez čeka)
-      locationId: authResult.session?.locationId ?? null,
+      // R84: tenant stamping — resolver scope (checkId-derived lokacija ima
+      // prioriteto v lib; to je fallback za plačila brez čeka). Super-admin brez
+      // čeka ostane NULL žig (legacy, viden samo globalnemu pogledu — R85 vzorec).
+      locationId: scope.locationId ?? null,
     })
 
     return NextResponse.json({ success: true, ...result }, { status: 201 })

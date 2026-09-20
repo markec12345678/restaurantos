@@ -7,6 +7,7 @@ import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { ljubljanaDayBounds, ljubljanaTodayStr } from '@/lib/timezone-sl'
 import { saveChecklistSchema, getChecklistSchema, OPENING_CHECKLIST, CLOSING_CHECKLIST, ChecklistItem } from './_helpers'
@@ -19,7 +20,14 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // FIX R86-4 (LOW): tenant scope — checklist je shranjen v AuditLog (locationId
+    // stolpec od R81). Prej je lokacijski uporabnik videl checkliste VSEH lokacij.
     const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/daily-checklist',
+    })
+    if ('error' in scope) return scope.error
+
     // FIX QA runda 38: searchParams.get() vrne NULL (ne undefined) — z.string().optional()
     // zavrača null → GET brez ?date= je vrgel 400 → UI vedno prazen ("0/0 opravljenih")
     const parsed = getChecklistSchema.safeParse({
@@ -48,6 +56,8 @@ export async function GET(req: Request) {
           gte: dayStart,
           lte: dayEnd,
         },
+        // R86-4: pogojni spread — NIKOLI { locationId: null }
+        ...(scope.locationId ? { locationId: scope.locationId } : {}),
       },
       orderBy: { timestamp: 'desc' },
     })
@@ -96,6 +106,14 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // FIX R86-4 (LOW): tenant scope — žig session lokacije na audit vnos
+    // (super-admin brez lokacije = NULL žig, viden samo globalnemu pogledu;
+    // regular user brez lokacije je že blokiran s 403 v resolverju).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, null, {
+      endpoint: 'POST /api/daily-checklist',
+    })
+    if ('error' in scope) return scope.error
+
     const { data, error: validationError } = await validateRequest(req, saveChecklistSchema)
     if (validationError) return validationError
 
@@ -117,6 +135,8 @@ export async function POST(req: Request) {
         progress: `${completedItems}/${totalItems}`,
       } as Record<string, unknown>,
       userId: authResult.session?.employeeId,
+      // R86-4: ekspliciten tenant žig (prej best-effort izpeljava iz userId)
+      locationId: scope.locationId,
     })
 
     return NextResponse.json({

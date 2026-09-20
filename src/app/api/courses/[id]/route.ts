@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
@@ -31,9 +31,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     // FIX HIGH: Preveri, da course obstaja
     // FIX IDOR (tenant scope): najdi SAMO course, ki pripada session lokaciji
     // (veriga: Course → Order → locationId)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2b (M2 razred): prej raw spread `session?.locationId ?? undefined` —
+    // fail-open za non-admin seja z NULL lokacijo (cross-tenant fire/ready/
+    // served prehod + orderItem.updateMany tujega naročila). Resolver.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PUT /api/courses/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existing = await db.course.findFirst({
-      where: { id, ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}) },
+      where: { id, ...(scope.locationId ? { order: { locationId: scope.locationId } } : {}) },
     })
     if (!existing) {
       return NextResponse.json({ error: 'Course ni najden' }, { status: 404 })
@@ -129,9 +135,13 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     // FIX HIGH: Preveri, da course obstaja
     // FIX IDOR (tenant scope): izbriši SAMO course znotraj session lokacije
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2b (M2 razred): raw spread `?? undefined` → resolver (fail-closed).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'DELETE /api/courses/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existing = await db.course.findFirst({
-      where: { id, ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}) },
+      where: { id, ...(scope.locationId ? { order: { locationId: scope.locationId } } : {}) },
     })
     if (!existing) {
       return NextResponse.json({ error: 'Course ni najden' }, { status: 404 })

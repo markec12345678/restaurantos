@@ -12,7 +12,7 @@ import { NextResponse } from 'next/server'
 import { checkRateLimitAsync, getClientIp, PROMO_CHECK_LIMIT } from '@/lib/rate-limit'
 import { toNum, calcDiscount } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
-import { resolveDefaultLocationId } from '@/lib/counters'
+import { notInScopeResponse } from '@/lib/tenant-scope'
 
 
 import { formatEUR } from '@/lib/safe-format'
@@ -45,9 +45,27 @@ export async function GET(req: Request) {
     }
 
     // MODEL A: promo koda je PO LOKACIJI — filter na podano ?locationId=
-    // (online-order frontend ve svojo lokacijo) ali privzeto lokacijo (single-tenant).
+    // (online-order frontend ve svojo lokacijo).
     // Prej: globalni findFirst — koda DRUGE lokacije/najemnika bi bila priznana!
-    const locationId = url.searchParams.get('locationId') || await resolveDefaultLocationId()
+    // R86-3 (M5) FIX MEDIUM, fail-closed: ?locationId je OBVEZEN in VALIDIRAN
+    // (obstaja + aktiven). Prej je manjkajoči parameter sprožil globalni
+    // resolveDefaultLocationId() (prva aktivna lokacija KATEREGA KOLI
+    // tenanta) — neavtenticen cross-tenant promo oracle: validacija tujih
+    // kod + uhajanje imena/zneska popusta. Manjka → 400; neznana / tuja /
+    // neaktivna → IZKLJUČENO notInScopeResponse 404 'Lokacija ni najden'
+    // (isti odgovor za neznano in tuje — ni obstoja-oraklja); poizvedba po
+    // popustu ostane scoped na validirano lokacijo. Rate limiting nespremenjen.
+    const locationId = url.searchParams.get('locationId')?.trim() || null
+    if (!locationId) {
+      return NextResponse.json({ error: 'locationId je obvezen parameter' }, { status: 400 })
+    }
+    const validLocation = await db.location.findFirst({
+      where: { id: locationId, isActive: true },
+      select: { id: true },
+    })
+    if (!validLocation) {
+      return notInScopeResponse('Lokacija')
+    }
 
     // Poišči aktivni popust s to promo kodo (na tej lokaciji)
     // FIX QA runda 39: Discount tabela nima locationId stolpca v Neonu (P1054) —

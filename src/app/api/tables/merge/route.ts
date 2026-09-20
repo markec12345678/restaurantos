@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { createAuditLog } from '@/lib/db'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { z } from 'zod'
 
 
@@ -25,6 +26,16 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // FIX R86-2c1 (M2): raw spread `session?.locationId ?? undefined` je bil
+    // fail-open za non-admin NULL-lokacijsko sejo — merge čez tenant par
+    // (Source miza tenanta A → Target miza tenanta B: premik/prenejanje tujih
+    // naročil). Zdaj: resolver — OBE mizi morata biti v scope-u (scoped
+    // findFirst na obeh straneh); regular user brez lokacije → 403.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'POST /api/tables/merge',
+    })
+    if ('error' in scope) return scope.error
+
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error
 
@@ -37,13 +48,13 @@ export async function POST(req: Request) {
 
     // BUG-HUNT FIX 2026-09-19 (HIGH, cross-tenant): mize so bile iskane brez
     // lokacijskega scope-a — združljive so bile mize RAZLIČNIH lokacij.
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R86-2c1 (M2): scope iz centralnega resolverja (obe findFirst pripeti).
     const [sourceTable, targetTable] = await Promise.all([
       db.table.findFirst({
-        where: { id: data.sourceTableId, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+        where: { id: data.sourceTableId, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       }),
       db.table.findFirst({
-        where: { id: data.targetTableId, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+        where: { id: data.targetTableId, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       }),
     ])
     if (!sourceTable) return NextResponse.json({ error: 'Izvorna miza ni najdena' }, { status: 404 })

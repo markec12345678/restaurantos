@@ -2,7 +2,7 @@
 // Vrne seznam vseh audit log vnosov povezanih s tem PO-jem.
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
@@ -16,9 +16,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     // Preveri da PO obstaja
     // FIX IDOR (tenant scope): dnevnik SAMO za naročilo znotraj session lokacije
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2b (M2 razred): prej raw spread `session?.locationId ?? undefined` —
+    // fail-open za non-admin seja z NULL lokacijo (cross-tenant revizijski
+    // dnevnik: audit vnosi z IP tujega tenanta). Resolver.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'GET /api/purchase-orders/[id]/journal',
+    })
+    if ('error' in scope) return scope.error
     const po = await db.purchaseOrder.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       select: { id: true, poNumber: true },
     })
     if (!po) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })

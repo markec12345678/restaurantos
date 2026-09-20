@@ -6,7 +6,11 @@ import { parsePaginationParams, validateApiResponse } from '@/lib/api-utils'
 import { paymentsListResponseSchema } from '@/lib/validations'
 import { NextResponse } from 'next/server'
 
-export async function handleListPayments(req: Request, sessionLocationId?: string | null) {
+// R86-2a (R85-FINAL LOW#2 vzorec): locationId je OBAVEZEN parameter — klicatelj
+// (GET /api/payments) ga pridobi iz resolveTenantLocationIdOrThrow. Ni več
+// "pozabljen argument = tiho globalno branje": super-admin (null) je edini
+// legitimen globalni klicalec in pride sem SAMO skozi resolver.
+export async function handleListPayments(req: Request, locationId: string | null) {
   const { searchParams } = new URL(req.url)
   const checkId = searchParams.get('checkId')
   const type = searchParams.get('type')
@@ -18,11 +22,11 @@ export async function handleListPayments(req: Request, sessionLocationId?: strin
   // PAYMENT AUDIT 2026-09-09 (cross-tenant): plačila so vezana na lokacijo prek
   // Check → Order verige. Brez scope-a je zaposleni lokacije A videl finančne
   // podatke (plačila, kartice, darilne kartice) lokacije B. Super admin
-  // (sessionLocationId=null) vidi vse.
-  if (checkId || sessionLocationId) {
+  // (locationId=null po resolverju) vidi vse.
+  if (checkId || locationId) {
     where.check = {
       ...(checkId ? { id: checkId } : {}),
-      ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}),
+      ...(locationId ? { order: { locationId } } : {}),
     }
   }
 

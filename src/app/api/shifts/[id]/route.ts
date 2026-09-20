@@ -1,6 +1,6 @@
 
 import { db } from '@/lib/db'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { updateShiftSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
@@ -23,9 +23,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     // FIX MEDIUM: Preveri da izmena obstaja pred posodobitvijo
     // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2b (M2 razred): prej raw spread `session?.locationId ?? undefined` —
+    // fail-open za non-admin seja z NULL lokacijo (cross-tenant PUT izmene).
+    // Kanonični resolver: fail-closed 403 + conditional spread iz scope-a.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PUT /api/shifts/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existing = await db.shift.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!existing) {
       return NextResponse.json({ error: 'Izmena ni najdena' }, { status: 404 })
@@ -63,9 +69,13 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     // FIX: Preveri da izmena obstaja pred brisanjem
     // FIX IDOR (tenant scope): prekliči SAMO izmeno znotraj session lokacije
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2b (M2 razred): raw spread `?? undefined` → resolver (fail-closed).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'DELETE /api/shifts/[id]',
+    })
+    if ('error' in scope) return scope.error
     const shift = await db.shift.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!shift) {
       return NextResponse.json({ error: 'Izmena ni najdena' }, { status: 404 })

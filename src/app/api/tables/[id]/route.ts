@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { updateTableSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 
@@ -16,6 +17,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const authResult = await requireAuth(req)
     if (authResult.error) return authResult.error
 
+    // FIX R86-2c1 (M2): raw spread `session?.locationId ?? undefined` je bil
+    // FAIL-OPEN za non-admin sejo z NULL lokacijo (session-lifecycle.ts:114-117
+    // sprejme null za vsako vlogo) — prazen filter = cross-tenant update mize.
+    // Zdaj: centralni resolver — regular user brez lokacije → 403 fail-closed;
+    // super-admin (null) = globalni pogled.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PUT /api/tables/[id]',
+    })
+    if ('error' in scope) return scope.error
+
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error
 
@@ -24,9 +35,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (validationError) return validationError
 
     // Preveri, da miza obstaja (FIX IDOR: findUnique → findFirst z locationId scope)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
     const existing = await db.table.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!existing) {
       return NextResponse.json({ error: 'Miza ni najdena' }, { status: 404 })
@@ -69,10 +79,16 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // FIX R86-2c1 (M2): isti raw-spread fail-open kot PUT — cross-tenant hard
+    // DELETE mize. Zdaj: resolver (regular NULL → 403; super-admin globalni).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'DELETE /api/tables/[id]',
+    })
+    if ('error' in scope) return scope.error
+
     // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope (cross-tenant zaščita)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
     const table = await db.table.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       include: { orders: { where: { status: { in: ['pending', 'in-progress', 'ready'] } } } },
     })
 

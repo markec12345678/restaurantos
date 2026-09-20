@@ -202,9 +202,14 @@ export async function retryOutboxEvent(eventId: string) {
 }
 
 // 7. STATISTIKA za dashboard
-export async function getOutboxStats(): Promise<OutboxStats> {
+// R86-4: opcionalen locationId scope (GET /api/outbox poda scope.locationId).
+// Opcionalen ZA NAMENOM: interni klicatelji (WS broadcast, cron/outbox) so
+// platformski globalni pogledi (counts-only statistika) — rute pa VEDNO podajo
+// scope. Pogojni spread — NIKOLI { locationId: null }.
+export async function getOutboxStats(locationId?: string | null): Promise<OutboxStats> {
   const grouped = await db.outboxEvent.groupBy({
     by: ['status'],
+    where: locationId ? { locationId } : {},
     _count: { status: true },
     _min: { createdAt: true },
   })

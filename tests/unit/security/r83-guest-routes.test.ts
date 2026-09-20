@@ -364,11 +364,16 @@ describe('R83: public/order-track', () => {
 // 3) public/kiosk — scope menija, artiklov in idempotency replaya
 // ============================================
 describe('R83: public/kiosk', () => {
-  it('GET: ?locationId= → meni scoped na lokacijo (prej GLOBALNI meni vseh tenantov)', async () => {
+  it('GET: ?locationId= → meni scoped na lokacijo (prej GLOBALNI meni vseh tenantov). R86-3: izrecna lokacija je zdaj POLNO validirana (obstaja + aktiven)', async () => {
     mocks.menuFindMany.mockResolvedValue([])
+    // R86-3 (M4): izrecen ?locationId se validira prek location.findFirst({ id, isActive: true })
+    mocks.locationFindFirst.mockResolvedValue({ id: 'locabc123' })
 
     const res = await kioskGET(new Request('http://x/api/public/kiosk?locationId=locabc123'))
     expect(res.status).toBe(200)
+
+    // R86-3: validacija pinana — neznana/tuja/neaktivna lokacija NE vrne menija
+    expect(mocks.locationFindFirst.mock.calls[0][0].where).toEqual({ id: 'locabc123', isActive: true })
 
     const where = mocks.menuFindMany.mock.calls[0][0].where
     expect(where.locationId).toBe('locabc123')
@@ -383,34 +388,53 @@ describe('R83: public/kiosk', () => {
     expect(mocks.menuFindMany.mock.calls[0][0].where.locationId).toBe('loc-default')
   })
 
-  it('POST: artikli scoped na category.menu.locationId (prej globalni fetch tujih artiklov)', async () => {
-    mocks.resolveDefaultLocationId.mockResolvedValue('loc-kiosk')
+  it('POST: artikli scoped na category.menu.locationId (prej globalni fetch tujih artiklov). R86-3: ekspliciten kontekst je OBVEZEN (?locationId) + validiran — globalni fallback je odstranjen', async () => {
+    // R86-3 (M4): POST prej VEDNO resolveDefaultLocationId() (prva aktivna
+    // lokacija katerega koli tenanta). Zdaj: ekspliciten ?locationId +
+    // validacija (obstaja + aktiven); brez konteksta → 400 fail-closed.
+    mocks.locationFindFirst.mockResolvedValue({ id: 'lockiosk' })
     mocks.parseJsonBody.mockResolvedValue({ data: { orderItems: [{ menuItemId: 'mi-1', quantity: 1, notes: '' }], idempotencyKey: 'k-1' }, error: null })
     mocks.menuItemFindMany.mockResolvedValue([{ id: 'mi-1', name: 'Kava', price: 2, vatRate: 22 }])
     mocks.orderFindFirst.mockResolvedValue(null)
     mocks.orderCreate.mockResolvedValue({ id: 'ord-9', orderNumber: 7, total: 2.44, orderItems: [{ id: 'oi-1' }] })
 
-    const res = await kioskPOST(makeJsonReq('http://x/api/public/kiosk', { orderItems: [{ menuItemId: 'mi-1', quantity: 1 }] }))
+    const res = await kioskPOST(makeJsonReq('http://x/api/public/kiosk?locationId=lockiosk', { orderItems: [{ menuItemId: 'mi-1', quantity: 1 }] }))
     expect(res.status).toBe(201)
 
+    // R86-3: validacija pinana (obstaja + aktiven) + fallback NIKOLI konsultiran
+    expect(mocks.locationFindFirst.mock.calls[0][0].where).toEqual({ id: 'lockiosk', isActive: true })
+    expect(mocks.resolveDefaultLocationId).not.toHaveBeenCalled()
+
     const where = mocks.menuItemFindMany.mock.calls[0][0].where
-    expect(where.category).toEqual({ menu: { locationId: 'loc-kiosk' } })
+    expect(where.category).toEqual({ menu: { locationId: 'lockiosk' } })
   })
 
-  it('POST: idempotency replay lookup je lokacijsko scoped (prej globalni @unique namespace)', async () => {
-    mocks.resolveDefaultLocationId.mockResolvedValue('loc-kiosk')
+  it('POST: idempotency replay lookup je lokacijsko scoped (prej globalni @unique namespace). R86-3: ekspliciten ?locationId + validacija', async () => {
+    mocks.locationFindFirst.mockResolvedValue({ id: 'lockiosk' })
     mocks.parseJsonBody.mockResolvedValue({ data: { orderItems: [{ menuItemId: 'mi-1', quantity: 1, notes: '' }], idempotencyKey: 'k-foreign' }, error: null })
     mocks.menuItemFindMany.mockResolvedValue([{ id: 'mi-1', name: 'Kava', price: 2, vatRate: 22 }])
     // replay obstaja na TUJI lokaciji → scoped findFirst vrne null → NOVO naročilo
     mocks.orderFindFirst.mockResolvedValue(null)
     mocks.orderCreate.mockResolvedValue({ id: 'ord-10', orderNumber: 8, total: 2.44, orderItems: [{ id: 'oi-2' }] })
 
-    const res = await kioskPOST(makeJsonReq('http://x/api/public/kiosk', { orderItems: [{ menuItemId: 'mi-1', quantity: 1 }], idempotencyKey: 'k-foreign' }))
+    const res = await kioskPOST(makeJsonReq('http://x/api/public/kiosk?locationId=lockiosk', { orderItems: [{ menuItemId: 'mi-1', quantity: 1 }], idempotencyKey: 'k-foreign' }))
     expect(res.status).toBe(201)
 
     const where = mocks.orderFindFirst.mock.calls[0][0].where
     expect(where.idempotencyKey).toBe('k-foreign')
-    expect(where.locationId).toBe('loc-kiosk')
+    expect(where.locationId).toBe('lockiosk')
+  })
+
+  // R86-3 (M4): fail-closed regresija — brez lokacijskega konteksta NI več
+  // globalnega fallbacka (prej: VEDNO prva aktivna lokacija katerega koli
+  // tenanta = cross-tenant žig naročila).
+  it('POST brez lokacijskega konteksta → 400 fail-closed + ZERO pisnih klicev (R86-3)', async () => {
+    const res = await kioskPOST(makeJsonReq('http://x/api/public/kiosk', { orderItems: [{ menuItemId: 'mi-1', quantity: 1 }] }))
+    expect(res.status).toBe(400)
+    expect(mocks.resolveDefaultLocationId).not.toHaveBeenCalled()
+    expect(mocks.locationFindFirst).not.toHaveBeenCalled()
+    expect(mocks.menuItemFindMany).not.toHaveBeenCalled()
+    expect(mocks.orderCreate).not.toHaveBeenCalled()
   })
 })
 

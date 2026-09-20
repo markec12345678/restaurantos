@@ -15,7 +15,8 @@
 // ============================================
 
 import { NextResponse } from 'next/server'
-import { requireAuth, resolveTenantLocationId } from '@/lib/auth-middleware'
+import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationId, resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
@@ -36,13 +37,22 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'manage_employees' })
     if (authResult.error) return authResult.error
 
+    // R86-2c2 (M2 klasa): resolver gate PRED body parsanjem — prej je raw
+    // `sessionLoc ?? (isAdmin ? input.locationId : undefined)` non-admin sejo z
+    // NULL lokacijo poslal v generateSchedule GLOBALNO (undefined locationId =
+    // branje StaffAvailability/TimeOffRequest VSEH tenantov + z apply=true
+    // zapis razporedov čez vse lokacije). Zdaj: 403 fail-closed; super-admin
+    // sme body kandidat (ali globalni pogled).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'POST /api/ai/staff-scheduler',
+    })
+    if ('error' in scope) return scope.error
+
     const body = await req.json().catch(() => ({}))
     const input = schedulerSchema.parse(body)
 
     // FIX P0-C2: Override body locationId z avtoritativnim session.locationId za regular user
-    const sessionLoc = authResult.session?.locationId ?? null
-    const isAdmin = authResult.session?.role === 'admin' || authResult.session?.role === 'super_admin'
-    const effectiveLocationId = sessionLoc ?? (isAdmin ? input.locationId : undefined)
+    const effectiveLocationId = scope.locationId ?? input.locationId ?? undefined
 
     const result = await generateSchedule({ ...input, locationId: effectiveLocationId })
 

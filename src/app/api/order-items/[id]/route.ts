@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateOrderItemSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { toNum, deepToNumbers } from '@/lib/decimal'
 import { broadcastWS, recalculateOrderTotals, recalculateCheckTotals, returnStockForVoidedItem } from './_helpers'
 
@@ -35,11 +36,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (data.notes !== undefined) updateData.notes = data.notes
 
     // FIX (IDOR doslednost): tenant scope za VSE update-e (prej samo za void)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'PUT /api/order-items/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existingItem = await db.orderItem.findFirst({
       where: {
         id,
-        ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}),
+        ...(scope.locationId ? { order: { locationId: scope.locationId } } : {}),
       },
     })
     if (!existingItem) {

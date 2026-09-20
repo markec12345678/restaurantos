@@ -8,6 +8,7 @@ import { db, createAuditLog, createAuditLogsBatch } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { sendNotificationSchema, sendBatchSchema, simulateSend, parseDetails, stripRecipientPii } from './_helpers'
 
@@ -27,7 +28,16 @@ export async function GET(req: Request) {
     // stolpec (runda 81, shematska sprememba).
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+
+    // R86-2c2 (M2 klasa): kanonski resolver — prej raw spread
+    // `session?.locationId ?? null` je bil fail-OPEN za non-admin seja z NULL
+    // lokacijo (prazen filter = obvestila VSEH tenantov). Zdaj: 403 fail-closed.
     const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/notifications',
+    })
+    if ('error' in scope) return scope.error
+
     const status = searchParams.get('status') || 'all'
     // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
     const { limit, offset } = parsePaginationParams(searchParams, { defaultLimit: 50 })
@@ -36,8 +46,7 @@ export async function GET(req: Request) {
     // tenant-scoped. Location-bound admin vidi SAMO obvestila svoje lokacije;
     // super-admin globalni pogled. Admin vrata + stripRecipientPii ostajata kot
     // defense-in-depth (PII prejemnika se še naprej ne vrača).
-    const sessionLocId = authResult.session?.locationId ?? null
-    const locFilter = sessionLocId ? { locationId: sessionLocId } : {}
+    const locFilter = scope.locationId ? { locationId: scope.locationId } : {}
 
     const where: Record<string, unknown> = {
       action: { in: ['NOTIFICATION_SENT', 'NOTIFICATION_FAILED', 'NOTIFICATION_QUEUED'] },
@@ -102,6 +111,18 @@ export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
+
+    // R86-2c2 (M2 klasa): resolver PRED body parsanjem — prej je non-admin seja
+    // z NULL lokacijo utiho žigala NULL (globalni) audit vnos. Zdaj: 403
+    // fail-closed. Super-admin (brez lokacije) ohrani NULL žig = legacy globalni
+    // vnos, viden samo v super-admin pogledu (vzorec R85-4a waitlist POST;
+    // shema NIMA locationId kandidata → 400 bi platformnega admina popolnoma
+    // odrezal).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'POST /api/notifications',
+    })
+    if ('error' in scope) return scope.error
+
     const { data, error: validationError } = await validateRequest(req, sendNotificationSchema)
     if (validationError) return validationError
 
@@ -115,7 +136,8 @@ export async function POST(req: Request) {
       details: { channel, recipient, subject, providerId, success } as Record<string, unknown>,
       userId: authResult.session?.employeeId,
       // FIX R81: eksplicitna lokacija (iz seje) — brez odvisnosti od derivationa.
-      locationId: authResult.session?.locationId ?? null,
+      // R86-2c2: žig iz resolver scope-a (non-admin NULL → 403 prej).
+      locationId: scope.locationId ?? null,
     })
 
     return NextResponse.json({ success, providerId, channel, recipient, message: success ? 'Obvestilo uspešno poslano' : 'Pošiljanje obvestila ni uspelo' })
@@ -131,6 +153,14 @@ export async function PUT(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+
+    // R86-2c2 (M2 klasa): resolver PRED body parsanjem (isti vektor kot POST —
+    // NULL žig batch vnosov za non-admin seja brez lokacije).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PUT /api/notifications',
+    })
+    if ('error' in scope) return scope.error
+
     const { data, error: validationError } = await validateRequest(req, sendBatchSchema)
     if (validationError) return validationError
 
@@ -150,7 +180,8 @@ export async function PUT(req: Request) {
         details: { channel: notif.channel, recipient: notif.recipient, subject: notif.subject || '', providerId, success, batch: true },
         userId: authResult.session?.employeeId,
         // FIX R81: eksplicitna lokacija (iz seje) za batch vnose.
-        locationId: authResult.session?.locationId ?? null,
+        // R86-2c2: žig iz resolver scope-a (non-admin NULL → 403 prej).
+        locationId: scope.locationId ?? null,
       })
     }
 

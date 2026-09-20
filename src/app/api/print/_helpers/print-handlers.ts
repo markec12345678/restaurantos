@@ -4,6 +4,10 @@ import { findPrinter, findPrintersByRule, getPrinterModel, sendToPrinter, type P
 import { handleReceiptPrint } from './receipt-print'
 import { parseOrderItemModifiers } from '@/lib/json-fields'
 
+// R86-4: LocationScope = lokacija iz resolveTenantLocationIdOrThrow (null =
+// super-admin globalni pogled). MANDATORY zadnji parameter — klicatelj MORA
+// podati scope (R85-FINAL-1 LOW #2: ni global-by-default).
+
 // ============================================
 // PRINT HANDLERS
 // ============================================
@@ -56,7 +60,7 @@ async function printToPrinters(
  *       splošne 'order' tiskalnike
  *    4. fallback: prvi aktivni tiskalnik (kot prej)
  */
-export async function handleOrderPrint(orderId: string, printerId?: string) {
+export async function handleOrderPrint(orderId: string, printerId: string | undefined, locationId: string | null) {
   if (!orderId) {
     return { error: 'Manjka orderId', status: 400 }
   }
@@ -71,6 +75,12 @@ export async function handleOrderPrint(orderId: string, printerId?: string) {
     },
   })
   if (!order) {
+    return { error: 'Naročilo ni najdeno', status: 404 }
+  }
+  // FIX R86-4 (MEDIUM): tuj order = ISTI 404 kot neobstoječ (brez existence
+  // oraklja) — prej je lokacijski uporabnik lahko natisnil naročilo katere koli
+  // druge lokacije (artikli, gost, zneski, opombe na papirju).
+  if (locationId && order.locationId !== locationId) {
     return { error: 'Naročilo ni najdeno', status: 404 }
   }
 
@@ -95,7 +105,7 @@ export async function handleOrderPrint(orderId: string, printerId?: string) {
 
   // 1. Eksplicitni tiskalnik → celotno naročilo tja (nazaj združljivo)
   if (printerId) {
-    const printer = await findPrinter('order', printerId)
+    const printer = await findPrinter('order', printerId, locationId)
     if (!printer) {
       return { error: 'Tiskalnik ni na voljo', printed: false }
     }
@@ -120,8 +130,8 @@ export async function handleOrderPrint(orderId: string, printerId?: string) {
     stationGroups.set(stationId, group)
   }
 
-  const stationPrinters = await findPrintersByRule(r => r.type === 'prepStationOrder')
-  const orderPrinters = await findPrintersByRule(r => r.type === 'order')
+  const stationPrinters = await findPrintersByRule(r => r.type === 'prepStationOrder', locationId)
+  const orderPrinters = await findPrintersByRule(r => r.type === 'order', locationId)
 
   const allResults: { printer: string; printerIp: string; success: boolean; error?: string }[] = []
 
@@ -129,7 +139,7 @@ export async function handleOrderPrint(orderId: string, printerId?: string) {
   for (const [stationId, group] of stationGroups) {
     // Specifični tiskalnik za to postajo (pravilo vsebuje prepStationId)
     // ali splošni prepStationOrder tiskalnik (pravilo brez prepStationId = vse postaje)
-    const specific = await findPrintersByRule(r => r.type === 'prepStationOrder' && r.prepStationId === stationId)
+    const specific = await findPrintersByRule(r => r.type === 'prepStationOrder' && r.prepStationId === stationId, locationId)
     const printersForStation = specific.length > 0 ? specific : stationPrinters
     if (printersForStation.length === 0) {
       // postaja nima svojega tiskalnika → artikli gredo med "brez postaje"
@@ -144,7 +154,7 @@ export async function handleOrderPrint(orderId: string, printerId?: string) {
   let genericPrinters = orderPrinters
   if (genericPrinters.length === 0 && unstationedItems.length > 0) {
     // fallback: prvi aktivni tiskalnik (kot prej)
-    const fallback = await findPrinter('order')
+    const fallback = await findPrinter('order', undefined, locationId)
     genericPrinters = fallback ? [fallback] : []
   }
   if (unstationedItems.length > 0 && genericPrinters.length > 0) {
@@ -171,8 +181,8 @@ export async function handleOrderPrint(orderId: string, printerId?: string) {
 }
 
 /** Natisne testno stran */
-export async function handleTestPrint(printerId?: string) {
-  const printer = await findPrinter('order', printerId)
+export async function handleTestPrint(printerId: string | undefined, locationId: string | null) {
+  const printer = await findPrinter('order', printerId, locationId)
   if (!printer) {
     return { error: 'Noben tiskalnik ni na voljo', printed: false }
   }

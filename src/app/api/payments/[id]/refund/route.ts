@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { handleApiError } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
 import { generateJournalForRefund } from '@/lib/accounting/journal-generator'
@@ -32,12 +33,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // FIX P0-C1 (IDOR): findUnique → findFirst z check.order.locationId scope (cross-tenant zaščita)
     // Payment nima lastnega locationId — scoping prek Check → Order relation
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a —
+    // regularna NULL-location seja je prej lahko povrnila plačilo KATEREGA KOLI
+    // tenanta (gift card/loyalty reverzi).
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'POST /api/payments/[id]/refund',
+    })
+    if ('error' in scope) return scope.error
     const payment = await db.payment.findFirst({
       where: {
         id,
-        ...(sessionLocationId
-          ? { check: { order: { locationId: sessionLocationId } } }
+        ...(scope.locationId
+          ? { check: { order: { locationId: scope.locationId } } }
           : {}),
       },
       include: {

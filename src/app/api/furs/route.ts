@@ -10,6 +10,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { validateFursConfig, checkFursConnectivity } from '@/lib/furs'
 import { buildFursConfigFromSettings } from './helpers/build-config'
@@ -43,7 +44,16 @@ export async function GET(req: Request) {
 
     // FIX P0-C3A: Pridobi FURS config vezan na session.locationId (ne globalno!)
     // Prej: buildFursConfigFromSettings(settings) je uporabil findFirst({isActive:true})
-    const config = await buildFursConfigFromSettings(settings, authResult.session?.locationId)
+    // R86-2c2 (M2 klasa): resolver — non-admin seja z NULL lokacijo je prej
+    // dobila globalni config fallback + count ne-overjenih računov VSEH
+    // tenantov. Zdaj: 403 fail-closed. Super-admin (null) = globalni pogled;
+    // config resolution NI preoblikovana (dual-config izključitev R77/P0-C3A).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'GET /api/furs',
+    })
+    if ('error' in scope) return scope.error
+
+    const config = await buildFursConfigFromSettings(settings, scope.locationId)
     const validation = validateFursConfig(config)
     const hasCert = !!(settings.fursCertPath && settings.fursCertPassword)
     const environment = config.environment || settings.fursEnvironment || 'test'
@@ -55,13 +65,12 @@ export async function GET(req: Request) {
     // starejših od 1 uro — count je SCOPED na lokacijo seje (Receipt.locationId
     // NOT NULL); super-admin (locationId=null) vidi vse lokacije.
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000)
-    const sessionLocId = authResult.session?.locationId ?? null
     const unfiscalizedCount = await db.receipt.count({
       where: {
         fiscalVerified: false,
         isStorno: false,
         createdAt: { lt: oneHourAgo },
-        ...(sessionLocId ? { locationId: sessionLocId } : {}),
+        ...(scope.locationId ? { locationId: scope.locationId } : {}),
       },
     })
 

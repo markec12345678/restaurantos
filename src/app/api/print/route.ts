@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { printRequestSchema, handleOrderPrint, handleReceiptPrint, handleTestPrint } from './_helpers'
@@ -20,6 +21,14 @@ export async function POST(req: Request) {
   const authResult = await requireAuth(req, { permission: 'take_orders' })
   if (authResult.error) return authResult.error
 
+  // FIX R86-4 (MEDIUM): tenant scope — brez scopa je kateri koli avtenticiran
+  // uporabnik lahko natisnil TUJE naročilo/račun (vsebina: artikli, gost, zneski)
+  // na svoje ali tujе tiskalnike. Scope PRED vsemi handlerji (gate ordering).
+  const scope = resolveTenantLocationIdOrThrow(authResult.session, null, {
+    endpoint: 'POST /api/print',
+  })
+  if ('error' in scope) return scope.error
+
   try {
     const { data, error: validationError } = await validateRequest(req, printRequestSchema)
     if (validationError) return validationError
@@ -28,21 +37,21 @@ export async function POST(req: Request) {
 
     switch (type) {
       case 'order': {
-        const result = await handleOrderPrint(orderId!, printerId)
+        const result = await handleOrderPrint(orderId!, printerId, scope.locationId)
         if ('status' in result && result.status) {
           return NextResponse.json(result, { status: result.status as number })
         }
         return NextResponse.json(result)
       }
       case 'receipt': {
-        const result = await handleReceiptPrint(orderId!, printerId, authResult.session)
+        const result = await handleReceiptPrint(orderId!, printerId, authResult.session, scope.locationId)
         if ('status' in result && result.status) {
           return NextResponse.json(result, { status: result.status as number })
         }
         return NextResponse.json(result)
       }
       case 'test': {
-        const result = await handleTestPrint(printerId)
+        const result = await handleTestPrint(printerId, scope.locationId)
         return NextResponse.json(result)
       }
       default:

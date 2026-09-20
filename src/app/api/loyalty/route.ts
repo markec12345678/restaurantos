@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
+import { resolveWriteLocationId } from '@/lib/tenant-scope'
 import { createLoyaltySchema } from '@/lib/validations'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
@@ -70,24 +71,36 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // FIX R86-5 (MEDIUM, M2 razred): raw `session?.locationId || null` je bil
+    // NULL-stamp za regular uporabnika brez lokacije (globalni račun + preskočen
+    // duplikat check). Canonical resolver: regular-null → 403, super-admin
+    // ?locationId → izrecna lokacija, brez → 400 fail-closed (MODEL A vzorec
+    // expenses R85-FINAL).
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'POST /api/loyalty',
+    })
+    if ('error' in scope) return scope.error
+    const locRes = resolveWriteLocationId(scope.locationId)
+    if (!locRes.ok) return locRes.response
+
     // FIX SECURITY: validateRequest() prepreči DoS z oversized payload
     const { data, error: validationError } = await validateRequest(req, createLoyaltySchema)
     if (validationError) return validationError
 
     // P1-6/P1-7: račun zvestobe je VEZAN NA LOKACIJO (P0-C4 per-location loyalty) —
-    // session.locationId je avtoritativen (super admin brez lokacije → globalni račun).
-    const loyaltyLocationId = authResult.session?.locationId || null
+    // lokacija izpeljana iz scope-a (regular/admin s lokacijo) ali izrecnega
+    // super-admin ?locationId (zgornji resolver + resolveWriteLocationId).
+    const loyaltyLocationId = locRes.locationId
 
     // P1-7: telefon je unikaten PO LOKACIJI (ne globalno) — isti gost ima lahko
     // račun na več lokacijah. Preveri duplikat pred create (pregnosen P2002 → 400).
-    if (loyaltyLocationId) {
-      const duplicate = await db.loyaltyAccount.findFirst({
-        where: { customerPhone: data.customerPhone, locationId: loyaltyLocationId },
-        select: { id: true },
-      })
-      if (duplicate) {
-        return NextResponse.json({ error: 'Račun zvestobe s to telefonsko številko že obstaja na tej lokaciji' }, { status: 409 })
-      }
+    const duplicate = await db.loyaltyAccount.findFirst({
+      where: { customerPhone: data.customerPhone, locationId: loyaltyLocationId },
+      select: { id: true },
+    })
+    if (duplicate) {
+      return NextResponse.json({ error: 'Račun zvestobe s to telefonsko številko že obstaja na tej lokaciji' }, { status: 409 })
     }
 
     // FIX HIGH: Server nadzoruje začetne točke — klient NE more nastaviti pointsBalance/lifetimePoints

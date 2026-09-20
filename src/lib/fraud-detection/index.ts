@@ -118,10 +118,14 @@ export function isFraudRelatedPrompt(prompt: string): boolean {
 // --- Glavne detekcijske funkcije ---
 
 // 1. EXCESSIVE VOIDS — preveč voidov na izmeno
+// R86-4 (LOW): MANDATORY locationId zadnji parameter (null = super-admin).
 export async function detectExcessiveVoids(
   thresholds: FraudThresholds = DEFAULT_THRESHOLDS,
-  dateFrom?: Date,
-  dateTo?: Date,
+  // `Date | undefined` (brez ?) — TS1016: obvezen locationId ne sme slediti
+  // opcionalnemu parametru; klicatelj mora eksplicitno podati tudi undefined.
+  dateFrom: Date | undefined,
+  dateTo: Date | undefined,
+  locationId: string | null,
 ): Promise<FraudAlert[]> {
   const end = dateTo || new Date()
   const start = dateFrom || new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000) // zadnji teden
@@ -131,6 +135,8 @@ export async function detectExcessiveVoids(
     where: {
       voided: true,
       updatedAt: { gte: start, lte: end },
+      // R86-4: pogojni spread — NIKOLI { order: { locationId: null } }
+      ...(locationId ? { order: { locationId } } : {}),
     },
     select: {
       id: true,
@@ -188,8 +194,11 @@ export async function detectExcessiveVoids(
 // 2. HIGH DISCOUNTS — visoki popusti brez utemeljitve
 export async function detectHighDiscounts(
   thresholds: FraudThresholds = DEFAULT_THRESHOLDS,
-  dateFrom?: Date,
-  dateTo?: Date,
+  // `Date | undefined` (brez ?) — TS1016: obvezen locationId ne sme slediti
+  // opcionalnemu parametru; klicatelj mora eksplicitno podati tudi undefined.
+  dateFrom: Date | undefined,
+  dateTo: Date | undefined,
+  locationId: string | null,
 ): Promise<FraudAlert[]> {
   const end = dateTo || new Date()
   const start = dateFrom || new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000)
@@ -199,6 +208,8 @@ export async function detectHighDiscounts(
     where: {
       createdAt: { gte: start, lte: end },
       discount: { gt: thresholds.highDiscountAmount },
+      // R86-4: pogojni spread — NIKOLI { locationId: null }
+      ...(locationId ? { locationId } : {}),
     },
     select: {
       id: true,
@@ -251,8 +262,11 @@ export async function detectHighDiscounts(
 // 3. AFTER HOURS ACTIVITY — naročila izven delovnega časa
 export async function detectAfterHoursActivity(
   thresholds: FraudThresholds = DEFAULT_THRESHOLDS,
-  dateFrom?: Date,
-  dateTo?: Date,
+  // `Date | undefined` (brez ?) — TS1016: obvezen locationId ne sme slediti
+  // opcionalnemu parametru; klicatelj mora eksplicitno podati tudi undefined.
+  dateFrom: Date | undefined,
+  dateTo: Date | undefined,
+  locationId: string | null,
 ): Promise<FraudAlert[]> {
   const end = dateTo || new Date()
   const start = dateFrom || new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000)
@@ -260,6 +274,8 @@ export async function detectAfterHoursActivity(
   const orders = await db.order.findMany({
     where: {
       createdAt: { gte: start, lte: end },
+      // R86-4: pogojni spread — NIKOLI { locationId: null }
+      ...(locationId ? { locationId } : {}),
     },
     select: {
       id: true,
@@ -305,8 +321,11 @@ export async function detectAfterHoursActivity(
 // 4. CASH DRAWER DISCREPANCY — neskladja v blagajni
 export async function detectCashDiscrepancies(
   thresholds: FraudThresholds = DEFAULT_THRESHOLDS,
-  dateFrom?: Date,
-  dateTo?: Date,
+  // `Date | undefined` (brez ?) — TS1016: obvezen locationId ne sme slediti
+  // opcionalnemu parametru; klicatelj mora eksplicitno podati tudi undefined.
+  dateFrom: Date | undefined,
+  dateTo: Date | undefined,
+  locationId: string | null,
 ): Promise<FraudAlert[]> {
   const end = dateTo || new Date()
   const start = dateFrom || new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000)
@@ -315,6 +334,8 @@ export async function detectCashDiscrepancies(
   const cashShifts = await db.cashRegisterShift.findMany({
     where: {
       closedAt: { gte: start, lte: end },
+      // R86-4: pogojni spread — NIKOLI { locationId: null }
+      ...(locationId ? { locationId } : {}),
     },
     select: {
       id: true,
@@ -366,11 +387,15 @@ export async function detectCashDiscrepancies(
 }
 
 // --- GLAVNA FUNKCIJA: zaženi vse detekcije ---
-
+// R86-4 (LOW): MANDATORY locationId (string | null) — null = super-admin
+// globalni pogled. Prej so vse detekcije potegle ordere/shiftе VSEH tenantov.
 export async function runAllFraudChecks(
   thresholds: FraudThresholds = DEFAULT_THRESHOLDS,
-  dateFrom?: Date,
-  dateTo?: Date,
+  // `Date | undefined` (brez ?) — TS1016: obvezen locationId ne sme slediti
+  // opcionalnemu parametru; klicatelj mora eksplicitno podati tudi undefined.
+  dateFrom: Date | undefined,
+  dateTo: Date | undefined,
+  locationId: string | null,
 ): Promise<{
   alerts: FraudAlert[]
   summary: {
@@ -380,10 +405,10 @@ export async function runAllFraudChecks(
   }
 }> {
   const [voids, discounts, afterHours, cash] = await Promise.all([
-    detectExcessiveVoids(thresholds, dateFrom, dateTo),
-    detectHighDiscounts(thresholds, dateFrom, dateTo),
-    detectAfterHoursActivity(thresholds, dateFrom, dateTo),
-    detectCashDiscrepancies(thresholds, dateFrom, dateTo),
+    detectExcessiveVoids(thresholds, dateFrom, dateTo, locationId),
+    detectHighDiscounts(thresholds, dateFrom, dateTo, locationId),
+    detectAfterHoursActivity(thresholds, dateFrom, dateTo, locationId),
+    detectCashDiscrepancies(thresholds, dateFrom, dateTo, locationId),
   ])
 
   const allAlerts = [...voids, ...discounts, ...afterHours, ...cash]

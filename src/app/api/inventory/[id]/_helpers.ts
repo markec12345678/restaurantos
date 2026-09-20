@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { toNum, round2, multiply } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
 
@@ -14,9 +14,16 @@ export async function handleDeleteInventory(req: Request, id: string) {
     if (authResult.error) return authResult.error
 
     // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope (cross-tenant zaščita)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2b (M2 razred): prej raw spread `session?.locationId ?? undefined` —
+    // fail-open za non-admin seja z NULL lokacijo (cross-tenant uničenje zaloge:
+    // quantity→0 + write-off StockTransaction tujega artikla). Resolver:
+    // fail-closed 403; conditional spread iz scope-a (nikoli raw session).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'DELETE /api/inventory/[id]',
+    })
+    if ('error' in scope) return scope.error
     const item = await db.inventoryItem.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       include: { transactions: true },
     })
 

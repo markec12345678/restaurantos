@@ -114,12 +114,12 @@ function makeReq(method = 'GET', body?: unknown): Request {
 
 const LOC_A = 'loc-tenant-a'
 
-function sessionWithLocation(locationId: string | null) {
+function sessionWithLocation(locationId: string | null, role = 'staff') {
   return {
     session: {
       token: 'tok',
       employeeId: 'emp-1',
-      role: 'staff',
+      role,
       permissions: ['take_orders', 'manage_cash', 'view_reports'],
       createdAt: Date.now(),
       expiresAt: Date.now() + 3600000,
@@ -283,8 +283,11 @@ describe('P0-C1: IDOR Cross-Tenant Regression', () => {
   })
 
   describe('Admin (session.locationId = null) — no locationId filter', () => {
-    it('Admin vidi vse lokacije (brez locationId filtra)', async () => {
-      mockRequireAuth.mockResolvedValue(sessionWithLocation(null))
+    it('Admin (role admin) vidi vse lokacije (brez locationId filtra)', async () => {
+      // FIX R86-2a: session mora imeti ADMIN vlogo za globalni pogled — prej je
+      // test pinil fail-open (staff + null lokacija = globalno). Z realnim
+      // resolverjem je staff-null 403 fail-closed (glej r86-a-money-scope.test.ts).
+      mockRequireAuth.mockResolvedValue(sessionWithLocation(null, 'admin'))
       mockOrderFindFirst.mockResolvedValue({ id: 'ord-1', locationId: 'loc-other' })
       const { GET } = await import('@/app/api/orders/[id]/route')
       await GET(makeReq('GET'), { params: Promise.resolve({ id: 'ord-1' }) })

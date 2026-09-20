@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateCheckSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { deepToNumbers } from '@/lib/decimal'
 import {
 
@@ -34,9 +35,14 @@ export async function PUT(
 
     // FIX P0-C1 (IDOR): findUnique → findFirst s scope prek order.locationId (Check nima lastnega locationId)
     // FIX R85-FINAL: include order.locationId — potrebno za discount ownership guard spodaj
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'PUT /api/checks/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existingCheck = await db.check.findFirst({
-      where: { id, ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}) },
+      where: { id, ...(scope.locationId ? { order: { locationId: scope.locationId } } : {}) },
       include: { orderItems: true, order: { select: { locationId: true } } },
     })
 
@@ -103,9 +109,14 @@ export async function DELETE(
     if (authResult.error) return authResult.error
 
     // FIX P0-C1 (IDOR): findUnique → findFirst s scope prek order.locationId (Check nima lastnega locationId)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'DELETE /api/checks/[id]',
+    })
+    if ('error' in scope) return scope.error
     const check = await db.check.findFirst({
-      where: { id, ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}) },
+      where: { id, ...(scope.locationId ? { order: { locationId: scope.locationId } } : {}) },
       include: { payments: true },
     })
 

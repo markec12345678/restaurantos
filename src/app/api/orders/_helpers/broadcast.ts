@@ -21,7 +21,13 @@ export function broadcastWS(type: string, payload: unknown) {
 // hopa in brez auth potrebe — klicatelj je že avtenticiran order handler).
 export async function autoPrintKitchenOrder(order: Record<string, unknown>) {
   try {
-    await handleOrderPrint(order.id as string)
+    // R86-4: order.locationId pass-through (Order.locationId NOT NULL) —
+    // samodejni tisk ostane vezan na lokacijo naročila.
+    await handleOrderPrint(
+      order.id as string,
+      undefined,
+      typeof order.locationId === 'string' ? order.locationId : null,
+    )
   } catch (error: unknown) {
     // Tiskanje ni na voljo — logiraj kot info (ne kritično)
     logger.info('PRINT', `Samodejni tisk nedosegljiv za order ${order.id}:`, error instanceof Error ? error.message : error)

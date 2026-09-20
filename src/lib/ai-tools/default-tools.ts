@@ -210,7 +210,11 @@ registerTool(
 
     // Dynamic import, da se izognemo circular dependency
     const { runAllFraudChecks } = await import('@/lib/fraud-detection')
-    const result = await runAllFraudChecks(undefined, dateFrom, dateTo)
+    // R86-4: runAllFraudChecks zahteva locationId — ToolExecutionContext (ai-tools)
+    // NIMA locationId polja, zato null (globalno). /api/ai-assistant je izven
+    // R86-4 dosega (LOW R84-FINAL-2 "ai-assistant" carry-over ostaja odprt —
+    // ToolExecutionContext potrebuje locationId za polno scoping).
+    const result = await runAllFraudChecks(undefined, dateFrom, dateTo, null)
 
     return {
       success: true,

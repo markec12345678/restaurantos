@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { resolveLocationId } from '@/lib/location-fallback'
@@ -61,6 +62,17 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // FIX R86-2c1 (M2): centralni resolver TAKOJ za requireAuth (scope pred
+    // body parse). Prej je raw `session?.locationId || null` dopuščal
+    // non-admin sejo z 'admin' permissionom in NULL lokacijo do poljubnega
+    // body.locationId (deleteMany+recreate tuje lokacije). Zdaj: regular/
+    // manager NULL → 403 fail-closed; admin/super-admin brez lokacije sme
+    // izrecen body.locationId (MODEL A write semantika).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'POST /api/opening-hours',
+    })
+    if ('error' in scope) return scope.error
+
     // Use a union schema to support both batch and single-day creation
     const combinedSchema = z.union([
       z.object({
@@ -83,8 +95,9 @@ export async function POST(req: Request) {
       // admin je lahko deleteMany + recreate TUJO lokacijo (izbris tujega
       // delovnega časa). Zdaj: lokacijsko vezana seja je VEDNO pripeta na
       // svojo lokacijo (body strip); super-admin sme izrecen body.locationId.
-      const sessionLocId = authResult.session?.locationId || null
-      const locId = sessionLocId || batchData.locationId || null
+      // FIX R86-2c1 (M2): sessionLocId iz resolverja (fail-closed za NULL
+      // non-admin sejo — prej raw `|| null`).
+      const locId = scope.locationId || batchData.locationId || null
       // FIX R82-FINAL-2: fallback lokacija se reši PRED deleteMany — prej je
       // seja brez lokacije izbrisala 0 vrstic (deleteMany { locationId: null },
       // stolpec NOT NULL) nato kreirala na prvo lokacijo → podvojeni urniki.
@@ -110,9 +123,11 @@ export async function POST(req: Request) {
     // Single day creation
     // FIX QA runda 37: NOT NULL drift — fallback, če body nima lokacije
     // FIX R82-F: isti strip — lokacijsko vezana seja ne sme izbrati tuje lokacije
+    // FIX R86-2c1 (M2): scope iz resolverja (non-admin NULL → 403 pred zapisom;
+    // prej je raw session check spustil body.locationId skozi).
     const singleData = validatedData as z.infer<typeof openingHoursSchema>
-    if (authResult.session?.locationId) {
-      singleData.locationId = authResult.session.locationId
+    if (scope.locationId) {
+      singleData.locationId = scope.locationId
     } else if (!singleData.locationId) {
       singleData.locationId = await resolveLocationId(authResult.session?.locationId, authResult.session?.employeeId)
     }

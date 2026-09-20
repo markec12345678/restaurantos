@@ -2,7 +2,7 @@
 import { db } from '@/lib/db'
 import { toNum, deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
-import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId, tenantScopeToWhere, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { emitEvent } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
@@ -78,9 +78,17 @@ export async function POST(req: Request) {
     // BUG-HUNT FIX 2026-09-19: session scope — lokacija izmena se rešuje iz SESSIONE,
     // ne iz klientovega employeeId (prej je manage_cash uporabnik lahko odprl izmeno
     // na poljubni lokaciji z izbranim zaposlenim)
+    // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a — prej je
+    // regularna NULL-location seja lahko odprla izmeno na lokaciji POLJUBNEGA
+    // zaposlenega (client-podan employeeId) ali na globalni prvi lokaciji.
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'POST /api/cash-register',
+    })
+    if ('error' in scope) return scope.error
     const shift = await openShift(data, {
       sessionEmployeeId: authResult.session?.employeeId,
-      sessionLocationId: authResult.session?.locationId ?? null,
+      sessionLocationId: scope.locationId,
     })
 
     // Webhook: cash_register.opened
@@ -97,6 +105,7 @@ export async function POST(req: Request) {
       { match: 'ALREADY_OPEN', message: 'Že obstaja odprta izmena. Najprej zaprite trenutno izmeno.', status: 400 },
       { match: 'EMPLOYEE_ID_REQUIRED', message: 'Identifikacija zaposlenega je obvezna za odpiranje izmene.', status: 400 },
       { match: 'CROSS_LOCATION_SHIFT', message: 'Izmeno lahko odprete samo na svoji lokaciji.', status: 403 },
+      { match: 'SHIFT_LOCATION_REQUIRED', message: 'Lokacije izmene ni mogoče določiti: seja nima dodeljene lokacije in izbrani zaposleni prav tako ne. Dodelite lokacijo ali se prijavite kot zaposleni z lokacijo.', status: 400 },
       { match: 'STARTING_CASH_MISMATCH', message: 'Začetna gotovina se ne ujema s končnim stanjem prejšnje izmene. Preverite in vnesite pravilen znesek.', status: 409, extra: (parts) => ({ expectedCash: toNum(parts[1] || '0'), actualCash: toNum(parts[2] || '0') }) },
     ], 'Napaka pri odpiranju izmene')
   }

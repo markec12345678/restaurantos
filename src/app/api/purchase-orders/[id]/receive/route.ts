@@ -10,7 +10,7 @@
 
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { deepToNumbers, toNum, round2, greaterThanOrEqual, isPositive, multiply } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { z } from 'zod'
@@ -36,9 +36,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (validationError) return validationError
 
     // FIX IDOR (tenant scope): prevzemi SAMO naročilo znotraj session lokacije
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2b (M2 razred): prej raw spread `session?.locationId ?? undefined` —
+    // fail-open za non-admin seja z NULL lokacijo (cross-tenant prevzem: zaloga
+    // increment + StockTransaction + AccountsPayable tujega tenanta). Resolver.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'POST /api/purchase-orders/[id]/receive',
+    })
+    if ('error' in scope) return scope.error
     const po = await db.purchaseOrder.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       include: { items: true, supplier: true },
     })
     if (!po) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })

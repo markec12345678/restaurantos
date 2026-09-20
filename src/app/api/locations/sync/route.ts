@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import {
 
@@ -20,6 +21,16 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // FIX R86-2c1 (M2): raw `session?.locationId ?? null` je bil fail-open za
+    // non-admin sejo z 'admin' permissionom + NULL lokacijo (guard spodaj je
+    // tekel samo `if (sessionLocId)`) → cross-tenant menu sync poljubnega
+    // para lokacij. Zdaj: resolver — non-admin NULL → 403 PRED validacijo;
+    // admin/super-admin brez seje-lokacije = cross-location (nespremenjeno).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'POST /api/locations/sync',
+    })
+    if ('error' in scope) return scope.error
+
     const { data, error: validationError } = await validateRequest(req, locationSyncSchema)
     if (validationError) return validationError
 
@@ -29,7 +40,8 @@ export async function POST(req: Request) {
     // in branje (izvor menija drugega tenant-a). Zdaj: lokacijsko vezana seja (admin
     // z session.locationId) sme samo source=own IN targets⊆{own}; globalna seja
     // (super-admin, locationId=null) sme cross-location.
-    const sessionLocId = authResult.session?.locationId ?? null
+    // FIX R86-2c1 (M2): sessionLocId iz resolverja (fail-closed za non-admin NULL).
+    const sessionLocId = scope.locationId
     if (sessionLocId) {
       if (data.sourceLocationId !== sessionLocId) {
         return NextResponse.json(
@@ -111,7 +123,13 @@ export async function GET(req: Request) {
     // FIX R76 (tenant scope): lokacijsko vezana seja vidi samo svojo lokacijo.
     // Prej: seznam VSIH aktivnih lokacij + centralizirana poročila o prihodkih
     // (groupBy po narocilih BREZ locationId filtra) → puščanje prihodkov vseh tenant-ov.
-    const sessionLocId = authResult.session?.locationId ?? null
+    // FIX R86-2c1 (M2): raw `?? null` je bil fail-open za non-admin NULL-lokacijsko
+    // sejo (globalni seznam + globalni prihodki groupBy). Zdaj: resolver.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'GET /api/locations/sync',
+    })
+    if ('error' in scope) return scope.error
+    const sessionLocId = scope.locationId
     const locations = await db.location.findMany({
       where: { isActive: true, ...(sessionLocId ? { id: sessionLocId } : {}) },
       select: {

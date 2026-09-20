@@ -47,6 +47,15 @@ export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+    // R86-2b (M2 razred, fail-open žig zaprt): prej RAW `session?.locationId ??
+    // null` — non-admin seja (permission 'admin' je permission, ne vloga) z
+    // NULL lokacijo je lahko registrirala senzor na POLJUBNI body locationId
+    // (samo existence-check). Resolver: non-admin brez lokacije → 403
+    // fail-closed; body kandidat dosegljiv SAMO null-scope super-adminu.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'POST /api/iot/sensors',
+    })
+    if ('error' in scope) return scope.error
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error
     const { data, error } = validateBody(sensorSchema, bodyResult.data)
@@ -56,15 +65,24 @@ export async function POST(req: Request) {
     const value = `${data.minThreshold}-${data.maxThreshold}°C`
     // R83: atribucija lokacije — lokacijsko vezan admin registrira senzor na
     // svoji lokaciji (prej NULL); platform admin lahko poda izbirni body.locationId
-    let sensorLocationId: string | null = authResult.session?.locationId ?? null
+    // R86-2b: scope iz resolverja; super-admin BREZ veljavnega body locationId
+    // → 400 fail-closed (prej NULL žig → P2011 500 na NOT NULL stolpcu).
+    let sensorLocationId: string | null = scope.locationId
     if (!sensorLocationId) {
       const bodyLocId = typeof (bodyResult.data as { locationId?: string } | undefined)?.locationId === 'string'
         ? (bodyResult.data as { locationId?: string }).locationId!.trim()
         : null
-      if (bodyLocId) {
-        const loc = await db.location.findUnique({ where: { id: bodyLocId }, select: { id: true } })
-        sensorLocationId = loc?.id ?? null
+      if (!bodyLocId) {
+        return NextResponse.json(
+          { error: 'locationId je obvezen: seja nima dodeljene lokacije — podaj locationId.' },
+          { status: 400 },
+        )
       }
+      const loc = await db.location.findUnique({ where: { id: bodyLocId }, select: { id: true } })
+      if (!loc) {
+        return NextResponse.json({ error: 'Neveljavna lokacija (locationId ne obstaja)' }, { status: 400 })
+      }
+      sensorLocationId = loc.id
     }
     const entry = await createHaccpEntryWithChain({
       date: new Date(),

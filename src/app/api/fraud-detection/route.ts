@@ -3,6 +3,7 @@
 // ============================================
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
 import {
@@ -20,6 +21,13 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // FIX R86-4 (LOW): tenant scope — fraud poročila (voidi, popusti, blagajna)
+    // samo za lastno lokacijo; super-admin = globalno.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'GET /api/fraud-detection',
+    })
+    if ('error' in scope) return scope.error
+
     const { searchParams } = new URL(req.url)
     const dateFrom = searchParams.get('dateFrom')
     const dateTo = searchParams.get('dateTo')
@@ -27,7 +35,7 @@ export async function GET(req: Request) {
     const from = dateFrom ? new Date(dateFrom) : undefined
     const to = dateTo ? new Date(dateTo) : undefined
 
-    const result = await runAllFraudChecks(DEFAULT_THRESHOLDS, from, to)
+    const result = await runAllFraudChecks(DEFAULT_THRESHOLDS, from, to, scope.locationId)
 
     return NextResponse.json(result)
   } catch (err) {
@@ -61,6 +69,13 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // FIX R86-4 (LOW): tenant scope (run_checks path) — check_prompt je čist
+    // regex (brez DB), zato brez scope-a.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, null, {
+      endpoint: 'POST /api/fraud-detection',
+    })
+    if ('error' in scope) return scope.error
+
     const body = await req.json().catch(() => ({ action: 'run_checks' }))
     const input = actionSchema.parse(body)
 
@@ -80,7 +95,7 @@ export async function POST(req: Request) {
       const from = input.dateFrom ? new Date(input.dateFrom) : undefined
       const to = input.dateTo ? new Date(input.dateTo) : undefined
 
-      const result = await runAllFraudChecks(thresholds, from, to)
+      const result = await runAllFraudChecks(thresholds, from, to, scope.locationId)
       return NextResponse.json(result)
     }
 

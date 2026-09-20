@@ -268,9 +268,13 @@ export async function triggerWelcome(
 }
 
 // --- BATCH procesiranje (cron job) ---
+// R86-4 (LOW): MANDATORY locationId (string | null) na vseh batch/stat funkcijah
+// — null = super-admin/globalni cron pogled. Prej so batchi pošiljali SMS VSEM
+// tenantom (cross-tenant SMS odhodi + točke na tujе račune!). Pogojni spread —
+// NIKOLI { locationId: null }.
 
 // Poišče vse stranke, ki jim je danes rojstni dan
-export async function processBirthdayBatch(config: LoyaltyAutomationConfig = DEFAULT_CONFIG) {
+export async function processBirthdayBatch(config: LoyaltyAutomationConfig = DEFAULT_CONFIG, locationId: string | null) {
   const today = new Date()
   const _month = today.getMonth() + 1
   const _day = today.getDate()
@@ -282,6 +286,8 @@ export async function processBirthdayBatch(config: LoyaltyAutomationConfig = DEF
     where: {
       isActive: true,
       customerPhone: { not: '' },
+      // R86-4: pogojni spread — legacy NULL računi vidni samo super-adminu
+      ...(locationId ? { locationId } : {}),
     },
     select: { id: true, customerName: true, customerPhone: true },
   })
@@ -300,7 +306,7 @@ export async function processBirthdayBatch(config: LoyaltyAutomationConfig = DEF
 }
 
 // Poišče stranke, ki so bile neaktivne > 60 dni
-export async function processWinbackBatch(config: LoyaltyAutomationConfig = DEFAULT_CONFIG) {
+export async function processWinbackBatch(config: LoyaltyAutomationConfig = DEFAULT_CONFIG, locationId: string | null) {
   const cutoff = new Date(Date.now() - config.thresholds.winbackInactiveDays * 24 * 60 * 60 * 1000)
 
   // Poišči accounts brez transakcij po cutoff datumu
@@ -313,6 +319,8 @@ export async function processWinbackBatch(config: LoyaltyAutomationConfig = DEFA
           createdAt: { gte: cutoff },
         },
       },
+      // R86-4: pogojni spread — NIKOLI { locationId: null }
+      ...(locationId ? { locationId } : {}),
     },
     select: { id: true, customerName: true, customerPhone: true },
   })
@@ -365,11 +373,19 @@ async function sendLoyaltySms(
 }
 
 // --- Statistika ---
-export async function getLoyaltyAutomationStats() {
-  const totalAccounts = await db.loyaltyAccount.count({ where: { isActive: true } })
+export async function getLoyaltyAutomationStats(locationId: string | null) {
+  const totalAccounts = await db.loyaltyAccount.count({
+    where: {
+      isActive: true,
+      ...(locationId ? { locationId } : {}), // R86-4: pogojni spread
+    },
+  })
   const accountsByTier = await db.loyaltyAccount.groupBy({
     by: ['tier'],
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      ...(locationId ? { locationId } : {}), // R86-4: pogojni spread
+    },
     _count: { tier: true },
   })
 
@@ -380,6 +396,7 @@ export async function getLoyaltyAutomationStats() {
       isActive: true,
       customerPhone: { not: '' },
       transactions: { none: { createdAt: { gte: cutoff } } },
+      ...(locationId ? { locationId } : {}), // R86-4: pogojni spread
     },
   })
 

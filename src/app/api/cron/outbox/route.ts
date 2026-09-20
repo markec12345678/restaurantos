@@ -9,7 +9,7 @@
 // ============================================
 import { NextResponse } from 'next/server'
 import { processOutboxBatch, cleanupOldSentEvents, getOutboxStats } from '@/lib/outbox'
-import { processBirthdayBatch, processWinbackBatch } from '@/lib/loyalty-automation'
+import { processBirthdayBatch, processWinbackBatch, DEFAULT_CONFIG } from '@/lib/loyalty-automation'
 import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
@@ -60,15 +60,17 @@ export async function POST(req: Request) {
     }
 
     // 4. Loyalty automation — birthday batch (dnevno)
+    // R86-4: batch funkcije zahtevata locationId — cron je PLATFORMSKI globalni
+    // worker (CRON_SECRET fail-closed, R82-F) → ekspliciten null = vse lokacije.
     if (job === 'all' || job === 'birthday') {
-      const birthdayResult = await processBirthdayBatch()
+      const birthdayResult = await processBirthdayBatch(DEFAULT_CONFIG, null)
       results.birthday = birthdayResult
       logger.info('Cron', `Birthday batch: ${birthdayResult.sent} SMS sent, ${birthdayResult.pointsAwarded} pts awarded`)
     }
 
     // 5. Loyalty automation — winback (tedensko)
     if (job === 'all' || job === 'winback') {
-      const winbackResult = await processWinbackBatch()
+      const winbackResult = await processWinbackBatch(DEFAULT_CONFIG, null)
       results.winback = winbackResult
       logger.info('Cron', `Winback batch: ${winbackResult.sent} SMS sent, ${winbackResult.pointsAwarded} pts awarded`)
     }

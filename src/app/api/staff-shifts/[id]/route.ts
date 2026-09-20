@@ -8,7 +8,7 @@
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { parseJsonBody, handleApiError } from '@/lib/api-utils'
 
@@ -47,9 +47,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope
     // (manager lokacije A ne more urejati izmen lokacije B)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2b (M2 razred): prej raw spread `session?.locationId ?? undefined` —
+    // fail-open za non-admin seja z NULL lokacijo (prazen filter = cross-tenant
+    // PATCH izmene). Resolver: fail-closed 403; conditional spread iz scope-a.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PATCH /api/staff-shifts/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existing = await db.staffShift.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!existing) {
       return NextResponse.json({ error: 'Izmena ni najdena' }, { status: 404 })
@@ -94,9 +100,13 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const { id } = await params
 
     // FIX IDOR (tenant scope): izbriši SAMO izmeno znotraj session lokacije
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // R86-2b (M2 razred): raw spread `?? undefined` → resolver (fail-closed).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'DELETE /api/staff-shifts/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existing = await db.staffShift.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       include: { employee: { select: { name: true } } },
     })
     if (!existing) {

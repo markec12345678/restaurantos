@@ -18,7 +18,7 @@ import { NextResponse } from 'next/server'
 import { distributeTipsSchema } from './schemas'
 import { validateRequest } from '@/lib/api-utils'
 import { createTipDistributionWithChain } from '@/lib/tip-distribution-chain'
-import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
+import { isWithinScope, notInScopeResponse, resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { Prisma } from '@prisma/client'
 
 import { formatEUR } from '@/lib/safe-format'
@@ -32,15 +32,26 @@ export async function handlePutTipPool(
   const { tipPoolId, distributions } = data
 
   // Preveri pool status OUTSIDE transaction — hitri fail za 404/400
+  // FIX R86-2a (M2 fail-open): prej je isWithinScope dobil raw
+  // `session?.locationId ?? null` — regularna seja z NULL lokacijo je imela
+  // scope null → isWithinScope je vrnil true ("super-admin") → cross-tenant
+  // prepis distribucij. Centralni resolver: regularna brez lokacije → 403
+  // fail-closed, še pred branjem poola.
+  const { searchParams } = new URL(req.url)
+  const scope = resolveTenantLocationIdOrThrow(_authResult.session, searchParams, {
+    endpoint: 'PUT /api/tip-pool',
+  })
+  if ('error' in scope) return scope.error
+
   const pool = await db.tipPool.findUnique({ where: { id: tipPoolId } })
   if (!pool) return NextResponse.json({ error: 'Tip pool ne obstaja' }, { status: 404 })
   // FIX R81-G (LEAK-HIGH, cross-tenant): findUnique je bil nescopecan —
   // manage_employees staff je lahko prepisal distribucije TUJE lokacije
-  // (deleteMany + create + status flip znotraj transakcije). Scope iz seje;
+  // (deleteMany + create + status flip znotraj transakcije). Scope iz resolverja;
   // izven scope-a → 404 (ne razkrivamo obstoja poola). TipPool.locationId je
   // nullable — NULL vrstice so fail-closed za lokacijsko vezane seje;
-  // super-admin (brez session lokacije) = globalni nadzor.
-  if (!isWithinScope(_authResult.session?.locationId ?? null, pool.locationId)) {
+  // super-admin (scope null po resolverju) = globalni nadzor.
+  if (!isWithinScope(scope.locationId, pool.locationId)) {
     return notInScopeResponse('Tipski bazen')
   }
   if (pool.status === 'paid') return NextResponse.json({ error: 'Tip pool je že izplačan' }, { status: 400 })

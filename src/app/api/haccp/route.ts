@@ -8,7 +8,7 @@ import { createHaccpSchema, haccpUpdateSchema } from '@/lib/validations'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { createHaccpEntryWithChain } from '@/lib/haccp-chain'
 import { resolveLocationId } from '@/lib/location-fallback'
-import { notInScopeResponse } from '@/lib/tenant-scope'
+import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -118,20 +118,21 @@ export async function PUT(req: Request) {
     const { data, error: validationError } = await validateRequest(req, haccpUpdateSchema)
     if (validationError) return validationError
 
+    // R86-2b (M2 razred): prej RAW `session?.locationId ?? null` + ročni
+    // `if (sessionLocId && ...)` — non-admin seja (permission 'admin' je
+    // permission, ne vloga) z NULL lokacijo je preskočila guard (sessionLocId
+    // null → false → PASS) = cross-tenant update food-safety zapisa.
+    // Resolver: fail-closed 403 za non-admin brez lokacije + isWithinScope
+    // združen z existence checkom (brez oracla — enako sporočilo).
+    // POTEK: resolver PRED findUnique (fail še pred kakršno koli poizvedbo).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PUT /api/haccp',
+    })
+    if ('error' in scope) return scope.error
+
     // Preveri, da vnos obstaja
     const existing = await db.haccpEntry.findUnique({ where: { id: data.id } })
-    if (!existing) {
-      return NextResponse.json({ error: 'HACCP vnos ni najden' }, { status: 404 })
-    }
-
-    // FIX R81 (tenant scope, HIGH — runda 80 leftover): PUT/DELETE po ID sta bila
-    // nescopecana — lokacijsko vezan admin je lahko spreminjal/arhiviral HACCP
-    // (food-safety, EU 852/2004) vnose TUJIH tenantov. Scope iz seje (kanonični
-    // vzorec gift-cards/[id]): location-bound admin sme samo vnose svoje lokacije;
-    // legacy NULL locationId vrstice so fail-closed (404); super-admin
-    // (session.locationId=null) ima cross-lokacijski nadzor.
-    const sessionLocId = authResult.session?.locationId ?? null
-    if (sessionLocId && existing.locationId !== sessionLocId) {
+    if (!existing || !isWithinScope(scope.locationId, existing.locationId)) {
       return notInScopeResponse('HACCP vnos')
     }
 
@@ -169,15 +170,16 @@ export async function DELETE(req: Request) {
 
     // FIX CRITICAL: HACCP zapisi so zakonsko zahtevani (EU 852/2004) — NE hard-delete!
     // Uporabi soft-archive namesto brisanja — ohrani zapis za inšpekcije
+    // R86-2b (M2 razred): prej RAW `?? null` + `if (sessionLocId && ...)` —
+    // non-admin NULL-location seja je preskočila guard. Resolver PRED findUnique
+    // (fail brez poizvedbe) + isWithinScope združen z existence checkom.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'DELETE /api/haccp',
+    })
+    if ('error' in scope) return scope.error
+
     const existing = await db.haccpEntry.findUnique({ where: { id } })
-    if (!existing) {
-      return NextResponse.json({ error: 'HACCP vnos ni najden' }, { status: 404 })
-    }
-    // FIX R81 (tenant scope): isti guard kot PUT — arhiviranje tujega
-    // HACCP vnosa (zbrisati/skriviti inšpekcijski zapis) je cross-tenant
-    // WRITE. Fail-closed za legacy NULL locationId; super-admin unrestricted.
-    const sessionLocId = authResult.session?.locationId ?? null
-    if (sessionLocId && existing.locationId !== sessionLocId) {
+    if (!existing || !isWithinScope(scope.locationId, existing.locationId)) {
       return notInScopeResponse('HACCP vnos')
     }
     await db.haccpEntry.update({ where: { id }, data: { status: 'archived' } })

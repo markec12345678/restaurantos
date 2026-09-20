@@ -2,6 +2,7 @@ import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { cardTerminalPaymentSchema } from '@/lib/validations'
 import { logger } from '@/lib/logger'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
@@ -24,10 +25,19 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // R86-2c2 (M2 klasa): resolver gate — prej je non-admin seja z NULL lokacijo
+    // (take_orders!) prek getRestaurantInfoForLocation(null) dobila GLOBALNI
+    // RestaurantSettings fallback → terminal status (IP/port/terminalId) tuje
+    // konfiguracije. Zdaj: 403 fail-closed; super-admin (null) = dokumentiran
+    // P0-C3B single-tenant compat fallback (terminal/FURS config NE preoblikujemo —
+    // dual-config izključitev R77/P0-C3A).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'GET /api/card-terminal',
+    })
+    if ('error' in scope) return scope.error
+
     // FIX P0-C3B: Pridobi terminal config iz Location (vezano na session.locationId)
-    // Prej: settings.findFirst({isActive:true}) — globalni singleton
-    // terminalId (registerNumber) in merchantId (businessId) se razlikujeta med lokacijami
-    const info = await getRestaurantInfoForLocation(authResult.session?.locationId)
+    const info = await getRestaurantInfoForLocation(scope.locationId)
     const terminalConfig = getTerminalConfig({
       registerNumber: info.registerNumber,
       businessId: info.businessId,

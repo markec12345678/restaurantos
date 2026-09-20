@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, KIOSK_LIMIT, PUBLIC_MENU_LIMIT } from '@/lib/rate-limit'
 import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
+import { notInScopeResponse } from '@/lib/tenant-scope'
 import { buildOrderItemsData, calculateOrderTotals, fetchModifierPriceMap, type MenuItemVatMap } from '@/app/api/orders/_helpers/order-items'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
@@ -25,9 +26,33 @@ const kioskOrderSchema = z.object({
   // FIX P4: idempotency key — brez njega React Query retry ustvari duplikat
   // (kiosk je javna naprava — network retry-ji so pogosti)
   idempotencyKey: z.string().max(100).optional(),
+  // R86-3 (M4): izrecen lokacijski kontekst kioska — query ?locationId ima
+  // prednost (konsistentno z GET); brez obeh → POST fail-closed 400.
+  locationId: z.string().max(50).optional(),
 })
 
 export const dynamic = 'force-dynamic'
+
+// R86-3 (M4): ENOTNA validacija izrecnega lokacijskega konteksta (GET + POST).
+// Kiosk je javna ruta BREZ seje/API-ključa → edini veznik je ekspliciten,
+// obstoječ in AKTIVEN locationId (isti kanon kot public/delivery-check R83:
+// location.findFirst({ id, isActive: true })). Neznana / tuja / neaktivna /
+// neveljavna oblika → IZKLJUČENO notInScopeResponse('Lokacija') 404 — isti
+// odgovor za "ne obstaja" in "tuja" (ni obstoja-oraklja, ni uhajanja menija
+// tujega tenanta). NIKOLI globalnega resolveDefaultLocationId() za pisno pot.
+async function resolveKioskLocation(
+  explicitId: string | null,
+): Promise<{ ok: true; locationId: string } | { ok: false; response: NextResponse }> {
+  if (!explicitId || !/^[a-z0-9]{5,50}$/i.test(explicitId)) {
+    return { ok: false, response: notInScopeResponse('Lokacija') }
+  }
+  const location = await db.location.findFirst({
+    where: { id: explicitId, isActive: true },
+    select: { id: true },
+  })
+  if (!location) return { ok: false, response: notInScopeResponse('Lokacija') }
+  return { ok: true, locationId: location.id }
+}
 
 export async function GET(req: Request) {
   // FIX SECURITY: dodaj rate limit na GET (menu fetch) — prejšnja koda ni bila
@@ -41,13 +66,21 @@ export async function GET(req: Request) {
   try {
     // R83 fix: prej GLOBALNI meni VSEH tenantov (where samo isActive) — kiosk
     // na lokaciji A je prikazoval artikle/cene/DDV vseh lokacij. Zdaj: scope
-    // na lokacijo kioska (izbirni ?locationId=, sicer single-tenant fallback
-    // — isti kanon kot POST spodaj).
+    // na lokacijo kioska. R86-3 (M4): izrecen ?locationId je ZDAJ POLNO
+    // VALIDIRAN (obstaja + aktiven — prej samo regex oblike); neznana/tuja/
+    // neaktivna → notInScopeResponse 404. BREZ parametra: single-tenant
+    // READ fallback (dokumentiran P0-C3B kanon, kot public/menu) — SAMO za
+    // prikaz menija; pisna pot (POST) je VEDNO fail-closed, glej spodaj.
     const url = new URL(req.url)
-    const paramLocationId = url.searchParams.get('locationId')?.trim()
-    const kioskLocationId = (paramLocationId && /^[a-z0-9]{5,50}$/i.test(paramLocationId))
-      ? paramLocationId
-      : await resolveDefaultLocationId()
+    const paramLocationId = url.searchParams.get('locationId')?.trim() || null
+    let kioskLocationId: string | null
+    if (paramLocationId) {
+      const resolved = await resolveKioskLocation(paramLocationId)
+      if (!resolved.ok) return resolved.response
+      kioskLocationId = resolved.locationId
+    } else {
+      kioskLocationId = await resolveDefaultLocationId()
+    }
     if (!kioskLocationId) {
       return NextResponse.json({ error: 'Kiosk ni nastavljen — kontaktirajte osebje' }, { status: 400 })
     }
@@ -98,12 +131,27 @@ export async function POST(req: Request) {
     // R83 fix: lokacija se mora rešiti PRED fetchom artiklov (prej je bil
     // menuItem fetch globalen — tuji artikli/cene/DDV v naročilu na privzeti
     // lokaciji) in Artikli morajo biti scope-ani na menu te lokacije.
-    // P1-6: kiosk naprava stoji na lokaciji — resolucija (single-tenant fallback)
-    // Brez lokacije: ZAVRNI (naročilo brez lokacije bi bilo tiho izgubljeno za tenant poizvedbe)
-    kioskLocationId = await resolveDefaultLocationId()
-    if (!kioskLocationId) {
-      return NextResponse.json({ error: 'Kiosk ni nastavljen — kontaktirajte osebje' }, { status: 400 })
+    // P1-6: kiosk naprava stoji na lokaciji.
+    // R86-3 (M4) FIX MEDIUM, fail-closed: POST NIKOLI več uporabi globalnega
+    // resolveDefaultLocationId() fallbacka (prej: VEDNO prva aktivna lokacija
+    // KATEREGA KOLI tenanta = cross-tenant žig naročila, tuj per-lokacijski
+    // order counter, tuj KDS; GET je sprejel ?locationId, POST ga je
+    // ignoriral). Ekspliciten kontekst je OBVEZEN: ?locationId (query,
+    // konsistentno z GET) ali body.locationId; manjka → 400 (naročilo brez
+    // lokacije bi bilo tiho izgubljeno za tenant poizvedbe), neznana/tuja/
+    // neaktivna → 404 notInScopeResponse (isti odgovor — ni oraklja).
+    const url = new URL(req.url)
+    const explicitLocationId =
+      url.searchParams.get('locationId')?.trim() || data.locationId || null
+    if (!explicitLocationId) {
+      return NextResponse.json(
+        { error: 'Kiosk ni nastavljen — kontaktirajte osebje' },
+        { status: 400 },
+      )
     }
+    const kioskLoc = await resolveKioskLocation(explicitLocationId)
+    if (!kioskLoc.ok) return kioskLoc.response
+    kioskLocationId = kioskLoc.locationId
 
     // Pridobi meni artikle za izračun — R83: scoped na lokacijo kioska
     // (category.menu.locationId — isti relacijski filter kot R82-C online-order)

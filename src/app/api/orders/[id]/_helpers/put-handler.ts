@@ -14,6 +14,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateOrderSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { validateOrderTransitions } from './transitions'
 import { broadcastWS, handleOrderCompletion, handleOrderCancellation } from './order-actions'
 import { emitOrderWebhooks } from '../webhooks'
@@ -33,9 +34,16 @@ export async function handlePutOrder(req: Request, params: Promise<{ id: string 
     if (validationError) return validationError
 
     // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
-    const sessionLocationId = authResult.session?.locationId ?? undefined
+    // FIX R86-2a (M2 fail-open): centralni resolver — prej raw spread
+    // `session?.locationId ?? undefined` je regularno NULL-location sejo pustil
+    // do globalnega branja + update-a. Fail-closed 403 brez lokacije.
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'PUT /api/orders/[id]',
+    })
+    if ('error' in scope) return scope.error
     const existingOrder = await db.order.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       include: { orderItems: true, deliveryInfo: true },
     })
 
@@ -222,7 +230,7 @@ export async function handlePutOrder(req: Request, params: Promise<{ id: string 
 
     // FIX P0-C1 (IDOR): Tudi za vračanje posodobljenega naročila uporabi locationId scope
     const updatedOrder = await db.order.findFirst({
-      where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       include: { table: true, orderItems: { include: { menuItem: true } } },
     })
 

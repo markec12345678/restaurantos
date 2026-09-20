@@ -24,6 +24,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-middleware'
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { handleApiError } from '@/lib/api-utils'
 import {
   checkRateLimitAsync,
@@ -95,7 +96,14 @@ async function retryGuard(req: Request): Promise<
   if (authResult.error) return { error: authResult.error, sessionLocId: null }
   // FIX R80 (tenant scope): vrni session.locationId, da stats/retry poti scopajo
   // poizvedbe na lokacijo seje (Receipt.locationId NOT NULL); super-admin = null.
-  return { error: null, sessionLocId: authResult.session?.locationId ?? null }
+  // R86-2c2 (M2 klasa): resolver namesto raw spread — non-admin seja z NULL
+  // lokacijo je prej dobila globalni stats + retry oddajo TUJIH računov na
+  // CIS (fiskalna oddaja tujega tenanta!). Zdaj: 403 fail-closed.
+  const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+    endpoint: 'POST /api/cis/echo',
+  })
+  if ('error' in scope) return { error: scope.error, sessionLocId: null }
+  return { error: null, sessionLocId: scope.locationId }
 }
 
 /** GET ?resource=pending — števci za UI badge (pending + failed). */
