@@ -20,6 +20,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const authResult = await requireAuth(req, { permission: 'manage_cash' })
     if (authResult.error) return authResult.error
 
+    // FIX R87-4 (higiena, R86-FINAL-AUDIT LOW #3): resolver PRED body parse
+    // (kanon: tables/merge, webhooks, purchase-orders).
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'PUT /api/cash-register/[id]',
+    })
+    if ('error' in scope) return scope.error
+
     const { data, error: validationError } = await validateRequest(req, closeShiftSchema)
     if (validationError) return validationError
 
@@ -41,11 +49,6 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     // close-a poljubne izmene. Zdaj: 403 za regularno brez lokacije;
     // isWithinScope(scope.locationId, shift.locationId) — legacy NULL izmena je
     // fail-closed 404 za lokacijsko vezane seje, super-admin pa zapre vse.
-    const { searchParams } = new URL(req.url)
-    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
-      endpoint: 'PUT /api/cash-register/[id]',
-    })
-    if ('error' in scope) return scope.error
     const closedShift = await db.$transaction(async (tx) => {
       const shift = await tx.cashRegisterShift.findUnique({ where: { id } })
       if (!shift || !isWithinScope(scope.locationId, shift.locationId)) {

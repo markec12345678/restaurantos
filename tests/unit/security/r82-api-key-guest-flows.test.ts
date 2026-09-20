@@ -370,7 +370,9 @@ describe('R82-C: public/online-order — lokacijski scope artiklov', () => {
   }
 
   function primeOnline(locationId: string) {
-    mocks.locationFindUnique.mockResolvedValue({ id: locationId, isActive: true })
+    // R87-3: validacija je zdaj findFirst({ id, isActive: true }) (kiosk kanon
+    // R86-3) — prej findUnique + ročni isActive check.
+    mocks.locationFindFirst.mockResolvedValue({ id: locationId })
     mocks.menuItemFindMany.mockResolvedValue([
       { id: 'mi-1', name: 'Pizza', price: 5, vatRate: 22, isAvailable: true, recipeItems: [] },
     ])
@@ -382,39 +384,46 @@ describe('R82-C: public/online-order — lokacijski scope artiklov', () => {
     })
   }
 
+  // R87-3: id-ji BREZ vezajev — route validira regex obliko /^[a-z0-9]{5,50}$/i
+  // (kiosk kanon R86-3; Location.id je cuid, vezaji so neveljavna oblika).
   it('menuItems where vsebuje category.menu.locationId = rešena lokacija', async () => {
-    primeOnline('loc-1')
+    primeOnline('locOnline')
 
-    const res = await onlineOrderPOST(makeOnlineReq('loc-1'))
+    const res = await onlineOrderPOST(makeOnlineReq('locOnline'))
 
     expect(res.status).toBe(201)
     const where = mocks.menuItemFindMany.mock.calls[0][0].where
-    expect(where.category).toEqual({ menu: { locationId: 'loc-1' } })
+    expect(where.category).toEqual({ menu: { locationId: 'locOnline' } })
   })
 
   it('lokacija se reši PRED meni poizvedbo (invocationCallOrder)', async () => {
-    primeOnline('loc-1')
+    primeOnline('locOnline')
 
-    await onlineOrderPOST(makeOnlineReq('loc-1'))
+    await onlineOrderPOST(makeOnlineReq('locOnline'))
 
-    expect(mocks.locationFindUnique.mock.invocationCallOrder[0])
+    expect(mocks.locationFindFirst.mock.invocationCallOrder[0])
       .toBeLessThan(mocks.menuItemFindMany.mock.invocationCallOrder[0])
   })
 
-  it('neaktivna/tuja lokacija → 400, meni NI poizvedan', async () => {
-    mocks.locationFindUnique.mockResolvedValue(null)
+  it('neznana/tuja/neaktivna lokacija → unificiran 404 "Lokacija ni najden" (R87-3 kanon), meni NI poizvedan', async () => {
+    mocks.locationFindFirst.mockResolvedValue(null)
 
-    const res = await onlineOrderPOST(makeOnlineReq('loc-bad'))
+    const res = await onlineOrderPOST(makeOnlineReq('locBad99'))
 
-    expect(res.status).toBe(400)
+    expect(res.status).toBe(404)
+    const body = await res.json()
+    expect(body.error).toBe('Lokacija ni najden')
+    // where pin: obstaja + aktiven (ni obstoja-oraklja)
+    const where = mocks.locationFindFirst.mock.calls[0][0].where
+    expect(where).toEqual({ id: 'locBad99', isActive: true })
     expect(mocks.menuItemFindMany).not.toHaveBeenCalled()
   })
 
   it('tuj menuItem (scoped findMany vrne []) → 400 "niso na voljo" (isti odgovor kot neobstoječ — ni oracle)', async () => {
-    primeOnline('loc-1')
+    primeOnline('locOnline')
     mocks.menuItemFindMany.mockResolvedValue([])
 
-    const res = await onlineOrderPOST(makeOnlineReq('loc-1'))
+    const res = await onlineOrderPOST(makeOnlineReq('locOnline'))
 
     expect(res.status).toBe(400)
     const body = await res.json()
@@ -423,12 +432,12 @@ describe('R82-C: public/online-order — lokacijski scope artiklov', () => {
   })
 
   it('INSUFFICIENT_STOCK: odgovor NE vsebuje količin (stock oracle zaprt), status 409', async () => {
-    primeOnline('loc-1')
+    primeOnline('locOnline')
     ;(createOnlineOrder as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error('INSUFFICIENT_STOCK:potrebno 2.00, na voljo 5.00'),
     )
 
-    const res = await onlineOrderPOST(makeOnlineReq('loc-1'))
+    const res = await onlineOrderPOST(makeOnlineReq('locOnline'))
     const body = await res.json()
 
     expect(res.status).toBe(409)

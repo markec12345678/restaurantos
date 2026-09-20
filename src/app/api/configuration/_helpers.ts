@@ -89,12 +89,15 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { resolveCatalogScope } from '@/lib/tenant-scope'
-import { resolveLocationId } from '@/lib/location-fallback'
 
-/** RUNDA 41: lokacijska resolucija za config WRITE — seja → ?locationId= →
- *  employee.locationId → prva lokacija. Nadgradnja resolveWriteLocationId:
- *  admin brez seje lokacije (Ana) NI več blokiran z 400 — UI ne more vedeti
- *  lokacije, isti fallback kot reservations/time-entries (R37 vzorec).
+/** RUNDA 41 (R87-4 posodobitev): lokacijska resolucija za config WRITE —
+ *  seja → ?locationId= (samo admin brez seje lokacije). FAIL-CLOSED: prej je
+ *  sledil še employee lookup + GLOBALNI prva-lokacija fallback
+ *  (location-fallback.ts) — super-admin brez ?locationId je konfiguracijo
+ *  (DDV stopnje, tiskalniki, servisne postavke — fiskalno pomembni zapisi)
+ *  ustvaril na PRVI lokaciji KATEREGA KOLI tenanta. Zdaj: 400 fail-closed
+ *  (MODEL A: izrecna lokacija ali zavrnitev — enaka semantika kot
+ *  resolveWriteLocationId v ostalih MODEL A rutah).
  *  Anti-forgery ostane: če seja IMA lokacijo, je ?locationId= ignoriran. */
 export async function resolveConfigWriteLocation(
   authResult: AuthResultLike,
@@ -109,13 +112,14 @@ export async function resolveConfigWriteLocation(
   if (explicit && explicit.trim().length > 0) {
     return { ok: true, locationId: explicit.trim() }
   }
-  const employeeId = authResult?.session?.employeeId ?? null
-  const fallback = await resolveLocationId(null, employeeId)
-  if (fallback) return { ok: true, locationId: fallback }
+  // FIX R87-4 (LOW preostanek): prej še employee lookup +
+  // resolveLocationId(null, employeeId) — za super-admina brez lokacije v
+  // zapisu Employee (normalen super-admin primer) je to padlo na GLOBALNI
+  // prva-lokacija fallback (prva lokacija KATEREGA KOLI tenanta). Fail-closed 400.
   return {
     ok: false,
     response: NextResponse.json(
-      { error: 'locationId je obvezen (MODEL A): seja nima lokacije, ?locationId= ni podan in ni zaposlenega/lokacije v sistemu.' },
+      { error: 'locationId je obvezen (MODEL A): seja nima lokacije in ?locationId= ni podan. Podaj izrecno lokacijo ali se prijavi kot zaposleni z lokacijo.' },
       { status: 400 },
     ),
   }
@@ -161,8 +165,8 @@ export async function createConfigItem(
     coerceFieldTypes(filteredData)
 
     // MODEL A: konfiguracija je PO LOKACIJI (NOT NULL) — locationId se izpelje
-    // IZKLJUČNO iz seje (zaposleni), izrecnega ?locationId= (admin) ali
-    // fallback verige employee → prva lokacija (runda 41, glej helper).
+    // IZKLJUČNO iz seje (zaposleni) ali izrecnega ?locationId= (admin);
+    // globalni prva-lokacija fallback je odstranjen (R87-4, fail-closed 400).
     // locationId NI v allowedFields — klient ga NE more podati v body (anti-forgery).
     const loc = await resolveConfigWriteLocation(authResult, req)
     if (!loc.ok) return loc.response

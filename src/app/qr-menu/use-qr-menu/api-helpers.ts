@@ -10,6 +10,9 @@ export interface InitPreferences {
   prefersContrast: boolean;
   savedFontSize: FontSize | null;
   tableParam: string | null;
+  // R87-3: izrecen lokacijski kontekst iz URL (?locationId ali ?location) —
+  // multi-tenant QR URL-ji naj ga kodirajo; fallback je settings.id iz menija.
+  locationParam: string | null;
 }
 
 /** Read initial preferences from browser APIs */
@@ -20,17 +23,21 @@ export function readInitPreferences(): InitPreferences {
     prefersContrast: window.matchMedia('(prefers-contrast: more)').matches,
     savedFontSize: localStorage.getItem('qr-font-size') as FontSize | null,
     tableParam: params.get('table'),
+    locationParam: params.get('locationId') || params.get('location'),
   };
 }
 
-/** Fetch menu data from API, returns menus + settings + initial active IDs */
-export async function fetchMenuData(): Promise<{
+/** Fetch menu data from API, returns menus + settings + initial active IDs.
+ * R87-3: če URL nosi ?locationId, se meni poizvede ZA TO lokacijo (isti
+ * kontekst, za katerega bo žigosano naročilo — pisna pot je fail-closed). */
+export async function fetchMenuData(locationId?: string | null): Promise<{
   menus: unknown[];
   settings: unknown;
   initialMenuId: string;
   initialCategoryId: string;
 } | null> {
-  const res = await fetch('/api/public/menu');
+  const qs = locationId ? `?locationId=${encodeURIComponent(locationId)}` : '';
+  const res = await fetch(`/api/public/menu${qs}`);
   if (!res.ok) throw new Error('Meni trenutno ni na voljo');
   const data = await res.json();
   const menus = data.menus || [];
@@ -91,16 +98,21 @@ export function buildOrderItems(cart: CartItem[]) {
   }));
 }
 
-/** Submit QR order, returns result */
+/** Submit QR order, returns result.
+ * R87-3: pošlje izrecen locationId (lokacija, za katero je prikazan meni —
+ * settings.id iz /api/public/menu je locationId). Pisna pot strežnika je
+ * fail-closed: brez lokacijskega konteksta → 400, tuja/neaktivna → 404. */
 export async function submitOrderRequest(
   tableNumber: string,
   cart: CartItem[],
+  locationId?: string | null,
 ): Promise<OrderResult> {
   const res = await fetch('/api/public/order', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       tableNumber,
+      locationId: locationId || undefined,
       customerName: `QR Miza ${tableNumber || '?'}`,
       notes: `QR naročilo - Miza ${tableNumber || '?'}`,
       items: buildOrderItems(cart),

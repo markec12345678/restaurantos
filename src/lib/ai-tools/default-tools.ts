@@ -193,6 +193,40 @@ registerTool(
 )
 
 // --- 5. CHECK_FRAUD (admin only) ---
+/**
+ * R87-4 (LOW): izpeljava tenant lokacije za fraud scan iz ToolExecutionContext.
+ * Kontekst NE nosi raw session-a (pomenski nosi employeeId/permissions/dates).
+ * Vrstni red:
+ *   1. context.locationId (klicatelj ga izpelje prek resolveTenantLocationIdOrThrow)
+ *   2. context.employeeId → db.employee lookup (locationId + role) — klicatelji,
+ *      ki polja ne nastavijo; role-aware: admin/super_admin brez lokacije = null
+ *      (globalni pogled, tool je admin-gated prek executeTool), regular brez
+ *      lokacije = FAIL-CLOSED
+ *   3. brez izpeljive lokacije = FAIL-CLOSED (nikoli implicitni globalni scan)
+ */
+async function resolveFraudScanLocationId(context: ToolExecutionContext): Promise<
+  { ok: true; locationId: string | null } | { ok: false }
+> {
+  if (typeof context.locationId === 'string' && context.locationId.trim().length > 0) {
+    return { ok: true, locationId: context.locationId }
+  }
+  if (context.employeeId) {
+    const emp = await db.employee.findUnique({
+      where: { id: context.employeeId },
+      select: { locationId: true, role: true },
+    })
+    if (emp) {
+      if (emp.locationId) return { ok: true, locationId: emp.locationId }
+      if (emp.role === 'admin' || emp.role === 'super_admin') {
+        // Super-admin (vloga!) brez lokacije — globalni pogled je dokumentiran
+        // (check_fraud je adminOnly; executeTool vrata gardirajo permissions).
+        return { ok: true, locationId: null }
+      }
+    }
+  }
+  return { ok: false }
+}
+
 registerTool(
   {
     name: 'check_fraud',
@@ -208,13 +242,22 @@ registerTool(
     const dateFrom = (params.dateFrom as Date) || context.dateFrom
     const dateTo = (params.dateTo as Date) || context.dateTo
 
-    // Dynamic import, da se izognemo circular dependency
+    // FIX R87-4 (LOW): prej explicit `runAllFraudChecks(undefined, dateFrom, dateTo,
+    // null)` — AI assistant je skeniral fraud signale VSEH tenantov (null = globalno),
+    // tudi kadar je kontekst predstavljal regularnega zaposlenega s permission
+    // 'admin' (PERMISSION ≠ vloga). Zdaj: lokacija se izpelje iz konteksta
+    // (locationId → employeeId lookup z vlogo); brez izpeljive lokacije →
+    // fail-closed napaka (ne globalni scan).
     const { runAllFraudChecks } = await import('@/lib/fraud-detection')
-    // R86-4: runAllFraudChecks zahteva locationId — ToolExecutionContext (ai-tools)
-    // NIMA locationId polja, zato null (globalno). /api/ai-assistant je izven
-    // R86-4 dosega (LOW R84-FINAL-2 "ai-assistant" carry-over ostaja odprt —
-    // ToolExecutionContext potrebuje locationId za polno scoping).
-    const result = await runAllFraudChecks(undefined, dateFrom, dateTo, null)
+    const loc = await resolveFraudScanLocationId(context)
+    if (!loc.ok) {
+      return {
+        success: false,
+        error: 'FRAUD_SCAN_LOCATION_REQUIRED: kontekst nima izpeljive lokacije (locationId/employeeId) — globalni fraud scan je zavrnjen.',
+        format: 'text',
+      }
+    }
+    const result = await runAllFraudChecks(undefined, dateFrom, dateTo, loc.locationId)
 
     return {
       success: true,

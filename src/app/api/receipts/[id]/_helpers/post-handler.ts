@@ -17,13 +17,6 @@ export async function handlePostReceipt(
   id: string,
   _authResult: { session?: { employeeId?: string; locationId?: string | null } | null },
 ) {
-  const bodyResult = await parseJsonBody(req)
-  if (bodyResult.error) return bodyResult.error
-
-  // FIX H-01: Validiraj vnos z Zod
-  const { data, error: validationError } = validateBody(createReceiptSchema, bodyResult.data)
-  if (validationError) return validationError
-
   // FIX R81-G (LEAK-HIGH, cross-tenant): order.findUnique je bil nescopecan —
   // manage_cash staff je lahko fiskaliziral TUJ naročilo (Receipt.create +
   // poraba številčne serije tuje lokacije). Order.locationId je NOT NULL —
@@ -33,11 +26,22 @@ export async function handlePostReceipt(
   // regularna NULL-location seja je prej lahko fiskalizirala naročilo KATEREGA
   // KOLI tenanta (številčna serija + FURS zoi/eor). Resolver teče TUKAJ (in ne
   // v route), ker tudi receipts/regenerate kliče ta handler z authResult.
+  // FIX R87-4 (higiena, R86-FINAL-AUDIT LOW #3): resolver PRED body parse
+  // (kanon: tables/merge, webhooks, purchase-orders); varno — requireAuth
+  // bere samo headerje, authResult je že rezolviran s strani klicatelja.
   const { searchParams } = new URL(req.url)
   const scope = resolveTenantLocationIdOrThrow(_authResult.session, searchParams, {
     endpoint: 'POST /api/receipts/[id]',
   })
   if ('error' in scope) return scope.error
+
+  const bodyResult = await parseJsonBody(req)
+  if (bodyResult.error) return bodyResult.error
+
+  // FIX H-01: Validiraj vnos z Zod
+  const { data, error: validationError } = validateBody(createReceiptSchema, bodyResult.data)
+  if (validationError) return validationError
+
   const order = await db.order.findFirst({
     where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     include: { orderItems: { include: { menuItem: true } } },

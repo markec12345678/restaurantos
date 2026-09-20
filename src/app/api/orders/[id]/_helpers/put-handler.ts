@@ -27,21 +27,24 @@ export async function handlePutOrder(req: Request, params: Promise<{ id: string 
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
+    // FIX R86-2a (M2 fail-open): centralni resolver — prej raw spread
+    // `session?.locationId ?? undefined` je regularno NULL-location sejo pustil
+    // do globalnega branja + update-a. Fail-closed 403 brez lokacije.
+    // FIX R87-4 (higiena, R86-FINAL-AUDIT LOW #3): resolver PRED body parse
+    // (kanon: tables/merge, webhooks, purchase-orders).
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'PUT /api/orders/[id]',
+    })
+    if ('error' in scope) return scope.error
+
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error
 
     const { data, error: validationError } = validateBody(updateOrderSchema, bodyResult.data)
     if (validationError) return validationError
 
-    // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
-    // FIX R86-2a (M2 fail-open): centralni resolver — prej raw spread
-    // `session?.locationId ?? undefined` je regularno NULL-location sejo pustil
-    // do globalnega branja + update-a. Fail-closed 403 brez lokacije.
-    const { searchParams } = new URL(req.url)
-    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
-      endpoint: 'PUT /api/orders/[id]',
-    })
-    if ('error' in scope) return scope.error
     const existingOrder = await db.order.findFirst({
       where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       include: { orderItems: true, deliveryInfo: true },

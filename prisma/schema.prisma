@@ -1412,6 +1412,7 @@ model Location {
   alternatePaymentTypes AlternatePaymentType[]
   discounts            Discount[]
   modifierGroups        ModifierGroup[]   // MODEL A #9: skupine modifikatorjev PO LOKACIJI
+  guests                Guest[]           // R87: per-location CRM (tenant scope)
 
   @@index([code])
   @@index([isActive])
@@ -1765,6 +1766,12 @@ model Guest {
   // --- Zvestoba ---
   loyaltyAccountId String?  @unique
   loyaltyAccount  LoyaltyAccount?  @relation(fields: [loyaltyAccountId], references: [id], onDelete: SetNull, onUpdate: SetNull) // FIX: SetNull — brisanje LoyaltyAccount ne blokira gosta
+  // --- R87: Tenant scope (MODEL A) ---
+  // locationId = lokacija, pod katero je gost ustvarjen (per-location CRM,
+  // skladno s P1-7 per-location loyalty računi). Nullable zaradi legacy vrstic
+  // (backfill izpelje iz prvega naročila); NULL = viden samo super-adminu.
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Povezave ---
   visits          GuestVisit[]
   orders          Order[]
@@ -1779,6 +1786,7 @@ model Guest {
   @@index([lastVisitAt])
   // FIX SCHEMA-10: Composite indexes za Guest — pogoste poizvedbe
   @@index([lastName, firstName])  // Iskanje gosta po imenu in priimku
+  @@index([locationId])           // R87: tenant scope filter (guests list po lokaciji)
 }
 
 model GuestVisit {

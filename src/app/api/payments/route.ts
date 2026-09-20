@@ -35,19 +35,21 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
-    const { data, error: validationError } = await validateRequest(req, createPaymentSchema, { maxBodySize: 512 * 1024 })
-    if (validationError) return validationError
-
     // PAYMENT AUDIT 2026-09-09 (cross-tenant): posreduj lokacijo seje —
     // prepreči ustvarjanje plačila na čeku/naročilu DRUGE lokacije
     // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a —
     // regularna NULL-location seja je prej dobila GLOBALNI check lookup
     // (plačilo na tujem čeku).
+    // FIX R87-4 (higiena, R86-FINAL-AUDIT LOW #3): resolver PRED body parse.
     const { searchParams } = new URL(req.url)
     const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
       endpoint: 'POST /api/payments',
     })
     if ('error' in scope) return scope.error
+
+    const { data, error: validationError } = await validateRequest(req, createPaymentSchema, { maxBodySize: 512 * 1024 })
+    if (validationError) return validationError
+
     return await handleCreatePayment(data, authResult.session?.employeeId, scope.locationId)
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/payments', 'Napaka pri ustvarjanju plačila')

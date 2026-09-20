@@ -10,9 +10,10 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { toNum } from '@/lib/decimal'
-import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
+import { getNextOrderNumber } from '@/lib/counters'
 import { checkRateLimitAsync, getClientIp, ONLINE_ORDER_LIMIT } from '@/lib/rate-limit'
 import { handleRouteError, validateRequest } from '@/lib/api-utils'
+import { notInScopeResponse } from '@/lib/tenant-scope'
 import { formatEUR } from '@/lib/safe-format'
 import {
 
@@ -22,6 +23,26 @@ import {
 } from './_helpers'
 
 export const dynamic = 'force-dynamic'
+
+// R87-3: ENOTNA validacija izrecnega locationId (isti kanon kot public/kiosk
+// R86-3: regex oblika + location.findFirst({ id, isActive: true })). Neznana /
+// tuja / neaktivna / neveljavna oblika → IZKLJUČNO notInScopeResponse('Lokacija')
+// 404 'Lokacija ni najden' — isti odgovor za "ne obstaja" in "tuja" (ni
+// obstoja-oraklja). NIKOLI globalnega resolveDefaultLocationId() za pisno pot
+// (odstranjen R86 residual).
+async function resolveOnlineOrderLocation(
+  explicitId: string,
+): Promise<{ ok: true; locationId: string } | { ok: false; response: NextResponse }> {
+  if (!/^[a-z0-9]{5,50}$/i.test(explicitId)) {
+    return { ok: false, response: notInScopeResponse('Lokacija') }
+  }
+  const location = await db.location.findFirst({
+    where: { id: explicitId, isActive: true },
+    select: { id: true },
+  })
+  if (!location) return { ok: false, response: notInScopeResponse('Lokacija') }
+  return { ok: true, locationId: location.id }
+}
 
 export async function POST(req: Request) {
   // FIX CRITICAL: Rate limiting — skupni modul
@@ -44,28 +65,26 @@ export async function POST(req: Request) {
 
     const { orderType, items, paymentMethod, customer, promoCode, locationId } = data
 
-    // Preveri lokacijo (P1-6: body locationId se VALIDIRA — ne zaupa slepo;
-    // brez locationId → fallback na privzeto aktivno lokacijo, da naročilo
-    // ne ostane brez tenant konteksta)
-    // BY-DESIGN (R82-C dokumentirano): javna ruta NIMA identitete klicatelja —
-    // body.locationId lahko pomeni katero koli aktivno lokacijo (multi-tenant
-    // "ena domena, več restavracij" model). Hardening v prihodnji rundi:
-    // per-location public ordering token (qr-pay HMAC vzorec iz R81).
-    // FIX R82-C: lokacija se reši PRED meni poizvedbo, ker je potrebna za
-    // lokacijski scope artiklov (prej: artikli globalno, potem lokacija).
-    let onlineLocationId: string | null = null
-    if (locationId) {
-      const location = await db.location.findUnique({ where: { id: locationId } })
-      if (!location || !location.isActive) {
-        return NextResponse.json({ error: 'Izbrana lokacija ni na voljo' }, { status: 400 })
-      }
-      onlineLocationId = location.id
-    } else {
-      onlineLocationId = await resolveDefaultLocationId()
-    }
-    if (!onlineLocationId) {
+    // R87-3 FIX (R86-3 residual), fail-closed: izrecen locationId je OBVEZEN —
+    // prej je manjkajoč padel na GLOBALNO prvo aktivno lokacijo (counters.ts
+    // resolveDefaultLocationId) = cross-tenant žig naročila + tuj per-lokacijski
+    // order counter + odbitek tuje zaloge + tuj guest/discount kontekst.
+    // Spletni klijent (src/app/order/useOnlineOrder) pošilja selectedLocation
+    // (iz /api/public/order-config); tretje-ožji klicatelji brez locationId →
+    // 400 brez NOBENE pisne operacije (BREAKING CHANGE, dokumentiran v worklogu
+    // R87-3). Unknown/inactive → unificiran 404 'Lokacija ni najden' (prej 400
+    // 'Izbrana lokacija ni na voljo' prek findUnique — zdaj isti kanon kot
+    // kiosk/delivery-check: findFirst({ id, isActive: true }) brez oraklja).
+    // BY-DESIGN ostaja: javna ruta NIMA identitete klicatelja — body.locationId
+    // lahko pomeni katero koli AKTIVNO lokacijo (multi-tenant "ena domena, več
+    // restavracij" model); hardening v prihodnji rundi: per-location public
+    // ordering token (qr-pay HMAC vzorec iz R81).
+    if (!locationId) {
       return NextResponse.json({ error: 'Restavracija trenutno ne sprejema spletnih naročil' }, { status: 400 })
     }
+    const resolvedLocation = await resolveOnlineOrderLocation(locationId)
+    if (!resolvedLocation.ok) return resolvedLocation.response
+    const onlineLocationId: string = resolvedLocation.locationId
 
     // Pridobi menu iteme iz DB (strežniška cena, NE klientova!)
     // FIX R82-C (LEAK-MEDIUM: cross-tenant item injection + existence oracle):

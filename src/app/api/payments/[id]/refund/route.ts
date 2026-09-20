@@ -26,21 +26,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const authResult = await requireAuth(req, { permission: 'manage_cash' })
     if (authResult.error) return authResult.error
 
-    const body = await req.json().catch(() => null)
-    if (!body) return NextResponse.json({ error: 'Manjkajoči podatki' }, { status: 400 })
-
-    const { amount, reason, employeeId } = refundSchema.parse(body)
-
     // FIX P0-C1 (IDOR): findUnique → findFirst z check.order.locationId scope (cross-tenant zaščita)
     // Payment nima lastnega locationId — scoping prek Check → Order relation
     // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a —
     // regularna NULL-location seja je prej lahko povrnila plačilo KATEREGA KOLI
     // tenanta (gift card/loyalty reverzi).
+    // FIX R87-4 (higiena, R86-FINAL-AUDIT LOW #3): resolver PRED body parse.
     const { searchParams } = new URL(req.url)
     const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
       endpoint: 'POST /api/payments/[id]/refund',
     })
     if ('error' in scope) return scope.error
+
+    const body = await req.json().catch(() => null)
+    if (!body) return NextResponse.json({ error: 'Manjkajoči podatki' }, { status: 400 })
+
+    const { amount, reason, employeeId } = refundSchema.parse(body)
+
     const payment = await db.payment.findFirst({
       where: {
         id,

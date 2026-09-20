@@ -8,7 +8,7 @@
 
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 // odstranjen prazen import (runda 12 lint cleanup)
 import fs from 'fs'
@@ -21,14 +21,31 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // FIX R87-4 (M2/LOW vektor): centralni resolver TAKOJ za requireAuth.
+    // Prej: raw `authResult.session?.locationId` — permission 'admin' je
+    // PERMISSION, ne VLOGA; regularna/manager seja z NULL lokacijo (session-store
+    // jo sprejme za katerokoli vlogo) je zaradi pogojnega `if (sessionLocId)`
+    // padla na GLOBALNI RestaurantSettings fallback → certPath/certPassword
+    // prisotnost/environment TUJEGA tenanta + count-i nepotrjenih računov VSEH
+    // tenantov. Zdaj: regular/manager NULL → 403 fail-closed; lokacijsko vezan
+    // admin → per-location cert override + scoped counts; super-admin (vloga
+    // admin/super_admin, NULL lokacija) → dokumentiran globalni settings
+    // pogled (P0-C3B/R77 dual-config izključitev — CONFIG model ni spremenjen).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'GET /api/furs/cert-status',
+    })
+    if ('error' in scope) return scope.error
+
     const settings = await db.restaurantSettings.findFirst({ where: { isActive: true } })
     if (!settings) {
       return NextResponse.json({ error: 'Ni nastavitev restavracije' }, { status: 400 })
     }
 
-    // FIX P0-C3A: Pridobi FURS cert podatke iz Location (vezano na session.locationId)
-    // Prej: vedno settings (globalno) — v multi-tenant setupu prikaz napačne lokacije
-    const sessionLocId = authResult.session?.locationId
+    // FIX P0-C3A: Pridobi FURS cert podatke iz Location (vezano na scope lokacijo
+    // iz resolverja — R87-4). Prej: vedno settings (globalno) — v multi-tenant
+    // setupu prikaz napačne lokacije. sessionLocId je null SAMO za super-admina
+    // (dokumentiran globalni pogled, zgoraj).
+    const sessionLocId = scope.locationId
     let certPath = settings.fursCertPath
     let certPassword = settings.fursCertPassword
     let environment = settings.fursEnvironment

@@ -9,10 +9,10 @@ import { db } from '@/lib/db'
 import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
+import { resolveWriteLocationId } from '@/lib/tenant-scope'
 import { createPurchaseOrderSchema } from '@/lib/validations'
 import { getNextCounter } from '@/lib/counters'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
-import { resolveLocationId } from '@/lib/location-fallback'
 
 export const dynamic = 'force-dynamic'
 
@@ -88,16 +88,26 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'manage_inventory' })
     if (authResult.error) return authResult.error
 
+    // FIX QA runda 38: DB stolpec PurchaseOrder.locationId je NOT NULL (schema drift,
+    // P2011 potrjen na prod) — resolvi lokacijo pred create.
+    // FIX R87-4 (LOW preostanek): centralni resolver TAKOJ za requireAuth (pred body
+    // parse) + fail-closed write resolution. Prej: resolveLocationId(session, employee)
+    // je za NULL-location sejo (permission 'manage_inventory' ≠ vloga admin!) povlekel
+    // GLOBALNI prva-lokacija fallback (location-fallback.ts) → nabavno naročilo,
+    // postavke in številčni counter so se žigali na PRVO lokacijo KATEREGA KOLI
+    // tenanta. Zdaj: regular/manager NULL → 403; super-admin brez ?locationId → 400
+    // fail-closed (ne global-first stamp).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'POST /api/purchase-orders',
+    })
+    if ('error' in scope) return scope.error
+    const writeLoc = resolveWriteLocationId(scope.locationId)
+    if (!writeLoc.ok) return writeLoc.response
+    const locationId = writeLoc.locationId
+
     // FIX SECURITY: validateRequest() prepreči DoS z oversized payload
     const { data, error: validationError } = await validateRequest(req, createPurchaseOrderSchema)
     if (validationError) return validationError
-
-    // FIX QA runda 38: DB stolpec PurchaseOrder.locationId je NOT NULL (schema drift,
-    // P2011 potrjen na prod) — resolvi lokacijo pred create (tudi pred counter/tx logiko)
-    const locationId = await resolveLocationId(
-      authResult.session?.locationId,
-      authResult.session?.employeeId,
-    )
 
     // FIX HIGH: Atomna številka naročila — prepreči race condition (kot orderNumber/receiptNumber)
     const year = new Date().getFullYear()

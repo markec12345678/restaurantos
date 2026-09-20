@@ -169,7 +169,9 @@ export async function POST(req: Request) {
           date,
           // FIX R86-2a: Z-poročilo dobí rezolvirano lokacijo (session/body) namesto
           // internega employee→prva-globalna-lokacija fallback-a (R85-FINAL-1 nota).
-          // Super-admin brez obeh → undefined → legacy fallback (nespremenjeno).
+          // FIX R87-4: helper NIMA več globalnega fallback-a — super-admin brez
+          // obeh → 'Z_REPORT_NO_LOCATION' → draft ostane (fail-closed, ne žig
+          // prve tuje lokacije).
           locationId: effectiveLocationId ?? undefined,
           actualCash: actualCash ?? 0,
           notes: [notes, extraNote].filter(Boolean).join(' — '),

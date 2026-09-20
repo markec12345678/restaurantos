@@ -7,7 +7,7 @@ import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middlewa
 import { createHaccpSchema, haccpUpdateSchema } from '@/lib/validations'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { createHaccpEntryWithChain } from '@/lib/haccp-chain'
-import { resolveLocationId } from '@/lib/location-fallback'
+import { resolveWriteLocationId } from '@/lib/tenant-scope'
 import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
@@ -74,20 +74,30 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // FIX F5-8 + FIX CRITICAL (race): Hash chain ZNOTRAJ transakcije.
+    // Prejšnja koda je brala `lastEntry.chainHash` zunaj transakcije —
+    // dva sočasna klica bi ustvarila razvejano verigo.
+    // FIX R87-4 (LOW preostanek): centralni resolver TAKOJ za requireAuth (pred
+    // body parse). Prej: resolveLocationId(session, employee) je za NULL-location
+    // sejo s permission 'admin' (PERMISSION ≠ vloga!) povlekel GLOBALNI
+    // prva-lokacija fallback (location-fallback.ts) → food-safety vnos (EU
+    // 852/2004) na PRVI lokaciji KATEREGA KOLI tenanta. Zdaj: regular/manager
+    // NULL → 403; super-admin brez ?locationId → 400 fail-closed.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'POST /api/haccp',
+    })
+    if ('error' in scope) return scope.error
+    const writeLoc = resolveWriteLocationId(scope.locationId)
+    if (!writeLoc.ok) return writeLoc.response
+    const locationId = writeLoc.locationId
+
     // FIX SECURITY: validateRequest() prepreči DoS z oversized payload
     const { data, error: validationError } = await validateRequest(req, createHaccpSchema)
     if (validationError) return validationError
 
-    // FIX F5-8 + FIX CRITICAL (race): Hash chain ZNOTRAJ transakcije.
-    // Prejšnja koda je brala `lastEntry.chainHash` zunaj transakcije —
-    // dva sočasna klica bi ustvarila razvejano verigo.
     const entryDate = data.date ? new Date(data.date) : new Date()
     // FIX QA runda 37: DB stolpec HaccpEntry.locationId je NOT NULL (schema drift) —
-    // brez resolucije je create vrgel P2011 (Ana = admin brez session.locationId)
-    const locationId = await resolveLocationId(
-      authResult.session?.locationId,
-      authResult.session?.employeeId,
-    )
+    // lokacija je zdaj fail-closed rezolvirana iz seje zgoraj (R87-4).
     const entry = await createHaccpEntryWithChain({
       date: entryDate,
       category: data.category,

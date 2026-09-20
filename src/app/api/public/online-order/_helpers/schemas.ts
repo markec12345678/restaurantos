@@ -38,7 +38,10 @@ export const onlineOrderSchema = z.object({
   customer: z.union([deliveryDetailsSchema, takeoutDetailsSchema]),
   // FIX Q02 CRITICAL: deliveryFee ODSTRANJEN iz klientne sheme — strežnik izračuna iz cone dostave
   promoCode: z.string().max(50).optional(),
-  locationId: z.string().optional(),
+  // R87-3: OBVEZEN izrecen lokacijski kontekst (validacija v route.ts —
+  // regex oblika + location.findFirst({ id, isActive: true }), manjka → 400
+  // fail-closed, neznana/tuja/neaktivna → 404 notInScopeResponse)
+  locationId: z.string().max(50).optional(),
 })
 
 // ─── Konstante ───

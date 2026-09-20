@@ -5,7 +5,7 @@ import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/
 import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
-import { resolveLocationId } from '@/lib/location-fallback'
+import { resolveWriteLocationId } from '@/lib/tenant-scope'
 
 // =====================================================================
 // OPENING HOURS API — CRUD za delovni čas lokacij
@@ -97,17 +97,17 @@ export async function POST(req: Request) {
       // svojo lokacijo (body strip); super-admin sme izrecen body.locationId.
       // FIX R86-2c1 (M2): sessionLocId iz resolverja (fail-closed za NULL
       // non-admin sejo — prej raw `|| null`).
-      const locId = scope.locationId || batchData.locationId || null
-      // FIX R82-FINAL-2: fallback lokacija se reši PRED deleteMany — prej je
-      // seja brez lokacije izbrisala 0 vrstic (deleteMany { locationId: null },
-      // stolpec NOT NULL) nato kreirala na prvo lokacijo → podvojeni urniki.
-      const batchLocationId = locId || (await resolveLocationId(authResult.session?.locationId, authResult.session?.employeeId))
-      if (batchLocationId) {
-        await db.openingHours.deleteMany({ where: { locationId: batchLocationId } })
-      } else {
-        // Legacy veja (brez kakršne koli lokacije v DB) — nič za brisati
-        await db.openingHours.deleteMany({ where: { locationId: null } })
-      }
+      // FIX R87-4 (LOW preostanek): NIČ več resolveLocationId globalnega
+      // prva-lokacija fallback-a — super-admin brez izrecne lokacije (query ALI
+      // body) dobi 400 fail-closed (prej: PRVA lokacija KATEREGA KOLI tenanta =
+      // deleteMany + recreate tuje lokacije). resolveWriteLocationId: scope
+      // (session/?locationId) zmaga, sicer body.locationId (super-admin), sicer 400.
+      const writeLoc = resolveWriteLocationId(scope.locationId, batchData.locationId)
+      if (!writeLoc.ok) return writeLoc.response
+      const batchLocationId = writeLoc.locationId
+      // batchLocationId je po R87-4 VEDNO niz — legacy veja "brez lokacije v DB"
+      // (deleteMany { locationId: null }) je nedosegljiva in odstranjena.
+      await db.openingHours.deleteMany({ where: { locationId: batchLocationId } })
 
       // FIX QA runda 37: DB stolpec OpeningHours.locationId je NOT NULL (schema drift)
       const created = await db.openingHours.createMany({
@@ -129,7 +129,11 @@ export async function POST(req: Request) {
     if (scope.locationId) {
       singleData.locationId = scope.locationId
     } else if (!singleData.locationId) {
-      singleData.locationId = await resolveLocationId(authResult.session?.locationId, authResult.session?.employeeId)
+      // FIX R87-4 (LOW preostanek): super-admin brez izrecne lokacije → 400
+      // fail-closed (prej: resolveLocationId globalni prva-lokacija stamp).
+      const writeLoc = resolveWriteLocationId(scope.locationId)
+      if (!writeLoc.ok) return writeLoc.response
+      singleData.locationId = writeLoc.locationId
     }
     const hours = await db.openingHours.create({ data: singleData })
     return NextResponse.json(hours, { status: 201 })

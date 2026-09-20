@@ -70,10 +70,6 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'manage_cash' })
     if (authResult.error) return authResult.error
 
-    // FIX: Validiraj vnos z validateRequest — vključuje 1MB omejitev in sanatizacijo
-    const { data, error: validationError } = await validateRequest(req, openShiftSchema)
-    if (validationError) return validationError
-
     // FIX BUG-09: Preveri in ustvari izmeno v transakciji — prepreči race condition
     // BUG-HUNT FIX 2026-09-19: session scope — lokacija izmena se rešuje iz SESSIONE,
     // ne iz klientovega employeeId (prej je manage_cash uporabnik lahko odprl izmeno
@@ -81,11 +77,17 @@ export async function POST(req: Request) {
     // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a — prej je
     // regularna NULL-location seja lahko odprla izmeno na lokaciji POLJUBNEGA
     // zaposlenega (client-podan employeeId) ali na globalni prvi lokaciji.
+    // FIX R87-4 (higiena, R86-FINAL-AUDIT LOW #3): resolver PRED body parse.
     const { searchParams } = new URL(req.url)
     const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
       endpoint: 'POST /api/cash-register',
     })
     if ('error' in scope) return scope.error
+
+    // FIX: Validiraj vnos z validateRequest — vključuje 1MB omejitev in sanatizacijo
+    const { data, error: validationError } = await validateRequest(req, openShiftSchema)
+    if (validationError) return validationError
+
     const shift = await openShift(data, {
       sessionEmployeeId: authResult.session?.employeeId,
       sessionLocationId: scope.locationId,

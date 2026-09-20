@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   tableDelete: vi.fn(),
   orderFindMany: vi.fn(),
   orderGroupBy: vi.fn(),
+  orderFindFirst: vi.fn(),
   menuItemFindFirst: vi.fn(),
   menuItemUpdate: vi.fn(),
   categoryFindUnique: vi.fn(),
@@ -37,7 +38,8 @@ const mocks = vi.hoisted(() => ({
   locationFindMany: vi.fn(),
   locationCreate: vi.fn(),
   locationCount: vi.fn(),
-  resolveLocationId: vi.fn(),
+  // R87-4: '@/lib/location-fallback' je odstranjen (vsi klicatelji preklopljeni na
+  // resolver + resolveWriteLocationId) — dead mock iz prejšnje runde odstranjen.
   fetchSourceMenus: vi.fn(),
   syncMenusToTargets: vi.fn(),
   transaction: vi.fn(),
@@ -57,7 +59,7 @@ vi.mock('@/lib/db', () => ({
       update: mocks.tableUpdate,
       delete: mocks.tableDelete,
     },
-    order: { findMany: mocks.orderFindMany, groupBy: mocks.orderGroupBy },
+    order: { findMany: mocks.orderFindMany, groupBy: mocks.orderGroupBy, findFirst: mocks.orderFindFirst },
     menuItem: { findFirst: mocks.menuItemFindFirst, update: mocks.menuItemUpdate },
     category: { findUnique: mocks.categoryFindUnique },
     guest: { findUnique: mocks.guestFindUnique, update: vi.fn() },
@@ -103,10 +105,7 @@ vi.mock('@/lib/api-utils', () => ({
     new Response(JSON.stringify({ error: msg }), { status: 500 }),
 }))
 
-vi.mock('@/lib/location-fallback', () => ({
-  resolveLocationId: mocks.resolveLocationId,
-  getFirstLocationId: vi.fn().mockResolvedValue(null),
-}))
+// (R87-4: prej tudi vi.mock('@/lib/location-fallback') — modul je odstranjen.)
 
 vi.mock('@/lib/secret-masks', () => ({
   maskLocationSecrets: <T>(v: T): T => v,
@@ -175,6 +174,7 @@ beforeEach(() => {
   mocks.tableDelete.mockResolvedValue({ id: 't-1' })
   mocks.orderFindMany.mockResolvedValue([])
   mocks.orderGroupBy.mockResolvedValue([])
+  mocks.orderFindFirst.mockResolvedValue(null)
   mocks.menuItemFindFirst.mockResolvedValue(null)
   mocks.menuItemUpdate.mockResolvedValue({ id: 'mi-1' })
   mocks.categoryFindUnique.mockResolvedValue(null)
@@ -189,7 +189,7 @@ beforeEach(() => {
   mocks.locationFindMany.mockResolvedValue([])
   mocks.locationCreate.mockResolvedValue({ id: 'loc-new' })
   mocks.locationCount.mockResolvedValue(0)
-  mocks.resolveLocationId.mockResolvedValue(null)
+  // R87-4: resolveLocationId mock odstranjen skupaj z modulom location-fallback.
   mocks.fetchSourceMenus.mockResolvedValue([])
   mocks.syncMenusToTargets.mockResolvedValue([])
   mocks.transaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => fn({}))
@@ -537,12 +537,14 @@ describe('R86-2c1 H: /api/guests/[id] — orders include scope', () => {
     expect(mocks.guestFindUnique).not.toHaveBeenCalled()
   })
 
-  it('GET: staff lokacije A → orders include pripet na LOC_A', async () => {
+  it('GET: staff lokacije A → orders include pripet na LOC_A (gost žigan na lastno lokacijo — R87 stolpec short-circuit)', async () => {
     mockSession({ role: 'staff', locationId: LOC_A })
-    mocks.guestFindUnique.mockResolvedValue({ id: 'g-1', firstName: 'A', lastName: 'B', orders: [] })
+    mocks.guestFindUnique.mockResolvedValue({ id: 'g-1', firstName: 'A', lastName: 'B', locationId: LOC_A, orders: [] })
     const res = await guestGET(jsonReq('http://localhost:3000/api/guests/g-1', 'GET'), params('g-1'))
     expect(res.status).toBe(200)
     expect(mocks.guestFindUnique.mock.calls[0][0].include.orders.where.locationId).toBe(LOC_A)
+    // R87: stolpec se ujema → naročilna povezava (order.findFirst) NI poizvedana
+    expect(mocks.orderFindFirst).not.toHaveBeenCalled()
   })
 
   it('GET: super-admin (null) → orders include brez locationId ključa (vidi vse)', async () => {

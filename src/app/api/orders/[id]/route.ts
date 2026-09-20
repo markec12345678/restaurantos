@@ -60,18 +60,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
-    const bodyResult = await parseJsonBody(req)
-    if (bodyResult.error) return bodyResult.error
-
-    const { data: patchData, error: patchError } = validateBody(orderPatchActionSchema, bodyResult.data)
-    if (patchError) return patchError
-
+    // FIX R87-4 (higiena, R86-FINAL-AUDIT LOW #3): scope resolver TAKOJ za
+    // requireAuth, PRED body parse (kanon: tables/merge, webhooks, purchase-orders).
     // FIX R86-2a (M2 fail-open): scope iz centralnega resolverja (prej raw spread)
     const { searchParams } = new URL(req.url)
     const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
       endpoint: 'PATCH /api/orders/[id]',
     })
     if ('error' in scope) return scope.error
+
+    const bodyResult = await parseJsonBody(req)
+    if (bodyResult.error) return bodyResult.error
+
+    const { data: patchData, error: patchError } = validateBody(orderPatchActionSchema, bodyResult.data)
+    if (patchError) return patchError
 
     if (patchData.action === 'item_status') {
       const { itemId, status } = patchData

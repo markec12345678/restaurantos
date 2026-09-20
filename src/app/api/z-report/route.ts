@@ -100,6 +100,12 @@ export async function POST(req: Request) {
     }
     const locationId = effectiveLocationId ?? undefined
 
+    // FIX R87-4 (LOW preostanek): upsertZReportForDay NE IMA več internega
+    // globalnega prva-lokacija fallback-a — super-admin brez body.locationId
+    // (effectiveLocationId=undefined) zdaj sproži 'Z_REPORT_NO_LOCATION' →
+    // 400 (mapping spodaj). Prej je bilo Z-poročilo (finančni promet) pisano
+    // na PRVO lokacijo KATEREGA KOLI tenanta.
+
     // RUNDA 9 REFAKTOR: celotno jedro (preverjanje finalized, open-shifts check,
     // pridobivanje orderjev, statistike, upsert transakcija) je v upsertZReportForDay.
     const { report, stats, paidOrdersCount } = await upsertZReportForDay({

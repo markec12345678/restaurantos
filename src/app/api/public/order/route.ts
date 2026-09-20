@@ -11,9 +11,10 @@ import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { checkRateLimitAsync, getClientIp, PUBLIC_ORDER_LIMIT } from '@/lib/rate-limit'
 import { toNum } from '@/lib/decimal'
-import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
+import { getNextOrderNumber } from '@/lib/counters'
 import { logger } from '@/lib/logger'
 import { handleRouteError, validateRequest } from '@/lib/api-utils'
+import { notInScopeResponse } from '@/lib/tenant-scope'
 import { formatEUR } from '@/lib/safe-format'
 import {
 
@@ -28,6 +29,26 @@ import {
 } from './_helpers'
 
 export const dynamic = 'force-dynamic'
+
+// R87-3: ENOTNA validacija lokacijskega konteksta (isti kanon kot public/kiosk
+// R86-3 in public/delivery-check R83): regex oblika + location.findFirst({ id,
+// isActive: true }). Neznana / tuja / neaktivna / neveljavna oblika → IZKLJUČNO
+// notInScopeResponse('Lokacija') 404 'Lokacija ni najden' — isti odgovor za
+// "ne obstaja" in "tuja" (ni obstoja-oraklja). NIKOLI globalnega
+// resolveDefaultLocationId() za pisno pot (odstranjen R86 residual).
+async function resolveQrLocation(
+  explicitId: string,
+): Promise<{ ok: true; locationId: string } | { ok: false; response: NextResponse }> {
+  if (!/^[a-z0-9]{5,50}$/i.test(explicitId)) {
+    return { ok: false, response: notInScopeResponse('Lokacija') }
+  }
+  const location = await db.location.findFirst({
+    where: { id: explicitId, isActive: true },
+    select: { id: true },
+  })
+  if (!location) return { ok: false, response: notInScopeResponse('Lokacija') }
+  return { ok: true, locationId: location.id }
+}
 
 export async function POST(req: Request) {
   // FIX CRITICAL: Rate limiting — uporabi skupni modul
@@ -46,15 +67,50 @@ export async function POST(req: Request) {
 
     const items = data.items || data.orderItems || []
 
+    // R87-3: izrecen lokacijski kontekst — ?locationId (query, QR URL) ali
+    // body.locationId (priloži ga first-party klijent). Query ima prednost
+    // (konsistentno s kioskom).
+    const url = new URL(req.url)
+    const explicitLocationId =
+      url.searchParams.get('locationId')?.trim() || data.locationId || null
+
     // Poišči mizo - podprto prek tableNumber (int) ali tableId (UUID)
     // MODEL A: mizo/lokacijo rešimo NAJPREJ — dining option in artikli so
     // scoped NA LOKACIJO MIZE (prej: globalni findFirst({type}) brez scopa!).
-    const tableResult = await resolveTable(data.tableId, data.tableNumber, data.locationId, { markOccupied: false })
+    // R84 (M2): tableNumber BREZ locationId → 400 (fail-closed). markOccupied:
+    // false — resolveTable je tu READ-ONLY (write je šele po gate-ih spodaj).
+    const tableResult = await resolveTable(data.tableId, data.tableNumber, explicitLocationId, { markOccupied: false })
     if (tableResult instanceof NextResponse) return tableResult
-    const { tableId, tableNumber: resolvedTableNumber, locationId: resolvedLocationId } = tableResult
+    const { tableId, tableNumber: resolvedTableNumber, locationId: tableLocationId } = tableResult
 
-    const qrLocationId = resolvedLocationId || await resolveDefaultLocationId()
-    if (!qrLocationId) {
+    // R87-3 FIX (R86-3 residual), fail-closed: POST NIKOLI več uporabi globalnega
+    // resolveDefaultLocationId() fallbacka (prej: naročilo BREZ tabele in brez
+    // lokacije — ali z ignoriranim body.locationId — padlo na PRVO AKTIVNO
+    // lokacijo KATEREGA KOLI tenanta = cross-tenant žig naročila, tuj
+    // per-lokacijski order counter, tuj KDS broadcast, odbitek tuje zaloge).
+    //   1. izrecen ?locationId / body.locationId → VALIDIRAN (obstaja + aktiven);
+    //      hkrati z mizo (tableId pot) → neujemana lokacija mize = tuji kontekst
+    //      → unificiran 404 (prej je žig šel na lokacijo TUJE mize);
+    //   2. brez izrecnega, z tableId (QR koda na mizi — edina oblika, ki jo QR
+    //      kode dejansko kodirajo, glej tables/qr-batch: /qr/[tableId]) → lokacija
+    //      iz DB vrstice mize (server-authoritative, Table.locationId NOT NULL
+    //      MODEL A) — VEDNO validirana (obstaja + aktiven → sicer 404);
+    //   3. brez obeh → 400 'QR naročanje ni nastavljeno' + ZERO pisnih klicev
+    //      (noben order create, noben counter, noben KDS broadcast).
+    let qrLocationId: string | null = null
+    if (explicitLocationId) {
+      const loc = await resolveQrLocation(explicitLocationId)
+      if (!loc.ok) return loc.response
+      if (tableLocationId && tableLocationId !== loc.locationId) {
+        // tableId pripada drugi lokaciji kot izrecni kontekst — tuja kombinacija
+        return notInScopeResponse('Lokacija')
+      }
+      qrLocationId = loc.locationId
+    } else if (tableLocationId) {
+      const loc = await resolveQrLocation(tableLocationId)
+      if (!loc.ok) return loc.response
+      qrLocationId = loc.locationId
+    } else {
       return NextResponse.json({ error: 'QR naročanje ni nastavljeno — kontaktirajte osebje' }, { status: 400 })
     }
 
@@ -184,8 +240,9 @@ export async function POST(req: Request) {
     })
 
     // FIX: Broadcast NEW_ORDER to KDS/POS via WebSocket
-    // WS AUDIT: locationId mize za per-location dostavo (KDS druge lokacije ne vidi)
-    broadcastNewOrder(order.id, order.orderNumber, resolvedTableNumber || data.tableNumber, resolvedLocationId ?? null)
+    // WS AUDIT: lokacija za per-location dostavo (KDS druge lokacije ne vidi)
+    // R87-3: VALIDIRANA lokacija (prej: table.locationId ali null pri poti brez mize)
+    broadcastNewOrder(order.id, order.orderNumber, resolvedTableNumber || data.tableNumber, qrLocationId)
 
     return NextResponse.json({
       success: true,

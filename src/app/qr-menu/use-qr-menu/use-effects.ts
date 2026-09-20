@@ -58,7 +58,8 @@ export function useQRMenuEffects({
         setIsHighContrast(prefs.prefersContrast);
         if (prefs.savedFontSize) setFontSize(prefs.savedFontSize);
 
-        const result = await fetchMenuData();
+        // R87-3: meni (in s tem naročilo) vezan na lokacijo iz URL, če je prisotna
+        const result = await fetchMenuData(prefs.locationParam);
         if (result) {
           setMenus(result.menus as Menu[]);
           setSettings(result.settings as import('@/lib/types').RestaurantSettingsRow);

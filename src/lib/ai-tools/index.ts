@@ -33,6 +33,13 @@ export interface ToolExecutionContext {
   userId?: string
   employeeId?: string
   permissions: string[]
+  // R87-4: tenant scope konteksta. Klicatelj (npr. /api/ai-assistant) naj
+  // locationId izpelje iz seje prek resolveTenantLocationIdOrThrow(session)
+  // in ga poda sem (null = super-admin globalni pogled); role naj pride iz
+  // session.role. Kontekst NE nosi raw session-a — glej check_fraud fallback
+  // (employeeId lookup) za klicatelje, ki teh polj ne nastavijo.
+  locationId?: string | null
+  role?: string
   // Datumski razpon (parsed iz prompt-a)
   dateFrom?: Date
   dateTo?: Date

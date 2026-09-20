@@ -14,14 +14,19 @@
 import { db } from '@/lib/db'
 import { round2 } from '@/lib/decimal'
 import { ljubljanaDayBounds } from '@/lib/timezone-sl'
-import { resolveLocationId } from '@/lib/location-fallback'
 import { calculateReportStats } from './stats'
 import { buildReportData } from './build-report'
 
 export interface UpsertZReportParams {
   /** 'YYYY-MM-DD' — Ljubljanski dan (glej ljubljanaDayBounds) */
   date: string
-  /** Rezolvirana tenant lokacija (session ali shift.locationId) */
+  /** Rezolvirana tenant lokacija (session ali shift.locationId). OBVEZNA od
+   *  R87-4: klicatelj jo fail-closed rezolvira iz seje
+   *  (resolveTenantLocationIdOrThrow / resolveWriteLocationId) ali iz podatkov
+   *  (shift.locationId) — tip je zaradi legacy klicateljev (`?? undefined`)
+   *  tehnično opcionalen, a manjkajoča/prazna lokacija je VEDNO zavrnjena z
+   *  'Z_REPORT_NO_LOCATION'. NIČ več internega globalnega prva-lokacija
+   *  fallback-a — nikoli žig prve tuje lokacije. */
   locationId?: string
   actualCash?: number
   notes?: string
@@ -40,12 +45,15 @@ async function buildAndUpsert(params: UpsertZReportParams) {
   const { date, actualCash = 0, notes = '', employeeId, finalize = false } = params
   const { start: dayStart, end: dayEnd } = ljubljanaDayBounds(date)
 
-  // FIX QA 2026-09-18 (runda 36 + refaktor runda 37): DB stolpec ZReport.locationId
-  // je NOT NULL (schema drift). Resolucija zdaj v skupnem helperju (location-fallback):
-  //   1. params.locationId → 2. employee.locationId → 3. prva lokacija (cached) →
-  //   4. če še vedno nič: 'Z_REPORT_NO_LOCATION' (klicatelj preslika v 400).
-  // Pokrije tudi avtomatski osnutek ob zaprtju blagajniške izmene (isti helper).
-  const locationId = await resolveLocationId(params.locationId, employeeId)
+  // FIX QA 2026-09-18 (runda 36 + refaktor runda 37) + FIX R87-4 (LOW preostanek):
+  // DB stolpec ZReport.locationId je NOT NULL (schema drift). Prej je helper sam
+  // klical resolveLocationId(params.locationId, employeeId) — za super-admina
+  // (POST /api/z-report oz. end-of-day brez izrecne lokacije) je to padlo na
+  // GLOBALNI prva-lokacija fallback → Z-poročilo (finančni promet!) je bilo
+  // izračunano in ZAPISANO na prvo lokacijo KATEREGA KOLI tenanta.
+  // Zdaj je locationId OBVEZEN parameter — klicatelj ga fail-closed rezolvira;
+  // manjka → 'Z_REPORT_NO_LOCATION' (klicatelj preslika v 400 / pusti draft).
+  const locationId = params.locationId
   if (!locationId) {
     throw new Error('Z_REPORT_NO_LOCATION')
   }

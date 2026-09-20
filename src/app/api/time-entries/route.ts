@@ -5,31 +5,9 @@ import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middlewa
 import { createTimeEntrySchema } from '@/lib/validations'
 import { toNum, round2, multiply, deepToNumbers } from '@/lib/decimal'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
-import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
-import { resolveLocationId } from '@/lib/location-fallback'
+import { isWithinScope, notInScopeResponse, resolveWriteLocationId } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
-
-// FIX R81-G (LEAK-MEDIUM): inline role-aware fail-closed gate (zrcali
-// resolveCatalogScope semantiko; inventory/adjust R81-F vzorec — brez
-// tenant-scope helperjev za role check). Non-admin BREZ session.locationId
-// = 403 (data integrity issue), ker ne moremo izpeljati scope-a.
-function requireLocationScope(
-  authResult: { session?: { role?: string; locationId?: string | null } | null },
-): { sessionLocId: string | null } | { error: NextResponse } {
-  const session = authResult.session
-  const sessionLocId = session?.locationId ?? null
-  const isRoleAdmin = session?.role === 'admin' || session?.role === 'super_admin'
-  if (!sessionLocId && !isRoleAdmin) {
-    return {
-      error: NextResponse.json(
-        { error: 'Vaš račun nima dodeljene lokacije. Kontaktirajte administratorja.' },
-        { status: 403 },
-      ),
-    }
-  }
-  return { sessionLocId }
-}
 
 export async function GET(req: Request) {
   try {
@@ -93,11 +71,21 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'manage_employees' })
     if (authResult.error) return authResult.error
 
-    // FIX R81-G (LEAK-MEDIUM): scope gate (403) PRED validacijo/db.
-    // (GET je že scopcan prek resolveTenantLocationIdOrThrow — R80.)
-    const scope = requireLocationScope(authResult)
+    // FIX R87-4 (LOW preostanek): centralni resolver TAKOJ za requireAuth (pred
+    // body parse), nadomesti R81-G inline gate + legacy resolveLocationId žig.
+    // Prej je super-admin (role-admin, NULL session.locationId) prek
+    // resolveLocationId(NULL, employeeId) dobil GLOBALNI prva-lokacija fallback
+    // (location-fallback.ts) → payroll vnos (payRate/totalPay!) na PRVI lokaciji
+    // KATEREGA KOLI tenanta. Zdaj: regular/manager NULL → 403 fail-closed (isto
+    // kot R81-G gate); super-admin brez ?locationId → 400 fail-closed.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'POST /api/time-entries',
+    })
     if ('error' in scope) return scope.error
-    const sessionLocId = scope.sessionLocId
+    const writeLoc = resolveWriteLocationId(scope.locationId)
+    if (!writeLoc.ok) return writeLoc.response
+    const locationId = writeLoc.locationId
+    const sessionLocId = scope.locationId
 
     // FIX SECURITY: validateRequest() prepreči DoS z oversized payload
     const { data, error: validationError } = await validateRequest(req, createTimeEntrySchema)
@@ -155,15 +143,10 @@ export async function POST(req: Request) {
     }
 
     // FIX QA runda 38: DB stolpec TimeEntry.locationId je NOT NULL (schema drift,
-    // P2011 potrjen na prod) — resolvi lokacijo pred create (session → employee → prva)
-    // FIX R81-G (body locationId strip): createTimeEntrySchema NIMA locationId
-    // polja — zapis se veže na lokacijo iz seje (resolveLocationId); za
-    // lokacijsko vezane seje je to VEDNO session.locationId (prvi kandidat),
-    // zato tuje lokacije niso dosegljive.
-    const locationId = await resolveLocationId(
-      authResult.session?.locationId,
-      authResult.session?.employeeId,
-    )
+    // P2011 potrjen na prod) — lokacija je fail-closed rezolvirana iz seje zgoraj
+    // (R87-4: resolver + resolveWriteLocationId; NIČ več globalnega
+    // prva-lokacija fallback-a). createTimeEntrySchema NIMA locationId polja —
+    // body se ne more vžigati tuje lokacije.
 
     const timeEntry = await db.timeEntry.create({
       data: {

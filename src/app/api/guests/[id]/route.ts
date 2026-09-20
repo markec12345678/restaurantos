@@ -7,11 +7,36 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
-import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
+import { resolveTenantLocationIdOrThrow, notInScopeResponse } from '@/lib/tenant-scope'
 import { updateGuestSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
+
+/**
+ * R87-1 (per-location CRM): skupna scope preverba za guests/[id] GET/PUT/DELETE.
+ * Dovoljeno za lokacijsko vezano sejo, ČE:
+ *   1. gost je žigan na to lokacijo (Guest.locationId — R87 stolpec + backfill), ALI
+ *   2. gost ima vsaj eno naročilo na tej lokaciji (legacy vrstice pred
+ *      backfill-om + gostje z naročili na več lokacijah).
+ * Brez obeh povezav → zavrženo (klicatelj vrne unificiran 404 — ni oraklja).
+ * scope.locationId === null je SAMO super-admin (resolver: regular NULL → 403
+ * prej) → globalni pogled, brez omejitev (ista semantika kot isWithinScope).
+ */
+async function guestInScope(
+  guestId: string,
+  guestLocationId: string | null,
+  scopeLocationId: string | null,
+): Promise<boolean> {
+  if (!scopeLocationId) return true // super-admin (resolver garantira)
+  if (guestLocationId === scopeLocationId) return true // R87 stolpec
+  // Legacy / multi-location gost: povezava prek naročila (fail-closed)
+  const tie = await db.order.findFirst({
+    where: { guestId, locationId: scopeLocationId },
+    select: { id: true },
+  })
+  return tie !== null
+}
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -30,6 +55,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // (naročila gosta iz VSEH tenantov). Zdaj: resolver — regular NULL → 403
     // fail-closed (sami Guest zapis ostane globalen po R81-E1 odločitvi);
     // super-admin vidi vsa naročila.
+    // FIX R87-1 (polna izolacija ZAPRTA): Guest.locationId stolpec obstaja —
+    // sam zapis gosta je zdaj scopcan (stolpec ALI naročilo na lokaciji,
+    // zrcali GET /api/guests list). R81-E1 "globalni zapis" odločitev je
+    // nadomeščena s per-location CRM (schema round) — konsistentno z listo.
     const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
       endpoint: 'GET /api/guests/[id]',
     })
@@ -55,6 +84,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: 'Gost ni najden' }, { status: 404 })
     }
 
+    // FIX R87-1: scope preverba na samem zapisu (stolpec ALI naročilna povezava)
+    if (!(await guestInScope(guest.id, guest.locationId, sessionLocId))) {
+      return notInScopeResponse('Gost')
+    }
+
     return NextResponse.json(deepToNumbers(guest))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/guests/[id]', 'Napaka pri pridobivanju gosta')
@@ -67,9 +101,17 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
-    // R81-F nota: PUT/DELETE na globalnem Guest modelu ostajata nescopecani —
-    // Guest NIMA tenant stolpca, polna izolacija zahteva shematsko spremembo.
-    // R82: Guest.locationId schema round.
+    // FIX R87-1 (HIGH cross-tenant PII update — zaprt): prej je bil PUT
+    // NEscopčan (kateri koli take_orders staff je smel posodobiti PII gosta
+    // KATEREGA KOLI tenanta — ime, email, telefon, alergeni!). "R82: Guest
+    // .locationId schema round" nota je čakala na ta stolpec. Zdaj: resolver
+    // TAKOJ za requireAuth (pred body parse — kanon R86), scope preverba na
+    // zapisu (stolpec ALI naročilna povezava) pred update-om.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'PUT /api/guests/[id]',
+    })
+    if ('error' in scope) return scope.error
+    const sessionLocId = scope.locationId
 
     const { id } = await params
     const bodyResult = await parseJsonBody(req)
@@ -83,6 +125,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const existing = await db.guest.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ error: 'Gost ni najden' }, { status: 404 })
+    }
+
+    // FIX R87-1: scope preverba (stolpec ALI naročilna povezava) — cross-tenant
+    // update → unificiran 404 (ni oraklja: isti odgovor kot neobstoječ gost)
+    if (!(await guestInScope(existing.id, existing.locationId, sessionLocId))) {
+      return notInScopeResponse('Gost')
     }
 
     const updateData: Record<string, unknown> = {}
@@ -122,9 +170,15 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
-    // R81-F nota: DELETE na globalnem Guest modelu ostaja nescopecan —
-    // Guest NIMA tenant stolpca, polna izolacija zahteva shematsko spremembo.
-    // R82: Guest.locationId schema round.
+    // FIX R87-1 (HIGH cross-tenant PII anonymize — zaprt): prej je bil DELETE
+    // NEscopčan (kateri koli 'admin'-permission staff je smel anonimizirati
+    // gosta KATEREGA KOLI tenanta — GDPR pravica do izbrisa na tujem CRM-ju!).
+    // Zdaj: resolver TAKOJ za requireAuth + scope preverba na zapisu.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'DELETE /api/guests/[id]',
+    })
+    if ('error' in scope) return scope.error
+    const sessionLocId = scope.locationId
 
     const { id } = await params
 
@@ -134,6 +188,12 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     })
     if (!existing) {
       return NextResponse.json({ error: 'Gost ni najden' }, { status: 404 })
+    }
+
+    // FIX R87-1: scope preverba (stolpec ALI naročilna povezava) — cross-tenant
+    // anonymize → unificiran 404 (ni oraklja)
+    if (!(await guestInScope(existing.id, existing.locationId, sessionLocId))) {
+      return notInScopeResponse('Gost')
     }
 
     // FIX HIGH: Prepreči hard-delete — uporabi soft-delete (anonymize PII)

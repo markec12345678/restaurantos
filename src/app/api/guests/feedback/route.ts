@@ -13,8 +13,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { createGuestFeedbackSchema } from '@/lib/validations'
 import { handleApiError, parseJsonBody, parsePaginationParams, validateBody } from '@/lib/api-utils'
-import { resolveLocationId } from '@/lib/location-fallback'
-import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
+import { resolveTenantLocationIdOrThrow, resolveWriteLocationId } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -115,6 +114,20 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // FIX R87-4 (LOW preostanek): centralni resolver TAKOJ za requireAuth (pred
+    // body parse). Prej: resolveLocationId(session, employee) je za NULL-location
+    // take_orders sejo povlekel GLOBALNI prva-lokacija fallback
+    // (location-fallback.ts) → PII povratna informacija gosta na PRVI lokaciji
+    // KATEREGA KOLI tenanta. Zdaj: regular/manager NULL → 403; super-admin brez
+    // ?locationId → 400 fail-closed (ne global-first stamp).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'POST /api/guests/feedback',
+    })
+    if ('error' in scope) return scope.error
+    const writeLoc = resolveWriteLocationId(scope.locationId)
+    if (!writeLoc.ok) return writeLoc.response
+    const locationId = writeLoc.locationId
+
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error
 
@@ -123,11 +136,7 @@ export async function POST(req: Request) {
     if (validationError) return validationError
 
     // FIX QA runda 38: DB stolpec GuestFeedback.locationId je NOT NULL (schema drift,
-    // P2011 potrjen na prod) — resolvi lokacijo pred create
-    const locationId = await resolveLocationId(
-      authResult.session?.locationId,
-      authResult.session?.employeeId,
-    )
+    // P2011 potrjen na prod) — lokacija je fail-closed rezolvirana zgoraj (R87-4).
 
     const feedback = await db.guestFeedback.create({
       data: {

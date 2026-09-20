@@ -7,7 +7,7 @@ import { createShiftSchema } from '@/lib/validations'
 import { emitEvent } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
 import { endOfDayParam, handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
-import { resolveLocationId } from '@/lib/location-fallback'
+import { resolveWriteLocationId } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,16 +73,27 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'manage_employees' })
     if (authResult.error) return authResult.error
 
+    // FIX R87-4 (LOW preostanek): centralni resolver TAKOJ za requireAuth (pred
+    // body parse). Prej: resolveLocationId(session, employee ?? data.employeeId)
+    // je za NULL-location sejo (manage_employees dosegljiv managerjem;
+    // permission ≠ vloga) povlekel employee lookup in nato GLOBALNI
+    // prva-lokacija fallback (location-fallback.ts) → izmena na PRVI lokaciji
+    // KATEREGA KOLI tenanta. Zdaj: regular/manager NULL → 403; super-admin brez
+    // ?locationId → 400 fail-closed (ne global-first stamp).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'POST /api/shifts',
+    })
+    if ('error' in scope) return scope.error
+    const writeLoc = resolveWriteLocationId(scope.locationId)
+    if (!writeLoc.ok) return writeLoc.response
+    const locationId = writeLoc.locationId
+
     // FIX SECURITY: validateRequest() prepreči DoS z oversized payload
     const { data, error: validationError } = await validateRequest(req, createShiftSchema)
     if (validationError) return validationError
 
     // FIX QA runda 37: DB stolpec Shift.locationId je NOT NULL (schema drift) —
-    // create brez locationId je vedno vrgel P2011
-    const locationId = await resolveLocationId(
-      authResult.session?.locationId,
-      authResult.session?.employeeId ?? data.employeeId,
-    )
+    // lokacija je fail-closed rezolvirana iz seje zgoraj (R87-4).
     const shift = await db.shift.create({
       data: {
         employeeId: data.employeeId,

@@ -108,7 +108,7 @@ export async function createOnlineOrder(input: CreateOnlineOrderInput) {
     await tx.orderItem.updateMany({ where: { orderId: newOrder.id }, data: { checkId: check.id } })
     await deductInventory(tx, items, menuItemMap, nextOrderNumber, newOrder.id)
     await tx.order.update({ where: { id: newOrder.id }, data: { inventoryDeducted: true } })
-    await upsertGuest(tx, customerName, customerPhone, customerEmail, total)
+    await upsertGuest(tx, customerName, customerPhone, customerEmail, total, locationId)
 
     return newOrder
   })

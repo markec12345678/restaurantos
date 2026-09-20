@@ -77,7 +77,10 @@ export function useQRMenu(): QRMenuState {
     if (cart.length === 0) return;
     setOrderSending(true);
     try {
-      const result = await submitOrderRequest(tableNumber, cart);
+      // R87-3: izrecen lokacijski kontekst naročila — settings.id iz
+      // /api/public/menu JE locationId, za katero je prikazan meni (pisna pot
+      // strežnika je fail-closed: brez konteksta 400, tuja/neaktivna 404).
+      const result = await submitOrderRequest(tableNumber, cart, settings?.id);
       setOrderResult(result);
       setOrderPlaced(true);
       if (result.success) setCart([]);

@@ -7,6 +7,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
+import { resolveWriteLocationId } from '@/lib/tenant-scope'
 import { createGuestSchema } from '@/lib/validations'
 import { emitEvent } from '@/lib/event-emitter'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
@@ -26,11 +27,13 @@ export async function GET(req: Request) {
     // limit max 100 (prej 200), offset varno
     const { limit: safeLimit, offset: safeOffset, search } = parsePaginationParams(searchParams, { defaultLimit: 50 })
 
-    // FIX R85-FINAL (HIGH): Tenant scope — prej je GET vračal celoten gost CRM
-    // VSEH lokacij (imena, telefoni, e-pošta, rojstni dnevi, alergeni, VIP).
-    // Guest NIMA lastnega locationId (schema backlog) — izpeljava prek order
-    // zveze, enako kakor dashboard guest analytics (R85-H1) in guests/[id].
-    // Fail-closed: gost brez naročil je viden samo super-adminu.
+    // FIX R85-FINAL (HIGH) + FIX R87-1 (per-location CRM): Tenant scope — prej
+    // je GET vračal celoten gost CRM VSEH lokacij (imena, telefoni, e-pošta,
+    // rojstni dnevi, alergeni, VIP). R87: Guest IMA locationId stolpec
+    // (schema round + backfill iz prvega naročila) — filter je zdaj STOLPEC
+    // ALI naročila na tej lokaciji (legacy vrstice pred backfill-om + gostje
+    // z naročili na več lokacijah ostanejo vidni; brez obeh povezav =
+    // neviden — fail-closed, ni oraklja). NULL lokacija = samo super-admin.
     const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
       endpoint: 'GET /api/guests',
     })
@@ -38,7 +41,13 @@ export async function GET(req: Request) {
 
     const where: Record<string, unknown> = {}
     if (scope.locationId) {
-      where.orders = { some: { locationId: scope.locationId } }
+      // AND-wrapper, ker spodnji search blok piše v where.OR — ločena ključa
+      where.AND = [{
+        OR: [
+          { locationId: scope.locationId },
+          { orders: { some: { locationId: scope.locationId } } },
+        ],
+      }]
     }
 
     if (search) {
@@ -96,8 +105,17 @@ export async function POST(req: Request) {
     const { data, error: validationError } = await validateRequest(req, createGuestSchema)
     if (validationError) return validationError
 
+    // FIX R87-1 (MEDIUM NULL-žig, zrcali loyalty POST R86-5): Guest.locationId
+    // (R87 schema stolpec) se ŽIGA ob kreaciji — prej bi gost ostal NULL
+    // (super-admin-only, izven dosega lokacijskih zaposlenih, ki so ga ustvarili).
+    // resolveWriteLocationId: scope (session/?locationId) zmaga; super-admin brez
+    // izrecne lokacije → 400 fail-closed (NE prva lokacija KATEREGA KOLI tenanta).
+    const writeLoc = resolveWriteLocationId(scope.locationId)
+    if (!writeLoc.ok) return writeLoc.response
+
     const guest = await db.guest.create({
       data: {
+        locationId: writeLoc.locationId, // R87: per-location CRM žig
         firstName: data.firstName || '',
         lastName: data.lastName,
         email: data.email || '',
@@ -117,8 +135,8 @@ export async function POST(req: Request) {
     })
 
     // Webhook: guest.created
-    // R83: Guest še nima locationId stolpca (schema runda) — tenant kontekst
-    // iz scope-a klicatelja (per-location webhook matching)
+    // R87: tenant kontekst iz scope-a klicatelja + gost je žigan na
+    // writeLoc.locationId (per-location webhook matching nespremenjen)
     emitEvent('guest.created', {
       guestId: guest.id,
       name: `${guest.firstName} ${guest.lastName}`.trim(),

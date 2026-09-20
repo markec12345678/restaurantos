@@ -197,13 +197,17 @@ describe('R85-FINAL A: /api/expenses — tenant scope', () => {
 // ══════════════════════════════════════════════════════════════════
 // B. GUESTS (H3)
 // ══════════════════════════════════════════════════════════════════
-describe('R85-FINAL B: GET /api/guests — tenant scope (izpeljava prek order zveze)', () => {
-  it('loc-bound admin → where.orders.some.locationId', async () => {
+describe('R85-FINAL B: GET /api/guests — tenant scope (R87: stolpec ALI order zveza)', () => {
+  it('loc-bound admin → where.AND[0].OR = [locationId stolpec, orders.some]', async () => {
     mockSession({ role: 'admin', locationId: LOC_A })
     const res = await guestsGET(new Request('http://localhost:3000/api/guests'))
     expect(res.status).toBe(200)
-    expect(mocks.guestFindMany.mock.calls[0][0].where.orders.some.locationId).toBe(LOC_A)
-    expect(mocks.guestCount.mock.calls[0][0].where.orders.some.locationId).toBe(LOC_A)
+    const or = mocks.guestFindMany.mock.calls[0][0].where.AND[0].OR
+    expect(or).toEqual([
+      { locationId: LOC_A },
+      { orders: { some: { locationId: LOC_A } } },
+    ])
+    expect(mocks.guestCount.mock.calls[0][0].where.AND[0].OR).toEqual(or)
   })
 
   it('super-admin → brez orders ključa', async () => {
@@ -215,7 +219,9 @@ describe('R85-FINAL B: GET /api/guests — tenant scope (izpeljava prek order zv
   it('?locationId bypass ignoriran za lokacijskega admina', async () => {
     mockSession({ role: 'admin', locationId: LOC_A })
     await guestsGET(new Request(`http://localhost:3000/api/guests?locationId=${LOC_B}`))
-    expect(mocks.guestFindMany.mock.calls[0][0].where.orders.some.locationId).toBe(LOC_A)
+    const or = mocks.guestFindMany.mock.calls[0][0].where.AND[0].OR
+    expect(or[0].locationId).toBe(LOC_A)
+    expect(or[1].orders.some.locationId).toBe(LOC_A)
   })
 
   it('regular user brez lokacije → 403, NI poizvedb', async () => {
