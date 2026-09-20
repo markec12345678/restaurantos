@@ -8,7 +8,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { validateReportDateRange } from '@/lib/validations'
 import { toNum } from '@/lib/decimal'
 import { endOfDayParam, handleApiError } from '@/lib/api-utils'
@@ -23,13 +23,28 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
+
+    // FIX R84-1 HIGH: Tenant scope — poročilo po zaposlenih je prej zajemalo
+    // naročila IN seznam aktivnih zaposlenih VSEH lokacij (križno-tenant PII:
+    // imena, vloga, prihodki tujih zaposlenih). Fail-closed za regular
+    // uporabnika brez lokacije. null scope (super-admin) = globalni pogled.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/reports/employees',
+    })
+    if ('error' in scope) return scope.error
+
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
     const dateError = validateReportDateRange(startDate, endDate)
     if (dateError) return dateError
 
-    const where: Record<string, unknown> = { status: 'completed', paymentStatus: 'paid' }
+    const where: Record<string, unknown> = {
+      status: 'completed',
+      paymentStatus: 'paid',
+      // R84: tenant filter (null scope = PRAZEN filter, nikoli { locationId: null })
+      ...(scope.locationId ? { locationId: scope.locationId } : {}),
+    }
     if (startDate || endDate) {
       const paidAt: Record<string, Date> = {}
       if (startDate) paidAt.gte = new Date(startDate)
@@ -50,7 +65,12 @@ export async function GET(req: Request) {
     })
 
     const employees = await db.employee.findMany({
-      where: { status: 'active' },
+      where: {
+        status: 'active',
+        // R84: tudi seznam zaposlenih mora biti scoped (PII) — legacy NULL
+        // lokacija je za lokacijskega admina nevidna (fail-closed)
+        ...(scope.locationId ? { locationId: scope.locationId } : {}),
+      },
       include: { jobs: { include: { job: true } } },
     })
     const employeeMap = new Map(employees.map(e => [e.id, e]))

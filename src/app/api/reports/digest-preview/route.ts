@@ -22,6 +22,19 @@ import { fetchDailyDigestData, buildDailyDigestHtml } from '@/lib/email/daily-di
 
 export const dynamic = 'force-dynamic'
 
+// FIX R84-1 MEDIUM: digest je platform-level poročilo (globalni prejemniki iz
+// RestaurantSettings + združeni prihodki VSEH lokacij). Lokacijski admin ga
+// ne sme brati/sprožiti. Kanonični gate = mirror /api/receipts/rebuild (R82-B).
+function platformAdminGate(authResult: { session: { role: string; locationId?: string | null } | null }): NextResponse | null {
+  const session = authResult.session
+  const isPlatformAdmin = !!session && ['admin', 'super_admin'].includes(session.role) && !session.locationId
+  if (isPlatformAdmin) return null
+  return NextResponse.json(
+    { error: 'Dnevni povzetek je platformsko poročilo — dostop ima samo platformni administrator.' },
+    { status: 403 },
+  )
+}
+
 const dateQuerySchema = z.object({
   date: z
     .string()
@@ -47,6 +60,8 @@ export async function GET(req: Request) {
 
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+    const platformGate = platformAdminGate(authResult)
+    if (platformGate) return platformGate
 
     const url = new URL(req.url)
     const { data: parsed, error: validationError } = dateQuerySchema.safeParse({

@@ -38,6 +38,10 @@ export async function fetchEodData(dayStart: Date, dayEnd: Date, locationId: str
   }
   const statusOrderWhere = {
     createdAt: { gte: dayStart, lte: dayEnd },
+    // FIX R84-1 MEDIUM: tudi status/odprta/preklicana/voided poizvedbe morajo
+    // biti scoped — prej je GET mešal statusne števce in voidane artikle vseh
+    // lokacij (paidOrderWhere je bil scoped, statusOrderWhere ni).
+    ...(locationId ? { locationId } : {}),
   }
 
   // FIX EOD-1 HIGH: Dodaj locationId filter za blagajno
@@ -76,8 +80,16 @@ export async function fetchEodData(dayStart: Date, dayEnd: Date, locationId: str
     db.order.groupBy({ by: ['employeeId'], where: paidOrderWhere, _sum: { total: true, tip: true }, _count: true }),
     // 9. PO URAH
     db.order.findMany({ where: paidOrderWhere, select: { paidAt: true, createdAt: true, total: true } }),
-    // 10. STROŠKI
-    db.stockTransaction.groupBy({ by: ['type'], where: { createdAt: { gte: dayStart, lte: dayEnd } }, _sum: { totalCost: true } }),
+    // 10. STROŠKI — R84: vezava prek relacije inventoryItem.locationId (model
+    // nima lastnega locationId stolpca)
+    db.stockTransaction.groupBy({
+      by: ['type'],
+      where: {
+        createdAt: { gte: dayStart, lte: dayEnd },
+        ...(locationId ? { inventoryItem: { locationId } } : {}),
+      },
+      _sum: { totalCost: true },
+    }),
     // 11. BLAGAJNA
     db.cashRegisterShift.findFirst({ where: shiftWhere, orderBy: { openedAt: 'desc' } }),
     // 12. VOIDANI ARTIKLI

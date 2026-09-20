@@ -31,6 +31,19 @@ import { computeDigestTrend, computeTrendComparison, type TrendDayRaw } from '@/
 
 export const dynamic = 'force-dynamic'
 
+// FIX R84-1 MEDIUM: trend poročilo zajema paid naročila VSEH lokacij (brez
+// locationId filtra). Platform-level gate = mirror /api/receipts/rebuild —
+// lokacijski admin ne sme videti združenega 7-dnevnega trenda čez tenant-e.
+function platformAdminGate(authResult: { session: { role: string; locationId?: string | null } | null }): NextResponse | null {
+  const session = authResult.session
+  const isPlatformAdmin = !!session && ['admin', 'super_admin'].includes(session.role) && !session.locationId
+  if (isPlatformAdmin) return null
+  return NextResponse.json(
+    { error: 'Trend povzetek je platformsko poročilo — dostop ima samo platformni administrator.' },
+    { status: 403 },
+  )
+}
+
 const trendQuerySchema = z.object({
   date: z
     .string()
@@ -51,6 +64,8 @@ export async function GET(req: Request) {
 
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+    const platformGate = platformAdminGate(authResult)
+    if (platformGate) return platformGate
 
     const url = new URL(req.url)
     const { data: parsed, error: validationError } = trendQuerySchema.safeParse({

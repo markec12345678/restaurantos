@@ -1,7 +1,7 @@
 // GET /api/reports/financial — Celovito poslovno poročanje z izpiski za knjiženje
 // Parametri: period=daily|weekly|monthly|yearly, date=YYYY-MM-DD (referenčni datum)
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { validateReportDateRange } from '@/lib/validations'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
@@ -24,6 +24,16 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
+
+    // FIX R84-1 HIGH: Tenant scope — finančno poročilo je prej agregiralo
+    // prihodke/stroške/izemene VSEH lokacij (celoten P&L vsakega tenanta v
+    // enem klicu). Fail-closed za regular uporabnika brez lokacije. null scope
+    // (super-admin) = globalni pogled.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/reports/financial',
+    })
+    if ('error' in scope) return scope.error
+
     const period = searchParams.get('period') || 'daily'
     const refDateStr = searchParams.get('date') || new Date().toISOString().split('T')[0]
 
@@ -51,7 +61,7 @@ export async function GET(req: Request) {
       stockCostGroups,
       cashRegisterAgg,
       orderTypeGroups,
-    ] = await fetchFinancialData(startDate, endDate, prevStartDate, prevEndDate)
+    ] = await fetchFinancialData(startDate, endDate, prevStartDate, prevEndDate, scope.locationId)
 
     // === IZRAČUNI ===
     const result = await computeFinancialMetrics(

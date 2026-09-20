@@ -6,7 +6,7 @@
 // ============================================
 
 import { NextResponse } from 'next/server'
-import { requireAuth, resolveTenantLocationId } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { validateReportDateRange } from '@/lib/validations'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
@@ -87,7 +87,22 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
-    return await handleEodPost(req, authResult as { session?: { employeeId?: string } | null })
+    // FIX R84-1 HIGH (cross-tenant WRITE): prej je EOD close iskal PRVO odprto
+    // izmeno BREZ locationId filtra — lokacijski admin je lahko zaprl izmeno
+    // TUJE lokacije z združenimi vsi-tenant povzetki. Scope je obvezen: za
+    // lokacijskega admina = session lokacija; super-admin (null) lahko poda
+    // ?locationId= ali izvede globalno (rounded staro vedenje — platformni admin).
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'POST /api/reports/eod',
+    })
+    if ('error' in scope) return scope.error
+
+    return await handleEodPost(
+      req,
+      authResult as { session?: { employeeId?: string } | null },
+      scope.locationId,
+    )
   } catch (error: unknown) {
     return handleEodPostError(error)
   }

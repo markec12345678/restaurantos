@@ -7,7 +7,7 @@
 import { db } from '@/lib/db'
 import { deepToNumbers, toNum, round2 } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
@@ -19,10 +19,23 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
+
+    // FIX R84-1 HIGH: Tenant scope — AP obveznosti (dobavitelji) so prej bile
+    // čitljive čez VSE tenant-e. AccountsPayable ima locationId stolpec
+    // (nullable — legacy NULL zapisi so za lokacijskega admina nevidni,
+    // fail-closed; super-admin jih vidi v globalnem pogledu).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/reports/ap-aging',
+    })
+    if ('error' in scope) return scope.error
+
     const supplierId = searchParams.get('supplierId')
     const status = searchParams.get('status') || 'open'
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = {
+      // R84: tenant filter (null scope = PRAZEN filter, nikoli { locationId: null })
+      ...(scope.locationId ? { locationId: scope.locationId } : {}),
+    }
     if (supplierId) where.supplierId = supplierId
     // Default: prikaži samo odprte/partial obveznosti (ne plačane)
     if (status !== 'all') {

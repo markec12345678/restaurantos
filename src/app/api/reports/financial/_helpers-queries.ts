@@ -68,23 +68,44 @@ export function calcDateRange(refDate: Date, period: string): DateRange {
 // ─── Vzporedne poizvedbe za finančne podatke ───
 // FIX CRITICAL: Za finančna poročila uporabimo paidAt (datum plačila) namesto createdAt.
 // Naročilo, ustvarjeno včeraj a plačano danes, sodi v današnji dan.
-export async function fetchFinancialData(startDate: Date, endDate: Date, prevStartDate: Date, prevEndDate: Date) {
+// FIX R84-1 HIGH: locationId tenant scope — prej so vsi 10 agregati zajemali
+// podatke VSEH lokacij. null scope (super-admin) = PRAZEN filter, nikoli
+// { locationId: null }. StockTransaction nima lastnega locationId stolpca —
+// vezava gre prek relacije inventoryItem.locationId.
+export async function fetchFinancialData(
+  startDate: Date,
+  endDate: Date,
+  prevStartDate: Date,
+  prevEndDate: Date,
+  locationId: string | null,
+) {
+  // Tenant filterji (pogojno — super-admin = globalno)
+  const orderWhereBase = { ...(locationId ? { locationId } : {}) }
+  const stockWhere = {
+    createdAt: { gte: startDate, lte: endDate },
+    ...(locationId ? { inventoryItem: { locationId } } : {}),
+  }
+  const shiftWhere = {
+    openedAt: { gte: startDate, lte: endDate },
+    ...(locationId ? { locationId } : {}),
+  }
+
   return Promise.all([
     // 1. Status counts za trenutno obdobje — groupBy namesto JS .filter()
     db.order.groupBy({
       by: ['status'],
-      where: { createdAt: { gte: startDate, lte: endDate } },
+      where: { createdAt: { gte: startDate, lte: endDate }, ...orderWhereBase },
       _count: true,
     }),
     // 2. Finančni agregati za trenutno obdobje — aggregate namesto findMany + reduce
     db.order.aggregate({
-      where: { paidAt: { gte: startDate, lte: endDate }, paymentStatus: 'paid' },
+      where: { paidAt: { gte: startDate, lte: endDate }, paymentStatus: 'paid', ...orderWhereBase },
       _sum: { total: true, subtotal: true, tax: true, discount: true, tip: true },
       _count: true,
     }),
     // 3. Plačana naročila za podrobnosti (plačilne metode, napitnine, mize)
     db.order.findMany({
-      where: { paidAt: { gte: startDate, lte: endDate }, paymentStatus: 'paid' },
+      where: { paidAt: { gte: startDate, lte: endDate }, paymentStatus: 'paid', ...orderWhereBase },
       select: {
         type: true, tableId: true, employeeId: true, total: true, tip: true,
         table: { select: { number: true, area: true } },
@@ -101,23 +122,23 @@ export async function fetchFinancialData(startDate: Date, endDate: Date, prevSta
     }),
     // 4. Zaključena naročila za časovno razdelitev — lahka poizvedba s select
     db.order.findMany({
-      where: { createdAt: { gte: startDate, lte: endDate }, status: 'completed' },
+      where: { createdAt: { gte: startDate, lte: endDate }, status: 'completed', ...orderWhereBase },
       select: { paidAt: true, createdAt: true, total: true },
     }),
     // 5. Finančni agregati za prejšnje obdobje
     db.order.aggregate({
-      where: { paidAt: { gte: prevStartDate, lte: prevEndDate }, paymentStatus: 'paid' },
+      where: { paidAt: { gte: prevStartDate, lte: prevEndDate }, paymentStatus: 'paid', ...orderWhereBase },
       _sum: { total: true, subtotal: true, tax: true, discount: true, tip: true },
       _count: true,
     }),
     // 6. Plačana naročila za prejšnje obdobje časovno razdelitev
     db.order.findMany({
-      where: { paidAt: { gte: prevStartDate, lte: prevEndDate }, paymentStatus: 'paid' },
+      where: { paidAt: { gte: prevStartDate, lte: prevEndDate }, paymentStatus: 'paid', ...orderWhereBase },
       select: { paidAt: true, createdAt: true, total: true },
     }),
     // 7. Artikli naročil za kategorije/DDV razčlenitev
     db.orderItem.findMany({
-      where: { order: { paidAt: { gte: startDate, lte: endDate }, paymentStatus: 'paid' }, voided: false },
+      where: { order: { paidAt: { gte: startDate, lte: endDate }, paymentStatus: 'paid', ...orderWhereBase }, voided: false },
       select: {
         menuItemId: true, price: true, quantity: true, vatRate: true, vatAmount: true,
         menuItem: { select: { name: true, category: { select: { name: true } } } },
@@ -126,19 +147,19 @@ export async function fetchFinancialData(startDate: Date, endDate: Date, prevSta
     // 8. Stroški zaloga po tipu — groupBy namesto JS .filter()
     db.stockTransaction.groupBy({
       by: ['type'],
-      where: { createdAt: { gte: startDate, lte: endDate } },
+      where: stockWhere,
       _sum: { totalCost: true },
     }),
     // 9. Blagajna izpiski — aggregate namesto findMany + reduce
     db.cashRegisterShift.aggregate({
-      where: { openedAt: { gte: startDate, lte: endDate } },
+      where: shiftWhere,
       _sum: { cashSales: true, cardSales: true, mobileSales: true },
       _count: true,
     }),
     // 10. Vrste naročil — groupBy namesto JS forEach
     db.order.groupBy({
       by: ['type'],
-      where: { paidAt: { gte: startDate, lte: endDate }, paymentStatus: 'paid' },
+      where: { paidAt: { gte: startDate, lte: endDate }, paymentStatus: 'paid', ...orderWhereBase },
       _sum: { total: true },
       _count: true,
     }),

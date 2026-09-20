@@ -21,10 +21,14 @@ export async function computeEodCloseData(
   dayEnd: Date,
   closingCash: number | undefined,
   targetDate: string,
+  locationId: string | null = null,
 ) {
   // Pridobi aktivno izmeno
+  // FIX R84-1 HIGH (cross-tenant WRITE): prej { status: 'open' } brez lokacije —
+  // lokacijski admin je lahko zaprl izmeno TUJE lokacije. null scope
+  // (super-admin) = globalno (staro vedenje za platformnega admina).
   const activeShift = await db.cashRegisterShift.findFirst({
-    where: { status: 'open' },
+    where: { status: 'open', ...(locationId ? { locationId } : {}) },
     orderBy: { openedAt: 'desc' },
   })
 
@@ -33,10 +37,12 @@ export async function computeEodCloseData(
   }
 
   // FIX CRITICAL: Uporabi ACTUAL payments iz checkov + paidAt za zaključek dneva
+  // R84: locationId scope — povzetek mora pokrivati SAMO naročila te lokacije
   const completedOrders = await db.order.findMany({
     where: {
       paidAt: { gte: dayStart, lte: dayEnd },
       paymentStatus: 'paid',
+      ...(locationId ? { locationId } : {}),
     },
     select: {
       id: true, total: true, discount: true, tip: true,
@@ -63,7 +69,10 @@ export async function computeEodCloseData(
   const cashTips = allPayments.filter(p => p.type === 'cash').reduce((s, p) => s + toNum(p.tipAmount), 0)
   const totalDiscounts = completedOrders.reduce((s, o) => s + toNum(o.discount), 0)
   const voidedItems = await db.orderItem.aggregate({
-    where: { voided: true, order: { createdAt: { gte: dayStart, lte: dayEnd } } },
+    where: {
+      voided: true,
+      order: { createdAt: { gte: dayStart, lte: dayEnd }, ...(locationId ? { locationId } : {}) },
+    },
     _sum: { price: true },
   })
 
@@ -101,12 +110,20 @@ export async function closeShiftTransaction(
     totalVoided: number
     notes?: string
   },
+  locationId: string | null = null,
 ) {
   // FIX BUG-4 CRITICAL: Zapri izmeno ZNOTRAJ transakcije — prepreči double-close race condition
   await db.$transaction(async (tx) => {
     const shiftToClose = await tx.cashRegisterShift.findUnique({ where: { id: activeShiftId } })
     if (!shiftToClose) throw new Error('SHIFT_NOT_FOUND')
     if (shiftToClose.status === 'closed') throw new Error('SHIFT_ALREADY_CLOSED')
+    // FIX R84-1 HIGH: defense-in-depth — tudi če bi findFirst zgoraj vrnil tujjo
+    // izmeno (race), transakcija zavrne zaprtje čez-tenant izmene. STROGO:
+    // lokacijski admin sme zapreti IZKLJUČNO izmeno s popolnoma ujemajočo
+    // lokacijo — legacy NULL lokacija je zanj nevidna (fail-closed, MODEL A).
+    if (locationId && shiftToClose.locationId !== locationId) {
+      throw new Error('SHIFT_NOT_FOUND')
+    }
 
     await tx.cashRegisterShift.update({
       where: { id: activeShiftId },

@@ -74,7 +74,11 @@ const DIGEST_DATA = { date: '2026-09-16', revenue: 100, ordersCount: 3 }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mocks.requireAuth.mockResolvedValue({ error: null })
+  // R84-1: digest-send je platform-only — test session = platform admin (brez lokacije)
+  mocks.requireAuth.mockResolvedValue({
+    error: null,
+    session: { employeeId: 'emp-platform-admin', role: 'admin', locationId: null },
+  })
   mocks.checkRateLimitAsync.mockResolvedValue({ allowed: true })
   mocks.fetchDailyDigestData.mockResolvedValue(DIGEST_DATA)
   mocks.logsUpdate.mockResolvedValue({})

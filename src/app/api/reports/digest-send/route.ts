@@ -30,6 +30,18 @@ import {
 
 export const dynamic = 'force-dynamic'
 
+// FIX R84-1 MEDIUM: digest pošiljanje je platform-level operacija (globalni
+// prejemniki + vsebina vseh lokacij). Kanonični gate = mirror /api/receipts/rebuild.
+function platformAdminGate(authResult: { session: { role: string; locationId?: string | null } | null }): NextResponse | null {
+  const session = authResult.session
+  const isPlatformAdmin = !!session && ['admin', 'super_admin'].includes(session.role) && !session.locationId
+  if (isPlatformAdmin) return null
+  return NextResponse.json(
+    { error: 'Dnevni povzetek je platformsko poročilo — pošiljanje dovoljeno samo platformnemu administratorju.' },
+    { status: 403 },
+  )
+}
+
 const sendSchema = z.object({
   date: z
     .string()
@@ -62,6 +74,8 @@ export async function POST(req: Request) {
 
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+    const platformGate = platformAdminGate(authResult)
+    if (platformGate) return platformGate
 
     let body: unknown = {}
     try {

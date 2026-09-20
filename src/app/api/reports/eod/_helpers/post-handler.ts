@@ -6,7 +6,11 @@ import { eodCloseSchema } from '@/lib/validations'
 import { parseJsonBody, validateBody, handleApiError } from '@/lib/api-utils'
 import { computeEodCloseData, closeShiftTransaction, logEodClose } from './eod-close'
 
-export async function handleEodPost(req: Request, authSession: { session?: { employeeId?: string } | null }) {
+export async function handleEodPost(
+  req: Request,
+  authSession: { session?: { employeeId?: string } | null },
+  locationId: string | null,
+) {
   const bodyResult = await parseJsonBody(req)
   if (bodyResult.error) return bodyResult.error
 
@@ -20,11 +24,13 @@ export async function handleEodPost(req: Request, authSession: { session?: { emp
   const dayStart = new Date(targetDate + 'T00:00:00.000Z')
   const dayEnd = new Date(targetDate + 'T23:59:59.999Z')
 
-  // Preveri, da so vsa naročila zaključena ali preklicana
+  // FIX R84-1 HIGH: pendingOrders count mora biti scoped — prej je štel odprta
+  // naročila VSEH lokacij (tuj tenant je lahko blokiral zaključek dneva)
   const pendingOrders = await db.order.count({
     where: {
       createdAt: { gte: dayStart, lte: dayEnd },
       status: { in: ['pending', 'in-progress', 'ready'] },
+      ...(locationId ? { locationId } : {}),
     },
   })
 
@@ -35,10 +41,10 @@ export async function handleEodPost(req: Request, authSession: { session?: { emp
     }, { status: 400 })
   }
 
-  // Izračunaj zaključne podatke
-  const closeData = await computeEodCloseData(dayStart, dayEnd, closingCash, targetDate)
+  // Izračunaj zaključne podatke (R84: locationId scope za izmeno + naročila)
+  const closeData = await computeEodCloseData(dayStart, dayEnd, closingCash, targetDate, locationId)
 
-  // Zapri izmeno
+  // Zapri izmeno (R84: locationId guard v transakciji — defense-in-depth)
   await closeShiftTransaction(closeData.activeShift.id, {
     actualClosingCash: closeData.actualClosingCash,
     expectedCash: closeData.expectedCash,
@@ -53,7 +59,7 @@ export async function handleEodPost(req: Request, authSession: { session?: { emp
     totalTips: closeData.totalTips,
     totalVoided: closeData.totalVoided,
     notes: notes || undefined,
-  })
+  }, locationId)
 
   // Revizijski dnevnik
   await logEodClose(

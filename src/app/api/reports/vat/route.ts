@@ -9,7 +9,7 @@ import { db } from '@/lib/db'
 import { round2 } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { validateReportDateRange } from '@/lib/validations'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { endOfDayParam, handleApiError } from '@/lib/api-utils'
@@ -29,6 +29,15 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
+
+    // FIX R84-1 HIGH: Tenant scope — DDV razčlenitev (FURS relevantno) je prej
+    // zajela paid naročila VSEH lokacij. Fail-closed za regular uporabnika brez
+    // lokacije. null scope (super-admin) = globalni pogled.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/reports/vat',
+    })
+    if ('error' in scope) return scope.error
+
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
     const period = searchParams.get('period') || 'monthly'
@@ -42,7 +51,11 @@ export async function GET(req: Request) {
 
     // Obdobje
     // FIX CRITICAL: Za DDV poročilo uporabimo paymentStatus='paid' — neplačana naročila NE sodijo v DDV poročilo
-    const where: Record<string, unknown> = { paymentStatus: 'paid' }
+    const where: Record<string, unknown> = {
+      paymentStatus: 'paid',
+      // R84: tenant filter (null scope = PRAZEN filter, nikoli { locationId: null })
+      ...(scope.locationId ? { locationId: scope.locationId } : {}),
+    }
     if (startDate || endDate) {
       const paidAt: Record<string, Date> = {}
       if (startDate) paidAt.gte = new Date(startDate)

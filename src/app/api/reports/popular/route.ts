@@ -2,7 +2,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { validateReportDateRange } from '@/lib/validations'
 import { toNum, multiply, round2 } from '@/lib/decimal'
 import { endOfDayParam, handleApiError } from '@/lib/api-utils'
@@ -17,6 +17,15 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
+
+    // FIX R84-1 HIGH: Tenant scope — popular artikli so prej zajemali plačana
+    // naročila VSEH lokacij (mešanica izdelkov/prihodkov čez tenant-e).
+    // Fail-closed za regular uporabnika brez lokacije. null scope = globalno.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/reports/popular',
+    })
+    if ('error' in scope) return scope.error
+
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
@@ -27,6 +36,8 @@ export async function GET(req: Request) {
     // FIX HIGH: Filtriraj na bazi — samo artikli iz plačanih naročil
     const orderWhere: Record<string, unknown> = {
       paymentStatus: 'paid',
+      // R84: tenant filter (null scope = PRAZEN filter, nikoli { locationId: null })
+      ...(scope.locationId ? { locationId: scope.locationId } : {}),
     }
     if (startDate || endDate) {
       const paidAt: Record<string, Date> = {}

@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { validateReportDateRange } from '@/lib/validations'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { endOfDayParam, handleApiError } from '@/lib/api-utils'
@@ -22,6 +22,16 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
+
+    // FIX R84-1 HIGH: Tenant scope — prej je where zajel plačana naročila VSEH
+    // lokacij (prihodek vsakega tenanta v enem klicu za lokacijskega admina).
+    // Fail-closed za regular uporabnika brez lokacije. null scope (super-admin)
+    // = globalni pogled (nikoli { locationId: null }).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/reports/sales',
+    })
+    if ('error' in scope) return scope.error
+
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
@@ -32,6 +42,8 @@ export async function GET(req: Request) {
     const where: Record<string, unknown> = {
       status: 'completed',
       paymentStatus: 'paid',
+      // R84: tenant filter (null scope = PRAZEN filter, nikoli { locationId: null })
+      ...(scope.locationId ? { locationId: scope.locationId } : {}),
     }
     // FIX CRITICAL: Uporabi paidAt namesto createdAt za financo porocanje
     // Naročila, ki so bila plačana v tem obdobju (ne ustvarjena!)
