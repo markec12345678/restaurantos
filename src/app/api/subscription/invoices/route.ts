@@ -12,6 +12,26 @@ import { toNum, round2, multiply, add, deepToNumbers } from '@/lib/decimal'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
+// FIX R82-A (platform-admin gate): SubscriptionInvoice so PLATFORM-level
+// SaaS podatki (kvota, prihodki, status aktivacije naročnine) — 'permission:
+// admin' sam po sebi pokriva tudi lokacijsko vezane admine, ki:
+//  - GET: vidijo račune VSEH tenantov (fakturacija, zneski, taxId)
+//  - POST: generirajo račun za katero koli naročnino
+//  - PATCH: status='paid' AKTIVIRA naročnino (trial → active) — lokacijski
+//    admin torej lahko sam sebi podaljša SaaS dostop.
+// Kanonični gate = mirror /api/subscription (R81): platform administrator
+// = admin/super_admin BREZ dodeljene lokacije (session.locationId null).
+// ROLE gate (NI lokacijski resolver — zato brez tenant-scope).
+function platformAdminGate(authResult: { session: { role: string; locationId?: string | null } | null }): NextResponse | null {
+  const session = authResult.session
+  const isPlatformAdmin = !!session && ['admin', 'super_admin'].includes(session.role) && !session.locationId
+  if (isPlatformAdmin) return null
+  return NextResponse.json(
+    { error: 'Dostop do naročniških računov ima samo platformni administrator.' },
+    { status: 403 },
+  )
+}
+
 const createInvoiceSchema = z.object({
   subscriptionId: z.string().min(1, 'ID naročnine je obvezen').max(100, 'ID naročnine je predolg'),
   periodStart: z.string().min(1, 'Začetek obdobja je obvezen').max(30, 'Neveljaven format datuma'),
@@ -31,6 +51,8 @@ export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+    const platformGate = platformAdminGate(authResult)
+    if (platformGate) return platformGate
 
     const { searchParams } = new URL(req.url)
     const subscriptionId = searchParams.get('subscriptionId')
@@ -58,6 +80,8 @@ export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+    const platformGate = platformAdminGate(authResult)
+    if (platformGate) return platformGate
 
     const result = await validateRequest(req, createInvoiceSchema)
     if (result.error) return result.error
@@ -114,6 +138,8 @@ export async function PATCH(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+    const platformGate = platformAdminGate(authResult)
+    if (platformGate) return platformGate
 
     const result = await validateRequest(req, updateInvoiceSchema)
     if (result.error) return result.error

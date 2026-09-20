@@ -11,7 +11,11 @@
 //   2. Za vsakega pridobi Order + OrderItems
 //   3. Izračuna vatBreakdown in posodobi Receipt
 //
-// Varnost: admin permission
+// Varnost: FIX R82-B — platform-admin ONLY (admin/super_admin BREZ lokacije).
+// Rebuild je GLOBAL maintenance operacija: findMany čez VSE receipte vseh
+// tenantov + update. 'permission: admin' sam po sebi pokriva tudi
+// lokacijsko vezane admine, ki globalnega pisanja ne smejo sprožiti.
+// Gate mora biti PRED vsakim db klicem (DB reads = 0, če je blokiran).
 // ============================================
 
 import { NextResponse } from 'next/server'
@@ -24,10 +28,23 @@ import { logger } from '@/lib/logger'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
+// Kanonični gate = mirror /api/subscription (R81) + /api/subscription/invoices (R82-A).
+function platformAdminGate(authResult: { session: { role: string; locationId?: string | null } | null }): NextResponse | null {
+  const session = authResult.session
+  const isPlatformAdmin = !!session && ['admin', 'super_admin'].includes(session.role) && !session.locationId
+  if (isPlatformAdmin) return null
+  return NextResponse.json(
+    { error: 'Globalno vzdrževanje lahko izvaja samo platformni administrator.' },
+    { status: 403 },
+  )
+}
+
 export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+    const platformGate = platformAdminGate(authResult)
+    if (platformGate) return platformGate
 
     // Get all receipts — we'll check vatBreakdown in JS since Prisma doesn't allow null for non-null field
     const receipts = await db.receipt.findMany({
