@@ -20,6 +20,9 @@ export const dynamic = 'force-dynamic'
 // lokacijsko vezan admin upravlja KLJUČE SVOJEGA tenanta (prej: listApiKeys
 // brez filtra = vsi tenanti; createApiKey = PRVA naročnina v DB). Platform
 // admin (brez lokacije) = globalni pogled / default subscription (back-compat).
+// R82-FINAL-1 (F2 nota): lokacija z NULL subscriptionId (legacy single-tenant
+// deploy) → undefined = global — NAMERNO (fail-closed 403 bi zlomal legacy
+// single-tenant admine, kjer je global == njihov edini tenant).
 async function resolveIssuerSubscriptionId(authResult: { session: { role: string; locationId?: string | null } | null }): Promise<string | undefined> {
   const session = authResult.session
   if (!session?.locationId) return undefined // platform admin → global / default

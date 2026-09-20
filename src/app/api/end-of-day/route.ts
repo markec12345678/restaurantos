@@ -144,7 +144,13 @@ export async function POST(req: Request) {
     // VEDNO pripeta na svojo lokacijo (body strip); super-admin sme izrecen
     // body.locationId; brez obeh → null (legacy single-tenant vedenje v
     // closeShift).
-    const effectiveLocationId = authResult.session?.locationId || locationId || null
+    // FIX R82-FINAL-1 (F3): mirror GET 403 gate — staff/manager BREZ lokacije
+    // ne sme niti prek body.locationId sprožiti zaključka tuje izmene.
+    const sessionLocId = authResult.session?.locationId ?? null
+    if (!sessionLocId && !isAdminTenantRole(authResult.session?.role) && locationId) {
+      return NextResponse.json({ error: 'EOD zahteva dodeljeno lokacijo.' }, { status: 403 })
+    }
+    const effectiveLocationId = sessionLocId || locationId || null
 
     const cashDiff = await closeShift(date, actualCash, notes, effectiveLocationId, authResult.session?.employeeId)
 

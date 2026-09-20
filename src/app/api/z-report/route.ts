@@ -132,7 +132,9 @@ export async function POST(req: Request) {
             // P2-UX FIX (timezone): meje ljubljanskega dne (ne UTC polnoč)
             const { start: emailDayStart, end: emailDayEnd } = ljubljanaDayBounds(date)
             const dateFilter = { gte: emailDayStart, lte: emailDayEnd }
-            const reportData = await fetchReportData(dateFilter)
+            // FIX R82-FINAL-1 (F1): PDF v finalize-emailu scoped na lokacijo
+            // (prej global fetchReportData = promet VSEH tenantov v e-pošti)
+            const reportData = await fetchReportData(dateFilter, locationId ?? null)
             const pdfBuffer = await generateReportPdf(reportData)
             await sendZReportEmail(recipients, date, pdfBuffer, {
               totalSales: round2(stats.totalSales),

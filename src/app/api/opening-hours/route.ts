@@ -85,14 +85,18 @@ export async function POST(req: Request) {
       // svojo lokacijo (body strip); super-admin sme izrecen body.locationId.
       const sessionLocId = authResult.session?.locationId || null
       const locId = sessionLocId || batchData.locationId || null
-      if (locId) {
-        await db.openingHours.deleteMany({ where: { locationId: locId } })
+      // FIX R82-FINAL-2: fallback lokacija se reši PRED deleteMany — prej je
+      // seja brez lokacije izbrisala 0 vrstic (deleteMany { locationId: null },
+      // stolpec NOT NULL) nato kreirala na prvo lokacijo → podvojeni urniki.
+      const batchLocationId = locId || (await resolveLocationId(authResult.session?.locationId, authResult.session?.employeeId))
+      if (batchLocationId) {
+        await db.openingHours.deleteMany({ where: { locationId: batchLocationId } })
       } else {
+        // Legacy veja (brez kakršne koli lokacije v DB) — nič za brisati
         await db.openingHours.deleteMany({ where: { locationId: null } })
       }
 
       // FIX QA runda 37: DB stolpec OpeningHours.locationId je NOT NULL (schema drift)
-      const batchLocationId = locId || (await resolveLocationId(authResult.session?.locationId, authResult.session?.employeeId))
       const created = await db.openingHours.createMany({
         data: batchData.hours.map(h => ({
           ...h,
