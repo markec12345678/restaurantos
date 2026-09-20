@@ -3,7 +3,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { createHaccpSchema, haccpUpdateSchema } from '@/lib/validations'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { createHaccpEntryWithChain } from '@/lib/haccp-chain'
@@ -43,8 +43,13 @@ export async function GET(req: Request) {
     // FIX R80 (tenant scope): HaccpEntry IMA locationId, a je bil findMany+count
     // nefiltriran — cross-tenant food-safety zapisi. Scope na lokacijo seje;
     // super-admin (session.locationId=null) vidi vse lokacije.
-    const sessionLocId = authResult.session?.locationId ?? null
-    const locFilter = sessionLocId ? { locationId: sessionLocId } : {}
+    // R84-FIX2 (final-auditor MEDIUM): role-aware resolver — prej presence-based
+    // (null locationId = globalno tudi za ne-admine); sedaj fail-closed 403.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/haccp',
+    })
+    if ('error' in scope) return scope.error
+    const locFilter = scope.locationId ? { locationId: scope.locationId } : {}
 
     const [entries, total] = await Promise.all([
       db.haccpEntry.findMany({

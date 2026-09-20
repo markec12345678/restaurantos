@@ -57,6 +57,16 @@ async function makeClient(): Promise<PrismaClient> {
 
 const APPLY = process.argv.includes('--apply')
 
+// R84-FIX2 (final-auditor LOW): chunking — PG bind-param limit (65k);
+// OutboxEvent lahko ima >65k vrstic na lokacijo → batch ≤ 10k id-jev
+const CHUNK_SIZE = 10_000
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}
+
 // ══════════════════════════════════════════════════════════════════
 // 1. WALLET PAYMENT
 // ══════════════════════════════════════════════════════════════════
@@ -108,11 +118,13 @@ async function backfillWalletPayments(db: PrismaClient) {
   if (APPLY) {
     let updated = 0
     for (const [loc, ids] of byLocation) {
-      const res = await db.walletPayment.updateMany({
-        where: { id: { in: ids }, locationId: null },
-        data: { locationId: loc },
-      })
-      updated += res.count
+      for (const batch of chunk(ids, CHUNK_SIZE)) {
+        const res = await db.walletPayment.updateMany({
+          where: { id: { in: batch }, locationId: null },
+          data: { locationId: loc },
+        })
+        updated += res.count
+      }
     }
     console.log(`  ✅ ZAPISANO: ${updated} WalletPayment vrstic`)
   } else {
@@ -143,6 +155,11 @@ async function backfillOutboxEvents(db: PrismaClient) {
   console.log(`  NULL locationId skupaj: ${nullRows.length}`)
 
   if (nullRows.length === 0) return
+
+  // R84-FIX2 (LOW): explicitno opozorilo če je take cap zadel — ponovni zagon potreben
+  if (nullRows.length >= 100_000) {
+    console.log('  ⚠️  Dosežen take cap (100k) — po zaključku ponovno pozeni skript za preostanek')
+  }
 
   // Združi po aggregateType za batch lookup
   const orders = new Set<string>()
@@ -207,13 +224,15 @@ async function backfillOutboxEvents(db: PrismaClient) {
       })
       updated++
     }
-    // order-source vrstice: batch per lokacija
+    // order-source vrstice: batch per lokacija (chunked — PG bind limit)
     for (const [loc, ids] of byLocation) {
-      const res = await db.outboxEvent.updateMany({
-        where: { id: { in: ids }, locationId: null },
-        data: { locationId: loc },
-      })
-      updated += res.count
+      for (const batch of chunk(ids, CHUNK_SIZE)) {
+        const res = await db.outboxEvent.updateMany({
+          where: { id: { in: batch }, locationId: null },
+          data: { locationId: loc },
+        })
+        updated += res.count
+      }
     }
     console.log(`  ✅ ZAPISANO: ${updated} OutboxEvent vrstic`)
   } else {

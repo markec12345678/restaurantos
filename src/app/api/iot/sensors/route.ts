@@ -2,7 +2,7 @@
 // Za Bluetooth LoRa senzorje (SmartSense, Ruuvi) integracijo z HACCP
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { createHaccpEntryWithChain } from '@/lib/haccp-chain'
 import { z } from 'zod'
@@ -24,11 +24,16 @@ export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'view_reports' })
     if (authResult.error) return authResult.error
-    // R84 FIX: tenant scope — prej je GET vračal temperature vnose VSEH
-    // lokacij (križno-tenant HACCP podatki). Isti vzorec kot /api/haccp GET.
-    const sessionLocId = authResult.session?.locationId ?? null
+    // R84-FIX2 (final-auditor MEDIUM): role-aware scope — prej presence-based
+    // (null session.locationId = globalno TUDI za ne-admine brez lokacije).
+    // Kanonični resolver: fail-closed 403 za lokacijsko nevezanega ne-admina.
+    const { searchParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/iot/sensors',
+    })
+    if ('error' in scope) return scope.error
     const entries = await db.haccpEntry.findMany({
-      where: { category: 'temperature', ...(sessionLocId ? { locationId: sessionLocId } : {}) },
+      where: { category: 'temperature', ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       orderBy: { createdAt: 'desc' },
       take: 100,
     })

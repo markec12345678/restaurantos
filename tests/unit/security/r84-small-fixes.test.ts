@@ -23,12 +23,19 @@ const mocks = vi.hoisted(() => ({
   createHaccpEntryWithChain: vi.fn(),
   employeeFindFirst: vi.fn(),
   employeeUpdate: vi.fn(),
+  walletPaymentUpdateMany: vi.fn(),
+  walletPaymentFindFirst: vi.fn(),
+  walletPaymentFindUnique: vi.fn(),
 }))
 
-vi.mock('@/lib/auth-middleware', () => ({
-  requireAuth: mocks.requireAuth,
-  revokeEmployeeSessions: mocks.revokeEmployeeSessions,
-}))
+vi.mock('@/lib/auth-middleware', async () => {
+  const tenantScope = await import('@/lib/auth-middleware/tenant-scope')
+  return {
+    requireAuth: mocks.requireAuth,
+    resolveTenantLocationIdOrThrow: tenantScope.resolveTenantLocationIdOrThrow,
+    revokeEmployeeSessions: mocks.revokeEmployeeSessions,
+  }
+})
 
 vi.mock('@/lib/auth-middleware/session-store', () => ({
   invalidateEmployeeStatusCache: vi.fn(),
@@ -39,6 +46,19 @@ vi.mock('@/lib/db', () => ({
     haccpEntry: { findMany: mocks.haccpFindMany },
     location: { findUnique: mocks.locationFindUnique },
     employee: { findFirst: mocks.employeeFindFirst, update: mocks.employeeUpdate },
+    // wallet capture/refund poti (R84-FIX2)
+    walletPayment: {
+      updateMany: mocks.walletPaymentUpdateMany,
+      findFirst: mocks.walletPaymentFindFirst,
+      findUnique: mocks.walletPaymentFindUnique,
+      update: mocks.walletPaymentFindUnique,
+    },
+    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        $executeRaw: vi.fn().mockResolvedValue(undefined),
+        walletPayment: { findUnique: mocks.walletPaymentFindUnique, update: mocks.walletPaymentFindUnique },
+      })),
+    outboxEvent: { upsert: vi.fn().mockResolvedValue({}) },
   },
   createAuditLog: vi.fn().mockResolvedValue({}),
 }))
@@ -50,6 +70,9 @@ vi.mock('@/lib/haccp-chain', () => ({
 import { GET as sensorsGET } from '@/app/api/iot/sensors/route'
 import { POST as readingsPOST } from '@/app/api/iot/readings/route'
 import { PUT as employeePUT } from '@/app/api/employees/[id]/route'
+import { POST as capturePOST } from '@/app/api/wallet-payment/[id]/capture/route'
+import { POST as refundPOST } from '@/app/api/wallet-payment/[id]/refund/route'
+import { captureWalletPayment, refundWalletPayment } from '@/lib/wallet-payment'
 
 // Utišaj logger
 vi.spyOn(console, 'info').mockImplementation(() => {})
@@ -233,5 +256,98 @@ describe('R84-3: PUT /api/employees/[id] — super_admin gate pariteta', () => {
     })
 
     expect(res.status).toBe(404)
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════
+// 4. Wallet capture/refund — tenant scope (R84-FIX2, final-auditor H3:
+//    cross-tenant money movement — manage_cash user tuje lokacije je lahko
+//    bremil/povrnil tuje plačilo)
+// ══════════════════════════════════════════════════════════════════
+describe('R84-FIX2: wallet capture/refund — tenant scope', () => {
+  it('capture loc-bound: updateMany where vsebuje locationId + status authorized', async () => {
+    mocks.walletPaymentUpdateMany.mockResolvedValue({ count: 1 })
+    mocks.walletPaymentFindUnique.mockResolvedValue({
+      id: 'wp-1', status: 'captured', amount: 50, currency: 'EUR', checkId: null, paymentId: null,
+    })
+
+    await captureWalletPayment('wp-1', LOC_A)
+
+    const where = mocks.walletPaymentUpdateMany.mock.calls[0][0].where
+    expect(where.id).toBe('wp-1')
+    expect(where.status).toBe('authorized')
+    expect(where.locationId).toBe(LOC_A)
+  })
+
+  it('capture tujega plačila → count=0 + scoped re-read: napaka BREZ razkritja obstoja', async () => {
+    mocks.walletPaymentUpdateMany.mockResolvedValue({ count: 0 })
+    mocks.walletPaymentFindFirst.mockResolvedValue(null) // tuj zapis = ne najden
+
+    await expect(captureWalletPayment('wp-foreign', LOC_A)).rejects.toThrow(
+      'ne obstaja ali ni na vaši lokaciji',
+    )
+  })
+
+  it('refund tujega/legacy-NULL plačila → strict tenant guard (fail-closed)', async () => {
+    mocks.walletPaymentFindUnique.mockResolvedValue({
+      id: 'wp-2', status: 'captured', amount: 50, refundedAmount: 0, locationId: null, currency: 'EUR',
+    })
+
+    await expect(refundWalletPayment('wp-2', 10, LOC_A)).rejects.toThrow(
+      'ne obstaja ali ni na vaši lokaciji',
+    )
+  })
+
+  it('refund lastnega plačila → uspešno (outbox event z lokacijo)', async () => {
+    mocks.walletPaymentFindUnique
+      .mockResolvedValueOnce({
+        id: 'wp-3', status: 'captured', amount: 50, refundedAmount: 0, locationId: LOC_A, currency: 'EUR', checkId: null, paymentId: null,
+      })
+      .mockResolvedValueOnce({
+        id: 'wp-3', status: 'refunded', amount: 50, refundedAmount: 10, locationId: LOC_A, currency: 'EUR', checkId: null, paymentId: null,
+      })
+
+    const result = await refundWalletPayment('wp-3', 10, LOC_A)
+    expect(result.status).toBe('refunded')
+  })
+
+  it('capture route: loc-bound klicatelj → lib prejme scope.locationId', async () => {
+    mocks.requireAuth.mockResolvedValue({
+      session: { employeeId: 'emp-1', role: 'admin', locationId: LOC_A },
+      error: null,
+    })
+    mocks.walletPaymentUpdateMany.mockResolvedValue({ count: 1 })
+    mocks.walletPaymentFindUnique.mockResolvedValue({
+      id: 'wp-9', status: 'captured', amount: 20, currency: 'EUR', checkId: null, paymentId: null,
+    })
+
+    const res = await capturePOST(new Request('http://localhost:3000/api/wallet-payment/wp-9/capture'), {
+      params: Promise.resolve({ id: 'wp-9' }),
+    })
+
+    expect(res.status).toBe(200)
+    expect(mocks.walletPaymentUpdateMany.mock.calls[0][0].where.locationId).toBe(LOC_A)
+  })
+
+  it('refund route: super-admin (null scope) → lib prejme null (globalno)', async () => {
+    mocks.requireAuth.mockResolvedValue({
+      session: { employeeId: 'emp-1', role: 'super_admin', locationId: null },
+      error: null,
+    })
+    mocks.walletPaymentFindUnique
+      .mockResolvedValueOnce({
+        id: 'wp-4', status: 'captured', amount: 30, refundedAmount: 0, locationId: null, currency: 'EUR', checkId: null, paymentId: null,
+      })
+      .mockResolvedValueOnce({
+        id: 'wp-4', status: 'refunded', amount: 30, refundedAmount: 5, locationId: null, currency: 'EUR', checkId: null, paymentId: null,
+      })
+
+    const res = await refundPOST(new Request('http://localhost:3000/api/wallet-payment/wp-4/refund', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: 5 }),
+    }), { params: Promise.resolve({ id: 'wp-4' }) })
+
+    expect(res.status).toBe(200)
   })
 })

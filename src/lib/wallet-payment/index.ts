@@ -264,11 +264,19 @@ export async function authorizeWalletPayment(
 // 3. CAPTURE plačila (pooblastitev → dejansko breme)
 // P1-19: pogojni updateMany (status='authorized') — prepreči dvojni capture
 // ob sočasnih klicih (npr. webhook retry + ročni capture).
+// R84-FIX2 (final-auditor H3): izbirni locationId scope — prej je bil capture
+// čez VSE tenant-e (manage_cash user tuje lokacije je lahko bremil tujje
+// plačilo). NULL scope (super-admin) = globalno.
 export async function captureWalletPayment(
   walletPaymentId: string,
+  locationId?: string | null,
 ): Promise<WalletPaymentResult> {
   const claim = await db.walletPayment.updateMany({
-    where: { id: walletPaymentId, status: 'authorized' },
+    where: {
+      id: walletPaymentId,
+      status: 'authorized',
+      ...(locationId ? { locationId } : {}),
+    },
     data: {
       status: 'captured',
       capturedAt: new Date(),
@@ -276,21 +284,22 @@ export async function captureWalletPayment(
   })
 
   if (claim.count === 0) {
-    const current = await db.walletPayment.findUnique({
-      where: { id: walletPaymentId },
+    // R84-FIX2: scoped re-read — tuj/legacy-NULL zapis ne sme razkriti obstoja
+    const current = await db.walletPayment.findFirst({
+      where: { id: walletPaymentId, ...(locationId ? { locationId } : {}) },
       select: { status: true },
     })
     if (!current) {
-      throw new Error(`WalletPayment ${walletPaymentId} ne obstaja`)
+      throw new Error('WalletPayment ne obstaja ali ni na vaši lokaciji')
     }
-    throw new Error(`WalletPayment ${walletPaymentId} ni avtoriziran (trenutno: ${current.status})`)
+    throw new Error(`WalletPayment ni avtoriziran (trenutno: ${current.status})`)
   }
 
   const updated = await db.walletPayment.findUnique({
     where: { id: walletPaymentId },
   })
   if (!updated) {
-    throw new Error(`WalletPayment ${walletPaymentId} ne obstaja`)
+    throw new Error('WalletPayment ne obstaja')
   }
 
   logger.info('WalletPayment', `Captured ${walletPaymentId}`)
@@ -325,9 +334,13 @@ export async function captureWalletPayment(
 // INCREMENT namesto absolutnega zapisa. Prej: dvakrat sočasno delno vračilo
 // je oba prebrala isti refundedAmount → izgubljen update (dvakrat vračeno,
 // DB pa kazala enkrat). Zaklep + increment serializira kumulativo.
+// R84-FIX2 (final-auditor H3): izbirni locationId scope — STROGO (kot eod):
+// lokacijsko vezan klicatelj sme povrniti IZKLJUČNO plačilo svoje lokacije;
+// legacy NULL ali tujja lokacija → zavrnjeno (fail-closed).
 export async function refundWalletPayment(
   walletPaymentId: string,
   refundAmount: number,
+  locationId?: string | null,
 ): Promise<WalletPaymentResult> {
   const { updated, newRefundedAmount } = await db.$transaction(async (tx) => {
     // Zakleni vrstico — vzporedni refundi istega wallet payment čakajo
@@ -338,7 +351,12 @@ export async function refundWalletPayment(
       where: { id: walletPaymentId },
     })
     if (!walletPayment) {
-      throw new Error(`WalletPayment ${walletPaymentId} ne obstaja`)
+      throw new Error('WalletPayment ne obstaja')
+    }
+
+    // R84-FIX2: tenant guard — strict match (NULL lokacija ni last nobenega tenanta)
+    if (locationId && walletPayment.locationId !== locationId) {
+      throw new Error('WalletPayment ne obstaja ali ni na vaši lokaciji')
     }
 
     if (walletPayment.status !== 'captured') {
