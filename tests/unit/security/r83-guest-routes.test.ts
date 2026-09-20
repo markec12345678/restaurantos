@@ -191,6 +191,7 @@ vi.mock('@/lib/prisma-column-fallback', () => ({
 
 // Route imports (PO mockih)
 import { POST as employeesPOST } from '@/app/api/employees/route'
+import { NextResponse } from 'next/server'
 import { GET as orderTrackGET } from '@/app/api/public/order-track/route'
 import { GET as kioskGET, POST as kioskPOST } from '@/app/api/public/kiosk/route'
 import { triggerWebhook } from '@/lib/webhook-engine/delivery/trigger'
@@ -565,13 +566,17 @@ describe('R83: resolveTable tableNumber scope', () => {
     expect(result).toMatchObject({ tableId: 'tbl-1', tableNumber: 5 })
   })
 
-  it('tableNumber BREZ locationId → findFirst globalen (backward compat za tableId pot)', async () => {
+  it('tableNumber BREZ locationId → 400 fail-closed (R84 M2: prej globalni findFirst — prvi tenant z mizo št. N je dobil tuje naročilo)', async () => {
     mocks.tableFindFirst.mockResolvedValue({ id: 'tbl-1', number: 5, status: 'available', locationId: 'loc-1' })
     mocks.tableUpdate.mockResolvedValue({})
 
-    await resolveTable(undefined, '5')
+    const result = await resolveTable(undefined, '5')
 
-    expect(mocks.tableFindFirst).toHaveBeenCalledWith({ where: { number: 5 } })
+    expect(result).toBeInstanceOf(NextResponse)
+    expect((result as NextResponse).status).toBe(400)
+    // R84: NI več DB poizvedbe brez lokacijskega konteksta
+    expect(mocks.tableFindFirst).not.toHaveBeenCalled()
+    expect(mocks.tableUpdate).not.toHaveBeenCalled()
   })
 })
 

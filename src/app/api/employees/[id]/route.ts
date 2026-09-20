@@ -45,12 +45,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     // FIX CRITICAL: Samo admin lahko spremeni role na 'admin' — prepreči privilege escalation
     // Manager ne sme povišati nikogar (tudi sebe) na admin
+    // R84 FIX: super_admin izjema (pariteta s POST /api/employees:154) — prej je
+    // platformni super-admin dobil 403 pri urejanju admina (fail-closed inkonzistencija)
     if (data.role !== undefined) {
-      if (data.role === 'admin' && authResult.session?.role !== 'admin') {
+      if (data.role === 'admin' && !['admin', 'super_admin'].includes(authResult.session?.role ?? '')) {
         return NextResponse.json({ error: 'Samo administrator lahko dodeli admin vlogo.' }, { status: 403 })
       }
       // FIX CRITICAL: Manager ne sme spremeniti role admina — prepreči demotion zaščite
-      if (existing.role === 'admin' && authResult.session?.role !== 'admin') {
+      if (existing.role === 'admin' && !['admin', 'super_admin'].includes(authResult.session?.role ?? '')) {
         return NextResponse.json({ error: 'Samo administrator lahko spremeni vlogo administratorja.' }, { status: 403 })
       }
       updateData.role = data.role

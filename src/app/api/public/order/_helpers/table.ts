@@ -64,8 +64,18 @@ export async function resolveTable(
     if (isNaN(tableNum) || tableNum < 1 || tableNum > 999) {
       return NextResponse.json({ error: 'Neveljavna številka mize' }, { status: 400 })
     }
+    // R84 FIX (M2, fail-closed): tableNumber BREZ locationId → 400. Prej je bil
+    // findFirst GLOBALEN (prvi zadetek čez vse tenant-e) — prvi tenant z mizo
+    // št. N je dobil TUJE naročilo + 'occupied' write. tableId (QR UUID) pot
+    // ostane brez omejitev; tableNumber zahteva ekspliciten lokacijski kontekst.
+    if (!locationId) {
+      return NextResponse.json(
+        { error: 'Manjka lokacijski kontekst za številko mize — skenirajte QR kodo na mizi.' },
+        { status: 400 },
+      )
+    }
     const table = await db.table.findFirst({
-      where: { number: tableNum, ...(locationId ? { locationId } : {}) },
+      where: { number: tableNum, locationId },
     })
     if (!table) {
       return NextResponse.json({ error: 'Miza ni najdena. Obvestite natakarja.' }, { status: 400 })

@@ -90,11 +90,19 @@ export async function POST(req: Request) {
     // FIX CRITICAL (race): prejšnja koda je brala lastEntry zunaj transakcije.
     const entryDate = data.timestamp ? new Date(data.timestamp) : new Date()
     const value = `${data.temperature.toFixed(1)}°C${data.humidity ? `, ${data.humidity.toFixed(0)}%` : ''}`
-    // R83: atribucija lokacije (validirana na obstoj; brez nje NULL = legacy)
+    // R83: atribucija lokacije; R84 FIX: neznana/nesstoječa locationId → 400
+    // (fail-closed). Prej je garbage locationId TIHO padel na NULL — naprava s
+    // ključem je lahko atributirala reading na TUJO lokacijo ali brez.
     let readingLocationId: string | null = null
     if (data.locationId) {
       const loc = await db.location.findUnique({ where: { id: data.locationId }, select: { id: true } })
-      readingLocationId = loc?.id ?? null
+      if (!loc) {
+        return NextResponse.json(
+          { error: 'Neznana locationId — reading zavrnjen (fail-closed atribucija)' },
+          { status: 400 },
+        )
+      }
+      readingLocationId = loc.id
     }
     const entry = await createHaccpEntryWithChain({
       date: entryDate,

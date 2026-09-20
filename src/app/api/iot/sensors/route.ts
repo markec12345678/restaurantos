@@ -24,9 +24,11 @@ export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'view_reports' })
     if (authResult.error) return authResult.error
-    // Vrni vse HaccpEntry temperature vnose kot senzor readings
+    // R84 FIX: tenant scope — prej je GET vračal temperature vnose VSEH
+    // lokacij (križno-tenant HACCP podatki). Isti vzorec kot /api/haccp GET.
+    const sessionLocId = authResult.session?.locationId ?? null
     const entries = await db.haccpEntry.findMany({
-      where: { category: 'temperature' },
+      where: { category: 'temperature', ...(sessionLocId ? { locationId: sessionLocId } : {}) },
       orderBy: { createdAt: 'desc' },
       take: 100,
     })
