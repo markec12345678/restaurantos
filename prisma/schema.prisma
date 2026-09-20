@@ -1364,6 +1364,7 @@ model Location {
   inventoryItems  InventoryItem[]
   employees       Employee[]
   cashShifts      CashRegisterShift[]
+  walletPayments  WalletPayment[]     // R84: tenant binding (Apple/Google Pay plačila)
   reservations    Reservation[]
   deliveryZones   DeliveryZone[]
   openingHours    OpeningHours[]
@@ -2908,6 +2909,11 @@ model OutboxEvent {
   // --- Cilj ---
   target          String                       // "furs", "stripe", "email", "sms", "webhook", "internal"
   targetEndpoint  String   @default("")        // URL ali handler ID
+  // --- R84: Tenant binding ---
+  // Brez FK (event log je ločen od agregatov) — internal replay podpre
+  // lokacijsko vezane webhook-e prek emitEvent(eventName, payload, locationId).
+  // Backfill: iz payload.locationId ali aggregateType='order' → order.locationId.
+  locationId      String?
   // --- Status ---
   status          String   @default("pending") // pending, processing, sent, failed, dead_letter
   attempts        Int      @default(0)
@@ -2930,6 +2936,7 @@ model OutboxEvent {
   @@index([target, status])
   @@index([aggregateType, aggregateId])
   @@index([createdAt])
+  @@index([locationId])     // R84: tenant binding za webhook trigger/internal replay
 }
 
 // ============================================
@@ -3015,6 +3022,14 @@ model WalletPayment {
   errorMessage      String   @default("")
   // --- Device info ---
   deviceId          String?                              // Katera POS naprava je sprejela
+  // --- R84: Multi-location tenant binding ---
+  // Prej je bil scope dvokoračen prek checkIds (checkId IN [...]) — performantno
+  // nelagodno (PG bind limit) in neuporabno za plačila brez checkId. locationId
+  // se stampi pri kreaciji (iz check.order.locationId ali session/api-key)
+  // oz. iz POST ownership checka. Legacy NULL = fail-closed (nevidno lokacijskemu
+  // uporabniku po backfill-u).
+  locationId        String?
+  location          Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Meta ---
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -3024,6 +3039,7 @@ model WalletPayment {
   @@index([walletType, status])
   @@index([transactionId])
   @@index([createdAt])
+  @@index([locationId])     // R84: tenant scope poizvedbe (GET list + stats)
 }
 
 // ============================================

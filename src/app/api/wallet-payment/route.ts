@@ -44,25 +44,15 @@ export async function GET(req: Request) {
     // P1-16: centralna pagination validacija (limit max, search dolžina)
     const { limit } = parsePaginationParams(searchParams, { defaultLimit: 50 })
 
-    // R83 fix: prej GLOBALNO (vsi tenanti) tudi za lokacijsko vezanega
-    // uporabnika. WalletPayment NIMA locationId stolpca niti Prisma relacije
-    // (checkId je go String) → scope dvokoračen prek checkIds lastne lokacije.
-    // Super-admin (brez lokacije) = globalni pogled (nikoli { checkId: { in: [] } }).
+    // R84 fix: ENOKORAČNI scope prek locationId stolpca (schema round) — prej
+    // dvokoračen prek checkIds (take 10000, PG bind limit). Legacy NULL zapisi
+    // so nevidni lokacijskemu uporabniku (fail-closed) — pozeni
+    // scripts/backfill-wallet-outbox-location.ts. Super-admin (brez lokacije)
+    // = globalni pogled (nikoli { locationId: null }).
     const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
       endpoint: 'GET /api/wallet-payment',
     })
     if ('error' in scope) return scope.error
-    let checkIdFilter: { in: string[] } | null = null
-    if (scope.locationId) {
-      // take: 10000 — PG bind-param limit (65k) + perf guard; čez limit ostane
-      // del plačil neviden lokacijskemu uporabniku (fail-closed, ne leak)
-      const checkIds = await db.check.findMany({
-        where: { order: { locationId: scope.locationId } },
-        select: { id: true },
-        take: 10000,
-      })
-      checkIdFilter = { in: checkIds.map(c => c.id) }
-    }
 
     if (stats) {
       const from = dateFrom ? new Date(dateFrom) : undefined
@@ -74,7 +64,8 @@ export async function GET(req: Request) {
     const where: Record<string, unknown> = {}
     if (walletType) where.walletType = walletType
     if (status) where.status = status
-    if (checkIdFilter) where.checkId = checkIdFilter
+    // R84: tenant filter na lastnem stolpcu (enokoračno)
+    if (scope.locationId) where.locationId = scope.locationId
     if (dateFrom || dateTo) {
       where.createdAt = {}
       if (dateFrom) (where.createdAt as Record<string, unknown>).gte = new Date(dateFrom)
@@ -134,7 +125,12 @@ export async function POST(req: Request) {
       }
     }
 
-    const result = await initiateWalletPayment(input)
+    const result = await initiateWalletPayment({
+      ...input,
+      // R84: tenant stamping — session/api-key lokacija (checkId-derived lokacija
+      // ima prioriteto v lib; to je fallback za plačila brez čeka)
+      locationId: authResult.session?.locationId ?? null,
+    })
 
     return NextResponse.json({ success: true, ...result }, { status: 201 })
   } catch (err) {

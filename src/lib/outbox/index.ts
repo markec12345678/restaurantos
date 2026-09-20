@@ -36,6 +36,9 @@ export interface CreateOutboxEventInput {
   target: OutboxTarget
   targetEndpoint?: string
   idempotencyKey?: string // če ni podan, generira se iz aggregate
+  // R84: tenant binding — internal replay ga poda emitEvent(..., locationId),
+  // da lokacijsko vezani webhook-i prejmejo event (prej FAIL-CLOSED global-only)
+  locationId?: string | null
 }
 
 export interface OutboxStats {
@@ -72,6 +75,7 @@ export async function createOutboxEvent(input: CreateOutboxEventInput) {
       targetEndpoint: input.targetEndpoint || '',
       idempotencyKey,
       status: 'pending',
+      locationId: input.locationId ?? null, // R84: tenant binding
     },
     update: {}, // Ne posodobi — ohrani obstoječega
   })
@@ -96,6 +100,7 @@ export async function createOutboxEvents(inputs: CreateOutboxEventInput[]) {
           targetEndpoint: input.targetEndpoint || '',
           idempotencyKey: input.idempotencyKey || `${input.aggregateType}:${input.aggregateId}:${input.eventType}:${input.target}`,
           status: 'pending',
+          locationId: input.locationId ?? null, // R84: tenant binding
         },
         update: {},
       }),
@@ -250,9 +255,12 @@ type OutboxProcessor = (event: {
   eventType: string
   payload: unknown
   targetEndpoint: string
+  // R84: tenant binding — internal processor ga poda emitEvent(..., locationId)
+  locationId?: string | null
 }) => Promise<{ success: boolean; response?: unknown; error?: string }>
 
-const processors: Record<OutboxTarget, OutboxProcessor> = {
+// R84: exported za testiranje processorjev (internal replay tenant binding)
+export const processors: Record<OutboxTarget, OutboxProcessor> = {
   // FURS — pošlje račun na FURS
   furs: async (event) => {
     // FIX AUDIT: pravi klic FURS knjižnice prek processors/furs.ts (prej stub "queued")
@@ -339,10 +347,11 @@ const processors: Record<OutboxTarget, OutboxProcessor> = {
     try {
       const { emitEvent } = await import('@/lib/event-emitter')
       const eventName = `${event.aggregateType}.${event.eventType}` as never
-      // R83-DOC: OutboxEvent NIMA locationId stolpca — internal dogodki so
-      // globalni (deliverijo samo globalnim webhook-om). Če bodo lokacijsko
-      // vezani webhook-i rabili internal evente, dodaj stolpec (R84 schema).
-      await emitEvent(eventName, event.payload as never)
+      // R84 FIX: OutboxEvent sedaj IMA locationId stolpec — internal dogodki se
+      // prožijo z locationId pass-through, tako da jih prejmejo tudi lokacijsko
+      // vezani webhook-i (prej fail-closed global-only, R83-DOC).
+      // Legacy eventi brez locationId ostanejo global-only (fail-closed).
+      await emitEvent(eventName, event.payload as never, event.locationId)
       return { success: true, response: { emitted: true } }
     } catch (err) {
       return { success: false, error: err instanceof Error ? err.message : String(err) }

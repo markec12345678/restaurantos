@@ -42,6 +42,10 @@ export interface InitiateWalletPaymentInput {
   // Opcijski metadata
   cardBrand?: string
   cardLast4?: string
+  // R84: tenant binding — če checkId NI podan, mora klicatelj (route) stampati
+  // session/api-key lokacijo. Če je checkId podan, se locationId izpelje iz
+  // check.order.locationId (data-derived, ne-spoofable) in ima prioriteto.
+  locationId?: string | null
 }
 
 export interface WalletPaymentResult {
@@ -118,6 +122,18 @@ export async function initiateWalletPayment(
   }
 
   // Kreiraj WalletPayment z pending statusom
+  // R84: tenant binding — izpelji locationId iz čeka (prioriteta, data-derived)
+  // ali uporabi klicateljev session/api-key locationId. NULL = globalno (plačilo
+  // brez konteksta; lokacijski uporabnik ga po backfill-u NE vidi — fail-closed).
+  let derivedLocationId: string | null = input.locationId ?? null
+  if (input.checkId) {
+    const check = await db.check.findUnique({
+      where: { id: input.checkId },
+      select: { order: { select: { locationId: true } } },
+    })
+    derivedLocationId = check?.order?.locationId ?? derivedLocationId
+  }
+
   const walletPayment = await db.walletPayment.create({
     data: {
       paymentId: input.paymentId,
@@ -131,6 +147,7 @@ export async function initiateWalletPayment(
       cardLast4: input.cardLast4 || '',
       status: 'pending',
       deviceId: input.deviceId,
+      locationId: derivedLocationId, // R84: tenant binding
     },
   })
 
@@ -153,10 +170,12 @@ export async function initiateWalletPayment(
       tokenType: input.tokenType,
       checkId: input.checkId,
       paymentId: input.paymentId,
+      locationId: derivedLocationId, // R84: tenant binding
     },
     target: 'stripe',
     targetEndpoint: 'wallet_payment',
     idempotencyKey: `wallet_payment:${walletPayment.id}:initiate`,
+    locationId: derivedLocationId, // R84: tenant binding
   })
 
   return {
@@ -380,25 +399,19 @@ export async function refundWalletPayment(
 }
 
 // 5. STATISTIKA za dashboard
-// R83: izbirni `locationId` — prej so agregati (_sum/_count) zajemali VSE
-// tenante tudi za lokacijsko vezanega uporabnika (view_reports). WalletPayment
-// NIMA locationId stolpca niti Prisma relacije na Check (checkId je go String),
-// zato je scope dvokoračen: checkIds lastne lokacije → where.checkId IN.
+// R84 FIX: ENOKORAČNI scope prek locationId stolpca — prej dvokoračen prek
+// checkIds (take 10000, PG bind limit, fail-closed nad limitom). Legacy NULL
+// locationId zapisi so za lokacijskega uporabnika nevidni (fail-closed) —
+// pozeni scripts/backfill-wallet-outbox-location.ts za prehod.
 export async function getWalletPaymentStats(dateFrom?: Date, dateTo?: Date, locationId?: string | null) {
-  const where: Record<string, unknown> = {}
+  const where: Record<string, unknown> = {
+    // R84: tenant filter (null scope = PRAZEN filter, nikoli { locationId: null })
+    ...(locationId ? { locationId } : {}),
+  }
   if (dateFrom || dateTo) {
     where.createdAt = {}
     if (dateFrom) (where.createdAt as Record<string, unknown>).gte = dateFrom
     if (dateTo) (where.createdAt as Record<string, unknown>).lte = dateTo
-  }
-  if (locationId) {
-    // take: 10000 — PG bind-param limit (65k) + perf guard (fail-closed nad limitom)
-    const checkIds = await db.check.findMany({
-      where: { order: { locationId } },
-      select: { id: true },
-      take: 10000,
-    })
-    where.checkId = { in: checkIds.map(c => c.id) }
   }
 
   const [byWallet, byStatus, totals] = await Promise.all([

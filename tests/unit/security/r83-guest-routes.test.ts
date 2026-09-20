@@ -42,6 +42,7 @@ const mocks = vi.hoisted(() => ({
   webhookUpdate: vi.fn(),
   restaurantSettingsFindFirst: vi.fn(),
   checkFindMany: vi.fn(),
+  checkFindUnique: vi.fn(),
   checkFindFirst: vi.fn(),
   walletPaymentFindMany: vi.fn(),
   walletPaymentGroupBy: vi.fn(),
@@ -85,7 +86,7 @@ vi.mock('@/lib/db', () => ({
     webhook: { findMany: mocks.webhookFindMany, create: mocks.webhookCreate },
     webhookDelivery: { create: mocks.webhookDeliveryCreate, update: mocks.webhookDeliveryUpdate },
     restaurantSettings: { findFirst: mocks.restaurantSettingsFindFirst },
-    check: { findMany: mocks.checkFindMany, findFirst: mocks.checkFindFirst },
+    check: { findMany: mocks.checkFindMany, findFirst: mocks.checkFindFirst, findUnique: mocks.checkFindUnique },
     walletPayment: { findMany: mocks.walletPaymentFindMany, groupBy: mocks.walletPaymentGroupBy, aggregate: mocks.walletPaymentAggregate, create: mocks.walletPaymentCreate },
     openingHours: { findMany: mocks.openingHoursFindMany },
     table: { findFirst: mocks.tableFindFirst, findUnique: mocks.tableFindUnique, update: mocks.tableUpdate },
@@ -439,33 +440,38 @@ describe('R83: webhook trigger — komentar ≠ koda fix', () => {
 
 // ============================================
 // 5) wallet-payment — GET/stats scope + POST checkId ownership
+// R84 UPDATE: scope je sedaj ENOKORAČEN prek locationId stolpca (schema round
+// R84-2) — checkIds dvokoračni scope (take 10000) je ODSTRANJEN. Regresija
+// pina novo vedenje; lib nivo v tests/unit/security/r84-wallet-outbox-location.
 // ============================================
-describe('R83: wallet-payment scope', () => {
-  it('GET: lokacijski uporabnik → checkIds lastne lokacije + where.checkId filter', async () => {
+describe('R83/R84: wallet-payment scope', () => {
+  it('GET: lokacijski uporabnik → where.locationId DIREKTNO (enokoračno, brez checkIds)', async () => {
     mockAuth('loc-1', 'admin')
-    mocks.checkFindMany.mockResolvedValue([{ id: 'ck-1' }, { id: 'ck-2' }])
     mocks.walletPaymentFindMany.mockResolvedValue([])
 
     await walletGET(new Request('http://x/api/wallet-payment'))
 
-    expect(mocks.checkFindMany).toHaveBeenCalledWith({ where: { order: { locationId: 'loc-1' } }, select: { id: true }, take: 10000 })
+    // R84: checkIds dvokoračna poizvedba je ukinjena
+    expect(mocks.checkFindMany).not.toHaveBeenCalled()
     const where = mocks.walletPaymentFindMany.mock.calls[0][0].where
-    expect(where.checkId).toEqual({ in: ['ck-1', 'ck-2'] })
+    expect(where.locationId).toBe('loc-1')
+    expect('checkId' in where).toBe(false)
   })
 
-  it('GET stats=1: lokacijski uporabnik → stats prejme locationId', async () => {
+  it('GET stats=1: lokacijski uporabnik → stats prejme locationId (enokoračno)', async () => {
     mockAuth('loc-1', 'admin')
     mocks.walletPaymentGroupBy.mockResolvedValue([])
     mocks.walletPaymentAggregate.mockResolvedValue({ _count: { id: 0 }, _sum: { amount: null, refundedAmount: null } })
 
     await walletGET(new Request('http://x/api/wallet-payment?stats=1'))
 
-    // stats gre skozi lib getWalletPaymentStats(from, to, locationId) — preverimo
-    // prek check.findMany dvokoračnega scope-a (lib delí isti where mehanizem)
-    expect(mocks.checkFindMany).toHaveBeenCalled()
+    // R84: stats gre prek lib getWalletPaymentStats(from, to, locationId) —
+    // enokoračni scope: NO checkIds, where.locationId direktno na groupBy/aggregate
+    expect(mocks.checkFindMany).not.toHaveBeenCalled()
+    expect(mocks.walletPaymentAggregate.mock.calls[0][0].where.locationId).toBe('loc-1')
   })
 
-  it('GET: super-admin → brez checkId filtra (globalni pogled)', async () => {
+  it('GET: super-admin → brez locationId filtra (globalni pogled)', async () => {
     mockAuth(null, 'super_admin')
     mocks.walletPaymentFindMany.mockResolvedValue([])
 
@@ -473,7 +479,7 @@ describe('R83: wallet-payment scope', () => {
 
     expect(mocks.checkFindMany).not.toHaveBeenCalled()
     const where = mocks.walletPaymentFindMany.mock.calls[0][0].where
-    expect('checkId' in where).toBe(false)
+    expect('locationId' in where).toBe(false)
   })
 
   it('POST: tuj checkId → 404 (prej RAW zapis brez preverjanja)', async () => {
@@ -490,11 +496,12 @@ describe('R83: wallet-payment scope', () => {
     expect(res.status).toBe(404)
   })
 
-  it('POST: lasten checkId → preide na initiate', async () => {
+  it('POST: lasten checkId → preide na initiate (locationId izpeljan iz čeka)', async () => {
     mockAuth('loc-1', 'admin')
-    mocks.checkFindFirst.mockResolvedValue({ id: 'ck-1' })
     mocks.checkFindFirst.mockImplementation(async ({ where }: { where: { id?: string; order?: { locationId?: string } } }) =>
       where.id === 'ck-1' && where.order?.locationId === 'loc-1' ? { id: 'ck-1' } : null)
+    // R84: initiate lib izpelje locationId prek check.findUnique
+    mocks.checkFindUnique.mockResolvedValue({ order: { locationId: 'loc-1' } })
 
     const res = await walletPOST(makeJsonReq('http://x/api/wallet-payment', {
       walletType: 'apple_pay',
@@ -504,6 +511,8 @@ describe('R83: wallet-payment scope', () => {
     }))
 
     expect(res.status).toBe(201)
+    // R84: WalletPayment je stampiran z izpeljano lokacijo čeka
+    expect(mocks.walletPaymentCreate.mock.calls[0][0].data.locationId).toBe('loc-1')
   })
 })
 
