@@ -478,6 +478,22 @@ bun run dev
 # Odpri http://localhost:3000
 ```
 
+### ⚠️ Produkcijsko okolje — obvezne nastavitve (dodano v QA rundi 82)
+
+Runda 82 je zaprla dva fail-open vedenja — **brez teh env spremenljivk produkcija ne bo delovala polno**:
+
+| Env spremenljivka | Učinek, če MANJKA | Kako nastaviti |
+|-------------------|-------------------|----------------|
+| `QR_PAY_SECRET` | QR-pay **init vrne 503** (fail-closed) — gostje ne morejo plačati prek QR | Vercel env: `openssl rand -hex 32` |
+| `CRON_SECRET` | Cron rute (`/api/cron/data-retention`, `/api/cron/outbox`) so zdaj **fail-closed** — brez secret-a zavrnejo VSE klice (prej: anonimen GDPR deleteMany / SMS batchi!) | Vercel env + Vercel Cron header `Authorization` |
+| `ENCRYPTION_KEY` + `NEXTAUTH_SECRET` | QR-pay token helper fail-closed (enako pravilo kot QR_PAY_SECRET) | že dolgo obvezna — verify |
+
+**Po namestitvi na PROD obvezno pogni census NULL-location vrstic** (samo branje, brez auto-fix — odločitev o backfillu po pregledu rezultatov):
+
+```bash
+DATABASE_URL="<neon-url>" bun scripts/audit-location.ts
+```
+
 ## 📋 Glavne funkcije
 
 | Modul | Opis | Status |
@@ -499,14 +515,21 @@ bun run dev
 | **Rezervacije** | Seznam z filtri statusov, datumski kalendar, statusni tok | ✅ |
 | **QR menu** | Gost-facing meni s sticky kategorijami, košarico, safe-area | ✅ |
 
-## 🔒 Varnost (A+ ocena)
+## 🔒 Varnost (pošten status po rundi 82)
+
+**Status:** vsi **potrjeni** HIGH/CRITICAL z datotčnim tokom (R76–R82, 82 QA rund) popravljeni z regresijskimi testi. Sveže-oke auditi vsake runde odkrijejo naslednji val — trenutni dokumentiran backlog je runda 83: javne gost-rute (`order-track` prazen-telefon bypass, `kiosk` globalni meni, `order` tableNumber), webhook-engine trigger (komentar ≠ koda) in `employees` POST locationId stamp. Nič od tega ni potrjen aktiven izkoriščljiv HIGH — klasifikacije in dokazi v [worklogu](docs/FINAL-SUMMARY.md) in [Security Policy](SECURITY.md).
 
 - **CSP** z nonce injection (XSS zaščita)
 - **HSTS** z preload (HTTPS enforcement)
-- **Rate limiting**: Auth 5/15min, API 60/min, Public 20/min
+- **Rate limiting**: Auth 5/15min, API 60/min, Public 20/min + `PUBLIC_ORDER_LIMIT` na mobile/order poteh (runda 82)
 - **PIN hashiranje**: bcrypt (10 rounds) + HMAC-SHA256
-- **Audit log**: Chain hash (SHA-256, nepopravljiv)
+- **Audit log**: Chain hash (SHA-256, nepopravljiv) + `AuditLog.locationId` tenant model (runda 81)
 - **Multi-tenant isolation**: locationId scoping (30+ modelov, glej [Known Issues](docs/KNOWN_ISSUES.md))
+- **Platform-admin gates**: subscription/invoices, receipts/rebuild+regenerate, journal/regenerate, admin/migrate, webhooks deliveries retry (runde 81–82)
+- **Fail-closed cron**: `/api/cron/*` zahteva CRON_SECRET (runda 82 — prej anonimni GDPR delete)
+- **QR-pay lifecycle**: HMAC token v2 z TTL 15 min, enkratna uporaba, production secret fail-closed (runda 82)
+- **API-key tenant binding**: mobile/order + online-order scoped na naročnino ključa, fail-closed 403 (runda 82)
+- **Maintenance sweep**: EOD, bulk-vat, qr-batch, opening-hours, reports/export — vsi scoped na sejo (runda 82)
 - **Idempotency**: Orders + Payments (preprečuje duplikate)
 - **Optimistic locking**: updatedAt conflict detection (409)
 - **SSRF zaščita**: Allow-list za zunanje URL-je
@@ -522,9 +545,9 @@ bun run dev
 | Prisma modelov | 95 |
 | Tabel v bazi | 95 |
 | Jezikov | 5 (sl, en, it, hr, de) |
-| Unit testov PASS | 1980/1980 (100 %) — 112 datotek, 0 errorjev |
+| Unit testov PASS | 2399/2399 (100 %) — 145 datotek, 0 errorjev |
 | E2E testov PASS | 144/149 (96.6%) — 5 odprtih, glej [Known Issues](docs/KNOWN_ISSUES.md) |
-| Varnostna ocena | A+ (0 HIGH odprtih, P0-C1..C5 complete, glej [Security Policy](SECURITY.md)) |
+| Varnostna ocena | A (potrjeni HIGH/CRITICAL zaprti R76–R82; R83 backlog dokumentiran, glej [Security Policy](SECURITY.md)) |
 | Koda (src + tests) | 204.594 vrstic |
 | Odvisnosti | 88 |
 
