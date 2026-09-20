@@ -6,6 +6,7 @@
 
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { isAdminTenantRole } from '@/lib/tenant-scope'
 import { validateReportDateRange } from '@/lib/validations'
 import { endOfDayParam, handleApiError } from '@/lib/api-utils'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
@@ -29,6 +30,14 @@ export async function GET(req: Request) {
     const permission = type === 'inventory' ? 'admin' : 'view_reports'
     const authResult = await requireAuth(req, { permission })
     if (authResult.error) return authResult.error
+
+    // FIX R82-F (LEAK-HIGH): izvoz je bil GLOBALNO čez VSE tenante (naročila,
+    // PII zaposlenih, DDV, zaloge). Zdaj: scoped na session lokacijo;
+    // view_reports staff BREZ lokacije → 403 fail-closed; super-admin = global.
+    const sessionLocId = authResult.session?.locationId ?? null
+    if (!sessionLocId && !isAdminTenantRole(authResult.session?.role)) {
+      return NextResponse.json({ error: 'Izvoz poročil zahteva dodeljeno lokacijo.' }, { status: 403 })
+    }
 
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
@@ -54,12 +63,12 @@ export async function GET(req: Request) {
     if (format === 'csv') {
       let csv = ''
       switch (reportType) {
-        case 'orders': { csv = (await generateOrdersCsv(dateFilter)).csv; break }
-        case 'items': { csv = (await generateItemsCsv(dateFilter)).csv; break }
-        case 'vat': { csv = (await generateVatCsv(dateFilter)).csv; break }
-        case 'employees': { csv = (await generateEmployeesCsv(dateFilter)).csv; break }
-        case 'shifts': { csv = (await generateShiftsCsv(dateFilter)).csv; break }
-        case 'inventory': { csv = (await generateInventoryCsv()).csv; break }
+        case 'orders': { csv = (await generateOrdersCsv(dateFilter, sessionLocId)).csv; break }
+        case 'items': { csv = (await generateItemsCsv(dateFilter, sessionLocId)).csv; break }
+        case 'vat': { csv = (await generateVatCsv(dateFilter, sessionLocId)).csv; break }
+        case 'employees': { csv = (await generateEmployeesCsv(dateFilter, sessionLocId)).csv; break }
+        case 'shifts': { csv = (await generateShiftsCsv(dateFilter, sessionLocId)).csv; break }
+        case 'inventory': { csv = (await generateInventoryCsv(sessionLocId)).csv; break }
       }
       const bom = '\uFEFF'
       return new NextResponse(bom + csv, {
@@ -73,7 +82,7 @@ export async function GET(req: Request) {
 
     // ═══ PDF / Excel / XML — uporabljajo skupni ReportData fetcher ═══
     // Za te formate uporabimo orders tip (popoln promet z DDV razčlenitvijo)
-    const data = await fetchReportData(dateFilter)
+    const data = await fetchReportData(dateFilter, sessionLocId)
 
     // Pridobi davčno številko in ime iz Location (za XML)
     // FIX P0-C3A: Prej je bil `findFirst()` BREZ where filtra — vrne naključni record!

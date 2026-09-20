@@ -1,18 +1,25 @@
 // CSV generiranje za zaposlene, izmene in zalogo
+// FIX R82-F (LEAK-HIGH): vsi generatorji prej GLOBALNO (PII zaposlenih vseh
+// tenantov). Zdaj sprejmejo neobvezen locationId (session scope; super-admin
+// = null → global). Employee/InventoryItem/CashRegisterShift.locationId =
+// nullable → NULL vrstice za lokacijsko vezane seje nevidne (fail-closed).
 
 import { db } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
 import { toCsvRow } from './csv-utils'
 
-export async function generateEmployeesCsv(dateFilter: Record<string, Date>): Promise<{ csv: string; filename: string }> {
+export async function generateEmployeesCsv(dateFilter: Record<string, Date>, locationId?: string | null): Promise<{ csv: string; filename: string }> {
   const orders = await db.order.findMany({
     where: {
       paymentStatus: 'paid',
       ...(Object.keys(dateFilter).length > 0 ? { paidAt: dateFilter } : {}),
+      ...(locationId ? { locationId } : {}),
     },
   })
 
-  const employees = await db.employee.findMany()
+  const employees = await db.employee.findMany({
+    where: locationId ? { locationId } : {},
+  })
   const empMap = new Map(employees.map(e => [e.id, e]))
 
   const stats: Record<string, { name: string; role: string; orders: number; revenue: number; tips: number }> = {}
@@ -44,9 +51,12 @@ export async function generateEmployeesCsv(dateFilter: Record<string, Date>): Pr
   return { csv, filename: '' }
 }
 
-export async function generateShiftsCsv(dateFilter: Record<string, Date>): Promise<{ csv: string; filename: string }> {
+export async function generateShiftsCsv(dateFilter: Record<string, Date>, locationId?: string | null): Promise<{ csv: string; filename: string }> {
   const shifts = await db.cashRegisterShift.findMany({
-    where: Object.keys(dateFilter).length > 0 ? { openedAt: dateFilter } : {},
+    where: {
+      ...(Object.keys(dateFilter).length > 0 ? { openedAt: dateFilter } : {}),
+      ...(locationId ? { locationId } : {}),
+    },
     orderBy: { openedAt: 'desc' },
   })
 
@@ -76,8 +86,9 @@ export async function generateShiftsCsv(dateFilter: Record<string, Date>): Promi
   return { csv, filename: '' }
 }
 
-export async function generateInventoryCsv(): Promise<{ csv: string; filename: string }> {
+export async function generateInventoryCsv(locationId?: string | null): Promise<{ csv: string; filename: string }> {
   const items = await db.inventoryItem.findMany({
+    where: locationId ? { locationId } : {},
     include: { menuItem: { select: { name: true } } },
     orderBy: { name: 'asc' },
   })

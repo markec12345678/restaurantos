@@ -7,6 +7,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { z } from 'zod'
 
@@ -34,6 +35,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const { data, error: validationError } = validateBody(updateOpeningHoursSchema, bodyResult.data)
     if (validationError) return validationError
 
+    // FIX R82-F (LEAK-HIGH): bare update({ where: { id } }) — lokacijsko vezan
+    // admin je lahko predelal delovni čas TUJE lokacije. Zdaj: fetch + scope
+    // guard (canonical isWithinScope/notInScopeResponse 404, NULL fail-closed).
+    const existing = await db.openingHours.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Delovni čas ni najden' }, { status: 404 })
+    }
+    const sessionLocId = authResult.session?.locationId ?? null
+    if (!isWithinScope(sessionLocId, existing.locationId)) {
+      return notInScopeResponse('Delovni čas')
+    }
+
     const hours = await db.openingHours.update({
       where: { id },
       data: {
@@ -57,6 +70,18 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     if (authResult.error) return authResult.error
 
     const { id } = await params
+
+    // FIX R82-F (LEAK-HIGH): isti scope guard kot PATCH — prej cross-tenant
+    // brisanje delovnega časa po raw ID-ju.
+    const existing = await db.openingHours.findUnique({ where: { id } })
+    if (!existing) {
+      return NextResponse.json({ error: 'Delovni čas ni najden' }, { status: 404 })
+    }
+    const sessionLocId = authResult.session?.locationId ?? null
+    if (!isWithinScope(sessionLocId, existing.locationId)) {
+      return notInScopeResponse('Delovni čas')
+    }
+
     await db.openingHours.delete({ where: { id } })
     return NextResponse.json({ success: true })
   } catch (error: unknown) {

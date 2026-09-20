@@ -50,11 +50,14 @@ export interface ReportData {
 }
 
 /** Pridobi vse plačane naročila v datumskem obsegu */
-export async function fetchReportData(dateFilter: Record<string, Date>): Promise<ReportData> {
+// FIX R82-F (LEAK-HIGH): prej GLOBALNO — zdaj sprejme session scope
+// (super-admin = null → global). Order.locationId NOT NULL.
+export async function fetchReportData(dateFilter: Record<string, Date>, locationId?: string | null): Promise<ReportData> {
   const orders = await db.order.findMany({
     where: {
       paymentStatus: 'paid',
       ...(Object.keys(dateFilter).length > 0 ? { paidAt: dateFilter } : {}),
+      ...(locationId ? { locationId } : {}),
     },
     include: {
       table: true,

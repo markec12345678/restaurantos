@@ -26,11 +26,15 @@ export const maxDuration = 60 // 60s za Vercel cron
 export async function POST(req: Request) {
   try {
     // Avtenticiraj s CRON_SECRET ali admin permission
+    // FIX R82-F (fail-open bug): prej `if (expectedAuth && ...)` — brez
+    // nastavljenega CRON_SECRET je bil guard POPOLNOMA PRESKOČEN → anonimni
+    // GDPR deleteMany čez vse tenantе! Zdaj fail-closed: cron OK, sicer
+    // obvezen admin session.
     const authHeader = req.headers.get('authorization')
     const cronSecret = process.env.CRON_SECRET
     const expectedAuth = cronSecret ? `Bearer ${cronSecret}` : null
 
-    if (expectedAuth && authHeader !== expectedAuth) {
+    if (!(expectedAuth && authHeader === expectedAuth)) {
       const authResult = await requireAuth(req, { permission: 'admin' })
       if (authResult.error) {
         logger.warn('DataRetention', `Unauthorized cron call from ${req.headers.get('x-forwarded-for') || 'unknown'}`)

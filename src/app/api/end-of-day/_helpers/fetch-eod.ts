@@ -4,7 +4,13 @@ import { db } from '@/lib/db'
 
 // ─── Pridobi vse EOD podatke (vzporedno) ────────────────────
 
-export async function fetchEodData(startDate: Date, endDate: Date) {
+// FIX R82-F (LEAK-HIGH): locationId scope — prej so bili VSI agregati
+// globalni (vsi tenanti). Pogojni spread (nikoli { locationId: null }):
+// lokacijsko vezana seja → samo svoja vrstica; super-admin (null) → global.
+// Guest count NIMA locationId stolpca (census R82-E) → ostaja globalen
+// (dokumentirano; shematski predlog Guest.locationId = R83).
+export async function fetchEodData(startDate: Date, endDate: Date, locationId?: string | null) {
+  const loc = locationId ?? null
   const [
     orders,
     cancelledOrdersCount,
@@ -18,7 +24,11 @@ export async function fetchEodData(startDate: Date, endDate: Date) {
   ] = await Promise.all([
     // Naročila — select samo potrebna polja
     db.order.findMany({
-      where: { paidAt: { gte: startDate, lte: endDate }, paymentStatus: { in: ['paid', 'partial'] } },
+      where: {
+        paidAt: { gte: startDate, lte: endDate },
+        paymentStatus: { in: ['paid', 'partial'] },
+        ...(loc ? { locationId: loc } : {}),
+      },
       select: {
         total: true,
         orderItems: {
@@ -36,7 +46,11 @@ export async function fetchEodData(startDate: Date, endDate: Date) {
     }),
     // Preklicana naročila — samo število (count namesto findMany)
     db.order.count({
-      where: { cancelledAt: { gte: startDate, lte: endDate }, status: 'cancelled' },
+      where: {
+        cancelledAt: { gte: startDate, lte: endDate },
+        status: 'cancelled',
+        ...(loc ? { locationId: loc } : {}),
+      },
     }),
     // Plačila — paidAt filter v DB where clause namesto JS .filter()
     db.payment.findMany({
@@ -45,6 +59,7 @@ export async function fetchEodData(startDate: Date, endDate: Date) {
         check: {
           order: {
             paidAt: { gte: startDate, lte: endDate },
+            ...(loc ? { locationId: loc } : {}),
           },
         },
       },
@@ -56,7 +71,10 @@ export async function fetchEodData(startDate: Date, endDate: Date) {
     }),
     // Izmena (cash register shift) — select samo potrebna polja
     db.cashRegisterShift.findFirst({
-      where: { openedAt: { gte: startDate, lte: endDate } },
+      where: {
+        openedAt: { gte: startDate, lte: endDate },
+        ...(loc ? { locationId: loc } : {}),
+      },
       orderBy: { openedAt: 'desc' },
       select: {
         id: true,
@@ -75,16 +93,21 @@ export async function fetchEodData(startDate: Date, endDate: Date) {
       where: {
         action: { in: ['FURS_INVOICE_VERIFIED', 'FURS_INVOICE_QUEUED', 'FURS_INVOICE_FAILED'] },
         timestamp: { gte: startDate, lte: endDate },
+        ...(loc ? { locationId: loc } : {}),
       },
       _count: { action: true },
     }),
     // Rezervacije — groupBy namesto findMany + JS .filter()
     db.reservation.groupBy({
       by: ['status'],
-      where: { dateTime: { gte: startDate, lte: endDate } },
+      where: {
+        dateTime: { gte: startDate, lte: endDate },
+        ...(loc ? { locationId: loc } : {}),
+      },
       _count: { status: true },
     }),
     // Gosti — count() namesto findMany (rabimo samo število)
+    // BY-DESIGN (R82-E): Guest NIMA locationId stolpca — globalni pool
     db.guest.count({
       where: { createdAt: { gte: startDate, lte: endDate } },
     }),
@@ -93,6 +116,7 @@ export async function fetchEodData(startDate: Date, endDate: Date) {
       where: {
         entityType: 'Expense',
         timestamp: { gte: startDate, lte: endDate },
+        ...(loc ? { locationId: loc } : {}),
       },
       select: {
         details: true,
@@ -104,6 +128,7 @@ export async function fetchEodData(startDate: Date, endDate: Date) {
         entityType: 'EndOfDay',
         action: 'EOD_COMPLETED',
         timestamp: { gte: startDate, lte: endDate },
+        ...(loc ? { locationId: loc } : {}),
       },
       select: { id: true },
     }),

@@ -79,7 +79,12 @@ export async function POST(req: Request) {
     if (isBatch) {
       const batchData = validatedData as z.infer<typeof batchSchema>
       // Delete existing hours for this location and recreate
-      const locId = batchData.locationId
+      // FIX R82-F (LEAK-HIGH): body.locationId je bil RAW — lokacijsko vezan
+      // admin je lahko deleteMany + recreate TUJO lokacijo (izbris tujega
+      // delovnega časa). Zdaj: lokacijsko vezana seja je VEDNO pripeta na
+      // svojo lokacijo (body strip); super-admin sme izrecen body.locationId.
+      const sessionLocId = authResult.session?.locationId || null
+      const locId = sessionLocId || batchData.locationId || null
       if (locId) {
         await db.openingHours.deleteMany({ where: { locationId: locId } })
       } else {
@@ -100,8 +105,11 @@ export async function POST(req: Request) {
 
     // Single day creation
     // FIX QA runda 37: NOT NULL drift — fallback, če body nima lokacije
+    // FIX R82-F: isti strip — lokacijsko vezana seja ne sme izbrati tuje lokacije
     const singleData = validatedData as z.infer<typeof openingHoursSchema>
-    if (!singleData.locationId) {
+    if (authResult.session?.locationId) {
+      singleData.locationId = authResult.session.locationId
+    } else if (!singleData.locationId) {
       singleData.locationId = await resolveLocationId(authResult.session?.locationId, authResult.session?.employeeId)
     }
     const hours = await db.openingHours.create({ data: singleData })

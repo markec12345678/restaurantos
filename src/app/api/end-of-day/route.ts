@@ -6,6 +6,7 @@
 
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+import { isAdminTenantRole } from '@/lib/tenant-scope'
 import { eodCloseSchema, validateReportDateRange } from '@/lib/validations'
 import { toNum } from '@/lib/decimal'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
@@ -30,6 +31,14 @@ export async function GET(req: Request) {
     // (na UTC strežniku je UTC-datum do 01:00/02:00 ŠE prejšnji dan)
     const date = searchParams.get('date') || ljubljanaTodayStr()
 
+    // FIX R82-F (LEAK-HIGH): EOD agregati so prej bili GLOBALNI (vsi tenanti) —
+    // zdaj scoped na session lokacijo; super-admin (brez lokacije) = global;
+    // staff/manager BREZ lokacije → 403 fail-closed (MODEL A vzorec).
+    const sessionLocId = authResult.session?.locationId ?? null
+    if (!sessionLocId && !isAdminTenantRole(authResult.session?.role)) {
+      return NextResponse.json({ error: 'EOD zahteva dodeljeno lokacijo.' }, { status: 403 })
+    }
+
     // FIX HIGH: Validiraj datumski format
     const dateError = validateReportDateRange(date, date)
     if (dateError) return dateError
@@ -39,7 +48,7 @@ export async function GET(req: Request) {
     const { start: startDate, end: endDate } = ljubljanaDayBounds(date)
 
     // ── Vse neodvisne poizvedbe vzporedno ────────────────────
-    const data = await fetchEodData(startDate, endDate)
+    const data = await fetchEodData(startDate, endDate, sessionLocId)
 
     // ── Izračunaj vse metrike ────────────────────────────────
     const metrics = computeEodMetrics(data)
@@ -129,7 +138,15 @@ export async function POST(req: Request) {
 
     const { date, actualCash, notes, locationId } = data
 
-    const cashDiff = await closeShift(date, actualCash, notes, locationId, authResult.session?.employeeId)
+    // FIX R82-F (LEAK-HIGH): body.locationId je bil raw (body.locationId =
+    // poljuben locationId → lokacijsko vezan admin je zaprl TUJO izmeno z
+    // izračunom cashDiff čez tuja plačila). Zdaj: lokacijsko vezana seja je
+    // VEDNO pripeta na svojo lokacijo (body strip); super-admin sme izrecen
+    // body.locationId; brez obeh → null (legacy single-tenant vedenje v
+    // closeShift).
+    const effectiveLocationId = authResult.session?.locationId || locationId || null
+
+    const cashDiff = await closeShift(date, actualCash, notes, effectiveLocationId, authResult.session?.employeeId)
 
     // FIX QA runda 37 (UX/state machine): EOD checklist zahteva "Izmena zaprta", a je
     // endpoint VRAČAL 400, če izmena ni bila odprta (zapreta prek Blagajne) → UI tok

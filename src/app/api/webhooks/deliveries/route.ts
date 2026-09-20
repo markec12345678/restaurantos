@@ -19,6 +19,12 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
 
+    // FIX R82-F (LEAK-MEDIUM): poln payload/responseBody VSEH tenantov.
+    // WebhookDelivery NIMA lastnega tenant stolpca — scope pot prek relacije
+    // webhook.locationId (nullable; pogojni spread — super-admin = global).
+    const sessionLocId = authResult.session?.locationId ?? null
+    const webhookScope = sessionLocId ? { webhook: { locationId: sessionLocId } } : {}
+
     // P1-16: centralna pagination validacija (limit max, search dolžina)
     const { limit } = parsePaginationParams(searchParams, { defaultLimit: 50 })
     const offset = parseInt(searchParams.get('offset') || '0')
@@ -26,7 +32,7 @@ export async function GET(req: Request) {
     const event = searchParams.get('event')
     const success = searchParams.get('success')
 
-    const where: Record<string, unknown> = {}
+    const where: Record<string, unknown> = { ...webhookScope }
     if (webhookId) where.webhookId = webhookId
     if (event) where.event = event
     if (success !== null) where.success = success === 'true'
@@ -40,11 +46,11 @@ export async function GET(req: Request) {
 
     const total = await db.webhookDelivery.count({ where })
 
-    // Statistika
-    const successCount = await db.webhookDelivery.count({ where: { success: true } })
-    const failCount = await db.webhookDelivery.count({ where: { success: false } })
+    // Statistika (isti scope)
+    const successCount = await db.webhookDelivery.count({ where: { ...where, success: true } })
+    const failCount = await db.webhookDelivery.count({ where: { ...where, success: false } })
     const pendingRetry = await db.webhookDelivery.count({
-      where: { success: false, nextRetryAt: { not: null } },
+      where: { ...where, success: false, nextRetryAt: { not: null } },
     })
 
     return NextResponse.json({
@@ -66,6 +72,17 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const authResult = await requireAuth(req, { permission: 'admin' })
   if (authResult.error) return authResult.error
+
+  // FIX R82-F: processRetryQueue je GLOBALNA batch operacija (ponovno pošilja
+  // webhookе vseh tenantov) → platformAdminGate (mirror receipts/rebuild).
+  const session = authResult.session
+  const isPlatformAdmin = !!session && ['admin', 'super_admin'].includes(session.role) && !session.locationId
+  if (!isPlatformAdmin) {
+    return NextResponse.json(
+      { error: 'Globalno vzdrževanje lahko izvaja samo platformni administrator.' },
+      { status: 403 },
+    )
+  }
 
   try {
     const result = await processRetryQueue()

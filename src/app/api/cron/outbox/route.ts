@@ -22,11 +22,14 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     // 1. Avtenticiraj s CRON_SECRET (Vercel Cron pošlje v headerju)
+    // FIX R82-F (fail-open bug): prej `if (expectedAuth && ...)` — brez
+    // nastavljenega CRON_SECRET je bil guard POPOLNOMA PRESKOČEN → anonimni
+    // sprožilec SMS batchov/outboxa čez vse tenantе! Zdaj fail-closed.
     const authHeader = req.headers.get('authorization')
     const cronSecret = process.env.CRON_SECRET
     const expectedAuth = cronSecret ? `Bearer ${cronSecret}` : null
 
-    if (expectedAuth && authHeader !== expectedAuth) {
+    if (!(expectedAuth && authHeader === expectedAuth)) {
       // Če ni nastavljen CRON_SECRET, dovolimo samo z admin perm
       const { requireAuth } = await import('@/lib/auth-middleware')
       const authResult = await requireAuth(req, { permission: 'admin' })

@@ -26,10 +26,26 @@ import { logger } from '@/lib/logger'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
+// FIX R82-F (PLATFORM-GATE-NEEDS): globalna fiskalna backfill operacija
+// (findMany čez VSE plačana naročila + Receipt create) — mirror
+// receipts/rebuild R82-B gate. Lokacijsko vezan admin prej videl samo
+// enumeracijo tujih orderNumber-ov.
+function platformAdminGate(authResult: { session: { role: string; locationId?: string | null } | null }): NextResponse | null {
+  const session = authResult.session
+  const isPlatformAdmin = !!session && ['admin', 'super_admin'].includes(session.role) && !session.locationId
+  if (isPlatformAdmin) return null
+  return NextResponse.json(
+    { error: 'Globalno vzdrževanje lahko izvaja samo platformni administrator.' },
+    { status: 403 },
+  )
+}
+
 export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+    const platformGate = platformAdminGate(authResult)
+    if (platformGate) return platformGate
 
     const body = await req.json().catch(() => ({}))
     const { afterDate, all } = body as { afterDate?: string; all?: boolean }

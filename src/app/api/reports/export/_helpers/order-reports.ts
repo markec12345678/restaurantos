@@ -4,11 +4,15 @@ import { db } from '@/lib/db'
 import { toNum, multiply } from '@/lib/decimal'
 import { toCsvRow } from './csv-utils'
 
-export async function generateOrdersCsv(dateFilter: Record<string, Date>): Promise<{ csv: string; filename: string }> {
+// FIX R82-F (LEAK-HIGH): vsi generatorji so prej poizvedovali GLOBALLY —
+// zdaj sprejmejo neobvezen locationId (session scope; super-admin = null →
+// global). Order.locationId je NOT NULL.
+export async function generateOrdersCsv(dateFilter: Record<string, Date>, locationId?: string | null): Promise<{ csv: string; filename: string }> {
   const orders = await db.order.findMany({
     where: {
       paymentStatus: 'paid',
       ...(Object.keys(dateFilter).length > 0 ? { paidAt: dateFilter } : {}),
+      ...(locationId ? { locationId } : {}),
     },
     include: {
       table: true,
@@ -45,11 +49,12 @@ export async function generateOrdersCsv(dateFilter: Record<string, Date>): Promi
   return { csv, filename: '' } // filename set by caller with dates
 }
 
-export async function generateItemsCsv(dateFilter: Record<string, Date>): Promise<{ csv: string; filename: string }> {
+export async function generateItemsCsv(dateFilter: Record<string, Date>, locationId?: string | null): Promise<{ csv: string; filename: string }> {
   const orders = await db.order.findMany({
     where: {
       paymentStatus: 'paid',
       ...(Object.keys(dateFilter).length > 0 ? { paidAt: dateFilter } : {}),
+      ...(locationId ? { locationId } : {}),
     },
     include: {
       orderItems: { include: { menuItem: { include: { category: { include: { menu: true } } } } } },
@@ -99,11 +104,12 @@ export async function generateItemsCsv(dateFilter: Record<string, Date>): Promis
   return { csv, filename: '' }
 }
 
-export async function generateVatCsv(dateFilter: Record<string, Date>): Promise<{ csv: string; filename: string }> {
+export async function generateVatCsv(dateFilter: Record<string, Date>, locationId?: string | null): Promise<{ csv: string; filename: string }> {
   const orders = await db.order.findMany({
     where: {
       paymentStatus: 'paid',
       ...(Object.keys(dateFilter).length > 0 ? { paidAt: dateFilter } : {}),
+      ...(locationId ? { locationId } : {}),
     },
     include: { orderItems: true },
   })
