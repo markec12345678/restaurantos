@@ -9,10 +9,36 @@ import { toNum } from '@/lib/decimal'
 
 export const dynamic = 'force-dynamic'
 
+// FIX R81-G (LEAK-MEDIUM): inline role-aware fail-closed gate (zrcali
+// resolveCatalogScope semantiko; inventory/adjust R81-F vzorec — brez
+// tenant-scope helperjev za role check). Non-admin BREZ session.locationId
+// = 403 (data integrity issue), ker ne moremo izpeljati scope-a.
+function requireLocationScope(
+  authResult: { session?: { role?: string; locationId?: string | null } | null },
+): { sessionLocId: string | null } | { error: NextResponse } {
+  const session = authResult.session
+  const sessionLocId = session?.locationId ?? null
+  const isRoleAdmin = session?.role === 'admin' || session?.role === 'super_admin'
+  if (!sessionLocId && !isRoleAdmin) {
+    return {
+      error: NextResponse.json(
+        { error: 'Vaš račun nima dodeljene lokacije. Kontaktirajte administratorja.' },
+        { status: 403 },
+      ),
+    }
+  }
+  return { sessionLocId }
+}
+
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authResult = await requireAuth(req, { permission: 'manage_inventory' })
     if (authResult.error) return authResult.error
+
+    // FIX R81-G (LEAK-MEDIUM): scope gate (403) PRED db
+    const scope = requireLocationScope(authResult)
+    if ('error' in scope) return scope.error
+    const sessionLocId = scope.sessionLocId
 
     const { id } = await params
 
@@ -23,8 +49,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     if (!supplier) return NextResponse.json({ error: 'Dobavitelj ni najden' }, { status: 404 })
 
     // Pridobi vsa PO za tega dobavitelja
+    // FIX R81-G (LEAK-MEDIUM, cross-tenant): findMany je bil filtriran SAMO po
+    // supplierId (Supplier je global-by-design, PurchaseOrder pa ima
+    // locationId) — scorecard je razkril totalValue tujih lokacij.
+    // PurchaseOrder.locationId je nullable: lokacijsko vezana seja je pripeta
+    // na svojo lokacijo (NULL-location PO-ji so za njo nevidni — fail-closed);
+    // super-admin (brez session lokacije) = globalni pogled.
     const purchaseOrders = await db.purchaseOrder.findMany({
-      where: { supplierId: id },
+      where: {
+        supplierId: id,
+        ...(sessionLocId ? { locationId: sessionLocId } : {}),
+      },
       include: {
         items: { select: { quantityOrdered: true, quantityReceived: true, status: true } },
       },

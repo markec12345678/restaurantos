@@ -7,6 +7,7 @@ import { createReceiptSchema, receiptCreatedResponseSchema } from '@/lib/validat
 import { parseJsonBody, validateBody, validateApiResponse } from '@/lib/api-utils'
 import { toNum, round2, deepToNumbers } from '@/lib/decimal'
 import { logger } from '@/lib/logger'
+import { notInScopeResponse } from '@/lib/tenant-scope'
 import { generateZOIPlaceholder, MINIMAL_SETTINGS, calculateVatBreakdownForReceipt } from './index'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 import { submitReceiptToCis } from '@/lib/cis/receipt-submission'
@@ -14,7 +15,7 @@ import { submitReceiptToCis } from '@/lib/cis/receipt-submission'
 export async function handlePostReceipt(
   req: Request,
   id: string,
-  _authResult: { session?: { employeeId?: string } | null },
+  _authResult: { session?: { employeeId?: string; locationId?: string | null } | null },
 ) {
   const bodyResult = await parseJsonBody(req)
   if (bodyResult.error) return bodyResult.error
@@ -23,13 +24,19 @@ export async function handlePostReceipt(
   const { data, error: validationError } = validateBody(createReceiptSchema, bodyResult.data)
   if (validationError) return validationError
 
-  const order = await db.order.findUnique({
-    where: { id },
+  // FIX R81-G (LEAK-HIGH, cross-tenant): order.findUnique je bil nescopecan —
+  // manage_cash staff je lahko fiskaliziral TUJ naročilo (Receipt.create +
+  // poraba številčne serije tuje lokacije). Order.locationId je NOT NULL —
+  // findFirst z lokacijskim filtrom iz seje; izven scope-a → 404
+  // notInScopeResponse (isti vzorec kot GET/PUT tukaj in P0-C1 transfer).
+  const sessionLocId = _authResult.session?.locationId ?? undefined
+  const order = await db.order.findFirst({
+    where: { id, ...(sessionLocId ? { locationId: sessionLocId } : {}) },
     include: { orderItems: { include: { menuItem: true } } },
   })
 
   if (!order) {
-    return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
+    return notInScopeResponse('Naročilo')
   }
 
   // FIX: Preveri, da je naročilo plačano preden se ustvari račun

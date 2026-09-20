@@ -32,8 +32,16 @@ export async function GET(req: Request) {
     // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
     const { limit, offset } = parsePaginationParams(searchParams, { defaultLimit: 50 })
 
+    // FIX R81 (tenant model): AuditLog ima zdaj locationId stolpec — ruta je
+    // tenant-scoped. Location-bound admin vidi SAMO obvestila svoje lokacije;
+    // super-admin globalni pogled. Admin vrata + stripRecipientPii ostajata kot
+    // defense-in-depth (PII prejemnika se še naprej ne vrača).
+    const sessionLocId = authResult.session?.locationId ?? null
+    const locFilter = sessionLocId ? { locationId: sessionLocId } : {}
+
     const where: Record<string, unknown> = {
       action: { in: ['NOTIFICATION_SENT', 'NOTIFICATION_FAILED', 'NOTIFICATION_QUEUED'] },
+      ...locFilter,
     }
     if (status !== 'all') {
       where.action = status === 'sent' ? 'NOTIFICATION_SENT' : status === 'failed' ? 'NOTIFICATION_FAILED' : 'NOTIFICATION_QUEUED'
@@ -63,10 +71,10 @@ export async function GET(req: Request) {
     today.setHours(0, 0, 0, 0)
 
     const [sentCount, failedCount, byActionAndChannel] = await Promise.all([
-      db.auditLog.count({ where: { action: 'NOTIFICATION_SENT', timestamp: { gte: today } } }),
-      db.auditLog.count({ where: { action: 'NOTIFICATION_FAILED', timestamp: { gte: today } } }),
+      db.auditLog.count({ where: { action: 'NOTIFICATION_SENT', timestamp: { gte: today }, ...locFilter } }),
+      db.auditLog.count({ where: { action: 'NOTIFICATION_FAILED', timestamp: { gte: today }, ...locFilter } }),
       db.auditLog.findMany({
-        where: { action: { in: ['NOTIFICATION_SENT', 'NOTIFICATION_FAILED'] }, timestamp: { gte: today } },
+        where: { action: { in: ['NOTIFICATION_SENT', 'NOTIFICATION_FAILED'] }, timestamp: { gte: today }, ...locFilter },
         select: { details: true },
       }),
     ])
@@ -106,6 +114,8 @@ export async function POST(req: Request) {
       entityId: entityId || undefined,
       details: { channel, recipient, subject, providerId, success } as Record<string, unknown>,
       userId: authResult.session?.employeeId,
+      // FIX R81: eksplicitna lokacija (iz seje) — brez odvisnosti od derivationa.
+      locationId: authResult.session?.locationId ?? null,
     })
 
     return NextResponse.json({ success, providerId, channel, recipient, message: success ? 'Obvestilo uspešno poslano' : 'Pošiljanje obvestila ni uspelo' })
@@ -126,7 +136,7 @@ export async function PUT(req: Request) {
 
     const { notifications } = data
     const results: Array<{ recipient: string; channel: string; success: boolean; providerId: string }> = []
-    const auditEntries: Array<{ action: string; entityType: string; details: Record<string, unknown>; userId?: string }> = []
+    const auditEntries: Array<{ action: string; entityType: string; details: Record<string, unknown>; userId?: string; locationId?: string | null }> = []
 
     // FIX PERFORMANCE: prejšnja koda je klicala createAuditLog v zanki — vsak
     // klic je ločena transakcija z read+write. Za N=100 obvestil = 100 transakcij.
@@ -139,6 +149,8 @@ export async function PUT(req: Request) {
         entityType: 'Notification',
         details: { channel: notif.channel, recipient: notif.recipient, subject: notif.subject || '', providerId, success, batch: true },
         userId: authResult.session?.employeeId,
+        // FIX R81: eksplicitna lokacija (iz seje) za batch vnose.
+        locationId: authResult.session?.locationId ?? null,
       })
     }
 

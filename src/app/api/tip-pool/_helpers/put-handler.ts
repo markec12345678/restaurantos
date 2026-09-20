@@ -18,12 +18,13 @@ import { NextResponse } from 'next/server'
 import { distributeTipsSchema } from './schemas'
 import { validateRequest } from '@/lib/api-utils'
 import { createTipDistributionWithChain } from '@/lib/tip-distribution-chain'
+import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { Prisma } from '@prisma/client'
 
 import { formatEUR } from '@/lib/safe-format'
 export async function handlePutTipPool(
   req: Request,
-  _authResult: { session?: { employeeId?: string } | null },
+  _authResult: { session?: { employeeId?: string; locationId?: string | null } | null },
 ) {
   const { data, error: validationError } = await validateRequest(req, distributeTipsSchema)
   if (validationError) return validationError
@@ -33,6 +34,15 @@ export async function handlePutTipPool(
   // Preveri pool status OUTSIDE transaction — hitri fail za 404/400
   const pool = await db.tipPool.findUnique({ where: { id: tipPoolId } })
   if (!pool) return NextResponse.json({ error: 'Tip pool ne obstaja' }, { status: 404 })
+  // FIX R81-G (LEAK-HIGH, cross-tenant): findUnique je bil nescopecan —
+  // manage_employees staff je lahko prepisal distribucije TUJE lokacije
+  // (deleteMany + create + status flip znotraj transakcije). Scope iz seje;
+  // izven scope-a → 404 (ne razkrivamo obstoja poola). TipPool.locationId je
+  // nullable — NULL vrstice so fail-closed za lokacijsko vezane seje;
+  // super-admin (brez session lokacije) = globalni nadzor.
+  if (!isWithinScope(_authResult.session?.locationId ?? null, pool.locationId)) {
+    return notInScopeResponse('Tipski bazen')
+  }
   if (pool.status === 'paid') return NextResponse.json({ error: 'Tip pool je že izplačan' }, { status: 400 })
 
   try {

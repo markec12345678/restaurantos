@@ -12,21 +12,56 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { getNextCounter } from '@/lib/counters'
 import { logger } from '@/lib/logger'
+import { notInScopeResponse } from '@/lib/tenant-scope'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
+
+// FIX R81-F (LEAK-HIGH+MEDIUM): inline role-aware fail-closed gate (zrcali
+// resolveCatalogScope semantiko; subscription platformAdminGate stil — brez
+// tenant-scope helperjev). kot je take_orders staff ruta — non-admin BREZ
+// session.locationId = 403 (data integrity issue), ker scope-a ni mogoče
+// izpeljati in bi videl kuhinjske liste VSEH tenantov.
+function requireKotLocationScope(
+  authResult: { session?: { role?: string; locationId?: string | null } | null },
+): { sessionLocId: string | null } | { error: NextResponse } {
+  const session = authResult.session
+  const sessionLocId = session?.locationId ?? null
+  const isRoleAdmin = session?.role === 'admin' || session?.role === 'super_admin'
+  if (!sessionLocId && !isRoleAdmin) {
+    return {
+      error: NextResponse.json(
+        { error: 'Vaš račun nima dodeljene lokacije. Kontaktirajte administratorja.' },
+        { status: 403 },
+      ),
+    }
+  }
+  return { sessionLocId }
+}
 
 // GET — Seznam KOT dokumentov za naročilo
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
+    // FIX R81-F: scope gate
+    const scope = requireKotLocationScope(authResult)
+    if ('error' in scope) return scope.error
+    const sessionLocId = scope.sessionLocId
 
     const { searchParams } = new URL(req.url)
     const orderId = searchParams.get('orderId')
     const type = searchParams.get('type')
 
-    const where: Record<string, unknown> = {}
+    // FIX R81-F (LEAK-MEDIUM): seznam je bil globalen — kuhinjski listi
+    // (artikli, notes, mize, employee) VSEH tenantov za take_orders staff.
+    // KotDocument nima lastnega locationId — scope prek relacije
+    // kotDocument.order.locationId (Order.locationId NOT NULL). Kuhinjski
+    // display-i brez searchParams dobijo samo svojo lokacijo (session),
+    // ?locationId query override namerno NE obstaja.
+    const where: Record<string, unknown> = {
+      ...(sessionLocId ? { order: { locationId: sessionLocId } } : {}),
+    }
     if (orderId) where.orderId = orderId
     if (type) where.type = type
 
@@ -63,6 +98,10 @@ export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
+    // FIX R81-F: scope gate
+    const scope = requireKotLocationScope(authResult)
+    if ('error' in scope) return scope.error
+    const sessionLocId = scope.sessionLocId
 
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error
@@ -73,12 +112,19 @@ export async function POST(req: Request) {
     }
 
     // Preveri da order obstaja
-    const order = await db.order.findUnique({
-      where: { id: data.orderId },
+    // FIX R81-F (LEAK-HIGH, WRITE IDOR): order lookup je bil nescopecan
+    // (findUnique po raw ID) — staff je lahko izdal KOT dokument za TUJE
+    // naročilo. findFirst z locationId scope (P0-C1 pattern; Order.locationId
+    // NOT NULL) — izven scope-a ali neobstoječe = enak 404 (brez razkritja).
+    const order = await db.order.findFirst({
+      where: {
+        id: data.orderId,
+        ...(sessionLocId ? { locationId: sessionLocId } : {}),
+      },
       select: { id: true, orderNumber: true, tableId: true, type: true },
     })
     if (!order) {
-      return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
+      return notInScopeResponse('Naročilo')
     }
 
     // Pridobi številko mize če ni podana

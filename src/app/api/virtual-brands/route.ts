@@ -19,8 +19,17 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'view_reports' })
     if (authResult.error) return authResult.error
 
+    // FIX R81-G (LEAK-LOW, cross-tenant): findMany je bil brez lokacijskega
+    // filtra — view_reports staff je videl znamke + _count.orders VSEH
+    // lokacij. VirtualBrand.locationId je nullable — NULL (legacy) vrstice so
+    // fail-closed za lokacijsko vezane seje; super-admin = globalni pogled.
+    // _count.orders se skopa naravno (seznam je že filtriran).
+    const sessionLocId = authResult.session?.locationId ?? null
     const brands = await db.virtualBrand.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        ...(sessionLocId ? { locationId: sessionLocId } : {}),
+      },
       include: {
         _count: { select: { orders: true } },
       },
@@ -64,7 +73,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `Znamka s kodo "${data.code}" že obstaja` }, { status: 409 })
     }
 
-    const brand = await db.virtualBrand.create({ data })
+    // FIX R81-G (LEAK-LOW): body locationId je STRIPPAN za lokacijsko vezane
+    // seje (seja je avtoritativna); super-admin sme podati izrecen locationId
+    // (ali pustiti null — VirtualBrand.locationId je nullable).
+    const sessionLocId = authResult.session?.locationId ?? null
+    const brand = await db.virtualBrand.create({
+      data: { ...data, locationId: sessionLocId || data.locationId || null },
+    })
     return NextResponse.json(deepToNumbers(brand), { status: 201 })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/virtual-brands', 'Napaka pri ustvarjanju virtualne znamke')

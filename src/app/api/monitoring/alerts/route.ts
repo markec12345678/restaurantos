@@ -1,6 +1,15 @@
 // ============================================
 // GET /api/monitoring/alerts — Infrastrukturni alerti (P1-observability)
 // ============================================
+// SCOPE (R81 odločitev): PLATFORM-GLOBAL BY DESIGN — ta endpoint je
+// infrastrukturni pogled na celotno SaaS namestitev in NI tenant-scoped.
+//   • Dostop: gated z requireAuth({ permission: 'admin' }).
+//   • Modeli z locationId stolpcem (npr. InventoryItem v alertu #6) so
+//     NEFILTRIRANI NAMENOMA — števcu je vseeno, kateri tenant ima
+//     negativno zalogo; to je infra pogled, ne poslovni poročni pogled.
+//   • Ponovno pregledati ŠELE, če se zgradi per-tenant ops konzola
+//     (do takrat je globalni scope dokumentirana zasnova, ne bug).
+// ============================================
 // 8 alert pravil (specifikacija):
 //   1. večkratne FURS napake           (furs_errors_total v 10-min oknu ≥ 5)
 //   2. neuspešni payment webhooki      (failed outbox, tip payment)

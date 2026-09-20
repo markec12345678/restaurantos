@@ -16,7 +16,9 @@ interface SetupStatus {
   hasEmployees: boolean
   hasLocations: boolean
   hasSettings: boolean
-  counts: { employees: number; locations: number; settings: number }
+  // R81 (enumeration): counts je nesen samo pred inicializacijo (first-run
+  // wizard); po inicializaciji je null — komponenta ga ne bere direktno.
+  counts?: { employees: number; locations: number; settings: number } | null
   multiLocationReady: boolean
   databaseUrl: string
 }

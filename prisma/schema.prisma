@@ -1568,11 +1568,18 @@ model AuditLog {
   terminalId String?  // ID POS terminala
   previousHash String   @default("") // FIX COMPLIANCE: hash prejšnjega vnosa (SHA-256 veriga)
   chainHash    String   @default("") // hash tega vnosa (SHA-256(previousHash + payload)) — zaščita pred poseganjem
+  // FIX R81 (tenant model): lokacija, na kateri je bil vnos ustvarjen. NULL = sistemski
+  // vnos (CRON, setup, platforma) ALI legacy vrstica (backfill je pokusil izvesti izpeljavo
+  // prek userId → Employee.locationId / entityType → entiteta.locationId). locationId je
+  // METADATA za tenant scoping in je NAMERNO IZKLOPČEN iz hash verige (chainHash ostaja
+  // backward-kompatibilen z obstoječimi verifierji + backfill ne lomi verige).
+  locationId String?
 
   @@index([entityType, entityId])
   @@index([timestamp])
   @@index([userId])
   @@index([action])
+  @@index([locationId])
 }
 
 // ============================================

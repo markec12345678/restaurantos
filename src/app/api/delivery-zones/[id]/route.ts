@@ -10,6 +10,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { parseJsonBody, handleApiError } from '@/lib/api-utils'
+import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 
 
 const updateSchema = z.object({
@@ -49,7 +50,27 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: 'Cone dostave ni mogoče najti' }, { status: 404 })
     }
 
-    const zone = await db.deliveryZone.update({ where: { id }, data: parsed.data })
+    // FIX R81-F (LEAK-HIGH, cross-tenant): findUnique je bil nescopecan —
+    // admin je lahko spreminjal/brisal cone TUJIH tenantov. DeliveryZone.locationId
+    // je nullable — legacy NULL-location cone so fail-closed (null !== 'loc-x'),
+    // super-admin (session brez lokacije) ima globalni nadzor (isWithinScope).
+    const sessionLocId = authResult.session?.locationId ?? null
+    if (!isWithinScope(sessionLocId, existing.locationId)) {
+      return notInScopeResponse('Dostavna cona')
+    }
+
+    // FIX R81-F: PATCH schema sprejme locationId — lokacijsko vezan admin NE
+    // sme preusmeriti cone na drugo lokacijo (strip, nikoli reassign);
+    // super-admin sme reassign samo na NE-PRAZEN value (nastavljanje NULL
+    // ni dovoljeno — legacy NULL vrstice postanejo fail-closed).
+    const updateData: Record<string, unknown> = { ...parsed.data }
+    if ('locationId' in updateData) {
+      if (sessionLocId || !updateData.locationId) {
+        delete updateData.locationId
+      }
+    }
+
+    const zone = await db.deliveryZone.update({ where: { id }, data: updateData })
     return NextResponse.json(decimalsToNumbers(zone, ['deliveryFee', 'minOrderAmount', 'freeDeliveryAbove']))
   } catch (error: unknown) {
     return handleApiError(error, 'PATCH /api/delivery-zones/[id]', 'Napaka pri posodabljanju cone')
@@ -66,6 +87,13 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const existing = await db.deliveryZone.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ error: 'Cone dostave ni mogoče najti' }, { status: 404 })
+    }
+
+    // FIX R81-F (LEAK-HIGH, cross-tenant): isti scope check kot PATCH —
+    // brisanje tuje cone je cross-tenant WRITE (NULL-location fail-closed).
+    const sessionLocId = authResult.session?.locationId ?? null
+    if (!isWithinScope(sessionLocId, existing.locationId)) {
+      return notInScopeResponse('Dostavna cona')
     }
 
     await db.deliveryZone.delete({ where: { id } })

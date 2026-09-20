@@ -57,8 +57,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (validationError) return validationError
 
     // Prevzem blaga — posodobi zalogo (v transakciji)
+    // FIX R81-G: session locationId se preda v helper (scoped findFirst na PO.locationId)
     if (body.action === 'receive' && body.receivedItems && body.receivedItems.length > 0) {
-      return await handleReceiveAction(id, body.receivedItems, authResult.session?.employeeId)
+      return await handleReceiveAction(
+        id,
+        body.receivedItems,
+        authResult.session?.employeeId,
+        authResult.session?.locationId ?? null,
+      )
     }
 
     // Navadna posodobitev
@@ -113,8 +119,14 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (validationError) return validationError
 
     // Prevzem blaga — posodobi zalogo (v transakciji)
+    // FIX R81-G: session locationId se preda v helper (scoped findFirst na PO.locationId)
     if (body.action === 'receive' && body.receivedItems && body.receivedItems.length > 0) {
-      return await handleReceiveAction(id, body.receivedItems, authResult.session?.employeeId)
+      return await handleReceiveAction(
+        id,
+        body.receivedItems,
+        authResult.session?.employeeId,
+        authResult.session?.locationId ?? null,
+      )
     }
 
     // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (PATCH je zaostal za GET/PUT fixom)

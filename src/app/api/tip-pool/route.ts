@@ -18,6 +18,27 @@ import {
   handlePutTipPool,
 } from './_helpers'
 
+// FIX R81-G (LEAK-MEDIUM): inline role-aware fail-closed gate (zrcali
+// resolveCatalogScope semantiko; inventory/adjust R81-F vzorec — brez
+// tenant-scope helperjev za role check). Non-admin BREZ session.locationId
+// = 403 (data integrity issue), ker ne moremo izpeljati scope-a.
+function requireLocationScope(
+  authResult: { session?: { role?: string; locationId?: string | null } | null },
+): { sessionLocId: string | null } | { error: NextResponse } {
+  const session = authResult.session
+  const sessionLocId = session?.locationId ?? null
+  const isRoleAdmin = session?.role === 'admin' || session?.role === 'super_admin'
+  if (!sessionLocId && !isRoleAdmin) {
+    return {
+      error: NextResponse.json(
+        { error: 'Vaš račun nima dodeljene lokacije. Kontaktirajte administratorja.' },
+        { status: 403 },
+      ),
+    }
+  }
+  return { sessionLocId }
+}
+
 // GET — Pridobi tip poole
 export const dynamic = 'force-dynamic'
 
@@ -66,10 +87,20 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'manage_employees' })
     if (authResult.error) return authResult.error
 
+    // FIX R81-G (LEAK-MEDIUM): scope gate (403) PRED validacijo/db
+    const scope = requireLocationScope(authResult)
+    if ('error' in scope) return scope.error
+    const sessionLocId = scope.sessionLocId
+
     const { data, error: validationError } = await validateRequest(req, createTipPoolSchema)
     if (validationError) return validationError
 
     const { date, distributionMethod, locationId } = data
+
+    // FIX R81-G (LEAK-MEDIUM): body locationId je STRIPPAN za lokacijsko vezane
+    // seje (seja je avtoritativna — nikoli pool/distribucija na tuji lokaciji);
+    // super-admin (brez session lokacije) sme podati izrecen locationId.
+    const effectiveLocationId: string | undefined = sessionLocId || locationId || undefined
 
     const d = new Date(date)
     const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate())
@@ -77,18 +108,26 @@ export async function POST(req: Request) {
 
     // Preveri če že obstaja
     const existing = await db.tipPool.findFirst({
-      where: { date: dayStart, ...(locationId ? { locationId } : {}) },
+      where: { date: dayStart, ...(effectiveLocationId ? { locationId: effectiveLocationId } : {}) },
     })
     if (existing && existing.status === 'paid') {
       return NextResponse.json({ error: 'Tip pool za ta dan je že izplačan' }, { status: 400 })
     }
 
     // Pridobi napitnine iz plačil za ta dan
-    const { totalTips, cashTips, cardTips } = await fetchDayPayments(dayStart, dayEnd, locationId)
+    const { totalTips, cashTips, cardTips } = await fetchDayPayments(dayStart, dayEnd, effectiveLocationId)
 
     // Pridobi zaposlene, ki so delali ta dan
+    // FIX R81-G (LEAK-MEDIUM, cross-tenant): shift.findMany je bil brez
+    // lokacijskega filtra — distribucije so vključevale izmene VSEH lokacij.
+    // Shift.locationId je nullable (NULL = legacy/fail-closed za lokacijsko
+    // vezane seje); super-admin = globalni pogled.
     const shifts = await db.shift.findMany({
-      where: { date: { gte: dayStart, lt: dayEnd }, status: { in: ['completed', 'in_progress'] } },
+      where: {
+        date: { gte: dayStart, lt: dayEnd },
+        status: { in: ['completed', 'in_progress'] },
+        ...(sessionLocId ? { locationId: sessionLocId } : {}),
+      },
       include: { employee: true },
     })
 
@@ -109,7 +148,7 @@ export async function POST(req: Request) {
     // Upsert tip pool + distribucije
     const poolId = await persistTipPoolWithDistributions(
       existing,
-      { date: dayStart, totalTips, cashTips, cardTips, distributionMethod, status: 'pending', locationId: locationId || null },
+      { date: dayStart, totalTips, cashTips, cardTips, distributionMethod, status: 'pending', locationId: effectiveLocationId || null },
       distributions
     )
 
@@ -130,7 +169,11 @@ export async function PUT(req: Request) {
     const authResult = await requireAuth(req, { permission: 'manage_employees' })
     if (authResult.error) return authResult.error
 
-    return await handlePutTipPool(req, authResult as { session?: { employeeId?: string } | null })
+    // FIX R81-G: session locationId se preda v handler (scope check na TipPool.locationId)
+    return await handlePutTipPool(
+      req,
+      authResult as { session?: { employeeId?: string; locationId?: string | null } | null },
+    )
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/tip-pool', 'Napaka pri posodabljanju napitnin')
   }

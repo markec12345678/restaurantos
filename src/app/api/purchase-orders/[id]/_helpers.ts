@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { toNum, round2, greaterThanOrEqual, isPositive, multiply } from '@/lib/decimal'
+import { notInScopeResponse } from '@/lib/tenant-scope'
 
 export const purchaseOrderUpdateSchema = z.object({
   action: z.enum(['receive']).optional(),
@@ -30,16 +31,22 @@ export const VALID_PO_TRANSITIONS: Record<string, string[]> = {
 }
 
 // Prevzem blaga — posodobi zalogo (v transakciji)
+// FIX R81-G (LEAK-HIGH, cross-tenant): findUnique je bil nescopecan — PUT/PATCH
+// action='receive' je SKOČIL pred scoped lookup v route in prevzel blago TUJE
+// lokacije (inventory increment + AccountsPayable). findFirst z lokacijskim
+// filtrom iz seje (PurchaseOrder.locationId nullable — super-admin brez
+// session lokacije = globalni nadzor); izven scope-a → 404 notInScopeResponse.
 export async function handleReceiveAction(
   id: string,
   receivedItems: { itemId: string; quantityReceived: number }[],
   employeeId?: string,
+  sessionLocationId?: string | null,
 ) {
-  const po = await db.purchaseOrder.findUnique({
-    where: { id },
+  const po = await db.purchaseOrder.findFirst({
+    where: { id, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
     include: { items: true },
   })
-  if (!po) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
+  if (!po) return notInScopeResponse('Naročilnica')
 
   // FIX MEDIUM: Ovij prevzem v transakcijo — prepreči delne posodobitve zaloge
   await db.$transaction(async (tx) => {

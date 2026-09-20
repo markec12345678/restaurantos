@@ -28,10 +28,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     // izmeno KATERE KOLI lokacije z ID-jem. Zaposleni z lokacijo sme zapreti SAMO
     // svojo izmeno; admin brez lokacije = globalni nadzor (isti vzorec kot P0-C1/C2).
     // Ne obstoječa ali tuja izmena = enak odgovor (ne razkrivamo obstoja tujih izmen).
+    // FIX R81-F (LEAK-LOW, money path): prejšnji `shift.locationId &&` pogoj je bil
+    // fail-OPEN za legacy NULL-location izmene (lokacijsko vezan upravljavec je
+    // lahko zaprl izmeno BREZ lokacije — canonical isWithinScope bi dal 404).
+    // R81 policy: legacy NULL-location shift = fail-closed (404 za lokacijsko
+    // vezane seje); super-admin (brez session lokacije) lahko še vedno zapre.
+    // Census + masovni backfill legacy izmen ostane odprt (R82).
     const sessionLocationId = authResult.session?.locationId ?? undefined
     const closedShift = await db.$transaction(async (tx) => {
       const shift = await tx.cashRegisterShift.findUnique({ where: { id } })
-      if (!shift || (sessionLocationId && shift.locationId && shift.locationId !== sessionLocationId)) {
+      if (!shift || (sessionLocationId && shift.locationId !== sessionLocationId)) {
         throw new Error('SHIFT_NOT_FOUND')
       }
       if (shift.status === 'closed') {

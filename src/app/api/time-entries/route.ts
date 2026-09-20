@@ -5,9 +5,31 @@ import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middlewa
 import { createTimeEntrySchema } from '@/lib/validations'
 import { toNum, round2, multiply, deepToNumbers } from '@/lib/decimal'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
+import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { resolveLocationId } from '@/lib/location-fallback'
 
 export const dynamic = 'force-dynamic'
+
+// FIX R81-G (LEAK-MEDIUM): inline role-aware fail-closed gate (zrcali
+// resolveCatalogScope semantiko; inventory/adjust R81-F vzorec — brez
+// tenant-scope helperjev za role check). Non-admin BREZ session.locationId
+// = 403 (data integrity issue), ker ne moremo izpeljati scope-a.
+function requireLocationScope(
+  authResult: { session?: { role?: string; locationId?: string | null } | null },
+): { sessionLocId: string | null } | { error: NextResponse } {
+  const session = authResult.session
+  const sessionLocId = session?.locationId ?? null
+  const isRoleAdmin = session?.role === 'admin' || session?.role === 'super_admin'
+  if (!sessionLocId && !isRoleAdmin) {
+    return {
+      error: NextResponse.json(
+        { error: 'Vaš račun nima dodeljene lokacije. Kontaktirajte administratorja.' },
+        { status: 403 },
+      ),
+    }
+  }
+  return { sessionLocId }
+}
 
 export async function GET(req: Request) {
   try {
@@ -71,6 +93,12 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'manage_employees' })
     if (authResult.error) return authResult.error
 
+    // FIX R81-G (LEAK-MEDIUM): scope gate (403) PRED validacijo/db.
+    // (GET je že scopcan prek resolveTenantLocationIdOrThrow — R80.)
+    const scope = requireLocationScope(authResult)
+    if ('error' in scope) return scope.error
+    const sessionLocId = scope.sessionLocId
+
     // FIX SECURITY: validateRequest() prepreči DoS z oversized payload
     const { data, error: validationError } = await validateRequest(req, createTimeEntrySchema)
     if (validationError) return validationError
@@ -108,6 +136,13 @@ export async function POST(req: Request) {
 
     // Pridobi urno postavko iz zaposlenega
     const employee = await db.employee.findUnique({ where: { id: data.employeeId } })
+    // FIX R81-G (LEAK-MEDIUM, cross-tenant): employeeId je bil nescopecan —
+    // manager je lahko vpisoval delovne urne (payroll!) TUJEGA zaposlenega.
+    // Employee.locationId je nullable — NULL vrstice so fail-closed za
+    // lokacijsko vezane seje; super-admin (brez session lokacije) = globalno.
+    if (employee && !isWithinScope(sessionLocId, employee.locationId)) {
+      return notInScopeResponse('Zaposleni')
+    }
     if (employee) {
       // Pridobi payRate iz EmployeeJob če je jobId podan
       if (data.jobId) {
@@ -121,6 +156,10 @@ export async function POST(req: Request) {
 
     // FIX QA runda 38: DB stolpec TimeEntry.locationId je NOT NULL (schema drift,
     // P2011 potrjen na prod) — resolvi lokacijo pred create (session → employee → prva)
+    // FIX R81-G (body locationId strip): createTimeEntrySchema NIMA locationId
+    // polja — zapis se veže na lokacijo iz seje (resolveLocationId); za
+    // lokacijsko vezane seje je to VEDNO session.locationId (prvi kandidat),
+    // zato tuje lokacije niso dosegljive.
     const locationId = await resolveLocationId(
       authResult.session?.locationId,
       authResult.session?.employeeId,

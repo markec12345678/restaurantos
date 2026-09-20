@@ -24,10 +24,31 @@ import {
 // GET /api/subscription — Trenutna naročnina + paketi
 export const dynamic = 'force-dynamic'
 
+// FIX R81 (platform-admin gate): Subscription/SubscriptionInvoice so
+// PLATFORM-level SaaS podatki — subscriptionInvoice.aggregate vrača
+// totalRevenue čez VSE tenante, subscription.findFirst razkriva
+// company email/taxId poljubnega tenanta. `permission: 'admin'` sam po
+// sebi pokriva tudi lokacijsko vezane admine, ki platformnih prihodkov
+// ne smejo videti. To je ROLE gate (NI lokacijski resolver — zato brez
+// tenant-scope): platform administrator = admin/super_admin BREZ
+// dodeljene lokacije (session.locationId null).
+function platformAdminGate(authResult: { session: { role: string; locationId?: string | null } | null }): NextResponse | null {
+  const session = authResult.session
+  const isPlatformAdmin = !!session && ['admin', 'super_admin'].includes(session.role) && !session.locationId
+  if (isPlatformAdmin) return null
+  return NextResponse.json(
+    { error: 'Dostop do naročniških podatkov ima samo platformni administrator.' },
+    { status: 403 },
+  )
+}
+
+// GET /api/subscription — Trenutna naročnina + paketi
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+    const platformGate = platformAdminGate(authResult)
+    if (platformGate) return platformGate
 
     // Pridobi trenutno naročnino
     const subscription = await db.subscription.findFirst({
@@ -69,6 +90,8 @@ export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+    const platformGate = platformAdminGate(authResult)
+    if (platformGate) return platformGate
 
     const { data, error: validationError } = await validateRequest(req, createSubscriptionSchema)
     if (validationError) return validationError
@@ -123,6 +146,8 @@ export async function PATCH(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+    const platformGate = platformAdminGate(authResult)
+    if (platformGate) return platformGate
 
     const { data, error: validationError } = await validateRequest(req, updateSubscriptionSchema)
     if (validationError) return validationError

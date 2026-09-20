@@ -31,6 +31,20 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // FIX R81-F (platform-admin gate, zrcali subscription/route.ts R81 gate):
+    // migracije so GLOBALNI DDL čez vse tenante (24 modelov, backfill +
+    // NOT NULL) — lokacijsko vezan 'admin' jih ne sme izvajati. Platform
+    // administrator = admin/super_admin BREZ dodeljene lokacije
+    // (session.locationId null). ROLE gate — brez tenant-scope importov.
+    const session = authResult.session
+    const isPlatformAdmin = !!session && ['admin', 'super_admin'].includes(session.role) && !session.locationId
+    if (!isPlatformAdmin) {
+      return NextResponse.json(
+        { error: 'Globalne migracije lahko izvaja samo platformni administrator.' },
+        { status: 403 }
+      )
+    }
+
     const rl = await checkRateLimitAsync('migrate', getClientIp(req), SEED_LIMIT)
     if (!rl.allowed) {
       return NextResponse.json(

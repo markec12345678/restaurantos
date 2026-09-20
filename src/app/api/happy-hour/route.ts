@@ -10,17 +10,46 @@ import { parseDaysOfWeek } from '@/lib/json-fields'
 
 export const dynamic = 'force-dynamic'
 
+// FIX R81-F (LEAK-HIGH+MEDIUM): inline role-aware fail-closed gate (zrcali
+// resolveCatalogScope semantiko; subscription platformAdminGate stil — brez
+// tenant-scope helperjev). Ruta je take_orders dostopna — non-admin BREZ
+// session.locationId = 403 (data integrity issue).
+function requireHappyHourLocationScope(
+  authResult: { session?: { role?: string; locationId?: string | null } | null },
+): { sessionLocId: string | null } | { error: NextResponse } {
+  const session = authResult.session
+  const sessionLocId = session?.locationId ?? null
+  const isRoleAdmin = session?.role === 'admin' || session?.role === 'super_admin'
+  if (!sessionLocId && !isRoleAdmin) {
+    return {
+      error: NextResponse.json(
+        { error: 'Vaš račun nima dodeljene lokacije. Kontaktirajte administratorja.' },
+        { status: 403 },
+      ),
+    }
+  }
+  return { sessionLocId }
+}
+
 export async function GET(req: Request) {
   try {
     // FIX CRITICAL: Zahtevaj avtentikacijo za dostop do Happy Hour podatkov
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
+    // FIX R81-F: scope gate
+    const scope = requireHappyHourLocationScope(authResult)
+    if ('error' in scope) return scope.error
+    const sessionLocId = scope.sessionLocId
 
     // RUNDA 69 FIX: vrni VSE urnike (tudi neaktivne) — prej je GET filtriral
     // isActive:true, kar je pomenilo, da je bil IZKLOP stikala ENOSMERNA VRATA:
     // neaktiven urnik je izginil iz seznama in ga NI več bilo mogoče vklopiti
     // nazaj prek UI. activeSchedules/currentlyActive se še vedno računata spodaj.
+    // FIX R81-F (LEAK-MEDIUM): seznam je bil globalen — urniki VSEH tenantov
+    // za take_orders staff. HappyHourSchedule nima lastnega locationId —
+    // scope prek starša priceGroup.locationId (NOT NULL, schema :2085).
     const schedules = await db.happyHourSchedule.findMany({
+      where: { ...(sessionLocId ? { priceGroup: { locationId: sessionLocId } } : {}) },
       include: { priceGroup: true },
       orderBy: [{ isActive: 'desc' }, { startTime: 'asc' }],
     })
@@ -56,6 +85,10 @@ export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+    // FIX R81-F: scope gate (isti kot GET)
+    const scope = requireHappyHourLocationScope(authResult)
+    if ('error' in scope) return scope.error
+    const sessionLocId = scope.sessionLocId
 
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error
@@ -73,8 +106,17 @@ export async function POST(req: Request) {
     }
 
     // FIX HIGH: Preveri, da priceGroupId obstaja
+    // FIX R81-F (LEAK-HIGH, cross-tenant): priceGroup lookup je bil nescopecan
+    // (findUnique po raw ID) — admin je lahko pripel urnik na TUJ cenik
+    // (drug tenant bi dobil tuj popust na svojem ceniku). findFirst scoped;
+    // izven scope-a ali neobstoječ = enak 404 (brez razkritja).
     if (data.priceGroupId) {
-      const priceGroup = await db.priceGroup.findUnique({ where: { id: data.priceGroupId } })
+      const priceGroup = await db.priceGroup.findFirst({
+        where: {
+          id: data.priceGroupId,
+          ...(sessionLocId ? { locationId: sessionLocId } : {}),
+        },
+      })
       if (!priceGroup) {
         return NextResponse.json({ error: 'Cenik ni najden' }, { status: 404 })
       }

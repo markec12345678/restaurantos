@@ -21,6 +21,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
+import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { toNum, deepToNumbers } from '@/lib/decimal'
 
 export const dynamic = 'force-dynamic'
@@ -36,7 +37,10 @@ export async function GET(
 
     // FIX GDPR: Uporabnik lahko dostopa do svojih podatkov ALI admin do vseh
     const isSelf = authResult.session?.employeeId === employeeId
-    const isAdmin = authResult.session?.role === 'admin'
+    // FIX R81-F: 'super_admin' dodan k admin path (prej fail-closed
+    // nekonsistentno — super_admin ni imel admin path-a, admin pa je smel
+    // izvažati tuje tenantov). isSelf ostane VEDNO dovoljen.
+    const isAdmin = authResult.session?.role === 'admin' || authResult.session?.role === 'super_admin'
     if (!isSelf && !isAdmin) {
       return NextResponse.json(
         { error: 'Nimate dovoljenja za dostop do teh podatkov' },
@@ -76,6 +80,15 @@ export async function GET(
         { error: 'Zaposleni ni najden' },
         { status: 404 }
       )
+    }
+
+    // FIX R81-F (LEAK-MEDIUM, cross-tenant): admin path je smel izvoziti poln
+    // GDPR export (PII + seje z IP/UA) zaposlenega POLJUBNEGA tenanta. Zdaj:
+    // lokacijsko vezan admin samo za zaposlene SVOJE lokacije (tuja ALI NULL
+    // lokacija → 404 brez razkritja); super-admin (session brez lokacije,
+    // isWithinScope(null,·)=true) globalen; isSelf ostane vedno dovoljen.
+    if (!isSelf && !isWithinScope(authResult.session?.locationId ?? null, employee.locationId)) {
+      return notInScopeResponse('Zaposleni')
     }
 
     // ─── 2. Izmen in časovni vnosi (zadnjih 12 mesecev) ───────
@@ -232,6 +245,8 @@ export async function GET(
           entityType: 'Employee',
           entityId: employeeId,
           userId: authResult.session?.employeeId,
+          // FIX R81 (tenant model): vnos pripada lokaciji izvoženega zaposlenega.
+          locationId: employee.locationId ?? authResult.session?.locationId ?? null,
           details: JSON.stringify({
             requestedBy: authResult.session?.employeeId,
             isSelf,

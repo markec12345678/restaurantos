@@ -102,16 +102,16 @@ describe('P3 fix: inventory/adjust — atomic negative stock prevention', () => 
   })
 
   it('uporabi atomic updateMany z WHERE quantity >= deductQty (zadostna zaloga)', async () => {
-    mockTx.inventoryItem.findUnique.mockResolvedValue({
-      id: 'inv-1',
-      name: 'Moka',
-      quantity: 10,
-      costPerUnit: 2,
-    })
+    // R81-F: fetch je zdaj scoped findFirst (tenant scope), re-read po update
+    // je še vedno findUnique znotraj transakcije (po uspešnem scope checku).
+    mockTx.inventoryItem.findFirst.mockReset()
+    mockTx.inventoryItem.findUnique.mockReset()
+    mockTx.inventoryItem.updateMany.mockReset()
     mockTx.inventoryItem.updateMany.mockResolvedValue({ count: 1 }) // uspeh
-    mockTx.inventoryItem.findUnique.mockResolvedValueOnce({
+    mockTx.inventoryItem.findFirst.mockResolvedValueOnce({
       id: 'inv-1', name: 'Moka', quantity: 10, costPerUnit: 2,
-    }).mockResolvedValueOnce({
+    })
+    mockTx.inventoryItem.findUnique.mockResolvedValueOnce({
       id: 'inv-1', name: 'Moka', quantity: 7, costPerUnit: 2, menuItem: null,
     })
 
@@ -138,9 +138,11 @@ describe('P3 fix: inventory/adjust — atomic negative stock prevention', () => 
   })
 
   it('nezadostna zaloga: NE gre v negativo, zabeleži v skipped', async () => {
-    mockTx.inventoryItem.findUnique
-      .mockResolvedValueOnce({ id: 'inv-1', name: 'Moka', quantity: 2, costPerUnit: 2 })
-      .mockResolvedValueOnce({ id: 'inv-1', name: 'Moka', quantity: 2, costPerUnit: 2, menuItem: null })
+    // R81-F: samo fetch (scoped findFirst) — updateMany count=0 → re-read NI klican
+    mockTx.inventoryItem.findFirst.mockReset()
+    mockTx.inventoryItem.findUnique.mockReset()
+    mockTx.inventoryItem.updateMany.mockReset()
+    mockTx.inventoryItem.findFirst.mockResolvedValueOnce({ id: 'inv-1', name: 'Moka', quantity: 2, costPerUnit: 2 })
 
     // updateMany vrne count=0 — ni dovolj zaloge
     mockTx.inventoryItem.updateMany.mockResolvedValue({ count: 0 })
@@ -181,11 +183,11 @@ describe('P3 fix: inventory/adjust — atomic negative stock prevention', () => 
 
   it('artikel ni najden: zabeleži v skipped', async () => {
     // Reset mocks — mockReset() čisti tudi queued return values
-    mockTx.inventoryItem.findUnique.mockReset()
+    mockTx.inventoryItem.findFirst.mockReset()
     mockTx.inventoryItem.updateMany.mockReset()
     mockTx.stockTransaction.create.mockReset()
     mockTx.stockTransaction.create.mockResolvedValue({ id: 'st-1' })
-    mockTx.inventoryItem.findUnique.mockResolvedValue(null)
+    mockTx.inventoryItem.findFirst.mockResolvedValue(null)
     vi.mocked(parseJsonBody).mockResolvedValue({ data: {}, error: null })
     vi.mocked(validateBody).mockReturnValue({ data: {
       items: [{ inventoryItemId: 'inv-1', quantity: 3 }],
@@ -209,7 +211,7 @@ describe('P3 fix: inventory/adjust — atomic negative stock prevention', () => 
   })
 
   it('količina = 0 ali negativna: zabeleži v skipped', async () => {
-    mockTx.inventoryItem.findUnique.mockResolvedValue({
+    mockTx.inventoryItem.findFirst.mockResolvedValue({
       id: 'inv-1', name: 'Moka', quantity: 10, costPerUnit: 2,
     })
 

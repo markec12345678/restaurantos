@@ -61,7 +61,8 @@ export async function PUT(
           : {}),
       },
       include: {
-        check: true,
+        // FIX R81: order.locationId za audit locationId izpeljavo (Payment nima lastnega stolpca)
+        check: { include: { order: { select: { locationId: true } } } },
         giftCard: true,
         loyaltyAccount: true,
       },
@@ -141,6 +142,9 @@ export async function PUT(
             action: 'UPDATE_PAYMENT',
             entityType: 'Payment',
             entityId: id,
+            // FIX R81 (tenant model): lokacija plačila prek check.order.locationId
+            // (Payment nima lastnega locationId); fallback = seja.
+            locationId: existingPayment.check.order.locationId ?? authResult.session?.locationId ?? null,
             details: JSON.stringify({
               changedFields: Object.keys(updateData),
               before: beforeSnapshot,

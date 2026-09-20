@@ -1,11 +1,11 @@
-# RestaurantOS v1.9.0
+# RestaurantOS v1.9.1
 
-[![Version](https://img.shields.io/badge/version-1.9.0-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.9.1-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-2245%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-80%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-2316%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-81%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,21 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (80 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **A++ security** — 0 HIGH, 0 MEDIUM odprtih (81 QA/razvojnih rund complete). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### 🔧 Popravki v v1.9.1 (QA runda 81 — AuditLog tenant model + finalni read/write sweep)
+
+| Kategorija | Popravek |
+|------------|----------|
+| 🏗️ **AuditLog.locationId — pravi tenant model** | AuditLog dobil `locationId String?` + index (shematska sprememba, migracija). Centralna helperja `createAuditLog`/`createAuditLogsBatch` zdaj SAMODEJNO izpeljeta lokacijo (userId → Employee.locationId, best-effort — derivacija nikoli ne podre zapisa, PCI DSS); 5 direktnih `auditLog.create` mest (payments ×2, qr-pay, gdpr ×3) eksplicitno označena z entitetno izpeljavo (Payment nima lastnega stolpca → check.order.locationId). **locationId je NAMERNO izklopljen iz hash verige** — chainHash ostane backward-kompatibilen, backfill ne lomi tamper-evidence. `GET /api/audit` + `GET /api/notifications` zdaj tenant-scoped (fail-closed); backfill + census scripta: `scripts/audit-location.ts` (census/dry-run/`--apply`, dokazan na sintetičnih podatkih: via user + via entity + sistemski NULL) |
+| 🔍 **Finalni read/write sweep (2 read-only agenta, 81 fajlov)** | razred haccp/gift-cards napak (findUnique brez scope pred mutacijo): **13 novih HIGH** odkritih in vseh popravljenih; 11 MEDIUM (8 popravljenih, 2 dokumentiranih za R82, 1 LO); 41+40 fajlov klasificiranih — 41 SAFE re-verificiranih |
+| 🚨 **HIGH: webauthn/register — cross-tenant account takeover** | `isAdmin` pot ni preverila lokacije ciljnega zaposlenega → location-bound admin je registriral SVOJ avtenticator na tujega zaposlenega → prijava v tuj tenant. Zdaj: owner-location matrika (kot credentials/[id] iz R79) + super_admin v vlogskem checku, preverjanje PRED porabo challenge-a |
+| 🚨 **HIGH: qr-pay — javna plačilna pot prekinjena po zasnovi** | sessionToken je bil random hex, ki se NI nikjer shranil in se NIKOLI preveril: `GET /api/qr-pay` je vrnil PRVI neporavnan ček GLOBALNO; `confirm` je dovolil plačilo katerega koli čeka po ID-ju. Zdaj: **stateless HMAC vezava** (`token = HMAC-SHA256(secret, checkId)`, timing-safe verify — `src/lib/qr-pay-token.ts`): GET vrne SAMO ček, čigar HMAC ujema token; confirm zahteva veljaven token za checkId (403); init lokacijsko scoped (order.locationId); rate limit 10/min na obe javni poti |
+| 🚨 **HIGH: 5× write-through-tenant** | `delivery-zones/[id]` (PATCH+DELETE + locationId reassign), `inventory/adjust` + `inventory/restock` (cross-tenant zaloge), `kot` (KOT za tuj naročilo + unscoped seznam), `gdpr/anonymize` (uničenje tujega PII), `happy-hour` (+[id], tuj priceGroup), `tip-pool` PUT (cross-tenant distribucija), `receipts/[id]` POST (fiskalizacija tujega naročila), `purchase-orders/[id]` receive (cross-tenant zaloge + AP), `packaging/[id]` (3× bare findUnique) — vsi fail-closed (findFirst + isWithinScope/notInScopeResponse 404) |
+| 🟠 **MEDIUM/LOW + produktni gates** | `card-terminal` (plačilo na tujem terminalu), `gdpr/export` (admin samo ista lokacija/super-admin), `guests/[id]` (orders include scoped; Guest.locationId = R82), `reservations/[id]` (tableId validacija + 409 brez tujega imena), `staff-shifts` POST, `time-entries` POST, `suppliers/[id]/scorecard`, `virtual-brands`, `cash-register/[id]` (NULL-location izmena → fail-closed 404), `setup/status` (točne številke skrite po initu), `subscription` + `admin/migrate` (**platformni-admin gate**: role admin/super_admin BREZ lokacije), `notifications` stats scoped |
+| 🧪 **+71 regresijskih testov** | `r81-audit-tenant-model` (11), `r81-scope-hardening` (16), `r81-final-sweep` (15), `r81-final-sweep-2` (22), `r81-qr-pay-token` (7) — derivacija, fail-closed matrike, HMAC vezava, super-admin global, PII strip — **2316/2316 unit** |
+| 🧪 **Regresija — vse zelene** | lint **0/0** · tsc **0** · **2316/2316 unit** · **9/9 integracija** |
+| 📌 **Odpri točke (runda 82)** | `Guest.locationId` + `Integration.locationId` stolpca (schema runda); qr-pay shranjene seje z TTL (HMAC vezava je trajna — token samo na QR sliki čeka); `mobile/order` + `public/online-order` gost-flusi (api-key scope, locationId iz telesa); `subscription/invoices` platform gate; legacy NULL-location census na PROD podatkih → backfill odločitev; `receipts/rebuild` admin maintenance op |
 
 ### 🔧 Popravki v v1.9.0 (QA runda 80 — agregacijski endpointi + unifikacija tenant modulov)
 

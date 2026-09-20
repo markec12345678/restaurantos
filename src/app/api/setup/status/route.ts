@@ -22,7 +22,15 @@ export async function GET() {
       hasEmployees: employeeCount > 0,
       hasLocations: locationCount > 0,
       hasSettings: settingsCount > 0,
-      counts: { employees: employeeCount, locations: locationCount, settings: settingsCount },
+      // FIX R81 (enumeration): javni endpoint (brez autha) je anonimnim
+      // klicateljem razkrival TOČNE števce (employees/locations/settings) —
+      // tenant-count enumeration. Po inicializaciji je counts=null;
+      // first-run (0 zaposlenih) ostane resničen, ker wizard potrebuje
+      // counts samo PRED inicializacijo. Booleans (isInitialized/
+      // hasEmployees/...) ostanejo za redirect UX (setup-redirect, middleware).
+      counts: isInitialized
+        ? null
+        : { employees: employeeCount, locations: locationCount, settings: settingsCount },
       multiLocationReady: isMultiLocation,
       databaseUrl: isMultiLocation ? 'configured' : 'embedded',
     })

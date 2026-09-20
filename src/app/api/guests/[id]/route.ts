@@ -18,12 +18,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // FIX R81-F (LEAK-MEDIUM, DELNI fix — Guest NIMA tenant stolpca):
+    // Guest je globalni CRM pool BY DESIGN (take_orders; dokumentirano v
+    // R81-E1) — sam zapis gosta ostane dosegljiv, ampak TUJA naročila v
+    // orders include so morala biti skrita. Orders include je scopcan na
+    // session.locationId (Order.locationId NOT NULL). Polna tenant izolacija
+    // Guest modela zahteva shematsko spremembo.
+    const sessionLocId = authResult.session?.locationId ?? null
+
     const { id } = await params
     const guest = await db.guest.findUnique({
       where: { id },
       include: {
         loyaltyAccount: { include: { transactions: { orderBy: { createdAt: 'desc' }, take: 10 } } },
         orders: {
+          // FIX R81-F: samo naročila seje-lokacije (super-admin vidi vse)
+          where: { ...(sessionLocId ? { locationId: sessionLocId } : {}) },
           orderBy: { createdAt: 'desc' },
           take: 10,
           include: { orderItems: { include: { menuItem: true } } },
@@ -46,6 +56,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     // FIX C-01: Zahtevaj avtentikacijo za posodabljanje gosta
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
+
+    // R81-F nota: PUT/DELETE na globalnem Guest modelu ostajata nescopecani —
+    // Guest NIMA tenant stolpca, polna izolacija zahteva shematsko spremembo.
+    // R82: Guest.locationId schema round.
 
     const { id } = await params
     const bodyResult = await parseJsonBody(req)
@@ -97,6 +111,10 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     // FIX C-01: Zahtevaj avtentikacijo za brisanje gosta
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+
+    // R81-F nota: DELETE na globalnem Guest modelu ostaja nescopecan —
+    // Guest NIMA tenant stolpca, polna izolacija zahteva shematsko spremembo.
+    // R82: Guest.locationId schema round.
 
     const { id } = await params
 

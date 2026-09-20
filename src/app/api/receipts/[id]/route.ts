@@ -73,7 +73,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const authResult = await requireAuth(req, { permission: 'manage_cash' })
     if (authResult.error) return authResult.error
 
-    return await handlePostReceipt(req, id, authResult as { session?: { employeeId?: string } | null })
+    // FIX R81-G: session locationId se preda v handler (scope check na order.locationId)
+    return await handlePostReceipt(
+      req,
+      id,
+      authResult as { session?: { employeeId?: string; locationId?: string | null } | null },
+    )
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/receipts/[id]', 'Napaka pri ustvarjanju računa')
   }

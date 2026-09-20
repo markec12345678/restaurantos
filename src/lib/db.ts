@@ -150,6 +150,40 @@ interface AuditLogEntry {
   details?: Record<string, unknown>
   ipAddress?: string
   terminalId?: string
+  /**
+   * FIX R81 (tenant model): lokacija vnosa za tenant scoping branja (/api/audit,
+   * /api/notifications). Če NI podan, se samodejno izpelje prek userId →
+   * Employee.locationId (enojni lookup na unique userId znotraj transakcije).
+   * NULL = sistemski vnos (CRON, setup, platforma) — super-admin ga vidi,
+   * location-bound uporabnik ne (fail-closed). NAMERNO IZKLOPČENO iz hash
+   * verige — chainHash ostaja backward-kompatibilen + backfill ne lomi verige.
+   */
+  locationId?: string | null
+}
+
+/**
+ * FIX R81: izpeljava lokacije avdit vnosa. Prepreči, da bi kateri koli od 50+
+ * klicnih mest createAuditLog pozabil podati locationId — helper pokrije vse.
+ * Derivacija poteka znotraj podane transakcije (konsistentno z hash chain read).
+ */
+async function deriveAuditLocationId(
+  client: AuditTxClient,
+  entry: AuditLogEntry,
+): Promise<string | null> {
+  if (entry.locationId !== undefined) return entry.locationId
+  if (!entry.userId) return null // sistemski vnos (CRON, setup) — brez lokacije
+  // BEST-EFFORT: derivacija nikoli ne sme podreti samega audit zapisa
+  // (PCI DSS — izguba vnosa je hujša kot manjkajoča lokacija). Katera koli
+  // napaka lookupa → locationId ostane null (super-admin ga še vedno vidi).
+  try {
+    const employee = await client.employee.findUnique({
+      where: { id: entry.userId },
+      select: { locationId: true },
+    })
+    return employee?.locationId ?? null
+  } catch {
+    return null
+  }
 }
 
 // Prisma's official transaction client type — accepted as optional `tx` param
@@ -181,6 +215,8 @@ export async function createAuditLog(entry: AuditLogEntry, tx?: AuditTxClient): 
         entry.entityId || '', entry.userId || '', detailsStr,
       ].join('|')
       const chainHash = crypto.createHash('sha256').update(hashPayload).digest('hex')
+      // FIX R81: locationId (metadata za tenant scoping) — izpeljan, če klicatelj ni podal.
+      const locationId = await deriveAuditLocationId(client, entry)
 
       await client.auditLog.create({
         data: {
@@ -191,6 +227,7 @@ export async function createAuditLog(entry: AuditLogEntry, tx?: AuditTxClient): 
           details: detailsStr,
           ipAddress: entry.ipAddress || '',
           terminalId: entry.terminalId || null,
+          locationId,
           previousHash,
           chainHash,
         },
@@ -225,6 +262,8 @@ export async function createAuditLogsBatch(entries: AuditLogEntry[]): Promise<vo
           entry.entityId || '', entry.userId || '', detailsStr,
         ].join('|')
         const chainHash = crypto.createHash('sha256').update(hashPayload).digest('hex')
+        // FIX R81: locationId izpeljan per vnos (userId → Employee.locationId).
+        const locationId = await deriveAuditLocationId(tx, entry)
 
         await tx.auditLog.create({
           data: {
@@ -235,6 +274,7 @@ export async function createAuditLogsBatch(entries: AuditLogEntry[]): Promise<vo
             details: detailsStr,
             ipAddress: entry.ipAddress || '',
             terminalId: entry.terminalId || null,
+            locationId,
             previousHash: lastHash,
             chainHash,
           },

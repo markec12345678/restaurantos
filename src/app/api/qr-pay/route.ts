@@ -16,8 +16,9 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
+import { qrPayTokenFor, verifyQrPayToken } from '@/lib/qr-pay-token'
+import { checkRateLimitAsync, getClientIp, QR_PAY_LIMIT } from '@/lib/rate-limit'
 import { z } from 'zod'
-import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,9 +40,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Neveljavni podatki' }, { status: 400 })
     }
 
-    // Pridobi ček z naročilom
-    const check = await db.check.findUnique({
-      where: { id: data.checkId },
+    // FIX R81 (LEAK-HIGH, tenant scope): ček se pridobi LOKACIJSKO scoped
+    // (Check nima lastnega locationId — pot prek order.locationId). Staff ne more
+    // ustvariti QR session za tuj ček.
+    const sessionLocId = authResult.session?.locationId ?? null
+    const check = await db.check.findFirst({
+      where: {
+        id: data.checkId,
+        ...(sessionLocId ? { order: { locationId: sessionLocId } } : {}),
+      },
       include: {
         order: {
           include: {
@@ -63,9 +70,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Ček je že plačan' }, { status: 400 })
     }
 
-    // Generiraj enkratni token za QR pay session
-    const sessionToken = crypto.randomBytes(32).toString('hex')
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000) // 15 minut veljavnost
+    // FIX R81 (LEAK-HIGH): token je zdaj STATELESS HMAC VEZAVA ček↔token
+    // (prej random hex, ki se ni nikjer shranil in se NIKOLI preveril).
+    // Token se izda samo prek avtenticiranega init POST z lokacijskim scope-om.
+    const sessionToken = qrPayTokenFor(check.id)
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000) // 15 minut veljavnost (informativno; vezava je trajna — glej R82 opombo v qr-pay-token.ts)
 
     // Zgradi QR pay URL
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
@@ -124,6 +133,13 @@ export async function POST(req: Request) {
 // GET /api/qr-pay?token=xxx — Pridobi podatke za prikaz gostu
 export async function GET(req: Request) {
   try {
+    // FIX R81 (javna pot): rate limit 10/min
+    const clientIp = getClientIp(req)
+    const rateCheck = await checkRateLimitAsync('qr-pay-session', clientIp, QR_PAY_LIMIT)
+    if (!rateCheck.allowed) {
+      return NextResponse.json({ error: 'Preveč zahtevkov. Poskusite znova čez minuto.' }, { status: 429 })
+    }
+
     const { searchParams } = new URL(req.url)
     const token = searchParams.get('token')
 
@@ -131,14 +147,14 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Manjka token' }, { status: 400 })
     }
 
-    // Token je session-specific — preveri ček z tem paymentId patternom
-    // V produkciji bi shranili v Redis z TTL, tukaj preverjamo preko check paymentStatus
-    // Za varnost: token mora biti 64 hex znakov
+    // FIX R81 (LEAK-HIGH): token je HMAC vezava na KONKRETEN ček —
+    // prej je bila vrjen PRVI neporavnan ček GLOBALNO (vsi tenanti!) ne glede
+    // na token. Zdaj: poiščemo med neporavnanimi čeki tistega, čigar HMAC
+    // se ujema s podanim tokenom. Tuj/izmišljen token → 404 (brez enumeracije).
     if (!/^[a-f0-9]{64}$/.test(token)) {
       return NextResponse.json({ error: 'Neveljaven token' }, { status: 400 })
     }
 
-    // Pridobi neporavnan ček (zaenkrat preprost lookup)
     const unpaidChecks = await db.check.findMany({
       where: { paymentStatus: { in: ['unpaid', 'partial'] } },
       include: {
@@ -152,14 +168,15 @@ export async function GET(req: Request) {
           },
         },
       },
-      take: 1,
+      take: 100,
+      orderBy: { createdAt: 'desc' },
     })
 
-    if (unpaidChecks.length === 0) {
+    const check = unpaidChecks.find((c) => verifyQrPayToken(token, c.id))
+
+    if (!check) {
       return NextResponse.json({ error: 'Ni aktivne QR pay session' }, { status: 404 })
     }
-
-    const check = unpaidChecks[0]
     // FIX P0-C3A: Pridobi iz Location (vezano na order.locationId) namesto globalnih settings
     const info = await getRestaurantInfoForLocation(check.order.locationId)
 

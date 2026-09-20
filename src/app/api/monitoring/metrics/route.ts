@@ -1,6 +1,16 @@
 // ============================================
 // GET /api/monitoring/metrics — Observability metrike (P1)
 // ============================================
+// SCOPE (R81 odločitev): PLATFORM-GLOBAL BY DESIGN — metrike so PLATFORM
+// INFRA gauge-i (outboxEvent globina, reconciliacijski števci plačil,
+// neusklajenost inventarja) in NI tenant-scoped.
+//   • Dostop: gated z requireAuth({ permission: 'admin' }).
+//   • Modeli z locationId stolpcem (Payment, InventoryItem, …) so
+//     NEFILTRIRANI NAMENOMA — reconciliacija/inventar goric sta infra
+//     pogled na celotno namestitev, ne per-tenant poslovno poročilo.
+//   • Ponovno pregledati ŠELE, če se zgradi per-tenant ops konzola
+//     (do takrat je globalni scope dokumentirana zasnova, ne bug).
+//
 // Admin-only: kombinacija IN-PROCESS registra (števci/histogrami —
 // http_5xx, FURS latenca, DB latenca, login neuspehi) in DB-izpeljanih
 // goric (outbox globina, reconciliacija plačil, neusklajenost inventarja).

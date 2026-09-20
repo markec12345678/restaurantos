@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { logger } from '@/lib/logger'
 
 import { handleApiError, parsePaginationParams, parseJsonBody, validateBody } from '@/lib/api-utils'
@@ -16,6 +16,15 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // FIX R81 (tenant model): revizijski dnevnik je zdaj tenant-scoped —
+    // AuditLog ima locationId stolpec (runda 81). Location-bound admin vidi
+    // SAMO vnose svoje lokacije (vključno s sistemskimi vnosi te lokacije);
+    // super-admin (brez lokacije) globalni pogled; vnosi z locationId=null
+    // (legacy/sistemski) so location-bound uporabniku NEVIDNI (fail-closed).
+    const { searchParams: scopeParams } = new URL(req.url)
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, scopeParams, { endpoint: 'GET /api/audit' })
+    if ('error' in scope) return scope.error
+
     const { searchParams } = new URL(req.url)
     const action = searchParams.get('action')
     const entityType = searchParams.get('entityType')
@@ -28,6 +37,7 @@ export async function GET(req: Request) {
     const { limit, offset } = parsePaginationParams(searchParams)
 
     const where: Record<string, unknown> = {}
+    if (scope.locationId) where.locationId = scope.locationId
     if (action) where.action = action
     if (entityType) where.entityType = entityType
     if (entityId) where.entityId = entityId
@@ -91,6 +101,8 @@ export async function POST(req: Request) {
         entityId: data.entityId,
         details,
         ipAddress: '',
+        // FIX R81: ročni vnos pripada lokaciji prijavljenega admina.
+        locationId: authResult.session?.locationId ?? null,
       },
     })
 

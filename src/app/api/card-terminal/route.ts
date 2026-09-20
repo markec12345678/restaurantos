@@ -64,7 +64,27 @@ export async function POST(req: Request) {
     if (validationError) return validationError
 
     // FIX BUG7: Verify order exists and check payment status before processing card payment
-    const order = await db.order.findUnique({ where: { id: data.orderId } })
+    // FIX R81-F (LEAK-MEDIUM, cross-tenant): order lookup je bil nescopecan
+    // (findUnique po raw ID) — take_orders staff je lahko sprožil KARTEŠNO
+    // plačilo na terminalu TUJE lokacije (terminal config iz order.locationId).
+    // findFirst z locationId scope iz seje (P0-C1 pattern; Order.locationId
+    // NOT NULL). Non-admin brez session.locationId = 403 (fail-closed gate,
+    // zrcali resolveCatalogScope semantiko — brez tenant-scope helperjev).
+    const session = authResult.session
+    const sessionLocId = session?.locationId ?? null
+    const isRoleAdmin = session?.role === 'admin' || session?.role === 'super_admin'
+    if (!sessionLocId && !isRoleAdmin) {
+      return NextResponse.json(
+        { error: 'Vaš račun nima dodeljene lokacije. Kontaktirajte administratorja.' },
+        { status: 403 },
+      )
+    }
+    const order = await db.order.findFirst({
+      where: {
+        id: data.orderId,
+        ...(sessionLocId ? { locationId: sessionLocId } : {}),
+      },
+    })
     if (!order) {
       return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
     }

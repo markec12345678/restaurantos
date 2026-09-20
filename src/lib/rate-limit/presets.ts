@@ -29,6 +29,12 @@ export const CALL_WAITER_LIMIT: RateLimitConfig = {
   windowMs: 60 * 1000,
 }
 
+/** QR pay (gost — GET session + confirm) — 10 na minuto (R81: javna plačilna pot) */
+export const QR_PAY_LIMIT: RateLimitConfig = {
+  maxRequests: 10,
+  windowMs: 60 * 1000,
+}
+
 /** Javni meni (GET) — 30 zahtev na minuto */
 export const PUBLIC_MENU_LIMIT: RateLimitConfig = {
   maxRequests: 30,

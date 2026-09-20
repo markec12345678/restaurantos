@@ -12,7 +12,29 @@ import { Prisma } from '@prisma/client'
 import { logger } from '@/lib/logger'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { getFirstLocationId } from '@/lib/location-fallback'
+import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { createStaffShiftSchema, checkTimeOverlap, buildShiftsWhere, computeShiftStats } from './_helpers'
+
+// FIX R81-G (LEAK-MEDIUM): inline role-aware fail-closed gate (zrcali
+// resolveCatalogScope semantiko; inventory/adjust R81-F vzorec — brez
+// tenant-scope helperjev za role check). Non-admin BREZ session.locationId
+// = 403 (data integrity issue), ker ne moremo izpeljati scope-a.
+function requireLocationScope(
+  authResult: { session?: { role?: string; locationId?: string | null } | null },
+): { sessionLocId: string | null } | { error: NextResponse } {
+  const session = authResult.session
+  const sessionLocId = session?.locationId ?? null
+  const isRoleAdmin = session?.role === 'admin' || session?.role === 'super_admin'
+  if (!sessionLocId && !isRoleAdmin) {
+    return {
+      error: NextResponse.json(
+        { error: 'Vaš račun nima dodeljene lokacije. Kontaktirajte administratorja.' },
+        { status: 403 },
+      ),
+    }
+  }
+  return { sessionLocId }
+}
 
 
 // ============================================
@@ -62,6 +84,11 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'manage_employees' })
     if (authResult.error) return authResult.error
 
+    // FIX R81-G (LEAK-MEDIUM): scope gate (403) PRED validacijo/db
+    const scope = requireLocationScope(authResult)
+    if ('error' in scope) return scope.error
+    const sessionLocId = scope.sessionLocId
+
     const { data, error: validationError } = await validateRequest(req, createStaffShiftSchema)
     if (validationError) return validationError
 
@@ -71,13 +98,22 @@ export async function POST(req: Request) {
     if (!employee) {
       return NextResponse.json({ error: 'Zaposleni ni najden' }, { status: 404 })
     }
+    // FIX R81-G (LEAK-MEDIUM, cross-tenant): employee.findUnique je bil
+    // nescopecan — manager je lahko razporedil TUJEGA zaposlenega. Employee.
+    // locationId je nullable — NULL vrstice so fail-closed za lokacijsko
+    // vezane seje; super-admin (brez session lokacije) = globalni nadzor.
+    if (!isWithinScope(sessionLocId, employee.locationId)) {
+      return notInScopeResponse('Zaposleni')
+    }
 
     // Preveri konflikte — časovno prekrivanje
+    // FIX R81-G: conflict lookup je scopcan na session lokacijo
     const existing = await db.staffShift.findFirst({
       where: {
         employeeId,
         shiftDate: new Date(shiftDate),
         status: { notIn: ['cancelled'] },
+        ...(sessionLocId ? { locationId: sessionLocId } : {}),
       },
     })
 
@@ -98,7 +134,10 @@ export async function POST(req: Request) {
         // FIX QA runda 37: DB stolpec StaffShift.locationId je NOT NULL (schema drift)
         // — pri Ana (admin brez lokacije) je create z null vrgel P2011.
         // Prioriteta: body → izmenina zaposlenega → seja → prva lokacija (cached)
-        locationId: locationId || employee.locationId || authResult.session?.locationId || (await getFirstLocationId()) || null,
+        // FIX R81-G (LEAK-MEDIUM): za lokacijsko vezane seje je body locationId
+        // STRIPPAN — razpored se NIKOLI ne ustvari na tuji lokaciji (seja je
+        // avtoritativna); super-admin sme podati izrecen locationId.
+        locationId: sessionLocId || locationId || employee.locationId || (await getFirstLocationId()) || null,
         role: role || employee.role,
         notes,
         status,

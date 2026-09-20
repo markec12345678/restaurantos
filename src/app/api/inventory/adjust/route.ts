@@ -6,8 +6,30 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { inventoryAdjustSchema, batchAdjustSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { toNum, round2, multiply } from '@/lib/decimal'
+import { notInScopeResponse } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
+
+// FIX R81-F (LEAK-HIGH): inline role-aware fail-closed gate (zrcali
+// resolveCatalogScope semantiko; subscription platformAdminGate stil —
+// brez tenant-scope helperjev). Non-admin BREZ session.locationId = 403
+// (data integrity issue), ker ne moremo izpeljati scope-a.
+function requireLocationScope(
+  authResult: { session?: { role?: string; locationId?: string | null } | null },
+): { sessionLocId: string | null } | { error: NextResponse } {
+  const session = authResult.session
+  const sessionLocId = session?.locationId ?? null
+  const isRoleAdmin = session?.role === 'admin' || session?.role === 'super_admin'
+  if (!sessionLocId && !isRoleAdmin) {
+    return {
+      error: NextResponse.json(
+        { error: 'Vaš račun nima dodeljene lokacije. Kontaktirajte administratorja.' },
+        { status: 403 },
+      ),
+    }
+  }
+  return { sessionLocId }
+}
 
 export async function POST(req: Request) {
   try {
@@ -16,12 +38,29 @@ export async function POST(req: Request) {
     // FIX C-05: Zahtevaj avtentikacijo
     const authResult = await requireAuth(req, { permission: 'manage_inventory' })
     if (authResult.error) return authResult.error
+    // FIX R81-F (LEAK-HIGH): scope gate (403) PRED validacijo/db
+    const scope = requireLocationScope(authResult)
+    if ('error' in scope) return scope.error
+    const sessionLocId = scope.sessionLocId
     // FIX H-01: Validiraj vnos z Zod
     const { data, error: validationError } = validateBody(inventoryAdjustSchema, bodyResult.data)
     if (validationError) return validationError
-    const item = await db.inventoryItem.findUnique({ where: { id: data.inventoryItemId } })
+    // FIX R81-F (LEAK-HIGH, WRITE IDOR): item lookup je bil nescopecan
+    // (findUnique po raw ID) — staff je lahko odpisoval zalogo TUJIH lokacij
+    // (isti razred kot R80 inventory/transactions POST fix). findFirst z
+    // lokacijskim filtrom iz seje; izven scope-a → 404 notInScopeResponse.
+    // OPOMBA (shared stock): InventoryItem.locationId je NULLABLE po zasnovi —
+    // ko seja NI lokacijsko vezana (super-admin) se filter NE uporabi, tako da
+    // globalne NULL-location zaloge ostanejo dosegljive; lokacijsko vezana seja
+    // je pripeta na svojo lokacijo (enako politiko kot R80 transactions fix).
+    const item = await db.inventoryItem.findFirst({
+      where: {
+        id: data.inventoryItemId,
+        ...(sessionLocId ? { locationId: sessionLocId } : {}),
+      },
+    })
     if (!item) {
-      return NextResponse.json({ error: 'Artikel zaloge ni najden' }, { status: 404 })
+      return notInScopeResponse('Zalogov artikel')
     }
     const previousQty = item.quantity
     let newQty: number
@@ -99,6 +138,10 @@ export async function PUT(req: Request) {
     // FIX C-05: Zahtevaj avtentikacijo
     const authResult = await requireAuth(req, { permission: 'manage_inventory' })
     if (authResult.error) return authResult.error
+    // FIX R81-F (LEAK-HIGH): scope gate (403) PRED validacijo/db
+    const scope = requireLocationScope(authResult)
+    if ('error' in scope) return scope.error
+    const sessionLocId = scope.sessionLocId
     // FIX H-01: Validiraj vnos z Zod
     const { data, error: validationError } = validateBody(batchAdjustSchema, bodyResult.data)
     if (validationError) return validationError
@@ -107,7 +150,15 @@ export async function PUT(req: Request) {
       const processed: { updated: Record<string, unknown>; transaction: Record<string, unknown> }[] = []
       const skipped: { inventoryItemId: string; reason: string }[] = []
       for (const entry of data.items) {
-        const item = await tx.inventoryItem.findUnique({ where: { id: entry.inventoryItemId } })
+        // FIX R81-F (LEAK-HIGH, WRITE IDOR): batch lookup je bil nescopecan
+        // (findUnique po raw ID) — odpis tujih zalog. findFirst scoped
+        // (ista politika kot POST zgoraj / R80 transactions fix).
+        const item = await tx.inventoryItem.findFirst({
+          where: {
+            id: entry.inventoryItemId,
+            ...(sessionLocId ? { locationId: sessionLocId } : {}),
+          },
+        })
         if (!item) {
           // FIX MEDIUM: Namesto tihega preskoka — zabeleži kateri artikli manjkajo
           skipped.push({ inventoryItemId: entry.inventoryItemId, reason: 'Artikel ni najden' })

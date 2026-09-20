@@ -236,6 +236,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           action: 'REFUND_PAYMENT',
           entityType: 'Payment',
           entityId: id,
+          // FIX R81 (tenant model): lokacija plačila prek check.order.locationId
+          // (Payment nima lastnega locationId); fallback = seja.
+          locationId: payment.check.order.locationId ?? authResult.session?.locationId ?? null,
           details: JSON.stringify({
             amount, reason, previousRefund: currentRefunded, newRefund: newRefundAmount,
             fullyRefunded: isFullyRefunded,

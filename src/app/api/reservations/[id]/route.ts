@@ -11,6 +11,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { updateReservationSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { intervalsOverlap, formatLjubljanaTime } from '@/lib/reservation-timeline'
+import { notInScopeResponse } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +37,21 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     })
     if (!existing) {
       return NextResponse.json({ error: 'Rezervacija ne obstaja' }, { status: 404 })
+    }
+
+    // FIX R81-G (LEAK-MEDIUM, cross-tenant): data.tableId ni bil validiran —
+    // natakar lokacije A je lahko rezervacijo premaknil na MIZO lokacije B
+    // (cross-tenant table.status flip ob 'seated'). Ko je tableId podan,
+    // mora biti miza v session scopu (Table.locationId NOT NULL); tuja ali
+    // neznana → 404 notInScopeResponse.
+    if (data.tableId) {
+      const targetTable = await db.table.findFirst({
+        where: { id: data.tableId, ...(sessionLocationId ? { locationId: sessionLocationId } : {}) },
+        select: { id: true },
+      })
+      if (!targetTable) {
+        return notInScopeResponse('Miza')
+      }
     }
 
     // FIX HIGH: Preveri veljavne statusne prehode (state machine)
@@ -84,7 +100,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
             status: { in: ['confirmed', 'seated'] },
             dateTime: { lt: newEnd },
           },
-          select: { id: true, customerName: true, dateTime: true, duration: true },
+          select: { id: true, dateTime: true, duration: true },
         })
 
         const conflicting = candidates.find(c =>
@@ -99,9 +115,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         if (conflicting) {
           // RUNDA 54: čas v sporočilu v LJ coni (prej toLocaleTimeString na
           // strežniku = UTC → "17:00:00" namesto "19:00" + sekundni šum)
+          // FIX R81-G (LEAK-MEDIUM): 409 odgovor NE razkriva več customerName
+          // (možna tujih rezervacij PII pri zgodovinskih cross-tenant mizah) —
+          // generično sporočilo, konfliktna semantika + status 409 ostaneta.
           const conflictHm = formatLjubljanaTime(conflicting.dateTime)
           return NextResponse.json(
-            { error: `Miza je že rezervirana ob tem času (${conflicting.customerName}${conflictHm ? `, ${conflictHm}` : ''})` },
+            { error: `Miza je že rezervirana ob tem času${conflictHm ? ` (${conflictHm})` : ''}` },
             { status: 409 },
           )
         }

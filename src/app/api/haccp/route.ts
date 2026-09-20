@@ -8,6 +8,7 @@ import { createHaccpSchema, haccpUpdateSchema } from '@/lib/validations'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { createHaccpEntryWithChain } from '@/lib/haccp-chain'
 import { resolveLocationId } from '@/lib/location-fallback'
+import { notInScopeResponse } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -118,6 +119,17 @@ export async function PUT(req: Request) {
       return NextResponse.json({ error: 'HACCP vnos ni najden' }, { status: 404 })
     }
 
+    // FIX R81 (tenant scope, HIGH — runda 80 leftover): PUT/DELETE po ID sta bila
+    // nescopecana — lokacijsko vezan admin je lahko spreminjal/arhiviral HACCP
+    // (food-safety, EU 852/2004) vnose TUJIH tenantov. Scope iz seje (kanonični
+    // vzorec gift-cards/[id]): location-bound admin sme samo vnose svoje lokacije;
+    // legacy NULL locationId vrstice so fail-closed (404); super-admin
+    // (session.locationId=null) ima cross-lokacijski nadzor.
+    const sessionLocId = authResult.session?.locationId ?? null
+    if (sessionLocId && existing.locationId !== sessionLocId) {
+      return notInScopeResponse('HACCP vnos')
+    }
+
     const entry = await db.haccpEntry.update({
       where: { id: data.id },
       data: {
@@ -155,6 +167,13 @@ export async function DELETE(req: Request) {
     const existing = await db.haccpEntry.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json({ error: 'HACCP vnos ni najden' }, { status: 404 })
+    }
+    // FIX R81 (tenant scope): isti guard kot PUT — arhiviranje tujega
+    // HACCP vnosa (zbrisati/skriviti inšpekcijski zapis) je cross-tenant
+    // WRITE. Fail-closed za legacy NULL locationId; super-admin unrestricted.
+    const sessionLocId = authResult.session?.locationId ?? null
+    if (sessionLocId && existing.locationId !== sessionLocId) {
+      return notInScopeResponse('HACCP vnos')
     }
     await db.haccpEntry.update({ where: { id }, data: { status: 'archived' } })
     return NextResponse.json({ success: true, message: 'HACCP vnos arhiviran' })

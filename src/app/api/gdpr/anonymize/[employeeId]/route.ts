@@ -29,6 +29,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
+import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { invalidateEmployeeStatusCache } from '@/lib/auth-middleware'
 
 export const dynamic = 'force-dynamic'
@@ -51,6 +52,7 @@ export async function POST(
         email: true,
         phone: true,
         status: true,
+        locationId: true, // FIX R81: za audit locationId izpeljavo
       },
     })
 
@@ -59,6 +61,17 @@ export async function POST(
         { error: 'Zaposleni ni najden' },
         { status: 404 }
       )
+    }
+
+    // FIX R81-F (LEAK-HIGH, cross-tenant): parent findUnique je bil nescopecan —
+    // lokacijsko vezan admin je lahko ANONIMIZIRAL (uničil PII) zaposlenega
+    // TUJEGA tenanta. Scope prek employee.locationId (že selectan za audit
+    // izpeljavo): tuja ALI NULL lokacija → 404 (brez razkritja); super-admin
+    // (session brez lokacije) ima globalni nadzor (isWithinScope).
+    // GDPR izbris tujega tenanta MORA odpasti.
+    const sessionLocId = authResult.session?.locationId ?? null
+    if (!isWithinScope(sessionLocId, employee.locationId)) {
+      return notInScopeResponse('Zaposleni')
     }
 
     // ─── 2. Preveri predpogoje ─────────────────────────────────
@@ -102,6 +115,8 @@ export async function POST(
           entityType: 'Employee',
           entityId: employeeId,
           userId: authResult.session?.employeeId,
+          // FIX R81 (tenant model): vnos pripada lokaciji anonimiziranega zaposlenega.
+          locationId: employee.locationId ?? authResult.session?.locationId ?? null,
           details: JSON.stringify({
             anonymizedBy: authResult.session?.employeeId,
             originalName: employee.name,
@@ -142,6 +157,8 @@ export async function POST(
           entityType: 'Employee',
           entityId: employeeId,
           userId: authResult.session?.employeeId,
+          // FIX R81 (tenant model): ista izpeljava kot zgornji vnos.
+          locationId: employee.locationId ?? authResult.session?.locationId ?? null,
           details: JSON.stringify({
             anonymizedAt: new Date().toISOString(),
             status: 'anonymized',

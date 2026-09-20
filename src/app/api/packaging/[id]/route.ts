@@ -5,6 +5,7 @@ import { updatePackagingSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
+import { resolveCatalogScope, notInScopeResponse } from '@/lib/tenant-scope'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,10 +17,19 @@ export async function GET(
     const authResult = await requireAuth(req)
     if (authResult.error) return authResult.error
 
+    // FIX R81-G (LEAK-HIGH, cross-tenant): PackagingConfig (MODEL A, locationId
+    // NOT NULL) je bil bran prek findUnique po raw ID — vsak staff je lahko
+    // bral konfiguracijo embalaže TUJE lokacije. MODEL A scope iz seje
+    // (resolveCatalogScope: non-admin brez lokacije → 403, super-admin →
+    // globalni pogled); findFirst z lokacijskim filtrom → 404 izven scope-a.
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+    const sessionLocId = scopeRes.scope
+
     const { id } = await params
 
-    const packagingConfig = await db.packagingConfig.findUnique({
-      where: { id },
+    const packagingConfig = await db.packagingConfig.findFirst({
+      where: { id, ...(sessionLocId ? { locationId: sessionLocId } : {}) },
       include: {
         items: {
           orderBy: { sortOrder: 'asc' },
@@ -28,10 +38,7 @@ export async function GET(
     })
 
     if (!packagingConfig) {
-      return NextResponse.json(
-        { error: 'Embalaža ni najdena' },
-        { status: 404 }
-      )
+      return notInScopeResponse('Embalaža')
     }
 
     return NextResponse.json(deepToNumbers(packagingConfig))
@@ -48,6 +55,11 @@ export async function PUT(
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // FIX R81-G (LEAK-HIGH): isti MODEL A scope gate kot GET zgoraj
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+    const sessionLocId = scopeRes.scope
+
     const { id } = await params
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error
@@ -56,12 +68,11 @@ export async function PUT(
     const { data, error: validationError } = validateBody(updatePackagingSchema, bodyResult.data)
     if (validationError) return validationError
 
-    const existing = await db.packagingConfig.findUnique({ where: { id } })
+    const existing = await db.packagingConfig.findFirst({
+      where: { id, ...(sessionLocId ? { locationId: sessionLocId } : {}) },
+    })
     if (!existing) {
-      return NextResponse.json(
-        { error: 'Embalaža ni najdena' },
-        { status: 404 }
-      )
+      return notInScopeResponse('Embalaža')
     }
 
     // Prepare config-level update data
@@ -106,14 +117,18 @@ export async function DELETE(
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // FIX R81-G (LEAK-HIGH): isti MODEL A scope gate kot GET zgoraj
+    const scopeRes = resolveCatalogScope(authResult)
+    if (!scopeRes.ok) return scopeRes.response
+    const sessionLocId = scopeRes.scope
+
     const { id } = await params
 
-    const existing = await db.packagingConfig.findUnique({ where: { id } })
+    const existing = await db.packagingConfig.findFirst({
+      where: { id, ...(sessionLocId ? { locationId: sessionLocId } : {}) },
+    })
     if (!existing) {
-      return NextResponse.json(
-        { error: 'Embalaža ni najdena' },
-        { status: 404 }
-      )
+      return notInScopeResponse('Embalaža')
     }
 
     await db.packagingConfig.delete({ where: { id } })
