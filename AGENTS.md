@@ -128,3 +128,28 @@ Do not inflate the result.
 WHEN IN DOUBT: DO NOT CHANGE THE CODE.
 
 FIRST PROVE THE PROBLEM.
+
+## 🔴 TWO-PASS RULE — MANDATORY
+
+For every substantial audit or QA task:
+
+PASS 1 — ANALYSIS ONLY
+- Inspect the current repository.
+- Do not modify files.
+- Identify and classify findings.
+- Prove each finding from actual code and data flow.
+- Identify possible regression risks.
+
+PASS 2 — CHANGES
+- Modify ONLY confirmed issues.
+- Use the smallest safe patch.
+- Add a regression test only when justified.
+- Run relevant verification after the change.
+
+Never mix discovery and modification without first establishing that
+the finding is a real problem.
+
+The AI must prefer:
+CORRECT CODE + ZERO CHANGES
+over
+MORE CHANGES + MORE TESTS.
