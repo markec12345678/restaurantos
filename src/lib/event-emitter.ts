@@ -104,41 +104,51 @@ export async function emitOrderPaid(params: {
 
 /**
  * Sproži dogodek ob nizki zalogi
+ * R83: locationId pass-through — prej so tenant B webhook-i prejemali tenant
+ * A stock dogodke (triggerWebhook je brez locationId padal na vse webhook-e).
  */
 export async function emitStockLow(params: {
   inventoryItemId: string
   itemName: string
   currentQty: number
   minQty: number
+  locationId?: string | null
 }): Promise<void> {
+  const { locationId, ...data } = params
   // Loči med "low" in "critical"
-  const isCritical = params.currentQty <= params.minQty * 0.25
+  const isCritical = data.currentQty <= data.minQty * 0.25
   if (isCritical) {
-    await emitEvent('stock.critical', params)
+    await emitEvent('stock.critical', data, locationId)
   } else {
-    await emitEvent('stock.low', params)
+    await emitEvent('stock.low', data, locationId)
   }
 }
 
 /**
  * Sproži dogodek ob ustvarjanju računa
+ * R83: locationId pass-through (tenant isolation v webhook delivery)
  */
 export async function emitReceiptCreated(params: {
   receiptId: string
   receiptNumber: string
   orderId: string
   total: number
+  locationId?: string | null
 }): Promise<void> {
-  await emitEvent('receipt.created', params)
+  const { locationId, ...data } = params
+  await emitEvent('receipt.created', data, locationId)
 }
 
 /**
  * Sproži dogodek ob davčnem potrjevanju računa (FURS)
+ * R83: locationId pass-through (tenant isolation v webhook delivery)
  */
 export async function emitReceiptFiscalVerified(params: {
   receiptId: string
   zoi: string
   eor: string
+  locationId?: string | null
 }): Promise<void> {
-  await emitEvent('receipt.fiscal_verified', params)
+  const { locationId, ...data } = params
+  await emitEvent('receipt.fiscal_verified', data, locationId)
 }

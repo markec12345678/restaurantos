@@ -104,11 +104,12 @@ export async function POST(req: Request) {
     // Webhook: shift.started
     if (data.status === 'in_progress') {
       const employee = shift.employee
+      // R83: locationId pass-through — tenant isolation v webhook delivery
       emitEvent('shift.started', {
         shiftId: shift.id,
         employeeName: employee?.name || '',
         jobName: shift.job?.name || '',
-      }).catch(err => logger.error('API', '[Webhook] shift.started napaka:', err))
+      }, locationId ?? null).catch(err => logger.error('API', '[Webhook] shift.started napaka:', err))
     }
 
     return NextResponse.json(shift, { status: 201 })

@@ -119,7 +119,7 @@ export async function handleOrderCancellation(
   emitEvent('order.cancelled', {
     orderId: id, orderNumber: existingOrder.orderNumber,
     reason: cancelReason || 'Ni razloga',
-  }).catch(err => logger.error('API', '[Webhook] order.cancelled napaka:', err))
+  }, existingOrder.locationId ?? null).catch(err => logger.error('API', '[Webhook] order.cancelled napaka:', err))
 
   const runInside = async (client: TransactionClient) => {
     // Sprosti mizo atomarno

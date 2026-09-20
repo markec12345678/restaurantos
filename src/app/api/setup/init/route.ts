@@ -1,6 +1,7 @@
 // POST /api/setup/init — Inicializiraj sistem
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { checkRateLimitAsync, getClientIp, SETUP_LIMIT } from '@/lib/rate-limit'
 import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { z } from 'zod'
@@ -33,6 +34,16 @@ const setupSchema = z.object({
 
 export async function POST(req: Request) {
   try {
+    // R83 fix: rate limit — prej je bil anonimen klic BREZ omejitve (bcrypt
+    // cost 12 = CPU DoS vektor + first-caller-wins bootstrap race)
+    const rl = await checkRateLimitAsync('setup-init', getClientIp(req), SETUP_LIMIT)
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: 'Preveč zahtevkov. Poskusite znova čez nekaj minut.' },
+        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } }
+      )
+    }
+
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error
 

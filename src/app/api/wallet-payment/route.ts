@@ -3,7 +3,7 @@
 // ============================================
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { endOfDayParam, handleApiError, parsePaginationParams } from '@/lib/api-utils'
 import { z } from 'zod'
 import {
@@ -44,16 +44,34 @@ export async function GET(req: Request) {
     // P1-16: centralna pagination validacija (limit max, search dolžina)
     const { limit } = parsePaginationParams(searchParams, { defaultLimit: 50 })
 
+    // R83 fix: prej GLOBALNO (vsi tenanti) tudi za lokacijsko vezanega
+    // uporabnika. WalletPayment NIMA locationId stolpca niti Prisma relacije
+    // (checkId je go String) → scope dvokoračen prek checkIds lastne lokacije.
+    // Super-admin (brez lokacije) = globalni pogled (nikoli { checkId: { in: [] } }).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/wallet-payment',
+    })
+    if ('error' in scope) return scope.error
+    let checkIdFilter: { in: string[] } | null = null
+    if (scope.locationId) {
+      const checkIds = await db.check.findMany({
+        where: { order: { locationId: scope.locationId } },
+        select: { id: true },
+      })
+      checkIdFilter = { in: checkIds.map(c => c.id) }
+    }
+
     if (stats) {
       const from = dateFrom ? new Date(dateFrom) : undefined
       const to = dateTo ? new Date(dateTo) : undefined
-      const result = await getWalletPaymentStats(from, to)
+      const result = await getWalletPaymentStats(from, to, scope.locationId)
       return NextResponse.json({ stats: result })
     }
 
     const where: Record<string, unknown> = {}
     if (walletType) where.walletType = walletType
     if (status) where.status = status
+    if (checkIdFilter) where.checkId = checkIdFilter
     if (dateFrom || dateTo) {
       where.createdAt = {}
       if (dateFrom) (where.createdAt as Record<string, unknown>).gte = new Date(dateFrom)
@@ -94,6 +112,24 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}))
     const input = initiateSchema.parse(body)
+
+    // R83 fix: checkId ownership — prej je bil checkId zapisan RAW (brez
+    // preverjanja) → wallet plačilo je bilo mogoče povezati s tujim čekom
+    // (cross-tenant atribucija prihodkov). Lokacijsko vezan klicatelj: ček
+    // MORA biti na njegovi lokaciji; super-admin: samo obstoj.
+    if (input.checkId) {
+      const sessionLocationId = authResult.session?.locationId ?? null
+      const check = await db.check.findFirst({
+        where: {
+          id: input.checkId,
+          ...(sessionLocationId ? { order: { locationId: sessionLocationId } } : {}),
+        },
+        select: { id: true },
+      })
+      if (!check) {
+        return NextResponse.json({ error: 'Ček ni najden ali ni na vaši lokaciji' }, { status: 404 })
+      }
+    }
 
     const result = await initiateWalletPayment(input)
 

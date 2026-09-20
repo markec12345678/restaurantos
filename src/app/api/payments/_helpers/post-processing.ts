@@ -30,7 +30,7 @@ export async function postPaymentProcessing(
     checkOrderId
       ? db.order.findUnique({
           where: { id: checkOrderId },
-          select: { id: true, orderNumber: true, total: true, paymentStatus: true, paymentMethod: true, tip: true },
+          select: { id: true, orderNumber: true, total: true, paymentStatus: true, paymentMethod: true, tip: true, locationId: true },
         })
       : Promise.resolve(null),
   ])
@@ -52,12 +52,13 @@ export async function postPaymentProcessing(
   })
 
   // Webhook: payment.received
+  // R83: locationId pass-through (order.locationId) — tenant isolation v webhook delivery
   emitEvent('payment.received', {
     paymentId,
     orderId: checkOrderId || '',
     amount: toNum(data.amount),
     type: data.type,
-  }).catch(err => logger.error('API', '[Webhook] payment.received napaka:', err))
+  }, updatedOrder?.locationId ?? null).catch(err => logger.error('API', '[Webhook] payment.received napaka:', err))
 
   // Webhook: order.paid — če je celoten order zdaj plačan
   if (updatedOrder?.paymentStatus === 'paid') {
@@ -67,6 +68,6 @@ export async function postPaymentProcessing(
       total: toNum(updatedOrder.total), // FIX: Decimal→number za JSON
       paymentMethod: updatedOrder.paymentMethod,
       tip: toNum(updatedOrder.tip), // FIX: Decimal→number za JSON
-    }).catch(err => logger.error('API', '[Webhook] order.paid napaka:', err))
+    }, updatedOrder.locationId).catch(err => logger.error('API', '[Webhook] order.paid napaka:', err))
   }
 }

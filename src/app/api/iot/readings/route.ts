@@ -12,6 +12,7 @@
 // (shranjen v bazi, vendar to zahteva schema spremembo — zaenkrat env).
 import crypto from 'crypto'
 import { NextResponse } from 'next/server'
+import { db } from '@/lib/db'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, IOT_LIMIT } from '@/lib/rate-limit'
 import { createHaccpEntryWithChain } from '@/lib/haccp-chain'
@@ -25,6 +26,10 @@ const readingSchema = z.object({
   humidity: z.number().nullable().optional(),
   location: z.string().max(100).default(''),
   timestamp: z.string().optional(),
+  // R83: lokacijska atribucija — prej je bil VSAK IoT HACCP vnos NULL-location
+  // (izgubljena atribucija; haccp GET je scoped → vnosi nevidni upravljavcu).
+  // Senzor je konfiguriran s locationId svoje lokacije; validiran na obstoj.
+  locationId: z.string().max(50).optional(),
 })
 
 export const dynamic = 'force-dynamic'
@@ -85,6 +90,12 @@ export async function POST(req: Request) {
     // FIX CRITICAL (race): prejšnja koda je brala lastEntry zunaj transakcije.
     const entryDate = data.timestamp ? new Date(data.timestamp) : new Date()
     const value = `${data.temperature.toFixed(1)}°C${data.humidity ? `, ${data.humidity.toFixed(0)}%` : ''}`
+    // R83: atribucija lokacije (validirana na obstoj; brez nje NULL = legacy)
+    let readingLocationId: string | null = null
+    if (data.locationId) {
+      const loc = await db.location.findUnique({ where: { id: data.locationId }, select: { id: true } })
+      readingLocationId = loc?.id ?? null
+    }
     const entry = await createHaccpEntryWithChain({
       date: entryDate,
       category: 'temperature',
@@ -94,6 +105,7 @@ export async function POST(req: Request) {
       status,
       correctiveAction,
       employeeName: 'IoT Auto',
+      locationId: readingLocationId,
     })
 
     return NextResponse.json({

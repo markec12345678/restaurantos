@@ -39,9 +39,21 @@ export async function GET(req: Request) {
   }
 
   try {
+    // R83 fix: prej GLOBALNI meni VSEH tenantov (where samo isActive) — kiosk
+    // na lokaciji A je prikazoval artikle/cene/DDV vseh lokacij. Zdaj: scope
+    // na lokacijo kioska (izbirni ?locationId=, sicer single-tenant fallback
+    // — isti kanon kot POST spodaj).
+    const url = new URL(req.url)
+    const paramLocationId = url.searchParams.get('locationId')?.trim()
+    const kioskLocationId = (paramLocationId && /^[a-z0-9]{5,50}$/i.test(paramLocationId))
+      ? paramLocationId
+      : await resolveDefaultLocationId()
+    if (!kioskLocationId) {
+      return NextResponse.json({ error: 'Kiosk ni nastavljen — kontaktirajte osebje' }, { status: 400 })
+    }
     // Vrni meni za kiosk (samo aktivni artikli z alergeni)
     const menu = await db.menu.findMany({
-      where: { isActive: true },
+      where: { isActive: true, locationId: kioskLocationId },
       include: {
         categories: {
           where: { menuItems: { some: { isAvailable: true } } },
@@ -69,6 +81,8 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   // `data` deklariran zunaj try — dostopen v catch za idempotent replay pri P2002
   let data: z.infer<typeof kioskOrderSchema> | undefined
+  // R83: lokacija tudi v catch (P2002 replay lookup mora biti scoped)
+  let kioskLocationId: string | null = null
   try {
     // Rate limiting — prepreči zlorabo kioska
     const rl = await checkRateLimitAsync('kiosk-order', getClientIp(req), KIOSK_LIMIT)
@@ -81,23 +95,30 @@ export async function POST(req: Request) {
     try { data = kioskOrderSchema.parse(bodyResult.data) } catch (_e) { return NextResponse.json({ error: 'Neveljavni podatki' }, { status: 400 }) }
     if (!data) return NextResponse.json({ error: 'Neveljavni podatki' }, { status: 400 })
 
-    // Pridobi meni artikle za izračun
+    // R83 fix: lokacija se mora rešiti PRED fetchom artiklov (prej je bil
+    // menuItem fetch globalen — tuji artikli/cene/DDV v naročilu na privzeti
+    // lokaciji) in Artikli morajo biti scope-ani na menu te lokacije.
+    // P1-6: kiosk naprava stoji na lokaciji — resolucija (single-tenant fallback)
+    // Brez lokacije: ZAVRNI (naročilo brez lokacije bi bilo tiho izgubljeno za tenant poizvedbe)
+    kioskLocationId = await resolveDefaultLocationId()
+    if (!kioskLocationId) {
+      return NextResponse.json({ error: 'Kiosk ni nastavljen — kontaktirajte osebje' }, { status: 400 })
+    }
+
+    // Pridobi meni artikle za izračun — R83: scoped na lokacijo kioska
+    // (category.menu.locationId — isti relacijski filter kot R82-C online-order)
     const menuItemIds = data.orderItems.map(oi => oi.menuItemId)
     const menuItems = await db.menuItem.findMany({
-      where: { id: { in: menuItemIds }, isAvailable: true },
+      where: {
+        id: { in: menuItemIds },
+        isAvailable: true,
+        category: { menu: { locationId: kioskLocationId } },
+      },
       select: { id: true, name: true, price: true, vatRate: true },
     })
 
     if (menuItems.length !== menuItemIds.length) {
       return NextResponse.json({ error: 'Nekateri artikli niso na voljo' }, { status: 400 })
-    }
-
-    // P1-6: kiosk naprava stoji na lokaciji — resolucija (single-tenant fallback)
-    // Brez lokacije: ZAVRNI (naročilo brez lokacije bi bilo tiho izgubljeno za tenant poizvedbe)
-    // (premaknjeno PRED izračun — FIX BUG-13 potrebuje lokacijo za scope modifierjev)
-    const kioskLocationId = await resolveDefaultLocationId()
-    if (!kioskLocationId) {
-      return NextResponse.json({ error: 'Kiosk ni nastavljen — kontaktirajte osebje' }, { status: 400 })
     }
 
     // P1-8 FIX KRITIČNO: kiosk je prej ceno obravnal kot GROSS (neto = cena − DDV),
@@ -123,8 +144,11 @@ export async function POST(req: Request) {
       `auto-kiosk-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
     // FIX CRITICAL (Test 3.2 parity): vrni obstoječe naročilo pri replay-u
+    // R83: scoped na lokacijo kioska — idempotencyKey je globalno @unique
+    // (namespace trči med tenanti); replay tujega ključa ne sme razkriti
+    // tujega naročila (orderNumber/total/items).
     const existingOrder = await db.order.findFirst({
-      where: { idempotencyKey },
+      where: { idempotencyKey, locationId: kioskLocationId },
       select: { id: true, orderNumber: true, total: true, orderItems: { select: { id: true } } },
     })
     if (existingOrder) {
@@ -182,21 +206,28 @@ export async function POST(req: Request) {
       error && typeof error === 'object' && 'code' in error &&
       (error as { code?: string }).code === 'P2002' && data?.idempotencyKey
     ) {
-      const existing = await db.order.findFirst({
-        where: { idempotencyKey: data.idempotencyKey },
-        select: { id: true, orderNumber: true, total: true, orderItems: { select: { id: true } } },
-      })
-      if (existing) {
-        return NextResponse.json({
-          success: true,
-          orderId: existing.id,
-          orderNumber: existing.orderNumber,
-          total: toNum(existing.total),
-          items: existing.orderItems.length,
-          message: `Naročilo #${existing.orderNumber} že obstaja — plačaj ${formatEUR(toNum(existing.total).toFixed(2))}`,
-          idempotentReplay: true,
-        }, { status: 200 })
+      // R83: replay lookup mora biti lokacijsko scoped (nikoli tujega naročila);
+      // brez lokacije (P2002 pred resolucijo ni možen za order.create) → generičen 409
+      if (kioskLocationId) {
+        const existing = await db.order.findFirst({
+          where: { idempotencyKey: data.idempotencyKey, locationId: kioskLocationId },
+          select: { id: true, orderNumber: true, total: true, orderItems: { select: { id: true } } },
+        })
+        if (existing) {
+          return NextResponse.json({
+            success: true,
+            orderId: existing.id,
+            orderNumber: existing.orderNumber,
+            total: toNum(existing.total),
+            items: existing.orderItems.length,
+            message: `Naročilo #${existing.orderNumber} že obstaja — plačaj ${formatEUR(toNum(existing.total).toFixed(2))}`,
+            idempotentReplay: true,
+          }, { status: 200 })
+        }
       }
+      // R83: P2002 na tujem idempotencyKey (druga lokacija) — NIKOLI ne razkrij
+      // tujega naročila; generičen 409 (isti kanon kot R82-C mobile/order)
+      return NextResponse.json({ error: 'Naročilo s tem ključem že obstaja' }, { status: 409 })
     }
     return handleApiError(error, 'POST /api/public/kiosk', 'Napaka pri kiosk naročilu')
   }

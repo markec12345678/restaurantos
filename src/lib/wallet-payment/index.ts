@@ -380,12 +380,23 @@ export async function refundWalletPayment(
 }
 
 // 5. STATISTIKA za dashboard
-export async function getWalletPaymentStats(dateFrom?: Date, dateTo?: Date) {
+// R83: izbirni `locationId` — prej so agregati (_sum/_count) zajemali VSE
+// tenante tudi za lokacijsko vezanega uporabnika (view_reports). WalletPayment
+// NIMA locationId stolpca niti Prisma relacije na Check (checkId je go String),
+// zato je scope dvokoračen: checkIds lastne lokacije → where.checkId IN.
+export async function getWalletPaymentStats(dateFrom?: Date, dateTo?: Date, locationId?: string | null) {
   const where: Record<string, unknown> = {}
   if (dateFrom || dateTo) {
     where.createdAt = {}
     if (dateFrom) (where.createdAt as Record<string, unknown>).gte = dateFrom
     if (dateTo) (where.createdAt as Record<string, unknown>).lte = dateTo
+  }
+  if (locationId) {
+    const checkIds = await db.check.findMany({
+      where: { order: { locationId } },
+      select: { id: true },
+    })
+    where.checkId = { in: checkIds.map(c => c.id) }
   }
 
   const [byWallet, byStatus, totals] = await Promise.all([

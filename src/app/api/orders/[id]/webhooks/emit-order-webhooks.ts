@@ -21,14 +21,14 @@ export async function emitOrderWebhooks(
       total: existingOrder.total,
       paymentMethod: data.paymentMethod || existingOrder.paymentMethod,
       tip: existingOrder.tip,
-    }).catch(err => logger.error('API', '[Webhook] order.paid napaka:', err))
+    }, existingOrder.locationId).catch(err => logger.error('API', '[Webhook] order.paid napaka:', err))
   }
 
   // Webhook: order.ready — ko postane pripravljeno
   if (data.status === 'ready' && existingOrder.status !== 'ready') {
     emitEvent('order.ready', {
       orderId: id, orderNumber: existingOrder.orderNumber,
-    }).catch(err => logger.error('API', '[Webhook] order.ready napaka:', err))
+    }, existingOrder.locationId).catch(err => logger.error('API', '[Webhook] order.ready napaka:', err))
   }
 
   // Webhook: order.delivered — ko je dostavljeno
@@ -36,13 +36,13 @@ export async function emitOrderWebhooks(
     const deliveryAddress = existingOrder.deliveryInfo?.address || existingOrder.notes || ''
     emitEvent('order.delivered', {
       orderId: id, orderNumber: existingOrder.orderNumber, deliveryAddress,
-    }).catch(err => logger.error('API', '[Webhook] order.delivered napaka:', err))
+    }, existingOrder.locationId).catch(err => logger.error('API', '[Webhook] order.delivered napaka:', err))
   }
 
   // Webhook: order.updated — splošna posodobitev
   if (data.status && data.status !== 'cancelled') {
     emitEvent('order.updated', {
       orderId: id, changes: Object.keys(data), status: data.status,
-    }).catch(err => logger.error('API', '[Webhook] order.updated napaka:', err))
+    }, existingOrder.locationId).catch(err => logger.error('API', '[Webhook] order.updated napaka:', err))
   }
 }

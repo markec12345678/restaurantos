@@ -40,12 +40,6 @@ export async function POST(req: Request) {
   }
 
   try {
-    // FIX: Check if restaurant is open before accepting QR orders
-    const isOpen = await isRestaurantOpen()
-    if (!isOpen) {
-      return NextResponse.json({ error: 'Restavracija je trenutno zaprta. Naročila niso mogoča.' }, { status: 403 })
-    }
-
     const { data, error: validationError } = await validateRequest(req, publicOrderSchema)
     if (validationError) return validationError
 
@@ -54,13 +48,20 @@ export async function POST(req: Request) {
     // Poišči mizo - podprto prek tableNumber (int) ali tableId (UUID)
     // MODEL A: mizo/lokacijo rešimo NAJPREJ — dining option in artikli so
     // scoped NA LOKACIJO MIZE (prej: globalni findFirst({type}) brez scopa!).
-    const tableResult = await resolveTable(data.tableId, data.tableNumber)
+    const tableResult = await resolveTable(data.tableId, data.tableNumber, data.locationId)
     if (tableResult instanceof NextResponse) return tableResult
     const { tableId, tableNumber: resolvedTableNumber, locationId: resolvedLocationId } = tableResult
 
     const qrLocationId = resolvedLocationId || await resolveDefaultLocationId()
     if (!qrLocationId) {
       return NextResponse.json({ error: 'QR naročanje ni nastavljeno — kontaktirajte osebje' }, { status: 400 })
+    }
+
+    // R83 fix: prej je bil isOpen check GLOBALEN (mešani urniki vseh tenantov)
+    // in PRED resolucijo lokacije. Zdaj: urnik TOČNO TE lokacije.
+    const isOpen = await isRestaurantOpen(qrLocationId)
+    if (!isOpen) {
+      return NextResponse.json({ error: 'Restavracija je trenutno zaprta. Naročila niso mogoča.' }, { status: 403 })
     }
 
     // Poišči ali ustvari dining option za QR naročanje — PO LOKACIJI (MODEL A;

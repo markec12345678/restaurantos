@@ -185,12 +185,13 @@ export async function handleCreateReservation(
   })
 
   // Webhook: reservation.created
+  // R83: locationId pass-through — tenant isolation v webhook delivery
   emitEvent('reservation.created', {
     reservationId: reservation.id,
     customerName: data.customerName,
     dateTime: data.dateTime,
     partySize: data.partySize,
-  }).catch(err => logger.error('API', '[Webhook] reservation.created napaka:', err))
+  }, reservation.locationId).catch(err => logger.error('API', '[Webhook] reservation.created napaka:', err))
 
   return { reservation }
 }

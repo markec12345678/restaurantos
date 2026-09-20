@@ -132,6 +132,7 @@ export async function handlePutOrder(req: Request, params: Promise<{ id: string 
       deliveryInfo: existingOrder.deliveryInfo ? { address: (existingOrder.deliveryInfo as any).address || '' } : null,
       employeeId: existingOrder.employeeId,
       customerName: existingOrder.customerName,
+      locationId: existingOrder.locationId ?? null,
     }, data)
 
     // FIX P1 (audit 2026-09-06): Za cancellation je order.updateMany + handleOrderCancellation

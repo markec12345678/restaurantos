@@ -19,6 +19,11 @@ import { handleApiError } from '@/lib/api-utils'
 const deliveryCheckSchema = z.object({
   postCode: z.string().min(1, 'Poštna številka je obvezna').max(20),
   city: z.string().max(100).default(''),
+  // R83: izbirna lokacijska vezava — prej je "prva cona katere koli lokacije"
+  // zmagala (cross-tenant cone). Brez parametra: fallback na edino/prvo aktivno
+  // lokacijo (deterministično).
+  locationId: z.string().max(50).default(''),
+  locationCode: z.string().max(50).default(''),
 })
 
 export const dynamic = 'force-dynamic'
@@ -40,15 +45,36 @@ export async function GET(req: Request) {
     const parsed = deliveryCheckSchema.safeParse({
       postCode: url.searchParams.get('postCode') || '',
       city: url.searchParams.get('city') || '',
+      locationId: url.searchParams.get('locationId')?.trim() || '',
+      locationCode: url.searchParams.get('locationCode')?.trim() || '',
     })
     if (!parsed.success) {
       return NextResponse.json({ error: 'Neveljavni podatki' }, { status: 400 })
     }
-    const { postCode, city } = parsed.data
+    const { postCode, city, locationId, locationCode } = parsed.data
 
-    // Pridobi vse aktivne cone dostave
+    // R83: ciljna lokacija (?locationId= / ?locationCode=; sicer prva aktivna)
+    let targetLocationId: string | null = null
+    if (locationId || locationCode) {
+      const loc = await db.location.findFirst({
+        where: locationId ? { id: locationId, isActive: true } : { code: locationCode, isActive: true },
+        select: { id: true },
+      })
+      targetLocationId = loc?.id ?? null
+      if (!targetLocationId) {
+        return NextResponse.json({ deliverable: false, error: 'Neveljavna lokacija' }, { status: 400 })
+      }
+    } else {
+      const first = await db.location.findFirst({ where: { isActive: true }, orderBy: { name: 'asc' }, select: { id: true } })
+      targetLocationId = first?.id ?? null
+    }
+
+    // Pridobi aktivne cone dostave — R83: scoped na ciljno lokacijo
     const zones = await db.deliveryZone.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        ...(targetLocationId ? { locationId: targetLocationId } : {}),
+      },
       orderBy: { sortOrder: 'asc' },
     })
 

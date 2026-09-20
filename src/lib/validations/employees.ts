@@ -23,6 +23,10 @@ export const createEmployeeSchema = z.object({
   hireDate: z.string().optional(),
   jobId: z.string().optional(),
   payRate: z.number().min(0).optional(),
+  // R83 fix: izbirna lokacija ciljnega zaposlenega — uporabi jo SAMO platform
+  // admin (brez lokacije v seji). Lokacijski admin jo NE more podati (route
+  // vedno uporabi session.locationId → cross-tenant write ni mogoč).
+  locationId: z.string().min(1).optional(),
 })
 
 export const updateEmployeeSchema = z.object({

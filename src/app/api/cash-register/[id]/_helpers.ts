@@ -48,19 +48,20 @@ export async function postShiftCloseActions(
   })
 
   // Webhook: cash_register.closed
+  // R83: locationId pass-through (closedShift.locationId) — tenant isolation
   emitEvent('cash_register.closed', {
     shiftId: id,
     employeeName: closedShift.employeeName || '',
     totalSales: toNum(closedShift.totalSales),
     cashDifference: toNum(closedShift.cashDifference),
-  }).catch(err => logger.error('API', '[Webhook] cash_register.closed napaka:', err))
+  }, closedShift.locationId ?? null).catch(err => logger.error('API', '[Webhook] cash_register.closed napaka:', err))
 
   // Webhook: daily_report.ready
   emitEvent('daily_report.ready', {
     date: new Date().toISOString().split('T')[0],
     totalSales: toNum(closedShift.totalSales),
     totalOrders: closedShift.totalOrders,
-  }).catch(err => logger.error('API', '[Webhook] daily_report.ready napaka:', err))
+  }, closedShift.locationId ?? null).catch(err => logger.error('API', '[Webhook] daily_report.ready napaka:', err))
 
   // ── RUNDA 9 NOVA FUNKCIONALNOST: avtomatski Z-poročilo OSNUTEK ob zaprtju izmene ──
   // Ko blagajnik zapre izmeno, se za trenutni (ljubljanski) dan samodejno ustvari

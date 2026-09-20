@@ -150,8 +150,37 @@ export async function POST(req: Request) {
       hashedPin = await bcrypt.hash(data.pin, BCRYPT_ROUNDS)
     }
     // FIX CRITICAL: Samo admin lahko ustvari novega admin zaposlenega — prepreči privilege escalation
-    if (data.role === 'admin' && authResult.session?.role !== 'admin') {
+    // R83: 'super_admin' (platformni račun) je izjema — enako R79 webauthn matriki
+    if (data.role === 'admin' && !['admin', 'super_admin'].includes(authResult.session?.role ?? '')) {
       return NextResponse.json({ error: 'Samo administrator lahko ustvari novega administratorja.' }, { status: 403 })
+    }
+    // R83 fix: employees POST locationId stamp — prej NIKOLI ni zapisal
+    // locationId → novi zaposleni (staff/manager/kitchen) z NULL lokacijo so na
+    // vseh fail-closed gate-ih (EOD, bulk-vat, qr-batch, opening-hours) dobili
+    // 403 lockout, ker session.locationId izhaja iz Employee.locationId.
+    //   - Lokacijsko vezan ustvarjalec → locationId VEDNO iz seje (body
+    //     vrednost se ignorira — cross-tenant write ni mogoč).
+    //   - Platform admin (brez lokacije) → izbirna data.locationId (validirana
+    //     na obstoj) ALI role=admin brez lokacije (platformni račun, kot
+    //     njegov lastni — setup/init pattern).
+    //   - Platform admin + staff/manager/kitchen brez locationId → 400
+    //     (fail-closed — nikoli ne ustvari razbite NULL-location accounta).
+    const sessionLocationId = authResult.session?.locationId ?? null
+    let newEmployeeLocationId: string | null = sessionLocationId
+    if (!newEmployeeLocationId) {
+      const bodyLocationId = typeof data.locationId === 'string' && data.locationId.trim() ? data.locationId.trim() : null
+      if (bodyLocationId) {
+        const loc = await db.location.findUnique({ where: { id: bodyLocationId }, select: { id: true } })
+        if (!loc) {
+          return NextResponse.json({ error: 'Neveljavna lokacija (locationId ne obstaja)' }, { status: 400 })
+        }
+        newEmployeeLocationId = bodyLocationId
+      } else if (data.role !== 'admin') {
+        return NextResponse.json(
+          { error: 'Zaposleni (staff/manager/kitchen) mora imeti lokacijo — podaj locationId ali uporabi račun z lokacijo.' },
+          { status: 400 }
+        )
+      }
     }
     const employee = await db.employee.create({
       data: {
@@ -163,6 +192,8 @@ export async function POST(req: Request) {
         hireDate: data.hireDate ? new Date(data.hireDate) : new Date(),
         pin: hashedPin,
         pinLookup: pinLookup || null,
+        // R83: pogojni spread — NIKOLI izrecen locationId: null write
+        ...(newEmployeeLocationId ? { locationId: newEmployeeLocationId } : {}),
       },
     })
     // Ustvari EmployeeJob, če je podan jobId

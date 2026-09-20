@@ -31,6 +31,11 @@ export async function GET(req: Request) {
     const orderId = url.searchParams.get('orderId')
     const orderNumber = url.searchParams.get('orderNumber')
     const phone = url.searchParams.get('phone')?.trim()
+    // R83: izbirna lokacijska vezava — orderNumber je per-lokacijski števec
+    // (globalno se trči med tenanti). Gostova UI ve, s katere lokacije je
+    // naročil → z ?locationId= je lookup scoped; brez nje disambiguacija prek
+    // telefona (spodaj).
+    const locationId = url.searchParams.get('locationId')?.trim()
 
     if (!orderId && !orderNumber) {
       return NextResponse.json({ error: 'ID ali številka naročila je obvezna' }, { status: 400 })
@@ -43,6 +48,14 @@ export async function GET(req: Request) {
     // FIX MEDIUM: Validiraj orderNumber — samo številke
     if (orderNumber && !/^\d{1,10}$/.test(orderNumber)) {
       return NextResponse.json({ error: 'Neveljavna številka naročila' }, { status: 400 })
+    }
+    // R83: validiraj format locationId, če je podan (isti razred kot orderId)
+    if (locationId && !/^[a-z0-9]{5,50}$/i.test(locationId)) {
+      return NextResponse.json({ error: 'Neveljaven format lokacije' }, { status: 400 })
+    }
+    // R83: telefon mora biti numeričen (prej je bil sprejet kateri koli 4-znakski niz)
+    if (phone && !/^\d{4,20}$/.test(phone.replace(/\s/g, ''))) {
+      return NextResponse.json({ error: 'Neveljavna telefonska številka' }, { status: 400 })
     }
 
     // FIX BUG6: Only allow UUID-based access without phone verification.
@@ -70,13 +83,17 @@ export async function GET(req: Request) {
       }
     }
 
-    // Poišči naročilo — FIX: Use findFirst for flexible lookups
+    // Poišči kandidate — R83: findMany (max 5) za disambiguacijo trkov
+    // orderNumber čez lokacije (per-lokacijski števec). Izbirna lokacijska vezava.
     const where: Record<string, unknown> = {}
     if (orderId) where.id = orderId
     if (orderNumber) where.orderNumber = parseInt(orderNumber) || 0
+    if (locationId) where.locationId = locationId
 
-    const order = await db.order.findFirst({
+    const candidates = await db.order.findMany({
       where,
+      orderBy: { createdAt: 'desc' },
+      take: 5,
       include: {
         orderItems: {
           include: { menuItem: { select: { name: true, image: true } } },
@@ -86,17 +103,34 @@ export async function GET(req: Request) {
       },
     })
 
-    if (!order) {
+    if (candidates.length === 0) {
       return NextResponse.json({ error: 'Naročilo ni bilo najdeno' }, { status: 404 })
     }
 
-    // Preveri telefon (zadnje 4 števke) — only if phone was provided
-    if (phone && phone.length >= 4) {
-      const orderPhone = (order.customerPhone || '').replace(/\s/g, '')
-      const inputPhone = phone.replace(/\s/g, '')
-      if (!orderPhone.endsWith(inputPhone.slice(-4)) && !inputPhone.endsWith(orderPhone.slice(-4))) {
+    // R83 fix PRAZEN-TELEFON BYPASS: prej je bilo `inputPhone.endsWith('')`
+    // vedno true, ko naročilo NI imelo customerPhone → kateri koli 4-znakski
+    // telefon je "preveril" naročilo (cross-tenant branje po sekvenčnem
+    // orderNumber). Zdaj: naročilo brez shranjene telefonske številke NI nikoli
+    // preverjeno — vrne se 403 brez PII.
+    const wantsPhoneVerify = !!phone && phone.length >= 4
+    let verified = false
+    let order: (typeof candidates)[number] | undefined
+
+    if (wantsPhoneVerify) {
+      const inputPhone = (phone as string).replace(/\s/g, '')
+      order = candidates.find(c => {
+        const orderPhone = (c.customerPhone || '').replace(/\s/g, '')
+        // brez shranjenega telefona ni verifikacije (prej: endsWith('') = true bypass)
+        if (!orderPhone) return false
+        return orderPhone.endsWith(inputPhone.slice(-4)) || inputPhone.endsWith(orderPhone.slice(-4))
+      })
+      if (!order) {
         return NextResponse.json({ error: 'Napačna telefonska številka' }, { status: 403 })
       }
+      verified = true
+    } else {
+      // brez telefona: samo UUID-recent pot (zagotovljena zgoraj) — prvi kandidat
+      order = candidates[0]
     }
 
     // Status timeline
@@ -131,8 +165,9 @@ export async function GET(req: Request) {
         orderNumber: String(order.orderNumber),
         status: order.status,
         type: order.type,
-        // FIX MEDIUM: Ne vračaj customerName brez telefonske verifikacije — PII zaščita
-        ...(phone && phone.length >= 4 ? { customerName: order.customerName } : {}),
+        // FIX MEDIUM + R83: PII (ime, naslov) SAMO ob uspešni telefonski verifikaciji
+        // (prej je bil gate `phone && length>=4` — bypass prek praznega orderPhone)
+        ...(verified ? { customerName: order.customerName } : {}),
         subtotal: order.subtotal,
         tax: order.tax,
         total: order.total,
@@ -143,8 +178,8 @@ export async function GET(req: Request) {
           quantity: item.quantity,
           notes: item.notes,
         })),
-        // FIX MEDIUM: Ne vračaj dostavnega naslova brez telefonske verifikacije
-        delivery: (phone && phone.length >= 4 && order.deliveryInfo) ? {
+        // FIX MEDIUM + R83: dostavni naslov samo ob verifikaciji
+        delivery: (verified && order.deliveryInfo) ? {
           address: order.deliveryInfo.address,
           city: order.deliveryInfo.city,
           estimatedTime: order.deliveryInfo.estimatedTime?.toISOString(),

@@ -25,6 +25,8 @@ export function broadcastLowStockAlert(alerts: LowStockAlertInput[]) {
       itemName: alert.name,
       currentQty: alert.currentQty,
       minQty: alert.minQty,
+      // R83: locationId pass-through — tenant isolation v webhook delivery
+      locationId: alert.locationId ?? null,
     }).catch(err => logger.error('StockDeduction', 'stock.low napaka:', err))
   }
 

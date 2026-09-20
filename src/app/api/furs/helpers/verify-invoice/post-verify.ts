@@ -69,9 +69,10 @@ export async function handleSuccessfulVerification(
   })
 
   // Webhooks
-  emitReceiptFiscalVerified({ receiptId: receipt.id, zoi: result.zoi, eor: result.eor })
+  // R83: locationId pass-through (order.locationId) — tenant isolation v webhook delivery
+  emitReceiptFiscalVerified({ receiptId: receipt.id, zoi: result.zoi, eor: result.eor, locationId: order.locationId ?? null })
     .catch(err => logger.error('API', '[Webhook] receipt.fiscal_verified napaka:', err))
-  emitReceiptCreated({ receiptId: receipt.id, receiptNumber: receipt.receiptNumber, orderId: receipt.orderId, total: toNum(receipt.total) })
+  emitReceiptCreated({ receiptId: receipt.id, receiptNumber: receipt.receiptNumber, orderId: receipt.orderId, total: toNum(receipt.total), locationId: order.locationId ?? null })
     .catch(err => logger.error('API', '[Webhook] receipt.created napaka:', err))
 
   return qrContent

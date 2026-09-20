@@ -96,11 +96,13 @@ export async function POST(req: Request) {
     })
 
     // Webhook: guest.created
+    // R83: Guest še nima locationId stolpca (schema runda) — tenant kontekst
+    // iz seje klicatelja (per-location webhook matching)
     emitEvent('guest.created', {
       guestId: guest.id,
       name: `${guest.firstName} ${guest.lastName}`.trim(),
       email: guest.email,
-    }).catch(err => logger.error('API', '[Webhook] guest.created napaka:', err))
+    }, authResult.session?.locationId ?? null).catch(err => logger.error('API', '[Webhook] guest.created napaka:', err))
 
     return NextResponse.json(guest, { status: 201 })
   } catch (error: unknown) {

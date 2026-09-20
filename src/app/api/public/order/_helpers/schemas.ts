@@ -11,6 +11,9 @@ export const publicOrderItemSchema = z.object({
 
 export const publicOrderSchema = z.object({
   tableId: z.string().max(100, 'ID mize ne sme preseči 100 znakov').optional(),
+  // R83: izbirna lokacija QR-menija — tableNumber je per-lokacijski števec;
+  // brez nje bi bila miza št. 5 rešena GLOBALNO (prva lokacija, ki jo ima)
+  locationId: z.string().max(50).optional(),
   tableNumber: z.union([z.string().max(10, 'Številka mize ne sme preseči 10 znakov'), z.number().int().min(1, 'Številka mize mora biti vsaj 1').max(999, 'Številka mize ne sme preseči 999')]).optional(),
   customerName: z.string().max(100, 'Ime stranke ne sme preseči 100 znakov').default(''),
   customerPhone: z.string().max(30, 'Telefon ne sme preseči 30 znakov').default(''),

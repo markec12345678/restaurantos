@@ -84,11 +84,12 @@ export async function POST(req: Request) {
     })
 
     // Webhook: cash_register.opened
+    // R83: locationId pass-through (shift.locationId) — tenant isolation v webhook delivery
     emitEvent('cash_register.opened', {
       shiftId: shift.id,
       employeeName: data.employeeName || '',
       startingCash: data.startingCash,
-    }).catch(err => logger.error('API', '[Webhook] cash_register.opened napaka:', err))
+    }, shift.locationId ?? null).catch(err => logger.error('API', '[Webhook] cash_register.opened napaka:', err))
 
     return NextResponse.json(shift)
   } catch (error: unknown) {

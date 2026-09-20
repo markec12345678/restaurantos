@@ -4,9 +4,13 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 
 // ─── Preveri, ali je restavracija odprta ───
-export async function isRestaurantOpen(): Promise<boolean> {
+// R83: locationId parameter — prej globalni findMany({}) je MEŠAL urnike
+// vseh tenantov (urnik lokacije A je odpiral/zapiral QR naročanje lokacije B).
+// Brez locationId: false (fail-closed — klicatelj mora znati svojo lokacijo).
+export async function isRestaurantOpen(locationId?: string | null): Promise<boolean> {
   try {
-    const hours = await db.openingHours.findMany({ where: {} })
+    if (!locationId) return false
+    const hours = await db.openingHours.findMany({ where: { locationId } })
     if (!hours || hours.length === 0) return false
     // FIX MEDIUM: Uporabi slovenski čas (CET/CEST), ne strežnikov lokalni čas
     const slovenianTime = new Date().toLocaleString('en-US', { timeZone: 'Europe/Ljubljana' })
@@ -35,6 +39,8 @@ export interface ResolvedTable {
 export async function resolveTable(
   tableId?: string,
   tableNumber?: string | number,
+  // R83: lokacijski kontekst za tableNumber disambiguacijo (per-lokacijski števec)
+  locationId?: string | null,
 ): Promise<ResolvedTable | NextResponse> {
   if (tableId) {
     // QR /qr/[tableId] pošilja UUID tableId
@@ -54,7 +60,9 @@ export async function resolveTable(
     if (isNaN(tableNum) || tableNum < 1 || tableNum > 999) {
       return NextResponse.json({ error: 'Neveljavna številka mize' }, { status: 400 })
     }
-    const table = await db.table.findFirst({ where: { number: tableNum } })
+    const table = await db.table.findFirst({
+      where: { number: tableNum, ...(locationId ? { locationId } : {}) },
+    })
     if (!table) {
       return NextResponse.json({ error: 'Miza ni najdena. Obvestite natakarja.' }, { status: 400 })
     }

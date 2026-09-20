@@ -126,6 +126,16 @@ export const SEED_LIMIT: RateLimitConfig = {
 }
 
 /**
+ * R83: Setup init — 5 zahtev / 15 min. Setup izvaja bcrypt cost 12 + DDL-like
+ * seed operacije na ANONIMEN klic (bootstrap) — brez rate limita je bil CPU
+ * DoS vektor + first-caller-wins race. Enkratni setup porabi 1 zahtevo.
+ */
+export const SETUP_LIMIT: RateLimitConfig = {
+  maxRequests: 5,
+  windowMs: 15 * 60 * 1000,
+}
+
+/**
  * CIS batch retry (runda 30) — 10 batchov / 5 min.
  * Vsak batch = do 25 sekvencnih FINA klicev (SOAP), zato bolj strog kot
  * splošni authenticated limit; GET (badge števec) in POST (retry) delita vedro.

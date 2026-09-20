@@ -63,9 +63,14 @@ export async function triggerWebhook(
   // Strategy: če je locationId podan, filtriraj webhooks za to lokacijo PLUS globalne (locationId=null)
   // To omogoča backward compat (globalni webhook-i še vedno delujejo za vse lokacije)
   // in tenant isolation (lokacijski webhook-i se ne sprožijo za druge lokacije).
+  // R83 FIX: brez locationId je bilo `{ isActive: true }` = VSI webhook-i VSEH
+  // tenantov — komentar je trdil "samo globalni", koda pa je puščala tenant B
+  // webhook-e, ki so prejemali tenant A podatke (order/payment/guest). Zdaj
+  // koda uveljavlja dokumentirano vedenje: brez locationId → SAMO globalni
+  // webhook-i (locationId=null).
   const webhookWhere = locationId
     ? { isActive: true, OR: [{ locationId }, { locationId: null }] }
-    : { isActive: true }
+    : { isActive: true, locationId: null }
   const webhooks = await db.webhook.findMany({
     where: webhookWhere,
   })

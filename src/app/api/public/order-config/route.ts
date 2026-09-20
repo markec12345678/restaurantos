@@ -29,7 +29,14 @@ export async function GET(req: Request) {
   }
 
   try {
-    // Pridobi lokacije
+    // R83 fix: prej so bile openingHours GLOBALNE (vse tenante) → isOpenNow je
+    // računal iz MEŠANIH urnikov. Zdaj: ciljna lokacija (?locationId= ali
+    // ?locationCode=, sicer prva aktivna lokacija — deterministično).
+    const url = new URL(req.url)
+    const paramLocationId = url.searchParams.get('locationId')?.trim()
+    const paramLocationCode = url.searchParams.get('locationCode')?.trim()
+
+    // Pridobi lokacije (location picker je by-design javen)
     const locations = await db.location.findMany({
       where: { isActive: true },
       select: {
@@ -46,14 +53,26 @@ export async function GET(req: Request) {
       orderBy: { name: 'asc' },
     })
 
-    // Pridobi cone dostave
+    // Ciljna lokacija za urnik + cone
+    const targetLocation = paramLocationId
+      ? locations.find(l => l.id === paramLocationId)
+      : paramLocationCode
+        ? locations.find(l => l.code === paramLocationCode)
+        : locations[0]
+    const targetLocationId = targetLocation?.id ?? null
+
+    // Pridobi cone dostave — R83: scoped na ciljno lokacijo
     const deliveryZones = await db.deliveryZone.findMany({
-      where: { isActive: true },
+      where: {
+        isActive: true,
+        ...(targetLocationId ? { locationId: targetLocationId } : {}),
+      },
       orderBy: { sortOrder: 'asc' },
     })
 
-    // Pridobi delovni čas
+    // Pridobi delovni čas — R83: scoped na ciljno lokacijo
     const openingHours = await db.openingHours.findMany({
+      where: targetLocationId ? { locationId: targetLocationId } : {},
       orderBy: { dayOfWeek: 'asc' },
     })
 
@@ -118,7 +137,9 @@ export async function GET(req: Request) {
         city: l.city,
         isOpen: l.isOpen,
       })),
-      // FIX HIGH: Ne izpostavljaj zone.id, locationId, raw Decimal polj
+      // R83: katera lokacija je bila uporabljena za urnik/cone (frontend disambiguacija)
+      selectedLocationCode: targetLocation?.code || null,
+      // FIX HIGH + R83: Ne izpostavljaj zone.id, locationId, raw Decimal polj
       deliveryZones: deliveryZones.map(z => ({
         name: z.name,
         deliveryFee: toNum(z.deliveryFee),

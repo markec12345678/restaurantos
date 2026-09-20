@@ -14,4 +14,6 @@ export interface OrderWebhookData {
   deliveryInfo: { address: string } | null
   employeeId: string | null
   customerName: string | null
+  // R83: tenant kontekst za webhook delivery (per-location matching)
+  locationId: string | null
 }

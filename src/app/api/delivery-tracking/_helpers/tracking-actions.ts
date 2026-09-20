@@ -61,7 +61,7 @@ export async function handleStatusUpdate(
         status,
         driverName: tracking.driverName,
         estimatedArrival: updated.estimatedArrival ? updated.estimatedArrival.toISOString() : null,
-      })
+      }, deliveryInfo.order.locationId)
     }
   } catch {
     // Webhook napaka ne sme preprečiti posodobitve statusa dostave

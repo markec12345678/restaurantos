@@ -47,6 +47,18 @@ export async function POST(req: Request) {
     // Shrani kot HaccpEntry (IoT senzor → HACCP dnevnik)
     // FIX CRITICAL (race): uporabi transakcijsko varno createHaccpEntryWithChain
     const value = `${data.minThreshold}-${data.maxThreshold}°C`
+    // R83: atribucija lokacije — lokacijsko vezan admin registrira senzor na
+    // svoji lokaciji (prej NULL); platform admin lahko poda izbirni body.locationId
+    let sensorLocationId: string | null = authResult.session?.locationId ?? null
+    if (!sensorLocationId) {
+      const bodyLocId = typeof (bodyResult.data as { locationId?: string } | undefined)?.locationId === 'string'
+        ? (bodyResult.data as { locationId?: string }).locationId!.trim()
+        : null
+      if (bodyLocId) {
+        const loc = await db.location.findUnique({ where: { id: bodyLocId }, select: { id: true } })
+        sensorLocationId = loc?.id ?? null
+      }
+    }
     const entry = await createHaccpEntryWithChain({
       date: new Date(),
       category: 'temperature',
@@ -55,6 +67,7 @@ export async function POST(req: Request) {
       value,
       status: 'ok',
       employeeName: 'IoT Auto',
+      locationId: sensorLocationId,
     })
     return NextResponse.json(entry, { status: 201 })
   } catch (error: unknown) {

@@ -62,6 +62,14 @@ export async function POST(req: Request) {
 
     // Poskusi shraniti v GuestFeedback model
     try {
+      // R83 fix: locationId stamp — prej je bila lokacija sprejeta v body
+      // a NIKOLI zapisana (GuestFeedback.locationId vedno NULL) → mnenja
+      // nevidna v scoped per-lokacijskih poročilih. Validiraj na obstoj.
+      let feedbackLocationId: string | null = null
+      if (locationId) {
+        const loc = await db.location.findUnique({ where: { id: locationId }, select: { id: true } })
+        feedbackLocationId = loc?.id ?? null
+      }
       await db.guestFeedback.create({
         data: {
           guestId: null,
@@ -75,6 +83,7 @@ export async function POST(req: Request) {
           wouldReturn: (avgRating || 3) >= 4,
           wouldRecommend: (avgRating || 3) >= 4,
           source: source || 'qr_kiosk',
+          ...(feedbackLocationId ? { locationId: feedbackLocationId } : {}),
         },
       })
     } catch {
