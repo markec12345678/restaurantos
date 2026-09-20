@@ -206,6 +206,7 @@ export async function POST(req: Request) {
       orderNumber: order.orderNumber,
       type: 'delivery',
       total,
+      locationId: order.locationId ?? null,
     }).catch(err => logger.error('Bolt', 'emitOrderCreated napaka:', err))
 
     // Obvesti KDS in natakarja

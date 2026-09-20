@@ -164,6 +164,7 @@ export async function POST(req: Request) {
       orderNumber: order.orderNumber,
       type: 'delivery',
       total: toNum(order.total),
+      locationId: order.locationId ?? null,
     }).catch(err => logger.error('Glovo', 'order.created napaka:', err))
 
     logger.info('Glovo', `Novo naročilo #${order.orderNumber} iz Glova`)

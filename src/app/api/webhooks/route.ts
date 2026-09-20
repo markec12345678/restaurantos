@@ -1,7 +1,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { maskWebhookSecret } from '@/lib/secret-masks'
@@ -13,6 +13,9 @@ const createWebhookSchema = z.object({
   events: z.string().max(2000, 'Dogodki ne smejo preseči 2000 znakov').default('[]'),
   isActive: z.boolean().default(true),
   secret: z.string().max(200, 'Skrivnost ne sme preseči 200 znakov').default(''),
+  // R83-FIX: izbirna lokacija — uporablja se SAMO pri platformnem adminu (brez
+  // lokacije v seji). Lokacijski admin jo NE more podati (vedno session lokacija).
+  locationId: z.string().min(1).max(50).optional(),
 })
 
 export const dynamic = 'force-dynamic'
@@ -26,8 +29,16 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const isActive = searchParams.get('isActive')
 
+    // R83-FIX: tenant scope — prej je lokacijski admin videl webhook-e VSEH
+    // tenantov (URL-ji = potencialno tajne integration endpoint-i).
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/webhooks',
+    })
+    if ('error' in scope) return scope.error
+
     const where: Record<string, unknown> = {}
     if (isActive !== null) where.isActive = isActive === 'true'
+    if (scope.locationId) where.locationId = scope.locationId
 
     const webhooks = await db.webhook.findMany({
       where,
@@ -52,6 +63,22 @@ export async function POST(req: Request) {
 
     const data = result.data
 
+    // R83-FIX: locationId stamp — prej je bil VSAK API-kreiran webhook GLOBALEN
+    // (brez locationId) → lokacijski admin je lahko ustvaril webhook, ki je prejemal
+    // dogodke VSEH tenantov (order.paid zneski/tip, guest.created email, dostavni
+    // naslovi). Zdaj: lokacijski admin → webhook vezan na NJEGOVO lokacijo;
+    // platformni admin (brez lokacije) → globalni webhook (pooblaščen) ali
+    // izbirna validirana body.locationId.
+    const sessionLocationId = authResult.session?.locationId ?? null
+    let webhookLocationId: string | null = sessionLocationId
+    if (!webhookLocationId && data.locationId) {
+      const loc = await db.location.findUnique({ where: { id: data.locationId }, select: { id: true } })
+      if (!loc) {
+        return NextResponse.json({ error: 'Neveljavna lokacija (locationId ne obstaja)' }, { status: 400 })
+      }
+      webhookLocationId = data.locationId
+    }
+
     // Samodejno generiraj secret če ni podan (Web Crypto API - Edge Runtime kompatibilen)
     const randomBytes = new Uint8Array(32)
     crypto.getRandomValues(randomBytes)
@@ -65,6 +92,7 @@ export async function POST(req: Request) {
         events: data.events,
         isActive: data.isActive,
         secret,
+        ...(webhookLocationId ? { locationId: webhookLocationId } : {}),
       },
     })
 

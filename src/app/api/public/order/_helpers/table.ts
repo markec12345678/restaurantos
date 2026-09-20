@@ -41,7 +41,11 @@ export async function resolveTable(
   tableNumber?: string | number,
   // R83: lokacijski kontekst za tableNumber disambiguacijo (per-lokacijski števec)
   locationId?: string | null,
+  // R83-FIX (M1): obvezateljski write je ločen — prej je bila miza označena
+  // 'occupied' ŠE PRED isOpen 403 (fantomske zasedene mize ob zaprti restavraciji)
+  options?: { markOccupied?: boolean },
 ): Promise<ResolvedTable | NextResponse> {
+  const markOccupied = options?.markOccupied !== false
   if (tableId) {
     // QR /qr/[tableId] pošilja UUID tableId
     const table = await db.table.findUnique({ where: { id: tableId } })
@@ -49,7 +53,7 @@ export async function resolveTable(
       return NextResponse.json({ error: 'Miza ni najdena. Skennirajte QR kodo na mizi.' }, { status: 400 })
     }
     // FIX BUG-15: Preveri stanje mize pred oznako 'occupied'
-    if (table.status === 'available' || table.status === 'occupied') {
+    if (markOccupied && (table.status === 'available' || table.status === 'occupied')) {
       await db.table.update({ where: { id: table.id }, data: { status: 'occupied' } })
     }
     return { tableId: table.id, tableNumber: table.number, locationId: table.locationId ?? null }
@@ -67,11 +71,16 @@ export async function resolveTable(
       return NextResponse.json({ error: 'Miza ni najdena. Obvestite natakarja.' }, { status: 400 })
     }
     // FIX BUG-15: Preveri stanje mize pred oznako 'occupied'
-    if (table.status === 'available' || table.status === 'occupied') {
+    if (markOccupied && (table.status === 'available' || table.status === 'occupied')) {
       await db.table.update({ where: { id: table.id }, data: { status: 'occupied' } })
     }
     return { tableId: table.id, tableNumber: tableNum, locationId: table.locationId ?? null }
   }
 
   return { tableId: undefined, tableNumber: undefined }
+}
+
+// R83-FIX (M1): označi mizo zasedeno ŠELE po uspešnih gate-ih (isOpen, artikli)
+export async function markTableOccupied(tableId: string): Promise<void> {
+  await db.table.update({ where: { id: tableId }, data: { status: 'occupied' } })
 }

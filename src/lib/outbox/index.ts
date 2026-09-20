@@ -339,6 +339,9 @@ const processors: Record<OutboxTarget, OutboxProcessor> = {
     try {
       const { emitEvent } = await import('@/lib/event-emitter')
       const eventName = `${event.aggregateType}.${event.eventType}` as never
+      // R83-DOC: OutboxEvent NIMA locationId stolpca — internal dogodki so
+      // globalni (deliverijo samo globalnim webhook-om). Če bodo lokacijsko
+      // vezani webhook-i rabili internal evente, dodaj stolpec (R84 schema).
       await emitEvent(eventName, event.payload as never)
       return { success: true, response: { emitted: true } }
     } catch (err) {

@@ -54,9 +54,12 @@ export async function GET(req: Request) {
     if ('error' in scope) return scope.error
     let checkIdFilter: { in: string[] } | null = null
     if (scope.locationId) {
+      // take: 10000 — PG bind-param limit (65k) + perf guard; čez limit ostane
+      // del plačil neviden lokacijskemu uporabniku (fail-closed, ne leak)
       const checkIds = await db.check.findMany({
         where: { order: { locationId: scope.locationId } },
         select: { id: true },
+        take: 10000,
       })
       checkIdFilter = { in: checkIds.map(c => c.id) }
     }

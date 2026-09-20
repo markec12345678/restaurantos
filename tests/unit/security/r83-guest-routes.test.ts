@@ -36,6 +36,7 @@ const mocks = vi.hoisted(() => ({
   menuFindMany: vi.fn(),
   menuItemFindMany: vi.fn(),
   webhookFindMany: vi.fn(),
+  webhookCreate: vi.fn(),
   webhookDeliveryCreate: vi.fn(),
   webhookDeliveryUpdate: vi.fn(),
   webhookUpdate: vi.fn(),
@@ -81,7 +82,7 @@ vi.mock('@/lib/db', () => ({
     order: { findMany: mocks.orderFindMany, findFirst: mocks.orderFindFirst, create: mocks.orderCreate },
     menu: { findMany: mocks.menuFindMany },
     menuItem: { findMany: mocks.menuItemFindMany },
-    webhook: { findMany: mocks.webhookFindMany },
+    webhook: { findMany: mocks.webhookFindMany, create: mocks.webhookCreate },
     webhookDelivery: { create: mocks.webhookDeliveryCreate, update: mocks.webhookDeliveryUpdate },
     restaurantSettings: { findFirst: mocks.restaurantSettingsFindFirst },
     check: { findMany: mocks.checkFindMany, findFirst: mocks.checkFindFirst },
@@ -179,6 +180,10 @@ vi.mock('@/lib/json-fields', () => ({
   }),
 }))
 
+vi.mock('@/lib/secret-masks', () => ({
+  maskWebhookSecret: vi.fn((wh: Record<string, unknown>) => wh),
+}))
+
 vi.mock('@/lib/prisma-column-fallback', () => ({
   withLocationColumnFallback: vi.fn(async (_key: string, fn: (withLoc: boolean) => unknown) => fn(true)),
 }))
@@ -191,6 +196,7 @@ import { triggerWebhook } from '@/lib/webhook-engine/delivery/trigger'
 import { GET as walletGET, POST as walletPOST } from '@/app/api/wallet-payment/route'
 import { isRestaurantOpen, resolveTable } from '@/app/api/public/order/_helpers/table'
 import { POST as feedbackPOST } from '@/app/api/feedback-public/route'
+import { GET as webhooksGET, POST as webhooksPOST } from '@/app/api/webhooks/route'
 
 function mockAuth(locationId: string | null, role = 'admin') {
   mocks.requireAuth.mockResolvedValue({
@@ -442,7 +448,7 @@ describe('R83: wallet-payment scope', () => {
 
     await walletGET(new Request('http://x/api/wallet-payment'))
 
-    expect(mocks.checkFindMany).toHaveBeenCalledWith({ where: { order: { locationId: 'loc-1' } }, select: { id: true } })
+    expect(mocks.checkFindMany).toHaveBeenCalledWith({ where: { order: { locationId: 'loc-1' } }, select: { id: true }, take: 10000 })
     const where = mocks.walletPaymentFindMany.mock.calls[0][0].where
     expect(where.checkId).toEqual({ in: ['ck-1', 'ck-2'] })
   })
@@ -591,5 +597,56 @@ describe('R83: feedback-public locationId stamp', () => {
 
     const createArg = mocks.guestFeedbackCreate.mock.calls[0][0].data
     expect('locationId' in createArg).toBe(false)
+  })
+})
+
+// ============================================
+// 9) webhooks POST/GET — locationId stamp + tenant scope (R83-FIX, HIGH iz FINAL-2)
+// ============================================
+describe('R83-FIX: webhooks locationId stamp + scope', () => {
+  const whBody = { name: 'Integracija', url: 'https://example.com/hook', events: '["order.paid"]', isActive: true, secret: '' }
+
+  it('POST: lokacijski admin → webhook vezan na NJEGOVO lokacijo (prej GLOBALEN)', async () => {
+    mockAuth('loc-1', 'admin')
+    mocks.validateRequest.mockResolvedValue({ data: whBody, error: null })
+    mocks.webhookCreate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'wh-1', ...data }))
+
+    const res = await webhooksPOST(makeJsonReq('http://x/api/webhooks', whBody))
+    expect(res.status).toBe(201)
+
+    const createArg = mocks.webhookCreate.mock.calls[0][0].data
+    expect(createArg.locationId).toBe('loc-1')
+  })
+
+  it('POST: platform admin brez locationId → globalni webhook (pooblaščen, brez ključa)', async () => {
+    mockAuth(null, 'admin')
+    mocks.validateRequest.mockResolvedValue({ data: whBody, error: null })
+    mocks.webhookCreate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'wh-2', ...data }))
+
+    const res = await webhooksPOST(makeJsonReq('http://x/api/webhooks', whBody))
+    expect(res.status).toBe(201)
+
+    const createArg = mocks.webhookCreate.mock.calls[0][0].data
+    expect('locationId' in createArg).toBe(false)
+  })
+
+  it('GET: lokacijski admin → where.locationId scope (prej VSI tenanti)', async () => {
+    mockAuth('loc-1', 'admin')
+    mocks.webhookFindMany.mockResolvedValue([])
+
+    await webhooksGET(new Request('http://x/api/webhooks'))
+
+    const where = mocks.webhookFindMany.mock.calls[0][0].where
+    expect(where.locationId).toBe('loc-1')
+  })
+
+  it('GET: super-admin → globalni pogled (brez locationId filtra)', async () => {
+    mockAuth(null, 'super_admin')
+    mocks.webhookFindMany.mockResolvedValue([])
+
+    await webhooksGET(new Request('http://x/api/webhooks'))
+
+    const where = mocks.webhookFindMany.mock.calls[0][0].where
+    expect('locationId' in where).toBe(false)
   })
 })

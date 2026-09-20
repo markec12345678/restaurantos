@@ -9,6 +9,7 @@ export {
 export {
   isRestaurantOpen,
   resolveTable,
+  markTableOccupied,
   type ResolvedTable,
 } from './table'
 

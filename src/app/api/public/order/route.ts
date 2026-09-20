@@ -20,6 +20,7 @@ import {
   publicOrderSchema,
   isRestaurantOpen,
   resolveTable,
+  markTableOccupied,
   calculateOrderItems,
   deductInventoryInTx,
   broadcastNewOrder,
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
     // Poišči mizo - podprto prek tableNumber (int) ali tableId (UUID)
     // MODEL A: mizo/lokacijo rešimo NAJPREJ — dining option in artikli so
     // scoped NA LOKACIJO MIZE (prej: globalni findFirst({type}) brez scopa!).
-    const tableResult = await resolveTable(data.tableId, data.tableNumber, data.locationId)
+    const tableResult = await resolveTable(data.tableId, data.tableNumber, data.locationId, { markOccupied: false })
     if (tableResult instanceof NextResponse) return tableResult
     const { tableId, tableNumber: resolvedTableNumber, locationId: resolvedLocationId } = tableResult
 
@@ -62,6 +63,12 @@ export async function POST(req: Request) {
     const isOpen = await isRestaurantOpen(qrLocationId)
     if (!isOpen) {
       return NextResponse.json({ error: 'Restavracija je trenutno zaprta. Naročila niso mogoča.' }, { status: 403 })
+    }
+
+    // R83-FIX (M1): miza se označi 'occupied' ŠELE po uspešnih gate-ih —
+    // prej je 403 ob zaprti restavraciji pustil fantomsko zasedeno mizo
+    if (tableId) {
+      await markTableOccupied(tableId).catch(() => {})
     }
 
     // Poišči ali ustvari dining option za QR naročanje — PO LOKACIJI (MODEL A;

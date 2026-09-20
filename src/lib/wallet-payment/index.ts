@@ -392,9 +392,11 @@ export async function getWalletPaymentStats(dateFrom?: Date, dateTo?: Date, loca
     if (dateTo) (where.createdAt as Record<string, unknown>).lte = dateTo
   }
   if (locationId) {
+    // take: 10000 — PG bind-param limit (65k) + perf guard (fail-closed nad limitom)
     const checkIds = await db.check.findMany({
       where: { order: { locationId } },
       select: { id: true },
+      take: 10000,
     })
     where.checkId = { in: checkIds.map(c => c.id) }
   }

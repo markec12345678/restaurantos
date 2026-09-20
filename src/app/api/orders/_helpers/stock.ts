@@ -16,6 +16,8 @@ export interface PostCreationOrderData {
   tableId: string | null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   total: any
+  // R83-FIX: lokacija naročila — za webhook tenant binding (order.created)
+  locationId?: string | null
 }
 
 // Samodejno razknjiževanje zaloge ob oddaji naročila
@@ -61,6 +63,7 @@ export async function handlePostCreationEffects(
   emitOrderCreated({
     orderId: order.id, orderNumber: order.orderNumber,
     type: order.type, tableId: order.tableId || undefined, total: toNum(order.total),
+    locationId: order.locationId ?? null,
   }).catch(err => logger.error('API', '[Webhook] order.created napaka:', err))
 
   await createAuditLog({
