@@ -1,11 +1,11 @@
-# RestaurantOS v1.9.3
+# RestaurantOS v1.9.4
 
-[![Version](https://img.shields.io/badge/version-1.9.3-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.9.4-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-2432%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-83%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-2495%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-84%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,21 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **Security closure po rundi 83**: vsi potrjeni HIGH/CRITICAL (IDOR, write-through-tenant, WebAuthn ATO, QR-pay javna pot, platform gates, guest-flusi, QR-pay secret, javne gost-rute, webhook-engine tenant binding, webhooks global-by-default) popravljeni z dokazi in regresijskimi testi (83 QA rund); preostalo = dokumentiran R84 backlog (reports/* MEDIUM, schema rundi: WalletPayment.locationId, IoT key→location binding) + PROD census odločitev. Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **Security closure po rundi 84**: vsi potrjeni HIGH/CRITICAL (IDOR, write-through-tenant, WebAuthn ATO, QR-pay javna pot, platform gates, guest-flusi, QR-pay secret, javne gost-rute, webhook-engine tenant binding, webhooks global-by-default, reports/* agregati, wallet cross-tenant money movement) popravljeni z dokazi in regresijskimi testi (84 QA rund); preostalo = dokumentiran R85 backlog (dashboard + delivery-tracking HIGH, inventory/HR M val, NULL-stamp par). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### 🔧 Popravki v v1.9.4 (QA runda 84 — reports tenant scope + wallet/outbox schema + guest-surface fail-closed)
+
+| Kategorija | Popravek |
+|------------|----------|
+| 🚨 **R84-1: reports/* tenant scope — 6 HIGH (finančni agregati čez tenant-e)** | R84-0 read-only audit (2 agenta) dokazal 9/12 reports rut VULNERABLE. `sales`, `vat` (FURS-relevantna DDV razčlenitev), `popular`, `employees` (križno-tenant **PII**: imena/vloge/prihodki tujih zaposlenih + seznam zaposlenih), `ap-aging` (obveznosti dobaviteljem), `financial` (celoten P&L — vsi 10 poizvedb: groupBy/aggregate/findMany scoped, stockTransaction prek relacije `inventoryItem.locationId`) — vse prej BREZ locationId filtra za lokacijskega admina. Zdaj: `resolveTenantLocationIdOrThrow` + pogojni spread (super-admin = globalno, NIKOLI `{ locationId: null }`) |
+| 🚨 **R84-1: eod POST — CROSS-TENANT WRITE** | Prej `findFirst({ status: 'open' })` BREZ lokacije → lokacijski admin je lahko **zaprl izmeno TUJE lokacije** z združenimi vsi-tenant povzetki. Zdaj: scope obvezen (pendingOrders count, activeShift findFirst, completedOrders, voidedItems vsi scoped) + **STROG location guard v transakciji** (`closeShiftTransaction`: legacy NULL izmena za loc-bound admina = SHIFT_NOT_FOUND; defense-in-depth proti race-u) |
+| 🟠 **R84-1: eod GET residuals + digest platform gates** | `data-fetch.ts`: statusOrderWhere (statusCounts/cancelled/pending/voided) + stockCostGroups sedaj scoped (prej samo paidOrderWhere). `digest-preview/send/trend`: `platformAdminGate` (mirror receipts/rebuild) — prej je `permission:'admin'` prešel tudi lokacijske admine, ki so videli/sprožali globalne povzetke (globalni prejemniki + združeni prihodki VSEH lokacij) |
+| 🚨 **R84-2: WalletPayment.locationId + OutboxEvent.locationId (schema rundi)** | Prej wallet scope **dvokoračen** (checkIds IN take-10000, PG bind limit) + outbox internal replay global-only. Zdaj: `WalletPayment.locationId` (Location? relacija SetNull + @@index), `OutboxEvent.locationId` (brez FK — event log decoupled). `getWalletPaymentStats`/route GET = **ENOKORAČNI scope**; `initiateWalletPayment` stampira iz `check.order.locationId` (data-derived, prioriteta) ali session/api-key; outbox internal processor poda `emitEvent(..., event.locationId)` — lokacijsko vezani webhook-i sedaj prejmejo internal evente. Migracija `_migrate-r84-location.mjs` (PGlite) + `backfill-wallet-outbox-location.ts` (census/DRY-RUN/--apply, idempotenten, chunked 10k, fail-closed — neizpeljivo ostane NULL) |
+| 🚨 **R84-FIX2: wallet capture/refund — CROSS-TENANT MONEY MOVEMENT (H3 po final auditu)** | `POST /[id]/capture` + `POST /[id]/refund`: prej samo `manage_cash` permission → user tuje lokacije je lahko **bremil/povrnil tuje plačilo**. Zdaj: `resolveTenantLocationIdOrThrow` + scope v lib (capture: updateMany where.locationId + scoped re-read brez razkritja obstoja; refund: STROG guard v transakciji — legacy NULL = zavrnjeno) |
+| 🟠 **R84-3: public/order tableNumber fail-closed (M2) + IoT binding + employees gate** | `resolveTable`: tableNumber BREZ locationId → **400** (prej globalni findFirst — prvi tenant z mizo št. N je dobil tuje naročilo + occupied write; tableId/QR pot nespremenjena). `iot/sensors` GET + `haccp` GET: role-aware `resolveTenantLocationIdOrThrow` (prej presence-based — ne-admin brez lokacije je videl globalno). `iot/readings`: neznana locationId → **400** (prej tiho NULL). `employees/[id]` PUT: super_admin izjema (pariteta s POST; prej 403 za platformnega admina) |
+| 🧪 **+63 regresijskih testov** | `r84-reports-scope` (32: where-clavz pinanje vseh 12 rut + gate matrika + eod strict guard), `r84-wallet-outbox-location` (16: enokoračni scope, stamping derivacija, internal replay pass-through, upsert locationId), `r84-small-fixes` (15: IoT scope/atribucija, employees gate pariteta, wallet capture/refund matrika) — **2495/2495 unit (149 fajlov)** |
+| 🧪 **Regresija — vse zelene** | lint **0/0** · tsc **0** · **2495/2495 unit** · **9/9 integracija** · 2 read-only final auditorja: fix-quality **PASS** (1 MEDIUM + 4 LOW → fix wave 2) + gap-hunt (**3 novi HIGH + 20 MEDIUM + 8 LOW → R85 backlog**, dokazano z file:line) |
+| 📌 **Odpri točke (runda 85)** | **HIGH**: `GET /api/dashboard` (globalni P&L/analytics helperji), `delivery-tracking` (read + WRITE čez tenant-e — GPS/status/driver). **MEDIUM M1–M20**: kitchen + matrix, reservations, waitlist, time-off, staff-availability, labor-reports, inventory reorder/forecast/menu-stock/reorder-rules/food-cost, courses, ai/forecast, predictive-ordering, accounting/send-report-email, cis/submit-invoice, print, outbox GET/retry, NULL-stamp par (gift-cards POST, inventory POST), ScheduledEmailLog.locationId. **LOW L1–L8**: stock/check, distinct values, guests orders include, verify-chain details, debug/env mask, daily-checklist, ai-assistant snapshot. Dokazano v worklogu (R84-FINAL-2) |
 
 ### 🔧 Popravki v v1.9.3 (QA runda 83 — javne gost-rute + webhook-engine tenant binding + employees locationId stamp)
 
@@ -530,15 +544,17 @@ DATABASE_URL="<neon-url>" bun scripts/audit-location.ts
 | **Rezervacije** | Seznam z filtri statusov, datumski kalendar, statusni tok | ✅ |
 | **QR menu** | Gost-facing meni s sticky kategorijami, košarico, safe-area | ✅ |
 
-## 🔒 Varnost (pošten status po rundi 82)
+## 🔒 Varnost (pošten status po rundi 84)
 
-**Status:** vsi **potrjeni** HIGH/CRITICAL z datotčnim tokom (R76–R83, 83 QA rund) popravljeni z regresijskimi testi — vključno z javnimi gost-rutami (order-track prazen-telefon bypass, kiosk globalni meni), webhook-engine tenant bindingom in webhooks global-by-default. Sveže-oke auditi vsake runde odkrijejo naslednji val — R84 backlog: schema rundi (WalletPayment/OutboxEvent/Guest/Integration locationId), reports/* agregati (MEDIUM), IoT per-senzor mapiranje (LOW). Nič od tega ni potrjen aktiven izkoriščljiv HIGH — klasifikacije in dokazi v [worklogu](docs/FINAL-SUMMARY.md) in [Security Policy](SECURITY.md).
+**Status:** vsi **potrjeni** HIGH/CRITICAL z datotčnim tokom (R76–R84, 84 QA rund) popravljeni z regresijskimi testi — vključno z javnimi gost-rutami, webhook-engine tenant bindingom, reports/* finančnimi agregati (R84), wallet cross-tenant money movement (R84) in WalletPayment/OutboxEvent locationId schema rundi. Sveže-oke auditi vsake runde odkrijejo naslednji val — R85 backlog: dashboard + delivery-tracking (HIGH, dokazana file:line v worklogu R84-FINAL-2), M1–M20 val (kitchen/reservations/HR/inventory), NULL-stamp par. Nič od tega ni potrjen aktiven izkoriščljiv HIGH — klasifikacije in dokazi v [worklogu](docs/FINAL-SUMMARY.md) in [Security Policy](SECURITY.md).
 
 - **CSP** z nonce injection (XSS zaščita)
 - **HSTS** z preload (HTTPS enforcement)
 - **Rate limiting**: Auth 5/15min, API 60/min, Public 20/min + `PUBLIC_ORDER_LIMIT` na mobile/order poteh (runda 82)
 - **PIN hashiranje**: bcrypt (10 rounds) + HMAC-SHA256
 - **Audit log**: Chain hash (SHA-256, nepopravljiv) + `AuditLog.locationId` tenant model (runda 81)
+- **Reports tenant scope**: reports/* (sales/vat/popular/employees/ap-aging/financial/eod/digest-*) — vse scoped na sejo ali platform-gated (runda 84)
+- **Wallet tenant binding**: WalletPayment.locationId stolpec + OutboxEvent.locationId + capture/refund scope (runda 84)
 - **Multi-tenant isolation**: locationId scoping (30+ modelov, glej [Known Issues](docs/KNOWN_ISSUES.md))
 - **Platform-admin gates**: subscription/invoices, receipts/rebuild+regenerate, journal/regenerate, admin/migrate, webhooks deliveries retry (runde 81–82)
 - **Fail-closed cron**: `/api/cron/*` zahteva CRON_SECRET (runda 82 — prej anonimni GDPR delete)
@@ -554,15 +570,15 @@ DATABASE_URL="<neon-url>" bun scripts/audit-location.ts
 
 | Metrika | Vrednost |
 |---------|----------|
-| Commitov | 896 |
+| Commitov | 966 |
 | API endpointov | 242 |
 | React komponent | 679 |
 | Prisma modelov | 95 |
 | Tabel v bazi | 95 |
 | Jezikov | 5 (sl, en, it, hr, de) |
-| Unit testov PASS | 2432/2432 (100 %) — 146 datotek, 0 errorjev |
+| Unit testov PASS | 2495/2495 (100 %) — 149 datotek, 0 errorjev |
 | E2E testov PASS | 144/149 (96.6%) — 5 odprtih, glej [Known Issues](docs/KNOWN_ISSUES.md) |
-| Varnostna ocena | A (potrjeni HIGH/CRITICAL zaprti R76–R83; R84 backlog dokumentiran, glej [Security Policy](SECURITY.md)) |
+| Varnostna ocena | A (potrjeni HIGH/CRITICAL zaprti R76–R84; R85 backlog dokumentiran, glej [Security Policy](SECURITY.md)) |
 | Koda (src + tests) | 204.594 vrstic |
 | Odvisnosti | 88 |
 
