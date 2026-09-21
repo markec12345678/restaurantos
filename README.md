@@ -1,11 +1,11 @@
-# RestaurantOS v1.9.4
+# RestaurantOS v1.10.0
 
-[![Version](https://img.shields.io/badge/version-1.9.4-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
+[![Version](https://img.shields.io/badge/version-1.10.0-86702b?style=flat-square)](https://github.com/markec12345678/restaurantos/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
-[![CI](https://img.shields.io/badge/CI-7%2F7%20green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-2495%20unit%20%2B%20149%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-84%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![CI](https://img.shields.io/badge/CI-7%2F7%20%2B%20E2E_204%2F204-green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
+[![Tests](https://img.shields.io/badge/tests-3242%20unit%20%2B%209%20integracija%20%2B%20204%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-94%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,7 +24,24 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **Security closure po rundi 84**: vsi potrjeni HIGH/CRITICAL (IDOR, write-through-tenant, WebAuthn ATO, QR-pay javna pot, platform gates, guest-flusi, QR-pay secret, javne gost-rute, webhook-engine tenant binding, webhooks global-by-default, reports/* agregati, wallet cross-tenant money movement) popravljeni z dokazi in regresijskimi testi (84 QA rund); preostalo = dokumentiran R85 backlog (dashboard + delivery-tracking HIGH, inventory/HR M val, NULL-stamp par). Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **Security closure po rundi 94**: 10 rund hardeninga (R85–R94) zaključenih z dokazi in regresijskimi testi — tenant scope vali (dashboard, delivery-tracking, reports/*, wallet), M2 fail-open razred izkoreninjen, per-location ordering tokene z revokacijo, delivery webhook envelope, eradikacija vseh anonimnih globalnih fallbackov (P0-C3B kanon) in 429 rate-limit kanon na 100 % API površine; full-suite E2E (204 testov / 13 specov) prvič zelen v CI na realnem PostgreSQL. Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+
+### 🔒 Hardening v v1.10.0 (QA runde 85–94 — tenant scope kanon + ordering tokeni + 429 kanon + E2E v CI)
+
+| Runda | Fokus | Ključni rezultati |
+|-------|-------|-------------------|
+| **R85** | Tenant scope val: dashboard + delivery-tracking (HIGH) | Globalni P&L/analytics helperji + delivery-tracking (read **in** WRITE čez tenant-e — GPS/status/voznik) scoped; MEDIUM vali (kitchen, reservations, waitlist, time-off, staff-availability, labor-reports, tracking, reorder, gift-cards/inventory žig, scheduled-emails gate) + FINAL val 2 (expenses, guests, mobile-loyalty, mobile-menu, checks discount) + backfill skripta (92 src fajlov, +1600/−428) |
+| **R86** | M2 sistemski razred zaprt | Raw fail-open `session?.locationId ?? undefined/null` cenzus 114 zadetkov/77 fajlov → 61; public/kiosk POST fail-closed (explicit locationId obvezen), promo-check, 11 carry-over endpointov, loyalty residuals; 7 novih testnih fajlov (198 testov) |
+| **R87** | location-fallback eradikacija + Guest.locationId | `location-fallback.ts` IZBRISAN; hygiene val čez src (guests/feedback, opening-hours, time-entries, shifts, haccp, purchase-orders, z-report …); Guest.locationId migracija + backfill + wiring — guests PII scope (stolpec ALI order-tie), GDPR anonymizacija zaprta |
+| **R88** | Per-location ordering token + delivery webhook envelope | HMAC token vezan na lokacijo OBVEZEN za online-order (deep link `/order?loc=&t=`); webhookEnvelopeToken za Wolt/Glovo/Bolt; `Integration.locationId` (migracija + backfill); odkrit in popravljen **integrations/[id] GET/PUT/DELETE cross-tenant IDOR**; QR meni generator ruta |
+| **R89** | Token revokacija + izdajni UI | `Location.tokenVersion` (format `v1:<ver>:<hmac>`), POST rotate (atomic increment, admin-gated), OrderingLinkSection UI (kopiraj deep link, rotacija, QR meni download), webhook badge v tabeli |
+| **R90** | Zadnji anonimni globalni READ fallbacki | public/menu + public/kiosk GET → unificiran 404 brez-orakelj (ZERO db); `resolveDefaultLocationId` izkoreninjen iz produkcije; integrations LIST/CREATE scoped (R88-2 sibling); WebhookUrlSection UI; meni/kiosk ostajata tokenless (scoping namesto token-gating — odločitev dokumentirana) |
+| **R91** | `/api/qr-menu` P0-C3B residual izbrisan | E2E stale-pin audit odkril ŽIVO javno API ruto s starim cross-tenant fallbackom (missed R90 sibling) → izbris + allowlist očiščen + fs route-absent guard; rotate rate-limit; copy helper ekstrakcija; lekcija: **e2e pini ne smejo blagoslaviti vedenja brez preveritve v kodi** |
+| **R92** | Rate-limit wave + 429 shape unifikacija | 11 admin write rut rate-limited (68/247 rut); NOV `rateLimitedResponse` kanon helper (Retry-After + X-RateLimit-Remaining/Reset); auth IP-429 dobi glave; health tagged `$queryRaw` → `$queryRawUnsafe`; e2e seed obnovljen na MODEL A shemo |
+| **R93** | 429 kanon dokončan + e2e CI workflow | 11 admin rut + SMS + mobile 3/3 (brute-force model pred verifyApiKey); debug/query+env produkcija-gate analiza; tagged raw empirika (14-točkovna matrica — abort okoljski, ne tagged-lastnost); Playwright `e2e.yml` workflow |
+| **R94** | Legacy 429 wave + e2e CI na realnem PostgreSQL | 55 datotek/66 mest → `rateLimitedResponse` (**429 kanon 100 % API površine**, 6 mest prvič glave); CI forenzika: pravi koren R92 abortov = multi-PGlite-instanca stomp; `e2e.yml` → postgres:16 service; seed EN VIR RESNICE (`e2e-seed-data.mjs` za PGlite + real-PG); 5 stale e2e pinov popravljenih z dokazi — **prvič full-suite e2e zelen 204/204** |
+
+**Test napredek:** 2495 (R84) → 3242 unit / 181 datotek (R94) + 9/9 integracija + **204/204 E2E v CI**.
 
 ### 🔧 Popravki v v1.9.4 (QA runda 84 — reports tenant scope + wallet/outbox schema + guest-surface fail-closed)
 
@@ -544,19 +561,22 @@ DATABASE_URL="<neon-url>" bun scripts/audit-location.ts
 | **Rezervacije** | Seznam z filtri statusov, datumski kalendar, statusni tok | ✅ |
 | **QR menu** | Gost-facing meni s sticky kategorijami, košarico, safe-area | ✅ |
 
-## 🔒 Varnost (pošten status po rundi 84)
+## 🔒 Varnost (pošten status po rundi 94)
 
-**Status:** vsi **potrjeni** HIGH/CRITICAL z datotčnim tokom (R76–R84, 84 QA rund) popravljeni z regresijskimi testi — vključno z javnimi gost-rutami, webhook-engine tenant bindingom, reports/* finančnimi agregati (R84), wallet cross-tenant money movement (R84) in WalletPayment/OutboxEvent locationId schema rundi. Sveže-oke auditi vsake runde odkrijejo naslednji val — R85 backlog: dashboard + delivery-tracking (HIGH, dokazana file:line v worklogu R84-FINAL-2), M1–M20 val (kitchen/reservations/HR/inventory), NULL-stamp par. Nič od tega ni potrjen aktiven izkoriščljiv HIGH — klasifikacije in dokazi v [worklogu](docs/FINAL-SUMMARY.md) in [Security Policy](SECURITY.md).
+**Status:** vsi **potrjeni** HIGH/CRITICAL z datotčnim tokom (R76–R94, 94 QA rund) popravljeni z regresijskimi testi. R85–R94 zaključili sistemske razrede: tenant scope vali (dashboard, delivery-tracking, reports/*, wallet), M2 fail-open razred izkoreninjen, zadnji anonimni globalni fallbacki odstranjeni (P0-C3B kanon: public/menu, public/kiosk, /api/qr-menu izbris), ordering tokeni z revokacijo, 429 kanon na 100 % API površine. Full-suite E2E prvič zelen v CI (204/204 na realnem PostgreSQL). Nadaljnje izboljšave so dokumentiran backlog (npr. dvostopenjska prijava, Table.status flip) — nič od tega ni potrjen aktiven izkoriščljiv HIGH. Klasifikacije in dokazi v [worklogu](docs/FINAL-SUMMARY.md) in [Security Policy](SECURITY.md).
 
 - **CSP** z nonce injection (XSS zaščita)
 - **HSTS** z preload (HTTPS enforcement)
-- **Rate limiting**: Auth 5/15min, API 60/min, Public 20/min + `PUBLIC_ORDER_LIMIT` na mobile/order poteh (runda 82)
-- **PIN hashiranje**: bcrypt (10 rounds) + HMAC-SHA256
+- **Rate limiting kanon**: `rateLimitedResponse` (Retry-After + X-RateLimit-Remaining/Reset) na **100 % API površine** — 121 call-siteov/~70 datotek (runde 92–94); Auth 5/15min, API 60/min, Public 20/min; anonimne površine (ai/*, public/*, mobile/*, sms) throttleane pred ostalimi checki; fs-guard test preprečuje nove inline 429 bloke
+- **Ordering tokeni**: per-location HMAC token (`v1:<ver>:<hmac>`) obvezen za online-order, revokacija prek `tokenVersion` rotate; delivery webhook envelope za Wolt/Glovo/Bolt (runde 88–91)
+- **Tenant scope kanon**: pet primitivov `tenant-scope.ts` (resolver / scope-to-where / write-resolver / isWithinScope / notInScopeResponse — unificiran 404 brez oraklja) na vseh admin/mobilnih/javnih rutah (runde 85–90)
+- **PIN hashiranje**: bcrypt + HMAC-SHA256 + per-PIN lockout z delay hardeningom
 - **Audit log**: Chain hash (SHA-256, nepopravljiv) + `AuditLog.locationId` tenant model (runda 81)
 - **Reports tenant scope**: reports/* (sales/vat/popular/employees/ap-aging/financial/eod/digest-*) — vse scoped na sejo ali platform-gated (runda 84)
 - **Wallet tenant binding**: WalletPayment.locationId stolpec + OutboxEvent.locationId + capture/refund scope (runda 84)
-- **Multi-tenant isolation**: locationId scoping (30+ modelov, glej [Known Issues](docs/KNOWN_ISSUES.md))
-- **Platform-admin gates**: subscription/invoices, receipts/rebuild+regenerate, journal/regenerate, admin/migrate, webhooks deliveries retry (runde 81–82)
+- **Multi-tenant isolation**: locationId scoping (30+ modelov; M2 fail-open razred izkoreninjen R86; glej [Known Issues](docs/KNOWN_ISSUES.md))
+- **Platform-admin gates**: subscription/invoices, receipts/rebuild+regenerate, journal/regenerate, admin/migrate, webhooks deliveries retry, debug/env (runde 81–93)
+- **E2E v CI**: 13 specov / 204 testov na realnem PostgreSQL 16 (`e2e.yml`) + 30-testni security podnabor na produkcijskem buildu (`ci.yml`)
 - **Fail-closed cron**: `/api/cron/*` zahteva CRON_SECRET (runda 82 — prej anonimni GDPR delete)
 - **QR-pay lifecycle**: HMAC token v2 z TTL 15 min, enkratna uporaba, production secret fail-closed (runda 82)
 - **API-key tenant binding**: mobile/order + online-order scoped na naročnino ključa, fail-closed 403 (runda 82)
@@ -570,35 +590,38 @@ DATABASE_URL="<neon-url>" bun scripts/audit-location.ts
 
 | Metrika | Vrednost |
 |---------|----------|
-| Commitov | 966 |
-| API endpointov | 242 |
-| React komponent | 679 |
+| Commitov | 981 |
+| API rut (route.ts) | 247 |
+| React komponent | 816 |
 | Prisma modelov | 95 |
 | Tabel v bazi | 95 |
 | Jezikov | 5 (sl, en, it, hr, de) |
-| Unit testov PASS | 2495/2495 (100 %) — 149 datotek, 0 errorjev |
-| E2E testov PASS | 144/149 (96.6%) — 5 odprtih, glej [Known Issues](docs/KNOWN_ISSUES.md) |
-| Varnostna ocena | A (potrjeni HIGH/CRITICAL zaprti R76–R84; R85 backlog dokumentiran, glej [Security Policy](SECURITY.md)) |
-| Koda (src + tests) | 204.594 vrstic |
+| Unit testov PASS | 3242/3242 (100 %) — 181 datotek, 0 errorjev |
+| Integracijskih testov PASS | 9/9 (100 %) |
+| E2E testov PASS | 204/204 (100 %) — 13 specov, zeleno v CI na realnem PostgreSQL |
+| Varnostna ocena | A++ (potrjeni HIGH/CRITICAL zaprti R76–R94; 429 + tenant scope + token kanoni; glej [Security Policy](SECURITY.md)) |
+| Koda (src + tests + scripts) | 255.987 vrstic |
 | Odvisnosti | 88 |
 
 ## 🧪 E2E Testi
 
-| Test | Rezultat |
-|------|----------|
-| Chaos: DB Failure | 14/14 ✅ |
-| Chaos: WebSocket Disconnect | ✅ |
-| Chaos: FURS Server Down | 5/6 ✅ |
-| Financial: Trial Balance | 14/14 ✅ |
-| Financial: Z-Report vs Cash | 8/8 ✅ |
-| Financial: DDV vs FURS | 8/8 ✅ |
-| FURS: Storno račun | 15/15 ✅ |
-| Offline: 100 orders burst | 7/7 ✅ |
-| Offline: Sync validation | 10/10 ✅ |
-| Offline: Conflict resolution | 8/9 ✅ |
-| Multi-tenant: Isolation | 7/7 ✅ |
-| Multi-tenant: Shared resources | 39/40 ✅ |
-| Multi-tenant: Super-admin | 9/10 ✅ |
+**204/204 zeleno v GitHub Actions** (`e2e.yml`: realni PostgreSQL 16 service, seed en vir resnice `scripts/e2e-seed-data.mjs`, connection pool — produkcijska pariteta; prvič poln suite zelen od R94). Podnabor (core-flow, flow-variants, observability, multi-tenant-security — 30 testov) teče tudi v `ci.yml` na produkcijskem buildu.
+
+| Spec fajl | Fokus |
+|-----------|-------|
+| cookie-consent | GDPR privolitveni tok |
+| core-flow | Osnovni tok: prijava → meni → naročilo → plačilo |
+| critical-path | Kritična produkcijska pot |
+| dashboard-reports-edge | Dashboard/reports robovi (EDGE-* pini) |
+| flow-variants | Variante naročilnih tokov |
+| furs-financial | FURS fiskalizacija + finančni tokovi |
+| multi-tenant-security | Tenant izolacija (MENU/APIKEY/unificiran-404 pini) |
+| observability | Health/monitoring |
+| outbox-worker | Outbox webhook delavec |
+| payment-flow | Plačilni tokovi |
+| setup | Onboarding/seed |
+| verify-features | Funkcionalna verifikacija površine |
+| workflow | Delovni tokovi (LOGIN/REPORT/LASTNIK pini) |
 
 ## 🛠️ Tech Stack
 
