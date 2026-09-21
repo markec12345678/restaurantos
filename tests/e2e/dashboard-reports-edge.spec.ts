@@ -325,11 +325,17 @@ test.describe('Dashboard & Reports', () => {
     expect(res.status()).toBe(401)
   })
 
-  test('EDGE-15: POST /api/auth brez employeeId vrne 400', async ({ request }) => {
+  test('EDGE-15: POST /api/auth s PIN-only telesom se prijavi kot lastnik PIN-a', async ({ request }) => {
+    // R94 pin korekcija: { pin } brez employeeId je pod PIN-only kontraktom
+    // (loginSchema = { pin }, glej EDGE-4) VELJAVNA prijava — ne 400.
     const res = await request.post(`${API_BASE}/auth`, {
       data: { pin: '1111' },
     })
-    expect([400, 401]).toContain(res.status())
+    expect([200, 429]).toContain(res.status())
+    if (res.status() === 200) {
+      const body = await res.json()
+      expect(body.employee.id).toBe('test-admin')
+    }
   })
 
   test('EDGE-16: POST /api/auth brez pin vrne 400', async ({ request }) => {
