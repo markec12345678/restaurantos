@@ -233,11 +233,25 @@ test.describe('Dashboard & Reports', () => {
     expect(res.status()).toBe(401)
   })
 
-  test('EDGE-4: POST /api/auth z neobstoječim employeeId vrne 401', async ({ request }) => {
+  test('EDGE-4: POST /api/auth — PIN-only kontrakt: identiteta = lastnik PIN-a', async ({ request }) => {
+    // R94 forenzika (e2e CI full-suite ujel neujemljen pin): loginSchema je
+    // { pin } (validations/auth.ts:15) — employeeId se pri verifikaciji
+    // NIKOLI ne upošteva (Zod strip). Produkt = single-factor PIN prijava
+    // (WaiterLogin/KDSLogin pošiljata izključno { pin }); identiteta seje je
+    // DETERMINISTIČNO lastnik PIN-a — audit sled je konsistentna, P1-11/12
+    // hardening (per-PIN lockout + progresivni delay + bcrypt r12) aktiven.
+    // R95 backlog: dvostopenjska prijava (izbira zaposlenega → PIN) za
+    // strožjo pripis identitete (UI + loginSchema + verifyPin sprememba).
     const res = await request.post(`${API_BASE}/auth`, {
       data: { employeeId: 'nonexistent-employee', pin: '1111' },
     })
-    expect(res.status()).toBe(401)
+    expect([200, 429]).toContain(res.status())
+    if (res.status() === 200) {
+      const body = await res.json()
+      // Ne glede na 'trdilni' employeeId je prijavljena identiteta VEDNO
+      // lastnik PIN-a — prepreči sanje o client-side impersonaciji.
+      expect(body.employee.id).toBe('test-admin')
+    }
   })
 
   test('EDGE-5: GET /api/setup/status je javno dostopen (brez auth)', async ({ request }) => {

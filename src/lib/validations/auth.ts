@@ -12,6 +12,11 @@ import { PIN_LOGIN_LEGACY_MIN } from '@/lib/auth-middleware/constants'
 // P1-12: LOGIN dopušča legacy 4-mestne PIN-e (migracijska kompatibilnost —
 // obstoječi zaposleni se lahko prijavijo; admin jih rotira prek employees
 // POST/PUT, kjer v veljavnosti novih PIN-i zahtevajo 6+ mest).
+// R94 kontrakt (e2e full-suite forenzika): PIN-only prijava — identiteta
+// seje je DETERMINISTIČNO lastnik PIN-a (verifyPin išče izključno po
+// pinLookup; podani employeeId se ignorira, če ga klient sploh pošlje).
+// R95 backlog: dvostopenjska prijava (izbira zaposlenega → PIN) za strožjo
+// pripis identitete.
 export const loginSchema = z.object({
   pin: z.string().min(PIN_LOGIN_LEGACY_MIN, `PIN mora imeti vsaj ${PIN_LOGIN_LEGACY_MIN} števke`).max(20).regex(/^\d+$/, 'PIN mora vsebovati samo številke'),
 })
