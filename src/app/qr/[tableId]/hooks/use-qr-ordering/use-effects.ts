@@ -42,12 +42,38 @@ export function useQREffects({
   }, [params, setTableId]);
 
   // Fetch menu data + verify table
+  // R90: en sam SEKVENCEN tok — verify-table NAJPREJ (uspešen odgovor nosi
+  // locationId, kontrakt R90-1), nato menu fetch z ?locationId= (od R90-1
+  // obvezen: brez njega strežnik vrne unificiran 404 — konec globalnega
+  // fallback menija poljubne lokacije).
   useEffect(() => {
     if (!tableId) return;
     const fetchData = async () => {
       try {
         setLoading(true);
-        const res = await fetch('/api/public/menu');
+        // R90: verify-table razreši lokacijski kontekst za menu zahtevek.
+        let locationId: string | null = null;
+        try {
+          const vres = await fetch(`/api/public/verify-table?tableId=${encodeURIComponent(tableId)}`);
+          if (vres.ok) {
+            const vdata = await vres.json();
+            if (!vdata.exists) {
+              // Miza ne obstaja → isti UX kot doslej: not-found UI, menu
+              // fetch se izpusti (loading pade v finally).
+              setTableNotFound(true);
+              return;
+            }
+            locationId = typeof vdata.locationId === 'string' && vdata.locationId ? vdata.locationId : null;
+          }
+        } catch {
+          /* Can't verify - let user proceed */
+          // R90: brez verify konteksta poskušamo menu VSEENO, brez ?locationId
+          // → strežnik (R90-1) vrne unificiran 404 → spodnji catch postavi
+          // 'Napaka pri nalaganju.' To je pravilen fail-closed degraded
+          // state (prej bi sicer padel na globalni fallback meni).
+        }
+        const qs = locationId ? `?locationId=${encodeURIComponent(locationId)}` : '';
+        const res = await fetch(`/api/public/menu${qs}`);
         if (!res.ok) throw new Error('Failed to fetch menu');
         const data = await res.json();
         if (data.menus && data.menus.length > 0) {
@@ -57,6 +83,8 @@ export function useQREffects({
             setActiveCategoryId(data.menus[0].categories[0].id);
           }
         }
+        // Pre-existing quirk (R90, namenoma ohranjen): endpoint vrača
+        // `settings`, ne `restaurant` — vrstica ostane, obnašanje identično.
         setRestaurant(data.restaurant);
         setError(null);
       } catch {
@@ -65,17 +93,7 @@ export function useQREffects({
         setLoading(false);
       }
     };
-    const verifyTable = async () => {
-      try {
-        const res = await fetch(`/api/public/verify-table?tableId=${encodeURIComponent(tableId)}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (!data.exists) setTableNotFound(true);
-        }
-      } catch { /* Can't verify - let user proceed */ }
-    };
     fetchData();
-    verifyTable();
   }, [tableId, setMenus, setRestaurant, setActiveMenuId, setActiveCategoryId, setLoading, setError, setTableNotFound]);
 
   // Poll order status after order placed

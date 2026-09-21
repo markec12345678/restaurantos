@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import dynamic from 'next/dynamic'
 import type { RestaurantSettingsRow, WeeklyHoursRow } from '@/lib/types'
-import type { LocationInfo, OrderType, CheckoutStep } from './types'
+import type { OrderType, CheckoutStep } from './types'
 
 const OrderHeaderActions = dynamic(() => import('./OrderHeaderActions').then(m => ({ default: m.OrderHeaderActions })), { ssr: false })
 
@@ -16,9 +16,6 @@ interface OrderHeaderProps {
   cartItemCount: number
   orderType: OrderType
   setOrderType: (_type: OrderType) => void
-  locations: LocationInfo[]
-  selectedLocation: string
-  setSelectedLocation: (_id: string) => void
   isOpenNow: boolean
   showHours: boolean
   setShowHours: (_show: boolean) => void
@@ -29,7 +26,7 @@ interface OrderHeaderProps {
 
 export const OrderHeader = memo(function OrderHeader({
   settings, isDark, setIsDark, step, setStep, cartItemCount,
-  orderType, setOrderType, locations, selectedLocation, setSelectedLocation,
+  orderType, setOrderType,
   isOpenNow, showHours, setShowHours, weeklyHours,
   searchQuery, setSearchQuery,
 }: OrderHeaderProps) {
@@ -69,24 +66,6 @@ export const OrderHeader = memo(function OrderHeader({
             >
               🛍 Prevzem
             </button>
-          </div>
-        )}
-
-        {/* Izbira lokacije */}
-        {step === 'menu' && locations.length > 1 && (
-          <div className="mt-2">
-            <select
-              value={selectedLocation}
-              onChange={e => setSelectedLocation(e.target.value)}
-              className={`w-full px-4 py-2 rounded-xl text-sm ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-blue-200'} border`}
-            >
-              {locations.map(loc => (
-                // R89: LocationInfo nosi locationId (izjema "no internal ids")
-                <option key={loc.locationId} value={loc.locationId}>
-                  📍 {loc.name} — {loc.address}, {loc.city} {loc.isOpen ? '(Odprto)' : '(Zaprto)'}
-                </option>
-              ))}
-            </select>
           </div>
         )}
 

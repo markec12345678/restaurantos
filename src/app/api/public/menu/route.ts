@@ -4,7 +4,12 @@
 // Vrne celoten meni s kategorijami in alergeni za prikaz na telefonu
 // Optimizirano za mobilne naprave - minimalni podatki za hitrost
 // FIX CRITICAL: Rate limiting za preprečitev zlorabe
-// FIX P0-C3B: ?locationId je obvezen (public endpoint brez session)
+// FIX P0-C3B (R90 KANON): izrecen ?locationId je OBVEZEN — fallback
+// "prva aktivna lokacija" (prvi tenant v DB!) je IZKORENJEN. Manjkajoč /
+// neveljaven / neznan / neaktiven locationId → enoten notInScopeResponse 404
+// (ni obstoja-oraklja; ZERO db klicev za manjkajoč ali napačen format).
+// Frontend (R90-2): qr/[tableId] sekvenca verify-table → locationId →
+// menu fetch; qr-menu page pošilja ?locationId že od R87-3.
 // =====================================================================
 
 import { db } from '@/lib/db'
@@ -14,6 +19,7 @@ import { checkRateLimitAsync, getClientIp, PUBLIC_MENU_LIMIT } from '@/lib/rate-
 import { handleApiError } from '@/lib/api-utils'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 import { withCache, withETag, CachePresets } from '@/lib/middleware/cache-headers'
+import { notInScopeResponse } from '@/lib/tenant-scope'
 
 
 export const dynamic = 'force-dynamic'
@@ -31,26 +37,32 @@ export async function GET(req: Request) {
 
   try {
     const { searchParams } = new URL(req.url)
-    let locationId = searchParams.get('locationId')
+    const locationId = searchParams.get('locationId')?.trim() || ''
 
-    // FIX P0-C3B: ?locationId je opcijsen za backward compat.
-    // Prej: bil je obvezem (vrnil 400) — ampak to je razbilo frontend (QR menu, waiter page
-    // kličejo /api/public/menu brez ?locationId).
-    // Sedaj: če locationId manjka, auto-detect prvo aktivno lokacijo (single-tenant compat).
-    // V multi-tenant: frontend mora vedno podati ?locationId (URL parameter iz QR kode).
+    // R90 KANON (P0-C3B izkoreninjen): manjkajoč ?locationId → unificiran 404
+    // z ZERO db klici (ni first-active lookupa, ni menija, ni nastavitev, ni
+    // miz — prej: prva aktivna lokacija KATEREGA KOLI tenanta = njen meni/
+    // settings/mize za anonimnega klicatelja).
     if (!locationId) {
-      const firstActive = await db.location.findFirst({
-        where: { isActive: true },
-        select: { id: true },
-        orderBy: { createdAt: 'asc' },
-      })
-      if (!firstActive) {
-        return NextResponse.json(
-          { error: 'No active location found. Specify ?locationId parameter.' },
-          { status: 400 },
-        )
-      }
-      locationId = firstActive.id
+      return notInScopeResponse('Lokacija')
+    }
+
+    // R90: neveljavna oblika → isti 404, še vedno ZERO db (regex PRED poizvedbo;
+    // isti razred oblike kot kiosk resolveKioskLocation).
+    if (!/^[a-z0-9]{5,50}$/i.test(locationId)) {
+      return notInScopeResponse('Lokacija')
+    }
+
+    // R90: lokacija MORA obstajati IN biti AKTIVNA (prej: neznana/neaktivna
+    // locationId → prazen meni + settings tuje lokacije). Neznana / tuja /
+    // neaktivna → ISTI unificiran 404 (ni obstoja-oraklja; select { id } =
+    // minimalen; isActive v where izloči tuje tenante).
+    const location = await db.location.findFirst({
+      where: { id: locationId, isActive: true },
+      select: { id: true },
+    })
+    if (!location) {
+      return notInScopeResponse('Lokacija')
     }
 
     const menus = await db.menu.findMany({

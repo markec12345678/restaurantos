@@ -93,9 +93,6 @@ export default function OnlineOrderPage() {
         cartItemCount={hook.cartItemCount}
         orderType={hook.orderType}
         setOrderType={hook.setOrderType}
-        locations={hook.locations}
-        selectedLocation={hook.selectedLocation}
-        setSelectedLocation={hook.setSelectedLocation}
         isOpenNow={hook.isOpenNow}
         showHours={hook.showHours}
         setShowHours={hook.setShowHours}

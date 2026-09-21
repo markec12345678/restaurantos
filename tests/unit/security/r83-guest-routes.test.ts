@@ -380,12 +380,18 @@ describe('R83: public/kiosk', () => {
     expect(where.isActive).toBe(true)
   })
 
-  it('GET: brez parametra → fallback na privzeto lokacijo', async () => {
-    mocks.resolveDefaultLocationId.mockResolvedValue('loc-default')
-    mocks.menuFindMany.mockResolvedValue([])
-
-    await kioskGET(new Request('http://x/api/public/kiosk'))
-    expect(mocks.menuFindMany.mock.calls[0][0].where.locationId).toBe('loc-default')
+  it('GET: brez parametra → 404 notInScopeResponse + ZERO db (R90: read fallback izkoreninjen)', async () => {
+    // R90 kanon: manjkajoč ?locationId se zavrne PRED vsakim db klicem —
+    // prej resolveDefaultLocationId() (prva aktivna lokacija katerega koli
+    // tenanta); stara 'Kiosk ni nastavljen' 400 pot za manjkajoč param je
+    // odstranjena (POST jo še vedno proizvaja za pisno pot).
+    const res = await kioskGET(new Request('http://x/api/public/kiosk'))
+    expect(res.status).toBe(404)
+    const body = await res.json() as { error: string }
+    expect(body.error).toBe('Lokacija ni najden')
+    expect(mocks.resolveDefaultLocationId).not.toHaveBeenCalled()
+    expect(mocks.locationFindFirst).not.toHaveBeenCalled()
+    expect(mocks.menuFindMany).not.toHaveBeenCalled()
   })
 
   it('POST: artikli scoped na category.menu.locationId (prej globalni fetch tujih artiklov). R86-3: ekspliciten kontekst je OBVEZEN (?locationId) + validiran — globalni fallback je odstranjen', async () => {

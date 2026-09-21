@@ -103,28 +103,3 @@ export async function getNextReceiptNumber(locationId?: string | null, tx?: DbCl
   const seq = rows[0]?.value ?? 1
   return `${prefix}${String(seq).padStart(6, '0')}`
 }
-
-/**
- * P1-6: Poišči privzeto lokacijo za zapise brez eksplicitne lokacije.
- *
- * Vrstni red: (1) edina aktivna lokacija, (2) edina lokacija,
- * (3) nič (multi-tenant brez session konteksta — zapis ostane globalni).
- *
- * Uporaba: public/kiosk, delivery webhooki (brez session), mobile brez session,
- * seed poti — kjer ni avtoriziranega zaposlenega z lokacijo.
- */
-export async function resolveDefaultLocationId(tx?: DbClient): Promise<string | null> {
-  const client = tx || db
-  const active = await client.location.findFirst({
-    where: { isActive: true },
-    orderBy: { createdAt: 'asc' },
-    select: { id: true },
-  })
-  if (active) return active.id
-  //Fallback: neaktivna lokacija (raje kot NULL — ohrani tenant integriteto)
-  const any = await client.location.findFirst({
-    orderBy: { createdAt: 'asc' },
-    select: { id: true },
-  })
-  return any?.id ?? null
-}

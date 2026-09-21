@@ -36,7 +36,7 @@ export async function GET(req: Request) {
 
     const table = await db.table.findUnique({
       where: { id: tableId },
-      select: { id: true, number: true, status: true }
+      select: { id: true, number: true, status: true, locationId: true }
     })
 
     if (!table) {
@@ -49,6 +49,11 @@ export async function GET(req: Request) {
     return NextResponse.json({
       exists: true,
       tableNumber: table.number,
+      // R90 (kontrakt za R90-2): QR meni stran potrebuje lokacijo mize, da
+      // pridobi lokacijsko-scoped meni (/api/public/menu?locationId=...).
+      // Nosilec QR kode že pozna lokal (miza je v tej restavraciji), locationId
+      // ni skrivnost — javni order POST ga že zahteva v bodyju.
+      locationId: table.locationId,
       // status: table.status, // ODSTRANJENO — ni potrebno za javni QR meni
     })
   } catch {

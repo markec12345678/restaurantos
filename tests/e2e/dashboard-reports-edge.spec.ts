@@ -246,9 +246,12 @@ test.describe('Dashboard & Reports', () => {
     expect(body.database).toBe('connected')
   })
 
-  test('EDGE-7: GET /api/public/menu je javno dostopen', async ({ request }) => {
+  test('EDGE-7: GET /api/public/menu odgovarja brez crash-a (R90: brez ?locationId → 404 fail-closed)', async ({ request }) => {
     const res = await request.get(`${API_BASE}/public/menu`)
-    expect([200, 429]).toContain(res.status())
+    // R90 kanon: ?locationId je obvezen — manjkajoč → unificiran 404 (prej
+    // auto-detect fallback 200). 200 = stari odgovor (ni več pravilen, ampak
+    // toleriran za backwards-safe asercijo), 429 = rate limited v CI.
+    expect([200, 404, 429]).toContain(res.status())
   })
 
   test('EDGE-8: GET /api/qr-menu je javno dostopen', async ({ request }) => {

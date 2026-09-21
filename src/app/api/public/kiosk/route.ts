@@ -5,7 +5,7 @@ import { toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, KIOSK_LIMIT, PUBLIC_MENU_LIMIT } from '@/lib/rate-limit'
-import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
+import { getNextOrderNumber } from '@/lib/counters'
 import { notInScopeResponse } from '@/lib/tenant-scope'
 import { buildOrderItemsData, calculateOrderTotals, fetchModifierPriceMap, type MenuItemVatMap } from '@/app/api/orders/_helpers/order-items'
 import { Prisma } from '@prisma/client'
@@ -66,24 +66,22 @@ export async function GET(req: Request) {
   try {
     // R83 fix: prej GLOBALNI meni VSEH tenantov (where samo isActive) — kiosk
     // na lokaciji A je prikazoval artikle/cene/DDV vseh lokacij. Zdaj: scope
-    // na lokacijo kioska. R86-3 (M4): izrecen ?locationId je ZDAJ POLNO
-    // VALIDIRAN (obstaja + aktiven — prej samo regex oblike); neznana/tuja/
-    // neaktivna → notInScopeResponse 404. BREZ parametra: single-tenant
-    // READ fallback (dokumentiran P0-C3B kanon, kot public/menu) — SAMO za
-    // prikaz menija; pisna pot (POST) je VEDNO fail-closed, glej spodaj.
+    // na lokacijo kioska. R86-3 (M4): izrecen ?locationId je POLNO validiran
+    // (obstaja + aktiven — prej samo regex oblike); neznana/tuja/neaktivna →
+    // notInScopeResponse 404. R90: READ fallback izkoreninjen — P0-C3B kanon
+    // zaprt tudi za GET. Manjkajoč ?locationId → notInScopeResponse 404 PRED
+    // vsakim db klicem (ZERO db — prej: resolveDefaultLocationId() = prva
+    // aktivna lokacija KATEREGA KOLI tenanta; stara 'Kiosk ni nastavljen' 400
+    // pot za manjkajoč parameter odstranjena — POST jo še vedno proizvaja
+    // za pisno pot).
     const url = new URL(req.url)
     const paramLocationId = url.searchParams.get('locationId')?.trim() || null
-    let kioskLocationId: string | null
-    if (paramLocationId) {
-      const resolved = await resolveKioskLocation(paramLocationId)
-      if (!resolved.ok) return resolved.response
-      kioskLocationId = resolved.locationId
-    } else {
-      kioskLocationId = await resolveDefaultLocationId()
+    if (!paramLocationId) {
+      return notInScopeResponse('Lokacija')
     }
-    if (!kioskLocationId) {
-      return NextResponse.json({ error: 'Kiosk ni nastavljen — kontaktirajte osebje' }, { status: 400 })
-    }
+    const resolved = await resolveKioskLocation(paramLocationId)
+    if (!resolved.ok) return resolved.response
+    const kioskLocationId = resolved.locationId
     // Vrni meni za kiosk (samo aktivni artikli z alergeni)
     const menu = await db.menu.findMany({
       where: { isActive: true, locationId: kioskLocationId },

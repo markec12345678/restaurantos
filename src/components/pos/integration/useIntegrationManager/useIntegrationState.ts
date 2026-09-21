@@ -15,6 +15,7 @@ export function useIntegrationState() {
   const [formData, setFormData] = useState<FormData>({
     name: '', type: 'custom', provider: 'custom', baseUrl: '', apiKey: '', apiSecret: '',
     config: '{}', syncEnabled: true, syncInterval: 300, events: [], isActive: true,
+    locationId: null,
   })
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)

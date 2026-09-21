@@ -28,9 +28,9 @@
 //                qr-menu klijent ZDAJ pošilja locationId (settings.id iz
 //                /api/public/menu). qr/[tableId] klijent pošilja tableId —
 //                lokacija se izpelje strežniško iz mize.
-//   P0-C3B:      single-tenant GET READ fallback (public/menu brez ?locationId)
-//                OHRANJEN — regresijski pin spodaj; obe ruta sta WRITE-only
-//                (noben GET handler → ni read fallbacka za regresijo).
+//   P0-C3B/R90:  single-tenant GET READ fallback (public/menu brez
+//                ?locationId) je R90 IZKORENJEN — regresijski pin spodaj
+//                (unificiran 404 + ZERO db); obe ruta sta WRITE-only.
 //
 // Vzorec: vi.hoisted mocki (kot r86-public-scope), REALEN notInScopeResponse
 // iz '@/lib/tenant-scope' (404 'X ni najden'), REALNA resolveTable + Zod sheme.
@@ -476,19 +476,28 @@ describe('R87-3 C: first-party klijenti — locationId v request body', () => {
 })
 
 // ══════════════════════════════════════════════════════════════════
-// D. P0-C3B — single-tenant GET READ fallback OHRANJEN (regresijski pin)
+// D. R90 — P0-C3B GET READ fallback IZKORENJEN (regresijski pin:
+//    brez ?locationId → unificiran 404 + ZERO db — nikoli prva aktivna
+//    lokacija katerega koli tenanta)
 // ══════════════════════════════════════════════════════════════════
-describe('R87-3 D: P0-C3B — GET read fallback (samo READ poti, ne pisne)', () => {
-  it('public/menu GET brez ?locationId → single-tenant READ fallback ohranjen (prva aktivna lokacija)', async () => {
+describe('R90 D: P0-C3B — GET read fallback izkoreninjen (unificiran 404, ZERO db)', () => {
+  it('public/menu GET brez ?locationId → unificiran 404 + ZERO db (fallback izkoreninjen)', async () => {
     const res = await publicMenuGET(new Request('http://x/api/public/menu'))
-    expect(res.status).toBe(200)
-    // fallback READ poizvedba: prva aktivna lokacija — meni je scoped nanjo
-    expect(mocks.locationFindFirst).toHaveBeenCalledWith({
-      where: { isActive: true },
-      select: { id: true },
-      orderBy: { createdAt: 'asc' },
-    })
-    expect(mocks.menuFindMany.mock.calls[0][0].where.locationId).toBe(LOC_A)
+    expect(res.status).toBe(404)
+    await expect(res.json()).resolves.toEqual({ error: 'Lokacija ni najden' })
+    // ZERO db: nobena fallback poizvedba (prva aktivna lokacija, meni, mize)
+    expect(mocks.locationFindFirst).not.toHaveBeenCalled()
+    expect(mocks.menuFindMany).not.toHaveBeenCalled()
+    expect(mocks.tableFindMany).not.toHaveBeenCalled()
+  })
+
+  it('public/menu GET s praznim ?locationId → isti unificiran 404 + ZERO db (ni oraklja med manjkajocim in neveljavnim)', async () => {
+    const res = await publicMenuGET(new Request('http://x/api/public/menu?locationId=%20%20'))
+    expect(res.status).toBe(404)
+    await expect(res.json()).resolves.toEqual({ error: 'Lokacija ni najden' })
+    expect(mocks.locationFindFirst).not.toHaveBeenCalled()
+    expect(mocks.menuFindMany).not.toHaveBeenCalled()
+    expect(mocks.tableFindMany).not.toHaveBeenCalled()
   })
 
   it('public/order in public/online-order nimata GET handlerja (WRITE-only — pisni fallback Nič, read fallback ni njuna skrb)', async () => {

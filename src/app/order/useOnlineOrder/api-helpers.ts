@@ -9,7 +9,11 @@ import type {
 
 // ─── API klici ───────────────────────────────────────────────
 
-export async function fetchMenuData(): Promise<{
+// R90: ?locationId je od R90-1 OBVEZEN (konec globalnega fallbacka —
+// manjkajoč/neznan/neaktiven locationId → unificiran 404). qs vzorec je
+// enak qr-menu siblingu (src/app/qr-menu/use-qr-menu/api-helpers.ts).
+// Meni ostane tokenless (javen podatek po naravi) — samo lokacijsko scoped.
+export async function fetchMenuData(locationId?: string | null): Promise<{
   menus: Menu[]
   settings: RestaurantSettingsRow | null
   activeMenu: string
@@ -17,7 +21,18 @@ export async function fetchMenuData(): Promise<{
   error: string
 }> {
   try {
-    const res = await fetch('/api/public/menu')
+    const qs = locationId ? `?locationId=${encodeURIComponent(locationId)}` : ''
+    const res = await fetch(`/api/public/menu${qs}`)
+    // R90 odločitev: !res.ok → error string (NE tiha prazna menija).
+    // Po R90 sekvenci v use-order-state se menu fetch brez locationId sploh
+    // ne zgodi, kadar manjka veljaven token kontekst (needsOrderingLink ga
+    // izpusti — empty state je prikazan, error ostane neviden). Klic bodisi
+    // nosi deep-link lokacijo bodisi je order-config že padel — 404 je torej
+    // resnična okvara in error banner v main appu je iskren (usklajeno s
+    // qr-menu siblingom, ki vrže napako pri !res.ok).
+    if (!res.ok) {
+      return { menus: [], settings: null, activeMenu: '', activeCategory: '', error: 'Napaka pri nalaganju menija.' }
+    }
     const data = await res.json()
     const menus = data.menus || []
     const settings = data.settings || {}

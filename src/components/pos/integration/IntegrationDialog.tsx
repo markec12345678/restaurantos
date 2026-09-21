@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DecimalInput } from '@/components/ui/decimal-input'
@@ -9,12 +10,33 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Plus, Plug } from 'lucide-react'
+import { authFetch } from '@/components/pos/PinLogin'
+import { queryKeys } from '@/lib/query-keys'
 import { getConnectorTypes } from '@/lib/integrations/connectors'
 import type { IntegrationDialogProps } from './constants'
+import { WebhookUrlSection } from './WebhookUrlSection'
 import dynamic from 'next/dynamic'
 
 // Lazy-loaded podkomponenta
 const IntegrationConnectorCards = dynamic(() => import('./IntegrationConnectorCards').then(m => ({ default: m.IntegrationConnectorCards })), { ssr: false })
+
+// R90: Radix Select prepoveduje prazen string kot SelectItem value — sentinel
+// 'global' zastopa izbiro "brez lokacije" (kontraktno select value '' → locationId: null)
+const GLOBAL_LOCATION = 'global'
+
+// Minimalen lik lokacije za select (GET /api/locations vrne polne vrstice)
+interface LocationOption {
+  id: string
+  name: string
+}
+
+async function fetchLocationOptions(): Promise<LocationOption[]> {
+  const res = await authFetch('/api/locations')
+  if (!res.ok) return []
+  const json: unknown = await res.json()
+  const rows = Array.isArray(json) ? json : ((json as { locations?: unknown[] } | null)?.locations ?? [])
+  return (rows as LocationOption[]).filter(l => typeof l?.id === 'string' && typeof l?.name === 'string')
+}
 
 // ============================================
 // DIJALOG ZA VNOS/UREJANJE INTEGRACIJE
@@ -33,6 +55,17 @@ export const IntegrationDialog = memo(function IntegrationDialog({
   isCreating,
   isUpdating,
 }: IntegrationDialogProps) {
+  // R90: lokacije za 'Lokacija' select — hišni vzorec (authFetch + queryKeys.locations.all,
+  // normalizacija array | { locations }; glej MultiLocationDashboard/useLocationQueries).
+  // Zdolžno: fetch samo, ko je dialog odprt.
+  const { data: locationsData } = useQuery({
+    queryKey: queryKeys.locations.all,
+    queryFn: fetchLocationOptions,
+    enabled: open,
+    staleTime: 5 * 60_000,
+  })
+  const locations = locationsData ?? []
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -70,6 +103,25 @@ export const IntegrationDialog = memo(function IntegrationDialog({
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            {/* R90: ciljna lokacija — super-admin izbira izrecno (string ali globalna),
+                scope-bound seji strežnik vseeno žige session lokacijo (vrednost ignorira) */}
+            <div className="space-y-1.5">
+              <Label htmlFor="int-location" className="text-sm font-semibold">Lokacija</Label>
+              <Select
+                value={formData.locationId ?? GLOBAL_LOCATION}
+                onValueChange={v => onFormDataChange({ ...formData, locationId: v === GLOBAL_LOCATION ? null : v })}
+              >
+                <SelectTrigger id="int-location" className="w-full" aria-label="Lokacija integracije"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={GLOBAL_LOCATION}>Globalna (brez lokacije)</SelectItem>
+                  {locations.map(loc => (
+                    <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">Samoupravno za super-admin (drugače žig seje)</p>
             </div>
 
             <div className="space-y-1.5">
@@ -120,6 +172,10 @@ export const IntegrationDialog = memo(function IntegrationDialog({
               </div>
               <Switch id="int-active" checked={formData.isActive} onCheckedChange={checked => onFormDataChange({ ...formData, isActive: checked })} />
             </div>
+
+            {/* R90: izdani webhook URL za dostavne platforme (read-only) — samo ko je
+                prisoten (dostavni providerji s konfigurirano HMAC skrivnostjo) */}
+            {editingItem?.webhookUrl ? <WebhookUrlSection webhookUrl={editingItem.webhookUrl} /> : null}
           </div>
         )}
 

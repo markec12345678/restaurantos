@@ -18,6 +18,7 @@ export function useIntegrationManager() {
     state.setFormData({
       name: '', type: 'custom', provider: 'custom', baseUrl: '', apiKey: '', apiSecret: '',
       config: '{}', syncEnabled: true, syncInterval: 300, events: [], isActive: true,
+      locationId: null,
     })
     state.setDialogOpen(true)
   }, [state])
@@ -34,6 +35,7 @@ export function useIntegrationManager() {
         }, {}), null, 2,
       ),
       syncEnabled: true, syncInterval: 300, events: connector.defaultEvents, isActive: true,
+      locationId: null,
     })
   }, [state])
 
@@ -47,6 +49,7 @@ export function useIntegrationManager() {
       baseUrl: item.baseUrl, apiKey: '', apiSecret: '',
       config: item.config, syncEnabled: item.syncEnabled, syncInterval: item.syncInterval,
       events: parsedEvents, isActive: item.isActive,
+      locationId: item.locationId ?? null, // R90: null (globalna) → select pokaže "Globalna"
     })
     state.setDialogOpen(true)
   }, [state])
@@ -59,6 +62,9 @@ export function useIntegrationManager() {
       apiSecret: state.formData.apiSecret || undefined, config: state.formData.config,
       syncEnabled: state.formData.syncEnabled, syncInterval: state.formData.syncInterval,
       events: JSON.stringify(state.formData.events), isActive: state.formData.isActive,
+      // R90: VEDNO izrecen locationId (string ali null) — server kanon: scope-bound
+      // seja vrednost ignorira (žig seje), super-admin + undefined → 400
+      locationId: state.formData.locationId ?? null,
     }
     if (state.editingItem) { state.updateMutation.mutate({ id: state.editingItem.id, ...payload }) }
     else { state.createMutation.mutate(payload) }

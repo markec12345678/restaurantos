@@ -249,24 +249,27 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
   })
 
   // ═══════════════════════════════════════════════════════════════
-  // P0-C3B: PUBLIC MENU AUTO-DETECT
+  // R90: PUBLIC MENU — izrecen ?locationId OBVEZEN (fallback izkoreninjen)
   // ═══════════════════════════════════════════════════════════════
 
-  test.describe('P0-C3B: Public Menu Auto-Detect', () => {
-    test('MENU-1: GET /api/public/menu brez ?locationId — auto-detect prvo aktivno', async ({ request }) => {
+  test.describe('R90: Public Menu Location Scope', () => {
+    test('MENU-1: GET /api/public/menu brez ?locationId → unificiran 404 (R90: fallback izkoreninjen, ZERO db)', async ({ request }) => {
       const res = await request.get(`${API_BASE}/public/menu`)
-      expect(res.ok()).toBeTruthy()
-      const body = await res.json().catch(() => ({}))
-      expect(body.menus).toBeDefined()
-      expect(Array.isArray(body.menus)).toBeTruthy()
-      expect(body.settings).toBeDefined()
-      expect(body.settings.name).toBeTruthy()
+      // R90 kanon: manjkajoč locationId → notInScopeResponse 404 (prej:
+      // auto-detect prva aktivna lokacija katerega koli tenanta). 429 = rate
+      // limited v CI.
+      expect([404, 429]).toContain(res.status())
+      if (res.status() === 404) {
+        const body = await res.json().catch(() => ({}))
+        expect(body.error).toBe('Lokacija ni najden')
+      }
     })
 
-    test('MENU-2: GET /api/public/menu z ?locationId=loc-1 — vrne meni za loc-1', async ({ request }) => {
+    test('MENU-2: GET /api/public/menu z ?locationId=loc-1 — scoped meni ali unificiran 404', async ({ request }) => {
       const res = await request.get(`${API_BASE}/public/menu?locationId=loc-1`)
-      // Sprejemljivi: 200 (OK), 429 (rate limited v CI)
-      expect([200, 429]).toContain(res.status())
+      // 200 = lokacija obstaja + aktivna → scoped meni; 404 = neznana/neaktivna
+      // (unificiran, ni oraklja); 429 = rate limited v CI
+      expect([200, 404, 429]).toContain(res.status())
       if (res.ok()) {
         const body = await res.json().catch(() => ({}))
         expect(body.menus).toBeDefined()
@@ -274,12 +277,11 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
       }
     })
 
-    test('MENU-3: GET /api/public/menu z ?locationId=nonexistent — vrne 400 ali 200', async ({ request }) => {
+    test('MENU-3: GET /api/public/menu z ?locationId=nonexistent-loc → unificiran 404', async ({ request }) => {
       const res = await request.get(`${API_BASE}/public/menu?locationId=nonexistent-loc`)
-      // 400 = no active location found (pravilno za nonexistent)
-      // 200 = auto-detect fallback (če se endpoint odloči fallbackati)
-      // 429 = rate limited v CI
-      expect([200, 400, 429]).toContain(res.status())
+      // R90: neznana/neaktivna/neveljavna oblika → ISTI unificiran 404
+      // (ni obstoja-oraklja); 429 = rate limited v CI
+      expect([404, 429]).toContain(res.status())
     })
 
     test('MENU-4: GET /api/qr-menu brez ?locationId — auto-detect', async ({ request }) => {

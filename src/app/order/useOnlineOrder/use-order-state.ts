@@ -69,7 +69,8 @@ function persistCart(cart: CartItem[], orderType: OrderType) {
 // R88: per-location ordering token — deep link `/order?loc=<id>&t=<token>`
 // (izdaja: GET /api/locations/[id]/ordering-token; poraba: POST body
 // orderingToken — obvezen od R88). Kontekst se prebere LAZY ob prvem
-// renderju, PRED initOrderConfig — sicer bi init iz order-config prepisal
+// renderju, PRED inicializacijo (initOrder → order-config resolucija) — sicer
+// bi init iz order-config prepisal
 // izbrano lokacijo s prvo lokacijo v seznamu. Brez URL parametrov (običajen
 // dropdown tok) sta oba polja prazni — strežnik naročilo brez tokena
 // ZAVRNE (fail-closed, BY-DESIGN — ne ustvarjamo lažnih tokenov).
@@ -100,7 +101,8 @@ export function useOrderState() {
   const [isOpenNow, setIsOpenNow] = useState(true)
   const [weeklyHours, setWeeklyHours] = useState<WeeklyHoursRow[]>([])
   const [locations, setLocations] = useState<LocationInfo[]>([])
-  // R88: URL deep-link (`?loc=`) preselek lokacije še pred initOrderConfig
+  // R88: URL deep-link (`?loc=`) preselek lokacije še pred initOrder
+  // (order-config resolucija)
   const [selectedLocation, setSelectedLocation] = useState<string>(() => readOrderingUrlContext().locationId)
   // R88: ordering token iz URL deep-linka (`?t=`) — gre v POST body
   const [orderingToken, setOrderingToken] = useState<string>(() => readOrderingUrlContext().token)
@@ -128,8 +130,7 @@ export function useOrderState() {
   const [selectedMods, setSelectedMods] = useState<Modifier[]>([])
 
   useEffect(() => {
-    initMenu()
-    initOrderConfig()
+    initOrder()
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
     setIsDark(prefersDark)
   }, [])
@@ -140,29 +141,43 @@ export function useOrderState() {
     persistCart(cart, orderType)
   }, [cart, orderType])
 
-  async function initMenu() {
-    const result = await fetchMenuData()
+  // R90: inicializacija je SEKVENCNA — order-config PRVI, meni DRUGI.
+  // Razlog: order-config (R89-3) pripne selectedLocation iz token-provenega
+  // deep linka (?loc= + ?t=); meni se mora poizvedeti za ISTO lokacijo,
+  // za katero bo žigosano naročilo — sicer bi /api/public/menu (od R90-1
+  // brez globalnega fallbacka) brez locationId sploh vrnil 404.
+  async function initOrder() {
+    const config = await fetchOrderConfigData(selectedLocation, orderingToken)
+    if (config.error) setError(config.error)
+    setIsOpenNow(config.isOpenNow)
+    setWeeklyHours(config.weeklyHours)
+    setLocations(config.locations)
+    setNeedsOrderingLink(config.needsOrderingLink)
+    // R89: needsOrderingLink → URL-izbran selectedLocation (?loc=) NI prepisan
+    // (še vedno lahko veljaven — o njegovi veljavnosti odloči POST)
+    if (config.selectedLocation !== selectedLocation) setSelectedLocation(config.selectedLocation)
+    // R90: brez veljavnega token konteksta (anonimen obisk / slab token) menu
+    // fetch SKOPIČNO izpustimo — prazne menus, brez error stringa; page.tsx
+    // že prikazuje "Naročanje po povezavi" empty state (loading mora pasti,
+    // sicer stran ostane na spinnerju).
+    if (config.needsOrderingLink) {
+      setLoading(false)
+      return
+    }
+    await initMenu(config.selectedLocation)
+  }
+
+  async function initMenu(locationId?: string | null) {
+    // R90: lokacija je URL-pripeta vrednost iz order-config resolucije
+    // (deep link ?loc=, ohranjena/pripeta v initOrder zgoraj) — isti
+    // kontekst, za katerega bo žigosano naročilo (POST selectedLocation).
+    const result = await fetchMenuData(locationId)
     if (result.error) setError(result.error)
     setMenus(result.menus)
     setSettings(result.settings)
     setActiveMenu(result.activeMenu)
     setActiveCategory(result.activeCategory)
     setLoading(false)
-  }
-
-  async function initOrderConfig() {
-    // R89: ordering token gre skupaj z izbrano lokacijo v order-config
-    // zahtevek — brez (?loc= + ?t=) vrne strežnik prazno konfiguracijo
-    // (fail-closed), UI pa needsOrderingLink empty state.
-    const result = await fetchOrderConfigData(selectedLocation, orderingToken)
-    if (result.error) setError(result.error)
-    setIsOpenNow(result.isOpenNow)
-    setWeeklyHours(result.weeklyHours)
-    setLocations(result.locations)
-    setNeedsOrderingLink(result.needsOrderingLink)
-    // R89: needsOrderingLink → URL-izbran selectedLocation (?loc=) NI prepisan
-    // (še vedno lahko veljaven — o njegovi veljavnosti odloči POST)
-    if (result.selectedLocation !== selectedLocation) setSelectedLocation(result.selectedLocation)
   }
 
   async function checkDeliveryZone(postCode: string, city: string) {

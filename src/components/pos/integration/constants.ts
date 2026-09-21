@@ -24,6 +24,13 @@ export interface IntegrationItem {
   events: string
   isActive: boolean
   connectionStatus: string
+  // R90: izdani webhook envelope URL za dostavne platforme (wolt/glovo/bolt).
+  // GET /api/integrations ga vrača SAMO, ko je HMAC skrivnost konfigurirana —
+  // izostanek polja = "ni na voljo" (UI ne izriše ničesar).
+  webhookUrl?: string
+  // R88/R90: lokacijski žig (R88 MODEL A) — potuje skozi list query brez
+  // preslikave; optionalen, ker starejši odgovori polja ne vsebujejo.
+  locationId?: string | null
   _count?: { logs: number }
   createdAt: string
   updatedAt: string
@@ -41,6 +48,10 @@ export interface FormData {
   syncInterval: number
   events: string[]
   isActive: boolean
+  // R90: ciljna lokacija integracije — null = izrecna "Globalna (brez lokacije)".
+  // Strežniški kanon: scope-bound seja vrednost IGNORIRA (žig seje), super-admin
+  // poda izrecen string ali null (undefined → 400), zato UI VEDNO pošlje eno od obeh.
+  locationId: string | null
 }
 
 // --- POMOŽNE FUNKCIJE ---

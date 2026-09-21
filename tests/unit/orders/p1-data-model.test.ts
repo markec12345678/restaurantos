@@ -7,7 +7,8 @@
 // - Kanonični izračun: total = neto + DDV − popust (kiosk/mobile enako kot POS)
 // - Per-lokacijski števci (getNextOrderNumber/getNextReceiptNumber):
 //   pravilno ime counterja + NULL fallback na globalni števec
-// - resolveDefaultLocationId: single-tenant resolucija
+// (R90: P1-6 resolveDefaultLocationId odstranjen — globalni fallback je
+//  izkoreninjen iz lib in vseh produkcijskih klicočev, glej r90-menu-scope)
 // ============================================
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -23,7 +24,6 @@ import {
   getNextOrderNumber,
   getNextReceiptNumber,
   scopedCounterName,
-  resolveDefaultLocationId,
 } from '@/lib/counters'
 import { db } from '@/lib/db'
 
@@ -33,16 +33,12 @@ vi.mock('@/lib/db', () => ({
     counter: {
       upsert: vi.fn(),
     },
-    location: {
-      findFirst: vi.fn(),
-    },
     $queryRawUnsafe: vi.fn(),
   },
 }))
 
 const mockUpsert = db.counter.upsert as unknown as ReturnType<typeof vi.fn>
 const mockRaw = db.$queryRawUnsafe as unknown as ReturnType<typeof vi.fn>
-const mockLocationFindFirst = db.location.findFirst as unknown as ReturnType<typeof vi.fn>
 
 // Menu item mock s PRAVIMI Prisma.Decimal instancami (toNum preverja instanceof)
 const mi = (id: string, price: number, vatRate: number) => ({
@@ -223,26 +219,6 @@ describe('P1-7 getNextReceiptNumber — per-lokacijsko (FURS)', () => {
     expect(mockUpsert).toHaveBeenCalledWith(
       expect.objectContaining({ where: { name: `receiptNumber-${year}` } })
     )
-  })
-})
-
-describe('P1-6 resolveDefaultLocationId', () => {
-  it('vrne aktivno lokacijo', async () => {
-    mockLocationFindFirst.mockResolvedValueOnce({ id: 'loc-active' })
-    expect(await resolveDefaultLocationId()).toBe('loc-active')
-    expect(mockLocationFindFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { isActive: true } })
-    )
-  })
-
-  it('brez aktivnih → katera koli lokacija (neaktivna)', async () => {
-    mockLocationFindFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 'loc-any' })
-    expect(await resolveDefaultLocationId()).toBe('loc-any')
-  })
-
-  it('brez lokacij → null (fail-safe, ne vrže)', async () => {
-    mockLocationFindFirst.mockResolvedValue(null)
-    expect(await resolveDefaultLocationId()).toBeNull()
   })
 })
 

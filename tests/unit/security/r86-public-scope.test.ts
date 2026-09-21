@@ -16,9 +16,10 @@
 //               → validiran (obstaja + aktiven) → 400 brez konteksta,
 //               404 'Lokacija ni najden' za neznano/tujo/neaktivno (unificiran
 //               — ni obstoja-oraklja); NIČ pisnih operacij brez žiga.
-//   kiosk GET:  izrecen ?locationId zdaj POLNO validiran (prej samo regex);
-//               brez parametra single-tenant READ fallback ohranjen
-//               (P0-C3B kanon, kot public/menu) — samo prikaz menija.
+//   kiosk GET:  izrecen ?locationId zdaj POLNO validiran (prej samo regex).
+//               R90: brez parametra NI več read fallbacka — 404 'Lokacija ni
+//               najden' z ZERO db klici (P0-C3B kanon zaprt tudi za GET;
+//               resolveDefaultLocationId iz lib/counters RODOM).
 //   promo-check: ?locationId obvezen + validiran; rate limiting nespremenjen.
 //
 // Vzorec: vi.hoisted mocki (kot r85-final-scope), REALEN notInScopeResponse
@@ -211,7 +212,7 @@ describe('R86-3 A: POST /api/public/kiosk — fail-closed lokacijski kontekst', 
 
 // ══════════════════════════════════════════════════════════════════
 // B. KIOSK GET (M4 sibling) — izrecen ?locationId zdaj validiran;
-//    single-tenant READ fallback ohranjen (P0-C3B kanon)
+//    R90: brez parametra → 404 notInScopeResponse (read fallback izkoreninjen)
 // ══════════════════════════════════════════════════════════════════
 describe('R86-3 B: GET /api/public/kiosk — validacija izrecnega ?locationId', () => {
   it('veljaven ?locationId → 200 + meni scoped + lokacija validirana (obstaja + aktiven)', async () => {
@@ -231,11 +232,15 @@ describe('R86-3 B: GET /api/public/kiosk — validacija izrecnega ?locationId', 
     expect(mocks.menuFindMany).not.toHaveBeenCalled()
   })
 
-  it('brez ?locationId → single-tenant READ fallback OHRANJEN (samo prikaz menija)', async () => {
+  it('R90: brez ?locationId → 404 notInScopeResponse + ZERO db klici (fallback izkoreninjen)', async () => {
     const res = await kioskGET(new Request('http://x/api/public/kiosk'))
-    expect(res.status).toBe(200)
-    expect(mocks.resolveDefaultLocationId).toHaveBeenCalledTimes(1)
-    expect(mocks.menuFindMany.mock.calls[0][0].where.locationId).toBe(LOC_DEFAULT)
+    expect(res.status).toBe(404)
+    const body = await res.json() as { error: string }
+    expect(body.error).toBe('Lokacija ni najden')
+    // ZERO db: manjkajoč param se zavrne PRED kakršno koli poizvedbo
+    expect(mocks.resolveDefaultLocationId).not.toHaveBeenCalled()
+    expect(mocks.locationFindFirst).not.toHaveBeenCalled()
+    expect(mocks.menuFindMany).not.toHaveBeenCalled()
   })
 })
 
