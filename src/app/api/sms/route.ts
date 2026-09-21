@@ -7,6 +7,11 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+// R93-b: enoten 429 helper (rate-limit/response.ts) — DIREKTEN import, ne barrel:
+// testi mockajo '@/lib/rate-limit' z vi.hoisted, direkten path teče realen helper.
+// Zdaj pridobi TUDI X-RateLimit-Remaining/Reset glave (prej samo Retry-After);
+// telo 'Preveč zahtevkov' OHRANJENO (zgodovinsko sporočilo te rute).
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { isSmsConfigured, sendSms, type SmsMessage } from '@/lib/sms'
 import { z } from 'zod'
 
@@ -23,7 +28,10 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
     const rl = await checkRateLimitAsync('sms', getClientIp(req), AUTHENTICATED_LIMIT)
-    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
+    // R93-b: 429 po hišnem kanonu — rate-limit plast ostane ZA requireAuth
+    // (pri tej ruti NI anonimni-abuse modela, briefova domneva 'before auth'
+    // ne drži); placement nedotaknjen, samo enotna oblika 429 odgovora.
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
 
     return NextResponse.json({
       configured: isSmsConfigured(),
@@ -40,7 +48,10 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
     const rl = await checkRateLimitAsync('sms', getClientIp(req), AUTHENTICATED_LIMIT)
-    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
+    // R93-b: 429 po hišnem kanonu — rate-limit plast ostane ZA requireAuth
+    // (pri tej ruti NI anonimni-abuse modela, briefova domneva 'before auth'
+    // ne drži); placement nedotaknjen, samo enotna oblika 429 odgovora.
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
 
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error

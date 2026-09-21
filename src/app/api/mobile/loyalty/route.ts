@@ -7,6 +7,10 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { handleApiError } from '@/lib/api-utils'
 import { verifyApiKey } from '@/lib/api-security'
+// R93-c: rate-limit kanon (fiksni store key + fail-closed core). 429 helper
+// direktno iz '/response' (ne barrel) — testni mocki so lastniki barrel-a.
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 // odstranjen prazen import (runda 12 lint cleanup)
 
 export const dynamic = 'force-dynamic'
@@ -14,6 +18,16 @@ export const dynamic = 'force-dynamic'
 // GET — loyalty stanje (po telefonu ali emailu)
 export async function GET(req: Request) {
   try {
+    // R93-c (anonimni model, zrcali mobile/order + public/*): rate limit NA
+    // VRHU try bloka, PRED verifyApiKey — vsak verifyApiKey klic naredi DB
+    // lookup (ApiKey tabela), zato invalid-key brute-force dušimo PRED
+    // avtentikacijo. Fiksni store key 'mobile-loyalty' (ne pathname-izpeljan)
+    // preprečuje per-id fan-out iz enega IP-ja; fail-closed core.ts kanon.
+    const rateCheck = await checkRateLimitAsync('mobile-loyalty', getClientIp(req), AUTHENTICATED_LIMIT)
+    if (!rateCheck.allowed) {
+      return rateLimitedResponse(rateCheck.retryAfterMs, 'Preveč zahtevkov')
+    }
+
     const authHeader = req.headers.get('authorization')
     const apiKeyResult = await verifyApiKey(authHeader)
     if (!apiKeyResult.valid) {

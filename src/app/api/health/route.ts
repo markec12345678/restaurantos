@@ -34,11 +34,13 @@ interface HealthCheck {
 async function checkDatabase(): Promise<HealthCheck> {
   const start = Date.now()
   try {
-    // R92 FIX: tagged `$queryRaw\`SELECT 1\`` s pglite-prisma-adapterjem TRAJNO
-    // abort-a PGlite WASM ('Aborted(). Build with -sASSERTIONS for more info.')
-    // → health 503 na PGlite dev/e2e okoljih, čeprav so model queries + $queryRawUnsafe
-    // zdravi (dokaz: lib/counters.ts $queryRawUnsafe orderNumber inkrement dela).
-    // $queryRawUnsafe('SELECT 1') je semantično identičen in dela na obeh backendih.
+    // R92 FIX: tagged `$queryRaw\`SELECT 1\`` je med e2e sejo R92 vračal WASM
+    // abort ('Aborted(). Build with -sASSERTIONS') → health 503.
+    // R93 KOREKCIJA (empirično): 14-točkovna matrica (scripts/probe-raw-pglite.mjs,
+    // izolirani child procesi) + probe v svežem next dev pokažeta, da tagged
+    // oblika DELUJE v čistem okolju — abort je bil OKOLJSKI (OOM/eviction pod
+    // 4GB sandbox med e2e), ne lastnost tagged poti. $queryRawUnsafe('SELECT 1')
+    // ostane kanon (defenzivno, semantično identično, dela na obeh backendih).
     await db.$queryRawUnsafe('SELECT 1')
     return {
       name: 'database',

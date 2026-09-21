@@ -10,12 +10,26 @@ import { handleApiError } from '@/lib/api-utils'
 import { verifyApiKey } from '@/lib/api-security'
 import { toNum } from '@/lib/decimal'
 import { parseAllergens } from '@/lib/json-fields'
+// R93-c: rate-limit kanon (fiksni store key + fail-closed core). 429 helper
+// direktno iz '/response' (ne barrel) — testni mocki so lastniki barrel-a.
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 
 export const dynamic = 'force-dynamic'
 
 // GET — mobile menu (kompakten format)
 export async function GET(req: Request) {
   try {
+    // R93-c (anonimni model, zrcali mobile/order + public/*): rate limit NA
+    // VRHU try bloka, PRED verifyApiKey — vsak verifyApiKey klic naredi DB
+    // lookup (ApiKey tabela), zato invalid-key brute-force dušimo PRED
+    // avtentikacijo. Fiksni store key 'mobile-menu' (ne pathname-izpeljan)
+    // preprečuje per-id fan-out iz enega IP-ja; fail-closed core.ts kanon.
+    const rateCheck = await checkRateLimitAsync('mobile-menu', getClientIp(req), AUTHENTICATED_LIMIT)
+    if (!rateCheck.allowed) {
+      return rateLimitedResponse(rateCheck.retryAfterMs, 'Preveč zahtevkov')
+    }
+
     // API key auth (za mobile app)
     const authHeader = req.headers.get('authorization')
     const apiKeyResult = await verifyApiKey(authHeader)

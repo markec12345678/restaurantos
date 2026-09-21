@@ -11,6 +11,9 @@ import { toNum } from '@/lib/decimal'
 import { getNextOrderNumber } from '@/lib/counters'
 import { buildOrderItemsData, calculateOrderTotals, fetchModifierPriceMap, type MenuItemVatMap } from '@/app/api/orders/_helpers/order-items'
 import { checkRateLimitAsync, getClientIp, PUBLIC_ORDER_LIMIT } from '@/lib/rate-limit'
+// R93-c: 429 = hišni kanon helper (Retry-After + X-RateLimit-* glave). Direkten
+// import (NE barrel) — testni mocki so lastniki barrel-a, r89/R92 vzorec.
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { notInScopeResponse } from '@/lib/tenant-scope'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
@@ -41,8 +44,10 @@ export async function GET(req: Request) {
     // FIX R82-C (javna pot): rate limit (prej BREZ — R81-E2)
     const clientIp = getClientIp(req)
     const rateCheck = await checkRateLimitAsync('mobile-order', clientIp, PUBLIC_ORDER_LIMIT)
+    // R93-c: inline 429 blok migriran na rateLimitedResponse — ključ/placement
+    // nespremenjena (R82-C legacy kanon), telo oblike { error }, glave dodane.
     if (!rateCheck.allowed) {
-      return NextResponse.json({ error: 'Preveč zahtevkov. Poskusite znova čez minuto.' }, { status: 429 })
+      return rateLimitedResponse(rateCheck.retryAfterMs, 'Preveč zahtevkov')
     }
 
     const authHeader = req.headers.get('authorization')
@@ -108,8 +113,9 @@ export async function POST(req: Request) {
     // FIX R82-C (javna pot): rate limit (prej BREZ — R81-E2)
     const clientIp = getClientIp(req)
     const rateCheck = await checkRateLimitAsync('mobile-order', clientIp, PUBLIC_ORDER_LIMIT)
+    // R93-c: inline 429 blok migriran na rateLimitedResponse (glave kanona)
     if (!rateCheck.allowed) {
-      return NextResponse.json({ error: 'Preveč naročil. Poskusite znova čez minuto.' }, { status: 429 })
+      return rateLimitedResponse(rateCheck.retryAfterMs, 'Preveč zahtevkov')
     }
 
     const authHeader = req.headers.get('authorization')

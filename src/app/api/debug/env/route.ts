@@ -8,6 +8,17 @@ import { requireAuth } from '@/lib/auth-middleware'
 // (ena instanca, en DATABASE_URL za vse tenantе) → platformAdminGate
 // (EXACT mirror /api/reports/digest-send:35-43): samo admin/super_admin BREZ
 // locationId. Legitimna uporaba (config debug na platformni ravni) ostane.
+//
+// R93-c produkcija-gate analiza (verdict: gate + redakcija že ZADOSTNA —
+// R86-4 fix je hišni precedens, brez spremembe obnašanja):
+//   - Gate: platformAdminGate (R86-4, EXACT mirror reports/digest-send) —
+//     samo role admin/super_admin BREZ locationId. Lokacijski admin → 403.
+//   - Površina: NE iterira process.env — samo 7 fiksnih ključev. URL ključi
+//     (DATABASE_URL/POSTGRES_URL) so MASKIRANI (user:pass → ****, R86-4);
+//     POSTGRES_HOST/PGDATABASE/NODE_ENV ostanejo vidni (legitimna config
+//     debug uporaba, R86-4 odločitev). Secret-named env vrednosti (SECRET/
+//     TOKEN/KEY/PASSWORD) NISO del površine → dodatna redakcija ni potrebna
+//     (pinned v tests/unit/security/r93-debug-gate.test.ts).
 function platformAdminGate(authResult: { session: { role: string; locationId?: string | null } | null }): NextResponse | null {
   const session = authResult.session
   const isPlatformAdmin = !!session && ['admin', 'super_admin'].includes(session.role) && !session.locationId

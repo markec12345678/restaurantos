@@ -1,0 +1,113 @@
+# ============================================
+# RestaurantOS — Playwright E2E (R93)
+# ============================================
+# Ozadje (R91-FINAL backlog d → R92 → R93): stale e2e pini so dvakrat
+# zamaskirali varnostne luknje (R91-1: /api/qr-menu P0-C3B residual, ki ga je
+# pin MENU-4 "blagoslovil" kot pričakovano vedenje; R90/R91 shemski drift
+# seeda). Sandbox (4GB) ne zmore celotnega e2e run-a (next dev RSS 1.8-2.5GB
+# + chromium ≈ OOM pri 12+ preostalih spec fajlih — dokumentirano v R92-FINAL),
+# zato je e2e teče TUKAJ, na CI runnerju (7GB+ RAM).
+#
+# Procedura = R92-C dokumentirani vzorec (worklog R92-FINAL):
+#   init-e2e-db.mjs (deterministični wipe+DDL+seed, MODEL A fixtures)
+#   → next dev -p 3000 (standalone, ker playwright.config webServer = undefined v CI)
+#   → /api/health 200 čakanje
+#   → playwright test (retries=2 iz konfiga, workers=1, github reporter)
+name: E2E
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch: {}
+
+# Prekliče tekoče e2e run-e, ko nov commit prispe na isti ref
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUN_VERSION: "1.3.14"
+
+jobs:
+  e2e:
+    name: Playwright E2E (PGlite dev server)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # PGlite (embedded Postgres) — prazen DATABASE_URL sili PGlite vejo v lib/db.ts
+      DATABASE_URL: ""
+      PGLITE_DATA_DIR: /home/runner/pglite-e2e-data
+      NEXTAUTH_SECRET: "e2e-test-secret-only"
+      NEXTAUTH_URL: "http://localhost:3000"
+      WS_BROADCAST_SECRET: "e2e-test-secret-only"
+      FURS_ENV: "test"
+      FURS_ALLOW_SIMULATION: "true"
+      # P1-testiranje: e2e niz dela ~80+ API klicev/min — dvignemo splošno mejo
+      API_RATE_LIMIT_MAX: "600"
+      # R92-C: login testov nareda več kot 5 poskusov/min — dvignemo login mejo
+      LOGIN_RATE_LIMIT_MAX: "100"
+      PLAYWRIGHT_BASE_URL: "http://localhost:3000"
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Install dependencies (frozen lockfile)
+        run: bun install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: bunx prisma generate
+
+      - name: Install Playwright chromium (+ system deps)
+        run: bunx playwright install --with-deps chromium
+
+      - name: Init PGlite e2e database (deterministični wipe + DDL + seed)
+        run: node scripts/init-e2e-db.mjs
+
+      - name: Start next dev (port 3000) in background
+        run: |
+          nohup bunx next dev -p 3000 > /tmp/next-dev-e2e.log 2>&1 &
+          echo "next dev PID: $!"
+
+      - name: Wait for /api/health == 200 (max 5 min)
+        run: |
+          for i in $(seq 1 60); do
+            sleep 5
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/api/health || true)
+            if [ "$CODE" = "200" ]; then
+              echo "health 200 po ~$((i * 5))s"
+              curl -s http://localhost:3000/api/health
+              exit 0
+            fi
+          done
+          echo "::error::next dev ni postal zdrav v 5 minutah — log:"
+          tail -100 /tmp/next-dev-e2e.log
+          exit 1
+
+      - name: Run Playwright e2e (workers=1, retries=2, workers sequential — POS deli bazo)
+        run: bunx playwright test --reporter=list
+
+      - name: Upload Playwright report + traces (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+
+      - name: Dump next dev log (on failure)
+        if: failure()
+        run: tail -200 /tmp/next-dev-e2e.log

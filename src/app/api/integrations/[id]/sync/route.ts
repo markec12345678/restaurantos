@@ -8,6 +8,9 @@ import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+// R93-b: enoten 429 helper (rate-limit/response.ts) — DIREKTEN import, ne barrel:
+// testi mockajo '@/lib/rate-limit' z vi.hoisted, direkten path teče realen helper.
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError } from '@/lib/api-utils'
 import { syncEracuni, syncAccounting, syncGeneric, syncQuickBooks, syncXero } from './_helpers'
 
@@ -32,18 +35,7 @@ export async function POST(
   if (!rateCheck.allowed) {
     // 429 oblika = hišni kanon (withRateLimit HOF): Retry-After / X-RateLimit-*
     // glave, fallback 60 s, ko odgovor ne nosi retryAfterMs.
-    const retryAfter = Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)
-    return NextResponse.json(
-      { error: 'Preveč zahtev. Poskusite znova čez nekaj časa.' },
-      {
-        status: 429,
-        headers: {
-          'Retry-After': String(retryAfter),
-          'X-RateLimit-Remaining': '0',
-          'X-RateLimit-Reset': String(Math.ceil(Date.now() / 1000) + retryAfter),
-        },
-      }
-    )
+    return rateLimitedResponse(rateCheck.retryAfterMs)
   }
 
   try {
