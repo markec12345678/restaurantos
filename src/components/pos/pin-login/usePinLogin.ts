@@ -5,22 +5,35 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { queryKeys } from '@/lib/query-keys'
 import { applyPinDigit, hapticFeedback } from './pin-digit'
-import { PIN_MIN_LENGTH } from './constants'
-import type { PinLoginProps } from './constants'
+import { PIN_MIN_LENGTH, authEmployeesQueryKey } from './constants'
+import type { PinLoginProps, LoginStep, EmployeesResponse, SelectedEmployee } from './constants'
+import type { LoginResult } from './login-request'
 import { setCurrentUser, setAuthToken } from '../PinLogin'
-import { cacheOfflineSession, verifyOfflinePin, getOfflineSessionHint } from './offline-auth'
+import { cacheOfflineSession, getOfflineSessionHint } from './offline-auth'
+import { performLogin } from './login-request'
+import { readDeviceLocation, persistDeviceLocation } from './resolveDeviceLocation'
 
 // NOVO (QA 2026-09-17, runda 25 — UI/UX primerjava z najboljšimi POS):
 // Square/Clover na fizičnih tipkovnicah POS terminalov dovoljujeta vpis PIN-a
-// s številkami + Backspace/Enter. Prej je bila tipkovnica MRTVA koda
+// s števkami + Backspace/Enter. Prej je bila tipkovnica MRTVA koda
 // (_handleKeyDown ni bil nikoli povezan) — zdaj window listener.
-// Čisti helperji (applyPinDigit, hapticFeedback) živijo v ./pin-digit
-// (testabilnost brez težkih importov).
+// Čisti helperji (applyPinDigit, hapticFeedback) živijo v ./pin-digit,
+// čista oddaja prijave (performLogin) pa v ./login-request (testabilnost).
+
+// R95-b: DVOSTOPENJSKA PRIJAVA (izbira zaposlenega → PIN, Toast/Square
+// standard). Tok je aktiven SAMO, ko naprava ve svojo lokacijo
+// (URL ?locationId= ALI localStorage 'restaurantos-pos-device-location' —
+// resolucija v ./resolveDeviceLocation). Sicer 'single' = STOTAKO kot danes
+// (E2E /?PIN prijava ostane PIN-only, body brez employeeId).
+// Offline pot je NESPREMJENA (PIN-only, glej login-request.ts).
 
 // ============================================
 // HOOK: PIN prijava
 // Združuje stanje, poizvedbe in mutacije za PIN login
 // ============================================
+
+/** staleTime za seznam zaposlenih — med korakoma 1↔2 brez refetch ping-ponga */
+const EMPLOYEES_STALE_TIME_MS = 5 * 60 * 1000
 
 export function usePinLogin(_props: PinLoginProps) {
   const [pin, setPin] = useState('')
@@ -30,18 +43,36 @@ export function usePinLogin(_props: PinLoginProps) {
   // ekranu — natakar takoj ve, da brez mreže NE ostane na zunanji strani.
   // useEffect (ne med renderjem): localStorage je client-only + izognemo se
   // SSR hydration mismatchu.
-  const [offlineHint, setOfflineHint] = useState<{ name: string; expiresInMs: number } | null>(null)
-  useEffect(() => {
-    setOfflineHint(getOfflineSessionHint())
-  }, [])
+  // R95-b stanja dvostopenjskega toka. Korak ('step') je IZPELJAN spodaj (ne
+  // mirror-state — react "you might not need an effect"): deviceLocationId je
+  // resolvan odloženo (post-hidracija), selectedEmployee/pinOnlyPreference sta
+  // uporabniški akciji, fallback pa izpeljan iz employeesQuery stanja.
+  const [deviceLocationId, setDeviceLocationId] = useState<string | null>(null)
+  const [selectedEmployee, setSelectedEmployee] = useState<SelectedEmployee | null>(null)
+  // "Prijava samo s PIN-om" — izrecen uporabnikov izklop dvostopenjskega toka
+  // (super-admini / NULL-lokacijski zaposleni, ki niso v gridu).
+  const [pinOnlyPreference, setPinOnlyPreference] = useState(false)
 
-  // A11y: Samodejno premakni fokus na prvo stevko ob prikazu
+  // Resolucija device lokacije: URL param > localStorage > null (čisti helper
+  // v resolveDeviceLocation.ts — testabilen brez react-query).
+  // Odmik prek setTimeout(0): branje window/localStorage je client-only in se
+  // MORA zgoditi šele po hidraciji (SSR hydration mismatch) — odložen init je
+  // tudi vzorec, ki ga zahteva react-hooks v7 (set-state-in-effect: neposreden
+  // sinhroni setState v mount-only efektu = cascading render opozorilo).
   useEffect(() => {
-    const timer = setTimeout(() => firstDigitRef.current?.focus(), 100)
+    const timer = setTimeout(() => setDeviceLocationId(readDeviceLocation()), 0)
     return () => clearTimeout(timer)
   }, [])
 
-  // Preveri ali so PIN-i na voljo
+  const [offlineHint, setOfflineHint] = useState<{ name: string; expiresInMs: number } | null>(null)
+  useEffect(() => {
+    // Enak odložen vzorec kot device lokacija zgoraj (post-hidracijsko branje
+    // localStorage; runda 6 funkcionalnost, semantika nespremenjena).
+    const timer = setTimeout(() => setOfflineHint(getOfflineSessionHint()), 0)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Preveri ali so PIN-i na voljo (NESPREMJENO)
   const { data: authStatus } = useQuery({
     queryKey: queryKeys.auth.status,
     queryFn: async () => {
@@ -51,42 +82,55 @@ export function usePinLogin(_props: PinLoginProps) {
     },
   })
 
-  const loginMutation = useMutation({
-    mutationFn: async (pinCode: string): Promise<{ employee: import('./constants').AuthUser; message: string; token?: string; offline?: boolean }> => {
-      /* NOVA FUNKCIONALNOST (runda 5): offline-first prijava — če strežnik ni
-         dosegljiv (mreža down, strežnik restart), preverimo PIN proti cached
-         device session-u (TTL 12h, SHA-256 verifikator, rate-limit 5/15min).
-         Natakar lahko nato oddaja naročila v offline vrsto (offline-orders.ts). */
-      let serverError: unknown = null
-      try {
-        const res = await fetch('/api/auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pin: pinCode }),
-        })
-        if (!res.ok) {
-          const data = await res.json()
-          // Napačen PIN pri DOSEGLJIVEM strežniku = prava napaka (ne offline fallback!)
-          throw new Error(data.error || 'Napaka pri prijavi')
-        }
-        return res.json()
-      } catch (err) {
-        serverError = err
-      }
-      // Strežnik ni dosegljiv (mrežna napaka) → offline fallback
-      if (serverError instanceof TypeError || (serverError as Error)?.message?.includes('fetch')) {
-        const offline = await verifyOfflinePin(pinCode).catch(() => null)
-        if (offline) {
-          return {
-            employee: offline.employee,
-            message: `Offline prijava (${Math.ceil(offline.expiresInMs / 3600000)} h veljavnosti) — naročila gredo na strežnik ob povezavi`,
-            offline: true,
-          }
-        }
-        throw new Error('Strežnik ni dosegljiv in offline prijava ni mogoča — prijavite se enkrat z mrežo')
-      }
-      throw serverError as Error
+  // R95-b: seznam zaposlenih na device lokaciji (korak 1).
+  // LOKALNA hierarhična tipka (authEmployeesQueryKey v constants.ts) —
+  // globalnega query-keys fajla namenoma NE urejamo (lastninska lista).
+  // retry: false + fail-open fallback = 404/429 ne sme obesiti prijave.
+  // enabled: poteka samo med dvostopenjskim tokom (korak 1/2, brez izrecnega
+  // pin-only preklopa) — po uspešni prijavi je uporabnik že onstran tega ekrana.
+  const employeesQuery = useQuery({
+    queryKey: authEmployeesQueryKey(deviceLocationId),
+    queryFn: async (): Promise<EmployeesResponse> => {
+      const res = await fetch(`/api/auth/employees?locationId=${encodeURIComponent(deviceLocationId ?? '')}`)
+      if (!res.ok) throw new Error(`Employees list failed (${res.status})`)
+      return res.json()
     },
+    enabled: !!deviceLocationId && !selectedEmployee && !pinOnlyPreference,
+    staleTime: EMPLOYEES_STALE_TIME_MS,
+    retry: false,
+  })
+
+  // Fail-open (izpeljan, brez efekta/extra stanja): employees endpoint 404/429/
+  // omreža ALI potrjen prazen seznam → avtomatsko single-step PIN UI + notice.
+  // NIKOLI ne blokiraj prijave (binding je optional — fail-open je na UX, NE na
+  // varnost). Med korakom 2 (selectedEmployee) napaka ne pere izbire.
+  const employeesBroken = !!employeesQuery.isError ||
+    (!!employeesQuery.data && employeesQuery.data.employees.length === 0)
+  const employeesUnavailable = !!deviceLocationId && !pinOnlyPreference && !selectedEmployee && employeesBroken
+
+  // Izpeljan korak toka:
+  //   'pin'    = izbran zaposleni (korak 2; napačen PIN OSTANE tu — onError
+  //              namenoma ne počisti selectedEmployee),
+  //   'select' = device lokacija znana, dvostopenjski tok aktiven, endpoint zdrav,
+  //   'single' = legacy PIN-only (privzeto brez lokacije / izrecen pin-only /
+  //              fail-open fallback — E2E /?PIN prijava ostane točno kot danes).
+  const step: LoginStep = selectedEmployee
+    ? 'pin'
+    : deviceLocationId && !pinOnlyPreference && !employeesBroken ? 'select' : 'single'
+
+  // A11y: Samodejno premakni fokus na prvo stevko ob prikazu PIN UI-ja
+  // (v koraku 1 'select' fokus vodi EmployeeSelectStep na prvi gumb grida).
+  useEffect(() => {
+    if (step === 'select') return
+    const timer = setTimeout(() => firstDigitRef.current?.focus(), 100)
+    return () => clearTimeout(timer)
+  }, [step])
+
+  const loginMutation = useMutation({
+    mutationFn: async ({ pinCode, employeeId }: { pinCode: string; employeeId?: string }): Promise<LoginResult> =>
+      // Čista oddaja (login-request.ts): employeeId PODAN samo v
+      // dvostopenjskem toku (strog binding), sicer PIN-only kontrakt.
+      performLogin(pinCode, employeeId),
     onSuccess: (data, variables, _context) => {
       setCurrentUser(data.employee)
       if (data.offline) {
@@ -97,7 +141,13 @@ export function usePinLogin(_props: PinLoginProps) {
       } else {
         setAuthToken(data.token ?? null)
         // Shrani sejo za prihodnje offline prijave (tiho — ne sme pokvariti online toka)
-        void cacheOfflineSession(data.employee, variables)
+        void cacheOfflineSession(data.employee, variables.pinCode)
+        // R95-b ODLOČITEV: device lokacijo OBNOVIMO/potrdimo SAMO, če je bil
+        // dvostopenjski tok aktiven (deviceLocationId je že resolvan iz
+        // URL/localStorage virov). NAMERNO NE beremo data.employee.locationId —
+        // frozen API kontrakt (R95-a) tega polja v odgovoru NE jamči.
+        // Ob NEUSPEŠNI prijavi se ne shrani NIČ (onError se tega ne dotakne).
+        if (deviceLocationId) persistDeviceLocation(deviceLocationId)
       }
       setPin('')
       setError('')
@@ -107,6 +157,8 @@ export function usePinLogin(_props: PinLoginProps) {
     onError: (err: Error) => {
       setError(err.message)
       setPin('')
+      // R95-b: NAPAČEN PIN v koraku 2 → ostani v koraku 2 (izbira zaposlenega
+      // ostane) — selectedEmployee se tukaj namenoma NE počisti.
     },
   })
 
@@ -118,8 +170,10 @@ export function usePinLogin(_props: PinLoginProps) {
     }
     setError('')
     hapticFeedback(20)
-    loginMutation.mutate(pin)
-  }, [pin, loginMutation])
+    // employeeId SAMO, če je zaposleni izbran (dvostopenjski tok); v
+    // single-step je selectedEmployee null → undefined → PIN-only body.
+    loginMutation.mutate({ pinCode: pin, employeeId: selectedEmployee?.id })
+  }, [pin, loginMutation, selectedEmployee])
 
   // FIX runda 25: prej _handleKeyDown (Enter-only) NI bil nikoli povezan —
   // fizična tipkovnica na POS terminalu NI delovala. Zdaj window listener
@@ -132,9 +186,9 @@ export function usePinLogin(_props: PinLoginProps) {
       setError('')
     }
     if (autoSubmit && !loginMutation.isPending) {
-      loginMutation.mutate(next)
+      loginMutation.mutate({ pinCode: next, employeeId: selectedEmployee?.id })
     }
-  }, [pin, loginMutation])
+  }, [pin, loginMutation, selectedEmployee])
 
   const handleBackspace = useCallback(() => {
     hapticFeedback(15)
@@ -143,6 +197,10 @@ export function usePinLogin(_props: PinLoginProps) {
   }, [])
 
   useEffect(() => {
+    // R95-b: v koraku 1 ('select') tipkovnica NE sme vpiševati PIN-a —
+    // uporabnik izbere ime, ne tipka. Fallback UI (single) je aktiven, ko je
+    // step 'single', zato tam tipkovnica deluje kot doslej.
+    if (step === 'select') return
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return
       if (e.key >= '0' && e.key <= '9') {
@@ -164,7 +222,33 @@ export function usePinLogin(_props: PinLoginProps) {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [handleDigit, handleBackspace, handlePinSubmit])
+  }, [step, handleDigit, handleBackspace, handlePinSubmit])
+
+  // --- R95-b: prehodi med koraki (korak 'step' je izpeljan iz stanj) ---
+
+  /** Korak 1 → 2: izbran zaposleni, PIN vpis se začne čist. */
+  const selectEmployee = useCallback((employee: SelectedEmployee) => {
+    hapticFeedback(10)
+    setSelectedEmployee(employee)
+    setPin('')
+    setError('')
+  }, [])
+
+  /** Korak 2 → 1: "Spremeni" — nazaj na grid (izbira se počisti). */
+  const backToEmployeeSelect = useCallback(() => {
+    hapticFeedback(10)
+    setSelectedEmployee(null)
+    setPin('')
+    setError('')
+  }, [])
+
+  /** Izklop dvostopenjskega toka: "Prijava samo s PIN-om" (single-step, brez notice). */
+  const switchToSingleStep = useCallback(() => {
+    setPinOnlyPreference(true)
+    setSelectedEmployee(null)
+    setPin('')
+    setError('')
+  }, [])
 
   return {
     pin, error, authStatus,
@@ -174,5 +258,15 @@ export function usePinLogin(_props: PinLoginProps) {
     handleDigit,
     handleBackspace,
     offlineHint,
+    // R95-b: dvostopenjski tok (step je izpeljan; employeesUnavailable je
+    // izpeljana fail-open zastavica za notice na single-step zaslonu)
+    step,
+    deviceLocationId,
+    selectedEmployee,
+    employeesQuery,
+    employeesUnavailable,
+    selectEmployee,
+    backToEmployeeSelect,
+    switchToSingleStep,
   }
 }

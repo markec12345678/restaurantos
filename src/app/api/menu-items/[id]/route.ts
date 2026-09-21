@@ -137,6 +137,56 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
 }
 
+// GET - Pridobi posamezen artikel (R95-d)
+//
+// R94 backlog (c): ruta je izvažala LE PUT/DELETE — GET je vračal 405
+// (e2e MENU-3 forenzika). Produkcija (admin UI urejanje artikla) želi
+// single-item fetch brez polnega menija. Kanon pariteta s PUT/DELETE:
+//   - ista permission (manage_inventory),
+//   - isti tenant resolver (veriga MenuItem → Category → Menu → locationId),
+//   - enoten 404 brez obstoja-oraklja (tuji/neznani artikel = ISTI odgovor).
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params
+
+    // Auth check — pariteta s PUT/DELETE (R86-2c1 kanon)
+    const authResult = await requireAuth(req, { permission: 'manage_inventory' })
+    if (authResult.error) return authResult.error
+
+    // Tenant scope (R90 canon): scoped filter, super-admin (null) = brez filtra
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'GET /api/menu-items/[id]',
+    })
+    if ('error' in scope) return scope.error
+
+    const item = await db.menuItem.findFirst({
+      where: {
+        id,
+        ...(scope.locationId
+          ? { category: { menu: { locationId: scope.locationId } } }
+          : {}),
+      },
+      include: {
+        category: { include: { menu: { select: { id: true, name: true } } } },
+        modifierGroups: {
+          orderBy: { sortOrder: 'asc' },
+          include: {
+            modifierGroup: { include: { modifiers: { orderBy: { sortOrder: 'asc' } } } },
+          },
+        },
+      },
+    })
+    if (!item) {
+      // Enoten 404 — isti string kot PUT/DELETE (zero obstoja-orakelj)
+      return NextResponse.json({ error: 'Menu item not found' }, { status: 404 })
+    }
+
+    return NextResponse.json(deepToNumbers(item))
+  } catch (error: unknown) {
+    return handleApiError(error, 'GET /api/menu-items/[id]', 'Napaka pri pridobivanju artikla')
+  }
+}
+
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params

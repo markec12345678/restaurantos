@@ -178,14 +178,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     // FIX R44: posedanje mora povišati status mize v 'occupied', zaključek jo sprosti.
     // Prej je UI assignal tableId + status seated, DB status mize pa je ostal 'available' →
     // KPI "Proste mize" napačen, tloris pokazal zasedeno mizo kot prosto.
+    // R95-c: viri razširjeni z 'reserved' — miza, ki jo drži DB flip iz
+    // create-handlerja, se ob posedanju pravilno povzdigne v 'occupied'
+    // (prej je seated na reserved mizi zamudil flip → mrtva reserved).
     const effectiveTableId = data.tableId !== undefined ? (data.tableId || null) : existing.tableId
     if (data.status === 'seated' && effectiveTableId) {
       await db.table.updateMany({
-        where: { id: effectiveTableId, status: { in: ['available', 'occupied'] } },
+        where: { id: effectiveTableId, status: { in: ['available', 'occupied', 'reserved'] } },
         data: { status: 'occupied' },
       })
     } else if (data.status === 'completed' && existing.tableId) {
-      // Sprosti mizo SAMO če nima odprtega naročila (isti vzorec kot /api/tables)
+      // Sprosti mizo SAMO če nima odprtega naročila (isti vzorec kot /api/tables).
+      // R95-c: reset je OMEJEN na 'occupied' — DB 'reserved' (druga prihodnja
+      // rezervacija na isti mizi) MORA preživeti completed te rezervacije;
+      // samo takojšnja zasedenost se sprosti.
       const activeOrder = await db.order.findFirst({
         where: { tableId: existing.tableId, status: { in: ['pending', 'in-progress', 'ready'] } },
         select: { id: true },
@@ -195,6 +201,29 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           where: { id: existing.tableId, status: 'occupied' },
           data: { status: 'available' },
         })
+      }
+    } else if (data.status === 'no_show' || data.status === 'cancelled') {
+      // R95-c: no_show/cancelled — prej sta pustili mizo v DB 'reserved'
+      // (mrtva reserved: tloris kaže rezervirano, resnične rezervacije ni).
+      // Count-guard: če ima miza ŠE katerokoli drugo aktivno rezervacijo
+      // (confirmed/seated — brez datumskega filtra: katerakoli prihodnja
+      // aktivna upravičuje ostanek 'reserved'), miza ostane reserved;
+      // sicer gre nazaj v 'available'. Reset je no-op, če miza ni reserved
+      // (status filter v where — nikoli ne clobberaj occupied/blocked/...).
+      if (effectiveTableId) {
+        const activeOthers = await db.reservation.count({
+          where: {
+            tableId: effectiveTableId,
+            id: { not: id },
+            status: { in: ['confirmed', 'seated'] },
+          },
+        })
+        if (activeOthers === 0) {
+          await db.table.updateMany({
+            where: { id: effectiveTableId, status: 'reserved' },
+            data: { status: 'available' },
+          })
+        }
       }
     }
 
@@ -239,6 +268,26 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       where: { id },
       data: { status: 'cancelled' },
     })
+
+    // R95-c: mirror PUT no_show/cancelled — preklic NE sme pustiti mrtve
+    // DB 'reserved' mize. Count-guard: druga aktivna rezervacija (confirmed/
+    // seated) na mizi pusti 'reserved'; sicer reset v 'available' (no-op,
+    // če miza ni reserved — status filter v where).
+    if (existing.tableId) {
+      const activeOthers = await db.reservation.count({
+        where: {
+          tableId: existing.tableId,
+          id: { not: id },
+          status: { in: ['confirmed', 'seated'] },
+        },
+      })
+      if (activeOthers === 0) {
+        await db.table.updateMany({
+          where: { id: existing.tableId, status: 'reserved' },
+          data: { status: 'available' },
+        })
+      }
+    }
 
     await createAuditLog({
       userId: authResult.session?.employeeId,

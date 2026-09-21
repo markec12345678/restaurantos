@@ -65,7 +65,10 @@ jobs:
       # P1-testiranje: e2e niz dela ~80+ API klicev/min — dvignemo splošno mejo
       API_RATE_LIMIT_MAX: "600"
       # R92-C: login testov nareda več kot 5 poskusov/min — dvignemo login mejo
-      LOGIN_RATE_LIMIT_MAX: "100"
+      # R95-d (R94 backlog (d)): 100 je bilo blizu mej pri full-suite poganjanju
+      # (EDGE-4b/LOGIN pini so 429-tolerantni, a meja naj ne bi bila glavni
+      # vir flakinessa) — 200 daje udoben headroom.
+      LOGIN_RATE_LIMIT_MAX: "200"
       PLAYWRIGHT_BASE_URL: "http://localhost:3000"
       CI: "true"
     steps:

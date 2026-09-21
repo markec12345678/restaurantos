@@ -159,7 +159,7 @@ export async function handleCreateReservation(
       }
     }
 
-    return tx.reservation.create({
+    const reservation = await tx.reservation.create({
       data: {
         customerName: data.customerName,
         customerPhone: data.customerPhone,
@@ -180,6 +180,22 @@ export async function handleCreateReservation(
         table: { select: { id: true, number: true, capacity: true, area: true } },
       },
     })
+
+    // R95-c: Toast-standard — DB flip mize v 'reserved' ZNOTRAJ iste
+    // serializable transakcije (tloris in KPI zdaj vidita DB status;
+    // client sinteza v floorplan ostane SAMO za display obogatitev —
+    // DB 'reserved' gre pass-through). Flip teče PO create (če create
+    // pade, flip ne ostane — tx garancije pokrijejo atomarnost).
+    // updateMany z status:'available' filtrom = no-op, če je miza medtem
+    // postala occupied/cleaning/blocked — nikoli ne clobberaj drugih statusov.
+    if (data.tableId) {
+      await tx.table.updateMany({
+        where: { id: data.tableId, status: 'available' },
+        data: { status: 'reserved' },
+      })
+    }
+
+    return reservation
   }, {
     isolationLevel: 'Serializable',
   }).catch(err => {

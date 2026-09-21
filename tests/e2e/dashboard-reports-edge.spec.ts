@@ -131,16 +131,27 @@ test.describe('Dashboard & Reports', () => {
   })
 
   test('MENU-3: PUT /api/menu-items/[id] z neobstoječim ID vrne 404', async ({ request }) => {
-    // R94 pin korekcija (R91-lekcija): [id] ruta izvaža SAMO PUT/DELETE
-    // (route.ts:13,140) — GET vrne 405 (pravilna HTTP semantika za
-    // neimplementirano metodo na obstoječi poti). Namem testa
-    // (neobstoječ id → enoten 404) se preveri prek IMPLEMENTIRANE metode:
-    // PUT vrne 404 'Menu item not found' (route.ts:32).
+    // R94 pin korekcija (R91-lekcija): [id] ruta je izvažala LE PUT/DELETE.
+    // R95-d: GET je DODAN (MENU-3b) — PUT pin ostane nespremenjen.
     const res = await request.put(`${API_BASE}/menu-items/nonexistent-id`, {
       headers: authHeaders(),
       data: { name: 'Neobstojec', price: 1 },
     })
     expect([404, 429]).toContain(res.status())
+  })
+
+  test('MENU-3b: GET /api/menu-items/[id] z neobstoječim ID vrne 404 (R95-d single-item fetch)', async ({ request }) => {
+    // R95-d: ruta zdaj izvaža GET (pariteta s PUT/DELETE: manage_inventory +
+    // tenant resolver + enoten 404 brez obstoja-oraklja). Neavten GET = 401.
+    const unauth = await request.get(`${API_BASE}/menu-items/nonexistent-id`)
+    expect(unauth.status()).toBe(401)
+
+    const res = await request.get(`${API_BASE}/menu-items/nonexistent-id`, { headers: authHeaders() })
+    expect([404, 429]).toContain(res.status())
+    if (res.status() === 404) {
+      const body = await res.json().catch(() => ({}))
+      expect(body.error).toBe('Menu item not found')
+    }
   })
 
   // ═══════════════════════════════════════════════════════════════
@@ -233,23 +244,34 @@ test.describe('Dashboard & Reports', () => {
     expect(res.status()).toBe(401)
   })
 
-  test('EDGE-4: POST /api/auth — PIN-only kontrakt: identiteta = lastnik PIN-a', async ({ request }) => {
-    // R94 forenzika (e2e CI full-suite ujel neujemljen pin): loginSchema je
-    // { pin } (validations/auth.ts:15) — employeeId se pri verifikaciji
-    // NIKOLI ne upošteva (Zod strip). Produkt = single-factor PIN prijava
-    // (WaiterLogin/KDSLogin pošiljata izključno { pin }); identiteta seje je
-    // DETERMINISTIČNO lastnik PIN-a — audit sled je konsistentna, P1-11/12
-    // hardening (per-PIN lockout + progresivni delay + bcrypt r12) aktiven.
-    // R95 backlog: dvostopenjska prijava (izbira zaposlenega → PIN) za
-    // strožjo pripis identitete (UI + loginSchema + verifyPin sprememba).
+  test('EDGE-4: POST /api/auth — R95 BINDING kontrakt: tuj employeeId + veljaven PIN = 401 (enoten, zero orakelj)', async ({ request }) => {
+    // R95-a kontrakt sprememba (dvostopenjska prijava — R94 backlog): employeeId
+    // PODAN = strog binding — PIN se preverja TOČNO proti tistem zaposlenemu
+    // (validations/auth.ts + _helpers.ts vezavna veja). Neznana/neaktivna id
+    // ALI PIN ki ni njegov → ISTI enoten 401 'Napačen PIN ali nedejaven
+    // uporabnik' (ni obstoja-oraklja). To je NAMERNA poostrena pripis
+    // identitete; 'nonexistent-employee' ni več ignoriran (R94 Zod strip).
     const res = await request.post(`${API_BASE}/auth`, {
       data: { employeeId: 'nonexistent-employee', pin: '1111' },
+    })
+    // 401 = binding zavrnil (enoten); 429 = rate limited v CI (legalen retry)
+    expect([401, 429]).toContain(res.status())
+    if (res.status() === 401) {
+      const body = await res.json()
+      expect(body.error).toBe('Napačen PIN ali nedejaven uporabnik')
+    }
+  })
+
+  test('EDGE-4b: POST /api/auth — PIN-only legacy kontrakt ostane: { pin } brez employeeId = prijava lastnika PIN-a', async ({ request }) => {
+    // R95 kompatibilnost: employeeId ODSOTEN = legacy deterministični lastnik
+    // PIN-a (R94 kontrakt nespremenjen — WaiterLogin/KDSLogin/offline poti).
+    // Seed: test-admin PIN 1111 → seja = test-admin.
+    const res = await request.post(`${API_BASE}/auth`, {
+      data: { pin: '1111' },
     })
     expect([200, 429]).toContain(res.status())
     if (res.status() === 200) {
       const body = await res.json()
-      // Ne glede na 'trdilni' employeeId je prijavljena identiteta VEDNO
-      // lastnik PIN-a — prepreči sanje o client-side impersonaciji.
       expect(body.employee.id).toBe('test-admin')
     }
   })

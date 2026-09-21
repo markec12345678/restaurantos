@@ -12,13 +12,18 @@ import { PIN_LOGIN_LEGACY_MIN } from '@/lib/auth-middleware/constants'
 // P1-12: LOGIN dopušča legacy 4-mestne PIN-e (migracijska kompatibilnost —
 // obstoječi zaposleni se lahko prijavijo; admin jih rotira prek employees
 // POST/PUT, kjer v veljavnosti novih PIN-i zahtevajo 6+ mest).
-// R94 kontrakt (e2e full-suite forenzika): PIN-only prijava — identiteta
-// seje je DETERMINISTIČNO lastnik PIN-a (verifyPin išče izključno po
-// pinLookup; podani employeeId se ignorira, če ga klient sploh pošlje).
-// R95 backlog: dvostopenjska prijava (izbira zaposlenega → PIN) za strožjo
-// pripis identitete.
+// R95 kontrakt (dvostopenjska prijava — BINDING-WHEN-PRESENT):
+//   - employeeId PODAN = strog binding — PIN se preverja TOČNO proti temu
+//     zaposlenemu (verifyPin binding veja; manjkajoč/neaktiven/napačen PIN
+//     → ISTI enoten 401, zero oracle);
+//   - employeeId ODSOTEN = legacy deterministični lastnik PIN-a (R94 kontrakt,
+//     e2e EDGE-4/15 pini ostanejo zeleni).
 export const loginSchema = z.object({
   pin: z.string().min(PIN_LOGIN_LEGACY_MIN, `PIN mora imeti vsaj ${PIN_LOGIN_LEGACY_MIN} števke`).max(20).regex(/^\d+$/, 'PIN mora vsebovati samo številke'),
+  // R95-a: opcionalen cilj bindinga — id zaposlenega iz GET /api/auth/employees
+  // (cuid/uuid razred: črke, številke, podčrtaj, pomišljaj; min 5 = usklajeno
+  // z LOCATION_ID_RE kanonom v src/lib/ordering-token.ts).
+  employeeId: z.string().min(5).max(100).regex(/^[A-Za-z0-9_-]+$/, 'Neveljaven ID zaposlenega').optional(),
 })
 
 // ============================================

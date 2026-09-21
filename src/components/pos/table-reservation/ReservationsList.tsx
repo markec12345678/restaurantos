@@ -29,10 +29,15 @@ const STATUS_ACCENT: Record<string, string> = {
 // hover dvig kartice, skrčljiv seznam (>4 = "Še N …").
 // ============================================
 
-/** Najboljša miza: najmanjša kapaciteta, ki še sprejme partySize */
+/**
+ * Najboljša miza: najmanjša kapaciteta, ki še sprejme partySize.
+ * R95-c: DB 'reserved' miza je bookable/posedljiva v NE-prekrivajočem času
+ * (server overlap check ostane avtoriteta — 409) → reserved je kandidat
+ * na enaki nogi z 'available'.
+ */
 function bestFit(tables: TableInfo[], partySize: number): TableInfo | undefined {
   return tables
-    .filter(t => t.status === 'available' && t.capacity >= partySize)
+    .filter(t => (t.status === 'available' || t.status === 'reserved') && t.capacity >= partySize)
     .sort((a, b) => a.capacity - b.capacity)[0]
 }
 
@@ -52,7 +57,9 @@ export const ReservationsList = memo(function ReservationsList({
     const map: Record<string, TableInfo[]> = {}
     for (const res of reservations) {
       map[res.id] = availableTables
-        .filter(t => t.status === 'available' && t.capacity >= res.partySize)
+        // R95-c: available || reserved — rezervirana miza je veljaven kandidat
+        // za posedanje/pretvorbo v ne-prekrivajočem času (server 409 = avtoriteta)
+        .filter(t => (t.status === 'available' || t.status === 'reserved') && t.capacity >= res.partySize)
         .sort((a, b) => a.capacity - b.capacity)
     }
     return map

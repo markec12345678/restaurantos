@@ -56,6 +56,9 @@ const mocks = vi.hoisted(() => ({
   // $transaction tx-client (ločeni moki od db-level, da se call-counti ne mešajo)
   transaction: vi.fn(),
   txTableFindUnique: vi.fn(),
+  // R95-c: create-handler flip (tx.table.updateMany available→reserved) —
+  // samo MOCK INFRASTRUKTURA (stub za tx klienta), pini testov nespremenjeni
+  txTableUpdateMany: vi.fn(),
   txResFindMany: vi.fn(),
   txResCreate: vi.fn(),
   // TOP-LEVEL export '@/lib/db' (LEKCIJA R85: ne gnezdi v db!)
@@ -182,11 +185,12 @@ beforeEach(() => {
   mocks.waitlistUpdate.mockResolvedValue(waitlistRow)
   mocks.waitlistDelete.mockResolvedValue(waitlistRow)
   mocks.txTableFindUnique.mockResolvedValue(tableA)
+  mocks.txTableUpdateMany.mockResolvedValue({ count: 1 })
   mocks.txResFindMany.mockResolvedValue([])
   mocks.txResCreate.mockResolvedValue(resCreated)
   mocks.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
     fn({
-      table: { findUnique: mocks.txTableFindUnique },
+      table: { findUnique: mocks.txTableFindUnique, updateMany: mocks.txTableUpdateMany },
       reservation: { findMany: mocks.txResFindMany, create: mocks.txResCreate },
     }),
   )

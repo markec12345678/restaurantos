@@ -21,7 +21,51 @@ export interface MatchedEmployee {
   }>
 }
 
-export async function verifyPin(data: { pin: string }): Promise<MatchedEmployee | null> {
+export async function verifyPin(data: { pin: string; employeeId?: string }): Promise<MatchedEmployee | null> {
+  // R95-a: BINDING VEJA (dvostopenjska prijava) — če klient poda employeeId,
+  // se PIN preverja TOČNO proti TEMU zaposlenemu (strožja pripis identitete;
+  // rešuje teoretično kolizijo deljenih PIN-ov, kjer deterministični lastnik
+  // PIN-a NI izbrani zaposleni). Veja teče PRED pinLookup/fallback potema.
+  // Manjkajoč/neaktiven/napačen PIN → ISTI null → route vrne enoten 401
+  // ('Napačen PIN ali nedejaven uporabnik') — zero oracle: neobstoječ
+  // employeeId se ne razlikuje od napačnega PIN-a. Per-PIN lockout v route
+  // (recordPinFailure) ostane PIN-ključan in deluje neodvisno od te veje.
+  if (data.employeeId) {
+    const emp = await db.employee.findFirst({
+      where: { id: data.employeeId, status: 'active', pin: { not: '' } },
+      include: { jobs: { include: { job: true } } },
+    })
+    if (!emp) return null
+
+    const isHashed = emp.pin.startsWith('$2')
+    if (isHashed) {
+      if (await bcrypt.compare(data.pin, emp.pin)) {
+        return emp as unknown as MatchedEmployee
+      }
+      return null
+    }
+
+    // Plaintext legacy PIN (ista timing-safe oblika kot fallback veja — FIX H-01)
+    const pinBuffer = Buffer.from(String(emp.pin))
+    const inputBuffer = Buffer.from(String(data.pin))
+    const maxLen = Math.max(pinBuffer.length, inputBuffer.length)
+    const paddedPin = Buffer.alloc(maxLen)
+    const paddedInput = Buffer.alloc(maxLen)
+    pinBuffer.copy(paddedPin)
+    inputBuffer.copy(paddedInput)
+    if (crypto.timingSafeEqual(paddedPin, paddedInput)) {
+      // Migracija na bcrypt hash + pinLookup (P1-12: BCRYPT_ROUNDS — enak
+      // cost kot vse ostale poti; pinLookup omogoči prihodnje O(1) iskanje)
+      const hashedPin = await bcrypt.hash(emp.pin, BCRYPT_ROUNDS)
+      await db.employee.update({
+        where: { id: emp.id },
+        data: { pin: hashedPin, pinLookup: hashPinLookup(emp.pin) },
+      })
+      return emp as unknown as MatchedEmployee
+    }
+    return null
+  }
+
   // FIX PERF: O(1) iskanje preko pinLookup (HMAC-SHA256) namesto O(n) findMany + N x bcrypt.compare.
   // Če NEXTAUTH_SECRET manjka ali zaposleni še nima pinLookup (migracija), fallback na findMany.
   if (pinLookupEnabled()) {
