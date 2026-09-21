@@ -69,7 +69,11 @@ test.describe('Dashboard & Reports', () => {
     if (res.ok()) {
       const body = await res.json().catch(() => ({}))
       expect(body.summary).toBeDefined()
-      expect(body.summary.totalSales).toBeDefined()
+      // R94 pin korekcija (stale pin, R91-lekcija): /api/reports/eod vrača
+      // summary.totalRevenue (metrics.ts:88-96 — totalOrders, totalRevenue,
+      // totalTax, ...). 'totalSales' v tem summaryju NIKOLI ni obstajal
+      // (totalSales je polje Dashboard/Shift tipov, ne EOD).
+      expect(body.summary.totalRevenue).toBeDefined()
       expect(body.summary.totalOrders).toBeDefined()
     }
   })
