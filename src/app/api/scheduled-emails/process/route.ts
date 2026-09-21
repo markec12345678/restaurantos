@@ -1,15 +1,15 @@
 // ============================================
 // POST /api/scheduled-emails/process — Obdelaj čakajoča email poročila
 // ============================================
-// Ta API se pokliče iz cron job-a (npr. vsakih 15 minut).
+// Ta API se pokliče iz cron job-a (DNEVNO ob 02:00 UTC).
 // Preveri ScheduledEmailLog z status='pending' in jih pošlje.
 //
 // Za cron: v Linux dodaj crontab:
-//   */15 * * * * curl -X POST https://tvoj-domena.com/api/scheduled-emails/process \
-//     -H "Authorization: Bearer $WS_BROADCAST_SECRET"
+//   0 2 * * * curl -X POST https://tvoj-domena.com/api/scheduled-emails/process \
+//     -H "Authorization: Bearer $CRON_SECRET"
 //
-// Za Vercel: uporabi Vercel Cron Jobs (vercel.json):
-//   { "crons": [{ "path": "/api/scheduled-emails/process", "schedule": "*/15 * * * *" }] }
+// Za Vercel: uporabi Vercel Cron Jobs (vercel.json — avtoritativni vir urnikov):
+//   { "crons": [{ "path": "/api/scheduled-emails/process", "schedule": "0 2 * * *" }] }
 // ============================================
 
 import { NextResponse } from 'next/server'

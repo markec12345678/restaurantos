@@ -3,7 +3,8 @@
 import { memo, useCallback, useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { MonitorSmartphone, Save, Store, Trash2 } from 'lucide-react'
+import { Fingerprint, MonitorSmartphone, Save, Store, Trash2 } from 'lucide-react'
+import { startRegistration } from '@simplewebauthn/browser'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -35,6 +36,13 @@ import {
 //     NE urejamo, prefix invalidacija ['locations'] iz locations CRUD-a
 //     vseeno osveži to tipko; ločena oblika podatkov = brez cache trka z
 //     useLocationQueries {locations, stats} zapisi pod ['locations']).
+//
+// R97-a (ADDITIVNO): pod binding kartico je dodana WebAuthn sekcija
+// ("WebAuthn ključi naprave") — kriptografska plast bindinga (localStorage
+// binding je spoofable prek devtools; FIDO2 passkey ni). Feature-detected
+// (window.PublicKeyCredential): brez podpore = sekcija tiho skrita. Brez
+// bindinga = prav tako skrita. Vsi obstoječi stringi/testidi/markup (R96-b)
+// so NESPREMENJENI — R97-b e2e spec jih pina.
 // ============================================
 
 /** Lokalna hierarhična tipka — pod ['locations'] (prefix invalidacija deluje). */
@@ -45,6 +53,54 @@ export const DEVICE_TAB_UNKNOWN_LOCATION =
   'Vezana lokacija ni več v sistemu (neznana lokacija) — izberite novo ali pobrišite binding.'
 export const DEVICE_TAB_LOAD_ERROR =
   'Seznama lokacij ni mogoče naložiti — preverite povezavo in poskusite znova.'
+
+// ─── WebAuthn sekcija (R97-a, ADDITIVNO) ───
+// Kriptografska plast bindinga: naprava registrira passkey za VEZANO lokacijo
+// (localStorage binding sam je spoofable prek devtools — FIDO2 assertion ni).
+// Sekcija je vidna SAMO ko naprava podpira WebAuthn (window.PublicKeyCredential)
+// IN je vezana na lokacijo — sicer skrita (brez konzolnega šuma).
+export const WEBAUTHN_SECTION_TITLE = 'WebAuthn ključi naprave'
+export const WEBAUTHN_REGISTER_LABEL = 'Registriraj ključ'
+export const WEBAUTHN_REGISTER_ARIA = 'Registriraj WebAuthn ključ za vezano lokacijo'
+export const WEBAUTHN_EMPTY_LIST = 'Ni registriranih ključev za to lokacijo.'
+export const WEBAUTHN_LIST_ERROR =
+  'Seznama WebAuthn ključev ni mogoče naložiti — poskusite znova.'
+export const WEBAUTHN_REGISTER_ERROR =
+  'Registracija ključa ni uspela — preklicana ali neveljavna.'
+export const WEBAUTHN_REVOKE_LABEL = 'Odstrani ključ'
+export const WEBAUTHN_REVOKE_CONFIRM_LABEL = 'Potrdi odstranitev'
+export const WEBAUTHN_REVOKE_ARIA_PREFIX = 'Odstrani WebAuthn ključ:'
+export const WEBAUTHN_REVOKE_CONFIRM_ARIA = 'Potrdi odstranitev WebAuthn ključa'
+export const WEBAUTHN_NEVER_USED = 'Ni še uporabljen'
+export const WEBAUTHN_REGISTER_SUCCESS = 'WebAuthn ključ uspešno registriran za to lokacijo'
+export const WEBAUTHN_REVOKE_SUCCESS = 'WebAuthn ključ odstranjen'
+
+/** Lokalna hierarhična pod-tipka (mirror DEVICE_LOCATIONS_KEY vzorca). */
+const WEBAUTHN_KEY_BASE = ['locations', 'device-binding', 'webauthn'] as const
+
+/** Minimalen lik poverilnice iz GET /api/settings/webauthn/credentials. */
+interface WebAuthnCredentialRow {
+  id: string
+  deviceName: string | null
+  transports: string | null
+  deviceType: string | null
+  createdAt: string
+  lastUsedAt: string | null
+}
+
+async function fetchWebauthnCredentials(locationId: string): Promise<WebAuthnCredentialRow[]> {
+  const res = await authFetch(
+    `/api/settings/webauthn/credentials?locationId=${encodeURIComponent(locationId)}`,
+  )
+  if (!res.ok) throw new Error(`WebAuthn credentials failed (${res.status})`)
+  const json: unknown = await res.json()
+  const rows = Array.isArray(json)
+    ? json
+    : ((json as { credentials?: unknown[] } | null)?.credentials ?? [])
+  return (rows as WebAuthnCredentialRow[]).filter(
+    (c): c is WebAuthnCredentialRow => typeof c?.id === 'string',
+  )
+}
 
 /** Minimalen lik lokacije za select (GET /api/locations vrne polne vrstice). */
 interface LocationOption {
@@ -70,6 +126,14 @@ export const DeviceTab = memo(function DeviceTab() {
   const [deviceLocationId, setDeviceLocationId] = useState<string | null | undefined>(undefined)
   const [selectedLocationId, setSelectedLocationId] = useState<string>('')
 
+  // WebAuthn sekcija (R97-a): feature detect + UI stanja. Sekcija je skrita,
+  // dokler post-hidracijski feature detect ne potrdi window.PublicKeyCredential
+  // (brez konzolnega šuma — samo tiho render null).
+  const [webauthnSupported, setWebauthnSupported] = useState(false)
+  const [webauthnRegistering, setWebauthnRegistering] = useState(false)
+  const [webauthnNotice, setWebauthnNotice] = useState<string | null>(null)
+  const [revokeConfirmId, setRevokeConfirmId] = useState<string | null>(null)
+
   // Branje bindinga: client-only (window/localStorage) in šele PO hidraciji —
   // odložen init prek setTimeout(0) je vzorec usePinLogin (react-hooks v7
   // set-state-in-effect pravilo: brez neposrednega sinhronega setState v
@@ -79,6 +143,11 @@ export const DeviceTab = memo(function DeviceTab() {
       const resolved = readDeviceLocation()
       setDeviceLocationId(resolved)
       if (resolved) setSelectedLocationId(resolved)
+      // R97-a: WebAuthn feature detect (isti post-hidracijski odloženi init).
+      setWebauthnSupported(
+        typeof window !== 'undefined' &&
+          typeof window.PublicKeyCredential !== 'undefined',
+      )
     }, 0)
     return () => clearTimeout(timer)
   }, [])
@@ -119,6 +188,82 @@ export const DeviceTab = memo(function DeviceTab() {
 
   const canSave =
     !!selectedLocationId && selectedLocationId !== deviceLocationId && !locationsError
+
+  // ─── WebAuthn (R97-a): credentials seznam + register/revoke tok ───
+  // Sekcija je enabled SAMO ko je naprava vezana IN podpira WebAuthn
+  // (enable:false = zero fetch, zero konzolnega šuma v ostalih primerih).
+  const {
+    data: webauthnCredentials,
+    isLoading: webauthnLoading,
+    isError: webauthnError,
+    refetch: refetchWebauthn,
+  } = useQuery({
+    queryKey: [...WEBAUTHN_KEY_BASE, deviceLocationId],
+    queryFn: () => fetchWebauthnCredentials(deviceLocationId as string),
+    enabled: isBound && webauthnSupported,
+    staleTime: 30_000,
+  })
+
+  const handleWebauthnRegister = useCallback(async () => {
+    if (!isBound || typeof deviceLocationId !== 'string') return
+    setWebauthnRegistering(true)
+    setWebauthnNotice(null)
+    try {
+      // 1) Javne options (signed challenge vezan na lokacijo).
+      const optRes = await authFetch(
+        `/api/auth/webauthn/options?locationId=${encodeURIComponent(deviceLocationId)}`,
+      )
+      if (!optRes.ok) throw new Error(`WebAuthn options failed (${optRes.status})`)
+      const optJson = (await optRes.json()) as { registration?: unknown }
+      if (!optJson?.registration) throw new Error('WebAuthn options incomplete')
+
+      // 2) Browser ceremony (@simplewebauthn/browser → navigator.credentials).
+      const attestation = await startRegistration({
+        optionsJSON: optJson.registration as Parameters<typeof startRegistration>[0]['optionsJSON'],
+      })
+
+      // 3) Admin registracija (scope + attestation verifikacija na strežniku).
+      const regRes = await authFetch('/api/settings/webauthn/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locationId: deviceLocationId, credential: attestation }),
+      })
+      if (!regRes.ok) throw new Error(`WebAuthn register failed (${regRes.status})`)
+
+      toast.success(WEBAUTHN_REGISTER_SUCCESS)
+      await refetchWebauthn()
+    } catch {
+      setWebauthnNotice(WEBAUTHN_REGISTER_ERROR)
+      toast.error(WEBAUTHN_REGISTER_ERROR)
+    } finally {
+      setWebauthnRegistering(false)
+    }
+  }, [isBound, deviceLocationId, refetchWebauthn])
+
+  // Dvoklikni inline confirm (determinističen, brez window.confirm): prvi klik
+  // oboroži gumb, drugi klik izvede DELETE. Sprememba izbire resetira oborožitev.
+  const handleWebauthnRevoke = useCallback(
+    async (credentialId: string) => {
+      if (revokeConfirmId !== credentialId) {
+        setRevokeConfirmId(credentialId)
+        return
+      }
+      setRevokeConfirmId(null)
+      try {
+        const res = await authFetch(
+          `/api/settings/webauthn/credentials/${encodeURIComponent(credentialId)}`,
+          { method: 'DELETE' },
+        )
+        if (!res.ok) throw new Error(`WebAuthn revoke failed (${res.status})`)
+        toast.success(WEBAUTHN_REVOKE_SUCCESS)
+        await refetchWebauthn()
+      } catch {
+        setWebauthnNotice(WEBAUTHN_LIST_ERROR)
+        toast.error(WEBAUTHN_LIST_ERROR)
+      }
+    },
+    [revokeConfirmId, refetchWebauthn],
+  )
 
   return (
     <div className="space-y-4 animate-fade-in-up">
@@ -213,6 +358,93 @@ export const DeviceTab = memo(function DeviceTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ═══ WebAuthn sekcija (R97-a, ADDITIVNO) ═══
+          Vidna SAMO ko naprava podpira WebAuthn (window.PublicKeyCredential)
+          IN je vezana na lokacijo — sicer tiho skrita (brez konzolnega šuma).
+          localStorage binding iz zgornje kartice je spoofable prek devtools;
+          FIDO2 ključ ni — ta kartica registrira kriptografski dokaz lokacije. */}
+      {webauthnSupported && isBound && (
+        <Card className="card-lift">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Fingerprint className="h-5 w-5 text-emerald-500" aria-hidden="true" />
+              {WEBAUTHN_SECTION_TITLE}
+            </CardTitle>
+            <CardDescription>
+              Passkey je kriptografsko vezan na lokacijo{' '}
+              <span className="font-medium">{currentLocation?.name ?? deviceLocationId}</span> —
+              ključa ni mogoče uporabiti na drugi lokaciji niti kovati prek devtools.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {webauthnError ? (
+              <p className="text-xs text-muted-foreground" role="alert">
+                {WEBAUTHN_LIST_ERROR}
+              </p>
+            ) : webauthnLoading ? (
+              <div className="space-y-2" aria-hidden="true">
+                <Skeleton className="h-4 w-48 rounded-md" />
+                <Skeleton className="h-11 w-full rounded-md" />
+              </div>
+            ) : (webauthnCredentials ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">{WEBAUTHN_EMPTY_LIST}</p>
+            ) : (
+              <ul className="space-y-2" aria-label="Seznam WebAuthn ključev">
+                {(webauthnCredentials ?? []).map(cred => {
+                  const label = cred.deviceName ?? cred.deviceType ?? 'WebAuthn ključ'
+                  const isArmed = revokeConfirmId === cred.id
+                  return (
+                    <li
+                      key={cred.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{label}</p>
+                        <Badge variant="secondary" className="mt-1">
+                          {cred.lastUsedAt
+                            ? `Zadnja uporaba: ${new Date(cred.lastUsedAt).toLocaleDateString('sl-SI')}`
+                            : WEBAUTHN_NEVER_USED}
+                        </Badge>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        onClick={() => handleWebauthnRevoke(cred.id)}
+                        disabled={!isArmed && revokeConfirmId !== null}
+                        className="min-h-11 text-destructive hover:text-destructive"
+                        aria-label={
+                          isArmed
+                            ? WEBAUTHN_REVOKE_CONFIRM_ARIA
+                            : `${WEBAUTHN_REVOKE_ARIA_PREFIX} ${label}`
+                        }
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" aria-hidden="true" />
+                        {isArmed ? WEBAUTHN_REVOKE_CONFIRM_LABEL : WEBAUTHN_REVOKE_LABEL}
+                      </Button>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+
+            {webauthnNotice && (
+              <p className="text-xs text-muted-foreground" role="alert">
+                {webauthnNotice}
+              </p>
+            )}
+
+            <Button
+              onClick={handleWebauthnRegister}
+              disabled={webauthnRegistering}
+              className="min-h-11"
+              aria-label={WEBAUTHN_REGISTER_ARIA}
+            >
+              <Fingerprint className="h-4 w-4 mr-2" aria-hidden="true" />
+              {webauthnRegistering ? 'Registracija…' : WEBAUTHN_REGISTER_LABEL}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 })

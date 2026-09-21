@@ -1,9 +1,9 @@
 // ============================================
 // CRON WORKER — Outbox procesiranje
 // ============================================
-// Vercel Cron pokliče ta endpoint vsakih 5 minut.
-// Konfigurirano v vercel.json:
-//   { "crons": [{ "path": "/api/cron/outbox", "schedule": "*/5 * * * *" }] }
+// Vercel Cron pokliče ta endpoint DNEVNO ob 03:00 UTC.
+// Konfigurirano v vercel.json (avtoritativni vir urnikov):
+//   { "crons": [{ "path": "/api/cron/outbox", "schedule": "0 3 * * *" }] }
 //
 // Varnost: CRON_SECRET v headerju preprečuje zlorabe.
 // ============================================

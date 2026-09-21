@@ -1,0 +1,288 @@
+# ============================================
+# RestaurantOS — CI Monitor (R97-c)
+# ============================================
+# Namen: avtomatsko sledenje neuspehom workflow-ov 'CI' in 'E2E' na main
+# prek ENEGA tracking issue-ja:
+#
+#   - failure  → najde ODPRTI issue z labelo 'ci-failure' in točno tem
+#     naslovom '🚨 CI failure na main'. Če obstaja, mu doda komentar
+#     (workflow, run URL, kratka commit SHA, zaključek, ISO čas); če ne
+#     obstaja, ga ustvari (markdown tabela + navodilo za preiskavo).
+#     DEDUP: odprtega issue-a je vedno kvečjemu EN (find-then-create +
+#     serializacija prek concurrency skupine — hkratna zaključka CI in E2E
+#     ne tekmujeta za ustvarjanje issue-a).
+#   - success (okrevanje) → če odprti 'ci-failure' issue obstaja, primerja
+#     ZADNJO omenjeno commit SHA v njegovem telesu/komentarjih s SHA
+#     uspešnega run-a: drugačna SHA → komentar '✅ Obnovljeno: CI/E2E zopet
+#     zelen na <sha>' + zapri kot completed; ista SHA (zelen re-run istega
+#     prijava) → zapri s 'ponovni zagon' recovery komentarjem.
+#
+# Tehnične opombe:
+#   - actions/github-script@v7 uporablja PRIVZETI GITHUB_TOKEN (github.token)
+#     — dovoljenja so na workflow nivoju spodaj; brez dodatnih secrets.
+#   - Polja eventa so v YAML izrazih dostopna kot github.event.workflow_run.
+#     {id,name,head_sha,conclusion,html_url}; znotraj github-script JS je
+#     isti payload dosegljiv kot context.payload.workflow_run (github-script
+#     nima github.event/github.repository — to sta YAML izrazna konteksta).
+#   - Job 'monitor' teče ob 'failure' ALI 'success' zaključku (cancelled in
+#     startup_failure se ignorirata): failure korak teče IZKLJUČNO ob
+#     failure, recovery korak IZKLJUČNO ob success — brez success zagonov
+#     okrevanje (auto-close) ne bi nikoli teklo.
+#   - Regex za izločanje SHA je vezan na oblike 'Commit: `<sha>`' /
+#     '| Commit | `<sha>` |', ki jih ta workflow sam izpisuje (7–40 hex
+#     znakov z 'commit' predpono — run ID-ji in ISO časi ne dajo lažnih
+#     zadetkov).
+#   - workflow_run event se sproži samo, če je ta datoteka prisotna na main
+#     (GitHub omejitev: workflow_run se poganja na privzeti veji).
+# ============================================
+name: CI Monitor
+
+on:
+  workflow_run:
+    workflows: [CI, E2E]
+    types: [completed]
+    branches: [main]
+
+# Privzeti GITHUB_TOKEN (github.token): actions: read za workflow_run
+# podatke, issues: write za ustvarjanje/komentiranje/zapiranje issue-a,
+# contents: read kot minimalni ostatak.
+permissions:
+  actions: read
+  issues: write
+  contents: read
+
+# Serializacija = DEDUP GARANT: brez cancel-in-progress — vsak zaključen
+# run mora obdelati svoj dogodek (odpaden monitor = izgubljen neuspeh).
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    name: Monitor CI/E2E (failure → issue, success → auto-close)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Samo dokončani neuspešni ali uspešni run-i (cancelled/startup_failure ignorirana)
+    if: github.event.workflow_run.conclusion == 'failure' || github.event.workflow_run.conclusion == 'success'
+    steps:
+      # ───────────────────────────────────────────
+      # Korak 1: FAILURE → ustvari ali posodobi tracking issue
+      # ───────────────────────────────────────────
+      - name: Ob neuspehu — ustvari ali posodobi issue "🚨 CI failure na main"
+        if: github.event.workflow_run.conclusion == 'failure'
+        # Privzeti GITHUB_TOKEN (github.token) — brez secrets inputa
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const wr = context.payload.workflow_run;
+
+            // Guard proti nedefiniranim poljem (bash-stilski null checki)
+            if (!wr || !wr.id || !wr.name || !wr.conclusion || !wr.head_sha) {
+              core.warning('workflow_run payload nima pričakovanih polj (id/name/conclusion/head_sha) — preskok.');
+              return;
+            }
+
+            const TITLE = '🚨 CI failure na main';
+            const LABEL = 'ci-failure';
+            const sha = String(wr.head_sha).toLowerCase();
+            const shortSha = sha.slice(0, 7);
+            const workflowName = String(wr.name);
+            const serverUrl = context.serverUrl || process.env.GITHUB_SERVER_URL || 'https://github.com';
+            const repoFullName = (context.payload.repository && context.payload.repository.full_name)
+              || process.env.GITHUB_REPOSITORY
+              || (context.repo.owner + '/' + context.repo.repo);
+            const runUrl = serverUrl + '/' + repoFullName + '/actions/runs/' + wr.id;
+            const ts = new Date().toISOString();
+
+            const commentBody = [
+              '🔁 Nova neuspešna izvedba (avtomatsko dodal `ci-monitor`):',
+              '',
+              '- Workflow: ' + workflowName,
+              '- Zaključek: ' + String(wr.conclusion),
+              '- Commit: `' + shortSha + '`',
+              '- Run: [' + String(wr.id) + '](' + runUrl + ')',
+              '- Čas (ISO): ' + ts,
+            ].join('\n');
+
+            // DEDUP: točno EN odprti issue z labelo ci-failure in točno tem naslovom
+            const found = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: LABEL,
+              sort: 'created',
+              direction: 'asc',
+              per_page: 100,
+            });
+            const matches = found.data.filter((i) => i.title === TITLE && !i.pull_request);
+            const existing = matches[0];
+
+            if (existing) {
+              if (matches.length > 1) {
+                core.warning('Najdenih več odprtih ci-failure issue-ev (' + matches.length + ') — posodabljam najstarejši #' + existing.number + '.');
+              }
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body: commentBody,
+              });
+              core.info('Issue #' + existing.number + ' posodobljen z novim neuspehom.');
+              return;
+            }
+
+            // Labela 'ci-failure' naj obstaja (idempotentno: 404 → ustvari)
+            try {
+              await github.rest.issues.getLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: LABEL,
+              });
+            } catch (err) {
+              if (err && err.status === 404) {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: LABEL,
+                  color: 'D93F0B',
+                  description: 'Avtomatsko ustvarjena s strani ci-monitor workflow-a (R97-c)',
+                });
+              } else {
+                throw err;
+              }
+            }
+
+            const table = [
+              '| Polje | Vrednost |',
+              '| --- | --- |',
+              '| Workflow | ' + workflowName + ' |',
+              '| Zaključek | ' + String(wr.conclusion) + ' |',
+              '| Commit | `' + shortSha + '` |',
+              '| Run | [' + String(wr.id) + '](' + runUrl + ') |',
+              '| Čas zaključka (ISO) | ' + ts + ' |',
+            ].join('\n');
+
+            const newBody = [
+              '## 🚨 CI failure na main',
+              '',
+              table,
+              '',
+              '**Ukrep:** odpri log zagona (povezava v tabeli), razišči vzrok in popravi. Ta issue se samodejno zapre ob prvem zelenem `CI`/`E2E` zagonu na main.',
+              '',
+              '<!-- ci-monitor R97-c: telo je vir "zadnje omenjene SHA" za recovery korak -->',
+            ].join('\n');
+
+            const created = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: TITLE,
+              body: newBody,
+              labels: [LABEL],
+            });
+            core.info('Ustvarjen tracking issue #' + created.data.number + ' za ' + workflowName + ' failure na ' + shortSha + '.');
+
+      # ───────────────────────────────────────────
+      # Korak 2: SUCCESS (okrevanje) → zapri odprti tracking issue
+      # ───────────────────────────────────────────
+      - name: Ob uspehu — zapri issue "🚨 CI failure na main" (okrevanje)
+        if: github.event.workflow_run.conclusion == 'success'
+        # Privzeti GITHUB_TOKEN (github.token) — brez secrets inputa
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const wr = context.payload.workflow_run;
+
+            // Guard proti nedefiniranim poljem (bash-stilski null checki)
+            if (!wr || !wr.id || !wr.name || !wr.conclusion || !wr.head_sha) {
+              core.warning('workflow_run payload nima pričakovanih polj (id/name/conclusion/head_sha) — preskok.');
+              return;
+            }
+
+            const TITLE = '🚨 CI failure na main';
+            const LABEL = 'ci-failure';
+            const sha = String(wr.head_sha).toLowerCase();
+            const shortSha = sha.slice(0, 7);
+            const serverUrl = context.serverUrl || process.env.GITHUB_SERVER_URL || 'https://github.com';
+            const repoFullName = (context.payload.repository && context.payload.repository.full_name)
+              || process.env.GITHUB_REPOSITORY
+              || (context.repo.owner + '/' + context.repo.repo);
+            const runUrl = serverUrl + '/' + repoFullName + '/actions/runs/' + wr.id;
+
+            // Najdi ODPRTI ci-failure issue; brez njega nič za okrevanje
+            const found = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: LABEL,
+              sort: 'created',
+              direction: 'asc',
+              per_page: 100,
+            });
+            const issue = found.data.find((i) => i.title === TITLE && !i.pull_request);
+            if (!issue) {
+              core.info('Ni odprtega ci-failure issue-a — nič za zapreti.');
+              return;
+            }
+
+            // Zadnja omenjena SHA: telo najprej, nato komentarji kronološko
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              per_page: 100,
+            });
+            comments.sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0));
+            const texts = [issue.body || ''].concat(comments.map((c) => c.body || ''));
+
+            // Poišče samo oblike, ki jih ci-monitor sam izpisuje
+            // ('Commit: `<sha>`' / '| Commit | `<sha>` |'). 7–40 hex znakov
+            // za \bcommit\b = run ID-ji in ISO časi ne dajo lažnih zadetkov;
+            // \bcommit\b ne pade na slovensko besedo 'commita'.
+            const SHA_RE = '\\bcommit\\b[^0-9a-f]{0,32}?([0-9a-f]{7,40})\\b';
+            let lastSha = null;
+            for (const text of texts) {
+              if (!text) continue;
+              const re = new RegExp(SHA_RE, 'gi');
+              let m;
+              while ((m = re.exec(String(text))) !== null) {
+                lastSha = m[1].toLowerCase();
+              }
+            }
+
+            // Ista SHA = zelen re-run istega prijava; drugače = nov prijav je
+            // zelen. Manjkajoča SHA v zgodovini → obravnavaj kot 'drugačna'
+            // (varneje zapreti kot pustiti večno odprt issue).
+            const sameSha = lastSha !== null && sha.startsWith(lastSha);
+            core.info('Zadnja omenjena SHA: ' + (lastSha || '(ni najdena)') + ' | uspešen run: ' + shortSha + ' | ista SHA: ' + sameSha);
+
+            const header = sameSha
+              ? '✅ Obnovljeno (ponovni zagon istega SHA): CI/E2E zopet zelen na `' + shortSha + '`'
+              : '✅ Obnovljeno: CI/E2E zopet zelen na `' + shortSha + '`';
+            const lines = [
+              header,
+              '',
+              '- Workflow: ' + String(wr.name),
+              '- Zaključek: ' + String(wr.conclusion),
+              '- Run: [' + String(wr.id) + '](' + runUrl + ')',
+              '- Čas (ISO): ' + new Date().toISOString(),
+            ];
+            if (lastSha && !sameSha) {
+              lines.push('- Prejšnja neuspešna SHA: `' + lastSha + '`');
+            }
+            lines.push('');
+            lines.push('Issue se zapira kot completed (avtomatsko okrevanje ci-monitor, R97-c).');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: lines.join('\n'),
+            });
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              state: 'closed',
+              state_reason: 'completed',
+            });
+            core.info('Issue #' + issue.number + ' zaprt kot completed.');

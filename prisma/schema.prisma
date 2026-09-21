@@ -1414,6 +1414,7 @@ model Location {
   modifierGroups        ModifierGroup[]   // MODEL A #9: skupine modifikatorjev PO LOKACIJI
   guests                Guest[]           // R87: per-location CRM (tenant scope)
   integrations          Integration[]     // R88: delivery webhooki žigajo na to lokacijo (tenant scope)
+  webauthnCredentials  WebAuthnCredential[] // R97-a: WebAuthn/passkey device attestation poverilnice
   // R89 — per-location ordering token revokacija (rotate = increment; stari
   // tokeni instant neveljavni; glej lib/ordering-token).
   tokenVersion     Int      @default(0)
@@ -3234,4 +3235,40 @@ model ApiKey {
   @@index([keyHash])
   @@index([isActive])
   @@index([expiresAt])
+}
+
+// ============================================
+// WEBAUTHN CREDENTIAL — R97-a: WebAuthn/passkey device attestation (FIDO2)
+// ============================================
+// Kriptografski temelj za device→location binding (R95 localStorage binding je
+// spoofable prek devtools): naprava dokazuje posessijo poverilnice LOKACIJE s
+// pravim FIDO2 assertion podpisom (@simplewebauthn/server v14, ES256/RS256).
+// ADDITIVEN TEMELJ (R97): login kontrakt NI dotaknjen — PinLogin integracija
+// teče v R98 po bake fazi. Ločeno od BiometricCredential (employee biometrična
+// prijava) — ta model je PER-LOKACIJA (MODEL A tenant scope), ne per-employee.
+// ============================================
+model WebAuthnCredential {
+  id           String   @id @default(cuid())
+  // WebAuthn credential ID (base64url, ~16–1023 bajtov) — unikaten per authenticator.
+  credentialId String   @unique
+  // COSE public key (base64url) — @simplewebauthn/server verifyAssertion input.
+  publicKey    String
+  // FIDO2 spec §6.1 signature counter — STRICTLY increasing; enak/nižji = replay/clone → reject.
+  counter      Int      @default(0)
+  // --- Tenant scope (MODEL A: konfiguracija PO LOKACIJI, NOT NULL) ---
+  locationId   String
+  location     Location @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Admin-facing meta (DeviceTab list) ---
+  deviceName   String?  // nickname ("Kiosk-1 vhod", "Tablet 3")
+  // Transports kot comma-joined string ("internal,hybrid") — R97-a odločitev:
+  // NOVE tabele NE uvajajo dodatnih JSON-as-String konverzij (BiometricCredential
+  // je ostal pri JSON array stringu; tu je canonical comma-join).
+  transports   String?
+  // singleDevice | multiDevice (FIDO2 credentialDeviceType).
+  deviceType   String?
+  createdAt    DateTime @default(now())
+  lastUsedAt   DateTime?
+
+  @@index([locationId])
+  @@index([lastUsedAt])
 }
