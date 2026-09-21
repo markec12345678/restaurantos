@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyToken, destroySession } from '@/lib/auth-middleware'
 import { loginSchema, authResponseSchema, authStatusResponseSchema } from '@/lib/validations'
-import { checkRateLimitAsync, getClientIp, LOGIN_LIMIT } from '@/lib/rate-limit'
+import { checkRateLimitAsync, getClientIp, rateLimitedResponse, LOGIN_LIMIT } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
 import { generateCsrfToken } from '@/lib/csrf'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
@@ -48,10 +48,14 @@ export async function POST(req: Request) {
     const clientIp = getClientIp(req)
     const rateCheck = await checkRateLimitAsync('auth-login', clientIp, LOGIN_LIMIT)
     if (!rateCheck.allowed) {
+      // R92-b: enoten 429 helper (rate-limit/response.ts) — glave Retry-After /
+      // X-RateLimit-Remaining / X-RateLimit-Reset so sedaj zglavljene z
+      // withRateLimit HOF kanonom (prej: NO glav). Telo ostane login-specifično
+      // (minute-based, namerno) — fallback 900000 ms = LOGIN_LIMIT okno (15 min).
       const retryMin = Math.ceil((rateCheck.retryAfterMs || 900000) / 60000)
-      return NextResponse.json(
-        { error: `Preveč neuspešnih poskusov. Poskusite znova čez ${retryMin} min.` },
-        { status: 429 }
+      return rateLimitedResponse(
+        rateCheck.retryAfterMs,
+        `Preveč neuspešnih poskusov. Poskusite znova čez ${retryMin} min.`
       )
     }
 
@@ -65,6 +69,9 @@ export async function POST(req: Request) {
         details: { reason: 'pin_locked', remainingSec, userAgent: req.headers.get('user-agent') || '' },
       })
       // Enak odgovor kot IP rate limit (ne razkriva, ali PIN obstaja)
+      // R92 odločitev: lockout ≠ rate limiter — to je ZAKLEP, ne vedro, zato
+      // oblika NAMERNO ostane brez X-RateLimit-* glav (samo lasten Retry-After);
+      // ni prek rateLimitedResponse() helperja.
       return NextResponse.json(
         { error: `Preveč neuspešnih poskusov. Poskusite znova čez ${Math.ceil(remainingSec / 60)} min.` },
         { status: 429, headers: { 'Retry-After': String(remainingSec) } }

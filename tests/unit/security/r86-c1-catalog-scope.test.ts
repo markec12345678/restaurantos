@@ -43,12 +43,27 @@ const mocks = vi.hoisted(() => ({
   fetchSourceMenus: vi.fn(),
   syncMenusToTargets: vi.fn(),
   transaction: vi.fn(),
+  // R92-a: rate-limit mock (locations POST / locations/[id] PUT / sync POST
+  // zdaj trošijo vedro — glej spodaj)
+  rateLimitCheck: vi.fn(),
+  getClientIp: vi.fn(),
 }))
 
 // Auth middleware: mock requireAuth — REALNI tenant-scope resolver iz
 // '@/lib/tenant-scope' ni mockan (route-ji ga uvažajo kanonsko).
 vi.mock('@/lib/auth-middleware', () => ({
   requireAuth: mocks.requireAuth,
+}))
+
+// R92-a: rate-limit modul mockan — locations POST, locations/[id] PUT/DELETE
+// in locations/sync POST zdaj kličejo checkRateLimitAsync (fiksni ključi
+// 'locations-post' / 'locations-mutate' / 'locations-sync'). Privzeto dovoljeno
+// → obstoječi testi ostanejo deterministični (realen fail-closed modul bi bil
+// nedeterminističen).
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimitAsync: mocks.rateLimitCheck,
+  getClientIp: mocks.getClientIp,
+  AUTHENTICATED_LIMIT: { maxRequests: 120, windowMs: 60000 },
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -168,6 +183,9 @@ function jsonReq(url: string, method: string, body?: unknown): Request {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // R92-a: privzeto dovoljen rate limit — write testi nadaljujejo normalno.
+  mocks.rateLimitCheck.mockResolvedValue({ allowed: true, remaining: 5 })
+  mocks.getClientIp.mockReturnValue('198.51.100.77')
   mocks.tableFindFirst.mockResolvedValue(null)
   mocks.tableFindMany.mockResolvedValue([])
   mocks.tableUpdate.mockResolvedValue({ id: 't-1', number: 5 })

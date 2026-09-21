@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
@@ -57,6 +58,31 @@ export async function POST(req: Request) {
   // AVTENTIKACIJA: Ustvarjanje webhookov - samo admin
   const authResult = await requireAuth(req, { permission: 'admin' })
   if (authResult.error) return authResult.error
+
+  // R92-a: rate limit TAKOJ po requireAuth — samo avtenticirani klici trošijo
+  // vedro (anonimni probe-i ne onesnažijo NAT vedra pisarne); fail-closed
+  // (checkRateLimitAsync zavrača, če cache odpove — core.ts kanon).
+  // Fiksni ključ 'webhooks-post' (NE iz pathname): en IP ne more fan-out prek
+  // različnih virov. Webhook create = izdaja poti za ODAJANJE dogodkov izven
+  // strežnika (URL + samodejni secret) — izdajna write plast, zrcali rotate
+  // R91-4 kanon; GET seznam ostane brez vedra (ceneni read).
+  const rateCheck = await checkRateLimitAsync('webhooks-post', getClientIp(req), AUTHENTICATED_LIMIT)
+  if (!rateCheck.allowed) {
+    // 429 oblika = hišni kanon (withRateLimit HOF): Retry-After / X-RateLimit-*
+    // glave, fallback 60 s, ko odgovor ne nosi retryAfterMs.
+    const retryAfter = Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)
+    return NextResponse.json(
+      { error: 'Preveč zahtev. Poskusite znova čez nekaj časa.' },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(retryAfter),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': String(Math.ceil(Date.now() / 1000) + retryAfter),
+        },
+      }
+    )
+  }
 
   try {
     const result = await validateRequest(req, createWebhookSchema)

@@ -41,6 +41,9 @@ const mocks = vi.hoisted(() => ({
   integrationFindMany: vi.fn(),
   integrationCreate: vi.fn(),
   locationFindFirst: vi.fn(),
+  // R92-a: rate-limit mock (ruta POST zdaj troši vedro — glej spodaj)
+  rateLimitCheck: vi.fn(),
+  getClientIp: vi.fn(),
 }))
 
 // Auth middleware: mock requireAuth, REALNI tenant-scope resolver (ruta ga
@@ -65,6 +68,15 @@ vi.mock('@/lib/db', () => ({
     },
     location: { findFirst: mocks.locationFindFirst },
   },
+}))
+
+// R92-a: rate-limit modul mockan — POST ruta zdaj kliče checkRateLimitAsync
+// (fiksni ključ 'integrations-post'). Privzeto dovoljeno → obstoječi testi A–E
+// ostanejo deterministični (realen fail-closed modul bi bil nedeterminističen).
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimitAsync: mocks.rateLimitCheck,
+  getClientIp: mocks.getClientIp,
+  AUTHENTICATED_LIMIT: { maxRequests: 120, windowMs: 60000 },
 }))
 
 import { GET as listGET, POST as integrationsPOST } from '@/app/api/integrations/route'
@@ -168,6 +180,9 @@ async function withProductionNoSecret(fn: () => Promise<void>) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // R92-a: privzeto dovoljen rate limit — POST testi nadaljujejo normalno.
+  mocks.rateLimitCheck.mockResolvedValue({ allowed: true, remaining: 5 })
+  mocks.getClientIp.mockReturnValue('198.51.100.77')
   // findMany mock FILTRIRA factory vrstice po where (Prisma semantika) —
   // odgovor dokazuje, da tuje lokacije + NULL-žigane vrstice NISO vrnjene.
   mocks.integrationFindMany.mockImplementation(async (args?: { where?: Record<string, unknown> }) => {

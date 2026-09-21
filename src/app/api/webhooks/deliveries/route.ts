@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { processRetryQueue } from '@/lib/webhook-engine'
 
@@ -79,6 +80,30 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const authResult = await requireAuth(req, { permission: 'admin' })
   if (authResult.error) return authResult.error
+
+  // R92-a: rate limit TAKOJ po requireAuth — samo avtenticirani klici trošijo
+  // vedro (anonimni probe-i ne onesnažijo NAT vedra pisarne); fail-closed
+  // (checkRateLimitAsync zavrača, če cache odpove — core.ts kanon).
+  // Fiksni ključ 'webhooks-deliveries-retry': processRetryQueue je GLOBALNA
+  // batch operacija (ponovno pošilja webhookе VSEH tenantov) — brez vedra bi
+  // en avtenticiran IP lahko zaprl zanko outbound dostav.
+  const rateCheck = await checkRateLimitAsync('webhooks-deliveries-retry', getClientIp(req), AUTHENTICATED_LIMIT)
+  if (!rateCheck.allowed) {
+    // 429 oblika = hišni kanon (withRateLimit HOF): Retry-After / X-RateLimit-*
+    // glave, fallback 60 s, ko odgovor ne nosi retryAfterMs.
+    const retryAfter = Math.ceil((rateCheck.retryAfterMs ?? 60000) / 1000)
+    return NextResponse.json(
+      { error: 'Preveč zahtev. Poskusite znova čez nekaj časa.' },
+      {
+        status: 429,
+        headers: {
+          'Retry-After': String(retryAfter),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': String(Math.ceil(Date.now() / 1000) + retryAfter),
+        },
+      }
+    )
+  }
 
   // FIX R82-F: processRetryQueue je GLOBALNA batch operacija (ponovno pošilja
   // webhookе vseh tenantov) → platformAdminGate (mirror receipts/rebuild).

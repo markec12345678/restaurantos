@@ -5,6 +5,7 @@
 // ============================================
 
 export { checkRateLimit, checkRateLimitAsync, getClientIp } from './core'
+export { rateLimitedResponse } from './response'
 export type { RateLimitConfig } from './presets'
 export {
   PUBLIC_ORDER_LIMIT,

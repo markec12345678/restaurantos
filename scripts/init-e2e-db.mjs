@@ -109,15 +109,9 @@ await pg.query(`
 `, ['loc-1', 'Test Restavracija', 'HQ', 'restaurant', 'Testna 1', 'Ljubljana', '1000', 'SI', '+386 1 234 5678', 'test@test.si', '12345678', 'SI12345678', 'TEST01', 'test', 'Europe/Ljubljana', 'EUR', 'sl-SI'])
 console.log('[init] ✅ Location seedan (s P0-C4 polji)')
 
-// TaxRate (22%, 9.5%, 0%)
-for (const [id, name, rate, code] of [
-  ['tax-22', 'Standard DDV 22%', 22.0, 'S'],
-  ['tax-95', 'Znižana DDV 9.5%', 9.5, 'R'],
-  ['tax-0', 'Oproščeno 0%', 0.0, 'Z'],
-]) {
-  await pg.query(`INSERT INTO "TaxRate" (id, name, rate, code, "locationId", "isActive", "sortOrder", "createdAt", "updatedAt") VALUES ($1,$2,$3,$4,'loc-1',true,0,NOW(),NOW()) ON CONFLICT (id) DO NOTHING`, [id, name, rate, code])
-}
-console.log('[init] ✅ TaxRates seedan')
+// TaxRate — R92: per-lokacijski fixture ids tr-loc-1/2-* (MODEL A, spec
+// MODELA-3) se seedajo NIZJE v MODEL A fixture bloku; tukaj nič (unique(
+// locationId, code) — stari tax-22 loc-1 id-ji so bili v konfliktu s tr-loc-*).
 
 // Menu + Category + MenuItems (s P0-C3B locationId)
 await pg.query(`INSERT INTO "Menu" (id, name, icon, color, "sortOrder", "isActive", "locationId", "createdAt", "updatedAt") VALUES ($1,$2,$3,$4,0,true,$5,NOW(),NOW()) ON CONFLICT (id) DO UPDATE SET "locationId" = $5`, ['menu-1', 'Test Menu', '🍽️', '#f59e0b', 'loc-1'])
@@ -157,6 +151,59 @@ for (const [id, name, price, vat] of [
 }
 await pg.query(`INSERT INTO "Table" (id, number, capacity, status, area, "posX", "posY", width, height, shape, rotation, "locationId", "createdAt", "updatedAt") VALUES ($1,1,4,'available','main',20,10,8,10,'square',0,$2,NOW(),NOW()) ON CONFLICT (id) DO UPDATE SET "locationId" = $2`, ['table-2', 'loc-2'])
 console.log('[init] ✅ Lokacija 2 + menu-2 + miza 2 seedani (E2E dve lokaciji)')
+
+// R92 FIX: filiala-admin (PIN 2222, loc-2) — MODEL A E2E describe (multi-tenant-
+// security.spec.ts MODELA-*) prijavlja 'filiala-admin'/'2222'; seed je dotlej
+// manjal → beforeAll login fail → 13 testov 'did not run'. Employee.locationId
+// = session lokacija (tenant-scope kanon R85+).
+{
+  const fpin = '2222'
+  const fpinHash = await bcrypt.hash(fpin, 10)
+  const fpinLookup = createHmac('sha256', NEXTAUTH_SECRET).update(fpin).digest('hex')
+  await pg.query(`
+    INSERT INTO "Employee" (id, name, email, phone, role, status, "hireDate", pin, "pinLookup", "locationId", "createdAt", "updatedAt")
+    VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7, $8, 'loc-2', NOW(), NOW())
+    ON CONFLICT (email) DO UPDATE SET pin = $7, "pinLookup" = $8, "locationId" = 'loc-2'
+  `, ['filiala-admin', 'Filiala Admin', 'filiala-admin@e2e.test', '', 'admin', 'active', fpinHash, fpinLookup])
+  await pg.query(`
+    INSERT INTO "EmployeeJob" (id, "employeeId", "jobId", "createdAt", "updatedAt")
+    VALUES ($1, $2, $3, NOW(), NOW())
+    ON CONFLICT DO NOTHING
+  `, ['ej-filiala', 'filiala-admin', 'job-admin'])
+  console.log('[init] ✅ filiala-admin (PIN 2222, loc-2) seedan')
+
+// ═══ R92 FIX: MODEL A E2E fixture ids (mg-loc-1/2-1, sc-loc-1/2-1,
+// do-loc-1/2-dinein) — MODELA-9..16 jih referencirajo; stari seed jih je
+// izgubil. Vse per-lokacijo (MODEL A NOT NULL locationId). ═══
+await pg.query(`INSERT INTO "ModifierGroup" (id, name, "minSelect", "maxSelect", "sortOrder", "locationId", "createdAt", "updatedAt") VALUES ('mg-loc-1-1','E2E Priloge loc-1',0,2,0,'loc-1',NOW(),NOW()) ON CONFLICT (id) DO NOTHING`)
+await pg.query(`INSERT INTO "ModifierGroup" (id, name, "minSelect", "maxSelect", "sortOrder", "locationId", "createdAt", "updatedAt") VALUES ('mg-loc-2-1','E2E Priloge loc-2',0,2,0,'loc-2',NOW(),NOW()) ON CONFLICT (id) DO NOTHING`)
+await pg.query(`INSERT INTO "Modifier" (id, name, price, "isAvailable", "sortOrder", "modifierGroupId", "createdAt", "updatedAt") VALUES ('mod-loc-1-1','Ketchup',0.5,true,0,'mg-loc-1-1',NOW(),NOW()) ON CONFLICT (id) DO NOTHING`)
+console.log('[init] ✅ MODEL A fixture: ModifierGroups (mg-loc-1/2-1) seedani')
+await pg.query(`INSERT INTO "ServiceCharge" (id, name, type, amount, "isAutoApply", "isActive", "sortOrder", "locationId", "createdAt", "updatedAt") VALUES ('sc-loc-1-1','Servisna postavka loc-1','percentage',10,false,true,0,'loc-1',NOW(),NOW()) ON CONFLICT (id) DO NOTHING`)
+await pg.query(`INSERT INTO "ServiceCharge" (id, name, type, amount, "isAutoApply", "isActive", "sortOrder", "locationId", "createdAt", "updatedAt") VALUES ('sc-loc-2-1','Servisna postavka loc-2','percentage',10,false,true,0,'loc-2',NOW(),NOW()) ON CONFLICT (id) DO NOTHING`)
+console.log('[init] ✅ MODEL A fixture: ServiceCharges (sc-loc-1/2-1) seedani')
+await pg.query(`INSERT INTO "DiningOption" (id, name, type, "prepTimeMinutes", "isActive", "sortOrder", "locationId", "createdAt", "updatedAt") VALUES ('do-loc-1-dinein','Na mestu HQ','e2e-dinein-1',15,true,0,'loc-1',NOW(),NOW()) ON CONFLICT (id) DO NOTHING`)
+await pg.query(`INSERT INTO "DiningOption" (id, name, type, "prepTimeMinutes", "isActive", "sortOrder", "locationId", "createdAt", "updatedAt") VALUES ('do-loc-2-dinein','Na mestu Filiala','e2e-dinein-2',15,true,0,'loc-2',NOW(),NOW()) ON CONFLICT (id) DO NOTHING`)
+console.log('[init] ✅ MODEL A fixture: DiningOptions (do-loc-1/2-dinein) seedani')
+
+// ═══ R92 FIX dopolnilo: per-lokacijski TaxRate + VoidReason fixture ids
+// (tr-loc-1/2-S, vr-loc-1/2-1) — MODELA-3 jih pin-a; spec je predpostavljal
+// bogatejši seed kot ga je init-e2e-db imel. Idempotentno. ═══
+for (const [tid, name, rate, code, loc] of [
+  ['tr-loc-1-S', 'DDV 22 loc-1', 22.0, 'S', 'loc-1'],
+  ['tr-loc-1-R', 'DDV 9.5 loc-1', 9.5, 'R', 'loc-1'],
+  ['tr-loc-2-S', 'DDV 22 loc-2', 22.0, 'S', 'loc-2'],
+  ['tr-loc-2-R', 'DDV 9.5 loc-2', 9.5, 'R', 'loc-2'],
+]) {
+  await pg.query(`INSERT INTO "TaxRate" (id, name, rate, code, "isActive", "sortOrder", "locationId", "createdAt", "updatedAt") VALUES ($1,$2,$3,$4,true,0,$5,NOW(),NOW()) ON CONFLICT (id) DO NOTHING`, [tid, name, rate, code, loc])
+}
+await pg.query(`INSERT INTO "VoidReason" (id, name, "isActive", "sortOrder", "locationId", "createdAt", "updatedAt") VALUES ('vr-loc-1-1','Test razlog loc-1',true,0,'loc-1',NOW(),NOW()) ON CONFLICT (id) DO NOTHING`)
+await pg.query(`INSERT INTO "VoidReason" (id, name, "isActive", "sortOrder", "locationId", "createdAt", "updatedAt") VALUES ('vr-loc-2-1','Test razlog loc-2',true,0,'loc-2',NOW(),NOW()) ON CONFLICT (id) DO NOTHING`)
+console.log('[init] ✅ MODEL A fixture: TaxRates (tr-loc-*) + VoidReasons (vr-loc-*) seedani')
+
+
+}
+
 
 // Inventar + recepta za E2E "verify inventory" (mi-1 → inv-kava, 1 kos/servis)
 await pg.query(`

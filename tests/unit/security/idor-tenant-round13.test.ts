@@ -56,6 +56,9 @@ const mocks = vi.hoisted(() => ({
   timeEntryCount: vi.fn(),
   invalidateEmployeeStatusCache: vi.fn(),
   requireAuth: vi.fn(),
+  // R92-a: rate-limit mock (webhooks/[id] PUT/DELETE zdaj trošita vedro)
+  rateLimitCheck: vi.fn(),
+  getClientIp: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -154,6 +157,16 @@ vi.mock('@/lib/auth-middleware/session-store', () => ({
   invalidateEmployeeStatusCache: mocks.invalidateEmployeeStatusCache,
 }))
 
+// R92-a: rate-limit modul mockan — webhooks/[id] PUT/DELETE zdaj kličeta
+// checkRateLimitAsync (fiksni ključ 'webhooks-mutate'). Privzeto dovoljeno →
+// obstoječi IDOR testi ostanejo deterministični (realen fail-closed modul bi
+// bil nedeterminističen).
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimitAsync: mocks.rateLimitCheck,
+  getClientIp: mocks.getClientIp,
+  AUTHENTICATED_LIMIT: { maxRequests: 120, windowMs: 60000 },
+}))
+
 vi.mock('@/lib/decimal', () => ({
   toNum: (v: unknown) => (typeof v === 'number' ? v : Number(v) || 0),
   deepToNumbers: <T>(v: T): T => v,
@@ -248,6 +261,9 @@ const params = (id: string) => ({ params: Promise.resolve({ id }) })
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // R92-a: privzeto dovoljen rate limit — write testi nadaljujejo normalno.
+  mocks.rateLimitCheck.mockResolvedValue({ allowed: true, remaining: 5 })
+  mocks.getClientIp.mockReturnValue('198.51.100.77')
   authWith(LOC_A)
 })
 

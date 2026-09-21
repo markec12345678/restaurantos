@@ -14,11 +14,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // --- Mocki (vi.hoisted zaradi vitest hoisting) ---
-const { mockRequireAuth, mockLocationFindUnique, mockOrderAggregate, mockOrderCount } = vi.hoisted(() => ({
+const { mockRequireAuth, mockLocationFindUnique, mockOrderAggregate, mockOrderCount, mockRateLimitCheck, mockGetClientIp } = vi.hoisted(() => ({
   mockRequireAuth: vi.fn(),
   mockLocationFindUnique: vi.fn(),
   mockOrderAggregate: vi.fn(),
   mockOrderCount: vi.fn(),
+  // R92-a: rate-limit mock (module import rute zdaj vleče '@/lib/rate-limit')
+  mockRateLimitCheck: vi.fn(),
+  mockGetClientIp: vi.fn(),
 }))
 
 // Route uporablja requireAuth iz auth-middleware barrel-a — mockamo ga, da
@@ -35,6 +38,14 @@ vi.mock('@/lib/db', () => ({
     order: { aggregate: mockOrderAggregate, count: mockOrderCount },
   },
   createAuditLog: vi.fn(),
+}))
+
+// R92-a: rate-limit modul mockan — locations/[id] ruta zdaj importira
+// checkRateLimitAsync (GET je ne kliče, mock zato samo determinira modul).
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimitAsync: mockRateLimitCheck,
+  getClientIp: mockGetClientIp,
+  AUTHENTICATED_LIMIT: { maxRequests: 120, windowMs: 60000 },
 }))
 
 import { GET as getLocationById } from '@/app/api/locations/[id]/route'
@@ -71,6 +82,9 @@ function guardLocationScope(
 describe('R80 batch C: locations/[id] scope-denial', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // R92-a: privzeto dovoljen rate limit (GET rute vedra ne trošijo).
+    mockRateLimitCheck.mockResolvedValue({ allowed: true, remaining: 5 })
+    mockGetClientIp.mockReturnValue('198.51.100.77')
   })
 
   it('lokacijsko vezan admin + tuja lokacija → 404 (notInScope)', () => {

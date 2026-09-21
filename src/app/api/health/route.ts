@@ -34,7 +34,12 @@ interface HealthCheck {
 async function checkDatabase(): Promise<HealthCheck> {
   const start = Date.now()
   try {
-    await db.$queryRaw`SELECT 1`
+    // R92 FIX: tagged `$queryRaw\`SELECT 1\`` s pglite-prisma-adapterjem TRAJNO
+    // abort-a PGlite WASM ('Aborted(). Build with -sASSERTIONS for more info.')
+    // → health 503 na PGlite dev/e2e okoljih, čeprav so model queries + $queryRawUnsafe
+    // zdravi (dokaz: lib/counters.ts $queryRawUnsafe orderNumber inkrement dela).
+    // $queryRawUnsafe('SELECT 1') je semantično identičen in dela na obeh backendih.
+    await db.$queryRawUnsafe('SELECT 1')
     return {
       name: 'database',
       status: 'ok',

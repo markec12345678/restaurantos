@@ -4,7 +4,7 @@
 // ============================================
 
 import { NextResponse } from 'next/server'
-import { checkRateLimitAsync, getClientIp, RateLimitConfig, AUTHENTICATED_LIMIT } from './rate-limit'
+import { checkRateLimitAsync, getClientIp, rateLimitedResponse, RateLimitConfig, AUTHENTICATED_LIMIT } from './rate-limit'
 import { logger } from './logger'
 
 /** Tip za Next.js API route handler */
@@ -54,19 +54,10 @@ export function withRateLimit(handler: HandlerFn, options?: WithRateLimitOptions
 
     if (!result.allowed) {
       // Rate limit presežen — vrni 429 z ustreznimi glavami
-      const retryAfter = Math.ceil((result.retryAfterMs ?? 60000) / 1000)
+      // R92-b: 429 oblika živi v skupnem helperju (rate-limit/response.ts) —
+      // rezultat je identičen prejšnjemu inline NextResponse.json bloku.
       logger.warn('RateLimit', `Rate limited: ${storeKey} from ${clientIp.slice(0, 20)}`)
-      return NextResponse.json(
-        { error: 'Preveč zahtev. Poskusite znova čez nekaj časa.' },
-        {
-          status: 429,
-          headers: {
-            'Retry-After': String(retryAfter),
-            'X-RateLimit-Remaining': '0',
-            'X-RateLimit-Reset': String(Math.ceil(Date.now() / 1000) + retryAfter),
-          },
-        }
-      )
+      return rateLimitedResponse(result.retryAfterMs)
     }
 
     // Pokliči izvirni handler

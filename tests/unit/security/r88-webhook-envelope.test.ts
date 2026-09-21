@@ -90,6 +90,9 @@ vi.mock('@/lib/rate-limit', () => ({
   checkRateLimitAsync: mocks.checkRateLimit,
   getClientIp: vi.fn(() => '1.2.3.4'),
   DELIVERY_WEBHOOK_LIMIT: { maxRequests: 30, windowMs: 60000 },
+  // R92-a: integrations/[id] PUT/DELETE zdaj trošita vedro 'integrations-mutate'
+  // (AUTHENTICATED_LIMIT mora obstajati v mocku — ruta ga podaja kot tretji argument)
+  AUTHENTICATED_LIMIT: { maxRequests: 120, windowMs: 60000 },
 }))
 
 vi.mock('@/lib/counters', () => ({

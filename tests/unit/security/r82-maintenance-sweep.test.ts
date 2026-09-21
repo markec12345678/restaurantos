@@ -42,10 +42,23 @@ const mocks = vi.hoisted(() => ({
   webhookDeliveryFindMany: vi.fn(),
   webhookDeliveryCount: vi.fn(),
   processRetryQueue: vi.fn(),
+  // R92-a: rate-limit mock (webhooks/deliveries POST zdaj troši vedro)
+  rateLimitCheck: vi.fn(),
+  getClientIp: vi.fn(),
 }))
 
 vi.mock('@/lib/auth-middleware', () => ({
   requireAuth: mocks.requireAuth,
+}))
+
+// R92-a: rate-limit modul mockan — webhooks/deliveries POST zdaj kliče
+// checkRateLimitAsync (fiksni ključ 'webhooks-deliveries-retry'). Privzeto
+// dovoljeno → obstoječi testi ostanejo deterministični (realen fail-closed
+// modul bi bil nedeterminističen).
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimitAsync: mocks.rateLimitCheck,
+  getClientIp: mocks.getClientIp,
+  AUTHENTICATED_LIMIT: { maxRequests: 120, windowMs: 60000 },
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -119,6 +132,10 @@ function authError() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // R92-a: privzeto dovoljen rate limit — deliveries POST test nadaljuje do
+  // platformAdminGate (403) kot prej.
+  mocks.rateLimitCheck.mockResolvedValue({ allowed: true, remaining: 5 })
+  mocks.getClientIp.mockReturnValue('198.51.100.77')
   mocks.eodFetch.mockResolvedValue({
     orders: [], cancelledOrdersCount: 0, periodPayments: [], activeShift: null,
     fursStats: [], reservationStats: [], newGuestsCount: 0, expenseEntries: [], existingEOD: null,
