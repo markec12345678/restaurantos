@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Copy, Link2 } from 'lucide-react'
+import { copyToClipboard } from './copy-to-clipboard'
 
 // ============================================
 // WEBHOOK URL (R90) — izdajni URL za dostavne platforme
@@ -13,33 +14,20 @@ import { Copy, Link2 } from 'lucide-react'
 // = "ni na voljo" (starš ne izriše sekcije). URL se nastavi v portalu
 // dostavne platforme; rotacija skrivnosti na strežniku ga razveljavi.
 // Hišni vzorec: location/OrderingLinkSection.tsx (R89-2) — readOnly
-// font-mono Input + Kopiraj (navigator.clipboard + execCommand fallback)
-// + sonner toast.
+// font-mono Input + Kopiraj + sonner toast. R91-3: copy logika izvlečena
+// v copy-to-clipboard.ts (deljena z webhook badge v IntegrationTable).
 // ============================================
 
 export const WebhookUrlSection = memo(function WebhookUrlSection({ webhookUrl }: { webhookUrl: string }) {
   const [copied, setCopied] = useState(false)
 
   async function handleCopy() {
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(webhookUrl)
-      } else {
-        // Fallback za okolja brez Clipboard API (starejši brskalniki / ne-zabezpečeni konteksti)
-        const textarea = document.createElement('textarea')
-        textarea.value = webhookUrl
-        textarea.setAttribute('readonly', '')
-        textarea.style.position = 'fixed'
-        textarea.style.opacity = '0'
-        document.body.appendChild(textarea)
-        textarea.select()
-        document.execCommand('copy')
-        document.body.removeChild(textarea)
-      }
+    const ok = await copyToClipboard(webhookUrl)
+    if (ok) {
       toast.success('URL kopiran')
       setCopied(true)
       window.setTimeout(() => setCopied(false), 2000)
-    } catch {
+    } else {
       toast.error('Kopiranje ni uspelo — kopirajte URL ročno.')
     }
   }

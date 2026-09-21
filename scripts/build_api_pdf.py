@@ -807,7 +807,7 @@ X-RateLimit-Reset: 1695840000
 Retry-After: 60'''))
 story.append(TBL([
     ['Kategorija', 'Limit', 'Okno', 'Endpointi'],
-    ['Public', '20 req', '1 min', '/api/auth (POST), /api/qr-menu'],
+    ['Public', '20 req', '1 min', '/api/auth (POST), /api/public/*'],  # R91: /api/qr-menu odstranjen
     ['Authenticated', '60 req', '1 min', 'Večina endpointov'],
     ['FURS', '10 req', '1 min', '/api/furs/*'],
     ['Auth attempts', '5 req', '15 min', '/api/auth (POST) - zaščita brute force'],

@@ -35,7 +35,11 @@
    - `/order` (online order)
    - **Fix**: auto-detect prvo aktivno lokacijo če `?locationId` manjka
 
-2. **`/api/qr-menu`** — enaka popravitev
+2. **`/api/qr-menu`** — R91: ruta IZBRISANA (ničesa ne dela več — zgodovinski
+   "auto-detect fix" iz te seje je bil pravzaprav P0-C3B cross-tenant fallback,
+   ki ga je R90-1 izkoreninil iz /api/public/menu + /api/public/kiosk; ta
+   sibling je ostal nazadnje in je bil ujet z R91-1 e2e pin auditom). Javni
+   meni je izključno `/api/public/menu` (izrecen `?locationId` obvezen).
 
 3. **`/api/mobile/menu`** — enaka popravitev (API key auth)
 

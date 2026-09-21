@@ -7,9 +7,11 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Search, Pencil, Trash2, RefreshCw, Zap, Activity, Plug } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, RefreshCw, Zap, Activity, Plug, Webhook } from 'lucide-react'
+import { toast } from 'sonner'
 import { getConnectorTypes } from '@/lib/integrations/connectors'
 import { getConnectionStatusConfig, getTypeLabel, formatDateSI } from './constants'
+import { copyToClipboard } from './copy-to-clipboard'
 import type { IntegrationTableProps } from './constants'
 
 // ============================================
@@ -81,6 +83,7 @@ export const IntegrationTable = memo(function IntegrationTable({
                 {filteredIntegrations.map(item => {
                   const connStatus = getConnectionStatusConfig(item.connectionStatus)
                   const ConnIcon = connStatus.icon
+                  const webhookUrl = item.webhookUrl // R91-3: lokalna konstanta (TS narrowing v async onClick closure)
                   return (
                     <TableRow key={item.id} className={!item.isActive ? 'opacity-60' : ''}>
                       <TableCell>
@@ -93,7 +96,28 @@ export const IntegrationTable = memo(function IntegrationTable({
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className="text-xs">{getTypeLabel(item.type)}</Badge>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="secondary" className="text-xs">{getTypeLabel(item.type)}</Badge>
+                          {/* R91-3: webhook badge — izdani URL za dostavne platforme (wolt/glovo/bolt, R90-3).
+                              Izostanek polja = "ni na voljo" → ne izrišemo NIČesar (nikoli onemogočenega gumba). */}
+                          {webhookUrl ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              title="Kopiraj webhook URL (dostavna platforma)"
+                              aria-label="Kopiraj webhook URL (dostavna platforma)"
+                              onClick={async e => {
+                                e.stopPropagation()
+                                const ok = await copyToClipboard(webhookUrl)
+                                if (ok) toast.success('Webhook URL kopiran')
+                                else toast.error('Kopiranje ni uspelo — kopirajte URL ročno.')
+                              }}
+                            >
+                              <Webhook className="h-3 w-3" />
+                            </Button>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge className={`text-xs ${connStatus.color}`}>

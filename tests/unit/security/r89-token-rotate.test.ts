@@ -22,6 +22,9 @@
 //   F. Neznana lokacija → 404 (ni obstoja-oraklja) + ZERO zapisov.
 //   G. Produkcija brez skrivnosti → 503 fail-closed PRED zapisom (R82-D
 //      kanon, zrcali izdajno GET ruto) + ZERO zapisov.
+//   H. R91 rate limit — fiksni ključ 'ordering-token-rotate' + AUTHENTICATED_LIMIT,
+//      TAKOJ po requireAuth (samo avtenticirani klici trošijo vedro); blocked →
+//      429 z Retry-After / X-RateLimit-Remaining + ZERO zapisov; fallback 60 s.
 //
 // Vzorec (r88-seed-posthandler-scope): vi.hoisted mocki, REALNI tenant-scope
 // resolver + REALEN ordering-token lib (dev fallback skrivnost v test okolju),
@@ -34,12 +37,23 @@ const mocks = vi.hoisted(() => ({
   requireAuth: vi.fn(),
   locationFindFirst: vi.fn(),
   locationUpdate: vi.fn(),
+  rateLimitCheck: vi.fn(),
 }))
 
 // Auth middleware: mock requireAuth (permission gate se pin-a na klicu);
 // tenant-scope NI mockan (ruta ga jemlje iz '@/lib/tenant-scope' — realen).
 vi.mock('@/lib/auth-middleware', () => ({
   requireAuth: mocks.requireAuth,
+}))
+
+// R91-4: rate-limit modul mockan — checkRateLimitAsync se pina (fiksni ključ,
+// IP, AUTHENTICATED_LIMIT objekt); getClientIp vrača fiksni testni IP.
+// AUTHENTICATED_LIMIT vrednosti zrcalijo realni preset (presets.ts: 120/min),
+// da objectContaining pin ostane iskren.
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimitAsync: mocks.rateLimitCheck,
+  getClientIp: vi.fn(() => '198.51.100.77'),
+  AUTHENTICATED_LIMIT: { maxRequests: 120, windowMs: 60000 },
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -61,6 +75,7 @@ vi.mock('@/lib/api-utils', () => ({
 }))
 
 // Route import (PO mockih); ordering-token + tenant-scope + utils REALNI
+// (rate-limit je mockan — glej zgoraj)
 import { POST as rotatePOST } from '@/app/api/locations/[id]/ordering-token/rotate/route'
 import { orderingTokenFor, verifyOrderingToken } from '@/lib/ordering-token'
 
@@ -111,6 +126,9 @@ function rotateReq(id: string, query = ''): {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // R91-4: privzeto dovoljen rate limit — obstoječi testi A–G ostanejo
+  // nespremenjeni (ruta nadaljuje po uspešnem checkRateLimitAsync).
+  mocks.rateLimitCheck.mockResolvedValue({ allowed: true, remaining: 5 })
   mocks.locationFindFirst.mockResolvedValue({
     id: LOC_A, name: 'Restavracija A', isActive: true, tokenVersion: 3,
   })
@@ -301,6 +319,66 @@ describe('R89 G: produkcija brez ORDERING_TOKEN_SECRET → 503', () => {
     expect(body.error).not.toContain('HMAC')
     // zrcali izdajno ruto: 503 gre PO resoluciji/scope-u, VEDNO PRED zapisom
     expect(mocks.locationFindFirst).toHaveBeenCalledTimes(1)
+    expect(mocks.locationUpdate).not.toHaveBeenCalled()
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════
+// H. R91 rate limit — fiksni ključ, AUTHENTICATED_LIMIT, fail-closed 429
+// ══════════════════════════════════════════════════════════════════
+describe('R91 H: rate limit (fiksni ključ ordering-token-rotate)', () => {
+  it('allowed → ruta nadaljuje normalno (200, isti tok kot A) + klic pin: fiksni ključ, IP, AUTHENTICATED_LIMIT', async () => {
+    mockSession({ role: 'admin', locationId: LOC_A })
+    const { req, ctx } = rotateReq(LOC_A)
+    const res = await rotatePOST(req, ctx)
+
+    expect(res.status).toBe(200)
+    const body = await res.json() as { tokenVersion: number }
+    expect(body.tokenVersion).toBe(4)
+    expect(mocks.locationUpdate).toHaveBeenCalledTimes(1)
+
+    // klic pin: FIKSNI ključ (ne pathname-izpeljan — en IP ne more fan-out
+    // prek različnih locationId) + IP iz getClientIp + realni limit objekt
+    expect(mocks.rateLimitCheck).toHaveBeenCalledTimes(1)
+    expect(mocks.rateLimitCheck).toHaveBeenCalledWith(
+      'ordering-token-rotate',
+      '198.51.100.77',
+      expect.objectContaining({ maxRequests: expect.any(Number), windowMs: expect.any(Number) }),
+    )
+
+    // pin vrstnega reda: rate limit šele PO uspešnem requireAuth
+    // (anonimni probe-i ne trošijo vedra)
+    expect(mocks.requireAuth.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.rateLimitCheck.mock.invocationCallOrder[0])
+  })
+
+  it('blocked → 429 "Preveč zahtev..." + Retry-After 60 + X-RateLimit-Remaining 0 + ZERO db', async () => {
+    mockSession({ role: 'admin', locationId: LOC_A })
+    mocks.rateLimitCheck.mockResolvedValue({ allowed: false, retryAfterMs: 60000 })
+    const { req, ctx } = rotateReq(LOC_A)
+    const res = await rotatePOST(req, ctx)
+
+    expect(res.status).toBe(429)
+    const body = await res.json() as { error: string }
+    expect(body.error).toBe('Preveč zahtev. Poskusite znova čez nekaj časa.')
+    // Math.ceil(60000 / 1000) = 60
+    expect(res.headers.get('Retry-After')).toBe('60')
+    expect(res.headers.get('X-RateLimit-Remaining')).toBe('0')
+    // ZERO db: 429 gre PRED resolverom/branjem/pisom lokacije
+    expect(mocks.locationFindFirst).not.toHaveBeenCalled()
+    expect(mocks.locationUpdate).not.toHaveBeenCalled()
+  })
+
+  it('blocked brez retryAfterMs → Retry-After pade nazaj na 60 (house fallback 60000 ms)', async () => {
+    mockSession({ role: 'admin', locationId: LOC_A })
+    mocks.rateLimitCheck.mockResolvedValue({ allowed: false })
+    const { req, ctx } = rotateReq(LOC_A)
+    const res = await rotatePOST(req, ctx)
+
+    expect(res.status).toBe(429)
+    expect(res.headers.get('Retry-After')).toBe('60')
+    expect(res.headers.get('X-RateLimit-Remaining')).toBe('0')
+    expect(mocks.locationFindFirst).not.toHaveBeenCalled()
     expect(mocks.locationUpdate).not.toHaveBeenCalled()
   })
 })

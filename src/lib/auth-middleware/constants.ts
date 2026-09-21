@@ -51,10 +51,14 @@ export const MAX_SESSIONS_PER_EMPLOYEE = 5
 
 // Rute, ki ne zahtevajo avtentikacijo (SAMO za GET zahtevke!)
 // FIX HIGH: POST/PUT/DELETE na teh rutah ZAHTEVAJO avtentikacijo
+// R91: '/api/qr-menu' ODSTRANJEN — ruta izbrisana (P0-C3B residual:
+// anonimen fallback na prvo aktivno lokacijo KATEREGA KOLI tenanta; R90-1
+// je fallback izkoreninil iz /api/public/menu + /api/public/kiosk, ta
+// sibling je bil ujet šele s R91-1 e2e pin auditom). Javni meni je ZDAJ
+// izključno /api/public/menu (izrecen ?locationId obvezen — R90 kanon).
 export const PUBLIC_GET_ROUTES = [
   '/api/auth',            // Login — avtentikacija sama po sebi
   '/api/public',          // Javne rute za QR naročanje
-  '/api/qr-menu',         // Javni meni za QR
   '/api/digital-receipt', // Javni digitalni račun za goste (QR link)
   '/api/feedback-public', // Javni API za mnenja gostov (QR kiosk)
 ]

@@ -254,8 +254,11 @@ test.describe('Dashboard & Reports', () => {
     expect([200, 404, 429]).toContain(res.status())
   })
 
-  test('EDGE-8: GET /api/qr-menu je javno dostopen', async ({ request }) => {
-    const res = await request.get(`${API_BASE}/qr-menu`)
+  test('EDGE-8: /qr-menu stran je javno dostopna', async ({ request }) => {
+    // R91: pin popravljen — stari klic `/api/qr-menu` je bil napačna površina
+    // (API varianta je auth-gated 401 — glej MENU-4 v multi-tenant-security),
+    // javno dostopna je SAMO stran /qr-menu (200 HTML shell).
+    const res = await request.get('/qr-menu')
     expect([200, 429]).toContain(res.status())
   })
 

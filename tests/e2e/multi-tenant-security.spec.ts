@@ -284,12 +284,20 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
       expect([404, 429]).toContain(res.status())
     })
 
-    test('MENU-4: GET /api/qr-menu brez ?locationId — auto-detect', async ({ request }) => {
-      const res = await request.get(`${API_BASE}/qr-menu`)
-      expect(res.ok()).toBeTruthy()
-      const body = await res.json().catch(() => ({}))
-      expect(body.menus).toBeDefined()
-      expect(body.settings).toBeDefined()
+    test('MENU-4: GET /api/locations/[id]/qr-menu brez auth — 401 (auth-gated generator)', async ({ request }) => {
+      // R91: QR meni generator (PNG) je auth-gated (requireAuth → 401 brez
+      // seje, tenant-scoped) — ni anonimne generacije meni kode.
+      const res = await request.get(`${API_BASE}/locations/test-loc-12345/qr-menu`)
+      expect(res.status()).toBe(401)
+    })
+
+    test('MENU-4b: GET /qr-menu stran — javno dostopna (200 HTML shell)', async ({ request }) => {
+      // R91: stari pin `GET /api/qr-menu` je kazal na napačno površino — QR
+      // generator API je auth-gated `/api/locations/[id]/qr-menu` (401 brez
+      // auth, glej MENU-4), javna je SAMO stran `/qr-menu` (R87-3 klient bere
+      // ?locationId iz URL-ja). 429 = rate limited v CI.
+      const res = await request.get('/qr-menu')
+      expect([200, 429]).toContain(res.status())
     })
   })
 

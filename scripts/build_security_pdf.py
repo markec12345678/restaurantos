@@ -185,7 +185,7 @@ story.append(TBL([
 story.append(C('Tabela 2.1: OWASP Top 10 (2021) compliance status'))
 story.append(H2('2.2 Podrobnosti po kategorijah'))
 story.append(H3('A01: Broken Access Control'))
-story.append(P('Vsak API endpoint (razen public: /api/auth, /api/qr-menu) zahteva `requireAuth()` klic z ustrezno permission nivel. Multi-tenant izolacija implementirana z locationId scoping na 8 ključnih tabelah (orders, payments, inventory, employees, itd.). Super-admin (PIN 5555) je edina vloga, ki lahko dostopa do cross-branch podatkov.'))
+story.append(P('Vsak API endpoint (razen public: /api/auth, /api/public/* — R91: /api/qr-menu odstranjen) zahteva `requireAuth()` klic z ustrezno permission nivel. Multi-tenant izolacija implementirana z locationId scoping na 8 ključnih tabelah (orders, payments, inventory, employees, itd.). Super-admin (PIN 5555) je edina vloga, ki lahko dostopa do cross-branch podatkov.'))
 story.append(CODE('''// Primer requireAuth z RBAC:
 const auth = await requireAuth(req, { permission: 'admin' })
 if (auth.error) return auth.error  // fail-closed
@@ -355,7 +355,7 @@ story.append(TBL([
     ['Kategorija', 'Limit', 'Okno', 'Endpointi', 'Mitigacija'],
     ['Auth attempts', '5 req', '15 min', '/api/auth (POST)', 'Brute force PIN'],
     ['API (auth)', '60 req', '1 min', 'Večina endpointov', 'Abuse prevention'],
-    ['Public', '20 req', '1 min', '/api/auth, /api/qr-menu', 'Scraping'],
+    ['Public', '20 req', '1 min', '/api/auth, /api/public/*', 'Scraping'],  # R91: /api/qr-menu odstranjen
     ['FURS', '10 req', '1 min', '/api/furs/*', 'FURS API abuse'],
     ['AI', '10 req', '1 min', '/api/ai/*', 'Cost control'],
     ['SMS', '60 req', '1 min', '/api/sms', 'SMS spam'],
