@@ -130,8 +130,16 @@ test.describe('Dashboard & Reports', () => {
     }
   })
 
-  test('MENU-3: GET /api/menu-items/[id] z neobstoječim ID vrne 404', async ({ request }) => {
-    const res = await request.get(`${API_BASE}/menu-items/nonexistent-id`, { headers: authHeaders() })
+  test('MENU-3: PUT /api/menu-items/[id] z neobstoječim ID vrne 404', async ({ request }) => {
+    // R94 pin korekcija (R91-lekcija): [id] ruta izvaža SAMO PUT/DELETE
+    // (route.ts:13,140) — GET vrne 405 (pravilna HTTP semantika za
+    // neimplementirano metodo na obstoječi poti). Namem testa
+    // (neobstoječ id → enoten 404) se preveri prek IMPLEMENTIRANE metode:
+    // PUT vrne 404 'Menu item not found' (route.ts:32).
+    const res = await request.put(`${API_BASE}/menu-items/nonexistent-id`, {
+      headers: authHeaders(),
+      data: { name: 'Neobstojec', price: 1 },
+    })
     expect([404, 429]).toContain(res.status())
   })
 
