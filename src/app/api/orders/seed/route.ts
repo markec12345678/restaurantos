@@ -2,8 +2,10 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
-import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
+import { getNextOrderNumber } from '@/lib/counters'
 import { requireAuth } from '@/lib/auth-middleware'
+// R88-3: centralni tenant-scope + MODEL A pisni guard (seed MORA imeti izrecno lokacijo)
+import { resolveTenantLocationIdOrThrow, resolveWriteLocationId } from '@/lib/tenant-scope'
 import { toNum, round2, calcVat } from '@/lib/decimal'
 import { handleApiError, checkSeedAllowed } from '@/lib/api-utils'
 
@@ -21,13 +23,24 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
+    // R88-3: tenant scope resolver TAKOJ po requireAuth (kanon: pred vsemi
+    // poizvedbami). Regular/admin-with-location → session lokacija;
+    // super-admin → ?locationId ali null.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
+      endpoint: 'POST /api/orders/seed',
+    })
+    if ('error' in scope) return scope.error
+
+    // R88-3 (ZADNJI pisni residual resolveDefaultLocationId zaprt): seed je
+    // pisna pot na IZRECNO lokacijo — super-admin brez ?locationId → 400.
+    // Prej: prva aktivna lokacija KATEREGA KOLI tenanta = cross-tenant žig
+    // 35–84 demo naročil + per-lokacijskih counterjev. NIKOLI več ugibaj.
+    const writeLoc = resolveWriteLocationId(scope.locationId)
+    if (!writeLoc.ok) return writeLoc.response
+    const seedLocationId = writeLoc.locationId
+
     const menuItems = await db.menuItem.findMany({ take: 10 })
     const tables = await db.table.findMany()
-    // P1-6/P1-7: seed naročila dobijo lokacijo + per-lokacijsko številčenje
-    const seedLocationId = await resolveDefaultLocationId()
-    if (!seedLocationId) {
-      return NextResponse.json({ error: 'Ni lokacije — poženi setup/init najprej' }, { status: 400 })
-    }
 
     if (menuItems.length === 0) {
       return NextResponse.json({ error: 'No menu items found. Seed data first.' }, { status: 400 })

@@ -7,12 +7,15 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { verifySignature } from '@/lib/webhook-engine'
-import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
+import { getNextOrderNumber } from '@/lib/counters'
 import { emitOrderCreated } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
 import { toNum, multiply, round2, sumBy } from '@/lib/decimal'
 import { checkRateLimitAsync, getClientIp, DELIVERY_WEBHOOK_LIMIT } from '@/lib/rate-limit'
 import { handleApiError } from '@/lib/api-utils'
+// R88-2: webhook envelope (?t=<integrationId>:<hmac64>) — tenant atribucija ŠE
+// PRED DB lookupom; isOrderingSecretConfigured = R82-D fail-closed kanon.
+import { isOrderingSecretConfigured, parseWebhookEnvelope } from '@/lib/ordering-token'
 import {
   WOLT_SIGNATURE_HEADER,
   woltOrderSchema,
@@ -40,13 +43,28 @@ export async function POST(req: Request) {
 
     const body = await req.text()
 
-    // Preveri Wolt integracijo
+    // R88-2 (R82-D kanon): produkcija brez HMAC secret-a → 503 fail-closed PRED
+    // kakršno koli izdajo/verifikacijo (isOrderingSecretConfigured v dev/testu
+    // dovoli fallback; zrcali online-order + izdajno lokacijsko ruto).
+    if (!isOrderingSecretConfigured()) {
+      return NextResponse.json({ error: 'Webhook ni konfiguriran' }, { status: 503 })
+    }
+
+    // R88-2 (1/2): parsaj + timing-safe verificiraj envelope ?t=. Vsak
+    // manjkajoč/malformiran/tuj envelope = ISTI unificiran 404 (ni oraklja).
+    const envelope = parseWebhookEnvelope(new URL(req.url).searchParams.get('t'))
+    if (!envelope.ok) {
+      return NextResponse.json({ error: 'Integracija ni najdena' }, { status: 404 })
+    }
+
+    // R88-2 (2/2): tenant atribucija — lookup po VERIFICIRANEM integrationId
+    // (nikoli raw input) + provider pin; neznana/neaktivna = isti 404 kot
+    // envelope fail (ni razlike "ne obstaja" vs "tuj").
     const woltIntegration = await db.integration.findFirst({
-      where: { provider: 'wolt', isActive: true },
+      where: { id: envelope.integrationId, provider: 'wolt', isActive: true },
     })
     if (!woltIntegration) {
-      logger.warn('Wolt', 'Ni aktivne Wolt integracije')
-      return NextResponse.json({ error: 'Wolt integracija ni konfigurirana' }, { status: 404 })
+      return NextResponse.json({ error: 'Integracija ni najdena' }, { status: 404 })
     }
 
     // FIX D-01 CRITICAL: BREZ apiSecret = BREZ dostopa. Ne dovoli neoverjenih webhookov.
@@ -82,9 +100,12 @@ export async function POST(req: Request) {
     }
 
     // Ustvari naročilo v RestaurantOS
-    // P1-6: lokacija je obvezna — brez nje 503 (platforma retry-a; naročilo NE sme
-    // biti tiho izgubljeno brez tenant konteksta)
-    const webhookLocationId = await resolveDefaultLocationId()
+    // R88-2: lokacija pride IZ integracije (Integration.locationId — per-location
+    // webhook žig). Globalni resolveDefaultLocationId fallback ODSTRANJEN
+    // (R87-FINAL backlog): naročilo se NIKOLI tiho ne žiga na prvo aktivno
+    // lokacijo katerega koli tenanta. Brez nastavljene lokacije → 503
+    // (platforma retry-a; P1-6 kanon ostaja).
+    const webhookLocationId = woltIntegration.locationId
     if (!webhookLocationId) {
       return NextResponse.json({ status: 'error', message: 'Ni nastavljene lokacije' }, { status: 503 })
     }

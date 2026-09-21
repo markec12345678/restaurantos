@@ -103,6 +103,9 @@ import { GET as mobileOrderGET, POST as mobileOrderPOST } from '@/app/api/mobile
 import { POST as onlineOrderPOST } from '@/app/api/public/online-order/route'
 import { GET as auditGET, POST as auditPOST } from '@/app/api/security-audit/route'
 import { createOnlineOrder } from '@/app/api/public/online-order/_helpers'
+// R88: realen ordering-token lib (dev/test fallback skrivnost) — kovanje
+// tokenov za online-order zahtevke (ruta preverja z ISTIM virom).
+import { orderingTokenFor } from '@/lib/ordering-token'
 
 // --- Helperji ---
 function validKey(subscriptionId: string | null = 'sub-1', scopes = ['write:orders']) {
@@ -364,7 +367,14 @@ describe('R82-C: public/online-order — lokacijski scope artiklov', () => {
         items: [{ menuItemId: 'mi-1', quantity: 1 }],
         paymentMethod: 'card',
         customer: { fullName: 'Gost', phone: '040123456', email: '', notes: '', preferredTime: '', type: 'takeout' },
-        ...(locationId ? { locationId } : {}),
+        ...(locationId
+          ? {
+              locationId,
+              // R88: ordering token OBVEZEN — kovan z realnim libom (isti
+              // dev/test fallback vir, ki ga ruta preverja) za TO lokacijo.
+              orderingToken: orderingTokenFor(locationId),
+            }
+          : {}),
       }),
     })
   }

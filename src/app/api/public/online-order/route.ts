@@ -14,6 +14,9 @@ import { getNextOrderNumber } from '@/lib/counters'
 import { checkRateLimitAsync, getClientIp, ONLINE_ORDER_LIMIT } from '@/lib/rate-limit'
 import { handleRouteError, validateRequest } from '@/lib/api-utils'
 import { notInScopeResponse } from '@/lib/tenant-scope'
+// R88: per-location ordering token (qr-pay HMAC vzorec iz R81) — vezava
+// naročilo↔lokacija brez sheme/Redis-a, timing-safe, fail-closed.
+import { isOrderingSecretConfigured, verifyOrderingToken } from '@/lib/ordering-token'
 import { formatEUR } from '@/lib/safe-format'
 import {
 
@@ -60,10 +63,20 @@ export async function POST(req: Request) {
     const openError = await checkRestaurantOpen()
     if (openError) return openError
 
+    // R88 FIX 1/2 (production secret, R82-D kanon — zrcali qr-pay init 503):
+    // produkcija brez ORDERING_TOKEN_SECRET / QR_PAY_SECRET / ENCRYPTION_KEY /
+    // NEXTAUTH_SECRET → 503 fail-closed PRED resolucijo lokacije (NI 404-vs-503
+    // obstoja-oraklja aktivnih lokacij v pokvarjeni produkciji — vsak zahtevek
+    // dobi enak 503). Nikoli ne verificiraj z javno znanim dev secretom;
+    // sporočilo brez notranjih detajlov.
+    if (process.env.NODE_ENV === 'production' && !isOrderingSecretConfigured()) {
+      return NextResponse.json({ error: 'Spletno naročanje trenutno ni na voljo. Poskusite znova kasneje.' }, { status: 503 })
+    }
+
     const { data, error: validationError } = await validateRequest(req, onlineOrderSchema)
     if (validationError) return validationError
 
-    const { orderType, items, paymentMethod, customer, promoCode, locationId } = data
+    const { orderType, items, paymentMethod, customer, promoCode, locationId, orderingToken } = data
 
     // R87-3 FIX (R86-3 residual), fail-closed: izrecen locationId je OBVEZEN —
     // prej je manjkajoč padel na GLOBALNO prvo aktivno lokacijo (counters.ts
@@ -75,16 +88,27 @@ export async function POST(req: Request) {
     // R87-3). Unknown/inactive → unificiran 404 'Lokacija ni najden' (prej 400
     // 'Izbrana lokacija ni na voljo' prek findUnique — zdaj isti kanon kot
     // kiosk/delivery-check: findFirst({ id, isActive: true }) brez oraklja).
-    // BY-DESIGN ostaja: javna ruta NIMA identitete klicatelja — body.locationId
-    // lahko pomeni katero koli AKTIVNO lokacijo (multi-tenant "ena domena, več
-    // restavracij" model); hardening v prihodnji rundi: per-location public
-    // ordering token (qr-pay HMAC vzorec iz R81).
+    // ZGODOVINA: R87-3 je dovolil body.locationId katere koli aktivne lokacije
+    // ("BY-DESIGN ena domena, več restavracij") — R88 to ZAPRE: locationId je
+    // zdaj vezan na HMAC ordering token (spodaj), anonimen klicatelj brez
+    // tokena RESTAVRACIJE ne more več žigati naročil na njeno lokacijo.
     if (!locationId) {
       return NextResponse.json({ error: 'Restavracija trenutno ne sprejema spletnih naročil' }, { status: 400 })
     }
     const resolvedLocation = await resolveOnlineOrderLocation(locationId)
     if (!resolvedLocation.ok) return resolvedLocation.response
     const onlineLocationId: string = resolvedLocation.locationId
+
+    // R88 FIX 2/2 (BY-DESIGN luknja iz R87 zaprta): ordering token je OBVEZEN
+    // in vezan na TOČNO TO lokacijo — manjkajoč / napačen format / token TUJE
+    // lokacije → IZKLJUČNO isti notInScopeResponse('Lokacija') 404 kot neznana
+    // lokacija (NI obstoja-oraklja, NI razlike "manjka" vs "tuj"). Check gre
+    // TUKAJ — takoj po resoluciji lokacije, PRED menu lookupom in PRED vsakim
+    // pisnim klicem (counter upsert, getNextOrderNumber, createOnlineOrder —
+    // zavrnitev = ZERO db zapisov).
+    if (!orderingToken || !verifyOrderingToken(orderingToken, onlineLocationId)) {
+      return notInScopeResponse('Lokacija')
+    }
 
     // Pridobi menu iteme iz DB (strežniška cena, NE klientova!)
     // FIX R82-C (LEAK-MEDIUM: cross-tenant item injection + existence oracle):

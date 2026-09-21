@@ -1413,6 +1413,7 @@ model Location {
   discounts            Discount[]
   modifierGroups        ModifierGroup[]   // MODEL A #9: skupine modifikatorjev PO LOKACIJI
   guests                Guest[]           // R87: per-location CRM (tenant scope)
+  integrations          Integration[]     // R88: delivery webhooki žigajo na to lokacijo (tenant scope)
 
   @@index([code])
   @@index([isActive])
@@ -2172,6 +2173,14 @@ model Integration {
   // --- Status ---
   isActive        Boolean  @default(true)
   connectionStatus String  @default("disconnected") // connected, disconnected, error
+  // --- R88: Tenant scope (MODEL A) ---
+  // locationId = lokacija, na katero webhook naročila (wolt/glovo/bolt) žigajo
+  // naročila. Nullable: obstoječe integracije ostanejo NULL dokler jih backfill/
+  // admin nastavi (503 'Ni nastavljene lokacije' → platforma retry-a — naročilo
+  // NE sme biti tiho žigano na prvo aktivno lokacijo KATEREGA KOLI tenanta,
+  // glej R87-FINAL backlog). NULL = samo super-admin vidi integracijo v API-ju.
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Dnevnik ---
   logs            IntegrationLog[]
   createdAt       DateTime @default(now())
@@ -2181,6 +2190,7 @@ model Integration {
   @@index([provider])
   @@index([isActive])
   @@index([connectionStatus])
+  @@index([locationId])           // R88: tenant scope filter (webhook atribucija po lokaciji)
 }
 
 model IntegrationLog {

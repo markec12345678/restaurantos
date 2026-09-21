@@ -351,18 +351,38 @@ describe('AUDIT R12: IDOR Regression — nova fixed [id] rute', () => {
   })
 
   describe('Bolt webhook — fail-closed brez secreta', () => {
-    it('Brez apiSecret/WEBHOOK_SECRET: ZAVRNJEN (ne fail-open)', async () => {
-      mockIntegrationFindFirst.mockResolvedValue({ id: 'int-1', provider: 'bolt', isActive: true, apiSecret: null })
-      // WEBHOOK_SECRET ni nastavljen v testnem env — vendar ga moremo eksplicitno izbrisati
-      const prevSecret = process.env.WEBHOOK_SECRET
-      delete process.env.WEBHOOK_SECRET
-
+    it('R88: brez envelope ?t= → unificiran 404 PRED kakršno koli DB poizvedbo', async () => {
       const { POST } = await import('@/app/api/delivery/webhook/bolt/route')
       const req = new Request('http://localhost:3000/api/delivery/webhook/bolt', {
         method: 'POST',
         headers: { 'x-bolt-signature': 'deadbeef' },
         body: JSON.stringify({ order_id: 'b-1' }),
       })
+      const res = await POST(req)
+      expect(res.status).toBe(404)
+      // R88-2: envelope gate PRED integration lookup — ZERO db klicev
+      expect(mockIntegrationFindFirst).not.toHaveBeenCalled()
+    })
+
+    it('Brez apiSecret/WEBHOOK_SECRET: ZAVRNJEN (ne fail-open) — R88: z veljavnim envelopeom doseže apiSecret check', async () => {
+      mockIntegrationFindFirst.mockResolvedValue({ id: 'int-1', provider: 'bolt', isActive: true, apiSecret: null })
+      // WEBHOOK_SECRET ni nastavljen v testnem env — vendar ga moremo eksplicitno izbrisati
+      const prevSecret = process.env.WEBHOOK_SECRET
+      delete process.env.WEBHOOK_SECRET
+
+      const { POST } = await import('@/app/api/delivery/webhook/bolt/route')
+      // R88-2: webhook zahteva HMAC envelope ?t=<integrationId>:<hmac> — brez
+      // njega bi test 404-al na envelope gate (prej je šel naravnost na lookup).
+      // Realen lib (dev/test fallback skrivnost — setup.ts ENCRYPTION_KEY) kuje token.
+      const { webhookEnvelopeTokenFor } = await import('@/lib/ordering-token')
+      const req = new Request(
+        `http://localhost:3000/api/delivery/webhook/bolt?t=${encodeURIComponent(webhookEnvelopeTokenFor('int-1'))}`,
+        {
+          method: 'POST',
+          headers: { 'x-bolt-signature': 'deadbeef' },
+          body: JSON.stringify({ order_id: 'b-1' }),
+        },
+      )
       const res = await POST(req)
 
       // FIX SECURITY: prej 200/201 (fail-open — podpis se je preskočil), sedaj 503 (fail-closed)

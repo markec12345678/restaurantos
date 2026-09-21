@@ -37,6 +37,8 @@ export function useOnlineOrder() {
     deliveryDetails: state.deliveryDetails,
     takeoutDetails: state.takeoutDetails,
     selectedLocation: state.selectedLocation,
+    // R88: ordering token (deep link ?t=) — poraba v placeOrder → POST body
+    orderingToken: state.orderingToken,
   })
 
   // --- Izpeljane vrednosti ---
@@ -71,6 +73,7 @@ export function useOnlineOrder() {
     searchQuery: state.searchQuery, setSearchQuery: state.setSearchQuery, isDark: state.isDark, setIsDark: state.setIsDark,
     isOpenNow: state.isOpenNow, weeklyHours: state.weeklyHours, locations: state.locations,
     selectedLocation: state.selectedLocation, setSelectedLocation: state.setSelectedLocation,
+    orderingToken: state.orderingToken,
     deliveryZone: state.deliveryZone, deliveryZoneChecked: state.deliveryZoneChecked,
     promoCode: state.promoCode, setPromoCode: state.setPromoCode,
     promoResult: state.promoResult, setPromoResult: state.setPromoResult,

@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { toNum, deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
-import { getNextOrderNumber, resolveDefaultLocationId } from '@/lib/counters'
+import { getNextOrderNumber } from '@/lib/counters' // R88-3: resolveDefaultLocationId (globalni fallback) odstranjen
 import { createOrderSchema } from '@/lib/validations'
 import { checkStockAvailability } from '@/lib/stock-deduction'
 import { validateRequest } from '@/lib/api-utils'
@@ -13,27 +13,39 @@ import { handleStockDeduction, handlePostCreationEffects } from './stock'
 import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 
 // P1-6: session kontekst, ki ga POST pot potrebuje za resolucijo lokacije
+// R88-3: + scope (rezultat resolveTenantLocationIdOrThrow v routi — obvezen
+// za pisno pot) + searchParams (izrecni ?locationId super-admina).
 export interface PostOrderAuthSession {
   session?: {
     employeeId?: string
     locationId?: string | null
     role?: string
   } | null
+  /** R88-3: { locationId } iz resolveTenantLocationIdOrThrow (POST /api/orders). */
+  scope?: { locationId: string | null }
+  /** R88-3: query parametri requesta (eksplicitni ?locationId super-admina). */
+  searchParams?: URLSearchParams | null
 }
 
 /**
  * P1-6: Resolviraj locationId za novo naročilo (server-side — body.locationId
- * se NE zaupa, večnadstropni tenant rescue:
- *   1. session.locationId (Employee kontekst — avtoritativen za regular userja)
- *   2. miza (tableId → Table.locationId — fizična lokacija mize)
- *   3. fallback: edina aktivna lokacija (single-tenant / seed)
- *   4. null (super admin v multi-tenant brez lokacije → globalni zapis)
- * Če session in miza nakazujeta RAZLIČNI lokaciji → 400 (IDOR zaščita:
- * natakar lokacije A ne more ustvariti naročila na mizi lokacije B).
+ * se NE zaupa). R88-3: GLOBALNI fallback (resolveDefaultLocationId — prva
+ * aktivna lokacija KATEREGA KOLI tenanta) je ODSTRANJEN; naročilo NIKOLI ne
+ * dobi lokacije, do katere klicatelj ni upravičen:
+ *   a. session.locationId vs. miza (tableId → Table.locationId) — mismatch
+ *      → 400 (IDOR zaščita: natakar lokacije A ne more ustvariti naročila na
+ *      mizi lokacije B; nespremenjeno).
+ *   b. scope.locationId iz seje (regular / admin-with-location) = AVTORITATIVEN
+ *      — miza je že preverjena v (a).
+ *   c. super-admin (session.locationId === null): kandidat = miza ?? izrecni
+ *      ?locationId — VEDNO validiran (obstaja + aktiven); brez kandidata → 400
+ *      (fail-closed, ne globalno ugibanje).
  */
 async function resolveOrderLocationId(
   tableId: string | null | undefined,
   sessionLocationId: string | null | undefined,
+  scope?: { locationId: string | null },
+  searchParams?: URLSearchParams | null,
 ): Promise<{ ok: true; locationId: string } | { ok: false; error: string }> {
   let tableLocationId: string | null = null
   if (tableId) {
@@ -48,16 +60,43 @@ async function resolveOrderLocationId(
   if (sessionLoc && tableLocationId && sessionLoc !== tableLocationId) {
     return { ok: false, error: 'Izbrana miza pripada drugi lokaciji' }
   }
-  const locationId = sessionLoc || tableLocationId
-  if (locationId) return { ok: true, locationId }
 
-  // P1-6: lokacija je OBVEZNA — brez nje naročilo ne sme biti ustvarjeno
-  // (setup čarovnik jo ustvari; drugače jasen 400 namesto tiho izgubljenega zapisa)
-  const fallback = await resolveDefaultLocationId()
-  if (!fallback) {
-    return { ok: false, error: 'Ni nastavljene lokacije — najprej konfigurirajte lokacijo (setup)' }
+  const scopeLoc = scope?.locationId ?? null
+
+  // (b) Lokacija iz seje — regular user / admin-with-location (scope jo
+  //     prevzame iz session.locationId; obstoječa IDOR zaščita (a) že pokriva mizo).
+  if (scopeLoc && scopeLoc === sessionLoc) {
+    return { ok: true, locationId: scopeLoc }
   }
-  return { ok: true, locationId: fallback }
+  // Defensive: klicatelj brez scope-a, a z dodeljeno session lokacijo —
+  // enakovredno (b) (skozr router ni dosegljivo; resolver vedno podaja scope).
+  if (sessionLoc && !scopeLoc) {
+    return { ok: true, locationId: sessionLoc }
+  }
+
+  // (c) Super-admin (session.locationId === null): miza ZMAGA nad izrecnim
+  //     ?locationId (fizična realnost naročila). Kandidat je VEDNO validiran.
+  const explicitQueryLoc = searchParams?.get('locationId') ?? searchParams?.get('branchId') ?? null
+  const candidate = tableLocationId ?? scopeLoc ?? explicitQueryLoc
+  if (candidate) {
+    const location = await db.location.findFirst({
+      where: { id: candidate, isActive: true },
+      select: { id: true },
+    })
+    if (!location) {
+      return { ok: false, error: 'Lokacija ni najdena' }
+    }
+    return { ok: true, locationId: candidate }
+  }
+
+  // R88-3: fail-closed — brez globalnega ugibanja (prej: resolveDefaultLocationId
+  // = prva aktivna lokacija katerega koli tenanta). Super-admin MORA podati
+  // mizo ali izrecen ?locationId.
+  return {
+    ok: false,
+    error:
+      'locationId je obvezen: seja nima dodeljene lokacije — podaj tableId ali izrecen ?locationId (super-admin).',
+  }
 }
 
 // FIX CRITICAL (Test 3.2): Poišči obstoječe naročilo po idempotencyKey
@@ -97,12 +136,16 @@ export async function handlePostOrder(
     return NextResponse.json(deepToNumbers(existing), { status: 200 })
   }
 
-  // P1-6: Resolviraj lokacijo naročila (session → miza → single-tenant fallback).
-  // Naročilo brez lokacije je izgubljeno za tenant-scoped poizvedbe (GET /api/orders
-  // z where locationId ne bi videl NULL vrstic) — zato resolucija pred kreiranjem.
+  // P1-6/R88-3: Resolviraj lokacijo naročila (scope iz seje → miza → izrecni
+  // ?locationId super-admina, vse validirano). Naročilo brez lokacije je
+  // izgubljeno za tenant-scoped poizvedbe (GET /api/orders z where locationId
+  // ne bi videl NULL vrstic) — zato resolucija pred kreiranjem. Globalni
+  // resolveDefaultLocationId fallback je odstranjen (R88-3).
   const locationResolution = await resolveOrderLocationId(
     data.tableId || null,
     authSession.session?.locationId,
+    authSession.scope,
+    authSession.searchParams ?? null,
   )
   if (!locationResolution.ok) {
     return NextResponse.json({ error: locationResolution.error }, { status: 400 })

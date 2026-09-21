@@ -66,6 +66,26 @@ function persistCart(cart: CartItem[], orderType: OrderType) {
 // HOOK: Stanje spletne naročilne platforme (state + inicializacija)
 // =====================================================================
 
+// R88: per-location ordering token — deep link `/order?loc=<id>&t=<token>`
+// (izdaja: GET /api/locations/[id]/ordering-token; poraba: POST body
+// orderingToken — obvezen od R88). Kontekst se prebere LAZY ob prvem
+// renderju, PRED initOrderConfig — sicer bi init iz order-config prepisal
+// izbrano lokacijo s prvo lokacijo v seznamu. Brez URL parametrov (običajen
+// dropdown tok) sta oba polja prazni — strežnik naročilo brez tokena
+// ZAVRNE (fail-closed, BY-DESIGN — ne ustvarjamo lažnih tokenov).
+function readOrderingUrlContext(): { locationId: string; token: string } {
+  if (typeof window === 'undefined') return { locationId: '', token: '' }
+  try {
+    const params = new URLSearchParams(window.location.search)
+    return {
+      locationId: params.get('loc')?.trim() || '',
+      token: params.get('t')?.trim() || '',
+    }
+  } catch {
+    return { locationId: '', token: '' }
+  }
+}
+
 export function useOrderState() {
   const [menus, setMenus] = useState<Menu[]>([])
   const [settings, setSettings] = useState<RestaurantSettingsRow | null>(null)
@@ -80,7 +100,10 @@ export function useOrderState() {
   const [isOpenNow, setIsOpenNow] = useState(true)
   const [weeklyHours, setWeeklyHours] = useState<WeeklyHoursRow[]>([])
   const [locations, setLocations] = useState<LocationInfo[]>([])
-  const [selectedLocation, setSelectedLocation] = useState<string>('')
+  // R88: URL deep-link (`?loc=`) preselek lokacije še pred initOrderConfig
+  const [selectedLocation, setSelectedLocation] = useState<string>(() => readOrderingUrlContext().locationId)
+  // R88: ordering token iz URL deep-linka (`?t=`) — gre v POST body
+  const [orderingToken, setOrderingToken] = useState<string>(() => readOrderingUrlContext().token)
   const [deliveryZone, setDeliveryZone] = useState<DeliveryZoneInfo | null>(null)
   const [deliveryZoneChecked, setDeliveryZoneChecked] = useState(false)
   const [promoCode, setPromoCode] = useState('')
@@ -157,6 +180,7 @@ export function useOrderState() {
     cart, setCart, loading, orderType, setOrderType, step, setStep,
     searchQuery, setSearchQuery, isDark, setIsDark,
     isOpenNow, weeklyHours, locations, selectedLocation, setSelectedLocation,
+    orderingToken, setOrderingToken,
     deliveryZone, setDeliveryZone, deliveryZoneChecked, setDeliveryZoneChecked, promoCode, setPromoCode,
     promoResult, setPromoResult, promoLoading, showHours, setShowHours,
     deliveryDetails, setDeliveryDetails, takeoutDetails, setTakeoutDetails,

@@ -37,6 +37,9 @@
 // ============================================
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+// R88: realen ordering-token lib (dev/test fallback skrivnost) — kovanje tokenov
+// za online-order zahtevke (ruta preverja z ISTIM virom).
+import { orderingTokenFor } from '@/lib/ordering-token'
 
 const mocks = vi.hoisted(() => ({
   checkRateLimit: vi.fn(),
@@ -199,7 +202,14 @@ function makeOnlineReq(locationId?: string) {
       items: [{ menuItemId: 'mi-1', quantity: 1 }],
       paymentMethod: 'card',
       customer: { fullName: 'Gost', phone: '040123456', email: '', notes: '', preferredTime: '', type: 'takeout' },
-      ...(locationId !== undefined ? { locationId } : {}),
+      ...(locationId !== undefined
+        ? {
+            locationId,
+            // R88: ordering token je OBVEZEN — kovan z realnim libom (isti
+            // dev/test fallback vir, ki ga ruta preverja) za TO lokacijo.
+            orderingToken: orderingTokenFor(locationId),
+          }
+        : {}),
     }),
   })
 }

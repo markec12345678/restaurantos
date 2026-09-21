@@ -101,10 +101,13 @@ export async function submitOrderApi(params: {
   promoCode: string
   promoResult: PromoResult | null
   selectedLocation: string
+  // R88: per-location ordering token (`v1:<64 hex>`, deep link ?t=) —
+  // obvezen za uspešno naročilo; undefined/prazen → 404 (strežnik fail-closed)
+  orderingToken?: string
 }): Promise<{ success: boolean; data?: OrderResultRow; error?: string }> {
   const {
     orderType, cart, paymentMethod, deliveryDetails, takeoutDetails,
-    deliveryFee, promoCode, promoResult, selectedLocation,
+    deliveryFee, promoCode, promoResult, selectedLocation, orderingToken,
   } = params
 
   const orderItems = cart.map(item => ({
@@ -133,6 +136,9 @@ export async function submitOrderApi(params: {
       discountId: promoResult?.valid ? promoResult.discount?.id : undefined,
       discountAmount: promoResult?.valid ? promoResult.discount?.discountAmount : 0,
       locationId: selectedLocation || undefined,
+      // R88: token je vezan na locationId (HMAC) — pošljemo ga samo če obstaja
+      // (deep link ?t=); brez njega strežnik zavrne z unificirano 404.
+      orderingToken: orderingToken || undefined,
     }),
   })
 

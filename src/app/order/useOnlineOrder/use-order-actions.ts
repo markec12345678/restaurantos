@@ -32,6 +32,9 @@ export function useOrderActions(state: {
   deliveryDetails: DeliveryDetails
   takeoutDetails: TakeoutDetails
   selectedLocation: string
+  // R88: per-location ordering token (deep link ?t=) — gre v POST body;
+  // prazen = POST brez tokena → strežnik 404 (fail-closed, BY-DESIGN).
+  orderingToken: string
 }) {
   const addToCart = useCallback((item: MenuItem, modifiers: Modifier[] = [], notes: string = '') => {
     state.setCart(addToCartLogic(state.cart, item, modifiers, notes))
@@ -67,6 +70,7 @@ export function useOrderActions(state: {
         promoCode: state.promoCode,
         promoResult: state.promoResult,
         selectedLocation: state.selectedLocation,
+        orderingToken: state.orderingToken,
       })
       if (result.success && result.data) {
         state.setCart([])

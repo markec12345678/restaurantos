@@ -2,7 +2,7 @@
 import { db, createAuditLog } from '@/lib/db'
 import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
-import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationId, resolveTenantLocationIdOrThrow, tenantScopeToWhere } from '@/lib/auth-middleware'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { handleApiError, parsePaginationParams, BULK_MAX_LIMIT } from '@/lib/api-utils'
 import { handlePostOrder } from './_helpers/post-handler'
@@ -93,6 +93,16 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
+    // R88-3: tenant scope resolver TAKOJ po requireAuth, PRED body parse-om
+    // (kanon). Scope gre s sejo v post-handler: session-scope ali miza/izrecni
+    // ?locationId super-admina (vedno validirana) — globalni
+    // resolveDefaultLocationId fallback je odstranjen.
+    const searchParams = new URL(req.url).searchParams
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'POST /api/orders',
+    })
+    if ('error' in scope) return scope.error
+
     // FIX SECURITY (PII leak): aktivni status-check zaposlenega je ostal, DEBUG headerji
     // (X-Auth-Check/EmployeeId/EmployeeName/EmployeeStatus) so ODSTRANJENI — razkrivali so
     // identiteto in status zaposlenega vsakemu klicatelju (PII + info disclosure).
@@ -110,7 +120,11 @@ export async function POST(req: Request) {
       }
     }
 
-    return await handlePostOrder(req, authResult as { session?: { employeeId?: string; locationId?: string | null; role?: string } | null })
+    return await handlePostOrder(req, {
+      session: authResult.session,
+      scope, // R88-3: avtoritativen scope za pisno resolucijo lokacije
+      searchParams, // R88-3: izrecni ?locationId super-admina (validiran v post-handlerju)
+    })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/orders', 'Napaka pri ustvarjanju naročila')
   }
