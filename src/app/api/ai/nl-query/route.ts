@@ -12,6 +12,7 @@ import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { checkRateLimitAsync, getClientIp, AI_ASSISTANT_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
     const locFilter = scope.locationId ? { locationId: scope.locationId } : {}
 
     const rl = await checkRateLimitAsync('ai-nl-query', getClientIp(req), AI_ASSISTANT_LIMIT)
-    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
 
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error

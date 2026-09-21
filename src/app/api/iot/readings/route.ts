@@ -15,6 +15,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, IOT_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { createHaccpEntryWithChain } from '@/lib/haccp-chain'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
@@ -62,10 +63,7 @@ export async function POST(req: Request) {
     const clientIp = getClientIp(req)
     const rateCheck = await checkRateLimitAsync('iot-readings', clientIp, IOT_LIMIT)
     if (!rateCheck.allowed) {
-      return NextResponse.json(
-        { error: 'Preveč zahtevkov' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil((rateCheck.retryAfterMs || 60000) / 1000)) } }
-      )
+      return rateLimitedResponse(rateCheck.retryAfterMs, 'Preveč zahtevkov')
     }
 
     if (!verifyIoTApiKey(req)) {

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { readFileSync } from 'fs'
 import path from 'path'
 import { checkRateLimitAsync, getClientIp, SEED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 
 /**
  * Runda 30 (varnost): endpoint je bil do zdaj odprt (samo rate-limit) —
@@ -29,10 +30,7 @@ export async function GET(req: Request) {
     const ip = getClientIp(req)
     const rl = await checkRateLimitAsync('setup-db', ip, SEED_LIMIT)
     if (!rl.allowed) {
-      return NextResponse.json(
-        { error: 'Preveč zahtevkov. Poskusite znova kasneje.' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 3600000) / 1000)) } }
-      )
+      return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov. Poskusite znova kasneje.')
     }
 
     // Runda 30: auth gate — CRON_SECRET bearer ALI admin seja

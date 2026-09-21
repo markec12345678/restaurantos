@@ -5,6 +5,7 @@ import { toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, KIOSK_LIMIT, PUBLIC_MENU_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { getNextOrderNumber } from '@/lib/counters'
 import { notInScopeResponse } from '@/lib/tenant-scope'
 import { buildOrderItemsData, calculateOrderTotals, fetchModifierPriceMap, type MenuItemVatMap } from '@/app/api/orders/_helpers/order-items'
@@ -60,7 +61,7 @@ export async function GET(req: Request) {
   // Kiosk tipično naloži meni ob zagonu, 30 req/min je več kot dovolj.
   const rl = await checkRateLimitAsync('kiosk-menu', getClientIp(req), PUBLIC_MENU_LIMIT)
   if (!rl.allowed) {
-    return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429 })
+    return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
   }
 
   try {
@@ -118,7 +119,7 @@ export async function POST(req: Request) {
     // Rate limiting — prepreči zlorabo kioska
     const rl = await checkRateLimitAsync('kiosk-order', getClientIp(req), KIOSK_LIMIT)
     if (!rl.allowed) {
-      return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429 })
+      return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
     }
 
     const bodyResult = await parseJsonBody(req)

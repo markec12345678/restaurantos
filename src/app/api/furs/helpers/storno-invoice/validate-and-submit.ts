@@ -13,6 +13,7 @@ import { parseVatBreakdown } from '../../shared'
 import { logger } from '@/lib/logger'
 import { ensureDecrypted } from '@/lib/crypto/secrets'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { parseJsonBody, validateBody } from '@/lib/api-utils'
 import { fursStornoSchema } from '@/lib/validations'
 
@@ -50,7 +51,7 @@ export interface StornoValidationResult {
 // Validiraj zahtevo in pridobi podatke, pošlji na FURS
 export async function validateAndSubmitStorno(req: Request): Promise<StornoValidationResult | Response> {
   const rl = await checkRateLimitAsync('furs', getClientIp(req), AUTHENTICATED_LIMIT)
-  if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
+  if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
 
   const authResult = await requireAuth(req, { permission: 'admin' })
   if (authResult.error) return authResult.error

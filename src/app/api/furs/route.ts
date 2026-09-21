@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { validateFursConfig, checkFursConnectivity } from '@/lib/furs'
 import { buildFursConfigFromSettings } from './helpers/build-config'
 import { verifyInvoice } from './helpers/verify-invoice'
@@ -26,7 +27,7 @@ export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
     const rl = await checkRateLimitAsync('furs', getClientIp(req), AUTHENTICATED_LIMIT)
-    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
 
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error

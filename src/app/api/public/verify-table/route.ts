@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { checkRateLimitAsync, getClientIp, VERIFY_TABLE_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 
 
 export const dynamic = 'force-dynamic'
@@ -15,10 +16,7 @@ export async function GET(req: Request) {
   const clientIp = getClientIp(req)
   const rateCheck = await checkRateLimitAsync('verify-table', clientIp, VERIFY_TABLE_LIMIT)
   if (!rateCheck.allowed) {
-    return NextResponse.json(
-      { error: 'Preveč zahtevkov. Poskusite znova čez nekaj sekund.' },
-      { status: 429, headers: { 'Retry-After': String(Math.ceil((rateCheck.retryAfterMs || 60000) / 1000)) } }
-    )
+    return rateLimitedResponse(rateCheck.retryAfterMs, 'Preveč zahtevkov. Poskusite znova čez nekaj sekund.')
   }
 
   try {

@@ -19,6 +19,7 @@ import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
 import { qrPayTokenFor, verifyQrPayToken, isQrPaySecretConfigured, QR_PAY_TOKEN_TTL_MS } from '@/lib/qr-pay-token'
 import { checkRateLimitAsync, getClientIp, QR_PAY_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
@@ -155,7 +156,7 @@ export async function GET(req: Request) {
     const clientIp = getClientIp(req)
     const rateCheck = await checkRateLimitAsync('qr-pay-session', clientIp, QR_PAY_LIMIT)
     if (!rateCheck.allowed) {
-      return NextResponse.json({ error: 'Preveč zahtevkov. Poskusite znova čez minuto.' }, { status: 429 })
+      return rateLimitedResponse(rateCheck.retryAfterMs, 'Preveč zahtevkov. Poskusite znova čez minuto.')
     }
 
     const { searchParams } = new URL(req.url)

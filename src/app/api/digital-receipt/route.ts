@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { checkRateLimitAsync, getClientIp, GENERAL_PUBLIC_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError } from '@/lib/api-utils'
 import { verifyReceiptToken, buildDigitalReceiptResponse } from './_helpers'
 
@@ -17,10 +18,7 @@ export async function GET(req: Request) {
   const clientIp = getClientIp(req)
   const rateCheck = await checkRateLimitAsync('digital-receipt', clientIp, GENERAL_PUBLIC_LIMIT)
   if (!rateCheck.allowed) {
-    return NextResponse.json(
-      { error: 'Preveč zahtevkov. Poskusite znova čez nekaj sekund.' },
-      { status: 429, headers: { 'Retry-After': String(Math.ceil((rateCheck.retryAfterMs || 60000) / 1000)) } }
-    )
+    return rateLimitedResponse(rateCheck.retryAfterMs, 'Preveč zahtevkov. Poskusite znova čez nekaj sekund.')
   }
 
   try {

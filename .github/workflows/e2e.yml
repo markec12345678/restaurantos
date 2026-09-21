@@ -1,18 +1,23 @@
 # ============================================
-# RestaurantOS — Playwright E2E (R93)
+# RestaurantOS — Playwright E2E (R94: real PostgreSQL)
 # ============================================
-# Ozadje (R91-FINAL backlog d → R92 → R93): stale e2e pini so dvakrat
-# zamaskirali varnostne luknje (R91-1: /api/qr-menu P0-C3B residual, ki ga je
-# pin MENU-4 "blagoslovil" kot pričakovano vedenje; R90/R91 shemski drift
-# seeda). Sandbox (4GB) ne zmore celotnega e2e run-a (next dev RSS 1.8-2.5GB
-# + chromium ≈ OOM pri 12+ preostalih spec fajlih — dokumentirano v R92-FINAL),
-# zato je e2e teče TUKAJ, na CI runnerju (7GB+ RAM).
+# Ozadje (R91-FINAL backlog d → R93 → R94): stale e2e pini so dvakrat
+# zamaskirali varnostne luknje (R91-1: /api/qr-menu P0-C3B residual; R90/R91
+# shemski drift seeda). Sandbox (4GB) ne zmore celotnega e2e run-a — e2e teče
+# TUKAJ na CI.
 #
-# Procedura = R92-C dokumentirani vzorec (worklog R92-FINAL):
-#   init-e2e-db.mjs (deterministični wipe+DDL+seed, MODEL A fixtures)
-#   → next dev -p 3000 (standalone, ker playwright.config webServer = undefined v CI)
-#   → /api/health 200 čakanje
-#   → playwright test (retries=2 iz konfiga, workers=1, github reporter)
+# R94 SPREMEMBA — PGlite → realni PostgreSQL (forenzika iz R93 CI run-a,
+# run 35608656026): pod e2e obremenitvijo je nastalo 6× PGlite instanc na
+# ISTEM dataDir (multi-worker/registry `globalThis` guard ne drži med
+# procesi) → druga instanca abortira ob boot-u (WASM 'Aborted()' v callMain
+# — lock stomp) → vse nadaljne seje/query padejo. PGlite je
+# single-instance-per-dataDir; pod CI obremenitvijo ni uporaben za next dev.
+# Realni PostgreSQL = hišni precedens (ci.yml integration-tests job) +
+# produkciska pariteta (zunanji PG branch v lib/db.ts s connection poolom).
+#
+# Procedura: postgres service → prisma db push → e2e-seed.mjs (R94: skupni
+# MODEL A fixture vir scripts/e2e-seed-data.mjs — isti seed kot lokalni
+# PGlite) → next dev -p 3000 → /api/health 200 čakanje → playwright test.
 name: E2E
 
 on:
@@ -32,13 +37,26 @@ env:
 
 jobs:
   e2e:
-    name: Playwright E2E (PGlite dev server)
+    name: Playwright E2E (PostgreSQL dev server)
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     env:
-      # PGlite (embedded Postgres) — prazen DATABASE_URL sili PGlite vejo v lib/db.ts
-      DATABASE_URL: ""
-      PGLITE_DATA_DIR: /home/runner/pglite-e2e-data
+      # Realni PostgreSQL — db.ts zunanja veja (connection pool), NIČ PGlite
+      DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci?schema=public"
       NEXTAUTH_SECRET: "e2e-test-secret-only"
       NEXTAUTH_URL: "http://localhost:3000"
       WS_BROADCAST_SECRET: "e2e-test-secret-only"
@@ -72,8 +90,11 @@ jobs:
       - name: Install Playwright chromium (+ system deps)
         run: bunx playwright install --with-deps chromium
 
-      - name: Init PGlite e2e database (deterministični wipe + DDL + seed)
-        run: node scripts/init-e2e-db.mjs
+      - name: Push schema to PostgreSQL
+        run: bunx prisma db push --skip-generate
+
+      - name: Seed e2e fixtures (MODEL A — skupni vir e2e-seed-data.mjs)
+        run: node scripts/e2e-seed.mjs
 
       - name: Start next dev (port 3000) in background
         run: |
@@ -95,7 +116,7 @@ jobs:
           tail -100 /tmp/next-dev-e2e.log
           exit 1
 
-      - name: Run Playwright e2e (workers=1, retries=2, workers sequential — POS deli bazo)
+      - name: Run Playwright e2e (workers=1, retries=2, sekvenčno — POS deli bazo)
         run: bunx playwright test --reporter=list
 
       - name: Upload Playwright report + traces (on failure)

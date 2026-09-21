@@ -5,6 +5,7 @@ import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middlewa
 import { createEmployeeSchema } from '@/lib/validations'
 import { logger } from '@/lib/logger'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import bcrypt from 'bcryptjs'
 import { hashPinLookup, pinLookupEnabled } from '@/lib/pin-lookup'
@@ -16,7 +17,7 @@ export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
     const rl = await checkRateLimitAsync('employees', getClientIp(req), AUTHENTICATED_LIMIT)
-    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
     // FIX C-07: Zahtevaj avtentikacijo za seznam zaposlenih
     const authResult = await requireAuth(req, { permission: 'manage_employees' })
     if (authResult.error) return authResult.error
@@ -99,7 +100,7 @@ export async function POST(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
     const rl = await checkRateLimitAsync('employees', getClientIp(req), AUTHENTICATED_LIMIT)
-    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
     // FIX C-05: Zahtevaj avtentikacijo
     const authResult = await requireAuth(req, { permission: 'manage_employees' })
     if (authResult.error) return authResult.error

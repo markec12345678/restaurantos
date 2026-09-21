@@ -6,6 +6,7 @@ import { requireAuth, resolveTenantLocationId, tenantScopeToWhere, resolveTenant
 import { emitEvent } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleRouteError, handleApiError, validateRequest } from '@/lib/api-utils'
 import { openShiftSchema, calculateLiveStats, openShift } from './_helpers'
 
@@ -17,7 +18,7 @@ export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
     const rl = await checkRateLimitAsync('cash-register', getClientIp(req), AUTHENTICATED_LIMIT)
-    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
 
     // FIX C-07: Zahtevaj avtentikacijo za blagajno
     const authResult = await requireAuth(req, { permission: 'manage_cash' })
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
     const rl = await checkRateLimitAsync('cash-register', getClientIp(req), AUTHENTICATED_LIMIT)
-    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
 
     // FIX C-07: Zahtevaj avtentikacijo za odpiranje izmene
     const authResult = await requireAuth(req, { permission: 'manage_cash' })

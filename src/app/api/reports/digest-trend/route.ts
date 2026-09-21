@@ -25,6 +25,7 @@ import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { db } from '@/lib/db'
 import { ljubljanaDayBounds, ljubljanaYesterdayStr, ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 import { computeDigestTrend, computeTrendComparison, type TrendDayRaw } from '@/lib/digest-trend'
@@ -56,10 +57,7 @@ export async function GET(req: Request) {
   try {
     const rl = await checkRateLimitAsync('digest-trend', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) {
-      return NextResponse.json(
-        { error: 'Preveč zahtevkov' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } }
-      )
+      return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
     }
 
     const authResult = await requireAuth(req, { permission: 'admin' })

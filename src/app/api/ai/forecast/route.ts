@@ -16,6 +16,7 @@ import { toNum, round2 } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { checkRateLimitAsync, getClientIp, AI_ASSISTANT_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
 import { autoForecast, type ForecastMethod, type TimeSeriesPoint } from '@/lib/forecast'
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'view_reports' })
     if (authResult.error) return authResult.error
     const rl = await checkRateLimitAsync('ai-forecast', getClientIp(req), AI_ASSISTANT_LIMIT)
-    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
 
     const body = await req.json().catch(() => ({ days: 7, method: 'auto' }))
     const { days, method } = forecastSchema.parse(body)

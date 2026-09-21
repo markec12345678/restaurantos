@@ -20,6 +20,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { checkRateLimitAsync, getClientIp, ORDER_CONFIG_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { toNum } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
 // R89: HMAC ordering token (R88 lib; R89 tokenVersion vezava — R89-1 kanon)
@@ -55,10 +56,7 @@ export async function GET(req: Request) {
   const clientIp = getClientIp(req)
   const rateCheck = await checkRateLimitAsync('order-config', clientIp, ORDER_CONFIG_LIMIT)
   if (!rateCheck.allowed) {
-    return NextResponse.json(
-      { error: 'Preveč zahtevkov. Poskusite znova čez nekaj sekund.' },
-      { status: 429, headers: { 'Retry-After': String(Math.ceil((rateCheck.retryAfterMs || 60000) / 1000)) } }
-    )
+    return rateLimitedResponse(rateCheck.retryAfterMs, 'Preveč zahtevkov. Poskusite znova čez nekaj sekund.')
   }
 
   try {

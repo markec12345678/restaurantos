@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, AI_ASSISTANT_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { db } from '@/lib/db'
 import { z } from 'zod'
 
@@ -23,10 +24,7 @@ export async function POST(req: Request) {
     // FIX SECURITY: dodaj specifičen rate limit (AI calls so dragi — Gemini API stane)
     const rl = await checkRateLimitAsync('ai-voice-order', getClientIp(req), AI_ASSISTANT_LIMIT)
     if (!rl.allowed) {
-      return NextResponse.json(
-        { error: 'Preveč zahtevkov — počakajte minutko' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } }
-      )
+      return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov — počakajte minutko')
     }
 
     const authResult = await requireAuth(req, { permission: 'take_orders' })

@@ -16,6 +16,7 @@ import { logger } from "@/lib/logger"
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { checkRateLimitAsync, getClientIp, MONITORING_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,10 +46,7 @@ export async function POST(req: Request) {
     const clientIp = getClientIp(req)
     const rl = await checkRateLimitAsync('monitoring-errors', clientIp, MONITORING_LIMIT)
     if (!rl.allowed) {
-      return NextResponse.json(
-        { ok: false, error: 'Rate limited' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } }
-      )
+      return rateLimitedResponse(rl.retryAfterMs, 'Rate limited')
     }
 
     // FIX P5: Parse + validate z Zod

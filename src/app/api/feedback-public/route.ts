@@ -9,6 +9,7 @@ import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { checkRateLimitAsync, getClientIp, FEEDBACK_PUBLIC_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
@@ -28,10 +29,7 @@ export async function POST(req: Request) {
   const clientIp = getClientIp(req)
   const rateCheck = await checkRateLimitAsync('feedback-public', clientIp, FEEDBACK_PUBLIC_LIMIT)
   if (!rateCheck.allowed) {
-    return NextResponse.json(
-      { error: 'Preveč zahtev. Poskusite znova čez minuto.' },
-      { status: 429, headers: { 'Retry-After': String(Math.ceil((rateCheck.retryAfterMs || 60000) / 1000)) } }
-    )
+    return rateLimitedResponse(rateCheck.retryAfterMs, 'Preveč zahtev. Poskusite znova čez minuto.')
   }
 
   try {

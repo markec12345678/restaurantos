@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { validateReportDateRange } from '@/lib/validations'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { endOfDayParam, handleApiError } from '@/lib/api-utils'
 import { computeVatBreakdown, computeTimeVatDistribution } from './_helpers'
 
@@ -22,7 +23,7 @@ export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
     const rl = await checkRateLimitAsync('reports-vat', getClientIp(req), AUTHENTICATED_LIMIT)
-    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
 
     // FIX CRITICAL: Zahtevaj avtentikacijo za dostop do DDV podatkov (FURS relevantno)
     const authResult = await requireAuth(req, { permission: 'view_reports' })

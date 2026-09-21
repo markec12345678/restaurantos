@@ -7,6 +7,7 @@ import { resolveWriteLocationId } from '@/lib/tenant-scope'
 import { createLoyaltySchema } from '@/lib/validations'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,7 @@ export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
     const rl = await checkRateLimitAsync('loyalty', getClientIp(req), AUTHENTICATED_LIMIT)
-    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
 
     // FIX C-07: Zahtevaj avtentikacijo za zvestobne račune
     const authResult = await requireAuth(req, { permission: 'take_orders' })
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
     const rl = await checkRateLimitAsync('loyalty', getClientIp(req), AUTHENTICATED_LIMIT)
-    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
 
     // FIX C-07: Zahtevaj avtentikacijo za ustvarjanje zvestobnega računa
     const authResult = await requireAuth(req, { permission: 'take_orders' })

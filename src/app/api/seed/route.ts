@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, checkSeedAllowed } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, SEED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { logger } from '@/lib/logger'
 import { requireAuth } from '@/lib/auth-middleware'
 import { getMenuItemsData } from './helpers/menu-items'
@@ -28,10 +29,7 @@ export async function POST(req: Request) {
     const ip = getClientIp(req)
     const rateLimit = await checkRateLimitAsync('seed', ip, SEED_LIMIT)
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: 'Preveč zahtevkov. Seed je omejen na 3 zahtevke na uro.' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil((rateLimit.retryAfterMs || 3600000) / 1000)) } }
-      )
+      return rateLimitedResponse(rateLimit.retryAfterMs, 'Preveč zahtevkov. Seed je omejen na 3 zahtevke na uro.')
     }
 
     await cleanupExistingData()

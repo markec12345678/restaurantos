@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { checkRateLimitAsync, getClientIp, AI_ASSISTANT_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { z } from 'zod'
 import { SYSTEM_PROMPT, gatherDataSnapshot, generateLocalAnswer } from './_helpers'
@@ -22,10 +23,7 @@ export async function POST(req: Request) {
     const ip = getClientIp(req)
     const rateLimit = await checkRateLimitAsync('ai-assistant', ip, AI_ASSISTANT_LIMIT)
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: 'Preveč zahtevkov. Poskusite znova čez nekaj časa.' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil((rateLimit.retryAfterMs || 60000) / 1000)) } }
-      )
+      return rateLimitedResponse(rateLimit.retryAfterMs, 'Preveč zahtevkov. Poskusite znova čez nekaj časa.')
     }
 
     const aiAssistantSchema = z.object({

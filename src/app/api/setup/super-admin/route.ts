@@ -21,6 +21,7 @@ import bcrypt from 'bcryptjs'
 import { hashPinLookup } from '@/lib/pin-lookup'
 import { logger } from '@/lib/logger'
 import { checkRateLimitAsync, getClientIp, SEED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { BCRYPT_ROUNDS } from '@/lib/auth-middleware/constants'
 
 export const dynamic = 'force-dynamic'
@@ -33,10 +34,7 @@ export async function POST(req: Request) {
     const ip = getClientIp(req)
     const rl = await checkRateLimitAsync('setup-super-admin', ip, SEED_LIMIT)
     if (!rl.allowed) {
-      return NextResponse.json(
-        { error: 'Preveč zahtevkov. Poskusite znova kasneje.' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 3600000) / 1000)) } }
-      )
+      return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov. Poskusite znova kasneje.')
     }
 
     // Preveri ali super-admin že obstaja

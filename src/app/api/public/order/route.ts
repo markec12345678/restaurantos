@@ -10,6 +10,7 @@ import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { checkRateLimitAsync, getClientIp, PUBLIC_ORDER_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { toNum } from '@/lib/decimal'
 import { getNextOrderNumber } from '@/lib/counters'
 import { logger } from '@/lib/logger'
@@ -55,10 +56,7 @@ export async function POST(req: Request) {
   const clientIp = getClientIp(req)
   const rateCheck = await checkRateLimitAsync('public-order', clientIp, PUBLIC_ORDER_LIMIT)
   if (!rateCheck.allowed) {
-    return NextResponse.json(
-      { error: 'Preveč naročil. Poskusite znova čez nekaj minut.' },
-      { status: 429, headers: { 'Retry-After': String(Math.ceil((rateCheck.retryAfterMs || 60000) / 1000)) } }
-    )
+    return rateLimitedResponse(rateCheck.retryAfterMs, 'Preveč naročil. Poskusite znova čez nekaj minut.')
   }
 
   try {

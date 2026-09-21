@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { wsBroadcastEvent } from '@/lib/ws-server-broadcast'
 import { checkRateLimitAsync, getClientIp, CALL_WAITER_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 
 const callWaiterSchema = z.object({
@@ -22,10 +23,7 @@ export async function POST(req: Request) {
   const clientIp = getClientIp(req)
   const rateCheck = await checkRateLimitAsync('call-waiter', clientIp, CALL_WAITER_LIMIT)
   if (!rateCheck.allowed) {
-    return NextResponse.json(
-      { error: 'Preveč klicev. Poskusite znova čez nekaj minut.' },
-      { status: 429, headers: { 'Retry-After': String(Math.ceil((rateCheck.retryAfterMs || 60000) / 1000)) } }
-    )
+    return rateLimitedResponse(rateCheck.retryAfterMs, 'Preveč klicev. Poskusite znova čez nekaj minut.')
   }
 
   try {

@@ -32,6 +32,7 @@ import {
   AUTHENTICATED_LIMIT,
   CIS_BATCH_RETRY_LIMIT,
 } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { logger } from '@/lib/logger'
 import { db } from '@/lib/db'
 import { checkCisConnectivity, submitReceiptToCis, type CisSubmissionOutcome } from '@/lib/cis'
@@ -85,10 +86,7 @@ async function retryGuard(req: Request): Promise<
   const rl = await checkRateLimitAsync('cis-retry-pending', getClientIp(req), CIS_BATCH_RETRY_LIMIT)
   if (!rl.allowed) {
     return {
-      error: NextResponse.json(
-        { error: 'Preveč zahtevkov' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 300000) / 1000)) } }
-      ),
+      error: rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov'),
       sessionLocId: null,
     }
   }
@@ -208,10 +206,7 @@ export async function GET(req: Request) {
     // Privzeto: echo povezljivost (Task 23)
     const rl = await checkRateLimitAsync('cis-echo', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) {
-      return NextResponse.json(
-        { error: 'Preveč zahtevkov' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } }
-      )
+      return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
     }
 
     const authResult = await requireAuth(req, { permission: 'admin' })

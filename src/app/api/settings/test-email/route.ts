@@ -18,6 +18,7 @@ import { z } from 'zod'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { sendTestEmail, getReportRecipients } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
@@ -32,10 +33,7 @@ export async function POST(req: Request) {
     // Rate limiting — prepreči zlorabo (SMTP brute-force / spam)
     const rl = await checkRateLimitAsync('settings-test-email', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) {
-      return NextResponse.json(
-        { error: 'Preveč zahtevkov' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } }
-      )
+      return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
     }
 
     // FIX BUG 11 pattern: spreminjanje/pošiljanje nastavitev = admin

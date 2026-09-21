@@ -4,6 +4,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationId, resolveTenantLocationIdOrThrow, tenantScopeToWhere } from '@/lib/auth-middleware'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError, parsePaginationParams, BULK_MAX_LIMIT } from '@/lib/api-utils'
 import { handlePostOrder } from './_helpers/post-handler'
 
@@ -16,7 +17,7 @@ export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
     const rl = await checkRateLimitAsync('orders', getClientIp(req), AUTHENTICATED_LIMIT)
-    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
 
     // FIX HIGH: Zahtevaj avtentikacijo
     const authResult = await requireAuth(req)
@@ -87,7 +88,7 @@ export async function POST(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
     const rl = await checkRateLimitAsync('orders', getClientIp(req), AUTHENTICATED_LIMIT)
-    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
 
     // FIX C-05: Zahtevaj avtentikacijo za ustvarjanje naročil
     const authResult = await requireAuth(req, { permission: 'take_orders' })

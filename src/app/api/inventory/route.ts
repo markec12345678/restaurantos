@@ -4,6 +4,7 @@ import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middlewa
 import { resolveWriteLocationId } from '@/lib/tenant-scope'
 import { createInventorySchema } from '@/lib/validations'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { buildFilterConditions, getDistinctValues, getItemsWithMeta, createInventoryItem } from './_helpers'
 
@@ -14,7 +15,7 @@ export async function GET(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
     const rl = await checkRateLimitAsync('inventory', getClientIp(req), AUTHENTICATED_LIMIT)
-    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
 
     // FIX: Zahtevaj avtentikacijo za branje zaloge
     const authResult = await requireAuth(req, { permission: 'manage_inventory' })
@@ -62,7 +63,7 @@ export async function POST(req: Request) {
   try {
     // Rate limiting — prepreči zlorabo API-ja
     const rl = await checkRateLimitAsync('inventory', getClientIp(req), AUTHENTICATED_LIMIT)
-    if (!rl.allowed) return NextResponse.json({ error: 'Preveč zahtevkov' }, { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } })
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
 
     // FIX BUG 9: Zahtevaj avtentikacijo za ustvarjanje zaloge
     const authResult = await requireAuth(req, { permission: 'manage_inventory' })

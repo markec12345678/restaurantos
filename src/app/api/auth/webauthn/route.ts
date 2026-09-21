@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { createSession } from '@/lib/auth-middleware'
 import { checkRateLimitAsync, getClientIp, LOGIN_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { parseJsonBody } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
 import {
@@ -42,10 +43,7 @@ export async function GET(req: Request) {
   const rateCheck = await checkRateLimitAsync('webauthn-challenge', clientIp, LOGIN_LIMIT)
   if (!rateCheck.allowed) {
     const retryMin = Math.ceil((rateCheck.retryAfterMs || 900000) / 60000)
-    return NextResponse.json(
-      { error: `Preveč zahtevkov. Poskusite znova čez ${retryMin} min.` },
-      { status: 429 }
-    )
+    return rateLimitedResponse(rateCheck.retryAfterMs, `Preveč zahtevkov. Poskusite znova čez ${retryMin} min.`)
   }
 
   try {
@@ -85,10 +83,7 @@ export async function POST(req: Request) {
   const rateCheck = await checkRateLimitAsync('webauthn-login', clientIp, LOGIN_LIMIT)
   if (!rateCheck.allowed) {
     const retryMin = Math.ceil((rateCheck.retryAfterMs || 900000) / 60000)
-    return NextResponse.json(
-      { error: `Preveč neuspešnih poskusov. Poskusite znova čez ${retryMin} min.` },
-      { status: 429 }
-    )
+    return rateLimitedResponse(rateCheck.retryAfterMs, `Preveč neuspešnih poskusov. Poskusite znova čez ${retryMin} min.`)
   }
 
   const bodyResult = await parseJsonBody(req)

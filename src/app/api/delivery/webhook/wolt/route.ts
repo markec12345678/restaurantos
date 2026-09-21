@@ -12,6 +12,7 @@ import { emitOrderCreated } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
 import { toNum, multiply, round2, sumBy } from '@/lib/decimal'
 import { checkRateLimitAsync, getClientIp, DELIVERY_WEBHOOK_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError } from '@/lib/api-utils'
 // R88-2: webhook envelope (?t=<integrationId>:<hmac64>) — tenant atribucija ŠE
 // PRED DB lookupom; isOrderingSecretConfigured = R82-D fail-closed kanon.
@@ -35,10 +36,7 @@ export async function POST(req: Request) {
     const ip = getClientIp(req)
     const rateLimit = await checkRateLimitAsync('wolt-webhook', ip, DELIVERY_WEBHOOK_LIMIT)
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: 'Preveč zahtevkov' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil((rateLimit.retryAfterMs || 60000) / 1000)) } }
-      )
+      return rateLimitedResponse(rateLimit.retryAfterMs, 'Preveč zahtevkov')
     }
 
     const body = await req.text()

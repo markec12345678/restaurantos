@@ -12,6 +12,7 @@ import { NextResponse } from 'next/server'
 import { toNum } from '@/lib/decimal'
 import { getNextOrderNumber } from '@/lib/counters'
 import { checkRateLimitAsync, getClientIp, ONLINE_ORDER_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleRouteError, validateRequest } from '@/lib/api-utils'
 import { notInScopeResponse } from '@/lib/tenant-scope'
 // R88: per-location ordering token (qr-pay HMAC vzorec iz R81) — vezava
@@ -57,10 +58,7 @@ export async function POST(req: Request) {
   const clientIp = getClientIp(req)
   const rateCheck = await checkRateLimitAsync('online-order', clientIp, ONLINE_ORDER_LIMIT)
   if (!rateCheck.allowed) {
-    return NextResponse.json(
-      { error: 'Preveč naročil. Poskusite znova čez nekaj minut.' },
-      { status: 429, headers: { 'Retry-After': String(Math.ceil((rateCheck.retryAfterMs || 120000) / 1000)) } }
-    )
+    return rateLimitedResponse(rateCheck.retryAfterMs, 'Preveč naročil. Poskusite znova čez nekaj minut.')
   }
 
   try {

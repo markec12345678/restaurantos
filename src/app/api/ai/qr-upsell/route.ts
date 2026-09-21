@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { logger } from '@/lib/logger'
 import { toNum } from '@/lib/decimal'
 import { checkRateLimitAsync, getClientIp, AI_UPSELL_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError } from '@/lib/api-utils'
 import {
   HOUR_MAP,
@@ -38,10 +39,7 @@ export async function POST(req: Request) {
     const ip = getClientIp(req)
     const rateLimit = await checkRateLimitAsync('ai-upsell', ip, AI_UPSELL_LIMIT)
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { suggestions: [], error: 'Preveč zahtevkov. Poskusite znova čez nekaj časa.' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil((rateLimit.retryAfterMs || 60000) / 1000)) } }
-      )
+      return rateLimitedResponse(rateLimit.retryAfterMs, 'Preveč zahtevkov. Poskusite znova čez nekaj časa.')
     }
 
     // FIX: Omejitev velikosti body-ja — prepreči zlorabo z ogromnimi payloadi

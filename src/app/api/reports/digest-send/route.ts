@@ -22,6 +22,7 @@ import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import {
   fetchDailyDigestData,
   sendDailyDigestEmail,
@@ -66,10 +67,7 @@ export async function POST(req: Request) {
   try {
     const rl = await checkRateLimitAsync('digest-send', getClientIp(req), AUTHENTICATED_LIMIT)
     if (!rl.allowed) {
-      return NextResponse.json(
-        { error: 'Preveč zahtevkov' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } }
-      )
+      return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
     }
 
     const authResult = await requireAuth(req, { permission: 'admin' })

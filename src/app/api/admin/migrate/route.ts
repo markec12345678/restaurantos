@@ -20,6 +20,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth-middleware'
 import { checkRateLimitAsync, getClientIp, SEED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
 
@@ -47,10 +48,7 @@ export async function POST(req: Request) {
 
     const rl = await checkRateLimitAsync('migrate', getClientIp(req), SEED_LIMIT)
     if (!rl.allowed) {
-      return NextResponse.json(
-        { error: 'Preveč zahtevkov. Migration je omejena na 3 na uro.' },
-        { status: 429 }
-      )
+      return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov. Migration je omejena na 3 na uro.')
     }
 
     const url = new URL(req.url)

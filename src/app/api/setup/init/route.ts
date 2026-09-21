@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { checkRateLimitAsync, getClientIp, SETUP_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { z } from 'zod'
@@ -38,10 +39,7 @@ export async function POST(req: Request) {
     // cost 12 = CPU DoS vektor + first-caller-wins bootstrap race)
     const rl = await checkRateLimitAsync('setup-init', getClientIp(req), SETUP_LIMIT)
     if (!rl.allowed) {
-      return NextResponse.json(
-        { error: 'Preveč zahtevkov. Poskusite znova čez nekaj minut.' },
-        { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.retryAfterMs || 60000) / 1000)) } }
-      )
+      return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov. Poskusite znova čez nekaj minut.')
     }
 
     const bodyResult = await parseJsonBody(req)
