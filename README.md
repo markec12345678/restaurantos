@@ -4,8 +4,8 @@
 [![License](https://img.shields.io/badge/license-AGPL--3.0%20%2B%20Commercial-blue?style=flat-square)](LICENSE)
 [![Security](https://img.shields.io/badge/security-A%2B%2B-3c7a50?style=flat-square)](SECURITY.md)
 [![CI](https://img.shields.io/badge/CI-7%2F7%20%2B%20E2E_204%2F204-green-3c7a50?style=flat-square)](https://github.com/markec12345678/restaurantos/actions)
-[![Tests](https://img.shields.io/badge/tests-3315%20unit%20%2B%209%20integracija%20%2B%20204%20E2E-3c7a50?style=flat-square)](tests/)
-[![Audit](https://img.shields.io/badge/razvoj-95%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
+[![Tests](https://img.shields.io/badge/tests-3347%20unit%20%2B%209%20integracija%20%2B%20204%20E2E-3c7a50?style=flat-square)](tests/)
+[![Audit](https://img.shields.io/badge/razvoj-96%20QA%20rund%20complete-426990?style=flat-square)](docs/FINAL-SUMMARY.md)
 [![Design](https://img.shields.io/badge/design-Toast%2FSquare%20patterns-3c7a50?style=flat-square)](docs/DESIGN-IMPROVEMENTS.md)
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
@@ -24,9 +24,9 @@
 [![Multi-tenant](https://img.shields.io/badge/architecture-multi--tenant-426990?style=flat-square)]()
 [![GDPR](https://img.shields.io/badge/GDPR-Compliant-3c7a50?style=flat-square)]()
 
-> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **Security closure po rundi 95**: 11 rund hardeninga (R85–R95) zaključenih z dokazi in regresijskimi testi — tenant scope vali (dashboard, delivery-tracking, reports/*, wallet), M2 fail-open razred izkoreninjen, per-location ordering tokene z revokacijo, delivery webhook envelope, eradikacija vseh anonimnih globalnih fallbackov (P0-C3B kanon), 429 rate-limit kanon na 100 % API površine, dvostopenjska prijava (employeeId binding + javen employees grid + Toast/Square UI) in Table.status='reserved' DB flip na rezervacijskem lifecycle-u; full-suite E2E (204 testov / 13 specov) zelen v CI na realnem PostgreSQL. Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
+> Pilot-ready POS sistem za restavracije z dvojnim fiskalnim stikalom **FURS (SI) + FINA (HR)**, offline delovanjem, AI napovedmi in multi-tenant arhitekturo. **Security closure po rundi 96**: 12 rund hardeninga (R85–R96) zaključenih z dokazi in regresijskimi testi — tenant scope vali (dashboard, delivery-tracking, reports/*, wallet), M2 fail-open razred izkoreninjen, per-location ordering tokene z revokacijo, delivery webhook envelope, eradikacija vseh anonimnih globalnih fallbackov (P0-C3B kanon), 429 rate-limit kanon na 100 % API površine, dvostopenjska prijava (employeeId binding + javen employees grid + Toast/Square UI + admin binding naprave) in Table.status='reserved' DB flip na rezervacijskem lifecycle-u, deploy forenzika (health → { version, commit }); full-suite E2E (204 testov / 13 specov) zelen v CI na realnem PostgreSQL. Glej [Security Policy](SECURITY.md), [Final Summary](docs/FINAL-SUMMARY.md) in [Production Readiness](docs/PRODUCTION-READINESS-CHECKLIST.md).
 
-### 🔒 Hardening v v1.11.0 (QA runde 85–95 — tenant scope kanon + ordering tokeni + 429 kanon + dvostopenjska prijava + E2E v CI)
+### 🔒 Hardening v v1.11.0 (QA runde 85–96 — tenant scope kanon + ordering tokeni + 429 kanon + dvostopenjska prijava + deploy forenzika + E2E v CI)
 
 | Runda | Fokus | Ključni rezultati |
 |-------|-------|-------------------|
@@ -41,8 +41,9 @@
 | **R93** | 429 kanon dokončan + e2e CI workflow | 11 admin rut + SMS + mobile 3/3 (brute-force model pred verifyApiKey); debug/query+env produkcija-gate analiza; tagged raw empirika (14-točkovna matrica — abort okoljski, ne tagged-lastnost); Playwright `e2e.yml` workflow |
 | **R94** | Legacy 429 wave + e2e CI na realnem PostgreSQL | 55 datotek/66 mest → `rateLimitedResponse` (**429 kanon 100 % API površine**, 6 mest prvič glave); CI forenzika: pravi koren R92 abortov = multi-PGlite-instanca stomp; `e2e.yml` → postgres:16 service; seed EN VIR RESNICE (`e2e-seed-data.mjs` za PGlite + real-PG); 5 stale e2e pinov popravljenih z dokazi — **prvič full-suite e2e zelen 204/204** |
 | **R95** | Dvostopenjska prijava + Table.status='reserved' lifecycle | Prijava **BINDING-WHEN-PRESENT**: `employeeId` podan = strog binding (enoten 401 zero-oracle), odsoten = legacy deterministični lastnik PIN-a; javen `GET /api/auth/employees` grid (rate-limited, unified 404, minimalen PII); Toast/Square UI izbira zaposlenega → PIN (aktiven na znani device lokaciji, fail-open na UX nikoli na varnost); `Table.status='reserved'` DB flip čez rezervacijski lifecycle — create v serializable tx / seated / cancelled / no_show s count-guardom / completed omejen na occupied / DELETE mirror (bookable filtri available\|\|reserved, server 409 avtoriteta); `GET /api/menu-items/[id]` pariteta; e2e login rate headroom (LOGIN_RATE_LIMIT_MAX 200) |
+| **R96** | Deploy forenzika + admin binding naprave + e2e dvostopenjska | `/api/health` izpostavi **`commit`** (`VERCEL_GIT_COMMIT_SHA`) ob vseh response-rootih — 'ali je produkcija sinhronizirana?' je odgovorljiv z enim curl-om; verzija centralizirana (`getAppVersion`, legacy '1.0.13' fallback ubit z fs-guardom — health je poročal zastarelo verzijo od runde 84); **Settings → Naprava**: admin pogled/sprememba/brisanje bindinga lokacije naprave (persist/clear + toast, hydration-varno, R95 backlog UX); NOV e2e spec dvostopenjske prijave (A binding srečna pot / B fail-open z zaključeno prijavo / C byte-kompatibilnost — 3/3 lokalno pod privzetimi mejami; forenzika: middleware 'auth-login' vedro šteje tudi sejne GET /api/auth) |
 
-**Test napredek:** 2495 (R84) → 3242 (R94) → 3315 unit / 185 datotek (R95) + 9/9 integracija + **204/204 E2E v CI**.
+**Test napredek:** 2495 (R84) → 3242 (R94) → 3315 (R95) → 3347 unit / 187 datotek (R96) + 9/9 integracija + **204/204 E2E v CI**.
 
 ### 🔧 Popravki v v1.9.4 (QA runda 84 — reports tenant scope + wallet/outbox schema + guest-surface fail-closed)
 

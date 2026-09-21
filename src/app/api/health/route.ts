@@ -11,6 +11,10 @@
 // Vrne 200 če je DB OK (kritično), 503 če DB odpove.
 // Ostale komponente so 'optional' — vrnjejo status v JSON.
 //
+// R96-a deploy forenzika: VSAK response-root izpostavi `version` (getAppVersion)
+// in sestro `commit` (getAppCommit) — "ali je produkcija sinhronizirana?" je
+// odgovorljiv z enim curl-om. Legacy '1.0.13' fallback je ubit (glej app-info).
+//
 // Uporaba:
 //   - Vercel health check: /api/health
 //   - Uptime monitoring: /api/health?detailed=true
@@ -21,6 +25,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { checkFursBootReadiness } from '@/lib/furs/boot-guard'
+import { getAppVersion, getAppCommit } from '@/lib/app-info'
 
 export const dynamic = 'force-dynamic'
 
@@ -181,7 +186,8 @@ export async function GET(req: Request) {
       return NextResponse.json({
         status: 'error',
         timestamp: new Date().toISOString(),
-        version: process.env.APP_VERSION || '1.0.13',
+        version: getAppVersion(),
+        commit: getAppCommit(),
         database: dbCheck,
       }, { status: 503 })
     }
@@ -202,7 +208,8 @@ export async function GET(req: Request) {
       return NextResponse.json({
         status: allOk ? 'ok' : (hasWarnings ? 'degraded' : 'error'),
         timestamp: new Date().toISOString(),
-        version: process.env.APP_VERSION || '1.0.13',
+        version: getAppVersion(),
+        commit: getAppCommit(),
         environment: process.env.NODE_ENV || 'development',
         uptime: process.uptime ? `${Math.floor(process.uptime())}s` : undefined,
         checks,
@@ -213,7 +220,8 @@ export async function GET(req: Request) {
     return NextResponse.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
-      version: process.env.APP_VERSION || '1.0.13',
+      version: getAppVersion(),
+      commit: getAppCommit(),
       database: 'connected',
     }, { status: 200 })
 
@@ -222,7 +230,8 @@ export async function GET(req: Request) {
     return NextResponse.json({
       status: 'error',
       timestamp: new Date().toISOString(),
-      version: process.env.APP_VERSION || '1.0.13',
+      version: getAppVersion(),
+      commit: getAppCommit(),
       database: 'disconnected',
       error: error instanceof Error ? error.message : 'Unknown error',
     }, { status: 503 })

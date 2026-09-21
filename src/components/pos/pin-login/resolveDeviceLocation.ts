@@ -91,3 +91,17 @@ export function persistDeviceLocation(locationId: string): void {
     // tiho — persist je čisto opcijska potrditev obstoječe lokacije
   }
 }
+
+/**
+ * Pobriši binding lokacije naprave (R96-b admin nastavitev v Settings → Naprava)
+ * — naprava pade nazaj na klasično single-step PIN prijavo. Idempotenten
+ * (ključ že manjka → no-op), isti tihi try/catch stil kot persistDeviceLocation.
+ */
+export function clearDeviceLocation(): void {
+  try {
+    if (typeof window === 'undefined' || !window.localStorage) return
+    window.localStorage.removeItem(DEVICE_LOCATION_STORAGE_KEY)
+  } catch {
+    // tiho — binding je opcijska udobnost, brisanje ne sme porušiti UI
+  }
+}

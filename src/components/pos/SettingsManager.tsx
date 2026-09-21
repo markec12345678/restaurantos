@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Settings, Building2, Shield, Receipt, Percent, Globe,
-  Sparkles, Plug, Mail,
+  Sparkles, Plug, Mail, MonitorSmartphone,
   Save,
 } from 'lucide-react'
 import { memo } from 'react'
@@ -22,6 +22,7 @@ const ReceiptTab = dynamic(() => import('./settings/ReceiptTab').then(m => ({ de
 const AiTab = dynamic(() => import('./settings/AiTab').then(m => ({ default: m.AiTab })), { ssr: false })
 const IntegrationsTab = dynamic(() => import('./settings/IntegrationsTab').then(m => ({ default: m.IntegrationsTab })), { ssr: false })
 const EmailTab = dynamic(() => import('./settings/EmailTab').then(m => ({ default: m.EmailTab })), { ssr: false })
+const DeviceTab = dynamic(() => import('./settings/DeviceTab').then(m => ({ default: m.DeviceTab })), { ssr: false })
 const SettingsStatusBar = dynamic(() => import('./settings/SettingsStatusBar').then(m => ({ default: m.SettingsStatusBar })), { ssr: false })
 
 // ============================================
@@ -80,7 +81,7 @@ export const SettingsManager = memo(function SettingsManager() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-8">
+        <TabsList className="grid w-full grid-cols-9">
           <TabsTrigger value="country" className="gap-1.5">
             <Globe className="h-3.5 w-3.5" /> Država
           </TabsTrigger>
@@ -104,6 +105,9 @@ export const SettingsManager = memo(function SettingsManager() {
           </TabsTrigger>
           <TabsTrigger value="email" className="gap-1.5">
             <Mail className="h-3.5 w-3.5" /> Email
+          </TabsTrigger>
+          <TabsTrigger value="device" className="gap-1.5">
+            <MonitorSmartphone className="h-3.5 w-3.5" /> Naprava
           </TabsTrigger>
         </TabsList>
 
@@ -192,6 +196,11 @@ export const SettingsManager = memo(function SettingsManager() {
             form={form}
             updateField={updateField}
           />
+        </TabsContent>
+
+        {/* TAB: NAPRAVA — binding lokacije trenutne naprave (R96-b, dvostopenjska prijava) */}
+        <TabsContent value="device" className="space-y-4 mt-4">
+          <DeviceTab />
         </TabsContent>
       </Tabs>
 
