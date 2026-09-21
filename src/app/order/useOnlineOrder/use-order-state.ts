@@ -104,6 +104,9 @@ export function useOrderState() {
   const [selectedLocation, setSelectedLocation] = useState<string>(() => readOrderingUrlContext().locationId)
   // R88: ordering token iz URL deep-linka (`?t=`) — gre v POST body
   const [orderingToken, setOrderingToken] = useState<string>(() => readOrderingUrlContext().token)
+  // R89: order-config je token-gated — prazna konfiguracija (anonimen klic /
+  // slab token) → "Naročanje po povezavi" empty state (submit flow skrit)
+  const [needsOrderingLink, setNeedsOrderingLink] = useState(false)
   const [deliveryZone, setDeliveryZone] = useState<DeliveryZoneInfo | null>(null)
   const [deliveryZoneChecked, setDeliveryZoneChecked] = useState(false)
   const [promoCode, setPromoCode] = useState('')
@@ -148,11 +151,17 @@ export function useOrderState() {
   }
 
   async function initOrderConfig() {
-    const result = await fetchOrderConfigData(selectedLocation)
+    // R89: ordering token gre skupaj z izbrano lokacijo v order-config
+    // zahtevek — brez (?loc= + ?t=) vrne strežnik prazno konfiguracijo
+    // (fail-closed), UI pa needsOrderingLink empty state.
+    const result = await fetchOrderConfigData(selectedLocation, orderingToken)
     if (result.error) setError(result.error)
     setIsOpenNow(result.isOpenNow)
     setWeeklyHours(result.weeklyHours)
     setLocations(result.locations)
+    setNeedsOrderingLink(result.needsOrderingLink)
+    // R89: needsOrderingLink → URL-izbran selectedLocation (?loc=) NI prepisan
+    // (še vedno lahko veljaven — o njegovi veljavnosti odloči POST)
     if (result.selectedLocation !== selectedLocation) setSelectedLocation(result.selectedLocation)
   }
 
@@ -181,6 +190,8 @@ export function useOrderState() {
     searchQuery, setSearchQuery, isDark, setIsDark,
     isOpenNow, weeklyHours, locations, selectedLocation, setSelectedLocation,
     orderingToken, setOrderingToken,
+    // R89: token-gated config — empty state flag za "Naročanje po povezavi"
+    needsOrderingLink,
     deliveryZone, setDeliveryZone, deliveryZoneChecked, setDeliveryZoneChecked, promoCode, setPromoCode,
     promoResult, setPromoResult, promoLoading, showHours, setShowHours,
     deliveryDetails, setDeliveryDetails, takeoutDetails, setTakeoutDetails,

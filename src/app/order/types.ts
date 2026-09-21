@@ -84,13 +84,15 @@ export interface DeliveryZoneInfo {
   estimatedMinutes: number
 }
 
+// R89: locations entry nosi locationId (dokumentirana izjema od "brez
+// internih ID-jev" — klicatelj ima id+token iz deep linka, /order potrebuje
+// id za POST body locationId). Telefon/koordinate ostajajo izven javnega API-ja.
 export interface LocationInfo {
-  id: string
+  locationId: string
   name: string
   code: string
   address: string
   city: string
-  phone: string
   isOpen: boolean
 }
 

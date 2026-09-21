@@ -81,7 +81,8 @@ export const OrderHeader = memo(function OrderHeader({
               className={`w-full px-4 py-2 rounded-xl text-sm ${isDark ? 'bg-gray-800 border-gray-700 text-white' : 'bg-white border-blue-200'} border`}
             >
               {locations.map(loc => (
-                <option key={loc.id} value={loc.id}>
+                // R89: LocationInfo nosi locationId (izjema "no internal ids")
+                <option key={loc.locationId} value={loc.locationId}>
                   📍 {loc.name} — {loc.address}, {loc.city} {loc.isOpen ? '(Odprto)' : '(Zaprto)'}
                 </option>
               ))}

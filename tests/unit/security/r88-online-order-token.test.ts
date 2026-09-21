@@ -1,24 +1,28 @@
 // ============================================
-// R88 — per-location public ordering token (route) — regresijski testi
+// R88/R89 — per-location public ordering token (route) — regresijski testi
 // ============================================
 // Zapira R87 BY-DESIGN luknjo (worklog R88 backlog): POST
 // /api/public/online-order je sprejel body.locationId katere koli AKTIVNE
 // lokacije KATEREGA KOLI tenanta (anonimen klicatelj).
 //
-// NOVO vedenje (R88, qr-pay HMAC vzorec iz R81):
+// NOVO vedenje (R88, qr-pay HMAC vzorec iz R81; R89 tokenVersion):
 //   1. produkcija BREZ HMAC skrivnosti → 503 fail-closed (R82-D kanon,
 //      zrcali qr-pay init) — PRED resolucijo lokacije (ORCH R88: premaknjeno
 //      pred lokacijski lookup — NI 404-vs-503 obstoja-oraklja aktivnih
 //      lokacij v pokvarjeni produkciji; vsak zahtevek = isti 503), PRED
 //      vsakim pisnim klicem.
-//   2. body.orderingToken OBVEZEN in vezan na locationId: manjkajoč /
-//      neveljaven / token TUJE lokacije → IZKLJUČNO notInScopeResponse
-//      ('Lokacija') 404 'Lokacija ni najden' — isti odgovor za vse tri
-//      primere (ni obstoja-oraklja), ZERO pisnih klicev.
+//   2. body.orderingToken OBVEZEN in vezan na locationId + tokenVersion
+//      (R89): manjkajoč / neveljaven / token TUJE lokacije / token IZDAN ZA
+//      STARO verzijo lokacije → IZKLJUČNO notInScopeResponse('Lokacija')
+//      404 'Lokacija ni najden' — isti odgovor za vse primere (ni
+//      obstoja-oraklja), ZERO pisnih klicev.
 //   3. R87 vedenje nespremenjeno: manjkajoč locationId → 400, neznana/
 //      tuja/neaktivna/malformed lokacija → 404.
 //   4. First-party klijent (submitOrderApi) pošilja orderingToken iz
 //      URL deep-linka (?t=) — plumbing pin.
+//   5. FIKSERJI brez tokenVersion polja (`{ id: LOC_A }`) še vedno delujejo:
+//      ruta jemlje `location.tokenVersion ?? 0` (shema NOT NULL DEFAULT 0;
+//      default verzija 0 = vsi R88 tokeni ostanejo veljavni — R89 no-backfill).
 //
 // Vzorec (r87-public-order-scope): vi.hoisted mocki + REALEN notInScopeResponse
 // iz '@/lib/tenant-scope', REALNA Zod shema skozi validateRequest, REALEN
@@ -173,10 +177,11 @@ describe('R88 A: POST /api/public/online-order — ordering token OBVEZEN', () =
     expect(res.status).toBe(404)
     const body = await res.json() as { error: string }
     expect(body.error).toBe('Lokacija ni najden')
-    // lokacija je bila resolvana (404 semantika zedinjena ZA resolucijo)
+    // lokacija je bila resolvana (404 semantika zedinjena ZA resolucijo);
+    // R89: select zdaj vključuje tokenVersion (brez dodatnega DB klica)
     expect(mocks.locationFindFirst).toHaveBeenCalledWith({
       where: { id: LOC_A, isActive: true },
-      select: { id: true },
+      select: { id: true, tokenVersion: true },
     })
     // menu lookup in vsi zapisi SE NIKOLI ne zgodijo
     expect(mocks.menuItemFindMany).not.toHaveBeenCalled()
@@ -191,8 +196,8 @@ describe('R88 A: POST /api/public/online-order — ordering token OBVEZEN', () =
     expectZeroWrites()
   })
 
-  it('tamperiran token (64 hex, napačen MAC) → 404 + ZERO pisnih klicev', async () => {
-    const res = await onlineOrderPOST(makeOnlineReq(LOC_A, `v1:${'f'.repeat(64)}`))
+  it('tamperiran token (`v1:0:` + napačen MAC) → 404 + ZERO pisnih klicev', async () => {
+    const res = await onlineOrderPOST(makeOnlineReq(LOC_A, `v1:0:${'f'.repeat(64)}`))
     expect(res.status).toBe(404)
     expectZeroWrites()
   })
@@ -232,6 +237,33 @@ describe('R88 B: veljaven ordering token → 201 + žig', () => {
     // checkNumber counter + webhook emisijska pot ostajata nespremenjena
     expect(mocks.counterUpsert).toHaveBeenCalled()
     expect(mocks.triggerWebhookAsync).toHaveBeenCalledWith('order.created', expect.objectContaining({ orderId: 'o-on' }))
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════
+// B2. R89 — tokenVersion gate (per-location revokacija)
+// ══════════════════════════════════════════════════════════════════
+describe('R89 B2: POST /api/public/online-order — tokenVersion gate', () => {
+  it('lokacija ima tokenVersion=1, token kovan za verzijo 0 (pred rotate) → 404 + ZERO pisnih klicev', async () => {
+    // rotacija se je zgodila: DB vrstica nosi novo verzijo 1
+    mocks.locationFindFirst.mockResolvedValue({ id: LOC_A, tokenVersion: 1 })
+    const res = await onlineOrderPOST(makeOnlineReq(LOC_A, orderingTokenFor(LOC_A, 0)))
+    expect(res.status).toBe(404)
+    const body = await res.json() as { error: string }
+    // ISTI unified 404 kot napačen/tuj token — ni razlike "star" vs "tuj"
+    expect(body.error).toBe('Lokacija ni najden')
+    expect(mocks.menuItemFindMany).not.toHaveBeenCalled()
+    expectZeroWrites()
+  })
+
+  it('lokacija ima tokenVersion=1, token kovan za verzijo 1 (po rotate) → 201 žig LOC_A', async () => {
+    mocks.locationFindFirst.mockResolvedValue({ id: LOC_A, tokenVersion: 1 })
+    const res = await onlineOrderPOST(makeOnlineReq(LOC_A, orderingTokenFor(LOC_A, 1)))
+    expect(res.status).toBe(201)
+    const body = await res.json() as { success: boolean }
+    expect(body.success).toBe(true)
+    expect(mocks.createOnlineOrder.mock.calls[0][0].locationId).toBe(LOC_A)
+    expect(mocks.getNextOrderNumber).toHaveBeenCalledWith(LOC_A)
   })
 })
 

@@ -1,4 +1,5 @@
 // ordering-token.ts — R88: stateless HMAC vezave za javne naročilne poti
+// R89: per-location revokacija prek Location.tokenVersion (glej spodaj)
 //
 // PROBLEM (R87 worklog, zadnja pisna odprtina):
 //   1. POST /api/public/online-order sprejme body.locationId katere koli AKTIVNE
@@ -28,10 +29,25 @@
 //
 // LIFECYCLE (razlika do qr-pay): qr-pay tokeni so kratkožive seje (15 min TTL).
 // Ti tokeni so DOLGOTRAJNE lokacijske/integracijske poverilnice (natisnjene na
-// plakat, konfigurirane v Wolt portalu) — ZATO BREZ TTL-ja. Revokacija =
-// rotacija skrivnosti (ORDERING_TOKEN_SECRET) — rotira VSE tokene hkrati
-// (dokumentiran stateless kompromis; per-token revokacija zahteva shrambo —
-// prihodnja runda, enako opomba kot R82-D pri qr-pay).
+// plakat, konfigurirane v Wolt portalu) — ZATO BREZ TTL-ja.
+//
+// R89 REVOKACIJA (per-location, Location.tokenVersion — zapira R88 kompromis):
+//   token = `v1:<tokenVersion>:<hmac64>`, hmac nad
+//   `online-order:v1:${locationId}:${tokenVersion}`. Rotacija ENE lokacije =
+//   `UPDATE Location SET tokenVersion = tokenVersion + 1` (atomic increment,
+//   POST /api/locations/[id]/ordering-token/rotate) → njeni stari tokeni so
+//   INSTANT neveljavni (ruta preverja proti trenutni verziji lokacije), tokene
+//   drugih lokacij/tenantov pa rotacija ne dotakne. Globalna rotacija skrivnosti
+//   (ORDERING_TOKEN_SECRET) ostane zadnja linija (npr. sum na compromis secret-a
+//   — ubije vse tokene vseh tenantov hkrati). Legacy 2-delni R88 format
+//   `v1:<hmac>` je NEVELJAVEN (format change je nameren — R88 ni nikoli šel v
+//   produkcijo; vsi R88 tokeni so implicitno verzija 0, default tokenVersion=0
+//   jih ohranja veljavne po R89 brez backfila).
+//   WEBHOOK ENVELOPE (spodaj) NE potrebuje verzije: delivery integracije imajo
+//   naravno revokacijo — isActive toggle (webhook 404) + apiSecret rotacija
+//   (signature 401) sta že per-integracija prekidača, envelope pa poleg tega
+//   nosi integrationId, ki je sam sebi identifikator verzije (nastavitev v
+//   Wolt/Glovo/Bolt portalu se zamenja z novim URL-jem brez shematske spremembe).
 //
 // PRODUCTION SECRET (R82-D kanon): hard-code dev fallback je dovoljen SAMO
 // izven produkcije. V produkciji brez ORDERING_TOKEN_SECRET / QR_PAY_SECRET /
@@ -98,27 +114,42 @@ function timingSafeEqualHex(a: string, b: string): boolean {
 // =====================================================================
 
 /**
- * R88: token, vezan na locationId — format `v1:<hmac64>`.
+ * R89: token, vezan na locationId + tokenVersion — format `v1:<version>:<hmac64>`.
  * DOLGOTRAJNA poverilnica (BREZ TTL — natisnjena na plakat/deep link).
- * Revokacija samo prek rotacije skrivnosti (glej header komentar).
+ * Revokacija: rotate = increment Location.tokenVersion → stari tokeni te
+ * lokacije instant neveljavni (glej header komentar — R89 kanon).
+ * Neveljaven tokenVersion (negativen/nekonečno/ne-integer/prevelik za safe
+ * integer) THROWS RangeError — fail-closed PRED kovanjem (nikoli token z
+ * zamolčano pokvarjeno verzijo).
  */
-export function orderingTokenFor(locationId: string): string {
-  return `${TOKEN_PREFIX}:${hmacHex(`${ORDERING_DOMAIN}:${TOKEN_PREFIX}:${locationId}`)}`
+export function orderingTokenFor(locationId: string, tokenVersion: number = 0): string {
+  if (!Number.isSafeInteger(tokenVersion) || tokenVersion < 0) {
+    throw new RangeError(`orderingTokenFor: neveljaven tokenVersion (${tokenVersion})`)
+  }
+  return `${TOKEN_PREFIX}:${tokenVersion}:${hmacHex(`${ORDERING_DOMAIN}:${TOKEN_PREFIX}:${locationId}:${tokenVersion}`)}`
 }
 
 /**
- * R88: timing-safe preverjanje ordering tokena za locationId.
- * Fail-closed: napačen format / napačen HMAC / produkcija brez secret → false.
+ * R89: timing-safe preverjanje ordering tokena za locationId + tokenVersion.
+ * Fail-closed: napačen format / napačen HMAC / napačna verzija / neveljaven
+ * tokenVersion parameter / produkcija brez secret → false.
+ * Legacy 2-delni R88 token (`v1:<hmac>`) → false (format change je nameren —
+ * R88 ni nikoli šel v produkcijo; glej header).
  */
-export function verifyOrderingToken(token: string, locationId: string): boolean {
+export function verifyOrderingToken(token: string, locationId: string, tokenVersion: number = 0): boolean {
   if (typeof token !== 'string' || !locationId) return false
   if (!LOCATION_ID_RE.test(locationId)) return false
+  if (!Number.isSafeInteger(tokenVersion) || tokenVersion < 0) return false
   const parts = token.split(':')
-  if (parts.length !== 2 || parts[0] !== TOKEN_PREFIX) return false
-  if (!/^[a-f0-9]{64}$/.test(parts[1])) return false
+  if (parts.length !== 3 || parts[0] !== TOKEN_PREFIX) return false
+  // Verzija v tokenu: kanonski ne-negativen integer (brez vodilnih ničel,
+  // brez znaka) — mora se TOČNO ujemati s pričakovano verzijo lokacije.
+  if (!/^(0|[1-9][0-9]*)$/.test(parts[1])) return false
+  if (parts[1] !== String(tokenVersion)) return false
+  if (!/^[a-f0-9]{64}$/.test(parts[2])) return false
   try {
-    const expected = hmacHex(`${ORDERING_DOMAIN}:${TOKEN_PREFIX}:${locationId}`)
-    return timingSafeEqualHex(parts[1], expected)
+    const expected = hmacHex(`${ORDERING_DOMAIN}:${TOKEN_PREFIX}:${locationId}:${tokenVersion}`)
+    return timingSafeEqualHex(parts[2], expected)
   } catch {
     // Produkcija brez secret-a → fail-closed (nikoli true)
     return false
@@ -132,6 +163,9 @@ export function verifyOrderingToken(token: string, locationId: string): boolean 
 /**
  * R88: webhook envelope za integracijo — format `<integrationId>:<hmac64>`.
  * Konfigurira se v dostavni platformi (Wolt/Glovo/Bolt portal) kot del URL-ja.
+ * R89: BREZ tokenVersion (za razliko od ordering tokena) — delivery
+ * integracije imajo naravno revokacijo: isActive toggle (webhook → 404) +
+ * apiSecret rotacija (signature → 401) sta že per-integracija prekidača.
  */
 export function webhookEnvelopeTokenFor(integrationId: string): string {
   return `${integrationId}:${hmacHex(`${WEBHOOK_DOMAIN}:${TOKEN_PREFIX}:${integrationId}`)}`

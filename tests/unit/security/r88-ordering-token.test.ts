@@ -1,16 +1,22 @@
 // ============================================
-// R88 — per-location public ordering token (lib) — regresijski testi
+// R88/R89 — per-location public ordering token (lib) — regresijski testi
 // ============================================
 // Pokriva lib/ordering-token.ts (R81 qr-pay HMAC vzorec, brez sheme/Redis-a):
-//   1. Token format `v1:<64 hex>` — determinističen HMAC nad
-//      `online-order:v1:${locationId}`, različen po lokacijah.
+//   1. Token format `v1:<version>:<64 hex>` (R89) — determinističen HMAC nad
+//      `online-order:v1:${locationId}:${tokenVersion}`, različen po lokacijah
+//      IN po verzijah (R89 per-location revokacija).
 //   2. verifyOrderingToken — timing-safe, fail-closed: pravi token true,
-//      token tuje lokacije / tamperiran HMAC / napačen prefix / prazen /
-//      ne-string → false (NICCER meta odgovor true).
-//   3. Dev fallback — izven produkcije je dovoljen (isOrderingSecretConfigured
-//      true, token deluje brez env nastavitve); rotacija skrivnosti
-//      annullira stare tokene (stateless revokacija kanon).
-//   4. Production fail-closed (R82-D kanon): NODE_ENV=production brez
+//      token tuje lokacije / tamperiran HMAC / napačen prefix / PRAVA verzija
+//      token za NAPAČNO verzijo / legacy 2-delni R88 format / prazen /
+//      ne-string → false (NIČER meta odgovor true).
+//   3. R89 verzija parameter: negativen / necel / NaN / Infinity / prevelik
+//      (nad MAX_SAFE_INTEGER) → false (verify) oziroma RangeError (mint —
+//      fail-closed PRED kovanjem). Nad-Int32 safe integer → veljaven roundtrip.
+//   4. Dev fallback — izven produkcije je dovoljen (isOrderingSecretConfigured
+//      true, token deluje brez env nastavitve); rotacija skrivnosti annullira
+//      stare tokene (stateless revokacija — R89: ZADNJA linija, per-location
+//      revokacija gre prek tokenVersion rotate-a).
+//   5. Production fail-closed (R82-D kanon): NODE_ENV=production brez
 //      ORDERING_TOKEN_SECRET / QR_PAY_SECRET / ENCRYPTION_KEY /
 //      NEXTAUTH_SECRET → isOrderingSecretConfigured() false,
 //      verifyOrderingToken() false, orderingTokenFor() throws (nikoli token
@@ -20,6 +26,7 @@
 // ============================================
 
 import { describe, it, expect, afterEach, vi } from 'vitest'
+import crypto from 'crypto'
 
 import {
   orderingTokenFor, verifyOrderingToken, isOrderingSecretConfigured,
@@ -55,37 +62,74 @@ afterEach(() => {
 // ══════════════════════════════════════════════════════════════════
 // A. Token format + determinizem
 // ══════════════════════════════════════════════════════════════════
-describe('R88 A: orderingTokenFor — format `v1:<64 hex>`', () => {
-  it('token je `v1:<64 hex>` (67 znakov)', () => {
+describe('R89 A: orderingTokenFor — format `v1:<version>:<64 hex>`', () => {
+  it('token je `v1:0:<64 hex>` (69 znakov) z default verzijo', () => {
     stubTestSecret()
     const token = orderingTokenFor(LOC_A)
-    expect(token).toMatch(/^v1:[a-f0-9]{64}$/)
-    expect(token.length).toBe(67)
+    expect(token).toMatch(/^v1:0:[a-f0-9]{64}$/)
+    expect(token.length).toBe(69)
   })
 
-  it('determinističen: isti locationId → isti token', () => {
+  it('izrazna verzija: orderingTokenFor(LOC_A, 3) → `v1:3:<64 hex>`', () => {
     stubTestSecret()
-    expect(orderingTokenFor(LOC_A)).toBe(orderingTokenFor(LOC_A))
+    const token = orderingTokenFor(LOC_A, 3)
+    expect(token).toMatch(/^v1:3:[a-f0-9]{64}$/)
+  })
+
+  it('determinističen: isti (locationId, verzija) → isti token', () => {
+    stubTestSecret()
+    expect(orderingTokenFor(LOC_A)).toBe(orderingTokenFor(LOC_A, 0))
+    expect(orderingTokenFor(LOC_A, 7)).toBe(orderingTokenFor(LOC_A, 7))
   })
 
   it('različen locationId → različen token (vezava na TOČNO eno lokacijo)', () => {
     stubTestSecret()
     expect(orderingTokenFor(LOC_B)).not.toBe(orderingTokenFor(LOC_A))
   })
+
+  it('R89: različna verzija → različen token (isti locationId — revokacija ključ)', () => {
+    stubTestSecret()
+    const v0 = orderingTokenFor(LOC_A, 0)
+    const v1 = orderingTokenFor(LOC_A, 1)
+    expect(v1).not.toBe(v0)
+    expect(v1.startsWith('v1:1:')).toBe(true)
+  })
+
+  it('neveljaven tokenVersion → RangeError (fail-closed PRED kovanjem)', () => {
+    stubTestSecret()
+    expect(() => orderingTokenFor(LOC_A, -1)).toThrow(RangeError)
+    expect(() => orderingTokenFor(LOC_A, 1.5)).toThrow(RangeError)
+    expect(() => orderingTokenFor(LOC_A, NaN)).toThrow(RangeError)
+    expect(() => orderingTokenFor(LOC_A, Infinity)).toThrow(RangeError)
+    expect(() => orderingTokenFor(LOC_A, Number.MAX_SAFE_INTEGER + 1)).toThrow(RangeError)
+  })
 })
 
 // ══════════════════════════════════════════════════════════════════
 // B. verifyOrderingToken — timing-safe, fail-closed
 // ══════════════════════════════════════════════════════════════════
-describe('R88 B: verifyOrderingToken — veljavni/napačni pari', () => {
-  it('pravi token za lokacijo → true', () => {
+describe('R89 B: verifyOrderingToken — veljavni/napačni pari', () => {
+  it('pravi token za lokacijo → true (default IN izrazna verzija)', () => {
     stubTestSecret()
     expect(verifyOrderingToken(orderingTokenFor(LOC_A), LOC_A)).toBe(true)
+    expect(verifyOrderingToken(orderingTokenFor(LOC_A, 0), LOC_A, 0)).toBe(true)
+    expect(verifyOrderingToken(orderingTokenFor(LOC_A, 5), LOC_A, 5)).toBe(true)
+  })
+
+  it('R89: token za NAPAČNO verzijo → false (rotate = stari tokeni mrtvi)', () => {
+    stubTestSecret()
+    const v0 = orderingTokenFor(LOC_A, 0)
+    const v1 = orderingTokenFor(LOC_A, 1)
+    // lokacija je rotirala na 1 → v0 token je neveljaven
+    expect(verifyOrderingToken(v0, LOC_A, 1)).toBe(false)
+    // in obratno (token novejši od lokacijske verzije — nikoli v praksi, a fail-closed)
+    expect(verifyOrderingToken(v1, LOC_A, 0)).toBe(false)
   })
 
   it('token za TUJO lokacijo → false (vezava locationId↔token)', () => {
     stubTestSecret()
     expect(verifyOrderingToken(orderingTokenFor(LOC_B), LOC_A)).toBe(false)
+    expect(verifyOrderingToken(orderingTokenFor(LOC_B, 2), LOC_A, 2)).toBe(false)
   })
 
   it('tamperiran HMAC (zadnja hex številka) → false', () => {
@@ -97,17 +141,37 @@ describe('R88 B: verifyOrderingToken — veljavni/napačni pari', () => {
     expect(verifyOrderingToken(tampered, LOC_A)).toBe(false)
   })
 
-  it('napačen prefix (`v2:` z istim MAC) → false', () => {
+  it('napačen prefix (`v2:` z isto verzijo+MAC) → false', () => {
     stubTestSecret()
     const token = orderingTokenFor(LOC_A)
     const wrongPrefix = `v2:${token.slice(3)}`
     expect(verifyOrderingToken(wrongPrefix, LOC_A)).toBe(false)
   })
 
-  it('preveč/preveliko segmentov (`v1:aa:bb`) → false', () => {
+  it('R89: legacy 2-delni R88 token (`v1:<hmac>`) → false (format change je nameren)', () => {
     stubTestSecret()
-    const mac = orderingTokenFor(LOC_A).slice(3)
-    expect(verifyOrderingToken(`v1:${mac}:extra`, LOC_A)).toBe(false)
+    // R88 format: MAC kovan nad kontekstom BREZ verzije (lib R88 vedenje —
+    // rekonstruiran lokalno, ker lib ne ponuja več legacy kovanja).
+    const legacyMac = crypto.createHmac('sha256', TEST_SECRET)
+      .update(`online-order:v1:${LOC_A}`).digest('hex')
+    expect(legacyMac).toMatch(/^[a-f0-9]{64}$/)
+    expect(verifyOrderingToken(`v1:${legacyMac}`, LOC_A)).toBe(false)
+    expect(verifyOrderingToken(`v1:${legacyMac}`, LOC_A, 0)).toBe(false)
+  })
+
+  it('preveč/preveliko segmentov (`v1:0:aa:bb`) → false', () => {
+    stubTestSecret()
+    const mac = orderingTokenFor(LOC_A).slice(5)
+    expect(verifyOrderingToken(`v1:0:${mac}:extra`, LOC_A)).toBe(false)
+  })
+
+  it('ne-kanonska verzija v tokenu (`v1:01:…`, `v1:-1:…`, `v1:x:…`) → false', () => {
+    stubTestSecret()
+    const mac = orderingTokenFor(LOC_A, 1).slice(5)
+    expect(verifyOrderingToken(`v1:01:${mac}`, LOC_A, 1)).toBe(false) // vodilna ničla
+    expect(verifyOrderingToken(`v1:-1:${mac}`, LOC_A, -1)).toBe(false) // negativna
+    expect(verifyOrderingToken(`v1:x:${mac}`, LOC_A, 1)).toBe(false)
+    expect(verifyOrderingToken(`v1:1.5:${mac}`, LOC_A, 1)).toBe(false)
   })
 
   it('pražen / presledkovni token → false', () => {
@@ -133,9 +197,38 @@ describe('R88 B: verifyOrderingToken — veljavni/napačni pari', () => {
 })
 
 // ══════════════════════════════════════════════════════════════════
+// B2. R89 verzija parameter — fail-closed na nenormalne vhode
+// ══════════════════════════════════════════════════════════════════
+describe('R89 B2: verifyOrderingToken — verzija parameter handling', () => {
+  it('negativna / necela / NaN / Infinity verzija → false', () => {
+    stubTestSecret()
+    const token = orderingTokenFor(LOC_A)
+    expect(verifyOrderingToken(token, LOC_A, -1)).toBe(false)
+    expect(verifyOrderingToken(token, LOC_A, 0.5)).toBe(false)
+    expect(verifyOrderingToken(token, LOC_A, NaN)).toBe(false)
+    expect(verifyOrderingToken(token, LOC_A, Infinity)).toBe(false)
+  })
+
+  it('prevelika verzija (nad MAX_SAFE_INTEGER) → false (fail-closed)', () => {
+    stubTestSecret()
+    const token = orderingTokenFor(LOC_A)
+    expect(verifyOrderingToken(token, LOC_A, Number.MAX_SAFE_INTEGER + 1)).toBe(false)
+    expect(verifyOrderingToken(token, LOC_A, 1e21)).toBe(false)
+  })
+
+  it('nad-Int32 SAFE verzija → veljaven roundtrip (lib nima Int32 stropa; DB Int ga ima)', () => {
+    stubTestSecret()
+    const big = 4294967296 // 2^32 — nad Prisma Int32, pod MAX_SAFE_INTEGER
+    const token = orderingTokenFor(LOC_A, big)
+    expect(token.startsWith('v1:4294967296:')).toBe(true)
+    expect(verifyOrderingToken(token, LOC_A, big)).toBe(true)
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════
 // C. Dev fallback (izven produkcije dovoljen) + rotacija skrivnosti
 // ══════════════════════════════════════════════════════════════════
-describe('R88 C: dev fallback + rotacija', () => {
+describe('R89 C: dev fallback + rotacija', () => {
   it('test/dev okolje BREZ skrivnosti → konfigurirano (dev fallback) + token deluje', () => {
     stubNoSecrets() // NODE_ENV ostane 'test'
     expect(isOrderingSecretConfigured()).toBe(true)
@@ -143,7 +236,7 @@ describe('R88 C: dev fallback + rotacija', () => {
     expect(verifyOrderingToken(token, LOC_A)).toBe(true)
   })
 
-  it('rotacija skrivnosti annullira stare tokene (stateless revokacija)', () => {
+  it('rotacija skrivnosti annullira stare tokene (stateless revokacija — zadnja linija)', () => {
     stubTestSecret()
     const oldToken = orderingTokenFor(LOC_A)
     vi.stubEnv('ORDERING_TOKEN_SECRET', `${TEST_SECRET}-rotated`)
@@ -165,7 +258,7 @@ describe('R88 C: dev fallback + rotacija', () => {
 // ══════════════════════════════════════════════════════════════════
 // D. isOrderingSecretConfigured — produkcija fail-closed (R82-D kanon)
 // ══════════════════════════════════════════════════════════════════
-describe('R88 D: isOrderingSecretConfigured — semantika okolja', () => {
+describe('R89 D: isOrderingSecretConfigured — semantika okolja', () => {
   it('produkcija BREZ skrivnosti → false', () => {
     stubProductionNoSecret()
     expect(isOrderingSecretConfigured()).toBe(false)
@@ -193,10 +286,11 @@ describe('R88 D: isOrderingSecretConfigured — semantika okolja', () => {
 // ══════════════════════════════════════════════════════════════════
 // E. Production fail-closed vedenje token funkcij
 // ══════════════════════════════════════════════════════════════════
-describe('R88 E: produkcija brez skrivnosti — token funkcije fail-closed', () => {
+describe('R89 E: produkcija brez skrivnosti — token funkcije fail-closed', () => {
   it('orderingTokenFor v produkciji brez skrivnosti THROWS (nikoli dev secret)', () => {
     stubProductionNoSecret()
     expect(() => orderingTokenFor(LOC_A)).toThrow()
+    expect(() => orderingTokenFor(LOC_A, 2)).toThrow()
   })
 
   it('verifyOrderingToken v produkciji brez skrivnosti → false tudi za veljaven dev token', () => {
@@ -207,5 +301,6 @@ describe('R88 E: produkcija brez skrivnosti — token funkcije fail-closed', () 
     vi.stubEnv('NODE_ENV', 'production')
     expect(isOrderingSecretConfigured()).toBe(false)
     expect(verifyOrderingToken(devToken, LOC_A)).toBe(false)
+    expect(verifyOrderingToken(devToken, LOC_A, 0)).toBe(false)
   })
 })

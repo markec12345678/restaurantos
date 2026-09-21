@@ -29,26 +29,62 @@ export async function fetchMenuData(): Promise<{
   }
 }
 
-export async function fetchOrderConfigData(selectedLocation: string): Promise<{
+export async function fetchOrderConfigData(
+  selectedLocation: string,
+  // R89: ordering token iz URL deep linka (?t=) — order-config je token-gated:
+  // strežnik vrača config SAMO za token-proveno lokacijo (?locationId= + ?t=).
+  orderingToken?: string,
+): Promise<{
   isOpenNow: boolean
   weeklyHours: WeeklyHoursRow[]
   locations: LocationInfo[]
   selectedLocation: string
+  // R89: prazna konfiguracija (requiresToken / ni lokacij) → UI pokaže
+  // "Naročanje po povezavi" empty state; URL-izbrana lokacija (?loc=) ostane
+  // nedotaknjena — o njeni veljavnosti odloči POST (strežnik fail-closed).
+  needsOrderingLink: boolean
   error: string
 }> {
   try {
-    const res = await fetch('/api/public/order-config')
+    // R89: zahtevek z kontekstom pošljemo SAMO ko imava OBVA polja (deep link
+    // ?loc= + ?t=); sicer goli klic → prazna konfiguracija (200, fail-closed).
+    // Klic ostane v obeh primerih, da je UI state machine uniformna.
+    const res = await fetch(
+      selectedLocation && orderingToken
+        ? `/api/public/order-config?locationId=${encodeURIComponent(selectedLocation)}&t=${encodeURIComponent(orderingToken)}`
+        : '/api/public/order-config',
+    )
     const data = await res.json()
-    const locations = data.locations || []
+    // R89: prazna konfiguracija (anonimen klic / slab / zastarel token) →
+    // needsOrderingLink; locations ostanejo prazne, selectedLocation se NE
+    // prepiše (?loc= je lahko še vedno veljaven — POST bo odločil).
+    if (data.requiresToken || !data.locations?.length) {
+      return {
+        isOpenNow: data.isOpenNow ?? false,
+        weeklyHours: [],
+        locations: [],
+        selectedLocation,
+        needsOrderingLink: true,
+        error: '',
+      }
+    }
+    // R89: veljavna konfiguracija — pin na token-proveno lokacijo
+    // (data.locationId ?? locations[0].locationId; locations entry nosi
+    // locationId — dokumentirana R89 izjema od "brez internih ID-jev").
+    // Popravljen prejšnji hack locations[0].id, ki API nikoli ni vrnil.
+    const pinnedLocation: string = data.locationId ?? data.locations[0]?.locationId ?? ''
     return {
       isOpenNow: data.isOpenNow,
       weeklyHours: data.weeklyHours || [],
-      locations,
-      selectedLocation: locations.length > 0 && !selectedLocation ? locations[0].id : selectedLocation,
+      locations: data.locations,
+      selectedLocation: selectedLocation || pinnedLocation,
+      needsOrderingLink: false,
       error: '',
     }
   } catch {
-    return { isOpenNow: true, weeklyHours: [], locations: [], selectedLocation, error: 'Napaka pri nalaganju konfiguracije.' }
+    // R89: omrežna napaka ≠ requiresToken — stara error pot ostane,
+    // needsOrderingLink se NE postavi (brez zavajajočega empty state-a)
+    return { isOpenNow: true, weeklyHours: [], locations: [], selectedLocation, needsOrderingLink: false, error: 'Napaka pri nalaganju konfiguracije.' }
   }
 }
 

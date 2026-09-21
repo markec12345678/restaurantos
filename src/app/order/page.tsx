@@ -9,6 +9,9 @@ import dynamic from 'next/dynamic'
 // =====================================================================
 
 import { useOnlineOrder } from './useOnlineOrder'
+// R89: empty state "Naročanje po povezavi" — shadcn Card + lucide ikona
+import { Card, CardContent, CardDescription, CardTitle } from '@/components/ui/card'
+import { Link2 } from 'lucide-react'
 
 // Lazy-load podkomponente
 const OrderHeader = dynamic(() => import('./OrderHeader').then(m => ({ default: m.OrderHeader })), { ssr: false })
@@ -26,6 +29,29 @@ export default function OnlineOrderPage() {
           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className={`text-lg font-semibold ${hook.isDark ? 'text-blue-400' : 'text-blue-800'}`}>Nalagam meni...</p>
         </div>
+      </div>
+    )
+  }
+
+  // ==================== R89: NAROČANJE PO POVEZAVI (empty state) ====================
+  // Order-config je token-gated (R89): brez veljavnega deep-link konteksta
+  // (?loc= + ?t=) je konfiguracija prazna (fail-closed) — submit flow je
+  // SKRIT, pokaže se navodilo za uporabo restavracijske povezave / QR kode.
+  // URL-izbrana lokacija (?loc=) ostane v stanju — o veljavnosti odloči POST.
+  if (hook.needsOrderingLink && hook.locations.length === 0) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center px-4 ${hook.isDark ? 'bg-gray-950 text-gray-100' : 'bg-gradient-to-b from-blue-50 via-white to-indigo-50 text-gray-900'}`}>
+        <Card className={`w-full max-w-md text-center ${hook.isDark ? 'bg-gray-900 border-gray-800' : 'bg-white/90'}`}>
+          <CardContent className="flex flex-col items-center gap-3 pt-6">
+            <Link2 className={`h-10 w-10 ${hook.isDark ? 'text-blue-400' : 'text-blue-600'}`} aria-hidden="true" />
+            <CardTitle className={`text-lg font-bold ${hook.isDark ? 'text-blue-300' : 'text-blue-900'}`}>
+              Naročanje po povezavi
+            </CardTitle>
+            <CardDescription className={hook.isDark ? 'text-gray-400' : 'text-gray-600'}>
+              Za spletno naročanje uporabi povezavo vaše restavracije (npr. z njihove spletne strani ali QR kode).
+            </CardDescription>
+          </CardContent>
+        </Card>
       </div>
     )
   }

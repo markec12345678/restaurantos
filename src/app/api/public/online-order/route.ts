@@ -16,6 +16,8 @@ import { handleRouteError, validateRequest } from '@/lib/api-utils'
 import { notInScopeResponse } from '@/lib/tenant-scope'
 // R88: per-location ordering token (qr-pay HMAC vzorec iz R81) — vezava
 // naročilo↔lokacija brez sheme/Redis-a, timing-safe, fail-closed.
+// R89: token vezava zdaj vključuje tokenVersion (`v1:<verzija>:<hmac>`) —
+// per-location revokacija prek Location.tokenVersion (rotate endpoint).
 import { isOrderingSecretConfigured, verifyOrderingToken } from '@/lib/ordering-token'
 import { formatEUR } from '@/lib/safe-format'
 import {
@@ -35,16 +37,19 @@ export const dynamic = 'force-dynamic'
 // (odstranjen R86 residual).
 async function resolveOnlineOrderLocation(
   explicitId: string,
-): Promise<{ ok: true; locationId: string } | { ok: false; response: NextResponse }> {
+): Promise<{ ok: true; locationId: string; tokenVersion: number } | { ok: false; response: NextResponse }> {
   if (!/^[a-z0-9]{5,50}$/i.test(explicitId)) {
     return { ok: false, response: notInScopeResponse('Lokacija') }
   }
+  // R89: select vključuje tokenVersion (per-location revokacija) — brez dodatnega
+  // DB klica. `?? 0` guard: NOT NULL DEFAULT 0 v shemi (undefined/null samo v
+  // testnih fikserjih brez polja — takrat velja verzija 0, enako kot R88 tokeni).
   const location = await db.location.findFirst({
     where: { id: explicitId, isActive: true },
-    select: { id: true },
+    select: { id: true, tokenVersion: true },
   })
   if (!location) return { ok: false, response: notInScopeResponse('Lokacija') }
-  return { ok: true, locationId: location.id }
+  return { ok: true, locationId: location.id, tokenVersion: location.tokenVersion ?? 0 }
 }
 
 export async function POST(req: Request) {
@@ -83,7 +88,9 @@ export async function POST(req: Request) {
     // resolveDefaultLocationId) = cross-tenant žig naročila + tuj per-lokacijski
     // order counter + odbitek tuje zaloge + tuj guest/discount kontekst.
     // Spletni klijent (src/app/order/useOnlineOrder) pošilja selectedLocation
-    // (iz /api/public/order-config); tretje-ožji klicatelji brez locationId →
+    // (R89: iz deep-link URL-ja ?loc= + token ?t=; order-config je od R89
+    // token-gated in vrača config samo za token-proveno lokacijo);
+    // tretje-ožji klicatelji brez locationId →
     // 400 brez NOBENE pisne operacije (BREAKING CHANGE, dokumentiran v worklogu
     // R87-3). Unknown/inactive → unificiran 404 'Lokacija ni najden' (prej 400
     // 'Izbrana lokacija ni na voljo' prek findUnique — zdaj isti kanon kot
@@ -98,6 +105,7 @@ export async function POST(req: Request) {
     const resolvedLocation = await resolveOnlineOrderLocation(locationId)
     if (!resolvedLocation.ok) return resolvedLocation.response
     const onlineLocationId: string = resolvedLocation.locationId
+    const onlineTokenVersion: number = resolvedLocation.tokenVersion
 
     // R88 FIX 2/2 (BY-DESIGN luknja iz R87 zaprta): ordering token je OBVEZEN
     // in vezan na TOČNO TO lokacijo — manjkajoč / napačen format / token TUJE
@@ -106,7 +114,9 @@ export async function POST(req: Request) {
     // TUKAJ — takoj po resoluciji lokacije, PRED menu lookupom in PRED vsakim
     // pisnim klicem (counter upsert, getNextOrderNumber, createOnlineOrder —
     // zavrnitev = ZERO db zapisov).
-    if (!orderingToken || !verifyOrderingToken(orderingToken, onlineLocationId)) {
+    // R89: vezava zdaj vključuje tokenVersion — token izdan za STARO verzijo
+    // lokacije (pred rotate) je neveljaven (isti 404, zero pisnih klicev).
+    if (!orderingToken || !verifyOrderingToken(orderingToken, onlineLocationId, onlineTokenVersion)) {
       return notInScopeResponse('Lokacija')
     }
 

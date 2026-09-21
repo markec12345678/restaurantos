@@ -42,12 +42,13 @@ export const onlineOrderSchema = z.object({
   // regex oblika + location.findFirst({ id, isActive: true }), manjka → 400
   // fail-closed, neznana/tuja/neaktivna → 404 notInScopeResponse)
   locationId: z.string().max(50).optional(),
-  // R88: per-location ordering token (`v1:<64 hex>` HMAC vezava lokacija↔naročilo,
-  // izdaja: GET /api/locations/[id]/ordering-token). OBVEZEN za uspešno naročilo —
-  // manjkajoč/neveljaven/tuj token → 404 notInScopeResponse (route.ts, po
-  // resoluciji lokacije, pred vsakim pisnim klicem). Max 200 = privzeto
-  // velikodušna zgornja meja (dejanski token je 67 znakov) — preverjanje
-  // vsebine je timing-safe HMAC v lib/ordering-token.
+  // R88: per-location ordering token (R89 format `v1:<tokenVersion>:<64 hex>`
+  // HMAC vezava lokacija+verzija↔naročilo, izdaja: GET /api/locations/[id]/
+  // ordering-token, revokacija: POST .../ordering-token/rotate). OBVEZEN za
+  // uspešno naročilo — manjkajoč/neveljaven/tuj/zastarel token → 404
+  // notInScopeResponse (route.ts, po resoluciji lokacije, pred vsakim pisnim
+  // klicem). Max 200 = privzeto velikodušna zgornja meja (dejanski token je
+  // 69 znakov) — preverjanje vsebine je timing-safe HMAC v lib/ordering-token.
   orderingToken: z.string().max(200).optional(),
 })
 

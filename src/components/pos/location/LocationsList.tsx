@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { MapPin, Building2, Phone, Globe, ToggleLeft, ToggleRight, ChevronDown, ChevronUp, Edit2, Trash2 } from 'lucide-react'
 import type { LocationsListProps } from './constants'
 import { typeIcons, typeLabels } from './constants'
+import { OrderingLinkSection } from './OrderingLinkSection'
 
 // Seznam lokacij s karticami
 export const LocationsList = memo(function LocationsList({
@@ -96,6 +97,10 @@ export const LocationsList = memo(function LocationsList({
                   >
                     <Trash2 className="h-3 w-3" /> Izbriši
                   </Button>
+                </div>
+                {/* Naročilna povezava (R89) — izdaja/rotacija ordering URL + QR meni */}
+                <div className="mt-3 pt-3 border-t">
+                  <OrderingLinkSection locationId={loc.id} />
                 </div>
               </div>
             )}

@@ -11,7 +11,8 @@
 // in SAMO znotraj lokacijskega scope-a seje (centralni resolver kanon iz R80).
 //
 // GET only — token je dolgotrajna poverilnica (BREZ TTL — glej header
-// lib/ordering-token.ts); revokacija = rotacija ORDERING_TOKEN_SECRET.
+// lib/ordering-token.ts); revokacija = POST ./rotate (R89: increment
+// Location.tokenVersion — per-location, brez rotacije globalne skrivnosti).
 // ============================================
 
 import { db } from '@/lib/db'
@@ -47,7 +48,9 @@ export async function GET(
 
     const location = await db.location.findFirst({
       where: { id },
-      select: { id: true, isActive: true, name: true },
+      // R89: tokenVersion v selectu — kovanje + odgovor (klient vidi aktivno
+      // verzijo; po rotate-u je stara URL takoj mrtva).
+      select: { id: true, isActive: true, name: true, tokenVersion: true },
     })
     if (!location) {
       // Namerno 404 — ne razkrivamo obstoja tuje lokacije (isti odgovor kot
@@ -71,13 +74,17 @@ export async function GET(
       )
     }
 
-    const token = orderingTokenFor(location.id)
+    // R89: kovanje z AKTIVNO verzijo lokacije (default 0 = R88 kompatibilno;
+    // `?? 0` guard za testne fikserje brez polja — shema je NOT NULL DEFAULT 0).
+    const tokenVersion = location.tokenVersion ?? 0
+    const token = orderingTokenFor(location.id, tokenVersion)
     return NextResponse.json({
       locationId: location.id,
       token,
       orderingUrl: `${getAppUrl()}/order?loc=${location.id}&t=${token}`,
       locationName: location.name,
       isActive: location.isActive,
+      tokenVersion,
     })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/locations/[id]/ordering-token', 'Napaka pri izdaji naročilnega tokena')

@@ -74,6 +74,8 @@ export function useOnlineOrder() {
     isOpenNow: state.isOpenNow, weeklyHours: state.weeklyHours, locations: state.locations,
     selectedLocation: state.selectedLocation, setSelectedLocation: state.setSelectedLocation,
     orderingToken: state.orderingToken,
+    // R89: token-gated order-config — empty state "Naročanje po povezavi"
+    needsOrderingLink: state.needsOrderingLink,
     deliveryZone: state.deliveryZone, deliveryZoneChecked: state.deliveryZoneChecked,
     promoCode: state.promoCode, setPromoCode: state.setPromoCode,
     promoResult: state.promoResult, setPromoResult: state.setPromoResult,

@@ -1414,6 +1414,9 @@ model Location {
   modifierGroups        ModifierGroup[]   // MODEL A #9: skupine modifikatorjev PO LOKACIJI
   guests                Guest[]           // R87: per-location CRM (tenant scope)
   integrations          Integration[]     // R88: delivery webhooki žigajo na to lokacijo (tenant scope)
+  // R89 — per-location ordering token revokacija (rotate = increment; stari
+  // tokeni instant neveljavni; glej lib/ordering-token).
+  tokenVersion     Int      @default(0)
 
   @@index([code])
   @@index([isActive])
