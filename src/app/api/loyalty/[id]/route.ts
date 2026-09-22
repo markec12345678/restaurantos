@@ -3,11 +3,13 @@ import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { updateLoyaltySchema } from '@/lib/validations'
-import { handleRouteError, parseJsonBody, validateBody } from '@/lib/api-utils'
+import { parseJsonBody, validateBody } from '@/lib/api-utils'
 import { canDeleteLoyaltyAccount } from '@/lib/loyalty-guard'
-import { maybeTierUpgrade, tierLabelSi } from '@/lib/loyalty-tiers'
+import { structuredErrorResponse } from '@/lib/structured-error'
 import { triggerTierUpgrade } from '@/lib/loyalty-automation'
+import { updateLoyaltyAccountWithLock } from '../_helpers/points-mutations'
 import { logger } from '@/lib/logger'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,121 +36,26 @@ export async function PUT(
     // FIX H-01: Validiraj vnos z Zod
     const { data, error: validationError } = validateBody(updateLoyaltySchema, bodyResult.data)
     if (validationError) return validationError
-    // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope (cross-tenant zaščita)
+    // FIX IDOR (tenant scope): findUnique → findFirst z locationId scope (cross-tenant zaščita).
+    // R107: fast-path 404 stopnica — avtoritativni pisalni tok je kanon
+    // (updateLoyaltyAccountWithLock) s tx-fresh scoped re-read.
     const existing = await db.loyaltyAccount.findFirst({
       where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!existing) {
       return NextResponse.json({ error: 'Zvestobni račun ni najden' }, { status: 404 })
     }
-    // FIX H-05: Atomna transakcija za posodobitev točk + transakcijski zapis
-    const { result: _result, tierUpgrade } = await db.$transaction(async (tx) => {
-      const updateData: Record<string, unknown> = {}
-      if (data.customerName !== undefined) updateData.customerName = data.customerName
-      if (data.customerPhone !== undefined) updateData.customerPhone = data.customerPhone
-      if (data.customerEmail !== undefined) updateData.customerEmail = data.customerEmail
-      if (data.tier !== undefined) updateData.tier = data.tier
-      if (data.isActive !== undefined) updateData.isActive = data.isActive
-      if (data.pointsBalance !== undefined) {
-        const newPoints = Math.max(0, data.pointsBalance)
-        // FIX MEDIUM: Zgornja meja za ročno prilaganje točk — prepreči zlorabo
-        const MAX_POINTS_PER_ADJUSTMENT = 50000
-        const MAX_TOTAL_POINTS = 500000
-        const diff = newPoints - existing.pointsBalance
-        if (diff > MAX_POINTS_PER_ADJUSTMENT) {
-          throw new Error(`Enkratno prilaganje omejeno na ${MAX_POINTS_PER_ADJUSTMENT} točk. Za večje prilagoditve kontaktirajte administratorja.`)
-        }
-        if (newPoints > MAX_TOTAL_POINTS) {
-          throw new Error(`Skupno število točk ne more preseči ${MAX_TOTAL_POINTS}.`)
-        }
-        if (diff > 0) {
-          // FIX HIGH: Atomic increment za pridobivanje točk — prepreči race condition
-          updateData.pointsBalance = { increment: diff }
-          // Posodobi tudi lifetimePoints — atomsko
-          // FIX BUG: Ne prepiši lifetimePoints, če je tudi data.lifetimePoints podan
-          if (data.lifetimePoints === undefined) {
-            updateData.lifetimePoints = { increment: diff }
-          }
-        } else if (diff < 0) {
-          // FIX HIGH: Prepreči, da pointsBalance pade pod 0 (race condition)
-          // Uporabi updateMany s pogojem namesto plain decrement
-          const absDiff = Math.abs(diff)
-          const updated = await tx.loyaltyAccount.updateMany({
-            where: { id, pointsBalance: { gte: absDiff } },
-            data: { pointsBalance: { decrement: absDiff } },
-          })
-          if (updated.count === 0) {
-            throw new Error('Ni dovolj točk za unovčenje')
-          }
-          // Ne nastavi updateData.pointsBalance — že posodobljeno atomsko
-          // lifetimePoints se ne zmanjša ob unovčenju
-        }
-        // diff === 0: ni spremembe, ne nastavljaj
-      }
-      // FIX BUG: lifetimePoints naj se nastavi SAMO če ni že nastavljen preko pointsBalance logike
-      if (data.lifetimePoints !== undefined && !updateData.lifetimePoints) {
-        updateData.lifetimePoints = Math.max(0, data.lifetimePoints)
-      }
-      const account = await tx.loyaltyAccount.update({
-        where: { id },
-        data: updateData,
-      })
 
-      // RUNDA 61: ZAKLJUČITEV NIVO TOKA — ročni adjust NE SME ostati
-      // brez povišanja. Prej je lifetime sprememba (adjust/ročni vnos) pustila
-      // tier star → "stuck" računi (živi dokaz v produkciji: lifetime 543,
-      // tier bronze). Enak upgrade-only vzorec kot earn flow (Runda 44):
-      // ročno dodeljen VIŠJI nivo se nikoli ne poniži.
-      let tierUpgrade: { from: string; to: string } | null = null
-      const upgradedTo = maybeTierUpgrade(existing.tier, account.lifetimePoints)
-      if (upgradedTo) {
-        await tx.loyaltyAccount.update({
-          where: { id },
-          data: { tier: upgradedTo },
-        })
-        await tx.loyaltyTransaction.create({
-          data: {
-            loyaltyAccountId: id,
-            type: 'earn',
-            points: 0,
-            reason: `Povišanje nivoa v ${tierLabelSi(upgradedTo)}`,
-          },
-        })
-        tierUpgrade = { from: existing.tier, to: upgradedTo }
-        logger.info('LOYALTY', 'Rocni adjust sprozil povicanje nivoa', {
-          loyaltyAccountId: id,
-          from: existing.tier,
-          to: upgradedTo,
-        })
-      }
-
-      // Ustvari transakcijski zapis, če je podan
-      if (data.transaction) {
-        const txData = data.transaction
-        await tx.loyaltyTransaction.create({
-          data: {
-            loyaltyAccountId: id,
-            type: txData.type,
-            points: txData.points,
-            reason: txData.reason || '',
-            orderId: txData.orderId || null,
-            checkId: txData.checkId || null,
-            monetaryValue: txData.monetaryValue ?? 0,
-          },
-        })
-      } else if (data.pointsBalance !== undefined && data.pointsBalance !== existing.pointsBalance) {
-        // Avtomatsko ustvari transakcijski zapis za spremembo točk
-        const diff = data.pointsBalance - existing.pointsBalance
-        await tx.loyaltyTransaction.create({
-          data: {
-            loyaltyAccountId: id,
-            type: diff > 0 ? 'earn' : 'redeem',
-            points: diff,
-            reason: diff > 0 ? 'Prislužene točke' : 'Unovčenje točk',
-          },
-        })
-      }
-      return { result: account, tierUpgrade }
+    // R107 LO-1/LO-2/LO-3 (HIGH, kanon R106/R105/R104): ročna prilagoditev
+    // točk pod pg_advisory_xact_lock('loyalty-points:' + id) + Serializable +
+    // tx-fresh re-read — diff izračunan IZ SVEŽEGA stanja (prej stale read
+    // izven tx: dva sočasna "nastavi na 100" = dvojna delta / lost update);
+    // unovčenje ima atomarni gte guard; audit zapis + tier upgrade s svežimi
+    // vrednostmi; strukturirani { error, status } throw-i.
+    const { tierUpgrade } = await updateLoyaltyAccountWithLock({
+      loyaltyAccountId: id,
+      sessionLocationId: scope.locationId,
+      data,
     })
 
     // RUNDA 61: SMS o napredovanju — šele PO commitu (nikoli znotraj
@@ -173,11 +80,19 @@ export async function PUT(
     if (tierUpgrade) response.tierUpgrade = tierUpgrade
     return NextResponse.json(response)
   } catch (error: unknown) {
-    return handleRouteError(error, 'PUT /api/loyalty/[id]', [
-      { match: 'omejeno na', substring: true, status: 400, message: error instanceof Error ? error.message : 'Omejitev presežena' },
-      { match: 'ne more preseči', substring: true, status: 400, message: error instanceof Error ? error.message : 'Omejitev presežena' },
-      { match: 'Ni dovolj točk', substring: true, status: 400, message: error instanceof Error ? error.message : 'Ni dovolj točk' },
-    ], 'Napaka pri posodobitvi zvestobnega računa')
+    // R107 (error kontrakt): P2002/P2034 race-pathi → 409 (nikoli 500);
+    // strukturirani { error, status } throw-i iz tx teles (404/400) → pravi
+    // statusi (prej: string-matching na error sporočilih).
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2002' || error.code === 'P2034')
+    ) {
+      return NextResponse.json(
+        { error: 'Prilagoditev točk je v obdelavi (sočasen dostop) — poskusite znova' },
+        { status: 409 }
+      )
+    }
+    return structuredErrorResponse(error, 'PUT /api/loyalty/[id]', 'Napaka pri posodobitvi zvestobnega računa')
   }
 }
 
@@ -220,6 +135,6 @@ export async function DELETE(
     await db.loyaltyAccount.delete({ where: { id } })
     return NextResponse.json({ ok: true, id })
   } catch (error: unknown) {
-    return handleRouteError(error, 'DELETE /api/loyalty/[id]', [], 'Napaka pri brisanju zvestobnega računa')
+    return structuredErrorResponse(error, 'DELETE /api/loyalty/[id]', 'Napaka pri brisanju zvestobnega računa')
   }
 }

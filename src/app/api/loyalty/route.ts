@@ -1,6 +1,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { resolveWriteLocationId } from '@/lib/tenant-scope'
@@ -123,6 +124,16 @@ export async function POST(req: Request) {
 
     return NextResponse.json(account, { status: 201 })
   } catch (error: unknown) {
+    // R107 (PO-2 parity): duplikat check-then-act race — dva sočasna POST-a
+    // z istim telefonom na isti lokaciji oba preženeta findFirst pregled,
+    // DB delni unique indeks (customerPhone <> '' AND locationId IS NOT NULL)
+    // strese P2002 → prej 500, sedaj 409 (nikoli 500 na race-pathu).
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return NextResponse.json(
+        { error: 'Račun zvestobe s to telefonsko številko že obstaja na tej lokaciji' },
+        { status: 409 }
+      )
+    }
     return handleApiError(error, 'POST /api/loyalty', 'Napaka pri ustvarjanju zvestobnega računa')
   }
 }

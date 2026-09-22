@@ -34,6 +34,8 @@ const mocks = vi.hoisted(() => ({
   timeOffCreate: vi.fn(),
   timeOffFindUnique: vi.fn(),
   timeOffUpdate: vi.fn(),
+  // R107: approve/reject → CAS state machine (updateMany { status: 'pending' })
+  timeOffUpdateMany: vi.fn(),
   // staff-availability
   availabilityFindMany: vi.fn(),
   availabilityUpsert: vi.fn(),
@@ -65,6 +67,8 @@ vi.mock('@/lib/db', () => ({
       create: mocks.timeOffCreate,
       findUnique: mocks.timeOffFindUnique,
       update: mocks.timeOffUpdate,
+      // R107: CAS prevrstava pending → approved|rejected
+      updateMany: mocks.timeOffUpdateMany,
     },
     staffAvailability: {
       findMany: mocks.availabilityFindMany,
@@ -144,6 +148,7 @@ beforeEach(() => {
   mocks.timeOffFindMany.mockResolvedValue([])
   mocks.timeOffCreate.mockResolvedValue({ id: 'tor-new' })
   mocks.timeOffUpdate.mockResolvedValue({ id: 'tor-1', status: 'approved' })
+  mocks.timeOffUpdateMany.mockResolvedValue({ count: 1 })
   mocks.availabilityFindMany.mockResolvedValue([])
   mocks.availabilityUpsert.mockResolvedValue({ id: 'av-1' })
   mocks.availabilityDelete.mockResolvedValue({})
@@ -246,6 +251,8 @@ describe('R85-4b B: POST /api/time-off — employeeId ownership guard', () => {
 // C. TIME-OFF approve/reject (cross-tenant WRITE po id)
 // ══════════════════════════════════════════════════════════════════
 describe('R85-4b C: POST /api/time-off/[id]/approve|reject — ownership guard', () => {
+  // R107 migracija: NEPOGOJEN update → CAS updateMany ({ id, status: 'pending', employee scope });
+  // scope fast-path (404 za tuje/NULL) ostane pinan — CAS NI klican za izven-scope prošnje.
   const OWN = { id: 'tor-1', employee: { locationId: LOC_A } }
   const FOREIGN = { id: 'tor-2', employee: { locationId: LOC_B } }
   const LEGACY_NULL = { id: 'tor-3', employee: { locationId: null } }
@@ -257,10 +264,10 @@ describe('R85-4b C: POST /api/time-off/[id]/approve|reject — ownership guard',
       { params: Promise.resolve({ id: 'tor-1' }) },
     )
     expect(res.status).toBe(403)
-    expect(mocks.timeOffUpdate).not.toHaveBeenCalled()
+    expect(mocks.timeOffUpdateMany).not.toHaveBeenCalled()
   })
 
-  it('approve: lastna prošnja → update klican z statusom approved', async () => {
+  it('approve: lastna prošnja → CAS klican z statusom approved (pending-only + scope)', async () => {
     mockSession({ role: 'admin', locationId: LOC_A })
     mocks.timeOffFindUnique.mockResolvedValue(OWN)
     const res = await approvePOST(
@@ -268,8 +275,14 @@ describe('R85-4b C: POST /api/time-off/[id]/approve|reject — ownership guard',
       { params: Promise.resolve({ id: 'tor-1' }) },
     )
     expect(res.status).toBe(200)
-    expect(mocks.timeOffUpdate).toHaveBeenCalledTimes(1)
-    expect(mocks.timeOffUpdate.mock.calls[0][0].data.status).toBe('approved')
+    expect(mocks.timeOffUpdateMany).toHaveBeenCalledTimes(1)
+    const casArgs = mocks.timeOffUpdateMany.mock.calls[0][0]
+    expect(casArgs.data.status).toBe('approved')
+    // R107 pins: CAS samo na pending + scope znotraj where + revizijski zapis
+    expect(casArgs.where.id).toBe('tor-1')
+    expect(casArgs.where.status).toBe('pending')
+    expect(casArgs.where.employee).toEqual({ locationId: LOC_A })
+    expect(casArgs.data.reviewedBy).toBe('emp-1')
   })
 
   it('approve: TUJA prošnja → 404 + update NI klican', async () => {
@@ -280,7 +293,7 @@ describe('R85-4b C: POST /api/time-off/[id]/approve|reject — ownership guard',
       { params: Promise.resolve({ id: 'tor-2' }) },
     )
     expect(res.status).toBe(404)
-    expect(mocks.timeOffUpdate).not.toHaveBeenCalled()
+    expect(mocks.timeOffUpdateMany).not.toHaveBeenCalled()
   })
 
   it('approve: legacy NULL prošnja + loc-bound admin → 404 fail-closed', async () => {
@@ -291,10 +304,10 @@ describe('R85-4b C: POST /api/time-off/[id]/approve|reject — ownership guard',
       { params: Promise.resolve({ id: 'tor-3' }) },
     )
     expect(res.status).toBe(404)
-    expect(mocks.timeOffUpdate).not.toHaveBeenCalled()
+    expect(mocks.timeOffUpdateMany).not.toHaveBeenCalled()
   })
 
-  it('approve: neznani id → 404 + update NI klican', async () => {
+  it('approve: neznani id → 404 + CAS NI klican', async () => {
     mockSession({ role: 'admin', locationId: LOC_A })
     mocks.timeOffFindUnique.mockResolvedValue(null)
     const res = await approvePOST(
@@ -302,10 +315,10 @@ describe('R85-4b C: POST /api/time-off/[id]/approve|reject — ownership guard',
       { params: Promise.resolve({ id: 'tor-x' }) },
     )
     expect(res.status).toBe(404)
-    expect(mocks.timeOffUpdate).not.toHaveBeenCalled()
+    expect(mocks.timeOffUpdateMany).not.toHaveBeenCalled()
   })
 
-  it('approve: super-admin sme odobriti tujo (NULL scope = globalni nadzor)', async () => {
+  it('approve: super-admin sme odobriti tujo (NULL scope = globalni nadzor, where brez employee ključa)', async () => {
     mockSession({ role: 'super_admin', locationId: null })
     mocks.timeOffFindUnique.mockResolvedValue(FOREIGN)
     const res = await approvePOST(
@@ -313,10 +326,12 @@ describe('R85-4b C: POST /api/time-off/[id]/approve|reject — ownership guard',
       { params: Promise.resolve({ id: 'tor-2' }) },
     )
     expect(res.status).toBe(200)
-    expect(mocks.timeOffUpdate).toHaveBeenCalledTimes(1)
+    expect(mocks.timeOffUpdateMany).toHaveBeenCalledTimes(1)
+    const casArgs = mocks.timeOffUpdateMany.mock.calls[0][0]
+    expect(Object.prototype.hasOwnProperty.call(casArgs.where, 'employee')).toBe(false)
   })
 
-  it('reject: TUJA prošnja → 404 + update NI klican (pariteta)', async () => {
+  it('reject: TUJA prošnja → 404 + CAS NI klican (pariteta)', async () => {
     mockSession({ role: 'admin', locationId: LOC_A })
     mocks.timeOffFindUnique.mockResolvedValue(FOREIGN)
     const res = await rejectPOST(
@@ -324,10 +339,10 @@ describe('R85-4b C: POST /api/time-off/[id]/approve|reject — ownership guard',
       { params: Promise.resolve({ id: 'tor-2' }) },
     )
     expect(res.status).toBe(404)
-    expect(mocks.timeOffUpdate).not.toHaveBeenCalled()
+    expect(mocks.timeOffUpdateMany).not.toHaveBeenCalled()
   })
 
-  it('reject: lastna prošnja → update klican z statusom rejected', async () => {
+  it('reject: lastna prošnja → CAS klican z statusom rejected (parity)', async () => {
     mockSession({ role: 'admin', locationId: LOC_A })
     mocks.timeOffFindUnique.mockResolvedValue(OWN)
     const res = await rejectPOST(
@@ -335,7 +350,8 @@ describe('R85-4b C: POST /api/time-off/[id]/approve|reject — ownership guard',
       { params: Promise.resolve({ id: 'tor-1' }) },
     )
     expect(res.status).toBe(200)
-    expect(mocks.timeOffUpdate.mock.calls[0][0].data.status).toBe('rejected')
+    expect(mocks.timeOffUpdateMany.mock.calls[0][0].data.status).toBe('rejected')
+    expect(mocks.timeOffUpdateMany.mock.calls[0][0].where.status).toBe('pending')
   })
 })
 

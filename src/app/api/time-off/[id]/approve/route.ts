@@ -1,11 +1,16 @@
 // ============================================
 // POST /api/time-off/[id]/approve — odobri prošnjo
 // ============================================
+// R107 TO-1: NEPOGOJEN update zamenjan s CAS state machine kanonom
+// (reviewTimeOffRequest v ../_helpers.ts): samo pending → approved; replay
+// (že odobrena) → 200 brez overwrite-a revizijskih polj; konflikt (rejected/
+// cancelled) → 409; reviewedBy je sedaj zapisan (revizijska vrzel).
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
-import { handleApiError } from '@/lib/api-utils'
 import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
+import { structuredErrorResponse } from '@/lib/structured-error'
+import { reviewTimeOffRequest } from '../_helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,9 +20,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (authResult.error) return authResult.error
 
     // FIX R85-4b MEDIUM: cross-tenant write guard — TimeOffRequest NIMA locationId,
-    // scope se izpelje prek employee.locationId. Prej je update({ where: { id } })
-    // odobril TUJO prošnjo. Tuja/legacy-NULL prošnja → 404 (ne 403 — ne razkrivamo
-    // obstoja); super-admin (null scope) ima globalni nadzor.
+    // scope se izpelje prek employee.locationId. Tuja/legacy-NULL prošnja → 404
+    // (ne 403 — ne razkrivamo obstoja); super-admin (null scope) = globalni nadzor.
+    // R107: fast-path 404 stopnica — avtoritativna prevrstava je CAS v helperju
+    // (scope je znotraj where → scope drift med readom in pisanjem nemogoč).
     const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
       endpoint: 'POST /api/time-off/[id]/approve',
     })
@@ -33,16 +39,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return notInScopeResponse('Prošnja za dopust')
     }
 
-    const updated = await db.timeOffRequest.update({
-      where: { id },
-      data: {
-        status: 'approved',
-        reviewedAt: new Date(),
-      },
+    // R107 TO-1: CAS pending → approved (+reviewedBy) — replay 200 / konflikt 409
+    const result = await reviewTimeOffRequest({
+      id,
+      decision: 'approve',
+      sessionLocationId: scope.locationId,
+      reviewedBy: authResult.session?.employeeId ?? null,
     })
 
-    return NextResponse.json({ success: true, request: updated })
+    return NextResponse.json({
+      success: true,
+      request: result.request,
+      ...(result.replay ? { replay: true } : {}),
+    })
   } catch (err) {
-    return handleApiError(err, 'time-off approve')
+    return structuredErrorResponse(err, 'POST /api/time-off/[id]/approve', 'Napaka pri odobritvi prošnje')
   }
 }

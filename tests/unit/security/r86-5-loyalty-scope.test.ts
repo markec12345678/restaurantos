@@ -51,9 +51,18 @@ vi.mock('@/lib/db', () => ({
       delete: mocks.loyaltyAccountDelete,
     },
     loyaltyTransaction: { count: mocks.loyaltyTransactionCount },
+    // R107: PUT kanon — $transaction telo zdaj kliče advisory lock ($executeRaw)
+    // + tx-fresh re-read (loyaltyAccount.findFirst) + pogojni updateMany.
+    // tx re-read je pripet na ISTI findFirst mock (fast-path + tx-fresh vrata
+    // isti fixture) — scope pini v A sekciji ostanejo veljavni za oba klica.
     $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
       fn({
-        loyaltyAccount: { update: mocks.loyaltyAccountUpdate },
+        $executeRaw: vi.fn().mockResolvedValue(1),
+        loyaltyAccount: {
+          findFirst: mocks.loyaltyAccountFindFirst,
+          update: mocks.loyaltyAccountUpdate,
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
         loyaltyTransaction: { create: mocks.loyaltyTransactionCreate },
       }),
     ),
