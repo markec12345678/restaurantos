@@ -80,6 +80,7 @@ describe('webauthn lib — getWebAuthnConfig', () => {
     setEnv('NEXTAUTH_URL', undefined)
     setEnv('NEXT_PUBLIC_APP_URL', undefined)
     setEnv('NEXT_PUBLIC_APP_NAME', undefined)
+    setEnv('WEBAUTHN_EXTRA_ORIGINS', undefined)
   })
 
   it('uporablja NEXTAUTH_URL za rpID + origin', async () => {
@@ -121,6 +122,90 @@ describe('webauthn lib — getWebAuthnConfig', () => {
     const config = getWebAuthnConfig()
     expect(config.origin).toBe('http://localhost:3000')
     expect(config.rpID).toBe('localhost')
+  })
+
+  it('R101: config.origins vključuje vse env origin-e (primarni = NEXTAUTH_URL)', async () => {
+    setEnv('NEXTAUTH_URL', 'https://pos.example.com')
+    setEnv('WEBAUTHN_EXTRA_ORIGINS', 'https://www.pos.example.com')
+    const { getWebAuthnConfig } = await import('@/lib/webauthn')
+    const config = getWebAuthnConfig()
+    expect(config.origin).toBe('https://pos.example.com')
+    expect(config.rpID).toBe('pos.example.com')
+    expect(config.origins).toEqual(['https://pos.example.com', 'https://www.pos.example.com'])
+  })
+})
+
+// ══════════════════════════════════════════════════════════════════
+// R101: multi-origin expectedOrigin (getWebAuthnOrigins)
+// v14 expectedOrigin sprejme string | string[] — allowlist pokrije
+// legitimate domenske variante istega rpID (www/apex, port, preview);
+// cross-domain uporaba poverilnic ostane nemogoča (browser uveljavlja
+// rpID kompatibilnost ob ceremony).
+// ══════════════════════════════════════════════════════════════════
+describe('webauthn lib — getWebAuthnOrigins (R101 multi-origin)', () => {
+  beforeEach(() => {
+    vi.resetModules()
+  })
+
+  afterEach(() => {
+    setEnv('NEXTAUTH_URL', undefined)
+    setEnv('NEXT_PUBLIC_APP_URL', undefined)
+    setEnv('WEBAUTHN_EXTRA_ORIGINS', undefined)
+  })
+
+  it('prazen env → SAMO localhost fallback (dev/test kanon)', async () => {
+    setEnv('NEXTAUTH_URL', undefined)
+    setEnv('NEXT_PUBLIC_APP_URL', undefined)
+    setEnv('WEBAUTHN_EXTRA_ORIGINS', undefined)
+    const { getWebAuthnOrigins } = await import('@/lib/webauthn')
+    expect(getWebAuthnOrigins()).toEqual(['http://localhost:3000'])
+  })
+
+  it('NEXTAUTH_URL ima prioriteto; NEXT_PUBLIC_APP_URL se doda kot drugi', async () => {
+    setEnv('NEXTAUTH_URL', 'https://pos.example.com')
+    setEnv('NEXT_PUBLIC_APP_URL', 'https://app.example.com')
+    const { getWebAuthnOrigins } = await import('@/lib/webauthn')
+    expect(getWebAuthnOrigins()).toEqual(['https://pos.example.com', 'https://app.example.com'])
+  })
+
+  it(' isti origin v obeh env → dedup (BREZ dvojnikov)', async () => {
+    setEnv('NEXTAUTH_URL', 'https://pos.example.com')
+    setEnv('NEXT_PUBLIC_APP_URL', 'https://pos.example.com/')
+    const { getWebAuthnOrigins } = await import('@/lib/webauthn')
+    expect(getWebAuthnOrigins()).toEqual(['https://pos.example.com'])
+  })
+
+  it('WEBAUTHN_EXTRA_ORIGINS: vejica-ločeni seznam, trim, vrstni red ohranjen', async () => {
+    setEnv('NEXTAUTH_URL', 'https://pos.example.com')
+    setEnv('WEBAUTHN_EXTRA_ORIGINS', ' https://www.pos.example.com , https://pos.example.com:8443 ')
+    const { getWebAuthnOrigins } = await import('@/lib/webauthn')
+    expect(getWebAuthnOrigins()).toEqual([
+      'https://pos.example.com',
+      'https://www.pos.example.com',
+      'https://pos.example.com:8443',
+    ]
+    )
+  })
+
+  it('neveljavni + tuji-shemski (ftp://) kandidati se tiho preskočijo (ni crash)', async () => {
+    setEnv('NEXTAUTH_URL', 'https://pos.example.com')
+    setEnv('WEBAUTHN_EXTRA_ORIGINS', 'not-a-url,ftp://files.example.com,https://ok.example.com')
+    const { getWebAuthnOrigins } = await import('@/lib/webauthn')
+    expect(getWebAuthnOrigins()).toEqual(['https://pos.example.com', 'https://ok.example.com'])
+  })
+
+  it('VSI kandidati neveljavni → localhost fallback (nikoli prazen array)', async () => {
+    setEnv('NEXTAUTH_URL', 'not-a-url')
+    setEnv('WEBAUTHN_EXTRA_ORIGINS', 'ftp://x.example.com,,')
+    const { getWebAuthnOrigins } = await import('@/lib/webauthn')
+    expect(getWebAuthnOrigins()).toEqual(['http://localhost:3000'])
+  })
+
+  it('prazen EXTRA string ne proizvede lažnega kandidata (split na \'\' → [\'\'])', async () => {
+    setEnv('NEXTAUTH_URL', 'https://pos.example.com')
+    setEnv('WEBAUTHN_EXTRA_ORIGINS', '')
+    const { getWebAuthnOrigins } = await import('@/lib/webauthn')
+    expect(getWebAuthnOrigins()).toEqual(['https://pos.example.com'])
   })
 })
 

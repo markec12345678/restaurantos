@@ -326,7 +326,8 @@ export async function verifyDeviceRegistration(
     const verified = await verifyRegistrationResponse({
       response: credential,
       expectedChallenge,
-      expectedOrigin: config.origin,
+      // R101: array origin-ov (multi-origin expectedOrigin — glej index.ts)
+      expectedOrigin: config.origins,
       expectedRPID: config.rpID,
       requireUserVerification: false,
     })
@@ -354,7 +355,8 @@ export async function verifyDeviceAssertion(
     const verified = await verifyAuthenticationResponse({
       response: assertion,
       expectedChallenge,
-      expectedOrigin: config.origin,
+      // R101: array origin-ov (multi-origin expectedOrigin — glej index.ts)
+      expectedOrigin: config.origins,
       expectedRPID: config.rpID,
       credential: {
         id: credential.credentialId,

@@ -25,32 +25,78 @@ import { logger } from '@/lib/logger'
 export interface WebAuthnConfig {
   rpName: string
   rpID: string
+  /** Primarni origin (NEXTAUTH_URL prioriteta) — rpID je izpeljan iz njega. */
   origin: string
+  /**
+   * VSI dovoljeni origin-i za expectedOrigin (R101): @simplewebauthn/server
+   * v14 sprejme string | string[] — array pokrije legitimate domenske
+   * variante (www/apex, preview deploymenti z istim rpID-jem, port).
+   * Brez tega bi dodatek custom domene ob NEXTAUTH_URL pomenil, da VSE
+   * ceremony iz druge domene padejo na origin mismatch.
+   */
+  origins: string[]
+}
+
+/**
+ * Zberi VSE dovoljene WebAuthn origin-e iz env (R101):
+ *   1. NEXTAUTH_URL (primaren — rpID se izpelje iz njega)
+ *   2. NEXT_PUBLIC_APP_URL
+ *   3. WEBAUTHN_EXTRA_ORIGINS (vejica-ločeni seznam dodatnih origin-ov)
+ *
+ * Validacija: samo http/https shemi; neveljavni ali tuji-shemski kandidati se
+ * tiho preskočijo (fail-open na manjšo množico, nikoli na crash); dedup po
+ * URL.origin; prazna množica → localhost fallback (dev/test kanon).
+ *
+ * VARNA omejitev: WebAuthn sam uveljavlja rpID kompatibilnost (credential
+ * je vezan na registrable suffix izvornega domena — browser zavrne create()
+ * z rpID, ki ni suffix trenutnega origin-a), tako da širša expectedOrigin
+ * množica NIKOLI ne omogoči cross-domain uporabe poverilnic — samo
+ * legitimate variante IZBRANEGA rpID domena.
+ */
+export function getWebAuthnOrigins(): string[] {
+  const candidates = [
+    process.env.NEXTAUTH_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+    ...(process.env.WEBAUTHN_EXTRA_ORIGINS ?? '').split(','),
+  ]
+  const origins: string[] = []
+  const seen = new Set<string>()
+  for (const raw of candidates) {
+    const value = raw?.trim()
+    if (!value) continue
+    try {
+      const url = new URL(value)
+      if (url.protocol !== 'https:' && url.protocol !== 'http:') continue
+      if (seen.has(url.origin)) continue
+      seen.add(url.origin)
+      origins.push(url.origin)
+    } catch {
+      // neveljaven URL = preskoči kandidata
+    }
+  }
+  if (origins.length === 0) origins.push('http://localhost:3000')
+  return origins
 }
 
 /**
  * Preberi WebAuthn konfiguracijo iz env spremenljivk.
  *
- * rpID = hostname (npr. "localhost", "pos.example.com")
- * origin = protocol + rpID + port (npr. "https://pos.example.com")
+ * rpID = hostname PRIMARNEGA origin-a (npr. "localhost", "pos.example.com")
+ * origin = primarni origin (npr. "https://pos.example.com")
+ * origins = vsi dovoljeni origin-i za expectedOrigin (glej getWebAuthnOrigins)
  *
  * V produkciji MORA biti HTTPS (razen localhost za razvoj).
  */
 export function getWebAuthnConfig(): WebAuthnConfig {
-  const appUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  let origin: string
-  try {
-    const url = new URL(appUrl)
-    origin = url.origin
-  } catch {
-    origin = 'http://localhost:3000'
-  }
+  const origins = getWebAuthnOrigins()
+  const origin = origins[0]
   const rpID = new URL(origin).hostname
 
   return {
     rpName: process.env.NEXT_PUBLIC_APP_NAME || 'RestaurantOS',
     rpID,
     origin,
+    origins,
   }
 }
 
@@ -203,7 +249,9 @@ export async function verifyRegistration(
     const verified = await verifyRegistrationResponse({
       response: credential,
       expectedChallenge,
-      expectedOrigin: config.origin,
+      // R101: array origin-ov — custom domena / www / preview variantne so
+      // veljavne, ko so navedene v env (v14: expectedOrigin string | string[])
+      expectedOrigin: config.origins,
       expectedRPID: config.rpID,
       requireUserVerification: true,
     })
@@ -230,7 +278,8 @@ export async function verifyAssertion(
     const verified = await verifyAuthenticationResponse({
       response: assertion,
       expectedChallenge,
-      expectedOrigin: config.origin,
+      // R101: array origin-ov (glej verifyRegistration zgoraj)
+      expectedOrigin: config.origins,
       expectedRPID: config.rpID,
       credential: {
         id: assertion.id,
