@@ -156,6 +156,21 @@ export async function POST(req: Request) {
 
     return NextResponse.json(deepToNumbers(report), { status: report.createdAt ? 200 : 201 })
   } catch (error: unknown) {
+    // FIX R110: strukturirane poslovne napake iz upsertZReportForDay tx telesa
+    // ({ error, status } — npr. P2034 → Z_REPORT_CONFLICT/409) — passthrough
+    // PRED pattern-matchingom (canonical structuredErrorResponse kontrakt iz
+    // R103; prej bi '[object Object]' padel v 500 fallback).
+    if (
+      error &&
+      typeof error === 'object' &&
+      'error' in error &&
+      'status' in error &&
+      typeof (error as { error: unknown }).error === 'string' &&
+      typeof (error as { status: unknown }).status === 'number'
+    ) {
+      const structured = error as { error: string; status: number }
+      return NextResponse.json({ error: structured.error }, { status: structured.status })
+    }
     return handleRouteError(error, 'POST /api/z-report', [
       { match: 'Z_REPORT_FINALIZED', message: 'Z-poročilo za ta dan je že zaključeno', status: 400 },
       // QA runda 36: admin brez dodeljene lokacije + brez lokacij v DB

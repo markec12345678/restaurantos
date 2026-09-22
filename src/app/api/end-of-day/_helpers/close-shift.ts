@@ -78,8 +78,20 @@ export async function closeShift(
     const closingCash = actualCash ?? expectedCash
     const cashDifference = round2(subtract(closingCash, expectedCash))
 
-    await tx.cashRegisterShift.update({
-      where: { id: activeShift.id },
+    // FIX R110 (EOD-1, HIGH — TOCTOU double-close, isti razred kot R104 C1):
+    // prejšnji NEPOGOJEN update({ where: { id: activeShift.id } }) je dovolil,
+    // da sta dva sočasna EOD POST-a OBADVA prebrala status 'open' (findFirst
+    // znotraj tx NE ščiti pod READ COMMITTED — oba prebita do pisanja) →
+    // drugi EOD je PREPIŠAL finančne agregate prvega (cashSales/expectedCash/
+    // cashDifference iz DRUGAČNEGA snapshot-a plačil = last-writer-wins na
+    // Z-poročilu), DUPLICIRAL EOD_COMPLETED audit log in DVAKRAT sprožil
+    // finalizacijo Z-poročila. Sedaj: pogojni updateMany
+    // (where { id, status: 'open' }) je avtoritativna vrata — samo PRVI EOD
+    // preide (count=1); konkurenčni EOD dobi count=0 → return null → ruta
+    // spoštljivo javi "izmena že zaprta" (idempotentna veja, brez dup audit/
+    // finalize). Vzorec: R100 atomic counter CAS / R104 C1 parity.
+    const casClose = await tx.cashRegisterShift.updateMany({
+      where: { id: activeShift.id, status: 'open' },
       data: {
         closedAt: new Date(),
         closingCash,
@@ -98,6 +110,12 @@ export async function closeShift(
         status: 'closed',
       },
     })
+    if (casClose.count === 0) {
+      // IZGUBLJENA tekma: izmena je bila zaprta med branjem in pisanjem.
+      // return null = ista pogodba kot "ni odprte izmene" — ruta ne piše
+      // audit loga ne finalizira Z-poročila za tuj (že stari) zaključek.
+      return null
+    }
 
     return { cashDifference, shiftId: activeShift.id }
   })

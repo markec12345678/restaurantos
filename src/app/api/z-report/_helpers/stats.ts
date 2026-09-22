@@ -38,6 +38,10 @@ export async function calculateReportStats(
   dayStart: Date,
   dayEnd: Date,
   locationId: string | undefined,
+  // FIX R110 (ZR-2): opcionalen tx klient — ko je podan, interni
+  // cashRegisterShift.findMany teče ZNOTRAJ klicateljeve Serializable
+  // transakcije (tx-fresh snapshot, prej vedno samostojen db read).
+  client: Pick<typeof db, 'cashRegisterShift'> = db,
 ): Promise<ZReportStats> {
   let totalSales = 0
   let totalNetSales = 0
@@ -139,7 +143,7 @@ export async function calculateReportStats(
   const totalStorno = stornoOrders.reduce((sum: number, o: any) => sum + Math.abs(toNum(o.total)), 0)
 
   // Gotovina iz blagajne
-  const cashShifts = await db.cashRegisterShift.findMany({
+  const cashShifts = await client.cashRegisterShift.findMany({
     where: {
       openedAt: { gte: dayStart, lt: dayEnd },
       status: 'closed',

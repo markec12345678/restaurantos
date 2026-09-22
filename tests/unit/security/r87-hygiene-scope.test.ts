@@ -48,6 +48,7 @@ const mocks = vi.hoisted(() => ({
   zReportFindFirst: vi.fn(),
   txZReportFindFirst: vi.fn(),
   txZReportCreate: vi.fn(),
+  txZReportUpdateMany: vi.fn(),
   buildReportData: vi.fn(),
   orderFindMany: vi.fn(),
   cashRegisterShiftFindMany: vi.fn(),
@@ -109,7 +110,12 @@ vi.mock('@/lib/db', () => ({
     order: { findMany: mocks.orderFindMany },
     cashRegisterShift: { findMany: mocks.cashRegisterShiftFindMany },
     $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({
-      zReport: { findFirst: mocks.txZReportFindFirst, create: mocks.txZReportCreate },
+      // R110: Z-report kanon — advisory lock + tx-fresh branja + CAS updateMany
+      // (prej: tx klient je imel samo zReport findFirst/create)
+      $executeRaw: vi.fn().mockResolvedValue(1),
+      zReport: { findFirst: mocks.txZReportFindFirst, create: mocks.txZReportCreate, updateMany: mocks.txZReportUpdateMany },
+      order: { findMany: mocks.orderFindMany },
+      cashRegisterShift: { findMany: mocks.cashRegisterShiftFindMany, count: vi.fn().mockResolvedValue(0) },
       // R103: time-entries POST tok v tx klientu (Serializable — fresh probe
       // + create atomarno); modeli delijo mocke z db klientom
       employee: { findUnique: mocks.employeeFindUnique },
@@ -180,6 +186,7 @@ beforeEach(() => {
   mocks.zReportFindFirst.mockResolvedValue(null)
   mocks.txZReportFindFirst.mockResolvedValue(null)
   mocks.txZReportCreate.mockResolvedValue({ id: 'z-1', createdAt: new Date() })
+  mocks.txZReportUpdateMany.mockResolvedValue({ count: 1 })
   mocks.orderFindMany.mockResolvedValue([])
   mocks.buildReportData.mockReturnValue({ totalSales: 0 })
   mocks.cashRegisterShiftFindMany.mockResolvedValue([])
