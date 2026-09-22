@@ -37,6 +37,9 @@ import {
   buildDeviceRegistrationOptions,
   buildDeviceAuthenticationOptions,
 } from '@/lib/webauthn/device-attestation'
+// R99-a kill switch: ista funkcija kot R79 employee WebAuthn sloj
+// (/api/auth/webauthn/route.ts) — barrel ostane lahak (samo env + config).
+import { isWebAuthnEnable } from '@/lib/webauthn'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,6 +54,19 @@ export async function GET(req: Request) {
   const rl = await checkRateLimitAsync('auth-webauthn-options', getClientIp(req), GENERAL_PUBLIC_LIMIT)
   if (!rl.allowed) {
     return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
+  }
+
+  // Kill switch (R99-a): konsistenten z R79 employee WebAuthn slojem —
+  // isWebAuthnEnable() vrne true, ko je WEBAUTHN_ENABLED=true ALI ko je
+  // produkcija s HTTPS originom (tam vselej true = NOBEN behavior change;
+  // v dev/E2E pa operater kontrolira prek env). TAKOJŠNJE rate-limit checku
+  // (throttle ostane NAJPREJ — R90 canon meri surovi promet), PRED secret
+  // gate-om: onemogočen flag ne sme niti pomakniti challenge skrivnosti.
+  if (!isWebAuthnEnable()) {
+    return NextResponse.json(
+      { error: 'WebAuthn device attestation je onemogočen (503).' },
+      { status: 503 },
+    )
   }
 
   // Fail-closed: brez HMAC skrivnosti v produkciji NE izdajamo challenge-jev

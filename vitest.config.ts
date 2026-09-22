@@ -33,6 +33,14 @@ export default defineConfig({
     // v testih vedno mock-an, tako da ni nobenega resničnega omrežnega klica.
     env: {
       DATABASE_URL: 'postgresql://test:test@localhost:5432/testdb',
+      // R99-a: WEBAUTHN_ENABLED je v unit okolju privzeto 'true', da je kill
+      // switch gate (isWebAuthnEnable, R99-a dodan na device attestation rutah)
+      // zaprt samo v testih, ki ga IZRECNO stubajo (vi.stubEnv → 503 matrika v
+      // r99-webauthn-gate.test.ts). Brez tega bi R97 endpoint testi (ki gate-a
+      // ne mockajo/stubajo — testirajo R97 plasti POD gate-om) padli na 503.
+      // tests/unit/auth/webauthn.test.ts upravlja env per-test (setEnv), torej
+      // ni prizadet; r81-final-sweep mocka '@/lib/webauthn' barrel, prav tako ne.
+      WEBAUTHN_ENABLED: 'true',
     },
 
     // Suppress unhandled errors from PGlite connection attempts in unit tests

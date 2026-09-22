@@ -69,6 +69,14 @@ export default defineConfig({
           // P1-testiranje: E2E niz nareda ~80+ API klicev/min — dvignemo
           // splošno rate limit mejo (produkcija obdrži privzetih 60/min)
           API_RATE_LIMIT_MAX: '600',
+          // R96-c/R99-b: 'auth-login' vedro (POST+GET /api/auth, tudi DELETE)
+          // pod privzetimi 5/15min ne prenese več spec-ov — CI-pariteta 200
+          // (isti kanon kot e2e.yml:71)
+          LOGIN_RATE_LIMIT_MAX: '200',
+          // R99-b: WebAuthn device attestation kill switch — brez true
+          // options/verify ruta vrneta 503 (isWebAuthnEnable gate) in
+          // prijavni gumb 'Prijava s ključem naprave' ostane skrit.
+          WEBAUTHN_ENABLED: 'true',
         },
       },
 })

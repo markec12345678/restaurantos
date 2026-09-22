@@ -233,7 +233,7 @@ export function buildDeviceRegistrationOptions(
   existingCredentials: DeviceExistingCredential[],
 ): Promise<PublicKeyCredentialCreationOptionsJSON> {
   const config = getWebAuthnConfig()
-  const challenge = mintDeviceChallenge(locationId)
+  const challengeToken = mintDeviceChallenge(locationId)
   return generateRegistrationOptions({
     rpName: config.rpName,
     rpID: config.rpID,
@@ -242,7 +242,16 @@ export function buildDeviceRegistrationOptions(
     userID: new TextEncoder().encode(locationId),
     userName: `device:${locationId}`,
     userDisplayName: `Naprava — ${locationName}`,
-    challenge,
+    // R99-b FORENZIKA (e2e virtual authenticator, register 400): v14
+    // generateRegistrationOptions STRING challenge tretira kot UTF-8 BESEDILO
+    // (isoUint8Array.fromUTF8String → isoBase64URL.fromBuffer) — ceremony
+    // challenge bi bila base64url(utf8(token)) ≠ token, kar pade ŠELE na
+    // verifyDeviceChallenge (HMAC struktura) → 400. FIX: challenge podamo KOT
+    // BAJTE (Uint8Array) → fromBuffer = točen base64url tokena; clientDataJSON
+    // challenge = token (kanoničen round-trip) → extract = token →
+    // verifyDeviceChallenge(token) ✓ in expectedChallenge = token ✓ (v14
+    // verify primerja RAW string).
+    challenge: base64urlDecode(challengeToken),
     excludeCredentials: existingCredentials.map((c) => ({
       id: c.credentialId,
       type: 'public-key' as const,
@@ -267,10 +276,13 @@ export function buildDeviceAuthenticationOptions(
   allowCredentials: DeviceExistingCredential[] = [],
 ): Promise<PublicKeyCredentialRequestOptionsJSON> {
   const config = getWebAuthnConfig()
-  const challenge = mintDeviceChallenge(locationId)
+  const challengeToken = mintDeviceChallenge(locationId)
   return generateAuthenticationOptions({
     rpID: config.rpID,
-    challenge,
+    // R99-b: ISTI bajtni kontrakt kot registration (glej komentar zgoraj) —
+    // string challenge bi v14 pretvoril v base64url(utf8(token)) in assertion
+    // verifikacija bi padla na verifyDeviceChallenge.
+    challenge: base64urlDecode(challengeToken),
     userVerification: 'preferred',
     allowCredentials: allowCredentials.map((c) => ({
       id: c.credentialId,

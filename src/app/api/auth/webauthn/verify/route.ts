@@ -35,6 +35,9 @@ import {
   verifyDeviceChallenge,
   verifyDeviceAssertion,
 } from '@/lib/webauthn/device-attestation'
+// R99-a kill switch: ista funkcija kot R79 employee WebAuthn sloj
+// (/api/auth/webauthn/route.ts) — barrel ostane lahak (samo env + config).
+import { isWebAuthnEnable } from '@/lib/webauthn'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +52,14 @@ export async function POST(req: Request) {
   const rl = await checkRateLimitAsync('auth-webauthn-verify', getClientIp(req), GENERAL_PUBLIC_LIMIT)
   if (!rl.allowed) {
     return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
+  }
+
+  // Kill switch (R99-a): konsistenten z R79 employee WebAuthn slojem —
+  // TAKOJŠNJE rate-limit checku (throttle ostane NAJPREJ — R90 canon), PRED
+  // secret gate-om. Body je UNIFICIRAN VERIFY_FAILED_MESSAGE (isti error telesa
+  // kot vsi ostali verify neuspehi — ni oraklja o tem ZAKAJ je onemogočeno).
+  if (!isWebAuthnEnable()) {
+    return NextResponse.json({ error: VERIFY_FAILED_MESSAGE }, { status: 503 })
   }
 
   // Fail-closed: brez HMAC skrivnosti v produkciji ni verifikacije.

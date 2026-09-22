@@ -67,6 +67,19 @@ export const authEmployeesQueryKey = (deviceLocationId: string | null) =>
  */
 export const EMPLOYEE_SELECT_UNAVAILABLE = 'Izbira zaposlenih ni na voljo'
 
+// --- R99-a: WEBAUTHN DEVICE ATTESTATION (prijava s ključem naprave) ---
+// ⚠️ FROZEN KONTRAKT — R99-b e2e pina TEH stringe/testide, ne odstopaj!
+// Testidi (v webauthn-device.tsx): pin-webauthn-button, pin-webauthn-attested,
+// pin-webauthn-error.
+/** Label gumba za WebAuthn device attestation prijavo. */
+export const PIN_WEBAUTHN_BUTTON_LABEL = 'Prijava s ključem naprave'
+/** aria-label gumba (za screen readerje / e2e). */
+export const PIN_WEBAUTHN_BUTTON_ARIA = 'Prijava z WebAuthn ključem naprave'
+/** Badge po uspešni attestation ceremony (role="status"). */
+export const PIN_WEBAUTHN_ATTESTED_BADGE = 'Naprava potrjena s ključem'
+/** Inline notice ob neuspešni ceremony (role="alert") — fail-open na PIN. */
+export const PIN_WEBAUTHN_ERROR_NOTICE = 'Prijava s ključem ni uspela — uporabite PIN.'
+
 // --- PROPS INTERFACI ZA POD-KOMPONENTE ---
 
 export interface PinLoginProps {

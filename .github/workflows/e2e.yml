@@ -69,6 +69,10 @@ jobs:
       # (EDGE-4b/LOGIN pini so 429-tolerantni, a meja naj ne bi bila glavni
       # vir flakinessa) — 200 daje udoben headroom.
       LOGIN_RATE_LIMIT_MAX: "200"
+      # R99-b: WebAuthn device attestation kill switch — brez "true" vrne
+      # options/verify ruta 503 (isWebAuthnEnable gate) in pin-login-webauthn
+      # spec ne dobi gumba 'Prijava s ključem naprave' (ostane skrit).
+      WEBAUTHN_ENABLED: "true"
       PLAYWRIGHT_BASE_URL: "http://localhost:3000"
       CI: "true"
     steps:

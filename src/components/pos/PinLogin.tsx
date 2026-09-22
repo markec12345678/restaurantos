@@ -9,6 +9,7 @@ import type { PinLoginProps } from './pin-login/constants'
 import { EMPLOYEE_SELECT_UNAVAILABLE } from './pin-login/constants'
 import { usePinLogin } from './pin-login/usePinLogin'
 import { EmployeeSelectStep } from './pin-login/EmployeeSelectStep'
+import { WebAuthnDeviceSection } from './pin-login/webauthn-device'
 
 // Lazy-loaded podkomponente
 const PinDisplay = dynamic(() => import('./pin-login/PinDisplay').then(m => ({ default: m.PinDisplay })), { ssr: false })
@@ -170,6 +171,14 @@ export const PinLogin = memo(function PinLogin({ onLogin, onSkip }: PinLoginProp
               )}
             </>
           )}
+          {/* R99-a: WebAuthn device attestation (ADITIVNO) — "Prijava s ključem
+              naprave". Samostojna sekcija z lastno vidnostjo (device lokacija +
+              PublicKeyCredential feature detect + options z allowCredentials);
+              do preverjanj renderira null (SSR-varno, zero fetch brez pogojev).
+              Pod EmployeeSelectStep (korak 1) IN pod PIN keypadom (korak 2 /
+              single) — ključ je vezan na NAPRAVO/lokacijo, ne na izbranega
+              zaposlenega. Neuspeh je fail-open na UX: PIN tok NEZADET. */}
+          <WebAuthnDeviceSection />
         </CardContent>
       </Card>
     </div>
