@@ -171,11 +171,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ tab: str
     const scopeRes = resolveCatalogScope(authResult)
     if (!scopeRes.ok) return scopeRes.response
     const locWhere = locationFilter(scopeRes.scope)
+    // R98 FIX (live repro): PrismaClientValidationError "Please either use
+    // `include` or `select`, but not both at the same time." — tabConfig
+    // 'dining-options' definira OBOJE (select + include.serviceCharge), zato je
+    // GET vsakrin vrnil 400 INVALID_PARAMETER (unit testi mockirajo db →
+    // Prisma validacija ne teče; e2e testira samo POST glavne /api/configuration
+    // rute, ne GET [tab]). Fix: relations iz `include` merge-amo V `select`
+    // (relacijski ključi so v select veljavni), top-level `include` NI več
+    // poslan. Frontend (useOrderPanel) je ob 400 tiho padel na prazen seznam.
+    const selectArg: Record<string, unknown> = config.include
+      ? { ...config.select, ...config.include }
+      : config.select
     const result = await prisma.findMany({
       where: locWhere,
-      select: config.select,
+      select: selectArg,
       orderBy: config.orderBy || { sortOrder: 'asc' },
-      ...(config.include ? { include: config.include } : {}),
     })
 
     // Vrni v objektu z imenom tab-a kot ključem (konsistentno s /api/configuration)
