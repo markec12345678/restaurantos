@@ -11,6 +11,7 @@
 // Raziskava 2025: SMS open rate 98% vs email 20-30%.
 // ============================================
 
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { sendSms, type SmsMessage } from '@/lib/sms'
@@ -141,6 +142,97 @@ export async function triggerRewardUnlocked(
   logger.info('LoyaltyAuto', `Reward unlocked SMS sent to ${account.customerPhone} (${points} pts)`)
 }
 
+// --- R111 (LA-1, HIGH — TOCTOU/idempotenca razred iz R100–R110): dnevna ---
+// --- idempotenca podelitve bonusa (advisory lock + tx-fresh re-check)   ---
+//
+// FORENZIKA: triggerBirthdayBonus / triggerWinback sta prej OBPOGOJENO
+// ustvarila LoyaltyTransaction + incrementala pointsBalance ob VSAKEM
+// klicu — brez kakršnekoli dedup zaščite:
+//   (a) dvoklik na POST /api/loyalty-automation (admin UI) = DVOJNI bonus
+//       (100/200 točk ×2) + duplirani audit;
+//   (b) admin ∥ cron batch istočasno = oba batcha prebereta iste račune
+//       (check-then-act na batch nivoju) → vsak račun dvakrat podeljen.
+// SMS del je že dedupan prek outbox idempotencyKey-a
+// (loyalty:{accountId}:{type}:{date}) — TOČKE niso bile.
+// KANON: advisory lock 'loyalty-bonus:{id}:{type}:{date}' + Serializable tx +
+// tx-fresh re-check (LoyaltyTransaction istega reason-a za današnji dan) →
+// skip; podelitev (create + increment) pod ključavnico; SMS ŠELE PO commitu
+// (nikoli zunanji klic pod ključavnico). P2034 = vzporedni batch je pravkar
+// podelil → tretiraj kot skip (batch ne pada).
+
+async function awardDailyBonusOnce(
+  loyaltyAccountId: string,
+  type: 'birthday_bonus' | 'winback',
+  config: LoyaltyAutomationConfig,
+): Promise<{ points: number; smsSent: boolean }> {
+  const points = type === 'birthday_bonus' ? BIRTHDAY_BONUS_POINTS : WINBACK_BONUS_POINTS
+  const reason = type === 'birthday_bonus' ? 'Rojstni dan bonus' : 'Win-back bonus'
+  const todayKey = new Date().toISOString().slice(0, 10)
+  const dayStart = new Date(`${todayKey}T00:00:00.000Z`)
+
+  const account = await db.loyaltyAccount.findUnique({
+    where: { id: loyaltyAccountId },
+  })
+  if (!account || !account.customerPhone || !account.isActive) return { points: 0, smsSent: false }
+
+  let awarded = false
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`loyalty-bonus:${loyaltyAccountId}:${type}:${todayKey}`}))`
+      // tx-fresh re-check — transakcija istega reason-a za današnji dan
+      const existing = await tx.loyaltyTransaction.findFirst({
+        where: {
+          loyaltyAccountId,
+          reason,
+          createdAt: { gte: dayStart },
+        },
+      })
+      if (existing) return
+      await tx.loyaltyTransaction.create({
+        data: {
+          loyaltyAccountId,
+          type: 'earn',
+          points,
+          reason,
+          monetaryValue: 0,
+        },
+      })
+      await tx.loyaltyAccount.update({
+        where: { id: loyaltyAccountId },
+        data: {
+          pointsBalance: { increment: points },
+          lifetimePoints: { increment: points },
+        },
+      })
+      awarded = true
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    })
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2034') {
+      // Serializable konflikt = vzporedni batch je pravkar podelil bonus
+      logger.warn('LoyaltyAuto', `Bonus award conflict (${type}) za ${loyaltyAccountId} — skip`)
+      return { points: 0, smsSent: false }
+    }
+    throw err
+  }
+
+  if (!awarded) {
+    logger.info('LoyaltyAuto', `Bonus ${type} za ${loyaltyAccountId} je danes že podeljen — skip (idempotenca)`)
+    return { points: 0, smsSent: false }
+  }
+
+  // SMS ŠELE PO commitu (outbox idempotencyKey per-day dedup ostaja; zunanji
+  // klic NIKOLI pod ključavnico)
+  const message = type === 'birthday_bonus'
+    ? TEMPLATES.birthday_bonus({ customerName: account.customerName })
+    : TEMPLATES.winback({ customerName: account.customerName })
+  await sendLoyaltySms(account.customerPhone, message, type, loyaltyAccountId, config)
+
+  logger.info('LoyaltyAuto', `${type === 'birthday_bonus' ? 'Birthday' : 'Win-back'} bonus ${points} pts to ${account.customerPhone}`)
+  return { points, smsSent: true }
+}
+
 // 3. BIRTHDAY BONUS — na rojstni dan stranke
 export async function triggerBirthdayBonus(
   loyaltyAccountId: string,
@@ -149,36 +241,7 @@ export async function triggerBirthdayBonus(
   if (!config.enabled || !config.triggers.birthdayBonus) {
     return { points: 0, smsSent: false }
   }
-
-  const account = await db.loyaltyAccount.findUnique({
-    where: { id: loyaltyAccountId },
-  })
-  if (!account || !account.customerPhone || !account.isActive) return { points: 0, smsSent: false }
-
-  // Dodaj točke
-  await db.loyaltyTransaction.create({
-    data: {
-      loyaltyAccountId,
-      type: 'earn',
-      points: BIRTHDAY_BONUS_POINTS,
-      reason: 'Rojstni dan bonus',
-      monetaryValue: 0,
-    },
-  })
-
-  await db.loyaltyAccount.update({
-    where: { id: loyaltyAccountId },
-    data: {
-      pointsBalance: { increment: BIRTHDAY_BONUS_POINTS },
-      lifetimePoints: { increment: BIRTHDAY_BONUS_POINTS },
-    },
-  })
-
-  const message = TEMPLATES.birthday_bonus({ customerName: account.customerName })
-  await sendLoyaltySms(account.customerPhone, message, 'birthday_bonus', loyaltyAccountId, config)
-
-  logger.info('LoyaltyAuto', `Birthday bonus ${BIRTHDAY_BONUS_POINTS} pts to ${account.customerPhone}`)
-  return { points: BIRTHDAY_BONUS_POINTS, smsSent: true }
+  return awardDailyBonusOnce(loyaltyAccountId, 'birthday_bonus', config)
 }
 
 // 4. WINBACK — stranka je bila neaktivna > 60 dni
@@ -189,36 +252,7 @@ export async function triggerWinback(
   if (!config.enabled || !config.triggers.winback) {
     return { points: 0, smsSent: false }
   }
-
-  const account = await db.loyaltyAccount.findUnique({
-    where: { id: loyaltyAccountId },
-  })
-  if (!account || !account.customerPhone || !account.isActive) return { points: 0, smsSent: false }
-
-  // Dodaj točke
-  await db.loyaltyTransaction.create({
-    data: {
-      loyaltyAccountId,
-      type: 'earn',
-      points: WINBACK_BONUS_POINTS,
-      reason: 'Win-back bonus',
-      monetaryValue: 0,
-    },
-  })
-
-  await db.loyaltyAccount.update({
-    where: { id: loyaltyAccountId },
-    data: {
-      pointsBalance: { increment: WINBACK_BONUS_POINTS },
-      lifetimePoints: { increment: WINBACK_BONUS_POINTS },
-    },
-  })
-
-  const message = TEMPLATES.winback({ customerName: account.customerName })
-  await sendLoyaltySms(account.customerPhone, message, 'winback', loyaltyAccountId, config)
-
-  logger.info('LoyaltyAuto', `Win-back ${WINBACK_BONUS_POINTS} pts to ${account.customerPhone}`)
-  return { points: WINBACK_BONUS_POINTS, smsSent: true }
+  return awardDailyBonusOnce(loyaltyAccountId, 'winback', config)
 }
 
 // 5. POINTS EXPIRING — 30 dni pred potekom

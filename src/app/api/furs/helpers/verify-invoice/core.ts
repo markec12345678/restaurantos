@@ -40,9 +40,66 @@ export async function verifyInvoice(req: Request): Promise<Response> {
         })
       }
 
-      // Generiraj ZOI in pripravi podatke za FURS
+      // FIX R111 (FURS-1, HIGH — TOCTOU razred iz R100–R110): prej je bil
+      // verify tok check-then-act brez zaklepa: fetch receipt (fiscalVerified
+      // false) → ZUNANJI FURS klic (sekunde!) → NEPOGOJEN update. Dva
+      // sočasna verify-a za isti račun = OBADVA poslana na FURS → DVA EOR-ja
+      // za isti račun (fiskalna kršitev — ZDDV-1 enoličnost) + last-writer-
+      // wins na receipt vrstici. Storno pot (PUT) že ima claim updateMany
+      // (isStorno false→true PRED klicem) — verify ga ni imel.
+      // Sedaj: CAS claim PRED zunanjim klicem — updateMany
+      // { fiscalVerified: false, fiscalStatus: { not: 'verifying' } }
+      // → count 0 = nekdo drug že overja / je overil. Re-read: že overjen →
+      // idempotenten 200 (isti JSON kot fast-path zgoraj); sicer → 409
+      // in-flight. Stale claim (proces padel med 'verifying') se po 2 min
+      // lahko prevzame (crash recovery) — updatedAt @updatedAt.
+      const staleClaimBefore = new Date(Date.now() - 2 * 60 * 1000)
+      const claim = await db.receipt.updateMany({
+        where: {
+          id: receipt!.id,
+          fiscalVerified: false,
+          OR: [
+            { fiscalStatus: { not: 'verifying' } },
+            { fiscalStatus: 'verifying', updatedAt: { lt: staleClaimBefore } },
+          ],
+        },
+        data: { fiscalStatus: 'verifying' },
+      })
+      if (claim.count === 0) {
+        const fresh = await db.receipt.findUnique({ where: { id: receipt!.id } })
+        if (fresh?.fiscalVerified) {
+          // Idempotentna pariteta s fast-pathom — drugi zahtevek je zmagal
+          // med našim fetchom in claimom
+          const qrContent = generateQRForVerifiedReceipt(fresh, settings, config)
+          return NextResponse.json({
+            success: true,
+            zoi: fresh.zoi,
+            eor: fresh.eor,
+            fiscalVerified: true,
+            verificationDate: fresh.verificationDate?.toISOString(),
+            qrContent,
+            message: 'Račun je že davčno overjen',
+          })
+        }
+        return NextResponse.json(
+          { error: 'Davčna overitev že poteka (sočasni zahtevek). Poskusite čez trenutek.' },
+          { status: 409 },
+        )
+      }
+
+      // Generiraj ZOI in pripravi podatke za FURS (claim je državnik —
+      // konkurirajoči verify-i ne pridejo sem)
       const submitResult = await submitToFurs(receipt!, settings, config)
-      if (submitResult instanceof Response) return submitResult
+      if (submitResult instanceof Response) {
+        // FIX R111: release claima — ZOI/priprava je padla (npr. certifikat),
+        // receipt ne sme ostati 'verifying' ( stale reclaim čaka 2 min brez
+        // tega); naslednji poskus je takoj možen.
+        await db.receipt.updateMany({
+          where: { id: receipt!.id, fiscalVerified: false },
+          data: { fiscalStatus: 'pending' },
+        }).catch(() => {})
+        return submitResult
+      }
 
       const { zoi, invoiceData } = submitResult
 

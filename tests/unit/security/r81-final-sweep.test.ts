@@ -96,7 +96,13 @@ vi.mock('@/lib/db', () => ({
     shift: { count: mockShiftCount },
     session: { count: mockSessionCount, deleteMany: vi.fn() },
     auditLog: { create: mockAuditCreate, findMany: vi.fn() },
-    $transaction: vi.fn(),
+    // R111: KOT POST teče v Serializable $transaction — tx klient deli iste
+    // mocke z db klientom (route bere preko tx.order/tx.kotDocument/tx.table)
+    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({
+      order: { findFirst: mockOrderFindFirst, findUnique: vi.fn() },
+      table: { findUnique: vi.fn() },
+      kotDocument: { create: mockKotCreate },
+    })),
   },
   createAuditLog: vi.fn().mockResolvedValue(undefined),
 }))
@@ -356,7 +362,8 @@ describe('R81-F: kot POST tenant scope', () => {
     const body = await res.json()
 
     expect(res.status).toBe(404)
-    expect(body.error).toBe('Naročilo ni najden')
+    // R111: structured tx throw — enak 404 no-disclosure kontrakt, novo besedilo
+    expect(body.error).toBe('Naročilo ni najdeno')
     expect(mockOrderFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'order-2', locationId: 'loc-1' },
