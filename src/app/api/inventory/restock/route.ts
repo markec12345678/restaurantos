@@ -4,9 +4,11 @@ import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { inventoryRestockSchema } from '@/lib/validations'
-import { toNum, round2, multiply, divide, isPositive } from '@/lib/decimal'
-import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
+import { parseJsonBody, validateBody } from '@/lib/api-utils'
 import { notInScopeResponse } from '@/lib/tenant-scope'
+import { structuredErrorResponse } from '@/lib/structured-error'
+import { restockInventoryItem } from '../_helpers/stock-mutations'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,13 +34,10 @@ export async function POST(req: Request) {
     // FIX BUG 10: Zod validacija
     const { data, error: validationError } = validateBody(inventoryRestockSchema, bodyResult.data)
     if (validationError) return validationError
-    // Pridobi trenutno stanje
-    // FIX R81-F (LEAK-HIGH, WRITE IDOR): item lookup je bil nescopecan
-    // (findUnique po raw ID) — staff je lahko NAVAJAL zalogo TUJIH lokacij
-    // (isti razred kot R80 inventory/transactions POST fix). findFirst z
-    // lokacijskim filtrom iz seje; izven scope-a → 404 notInScopeResponse.
-    // OPOMBA (shared stock): ko seja NI lokacijsko vezana (super-admin) se
-    // filter NE uporabi — globalne NULL-location zaloge ostanejo dosegljive.
+    // FIX R81-F (LEAK-HIGH, WRITE IDOR): fast-path scoped lookup — izven
+    // scope-a → 404 notInScopeResponse (WRITE IDOR politika R80/R81-F).
+    // R106 INV-3: dejanski pisalni tok je v kanonu (restockInventoryItem)
+    // s tx-fresh scoped re-read — ta read je SAMO zgodnja 404/403 stopnica.
     const item = await db.inventoryItem.findFirst({
       where: {
         id: data.inventoryItemId,
@@ -48,44 +47,35 @@ export async function POST(req: Request) {
     if (!item) {
       return notInScopeResponse('Zalogov artikel')
     }
-    const previousQty = item.quantity
-    const _newQty = Math.round((toNum(previousQty) + data.quantity) * 10000) / 10000
-    const unitCost = item.costPerUnit
-    const totalCost = round2(multiply(data.quantity, unitCost))
-    // FIX: Posodobi zalogo in ustvari transakcijo v eni transakciji — atomic increment
-    const result = await db.$transaction(async (tx) => {
-      // Atomic increment — prepreči race condition z več terminali
-      const updated = await tx.inventoryItem.update({
-        where: { id: data.inventoryItemId },
-        data: {
-          quantity: { increment: data.quantity },
-          lastRestocked: new Date(),
-          ...(isPositive(item.servingsPerUnit) ? {
-            costPerServing: round2(divide(unitCost, item.servingsPerUnit)),
-          } : {}),
-        },
-        include: { menuItem: true },
-      })
-      const actualNewQty = updated.quantity
-      const transaction = await tx.stockTransaction.create({
-        data: {
-          inventoryItemId: data.inventoryItemId,
-          type: 'procurement',
-          quantity: data.quantity,
-          previousQty: toNum(actualNewQty) - data.quantity,
-          newQty: toNum(actualNewQty),
-          costPerUnit: unitCost,
-          totalCost,
-          reason: data.reason,
-          note: data.note,
-          supplierDoc: data.supplierDoc,
-          employeeName: data.employeeName || authResult.session?.employeeId || '',
-        },
-      })
-      return { updated, transaction }
+
+    // R106 INV-3 (MEDIUM, kanon R105/R104): restock v skupnem zalogovnem
+    // kanonu — $transaction(Serializable) + advisory lock (SKUPNI per-item
+    // ključ z adjust/PUT/PATCH — audit veriga brez prepletov) + tx-fresh
+    // scoped re-read (strukturirana 404 namesto P2025 → 500 ob izbrisu
+    // med stopnicama). Atomic increment ostaja (kvantiteta je varna že od
+    // prej), sveža je zdaj tudi audit veriga (previousQty iz tx reada).
+    const result = await restockInventoryItem({
+      inventoryItemId: data.inventoryItemId,
+      sessionLocationId: sessionLocId,
+      quantity: data.quantity,
+      reason: data.reason,
+      note: data.note,
+      supplierDoc: data.supplierDoc,
+      employeeName: data.employeeName || authResult.session?.employeeId || '',
     })
     return NextResponse.json(deepToNumbers(result))
   } catch (error: unknown) {
-    return handleApiError(error, 'POST /api/inventory/restock', 'Napaka pri vnosu nabave')
+    // R106 INV-3 (error kontrakt): P2002/P2034 race-pathi → 409 (nikoli 500);
+    // strukturirani { error, status } throw-i iz tx teles (404) → pravi statusi.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2002' || error.code === 'P2034')
+    ) {
+      return NextResponse.json(
+        { error: 'Vnos nabave je v obdelavi (sočasen dostop) — poskusite znova' },
+        { status: 409 }
+      )
+    }
+    return structuredErrorResponse(error, 'POST /api/inventory/restock', 'Napaka pri vnosu nabave')
   }
 }

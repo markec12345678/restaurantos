@@ -3,9 +3,26 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { updateInventorySchema } from '@/lib/validations'
-import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
+import { parseJsonBody, validateBody } from '@/lib/api-utils'
 import { toNum, round2, divide, decEquals, deepToNumbers } from '@/lib/decimal'
 import { handleDeleteInventory } from './_helpers'
+import { setInventoryItemQuantity } from '../_helpers/stock-mutations'
+import { structuredErrorResponse } from '@/lib/structured-error'
+import { Prisma } from '@prisma/client'
+
+/** R106 INV-2: race-pathi (P2002/P2034) → 409 (nikoli 500). */
+function stockRaceErrorResponse(error: unknown, context: string, fallback: string): NextResponse {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    (error.code === 'P2002' || error.code === 'P2034')
+  ) {
+    return NextResponse.json(
+      { error: 'Posodobitev zaloge je v obdelavi (sočasen dostop) — poskusite znova' },
+      { status: 409 }
+    )
+  }
+  return structuredErrorResponse(error, context, fallback)
+}
 
 
 export const dynamic = 'force-dynamic'
@@ -64,43 +81,24 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     // FIX: Če se količina spreminja, ustvari transakcijski zapis
     if (data.quantity !== undefined && !decEquals(data.quantity, existing.quantity)) {
-      const newQty = data.quantity
-      const previousQty = existing.quantity
-      const diff = newQty - toNum(previousQty)
-
-      updateData.quantity = newQty
-      // FIX MEDIUM: lastRestocked nastavi SAMO ko se količina poveča (dostava/restock)
-      if (diff > 0) {
-        updateData.lastRestocked = new Date()
-      }
-
-      // Atomna transakcija: posodobi količino + zabeleži transakcijo
-      const result = await db.$transaction(async (tx) => {
-        const updated = await tx.inventoryItem.update({
-          where: { id },
-          data: updateData,
-          include: { menuItem: true },
-        })
-
-        await tx.stockTransaction.create({
-          data: {
-            inventoryItemId: id,
-            type: diff > 0 ? 'adjustment' : 'write-off',
-            quantity: diff,
-            previousQty: toNum(previousQty),
-            newQty,
-            costPerUnit: existing.costPerUnit,
-            totalCost: round2(toNum(existing.costPerUnit) * diff),
-            reason: diff > 0 ? 'Ročna prilagoditev zaloge' : 'Ročna razknjižba zaloge',
-            note: 'Posodobitev preko API',
-            employeeName: authResult.session?.employeeId || '',
-          },
-        })
-
-        return updated
+      // R106 INV-2 (HIGH, kanon R105): stale `existing` določa SAMO vstop v
+      // pisalno pot — diff + absolute set sta v kanonu (setInventoryItemQuantity)
+      // z tx-fresh re-read + per-item advisory lock + Serializable, tako da
+      // sočasna prodaja (decrement) NE more biti tiho prepisana (prej:
+      // NEPOGOJEN update({ where: { id } }) iz stale diff-a = lost update
+      // + duplirana StockTransaction vrstica).
+      const result = await setInventoryItemQuantity({
+        inventoryItemId: id,
+        sessionLocationId: scope.locationId,
+        newQuantity: data.quantity,
+        extraUpdate: updateData,
+        reasonPositive: 'Ročna prilagoditev zaloge',
+        reasonNegative: 'Ročna razknjižba zaloge',
+        note: 'Posodobitev preko API',
+        employeeName: authResult.session?.employeeId || '',
       })
 
-      return NextResponse.json(deepToNumbers(result))
+      return NextResponse.json(deepToNumbers(result.item))
     }
 
     const item = await db.inventoryItem.update({
@@ -110,7 +108,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     })
     return NextResponse.json(deepToNumbers(item))
   } catch (error: unknown) {
-    return handleApiError(error, 'PUT /api/inventory/[id]', 'Napaka pri posodobitvi zaloge')
+    // R106 INV-2 (error kontrakt): race-pathi → 409; strukturirani tx
+    // throw-i (404) → pravi statusi.
+    return stockRaceErrorResponse(error, 'PUT /api/inventory/[id]', 'Napaka pri posodobitvi zaloge')
   }
 }
 
@@ -165,34 +165,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     // Če se količina spreminja, ustvari StockTransaction
     if (data.quantity !== undefined && !decEquals(data.quantity, existing.quantity)) {
-      const newQty = data.quantity
-      const previousQty = existing.quantity
-      const diff = newQty - toNum(previousQty)
-      updateData.quantity = newQty
-      if (diff > 0) updateData.lastRestocked = new Date()
-
-      const result = await db.$transaction(async (tx) => {
-        const updated = await tx.inventoryItem.update({
-          where: { id },
-          data: updateData,
-          include: { menuItem: true },
-        })
-        await tx.stockTransaction.create({
-          data: {
-            inventoryItemId: id,
-            type: diff > 0 ? 'adjustment' : 'write-off',
-            quantity: diff,
-            previousQty: toNum(previousQty),
-            newQty,
-            costPerUnit: existing.costPerUnit,
-            totalCost: round2(toNum(existing.costPerUnit) * diff),
-            reason: diff > 0 ? 'Ročna prilagoditev (PATCH)' : 'Ročna razknjižba (PATCH)',
-            employeeName: authResult.session?.employeeId || '',
-          },
-        })
-        return updated
+      // R106 INV-2: PATCH pot — isti kanon kot PUT zgoraj (tx-fresh diff +
+      // per-item lock + Serializable; absolutni set brez lost update).
+      const result = await setInventoryItemQuantity({
+        inventoryItemId: id,
+        sessionLocationId: scope.locationId,
+        newQuantity: data.quantity,
+        extraUpdate: updateData,
+        reasonPositive: 'Ročna prilagoditev (PATCH)',
+        reasonNegative: 'Ročna razknjižba (PATCH)',
+        note: 'Posodobitev preko API',
+        employeeName: authResult.session?.employeeId || '',
       })
-      return NextResponse.json(deepToNumbers(result))
+      return NextResponse.json(deepToNumbers(result.item))
     }
 
     const item = await db.inventoryItem.update({
@@ -202,7 +187,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     })
     return NextResponse.json(deepToNumbers(item))
   } catch (error: unknown) {
-    return handleApiError(error, 'PATCH /api/inventory/[id]', 'Napaka pri delni posodobitvi zaloge')
+    // R106 INV-2: isti error kontrakt kot PUT (race → 409, tx throwi → 404).
+    return stockRaceErrorResponse(error, 'PATCH /api/inventory/[id]', 'Napaka pri delni posodobitvi zaloge')
   }
 }
 

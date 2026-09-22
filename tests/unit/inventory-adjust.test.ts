@@ -33,6 +33,16 @@ vi.mock('@prisma/client', () => {
     Prisma: {
       Decimal: MockDecimal,
       TransactionClient: class {},
+      // R106: zalogovni kanon (stock-mutations.ts) bere TransactionIsolationLevel
+      // na modulnem nivoju — mock ga mora izpostaviti
+      TransactionIsolationLevel: { Serializable: 'Serializable' },
+      PrismaClientKnownRequestError: class PrismaClientKnownRequestError extends Error {
+        code: string
+        constructor(message: string, { code }: { code: string }) {
+          super(message)
+          this.code = code
+        }
+      },
     },
   }
 })

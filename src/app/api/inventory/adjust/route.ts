@@ -1,12 +1,14 @@
 // POST /api/inventory/adjust — Razknjižba/Odpis zaloge
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
-import { deepToNumbers } from '@/lib/decimal'
+import { deepToNumbers, toNum, round2, multiply } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { inventoryAdjustSchema, batchAdjustSchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
-import { toNum, round2, multiply } from '@/lib/decimal'
 import { notInScopeResponse } from '@/lib/tenant-scope'
+import { structuredErrorResponse } from '@/lib/structured-error'
+import { adjustInventoryItemStock } from '../_helpers/stock-mutations'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,14 +47,10 @@ export async function POST(req: Request) {
     // FIX H-01: Validiraj vnos z Zod
     const { data, error: validationError } = validateBody(inventoryAdjustSchema, bodyResult.data)
     if (validationError) return validationError
-    // FIX R81-F (LEAK-HIGH, WRITE IDOR): item lookup je bil nescopecan
-    // (findUnique po raw ID) — staff je lahko odpisoval zalogo TUJIH lokacij
-    // (isti razred kot R80 inventory/transactions POST fix). findFirst z
-    // lokacijskim filtrom iz seje; izven scope-a → 404 notInScopeResponse.
-    // OPOMBA (shared stock): InventoryItem.locationId je NULLABLE po zasnovi —
-    // ko seja NI lokacijsko vezana (super-admin) se filter NE uporabi, tako da
-    // globalne NULL-location zaloge ostanejo dosegljive; lokacijsko vezana seja
-    // je pripeta na svojo lokacijo (enako politiko kot R80 transactions fix).
+    // FIX R81-F (LEAK-HIGH, WRITE IDOR): fast-path scoped lookup — izven
+    // scope-a → 404 notInScopeResponse (WRITE IDOR politika R80/R81-F).
+    // R106 INV-1: dejanski pisalni tok je v kanonu (adjustInventoryItemStock)
+    // s tx-fresh scoped re-read — ta read je SAMO zgodnja 404/403 stopnica.
     const item = await db.inventoryItem.findFirst({
       where: {
         id: data.inventoryItemId,
@@ -62,75 +60,68 @@ export async function POST(req: Request) {
     if (!item) {
       return notInScopeResponse('Zalogov artikel')
     }
-    const previousQty = item.quantity
-    let newQty: number
-    let txQuantity: number
-    if (data.type === 'adjustment' && data.newQuantity !== undefined) {
-      newQty = Math.max(0, data.newQuantity)
-      txQuantity = newQty - toNum(previousQty)
-    } else {
-      if (!data.quantity || data.quantity <= 0) {
-        return NextResponse.json({ error: 'Količina mora biti pozitivna' }, { status: 400 })
-      }
-      // FIX MEDIUM: Opozori, če odpis presega razpoložljivo zalogo — ne odpisi več kot je na zalogi
-      if (data.quantity > toNum(previousQty)) {
-        return NextResponse.json(
-          { error: `Odpis (${data.quantity}) presega razpoložljivo zalogo (${toNum(previousQty)})` },
-          { status: 400 }
-        )
-      }
-      newQty = Math.max(0, toNum(previousQty) - data.quantity)
-      txQuantity = -data.quantity
-    }
-    const totalCost = round2(multiply(Math.abs(txQuantity), item.costPerUnit))
-    // FIX HIGH: Re-read quantity INSIDE transaction to prevent stale read race condition
-    const result = await db.$transaction(async (tx) => {
-      const currentItem = await tx.inventoryItem.findUnique({ where: { id: data.inventoryItemId } })
-      if (!currentItem) {
-        throw new Error('Artikel ni najden')
-      }
-      const currentQty = currentItem.quantity
-      const delta = data.type === 'adjustment' && data.newQuantity !== undefined
-        ? Math.max(0, data.newQuantity) - toNum(currentQty)
-        : -Math.min(data.quantity || 0, toNum(currentQty)) // FIX: Cap deduction at current quantity
-      const updated = await tx.inventoryItem.update({
-        where: { id: data.inventoryItemId },
-        data: delta >= 0
-          ? { quantity: { increment: delta } }
-          : { quantity: { decrement: Math.abs(delta) } },
-        include: { menuItem: true },
-      })
-      const transaction = await tx.stockTransaction.create({
-        data: {
-          inventoryItemId: data.inventoryItemId,
-          type: data.type,
-          quantity: txQuantity,
-          previousQty: toNum(currentQty),
-          newQty: toNum(currentQty) + delta,
-          costPerUnit: item.costPerUnit,
-          totalCost,
-          reason: data.reason,
-          note: data.note,
-          supplierDoc: data.supplierDoc,
-          employeeName: data.employeeName || authResult.session?.employeeId || '',
-        },
-      })
-      return { updated, transaction }
+
+    // R106 INV-1 (HIGH, kanon R105/R104): odpisna + absolutna pot v ENEM
+    // skupnem kanonu — $transaction(Serializable) + advisory lock per item +
+    // tx-fresh re-read + validacija samo proti svežim podatkom + atomarni
+    // pogojni decrement (negativna zaloga nemogoča) + strukturirani throw-i.
+    // Prej: outer stale read določal cap, tx telo NEPOGOJEN decrement
+    // (dva sočasna odpisa = negativna zaloga) in absolutna pot lost update.
+    const result = await adjustInventoryItemStock({
+      inventoryItemId: data.inventoryItemId,
+      sessionLocationId: sessionLocId,
+      type: data.type,
+      quantity: data.quantity,
+      newQuantity: data.newQuantity,
+      reason: data.reason,
+      note: data.note,
+      supplierDoc: data.supplierDoc,
+      employeeName: data.employeeName || authResult.session?.employeeId || '',
     })
-    // FIX MEDIUM: Audit log za razknjižbo zaloge
+
+    const transaction = result.transaction as {
+      quantity: number
+      previousQty: number
+      newQty: number
+    } | null
+
+    // FIX MEDIUM: Audit log za razknjižbo zaloge — z TX-FRESH vrednostmi
+    // (prej: previousQty/newQty iz stale read-a pred tx).
     await createAuditLog({
       userId: authResult.session?.employeeId,
       action: 'INVENTORY_ADJUST',
       entityType: 'InventoryItem',
       entityId: data.inventoryItemId,
-      details: { type: data.type, quantity: txQuantity, previousQty: toNum(previousQty), newQty, reason: data.reason, itemName: item.name },
+      details: {
+        type: data.type,
+        quantity: transaction?.quantity ?? 0,
+        previousQty: transaction?.previousQty ?? 0,
+        newQty: transaction?.newQty ?? 0,
+        reason: data.reason,
+        itemName: (result.item as { name?: string }).name,
+      },
     })
     return NextResponse.json(deepToNumbers(result))
   } catch (error: unknown) {
-    return handleApiError(error, 'POST /api/inventory/adjust', 'Napaka pri razknjižbi')
+    // R106 INV-1 (error kontrakt): P2002/P2034 race-pathi → 409 (nikoli 500);
+    // strukturirani { error, status } throw-i iz tx teles (404/400) → pravi
+    // statusi (prej: `throw new Error('Artikel ni najden')` → 500).
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2002' || error.code === 'P2034')
+    ) {
+      return NextResponse.json(
+        { error: 'Prilagoditev zaloge je v obdelavi (sočasen dostop) — poskusite znova' },
+        { status: 409 }
+      )
+    }
+    return structuredErrorResponse(error, 'POST /api/inventory/adjust', 'Napaka pri razknjižbi')
   }
 }
 // PUT — batch razknjižba (V ENI TRANSAKCIJI)
+// R106: batch pot OSTANE na P3 atomarnem vzorcu (updateMany gte per item) —
+// negativna zaloga nemogoča že od fixa P3; kanon z advisory lockom je obvezen
+// za enojne pisalne poti (POST/PUT/PATCH/restock), batch ostaja per-item CAS.
 export async function PUT(req: Request) {
   try {
     const bodyResult = await parseJsonBody(req)
