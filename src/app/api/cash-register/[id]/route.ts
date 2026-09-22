@@ -148,8 +148,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       const closingCash = data.closingCash ?? expectedCash
       const cashDifference = closingCash - expectedCash
 
-      return await tx.cashRegisterShift.update({
-        where: { id },
+      // FIX R104 (HIGH, TOCTOU double-close — isti razred kot R100 counter /
+      // R102 reservations / R103 gift-card cap): prejšnji NEPOGOJEN
+      // update({ where: { id } }) je dovolil, da sta dva sočasna close-a OBADVA
+      // prebrala status 'open' (check znotraj transakcije NE ščiti pod READ
+      // COMMITTED — oba sta se prebita do update-a) → drugi close je PREPIŠAL
+      // Z-report agregate (drugačna množica plačil med branjema) in DUPLICIRAL
+      // postShiftCloseActions (audit log + cash_register.closed +
+      // daily_report.ready webhooki + Z-osnutek ×2).
+      // Sedaj: pogojni updateMany (where status: 'open') je avtoritativna vrata
+      // — samo PRVI close preide (count=1); konkurenčni close dobi count=0 →
+      // SHIFT_ALREADY_CLOSED. Vzorec: R100 atomic counter CAS.
+      const casClose = await tx.cashRegisterShift.updateMany({
+        where: { id, status: 'open' },
         data: {
           status: 'closed',
           closedAt: new Date(),
@@ -171,6 +182,15 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
           notes: data.notes || '',
         },
       })
+      if (casClose.count === 0) {
+        throw new Error('SHIFT_ALREADY_CLOSED')
+      }
+      const closedShift = await tx.cashRegisterShift.findUnique({ where: { id } })
+      if (!closedShift) {
+        // Teoretično nemogoče (pravkar update-an) — obrambno
+        throw new Error('SHIFT_NOT_FOUND')
+      }
+      return closedShift
     })
 
     // Audit log + webhooks

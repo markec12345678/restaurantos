@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { toNum, deepToNumbers, type DecimalLike } from '@/lib/decimal'
 import { z } from 'zod'
@@ -164,6 +165,14 @@ export async function openShift(
         locationId: shiftLocationId,
       },
     })
+  }, {
+    // FIX R104 (MEDIUM, TOCTOU double-open): findFirst(open)-then-create je bil
+    // pod privzeto READ COMMITTED izolacijo prebit — dva sočasna open-a sta
+    // obadva prebrala "ni odprte izmene" → DVE odprti izmeni na isti lokaciji
+    // (denarno sledenje razdeljeno med izmeni, GET prikaže samo zadnjo).
+    // Serializable zapre okno med probe in create (r103 staff-shifts vzorec).
+    isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+    timeout: 10000,
   })
 
   return deepToNumbers(shift)

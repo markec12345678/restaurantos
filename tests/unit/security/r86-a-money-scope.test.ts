@@ -40,6 +40,7 @@ const mocks = vi.hoisted(() => ({
   shiftFindFirst: vi.fn(),
   shiftCreate: vi.fn(),
   shiftUpdate: vi.fn(),
+  shiftUpdateMany: vi.fn(), // R104: CAS close (where status: 'open')
   employeeFindUnique: vi.fn(),
   orderCount: vi.fn(),
   orderFindMany: vi.fn(),
@@ -63,7 +64,7 @@ const tx = {
   orderItem: { updateMany: mocks.orderItemUpdateMany },
   payment: { findFirst: mocks.paymentFindFirst, aggregate: vi.fn().mockResolvedValue({ _sum: { amount: null } }) },
   check: { findFirst: mocks.checkFindFirst, findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
-  cashRegisterShift: { findUnique: mocks.shiftFindUnique, findFirst: mocks.shiftFindFirst, create: mocks.shiftCreate, update: mocks.shiftUpdate },
+  cashRegisterShift: { findUnique: mocks.shiftFindUnique, findFirst: mocks.shiftFindFirst, create: mocks.shiftCreate, update: mocks.shiftUpdate, updateMany: mocks.shiftUpdateMany },
   employee: { findUnique: mocks.employeeFindUnique },
   tipPool: { findUnique: mocks.tipPoolFindUnique, update: mocks.tipPoolUpdate },
   tipDistribution: { deleteMany: mocks.tipDistDeleteMany },
@@ -96,7 +97,7 @@ vi.mock('@/lib/db', () => ({
       aggregate: vi.fn().mockResolvedValue({ _sum: { amount: null } }),
     },
     check: { findFirst: mocks.checkFindFirst, findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
-    cashRegisterShift: { findUnique: mocks.shiftFindUnique, findFirst: mocks.shiftFindFirst, create: mocks.shiftCreate, update: mocks.shiftUpdate },
+    cashRegisterShift: { findUnique: mocks.shiftFindUnique, findFirst: mocks.shiftFindFirst, create: mocks.shiftCreate, update: mocks.shiftUpdate, updateMany: mocks.shiftUpdateMany },
     employee: { findUnique: mocks.employeeFindUnique },
     tipPool: { findUnique: mocks.tipPoolFindUnique, update: mocks.tipPoolUpdate },
     tipDistribution: { deleteMany: mocks.tipDistDeleteMany },
@@ -218,6 +219,7 @@ beforeEach(() => {
   mocks.shiftFindFirst.mockResolvedValue(null)
   mocks.shiftCreate.mockResolvedValue({ id: 'shift-1', locationId: LOC_A })
   mocks.shiftUpdate.mockResolvedValue({ id: 'shift-1' })
+  mocks.shiftUpdateMany.mockResolvedValue({ count: 1 }) // R104: CAS close privzeti uspeh
   mocks.employeeFindUnique.mockResolvedValue({ locationId: LOC_A })
   mocks.orderCount.mockResolvedValue(0)
   mocks.orderFindMany.mockResolvedValue([])
@@ -434,7 +436,7 @@ describe('R86-2a F: /api/cash-register — openShift + close', () => {
     const res = await cashRegisterClosePUT(jsonReq('http://localhost:3000/api/cash-register/shift-1', 'PUT', { notes: 'x' }), { params: Promise.resolve({ id: 'shift-1' }) })
     expect(res.status).toBe(403)
     expect(mocks.transaction).not.toHaveBeenCalled()
-    expect(mocks.shiftUpdate).not.toHaveBeenCalled()
+    expect(mocks.shiftUpdateMany).not.toHaveBeenCalled()
   })
 
   it('PUT [id]: tuja izmena (LOC_B) → 404 + NI update-a', async () => {
@@ -442,7 +444,7 @@ describe('R86-2a F: /api/cash-register — openShift + close', () => {
     mocks.shiftFindUnique.mockResolvedValue({ id: 'shift-1', locationId: LOC_B, status: 'open', startingCash: 100, openedAt: new Date() })
     const res = await cashRegisterClosePUT(jsonReq('http://localhost:3000/api/cash-register/shift-1', 'PUT', { notes: 'x' }), { params: Promise.resolve({ id: 'shift-1' }) })
     expect(res.status).toBe(404)
-    expect(mocks.shiftUpdate).not.toHaveBeenCalled()
+    expect(mocks.shiftUpdateMany).not.toHaveBeenCalled()
   })
 
   it('PUT [id]: legacy NULL-location izmena → 404 fail-closed za lokacijsko vezano sejo', async () => {
@@ -450,7 +452,7 @@ describe('R86-2a F: /api/cash-register — openShift + close', () => {
     mocks.shiftFindUnique.mockResolvedValue({ id: 'shift-1', locationId: null, status: 'open', startingCash: 100, openedAt: new Date() })
     const res = await cashRegisterClosePUT(jsonReq('http://localhost:3000/api/cash-register/shift-1', 'PUT', { notes: 'x' }), { params: Promise.resolve({ id: 'shift-1' }) })
     expect(res.status).toBe(404)
-    expect(mocks.shiftUpdate).not.toHaveBeenCalled()
+    expect(mocks.shiftUpdateMany).not.toHaveBeenCalled()
   })
 
   it('PUT [id]: super-admin zapre tujo izmeno (globalni nadzor)', async () => {
@@ -458,8 +460,10 @@ describe('R86-2a F: /api/cash-register — openShift + close', () => {
     mocks.shiftFindUnique.mockResolvedValue({ id: 'shift-1', locationId: LOC_B, status: 'open', startingCash: 100, openedAt: new Date() })
     const res = await cashRegisterClosePUT(jsonReq('http://localhost:3000/api/cash-register/shift-1', 'PUT', { notes: 'x' }), { params: Promise.resolve({ id: 'shift-1' }) })
     expect(res.status).toBe(200)
-    expect(mocks.shiftUpdate).toHaveBeenCalled()
-  })
+    // R104: CAS updateMany (where { id, status: 'open' }) — nepogojen update je bil double-close vrata
+    expect(mocks.shiftUpdateMany).toHaveBeenCalled()
+    expect(mocks.shiftUpdateMany.mock.calls[0][0].where).toEqual({ id: 'shift-1', status: 'open' })
+  }, 10000)
 })
 
 // ══════════════════════════════════════════════════════════════════

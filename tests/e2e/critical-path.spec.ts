@@ -91,6 +91,33 @@ test.describe('Ključna poteza: Order → Payment → FURS', () => {
     // /api/receipts nima listing endpointa — uporabimo /api/digital-receipt?id=XXX
     // ampak potrebujemo receipt ID. Najprej pridobimo preko /api/orders,
     // nato preverimo ZOI v order podatkih.
+    //
+    // R104 deterministični E2E (chunked runner: per-spec svež seed brez
+    // Order vrstic): test je bil odvisen od cross-spec stanja (CI zažene
+    // celoten suite na ENI bazi — prejšnji spec-i ustvarijo naročila;
+    // chunked mode pa resetira DB per spec). FIX: test je SAMOZADOSTEN —
+    // če še ne obstaja noben order, ga ustvari preko API-ja (isti kontrakt
+    // kot flow-variants E-1). V CI shared-DB načinu je create NEŠKODLJIV
+    // (dodatni order ne vpliva na obstoječe vrstice).
+
+    // 1) Zagotovi, da vsaj en order obstaja (idempotency key = determinističen)
+    const probe = await request.get(`${API_BASE}/orders?limit=1`, {
+      headers: authHeaders(),
+    })
+    expect(probe.ok()).toBeTruthy()
+    const probeBody = await probe.json()
+    if (!probeBody.orders?.length) {
+      const createRes = await request.post(`${API_BASE}/orders`, {
+        headers: authHeaders(),
+        data: {
+          type: 'dine-in',
+          tableId: 'table-1',
+          orderItems: [{ menuItemId: 'mi-1', quantity: 1 }],
+          idempotencyKey: 'e2e-critical-path-selfseed',
+        },
+      })
+      expect(createRes.ok()).toBeTruthy()
+    }
 
     const ordersRes = await request.get(`${API_BASE}/orders?limit=1`, {
       headers: authHeaders(),

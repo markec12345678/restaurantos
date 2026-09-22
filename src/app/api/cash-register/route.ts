@@ -2,6 +2,7 @@
 import { db } from '@/lib/db'
 import { toNum, deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { requireAuth, resolveTenantLocationId, tenantScopeToWhere, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { emitEvent } from '@/lib/event-emitter'
 import { logger } from '@/lib/logger'
@@ -104,6 +105,15 @@ export async function POST(req: Request) {
 
     return NextResponse.json(shift)
   } catch (error: unknown) {
+    // FIX R104 (s openShift Serializable): P2034 serialization conflict —
+    // dva sočasna open-a (isti razred kot r103 staff-shifts POST) → 409 retry
+    // namesto 500.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+      return NextResponse.json(
+        { error: 'Blagajna se obdeluje — poskusite znova čez nekaj sekund' },
+        { status: 409 }
+      )
+    }
     return handleRouteError(error, 'POST /api/cash-register', [
       { match: 'ALREADY_OPEN', message: 'Že obstaja odprta izmena. Najprej zaprite trenutno izmeno.', status: 400 },
       { match: 'EMPLOYEE_ID_REQUIRED', message: 'Identifikacija zaposlenega je obvezna za odpiranje izmene.', status: 400 },

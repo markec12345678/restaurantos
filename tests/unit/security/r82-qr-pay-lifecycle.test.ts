@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   checkFindFirst: vi.fn(),
   checkFindMany: vi.fn(),
   checkFindUnique: vi.fn(),
+  txPaymentFindUnique: vi.fn(), // R104: idempotency replay (tx-nivo)
+  updateCheckAndOrderStatus: vi.fn(), // R104: status helper mockan (tx-nivo)
   rateLimit: vi.fn().mockResolvedValue({ allowed: true }),
 }))
 
@@ -33,9 +35,26 @@ vi.mock('@/lib/db', () => ({
     payment: { create: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn(), aggregate: vi.fn() },
     order: { update: vi.fn(), findUnique: vi.fn() },
     auditLog: { create: vi.fn().mockRejectedValue(new Error('audit off')) },
-    $transaction: vi.fn(),
+    // R104: confirm pot teče znotraj $transaction(fn, opts) — tx klient ponovno
+    // uporablja iste mocke (checkFindUnique tudi na tx-nivoju).
+    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        $executeRaw: vi.fn(),
+        check: { findUnique: mocks.checkFindUnique, update: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
+        payment: {
+          findUnique: mocks.txPaymentFindUnique,
+          aggregate: vi.fn().mockResolvedValue({ _sum: { amount: null } }),
+          create: vi.fn().mockResolvedValue({ id: 'pay-r82' }),
+          findMany: vi.fn().mockResolvedValue([]),
+        },
+        order: { update: vi.fn(), findUnique: vi.fn() },
+      })),
   },
   createAuditLog: vi.fn(),
+}))
+
+vi.mock('@/app/api/payments/_helpers/check-status', () => ({
+  updateCheckAndOrderStatus: mocks.updateCheckAndOrderStatus,
 }))
 
 vi.mock('@/lib/rate-limit', () => ({
@@ -86,6 +105,7 @@ function makeCheck(id: string, paymentStatus = 'unpaid') {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.rateLimit.mockResolvedValue({ allowed: true })
+  mocks.txPaymentFindUnique.mockResolvedValue(null) // R104: brez replay-a po privzetem
 })
 
 afterEach(() => {
