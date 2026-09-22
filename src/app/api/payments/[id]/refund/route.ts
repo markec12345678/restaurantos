@@ -6,9 +6,11 @@ import { toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
-import { handleApiError } from '@/lib/api-utils'
+import { Prisma } from '@prisma/client'
+import { structuredErrorResponse } from '@/lib/structured-error'
 import { logger } from '@/lib/logger'
 import { generateJournalForRefund } from '@/lib/accounting/journal-generator'
+import { paymentMutationLockKey, paymentCheckLockKey } from '../_helpers'
 import { z } from 'zod'
 
 import { formatEUR } from '@/lib/safe-format'
@@ -82,7 +84,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     //   raje počasi kot napačno.
     const updated = await db.$transaction(async (tx) => {
       // Zakleni vrstico plačila — vzporedni refundi čakajo, dokler ta ne konča
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`
+      // R109 (PAY-1): unificiran per-payment ključ — prej hashtext(id), PUT
+      // refund/void pa 'payment-void:'+id → različna ključa = cross-path
+      // dvojno povračilo (oba reversal-a). Zdaj obe ruti na istem ključu.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${paymentMutationLockKey(id)}))`
+      // R109: drugi (check-level) ključ — enak kot create-payment/qr-pay →
+      // check.paymentStatus derivacija + totals mutacije istega čeka se
+      // serializirajo čez vse pisalne tokove (lock graf: P → C, brez ciklov;
+      // checkId na plačilu je imutabilen → ključ iz outer reada je varen).
+      if (payment.checkId) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${paymentCheckLockKey(payment.checkId)}))`
+      }
 
       // PONOVN preberi refundAmount znotraj zaklenjene transakcije (avtoritativno)
       const lockedPayment = await tx.payment.findUnique({
@@ -90,7 +102,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         select: { refundAmount: true, amount: true, status: true },
       })
       if (!lockedPayment) {
-        throw new Error('PAYMENT_NOT_FOUND')
+        // R109 (error kontrakt): strukturirani throw — prej string-matching
+        // 'PAYMENT_NOT_FOUND' v catch bloku (R103 canonical pariteta).
+        throw { error: 'Plačilo ni najdeno', status: 404 }
       }
 
       // BUG-HUNT FIX 2026-09-19 (CRITICAL, dvojno povračilo): status je bil
@@ -98,13 +112,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       // PUT /api/payments/[id]) ali pending/failed NI refundabilno — prej je
       // refund potekel znova → gift card/loyalty DVAJKRAT kreditirana.
       if (lockedPayment.status !== 'completed') {
-        throw new Error(`PAYMENT_NOT_REFUNDABLE:${lockedPayment.status}`)
+        throw {
+          error: `Plačilo v stanju '${lockedPayment.status}' ni povračljivo. Povračilo je dovoljeno samo za zaključena (completed) plačila.`,
+          status: 409,
+        }
       }
 
       const lockedRefunded = toNum(lockedPayment.refundAmount)
       const lockedMaxRefundable = toNum(lockedPayment.amount) - lockedRefunded
       if (amount > lockedMaxRefundable) {
-        throw new Error(`REFUND_EXCEEDS:${amount.toFixed(2)}:${lockedMaxRefundable.toFixed(2)}`)
+        throw {
+          error: `Znesek povračila (${formatEUR(amount.toFixed(2))}) presega max povračilo (${formatEUR(lockedMaxRefundable.toFixed(2))})`,
+          status: 400,
+        }
       }
 
       const newRefundAmount = lockedRefunded + amount
@@ -311,27 +331,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       fullyRefunded: toNum(updated.payment.refundAmount) >= toNum(payment.amount),
     })
   } catch (error: unknown) {
-    // PAYMENT AUDIT: specifične napake iz zaklenjene transakcije → 4xx
-    if (error instanceof Error) {
-      if (error.message.includes('REFUND_EXCEEDS')) {
-        const [, refundStr, maxStr] = error.message.split(':')
-        return NextResponse.json(
-          { error: `Znesek povračila (${formatEUR(refundStr)}) presega max povračilo (${formatEUR(maxStr)})` },
-          { status: 400 }
-        )
-      }
-      if (error.message.includes('PAYMENT_NOT_FOUND')) {
-        return NextResponse.json({ error: 'Plačilo ni najdeno' }, { status: 404 })
-      }
-      if (error.message.includes('PAYMENT_NOT_REFUNDABLE')) {
-        const status = error.message.split(':')[1] || 'unknown'
-        return NextResponse.json(
-          { error: `Plačilo v stanju '${status}' ni povračljivo. Povračilo je dovoljeno samo za zaključena (completed) plačila.` },
-          { status: 409 }
-        )
-      }
+    // R109 (error kontrakt): P2002/P2034 race-pathi → 409 (nikoli 500);
+    // strukturirani { error, status } throw-i iz tx teles → pravi statusi
+    // (prej: string-matching REFUND_EXCEEDS/PAYMENT_NOT_FOUND/PAYMENT_NOT_REFUNDABLE
+    // — R103 canonical pariteta, isti odgovori kot prej).
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2002' || error.code === 'P2034')
+    ) {
+      return NextResponse.json(
+        { error: 'Plačilo je v obdelavi (sočasen dostop) — osvežite in poskusite znova' },
+        { status: 409 }
+      )
     }
-    return handleApiError(error, 'POST /api/payments/[id]/refund', 'Napaka pri povračilu plačila')
+    return structuredErrorResponse(error, 'POST /api/payments/[id]/refund', 'Napaka pri povračilu plačila')
   }
 }
 

@@ -4,10 +4,12 @@ import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateOrderItemSchema } from '@/lib/validations'
-import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
+import { parseJsonBody, validateBody } from '@/lib/api-utils'
 import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { toNum, deepToNumbers } from '@/lib/decimal'
-import { broadcastWS, recalculateOrderTotals, recalculateCheckTotals, returnStockForVoidedItem } from './_helpers'
+import { structuredErrorResponse } from '@/lib/structured-error'
+import { Prisma } from '@prisma/client'
+import { broadcastWS, recalculateOrderAndCheckAfterVoid, returnStockForVoidedItem } from './_helpers'
 
 
 export const dynamic = 'force-dynamic'
@@ -58,6 +60,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       // total čeka POD obstoječimi plačili (nastrojena preplačila, napačna
       // prihodkovna poročila). Po FURS je odstranitev artikla po računu STORNO,
       // ne void — usmerimo na storno/povračilo.
+      // R109 (CK-3): to je samo FAST-PATH UX preverba (stale read) —
+      // avtoritativni guard proti SVEŽEMU paymentStatus poteka ZNOTRAJ
+      // kanona recalculateOrderAndCheckAfterVoid() pod ključavnico (prej:
+      // plačilo zaključeno med preverbo in recalc = void na plačanem čeku).
       if (existingItem.checkId) {
         const itemCheck = await db.check.findUnique({
           where: { id: existingItem.checkId },
@@ -101,12 +107,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     // Če je void, preračunaj zneske naročila
     if (data.voided === true && orderItem) {
-      await recalculateOrderTotals(id, orderItem.orderId)
-
-      // Preračunaj totale čeka
-      if (orderItem.checkId) {
-        await recalculateCheckTotals(orderItem.checkId)
-      }
+      // R109 (CK-3, kanon R106/R107/R108): order + check recalc V ENEM kanonu —
+      // $transaction(Serializable) + ključavnici v fiksni vrstni red
+      // ('order-write:'+orderId → raw checkId, enak ključ kot add-items /
+      // create-payment / qr-pay / checks kanon) + totals iz TX-FRESH seznamov
+      // + svež paymentStatus guard (prej: dva stale db-client read-modify-write
+      // brez tx/locka → lost update na totals, void na plačanem čeku).
+      await recalculateOrderAndCheckAfterVoid({
+        orderId: orderItem.orderId,
+        checkId: orderItem.checkId,
+      })
 
       // Revizijski dnevnik za void
       await createAuditLog({
@@ -177,6 +187,18 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     return NextResponse.json(deepToNumbers(updatedItem || orderItem))
   } catch (error: unknown) {
-    return handleApiError(error, 'PUT /api/order-items/[id]', 'Napaka pri posodobitvi artikla naročila')
+    // R109 (error kontrakt): P2002/P2034 race-pathi → 409 (nikoli 500);
+    // strukturirani { error, status } throw-i iz tx teles (CK-3 guard 409) →
+    // pravi statusi (prej: handleApiError → 500 '[object Object]').
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2002' || error.code === 'P2034')
+    ) {
+      return NextResponse.json(
+        { error: 'Artikel je v obdelavi (sočasen dostop) — osvežite in poskusite znova' },
+        { status: 409 }
+      )
+    }
+    return structuredErrorResponse(error, 'PUT /api/order-items/[id]', 'Napaka pri posodobitvi artikla naročila')
   }
 }

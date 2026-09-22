@@ -68,8 +68,11 @@ vi.mock('@/lib/db', () => ({
     category: { findMany: mocks.categoryFindMany },
     check: { findFirst: mocks.checkFindFirst, update: mocks.checkUpdate },
     discount: { findUnique: mocks.discountFindUnique, update: mocks.discountUpdate, updateMany: mocks.discountUpdateMany },
+    // R109 migracija: checks PUT kanon (updateCheckWithLock) bere tx-fresh
+    // prek tx.check.findFirst + jemlje advisory lock prek tx.$executeRaw
     $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({
-      check: { update: mocks.checkUpdate },
+      $executeRaw: vi.fn().mockResolvedValue(0),
+      check: { findFirst: mocks.checkFindFirst, update: mocks.checkUpdate },
       discount: { findUnique: mocks.discountFindUnique, update: mocks.discountUpdate, updateMany: mocks.discountUpdateMany },
     })),
   },

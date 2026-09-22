@@ -3,17 +3,12 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { updateCheckSchema } from '@/lib/validations'
-import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
+import { parseJsonBody, validateBody } from '@/lib/api-utils'
 import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { deepToNumbers } from '@/lib/decimal'
-import {
-
-  validateDiscount,
-  calculateDiscountUpdate,
-  calculateNoDiscountTotals,
-  incrementDiscountUsage,
-  decrementDiscountUsage,
-} from './_helpers'
+import { structuredErrorResponse } from '@/lib/structured-error'
+import { Prisma } from '@prisma/client'
+import { updateCheckWithLock, deleteCheckWithLock } from './_helpers'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,66 +29,67 @@ export async function PUT(
     if (validationError) return validationError
 
     // FIX P0-C1 (IDOR): findUnique → findFirst s scope prek order.locationId (Check nima lastnega locationId)
-    // FIX R85-FINAL: include order.locationId — potrebno za discount ownership guard spodaj
     // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a
     const { searchParams } = new URL(req.url)
     const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
       endpoint: 'PUT /api/checks/[id]',
     })
     if ('error' in scope) return scope.error
+
+    // FIX R81-F (WRITE IDOR): fast-path scoped lookup — izven scope-a → 404
+    // (zgodnja stopnica; R109 CK-1: dejanski pisalni tok je v kanonu
+    // updateCheckWithLock() s tx-fresh scoped re-readom).
     const existingCheck = await db.check.findFirst({
       where: { id, ...(scope.locationId ? { order: { locationId: scope.locationId } } : {}) },
-      include: { orderItems: true, order: { select: { locationId: true } } },
+      select: { id: true },
     })
 
     if (!existingCheck) {
       return NextResponse.json({ error: 'Ček ni najden' }, { status: 404 })
     }
 
-    const updateData: Record<string, unknown> = {}
-    if (data.paymentStatus !== undefined) updateData.paymentStatus = data.paymentStatus
-    if (data.paymentMethod !== undefined) updateData.paymentMethod = data.paymentMethod
+    // R109 (CK-4): paymentStatus je STREŽNIŠKO DERIVIRAN iz plačil
+    // (create-payment/qr-pay/refund → updateCheckAndOrderStatus /
+    // recalculatePaymentStatus). Klient ga ne sme pisati:
+    //   - 'paid' brez plačila = revenue oracle (EOD/Z/finančna poročila
+    //     filtrirajo po paid → prihodek, ki ne obstaja),
+    //   - 'storno' je rezerviran za refund tok (FURS storno semantika).
+    // GUI tega polja ne pošilja; blokirano fail-closed.
+    if (data.paymentStatus !== undefined) {
+      return NextResponse.json(
+        { error: 'paymentStatus je strežniško deriviran iz plačil in ga ni mogoče nastaviti prek tega endpointa' },
+        { status: 400 }
+      )
+    }
 
-    const check = await db.$transaction(async (tx) => {
-      if (data.appliedDiscountId !== undefined) {
-        updateData.appliedDiscountId = data.appliedDiscountId || null
-
-        if (data.appliedDiscountId) {
-          const { valid, error, discountObj } = await validateDiscount(tx, data.appliedDiscountId, existingCheck.order?.locationId)
-          if (!valid || !discountObj) throw new Error(error || 'Neveljaven popust')
-
-          Object.assign(updateData, calculateDiscountUpdate(discountObj, existingCheck))
-
-          const incremented = await incrementDiscountUsage(tx, discountObj.id, discountObj.maxUses)
-          if (!incremented) throw new Error('Popust je že bil uporabljen največkrat')
-
-          if (existingCheck.appliedDiscountId && existingCheck.appliedDiscountId !== data.appliedDiscountId) {
-            await decrementDiscountUsage(tx, existingCheck.appliedDiscountId)
-          }
-        } else {
-          // Odstrani popust
-          if (existingCheck.appliedDiscountId) {
-            await decrementDiscountUsage(tx, existingCheck.appliedDiscountId)
-          }
-          Object.assign(updateData, calculateNoDiscountTotals(existingCheck))
-        }
-      }
-
-      return await tx.check.update({
-        where: { id },
-        data: updateData,
-        include: {
-          order: true,
-          orderItems: true,
-          payments: true,
-          appliedDiscount: true,
-        },
-      })
+    // R109 (CK-1, kanon R106/R107/R108): pisalni tok V ENEM kanonu —
+    // $transaction(Serializable) + pg_advisory_xact_lock(checkWriteLockKey =
+    // raw checkId, pariteta create-payment/qr-pay) + tx-fresh scoped re-read
+    // + totals iz SVEŽEGA čeka + discount usage primerjava proti svežemu
+    // stanju (prej: stale existingCheck izven tx → lost update na totals,
+    // dvojen decrement currentUses, napačna DDV osnova).
+    const check = await updateCheckWithLock({
+      checkId: id,
+      sessionLocationId: scope.locationId,
+      appliedDiscountId: data.appliedDiscountId,
+      paymentMethod: data.paymentMethod,
     })
 
     return NextResponse.json(deepToNumbers(check))
   } catch (error: unknown) {
-    return handleApiError(error, 'PUT /api/checks/[id]', 'Napaka pri posodobitvi čeka')
+    // R109 (error kontrakt): P2002/P2034 race-pathi → 409 (nikoli 500);
+    // strukturirani { error, status } throw-i iz tx teles → pravi statusi
+    // (prej: handleApiError string-matching → 500 '[object Object]').
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2002' || error.code === 'P2034')
+    ) {
+      return NextResponse.json(
+        { error: 'Ček je v obdelavi (sočasen dostop) — osvežite in poskusite znova' },
+        { status: 409 }
+      )
+    }
+    return structuredErrorResponse(error, 'PUT /api/checks/[id]', 'Napaka pri posodobitvi čeka')
   }
 }
 
@@ -115,48 +111,39 @@ export async function DELETE(
       endpoint: 'DELETE /api/checks/[id]',
     })
     if ('error' in scope) return scope.error
-    const check = await db.check.findFirst({
+
+    // FIX R81-F (WRITE IDOR): fast-path scoped lookup — izven scope-a → 404
+    const existingCheck = await db.check.findFirst({
       where: { id, ...(scope.locationId ? { order: { locationId: scope.locationId } } : {}) },
-      include: { payments: true },
+      select: { id: true },
     })
 
-    if (!check) {
+    if (!existingCheck) {
       return NextResponse.json({ error: 'Ček ni najden' }, { status: 404 })
     }
 
-    const completedPayments = check.payments.filter(p => p.status === 'completed')
-    if (completedPayments.length > 0) {
+    // R109 (CK-2, kanon R106/R107/R108): izbris kot ATOMARNA enota —
+    // $transaction(Serializable) + advisory lock (raw checkId, pariteta
+    // create-payment/qr-pay) + tx-fresh re-read plačil (prej: stale
+    // check-then-act → sočasno plačilo = P2003 FK Restrict → 500 PO delnih
+    // mutacijah) + pogojni discount decrement + deleteMany + count guard.
+    const result = await deleteCheckWithLock({
+      checkId: id,
+      sessionLocationId: scope.locationId,
+    })
+
+    return NextResponse.json(result)
+  } catch (error: unknown) {
+    // R109 (error kontrakt): pariteta PUT
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2002' || error.code === 'P2034')
+    ) {
       return NextResponse.json(
-        { error: 'Ček ima plačila — ni ga mogoče izbrisati. Namesto tega uporabite storno.' },
-        { status: 400 }
+        { error: 'Ček je v obdelavi (sočasen dostop) — osvežite in poskusite znova' },
+        { status: 409 }
       )
     }
-
-    // Zmanjšaj discount.currentUses če je imel ček apliciran popust
-    if (check.appliedDiscountId) {
-      try {
-        await db.discount.updateMany({
-          where: { id: check.appliedDiscountId, currentUses: { gt: 0 } },
-          data: { currentUses: { decrement: 1 } },
-        })
-      } catch {
-        // Discount morda že izbrisan — tiho prezri
-      }
-    }
-
-    await db.orderItem.updateMany({
-      where: { checkId: id },
-      data: { checkId: null },
-    })
-
-    await db.payment.deleteMany({
-      where: { checkId: id, status: { not: 'completed' } },
-    })
-
-    await db.check.delete({ where: { id } })
-
-    return NextResponse.json({ success: true, message: 'Ček izbrisan' })
-  } catch (error: unknown) {
-    return handleApiError(error, 'DELETE /api/checks/[id]', 'Napaka pri brisanju čeka')
+    return structuredErrorResponse(error, 'DELETE /api/checks/[id]', 'Napaka pri brisanju čeka')
   }
 }

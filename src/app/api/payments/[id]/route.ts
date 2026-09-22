@@ -5,10 +5,12 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { createPaymentSchema } from '@/lib/validations'
-import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
+import { parseJsonBody, validateBody } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
+import { structuredErrorResponse } from '@/lib/structured-error'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
-import { reverseGiftCard, reverseLoyaltyPoints, recalculatePaymentStatus, deepToNumbers } from './_helpers'
+import { reverseGiftCard, reverseLoyaltyPoints, recalculatePaymentStatus, deepToNumbers, paymentMutationLockKey, paymentCheckLockKey } from './_helpers'
 import { toNum, round2 } from '@/lib/decimal'
 
 
@@ -180,8 +182,17 @@ export async function PUT(
       // POGOJNI updateMany (status='completed') ZNOTRAJ transakcije — samo
       // prvi zmaga, drugi dobi PAYMENT_STATUS_CONFLICT → 409.
       const payment = await db.$transaction(async (tx) => {
-        // Zakleni vrstico plačila — vzporedne statusne spremembe čakajo
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'payment-void:' + id}))`
+        // R109 (PAY-1): unificiran per-payment ključ — prej 'payment-void:'+id,
+        // /refund pa hashtext(id) → različna ključa = cross-path dvojno
+        // povračilo (oba reversal-a, refundAmount > amount). Zdaj obe ruti
+        // na istem ključu → striktna serializacija.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${paymentMutationLockKey(id)}))`
+        // R109: drugi (check-level) ključ — enak kot create-payment/qr-pay →
+        // check.paymentStatus derivacija pod katerikoli plačilnim tokom.
+        // Lock graf: payment-mutate:P → check:C (enosmeren, brez ciklov).
+        if (existingPayment.checkId) {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${paymentCheckLockKey(existingPayment.checkId)}))`
+        }
 
         // BUG-HUNT FIX 2026-09-19 (CRITICAL, dvojno povračilo): reversal prej NI
         // posodobil refundAmount → /refund je videl refundAmount=0 in status brez
@@ -198,7 +209,9 @@ export async function PUT(
           data: { ...updateData, refundAmount: paidAmount },
         })
         if (claim.count === 0) {
-          throw new Error('PAYMENT_STATUS_CONFLICT')
+          // R109 (error kontrakt): strukturirani throw — prej string-matching
+          // 'PAYMENT_STATUS_CONFLICT' v catch bloku (R103 canonical pariteta).
+          throw { error: 'Plačilo je medtem spremenilo status (že povrnjeno/poničeno). Osvežite in poskusite znova.', status: 409 }
         }
 
         // Reverse gift card / loyalty SAMO za še nepovrnjeni del — če je bil
@@ -239,7 +252,7 @@ export async function PUT(
           },
         })
         if (!updatedPayment) {
-          throw new Error('PAYMENT_NOT_FOUND')
+          throw { error: 'Plačilo ni najdeno', status: 404 }
         }
 
         // Recalculate payment statuses
@@ -269,14 +282,18 @@ export async function PUT(
       return NextResponse.json(deepToNumbers(payment))
     }
   } catch (error: unknown) {
-    // P1-19: konkurenčna statusna sprememba — drugi request je medtem
-    // že preklical/povrnil to plačilo (pogojna posodobitev je vrnila count=0)
-    if (error instanceof Error && error.message.includes('PAYMENT_STATUS_CONFLICT')) {
+    // R109 (error kontrakt): P2002/P2034 race-pathi → 409 (nikoli 500);
+    // strukturirani { error, status } throw-i iz tx teles → pravi statusi
+    // (prej: string-matching 'PAYMENT_STATUS_CONFLICT' — R103 canonical pariteta).
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2002' || error.code === 'P2034')
+    ) {
       return NextResponse.json(
-        { error: 'Plačilo je medtem spremenilo status (že povrnjeno/poničeno). Osvežite in poskusite znova.' },
+        { error: 'Plačilo je v obdelavi (sočasen dostop) — osvežite in poskusite znova' },
         { status: 409 }
       )
     }
-    return handleApiError(error, 'PUT /api/payments/[id]', 'Napaka pri posodobitvi plačila')
+    return structuredErrorResponse(error, 'PUT /api/payments/[id]', 'Napaka pri posodobitvi plačila')
   }
 }

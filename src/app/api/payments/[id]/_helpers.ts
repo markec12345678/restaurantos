@@ -4,6 +4,37 @@
 import { db } from '@/lib/db'
 import { deepToNumbers, sumBy, greaterThanOrEqual, subtract, toNum, isPositive, round2 } from '@/lib/decimal'
 
+// ─── R109 (PAY-1): unificirani advisory lock ključi za mutacije plačil ───
+//
+// FORENZIKA: PUT /api/payments/[id] (refund/void pot) je zaklepala
+// hashtext('payment-void:' + id), POST /api/payments/[id]/refund pa
+// hashtext(id) — DVA RAZLIČNA KLJUČA na ISTI vrstici plačila → se NISVA
+// serIALIZIRALA:
+//   T1 (refund): lock(id) → prebere status='completed', refundAmount=0 →
+//                validacija OK → [premor]
+//   T2 (PUT):    lock('payment-void:'+id) → CAS status→refunded + POLNI
+//                reversal (gift card/loyalty) → COMMIT
+//   T1:          nadaljuje → increment refundAmount + DRUGI reversal →
+//                refundAmount > amount + gift card/loyalty DVAJKRAT kreditirana
+//                (dvojno povračilo — cross-path različica P1-19 race-a).
+//
+// KANON: obe ruti uporabljata ISTI per-payment ključ paymentMutationLockKey()
+// + drugi (check-level) ključ paymentCheckLockKey() — enak ključ kot
+// create-payment/qr-pay (raw checkId) → VSE mutacije plačil in čeka se
+// striktno serializirajo (lock graf: payment-mutate:P → check:C, brez ciklov).
+
+/** R109: per-payment mutacijski ključ — PUT (refund/void) + POST /refund. */
+export function paymentMutationLockKey(paymentId: string): string {
+  return `payment-mutate:${paymentId}`
+}
+
+/** R109: check-level ključ — IDENTEN ključ kot create-payment/qr-pay
+ * (raw checkId) → check.paymentStatus derivacije se serializirajo čez
+ * vse plačilne poti. */
+export function paymentCheckLockKey(checkId: string): string {
+  return checkId
+}
+
 // ─── Obrni darilno kartico ob povračilu ───
 export async function reverseGiftCard(
   tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
