@@ -1,11 +1,13 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { createTimeEntrySchema } from '@/lib/validations'
 import { toNum, round2, multiply, deepToNumbers } from '@/lib/decimal'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { isWithinScope, notInScopeResponse, resolveWriteLocationId } from '@/lib/tenant-scope'
+import { structuredErrorResponse } from '@/lib/structured-error'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,38 +93,12 @@ export async function POST(req: Request) {
     const { data, error: validationError } = await validateRequest(req, createTimeEntrySchema)
     if (validationError) return validationError
 
-    // Izračunaj totalMinutes in totalPay strežniško
-    const clockIn = new Date(data.clockIn)
-    const clockOut = data.clockOut ? new Date(data.clockOut) : null
-    let totalMinutes = 0
-    let payRate = 0
-    let totalPay = 0
-
-    // FIX HIGH: Preveri, da zaposleni nima že odprtega časovnega vnosa (clockIn brez clockOut)
-    // Brez tega bi lahko ustvarili več aktivnih vnosov za enega zaposlenega
-    if (!clockOut) {
-      const openEntry = await db.timeEntry.findFirst({
-        where: {
-          employeeId: data.employeeId,
-          clockOut: null,
-          status: { notIn: ['cancelled'] },
-        },
-      })
-      if (openEntry) {
-        return NextResponse.json({
-          error: `Zaposleni že ima odprt časovni vnos (ID: ${openEntry.id}, prijava: ${openEntry.clockIn.toISOString()})`,
-          existingEntry: { id: openEntry.id, clockIn: openEntry.clockIn },
-        }, { status: 409 })
-      }
-    }
-
-    if (clockOut) {
-      const diffMs = clockOut.getTime() - clockIn.getTime()
-      totalMinutes = Math.floor(diffMs / 60000) - (data.breakMinutes || 0)
-      totalMinutes = Math.max(0, totalMinutes)
-    }
-
-    // Pridobi urno postavko iz zaposlenega
+    // FIX R103 (T2, MEDIUM cross-tenant leak): prej je bil open-entry probe
+    // (409 z existingEntry.id + clockIn!) izveden PRED employee scope validacijo
+    // — odzivnost 409 (odprt vnos) vs 403/404 (izven scope-a) je puščala obstoj
+    // odprtega vnosa TUJEGA zaposlenega (payroll časovni žig + interni ID).
+    // Zdaj: employee fetch + scope check NAJPREJ — probe dobi samo klicatelj,
+    // ki je zaposlenega že uspešno scoped.
     const employee = await db.employee.findUnique({ where: { id: data.employeeId } })
     // FIX R81-G (LEAK-MEDIUM, cross-tenant): employeeId je bil nescopecan —
     // manager je lahko vpisoval delovne urne (payroll!) TUJEGA zaposlenega.
@@ -131,6 +107,20 @@ export async function POST(req: Request) {
     if (employee && !isWithinScope(sessionLocId, employee.locationId)) {
       return notInScopeResponse('Zaposleni')
     }
+
+    // Izračunaj totalMinutes in totalPay strežniško
+    const clockIn = new Date(data.clockIn)
+    const clockOut = data.clockOut ? new Date(data.clockOut) : null
+    let totalMinutes = 0
+    let payRate = 0
+    let totalPay = 0
+
+    if (clockOut) {
+      const diffMs = clockOut.getTime() - clockIn.getTime()
+      totalMinutes = Math.floor(diffMs / 60000) - (data.breakMinutes || 0)
+      totalMinutes = Math.max(0, totalMinutes)
+    }
+
     if (employee) {
       // Pridobi payRate iz EmployeeJob če je jobId podan
       if (data.jobId) {
@@ -148,31 +138,96 @@ export async function POST(req: Request) {
     // prva-lokacija fallback-a). createTimeEntrySchema NIMA locationId polja —
     // body se ne more vžigati tuje lokacije.
 
-    const timeEntry = await db.timeEntry.create({
-      data: {
-        employeeId: data.employeeId,
-        locationId,
-        jobId: data.jobId || null,
-        clockIn,
-        clockOut,
-        breakStart: data.breakStart ? new Date(data.breakStart) : null,
-        breakEnd: data.breakEnd ? new Date(data.breakEnd) : null,
-        breakMinutes: data.breakMinutes,
-        totalMinutes,
-        payRate,
-        totalPay,
-        type: data.type,
-        status: data.status,
-        notes: data.notes,
-      },
-      include: {
-        employee: { select: { id: true, name: true } },
-        job: { select: { id: true, name: true } },
-      },
+    // FIX R103 (T1, HIGH TOCTOU double clock-in): prej je bil open-entry probe
+    // (findFirst) + create DVE ločeni operaciji — dva sočasna clock-in za
+    // istega zaposlenega sta oba prebrala "ni odprtega vnosa" → oba create →
+    // dva aktivna vnosa → dvojna plača (isti razred kot R100 counter replay /
+    // R102 double-booking). Zdaj: Serializable transakcija — svež probe +
+    // create ZNOTRAJ tx; P2034 → 409 retry.
+    const timeEntry = await db.$transaction(async (tx) => {
+      // tx-fresh re-read zaposlenega (mid-flight izbris/sprememba lokacije ne
+      // sme obiti R81-G cross-tenant zaščite — S1 vzorec iz staff-shifts)
+      const freshEmployee = await tx.employee.findUnique({ where: { id: data.employeeId } })
+      if (!freshEmployee || !isWithinScope(sessionLocId, freshEmployee.locationId)) {
+        throw { error: 'Zaposleni ni najden', status: 404 }
+      }
+
+      if (!clockOut) {
+        // FIX HIGH: Preveri, da zaposleni nima že odprtega časovnega vnosa
+        // (clockIn brez clockOut) — tx-fresh, brez lokacijskega filtra
+        // (pravilno: en zaposleni ne sme imeti odprtega vnosa na NOBI lokaciji)
+        const openEntry = await tx.timeEntry.findFirst({
+          where: {
+            employeeId: data.employeeId,
+            clockOut: null,
+            status: { notIn: ['cancelled'] },
+          },
+        })
+        if (openEntry) {
+          throw {
+            error: `Zaposleni že ima odprt časovni vnos (ID: ${openEntry.id}, prijava: ${openEntry.clockIn.toISOString()})`,
+            existingEntry: { id: openEntry.id, clockIn: openEntry.clockIn },
+            status: 409,
+          }
+        }
+      }
+
+      return tx.timeEntry.create({
+        data: {
+          employeeId: data.employeeId,
+          locationId,
+          jobId: data.jobId || null,
+          clockIn,
+          clockOut,
+          breakStart: data.breakStart ? new Date(data.breakStart) : null,
+          breakEnd: data.breakEnd ? new Date(data.breakEnd) : null,
+          breakMinutes: data.breakMinutes,
+          totalMinutes,
+          payRate,
+          totalPay,
+          type: data.type,
+          status: data.status,
+          notes: data.notes,
+        },
+        include: {
+          employee: { select: { id: true, name: true } },
+          job: { select: { id: true, name: true } },
+        },
+      })
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     })
 
     return NextResponse.json(deepToNumbers(timeEntry), { status: 201 })
   } catch (error: unknown) {
-    return handleApiError(error, 'POST /api/time-entries', 'Napaka pri ustvarjanju časovnega vnosa')
+    // FIX R103 (error kontrakt): strukturirani { error, ... } throw iz tx
+    // telesa (409 odprt vnos) doseže klienta; P2034 → 409 retry.
+    if (
+      error &&
+      typeof error === 'object' &&
+      'existingEntry' in error &&
+      'status' in error &&
+      (error as { status: unknown }).status === 409
+    ) {
+      const structured = error as unknown as { error: string; existingEntry: { id: string; clockIn: Date } }
+      return NextResponse.json(
+        { error: structured.error, existingEntry: structured.existingEntry },
+        { status: 409 },
+      )
+    }
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: string }).code === 'P2034'
+    ) {
+      return NextResponse.json(
+        { error: 'Prijava ni uspela — drug uporabnik je hkrati vpisoval istega zaposlenega. Poskusite znova.' },
+        { status: 409 },
+      )
+    }
+    // strukturirani { error, status } throw-i (409 odprt vnos, 404 mid-flight)
+    // + fallback handleApiError (structuredErrorResponse interno delegira)
+    return structuredErrorResponse(error, 'POST /api/time-entries', 'Napaka pri ustvarjanju časovnega vnosa')
   }
 }

@@ -18,6 +18,7 @@ import { NextResponse } from 'next/server'
 const mockGiftCardFindUnique = vi.fn()
 const mockGiftCardUpdate = vi.fn()
 const mockGiftCardDelete = vi.fn()
+const mockGiftCardDeleteMany = vi.fn()
 const mockTxnCount = vi.fn()
 const mockTxGiftCardFindUnique = vi.fn()
 const mockTxGiftCardUpdate = vi.fn()
@@ -39,6 +40,8 @@ vi.mock('@/lib/db', () => ({
       findUnique: mockGiftCardFindUnique,
       update: mockGiftCardUpdate,
       delete: mockGiftCardDelete,
+      // R103: scoped deleteMany (count 0 → 404)
+      deleteMany: mockGiftCardDeleteMany,
     },
     giftCardTransaction: { count: mockTxnCount, create: vi.fn() },
     $transaction: vi.fn(async (cb: (tx: typeof mockTx) => Promise<unknown>) => cb(mockTx)),
@@ -168,31 +171,39 @@ describe('R80 batch B: /api/gift-cards/[id] — cross-tenant WRITE IDOR', () => 
       expect(mockGiftCardUpdate).not.toHaveBeenCalled()
     })
 
-    it('kartica lastne lokacije → 200, stanje se posodobi', async () => {
+    it('kartica lastne lokacije → 200, stanje se posodobi (R103: atomni pogojni load)', async () => {
       mockFindUnique(cardAt(LOC_A))
-      mockTxGiftCardUpdate.mockResolvedValue({ id: 'gc-1', locationId: LOC_A, balance: 50, status: 'active' })
+      // R103: load je zdaj pogojni updateMany (DB vrednoti cap proti tekočemu
+      // stanju) — prej nepogojen update z increment + stale cap check
+      mockTxGiftCardUpdateMany.mockResolvedValue({ count: 1 })
+      mockTxGiftCardFindUnique.mockResolvedValue(cardAt(LOC_A))
       mockTxCreate.mockResolvedValue({})
 
       const { PUT } = await import('@/app/api/gift-cards/[id]/route')
       const res = await PUT(makeReq('PUT', { balance: 50 }), routeParams)
 
       expect(res.status).toBe(200)
-      expect(mockTxGiftCardUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ balance: { increment: 20 } }) }),
+      // cap = initialBalance(100) − diff(20) = 80 → where.balance.lte 80
+      expect(mockTxGiftCardUpdateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: 'gc-1', balance: { lte: 80 } }),
+          data: { balance: { increment: 20 } },
+        }),
       )
     })
 
     it('super-admin brez dodeljene lokacije = nadzor nad vsemi karticami', async () => {
       mockRequireAuth.mockResolvedValue(sessionWith(null, 'super_admin'))
       mockFindUnique(cardAt(LOC_B))
-      mockTxGiftCardUpdate.mockResolvedValue({ id: 'gc-1', locationId: LOC_B, balance: 50, status: 'active' })
+      mockTxGiftCardUpdateMany.mockResolvedValue({ count: 1 })
+      mockTxGiftCardFindUnique.mockResolvedValue(cardAt(LOC_B))
       mockTxCreate.mockResolvedValue({})
 
       const { PUT } = await import('@/app/api/gift-cards/[id]/route')
       const res = await PUT(makeReq('PUT', { balance: 50 }), routeParams)
 
       expect(res.status).toBe(200)
-      expect(mockTxGiftCardUpdate).toHaveBeenCalled()
+      expect(mockTxGiftCardUpdateMany).toHaveBeenCalled()
     })
 
     it('staff brez dodeljene lokacije → 403 fail-closed (scope check pred transakcijo)', async () => {
@@ -219,30 +230,33 @@ describe('R80 batch B: /api/gift-cards/[id] — cross-tenant WRITE IDOR', () => 
       expect(mockGiftCardDelete).not.toHaveBeenCalled()
     })
 
-    it('prazna kartica lastne lokacije → 200 in izbris', async () => {
+    it('prazna kartica lastne lokacije → 200 in izbris (R103 scoped deleteMany)', async () => {
       mockFindUnique(emptyCardAt(LOC_A))
       mockTxnCount.mockResolvedValue(0)
-      mockGiftCardDelete.mockResolvedValue(emptyCardAt(LOC_A))
+      mockGiftCardDeleteMany.mockResolvedValue({ count: 1 })
 
       const { DELETE } = await import('@/app/api/gift-cards/[id]/route')
       const res = await DELETE(makeReq('DELETE'), routeParams)
 
       expect(res.status).toBe(200)
       expect(mockTxnCount).toHaveBeenCalledTimes(1)
-      expect(mockGiftCardDelete).toHaveBeenCalledWith({ where: { id: 'gc-1' } })
+      // R103: scoped deleteMany (count 0 → 404) namesto delete (P2025 → 500)
+      expect(mockGiftCardDeleteMany).toHaveBeenCalledWith({
+        where: { id: 'gc-1', locationId: LOC_A },
+      })
     })
 
     it('super-admin brez dodeljene lokacije = nadzor (prazna tuja kartica se izbriše)', async () => {
       mockRequireAuth.mockResolvedValue(sessionWith(null, 'super_admin'))
       mockFindUnique(emptyCardAt(LOC_B))
       mockTxnCount.mockResolvedValue(0)
-      mockGiftCardDelete.mockResolvedValue(emptyCardAt(LOC_B))
+      mockGiftCardDeleteMany.mockResolvedValue({ count: 1 })
 
       const { DELETE } = await import('@/app/api/gift-cards/[id]/route')
       const res = await DELETE(makeReq('DELETE'), routeParams)
 
       expect(res.status).toBe(200)
-      expect(mockGiftCardDelete).toHaveBeenCalled()
+      expect(mockGiftCardDeleteMany).toHaveBeenCalled()
     })
   })
 })

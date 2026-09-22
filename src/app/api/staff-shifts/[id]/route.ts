@@ -66,9 +66,29 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       safeData['confirmedAt'] = new Date()
     }
 
-    const shift = await db.staffShift.update({
-      where: { id },
+    // FIX R103 (S2, MEDIUM): prej je bil NEPOGOJEN db.staffShift.update({ where:
+    // { id } }) — (a) mid-flight izbris/sprememba lokacije → P2025 → 500 oz.
+    // izven scope-a; (b) confirmedAt izpeljan iz STALE existing.status — dva
+    // sočasna PATCH-a sta oba prebrala 'scheduled'. Zdaj: CAS updateMany —
+    // where pripet na { id, +scope, status: existing.status }; count 0 → 409
+    // 'osvežite pogled' (R102 F4 waitlist vzorec). Odgovor iz svežega re-fetcha.
+    const updated = await db.staffShift.updateMany({
+      where: {
+        id,
+        ...(scope.locationId ? { locationId: scope.locationId } : {}),
+        status: existing.status,
+      },
       data: safeData,
+    })
+    if (updated.count === 0) {
+      return NextResponse.json(
+        { error: 'Izmena je bila v medtem spremenjena — osvežite pogled in poskusite znova' },
+        { status: 409 },
+      )
+    }
+
+    const shift = await db.staffShift.findUnique({
+      where: { id },
       include: {
         employee: { select: { id: true, name: true, role: true } },
         location: { select: { id: true, name: true, code: true } },
@@ -79,7 +99,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       action: 'STAFF_SHIFT_UPDATED',
       entityType: 'StaffShift',
       entityId: id,
-      details: { employeeName: shift.employee?.name, shiftType: body.shiftType || existing.shiftType },
+      details: { employeeName: shift?.employee?.name, shiftType: body.shiftType || existing.shiftType },
       userId: authResult.session?.employeeId,
     })
 
@@ -113,7 +133,15 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       return NextResponse.json({ error: 'Izmena ni najdena' }, { status: 404 })
     }
 
-    await db.staffShift.delete({ where: { id } })
+    // FIX R103 (S3): prej db.staffShift.delete({ where: { id } }) — mid-flight
+    // izbris (dvojni DELETE ali drug kanal) → P2025 → 500. Scoped deleteMany →
+    // count 0 → 404 (R102 F5 vzorec; deleteMany je idempotentno varen).
+    const deleted = await db.staffShift.deleteMany({
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
+    })
+    if (deleted.count === 0) {
+      return NextResponse.json({ error: 'Izmena ni najdena' }, { status: 404 })
+    }
 
     await createAuditLog({
       action: 'STAFF_SHIFT_DELETED',

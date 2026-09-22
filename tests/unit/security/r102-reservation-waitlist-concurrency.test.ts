@@ -603,8 +603,12 @@ describe('R102-F: fs-guard — vir pini', () => {
   it('create-handler structured throws ostajajo (sedaj preslikani na ruti)', () => {
     const src = readSrc('src/app/api/reservations/_helpers/create-handler.ts')
     expect(src.match(/throw \{/g)?.length).toBeGreaterThanOrEqual(3)
+    // R103: implementacija povzignena v canonical src/lib/structured-error.ts;
+    // reservations helper je re-export (isti kontrakt, en vir za 4 module)
     const helper = readSrc('src/app/api/reservations/_helpers/structured-error.ts')
-    expect(helper).toContain("typeof (error as { status: unknown }).status === 'number'")
-    expect(helper).toContain('handleApiError(error, context, fallbackMessage)')
+    expect(helper).toContain("export { structuredErrorResponse } from '@/lib/structured-error'")
+    const lib = readSrc('src/lib/structured-error.ts')
+    expect(lib).toContain("typeof (error as { status: unknown }).status === 'number'")
+    expect(lib).toContain('handleApiError(error, context, fallbackMessage)')
   })
 })

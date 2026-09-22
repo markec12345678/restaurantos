@@ -110,6 +110,11 @@ vi.mock('@/lib/db', () => ({
     cashRegisterShift: { findMany: mocks.cashRegisterShiftFindMany },
     $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({
       zReport: { findFirst: mocks.txZReportFindFirst, create: mocks.txZReportCreate },
+      // R103: time-entries POST tok v tx klientu (Serializable — fresh probe
+      // + create atomarno); modeli delijo mocke z db klientom
+      employee: { findUnique: mocks.employeeFindUnique },
+      employeeJob: { findUnique: vi.fn().mockResolvedValue(null) },
+      timeEntry: { findFirst: mocks.timeEntryFindFirst, create: mocks.timeEntryCreate },
     })),
   },
   // createAuditLog je TOP-LEVEL export iz '@/lib/db' (ne lastnost db klienta)

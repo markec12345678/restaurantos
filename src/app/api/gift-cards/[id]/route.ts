@@ -6,6 +6,7 @@ import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { toNum, greaterThan, deepToNumbers } from '@/lib/decimal'
 import { canDeleteGiftCard } from '@/lib/gift-card-guard'
+import { structuredErrorResponse } from '@/lib/structured-error'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,18 +53,51 @@ export async function PUT(
       // FIX H-01: Ponovno preberi kartico ZNOTRAJ transakcije — prepreči TOCTOU
       const existing = await tx.giftCard.findUnique({ where: { id } })
       if (!existing) {
-        throw new Error('Darilna kartica ni najdena')
+        throw { error: 'Darilna kartica ni najdena', status: 404 }
       }
+      // FIX R103 (G2, MEDIUM): status re-validacija ZNOTRAJ tx — prej je bil
+      // suspended/potekla check SAMO pred tx; sočasni suspend (ali potek)
+      // med pre-checkom in tx je zamenjal stanje suspendirane/potečene kartice.
+      if (existing.status === 'suspended') {
+        throw { error: 'Suspendirane kartice ni mogoče spreminjati', status: 400 }
+      }
+      if (existing.expiresAt && existing.expiresAt < new Date() && existing.status !== 'expired') {
+        throw { error: 'Darilna kartica je potekla', status: 400 }
+      }
+
       const updateData: Record<string, unknown> = {}
       if (data.status !== undefined) updateData.status = data.status
       if (data.ownerName !== undefined) updateData.ownerName = data.ownerName
       if (data.expiresAt !== undefined) updateData.expiresAt = data.expiresAt ? new Date(data.expiresAt) : null
+
+      // Dejansko uporabljena sprememba stanja (za knjigovodski zapis)
+      let appliedDelta: number | null = null
+
       // FIX CRITICAL: Atomna sprememba stanja — prepreči race condition
       if (data.balance !== undefined) {
         const diff = data.balance - toNum(existing.balance) // FIX: Decimal→number pretvorba
         if (diff > 0) {
           // Nalaganje — atomno povečaj
-          updateData.balance = { increment: diff }
+          // FIX R103 (G1, HIGH TOCTOU load-cap): prej je bil cap check
+          // (`existing.balance + diff > maxBalance`) izveden proti STALE tx-
+          // začetnem branju, increment pa NEPOGOJEN — dva sočasna naloga sta
+          // oba presegla začetno vrednost (tiskanje denarja). Zdaj: pogojni
+          // updateMany — DB vrednoti predikat proti TEKOČEMU stanju:
+          // increment se zgodi samo če balance <= maxBalance - diff.
+          const maxBalance = toNum(existing.initialBalance) > 0 ? toNum(existing.initialBalance) : toNum(existing.balance) // FIX: Decimal(0) je truthy!
+          const loadResult = await tx.giftCard.updateMany({
+            where: { id, balance: { lte: maxBalance - diff } },
+            data: { balance: { increment: diff } },
+          })
+          if (loadResult.count === 0) {
+            throw { error: 'Balance would exceed initial card value', status: 409 }
+          }
+          // FIX: Če se kartica ponovno naloži, spremeni status nazaj na active
+          // (preberemo iz tx-začetnega stanja — classifier, ne ekonomija)
+          if (existing.status === 'depleted') {
+            updateData.status = 'active'
+          }
+          appliedDelta = diff
         } else if (diff < 0) {
           // Poraba/unovčitev — preveri, da stanje ne pade pod 0
           const absDiff = Math.abs(diff)
@@ -72,34 +106,28 @@ export async function PUT(
             data: { balance: { decrement: absDiff } },
           })
           if (result.count === 0) {
-            throw new Error('Insufficient gift card balance')
+            throw { error: 'Insufficient gift card balance', status: 400 }
           }
           // Preveri novo stanje za status
           const updated = await tx.giftCard.findUnique({ where: { id } })
           if (updated && !greaterThan(updated.balance, 0)) { // FIX: Decimal primerjava
             updateData.status = 'depleted'
           }
-          // Skip the normal balance update below since we already did it atomically
-          delete updateData.balance
+          appliedDelta = diff
         }
         // diff === 0: no balance change needed
-        if (diff > 0 && existing.status === 'depleted') {
-          // Če se kartica ponovno naloži, spremeni status nazaj na active
-          updateData.status = 'active'
-        }
-        // FIX: Stanje ne sme preseči začetne vrednosti kartice (za load)
-        if (diff > 0) {
-          const maxBalance = toNum(existing.initialBalance) > 0 ? existing.initialBalance : existing.balance // FIX: Decimal(0) je truthy!
-          // Če bi preseglo max, omeji increment
-          if (toNum(existing.balance) + diff > toNum(maxBalance)) {
-            throw new Error('Balance would exceed initial card value')
-          }
-        }
       }
-      const giftCard = await tx.giftCard.update({
-        where: { id },
-        data: updateData,
-      })
+
+      // FIX R103 (G3, MEDIUM ledger forenzika): auto zapis transakcije je bil
+      // izpeljan iz STALE compare-a (`data.balance !== toNum(existing.balance)`)
+      // — ob sočasni mutaciji je zapisal NAPAČEN znesek/smer. Zdaj: zapis iz
+      // DEJANSKO uporabljene spremembe (appliedDelta) + balanceAfter iz
+      // post-op stanja (isti vzorec kot payments handleGiftCardDeduction).
+      const giftCard =
+        Object.keys(updateData).length > 0
+          ? await tx.giftCard.update({ where: { id }, data: updateData })
+          : await tx.giftCard.findUnique({ where: { id } })
+
       // Ustvari transakcijski zapis, če je podan
       if (data.transaction) {
         const txData = data.transaction
@@ -108,22 +136,21 @@ export async function PUT(
             giftCardId: id,
             type: txData.type,
             amount: txData.amount,
-            balanceAfter: txData.balanceAfter ?? toNum(giftCard.balance),
+            balanceAfter: txData.balanceAfter ?? toNum(giftCard?.balance ?? 0),
             orderId: txData.orderId || null,
             checkId: txData.checkId || null,
             note: txData.note || '',
           },
         })
-      } else if (data.balance !== undefined && data.balance !== toNum(existing.balance)) { // FIX: Decimal primerjava
+      } else if (appliedDelta !== null) {
         // Avtomatsko ustvari transakcijski zapis za spremembo stanja
-        const diff = data.balance - toNum(existing.balance) // FIX: Decimal→number
         await tx.giftCardTransaction.create({
           data: {
             giftCardId: id,
-            type: diff > 0 ? 'load' : 'redeem',
-            amount: diff,
-            balanceAfter: giftCard.balance,
-            note: diff > 0 ? 'Nalaganje sredstev' : 'Razveljavitev',
+            type: appliedDelta > 0 ? 'load' : 'redeem',
+            amount: appliedDelta,
+            balanceAfter: giftCard?.balance ?? 0,
+            note: appliedDelta > 0 ? 'Nalaganje sredstev' : 'Razveljavitev',
           },
         })
       }
@@ -136,7 +163,10 @@ export async function PUT(
     })
     return NextResponse.json(deepToNumbers(giftCard))
   } catch (error: unknown) {
-    return handleApiError(error, 'PUT /api/gift-cards/[id]', 'Napaka pri posodobitvi darilne kartice')
+    // FIX R103 (G8, error kontrakt): strukturirani throw-i iz tx telesa
+    // (404 mid-flight izbris, 400 suspendirana/potekla/nimajo sredstev,
+    // 409 cap) so PREJ padli v handleApiError → 500 '[object Object]'.
+    return structuredErrorResponse(error, 'PUT /api/gift-cards/[id]', 'Napaka pri posodobitvi darilne kartice')
   }
 }
 
@@ -178,9 +208,29 @@ export async function DELETE(
     if (!decision.allowed) {
       return NextResponse.json({ error: decision.messageSl }, { status: decision.status })
     }
-    await db.giftCard.delete({ where: { id } })
+    // FIX R103 (G5): prej db.giftCard.delete({ where: { id } }) — mid-flight
+    // izbris (dvojni DELETE) → P2025 → 500. Scoped deleteMany → count 0 →
+    // 404 (R102 F5 vzorec); FK Restrict (P2003) ob mid-flight transakciji →
+    // 409 v catch (fiskalna zgodovina se nikoli ne izbriše tiho).
+    const deleted = await db.giftCard.deleteMany({
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
+    })
+    if (deleted.count === 0) {
+      return NextResponse.json({ error: 'Darilna kartica ni najdena' }, { status: 404 })
+    }
     return NextResponse.json({ ok: true, id })
   } catch (error: unknown) {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: string }).code === 'P2003'
+    ) {
+      return NextResponse.json(
+        { error: 'Kartica ima transakcijsko zgodovino — brisanje ni mogoče (uporabite suspendiranje)' },
+        { status: 409 },
+      )
+    }
     return handleApiError(error, 'DELETE /api/gift-cards/[id]', 'Napaka pri brisanju darilne kartice')
   }
 }

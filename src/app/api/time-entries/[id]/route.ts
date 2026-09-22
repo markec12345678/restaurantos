@@ -40,6 +40,17 @@ export async function PUT(
       return NextResponse.json({ error: 'Časovni vnos ni najden' }, { status: 404 })
     }
 
+    // FIX R103 (T4, plačilna integriteta): odobren vnos je NESPREMENLJIV —
+    // prej je bilo payRate/clockOut vse mogoče prepisati tudi na statusu
+    // 'approved' (odobrena plačila so se tiho spremenila brez sledi). Spori
+    // gredo prek statusa 'disputed' (POST/konstrukcija), ne prek tihega PUT-a.
+    if (existingEntry.status === 'approved') {
+      return NextResponse.json(
+        { error: 'Odobren časovni vnos ni več uredujiv — plačilna integriteta' },
+        { status: 400 },
+      )
+    }
+
     const updateData: Record<string, unknown> = {}
 
     // Clock-out support
@@ -66,9 +77,19 @@ export async function PUT(
       updateData.totalPay = round2(multiply(totalMinutes / 60, data.payRate))
     }
 
-    const timeEntry = await db.timeEntry.update({
-      where: { id },
+    // FIX R103 (T3): prej NEPOGOJEN db.timeEntry.update({ where: { id } }) —
+    // mid-flight izbris → P2025 → 500; scope-escape mid-flight. Zdaj: scoped
+    // updateMany → count 0 → 404 (R102 F5 vzorec); odgovor iz svežega re-fetcha.
+    const updated = await db.timeEntry.updateMany({
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       data: updateData,
+    })
+    if (updated.count === 0) {
+      return NextResponse.json({ error: 'Časovni vnos ni najden' }, { status: 404 })
+    }
+
+    const timeEntry = await db.timeEntry.findUnique({
+      where: { id },
       include: {
         employee: { select: { id: true, name: true } },
         job: { select: { id: true, name: true } },

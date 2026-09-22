@@ -11,25 +11,9 @@
 // R102 FIX: rute reservations modula preslišijo strukturirane objekte PRED
 // handleApiError — poslovni status (400/404/409) končno doseže klienta.
 // Vzorec je closure-free in type-guarded (nikoli ne ujame pravih Error-jev).
+//
+// R103: implementacija POVZDIGNEA v canonical src/lib/structured-error.ts
+// (isti razred napak zdaj pokrit v gift-cards/staff-shifts/time-entries).
+// Ta datoteka ostane kot re-export za obstoječe R102 uvoze + teste.
 
-import { NextResponse } from 'next/server'
-import { handleApiError } from '@/lib/api-utils'
-
-export function structuredErrorResponse(
-  error: unknown,
-  context: string,
-  fallbackMessage: string,
-): NextResponse {
-  if (
-    error &&
-    typeof error === 'object' &&
-    'error' in error &&
-    'status' in error &&
-    typeof (error as { error: unknown }).error === 'string' &&
-    typeof (error as { status: unknown }).status === 'number'
-  ) {
-    const structured = error as { error: string; status: number }
-    return NextResponse.json({ error: structured.error }, { status: structured.status })
-  }
-  return handleApiError(error, context, fallbackMessage)
-}
+export { structuredErrorResponse } from '@/lib/structured-error'

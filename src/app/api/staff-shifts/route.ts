@@ -12,6 +12,7 @@ import { Prisma } from '@prisma/client'
 import { logger } from '@/lib/logger'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { isWithinScope, notInScopeResponse, resolveWriteLocationId } from '@/lib/tenant-scope'
+import { structuredErrorResponse } from '@/lib/structured-error'
 import { createStaffShiftSchema, checkTimeOverlap, buildShiftsWhere, computeShiftStats } from './_helpers'
 
 // FIX R81-G (LEAK-MEDIUM): inline role-aware fail-closed gate (zrcali
@@ -105,24 +106,6 @@ export async function POST(req: Request) {
       return notInScopeResponse('Zaposleni')
     }
 
-    // Preveri konflikte — časovno prekrivanje
-    // FIX R81-G: conflict lookup je scopcan na session lokacijo
-    const existing = await db.staffShift.findFirst({
-      where: {
-        employeeId,
-        shiftDate: new Date(shiftDate),
-        status: { notIn: ['cancelled'] },
-        ...(sessionLocId ? { locationId: sessionLocId } : {}),
-      },
-    })
-
-    if (existing && checkTimeOverlap(startTime, endTime, existing.startTime, existing.endTime)) {
-      return NextResponse.json({
-        error: `Zaposleni ${employee.name} ima že izmeno ${existing.startTime}-${existing.endTime} na ${shiftDate}, ki se prekriva z ${startTime}-${endTime}`,
-        existingShift: existing,
-      }, { status: 409 })
-    }
-
     // R86-2b (canonical žig): resolveWriteLocationId — scope zmaga; kandidata
     // (body, data-derived employee.locationId) sta dosegljiva SAMO null-scope
     // super-adminu. Globalni fallback getFirstLocationId() (prva lokacija
@@ -131,29 +114,68 @@ export async function POST(req: Request) {
     const writeLoc = resolveWriteLocationId(sessionLocId, locationId, employee.locationId)
     if (!writeLoc.ok) return writeLoc.response
 
-    const shift = await db.staffShift.create({
-      data: {
-        employeeId,
-        shiftDate: new Date(shiftDate),
-        shiftType,
-        startTime,
-        endTime,
-        // FIX QA runda 37: DB stolpec StaffShift.locationId je NOT NULL (schema drift)
-        // — pri Ana (admin brez lokacije) je create z null vrgel P2011.
-        // FIX R81-G (LEAK-MEDIUM): za lokacijsko vezane seje je body locationId
-        // STRIPPAN — razpored se NIKOLI ne ustvari na tuji lokaciji (seja je
-        // avtoritativna); super-admin sme podati izrecen locationId.
-        // R86-2b: žig je rezultat resolveWriteLocationId (zgoraj) — nikoli null.
-        locationId: writeLoc.locationId,
-        role: role || employee.role,
-        notes,
-        status,
-        createdBy: authResult.session?.employeeId || null,
-      },
-      include: {
-        employee: { select: { id: true, name: true, role: true } },
-        location: { select: { id: true, name: true, code: true } },
-      },
+    // FIX R103 (S1, HIGH TOCTOU double-booking): prej je bil conflict probe
+    // (findFirst) + create DVE ločeni operaciji — dva sočasna POST-a za
+    // istega zaposlenega/datum/prekrivajočima časoma sta oba prebrala prazne
+    // kandidate → oba create → dvojna razporeditev (isti razred kot R102 F2
+    // reservations PUT double-booking). Zdaj: Serializable transakcija —
+    // tx-fresh re-read zaposlenega (mid-flight izbris → 404 structured
+    // throw) + svež conflict probe + create ZNOTRAJ tx; P2034 → 409 retry.
+    const shift = await db.$transaction(async (tx) => {
+      const freshEmployee = await tx.employee.findUnique({ where: { id: employeeId } })
+      if (!freshEmployee) {
+        throw { error: 'Zaposleni ni najden', status: 404 }
+      }
+      // Scope ponovno preverjen proti TX-fresh vrstici (sprememba lokacije
+      // mid-flight ne sme obiti R81-G cross-tenant zaščite)
+      if (!isWithinScope(sessionLocId, freshEmployee.locationId)) {
+        throw { error: 'Zaposleni ni najden', status: 404 }
+      }
+
+      // FIX R81-G: conflict lookup je scopcan na session lokacijo (sedaj
+      // tx-fresh — фанtomski vstavljanje sočasnega tx-a blokira Serializable)
+      const existing = await tx.staffShift.findFirst({
+        where: {
+          employeeId,
+          shiftDate: new Date(shiftDate),
+          status: { notIn: ['cancelled'] },
+          ...(sessionLocId ? { locationId: sessionLocId } : {}),
+        },
+      })
+
+      if (existing && checkTimeOverlap(startTime, endTime, existing.startTime, existing.endTime)) {
+        throw {
+          error: `Zaposleni ${freshEmployee.name} ima že izmeno ${existing.startTime}-${existing.endTime} na ${shiftDate}, ki se prekriva z ${startTime}-${endTime}`,
+          status: 409,
+        }
+      }
+
+      return tx.staffShift.create({
+        data: {
+          employeeId,
+          shiftDate: new Date(shiftDate),
+          shiftType,
+          startTime,
+          endTime,
+          // FIX QA runda 37: DB stolpec StaffShift.locationId je NOT NULL (schema drift)
+          // — pri Ana (admin brez lokacije) je create z null vrgel P2011.
+          // FIX R81-G (LEAK-MEDIUM): za lokacijsko vezane seje je body locationId
+          // STRIPPAN — razpored se NIKOLI ne ustvari na tuji lokaciji (seja je
+          // avtoritativna); super-admin sme podati izrecen locationId.
+          // R86-2b: žig je rezultat resolveWriteLocationId (zgoraj) — nikoli null.
+          locationId: writeLoc.locationId,
+          role: role || freshEmployee.role,
+          notes,
+          status,
+          createdBy: authResult.session?.employeeId || null,
+        },
+        include: {
+          employee: { select: { id: true, name: true, role: true } },
+          location: { select: { id: true, name: true, code: true } },
+        },
+      })
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     })
 
     await createAuditLog({
@@ -166,10 +188,21 @@ export async function POST(req: Request) {
 
     return NextResponse.json(shift, { status: 201 })
   } catch (error: unknown) {
-    logger.error('API', '[STAFF-SHIFTS POST]', error)
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      return NextResponse.json({ error: 'Napaka pri ustvarjanju izmene', code: error.code }, { status: 400 })
+    // FIX R103 (error kontrakt): strukturirani { error, status } throw-i iz
+    // $transaction telesa (404 mid-flight, 409 overlap) dosežejo klienta —
+    // prej bi handleApiError vse obravnaval kot neznane → 500.
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      (error as { code?: string }).code === 'P2034'
+    ) {
+      return NextResponse.json(
+        { error: 'Ustvarjanje izmene ni mogoče — drug uporabnik je hkrati razporejal istega zaposlenega. Poskusite znova.' },
+        { status: 409 },
+      )
     }
-    return NextResponse.json({ error: 'Napaka pri ustvarjanju izmene' }, { status: 500 })
+    logger.error('API', '[STAFF-SHIFTS POST]', error)
+    return structuredErrorResponse(error, 'POST /api/staff-shifts', 'Napaka pri ustvarjanju izmene')
   }
 }

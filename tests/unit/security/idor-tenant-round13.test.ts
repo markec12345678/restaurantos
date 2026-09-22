@@ -36,6 +36,8 @@ const mocks = vi.hoisted(() => ({
   staffShiftFindFirst: vi.fn(),
   staffShiftFindUnique: vi.fn(),
   staffShiftUpdate: vi.fn(),
+  staffShiftUpdateMany: vi.fn(),
+  staffShiftDeleteMany: vi.fn(),
   loyaltyAccountFindFirst: vi.fn(),
   loyaltyAccountFindUnique: vi.fn(),
   webhookFindFirst: vi.fn(),
@@ -89,7 +91,9 @@ vi.mock('@/lib/db', () => ({
       findFirst: mocks.staffShiftFindFirst,
       findUnique: mocks.staffShiftFindUnique,
       update: mocks.staffShiftUpdate,
-      delete: vi.fn(),
+      // R103: PATCH/DELETE [id] → CAS updateMany / scoped deleteMany
+      updateMany: mocks.staffShiftUpdateMany,
+      deleteMany: mocks.staffShiftDeleteMany,
     },
     loyaltyAccount: {
       findFirst: mocks.loyaltyAccountFindFirst,
@@ -382,7 +386,8 @@ describe('Staff-shifts [id] — cross-tenant + body locationId napad', () => {
     mocks.staffShiftFindFirst.mockResolvedValue({
       id: 'ss-1', status: 'scheduled', locationId: LOC_A,
     })
-    mocks.staffShiftUpdate.mockResolvedValue({
+    mocks.staffShiftUpdateMany.mockResolvedValue({ count: 1 })
+    mocks.staffShiftFindUnique.mockResolvedValue({
       id: 'ss-1', employee: { name: 'Test' }, location: { id: LOC_A },
     })
 
@@ -392,9 +397,11 @@ describe('Staff-shifts [id] — cross-tenant + body locationId napad', () => {
     )
 
     expect(res.status).toBe(200)
-    const updateCall = mocks.staffShiftUpdate.mock.calls[0][0]
+    const updateCall = mocks.staffShiftUpdateMany.mock.calls[0][0]
     expect(updateCall.data).not.toHaveProperty('locationId')
     expect(updateCall.data.status).toBe('confirmed')
+    // R103: CAS — where pripet na stale status ('scheduled')
+    expect(updateCall.where.status).toBe('scheduled')
   })
 
   it('PATCH: manager lokacije A ne more urejati izmene lokacije B (404)', async () => {
@@ -403,7 +410,7 @@ describe('Staff-shifts [id] — cross-tenant + body locationId napad', () => {
     const res = await staffShiftPatch(makeReq('PATCH', { status: 'confirmed' }), params('ss-b'))
 
     expect(res.status).toBe(404)
-    expect(mocks.staffShiftUpdate).not.toHaveBeenCalled()
+    expect(mocks.staffShiftUpdateMany).not.toHaveBeenCalled()
   })
 
   it('DELETE: admin lokacije A ne more izbrisati izmene lokacije B (404)', async () => {
@@ -414,6 +421,7 @@ describe('Staff-shifts [id] — cross-tenant + body locationId napad', () => {
 
     expect(res.status).toBe(404)
     expect(mocks.staffShiftFindUnique).not.toHaveBeenCalled()
+    expect(mocks.staffShiftDeleteMany).not.toHaveBeenCalled()
   })
 })
 

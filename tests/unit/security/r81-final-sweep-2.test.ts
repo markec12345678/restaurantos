@@ -106,6 +106,11 @@ const {
       },
       table: { findFirst: mockTableFindFirst, updateMany: mockTxTableUpdateMany },
       order: { findFirst: mockTxOrderFindFirst },
+      // R103: staff-shifts POST + time-entries POST tokova v tx klientu
+      // (Serializable — fresh probe + create atomarno)
+      employee: { findUnique: mockEmployeeFindUnique },
+      staffShift: { findFirst: mockStaffShiftFindFirst, create: mockStaffShiftCreate },
+      timeEntry: { findFirst: mockTimeEntryFindFirst, create: mockTimeEntryCreate },
     }),
   ),
   mockTxReservationFindFirst: vi.fn(),

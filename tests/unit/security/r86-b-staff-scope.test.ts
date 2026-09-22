@@ -38,11 +38,16 @@ const mocks = vi.hoisted(() => ({
   staffShiftFindFirst: vi.fn(),
   staffShiftCreate: vi.fn(),
   staffShiftUpdate: vi.fn(),
+  staffShiftUpdateMany: vi.fn(),
   staffShiftDelete: vi.fn(),
+  staffShiftDeleteMany: vi.fn(),
+  staffShiftFindUnique: vi.fn(),
   shiftFindFirst: vi.fn(),
   shiftUpdate: vi.fn(),
   timeEntryFindFirst: vi.fn(),
   timeEntryUpdate: vi.fn(),
+  timeEntryUpdateMany: vi.fn(),
+  timeEntryFindUnique: vi.fn(),
   courseFindFirst: vi.fn(),
   purchaseOrderFindFirst: vi.fn(),
   purchaseOrderUpdate: vi.fn(),
@@ -56,7 +61,12 @@ const mocks = vi.hoisted(() => ({
   locationFindUnique: vi.fn(),
   locationFindFirst: vi.fn(),
   createHaccpEntryWithChain: vi.fn(),
-  transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({})),
+  transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => fn({
+    // R103: staff-shifts POST tok v tx klientu (Serializable — fresh probe +
+    // create atomarno); modeli delijo mocke z db klientom
+    employee: { findUnique: mocks.employeeFindUnique },
+    staffShift: { findFirst: mocks.staffShiftFindFirst, create: mocks.staffShiftCreate },
+  })),
 }))
 
 // Auth middleware: mock requireAuth, REALNI tenant-scope resolver
@@ -90,10 +100,14 @@ vi.mock('@/lib/db', () => ({
       findFirst: mocks.staffShiftFindFirst,
       create: mocks.staffShiftCreate,
       update: mocks.staffShiftUpdate,
+      // R103: PATCH/DELETE [id] → CAS updateMany / scoped deleteMany
+      updateMany: mocks.staffShiftUpdateMany,
+      deleteMany: mocks.staffShiftDeleteMany,
+      findUnique: mocks.staffShiftFindUnique,
       delete: mocks.staffShiftDelete,
     },
     shift: { findFirst: mocks.shiftFindFirst, update: mocks.shiftUpdate, count: mocks.shiftCount, findMany: vi.fn().mockResolvedValue([]) },
-    timeEntry: { findFirst: mocks.timeEntryFindFirst, update: mocks.timeEntryUpdate, count: vi.fn().mockResolvedValue(0), findMany: vi.fn().mockResolvedValue([]) },
+    timeEntry: { findFirst: mocks.timeEntryFindFirst, update: mocks.timeEntryUpdate, updateMany: mocks.timeEntryUpdateMany, findUnique: mocks.timeEntryFindUnique, count: vi.fn().mockResolvedValue(0), findMany: vi.fn().mockResolvedValue([]) },
     order: { findMany: vi.fn().mockResolvedValue([]) },
     payment: { findMany: vi.fn().mockResolvedValue([]) },
     tipDistribution: { findMany: vi.fn().mockResolvedValue([]) },
@@ -313,7 +327,7 @@ describe('R86-2b C: /api/staff-shifts — [id] resolver + POST canonical žig', 
     const res = await staffShiftPatch(jsonReq('http://localhost:3000/api/staff-shifts/ss-1', 'PATCH', { status: 'confirmed' }), params('ss-1'))
     expect(res.status).toBe(403)
     expect(mocks.staffShiftFindFirst).not.toHaveBeenCalled()
-    expect(mocks.staffShiftUpdate).not.toHaveBeenCalled()
+    expect(mocks.staffShiftUpdateMany).not.toHaveBeenCalled()
   })
 
   it('PATCH: tuja izmena → 404 + NI update-a (where pripet na LOC_A)', async () => {
@@ -323,18 +337,22 @@ describe('R86-2b C: /api/staff-shifts — [id] resolver + POST canonical žig', 
     expect(mocks.staffShiftFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ id: 'ss-b', locationId: LOC_A }) }),
     )
-    expect(mocks.staffShiftUpdate).not.toHaveBeenCalled()
+    expect(mocks.staffShiftUpdateMany).not.toHaveBeenCalled()
   })
 
-  it('DELETE: super-admin → where BREZ locationId ključa + delete izveden', async () => {
+  it('DELETE: super-admin → where BREZ locationId ključa + deleteMany izveden (R103 scoped)', async () => {
     mockSession({ role: 'admin', locationId: null })
     mocks.staffShiftFindFirst.mockResolvedValue({ id: 'ss-1', employee: { name: 'A' }, shiftDate: new Date() })
-    mocks.staffShiftDelete.mockResolvedValue({ id: 'ss-1' })
+    mocks.staffShiftDeleteMany.mockResolvedValue({ count: 1 })
+    mocks.staffShiftFindUnique.mockResolvedValue({ id: 'ss-1' })
     const res = await staffShiftDelete(jsonReq('http://localhost:3000/api/staff-shifts/ss-1', 'DELETE'), params('ss-1'))
     expect(res.status).toBe(200)
     const where = mocks.staffShiftFindFirst.mock.calls[0][0].where
     expect(Object.prototype.hasOwnProperty.call(where, 'locationId')).toBe(false)
-    expect(mocks.staffShiftDelete).toHaveBeenCalled()
+    // R103: scoped deleteMany — where BREZ locationId (super-admin), count 1
+    expect(mocks.staffShiftDeleteMany).toHaveBeenCalledWith({
+      where: { id: 'ss-1' },
+    })
   })
 
   it('POST: super-admin + zaposleni z NULL lokacijo + brez body locationId → 400 fail-closed (prej getFirstLocationId() cross-tenant žig)', async () => {
@@ -380,7 +398,7 @@ describe('R86-2b D: shifts / time-entries / courses [id]', () => {
     expect(mocks.timeEntryFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ id: 'te-1', locationId: LOC_A }) }),
     )
-    expect(mocks.timeEntryUpdate).not.toHaveBeenCalled()
+    expect(mocks.timeEntryUpdateMany).not.toHaveBeenCalled()
   })
 
   it('courses PUT: manager z NULL lokacijo → 403, NI poizvedb (prej fail-open fire tujega kursa)', async () => {
