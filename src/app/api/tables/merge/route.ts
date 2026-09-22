@@ -3,15 +3,15 @@
 // Vsa aktivna naročila s source mize se prenesejo na target mizo.
 // Če ima target miza že odprto naročilo, se artikli združijo v obstoječe naročilo.
 // Source miza se sprosti (status=available).
-import { db } from '@/lib/db'
-import { toNum, round2 } from '@/lib/decimal'
+import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
-// odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
-import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
-import { createAuditLog } from '@/lib/db'
+import { parseJsonBody, validateBody } from '@/lib/api-utils'
 import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
+import { structuredErrorResponse } from '@/lib/structured-error'
+import { mergeTables } from '../_helpers/table-ops'
 import { z } from 'zod'
+import { Prisma } from '@prisma/client'
 
 
 const mergeSchema = z.object({
@@ -26,11 +26,7 @@ export async function POST(req: Request) {
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
-    // FIX R86-2c1 (M2): raw spread `session?.locationId ?? undefined` je bil
-    // fail-open za non-admin NULL-lokacijsko sejo — merge čez tenant par
-    // (Source miza tenanta A → Target miza tenanta B: premik/prenejanje tujih
-    // naročil). Zdaj: resolver — OBE mizi morata biti v scope-u (scoped
-    // findFirst na obeh straneh); regular user brez lokacije → 403.
+    // FIX R86-2c1 (M2): resolver — OBE mizi morata biti v scope-u.
     const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
       endpoint: 'POST /api/tables/merge',
     })
@@ -46,9 +42,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Izvorna in ciljna miza sta isti' }, { status: 400 })
     }
 
-    // BUG-HUNT FIX 2026-09-19 (HIGH, cross-tenant): mize so bile iskane brez
-    // lokacijskega scope-a — združljive so bile mize RAZLIČNIH lokacij.
-    // FIX R86-2c1 (M2): scope iz centralnega resolverja (obe findFirst pripeti).
+    // BUG-HUNT FIX 2026-09-19 (HIGH, cross-tenant) + R86-2c1 (M2): scoped
+    // fast-path findFirst par (zgodnja 404 stopnica; R108 OR-5: dejanski
+    // pisalni tok je v kanonu mergeTables() s tx-fresh re-readom — ti readi
+    // so SAMO zgodnja stopnica + vir številk miz za odgovor/audit).
     const [sourceTable, targetTable] = await Promise.all([
       db.table.findFirst({
         where: { id: data.sourceTableId, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
@@ -64,103 +61,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Mizi nista na isti lokaciji' }, { status: 400 })
     }
 
-    // Pridobi aktivna naročila na obeh mizah
-    const [sourceOrders, targetOrders] = await Promise.all([
-      db.order.findMany({
-        where: {
-          tableId: data.sourceTableId,
-          status: { in: ['pending', 'in-progress', 'ready'] },
-          paymentStatus: { in: ['unpaid', 'partial'] },
-        },
-        include: { orderItems: true },
-      }),
-      db.order.findMany({
-        where: {
-          tableId: data.targetTableId,
-          status: { in: ['pending', 'in-progress', 'ready'] },
-          paymentStatus: { in: ['unpaid', 'partial'] },
-        },
-        include: { orderItems: true },
-      }),
-    ])
-
-    if (sourceOrders.length === 0) {
-      return NextResponse.json({ error: 'Izvorna miza nima aktivnih naročil za združitev' }, { status: 400 })
-    }
-
-    // BUG-HUNT FIX 2026-09-19: prej so bila tudi DELNO PLAČANA naročila cancelled,
-    // plačila pa so ostala vešča na preklicanem naročilu (izgubljena denarna sled).
-    const partiallyPaid = sourceOrders.filter(o => o.paymentStatus === 'partial')
-    if (partiallyPaid.length > 0) {
-      return NextResponse.json(
-        { error: 'Naročilo že ima delno plačilo — združitev ni mogoča. Uporabi prenos/povračilo.' },
-        { status: 400 }
-      )
-    }
-
-    const result = await db.$transaction(async (tx) => {
-      // Če target nima odprtega naročila, prenesi vsa source naročila
-      // Če target ima odprto naročilo, združi artikle source naročil v target naročilo
-      const targetOrder = targetOrders[0] // uporabi prvo target naročilo kot primary
-      let mergedOrderIds: string[] = []
-      let totalItemsMerged = 0
-
-      if (!targetOrder) {
-        // Preprost prenos — premakni vsa source naročila na target mizo
-        for (const order of sourceOrders) {
-          await tx.order.update({ where: { id: order.id }, data: { tableId: data.targetTableId } })
-          mergedOrderIds.push(order.id)
-          totalItemsMerged += order.orderItems.length
-        }
-      } else {
-        // Združi artikle — premakni OrderItems iz source naročil v target naročilo
-        for (const sourceOrder of sourceOrders) {
-          for (const item of sourceOrder.orderItems) {
-            await tx.orderItem.update({
-              where: { id: item.id },
-              data: { orderId: targetOrder.id },
-            })
-            totalItemsMerged++
-          }
-          // Source naročilo označi kot cancelled (združeno)
-          await tx.order.update({
-            where: { id: sourceOrder.id },
-            data: {
-              status: 'cancelled',
-              paymentStatus: 'cancelled',
-              cancelReason: `Združeno z mizo ${targetTable.number}`,
-              tableId: null,
-            },
-          })
-        }
-        mergedOrderIds = [targetOrder.id]
-
-        // Preračunaj totale target naročila po združitvi
-        // BUG-HUNT FIX 2026-09-19: prej je recalc NASTAVIL total = subtotal + tax in
-        // totalWithTip = total — izgubil je obstoječi POPUST in TIP ciljnega naročila.
-        const updatedItems = await tx.orderItem.findMany({
-          where: { orderId: targetOrder.id, voided: false },
-          select: { price: true, quantity: true, vatAmount: true },
-        })
-        const subtotal = round2(updatedItems.reduce((s, oi) => s + toNum(oi.price) * oi.quantity, 0))
-        const tax = round2(updatedItems.reduce((s, oi) => s + toNum(oi.vatAmount), 0))
-        // Ohrani absolutni popust in tip ciljnega naročila (isti vzorec kot
-        // recalculateAffectedChecks v checks API). Popust ne more preseči osnove.
-        const discount = Math.min(toNum(targetOrder.discount), subtotal)
-        const tip = toNum(targetOrder.tip)
-        const total = round2(subtotal + tax - discount)
-        await tx.order.update({
-          where: { id: targetOrder.id },
-          data: { subtotal, tax, total, totalWithTip: round2(total + tip) },
-        })
-      }
-
-      // Source miza → prosto
-      await tx.table.update({ where: { id: data.sourceTableId }, data: { status: 'available' } })
-      // Target miza → zasedeno
-      await tx.table.update({ where: { id: data.targetTableId }, data: { status: 'occupied' } })
-
-      return { mergedOrderIds, totalItemsMerged }
+    // R108 OR-5 (HIGH, kanon R106/R107): združitev v ENEM kanonu —
+    // $transaction(Serializable) + advisory ključavnici OBEH miz ('table-ops:',
+    // SORTED → deadlock nemogoč) + tx-fresh re-read naročil IN artiklov (prej:
+    // stale outer seznam → artikli dodani med branjem in tx ostali na
+    // preklicanem naročilu = orphaned revenue) + CAS cancel source naročil
+    // (status+paymentStatus v where — prej NEPOGOJEN update → plačano
+    // naročilo preklicano) + recalc totals iz TX-FRESH podatkov (prej stale
+    // discount/tip → lost update) + strukturirani throw-i.
+    const result = await mergeTables({
+      sourceTableId: data.sourceTableId,
+      targetTableId: data.targetTableId,
+      locationId: scope.locationId,
     })
 
     await createAuditLog({
@@ -171,8 +83,8 @@ export async function POST(req: Request) {
       details: {
         sourceTableNumber: sourceTable.number,
         targetTableNumber: targetTable.number,
-        sourceOrdersCount: sourceOrders.length,
-        targetOrdersCount: targetOrders.length,
+        targetTableId: data.targetTableId,
+        mergedOrderIds: result.mergedOrderIds,
         itemsMerged: result.totalItemsMerged,
       },
     })
@@ -185,6 +97,16 @@ export async function POST(req: Request) {
       targetTableStatus: 'occupied',
     })
   } catch (error: unknown) {
-    return handleApiError(error, 'POST /api/tables/merge', 'Napaka pri združevanju miz')
+    // R108 (error kontrakt): P2002/P2034 race-pathi → 409 (nikoli 500)
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2002' || error.code === 'P2034')
+    ) {
+      return NextResponse.json(
+        { error: 'Združitev je v obdelavi (sočasen dostop) — poskusite znova' },
+        { status: 409 }
+      )
+    }
+    return structuredErrorResponse(error, 'POST /api/tables/merge', 'Napaka pri združevanju miz')
   }
 }

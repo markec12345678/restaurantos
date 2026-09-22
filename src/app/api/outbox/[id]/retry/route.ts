@@ -36,7 +36,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     })
     if (!event) return notInScopeResponse('Outbox event')
 
-    await retryOutboxEvent(id)
+    // R108 (OR-6, CAS state machine): retry je dovoljen SAMO iz
+    // 'failed' | 'dead_letter' (prej NEPOGOJEN reset na pending →
+    // sent/processing event ponovno dostavljen = dupli FURS/SMS/webhook).
+    // count 0 → event je v nedovoljenem stanju → 409 (klient osveži pogled).
+    const retried = await retryOutboxEvent(id)
+    if (!retried) {
+      return NextResponse.json(
+        { error: 'Event ni v stanju failed/dead_letter — ponovni poskus ni mogoč (osvežite pogled)' },
+        { status: 409 },
+      )
+    }
 
     return NextResponse.json({ success: true, message: 'Event premaknjen nazaj v pending' })
   } catch (err) {

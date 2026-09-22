@@ -189,9 +189,17 @@ export async function markOutboxFailed(eventId: string, error: string) {
 }
 
 // 6. ROČNO ponovno poskusi (admin action)
-export async function retryOutboxEvent(eventId: string) {
-  await db.outboxEvent.update({
-    where: { id: eventId },
+//
+// R108 (OR-6, MEDIUM, CAS state machine): prej NEPOGOJEN update na
+// status='pending' — retry na 'processing'/'sent' eventu (racer s
+// procesorjem, ki claima pending|failed) → ŽE DOSTAVLJEN event ponovno v
+// vrsto = dupli FURS/SMS/webhook delivery (denarna/fiskalna sled). Zdaj:
+// atomarni CAS — samo 'failed' | 'dead_letter' eventa sta prenosljiva v
+// pending; count 0 (event je sent/processing/pending ali izbrisan) → false
+// → ruta 409 (nikoli tiho ponovna dostava).
+export async function retryOutboxEvent(eventId: string): Promise<boolean> {
+  const result = await db.outboxEvent.updateMany({
+    where: { id: eventId, status: { in: ['failed', 'dead_letter'] } },
     data: {
       status: 'pending',
       attempts: 0,
@@ -199,6 +207,7 @@ export async function retryOutboxEvent(eventId: string) {
       nextRetryAt: new Date(),
     },
   })
+  return result.count > 0
 }
 
 // 7. STATISTIKA za dashboard

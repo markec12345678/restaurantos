@@ -2,14 +2,15 @@
 // Body: { sourceTableId, targetTableId, orderId? }
 // - Če orderId podan: prenese samo to naročilo
 // - Če brez orderId: prenese vsa aktivna naročila s source na target
-import { db } from '@/lib/db'
+import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
-// odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
-import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
+import { parseJsonBody, validateBody } from '@/lib/api-utils'
 import { notInScopeResponse } from '@/lib/tenant-scope'
+import { structuredErrorResponse } from '@/lib/structured-error'
+import { transferTableOrders } from '../_helpers/table-ops'
 import { z } from 'zod'
-import { createAuditLog } from '@/lib/db'
+import { Prisma } from '@prisma/client'
 
 
 const transferSchema = z.object({
@@ -35,12 +36,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Izvorna in ciljna miza sta isti' }, { status: 400 })
     }
 
-    // FIX R80 (HIGH, WRITE IDOR): prej `db.table.findUnique({ where: { id } })` ×2
-    // BREZ lokacijskega checka — take_orders staff je lahko prenesel naročila
-    // med mizami TUJIH tenantov (inner order.findMany/count je dedoval
-    // nescopecan parent). P0-C1 vzorec iz orders/[id]/transfer: findFirst z
-    // lokacijskim filtrom iz seje; izven scope-a → 404 (ne razkrivamo obstoja).
-    // Super-admin brez lokacije (scope null) = globalni nadzor (kot P0-C1).
+    // FIX R80 (HIGH, WRITE IDOR) + FIX R86-2a (M2): resolver + scoped
+    // findFirst par (fast-path 404 stopnica; R108 OR-4: dejanski pisalni
+    // tok je v kanonu transferTableOrders() s tx-fresh re-readom — ti readi
+    // so SAMO zgodnja 404 stopnica + vir številk miz za odgovor/audit).
     const scope = resolveTenantLocationIdOrThrow(authResult.session, null, {
       endpoint: 'POST /api/tables/transfer',
     })
@@ -55,48 +54,17 @@ export async function POST(req: Request) {
     if (!sourceTable) return notInScopeResponse('Miza')
     if (!targetTable) return notInScopeResponse('Miza')
 
-    // Pridobi aktivna naročila na izvorni mizi (defense-in-depth: tudi naročila
-    // so locationId-filtrirana, da agregat ne more dedovati nescopecanega konteksta)
-    const activeOrdersWhere = {
-      tableId: data.sourceTableId,
-      status: { in: ['pending', 'in-progress', 'ready'] },
-      paymentStatus: { in: ['unpaid', 'partial'] },
-      ...tableScope,
-      ...(data.orderId ? { id: data.orderId } : {}),
-    }
-    const ordersToTransfer = await db.order.findMany({ where: activeOrdersWhere })
-
-    if (ordersToTransfer.length === 0) {
-      return NextResponse.json({ error: 'Ni aktivnih naročil za prenos' }, { status: 400 })
-    }
-
-    // Transakcija: prenesi naročila + posodobi statusa miz
-    const result = await db.$transaction(async (tx) => {
-      // Prenesi vsa naročila na ciljno mizo
-      const updatedOrders = await Promise.all(
-        ordersToTransfer.map(order =>
-          tx.order.update({ where: { id: order.id }, data: { tableId: data.targetTableId } })
-        )
-      )
-
-      // Preveri, ali ima izvorna miza še vedno odprta naročila
-      const remainingOrders = await tx.order.count({
-        where: {
-          tableId: data.sourceTableId,
-          status: { in: ['pending', 'in-progress', 'ready'] },
-          paymentStatus: { in: ['unpaid', 'partial'] },
-        },
-      })
-
-      // Če izvorna miza nima več odprtih naročil, jo označi kot prosto
-      if (remainingOrders === 0) {
-        await tx.table.update({ where: { id: data.sourceTableId }, data: { status: 'available' } })
-      }
-
-      // Ciljna miza je sedaj zasedena
-      await tx.table.update({ where: { id: data.targetTableId }, data: { status: 'occupied' } })
-
-      return { updatedOrders, sourceFreed: remainingOrders === 0 }
+    // R108 OR-4 (HIGH, kanon R106/R107): prenos v ENEM kanonu —
+    // $transaction(Serializable) + advisory ključavnici OBEH miz
+    // ('table-ops:', SORTED vrstni red → A→B ∥ B→A deadlock nemogoč) +
+    // tx-fresh scoped re-read miz IN seznama naročil (prej: stale seznam,
+    // NEPOGOJEN premik → plačano/preklicano naročilo prenešeno) +
+    // strukturirani { error, status } throw-i.
+    const result = await transferTableOrders({
+      sourceTableId: data.sourceTableId,
+      targetTableId: data.targetTableId,
+      orderId: data.orderId ?? null,
+      locationId: scope.locationId,
     })
 
     // Audit log
@@ -109,19 +77,29 @@ export async function POST(req: Request) {
         sourceTableNumber: sourceTable.number,
         targetTableNumber: targetTable.number,
         targetTableId: data.targetTableId,
-        ordersTransferred: result.updatedOrders.map(o => o.orderNumber),
+        ordersTransferred: result.transferredOrders.map(o => o.orderNumber),
         sourceFreed: result.sourceFreed,
       },
     })
 
     return NextResponse.json({
       success: true,
-      message: `Preneseno ${result.updatedOrders.length} naročil z mize ${sourceTable.number} na mizo ${targetTable.number}`,
-      transferredOrders: result.updatedOrders.length,
+      message: `Preneseno ${result.transferredOrders.length} naročil z mize ${sourceTable.number} na mizo ${targetTable.number}`,
+      transferredOrders: result.transferredOrders.length,
       sourceTableStatus: result.sourceFreed ? 'available' : 'occupied',
       targetTableStatus: 'occupied',
     })
   } catch (error: unknown) {
-    return handleApiError(error, 'POST /api/tables/transfer', 'Napaka pri prenosu naročila')
+    // R108 (error kontrakt): P2002/P2034 race-pathi → 409 (nikoli 500)
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2002' || error.code === 'P2034')
+    ) {
+      return NextResponse.json(
+        { error: 'Prenos je v obdelavi (sočasen dostop) — poskusite znova' },
+        { status: 409 }
+      )
+    }
+    return structuredErrorResponse(error, 'POST /api/tables/transfer', 'Napaka pri prenosu naročila')
   }
 }

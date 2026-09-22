@@ -27,8 +27,11 @@ const mockOrderUpdate = vi.fn()
 const mockOrderCount = vi.fn()
 
 const mockTx = {
-  order: { update: mockOrderUpdate, count: mockOrderCount },
-  table: { update: mockTableUpdate },
+  // R108: transferTableOrders kanon — tx-fresh re-read + advisory locks
+  // ($executeRaw) na OBEH mizah; naročila se berejo TX-FRESH (findMany).
+  $executeRaw: vi.fn(),
+  order: { update: mockOrderUpdate, count: mockOrderCount, findMany: mockOrderFindMany },
+  table: { findFirst: mockTableFindFirst, update: mockTableUpdate },
 }
 
 vi.mock('@/lib/db', () => ({

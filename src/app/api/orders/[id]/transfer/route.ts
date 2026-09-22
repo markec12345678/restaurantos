@@ -5,9 +5,12 @@ import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
-import { handleApiError, parseJsonBody } from '@/lib/api-utils'
+import { parseJsonBody } from '@/lib/api-utils'
+import { structuredErrorResponse } from '@/lib/structured-error'
+import { transferOrderToTable } from '../_helpers/order-mutations'
 import { z } from 'zod'
 import { logger } from '@/lib/logger'
+import { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,16 +33,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
     const { newTableId } = parseResult.data
 
-    // Pridobi naročilo
-    // FIX P0-C1 (IDOR): findUnique → findFirst z locationId scope (cross-tenant zaščita)
-    // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a —
-    // prej je regularna NULL-location seja lahko prenesla naročilo na TUJO mizo
-    // (oba findFirst-a sta brez filtra → globalna).
+    // FIX P0-C1 (IDOR) + FIX R86-2a (M2 fail-open): centralni resolver
     const { searchParams } = new URL(req.url)
     const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
       endpoint: 'POST /api/orders/[id]/transfer',
     })
     if ('error' in scope) return scope.error
+
+    // FIX R81-F (WRITE IDOR): fast-path scoped lookup — izven scope-a → 404
+    // (zgodnja stopnica; R108 OR-2: dejanski pisalni tok je v kanonu
+    // transferOrderToTable() s tx-fresh re-readom + CAS — ta read je SAMO
+    // zgodnja 404 stopnica + vir številk miz za odgovor/audit).
     const order = await db.order.findFirst({
       where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
       include: { table: true },
@@ -48,7 +52,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
     }
 
-    // Preveri da novo mizo obstaja
+    // Preveri da ciljna miza obstaja (zgodnja stopnica — kanon re-checka fresh)
     // FIX P0-C1 (IDOR): Ciljna miza mora biti v isti lokaciji kot uporabnik
     const newTable = await db.table.findFirst({
       where: { id: newTableId, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
@@ -57,53 +61,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: 'Ciljna miza ni najdena' }, { status: 404 })
     }
 
-    // Preveri da ni ista miza
-    if (order.tableId === newTableId) {
-      return NextResponse.json({ error: 'Naročilo je že na tej mizi' }, { status: 400 })
-    }
-
-    // FIX: Dovoli prenos na zasedeno mizo ČE je zasedena zaradi tega naročila
-    // (prej je bila preverjana 'occupied' ampak to blokira prenos na mize
-    // ki imajo aktivna naročila). Dovolimo prenos na katerokoli mizo razen
-    // če je ista miza.
-    const oldTableId = order.tableId
-
-    // Atomna transakcija: posodobi naročilo + stari mizi + novi mizi
-    const result = await db.$transaction(async (tx) => {
-      // Posodobi naročilo
-      const updatedOrder = await tx.order.update({
-        where: { id },
-        data: { tableId: newTableId },
-        include: { table: true },
-      })
-
-      // Stara miza → available (če ni več drugih naročil na njej)
-      if (oldTableId) {
-        const activeOrdersOnOldTable = await tx.order.count({
-          where: {
-            tableId: oldTableId,
-            id: { not: id },
-            status: { in: ['pending', 'in-progress', 'ready'] },
-          },
-        })
-        if (activeOrdersOnOldTable === 0) {
-          await tx.table.update({
-            where: { id: oldTableId },
-            data: { status: 'available' },
-          })
-        }
-      }
-
-      // Nova miza → occupied
-      await tx.table.update({
-        where: { id: newTableId },
-        data: { status: 'occupied' },
-      })
-
-      return updatedOrder
+    // R108 OR-2 (HIGH, kanon R106/R107): prenos v ENEM kanonu —
+    // $transaction(Serializable) + advisory lock naročila ('order-write:') +
+    // ključavnici obeh miz ('table-ops:', order → table smer = deadlock-varen
+    // lock graf) + tx-fresh scoped re-read + status CAS (prej: NEPOGOJEN
+    // update brez preverbe — completed/cancelled naročilo je bilo možno
+    // prenesti; sočasen merge/transfer je prepisoval mizna stanja) +
+    // strukturirani { error, status } throw-i.
+    const result = await transferOrderToTable({
+      orderId: id,
+      locationId: scope.locationId,
+      newTableId,
     })
 
-    // Audit log
+    // Audit log (številke miz iz fast-path reada — samo za sporočilo)
     try {
       await createAuditLog({
         userId: authResult.session?.employeeId,
@@ -112,9 +83,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         entityId: id,
         details: {
           orderNumber: order.orderNumber,
-          fromTableId: oldTableId,
+          fromTableId: result.fromTableId,
           fromTableNumber: order.table?.number,
-          toTableId: newTableId,
+          toTableId: result.toTableId,
           toTableNumber: newTable.number,
         },
       })
@@ -126,11 +97,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({
       success: true,
       message: `Naročilo #${order.orderNumber} preneseno na mizo ${newTable.number}`,
-      order: { id: result.id, orderNumber: result.orderNumber, tableId: result.tableId },
+      order: { id: result.order.id as string, orderNumber: order.orderNumber, tableId: result.toTableId },
     })
   } catch (error: unknown) {
     // FIX: Boljše logiranje za debugiranje 500 napak
     logger.error('API', 'Transfer error:', error instanceof Error ? error.message : String(error))
-    return handleApiError(error, 'POST /api/orders/[id]/transfer', 'Napaka pri prenosu naročila')
+    // R108 (error kontrakt): P2002/P2034 race-pathi → 409 (nikoli 500)
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2002' || error.code === 'P2034')
+    ) {
+      return NextResponse.json(
+        { error: 'Prenos je v obdelavi (sočasen dostop) — poskusite znova' },
+        { status: 409 }
+      )
+    }
+    return structuredErrorResponse(error, 'POST /api/orders/[id]/transfer', 'Napaka pri prenosu naročila')
   }
 }
