@@ -19,7 +19,9 @@
 //  - podpis preverjen proti shranjenemu COSE ključu (@simplewebauthn/server);
 //  - FIDO2 §6.1 counter: STRICTLY greater kot shranjen (replay/clone → 401);
 //    izjema counter==0 → counter==0 (authenticatorji brez counterja — spec).
-//  - šele po vseh preverjanjih: counter increment + lastUsedAt.
+//  - šele po vseh preverjanjih: ATOMARNI counter increment + lastUsedAt
+//    (R100: updateMany z counter: { lt } = check-and-set v enem stavku —
+//    replay/klon, ki zmaga TOCTOU race na branju, izgubi na pisanju).
 // =====================================================================
 
 import { db } from '@/lib/db'
@@ -133,12 +135,33 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: VERIFY_FAILED_MESSAGE }, { status: 401 })
   }
 
-  // 6) Šele zdaj: counter increment + lastUsedAt (replay okna 120 s je s tem
-  // zaprt — ponovljen assertion bi padel na tem koraku prej).
-  await db.webAuthnCredential.update({
-    where: { credentialId: credential.credentialId },
-    data: { counter: newCounter, lastUsedAt: new Date() },
-  })
+  // 6) Šele zdaj: ATOMARNI counter increment + lastUsedAt (R100 TOCTOU fix).
+  // Prej: read(2) → verify(4) → update(6) brez pogoja — dva SOČASNA verify
+  // klica bi oba prebrala stari counter in replay-ani assertion bi sprejel
+  // tudi drugi (klasičen check-then-act race; napadalec z ukradenim
+  // assertionom ima 120 s TTL okno za vzporedne poizvedbe). Zdaj: updateMany
+  // z counter: { lt: newCounter } je EN atomaren check-and-set — replay, ki
+  // pride za prvoupravičenim klicem, najde že povišan counter → count 0 →
+  // 401. Dva GENUINA assertion-a (dve ločeni ceremony, counters 5 in 6) pa
+  // obe uspešni: 4<5 ✓, nato 5<6 ✓ (guard zavrne SAMO ≤ žive vrednosti).
+  // FIDO2 spec izjema counter==0 → counter==0 (authenticator brez
+  // signature counterja): 0 < 0 nikoli ne ujame, zato gre le-ta prek
+  // navadnega update (samo lastUsedAt; replay zaščito nosi izključno
+  // 120 s TTL — kot doslej).
+  if (counterSupported) {
+    const updated = await db.webAuthnCredential.updateMany({
+      where: { credentialId: credential.credentialId, counter: { lt: newCounter } },
+      data: { counter: newCounter, lastUsedAt: new Date() },
+    })
+    if (updated.count === 0) {
+      return NextResponse.json({ error: VERIFY_FAILED_MESSAGE }, { status: 401 })
+    }
+  } else {
+    await db.webAuthnCredential.update({
+      where: { credentialId: credential.credentialId },
+      data: { lastUsedAt: new Date() },
+    })
+  }
 
   return NextResponse.json({ location: credential.location })
 }

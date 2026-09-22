@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   webauthnFindMany: vi.fn(),
   webauthnCreate: vi.fn(),
   webauthnUpdate: vi.fn(),
+  webauthnUpdateMany: vi.fn(), // R100: atomarni counter check-and-set
   webauthnDeleteMany: vi.fn(),
   // rate limit barrel (rute jemljejo iz barrela; response ostane realen)
   rateLimitCheck: vi.fn(),
@@ -61,6 +62,7 @@ vi.mock('@/lib/db', () => ({
       findMany: mocks.webauthnFindMany,
       create: mocks.webauthnCreate,
       update: mocks.webauthnUpdate,
+      updateMany: mocks.webauthnUpdateMany,
       deleteMany: mocks.webauthnDeleteMany,
     },
   },
@@ -181,6 +183,8 @@ beforeEach(() => {
   mocks.rateLimitCheck.mockResolvedValue({ allowed: true, remaining: 19 })
   mocks.secretConfigured.mockReturnValue(true)
   mocks.locationFindFirst.mockResolvedValue(LOCATION_FIXTURE)
+  // R100: atomarni counter guard privzeto "zmaga" (count 1)
+  mocks.webauthnUpdateMany.mockResolvedValue({ count: 1 })
   mocks.joinTransports.mockImplementation(
     (t: readonly string[] | null | undefined) => (t && t.length ? t.join(',') : null),
   )
@@ -460,6 +464,7 @@ describe('R97-a C: POST /api/auth/webauthn/verify', () => {
 
     expect(res.status).toBe(401)
     expect(mocks.webauthnUpdate).not.toHaveBeenCalled()
+    expect(mocks.webauthnUpdateMany).not.toHaveBeenCalled()
   })
 
   it('REPLAY: newCounter == stored counter → 401 + update NEZAZENAN (strictly-greater)', async () => {
@@ -472,6 +477,7 @@ describe('R97-a C: POST /api/auth/webauthn/verify', () => {
 
     expect(res.status).toBe(401)
     expect(mocks.webauthnUpdate).not.toHaveBeenCalled()
+    expect(mocks.webauthnUpdateMany).not.toHaveBeenCalled()
   })
 
   it('counter regresija (klon): newCounter < stored → 401 + update NEZAZENAN', async () => {
@@ -484,9 +490,10 @@ describe('R97-a C: POST /api/auth/webauthn/verify', () => {
 
     expect(res.status).toBe(401)
     expect(mocks.webauthnUpdate).not.toHaveBeenCalled()
+    expect(mocks.webauthnUpdateMany).not.toHaveBeenCalled()
   })
 
-  it('uspeh → 200 { location: { id, name } } + counter increment + lastUsedAt (FIDO2 §6.1)', async () => {
+  it('uspeh → 200 { location: { id, name } } + ATOMARNI counter increment (updateMany lt) + lastUsedAt (FIDO2 §6.1, R100)', async () => {
     mocks.extractChallenge.mockReturnValue('token-123')
     mocks.verifyChallenge.mockReturnValue(true)
     mocks.webauthnFindUnique.mockResolvedValue(credentialRow({ counter: 4 }))
@@ -498,12 +505,15 @@ describe('R97-a C: POST /api/auth/webauthn/verify', () => {
     const body = await res.json() as { location: { id: string; name: string } }
     expect(body.location).toEqual({ id: 'loc-1', name: 'Test Lokacija' })
 
-    expect(mocks.webauthnUpdate).toHaveBeenCalledTimes(1)
-    expect(mocks.webauthnUpdate).toHaveBeenCalledWith({
-      where: { credentialId: 'cred-1' },
+    // R100: ATOMARNI check-and-set — counter: { lt: newCounter } v where
+    // (replay, ki zmaga TOCTOU race na branju, izgubi na pisanju)
+    expect(mocks.webauthnUpdateMany).toHaveBeenCalledTimes(1)
+    expect(mocks.webauthnUpdateMany).toHaveBeenCalledWith({
+      where: { credentialId: 'cred-1', counter: { lt: 5 } },
       data: expect.objectContaining({ counter: 5 }),
     })
-    const updateArg = mocks.webauthnUpdate.mock.calls[0][0] as { data: { lastUsedAt: unknown } }
+    expect(mocks.webauthnUpdate).not.toHaveBeenCalled()
+    const updateArg = mocks.webauthnUpdateMany.mock.calls[0][0] as { data: { lastUsedAt: unknown } }
     expect(updateArg.data.lastUsedAt).toBeInstanceOf(Date)
   })
 
@@ -517,6 +527,7 @@ describe('R97-a C: POST /api/auth/webauthn/verify', () => {
 
     expect(res.status).toBe(200)
     expect(mocks.webauthnUpdate).toHaveBeenCalledTimes(1)
+    expect(mocks.webauthnUpdateMany).not.toHaveBeenCalled()
   })
 })
 
@@ -845,15 +856,18 @@ describe('R97-a G: fs-guard', () => {
     expect(src).toContain("notInScopeResponse('Lokacija')")
   })
 
-  it('verify route: counter strictly-greater pin + unified sporoČilo + update šele za uspehom', () => {
+  it('verify route: counter strictly-greater pin + ATOMARNI updateMany guard (R100) + unified sporoČilo + update šele za uspehom', () => {
     const src = readFileSync(join(process.cwd(), 'src/app/api/auth/webauthn/verify/route.ts'), 'utf8')
     expect(src).toContain("checkRateLimitAsync('auth-webauthn-verify'")
     // replay guard: strictly greater (izjema 0→0)
     expect(src).toContain('newCounter <= credential.counter')
     expect(src).toContain("checkRateLimitAsync('auth-webauthn-verify'")
-    // update SELE po vseh preverjanjih (invokacijski vrstni red v viru)
+    // R100: atomarni check-and-set (TOCTOU fix) — updateMany z counter lt
+    expect(src).toContain('counter: { lt: newCounter }')
+    expect(src).toContain('webAuthnCredential.updateMany')
+    // update/write SELE po vseh preverjanjih (invokacijski vrstni red v viru)
     const verifyIdx = src.indexOf('verifyDeviceAssertion')
-    const updateIdx = src.indexOf('webAuthnCredential.update')
+    const updateIdx = src.indexOf('webAuthnCredential.updateMany')
     expect(verifyIdx).toBeGreaterThan(-1)
     expect(updateIdx).toBeGreaterThan(verifyIdx)
   })

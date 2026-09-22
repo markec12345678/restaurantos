@@ -35,6 +35,7 @@ const mocks = vi.hoisted(() => ({
   webauthnFindMany: vi.fn(),
   webauthnFindUnique: vi.fn(),
   webauthnUpdate: vi.fn(),
+  webauthnUpdateMany: vi.fn(), // R100: atomarni counter check-and-set
   // rate limit barrel (rute jemljejo iz barrela; response ostane realen)
   rateLimitCheck: vi.fn(),
   // device-attestation (challenge + @simplewebauthn wrappers)
@@ -55,6 +56,7 @@ vi.mock('@/lib/db', () => ({
       findUnique: mocks.webauthnFindUnique,
       findMany: mocks.webauthnFindMany,
       update: mocks.webauthnUpdate,
+      updateMany: mocks.webauthnUpdateMany,
     },
   },
 }))
@@ -154,6 +156,8 @@ beforeEach(() => {
   mocks.locationFindFirst.mockResolvedValue(LOCATION_FIXTURE)
   mocks.buildRegistrationOptions.mockResolvedValue(REGISTRATION_FIXTURE)
   mocks.buildAuthenticationOptions.mockResolvedValue({ challenge: 'chal-1', allowCredentials: [] })
+  // R100: atomarni counter guard privzeto "zmaga" (count 1)
+  mocks.webauthnUpdateMany.mockResolvedValue({ count: 1 })
 })
 
 afterEach(() => {
@@ -309,9 +313,10 @@ describe('R99-a C: gate ON (WEBAUTHN_ENABLED=true) → obstoječe poti', () => {
     expect(res.status).toBe(200)
     const body = await res.json() as { location: { id: string; name: string } }
     expect(body.location).toEqual({ id: 'loc-1', name: 'Test Lokacija' })
-    // šele za uspehom: counter increment + lastUsedAt (FIDO2 §6.1)
-    expect(mocks.webauthnUpdate).toHaveBeenCalledWith({
-      where: { credentialId: 'cred-1' },
+    // šele za uspehom: ATOMARNI counter increment + lastUsedAt (FIDO2 §6.1;
+    // R100 updateMany check-and-set)
+    expect(mocks.webauthnUpdateMany).toHaveBeenCalledWith({
+      where: { credentialId: 'cred-1', counter: { lt: 5 } },
       data: { counter: 5, lastUsedAt: expect.any(Date) },
     })
   })
