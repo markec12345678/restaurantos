@@ -2,3 +2,4 @@
 
 export { handleGetReservations } from './get-handler'
 export { handleCreateReservation } from './create-handler'
+export { structuredErrorResponse } from './structured-error'

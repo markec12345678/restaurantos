@@ -124,10 +124,24 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       if (data.notes !== undefined) updateData.notes = data.notes
     }
 
-    const entry = await db.waitlistEntry.update({
-      where: { id },
+    // FIX R102 (TOCTOU state machine, R100 atomic check-and-set vzorec):
+    // prej je bila validacija check-then-act — dva sočasna klica (npr. notify
+    // + seat) sta oba prebrala 'waiting', oba padla validacijo in oba ZAPISALA
+    // (zadnji update zmaga; 'seated' → terminal, ampak notify se je tudi
+    // "izvedel"). Sedaj: ATOMARNI CAS — updateMany { id, status: existing.status };
+    // count 0 → vnos je bil medtem spremenjen → 409 (klient osveži pogled).
+    const cas = await db.waitlistEntry.updateMany({
+      where: { id, status: existing.status },
       data: updateData,
     })
+    if (cas.count === 0) {
+      return NextResponse.json(
+        { error: 'Vnos je bil v medtem spremenjen — osvežite pogled in poskusite znova.' },
+        { status: 409 },
+      )
+    }
+
+    const entry = await db.waitlistEntry.findUnique({ where: { id } })
 
     return NextResponse.json(deepToNumbers(entry))
   } catch (error: unknown) {
@@ -157,7 +171,15 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       return NextResponse.json({ error: 'Vnos v čakalni vrsti ni najden' }, { status: 404 })
     }
 
-    await db.waitlistEntry.delete({ where: { id } })
+    // FIX R102: atomarno brisanje z scope-om V where (prej findFirst + delete
+    // z raw { id } — mid-flight brisanje druge seje → P2025 → 500 namesto 404;
+    // deleteMany scoped je idempotenten in ne more zadeti tuje lokacije).
+    const deleted = await db.waitlistEntry.deleteMany({
+      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
+    })
+    if (deleted.count === 0) {
+      return NextResponse.json({ error: 'Vnos v čakalni vrsti ni najden' }, { status: 404 })
+    }
     return NextResponse.json({ success: true })
   } catch (error: unknown) {
     return handleApiError(error, 'DELETE /api/waitlist/[id]', 'Napaka pri brisanju iz čakalne vrste')

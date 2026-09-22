@@ -53,6 +53,10 @@ const mocks = vi.hoisted(() => ({
   waitlistFindFirst: vi.fn(),
   waitlistUpdate: vi.fn(),
   waitlistDelete: vi.fn(),
+  // R102: PUT CAS (updateMany) + odgovor (findUnique) + DELETE scoped deleteMany
+  waitlistUpdateMany: vi.fn(),
+  waitlistFindUnique: vi.fn(),
+  waitlistDeleteMany: vi.fn(),
   // $transaction tx-client (ločeni moki od db-level, da se call-counti ne mešajo)
   transaction: vi.fn(),
   txTableFindUnique: vi.fn(),
@@ -61,6 +65,13 @@ const mocks = vi.hoisted(() => ({
   txTableUpdateMany: vi.fn(),
   txResFindMany: vi.fn(),
   txResCreate: vi.fn(),
+  // R102: PUT/DELETE [id] tx tok (state machine + conflict + CAS + flip-i v tx)
+  txResFindFirst: vi.fn(),
+  txResUpdate: vi.fn(),
+  txResUpdateMany: vi.fn(),
+  txResCount: vi.fn(),
+  txResFindUnique: vi.fn(),
+  txOrderFindFirst: vi.fn(),
   // TOP-LEVEL export '@/lib/db' (LEKCIJA R85: ne gnezdi v db!)
   createAuditLog: vi.fn(),
   // ostalo
@@ -98,6 +109,10 @@ vi.mock('@/lib/db', () => ({
       create: mocks.waitlistCreate,
       findFirst: mocks.waitlistFindFirst,
       update: mocks.waitlistUpdate,
+      // R102: CAS + scoped delete
+      updateMany: mocks.waitlistUpdateMany,
+      findUnique: mocks.waitlistFindUnique,
+      deleteMany: mocks.waitlistDeleteMany,
       delete: mocks.waitlistDelete,
     },
     $transaction: mocks.transaction,
@@ -184,6 +199,16 @@ beforeEach(() => {
   mocks.waitlistFindFirst.mockResolvedValue(waitlistRow)
   mocks.waitlistUpdate.mockResolvedValue(waitlistRow)
   mocks.waitlistDelete.mockResolvedValue(waitlistRow)
+  // R102 defaulti: CAS + re-fetch + scoped delete + tx tok [id]
+  mocks.waitlistUpdateMany.mockResolvedValue({ count: 1 })
+  mocks.waitlistFindUnique.mockResolvedValue(waitlistRow)
+  mocks.waitlistDeleteMany.mockResolvedValue({ count: 1 })
+  mocks.txResFindFirst.mockResolvedValue(resExisting)
+  mocks.txResUpdate.mockResolvedValue(resExisting)
+  mocks.txResUpdateMany.mockResolvedValue({ count: 1 })
+  mocks.txResCount.mockResolvedValue(0)
+  mocks.txResFindUnique.mockResolvedValue(resExisting)
+  mocks.txOrderFindFirst.mockResolvedValue(null)
   mocks.txTableFindUnique.mockResolvedValue(tableA)
   mocks.txTableUpdateMany.mockResolvedValue({ count: 1 })
   mocks.txResFindMany.mockResolvedValue([])
@@ -191,7 +216,17 @@ beforeEach(() => {
   mocks.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
     fn({
       table: { findUnique: mocks.txTableFindUnique, updateMany: mocks.txTableUpdateMany },
-      reservation: { findMany: mocks.txResFindMany, create: mocks.txResCreate },
+      reservation: {
+        findMany: mocks.txResFindMany,
+        create: mocks.txResCreate,
+        // R102: PUT/DELETE [id] tok v tx klientu
+        findFirst: mocks.txResFindFirst,
+        update: mocks.txResUpdate,
+        updateMany: mocks.txResUpdateMany,
+        count: mocks.txResCount,
+        findUnique: mocks.txResFindUnique,
+      },
+      order: { findFirst: mocks.txOrderFindFirst },
     }),
   )
   mocks.createAuditLog.mockResolvedValue(undefined)
@@ -550,9 +585,11 @@ describe('R85-4a M3: PUT/DELETE /api/waitlist/[id] — fail-closed + seat tableI
     const tableWhere = mocks.tableFindFirst.mock.calls[0][0].where
     expect(tableWhere.id).toBe('table-a')
     expect(tableWhere.locationId).toBe(LOC_A)
-    const updateData = mocks.waitlistUpdate.mock.calls[0][0].data
+    // R102: CAS updateMany (check-and-set) namesto plain update
+    const updateData = mocks.waitlistUpdateMany.mock.calls[0][0].data
     expect(updateData.status).toBe('seated')
     expect(updateData.tableId).toBe('table-a')
+    expect(mocks.waitlistUpdateMany.mock.calls[0][0].where).toEqual({ id: 'wl-1', status: 'waiting' })
   })
 
   it("PUT 'seat' BREZ tableId: table guard se ne sproži (ni where.locationId filtra na mizi)", async () => {
@@ -563,7 +600,7 @@ describe('R85-4a M3: PUT/DELETE /api/waitlist/[id] — fail-closed + seat tableI
     )
     expect(res.status).toBe(200)
     expect(mocks.tableFindFirst).not.toHaveBeenCalled()
-    expect(mocks.waitlistUpdate.mock.calls[0][0].data.status).toBe('seated')
+    expect(mocks.waitlistUpdateMany.mock.calls[0][0].data.status).toBe('seated')
   })
 
   it('loc-bound admin: findFirst where = { id, locationId: LOC_A }; super-admin: brez ključa', async () => {
@@ -602,6 +639,7 @@ describe('R85-4a M3: PUT/DELETE /api/waitlist/[id] — fail-closed + seat tableI
     )
     expect(ok.status).toBe(200)
     expect(mocks.waitlistFindFirst.mock.calls[0][0].where.locationId).toBe(LOC_A)
-    expect(mocks.waitlistDelete).toHaveBeenCalled()
+    // R102: scoped deleteMany (where.locationId pin) namesto delete { id }
+    expect(mocks.waitlistDeleteMany.mock.calls[0][0].where).toEqual({ id: 'wl-1', locationId: LOC_A })
   })
 })

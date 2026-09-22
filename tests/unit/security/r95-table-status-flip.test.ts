@@ -55,6 +55,15 @@ const mocks = vi.hoisted(() => ({
   txTableUpdateMany: vi.fn(),
   txResFindMany: vi.fn(),
   txResCreate: vi.fn(),
+  // R102: PUT/DELETE [id] tok je zdaj ATOMARNO v tx klientu (state machine +
+  // conflict + update + flip-i) — flip/count/update pini so preklopljeni na
+  // tx-level mocke (db-level ostanejo za create pre-tx validacijo).
+  txResFindFirst: vi.fn(),
+  txResUpdate: vi.fn(),
+  txResUpdateMany: vi.fn(),
+  txResCount: vi.fn(),
+  txResFindUnique: vi.fn(),
+  txOrderFindFirst: vi.fn(),
   // TOP-LEVEL export '@/lib/db' (LEKCIJA R85: ne gnezdi v db!)
   createAuditLog: vi.fn(),
   // ostalo
@@ -138,10 +147,26 @@ beforeEach(() => {
   mocks.txTableUpdateMany.mockResolvedValue({ count: 1 })
   mocks.txResFindMany.mockResolvedValue([])
   mocks.txResCreate.mockResolvedValue({ id: 'res-new', locationId: LOC_A, customerName: 'Ana' })
+  // R102 tx defaulti (PUT/DELETE [id] tok)
+  mocks.txResFindFirst.mockResolvedValue(resExisting)
+  mocks.txResUpdate.mockResolvedValue(resExisting)
+  mocks.txResUpdateMany.mockResolvedValue({ count: 1 })
+  mocks.txResCount.mockResolvedValue(0)
+  mocks.txResFindUnique.mockResolvedValue(resExisting)
+  mocks.txOrderFindFirst.mockResolvedValue(null)
   mocks.transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
     fn({
       table: { findUnique: mocks.txTableFindUnique, updateMany: mocks.txTableUpdateMany },
-      reservation: { findMany: mocks.txResFindMany, create: mocks.txResCreate },
+      reservation: {
+        findMany: mocks.txResFindMany,
+        create: mocks.txResCreate,
+        findFirst: mocks.txResFindFirst,
+        update: mocks.txResUpdate,
+        updateMany: mocks.txResUpdateMany,
+        count: mocks.txResCount,
+        findUnique: mocks.txResFindUnique,
+      },
+      order: { findFirst: mocks.txOrderFindFirst },
     }),
   )
   mocks.createAuditLog.mockResolvedValue(undefined)
@@ -231,11 +256,11 @@ describe('R95-c: PUT seated — DB-reserved miza se posedanje v \'occupied\'', (
     )
 
     expect(res.status).toBe(200)
-    expect(mocks.resUpdate).toHaveBeenCalledTimes(1)
-    expect(mocks.tableUpdateMany).toHaveBeenCalledTimes(1)
+    expect(mocks.txResUpdate).toHaveBeenCalledTimes(1)
+    expect(mocks.txTableUpdateMany).toHaveBeenCalledTimes(1)
     // Exact array pin — 'reserved' MORA biti v virih (prej je manjal:
     // seated na reserved mizi bi zamudil flip → mrtva reserved).
-    expect(mocks.tableUpdateMany.mock.calls[0][0]).toEqual({
+    expect(mocks.txTableUpdateMany.mock.calls[0][0]).toEqual({
       where: { id: 'table-a', status: { in: ['available', 'occupied', 'reserved'] } },
       data: { status: 'occupied' },
     })
@@ -254,23 +279,23 @@ describe('R95-c: PUT no_show/cancelled — reserved reset s count-guardom', () =
 
     expect(res.status).toBe(200)
     // Count-guard: brez datumskega filtra — katerakoli prihodnja aktivna
-    // rezervacija upravičuje ostanek 'reserved'
-    expect(mocks.resCount).toHaveBeenCalledWith({
+    // rezervacija upravičuje ostanek 'reserved' (R102: zdaj v tx klientu)
+    expect(mocks.txResCount).toHaveBeenCalledWith({
       where: {
         tableId: 'table-a',
         id: { not: 'res-1' },
         status: { in: ['confirmed', 'seated'] },
       },
     })
-    expect(mocks.tableUpdateMany).toHaveBeenCalledTimes(1)
-    expect(mocks.tableUpdateMany.mock.calls[0][0]).toEqual({
+    expect(mocks.txTableUpdateMany).toHaveBeenCalledTimes(1)
+    expect(mocks.txTableUpdateMany.mock.calls[0][0]).toEqual({
       where: { id: 'table-a', status: 'reserved' },
       data: { status: 'available' },
     })
   })
 
   it.each(['no_show', 'cancelled'] as const)('%s: activeOthers > 0 → miza ostane reserved (NI reset klica)', async (status) => {
-    mocks.resCount.mockResolvedValue(1) // druga aktivna rezervacija na mizi
+    mocks.txResCount.mockResolvedValue(1) // druga aktivna rezervacija na mizi
 
     const res = await reservationsPUT(
       jsonReq('http://localhost:3000/api/reservations/res-1', { status }, 'PUT'),
@@ -278,12 +303,12 @@ describe('R95-c: PUT no_show/cancelled — reserved reset s count-guardom', () =
     )
 
     expect(res.status).toBe(200)
-    expect(mocks.resCount).toHaveBeenCalledTimes(1)
-    expect(mocks.tableUpdateMany).not.toHaveBeenCalled()
+    expect(mocks.txResCount).toHaveBeenCalledTimes(1)
+    expect(mocks.txTableUpdateMany).not.toHaveBeenCalled()
   })
 
   it.each(['no_show', 'cancelled'] as const)('%s: brez tableId (rezervacija brez mize) → count + reset skip', async (status) => {
-    mocks.resFindFirst.mockResolvedValue({ ...resExisting, tableId: null })
+    mocks.txResFindFirst.mockResolvedValue({ ...resExisting, tableId: null })
 
     const res = await reservationsPUT(
       jsonReq('http://localhost:3000/api/reservations/res-1', { status }, 'PUT'),
@@ -291,8 +316,8 @@ describe('R95-c: PUT no_show/cancelled — reserved reset s count-guardom', () =
     )
 
     expect(res.status).toBe(200)
-    expect(mocks.resCount).not.toHaveBeenCalled()
-    expect(mocks.tableUpdateMany).not.toHaveBeenCalled()
+    expect(mocks.txResCount).not.toHaveBeenCalled()
+    expect(mocks.txTableUpdateMany).not.toHaveBeenCalled()
   })
 })
 
@@ -301,7 +326,7 @@ describe('R95-c: PUT no_show/cancelled — reserved reset s count-guardom', () =
 // ══════════════════════════════════════════════════════════════════
 describe('R95-c: PUT completed — DB reserved druge rezervacije preživi', () => {
   it('completed: reset where status:\'occupied\' ONLY (ni reserved v where); count-guard NI klican', async () => {
-    mocks.resFindFirst.mockResolvedValue({ ...resExisting, status: 'seated' })
+    mocks.txResFindFirst.mockResolvedValue({ ...resExisting, status: 'seated' })
 
     const res = await reservationsPUT(
       jsonReq('http://localhost:3000/api/reservations/res-1', { status: 'completed' }, 'PUT'),
@@ -309,46 +334,51 @@ describe('R95-c: PUT completed — DB reserved druge rezervacije preživi', () =
     )
 
     expect(res.status).toBe(200)
-    expect(mocks.orderFindFirst).toHaveBeenCalledTimes(1) // active-order guard ohranjen
-    expect(mocks.tableUpdateMany).toHaveBeenCalledTimes(1)
+    expect(mocks.txOrderFindFirst).toHaveBeenCalledTimes(1) // active-order guard ohranjen (tx)
+    expect(mocks.txTableUpdateMany).toHaveBeenCalledTimes(1)
     // PIN: 'occupied' kot STRING (ne in-lista) — DB 'reserved' (prihodnja
     // druga rezervacija) MORA preživetí completed te rezervacije.
-    expect(mocks.tableUpdateMany.mock.calls[0][0]).toEqual({
+    expect(mocks.txTableUpdateMany.mock.calls[0][0]).toEqual({
       where: { id: 'table-a', status: 'occupied' },
       data: { status: 'available' },
     })
-    expect(mocks.resCount).not.toHaveBeenCalled()
+    expect(mocks.txResCount).not.toHaveBeenCalled()
   })
 })
 
 // ══════════════════════════════════════════════════════════════════
 // 5 — DELETE (cancel): isti count-guard reset kot PUT cancelled
 // ══════════════════════════════════════════════════════════════════
-describe('R95-c: DELETE — cancel reset (mirror PUT cancelled)', () => {
-  it('activeOthers 0 → reset reserved→available (count where pin)', async () => {
+describe('R95-c: DELETE — cancel reset (mirror PUT cancelled) — R102: CAS + tx', () => {
+  it('activeOthers 0 → CAS cancelled + reset reserved→available (CAS + count where pin)', async () => {
     const res = await reservationsDELETE(
       new Request('http://localhost:3000/api/reservations/res-1', { method: 'DELETE' }),
       PUT_PARAMS,
     )
 
     expect(res.status).toBe(200)
-    expect(mocks.resUpdate).toHaveBeenCalledWith({ where: { id: 'res-1' }, data: { status: 'cancelled' } })
-    expect(mocks.resCount).toHaveBeenCalledWith({
+    // R102: ATOMARNI CAS — updateMany { status: { in: ['confirmed','seated'] } }
+    // (prej plain update brez pogoja = terminal state bypass)
+    expect(mocks.txResUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'res-1', status: { in: ['confirmed', 'seated'] } },
+      data: { status: 'cancelled' },
+    })
+    expect(mocks.txResCount).toHaveBeenCalledWith({
       where: {
         tableId: 'table-a',
         id: { not: 'res-1' },
         status: { in: ['confirmed', 'seated'] },
       },
     })
-    expect(mocks.tableUpdateMany).toHaveBeenCalledTimes(1)
-    expect(mocks.tableUpdateMany.mock.calls[0][0]).toEqual({
+    expect(mocks.txTableUpdateMany).toHaveBeenCalledTimes(1)
+    expect(mocks.txTableUpdateMany.mock.calls[0][0]).toEqual({
       where: { id: 'table-a', status: 'reserved' },
       data: { status: 'available' },
     })
   })
 
   it('activeOthers 1 → miza ostane reserved (NI reset klica)', async () => {
-    mocks.resCount.mockResolvedValue(1)
+    mocks.txResCount.mockResolvedValue(1)
 
     const res = await reservationsDELETE(
       new Request('http://localhost:3000/api/reservations/res-1', { method: 'DELETE' }),
@@ -356,11 +386,11 @@ describe('R95-c: DELETE — cancel reset (mirror PUT cancelled)', () => {
     )
 
     expect(res.status).toBe(200)
-    expect(mocks.tableUpdateMany).not.toHaveBeenCalled()
+    expect(mocks.txTableUpdateMany).not.toHaveBeenCalled()
   })
 
   it('brez tableId → count + reset skip', async () => {
-    mocks.resFindFirst.mockResolvedValue({ ...resExisting, tableId: null })
+    mocks.txResFindFirst.mockResolvedValue({ ...resExisting, tableId: null })
 
     const res = await reservationsDELETE(
       new Request('http://localhost:3000/api/reservations/res-1', { method: 'DELETE' }),
@@ -368,8 +398,21 @@ describe('R95-c: DELETE — cancel reset (mirror PUT cancelled)', () => {
     )
 
     expect(res.status).toBe(200)
-    expect(mocks.resCount).not.toHaveBeenCalled()
-    expect(mocks.tableUpdateMany).not.toHaveBeenCalled()
+    expect(mocks.txResCount).not.toHaveBeenCalled()
+    expect(mocks.txTableUpdateMany).not.toHaveBeenCalled()
+  })
+
+  it('R102: terminal stanje (completed) → CAS count 0 → 400, NI reset klica', async () => {
+    mocks.txResUpdateMany.mockResolvedValue({ count: 0 })
+
+    const res = await reservationsDELETE(
+      new Request('http://localhost:3000/api/reservations/res-1', { method: 'DELETE' }),
+      PUT_PARAMS,
+    )
+
+    expect(res.status).toBe(400)
+    expect(mocks.txResCount).not.toHaveBeenCalled()
+    expect(mocks.txTableUpdateMany).not.toHaveBeenCalled()
   })
 })
 

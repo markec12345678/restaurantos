@@ -56,6 +56,14 @@ const {
   mockSupplierFindUnique,
   mockVirtualBrandFindMany,
   mockTransaction,
+  mockTxReservationFindFirst,
+  mockTxReservationFindMany,
+  mockTxReservationUpdate,
+  mockTxReservationUpdateMany,
+  mockTxReservationCount,
+  mockTxReservationFindUnique,
+  mockTxTableUpdateMany,
+  mockTxOrderFindFirst,
   mockCreateTipDistChain,
 } = vi.hoisted(() => ({
   mockRequireAuth: vi.fn(),
@@ -86,8 +94,28 @@ const {
     fn({
       tipPool: { findUnique: mockPoolFindUnique, update: mockTipPoolUpdate },
       tipDistribution: { deleteMany: mockTipDistDeleteMany },
+      // R102: reservations PUT/DELETE [id] tok v tx klientu (state machine +
+      // conflict + update + CAS + flip-i so atomarni)
+      reservation: {
+        findFirst: mockTxReservationFindFirst,
+        findMany: mockTxReservationFindMany,
+        update: mockTxReservationUpdate,
+        updateMany: mockTxReservationUpdateMany,
+        count: mockTxReservationCount,
+        findUnique: mockTxReservationFindUnique,
+      },
+      table: { findFirst: mockTableFindFirst, updateMany: mockTxTableUpdateMany },
+      order: { findFirst: mockTxOrderFindFirst },
     }),
   ),
+  mockTxReservationFindFirst: vi.fn(),
+  mockTxReservationFindMany: vi.fn(),
+  mockTxReservationUpdate: vi.fn(),
+  mockTxReservationUpdateMany: vi.fn(),
+  mockTxReservationCount: vi.fn(),
+  mockTxReservationFindUnique: vi.fn(),
+  mockTxTableUpdateMany: vi.fn(),
+  mockTxOrderFindFirst: vi.fn(),
   mockCreateTipDistChain: vi.fn(),
 }))
 
@@ -404,6 +432,15 @@ describe('R81-G: reservations PUT tableId scope + 409 leak', () => {
       dateTime: new Date(RES_DATE),
       duration: 120,
     })
+    // R102: tx-fresh re-read (isti zapis, tx klient)
+    mockTxReservationFindFirst.mockResolvedValue({
+      id: 'res-1',
+      locationId: 'loc-1',
+      tableId: null,
+      status: 'confirmed',
+      dateTime: new Date(RES_DATE),
+      duration: 120,
+    })
   })
 
   it('PUT s tujim tableId (loc-2) → 404 notInScope; update se NE izvede', async () => {
@@ -422,12 +459,15 @@ describe('R81-G: reservations PUT tableId scope + 409 leak', () => {
       select: { id: true },
     })
     expect(mockReservationUpdate).not.toHaveBeenCalled()
+    // R102: update je zdaj v tx klientu — tudi tam se ne izvede
+    expect(mockTxReservationUpdate).not.toHaveBeenCalled()
   })
 
   it('409 konflikt NE razkriva customerName (generično sporočilo, status 409)', async () => {
     mockAuth({ role: 'waiter', locationId: 'loc-1', permissions: ['take_orders'] })
     mockTableFindFirst.mockResolvedValue({ id: 'table-1' })
-    mockReservationFindMany.mockResolvedValue([
+    // R102: conflict check je zdaj ZNOTRAJ Serializable tx → tx-level findMany
+    mockTxReservationFindMany.mockResolvedValue([
       { id: 'r-2', customerName: 'Tuj Gost PII', dateTime: new Date(RES_DATE), duration: 120 },
     ])
 
@@ -440,6 +480,7 @@ describe('R81-G: reservations PUT tableId scope + 409 leak', () => {
     expect(body.error).toContain('že rezervirana')
     expect(body.error).not.toContain('Tuj Gost PII')
     expect(mockReservationUpdate).not.toHaveBeenCalled()
+    expect(mockTxReservationUpdate).not.toHaveBeenCalled()
   })
 })
 

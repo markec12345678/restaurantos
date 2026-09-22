@@ -13,7 +13,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { createReservationSchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
-import { handleGetReservations, handleCreateReservation } from './_helpers'
+import { handleGetReservations, handleCreateReservation, structuredErrorResponse } from './_helpers'
 
 
 export const dynamic = 'force-dynamic'
@@ -39,6 +39,11 @@ export async function GET(req: Request) {
     return handleApiError(error, 'GET /api/reservations', 'Napaka pri pridobivanju rezervacij')
   }
 }
+
+// FIX R102 (error contract): tx-notrani strukturirani throw-i iz
+// handleCreateReservation ({ error, status }: 404/400/409/P2034) — prej je
+// catch poslal VSE skozi handleApiError → 500 '[object Object]' (niso Error
+// instance). structuredErrorResponse presliši poslovne status v odgovor.
 
 // ============================================
 // POST - Ustvari rezervacijo
@@ -74,6 +79,6 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, reservation: result.reservation }, { status: 201 })
   } catch (error: unknown) {
-    return handleApiError(error, 'POST /api/reservations', 'Napaka pri ustvarjanju rezervacije')
+    return structuredErrorResponse(error, 'POST /api/reservations', 'Napaka pri ustvarjanju rezervacije')
   }
 }
