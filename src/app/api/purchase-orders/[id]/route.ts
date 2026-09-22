@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { deepToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
-import { purchaseOrderUpdateSchema, VALID_PO_TRANSITIONS, handleReceiveAction } from './_helpers'
+import { purchaseOrderUpdateSchema, VALID_PO_TRANSITIONS, handleReceiveAction, casUpdatePurchaseOrder } from './_helpers'
 import { sendEmail, isEmailEnabled } from '@/lib/email'
 
 
@@ -108,13 +108,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (body.deliveryAddress !== undefined) updateData.deliveryAddress = body.deliveryAddress
     if (body.deliveryNotes !== undefined) updateData.deliveryNotes = body.deliveryNotes
 
-    const po = await db.purchaseOrder.update({
-      where: { id },
-      data: updateData,
-      include: { supplier: true, items: { include: { inventoryItem: true } } },
-    })
+    // R105 PO-5: CAS state-machine write — pogojni updateMany (status:
+    // existing.status) je zaprl last-write-wins luknjo: dva sočasna prehoda
+    // sta oba preživeta validacijo proti istemu stale statusu (npr.
+    // submitted→approved IN submitted→cancelled). count 0 → 409 (R102/R103
+    // vzorec; update({ where: { id } }) je bil nepogojen).
+    const cas = await casUpdatePurchaseOrder(id, existing.status, scope.locationId, updateData)
+    if (!cas.ok) {
+      return NextResponse.json(
+        { error: 'Naročilo je bilo medtem spremenjeno — osvežite podatke in poskusite znova' },
+        { status: 409 }
+      )
+    }
 
-    return NextResponse.json(deepToNumbers(po))
+    return NextResponse.json(deepToNumbers(cas.po))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/purchase-orders/[id]', 'Napaka pri posodabljanju naročila')
   }
@@ -175,13 +182,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (body.deliveryAddress !== undefined) updateData.deliveryAddress = body.deliveryAddress
     if (body.deliveryNotes !== undefined) updateData.deliveryNotes = body.deliveryNotes
 
-    const po = await db.purchaseOrder.update({
-      where: { id },
-      data: updateData,
-      include: { supplier: true, items: { include: { inventoryItem: true } } },
-    })
+    // R105 PO-5: CAS state-machine write (parity s PUT — glej zgoraj)
+    const cas = await casUpdatePurchaseOrder(id, existing.status, scope.locationId, updateData)
+    if (!cas.ok) {
+      return NextResponse.json(
+        { error: 'Naročilo je bilo medtem spremenjeno — osvežite podatke in poskusite znova' },
+        { status: 409 }
+      )
+    }
 
-    return NextResponse.json(deepToNumbers(po))
+    return NextResponse.json(deepToNumbers(cas.po))
   } catch (error: unknown) {
     return handleApiError(error, 'PATCH /api/purchase-orders/[id]', 'Napaka pri posodabljanju naročila')
   }

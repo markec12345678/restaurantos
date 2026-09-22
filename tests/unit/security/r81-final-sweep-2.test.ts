@@ -56,6 +56,8 @@ const {
   mockSupplierFindUnique,
   mockVirtualBrandFindMany,
   mockTransaction,
+  mockTxExecuteRaw,
+  mockTxPoFindFirst,
   mockTxReservationFindFirst,
   mockTxReservationFindMany,
   mockTxReservationUpdate,
@@ -92,6 +94,9 @@ const {
   mockVirtualBrandFindMany: vi.fn(),
   mockTransaction: vi.fn(async (fn: (tx: unknown) => unknown) =>
     fn({
+      // R105: purchase-orders receive canon — advisory lock + tx-fresh PO read
+      $executeRaw: mockTxExecuteRaw,
+      purchaseOrder: { findFirst: mockTxPoFindFirst },
       tipPool: { findUnique: mockPoolFindUnique, update: mockTipPoolUpdate },
       tipDistribution: { deleteMany: mockTipDistDeleteMany },
       // R102: reservations PUT/DELETE [id] tok v tx klientu (state machine +
@@ -114,6 +119,8 @@ const {
     }),
   ),
   mockTxReservationFindFirst: vi.fn(),
+  mockTxExecuteRaw: vi.fn().mockResolvedValue(1),
+  mockTxPoFindFirst: vi.fn(),
   mockTxReservationFindMany: vi.fn(),
   mockTxReservationUpdate: vi.fn(),
   mockTxReservationUpdateMany: vi.fn(),
@@ -348,9 +355,9 @@ describe('R81-G: purchase-orders receive tenant scope', () => {
     vi.clearAllMocks()
   })
 
-  it('PUT action=receive: tuja naročilnica (loc-2) → 404 notInScope; transakcija se NE izvede', async () => {
+  it('PUT action=receive: tuja naročilnica (loc-2) → 404 tx-fresh (R105 kanon: scoped read ZNOTRAJ tx)', async () => {
     mockAuth({ role: 'manager', locationId: 'loc-1', permissions: ['manage_inventory'] })
-    mockPoFindFirst.mockResolvedValue(null)
+    mockTxPoFindFirst.mockResolvedValue(null)
 
     const res = await putPurchaseOrder(jsonReq(`${PO_URL}/po-9`, 'PUT', receiveBody), {
       params: Promise.resolve({ id: 'po-9' }),
@@ -358,27 +365,28 @@ describe('R81-G: purchase-orders receive tenant scope', () => {
     const body = await res.json()
 
     expect(res.status).toBe(404)
-    expect(body.error).toBe('Naročilnica ni najden')
-    expect(mockPoFindFirst).toHaveBeenCalledWith({
-      where: { id: 'po-9', locationId: 'loc-1' },
-      include: { items: true },
-    })
-    expect(mockTransaction).not.toHaveBeenCalled()
+    // R105: stale db-level pre-read je izbrisan — scope check teče tx-fresh
+    // znotraj kanona (advisory lock + Serializable); 404 brez vsakega pisanja
+    expect(body.error).toBe('Naročilo ni najdeno')
+    expect(mockTxPoFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'po-9', locationId: 'loc-1' } }),
+    )
+    expect(mockTransaction).toHaveBeenCalled()
   })
 
-  it('PATCH action=receive: isti scope check kot PUT', async () => {
+  it('PATCH action=receive: isti tx-fresh scope check kot PUT (R105 kanon)', async () => {
     mockAuth({ role: 'manager', locationId: 'loc-1', permissions: ['manage_inventory'] })
-    mockPoFindFirst.mockResolvedValue(null)
+    mockTxPoFindFirst.mockResolvedValue(null)
 
     const res = await patchPurchaseOrder(jsonReq(`${PO_URL}/po-9`, 'PATCH', receiveBody), {
       params: Promise.resolve({ id: 'po-9' }),
     })
 
     expect(res.status).toBe(404)
-    expect(mockPoFindFirst).toHaveBeenCalledWith(
+    expect(mockTxPoFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'po-9', locationId: 'loc-1' } }),
     )
-    expect(mockTransaction).not.toHaveBeenCalled()
+    expect(mockTransaction).toHaveBeenCalled()
   })
 })
 

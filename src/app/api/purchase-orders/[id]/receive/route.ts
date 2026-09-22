@@ -7,12 +7,24 @@
 //
 // Prav tako posodobi status PO-ja: partial (delno) ali received (popolnoma).
 // FIX: Ustvari AuditLog za vsak prejem (revizijski dnevnik).
+//
+// R105 (TOCTOU razred iz R100–R104): celoten prevzemni tok teče prek skupnega
+// kanona receivePurchaseOrderItems() (src/app/api/purchase-orders/[id]/_helpers.ts):
+// $transaction(Serializable) + pg_advisory_xact_lock(hashtext(poId)) + tx-fresh
+// re-read + validacija samo proti svežim podatkom + idempotentno AP ustvarjanje.
+// Prej: PO + items stale read izven transakcije → dva sočasna prevzema =
+// dvojna zaloga + dvojna obveznost (r156-168 AP brez pregleda); P2002 na
+// apNumber @unique (count+1 števec) → 500 (R104 Q1 razred: uspeh → 500).
+// Zdaj: P2002/P2034 race-path → 409 (nikoli 500).
 
-import { db, createAuditLog } from '@/lib/db'
+import { createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
-import { deepToNumbers, toNum, round2, greaterThanOrEqual, isPositive, multiply } from '@/lib/decimal'
-import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { deepToNumbers } from '@/lib/decimal'
+import { validateRequest } from '@/lib/api-utils'
+import { structuredErrorResponse } from '@/lib/structured-error'
+import { receivePurchaseOrderItems } from '../_helpers'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
@@ -43,132 +55,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       endpoint: 'POST /api/purchase-orders/[id]/receive',
     })
     if ('error' in scope) return scope.error
-    const po = await db.purchaseOrder.findFirst({
-      where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
-      include: { items: true, supplier: true },
+
+    // R105: skupni prevzemni kanon (advisory lock + Serializable + tx-fresh).
+    // Prej: stale po findFirst izven transakcije + status check proti stale
+    // podatkom + read-modify-write po itemih + nepogojen AP create.
+    const result = await receivePurchaseOrderItems({
+      poId: id,
+      sessionLocationId: scope.locationId,
+      receivedItems: body.receivedItems,
+      employeeId: authResult.session?.employeeId ?? null,
+      notes: body.notes,
     })
-    if (!po) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
 
-    // Prepreči prevzem že prejetega naročila
-    if (po.status === 'received') {
-      return NextResponse.json({ error: 'Naročilo je že popolnoma prejeto' }, { status: 400 })
-    }
-
-    // FIX MEDIUM: Ovij prevzem v transakcijo — prepreči delne posodobitve zaloge
-    const result = await db.$transaction(async (tx) => {
-      for (const receivedItem of body.receivedItems) {
-        const poItem = po.items.find(i => i.id === receivedItem.itemId)
-        if (!poItem) {
-          throw new Error(`Postavka ${receivedItem.itemId} ni najdena v naročilu`)
-        }
-
-        // Preveri, da količina ne presega naročene
-        const totalReceived = toNum(poItem.quantityReceived) + receivedItem.quantityReceived
-        if (totalReceived > toNum(poItem.quantityOrdered)) {
-          throw new Error(`Postavka "${poItem.description}": prevzeta količina (${totalReceived}) presega naročeno (${toNum(poItem.quantityOrdered)})`)
-        }
-
-        // Posodobi postavko naročila
-        await tx.purchaseOrderItem.update({
-          where: { id: poItem.id },
-          data: {
-            quantityReceived: totalReceived,
-            status: greaterThanOrEqual(totalReceived, poItem.quantityOrdered) ? 'received' : 'partial',
-          },
-        })
-
-        // Posodobi zalogo, če je povezana
-        if (poItem.inventoryItemId) {
-          const invItem = await tx.inventoryItem.findUnique({
-            where: { id: poItem.inventoryItemId },
-          })
-          if (invItem) {
-            // FIX Bug #1 (Medium): Floating point precision — zaokroži vrednosti na 2 decimalke
-            // prej: quantity: receivedItem.quantityReceived (lahko 9.999999999999998)
-            // sedaj: round2(receivedItem.quantityReceived) = 10
-            const receivedQty = round2(receivedItem.quantityReceived)
-
-            // Atomic increment — prepreči race condition
-            const updatedInv = await tx.inventoryItem.update({
-              where: { id: invItem.id },
-              data: {
-                quantity: { increment: receivedQty },
-                lastRestocked: new Date(),
-              },
-            })
-            // Zdaj lahko preberemo posodobljeno količino
-            const newQty = round2(toNum(updatedInv.quantity))
-            const prevQty = round2(newQty - receivedQty)
-
-            // Ustvari zalogo transakcijo
-            await tx.stockTransaction.create({
-              data: {
-                inventoryItemId: invItem.id,
-                type: 'procurement',
-                quantity: receivedQty,
-                previousQty: prevQty,
-                newQty: newQty,
-                costPerUnit: round2(toNum(poItem.unitPrice)),
-                totalCost: round2(multiply(receivedQty, poItem.unitPrice)),
-                reason: `Prejem ${po.poNumber}`,
-                supplierDoc: po.poNumber,
-                employeeName: authResult.session?.employeeId || '',
-              },
-            })
-          }
-        }
-      }
-
-      // Preveri ali je vse prejeto
-      const updatedPo = await tx.purchaseOrder.findUnique({
-        where: { id },
-        include: { items: true },
-      })
-      const allReceived = updatedPo?.items.every(i => greaterThanOrEqual(i.quantityReceived, i.quantityOrdered))
-      const anyPartial = updatedPo?.items.some(i => isPositive(i.quantityReceived) && !greaterThanOrEqual(i.quantityReceived, i.quantityOrdered))
-
-      const newStatus = allReceived ? 'received' : anyPartial ? 'partial' : po.status
-
-      const finalPo = await tx.purchaseOrder.update({
-        where: { id },
-        data: {
-          status: newStatus,
-          receivedDate: allReceived ? new Date() : null,
-          ...(body.notes ? { notes: body.notes } : {}),
-        },
-        include: {
-          supplier: true,
-          items: { include: { inventoryItem: true } },
-        },
-      })
-
-      // Avtomatsko kreiraj AccountsPayable ob popolnem prejemu blaga
-      if (allReceived) {
-        const year = new Date().getFullYear()
-        const apCount = await tx.accountsPayable.count({ where: { apNumber: { startsWith: `AP-${year}-` } } })
-        const apNumber = `AP-${year}-${String(apCount + 1).padStart(6, '0')}`
-        const dueDate = new Date()
-        dueDate.setDate(dueDate.getDate() + 30) // Default 30 dni plačila
-
-        await tx.accountsPayable.create({
-          data: {
-            apNumber,
-            supplierId: po.supplierId,
-            purchaseOrderId: po.id,
-            invoiceNumber: po.poNumber,
-            invoiceDate: new Date(),
-            dueDate,
-            subtotal: toNum(po.subtotal),
-            vatAmount: toNum(po.vatAmount),
-            totalAmount: toNum(po.totalAmount),
-            status: 'open',
-            notes: `Avtomatsko kreirano ob prejemu ${po.poNumber}`,
-          },
-        })
-      }
-
-      return { po: finalPo, allReceived, anyPartial }
-    })
+    const poNumber = (result.po as { poNumber?: string }).poNumber
+    const supplierName = ((result.po as { supplier?: { name?: string } }).supplier?.name) || 'Neznan'
 
     // FIX: Ustvari AuditLog za revizijski dnevnik (zunanje transakcijo)
     try {
@@ -178,9 +78,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         entityType: 'PurchaseOrder',
         entityId: id,
         details: {
-          poNumber: po.poNumber,
-          supplier: po.supplier?.name || 'Neznan',
-          status: result.po.status,
+          poNumber,
+          supplier: supplierName,
+          status: (result.po as { status?: string }).status,
           itemsReceived: body.receivedItems.map((ri: { itemId: string; quantityReceived: number }) => ({
             itemId: ri.itemId,
             quantity: ri.quantityReceived,
@@ -198,14 +98,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         ? 'Blago v celoti prevzeto — zaloga posodobljena, obveznost ustvarjena'
         : 'Blago delno prevzeto — zaloga posodobljena',
       purchaseOrder: deepToNumbers(result.po),
-      status: result.po.status,
+      status: (result.po as { status?: string }).status,
     }, { status: 200 })
   } catch (error: unknown) {
-    // Poslovne napake (npr. količina presega naročeno) naj vrnejo 400
-    const message = error instanceof Error ? error.message : 'Napaka'
-    if (message.includes('presega') || message.includes('ni najdena') || message.includes('že popolnoma')) {
-      return NextResponse.json({ error: message }, { status: 400 })
+    // R105: race-pathi nikoli 500 — P2002 (apNumber @unique count+1 števec
+    // med sočasna zaključka dveh različnih PO-jev) → 409 retry; P2034
+    // serialization conflict → 409 retry.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      (error.code === 'P2002' || error.code === 'P2034')
+    ) {
+      return NextResponse.json(
+        { error: 'Prevzem je v obdelavi (sočasen dostop) — poskusite znova' },
+        { status: 409 }
+      )
     }
-    return handleApiError(error, 'POST /api/purchase-orders/[id]/receive', 'Napaka pri prevzemu blaga')
+    // R105 PO-6: strukturirani { error, status } throw-i iz tx teles
+    // (404/400) → pravi statusi (prej string-matching catch).
+    return structuredErrorResponse(error, 'POST /api/purchase-orders/[id]/receive', 'Napaka pri prevzemu blaga')
   }
 }
