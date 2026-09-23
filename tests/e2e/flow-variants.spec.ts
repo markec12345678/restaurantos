@@ -507,7 +507,15 @@ test.describe('Varianta E: dve hkratni blagajni', () => {
     const orderA = await a.json()
     const orderB = await b.json()
     expect(orderA.id).not.toBe(orderB.id) // dve različni naročili
-    expect(orderA.orderNumber).not.toBe(orderB.orderNumber)
+    // P1-7 (FURS): številčenje naročil je PER-LOKACIJSKO (neodvisna counterja
+    // orderNumber@loc-1 / orderNumber@loc-2). Dve naročili na RAZLIČNIH lokacijah
+    // lahko LEGITIMNO dobita isto številko (npr. oba #1 na sveži bazi — chunked
+    // local run začne na D|E). Uniktnost velja ZNOTRAJ lokacije: par
+    // (locationId, orderNumber) mora biti različen.
+    expect(orderA.locationId).toBe('loc-1')
+    expect(orderB.locationId).toBe('loc-2')
+    expect(`${orderA.locationId}#${orderA.orderNumber}`)
+      .not.toBe(`${orderB.locationId}#${orderB.orderNumber}`)
   })
 
   test('E-2: sočasno plačevanje dveh čekov (Promise.all)', async ({ request }) => {
