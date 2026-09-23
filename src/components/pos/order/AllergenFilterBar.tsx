@@ -17,17 +17,17 @@ export function AllergenFilterBar() {
   }
   if (!expanded) {
     return (
-      <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border bg-amber-50/30 dark:bg-amber-900/5 flex-shrink-0">
+      <div className="flex items-center gap-2 px-4 py-1.5 border-b border-border bg-muted/20 flex-shrink-0">
         <button
           onClick={() => setExpanded(true)}
-          className="flex items-center gap-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-400 hover:text-amber-900 transition-colors"
+          className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors pointer-coarse:py-1"
         >
-          <ShieldAlert className="h-3.5 w-3.5" />
+          <ShieldAlert className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
           Filtriraj alergene
         </button>
         {excludedAllergens.length > 0 && (
           <>
-            <span className="text-[10px] text-muted-foreground">({excludedAllergens.length} izključenih)</span>
+            <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400">({excludedAllergens.length} izključenih)</span>
             <button
               onClick={() => setExcludedAllergens([])}
               className="text-[10px] text-destructive hover:underline"

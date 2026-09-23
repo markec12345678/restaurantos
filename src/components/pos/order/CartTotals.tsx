@@ -46,9 +46,9 @@ export const CartTotals = memo(function CartTotals({
           <span>-{formatEUR(discount)}</span>
         </div>
       )}
-      <div className="flex justify-between font-bold text-base pt-1">
+      <div className="flex justify-between font-bold text-base pt-2 mt-1 border-t border-border">
         <span>Skupaj z DDV</span>
-        <span>{formatEUR(Math.max(0, total))}</span>
+        <span className="tabular-nums">{formatEUR(Math.max(0, total))}</span>
       </div>
     </div>
   )

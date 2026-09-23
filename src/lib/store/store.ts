@@ -23,6 +23,9 @@ export const usePOSStore = create<POSStore>()(
   // NOVO (runda 32): transient signal za oddaljeni "klik" na artikel (⌘K palette)
   pendingItemClickId: null,
   setPendingItemClickId: (id) => set({ pendingItemClickId: id }),
+  // UI-REFACTOR (Sales P0): "Dodaj še kaj?" — fokus iskanja iz košarice
+  cartQuickAddSignal: 0,
+  bumpCartQuickAddSignal: () => set((s) => ({ cartQuickAddSignal: s.cartQuickAddSignal + 1 })),
   cart: [],
   addToCart: (item) =>
     set((state) => {

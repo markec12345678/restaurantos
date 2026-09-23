@@ -184,14 +184,18 @@ export default function SetupPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="adminPin">PIN (4 številke) *</Label>
+                <Label htmlFor="adminPin">PIN (6 številk) *</Label>
                 <Input
                   id="adminPin" value={adminPin}
-                  onChange={(e) => setAdminPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="1234" maxLength={4} inputMode="numeric" pattern="\d{4}" required
-                  className="max-w-[120px] text-lg font-mono tracking-widest text-center"
+                  /* FIX (UI-REFACTOR QA): UI je omejeval PIN na 4 številke,
+                     API (setup/init, PIN_MIN_LENGTH=6) pa zahteva vsaj 6 →
+                     inicializacija je vedno vrnila 400 "PIN mora imeti vsaj
+                     6 števk". Zdaj UI usklajen s kontraktom API-ja (6+). */
+                  onChange={(e) => setAdminPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="123456" maxLength={6} inputMode="numeric" pattern="\d{6}" required
+                  className="max-w-[140px] text-lg font-mono tracking-widest text-center"
                 />
-                <p className="text-xs text-muted-foreground">PIN se uporablja za hitro prijavo v POS. Izberite 4 številke, ki si jih boste zapomnili.</p>
+                <p className="text-xs text-muted-foreground">PIN se uporablja za hitro prijavo v POS. Izberite vsaj 6 naključnih številk (ne zaporedja, npr. 123456).</p>
               </div>
             </CardContent>
           </Card>

@@ -42,7 +42,7 @@ export const SubmitButtons = memo(function SubmitButtons({
       {!editingOrderId && (
         <Button
           variant="outline"
-          className="w-full h-9 text-sm"
+          className="w-full h-9 text-sm pointer-coarse:h-11"
           disabled={cartLength === 0 || isPending}
           onClick={() => onSubmit()}
         >

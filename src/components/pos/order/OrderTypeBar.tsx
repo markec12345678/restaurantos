@@ -2,8 +2,8 @@
 
 import { memo, useEffect } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Badge } from '@/components/ui/badge'
-import { Users, Loader2 } from 'lucide-react'
+import { Loader2, UtensilsCrossed, ShoppingBag, Truck, Table2 } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 // ============================================
 // TIPI
@@ -19,8 +19,19 @@ export interface OrderTypeBarProps {
   diningOptions: { id: string; name: string; type: string }[] | undefined
 }
 
+// UI-REFACTOR (Sales P0): vrsta naročila je zdaj SEGMENTED CONTROL (1 tap namesto
+// 2 tapa dropdowna), miza je ENA izpostavljena čipka (primarni kontekst naročila),
+// podvojen Badge ("Miza 4" dvakrat) je odstranjen. Logika (auto-izbira prve
+// proste mize, ponastavitev zastarele mize, ARIA oznake, loading) je NESPREMENJENA.
+
+const ORDER_TYPES = [
+  { value: 'dine-in', label: 'Na mestu', icon: UtensilsCrossed },
+  { value: 'takeout', label: 'Za s seboj', icon: ShoppingBag },
+  { value: 'delivery', label: 'Dostava', icon: Truck },
+] as const
+
 // ============================================
-// ORDER TYPE BAR - Vrstica za vrsto naročila
+// ORDER TYPE BAR - Kontekstna vrstica naročila
 // ============================================
 export const OrderTypeBar = memo(function OrderTypeBar({
   orderType,
@@ -70,39 +81,41 @@ export const OrderTypeBar = memo(function OrderTypeBar({
 
   // A11Y + UX: izpisano ime mize tudi kadar persisted id ni več v seznamu
   const selectedTableNumber = tablesArray.find((t) => t.id === selectedTable)?.number
+  const selectedTableCapacity = tablesArray.find((t) => t.id === selectedTable)?.capacity
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30 flex-shrink-0">
-      <Select value={orderType} onValueChange={setOrderType} aria-label="Vrsta naročila">
-        <SelectTrigger className="w-32 h-8 text-xs pointer-coarse:h-11">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="dine-in">🍽️ Na mestu</SelectItem>
-          <SelectItem value="takeout">📦 Za s seboj</SelectItem>
-          <SelectItem value="delivery">🚚 Dostava</SelectItem>
-        </SelectContent>
-      </Select>
-      {/* Dining option iz konfiguracije */}
-      {diningOptions && diningOptions.length > 0 && (
-        <Select
-          value={diningOptionId || 'none'}
-          onValueChange={(v) => setDiningOptionId(v === 'none' ? null : v)}
-          aria-label="Način postrežbe"
-        >
-          <SelectTrigger className="w-40 h-8 text-xs pointer-coarse:h-11">
-            <SelectValue placeholder="Način postrežbe" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Privzeto</SelectItem>
-            {diningOptions.map((opt) => (
-              <SelectItem key={opt.id} value={opt.id}>
-                {opt.type === 'dine-in' ? '🍽️' : opt.type === 'takeout' ? '📦' : '🚚'} {opt.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
+    <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-background flex-shrink-0 flex-wrap sm:flex-nowrap">
+      {/* UI-REFACTOR: segmented control — vrsta naročila z enim tapom */}
+      <div
+        role="radiogroup"
+        aria-label="Vrsta naročila"
+        className="flex items-center gap-0.5 rounded-lg bg-muted p-0.5 flex-shrink-0"
+      >
+        {ORDER_TYPES.map((type) => {
+          const isActive = orderType === type.value
+          const Icon = type.icon
+          return (
+            <button
+              key={type.value}
+              role="radio"
+              aria-checked={isActive}
+              onClick={() => setOrderType(type.value)}
+              className={cn(
+                'flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-all pointer-coarse:px-3 pointer-coarse:py-2 pointer-coarse:text-sm',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                isActive
+                  ? 'bg-card text-foreground shadow-sm border border-border'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Icon className={cn('h-3.5 w-3.5', isActive && 'text-primary')} aria-hidden="true" />
+              <span className={type.value === 'takeout' ? 'hidden sm:inline' : ''}>{type.label}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* MIZA — primarni kontekst naročila (ena jasna izbira, brez podvojenega badge-a) */}
       {orderType === 'dine-in' && (
         <Select
           value={selectedTable || ''}
@@ -110,8 +123,19 @@ export const OrderTypeBar = memo(function OrderTypeBar({
           disabled={tablesLoading}
           aria-label="Izbira mize"
         >
-          <SelectTrigger className="w-36 h-8 text-xs pointer-coarse:h-11">
-            <SelectValue placeholder={tablesLoading ? 'Nalagam mize...' : 'Izberi mizo'} />
+          <SelectTrigger
+            className="h-8 min-w-[120px] gap-1.5 rounded-lg bg-card font-semibold text-xs shadow-sm pointer-coarse:h-10 pointer-coarse:text-sm aria-[expanded=true]:ring-1 aria-[expanded=true]:ring-ring"
+            aria-label={selectedTableNumber ? `Izbrana miza ${selectedTableNumber}, spremeni mizo` : 'Izberi mizo'}
+          >
+            <Table2 className="h-3.5 w-3.5 text-primary flex-shrink-0" aria-hidden="true" />
+            {selectedTableNumber ? (
+              <span className="truncate">
+                Miza <span className="font-bold">{selectedTableNumber}</span>
+                {selectedTableCapacity ? <span className="ml-1 font-normal text-muted-foreground">· {selectedTableCapacity} mest</span> : null}
+              </span>
+            ) : (
+              <SelectValue placeholder={tablesLoading ? 'Nalagam mize...' : 'Izberi mizo'} />
+            )}
           </SelectTrigger>
           <SelectContent>
             {availableTables.length === 0 && !tablesLoading && (
@@ -128,13 +152,28 @@ export const OrderTypeBar = memo(function OrderTypeBar({
         </Select>
       )}
       {tablesLoading && orderType === 'dine-in' && (
-        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground flex-shrink-0" />
       )}
-      {selectedTable && orderType === 'dine-in' && (
-        <Badge variant="outline" className="text-xs h-6">
-          <Users className="h-3 w-3 mr-1" />
-          {selectedTableNumber ? `Miza ${selectedTableNumber}` : 'Miza —'}
-        </Badge>
+
+      {/* Način postrežbe — sekundarna izbira (samo če je konfigurirana) */}
+      {diningOptions && diningOptions.length > 0 && (
+        <Select
+          value={diningOptionId || 'none'}
+          onValueChange={(v) => setDiningOptionId(v === 'none' ? null : v)}
+          aria-label="Način postrežbe"
+        >
+          <SelectTrigger className="w-auto h-8 text-xs gap-1 rounded-lg border-dashed bg-transparent text-muted-foreground pointer-coarse:h-10 pointer-coarse:text-sm ml-auto" aria-label="Način postrežbe">
+            <SelectValue placeholder="Način postrežbe" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Privzeto</SelectItem>
+            {diningOptions.map((opt) => (
+              <SelectItem key={opt.id} value={opt.id}>
+                {opt.type === 'dine-in' ? '🍽️' : opt.type === 'takeout' ? '📦' : '🚚'} {opt.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       )}
     </div>
   )

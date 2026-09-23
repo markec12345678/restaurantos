@@ -128,6 +128,9 @@ export const OrderPanel = memo(function OrderPanel() {
               }
               isPending={placeOrderMutation.isPending}
               setClearCartConfirm={setClearCartConfirm}
+              /* UI-REFACTOR: miza vedno vidna v glavi košarice (uporabnik takoj
+                 ve, na kateri mizi je — ne glede na drsenje po meniju) */
+              tableNumber={tables?.find(t => t.id === selectedTable)?.number ?? null}
             />
           </div>
         ) : (

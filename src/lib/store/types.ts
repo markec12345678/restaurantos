@@ -36,6 +36,11 @@ export interface POSStore {
   // Transient (NI v persist partialize) — preživi samo sejo.
   pendingItemClickId: string | null
   setPendingItemClickId: (_id: string | null) => void
+  // UI-REFACTOR (Sales P0): signal "Dodaj še kaj?" iz košarice — poveča števec,
+  // MenuItemsGrid ga uporabi za fokus iskalnega polja (košarica in menijska
+  // mreža sta sestavini, ne komunicirata prek props). Transient (NI persist).
+  cartQuickAddSignal: number
+  bumpCartQuickAddSignal: () => void
   cart: CartItemType[]
   addToCart: (_item: { id: string; name: string; price: number; vatRate?: number; categoryId: string; image: string; modifiers?: SelectedModifier[] }) => void
   removeFromCart: (_cartKey: string) => void

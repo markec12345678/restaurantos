@@ -1,15 +1,16 @@
 'use client'
 
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ChevronDown, History, Plus, Search, Star, X } from 'lucide-react'
-import { MenuItemCard, stringToColor } from './MenuItemCard'
+import { MenuItemCard } from './MenuItemCard'
 import { formatEUR } from '@/lib/safe-format'
 import { useFavoritesStore } from '@/lib/favorites-store'
 import { useRecentsStore, RECENTS_MAX } from '@/lib/recents-store'
+import { usePOSStore } from '@/lib/store'
 import type { MenuItemType, StockInfoType } from './types'
 
 // --- Props ---
@@ -65,6 +66,14 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
     if (lastAddedId) useRecentsStore.getState().record(lastAddedId)
   }, [lastAddedId])
 
+  // UI-REFACTOR (Sales P0): "Dodaj še kaj?" v košarici — fokus iskalnega polja.
+  // Signal (števec) prihaja iz usePOSStore; input ref držimo lokalno.
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const cartQuickAddSignal = usePOSStore((s) => s.cartQuickAddSignal)
+  useEffect(() => {
+    if (cartQuickAddSignal > 0) searchInputRef.current?.focus()
+  }, [cartQuickAddSignal])
+
   const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds])
 
   // Recents lookup čez VSE artikle (ne samo trenutni filter kategorije)
@@ -108,55 +117,49 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
 
   return (
     <>
-      {/* Quick Search */}
-      {itemSearch && (
-        <div className="px-3 pt-2 flex items-center gap-2 flex-shrink-0">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Išči artikel..."
-              value={itemSearch}
-              onChange={e => onItemSearchChange(e.target.value)}
-              className="h-8 text-xs pl-8 pr-8 pointer-coarse:h-11"
-              aria-label="Išči artikel"
-              autoFocus
-            />
+      {/* SEARCH — vedno viden na vrhu (UI-REFACTOR: prej skrit za pavšalnim
+          gumbom s preslednim trikom ' '; iskanje je primarna akcija poleg
+          mize) + hitri filter Priljubljeni kot soseda */}
+      <div className="px-3 pt-2 flex items-center gap-2 flex-shrink-0">
+        <div className="relative flex-1">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+          <Input
+            ref={searchInputRef}
+            placeholder="Išči artikel..."
+            value={itemSearch}
+            onChange={e => onItemSearchChange(e.target.value)}
+            className="h-9 text-sm pl-8 pr-16 pointer-coarse:h-11 bg-card"
+            aria-label="Išči artikel"
+          />
+          {itemSearch ? (
             <Button variant="ghost" size="icon" aria-label="Zapri" className="absolute right-0.5 top-1/2 -translate-y-1/2 h-7 w-7 pointer-coarse:h-9 pointer-coarse:w-9" onClick={() => onItemSearchChange('')}>
               <X className="h-3 w-3" />
             </Button>
-          </div>
-          <Badge variant="secondary" className="text-[10px] h-6 flex-shrink-0">{filteredMenuItems.length}</Badge>
-        </div>
-      )}
-      {!itemSearch && (
-        <div className="px-3 pt-2 flex-shrink-0 flex items-center gap-2">
-          <button
-            onClick={() => onItemSearchChange(' ')}
-            className="flex items-center gap-2 flex-1 text-sm text-muted-foreground hover:text-foreground transition-colors py-2 px-3 pointer-coarse:py-2.5 rounded-lg border border-dashed border-border hover:border-primary/50 hover:bg-primary/5"
-          >
-            <Search className="h-4 w-4" />
-            <span>Išči artikel...</span>
-            <kbd className="ml-auto text-[10px] bg-muted px-1.5 py-0.5 rounded border font-mono">⌘K</kbd>
-          </button>
-          {/* NOVO (runda 4): hitri filter Priljubljeni — viden samo če obstajajo */}
-          {favoriteIds.length > 0 && (
-            <button
-              onClick={() => setFavoritesOnly((v) => !v)}
-              aria-pressed={favoritesOnly}
-              aria-label={`Priljubljeni artikli: ${favoritesInView} v trenutnem pogledu`}
-              className={`flex items-center gap-1.5 px-3 py-2 pointer-coarse:py-2.5 rounded-lg border text-sm font-medium transition-colors flex-shrink-0 ${
-                favoritesOnly
-                  ? 'bg-amber-100 border-amber-300 text-amber-800 dark:bg-amber-900/40 dark:border-amber-700 dark:text-amber-300'
-                  : 'border-dashed border-border text-muted-foreground hover:border-amber-300 hover:text-amber-700 dark:hover:text-amber-300'
-              }`}
-            >
-              <Star className={`h-4 w-4 ${favoritesOnly ? 'fill-amber-400 text-amber-400' : ''}`} aria-hidden="true" />
-              <span className="hidden sm:inline">Priljubljeni</span>
-              <span className="text-[10px] font-bold bg-background/60 rounded-full px-1.5 py-0.5 tabular-nums">{favoritesInView}</span>
-            </button>
+          ) : (
+            <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] bg-muted px-1.5 py-0.5 rounded border font-mono text-muted-foreground pointer-events-none">⌘K</kbd>
           )}
         </div>
-      )}
+        {itemSearch && (
+          <Badge variant="secondary" className="text-[10px] h-6 flex-shrink-0">{filteredMenuItems.length}</Badge>
+        )}
+        {/* NOVO (runda 4): hitri filter Priljubljeni — viden samo če obstajajo */}
+        {favoriteIds.length > 0 && (
+          <button
+            onClick={() => setFavoritesOnly((v) => !v)}
+            aria-pressed={favoritesOnly}
+            aria-label={`Priljubljeni artikli: ${favoritesInView} v trenutnem pogledu`}
+            className={`flex items-center gap-1.5 px-3 py-2 pointer-coarse:py-2.5 rounded-lg border text-sm font-medium transition-colors flex-shrink-0 ${
+              favoritesOnly
+                ? 'bg-amber-100 border-amber-300 text-amber-800 dark:bg-amber-900/40 dark:border-amber-700 dark:text-amber-300'
+                : 'border-border bg-card text-muted-foreground hover:border-amber-300 hover:text-amber-700 dark:hover:text-amber-300'
+            }`}
+          >
+            <Star className={`h-4 w-4 ${favoritesOnly ? 'fill-amber-400 text-amber-400' : ''}`} aria-hidden="true" />
+            <span className="hidden sm:inline">Priljubljeni</span>
+            <span className="text-[10px] font-bold bg-background/60 rounded-full px-1.5 py-0.5 tabular-nums">{favoritesInView}</span>
+          </button>
+        )}
+      </div>
       {/* NOVO (runda 25 — Square "Recents" vzorec): hitra vrstica nedavno
           dodanih artiklov — 1-tap ponovno naročilo brez iskanja po kategorijah.
           Skrita med iskanjem in v favoritesOnly pogledu (tam je rdeča nitka
@@ -186,9 +189,10 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
                       : 'border-border hover:border-primary/50 hover:bg-primary/5 text-foreground'
                   }`}
                 >
+                  {/* UI-REFACTOR: enoten nevtralen krog z začetnico (prej
+                      naključni gradient — neenoten z novim placeholder sistemom) */}
                   <span
-                    className="flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white flex-shrink-0"
-                    style={{ background: `linear-gradient(135deg, ${stringToColor(item.name)}, ${stringToColor(item.name + 'x')})` }}
+                    className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary flex-shrink-0"
                     aria-hidden="true"
                   >
                     {item.name.charAt(0).toUpperCase()}
