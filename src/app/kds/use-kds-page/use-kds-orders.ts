@@ -75,7 +75,13 @@ export function useKDSOrders(
           table: o.table as { number: number; area: string } | null,
           employee: o.employee as { name: string } | null,
           items,
-          firedAt: o.firedAt || null,
+          // R114 (ref #111) DISPLAY FALLBACK: Sales tok ("Oddaj naročilo") ne nastavi
+          // firedAt (ta pišeta samo /api/kot in fire-webhook → funkcionalna vrzel,
+          // dokumentirana ločeno) → KDS časovnik je stalno pokazal "--:--" in starost
+          // naročila ni bila berljiva. Fallback na createdAt je isti semantiki, ki jo
+          // in-app KDS (/api/kitchen waitMinutes) že uporablja. Prikazni sloj —
+          // NE spreminja workflowa ali podatkov.
+          firedAt: o.firedAt || o.createdAt || null,
           createdAt: o.createdAt,
           notes: o.notes as string | null,
           course: o.course as number | null,

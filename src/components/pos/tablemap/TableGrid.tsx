@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Pencil, Trash2, Users } from 'lucide-react'
-import { type TableData, statusColors, statusDot, statusLabels, areaLabels } from './constants'
+import { type TableData, statusColors, statusDot, statusBadge, statusLabels, areaLabels } from './constants'
 
 // --- Props ---
 
@@ -62,7 +62,7 @@ export const TableGrid = memo(function TableGrid({
                         variant="ghost"
                         size="icon"
                         aria-label="Uredi mizo"
-                        className="h-9 w-9 touch-manipulation"
+                        className="h-9 w-9 touch-manipulation pointer-coarse:h-11 pointer-coarse:w-11"
                         onClick={() => onEdit(table)}
                       >
                         <Pencil className="h-4 w-4" />
@@ -71,7 +71,7 @@ export const TableGrid = memo(function TableGrid({
                         variant="ghost"
                         size="icon"
                         aria-label="Izbriši mizo"
-                        className="h-9 w-9 text-destructive touch-manipulation"
+                        className="h-9 w-9 text-destructive touch-manipulation pointer-coarse:h-11 pointer-coarse:w-11"
                         onClick={() => onDelete(table)}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -83,7 +83,12 @@ export const TableGrid = memo(function TableGrid({
                     <Users className="h-3 w-3" />
                     {String(table.capacity)} mest
                   </div>
-                  <Badge variant="outline" className="text-xs">
+                  {/* R114 (ref #111): barvno kodiran badge — status očiten brez branja;
+                      enoten jezik s Tlorisom (floorplan/constants.ts kanon) */}
+                  <Badge
+                    variant="outline"
+                    className={`text-xs font-semibold ${statusBadge[String(table.status)] || ''}`}
+                  >
                     {statusLabels[String(table.status)] || String(table.status)}
                   </Badge>
                   {table.status === 'occupied' && (

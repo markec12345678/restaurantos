@@ -42,20 +42,32 @@ export interface TableOrderData {
 
 // --- Konstante ---
 
+// R114 (ref #111): ENOTEN barvni jezik statusov miz — kanon je floorplan/constants.ts
+// (available=emerald, occupied=RED, reserved=AMBER, cleaning=gray); reservation/FloorPlanView
+// že uvaža prav te konstante. Prej je TableMap divergiral (occupied=amber, reserved=blue),
+// kar je pomenilo, da osebje mora status učiti znova na vsakem zaslonu.
 /** Barve miz glede na status — Toast-inspired z gradient backgrounds */
 export const statusColors: Record<string, string> = {
   available: 'bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-400 dark:from-emerald-950/40 dark:to-emerald-900/20 dark:border-emerald-700 hover:shadow-emerald-200/50',
-  occupied: 'bg-gradient-to-br from-amber-50 to-amber-100 border-amber-400 dark:from-amber-950/40 dark:to-amber-900/20 dark:border-amber-700 hover:shadow-amber-200/50',
-  reserved: 'bg-gradient-to-br from-blue-50 to-blue-100 border-blue-400 dark:from-blue-950/40 dark:to-blue-900/20 dark:border-blue-700 hover:shadow-blue-200/50',
+  occupied: 'bg-gradient-to-br from-red-50 to-red-100 border-red-400 dark:from-red-950/40 dark:to-red-900/20 dark:border-red-700 hover:shadow-red-200/50',
+  reserved: 'bg-gradient-to-br from-amber-50 to-amber-100 border-amber-400 dark:from-amber-950/40 dark:to-amber-900/20 dark:border-amber-700 hover:shadow-amber-200/50',
   cleaning: 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-300 dark:from-gray-800/50 dark:to-gray-900/30 dark:border-gray-600 hover:shadow-gray-200/50',
 }
 
-/** Pike statusa mize — z glow efektom */
+/** Pike statusa mize — z glow efektom (isti jezik kot floorplan statusColors.dot) */
 export const statusDot: Record<string, string> = {
   available: 'bg-emerald-500 shadow-sm shadow-emerald-500/50',
-  occupied: 'bg-amber-500 shadow-sm shadow-amber-500/50',
-  reserved: 'bg-blue-500 shadow-sm shadow-blue-500/50',
+  occupied: 'bg-red-500 shadow-sm shadow-red-500/50',
+  reserved: 'bg-amber-500 shadow-sm shadow-amber-500/50',
   cleaning: 'bg-gray-400 shadow-sm',
+}
+
+/** R114: barvno kodiran status badge (status berljiv BREZ branja drobnega teksta — ref #111) */
+export const statusBadge: Record<string, string> = {
+  available: 'border-emerald-300 dark:border-emerald-700 bg-emerald-100/70 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300',
+  occupied: 'border-red-300 dark:border-red-700 bg-red-100/70 dark:bg-red-900/40 text-red-800 dark:text-red-300',
+  reserved: 'border-amber-300 dark:border-amber-700 bg-amber-100/70 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300',
+  cleaning: 'border-gray-300 dark:border-gray-700 bg-gray-100/70 dark:bg-gray-900/40 text-gray-700 dark:text-gray-300',
 }
 
 /** Oznake območij — slovenščina */

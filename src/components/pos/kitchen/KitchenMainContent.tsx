@@ -57,7 +57,12 @@ export const KitchenMainContent = memo(function KitchenMainContent({
     )
   }
 
-  if (filteredOrders.length === 0) {
+  // R114 (ref #111): prazen zaslon NE sme prikriti pick-up police. Prej je
+  // 'Vsa naročila' z 0 aktivnimi + N pripravljenimi prikazala "Kuhinja je
+  // prosta", čeprav so bila gotova naročila na police (readyOrders prop je že
+  // bil podan naprej v cards pogled). Pogled seznama ohrani prazno stanje
+  // (polica je cards-only, filtriraj prek zavihka 'Pripravljeno').
+  if (filteredOrders.length === 0 && (viewMode === 'list' || readyOrders.length === 0)) {
     const emptyCopy = filterStatus === 'ready'
       ? { title: 'Ni pripravljenih naročil', subtitle: 'Naročila se bodo tu pojavila, ko so vsi artikli pripravljeni' }
       : { title: 'Kuhinja je prosta', subtitle: 'Ni aktivnih naročil za pripravo' }

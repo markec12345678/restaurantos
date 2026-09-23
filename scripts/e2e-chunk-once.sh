@@ -46,7 +46,10 @@ warm_routes() {
   local spec="$1"
   local warm_paths
   warm_paths=$({
-    rg -o '\$\{API_BASE\}/[a-zA-Z0-9/_{}.-]+' "$spec" 2>/dev/null | sed 's|\${API_BASE}/||; s|/\$.*||; s|\$.*||' | grep -v '^$' | sed 's|^|api/|'
+    # R114: `${id}` → `_warm` (prej je bilo odstranjeno) — dinamične [id] rute se
+    # ZDAJ tudi kompajlajo v warm-up fazi (prej je PATCH/PUT na [id] rutah
+    # kompajlal šele test → RSS burst → OOM kill → "socket hang up" v runu).
+    rg -o '\$\{API_BASE\}/[a-zA-Z0-9/_{}.$-]+' "$spec" 2>/dev/null | sed 's|\${API_BASE}/||; s|\${[^}]*}|_warm|g' | grep -v '_warm/_warm' | grep -v '^$' | sed 's|^|api/|'
     rg -o "request\.(get|post|put|delete|patch)\('[^']+'" "$spec" 2>/dev/null | sed "s|.*('\(/\?[^']*\)'.*|\1|; s|^/||" | grep -v '^$\|^?' | sed 's|^|page/|'
   } | sort -u | head -60)
   [ -n "$warm_paths" ] || return 0

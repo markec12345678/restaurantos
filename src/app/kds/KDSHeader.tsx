@@ -65,7 +65,7 @@ export const KDSHeader = memo(function KDSHeader({
               aria-pressed={stationFilter === s}
               aria-label={`Postaja ${s === 'all' ? 'vse' : s}`}
               className={cn(
-                'px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors touch-manipulation min-h-[36px]',
+                'px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors touch-manipulation min-h-[36px] pointer-coarse:min-h-[44px] pointer-coarse:px-4 pointer-coarse:text-sm',
                 stationFilter === s
                   ? 'bg-orange-500 text-white'
                   : 'bg-secondary hover:bg-secondary/80'
@@ -78,7 +78,7 @@ export const KDSHeader = memo(function KDSHeader({
         <button onClick={onViewModeToggle}
           aria-label={viewMode === 'grid' ? 'Preklopi na seznam' : 'Preklopi na mrežo'}
           title={viewMode === 'grid' ? 'Seznamski pogled' : 'Mrežni pogled'}
-          className="w-9 h-9 flex items-center justify-center rounded-lg bg-secondary hover:bg-secondary/80 touch-manipulation min-h-[36px]">
+          className="w-9 h-9 flex items-center justify-center rounded-lg bg-secondary hover:bg-secondary/80 touch-manipulation min-h-[36px] pointer-coarse:h-11 pointer-coarse:w-11">
           {viewMode === 'grid' ? <List className="w-4 h-4" /> : <Grid3X3 className="w-4 h-4" />}
         </button>
         {/* Zvok — R63: stanjsko barvanje (emerald = vklopljen) + aria-pressed +
@@ -88,7 +88,7 @@ export const KDSHeader = memo(function KDSHeader({
           aria-label={isSoundEnabled() ? 'Zvok vklopljen — klik za izklop' : 'Zvok izklopljen — klik za vklop'}
           title={isSoundEnabled() ? 'Zvok vklopljen (nove naročile = trojni ping) — klik za utišanje' : 'Zvok utišan — klik za vklop (ostane tudi po osvežitvi)'}
           className={cn(
-            'w-9 h-9 flex items-center justify-center rounded-lg touch-manipulation min-h-[36px] transition-colors',
+            'w-9 h-9 flex items-center justify-center rounded-lg touch-manipulation min-h-[36px] pointer-coarse:h-11 pointer-coarse:w-11 transition-colors',
             isSoundEnabled()
               ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/25'
               : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
@@ -98,7 +98,7 @@ export const KDSHeader = memo(function KDSHeader({
         {/* Recall */}
         {bumpedCount > 0 && (
           <button onClick={onRecall}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500 text-white text-xs font-bold hover:bg-blue-600 touch-manipulation min-h-[36px]">
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500 text-white text-xs font-bold hover:bg-blue-600 touch-manipulation min-h-[36px] pointer-coarse:min-h-[44px] pointer-coarse:px-4 pointer-coarse:text-sm">
             <RotateCcw className="w-3.5 h-3.5" />
             Prikljuki ({bumpedCount})
           </button>
@@ -121,7 +121,7 @@ export const KDSHeader = memo(function KDSHeader({
         <button onClick={onRefresh}
           aria-label="Osveži naročila"
           title="Osveži naročila"
-          className="w-9 h-9 flex items-center justify-center rounded-lg bg-secondary hover:bg-secondary/80 touch-manipulation min-h-[36px]">
+          className="w-9 h-9 flex items-center justify-center rounded-lg bg-secondary hover:bg-secondary/80 touch-manipulation min-h-[36px] pointer-coarse:h-11 pointer-coarse:w-11">
           <RefreshCw className="w-4 h-4" />
         </button>
         {/* WS status */}
@@ -134,7 +134,7 @@ export const KDSHeader = memo(function KDSHeader({
           aria-pressed={isFullscreen}
           aria-label={isFullscreen ? 'Izklopi celozaslonski način' : 'Vklopi celozaslonski način'}
           title={isFullscreen ? 'Zapusti celozaslonski način' : 'Celozaslonski način'}
-          className="w-9 h-9 flex items-center justify-center rounded-lg bg-secondary hover:bg-secondary/80 touch-manipulation min-h-[36px]">
+          className="w-9 h-9 flex items-center justify-center rounded-lg bg-secondary hover:bg-secondary/80 touch-manipulation min-h-[36px] pointer-coarse:h-11 pointer-coarse:w-11">
           {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
         </button>
       </div>

@@ -24,7 +24,7 @@ export const KitchenOrderItem = memo(function KitchenOrderItem({
     try { return JSON.parse(item.modifiersJson || '[]') } catch { return [] }
   })()
 
-  const statusConfig: Record<string, { color: string; bg: string; icon: React.ReactNode; label: string; nextLabel: string; nextStatus: string }> = {
+  const statusConfig: Record<string, { color: string; bg: string; icon: React.ReactNode; label: string; nextLabel: string; nextStatus: string; nextActionClass: string }> = {
     pending: {
       color: 'text-yellow-700 dark:text-yellow-400',
       bg: 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800',
@@ -32,6 +32,10 @@ export const KitchenOrderItem = memo(function KitchenOrderItem({
       label: 'Čaka',
       nextLabel: 'Pripravljam',
       nextStatus: 'preparing',
+      // R114 (ref #111): barva akcije = CILJNI status (modra = v pripravi),
+      // ne dekorativna oranžna — oranžna ostane jezik primarnih CTA,
+      // nivo kartice (Začni pripravo) in per-item akcije zdaj govorita isti jezik.
+      nextActionClass: 'bg-blue-600 hover:bg-blue-700 text-white',
     },
     preparing: {
       color: 'text-blue-700 dark:text-blue-400',
@@ -40,6 +44,7 @@ export const KitchenOrderItem = memo(function KitchenOrderItem({
       label: 'V pripravi',
       nextLabel: 'Pripravljeno',
       nextStatus: 'ready',
+      nextActionClass: 'bg-emerald-600 hover:bg-emerald-700 text-white',
     },
     ready: {
       color: 'text-emerald-700 dark:text-emerald-400',
@@ -48,6 +53,7 @@ export const KitchenOrderItem = memo(function KitchenOrderItem({
       label: 'Pripravljeno',
       nextLabel: 'Postreženo',
       nextStatus: 'served',
+      nextActionClass: 'bg-gray-600 hover:bg-gray-700 text-white',
     },
     served: {
       color: 'text-gray-500',
@@ -56,6 +62,7 @@ export const KitchenOrderItem = memo(function KitchenOrderItem({
       label: 'Postreženo',
       nextLabel: '',
       nextStatus: '',
+      nextActionClass: '',
     },
   }
 
@@ -126,7 +133,7 @@ export const KitchenOrderItem = memo(function KitchenOrderItem({
           {item.status !== 'served' && (
             <Button
               size="sm"
-              className="h-10 min-w-[100px] text-sm touch-manipulation pointer-coarse:h-12 pointer-coarse:min-w-[120px] pointer-coarse:text-base"
+              className={`h-10 min-w-[100px] text-sm touch-manipulation pointer-coarse:h-12 pointer-coarse:min-w-[120px] pointer-coarse:text-base active:scale-95 transition-transform ${config.nextActionClass}`}
               onClick={() => onStatusChange(item.id, config.nextStatus)}
             >
               {config.nextLabel}
