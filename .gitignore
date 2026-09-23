@@ -132,3 +132,4 @@ test-shots/
 .env*
 .pglite-qa/
 qa-*.png
+.ref-imgs/
