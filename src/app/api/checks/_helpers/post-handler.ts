@@ -1,7 +1,7 @@
 // POST handler logika za checks API — ustvarjanje čeka
 
 import { db } from '@/lib/db'
-import { deepToNumbers } from '@/lib/decimal'
+import { deepToNumbers, toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { getNextCounter } from '@/lib/counters'
 import { parseJsonBody, validateBody } from '@/lib/api-utils'
@@ -81,7 +81,8 @@ export async function handlePostCheck(req: Request, authResult: { session?: { em
   }
 
   // FIX H-08: Strežniški izračun zneskov iz dejanskih OrderItem-ov
-  const { subtotal, tax } = calculateCheckAmounts(checkOrderItems)
+  // (runda 112: tax se računa NIZJE — glej UI-QA FIX za dvostni odštevek popusta)
+  const { subtotal } = calculateCheckAmounts(checkOrderItems)
 
   // FIX H-03: Popust ne more preseči vmesne vsote
   // BUG-HUNT FIX 2026-09-19: popust se rešuje z locationId scope-om naročila
@@ -95,8 +96,39 @@ export async function handlePostCheck(req: Request, authResult: { session?: { em
     return NextResponse.json({ error: discountError }, { status: 400 })
   }
 
+  // UI-QA FIX (runda 112, ref #111 — 11-korakni preverjanji, korak 8+10):
+  // ROčNI popust na naročilu (natakar vpiše znesek v € — brez Discount zapisa,
+  // order.appliedDiscountId = null) prej NIKOLI ni prišel na ček. Ček = polna
+  // cena (npr. 16,95), plačilo pa pokrije znesek s popustom (15,95) → ček ostane
+  // 'partial' → naročilo nikoli 'paid' → zaključni PUT /api/orders 409 (stale
+  // expectedUpdatedAt, ker je payment POST že posodobil order row) → zavajajoči
+  // toast "spremenjeno s strani drugega uporabnika", račun/FURS preskočena.
+  // Varno: order.discount je že strežniško validiran ob ustvarjanju naročila
+  // (capped na subtotal); tu še enkrat capped na subtotal TEGA čeka.
+  let effectiveDiscount = discount
+  if (!data.appliedDiscountId && discount === 0 && order.discount && Number(order.discount) > 0) {
+    effectiveDiscount = Math.min(Number(order.discount), subtotal)
+  }
+
+  // UI-QA FIX (runda 112): DVOSTEN odštevek popusta na DDV.
+  // OrderItem.vatAmount je snapshot ŽE poplačanega (post-order-discount) DDV
+  // (npr. Cappuccino 2,00 @ 22 % s popustom 0,50 → vatAmount 0,33, NE 0,44).
+  // calculateCheckAmounts raje uporabi vatAmount kot vatRate; recalculate-
+  // TaxWithDiscount nato upošteva ŠE check-discount → taxRatio = 0,33/2,00 →
+  // DDV 0,25 namesto 0,33 → ček 1,75 ≠ naročilo 1,83 → plačilo 400/overpay.
+  // Fix: če bo ček IMEL popust, izračunaj predpopustni DDV iz avtoritativnega
+  // vatRate (vatAmount samo kot fallback pri manjkajoči stopnji).
+  let tax = calculateCheckAmounts(checkOrderItems).tax
+  if (effectiveDiscount > 0) {
+    tax = checkOrderItems.reduce((sum, oi) => {
+      const rate = toNum(oi.vatRate)
+      const base = toNum(oi.price) * oi.quantity
+      return sum + (rate > 0 ? (base * rate) / 100 : toNum(oi.vatAmount))
+    }, 0)
+  }
+
   // FIX HIGH: Popust zmanjša davčno osnovo — DDV se mora preračunati
-  const { recalculatedTax, total } = recalculateTaxWithDiscount(subtotal, tax, discount)
+  const { recalculatedTax, total } = recalculateTaxWithDiscount(subtotal, tax, effectiveDiscount)
 
   // FIX: Ustvari ček IN poveži OrderItem-e v eni transakciji
   const check = await db.$transaction(async (tx) => {
@@ -108,14 +140,14 @@ export async function handlePostCheck(req: Request, authResult: { session?: { em
         orderId: data.orderId,
         subtotal,
         tax: recalculatedTax,
-        discount,
+        discount: effectiveDiscount,
         serviceCharge: 0,
         total,
         tip: 0,
         totalWithTip: total,
         paymentStatus: 'unpaid',
         paymentMethod: '',
-        appliedDiscountId: data.appliedDiscountId || null,
+        appliedDiscountId: discountIdForTx || null,
       },
     })
 

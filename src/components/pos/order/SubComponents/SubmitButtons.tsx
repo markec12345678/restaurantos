@@ -22,10 +22,11 @@ export const SubmitButtons = memo(function SubmitButtons({
   return (
     <div className="px-3 pb-3 space-y-2">
       <Button
-        /* QA 2026-09-17 (runda 4): text-white — primarni-foreground teme je v
-           dark mode temen (narejen za jantarno primarno) → slaba kontrasta na
-           emerald ozadju. Bela na emerald-600 = WCAG AA (4.5:1+) */
-        className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+        /* UI-REFACTOR (runda 112, ref #111): primarni CTA = brand oranžna
+           (bg-primary) — ena močna akcija na ekranu, skladno z referenčnimi
+           POS zasloni (Complete Order / Bill & Payment). Emerald ostane
+           rezerviran za uspešne STATUS-e (plačano, pripravljeno). */
+        className="w-full h-12 text-base font-bold text-primary-foreground"
         disabled={cartLength === 0 || isPending}
         onClick={() => onSubmit()}
       >

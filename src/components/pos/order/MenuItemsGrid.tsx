@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ChevronDown, History, Plus, Search, Star, X } from 'lucide-react'
 import { MenuItemCard } from './MenuItemCard'
+import { AllergenFilterPopover } from './AllergenFilterBar'
 import { formatEUR } from '@/lib/safe-format'
 import { useFavoritesStore } from '@/lib/favorites-store'
 import { useRecentsStore, RECENTS_MAX } from '@/lib/recents-store'
@@ -74,6 +75,23 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
     if (cartQuickAddSignal > 0) searchInputRef.current?.focus()
   }, [cartQuickAddSignal])
 
+  // UI-REFACTOR (runda 112): poštena "/" bližnjica — fokusira iskanje artikla.
+  // Prej je kbd hint v inputu vabil ⌘K, a ta odpira globalni CommandPalette
+  // (doda artikel po ID) — zavajajoč afordans. "/" je standardni search-focus
+  // pattern (GitHub/YouTube) in ne kolidira z F2/F4/F5/F8 bližnjicami.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
+      const target = e.target as HTMLElement | null
+      const tag = target?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return
+      e.preventDefault()
+      searchInputRef.current?.focus()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
   const favoriteSet = useMemo(() => new Set(favoriteIds), [favoriteIds])
 
   // Recents lookup čez VSE artikle (ne samo trenutni filter kategorije)
@@ -119,7 +137,8 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
     <>
       {/* SEARCH — vedno viden na vrhu (UI-REFACTOR: prej skrit za pavšalnim
           gumbom s preslednim trikom ' '; iskanje je primarna akcija poleg
-          mize) + hitri filter Priljubljeni kot soseda */}
+          mize) + hitri filter Priljubljeni + alergeni Popover (runda 112:
+          prej stalna vrstica pod kategorijami) */}
       <div className="px-3 pt-2 flex items-center gap-2 flex-shrink-0">
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
@@ -128,7 +147,7 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
             placeholder="Išči artikel..."
             value={itemSearch}
             onChange={e => onItemSearchChange(e.target.value)}
-            className="h-9 text-sm pl-8 pr-16 pointer-coarse:h-11 bg-card"
+            className="h-9 text-sm pl-8 pr-12 pointer-coarse:h-11 bg-card"
             aria-label="Išči artikel"
           />
           {itemSearch ? (
@@ -136,12 +155,15 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
               <X className="h-3 w-3" />
             </Button>
           ) : (
-            <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] bg-muted px-1.5 py-0.5 rounded border font-mono text-muted-foreground pointer-events-none">⌘K</kbd>
+            <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] bg-muted px-1.5 py-0.5 rounded border font-mono text-muted-foreground pointer-events-none">/</kbd>
           )}
         </div>
         {itemSearch && (
           <Badge variant="secondary" className="text-[10px] h-6 flex-shrink-0">{filteredMenuItems.length}</Badge>
         )}
+        {/* UI-REFACTOR (runda 112): alergeni kot Popover — funkcionalnost ista,
+            brez stalne vrstice kroma */}
+        <AllergenFilterPopover />
         {/* NOVO (runda 4): hitri filter Priljubljeni — viden samo če obstajajo */}
         {favoriteIds.length > 0 && (
           <button
@@ -208,7 +230,9 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
       {/* ITEMS GRID */}
       <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
         {menuLoading || menusLoading ? (
-          <div className="grid grid-cols-3 lg:grid-cols-4 gap-2.5">
+          /* UI-REFACTOR (runda 112): skeleton grid razredi = realni grid
+             (2/3/4/5) — prej 3/4 → vidni skok pri nalaganju */
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
             {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
           </div>
         ) : visibleItems.length === 0 ? (
@@ -253,11 +277,11 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => onItemSearchChange(' ')}
+                  onClick={() => searchInputRef.current?.focus()}
                   className="mt-1"
                 >
                   <Search className="h-3.5 w-3.5" aria-hidden="true" />
-                  Odpri iskanje artikla
+                  Poišči artikel
                 </Button>
               </>
             )}

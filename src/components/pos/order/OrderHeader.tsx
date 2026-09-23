@@ -20,19 +20,25 @@ export const OrderHeader = memo(function OrderHeader({
   return (
     <div className="flex items-center border-b border-border bg-card px-4 h-11 flex-shrink-0">
       <Tabs value={mainTab} onValueChange={onMainTabChange} className="w-full">
-        <TabsList className="h-8 bg-transparent p-0 gap-4">
-          <TabsTrigger value="new-order" className="h-8 px-0 text-sm font-semibold pointer-coarse:h-10 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary border-b-2 border-transparent data-[state=active]:border-primary rounded-none">
-            <ShoppingBag className="h-3.5 w-3.5 mr-1.5" />
-            Novo naročilo
-          </TabsTrigger>
-          <TabsTrigger value="order-list" className="h-8 px-0 text-sm font-semibold pointer-coarse:h-10 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary border-b-2 border-transparent data-[state=active]:border-primary rounded-none">
-            <Clock className="h-3.5 w-3.5 mr-1.5" />
-            Seznam naročil
-          </TabsTrigger>
-        </TabsList>
-        <Button variant="ghost" size="icon" aria-label="Ključ" className="h-7 w-7 pointer-coarse:h-9 pointer-coarse:w-9 ml-auto" onClick={onShortcutsOpen} title="Tipkovne bližnjice">
-          <Keyboard className="h-3.5 w-3.5 text-muted-foreground" />
-        </Button>
+        {/* UI-REFACTOR (runda 112): Tabs root je `flex-col` (shadcn v4) —
+            TabsList + Button sta se zlagala VERTIKALNO (68px v 44px vrstici)
+            in presegala container navzgor (tabi porezani na vrhu, gumb
+            "Ključ" padel čez rob). Zdaj oba v eni horizontalni vrstici. */}
+        <div className="flex items-center w-full">
+          <TabsList className="h-8 bg-transparent p-0 gap-4">
+            <TabsTrigger value="new-order" className="h-8 px-0 text-sm font-semibold pointer-coarse:h-10 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary border-b-2 border-transparent data-[state=active]:border-primary rounded-none">
+              <ShoppingBag className="h-3.5 w-3.5 mr-1.5" />
+              Novo naročilo
+            </TabsTrigger>
+            <TabsTrigger value="order-list" className="h-8 px-0 text-sm font-semibold pointer-coarse:h-10 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:text-primary border-b-2 border-transparent data-[state=active]:border-primary rounded-none">
+              <Clock className="h-3.5 w-3.5 mr-1.5" />
+              Seznam naročil
+            </TabsTrigger>
+          </TabsList>
+          <Button variant="ghost" size="icon" aria-label="Tipkovne bližnjice" className="h-7 w-7 pointer-coarse:h-9 pointer-coarse:w-9 ml-auto" onClick={onShortcutsOpen} title="Tipkovne bližnjice">
+            <Keyboard className="h-3.5 w-3.5 text-muted-foreground" />
+          </Button>
+        </div>
       </Tabs>
     </div>
   )

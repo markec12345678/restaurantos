@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { AllergenFilterBar } from './AllergenFilterBar'
 import { OrderTypeBar } from './OrderTypeBar'
 import { MenuCategoryNav } from './MenuCategoryNav'
 import { MenuItemsGrid } from './MenuItemsGrid'
@@ -154,7 +153,9 @@ export function MenuBrowser({
         setActiveSuperGroup={setActiveSuperGroup}
         superGroups={superGroups}
       />
-      <AllergenFilterBar />
+      {/* UI-REFACTOR (runda 112): AllergenFilterBar vrstica odstranjena —
+          filter alergenov je zdaj Popover trigger v iskalni vrstici
+          (MenuItemsGrid). Ena vrstica kroma manj nad artikli. */}
       <MenuItemsGrid
         key={`${activeMenuId ?? resolvedMenuId}:${activeSuperGroup}:${activeCategory}`}
         /* RUNDA 42: `key` remounta grid ob zamenjavi kategorije/skupine/menija —

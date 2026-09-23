@@ -3,6 +3,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* UI-REFACTOR (runda 112): pointer-coarse variant — prej NIKOLI definirana,
+   zato je bilo vseh ~165 `pointer-coarse:*` razredov (44px touch cilji na
+   POS tablicah) mrtvih CSS. Zdaj dejansko aktivirani na dotykalnih napravah.
+   Na pointer:fine (desktop) ostanejo nevtralni. */
+@custom-variant pointer-coarse (@media (pointer: coarse));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -248,15 +254,18 @@ html {
   }
 }
 
-/* A11Y FIX: skip-to-content link — keyboard uporabniki preskočijo sidebar/header */
+/* A11Y FIX: skip-to-content link — keyboard uporabniki preskočijo sidebar/header.
+   UI-REFACTOR (runda 112): hsl(var(--x)) → var(--x) — žetoni so OKLCH, ne HSL.
+   Prej hsl(oklch(...)) = neveljavna barva → izpustljena deklaracija (link brez
+   ozadja, focus outline brez teme). */
 .skip-to-content {
   position: absolute;
   top: -100px;
   left: 0;
   z-index: 9999;
   padding: 12px 20px;
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
+  background: var(--primary);
+  color: var(--primary-foreground);
   text-decoration: none;
   font-weight: 600;
   border-radius: 0 0 8px 0;
@@ -265,11 +274,12 @@ html {
 
 .skip-to-content:focus {
   top: 0;
-  outline: 3px solid hsl(var(--ring));
+  outline: 3px solid var(--ring);
   outline-offset: 2px;
 }
 
-/* Screen reader only — vizualno skrito, a vidno za screen readerje */
+/* Screen reader only — vizualno skrito, a vidno za screen readerje.
+   (runda 112: OKLCH žetoni — prej neveljavno hsl(var())) */
 .sr-only-focusable:focus {
   position: fixed;
   top: 8px;
@@ -277,9 +287,9 @@ html {
   width: auto;
   height: auto;
   padding: 12px 20px;
-  background: hsl(var(--background));
-  color: hsl(var(--foreground));
-  border: 2px solid hsl(var(--primary));
+  background: var(--background);
+  color: var(--foreground);
+  border: 2px solid var(--primary);
   border-radius: 8px;
   z-index: 9999;
   clip: auto;
@@ -288,9 +298,11 @@ html {
 
 /* WCAG 2.2 (2.4.11 Focus Appearance) — vedno viden focus obroč.
  * :focus-visible se sproži samo pri keyboard navigaciji (ne mouse click),
- * tako da ne moti miškinh uporabnikov. */
+ * tako da ne moti miškinh uporabnikov.
+ * (runda 112: hsl(var(--ring)) je bilo neveljavno pod OKLCH žetoni →
+ *  brskalnikov privzet outline namesto tematskega. Zdaj var(--ring).) */
 :focus-visible {
-  outline: 2px solid hsl(var(--ring));
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -311,7 +323,8 @@ html {
   }
 }
 
-/* WCAG 2.2 (3.2.6 Consistent Help) — help link vedno na istem mestu */
+/* WCAG 2.2 (3.2.6 Consistent Help) — help link vedno na istem mestu.
+   (runda 112: OKLCH žetoni) */
 .help-link {
   position: fixed;
   bottom: 16px;
@@ -320,8 +333,8 @@ html {
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
+  background: var(--primary);
+  color: var(--primary-foreground);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -418,13 +431,14 @@ html {
    Raba: .animate-live-flash — 2 utripa ≈ 2,1 s, potem miruje. */
 @keyframes live-flash-ring {
   0% {
-    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.55);
+    /* runda 112: OKLCH žetoni (prej neveljavno hsl(var())) */
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 55%, transparent);
   }
   70% {
-    box-shadow: 0 0 0 14px hsl(var(--primary) / 0);
+    box-shadow: 0 0 0 14px transparent;
   }
   100% {
-    box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
+    box-shadow: 0 0 0 0 transparent;
   }
 }
 .animate-live-flash {

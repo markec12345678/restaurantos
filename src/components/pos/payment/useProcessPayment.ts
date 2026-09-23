@@ -19,6 +19,12 @@ interface ProcessPaymentParams {
     status?: string
     // P2-UX (stale order): optimistic locking — glej PUT /api/orders expectedUpdatedAt
     updatedAt?: string
+    // UI-QA FIX (runda 112, ref #111 11-korakni preverjanji): popust na naročilu
+    // — ček MORA podedovati appliedDiscountId, sicer je ček ustvarjen po polni
+    // ceni (5,99), plačilo pa pokrije znesek s popustom (5,49) → ček ostane
+    // 'partial' → naročilo nikoli 'paid' → PUT 409 + zavajajoči toast
+    // "spremenjeno s strani drugega uporabnika". Prihodki/receipt/FURS preskočeni.
+    appliedDiscountId?: string | null
   } | null
   orderTotal: number
   tipAmount: number
@@ -107,6 +113,9 @@ export function useProcessPayment(params: ProcessPaymentParams, callbacks: Proce
             orderId: order.id,
             // FIX TypeError: t?.filter — order.orderItems je lahko undefined
             orderItemIds: (Array.isArray(order?.orderItems) ? order.orderItems : []).map(oi => oi.id),
+            // UI-QA FIX (runda 112): ček podeduje popust naročila — glej opombo
+            // zgoraj (brez tega je plačilo s popustom VEčNO 'partial').
+            appliedDiscountId: order.appliedDiscountId ?? null,
           }),
         })
         if (!checkRes.ok) throw new Error('Napaka pri ustvarjanju čeka')
