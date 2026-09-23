@@ -297,7 +297,7 @@ describe('R112-B: item-status kanon (tx-fresh guardi + CAS)', () => {
     mocks.txOrderItemFindFirst.mockResolvedValue({ id: 'oi-1', orderId: ORD, voided: false, status: 'pending' })
     mocks.txOrderItemUpdateMany.mockResolvedValue({ count: 0 })
     const result = await handleItemStatusUpdate(ORD, 'oi-1', 'ready', STALE_ORDER)
-    expect(result.status).toBe(409)
+    expect(result).toMatchObject({ status: 409 })
     expect(mocks.txOrderItemUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ id: 'oi-1', orderId: ORD, voided: false }),
@@ -326,7 +326,7 @@ describe('R112-B: item-status kanon (tx-fresh guardi + CAS)', () => {
     mocks.orderItemFindUnique.mockResolvedValue(null)
 
     const result = await handleItemStatusUpdate(ORD, 'oi-1', 'ready', STALE_ORDER)
-    expect(result.success).toBe(true)
+    expect(result).toMatchObject({ success: true })
     expect(mocks.txOrderUpdateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ id: ORD }),
