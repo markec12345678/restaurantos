@@ -96,7 +96,14 @@ export const updateOrderSchema = z.object({
   cancelReason: z.string().max(500).optional(),
   cancelledBy: z.string().max(100).optional(),
   // FIX: Allow tip and totalWithTip from PaymentDialog (set during payment processing)
-  tip: z.number().min(0).optional(),
+  // FIX R112 (VAL-2): tip dobi zgornjo mejo 500 € (prej neomejen — klient bi
+  // lahko poslal napitnino v milijardah; min 0 ostane). Server recalc glej
+  // put-handler (totalWithTip = total + tip).
+  tip: z.number().min(0).max(500, 'Napitnina ne more preseči 500').optional(),
+  // DEPRECATED (FIX R112, VAL-2): totalWithTip je STREŽNIŠKO izračunan
+  // (total + tip) v orders/[id]/_helpers/put-handler.ts — klientova vrednost
+  // se IGNORIRA. Polje ostane v shemi SAMO za backward compat (starejši
+  // klienti ga še pošiljajo); ne pošiljaj ga v novi kodi.
   totalWithTip: z.number().min(0).optional(),
   // FIX Test 9.2: Dodan discount in appliedDiscountId za aplikacijo popusta na obstoječe naročilo
   discount: z.number().min(0).optional(),

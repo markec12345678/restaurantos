@@ -2,12 +2,38 @@
 
 import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { notInScopeResponse } from '@/lib/tenant-scope'
 import { isTrackingInScope } from './tracking-queries'
+// FIX R112 (WEBHOOK-5, MED): enoten vir prehodov statusov dostave (voznikova
+// + ročna UI pot) — prej je ta helper pisal status NEPOGOJENO (brez prehodnega
+// pravila, brez CAS) → regresija delivered → picked_up ob dupliranih/izven
+// reda sporočilih voznika.
+import {
+  canTransitionDeliveryStatus,
+  STALE_DELIVERY_STATUS_MESSAGE,
+} from '@/app/api/delivery/_helpers/status-transitions'
 
 // ============================================
 // STATUS UPDATE HELPER
 // ============================================
+
+// Strukturirani { error, status } throws iz tx telesa (R103 kontrakt) →
+// NextResponse; P2034 → 409 stale; ostalo pade naprej v route catch.
+function structuredToResponse(error: unknown): NextResponse | null {
+  if (
+    error &&
+    typeof error === 'object' &&
+    'error' in error &&
+    'status' in error &&
+    typeof (error as { error: unknown }).error === 'string' &&
+    typeof (error as { status: unknown }).status === 'number'
+  ) {
+    const structured = error as { error: string; status: number }
+    return NextResponse.json({ error: structured.error }, { status: structured.status })
+  }
+  return null
+}
 
 export async function handleStatusUpdate(
   deliveryInfoId: string,
@@ -27,6 +53,15 @@ export async function handleStatusUpdate(
     if (!proven) return notInScopeResponse('Sledenje')
   }
 
+  // FIX R112 (WEBHOOK-5): hitri preveri prehod (400 — Slovenian message);
+  // AVTORITATIVNA preverba je tx-fresh ZNOTRAJ transakcije spodaj.
+  if (!canTransitionDeliveryStatus(tracking.status, status)) {
+    return NextResponse.json(
+      { error: `Neveljaven prehod statusa dostave: ${tracking.status} → ${status}` },
+      { status: 400 }
+    )
+  }
+
   const updateData: Record<string, unknown> = { status }
 
   switch (status) {
@@ -43,26 +78,81 @@ export async function handleStatusUpdate(
   if (scopeLocationId && !tracking.locationId) updateData.locationId = scopeLocationId
 
   // FIX BUG-9 MEDIUM: Oboje posodobitvi v transakciji
-  const [updated] = await db.$transaction(async (tx) => {
-    const trackingUpdate = await tx.deliveryTracking.update({
-      where: { deliveryInfoId },
-      data: updateData,
-    })
+  // FIX R112 (WEBHOOK-5, MED — last-writer-wins razred iz R100–R111): prej sta
+  // bila tx.deliveryTracking.update + tx.deliveryInfo.update NEPOGOJENA —
+  // 3 nepovezani writerji (voznik, ročna UI pot PUT /api/delivery/[id],
+  // dodelitev voznika) so tekmovali last-writer-wins → regresija
+  // delivered → picked_up. Sedaj: tx-fresh status read + CAS
+  // updateMany ({ where: { id, status: <freshStatus> } }) na OBEH vrsticah +
+  // preverba prehoda prek skupne mape (status-transitions.ts). count 0 →
+  // strukturirana 409 'Status dostave je v medčasom spremenjen — osvežite'.
+  const deliveryStatusMap: Record<string, string> = {
+    assigned: 'pending', picked_up: 'picked_up', on_the_way: 'picked_up',
+    arriving: 'picked_up', delivered: 'delivered', failed: 'failed',
+  }
+  const nextInfoStatus = deliveryStatusMap[status] || status
 
-    const deliveryStatusMap: Record<string, string> = {
-      assigned: 'pending', picked_up: 'picked_up', on_the_way: 'picked_up',
-      arriving: 'picked_up', delivered: 'delivered', failed: 'failed',
+  let updated: { driverName: string; estimatedArrival: Date | null } | null
+  try {
+    updated = await db.$transaction(async (tx) => {
+      // tx-fresh status read — zastarel pre-read izven tx NE sme odločati
+      const fresh = await tx.deliveryTracking.findUnique({ where: { deliveryInfoId } })
+      if (!fresh) {
+        throw { error: 'Sledenje ne obstaja', status: 404 }
+      }
+      if (!canTransitionDeliveryStatus(fresh.status, status)) {
+        throw { error: `Neveljaven prehod statusa dostave: ${fresh.status} → ${status}`, status: 400 }
+      }
+
+      // CAS na DeliveryTracking (count 0 = concurrent writer je zmagal)
+      const casTracking = await tx.deliveryTracking.updateMany({
+        where: { id: fresh.id, status: fresh.status },
+        data: updateData,
+      })
+      if (casTracking.count === 0) {
+        throw { error: STALE_DELIVERY_STATUS_MESSAGE, status: 409 }
+      }
+
+      // DeliveryInfo: tx-fresh read + prehod + CAS — brez tega bi ročna UI pot
+      // (delivered) lahko bila REGRESIRANA na picked_up prek voznikove preslikave.
+      const freshInfo = await tx.deliveryInfo.findUnique({
+        where: { id: deliveryInfoId },
+        select: { id: true, status: true },
+      })
+      if (freshInfo) {
+        if (!canTransitionDeliveryStatus(freshInfo.status, nextInfoStatus)) {
+          throw { error: STALE_DELIVERY_STATUS_MESSAGE, status: 409 }
+        }
+        const casInfo = await tx.deliveryInfo.updateMany({
+          where: { id: deliveryInfoId, status: freshInfo.status },
+          data: {
+            status: nextInfoStatus,
+            ...(status === 'delivered' ? { actualTime: new Date() } : {}),
+          },
+        })
+        if (casInfo.count === 0) {
+          throw { error: STALE_DELIVERY_STATUS_MESSAGE, status: 409 }
+        }
+      }
+
+      // Ponovno branje za odgovor (ista vrstica — CAS je pravkar uspel;
+      // enaka oblika polj kot prejšnji update() povratni zapis)
+      return tx.deliveryTracking.findUnique({ where: { deliveryInfoId } })
+    })
+  } catch (error: unknown) {
+    const structured = structuredToResponse(error)
+    if (structured) return structured
+    // P2034 → 409 (canonical mapping; brambni globini pod READ COMMITTED se
+    // ne sproži, ostaja za varnost pri morebitni izolacijski nadgradnji)
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+      return NextResponse.json({ error: STALE_DELIVERY_STATUS_MESSAGE }, { status: 409 })
     }
-    await tx.deliveryInfo.update({
-      where: { id: deliveryInfoId },
-      data: {
-        status: deliveryStatusMap[status] || status,
-        ...(status === 'delivered' ? { actualTime: new Date() } : {}),
-      },
-    })
+    throw error
+  }
 
-    return [trackingUpdate] as const
-  })
+  if (!updated) {
+    return NextResponse.json({ error: 'Sledenje ne obstaja' }, { status: 404 })
+  }
 
   // Sproži webhook
   try {
@@ -73,7 +163,7 @@ export async function handleStatusUpdate(
         orderId: deliveryInfo.order.id,
         orderNumber: String(deliveryInfo.order.orderNumber),
         status,
-        driverName: tracking.driverName,
+        driverName: updated.driverName,
         estimatedArrival: updated.estimatedArrival ? updated.estimatedArrival.toISOString() : null,
       }, deliveryInfo.order.locationId)
     }

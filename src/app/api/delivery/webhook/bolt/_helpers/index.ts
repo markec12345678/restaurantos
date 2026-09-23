@@ -4,6 +4,7 @@
 // ============================================
 
 import { z } from 'zod'
+import type { Prisma } from '@prisma/client'
 
 // Bolt signature header name
 export const BOLT_SIGNATURE_HEADER = 'x-bolt-signature'
@@ -48,6 +49,10 @@ export const boltOrderSchema = z.object({
 export type BoltOrderPayload = z.infer<typeof boltOrderSchema>
 
 // Map Bolt artikli v RestaurantOS OrderItem
+// FIX R112 (WEBHOOK-3, MED): klicatelj podaja SAMO lokacijsko-scoped seznam
+// artiklov (category → menu → locationId veriga, glej bolt/route.ts) — prej
+// je bila preslikava pognana nad globalnim seznamom VSEH artiklov in je
+// lahko zadela artikel TUJEGA tenanta (napačna cena/DDV).
 export function mapBoltItemsToOrderItems(
   items: BoltOrderPayload['items'],
   menuItems: Array<{ id: string; name: string; price: unknown; vatRate: unknown }>
@@ -59,16 +64,25 @@ export function mapBoltItemsToOrderItems(
       item.name.toLowerCase().includes(mi.name.toLowerCase())
     )
 
+    // FIX R112 (WEBHOOK-4, MED): brez ujemanja zavrnemo — NI vec fallbacka na
+    // menuItems[0] (prvi artikel katerega koli tenanta) in NI zaupanja wire
+    // ceni iz Bolt payloada. Strukturirana 400 'Neznana pozicija' z imenom
+    // artikla (isti { error, status } kontrakt kot structuredErrorResponse);
+    // cena/DDV prihajajo izključno iz lokacijsko-scoped baze (WEBHOOK-3).
+    if (!menuItem) {
+      throw { error: `Neznana pozicija: ${item.name}`, status: 400 }
+    }
+
     const optionsJson = JSON.stringify(
       item.options.map(opt => ({ name: opt.name, price: opt.price }))
     )
 
     return {
-      menuItemId: menuItem?.id || menuItems[0]?.id || '',
+      menuItemId: menuItem.id,
       menuItemName: item.name,
       quantity: item.quantity,
-      price: menuItem ? Number(menuItem.price) : item.price,
-      vatRate: menuItem ? Number(menuItem.vatRate) : 22.0,
+      price: Number(menuItem.price),
+      vatRate: Number(menuItem.vatRate),
       notes: item.notes || '',
       modifiersJson: optionsJson,
       sortOrder: idx,
@@ -77,9 +91,16 @@ export function mapBoltItemsToOrderItems(
 }
 
 // Preveri ali Bolt naročilo že obstaja (idempotentnost)
-export async function findExistingBoltOrder(boltOrderId: string) {
+// FIX R112 (WEBHOOK-1, MED-HIGH): opcionalen tx klient — AVTORITATIVNA dedup
+// preverba teče tx-fresh ZNOTRAJ transakcije pod advisory lock-om
+// 'delivery-webhook:{integrationId}:{boltOrderId}' (glej bolt/route.ts);
+// brez klienta ostane hitri pregled nad db (samo fast-path, ni vezava).
+export async function findExistingBoltOrder(
+  boltOrderId: string,
+  client?: Prisma.TransactionClient,
+) {
   const { db } = await import('@/lib/db')
-  return db.order.findFirst({
+  return (client ?? db).order.findFirst({
     where: {
       customerName: { contains: `Bolt:${boltOrderId}` },
     },

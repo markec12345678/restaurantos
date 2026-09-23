@@ -9,6 +9,10 @@ import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { Prisma } from '@prisma/client'
 import { structuredErrorResponse } from '@/lib/structured-error'
 import { logger } from '@/lib/logger'
+// FIX R112 (RL-2): rate-limit importi — helper po hišnem kanonu DIREKTNO iz
+// rate-limit/response (NE prek barrela; barrel mockajo testi brez helperja).
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { generateJournalForRefund } from '@/lib/accounting/journal-generator'
 import { paymentMutationLockKey, paymentCheckLockKey } from '../_helpers'
 import { z } from 'zod'
@@ -27,6 +31,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const { id } = await params
     const authResult = await requireAuth(req, { permission: 'manage_cash' })
     if (authResult.error) return authResult.error
+
+    // FIX R112 (RL-2): finančni zapis (povračilo) — AUTHENTICATED_LIMIT kvota
+    // takoj za uspešno avtentikacijo, PRED body parse / DB zapisom.
+    const rl = await checkRateLimitAsync('authenticated-write', getClientIp(req), AUTHENTICATED_LIMIT)
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtev. Poskusite znova čez nekaj časa.')
 
     // FIX P0-C1 (IDOR): findUnique → findFirst z check.order.locationId scope (cross-tenant zaščita)
     // Payment nima lastnega locationId — scoping prek Check → Order relation

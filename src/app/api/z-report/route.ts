@@ -11,6 +11,10 @@ import { fetchReportData, generateReportPdf } from '@/app/api/reports/export/_he
 import { round2, deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
+// FIX R112 (RL-2): rate-limit importi — helper po hišnem kanonu DIREKTNO iz
+// rate-limit/response (NE prek barrela; barrel mockajo testi brez helperja).
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { z } from 'zod'
 import { handleApiError, handleRouteError, validateRequest } from '@/lib/api-utils'
 import { ljubljanaDayBounds } from '@/lib/timezone-sl'
@@ -78,6 +82,11 @@ export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'manage_cash' })
     if (authResult.error) return authResult.error
+
+    // FIX R112 (RL-2): finančni zapis (Z-poročilo / EOD zaklep) —
+    // AUTHENTICATED_LIMIT kvota takoj za uspešno avtentikacijo, PRED body parse.
+    const rl = await checkRateLimitAsync('authenticated-write', getClientIp(req), AUTHENTICATED_LIMIT)
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtev. Poskusite znova čez nekaj časa.')
 
     const { data, error: validationError } = await validateRequest(req, generateZReportSchema)
     if (validationError) return validationError

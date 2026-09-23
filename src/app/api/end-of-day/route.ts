@@ -6,6 +6,10 @@
 
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
+// FIX R112 (RL-2): rate-limit importi — helper po hišnem kanonu DIREKTNO iz
+// rate-limit/response (NE prek barrela; barrel mockajo testi brez helperja).
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { isAdminTenantRole } from '@/lib/tenant-scope'
 import { eodCloseSchema, validateReportDateRange } from '@/lib/validations'
 import { toNum } from '@/lib/decimal'
@@ -128,6 +132,11 @@ export async function POST(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
+
+    // FIX R112 (RL-2): finančni zapis (zaključek dneva / izmene) —
+    // AUTHENTICATED_LIMIT kvota takoj za uspešno avtentikacijo, PRED body parse.
+    const rl = await checkRateLimitAsync('authenticated-write', getClientIp(req), AUTHENTICATED_LIMIT)
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtev. Poskusite znova čez nekaj časa.')
 
     const bodyResult = await parseJsonBody(req)
     if (bodyResult.error) return bodyResult.error

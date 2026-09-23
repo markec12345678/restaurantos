@@ -315,6 +315,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tab: str
     }
     // locationId NI v allowedFields (anti-forgery) — obrambno še enkrat izpusti
     delete filteredData.locationId
+    // FIX R112 (VAL-1): mejna validacija znotraj coerceFieldTypes (rate/amount/
+    // avgPrepTime, NaN/Infinity) — kršitev THROW-a ZodError → catch na dnu
+    // handlerja → handleApiError → 400 VALIDATION_ERROR (P1-17 pot).
     coerceFieldTypes(filteredData)
     if (Object.keys(filteredData).length === 0) {
       return NextResponse.json({ error: 'Ni prepoznavnih polj za posodobitev' }, { status: 400 })

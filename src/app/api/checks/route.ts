@@ -3,6 +3,10 @@ import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { handleApiError, parsePaginationParams } from '@/lib/api-utils'
+// FIX R112 (RL-2): rate-limit importi — helper po hišnem kanonu DIREKTNO iz
+// rate-limit/response (NE prek barrela; barrel mockajo testi brez helperja).
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handlePostCheck } from './_helpers/post-handler'
 
 
@@ -68,6 +72,11 @@ export async function POST(req: Request) {
     // FIX C-05: Zahtevaj avtentikacijo
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
+
+    // FIX R112 (RL-2): finančni zapis (ustvarjanje čeka) — AUTHENTICATED_LIMIT
+    // kvota takoj za uspešno avtentikacijo, PRED body parse / DB zapisom.
+    const rl = await checkRateLimitAsync('authenticated-write', getClientIp(req), AUTHENTICATED_LIMIT)
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtev. Poskusite znova čez nekaj časa.')
 
     return await handlePostCheck(req, authResult as { session?: { employeeId?: string } | null })
   } catch (error: unknown) {

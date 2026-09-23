@@ -1,6 +1,6 @@
 // Pomožne funkcije za configuration API — Shema in konstante
 
-import { z } from 'zod'
+import { z, ZodError } from 'zod'
 
 // Zod validacijska shema za POST body
 export const configPostSchema = z.object({
@@ -46,6 +46,17 @@ export const modelMap: Record<string, string> = {
 }
 
 // Prevzeti tipi za varno pretvorbo
+//
+// FIX R112 (VAL-1): mejna validacija številskih polj PO koerciji — prej so
+// NaN/Infinity/negativne vrednosti brez nadzora prišle do Prisme (500) ali,
+// še huje, v zapis (npr. DDV stopnja -5 % ali 150 % na fiskalnem računu).
+// Meje: `rate` končno število 0–100; `amount` končno ≥ 0 (strop 100.000);
+// `avgPrepTime` celo število 0–480; vsa koercirana številska polja morajo biti
+// končna (NaN/Infinity → zavrnjeno). Kršitev meje → THROW ZodError s slovenskim
+// sporočilom — oba klicatelja (createConfigItem, PUT /configuration/[tab]) jo
+// ujameta v obstoječem catch → handleApiError → 400 VALIDATION_ERROR (P1-17
+// pot; brez nove response oblike). Mutacija + vračanje filteredData ostajata
+// (obstoječ kontrakt vračila — glej config-cross-scope.test.ts).
 export function coerceFieldTypes(filteredData: Record<string, unknown>): Record<string, unknown> {
   if (filteredData.rate !== undefined) filteredData.rate = Number(filteredData.rate)
   if (filteredData.amount !== undefined) filteredData.amount = Number(filteredData.amount)
@@ -60,6 +71,39 @@ export function coerceFieldTypes(filteredData: Record<string, unknown>): Record<
   // MODEL A (#8): prazen string FK = "ni nastavljeno" → null (ne prazna referenca)
   for (const fk of ['serviceChargeId', 'taxRateId'] as const) {
     if (filteredData[fk] !== undefined && filteredData[fk] === '') filteredData[fk] = null
+  }
+
+  // R112 (VAL-1): pomožnik — vrži ZodError (400 po P1-17 poti) s poljem + sporočilom
+  const reject = (field: string, message: string): never => {
+    throw new ZodError([{ code: 'custom', path: [field], message }])
+  }
+
+  // R112 (VAL-1): 1) finitost — NaN (npr. Number('abc')) / Infinity so vedno
+  // neveljavni na VSEH koerciranih številskih poljih
+  for (const field of ['rate', 'amount', 'sortOrder', 'avgPrepTime', 'prepTimeMinutes'] as const) {
+    const v = filteredData[field]
+    if (v !== undefined && (typeof v !== 'number' || !Number.isFinite(v))) {
+      reject(field, `Polje '${field}' mora biti veljavno končno število (NaN/Infinity ni dovoljen)`)
+    }
+  }
+  if (filteredData.maxUses !== undefined && typeof filteredData.maxUses === 'number' && !Number.isFinite(filteredData.maxUses)) {
+    reject('maxUses', "Polje 'maxUses' mora biti veljavno končno število (NaN/Infinity ni dovoljen)")
+  }
+  // 2) meje po poljih (zgornja koercija zagotavlja number, če je polje definirano)
+  const rate = filteredData.rate as number | undefined
+  if (rate !== undefined && (rate < 0 || rate > 100)) {
+    reject('rate', 'Davčna stopnja (rate) mora biti število med 0 in 100 (%)')
+  }
+  const amount = filteredData.amount as number | undefined
+  if (amount !== undefined && amount < 0) {
+    reject('amount', 'Znesek (amount) ne sme biti negativen')
+  }
+  if (amount !== undefined && amount > 100000) {
+    reject('amount', 'Znesek (amount) ne sme preseči 100.000')
+  }
+  const avgPrepTime = filteredData.avgPrepTime as number | undefined
+  if (avgPrepTime !== undefined && (!Number.isInteger(avgPrepTime) || avgPrepTime < 0 || avgPrepTime > 480)) {
+    reject('avgPrepTime', 'Povprečni čas priprave (avgPrepTime) mora biti celo število med 0 in 480 minut')
   }
   return filteredData
 }
@@ -162,6 +206,10 @@ export async function createConfigItem(
       if (key in configData) filteredData[key] = configData[key]
     }
 
+    // FIX R112 (VAL-1): koercija + mejna validacija (rate/amount/avgPrepTime,
+    // NaN/Infinity) — kršitev meje THROW-a ZodError, ki ga ujame spodnji catch
+    // → handleApiError → 400 VALIDATION_ERROR (P1-17; prej je npr. DDV 150 %
+    // prišel do zapisa).
     coerceFieldTypes(filteredData)
 
     // MODEL A: konfiguracija je PO LOKACIJI (NOT NULL) — locationId se izpelje

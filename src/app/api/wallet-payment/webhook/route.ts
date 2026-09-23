@@ -15,6 +15,10 @@ import { NextResponse } from 'next/server'
 import { handleApiError } from '@/lib/api-utils'
 import { authorizeWalletPayment } from '@/lib/wallet-payment'
 import { logger } from '@/lib/logger'
+// FIX R112 (RL-1): rate-limit importi — helper po hišnem kanonu DIREKTNO iz
+// rate-limit/response (NE prek barrela; barrel mockajo testi brez helperja).
+import { checkRateLimitAsync, getClientIp, DELIVERY_WEBHOOK_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
@@ -51,6 +55,13 @@ function safeCompareSignature(expected: string, provided: string): boolean {
 
 export async function POST(req: Request) {
   try {
+    // FIX R112 (RL-1): edini JAVNI write endpoint brez rate limita (recon 4.1).
+    // Gateway webhooki (Stripe/Adyen redelivery) → 30 zahtev/min/IP
+    // (DELIVERY_WEBHOOK_LIMIT) — prekoračitev → 429 z enotnimi glavami (R92-b
+    // kanon). Limit pred HMAC verifikacijo: brezplačen CPU/JSON-parse DoS vektor.
+    const rl = await checkRateLimitAsync('wallet-payment-webhook', getClientIp(req), DELIVERY_WEBHOOK_LIMIT)
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtev. Poskusite znova čez nekaj časa.')
+
     // 1. Preberi body + signature
     const body = await req.text()
     const signature = req.headers.get('stripe-signature') || req.headers.get('x-adyen-signature') || ''

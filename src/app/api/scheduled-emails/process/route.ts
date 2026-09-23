@@ -43,7 +43,13 @@ export async function POST(req: Request) {
     // FIX AUD-13: Vercel Cron pošlje Authorization: Bearer $CRON_SECRET
     // Poleg tega podpira tudi običajni Bearer token (za ročne klice)
     const authHeader = req.headers.get('authorization')
-    const cronSecret = process.env.CRON_SECRET || process.env.WS_BROADCAST_SECRET || ''
+    // FIX R112 (SEC-1): cross-purpose reuse skrivnosti odstranjen — sprejemamo
+    // IZKLJUČNO CRON_SECRET. Prej je bila kot fallback sprejeta še skrivnost za
+    // WebSocket broadcast (drugačen namen, drugačen rotacijski cikel /
+    // izpostavljenost) — uhajanje te skrivnosti bi torej omogočilo tudi
+    // sprožitev cron obdelave emailov. Fail-closed ostane: manjkajoč/napačen
+    // secret → requireAuth pot (401/403 platform gate).
+    const cronSecret = process.env.CRON_SECRET || ''
     if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
       // Vercel Cron avtentikacija — dovoli nadaljevanje
     } else {

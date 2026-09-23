@@ -84,7 +84,10 @@ export async function handlePutOrder(req: Request, params: Promise<{ id: string 
     if (data.cancelReason !== undefined) updateData.cancelReason = data.cancelReason
     if (data.cancelledBy !== undefined) updateData.cancelledBy = data.cancelledBy
     if (data.tip !== undefined) updateData.tip = data.tip
-    if (data.totalWithTip !== undefined) updateData.totalWithTip = data.totalWithTip
+    // FIX R112 (VAL-2): klientov totalWithTip se NE zapiše več (bil je client-
+    // authoritative — klient je lahko poslal poljuben znesek, ki ni ustrezal
+    // total + tip). Glej server-recalc spodaj (za discount blokom, da uporabi
+    // finalni total).
 
     // FIX Test 9.2: Aplikacija popusta na obstoječe naročilo
     if (data.discount !== undefined || data.appliedDiscountId !== undefined) {
@@ -110,10 +113,27 @@ export async function handlePutOrder(req: Request, params: Promise<{ id: string 
       updateData.discount = newDiscount
       updateData.tax = newTax
       updateData.total = newTotal
-      updateData.totalWithTip = newTotal + toNum(existingOrder.tip)
+      // FIX R112 (VAL-2): totalWithTip NI več tu (prej: newTotal + STAR tip) —
+      // enoten server-recalc je v R112 bloku tik spodaj (pokrije tudi kombinacijo
+      // popust + tip v enem requestu).
       if (data.appliedDiscountId !== undefined) {
         updateData.appliedDiscountId = data.appliedDiscountId || null
       }
+    }
+
+    // FIX R112 (VAL-2): STREŽNIŠKI recalc totalWithTip — ko se v tem requestu
+    // spreminja tip ALI total (popust), se totalWithTip vedno izračuna kot
+    // fresh total + efektivni tip in NE bo upošteval klientove vrednosti:
+    //   - fresh total = total iz discount recalc-a (če je tekel zgoraj), sicer
+    //     trenutni total naročila (request-scoped read — najboljši vir v tem
+    //     flowu brez dodatnega branja; updateMany zgoraj nosi status CAS guard)
+    //   - efektivni tip = nov tip (če poslan), sicer obstoječi tip naročila
+    // Pokrije tudi kombinacijo popust + tip v ENEM requestu (prej bi discount
+    // veja uporabila STAR tip za totalWithTip).
+    if (data.tip !== undefined || updateData.total !== undefined) {
+      const freshTotal = updateData.total !== undefined ? toNum(updateData.total as number) : toNum(existingOrder.total)
+      const effectiveTip = data.tip !== undefined ? data.tip : toNum(existingOrder.tip)
+      updateData.totalWithTip = freshTotal + effectiveTip
     }
 
     if (data.status === 'cancelled') {

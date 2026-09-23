@@ -82,7 +82,14 @@ vi.mock('@/lib/db', () => ({
     order: { create: mocks.orderCreate, findFirst: mocks.orderFindFirst },
     menuItem: { findFirst: mocks.menuItemFindFirst, findMany: mocks.menuItemFindMany },
     location: { findFirst: mocks.locationFindFirst },
-    $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn({})),
+    // FIX R112 (WEBHOOK-1/2): dedup + order create sta zdaj ENA Serializable tx
+    // pod advisory lock-om — tx klient mora nositi iste mocke (isti vir resnice,
+    // asserti nad orderCreate/menuItemFindMany ostanejo veljavni).
+    $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn({
+      $executeRaw: vi.fn().mockResolvedValue(0),
+      order: { create: mocks.orderCreate, findFirst: mocks.orderFindFirst },
+      menuItem: { findFirst: mocks.menuItemFindFirst, findMany: mocks.menuItemFindMany },
+    })),
   },
 }))
 
@@ -102,6 +109,9 @@ vi.mock('@/lib/counters', () => ({
 
 vi.mock('@/lib/logger', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+  // FIX R112: bolt/wolt/glovo catch kontrakt zdaj gre čez structuredErrorResponse
+  // → handleApiError → generateRequestId (mock mora obstajati)
+  generateRequestId: vi.fn(() => 'req-test'),
 }))
 
 vi.mock('@/lib/event-emitter', () => ({
@@ -413,8 +423,8 @@ describe('R88-2 B: POST /api/delivery/webhook/wolt — envelope + atribucija', (
 
     // žig naročila pinned na lokacijo IZ INTEGRACIJE
     expect(mocks.orderCreate.mock.calls[0][0].data.location).toEqual({ connect: { id: LOC_A } })
-    // per-lokacijski order counter TOČNO TE lokacije
-    expect(mocks.getNextOrderNumber).toHaveBeenCalledWith(LOC_A)
+    // per-lokacijski order counter TOČNO TE lokacije (R112: + tx klient)
+    expect(mocks.getNextOrderNumber).toHaveBeenCalledWith(LOC_A, expect.anything())
     // KDS broadcast na validirano lokacijo
     expect(mocks.wsBroadcastEvent).toHaveBeenCalledTimes(1)
     expect(mocks.wsBroadcastEvent.mock.calls[0][1].locationId).toBe(LOC_A)
@@ -459,7 +469,7 @@ describe('R88-2 C: glovo/bolt — provider pin + lastne razlike', () => {
       id: INT_GLOVO, provider: 'glovo', isActive: true,
     })
     expect(mocks.orderCreate.mock.calls[0][0].data.location).toEqual({ connect: { id: LOC_B } })
-    expect(mocks.getNextOrderNumber).toHaveBeenCalledWith(LOC_B)
+    expect(mocks.getNextOrderNumber).toHaveBeenCalledWith(LOC_B, expect.anything())
     expect(mocks.resolveDefaultLocationId).not.toHaveBeenCalled()
   })
 
@@ -484,7 +494,7 @@ describe('R88-2 C: glovo/bolt — provider pin + lastne razlike', () => {
       id: INT_BOLT, provider: 'bolt', isActive: true,
     })
     expect(mocks.orderCreate.mock.calls[0][0].data.location).toEqual({ connect: { id: LOC_A } })
-    expect(mocks.getNextOrderNumber).toHaveBeenCalledWith(LOC_A)
+    expect(mocks.getNextOrderNumber).toHaveBeenCalledWith(LOC_A, expect.anything())
     expect(mocks.resolveDefaultLocationId).not.toHaveBeenCalled()
   })
 

@@ -92,8 +92,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         return NextResponse.json({ error: 'Artikel je že bil voidan' }, { status: 409 })
       }
     } else if (Object.keys(updateData).length > 0) {
-      // Preostali update-i (status/notes) — brez race problematike
-      await db.orderItem.update({ where: { id }, data: updateData })
+      // FIX R112-A (ORD-5, MED): prej NEPOGOJEN update (komentar "brez race
+      // problematike" je bil napačen) — sočasen KDS status tap je PREPIPAL
+      // status:'voided' iz void claima (zgornja veja). Sedaj CAS: samo
+      // ne-voidan artikel na NE-preklicanem naročilu.
+      const statusClaim = await db.orderItem.updateMany({
+        where: { id, voided: false, order: { status: { not: 'cancelled' } } },
+        data: updateData,
+      })
+      if (statusClaim.count === 0) {
+        return NextResponse.json(
+          { error: 'Artikel je voidan ali je naročilo preklicano — sprememba ni mogoča' },
+          { status: 409 },
+        )
+      }
     }
 
     const orderItem = await db.orderItem.findUnique({
@@ -160,8 +172,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       )
 
       if (allReady && orderItem.order.status !== 'ready') {
-        await db.order.update({
-          where: { id: orderItem.orderId },
+        // FIX R112-A (ORD-6): prej NEPOGOJEN update — stale order read je
+        // lahko REGRESIRAL 'completed' (plačano) naročilo v 'ready'. Sedaj
+        // CAS: promotion IZKLJUČNO iz 'pending'/'in-progress'.
+        await db.order.updateMany({
+          where: { id: orderItem.orderId, status: { in: ['pending', 'in-progress'] } },
           data: { status: 'ready' },
         })
       }

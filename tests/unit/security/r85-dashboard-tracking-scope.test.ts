@@ -44,10 +44,14 @@ const mocks = vi.hoisted(() => ({
   trackingFindMany: vi.fn(),
   trackingFindUnique: vi.fn(),
   trackingUpdate: vi.fn(),
+  // FIX R112 (WEBHOOK-5): status pot je sedaj CAS updateMany (tx-fresh)
+  trackingUpdateMany: vi.fn(),
   trackingCreate: vi.fn(),
   infoFindMany: vi.fn(),
   infoFindUnique: vi.fn(),
   infoUpdate: vi.fn(),
+  // FIX R112 (WEBHOOK-5): CAS na DeliveryInfo znotraj status tx
+  infoUpdateMany: vi.fn(),
   emitEvent: vi.fn(),
 }))
 
@@ -74,8 +78,9 @@ vi.mock('@/lib/event-emitter', () => ({
 
 function makeTx() {
   return {
-    deliveryTracking: { update: mocks.trackingUpdate, create: mocks.trackingCreate, findUnique: mocks.trackingFindUnique },
-    deliveryInfo: { update: mocks.infoUpdate },
+    deliveryTracking: { update: mocks.trackingUpdate, create: mocks.trackingCreate, findUnique: mocks.trackingFindUnique, updateMany: mocks.trackingUpdateMany },
+    // FIX R112 (WEBHOOK-5): status tx bere DeliveryInfo tx-fresh (select id,status) + CAS updateMany
+    deliveryInfo: { update: mocks.infoUpdate, findUnique: mocks.infoFindUnique, updateMany: mocks.infoUpdateMany },
   }
 }
 
@@ -147,9 +152,12 @@ beforeEach(() => {
   mocks.locationFindUnique.mockResolvedValue(null)
   mocks.trackingFindMany.mockResolvedValue([])
   mocks.trackingUpdate.mockResolvedValue({ id: 'tr-1' })
+  // FIX R112 (WEBHOOK-5): CAS privzeti uspeh (count 1)
+  mocks.trackingUpdateMany.mockResolvedValue({ count: 1 })
   mocks.trackingCreate.mockResolvedValue({ id: 'tr-new' })
   mocks.infoFindMany.mockResolvedValue([])
   mocks.infoUpdate.mockResolvedValue({})
+  mocks.infoUpdateMany.mockResolvedValue({ count: 1 })
   mocks.emitEvent.mockResolvedValue(undefined)
 })
 
@@ -361,18 +369,22 @@ describe('R85-C: POST /api/delivery-tracking — H2 cross-tenant WRITE guardi', 
 
   it('STATUS: lastna lokacija (tracking.locationId=LOC_A) → transakcija OK', async () => {
     mockSession({ role: 'admin', locationId: LOC_A })
-    // handleStatusUpdate kliče findUnique točno ENKRAT (guard); tx uporablja update
-    mocks.trackingFindUnique.mockResolvedValue({ id: 'tr-1', deliveryInfoId: 'di-1', locationId: LOC_A, driverName: 'Marko' })
-    mocks.trackingUpdate.mockResolvedValue({ id: 'tr-1', estimatedArrival: null })
-    mocks.infoFindUnique.mockResolvedValue({ id: 'di-1', order: { id: 'o-1', orderNumber: 7, locationId: LOC_A } })
+    // FIX R112 (WEBHOOK-5) migracija: handleStatusUpdate zdaj teče tx-fresh —
+    // tracking guard (db) + tx-fresh re-read (status) + CAS updateMany na
+    // tracking IN info. Mocki nosijo status polje za prehodno mapo
+    // ('assigned' → 'delivered' dovoljen; info 'picked_up' → 'delivered').
+    mocks.trackingFindUnique.mockResolvedValue({ id: 'tr-1', deliveryInfoId: 'di-1', locationId: LOC_A, driverName: 'Marko', status: 'assigned' })
+    mocks.trackingUpdateMany.mockResolvedValue({ count: 1 })
+    mocks.infoFindUnique.mockResolvedValue({ id: 'di-1', status: 'picked_up', order: { id: 'o-1', orderNumber: 7, locationId: LOC_A } })
+    mocks.infoUpdateMany.mockResolvedValue({ count: 1 })
     const res = await trackingPOST(new Request('http://localhost:3000/api/delivery-tracking', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ deliveryInfoId: 'di-1', status: 'delivered', customerRating: 5 }),
     }))
     expect(res.status).toBe(200)
-    expect(mocks.trackingUpdate).toHaveBeenCalled()
-    expect(mocks.infoUpdate).toHaveBeenCalled()
+    expect(mocks.trackingUpdateMany).toHaveBeenCalled()
+    expect(mocks.infoUpdateMany).toHaveBeenCalled()
   })
 
   it('ASSIGN: dostava na tuji lokaciji (order.locationId=LOC_B) → 404, NI transakcije', async () => {

@@ -145,6 +145,14 @@ export const updatePackagingSchema = z.object({
 // HAPPY HOUR SCHEDULE
 // ============================================
 
+// FIX R112 (HH-4, LOW — neomejen procentni popust, recon 5.3): prej je bil
+// discountAmount samo min(0) → 'percentage' popust 999 % je šel skozi
+// (vsak Artikel praktično zastonj = direktna izguba). Objekt-level .refine:
+// discountType 'percentage' zahteva 0 < discountAmount <= 100. Zneskovni
+// popust ('fixed_amount') ni del tega fixa (ima svojo poslovno mejo).
+// Ločena update shema za happy hour NE obstaja (PATCH je samo toggle
+// aktivnosti prek happyHourStatusSchema, ki popusta nima) — refine samo na
+// create shemi.
 export const createHappyHourSchema = z.object({
   name: z.string().min(1, 'Ime je obvezno').max(200),
   description: z.string().max(1000).default(''),
@@ -161,6 +169,12 @@ export const createHappyHourSchema = z.object({
   isActive: z.boolean().default(true),
   autoActivate: z.boolean().default(true),
 })
+  // FIX R112 (HH-4): procentni popust mora biti v (0, 100] — 0 % je
+  // nesmiseln (dobesedno nič), > 100 % bi plačal stranki.
+  .refine(
+    (data) => data.discountType !== 'percentage' || (data.discountAmount > 0 && data.discountAmount <= 100),
+    { message: 'Popust v procentih mora biti med 0 in 100.' },
+  )
 
 // RUNDA 69: PATCH /api/happy-hour/[id] — samo preklop aktivnosti (toggle v UI)
 export const happyHourStatusSchema = z.object({

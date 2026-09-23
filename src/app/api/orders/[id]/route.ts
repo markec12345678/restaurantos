@@ -136,7 +136,24 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       return NextResponse.json({ error: 'Naročilo je že preklicano' }, { status: 400 })
     }
 
-    await performOrderSoftDelete(id, order, authResult.session?.employeeId)
+    // FIX R112-A (ORD-4): performOrderSoftDelete je zdaj avtoritativni kanon
+    // (Serializable tx + advisory lock 'order-write:{id}' + tx-fresh guardi +
+    // CAS) — stale guardi zgoraj ostanejo kot hitri UX fast-path, odločitev je
+    // tx-fresh. Strukturiran { ok, reason } rezultat → pravi 404/400/409
+    // (plačano naročilo = 409 storno pot; prej: race z plačilom je lahko
+    // PREKLICAL plačano naročilo).
+    const result = await performOrderSoftDelete(id, order, authResult.session?.employeeId)
+    if (!result.ok) {
+      const responses: Record<string, { error: string; status: number }> = {
+        not_found: { error: 'Naročilo ni najdeno', status: 404 },
+        already_cancelled: { error: 'Naročilo je že preklicano', status: 400 },
+        completed: { error: 'Zaključenega naročila ni mogoče izbrisati. Uporabite storno postopek.', status: 400 },
+        paid: { error: 'Naročilo je plačano — uporabite storno/povračilo postopek.', status: 409 },
+        conflict: { error: 'Naročilo je v obdelavi (sočasna sprememba) — osvežite in poskusite znova.', status: 409 },
+      }
+      const mapped = responses[result.reason]
+      return NextResponse.json({ error: mapped.error }, { status: mapped.status })
+    }
 
     return NextResponse.json({ success: true, action: 'soft-delete', message: 'Naročilo preklicano' })
   } catch (error: unknown) {

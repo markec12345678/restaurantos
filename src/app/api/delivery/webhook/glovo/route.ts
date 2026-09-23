@@ -6,6 +6,7 @@
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
+import { Prisma } from '@prisma/client'
 import { verifySignature } from '@/lib/webhook-engine'
 import { getNextOrderNumber } from '@/lib/counters'
 import { emitOrderCreated } from '@/lib/event-emitter'
@@ -13,10 +14,12 @@ import { logger } from '@/lib/logger'
 import { toNum, multiply, round2, sumBy } from '@/lib/decimal'
 import { checkRateLimitAsync, getClientIp, DELIVERY_WEBHOOK_LIMIT } from '@/lib/rate-limit'
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
-import { handleApiError } from '@/lib/api-utils'
 // R88-2: webhook envelope (?t=<integrationId>:<hmac64>) — tenant atribucija ŠE
 // PRED DB lookupom; isOrderingSecretConfigured = R82-D fail-closed kanon.
 import { isOrderingSecretConfigured, parseWebhookEnvelope } from '@/lib/ordering-token'
+// FIX R112: canonical error kontrakt (R103/R111) — strukturirani
+// { error, status } throws iz tx telesa → pravi 400/500.
+import { structuredErrorResponse } from '@/lib/structured-error'
 import {
   GLOVO_SIGNATURE_HEADER,
   glovoOrderSchema,
@@ -91,7 +94,9 @@ export async function POST(req: Request) {
     }
     const glovoOrder = parsed.data
 
-    // Idempotenca
+    // Fast-path idempotenca — SAMO hitri pregled nad db; AVTORITATIVNA
+    // preverba je tx-fresh ZNOTRAJ transakcije spodaj (pod advisory lock-om).
+    // Kontrakt duplikata je nespremenjen (200 accepted + obstoječi orderId).
     const existing = await findExistingGlovoOrder(glovoIntegration.id, glovoOrder.order_id)
     if (existing) {
       return NextResponse.json({ status: 'accepted', orderId: existing.orderId })
@@ -107,7 +112,6 @@ export async function POST(req: Request) {
     if (!webhookLocationId) {
       return NextResponse.json({ status: 'error', message: 'Ni nastavljene lokacije' }, { status: 503 })
     }
-    const orderNumber = await getNextOrderNumber(webhookLocationId)
     const deliveryAddress = [
       glovoOrder.delivery_address?.street,
       glovoOrder.delivery_address?.city,
@@ -116,53 +120,94 @@ export async function POST(req: Request) {
     const customerName = glovoOrder.customer?.name || 'Glovo gost'
     const customerPhone = glovoOrder.customer?.phone || ''
 
-    const orderItems = await mapGlovoProductsToOrderItems(glovoOrder.products)
-    if (orderItems.length === 0) {
-      logger.error('Glovo', 'Ni bilo mogoče preslikati artiklov')
-      return NextResponse.json({ error: 'Artikli niso najdeni' }, { status: 400 })
-    }
+    // FIX R112 (WEBHOOK-2, MED — TOCTOU razred iz R100–R111): prej je bil dedup
+    // scan integrationLog.requestData IZVEN tx, log pa je bil zapisan ŠELE PO
+    // order.create — sočasna redeliverija je obšla oba pregleda (check-then-act
+    // okno) → DVE plačani naročili za isti Glovo order. Sedaj: ENA Serializable
+    // transakcija — advisory lock 'delivery-webhook:{integrationId}:{orderId}'
+    // + tx-fresh dedup re-check + lokacijsko-scoped product mapping (WEBHOOK-3)
+    // + create pod istim snapshot-om. Izgubljena tekma → idempotenten 200
+    // accepted z obstoječim orderId (isti kontrakt kot fast-path duplikat).
+    const lockKey = `delivery-webhook:${glovoIntegration.id}:${glovoOrder.order_id}`
+    // mapped items preživijo tx scope (deduction podpis ostane enak kot prej)
+    let mappedOrderItems: Awaited<ReturnType<typeof mapGlovoProductsToOrderItems>> = []
+    const txResult = await db.$transaction(async (tx) => {
+      // Advisory lock (R110 kanon) — serializira vse redeliverije ISTEGA
+      // (integrationId, glovoOrderId) para; re-check pod ključavnico je
+      // AVTORITATIVEN.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`
 
-    const subtotal = toNum(sumBy(orderItems, item => multiply(item.price, item.quantity)))
-    const totalTax = round2(orderItems.reduce((sum, item) => sum + toNum(multiply(item.vatAmount, item.quantity)), 0))
-    const total = round2(subtotal + totalTax)
+      // tx-fresh dedup re-check (log + backward-compat notes scan, na tx klientu)
+      const freshDup = await findExistingGlovoOrder(glovoIntegration.id, glovoOrder.order_id, tx)
+      if (freshDup) {
+        return { duplicate: true as const, existing: freshDup }
+      }
 
-    const order = await db.order.create({
-      data: {
-        orderNumber,
-        type: 'delivery',
-        status: 'pending',
-        customerName,
-        customerPhone,
-        subtotal,
-        tax: totalTax,
-        discount: 0,
-        total,
-        tip: 0,
-        totalWithTip: total,
-        paymentStatus: glovoOrder.payment?.method ? 'paid' : 'unpaid',
-        paymentMethod: glovoOrder.payment?.method || 'card',
-        paidAt: glovoOrder.payment?.method ? new Date() : null,
-        notes: `GLOVO:${glovoOrder.order_id}${glovoOrder.comment ? ' | ' + glovoOrder.comment : ''}`,
-        inventoryDeducted: false,
-        location: { connect: { id: webhookLocationId } },
-        orderItems: { create: orderItems },
-        deliveryInfo: {
-          create: {
-            address: deliveryAddress || 'Glovo dostava',
-            recipientName: customerName,
-            recipientPhone: customerPhone,
-            deliveryInstructions: `Glovo Order ID: ${glovoOrder.order_id}`,
-            status: 'pending',
-            estimatedTime: new Date(Date.now() + 30 * 60 * 1000),
-            deliveryFee: 0,
+      // FIX R112 (WEBHOOK-3): mapping scoped na webhook lokacijo (MODEL A
+      // veriga category → menu → locationId) + tx-fresh cenovni/DDV snapshot.
+      const orderItems = await mapGlovoProductsToOrderItems(glovoOrder.products, webhookLocationId, tx)
+      if (orderItems.length === 0) {
+        throw { error: 'Artikli niso najdeni', status: 400 }
+      }
+      mappedOrderItems = orderItems
+
+      const subtotal = toNum(sumBy(orderItems, item => multiply(item.price, item.quantity)))
+      const totalTax = round2(orderItems.reduce((sum, item) => sum + toNum(multiply(item.vatAmount, item.quantity)), 0))
+      const total = round2(subtotal + totalTax)
+
+      // Številka naročila ZNOTRAJ tx (R100 atomarni per-lokacijski counter) —
+      // porabljena šele ko vsi guardi gredo skozi.
+      const orderNumber = await getNextOrderNumber(webhookLocationId, tx)
+
+      const order = await tx.order.create({
+        data: {
+          orderNumber,
+          type: 'delivery',
+          status: 'pending',
+          customerName,
+          customerPhone,
+          subtotal,
+          tax: totalTax,
+          discount: 0,
+          total,
+          tip: 0,
+          totalWithTip: total,
+          paymentStatus: glovoOrder.payment?.method ? 'paid' : 'unpaid',
+          paymentMethod: glovoOrder.payment?.method || 'card',
+          paidAt: glovoOrder.payment?.method ? new Date() : null,
+          notes: `GLOVO:${glovoOrder.order_id}${glovoOrder.comment ? ' | ' + glovoOrder.comment : ''}`,
+          inventoryDeducted: false,
+          location: { connect: { id: webhookLocationId } },
+          orderItems: { create: orderItems },
+          deliveryInfo: {
+            create: {
+              address: deliveryAddress || 'Glovo dostava',
+              recipientName: customerName,
+              recipientPhone: customerPhone,
+              deliveryInstructions: `Glovo Order ID: ${glovoOrder.order_id}`,
+              status: 'pending',
+              estimatedTime: new Date(Date.now() + 30 * 60 * 1000),
+              deliveryFee: 0,
+            },
           },
         },
-      },
-      include: { orderItems: { include: { menuItem: true } } },
+        include: { orderItems: { include: { menuItem: true } } },
+      })
+
+      return { duplicate: false as const, order }
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     })
 
-    // Zmanjšaj zalogo
-    await deductInventoryForOrder(order.id, order.orderNumber, orderItems, 'Glovo')
+    // Izgubljena dedup tekma → idempotenten 200 accepted z obstoječim orderId
+    if (txResult.duplicate) {
+      return NextResponse.json({ status: 'accepted', orderId: txResult.existing.orderId })
+    }
+
+    const order = txResult.order
+
+    // Zmanjšaj zalogo (lastna tx — INSUFFICIENT_STOCK kontrakt ostaja enak)
+    await deductInventoryForOrder(order.id, order.orderNumber, mappedOrderItems, 'Glovo')
 
     // Integracijski log + sync
     await logAndSyncIntegration(glovoIntegration.id, body, order.id, order.orderNumber)
@@ -204,6 +249,15 @@ export async function POST(req: Request) {
         { status: 409 },
       )
     }
-    return handleApiError(error, 'POST /api/delivery/webhook/glovo', 'Napaka pri obdelavi Glovo naročila')
+    // FIX R112: canonical error kontrakt (R107/R111 vzorec) — P2034 Serializable
+    // konflikt / P2002 → 409; strukturirani { error, status } throws iz tx
+    // telesa (Artikli niso najdeni) → pravi 400 (prej 500).
+    if (error instanceof Prisma.PrismaClientKnownRequestError && (error.code === 'P2034' || error.code === 'P2002')) {
+      return NextResponse.json(
+        { error: 'Konflikt pri obdelavi Glovo naročila (sočasna dostava). Poskusite znova.' },
+        { status: 409 }
+      )
+    }
+    return structuredErrorResponse(error, 'POST /api/delivery/webhook/glovo', 'Napaka pri obdelavi Glovo naročila')
   }
 }

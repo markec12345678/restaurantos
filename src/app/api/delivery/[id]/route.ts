@@ -6,6 +6,15 @@ import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middlewa
 import { updateDeliverySchema } from '@/lib/validations'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { handleRouteError, parseJsonBody, validateBody } from '@/lib/api-utils'
+// FIX R112 (WEBHOOK-5, MED): enoten vir prehodov statusov dostave — ista mapa
+// kot voznikova pot (POST /api/delivery-tracking). Prej je imela ta ruta lastno
+// lokalno validTransitions mapo in NEPOGOJEN update (READ COMMITTED tx brez
+// CAS) → 3 nepovezani writerji, last-writer-wins, regresija delivered →
+// picked_up.
+import {
+  canTransitionDeliveryStatus,
+  STALE_DELIVERY_STATUS_MESSAGE,
+} from '@/app/api/delivery/_helpers/status-transitions'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +45,14 @@ export async function PUT(
       endpoint: 'PUT /api/delivery/[id]',
     })
     if ('error' in scope) return scope.error
+
+    // FIX R112 (WEBHOOK-5, MED — last-writer-wins razred iz R100–R111): prej je
+    // bila preverba prehodov na zastarelem branju in update NEPOGOJEN — med
+    // read in update je lahko drug writer (voznikova pot / dodelitev) zapisal
+    // status → naš zapis ga je pregazil (delivered → picked_up regresija).
+    // Sedaj: tx-fresh branje (ostaja v tx) + preverba prehoda prek SKUPNE mape
+    // + CAS updateMany ({ where: { id, status: <freshStatus> } }) — count 0 →
+    // 409 'Status dostave je v medčasom spremenjen — osvežite'.
     const delivery = await db.$transaction(async (tx) => {
       const existing = await tx.deliveryInfo.findFirst({
         where: { id, ...(scope.locationId ? { order: { locationId: scope.locationId } } : {}) },
@@ -44,18 +61,10 @@ export async function PUT(
         throw new Error('DELIVERY_NOT_FOUND')
       }
 
-      // State machine za dostavne statuse
-      const validTransitions: Record<string, string[]> = {
-        pending: ['preparing', 'failed'],
-        preparing: ['ready', 'failed'],
-        ready: ['picked_up', 'failed'],
-        picked_up: ['delivered', 'failed'],
-        delivered: [],
-        failed: [],
-      }
+      // State machine za dostavne statuse (skupna mapa — WEBHOOK-5)
       if (data.status !== undefined && existing.status !== data.status) {
-        const allowed = validTransitions[existing.status] || []
-        if (!allowed.includes(data.status)) {
+        if (!canTransitionDeliveryStatus(existing.status, data.status)) {
+          // Isti { match, extra } error kontrakt kot prej (INVALID_TRANSITION)
           throw new Error(`INVALID_TRANSITION:${existing.status}:${data.status}`)
         }
       }
@@ -78,11 +87,25 @@ export async function PUT(
       if (data.latitude !== undefined) updateData.latitude = data.latitude
       if (data.longitude !== undefined) updateData.longitude = data.longitude
 
-      return tx.deliveryInfo.update({
-        where: { id },
+      // CAS namesto nepogojenega update-a — stale concurrent write ne sme zmagati
+      const cas = await tx.deliveryInfo.updateMany({
+        where: { id, status: existing.status },
         data: updateData,
+      })
+      if (cas.count === 0) {
+        throw new Error('STATUS_CONFLICT')
+      }
+
+      // Ponovno branje za odgovor (enaka oblika polj kot prejšnji update +
+      // include order — kontrakt odgovora nespremenjen)
+      const updated = await tx.deliveryInfo.findFirst({
+        where: { id },
         include: { order: true },
       })
+      if (!updated) {
+        throw new Error('DELIVERY_NOT_FOUND')
+      }
+      return updated
     })
 
     return NextResponse.json(decimalsToNumbers(delivery, ['deliveryFee', 'packagingFee']))
@@ -90,6 +113,8 @@ export async function PUT(
     return handleRouteError(error, 'PUT /api/delivery/[id]', [
       { match: 'DELIVERY_NOT_FOUND', message: 'Dostava ni najdena', status: 404 },
       { match: 'INVALID_TRANSITION', message: 'Neveljaven prehod statusa', status: 400, extra: (parts) => ({ error: `Neveljaven prehod statusa: ${parts[1]} → ${parts[2]}`, currentStatus: parts[1], requestedStatus: parts[2] }) },
+      // FIX R112 (WEBHOOK-5): izgubljena CAS tekma → 409 (osvežitev stale pogleda)
+      { match: 'STATUS_CONFLICT', message: STALE_DELIVERY_STATUS_MESSAGE, status: 409 },
     ], 'Napaka pri posodobitvi dostave')
   }
 }

@@ -4,13 +4,25 @@ import { db } from '@/lib/db'
 import { toNum, calcVat } from '@/lib/decimal'
 import { woltOrderSchema } from './wolt-schema'
 import type { WebhookOrderItem } from './wolt-schema'
+import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
 // ---- Idempotency Check ----
 // FIX D-02: Natančno ujemanje order_id, NE substring contains
-
-export async function findExistingWoltOrder(integrationId: string, orderId: string) {
-  const candidateLogs = await db.integrationLog.findMany({
+//
+// FIX R112 (WEBHOOK-2, MED): opcionalen tx klient — AVTORITATIVNA dedup
+// preverba teče tx-fresh ZNOTRAJ transakcije pod advisory lock-om
+// 'delivery-webhook:{integrationId}:{woltOrderId}' (glej wolt/route.ts).
+// Prej je bil dedup scan integrationLog.requestData izven tx, log pa je bil
+// zapisan ŠELE PO order.create — sočasna redeliverija je obšla oba pregleda
+// (check-then-act okno) → dup plačanih naročil. Brez klienta ostane hitri
+// pregled nad db (samo fast-path, ni vezava).
+export async function findExistingWoltOrder(
+  integrationId: string,
+  orderId: string,
+  client: Prisma.TransactionClient = db,
+) {
+  const candidateLogs = await client.integrationLog.findMany({
     where: {
       integrationId,
       action: 'receive_order',
@@ -33,7 +45,7 @@ export async function findExistingWoltOrder(integrationId: string, orderId: stri
     return { type: 'log' as const, orderId: existingOrderId }
   }
   // Backward compat: preveri tudi notes
-  const existingOrder = await db.order.findFirst({
+  const existingOrder = await client.order.findFirst({
     where: { notes: { contains: `WOLT:${orderId}` } },
   })
   if (existingOrder) {
@@ -44,14 +56,25 @@ export async function findExistingWoltOrder(integrationId: string, orderId: stri
 
 // ---- Item Mapping ----
 
+// FIX R112 (WEBHOOK-3, MED): lookup je bil NESCEOPAN
+// (findFirst isAvailable + OR[id, name] brez lokacije) → artikel TUJEGA
+// tenanta se je lahko ujemale po imenu/ID (napačna cena/DDV). Sedaj je
+// locationId OBVEZEN parameter in lookup je scoped prek MODEL A verige
+// category → menu → locationId. Tx-fresh (klicatelj poda tx klienta).
 export async function mapWoltItemsToOrderItems(
-  items: z.infer<typeof woltOrderSchema>['items']
+  items: z.infer<typeof woltOrderSchema>['items'],
+  locationId: string,
+  client: Prisma.TransactionClient = db,
 ): Promise<WebhookOrderItem[]> {
   const orderItems: WebhookOrderItem[] = []
   for (const item of items) {
     // FIX: Only match available menu items (prevent ordering unavailable items)
-    const menuItem = await db.menuItem.findFirst({
-      where: { isAvailable: true, OR: [{ id: item.item_id }, { name: item.name }] },
+    const menuItem = await client.menuItem.findFirst({
+      where: {
+        isAvailable: true,
+        category: { menu: { locationId } },
+        OR: [{ id: item.item_id }, { name: item.name }],
+      },
     })
     if (menuItem) {
       orderItems.push({

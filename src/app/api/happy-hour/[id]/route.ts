@@ -7,6 +7,7 @@
 // HappyHourSchedule je leaf model (vhodne FK: ne obstajajo; priceGroup je
 // STARŠ z Cascade) → hard delete je varen po obstoječem checku.
 // ============================================
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
@@ -69,11 +70,40 @@ export async function PATCH(
     if (!isWithinScope(sessionLocId, existing.priceGroup.locationId)) {
       return notInScopeResponse('Happy ura')
     }
-    const updated = await db.happyHourSchedule.update({
+    // FIX R112 (HH-2, LOW — stale read + unconditional write, TOCTOU razred iz
+    // R100–R111): prej je bil NEPOGOJEN update({ where: { id }, data }) — tekma
+    // z DELETE med preberi in piši = P2025 → 500; dvojni toggle = neskončno
+    // utripanje stikala (last-writer-wins brez korelacije z realnim stanjem).
+    // Fix: CAS toggle updateMany({ where: { id, isActive: !newValue },
+    // data: { isActive: newValue } }) — prijel samo, če je bila vrednost v
+    // trenutku pisanja obrnjena:
+    //   count 0 → re-check obstoja: izbrisana → 404 'Happy ura ne obstaja';
+    //   še vedno tam (že v želenem stanju — dvoklik) → idempotenten 200.
+    // Response oblika ostane identična (urnik + vključen priceGroup).
+    const newIsActive = data.isActive
+    const casToggle = await db.happyHourSchedule.updateMany({
+      where: { id, isActive: !newIsActive },
+      data: { isActive: newIsActive },
+    })
+    if (casToggle.count === 0) {
+      // CAS ni prijel — izbrisana (404) ali že v želenem stanju (idempotentno 200)
+      const stillThere = await db.happyHourSchedule.findUnique({
+        where: { id },
+        include: { priceGroup: true },
+      })
+      if (!stillThere) {
+        return NextResponse.json({ error: 'Happy ura ne obstaja' }, { status: 404 })
+      }
+      return NextResponse.json(stillThere)
+    }
+    const updated = await db.happyHourSchedule.findUnique({
       where: { id },
-      data: { isActive: data.isActive },
       include: { priceGroup: true },
     })
+    if (!updated) {
+      // obrambno: izbrisana tik po uspešnem CAS-u → 404 namesto praznega body-a
+      return NextResponse.json({ error: 'Happy ura ne obstaja' }, { status: 404 })
+    }
     return NextResponse.json(updated)
   } catch (error: unknown) {
     return handleApiError(error, 'PATCH /api/happy-hour/[id]', 'Napaka pri preklopu Happy Hour urnika')
@@ -110,6 +140,16 @@ export async function DELETE(
     await db.happyHourSchedule.delete({ where: { id } })
     return NextResponse.json({ ok: true, id })
   } catch (error: unknown) {
+    // FIX R112 (HH-3, LOW): tekma (dvojni klik / DELETE∥PATCH toggle) — delete
+    // po findUnique-u vrže P2025 → prej 500. Canonical mapping: P2025 → 404
+    // ('Happy ura ne obstaja' — enako sporočilo kot PATCH CAS veja), P2034 →
+    // 409 (vzorec R107/R109/R111). Ostalo gre v handleApiError kot prej.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return NextResponse.json({ error: 'Happy ura ne obstaja' }, { status: 404 })
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2034') {
+      return NextResponse.json({ error: 'Konflikt pri brisanju Happy ura (sočasna sprememba). Poskusite znova.' }, { status: 409 })
+    }
     return handleApiError(error, 'DELETE /api/happy-hour/[id]', 'Napaka pri brisanju Happy Hour urnika')
   }
 }
