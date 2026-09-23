@@ -241,12 +241,25 @@ export async function handlePostOrder(
   let order
   try {
     order = await db.$transaction(async (tx) => {
+      // R115 (P0 firedAt source-of-truth): Sales "Oddaj naročilo" JE trenutek
+      // pošiljanja v kuhinjo za ta endpoint — kuhinja je obveščena TIK PO tej
+      // kreaciji (handlePostCreationEffects → autoPrintKitchenOrder tisk kuhinjskega
+      // lista + WS NEW_ORDER + push notifyNewOrder), KDS pa prikazuje 'pending'
+      // naročila. Prej je firedAt ostal null → KDS časovnik "--:--" (R114 display
+      // fallback), waiter elapsed=0 in operational-alerts "zakasnela naročila"
+      // NIKOLI niso zajela Sales naročil. Semantika firedAt (schema FIX WORKFLOW-2:
+      // "čas, kdaj je naročilo poslano v kuhinjo") je ohranjena — nastavimo istega
+      // trenutka kot ob fire akciji. Idempotency replay (P2002) vrne obstoječo
+      // vrstico s PVODNO vrednostjo — dvopisem ne nastane. Eksplicitni fire
+      // (re-fire) firedAt kasneje prezapiše (obstoječa semantika re-fire-a).
+      const firedAt = new Date()
       const newOrder = await tx.order.create({
         data: {
           orderNumber,
           idempotencyKey, // FIX Test 3.2: unikatni ključ za deduplikacijo
           type: data.type,
           status: 'pending',
+          firedAt,
           tableId: data.tableId || null,
           diningOptionId: data.diningOptionId || null,
           revenueCenterId: data.revenueCenterId || null,

@@ -106,4 +106,67 @@ test.describe('Cookie Consent (GDPR banner)', () => {
     const parsed = JSON.parse(stored ?? '{}') as { analytics?: boolean }
     expect(parsed.analytics).toBe(true)
   })
+
+  // R115 (P1 repro): na nižjih/ožjih viewportih je kartica (z-[100], fixed
+  // bottom-right) FIZIČNO prekrila PIN-dialog in INTERCEPTALA gumba "0" in
+  // "Potrdi PIN" (elementFromPoint → consent kartica). Fix: ko bi kartica
+  // pokrila katerikoli interaktivni kontrol primarnega aria-modal dialoga,
+  // se preseli na vrh. Ta test zagotavlja: (a) NIKOLI pokrit PIN gumb,
+  // (b) kartica ostane uporabna (klik na "Samo nujni" deluje).
+  test('R115: kartica ne intercepta PIN gumbov na ožjem/nižjem viewportu (800×600)', async ({ page }) => {
+    // 800×600 = dokazani repro: pri bottom poziciji sta bila pokrita "0" in "Potrdi PIN"
+    await page.setViewportSize({ width: 800, height: 600 })
+    await page.goto('/')
+
+    const banner = page.locator('[role="dialog"][aria-label*="piškotkov"]')
+    await expect(banner).toBeVisible({ timeout: 15_000 })
+    // Počakaj na asinhrono tipkovnico + entrance/settle re-check (500 ms)
+    const firstDigit = page.getByRole('button', { name: 'Stevka 1' })
+    await expect(firstDigit).toBeVisible({ timeout: 20_000 })
+    await page.waitForTimeout(700)
+
+    // (a) vsak PIN-dialog gumb mora biti dosegljiv pod kurzorjem (hit-test)
+    const pinButtons = await page.locator('[role="dialog"][aria-label="PIN prijava"] button').all()
+    expect(pinButtons.length).toBeGreaterThan(0)
+    for (const btn of pinButtons) {
+      const box = await btn.boundingBox()
+      if (!box || box.width === 0 || box.height === 0) continue
+      const hit = await page.evaluate(
+        ([cx, cy]) => {
+          const el = document.elementFromPoint(cx as number, cy as number)
+          return !!el && !!el.closest('[role="dialog"][aria-label="PIN prijava"]')
+        },
+        [box.x + box.width / 2, box.y + box.height / 2],
+      )
+      const label = (await btn.getAttribute('aria-label')) ?? (await btn.textContent()) ?? 'gumb'
+      expect(hit, `PIN gumb "${label.trim()}" ni klikljiv — consent kartica ga pokriva!`).toBe(true)
+    }
+
+    // (b) kartica ostane uporabna na novi poziciji (vrh)
+    await page.getByRole('button', { name: 'Samo nujni' }).click()
+    await expect(banner).toBeHidden({ timeout: 5_000 })
+    const stored = await page.evaluate(() => localStorage.getItem('restaurantos-cookie-consent'))
+    expect(stored).toBeTruthy()
+
+    // (c) po privolitvi je PIN dialog popolnoma čist
+    await page.waitForTimeout(300)
+    const bannerAfter = await page.locator('[role="dialog"][aria-label*="piškotkov"]').count()
+    expect(bannerAfter).toBe(0)
+  })
+
+  test('R115: kartica ostane spodaj na velikem viewportu (brez nepotrebnega premika)', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 768 })
+    await page.goto('/')
+    const banner = page.locator('[role="dialog"][aria-label*="piškotkov"]')
+    await expect(banner).toBeVisible({ timeout: 15_000 })
+    const firstDigit = page.getByRole('button', { name: 'Stevka 1' })
+    await expect(firstDigit).toBeVisible({ timeout: 20_000 })
+    await page.waitForTimeout(700)
+
+    // Na 1366×768 se kartica (bottom-right) ne prekriva s PIN kartico —
+    // obstoječi geometrijski assertions iz prvega testa veljajo še naprej.
+    const bannerRect = await getRect(page, '[role="dialog"][aria-label*="piškotkov"]')
+    const pinCardRect = await getRect(page, '[data-testid="pin-login-card"]')
+    expect(overlapArea(bannerRect, pinCardRect)).toBe(0)
+  })
 })

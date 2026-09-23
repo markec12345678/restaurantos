@@ -299,6 +299,11 @@ describe('R88 B: POST /api/orders — resolveOrderLocationId (scope kanon)', () 
 
     expect(res.status).toBe(201)
     expect(mocks.txOrderCreate.mock.calls[0][0].data.locationId).toBe(LOC_A)
+    // R115 (P0 firedAt source-of-truth): Sales "Oddaj naročilo" (POST /api/orders)
+    // = trenutek pošiljanja v kuhinjo (kuhinja obveščena ob isti kreaciji —
+    // print/WS/push) → firedAt MORA biti nastavljen server-side (DateTime).
+    // Prej null → KDS timer "--:--", operational-alerts nevidni.
+    expect(mocks.txOrderCreate.mock.calls[0][0].data.firedAt).toBeInstanceOf(Date)
     expect(mocks.getNextOrderNumber).toHaveBeenCalledWith(LOC_A)
     // session-sourced scope: NI lokacijske validacije (ta je za super-admina)
     expect(mocks.locationFindFirst).not.toHaveBeenCalled()

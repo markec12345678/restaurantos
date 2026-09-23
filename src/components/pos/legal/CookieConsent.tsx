@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Cookie, X, ShieldCheck } from 'lucide-react'
@@ -18,6 +18,18 @@ import { logger } from '@/lib/logger'
 // in design token-e (deluje v dark mode).
 // Nujni piškotki so vedno aktivni (brez privolitve).
 // Analitski piškotki zahtevajo privolitev.
+//
+// R115 (P1 — repro 800×600 in 1024×680): na nižjih/ožjih viewportih je
+// kartica (z-[100], fixed bottom-right) FIZIČNO prekrila PIN-prijavo in
+// interceptala gumbe "0" in "Potrdi PIN" (elementFromPoint → consent
+// kartica). Lastništvo slojev: sekundarna plavajoča kartica NIKOLI ne
+// sme interceptati interaktivnih kontrol primarnega celozaslonskega
+// dialoga (role=dialog aria-modal=true — PIN prijava). Fix: ko kartica
+// bi prekrivala aktivni aria-modal dialog, se preseli NA VRH (top-right)
+// — merjeno ob mountu, ob toggle nastavitev (višina kartice se spremeni)
+// in ob resize. Ne-blokirajoča zasnova (runda 16) ostane; na extremno
+// majhnih viewportih se lahko še vedno VIZUALNO dotakne neinteraktivnega
+// roba (logo/naslov), ampak nikoli ne pokrije gumbov.
 // ============================================
 
 const CONSENT_KEY = 'restaurantos-cookie-consent'
@@ -34,8 +46,57 @@ export function CookieConsent() {
   const [show, setShow] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [analytics, setAnalytics] = useState(false)
+  // R115: true → kartica na vrhu (ne more interceptati primarnega dialoga)
+  const [atTop, setAtTop] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
   // WCAG 2.3.3: upoštevaj prefers-reduced-motion — brez animacij
   const reduceMotion = useReducedMotion()
+
+  // R115: pravilo lastništva — sekundarna plavajoča kartica NIKOLI ne sme
+  // pokriti INTERAKTIVNIH kontrol primarnega dialoga (PIN prijava, plačilni
+  // dialog …). PIN dialog je celozaslonski wrapper, zato merimo kandidatno
+  // bottom pozicijo (analitično: viewport + offsetWidth/Height — pre-transform,
+  // entrance animacija ne vpliva; odločitev neodvisna od trenutne pozicije →
+  // re-checki ne oscilirajo) proti vsakemu gumbu/vnosu znotraj aria-modal
+  // dialoga. Če katerikoli bi bil pokrit → kartica gre NA VRH. Merjeno ob
+  // layoutu (prej paint — brez utripa), ponovno po entrance animaciji in ob
+  // resize. Lastna kartica je role=dialog BREZ aria-modal — ne more zadeti
+  // same sebe. Na extremno majhnih viewportih se lahko še vedno VIZUALNO
+  // dotakne neinteraktivnega roba (logo/naslov) — gumbov pa nikoli.
+  useLayoutEffect(() => {
+    if (!show) return
+    const INTERACTIVE = 'button, a, input, select, textarea, [role="button"]'
+    const check = () => {
+      const el = cardRef.current
+      if (!el) return
+      const modal = document.querySelector<HTMLElement>('[role="dialog"][aria-modal="true"]')
+      if (!modal) { setAtTop(false); return }
+      const sm = window.matchMedia('(min-width: 640px)').matches
+      const margin = sm ? 16 : 12
+      const right = window.innerWidth - margin
+      const left = right - el.offsetWidth // <sm: offsetWidth = širina−24 → left=12
+      const bottom = window.innerHeight - margin
+      const top = bottom - el.offsetHeight
+      const controls = modal.querySelectorAll<HTMLElement>(INTERACTIVE)
+      let coversControl = false
+      controls.forEach(c => {
+        if (coversControl) return
+        const r = c.getBoundingClientRect()
+        if (r.width === 0 || r.height === 0) return
+        if (!(right < r.left || r.right < left || bottom < r.top || r.bottom < top)) coversControl = true
+      })
+      setAtTop(coversControl)
+    }
+    check()
+    const raf = requestAnimationFrame(check)
+    const settle = setTimeout(check, 500)
+    window.addEventListener('resize', check)
+    return () => {
+      cancelAnimationFrame(raf)
+      clearTimeout(settle)
+      window.removeEventListener('resize', check)
+    }
+  }, [show, showSettings])
 
   useEffect(() => {
     try {
@@ -98,7 +159,8 @@ export function CookieConsent() {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={reduceMotion ? undefined : { opacity: 0, y: 24, scale: 0.96 }}
           transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 320, damping: 28 }}
-          className="fixed bottom-3 right-3 left-3 sm:left-auto sm:bottom-4 sm:right-4 z-[100] sm:max-w-sm rounded-xl border bg-popover text-popover-foreground shadow-2xl"
+          ref={cardRef}
+          className={`fixed ${atTop ? 'top-3 right-3 left-3 sm:left-auto sm:top-4 sm:right-4' : 'bottom-3 right-3 left-3 sm:left-auto sm:bottom-4 sm:right-4'} z-[100] sm:max-w-sm rounded-xl border bg-popover text-popover-foreground shadow-2xl`}
         >
           {!showSettings ? (
             <div className="p-4 space-y-3">

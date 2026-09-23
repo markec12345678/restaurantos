@@ -130,6 +130,11 @@ test.describe('E2E Minimalni flow: login → order → plačilo → fiskalizacij
     expect(order.id).toBeTruthy()
     expect(order.status).toBe('pending')
     expect(order.paymentStatus).toBe('unpaid')
+    // R115 (P0 firedAt source-of-truth): Sales "Oddaj naročilo" mora VEDNO
+    // nastaviti firedAt (kuhinja je obveščena ob isti kreaciji — print/WS/push;
+    // KDS časovnik, waiter elapsed in operational-alerts berejo to polje).
+    // Prej je bilo firedAt=null → KDS timer "--:--", alerti nevidni.
+    expect(order.firedAt).toBeTruthy()
     expect(order.orderItems.length).toBe(1)
     orderId = order.id
     orderItemId = order.orderItems[0].id
