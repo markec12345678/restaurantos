@@ -102,9 +102,17 @@ async function resolveOrderLocationId(
 // FIX CRITICAL (Test 3.2): Poišči obstoječe naročilo po idempotencyKey
 // Če klient pošlje isti idempotencyKey 2× (double-click, React Query retry,
 // network reconnect), vrni obstoječi rezultat namesto da ustvarimo duplikat.
-async function findExistingOrderByIdempotencyKey(idempotencyKey: string) {
+// R116 (P0 tenant boundary): replay je VEDNO vezan na lokacijo naročila.
+// Prej je bil lookup GLOBALNI ({ idempotencyKey } brez lokacije) in je tekel
+// PRED resolucijo lokacije: uporabnik lokacije B s ključem naročila lokacije A
+// je prejel CELOTEN tuj order (orderNumber/total/PII/table/orderItems) —
+// fast-path leak. P2002 race path je imel isti problem (globalni @unique na
+// Order.idempotencyKey → cross-location create dobi P2002 → unscoped lookup
+// → tuj order). Kanon je enak kot R82-C (mobile/order) in R83 (kiosk):
+// scoped replay + generičen 409 za ključ tuje lokacije (nikoli podatkov).
+async function findExistingOrderByIdempotencyKey(idempotencyKey: string, locationId: string) {
   return db.order.findFirst({
-    where: { idempotencyKey },
+    where: { idempotencyKey, locationId },
     include: {
       table: true,
       orderItems: { include: { menuItem: true } },
@@ -130,12 +138,10 @@ export async function handlePostOrder(
   const idempotencyKey = data.idempotencyKey ||
     `auto-order-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 
-  // FIX CRITICAL (Test 3.2): Fast path — če naročilo z tem idempotencyKey že obstaja, ga vrni
-  const existing = await findExistingOrderByIdempotencyKey(idempotencyKey)
-  if (existing) {
-    return NextResponse.json(deepToNumbers(existing), { status: 200 })
-  }
-
+  // R116 (P0 tenant boundary): lokacija se resolvira PRED idempotency
+  // fast-pathom (read-only) — replay NIKOLI ne more obiti tenant/location
+  // scope preverjanja. Prej je bil fast-path PRVI: globalni lookup s tujim
+  // ključem je vrnil naročilo druge lokacije, še pred IDOR preverjanjem mize.
   // P1-6/R88-3: Resolviraj lokacijo naročila (scope iz seje → miza → izrecni
   // ?locationId super-admina, vse validirano). Naročilo brez lokacije je
   // izgubljeno za tenant-scoped poizvedbe (GET /api/orders z where locationId
@@ -151,6 +157,13 @@ export async function handlePostOrder(
     return NextResponse.json({ error: locationResolution.error }, { status: 400 })
   }
   const orderLocationId = locationResolution.locationId
+
+  // FIX CRITICAL (Test 3.2): Fast path — če naročilo z tem idempotencyKey že
+  // obstaja NA TEJ LOKACIJI, ga vrni (R116: scoped — tuj ključ = ni replay-a).
+  const existing = await findExistingOrderByIdempotencyKey(idempotencyKey, orderLocationId)
+  if (existing) {
+    return NextResponse.json(deepToNumbers(existing), { status: 200 })
+  }
 
   // MODEL A (#8 tenant scope audit 2026-09-09): DiningOption in RevenueCenter
   // iz bodyja sta FK referenci — preverita se proti lokaciji naročila.
@@ -311,10 +324,20 @@ export async function handlePostOrder(
     // in oba preverita "existing" preden prvi commit-ne, bo drugi dobil P2002 (unique violation).
     // V tem primeru poiščemo obstoječi rezultat in ga vrnemo (200, ne 500).
     if (isUniqueConstraintViolation(error)) {
-      const existing = await findExistingOrderByIdempotencyKey(idempotencyKey)
+      // R116 (P0 tenant boundary): replay lookup je SCOPED na lokacijo —
+      // P2002 + scoped miss pomeni, da je ključ vezan na DRUGO lokacijo
+      // (globalni @unique na Order.idempotencyKey; (locationId, orderNumber)
+      // trk je nemogoč — getNextOrderNumber je ena atomarna SQL izjava).
+      // NIKOLI ne vrnemo tujega naročila — generičen 409 (isti kanon kot
+      // R82-C mobile/order in R83 kiosk; brez podatkov o tujem orderju).
+      const existing = await findExistingOrderByIdempotencyKey(idempotencyKey, orderLocationId)
       if (existing) {
         return NextResponse.json(deepToNumbers(existing), { status: 200 })
       }
+      return NextResponse.json(
+        { error: 'Naročilo s tem ključem že obstaja' },
+        { status: 409 },
+      )
     }
     throw error
   }

@@ -50,13 +50,16 @@ warm_routes() {
     # ZDAJ tudi kompajlajo v warm-up fazi (prej je PATCH/PUT na [id] rutah
     # kompajlal šele test → RSS burst → OOM kill → "socket hang up" v runu).
     rg -o '\$\{API_BASE\}/[a-zA-Z0-9/_{}.$-]+' "$spec" 2>/dev/null | sed 's|\${API_BASE}/||; s|\${[^}]*}|_warm|g' | grep -v '_warm/_warm' | grep -v '^$' | sed 's|^|api/|'
-    rg -o "request\.(get|post|put|delete|patch)\('[^']+'" "$spec" 2>/dev/null | sed "s|.*('\(/\?[^']*\)'.*|\1|; s|^/||" | grep -v '^$\|^?' | sed 's|^|page/|'
+    rg -o "request\.(get|post|put|delete|patch)\('[^']+'" "$spec" 2>/dev/null | sed "s|.*('\(/\?[^']*\)'.*|\1|; s|^/$|home|; s|^/||" | grep -v '^$\|^?' | sed 's|^|page/|'
+    # R116: tudi page.goto() poti (npr. /kds v kds-timer.spec.ts) — brez tega
+    # se page route kompajla šele sredi teka → RSS burst → OOM kill.
+    rg -o "page\.goto\('[^']+'" "$spec" 2>/dev/null | sed "s|.*('\(/\?[^']*\)'.*|\1|; s|^/$|home|; s|^/||" | grep -v '^$\|^?' | sed 's|^|page/|'
   } | sort -u | head -60)
   [ -n "$warm_paths" ] || return 0
   while IFS= read -r p; do
     case "$p" in
       api/*)  curl -s -o /dev/null -m 90 "http://localhost:3000/api/${p#api/}" ;;
-      page/*) curl -s -o /dev/null -m 90 "http://localhost:3000/${p#page/}" ;;
+      page/*) u="${p#page/}"; [ "$u" = "home" ] && u="" ; curl -s -o /dev/null -m 90 "http://localhost:3000/$u" ;;
     esac
     sleep 0.3
   done <<< "$warm_paths"

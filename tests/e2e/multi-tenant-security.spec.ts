@@ -585,6 +585,148 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
   })
 
   // ═══════════════════════════════════════════════════════════════
+  // R116: IDEMPOTENCY TENANT BOUNDARY (POST /api/orders)
+  // Prej: fast-path lookup je bil GLOBALNI ({ idempotencyKey } brez
+  // lokacije) in je tekel PRED resolucijo lokacije — uporabnik lokacije B
+  // s ključem naročila lokacije A je prejel celoten tuj order. P2002 race
+  // path je imel isti problem (globalni @unique → unscoped catch lookup).
+  // Zdaj: replay je scoped { idempotencyKey, locationId } prek canonical
+  // resolverja; tuj ključ → generičen 409 (isti kanon kot R82-C/R83).
+  // ═══════════════════════════════════════════════════════════════
+
+  test.describe('R116: Idempotency tenant boundary', () => {
+    let filialaToken: string
+    const crossKey = `e2e-xt-${Date.now()}`
+    let orderAId = ''
+    let orderAFiredAt = ''
+    let orderANumber = -1
+
+    test.beforeAll(async () => {
+      const ctx = await playwrightRequest.newContext({ baseURL: BASE_URL })
+      const res = await ctx.post(`${API_BASE}/auth`, {
+        data: { employeeId: 'filiala-admin', pin: '2222' },
+      })
+      expect(res.ok()).toBeTruthy()
+      const body = await res.json().catch(() => ({}))
+      filialaToken = body.token || ''
+      expect(filialaToken).toBeTruthy()
+      await ctx.dispose()
+    })
+
+    function filialaHeaders(): Record<string, string> {
+      return { Authorization: `Bearer ${filialaToken}`, 'Content-Type': 'application/json' }
+    }
+
+    test('IDEMPO-1: order lokacije A (loc-1) ustvarjen z idempotencyKey X', async ({ request }) => {
+      const menuRes = await request.get(`${API_BASE}/menu-items?limit=5`, { headers: authHeaders() })
+      expect(menuRes.ok()).toBeTruthy()
+      const menuBody = await menuRes.json()
+      const menuItemId = (menuBody.menuItems?.[0]?.id) as string
+      expect(menuItemId).toBeTruthy()
+
+      const res = await request.post(`${API_BASE}/orders`, {
+        headers: authHeaders(),
+        data: {
+          type: 'dine-in',
+          tableId: 'table-1', // loc-1 (test-admin = super-admin, lokacija prek mize)
+          orderItems: [{ menuItemId, quantity: 1 }],
+          idempotencyKey: crossKey,
+        },
+      })
+      expect(res.ok()).toBeTruthy()
+      const order = await res.json()
+      orderAId = order.id
+      orderAFiredAt = order.firedAt
+      orderANumber = order.orderNumber
+      expect(order.locationId).toBe('loc-1')
+      expect(orderAFiredAt).toBeTruthy()
+    })
+
+    test('IDEMPO-2: isti idempotencyKey X + POST uporabnika lokacije B → A order se NIKOLI ne vrne', async ({ request }) => {
+      expect(orderAId).toBeTruthy()
+      const res = await request.post(`${API_BASE}/orders`, {
+        headers: filialaHeaders(),
+        data: {
+          type: 'dine-in',
+          tableId: 'table-2', // loc-2
+          orderItems: [{ menuItemId: 'mi-4', quantity: 1 }], // LASTEN loc-2 artikel (kreacija doseže P2002)
+          idempotencyKey: crossKey,
+        },
+      })
+      // Globalni @unique na Order.idempotencyKey → create dobi P2002 →
+      // scoped catch lookup ne najde nič na loc-2 → generičen 409.
+      // (Prej: unscoped lookup → 200 s CELOTnim tujim orderjem.)
+      const body = await res.json().catch(() => ({}))
+      expect([409, 201]).toContain(res.status())
+      // VSAK primer: tuj order NIKOLI v odgovoru
+      expect(body.id).not.toBe(orderAId)
+      expect(body.orderNumber).not.toBe(orderANumber)
+      if (res.status() === 409) {
+        // generično sporočilo, brez podatkov o tujem orderju
+        expect(String(body.error || '')).toContain('že obstaja')
+        expect(body.locationId).toBeUndefined()
+        expect(body.total).toBeUndefined()
+        expect(body.orderItems).toBeUndefined()
+        expect(JSON.stringify(body)).not.toContain(orderAId)
+      }
+      // Če je bil (teoretično) kreiran loc-2 order, ga pospravi
+      if (res.status() === 201 && body.id) {
+        await request.delete(`${API_BASE}/orders/${body.id}`, { headers: filialaHeaders() })
+      }
+    })
+
+    test('IDEMPO-3: isti ključ + ista lokacija (loc-1 retry) → 200 replay istega orderja, firedAt nespremenjen', async ({ request }) => {
+      expect(orderAId).toBeTruthy()
+      const menuRes = await request.get(`${API_BASE}/menu-items?limit=5`, { headers: authHeaders() })
+      const menuBody = await menuRes.json()
+      const menuItemId = (menuBody.menuItems?.[0]?.id) as string
+
+      const res = await request.post(`${API_BASE}/orders`, {
+        headers: authHeaders(),
+        data: {
+          type: 'dine-in',
+          tableId: 'table-1',
+          orderItems: [{ menuItemId, quantity: 1 }],
+          idempotencyKey: crossKey,
+        },
+      })
+      expect(res.status()).toBe(200)
+      const body = await res.json()
+      // replay = ISTA vrstica (id, orderNumber, firedAt) — ni duplikata, ni novega firedAt
+      expect(body.id).toBe(orderAId)
+      expect(body.orderNumber).toBe(orderANumber)
+      expect(body.firedAt).toBe(orderAFiredAt)
+      expect(body.locationId).toBe('loc-1')
+    })
+
+    test('IDEMPO-4: cross-tenant fire (loc-2 zaposleni na loc-1 orderju) → 404, order NI fire-an', async ({ request }) => {
+      expect(orderAId).toBeTruthy()
+      const res = await request.patch(`${API_BASE}/orders/${orderAId}`, {
+        headers: filialaHeaders(),
+        data: { action: 'fire' },
+      })
+      // P0-C1 IDOR zaščita: fire je scope-checkan (findFirst z locationId) → 404
+      expect(res.status()).toBe(404)
+
+      // Order ostaja NETAKNjen: status pending (NI in-progress), firedAt nespremenjen
+      const getRes = await request.get(`${API_BASE}/orders/${orderAId}`, { headers: authHeaders() })
+      expect(getRes.ok()).toBeTruthy()
+      const order = await getRes.json()
+      expect(order.status).toBe('pending')
+      expect(order.firedAt).toBe(orderAFiredAt)
+      for (const item of order.orderItems) {
+        expect(item.status).toBe('pending')
+      }
+    })
+
+    test('IDEMPO-5: cleanup — order A storniran', async ({ request }) => {
+      if (orderAId) {
+        await request.delete(`${API_BASE}/orders/${orderAId}`, { headers: authHeaders() })
+      }
+    })
+  })
+
+  // ═══════════════════════════════════════════════════════════════
   // CLEANUP
   // ═══════════════════════════════════════════════════════════════
 
