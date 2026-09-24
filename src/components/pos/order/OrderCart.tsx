@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { AnimatePresence } from 'framer-motion'
-import { Trash2, ShoppingBag, ArrowLeft, UtensilsCrossed, Plus, Table2 } from 'lucide-react'
+import { Trash2, ShoppingBag, ArrowLeft, UtensilsCrossed, Plus, Table2, X } from 'lucide-react'
 import type { CartItemType } from '@/lib/store'
 import { usePOSStore } from '@/lib/store'
 import { CartItemRow } from './CartItemRow'
@@ -42,6 +42,8 @@ export interface OrderCartProps {
   /** UI-REFACTOR (Sales P0): številka mize v glavi košarice — uporabnik VEDNO
       ve, za katero mizo gre, ne glede na to, kam je zdrsnil po meniju */
   tableNumber?: number | null
+  /** ISSUE #113 §3: zapri mobilni drawer (<md); na desktopu ni prikazan */
+  onCloseMobile?: () => void
 }
 
 // ============================================
@@ -55,7 +57,7 @@ export function OrderCart({
   setDiscount, appliedDiscountId, setAppliedDiscountId, discounts,
   editingOrderId, editingOrderNumber, onExitEditing,
   onSubmit, isPending, setClearCartConfirm,
-  tableNumber,
+  tableNumber, onCloseMobile,
 }: OrderCartProps) {
   const cartItemCount = cart.reduce((s, i) => s + i.quantity, 0)
   const bumpCartQuickAddSignal = usePOSStore((s) => s.bumpCartQuickAddSignal)
@@ -65,6 +67,16 @@ export function OrderCart({
       {/* Cart Header — naslov + kontekst mize */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-2 min-w-0">
+          {/* ISSUE #113 §3: mobilni drawer — zapri (×) je viden samo <md */}
+          {onCloseMobile && (
+            <button
+              onClick={onCloseMobile}
+              className="md:hidden -ml-1 flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted active:scale-95 transition-all"
+              aria-label="Zapri naročilo"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
           {editingOrderId ? (
             <>
               <UtensilsCrossed className="h-4 w-4 text-primary flex-shrink-0" />

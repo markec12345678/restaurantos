@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ChevronDown, History, Plus, Search, Star, X } from 'lucide-react'
+import { ChevronDown, History, PackageOpen, Plus, Search, Star, X } from 'lucide-react'
 import { MenuItemCard } from './MenuItemCard'
 import { AllergenFilterPopover } from './AllergenFilterBar'
+import { StarterCatalogDialog } from './StarterCatalogDialog'
 import { formatEUR } from '@/lib/safe-format'
 import { useFavoritesStore } from '@/lib/favorites-store'
 import { useRecentsStore, RECENTS_MAX } from '@/lib/recents-store'
@@ -111,11 +112,13 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
 
   // RUNDA 42: OKNO UPODAUBLJANJA — "Vse kategorije" pokaže do 241 artiklov
   // (merjeno na prod) = 3500+ DOM vozlišč → upočasni drsenje/odpiranje na
-  // slabših tablicah. Okno: 60 kartic + "Prikaži še" gumb (inkrementalno,
+  // slabših tablicah. Okno: 90 kompaktnih gumbov (issue #113: manjša kartica
+  // brez fotografije = več artiklov na zaslonu; okno povečano 60 → 90, da
+  // okno pokrije isti vidni zaslon) + "Prikaži še" gumb (inkrementalno,
   // Square/Linear pattern). Iskanje NI okvirano (popolni zadetki).
   // Reset ob zamenjavi kategorije/menija dela MENU BROWSER prek `key` propa
   // (remount = čisto stanje, brez setState-in-effect).
-  const WINDOW_STEP = 60
+  const WINDOW_STEP = 90
   const [visibleCount, setVisibleCount] = useState(WINDOW_STEP)
   const windowedItems = useMemo(() => {
     if (itemSearch) return visibleItems // iskanje = popolni zadetki
@@ -132,6 +135,13 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
   const toggleFav = (id: string) => {
     toggleFavorite(id)
   }
+
+  // NOVO (issue #113 + #114): prazni katalog ≠ pokvarjen sistem. Ko meni
+  // sploh NIMA artiklov (ne samo aktivna kategorija), ponudimo naslednji
+  // korak: starter katalog (onboarding) ali skok v MenuManager.
+  const [starterDialogOpen, setStarterDialogOpen] = useState(false)
+  const setActiveModule = usePOSStore((s) => s.setActiveModule)
+  const isCatalogEmpty = !itemSearch && !favoritesOnly && (allMenuItems?.length ?? 0) === 0
 
   return (
     <>
@@ -230,10 +240,31 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
       {/* ITEMS GRID */}
       <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
         {menuLoading || menusLoading ? (
-          /* UI-REFACTOR (runda 112): skeleton grid razredi = realni grid
-             (2/3/4/5) — prej 3/4 → vidni skok pri nalaganju */
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
-            {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-32 rounded-lg" />)}
+          /* Skeleton grid razredi = realni grid (issue #113: 2/3/4/5/6) —
+             kompaktne višine (brez fotografije je kartica nižja) */
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+            {[...Array(12)].map((_, i) => <Skeleton key={i} className="h-[72px] rounded-lg" />)}
+          </div>
+        ) : visibleItems.length === 0 && isCatalogEmpty ? (
+          /* NOVO (issue #113 §9 + #114 §9): prazen katalog — jasna ponudba
+             naslednjega koraka namesto slepega "Ni artiklov" */
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground text-sm gap-3 px-6 text-center">
+            <PackageOpen className="h-10 w-10 opacity-40" aria-hidden="true" />
+            <p className="font-medium text-foreground">Vaš meni še nima artiklov.</p>
+            <p className="text-xs text-muted-foreground/80 max-w-sm">Ustvarite starter katalog za vaš tip lokala (v nekaj minutah do delujočega POS-a) ali dodajte prvi artikel ročno.</p>
+            <div className="flex flex-col sm:flex-row gap-2 mt-1">
+              <Button size="sm" onClick={() => setStarterDialogOpen(true)}>
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                Uporabi starter katalog
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setActiveModule('menu')}>
+                <PackageOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                Dodaj prvi artikel
+              </Button>
+            </div>
+            {/* NOVO (#114): dialog za izbiro tipa lokala + idempotentno
+                ustvarjanje starter kataloga (POST /api/onboarding/starter-catalog) */}
+            <StarterCatalogDialog open={starterDialogOpen} onOpenChange={setStarterDialogOpen} />
           </div>
         ) : visibleItems.length === 0 ? (
           /* NOVO (runda 32): akcijska prazna stanja — vsaka veja ponudi
@@ -287,8 +318,8 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
-            {windowedItems.map((item: MenuItemType, idx: number) => {
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+            {windowedItems.map((item: MenuItemType) => {
               const inCart = cart.filter(c => c.id === item.id)
               const totalQty = inCart.reduce((sum, c) => sum + c.quantity, 0)
               const stockInfo = menuStockMap?.[item.id]
@@ -303,24 +334,24 @@ export const MenuItemsGrid = memo(function MenuItemsGrid({
                     totalQty={totalQty}
                     lastAddedId={lastAddedId}
                     stockInfo={stockInfo}
-                    /* LCP fix (QA 2026-09-17): prvih 10 zgornjih artiklov eager */
-                    eager={idx < 10}
                     onClick={() => !isOutOfStock && onItemClick(item)}
                   />
-                  {/* NOVO (runda 4): priljubljeni ★ — spodaj desno na sliki,
-                      vedno viden (tablice nimajo hoverja) */}
+                  {/* NOVO (runda 4, issue #113): priljubljeni ★ — spodaj desno,
+                      pred [+]-afordansom (brez fotografije je prosti kot); ne
+                      prekriva cene/modifikatorjev (levi spodaj) niti [+]; vedno
+                      viden (tablice nimajo hoverja) */}
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleFav(item.id) }}
                     aria-pressed={isFav}
                     aria-label={isFav ? `Odstrani ${item.name} iz priljubljenih` : `Dodaj ${item.name} med priljubljene`}
                     title={isFav ? 'Odstrani iz priljubljenih' : 'Dodaj med priljubljene'}
-                    className={`absolute bottom-1.5 right-1.5 z-10 flex h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 items-center justify-center rounded-full backdrop-blur-sm transition-all active:scale-90 touch-manipulation ${
+                    className={`absolute bottom-1 right-10 z-10 flex h-7 w-7 pointer-coarse:h-9 pointer-coarse:w-9 items-center justify-center rounded-full transition-all active:scale-90 touch-manipulation ${
                       isFav
                         ? 'bg-amber-400/90 text-white shadow-md'
-                        : 'bg-black/35 text-white/80 hover:bg-black/50 hover:text-white'
+                        : 'text-muted-foreground/50 hover:bg-muted hover:text-amber-600'
                     }`}
                   >
-                    <Star className={`h-4 w-4 ${isFav ? 'fill-white' : ''}`} aria-hidden="true" />
+                    <Star className={`h-3.5 w-3.5 ${isFav ? 'fill-white' : ''}`} aria-hidden="true" />
                   </button>
                 </div>
               )

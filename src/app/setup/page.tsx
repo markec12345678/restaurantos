@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Loader2, CheckCircle2, AlertCircle, Building2, Cloud, HardDrive } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertCircle, Building2, Cloud, HardDrive, UtensilsCrossed } from 'lucide-react'
+import { VENUE_TYPES, type VenueType } from '@/lib/onboarding/catalog-templates'
 
 interface SetupStatus {
   isInitialized: boolean
@@ -46,6 +47,9 @@ export default function SetupPage() {
   const [taxId, setTaxId] = useState('')
   const [registerNumber, setRegisterNumber] = useState('')
   const [fursEnvironment, setFursEnvironment] = useState<'test' | 'production'>('test')
+  // NOVO (issue #114): first-run onboarding — tip lokala + izbira kataloga
+  const [venueType, setVenueType] = useState<VenueType>('restavracija')
+  const [catalogMode, setCatalogMode] = useState<'starter' | 'empty'>('starter')
 
   useEffect(() => { checkStatus() }, [])
 
@@ -79,6 +83,7 @@ export default function SetupPage() {
           locationName, locationCode: locationCode.toUpperCase(),
           locationAddress, locationCity, locationPostCode, locationPhone,
           businessId, taxId, registerNumber, fursEnvironment,
+          venueType, catalogMode,
         }),
       })
       const data = await res.json()
@@ -166,10 +171,74 @@ export default function SetupPage() {
           </CardContent>
         </Card>
 
-        <form onSubmit={handleSubmit}>
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle className="text-lg">Admin uporabnik</CardTitle>
+              <CardTitle className="text-lg">Tip lokala</CardTitle>
+              <CardDescription>Izberite vrsto lokala — po njem pripravimo začetni katalog artiklov</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {VENUE_TYPES.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setVenueType(t.id)}
+                    aria-pressed={venueType === t.id}
+                    className={`flex flex-col items-center gap-1 rounded-lg border p-3 text-center transition-colors min-h-[44px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                      venueType === t.id
+                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                        : 'border-border bg-card hover:bg-accent/50'
+                    }`}
+                  >
+                    <span className="text-xl" aria-hidden="true">{t.icon}</span>
+                    <span className="text-sm font-medium">{t.label}</span>
+                    <span className="text-[10px] text-muted-foreground">{t.categoryCount} kategorij · {t.itemCount} artiklov</span>
+                  </button>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="text-lg">Začetni katalog</CardTitle>
+              <CardDescription>Profesionalen začetni meni za izbrani tip lokala — takoj uporaben v POS</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <Button
+                  type="button"
+                  variant={catalogMode === 'starter' ? 'default' : 'outline'}
+                  onClick={() => setCatalogMode('starter')}
+                  className="flex-1 h-auto py-2.5 flex-col items-start gap-0.5"
+                >
+                  <span className="flex items-center gap-1.5 text-sm font-medium"><UtensilsCrossed className="w-4 h-4" />Starter katalog (priporočeno)</span>
+                  <span className="text-[10px] font-normal opacity-80">Kategorije, artikli in modifierji za vaš tip lokala</span>
+                </Button>
+                <Button
+                  type="button"
+                  variant={catalogMode === 'empty' ? 'default' : 'outline'}
+                  onClick={() => setCatalogMode('empty')}
+                  className="flex-1 h-auto py-2.5 flex-col items-start gap-0.5"
+                >
+                  <span className="flex items-center gap-1.5 text-sm font-medium">Začni s praznim katalogom</span>
+                  <span className="text-[10px] font-normal opacity-80">Starter katalog lahko uporabite kasneje v POS</span>
+                </Button>
+              </div>
+              {catalogMode === 'starter' && (
+                <div className="text-xs text-muted-foreground space-y-1 p-3 rounded-lg bg-muted/50 border border-border">
+                  <p>• Ustvarimo kategorije, artikle in modifierje za <strong>{VENUE_TYPES.find(t => t.id === venueType)?.label}</strong>.</p>
+                  <p>• Začetni artikli so <strong>naprodaj brez omejitve zaloge</strong> (ne razprodani). Omejeno zalogo lahko kasneje nastavite v modulu Zaloga.</p>
+                  <p>• Cene so <strong>primerne začetne vrednosti</strong> — uredite jih po vašem ceniku. Obstoječe davčne nastavitve ostanejo nespremenjene.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <form onSubmit={handleSubmit}>
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-lg">Admin uporabnik</CardTitle>
               <CardDescription>Glavni administrator s polnimi dovoljenji</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

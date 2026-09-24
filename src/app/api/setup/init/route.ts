@@ -10,6 +10,9 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { PIN_MIN_LENGTH, WEAK_PINS, BCRYPT_ROUNDS } from '@/lib/auth-middleware/constants'
 import { requireEnvSecret } from '@/lib/crypto/secrets'
+import { applyStarterCatalog } from '@/lib/onboarding/catalog-templates/apply-starter-catalog'
+import { getStarterTemplate, VENUE_TYPE_IDS } from '@/lib/onboarding/catalog-templates'
+import type { VenueType } from '@/lib/onboarding/catalog-templates'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,6 +34,12 @@ const setupSchema = z.object({
   registerNumber: z.string().max(20).default(''),
   fursEnvironment: z.enum(['test', 'production']).default('test'),
   restaurantName: z.string().min(2, 'Ime restavracije je obvezno').max(100),
+  // NOVO (issue #114): first-run onboarding — tip lokala določi starter katalog.
+  // Opcijsko: manjkajoč venueType = starejša privzeta ponudba (back-compat).
+  venueType: z.enum(VENUE_TYPE_IDS).optional(),
+  // 'starter' (default) = ustvari starter katalog; 'empty' = brez artiklov
+  // (POS pokaže onboarding empty state s ponudbo starter kataloga).
+  catalogMode: z.enum(['starter', 'empty']).default('starter'),
 })
 
 export async function POST(req: Request) {
@@ -99,10 +108,12 @@ export async function POST(req: Request) {
     })
     await db.employeeJob.create({ data: { employeeId: admin.id, jobId: adminJob.id } })
 
-    // 2. Lokacija
+    // 2. Lokacija (issue #114 §1: tip lokala vpliva na Location.type —
+    //    obstoječe polje, brez spremembe sheme)
+    const venueTemplate = data.venueType ? getStarterTemplate(data.venueType) : null
     const location = await db.location.create({
       data: {
-        name: data.locationName, code: data.locationCode, type: 'restaurant',
+        name: data.locationName, code: data.locationCode, type: venueTemplate?.locationType ?? 'restaurant',
         address: data.locationAddress, city: data.locationCity, postCode: data.locationPostCode,
         country: 'SI', phone: data.locationPhone, email: data.locationEmail || '',
         businessId: data.businessId, taxId: data.taxId, registerNumber: data.registerNumber,
@@ -110,6 +121,15 @@ export async function POST(req: Request) {
         isOpen: true, isActive: true,
       },
     })
+
+    // NOVO (issue #114 §10 "POS mora biti takoj pripravljen"): admin je vezan
+    // na lokacijo, ki jo je pravkar ustvaril. Prej je admin ostal BREZ
+    // locationId → R88-3 fail-closed tenant-scope je oddajo naročila brez mize
+    // ZAVRNIL ("locationId je obvezen") — svež first-run POS ni mogel oddati
+    // naročila. (E2E tega ni ulovilo, ker test-fixture admin IMA locationId.)
+    // Multi-lokacijski super-admini (brez lokacije) ostanejo možni prek
+    // EmployeeManagerja — to tu ni blokirano.
+    await db.employee.update({ where: { id: admin.id }, data: { locationId: location.id } })
 
     // 3. RestaurantSettings
     await db.restaurantSettings.create({
@@ -122,8 +142,12 @@ export async function POST(req: Request) {
     })
 
     // 4. Seed core data — MODEL A: vsa konfiguracija pade NA LOKACIJO, ki je
-    // bila pravkar ustvarjena (nič več globalnih vrstic)
-    await seedCoreData(location.id)
+    //    bila pravkar ustvarjena (nič več globalnih vrstic)
+    //    + issue #114: starter katalog po izbranem tipu lokala
+    await seedCoreData(location.id, {
+      venueType: data.venueType as VenueType | undefined,
+      catalogMode: data.catalogMode,
+    })
 
     return NextResponse.json({
       success: true,
@@ -131,6 +155,8 @@ export async function POST(req: Request) {
       admin: { id: admin.id, name: admin.name, email: admin.email },
       location: { id: location.id, name: location.name, code: location.code },
       mode: data.mode,
+      venueType: data.venueType ?? null,
+      catalogMode: data.catalogMode,
       nextStep: 'Prijava s PIN ' + data.adminPin,
     }, { status: 201 })
   } catch (error: unknown) {
@@ -138,7 +164,10 @@ export async function POST(req: Request) {
   }
 }
 
-async function seedCoreData(locationId: string) {
+async function seedCoreData(locationId: string, onboarding?: {
+  venueType?: VenueType
+  catalogMode?: 'starter' | 'empty'
+}) {
   // MODEL A: stopnje DDV so PO LOKACIJI — setup vedno kreira za PRAVkar
   // ustvarjeno lokacijo (nič globalnih vrstic, prej findFirst({code}) brez scopa).
   for (const [code, name, rate] of [
@@ -229,8 +258,28 @@ async function seedCoreData(locationId: string) {
     })
   }
 
-  // Ustvari osnovne kategorije in artikle da je sistem takoj uporaben
+  // Ustvari katalog za prvi zagon (issue #114):
+  //  • catalogMode 'empty' → BREZ menija/artiklov (POS pokaže onboarding
+  //    empty state s ponudbo starter kataloga; uporabnik lahko začne čisto)
+  //  • venueType podan → starter template po tipu lokala (idempotentna
+  //    aplikacija: kategorije @@unique [name, menuId], artikli po
+  //    (categoryId, name); zaloga = UNLIMITED — brez InventoryItem vrstice,
+  //    torej artikli NE nastanejo kot quantity=0/razprodani)
+  //  • venueType manjka → starejša privzeta ponudba (back-compat: obstoječi
+  //    klici/testi brez venueType obdržijo enako vedenje)
   // MODEL A: meni pripada lokaciji, ki je bila ustvarjena v tem setupu
+  if (onboarding?.catalogMode === 'empty') {
+    return
+  }
+
+  if (onboarding?.venueType) {
+    const template = getStarterTemplate(onboarding.venueType)
+    if (template) {
+      await applyStarterCatalog({ locationId, venueType: onboarding.venueType, db })
+      return
+    }
+  }
+
   const menu = await db.menu.create({ data: { name: 'Glavni meni', icon: '🍽️', color: '#f59e0b', sortOrder: 0, isActive: true, locationId } })
 
   const catFood = await db.category.create({ data: { name: 'Topli napitki', icon: '☕', color: '#8B4513', sortOrder: 0, menuId: menu.id } })
