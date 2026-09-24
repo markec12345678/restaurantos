@@ -131,10 +131,11 @@ export const ItemDetailModal = memo(function ItemDetailModal({
           {/* Add to cart button */}
           <button
             onClick={onAddToCart}
-            className={`w-full ${isDark ? 'bg-amber-500 hover:bg-amber-400 text-gray-900' : 'bg-amber-500 hover:bg-amber-600 text-white'} py-4 rounded-2xl font-bold text-lg active:scale-[0.98] transition shadow-lg shadow-amber-500/30`}
-            aria-label={`Dodaj v košarico. Skupaj ${formatEUR((item.price + selectedMods.reduce((s, m) => s + m.price, 0)) * (1 + item.vatRate / 100))} z DDV`}
+            disabled={item.stockStatus === 'out'}
+            className={`w-full py-4 rounded-2xl font-bold text-lg active:scale-[0.98] transition ${item.stockStatus === 'out' ? `${isDark ? 'bg-gray-800 text-gray-400' : 'bg-gray-400 text-gray-100'} cursor-not-allowed` : `shadow-lg shadow-amber-500/30 ${isDark ? 'bg-amber-500 hover:bg-amber-400 text-gray-900' : 'bg-amber-500 hover:bg-amber-600 text-white'}`}`}
+            aria-label={item.stockStatus === 'out' ? 'Izprodano' : `Dodaj v košarico. Skupaj ${formatEUR((item.price + selectedMods.reduce((s, m) => s + m.price, 0)) * (1 + item.vatRate / 100))} z DDV`}
           >
-            Dodaj v košarico · {formatEUR((item.price + selectedMods.reduce((s, m) => s + m.price, 0)) * (1 + item.vatRate / 100))}
+            {item.stockStatus === 'out' ? 'Izprodano' : <>Dodaj v košarico · {formatEUR((item.price + selectedMods.reduce((s, m) => s + m.price, 0)) * (1 + item.vatRate / 100))}</>}
           </button>
         </div>
       </div>

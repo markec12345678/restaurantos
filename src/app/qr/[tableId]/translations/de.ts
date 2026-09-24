@@ -67,4 +67,9 @@ export const de = {
   spirits: 'Spirituosen',
   beverages: 'Heiße Getränke',
   nonAlcoholic: 'Alkoholfrei',
+  // R124 (P0-03): Sold-out-Zustände
+  soldOut: 'Ausverkauft',
+  stockLow: 'Auf Lager: {count}',
+  itemSoldOut: 'Dieser Artikel ist ausverkauft.',
+  soldOutDuringOrder: 'Einige Artikel sind inzwischen ausverkauft. Menü aktualisieren und erneut versuchen.',
 } as const;

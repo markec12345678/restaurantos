@@ -101,6 +101,10 @@ vi.mock('@/lib/db', () => ({
     integrationLog: { create: mocks.integrationLogCreate, findMany: mocks.integrationLogFindMany },
     menuItem: { findMany: mocks.menuItemFindMany, findFirst: mocks.menuItemFindFirst },
     order: { findFirst: mocks.orderFindFirst },
+    // R124 (P0-03): availability kanon — prazna zaloga = ne-sledeni artikli
+    // (checkStockAvailability / computeMenuStockMap vrneta brez opozoril/vnosov)
+    inventoryItem: { findMany: vi.fn().mockResolvedValue([]) },
+    recipeItem: { findMany: vi.fn().mockResolvedValue([]) },
     deliveryTracking: { findUnique: mocks.trackingFindUnique },
     deliveryInfo: { findUnique: mocks.infoFindUnique },
   },

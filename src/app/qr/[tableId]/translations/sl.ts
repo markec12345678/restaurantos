@@ -67,4 +67,9 @@ export const sl = {
   spirits: 'Žgane pijače',
   beverages: 'Napitki',
   nonAlcoholic: 'Brezalkoholne',
+  // R124 (P0-03): sold-out stanja
+  soldOut: 'Izprodano',
+  stockLow: 'Na zalogi: {count}',
+  itemSoldOut: 'Ta artikel je izprodan.',
+  soldOutDuringOrder: 'Nekateri artikli so medtem izprodali. Osvežite meni in poskusite znova.',
 } as const;

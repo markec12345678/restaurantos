@@ -67,4 +67,9 @@ export const en = {
   spirits: 'Spirits',
   beverages: 'Beverages',
   nonAlcoholic: 'Non-alcoholic',
+  // R124 (P0-03): sold-out states
+  soldOut: 'Sold out',
+  stockLow: 'In stock: {count}',
+  itemSoldOut: 'This item is sold out.',
+  soldOutDuringOrder: 'Some items have just sold out. Refresh the menu and try again.',
 } as const;

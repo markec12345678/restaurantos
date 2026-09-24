@@ -80,6 +80,9 @@ vi.mock('@/lib/db', () => ({
       create: mocks.integrationLogCreate,
     },
     order: { create: mocks.orderCreate, findFirst: mocks.orderFindFirst },
+    // R124 (P0-03): availability kanon — prazna zaloga = ne-sledeni artikli
+    inventoryItem: { findMany: vi.fn().mockResolvedValue([]) },
+    recipeItem: { findMany: vi.fn().mockResolvedValue([]) },
     menuItem: { findFirst: mocks.menuItemFindFirst, findMany: mocks.menuItemFindMany },
     location: { findFirst: mocks.locationFindFirst },
     // FIX R112 (WEBHOOK-1/2): dedup + order create sta zdaj ENA Serializable tx

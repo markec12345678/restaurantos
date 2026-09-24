@@ -5,7 +5,7 @@ import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { addOrderItemsSchema } from '@/lib/validations'
-import { broadcastLowStockAlert } from '@/lib/stock-deduction'
+import { broadcastLowStockAlert, checkStockAvailability } from '@/lib/stock-deduction'
 import { wsBroadcastEvent } from '@/lib/ws-server-broadcast'
 import { parseJsonBody, validateBody } from '@/lib/api-utils'
 import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
@@ -73,6 +73,41 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // prej nemogoč preprečiti) + razknjižba zaloge V ISTI transakciji (prej:
     // ločena tx → crash = artikli brez odbitka zaloge). Strukturirani
     // { error, status } throw-i → structuredErrorResponse.
+    // R124 (P0-03, kanon): STREŽNIŠKA BLOKADA izprodanih artiklov — prej
+    // add-items NI imel nobene preverbe zaloge (dedukcija je logirala
+    // napako in dodala artikli vseeno → oversell). Eksplicitno dovoljenje
+    // = data.allowOutOfStock (fail-closed default false). Isti kontrakt
+    // kot POST /api/orders: 409 + soldOutItems.
+    const stockCheck = await checkStockAvailability(
+      data.orderItems.map(item => ({
+        menuItemId: item.menuItemId,
+        quantity: item.quantity,
+      }))
+    )
+    if (stockCheck.warnings.length > 0 && !data.allowOutOfStock) {
+      const soldOutMap = new Map<string, typeof stockCheck.warnings[number]>()
+      for (const w of stockCheck.warnings) {
+        const prev = soldOutMap.get(w.menuItemId)
+        if (!prev || w.available < prev.available) soldOutMap.set(w.menuItemId, w)
+      }
+      const soldOutItems = Array.from(soldOutMap.values())
+      const names = soldOutItems.map(i => i.itemName).join(', ')
+      return NextResponse.json(
+        {
+          error: `Artikli brez zadostne zaloge: ${names}. Zaloga se je spremenila — odstranite izprodane artikle ali uporabite odobritev prodaje.`,
+          soldOutItems: soldOutItems.map(i => ({
+            menuItemId: i.menuItemId,
+            itemName: i.itemName,
+            ingredientName: i.ingredientName,
+            needed: i.needed,
+            available: i.available,
+            unit: i.unit,
+          })),
+        },
+        { status: 409 }
+      )
+    }
+
     const result = await addItemsToOrder({
       orderId: id,
       locationId: scope.locationId,

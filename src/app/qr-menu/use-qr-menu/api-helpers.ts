@@ -122,5 +122,13 @@ export async function submitOrderRequest(
   if (res.ok && data.success) {
     return data;
   }
+  // R124 (P0-03): 409 (INSUFFICIENT_STOCK) ali 400 z unavailableItems —
+  // razločno sporočilo (kanon: strežnik je avtoriteten).
+  const soldOut = res.status === 409
+    || Array.isArray(data.unavailableItems)
+    || /zaloge|izprodan/i.test(String(data.error || ''));
+  if (soldOut) {
+    return { success: false, error: 'Nekateri artikli so medtem izprodali. Osvežite meni in poskusite znova.' };
+  }
   return { success: false, error: data.error || 'Napaka pri naročanju' };
 }

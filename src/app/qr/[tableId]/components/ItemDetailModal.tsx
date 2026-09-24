@@ -87,10 +87,17 @@ export const ItemDetailModal = memo(function ItemDetailModal({
               }
               onClose()
             }}
-            className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-lg transition-colors flex items-center justify-center gap-2"
+            disabled={detailItem.stockStatus === 'out'}
+            className={`w-full py-3.5 ${detailItem.stockStatus === 'out' ? 'bg-gray-400 dark:bg-gray-700 cursor-not-allowed' : 'bg-amber-500 hover:bg-amber-600'} text-white rounded-xl font-semibold text-lg transition-colors flex items-center justify-center gap-2`}
           >
-            <Plus className="h-5 w-5" />
-            {t.addToCart}
+            {detailItem.stockStatus === 'out' ? (
+              t.soldOut
+            ) : (
+              <>
+                <Plus className="h-5 w-5" />
+                {t.addToCart}
+              </>
+            )}
           </button>
         </div>
       </motion.div>

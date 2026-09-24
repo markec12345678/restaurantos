@@ -111,6 +111,10 @@ function defaultTxImpl(fn: (tx: unknown) => Promise<unknown>) {
 vi.mock('@/lib/db', () => ({
   db: {
     order: { findFirst: mocks.dbOrderFindFirst },
+    // R124 (P0-03): availability kanon — prazna zaloga = ne-sledeni artikli
+    // (checkStockAvailability / computeMenuStockMap vrneta brez opozoril/vnosov)
+    inventoryItem: { findMany: vi.fn().mockResolvedValue([]) },
+    recipeItem: { findMany: vi.fn().mockResolvedValue([]) },
     table: { findFirst: mocks.dbTableFindFirst },
     outboxEvent: {
       findFirst: mocks.dbOutboxFindFirst,
@@ -140,6 +144,8 @@ vi.mock('@/lib/ws-server-broadcast', () => ({
 vi.mock('@/lib/stock-deduction', () => ({
   deductStockForAddedItems: vi.fn(),
   broadcastLowStockAlert: vi.fn(),
+  // R124 (P0-03): pre-check zaloge na add-items — privzeto brez opozoril
+  checkStockAvailability: vi.fn().mockResolvedValue({ available: true, warnings: [] }),
 }))
 
 vi.mock('@/lib/logger', () => ({

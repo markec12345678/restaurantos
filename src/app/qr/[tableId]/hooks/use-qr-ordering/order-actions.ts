@@ -12,6 +12,14 @@ export interface SubmitOrderParams {
   cart: CartItem[];
 }
 
+/** R124 (P0-03): naročilo zavrnjeno zaradi izprodanih artiklov (409/400 unavailableItems) */
+export class SoldOutError extends Error {
+  constructor() {
+    super('SOLD_OUT')
+    this.name = 'SoldOutError'
+  }
+}
+
 /** Build order request payload and send to API */
 export async function submitOrderRequest(
   params: SubmitOrderParams,
@@ -38,6 +46,12 @@ export async function submitOrderRequest(
   const data = await res.json();
 
   if (!res.ok) {
+    // R124 (P0-03): 409 (INSUFFICIENT_STOCK) ali 400 z unavailableItems —
+    // jasno sporočilo v UI (kanon: strežnik je avtoriteten).
+    const soldOut = res.status === 409
+      || Array.isArray(data.unavailableItems)
+      || /zaloge|izprodan/i.test(String(data.error || ''))
+    if (soldOut) throw new SoldOutError()
     throw new Error(data.error || 'Napaka');
   }
 

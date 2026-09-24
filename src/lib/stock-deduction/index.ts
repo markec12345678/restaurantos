@@ -9,6 +9,7 @@ export type { StockDeductionItem, StockDeductionResult } from './types'
 
 // Preverjanje razpoložljivosti
 export { checkStockAvailability } from './check-availability'
+export { cancelOrderForInsufficientStock } from './cancel-on-insufficient-stock'
 
 // Odbiranje zaloge
 export { deductStockForAddedItems } from './deduct-added'

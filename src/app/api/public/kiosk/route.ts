@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { toNum } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { handleApiError, parseJsonBody } from '@/lib/api-utils'
+import { computeMenuStockMap, type MenuStockMap } from '@/lib/availability/menu-availability'
 import { checkRateLimitAsync, getClientIp, KIOSK_LIMIT, PUBLIC_MENU_LIMIT } from '@/lib/rate-limit'
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { getNextOrderNumber } from '@/lib/counters'
@@ -104,7 +105,32 @@ export async function GET(req: Request) {
       },
       orderBy: { sortOrder: 'asc' },
     })
-    return NextResponse.json({ menus: menu })
+
+    // R124 (P0-03): sold-out propagation za kiosk — ista stock mapa kot
+    // POS/QR (enoten kanon availability). Kiosk UI lahko gray-out izprodane.
+    const kioskItemIds = menu.flatMap(m =>
+      m.categories.flatMap(c => c.menuItems.map(i => i.id))
+    )
+    const stockMap: MenuStockMap = kioskItemIds.length > 0
+      ? await computeMenuStockMap({ menuItemIds: kioskItemIds })
+      : {}
+    const menuWithStock = menu.map(m => ({
+      ...m,
+      categories: m.categories.map(c => ({
+        ...c,
+        menuItems: c.menuItems.map(i => {
+          const stock = stockMap[i.id]
+          return {
+            ...i,
+            stockStatus: stock?.status ?? 'ok',
+            stockAvailable: stock ? stock.available : null,
+            stockUnit: stock?.unit ?? null,
+          }
+        }),
+      })),
+    }))
+
+    return NextResponse.json({ menus: menuWithStock })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/public/kiosk', 'Napaka pri pridobivanju menija')
   }

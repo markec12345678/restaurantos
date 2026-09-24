@@ -237,13 +237,54 @@ export async function handlePostOrder(
     )
   }
 
-  // ─── PREVERI RAZPOLŽLJIVOST ZALOGE (opozorilo, ne blokada) ───
+  // ─── PREVERI RAZPOLŽLJIVOST ZALOGE ───
+  // R124 (P0-03, kanon): STREŽNIŠKA BLOKADA izprodanih artiklov.
+  // Prej: "opozorilo, ne blokada" — naročilo je STALO tudi brez zaloge
+  // (oversell: POS je prikazoval NI ZALOGE, order pa je bil vseeno ustvarjen
+  // in poslan v kuhinjo). Kanon P0-03: "brez prodaje artikla, ki je
+  // globalno označen kot nedobavljiv, RAZEN če je eksplicitno dovoljeno".
+  // Eksplicitno dovoljenje = data.allowOutOfStock (fail-closed default false).
+  // Race zaščita: zadnji kosi pokrije zelo isto preverjanje kot dedukcija
+  // (RAW semantika R123: needed == deducted); atomna dedukcija ostane
+  // avtoritativna pri konkurenci.
   const stockCheck = await checkStockAvailability(
     data.orderItems.map(item => ({
       menuItemId: item.menuItemId,
       quantity: item.quantity,
     }))
   )
+
+  if (stockCheck.warnings.length > 0 && !data.allowOutOfStock) {
+    // Deduplikacija po artikel (več sestavin istega artikla = en vnos)
+    const soldOutMap = new Map<string, {
+      menuItemId: string
+      itemName: string
+      ingredientName: string
+      needed: number
+      available: number
+      unit: string
+    }>()
+    for (const w of stockCheck.warnings) {
+      const prev = soldOutMap.get(w.menuItemId)
+      if (!prev || w.available < prev.available) soldOutMap.set(w.menuItemId, w)
+    }
+    const soldOutItems = Array.from(soldOutMap.values())
+    const names = soldOutItems.map(i => i.itemName).join(', ')
+    return NextResponse.json(
+      {
+        error: `Artikli brez zadostne zaloge: ${names}. Zaloga se je spremenila — odstranite izprodane artikle ali uporabite odobritev prodaje.`,
+        soldOutItems: soldOutItems.map(i => ({
+          menuItemId: i.menuItemId,
+          itemName: i.itemName,
+          ingredientName: i.ingredientName,
+          needed: i.needed,
+          available: i.available,
+          unit: i.unit,
+        })),
+      },
+      { status: 409 }
+    )
+  }
 
   // Izračun z multi-DDV po stopnjah (strežniška stran — edini vir resnice)
   const { orderItemsData, subtotal } = buildOrderItemsData(data.orderItems, vatMap, data.discount || 0)

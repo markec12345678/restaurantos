@@ -38,10 +38,13 @@ export const MenuItemList = memo(function MenuItemList({
         const inCart = cart
           .filter(c => c.menuItem.id === item.id)
           .reduce((s, c) => s + c.quantity, 0);
+        // R124 (P0-03): sold-out stanje — izprodano = znižana prosojnost + onemogočeno dodajanje
+        const soldOut = item.stockStatus === 'out';
+        const lowStock = item.stockStatus === 'low' && item.stockAvailable != null;
         return (
           <article
             key={item.id}
-            className={`${isDark ? 'bg-gray-900/80 border-gray-800' : isHighContrast ? 'bg-white border-2 border-black' : 'bg-white/70 border-white/50'} ${inCart > 0 ? 'ring-2 ring-amber-500/40' : ''} backdrop-blur-xl rounded-2xl border shadow-sm flex active:scale-[0.98] transition-all duration-150 cursor-pointer hover:shadow-md overflow-hidden`}
+            className={`${isDark ? 'bg-gray-900/80 border-gray-800' : isHighContrast ? 'bg-white border-2 border-black' : 'bg-white/70 border-white/50'} ${inCart > 0 ? 'ring-2 ring-amber-500/40' : ''} ${soldOut ? 'opacity-60' : ''} backdrop-blur-xl rounded-2xl border shadow-sm flex active:scale-[0.98] transition-all duration-150 cursor-pointer hover:shadow-md overflow-hidden`}
             onClick={() => onOpenItemDetail(item)}
             role="button"
             tabIndex={0}
@@ -74,10 +77,20 @@ export const MenuItemList = memo(function MenuItemList({
                     {inCart}
                   </span>
                 )}
+                {soldOut && (
+                  <span className={`flex-shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${isDark ? 'bg-red-900/40 text-red-300' : 'bg-red-100 text-red-700'}`}>
+                    Izprodano
+                  </span>
+                )}
               </div>
               {item.description && (
                 <p className={`text-sm mt-0.5 line-clamp-2 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
                   {item.description}
+                </p>
+              )}
+              {lowStock && (
+                <p className={`text-xs mt-0.5 ${isDark ? 'text-amber-400' : 'text-amber-600'}`}>
+                  Na zalogi: {item.stockAvailable}
                 </p>
               )}
               {/* ===== ALLERGENI 2.0: Vizualno poudarjeni (EU 1169/2011) ===== */}
@@ -109,8 +122,9 @@ export const MenuItemList = memo(function MenuItemList({
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); onAddToCart(item); }}
-                  className={`${isDark ? 'bg-amber-500 hover:bg-amber-400' : 'bg-amber-500 hover:bg-amber-600'} text-white rounded-xl p-2.5 shadow-md shadow-amber-500/20 active:scale-90 transition-all`}
-                  aria-label={`Dodaj ${item.name} v košarico`}
+                  disabled={soldOut}
+                  className={`${soldOut ? 'bg-gray-400 dark:bg-gray-700 opacity-50 cursor-not-allowed' : `${isDark ? 'bg-amber-500 hover:bg-amber-400' : 'bg-amber-500 hover:bg-amber-600'} shadow-md shadow-amber-500/20`} text-white rounded-xl p-2.5 active:scale-90 transition-all`}
+                  aria-label={soldOut ? `${item.name} je izprodan` : `Dodaj ${item.name} v košarico`}
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />

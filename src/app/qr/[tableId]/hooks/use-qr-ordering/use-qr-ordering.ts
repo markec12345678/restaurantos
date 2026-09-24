@@ -16,7 +16,7 @@ import {
   calculateCartTotal,
   calculateCartTax,
 } from './cart-utils';
-import { submitOrderRequest, callWaiterRequest } from './order-actions';
+import { submitOrderRequest, callWaiterRequest, SoldOutError } from './order-actions';
 import { computeDerivedValues, getSuperGroupForCategoryName } from './derived';
 import { useQREffects } from './use-effects';
 
@@ -59,13 +59,23 @@ export function useQROrdering(params: Promise<{ tableId: string }>): QROrderingS
   });
 
   // Cart handlers
+  // R124 (P0-03): odjemalska blokada izprodanih artiklov (defense in depth —
+  // strežnik ostane avtoriteten). 'out' → toast brez dodajanja.
   const addToCartHandler = useCallback((item: MenuItemType) => {
+    if (item.stockStatus === 'out') {
+      setError(t.itemSoldOut);
+      return;
+    }
     setCart(prev => addItemToCart(prev, item));
-  }, []);
+  }, [t]);
 
   const addToCartWithNoteHandler = useCallback((item: MenuItemType, note: string) => {
+    if (item.stockStatus === 'out') {
+      setError(t.itemSoldOut);
+      return;
+    }
     setCart(prev => addItemToCartWithNote(prev, item, note));
-  }, []);
+  }, [t]);
 
   const updateQuantityHandler = useCallback((menuItemId: string, notes: string, delta: number) => {
     setCart(prev => updateCartItemQuantity(prev, menuItemId, notes, delta));
@@ -102,7 +112,12 @@ export function useQROrdering(params: Promise<{ tableId: string }>): QROrderingS
       setCart([]);
       setCartOpen(false);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Napaka pri naročanju');
+      // R124 (P0-03): 409 INSUFFICIENT_STOCK / 400 unavailableItems
+      if (err instanceof SoldOutError) {
+        setError(t.soldOutDuringOrder);
+      } else {
+        setError(err instanceof Error ? err.message : 'Napaka pri naročanju');
+      }
     } finally {
       setSubmitting(false);
     }

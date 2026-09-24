@@ -21,6 +21,7 @@ import { handleApiError } from '@/lib/api-utils'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 import { withCache, withETag, CachePresets } from '@/lib/middleware/cache-headers'
 import { notInScopeResponse } from '@/lib/tenant-scope'
+import { computeMenuStockMap, type MenuStockMap } from '@/lib/availability/menu-availability'
 
 
 export const dynamic = 'force-dynamic'
@@ -147,8 +148,40 @@ export async function GET(req: Request) {
       select: { id: true, number: true, capacity: true }
     })
 
+    // R124 (P0-03): SOLD-OUT PROPAGATION — stock status za QR meni.
+    // Kanon: POS kaže sold-out ⇒ QR mora VENDET pokazati izprodano in
+    // ne sme omogočati naročila, ki bo padlo na 409. Stock map se računa
+    // nad ISTIMI vrsticami kot dedukcija zaloge (invarianta needed ==
+    // deducted, R123 yield RAW semantika) — enoten kanon
+    // src/lib/availability/menu-availability.ts.
+    // Artikli brez povezave na zalogo = ne-sledeni ⇒ 'ok' (vedno na voljo).
+    const menuItemIds = menus.flatMap(m =>
+      m.categories.flatMap(c => c.menuItems.map(i => i.id))
+    )
+    const stockMap: MenuStockMap = menuItemIds.length > 0
+      ? await computeMenuStockMap({ menuItemIds })
+      : {}
+
+    const menusWithStock = menus.map(m => ({
+      ...m,
+      categories: m.categories.map(c => ({
+        ...c,
+        menuItems: c.menuItems.map(i => {
+          const stock = stockMap[i.id]
+          return {
+            ...i,
+            // back-compat statusna besedišča: 'ok' | 'low' | 'out'
+            stockStatus: stock?.status ?? 'ok',
+            // možne porcije (null = ne-sleden artikel)
+            stockAvailable: stock ? stock.available : null,
+            stockUnit: stock?.unit ?? null,
+          }
+        }),
+      })),
+    }))
+
     const responseBody = {
-      menus,
+      menus: menusWithStock,
       settings,
       availableTables: tables.length,
       timestamp: new Date().toISOString(),

@@ -55,7 +55,14 @@ export function useQRMenu(): QRMenuState {
     cart, menus, activeMenu, activeCategory,
   });
 
+  // R124 (P0-03): odjemalska blokada izprodanih artiklov (defense in depth —
+  // strežnik ostane avtoriteten). 'out' → napaka brez dodajanja.
   const addToCart = useCallback((item: MenuItem, modifiers: Modifier[] = [], notes: string = '') => {
+    if (item.stockStatus === 'out') {
+      setError('Ta artikel je izprodan.');
+      setShowItemDetail(null);
+      return;
+    }
     setCart(prev => addItemToCart(prev, item, modifiers, notes));
     setShowItemDetail(null);
     setItemNotes('');
@@ -84,7 +91,8 @@ export function useQRMenu(): QRMenuState {
       setOrderResult(result);
       setOrderPlaced(true);
       if (result.success) setCart([]);
-      else setError('Napaka pri oddaji naročila. Poskusite znova.');
+      // R124 (P0-03): sporočilo iz API-ja (409/400 unavailable) se pokaže kot je
+      else setError(result.error || 'Napaka pri oddaji naročila. Poskusite znova.');
     } catch {
       setError('Napaka pri oddaji naročila. Poskusite znova.');
       setOrderResult({ success: false, error: 'Povezava ni na voljo' });

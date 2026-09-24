@@ -29,11 +29,15 @@ import {
   logAndSyncIntegration,
   broadcastWS,
 } from './_helpers'
+// R124 (P0-03): fail-fast availability pre-check + phantom-order cancel
+import { checkStockAvailability, cancelOrderForInsufficientStock } from '@/lib/stock-deduction'
 
 // POST /api/delivery/webhook/wolt — Wolt pošlje naročilo
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
+  // R124 (P0-03): committed order tracking — vidljiv v catch za phantom-cancel
+  let committedOrder: { id: string; orderNumber: string | number } | null = null
   try {
     // FIX: Rate limit za Wolt webhook — prepreči ponovne pošiljanke (replay attacks)
     const ip = getClientIp(req)
@@ -204,6 +208,28 @@ export async function POST(req: Request) {
     }
 
     const order = txResult.order
+    committedOrder = { id: order.id, orderNumber: order.orderNumber }
+
+    // R124 (P0-03): FAIL-FAST availability pre-check PRED dedukcijo
+    // (phantom 'pending' order v KDS = commitirano naročilo + failala
+    // dedukcija; pre-check pokrije mirno pot, catch blok tekmo)
+    const preCheck = await checkStockAvailability(
+      mappedOrderItems.map(i => ({ menuItemId: i.menuItemId, quantity: i.quantity }))
+    )
+    if (!preCheck.available) {
+      const detail = preCheck.warnings
+        .map(w => `${w.itemName} (${w.ingredientName}: potrebno ${w.needed}, na zalogi ${w.available} ${w.unit})`)
+        .join('; ')
+      await cancelOrderForInsufficientStock(order.id, order.orderNumber, 'Wolt', detail)
+      return NextResponse.json(
+        {
+          status: 'rejected',
+          error: 'Insufficient stock — order cannot be fulfilled',
+          detail: `INSUFFICIENT_STOCK: ${detail}`,
+        },
+        { status: 409 },
+      )
+    }
 
     // Zmanjšaj zalogo (lastna tx — INSUFFICIENT_STOCK kontrakt ostaja enak)
     await deductInventoryForOrder(order.id, order.orderNumber, mappedOrderItems, 'Wolt')
@@ -237,6 +263,12 @@ export async function POST(req: Request) {
     // 409 Conflict nazaj Woltu da ve da order ni bil sprejet.
     if (error instanceof Error && error.message.startsWith('INSUFFICIENT_STOCK:')) {
       logger.error('Wolt', `Order zavrnjen — nezadostna zaloga: ${error.message}`)
+      // R124 (P0-03): phantom-cancel — commitirano naročilo CAS-cancelirano
+      if (committedOrder) {
+        await cancelOrderForInsufficientStock(
+          committedOrder.id, committedOrder.orderNumber, 'Wolt', error.message
+        )
+      }
       return NextResponse.json(
         {
           status: 'rejected',

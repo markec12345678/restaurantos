@@ -29,11 +29,17 @@ import {
   logAndSyncIntegration,
   broadcastWS,
 } from './_helpers'
+// R124 (P0-03): fail-fast availability pre-check + phantom-order cancel
+import { checkStockAvailability, cancelOrderForInsufficientStock } from '@/lib/stock-deduction'
 
 // POST /api/delivery/webhook/glovo — Glovo pošlje naročilo
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
+  // R124 (P0-03): committed order tracking — vidljiv v catch za phantom-cancel
+  // (naročilo je commitirano, deduction v ločeni tx pa failal → prej je
+  // phantom 'pending' ostal v KDS; sedaj se CAS-cancelira).
+  let committedOrder: { id: string; orderNumber: string | number } | null = null
   try {
     // FIX: Rate limit za Glovo webhook — prepreči ponovne pošiljanke (replay attacks)
     const ip = getClientIp(req)
@@ -208,6 +214,29 @@ export async function POST(req: Request) {
     }
 
     const order = txResult.order
+    committedOrder = { id: order.id, orderNumber: order.orderNumber }
+
+    // R124 (P0-03): FAIL-FAST availability pre-check PRED dedukcijo — brez
+    // tega je bilo naročilo COMMITIRANO, deduction failal, phantom 'pending'
+    // pa ostal v KDS. Pre-check pokrije mirno pot; tekma med pre-checkom in
+    // dedukcijo pokrije phantom-cancel v catch bloku (spodaj).
+    const preCheck = await checkStockAvailability(
+      mappedOrderItems.map(i => ({ menuItemId: i.menuItemId, quantity: i.quantity }))
+    )
+    if (!preCheck.available) {
+      const detail = preCheck.warnings
+        .map(w => `${w.itemName} (${w.ingredientName}: potrebno ${w.needed}, na zalogi ${w.available} ${w.unit})`)
+        .join('; ')
+      await cancelOrderForInsufficientStock(order.id, order.orderNumber, 'Glovo', detail)
+      return NextResponse.json(
+        {
+          status: 'rejected',
+          error: 'Insufficient stock — order cannot be fulfilled',
+          detail: `INSUFFICIENT_STOCK: ${detail}`,
+        },
+        { status: 409 },
+      )
+    }
 
     // Zmanjšaj zalogo (lastna tx — INSUFFICIENT_STOCK kontrakt ostaja enak)
     await deductInventoryForOrder(order.id, order.orderNumber, mappedOrderItems, 'Glovo')
@@ -242,6 +271,15 @@ export async function POST(req: Request) {
     // ve da order ni bil sprejet.
     if (error instanceof Error && error.message.startsWith('INSUFFICIENT_STOCK:')) {
       logger.error('Glovo', `Order zavrnjen — nezadostna zaloga: ${error.message}`)
+      // R124 (P0-03): FIX P4 dejansko implementiran — commitirano naročilo se
+      // CAS-cancelira (pending → cancelled), da KDS ne prikaže phantom ordera
+      // (prej: 409 poslan, order pa ostal 'pending' v bazi = kuhinja dela
+      // naročilo, ki ne bo nikoli dostavljeno).
+      if (committedOrder) {
+        await cancelOrderForInsufficientStock(
+          committedOrder.id, committedOrder.orderNumber, 'Glovo', error.message
+        )
+      }
       // Pošlji 409 Conflict — Glovo bo prikazal napako uporabniku
       return NextResponse.json(
         {

@@ -27,6 +27,12 @@ export interface MenuItem {
   image: string;
   sortOrder: number;
   modifierGroups: { sortOrder: number; modifierGroup: ModifierGroup }[];
+  // R124 (P0-03): zalogovno stanje iz javnega meni endpointa
+  // 'out' = izprodano, 'low' = omejena količina, 'ok'/'undefined' = na voljo
+  stockStatus?: 'ok' | 'low' | 'out';
+  /** Možne porcije (null = artikel ni sleden prek zaloge) */
+  stockAvailable?: number | null;
+  stockUnit?: string | null;
 }
 
 export interface Category {

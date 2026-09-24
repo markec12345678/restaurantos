@@ -12,6 +12,12 @@ export interface MenuItemType {
   vatRate: number
   allergens: string
   categoryId: string
+  // R124 (P0-03): zalogovno stanje iz javnega meni endpointa
+  // 'out' = izprodano, 'low' = omejena količina, 'ok'/'undefined' = na voljo
+  stockStatus?: 'ok' | 'low' | 'out'
+  /** Možne porcije (null = artikel ni sleden prek zaloge) */
+  stockAvailable?: number | null
+  stockUnit?: string | null
 }
 
 export interface CategoryType {

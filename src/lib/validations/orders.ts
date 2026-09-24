@@ -84,6 +84,10 @@ export const createOrderSchema = z.object({
   // Scenarij: natakar naroči artikel, network pade, React Query retry-a request.
   // Brez idempotencyKey se ustvari duplikat. Z idempotencyKey dobimo isti Order ID.
   idempotencyKey: z.string().max(100).optional(),
+  // R124 (P0-03): eksplicitna odobritev prodaje ob premalo zaloge — kanon
+  // "brez prodaje izprodanega artikla, RAZEN če je eksplicitno dovoljeno".
+  // Default false = fail-closed: strežnik BLOKIRA (409) artikle brez zaloge.
+  allowOutOfStock: z.boolean().optional().default(false),
 })
 
 export const updateOrderSchema = z.object({
@@ -117,6 +121,8 @@ export const addOrderItemsSchema = z.object({
   orderItems: z.array(createOrderItemSchema).min(1, 'Dodajte vsaj en artikel'),
   // FIX Test 6.3: Optimistic locking za add-items
   expectedUpdatedAt: z.string().datetime().optional(),
+  // R124 (P0-03): ista eksplicitna odobritev kot pri POST /api/orders (fail-closed)
+  allowOutOfStock: z.boolean().optional().default(false),
 })
 
 // ============================================

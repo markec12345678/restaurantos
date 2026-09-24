@@ -67,4 +67,9 @@ export const it = {
   spirits: 'Distillati',
   beverages: 'Bevande calde',
   nonAlcoholic: 'Analcolici',
+  // R124 (P0-03): stati sold-out
+  soldOut: 'Esaurito',
+  stockLow: 'Disponibile: {count}',
+  itemSoldOut: 'Questo articolo è esaurito.',
+  soldOutDuringOrder: 'Alcuni articoli sono appena esauriti. Aggiorna il menu e riprova.',
 } as const;

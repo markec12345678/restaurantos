@@ -27,9 +27,12 @@ export const MenuItemCard = memo(function MenuItemCard({
   item, categoryName, cart, t, onAddToCart, onUpdateQuantity, onOpenDetail,
 }: MenuItemCardProps) {
   const cartQty = cart.filter(c => c.menuItemId === item.id).reduce((sum, c) => sum + c.quantity, 0)
+  // R124 (P0-03): sold-out stanje — izprodano = znižana prosojnost + onemogočeno dodajanje
+  const soldOut = item.stockStatus === 'out'
+  const lowStock = item.stockStatus === 'low' && item.stockAvailable != null
 
   return (
-    <motion.div layout className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden hover:shadow-md transition-shadow">
+    <motion.div layout className={`bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden hover:shadow-md transition-shadow ${soldOut ? 'opacity-60' : ''}`}>
       <div className="flex cursor-pointer" onClick={() => onOpenDetail(item)}>
         {item.image && (
           <div className="w-24 h-24 flex-shrink-0 relative">
@@ -38,8 +41,16 @@ export const MenuItemCard = memo(function MenuItemCard({
         )}
         <div className="flex-1 p-3 min-w-0">
           {categoryName && <p className="text-[10px] text-amber-500 font-medium mb-0.5 uppercase tracking-wide">{categoryName}</p>}
-          <h3 className="font-semibold text-sm leading-tight mb-0.5 truncate">{item.name}</h3>
+          <div className="flex items-center gap-1.5 mb-0.5 min-w-0">
+            <h3 className="font-semibold text-sm leading-tight truncate">{item.name}</h3>
+            {soldOut && (
+              <span className="flex-shrink-0 px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 text-[10px] font-semibold uppercase tracking-wide">{t.soldOut}</span>
+            )}
+          </div>
           {item.description && <p className="text-xs text-muted-foreground line-clamp-2 mb-1.5">{item.description}</p>}
+          {lowStock && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mb-1">{t.stockLow.replace('{count}', String(item.stockAvailable))}</p>
+          )}
           {item.allergens && (
             <div className="flex gap-0.5 mb-1.5">
               {item.allergens.split(',').map(a => (
@@ -50,7 +61,7 @@ export const MenuItemCard = memo(function MenuItemCard({
           <div className="flex items-center justify-between">
             <span className="font-bold text-amber-600 text-sm">{safeToFixed(item.price, 2)} {t.currency}</span>
             {cartQty === 0 ? (
-              <button onClick={(e) => { e.stopPropagation(); onAddToCart(item) }} className="flex items-center gap-1 px-3 py-1 bg-amber-500 text-white rounded-full text-xs font-medium hover:bg-amber-600 transition-colors">
+              <button onClick={(e) => { e.stopPropagation(); onAddToCart(item) }} disabled={soldOut} className={`flex items-center gap-1 px-3 py-1 bg-amber-500 text-white rounded-full text-xs font-medium transition-colors ${soldOut ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-600'}`}>
                 <Plus className="h-3 w-3" />{t.addToCart}
               </button>
             ) : (
@@ -60,7 +71,7 @@ export const MenuItemCard = memo(function MenuItemCard({
                   <Minus className="h-4 w-4" />
                 </button>
                 <span className="font-bold text-sm w-5 text-center">{cartQty}</span>
-                <button onClick={() => onAddToCart(item)} aria-label="Povečaj količino" className="w-10 h-10 flex items-center justify-center bg-amber-500 text-white rounded-full hover:bg-amber-600 transition-colors touch-manipulation">
+                <button onClick={() => onAddToCart(item)} disabled={soldOut} aria-label="Povečaj količino" className={`w-10 h-10 flex items-center justify-center bg-amber-500 text-white rounded-full transition-colors touch-manipulation ${soldOut ? 'opacity-50 cursor-not-allowed' : 'hover:bg-amber-600'}`}>
                   <Plus className="h-4 w-4" />
                 </button>
               </div>
