@@ -1680,6 +1680,10 @@ model Location {
   wasteRecords          WasteRecord[]     // R119 (epic #115 §3): waste ledger po lokaciji
   stocktakes            Stocktake[]       // R121 (epic #115 P0-01): fizična inventura po lokaciji
   batchPreparations     BatchPreparation[] // R122 (epic #115 P0-04): priprava vmesnih produktov po lokaciji
+  dailyCloses           DailyClose[]       // R126 (epic #115 P0-02): dnevni zaključek / reconciliation po lokaciji
+  // R126 (epic #115 P0-02): prag denarne razlike za dnevni zaključek.
+  // |countedCash - expectedCash| > prag → DailyClose zahteva odobritev (PENDING_APPROVAL).
+  dailyCloseVarianceThreshold Decimal @default(5.00) @db.Decimal(12, 2)
   // R89 — per-location ordering token revokacija (rotate = increment; stari
   // tokeni instant neveljavni; glej lib/ordering-token).
   tokenVersion     Int      @default(0)
@@ -2673,6 +2677,82 @@ model ZReport {
   // FIX SCHEMA-08 HIGH: Compound unique — eno Z-poročilo na dan na lokacijo, ne globalno
   @@unique([reportDate, locationId])
   @@index([closedAt])  // FIX SCHEMA-09: Iskanje zaključenih poročil po datumu
+}
+
+// ============================================
+// DAILY CLOSE — Dnevni zaključek / end-of-day reconciliation (R126, epic #115 P0-02)
+// Poslovni proces nad Z-poročilom: popis gotovine → variance → odobritev →
+// zaključek dneva → ponovno odpiranje (vse z audit sledjo).
+//
+// Kanon:
+// - ENA vrstica na (locationId, businessDate) — businessDate = začetek
+//   ljubljanskega poslovnega dne (ista semantika kot ZReport.reportDate).
+// - Variance = countedCash − expectedCash (expectedCash iz Z-poročila dneva
+//   = Σ expectedCash zaključenih blagajniških izmen tistega dne).
+// - |variance| ≤ prag (Location.dailyCloseVarianceThreshold) → CLOSED direktno,
+//   Z-poročilo dneva se finalizira (actualCash = countedCash).
+// - |variance| > prag → PENDING_APPROVAL; Z-poročilo ostane draft do odobritve
+//   (approve → CLOSED + finalize) ali zavrnitve (reject → REOPENED, ponoven popis).
+// - Reopen (admin, razlog obvezen): CLOSED → REOPENED, Z-poročilo nazaj na draft,
+//   reopenCount++ — vsak prehod pusti AuditLog (DAILY_CLOSE_*).
+// - Idempotencija: replay z istim (locationId, idempotencyKey) vrne obstoječo
+//   vrstico; P2002 race → 409 (R116 kanon).
+// - Snapshot agregati (ob close) so denormalizirana pariteta Z-poročila —
+//   Z-poročilo ostane edini vir finančne resnice (§18).
+// ============================================
+
+model DailyClose {
+  id              String   @id @default(cuid())
+  // --- MODEL A scope ---
+  locationId      String
+  location        Location @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // --- Poslovni dan (začetek ljubljanskega dne v UTC — day-start boundary) ---
+  businessDate    DateTime
+  // --- Workflow: PENDING_APPROVAL | CLOSED | REOPENED ---
+  status          String   @default("PENDING_APPROVAL")
+  // --- Cash reconciliation (snapshot ob zadnjem close attemptu) ---
+  expectedCash    Decimal  @default(0) @db.Decimal(12, 2)  // sistemsko pričakovano stanje (Z-poročilo)
+  countedCash     Decimal  @default(0) @db.Decimal(12, 2)  // fizični popis
+  cashVariance    Decimal  @default(0) @db.Decimal(12, 2)  // counted − expected
+  varianceThreshold Decimal @default(0) @db.Decimal(12, 2) // snapshot praga ob close (auditable)
+  // --- Dnevni agregati (snapshot Z-paritete ob close; vir resnice = Z-poročilo) ---
+  totalSales      Decimal  @default(0) @db.Decimal(12, 2)
+  cashSales       Decimal  @default(0) @db.Decimal(12, 2)
+  cardSales       Decimal  @default(0) @db.Decimal(12, 2)
+  mobileSales     Decimal  @default(0) @db.Decimal(12, 2)
+  alternateSales  Decimal  @default(0) @db.Decimal(12, 2)
+  totalOrders     Int      @default(0)
+  totalDiscounts  Decimal  @default(0) @db.Decimal(12, 2)
+  totalTips       Decimal  @default(0) @db.Decimal(12, 2)
+  totalVoided     Decimal  @default(0) @db.Decimal(12, 2)
+  totalRefunds    Decimal  @default(0) @db.Decimal(12, 2)
+  // --- Akterji (snapshot imena — preživita brisanje zaposlenega) ---
+  closedById      String?
+  closedByName    String   @default("")
+  closedAt        DateTime?
+  approvedById    String?
+  approvedByName  String   @default("")
+  approvedAt      DateTime?
+  approvalNote    String   @default("")
+  rejectedNote    String   @default("")   // reject = popis sporen → REOPENED (ponoven popis)
+  reopenCount     Int      @default(0)
+  reopenedById    String?
+  reopenedByName  String   @default("")
+  reopenedAt      DateTime?
+  reopenReason    String   @default("")
+  notes           String   @default("")
+  // --- Povezava na Z-poročilo dneva (istega scopa) ---
+  zReportId       String?
+  // --- Canon: idempotencija per lokacija (R116) ---
+  idempotencyKey  String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([locationId, businessDate])
+  @@unique([locationId, idempotencyKey])
+  @@index([status])
+  @@index([businessDate])
+  @@index([closedAt])
 }
 
 // ============================================

@@ -23,6 +23,13 @@ export const endOfDayKeys = {
   all: ['end-of-day'] as const,
 }
 
+// R126-b: Dnevni zaključek (P0-02) — GET/POST /api/daily-close
+export const dailyCloseKeys = {
+  all: ['daily-close'] as const,
+  /** { date: 'YYYY-MM-DD' } = status izbranega dne, { scope: 'recent' } = zgodovina (zadnjih 60) */
+  list: (filters?: Record<string, unknown>) => ['daily-close', 'list', filters ?? null] as const,
+}
+
 export const reportsKeys = {
   financial: (params?: Record<string, unknown>) => ['financial-report', params] as const,
   sales: (params?: Record<string, unknown>) => ['sales-report', params] as const,

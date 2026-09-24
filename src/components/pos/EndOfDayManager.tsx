@@ -19,6 +19,8 @@ const EodChecklist = dynamic(() => import('./eod/EodChecklist').then(m => ({ def
 const EodKpiCards = dynamic(() => import('./eod/EodKpiCards').then(m => ({ default: m.EodKpiCards })), { ssr: false })
 const EodSections = dynamic(() => import('./eod/EodSections').then(m => ({ default: m.EodSections })), { ssr: false })
 const CloseDayDialog = dynamic(() => import('./eod/CloseDayDialog').then(m => ({ default: m.CloseDayDialog })), { ssr: false })
+// R126-b: Dnevni zaključek (P0-02) — panel pod KPI karticami, pred sekcijami
+const DailyClosePanel = dynamic(() => import('./eod/DailyClosePanel').then(m => ({ default: m.DailyClosePanel })), { ssr: false })
 
 // ============================================
 // GLAVNA KOMPONENTA - Koordinator
@@ -95,6 +97,11 @@ export const EndOfDayManager = memo(function EndOfDayManager() {
 
       <EodChecklist eodChecks={eodChecks} completedChecks={completedChecks} allChecksDone={allChecksDone} onToggleCash={handleToggleCash} onToggleChecklist={handleToggleChecklist} />
       <EodKpiCards data={data} />
+      {/* R126-b: Dnevni zaključek (P0-02) — vidno mesto: pod KPI, pred sekcijami.
+          Pričakovana gotovina: EOD shift nima expectedCash polja → startingCash + cashSales
+          (isti izračun kot zgornji expectedCash za legacy dialog); točen izid (variance/
+          prag) pokaže dialog iz POST /api/daily-close odgovora. */}
+      <DailyClosePanel date={data.date} expectedCash={expectedCash} />
       <EodSections data={data} expandedSections={expandedSections} onToggleSection={toggleSection} />
       <CloseDayDialog
         open={showCloseDialog} onOpenChange={setShowCloseDialog}
