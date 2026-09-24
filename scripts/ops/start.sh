@@ -2,7 +2,7 @@
 # RestaurantOS POS - Strežniški zagon
 # Uporaba: ./start.sh [dev|prod]
 
-cd /home/z/my-project
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 MODE=${1:-dev}
 

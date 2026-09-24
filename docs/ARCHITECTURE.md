@@ -1,7 +1,7 @@
 # RestaurantOS — Architecture
 
-**Version:** v1.0.0  
-**Updated:** 2026-09-04
+**Version:** v1.26.0  
+**Updated:** 2026-09-24 (metrike usklajene z realnim stanjem kode)
 
 ---
 
@@ -9,7 +9,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    RestaurantOS v1.0.0                    │
+│                   RestaurantOS v1.26.0                    │
 ├─────────────────────────────────────────────────────────┤
 │                                                          │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐ │
@@ -25,7 +25,7 @@
 │                   └──────┬──────┘                        │
 │                          │                               │
 │  ┌───────────────────────┴───────────────────────┐       │
-│  │            Next.js API Routes (211)            │       │
+│  │            Next.js API Routes (263)            │       │
 │  │  ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐ ┌──────┐│       │
 │  │  │Orders│ │Payments│ │ FURS │ │Invntry│ │Acctng││       │
 │  │  └──────┘ └──────┘ └──────┘ └──────┘ └──────┘│       │
@@ -41,11 +41,11 @@
 │  └───────────────────────┬───────────────────────┘       │
 │                          │                               │
 │  ┌───────────────────────┴───────────────────────┐       │
-│  │            Prisma ORM (92 models)              │       │
+│  │           Prisma ORM (101 models)              │       │
 │  └───────────────────────┬───────────────────────┘       │
 │                          │                               │
 │  ┌───────────────────────┴───────────────────────┐       │
-│  │         Neon PostgreSQL (94 tables)            │       │
+│  │        Neon PostgreSQL (101 tables)            │       │
 │  │         Connection pool: PgBouncer             │       │
 │  └───────────────────────────────────────────────┘       │
 │                                                          │
@@ -114,7 +114,7 @@ Request Flow:
 
 ---
 
-## 🗄️ Database Schema (94 tables, 92 models)
+## 🗄️ Database Schema (101 tables, 101 models)
 
 ### Core Tables
 - **Order** — naročila (idempotencyKey @unique, locationId)

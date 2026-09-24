@@ -2,7 +2,7 @@
 # RestaurantOS POS - Production startup script
 # Usage: ./start-production.sh
 
-cd /home/z/my-project
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Kill any existing process on port 3000
 fuser -k 3000/tcp 2>/dev/null

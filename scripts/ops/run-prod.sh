@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /home/z/my-project
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export NODE_ENV=production
 export HOSTNAME=0.0.0.0
 export PORT=3000

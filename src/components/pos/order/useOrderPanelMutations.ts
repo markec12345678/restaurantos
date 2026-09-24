@@ -111,11 +111,24 @@ export function useOrderPanelMutations() {
       customerPhone: string
       orderNotes: string
     }) => {
+      // BUG-FIX (živ pregled 2026-09-24): idempotencyKey je prej bil direktna
+      // konkatenacija vseh ID-jev artiklov v košarici — pri 3+ različnih
+      // artiklih (CUID ≈ 25 znakov/kos) je presegel 100-znakovno Zod omejitev
+      // na serverju in VSAKA naročila s 3+ artikli so vrnila 400. Zdaj:
+      // determinističen djb2 hash vsebine košarice + timestamp → ključ je
+      // vedno ≤ ~35 znakov, unikaten na oddajo.
+      const hashCartKey = (items: { id: string; quantity: number }[]) => {
+        const s = items.map(i => `${i.id}:${i.quantity}`).join('-')
+        let h = 5381
+        for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0
+        return h.toString(36)
+      }
+      const cartKeyHash = hashCartKey(cart)
       const cappedDiscount = Math.min(discount, usePOSStore.getState().cartSubtotal())
 
       // FIX Test 6.1: Če je offline, shrani v IndexedDB queue
       if (!isOnline() && !editingOrderId) {
-        const idempotencyKey = `cart-${cart.map(i => `${i.id}:${i.quantity}`).join('-')}-${Date.now()}`
+        const idempotencyKey = `cart-${cartKeyHash}-${Date.now()}`
         const orderData = {
           type: orderType,
           tableId: orderType === 'dine-in' ? selectedTable : null,
@@ -182,7 +195,7 @@ export function useOrderPanelMutations() {
           // FIX CRITICAL (Test 3.2): Idempotency key — prepreči duplikate pri retry/reconnect
           // Generiramo iz cart vsebine + timestamp-a. Če React Query retry-a request,
           // bo klient poslal isti key in server vrne obstoječi Order ID (200, ne 201).
-          idempotencyKey: `cart-${cart.map(i => `${i.id}:${i.quantity}`).join('-')}-${Date.now()}`,
+          idempotencyKey: `cart-${cartKeyHash}-${Date.now()}`,
           type: orderType,
           tableId: orderType === 'dine-in' ? selectedTable : null,
           diningOptionId: diningOptionId || undefined,

@@ -2,7 +2,7 @@
 # RestaurantOS POS - Keep-alive script
 # Keeps the server running by restarting if it dies
 
-cd /home/z/my-project
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 while true; do
   echo "[$(date)] Starting RestaurantOS POS server..."

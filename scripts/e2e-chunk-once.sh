@@ -12,7 +12,9 @@
 #
 # Rezultati se ZBIERAJO v /tmp/e2e-chunk-results.txt (persist čez klice).
 # PLAYWRIGHT_GREP: opcijski --grep filter (razdelitev velikih specov).
-cd /home/z/my-project
+# FIX: projekt koren se izračuna iz lokacije skripte (prej trdo kodirana osebna pot)
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(pwd)"
 RESULT_FILE=/tmp/e2e-chunk-results.txt
 
 kill_all() {
@@ -28,8 +30,8 @@ kill_all() {
 start_server() {
   # SIGKILL pusti PGlite dir dirty (WASM crash-recovery abort) — VEDNO init
   # pred startom (wipe + DDL + seed; .next turbopack cache ni v data dir-u).
-  PGLITE_DATA_DIR=/home/z/my-project/pglite-e2e-data NEXTAUTH_SECRET=e2e-test-secret-only node scripts/init-e2e-db.mjs > /tmp/e2e-init.log 2>&1
-  (NODE_OPTIONS=--max-old-space-size=1536 DATABASE_URL='' PGLITE_DATA_DIR=/home/z/my-project/pglite-e2e-data FURS_ENV=test FURS_ALLOW_SIMULATION=true NEXTAUTH_SECRET=e2e-test-secret-only WS_BROADCAST_SECRET=e2e-test-secret-only API_RATE_LIMIT_MAX=600 LOGIN_RATE_LIMIT_MAX=200 WEBAUTHN_ENABLED=true bun run dev > /tmp/e2e-dev.log 2>&1 &)
+  PGLITE_DATA_DIR="$ROOT/pglite-e2e-data" NEXTAUTH_SECRET=e2e-test-secret-only node scripts/init-e2e-db.mjs > /tmp/e2e-init.log 2>&1
+  (NODE_OPTIONS=--max-old-space-size=1536 DATABASE_URL='' PGLITE_DATA_DIR="$ROOT/pglite-e2e-data" FURS_ENV=test FURS_ALLOW_SIMULATION=true NEXTAUTH_SECRET=e2e-test-secret-only WS_BROADCAST_SECRET=e2e-test-secret-only API_RATE_LIMIT_MAX=600 LOGIN_RATE_LIMIT_MAX=200 WEBAUTHN_ENABLED=true bun run dev > /tmp/e2e-dev.log 2>&1 &)
   ok=0
   for i in $(seq 1 14); do
     sleep 5

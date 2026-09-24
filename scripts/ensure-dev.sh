@@ -20,7 +20,7 @@ if ! alive; then
   pkill -9 -f "node server.js" 2>/dev/null
   pkill -9 -f next-server 2>/dev/null
   sleep 1
-  PGLITE_DATA_DIR="/home/z/restaurantos/pglite-data" LOGIN_RATE_LIMIT_MAX=30 \
+  PGLITE_DATA_DIR="$(pwd)/pglite-data" LOGIN_RATE_LIMIT_MAX=30 \
     nohup bunx next dev -p $PORT > dev-restaurantos.log 2>&1 &
   for _ in $(seq 1 30); do
     sleep 2
