@@ -24,6 +24,7 @@ import { structuredErrorResponse } from '@/lib/structured-error'
 import {
   BOLT_SIGNATURE_HEADER,
   boltOrderSchema,
+  buildBoltCustomerName,
   findExistingBoltOrder,
   mapBoltItemsToOrderItems,
 } from './_helpers'
@@ -113,29 +114,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Neveljavni podatki naročila' }, { status: 400 })
     }
 
-    // Fast-path duplikat (idempotentnost) — SAMO hitri pregled nad db;
-    // AVTORITATIVNA preverba je tx-fresh ZNOTRAJ transakcije spodaj
-    // (pod advisory lock-om), fast-path obstaja za prihranek tx-ov na
-    // ponovljenih redeliverijih. Kontrakt duplikata je nespremenjen (200).
-    const existing = await findExistingBoltOrder(data.order_id)
-    if (existing) {
-      logger.info('Bolt', `Duplikat naročila ${data.order_id} — vračam obstoječi ${existing.orderNumber}`)
-      return NextResponse.json({
-        success: true,
-        message: 'Naročilo že obstaja',
-        orderNumber: existing.orderNumber,
-        orderId: existing.id,
-      })
-    }
-
     // R88-2: lokacija pride IZ integracije (Integration.locationId — per-location
     // webhook žig). Globalni resolveDefaultLocationId fallback ODSTRANJEN
     // (R87-FINAL backlog): naročilo se NIKOLI tiho ne žiga na prvo aktivno
     // lokacijo katerega koli tenanta. Brez nastavljene lokacije → 503
     // (platforma retry-a; P1-6 kanon ostaja).
+    // R117 (H-1): lokacijska resolucija je prestavljena PRED dedup —
+    // dedup lookup je od zdaj lokacijsko+integracijsko scoped in brez
+    // scope-a ni niti fast-path (prej je unscoped contains lahko vrnil
+    // tuj order za integracijo BREZ lokacije, šele nato 503).
     const webhookLocationId = boltIntegration.locationId
     if (!webhookLocationId) {
       return NextResponse.json({ status: 'error', message: 'Ni nastavljene lokacije' }, { status: 503 })
+    }
+
+    // Fast-path duplikat (idempotentnost) — SAMO hitri pregled nad db;
+    // AVTORITATIVNA preverba je tx-fresh ZNOTRAJ transakcije spodaj
+    // (pod advisory lock-om), fast-path obstaja za prihranek tx-ov na
+    // ponovljenih redeliverijah. Kontrakt duplikata je nespremenjen (200).
+    // R117 (H-1): kanonski Wolt/Glovo dedup model — integrationLog scoped
+    // na integracijo + EXACT boltOrderId identiteta; legacy customerName
+    // fallback lokacijsko scoped + delimiter-exact (brez 123/1234 kolizij).
+    const existing = await findExistingBoltOrder(data.order_id, webhookLocationId, boltIntegration.id)
+    if (existing) {
+      logger.info('Bolt', `Duplikat naročila ${data.order_id} — vračam obstoječi ${existing.orderNumber ?? '?'}`)
+      return NextResponse.json({
+        success: true,
+        message: 'Naročilo že obstaja',
+        orderNumber: existing.orderNumber,
+        orderId: existing.orderId,
+      })
     }
 
     // FIX R112 (WEBHOOK-1, MED-HIGH — TOCTOU razred iz R100–R111): prej je bil
@@ -155,8 +163,8 @@ export async function POST(req: Request) {
       // AVTORITATIVEN (READ COMMITTED re-check sam NE ščiti).
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`
 
-      // tx-fresh dedup re-check
-      const freshDup = await findExistingBoltOrder(data.order_id, tx)
+      // tx-fresh dedup re-check (R117 H-1: scoped na integracijo + lokacijo)
+      const freshDup = await findExistingBoltOrder(data.order_id, webhookLocationId, boltIntegration.id, tx)
       if (freshDup) {
         return { duplicate: true as const, existing: freshDup }
       }
@@ -197,7 +205,9 @@ export async function POST(req: Request) {
           orderNumber,
           type: 'delivery',
           status: 'pending',
-          customerName: `Bolt:${data.order_id} — ${data.customer.name}`,
+          // R117 H-1: skupni builder (helper) — delimiter v listi z legacy
+          // startsWith fallbackom (ni drifta med zapisom in ujemanjem).
+          customerName: buildBoltCustomerName(data.order_id, data.customer.name),
           customerPhone: data.customer.phone,
           notes: `Bolt dostava na: ${data.delivery_address}. Opombe: ${data.delivery_notes}`,
           // FIX AUD-17: Pravilen DDV za vsak artikel — uporabi vatRate iz baze
@@ -251,7 +261,7 @@ export async function POST(req: Request) {
         success: true,
         message: 'Naročilo že obstaja',
         orderNumber: txResult.existing.orderNumber,
-        orderId: txResult.existing.id,
+        orderId: txResult.existing.orderId,
       })
     }
 

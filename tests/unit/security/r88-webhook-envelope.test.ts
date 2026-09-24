@@ -85,8 +85,12 @@ vi.mock('@/lib/db', () => ({
     // FIX R112 (WEBHOOK-1/2): dedup + order create sta zdaj ENA Serializable tx
     // pod advisory lock-om — tx klient mora nositi iste mocke (isti vir resnice,
     // asserti nad orderCreate/menuItemFindMany ostanejo veljavni).
+    // FIX R117 (H-1): Bolt dedup je zdaj kanonski integrationLog model —
+    // tx-fresh re-check teče tudi čez integrationLog.findMany (isti mock vir
+    // kot db-level fast-path).
     $transaction: vi.fn(async (fn: (tx: unknown) => unknown) => fn({
       $executeRaw: vi.fn().mockResolvedValue(0),
+      integrationLog: { findMany: mocks.integrationLogFindMany },
       order: { create: mocks.orderCreate, findFirst: mocks.orderFindFirst },
       menuItem: { findFirst: mocks.menuItemFindFirst, findMany: mocks.menuItemFindMany },
     })),

@@ -97,12 +97,10 @@ export async function POST(req: Request) {
     // Fast-path idempotenca — SAMO hitri pregled nad db; AVTORITATIVNA
     // preverba je tx-fresh ZNOTRAJ transakcije spodaj (pod advisory lock-om).
     // Kontrakt duplikata je nespremenjen (200 accepted + obstoječi orderId).
-    const existing = await findExistingWoltOrder(woltIntegration.id, woltOrder.order_id)
-    if (existing) {
-      return NextResponse.json({ status: 'accepted', orderId: existing.orderId })
-    }
-
-    // Ustvari naročilo v RestaurantOS
+    // R117 (H-2): lokacijska resolucija je prestavljena PRED fast-path —
+    // legacy fallback je od zdaj lokacijsko scoped in brez scope-a ni niti
+    // fast-path preverbe (prej je unscoped notes contains lahko vrnil tuj
+    // order ne glede na lokacijo integracije).
     // R88-2: lokacija pride IZ integracije (Integration.locationId — per-location
     // webhook žig). Globalni resolveDefaultLocationId fallback ODSTRANJEN
     // (R87-FINAL backlog): naročilo se NIKOLI tiho ne žiga na prvo aktivno
@@ -111,6 +109,10 @@ export async function POST(req: Request) {
     const webhookLocationId = woltIntegration.locationId
     if (!webhookLocationId) {
       return NextResponse.json({ status: 'error', message: 'Ni nastavljene lokacije' }, { status: 503 })
+    }
+    const existing = await findExistingWoltOrder(woltIntegration.id, woltOrder.order_id, webhookLocationId)
+    if (existing) {
+      return NextResponse.json({ status: 'accepted', orderId: existing.orderId })
     }
     const deliveryAddress = woltOrder.delivery?.location?.formatted_address || ''
     const recipientName = woltOrder.delivery?.recipient?.name || 'Wolt gost'
@@ -133,8 +135,9 @@ export async function POST(req: Request) {
       // AVTORITATIVEN.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`
 
-      // tx-fresh dedup re-check (log + backward-compat notes scan, na tx klientu)
-      const freshDup = await findExistingWoltOrder(woltIntegration.id, woltOrder.order_id, tx)
+      // tx-fresh dedup re-check (log + backward-compat notes scan, na tx
+      // klientu; R117 H-2: notes fallback lokacijsko scoped)
+      const freshDup = await findExistingWoltOrder(woltIntegration.id, woltOrder.order_id, webhookLocationId, tx)
       if (freshDup) {
         return { duplicate: true as const, existing: freshDup }
       }

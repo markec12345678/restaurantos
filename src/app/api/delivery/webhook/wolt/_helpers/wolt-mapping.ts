@@ -20,6 +20,7 @@ import { z } from 'zod'
 export async function findExistingWoltOrder(
   integrationId: string,
   orderId: string,
+  webhookLocationId: string,
   client: Prisma.TransactionClient = db,
 ) {
   const candidateLogs = await client.integrationLog.findMany({
@@ -45,8 +46,15 @@ export async function findExistingWoltOrder(
     return { type: 'log' as const, orderId: existingOrderId }
   }
   // Backward compat: preveri tudi notes
+  // FIX R117 (H-2, P2): fallback je bil UNSCOPED — Wolt naročilo lokacije A
+  // + Wolt webhook za lokacijo B je lahko replay-al A-jevo naročilo (tuji
+  // orderId leak + tiho pogoltnjen webhook). Fallback je zdaj scoped na
+  // webhook lokacijo (locationId na Order je NOT NULL — trrd tenant žig).
+  // Kanonska integrationLog pot (zgornja) je nespremenjena in ostane
+  // avtoritativna; fallback pokriva samo zgodovinske zapise brez loga +
+  // okno med tx commitom in log zapisom.
   const existingOrder = await client.order.findFirst({
-    where: { notes: { contains: `WOLT:${orderId}` } },
+    where: { locationId: webhookLocationId, notes: { contains: `WOLT:${orderId}` } },
   })
   if (existingOrder) {
     return { type: 'order' as const, orderId: existingOrder.id }

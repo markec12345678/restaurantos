@@ -3,6 +3,7 @@
 // =====================================================================
 
 import { db } from '@/lib/db'
+import { getNextOrderNumber } from '@/lib/counters'
 import { toNum, round2 } from '@/lib/decimal'
 import { requireEnvSecret } from '@/lib/crypto/secrets'
 
@@ -149,8 +150,16 @@ export async function seedDemoData(menuItems: { id: string; price: number; vatRa
       const statusIdx = dayOffset === 0 ? Math.floor(Math.random() * 3) : 3
       const status = statuses[statusIdx]
 
-      const maxOrder = await db.order.findFirst({ orderBy: { orderNumber: 'desc' }, select: { orderNumber: true } })
-      const orderNumber = (maxOrder?.orderNumber || 0) + 1
+      // FIX R117 (H-3, P2): prej je bil non-atomic GLOBALNI MAX(orderNumber)+1
+      // (findFirst orderBy orderNumber desc brez lokacije) — race proti
+      // sočasnim živim naročilom = P2002 na @@unique([locationId, orderNumber]),
+      // poleg tega je globalna številka spodkopavala per-lokacijsko
+      // številčenje (P1-7/FURS kanon). Sedaj kanonski R100 atomarni
+      // per-lokacijski counter (INSERT .. ON CONFLICT, ena SQL izjava) —
+      // varen tudi ob sočasnem POS prometu; samo-inicializira se na
+      // MAX(orderNumber) obstoječih naročil TE lokacije + 1, zaporedje
+      // več demo naročil ostane enako (sekvenčni awaiti → 1, 2, 3, …).
+      const orderNumber = await getNextOrderNumber(locationId)
 
       const tableId = type === 'dine-in' && tables.length > 0 ? tables[Math.floor(Math.random() * tables.length)].id : null
 

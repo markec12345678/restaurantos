@@ -15,6 +15,7 @@ import type { Prisma } from '@prisma/client'
 export async function findExistingGlovoOrder(
   integrationId: string,
   orderId: string,
+  webhookLocationId: string,
   client: Prisma.TransactionClient = db,
 ) {
   const candidateLogs = await client.integrationLog.findMany({
@@ -40,8 +41,12 @@ export async function findExistingGlovoOrder(
     return { type: 'log' as const, orderId: existingOrderId }
   }
   // Backward compat: preveri tudi notes
+  // FIX R117 (H-2, P2): fallback je bil UNSCOPED — Glovo naročilo lokacije A
+  // + Glovo webhook za lokacijo B je lahko replay-al A-jevo naročilo. Fallback
+  // je zdaj scoped na webhook lokacijo (locationId na Order je NOT NULL).
+  // Kanonska integrationLog pot ostane avtoritativna in nespremenjena.
   const existingOrder = await client.order.findFirst({
-    where: { notes: { contains: `GLOVO:${orderId}` } },
+    where: { locationId: webhookLocationId, notes: { contains: `GLOVO:${orderId}` } },
   })
   if (existingOrder) {
     return { type: 'order' as const, orderId: existingOrder.id }
