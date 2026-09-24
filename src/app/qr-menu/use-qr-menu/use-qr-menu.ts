@@ -2,14 +2,14 @@
 // QR Menu - Main hook za stanje in logiko
 // =====================================================================
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useFocusTrap } from '@/lib/use-focus-trap';
 import type { Menu, MenuItem, Modifier, ModifierGroup, CartItem, OrderResult, UpsellSuggestion } from '../types';
 import { getTimeOfDay } from '../constants';
 import type { FontSize, QRMenuState } from './types';
 import { addItemToCart, removeCartItemByIndex, updateCartItemQuantity, calculateCartTotal, calculateCartTotalWithVat, getCartItemCount } from './cart-utils';
 import { toggleModifierLogic, validateModifierGroupsLogic, filterItemsBySearch, reorderCategoriesByTimeOfDay } from './modifier-utils';
-import { submitOrderRequest } from './api-helpers';
+import { submitOrderRequest, findMenuItemById } from './api-helpers';
 import { useQRMenuEffects } from './use-effects';
 
 export type { FontSize } from './types';
@@ -52,8 +52,19 @@ export function useQRMenu(): QRMenuState {
     setMenus, setSettings, setActiveMenu, setActiveCategory,
     setTableNumber, setIsDark, setIsHighContrast, setFontSize,
     setLoading, setError, setTimeOfDay, setUpsellLoading, setUpsellSuggestions,
-    cart, menus, activeMenu, activeCategory,
+    cart, menus, activeMenu, activeCategory, settings,
   });
+
+  // R124-c: odprt artikel-modal drži staro referenco na artikel — po
+  // availability merge-u jo uskladimo s svežo verzijo iz menija, da je
+  // badge/disabled stanje v modalu vedno aktualno (near-real-time UX).
+  useEffect(() => {
+    setShowItemDetail(prev => {
+      if (!prev) return prev;
+      const fresh = findMenuItemById(menus, prev.id);
+      return fresh && fresh !== prev ? fresh : prev;
+    });
+  }, [menus]);
 
   // R124 (P0-03): odjemalska blokada izprodanih artiklov (defense in depth —
   // strežnik ostane avtoriteten). 'out' → napaka brez dodajanja.

@@ -2,7 +2,7 @@
 // QR Ordering - Main hook za stanje in logiko
 // =====================================================================
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { translations } from '../../translations';
 import type { Locale } from '../../translations';
 import type { CartItem, MenuType, MenuItemType, OrderResult, RestaurantInfo } from '../../types';
@@ -17,6 +17,7 @@ import {
   calculateCartTax,
 } from './cart-utils';
 import { submitOrderRequest, callWaiterRequest, SoldOutError } from './order-actions';
+import { findMenuItemById } from './availability';
 import { computeDerivedValues, getSuperGroupForCategoryName } from './derived';
 import { useQREffects } from './use-effects';
 
@@ -25,6 +26,9 @@ export type { QROrderingState } from './types';
 export function useQROrdering(params: Promise<{ tableId: string }>): QROrderingState {
   // State
   const [tableId, setTableId] = useState<string>('');
+  // R124-c: lokacija, za katero je prikazan meni (razreši useQREffects prek
+  // verify-table) — pogoj za real-time availability polling (no-store endpoint).
+  const [availabilityLocationId, setAvailabilityLocationId] = useState<string>('');
   const [locale, setLocale] = useState<Locale>('sl');
   const [menus, setMenus] = useState<MenuType[]>([]);
   const [restaurant, setRestaurant] = useState<RestaurantInfo | null>(null);
@@ -56,7 +60,19 @@ export function useQROrdering(params: Promise<{ tableId: string }>): QROrderingS
     params, tableId, setTableId, setMenus, setRestaurant,
     setActiveMenuId, setActiveCategoryId, setLoading, setError,
     setTableNotFound, orderResult, setOrderStatus,
+    availabilityLocationId, setAvailabilityLocationId,
   });
+
+  // R124-c: odprt artikel-modal drži staro referenco na artikel — po
+  // availability merge-u jo uskladimo s svežo verzijo iz menija, da je
+  // badge/disabled stanje v modalu vedno aktualno (near-real-time UX).
+  useEffect(() => {
+    setDetailItem(prev => {
+      if (!prev) return prev;
+      const fresh = findMenuItemById(menus, prev.id);
+      return fresh && fresh !== prev ? fresh : prev;
+    });
+  }, [menus]);
 
   // Cart handlers
   // R124 (P0-03): odjemalska blokada izprodanih artiklov (defense in depth —

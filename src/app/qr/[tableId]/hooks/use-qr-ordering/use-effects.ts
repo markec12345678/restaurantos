@@ -4,12 +4,13 @@
 
 import { useEffect, useRef } from 'react';
 import type { MenuType, OrderResult, RestaurantInfo } from '../../types';
+import { fetchAvailability, mergeAvailabilityIntoMenus } from './availability';
 
 export interface UseQREffectsParams {
   params: Promise<{ tableId: string }>;
   tableId: string;
   setTableId: (_id: string) => void;
-  setMenus: (_menus: MenuType[]) => void;
+  setMenus: (_menus: MenuType[] | ((prev: MenuType[]) => MenuType[])) => void;
   setRestaurant: (_info: RestaurantInfo | null) => void;
   setActiveMenuId: (_id: string) => void;
   setActiveCategoryId: (_id: string) => void;
@@ -18,6 +19,9 @@ export interface UseQREffectsParams {
   setTableNotFound: (_notFound: boolean) => void;
   orderResult: OrderResult | null;
   setOrderStatus: (_status: string) => void;
+  /** R124-c: razrešeni locationId (verify-table) — pogoj za availability polling */
+  availabilityLocationId: string;
+  setAvailabilityLocationId: (_id: string) => void;
 }
 
 export function useQREffects({
@@ -33,6 +37,8 @@ export function useQREffects({
   setTableNotFound,
   orderResult,
   setOrderStatus,
+  availabilityLocationId,
+  setAvailabilityLocationId,
 }: UseQREffectsParams) {
   const statusRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -76,6 +82,10 @@ export function useQREffects({
         const res = await fetch(`/api/public/menu${qs}`);
         if (!res.ok) throw new Error('Failed to fetch menu');
         const data = await res.json();
+        // R124-c: razrešeni lokacijski kontekst prenesemo naprej — prvi
+        // availability poll teče takoj po loadu menija (sveže zalogovno
+        // stanje kljub 5-min CDN cache-u na public/menu).
+        if (locationId) setAvailabilityLocationId(locationId);
         if (data.menus && data.menus.length > 0) {
           setMenus(data.menus);
           setActiveMenuId(data.menus[0].id);
@@ -95,6 +105,38 @@ export function useQREffects({
     };
     fetchData();
   }, [tableId, setMenus, setRestaurant, setActiveMenuId, setActiveCategoryId, setLoading, setError, setTableNotFound]);
+
+  // R124-c: availability polling — public/menu je cachean 5 min (CDN), zaloga
+  // pa je realno-časovna (kanon P0-03: QR ne sme kazati 'na zalogi', ko POS že
+  // kaže sold-out). No-store endpoint pollamo vsakih 30 s + takoj ob zagonu in
+  // ob focus / visibilitychange 'visible' (mobilni gostje tab v ozadju).
+  // Napaka/offline → tiho obdržimo zadnje znano stanje (brez toast spam-a),
+  // retry naslednji tick. Cleanup počisti interval + listenere (brez leakov).
+  useEffect(() => {
+    if (!availabilityLocationId) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const availability = await fetchAvailability(availabilityLocationId);
+        if (cancelled || !availability) return;
+        setMenus(prev => mergeAvailabilityIntoMenus(prev, availability));
+      } catch { /* tiho — retry naslednji tick */ }
+    };
+    poll();
+    const interval = setInterval(poll, 30000);
+    const refetch = () => { poll(); };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') poll();
+    };
+    window.addEventListener('focus', refetch);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener('focus', refetch);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [availabilityLocationId, setMenus]);
 
   // Poll order status after order placed
   useEffect(() => {
