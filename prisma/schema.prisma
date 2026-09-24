@@ -986,6 +986,7 @@ model InventoryItem {
   recipeItems     RecipeItem[]
   wasteRecords    WasteRecord[]     // R119 (epic #115 §3): waste ledger
   batches         InventoryBatch[]  // R120 (epic #115 §4): batch/lot/expiry + FEFO
+  stocktakeItems  StocktakeItem[]   // R121 (epic #115 P0-01): fizična inventura
   purchaseOrderItems PurchaseOrderItem[]
   // --- AI Predictive Ordering ---
   reorderRule     ReorderRule?
@@ -1037,6 +1038,8 @@ model StockTransaction {
   wasteReversals  WasteRecord[] @relation("WasteReversal")
   // R120 (epic #115 §4): per-batch razknjižbe te transakcije (FEFO sledljivost)
   batchAllocations StockBatchAllocation[]
+  // R121 (epic #115 P0-01): aplicirane inventurne korekcije
+  stocktakeItems  StocktakeItem[]
 }
 
 // ============================================
@@ -1143,6 +1146,80 @@ model WasteRecord {
   @@index([reason])
   @@index([idempotencyKey])
   @@unique([locationId, idempotencyKey])
+}
+
+// ============================================
+// STOCKTAKE — fizična inventura + reconciliation (epic #115 P0-01, runda 121)
+// ============================================
+// Kanon P0-01: theoretical stock → physical count → variance → approval →
+// adjustment → new baseline. InventoryItem.quantity se NIKOLI ne spremeni
+// mimo sledljivega adjustment/ledger dogodka: potrditev (approve) izvede
+// per-vrstični korektivni vnos v R106 zalogovni kanon (skupni advisory lock
+// 'inv-stock:' + itemId, tx-fresh branje, absolutna nastavitev = štetje) in
+// vsaka neničelna razlika pusti StockTransaction ('adjustment'/'write-off')
+// s snapshotom previousQty → newQty. Stanja: DRAFT (štetje, količine se smejo
+// popravljati = ponovno štetje) → IN_REVIEW (pregled, štetje zaklenjeno,
+// možen povratek v DRAFT = recount) → APPROVED (korekcije aplicirane) |
+// CANCELLED. Zaščita pred dvojno potrditvijo: pogojni updateMany status
+// guard znotraj transakcije (dva vzporedna approve-a → natanko ena korekcija).
+model Stocktake {
+  id          String   @id @default(cuid())
+  // MODEL A tenant scope — inventura je vedno dogodek na konkretni lokaciji
+  locationId  String
+  location    Location @relation(fields: [locationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  status      String   @default("DRAFT") // DRAFT | IN_REVIEW | APPROVED | CANCELLED
+  note        String   @default("")
+  // Actor snapshot-i (preživijo brisanje uporabnikov — revizijska sled)
+  createdByName  String @default("")
+  approvedByName String @default("")
+  submittedAt DateTime?
+  approvedAt  DateTime?
+  cancelledAt DateTime?
+  // Kolikokrat je pregled poslal štetje nazaj v DRAFT (recount zahteva)
+  recountCount Int     @default(0)
+  // R116 kanon: client ključ ob kreiranju — retry ne ustvari dveh inventur
+  idempotencyKey String?
+  lines       StocktakeItem[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([locationId, createdAt])
+  @@index([status])
+  @@index([idempotencyKey])
+  @@unique([locationId, idempotencyKey])
+}
+
+// Vrstica inventure: snapshot teoretičnega stanja + nabrana fizična količina.
+// varianceQuantity/varianceValue so SNAPSHOT razlike za pregled (counted −
+// expected ob štetju); AVTORITATIVNA aplicirana korekcija ob potrditvi je
+// povezana StockTransaction (previousQty/newQty) — ledger je edina resnica.
+model StocktakeItem {
+  id              String @id @default(cuid())
+  stocktakeId     String
+  stocktake       Stocktake @relation(fields: [stocktakeId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  // Snapshot-i ob kreiranju inventure (preživijo spremembe/brisanje artikla)
+  itemName        String @default("")
+  unit            String @default("")
+  expectedQuantity Decimal @db.Decimal(12, 3) // teoretično stanje ob kreiranju
+  costPerUnit     Decimal @db.Decimal(12, 2)  // cost basis za vrednost razlike
+  // Fizično štetje (null = še ne preštejeno); med DRAFT popravljivo (recount)
+  countedQuantity Decimal? @db.Decimal(12, 3)
+  // Snapshot razlike za pregled: counted − expected (× costPerUnit za vrednost)
+  varianceQuantity Decimal? @db.Decimal(12, 3)
+  varianceValue    Decimal? @db.Decimal(12, 2)
+  lineNote        String @default("") // razlog/opomba per vrstica
+  countedAt       DateTime?
+  countedByName   String @default("")
+  // Aplicirana korekcija ob potrditvi (pogoj: counted ≠ tx-fresh stanje)
+  stockTransactionId String? @unique
+  stockTransaction   StockTransaction? @relation(fields: [stockTransactionId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([stocktakeId, inventoryItemId])
+  @@index([inventoryItemId])
 }
 
 model RecipeItem {
@@ -1529,6 +1606,7 @@ model Location {
   integrations          Integration[]     // R88: delivery webhooki žigajo na to lokacijo (tenant scope)
   webauthnCredentials  WebAuthnCredential[] // R97-a: WebAuthn/passkey device attestation poverilnice
   wasteRecords          WasteRecord[]     // R119 (epic #115 §3): waste ledger po lokaciji
+  stocktakes            Stocktake[]       // R121 (epic #115 P0-01): fizična inventura po lokaciji
   // R89 — per-location ordering token revokacija (rotate = increment; stari
   // tokeni instant neveljavni; glej lib/ordering-token).
   tokenVersion     Int      @default(0)

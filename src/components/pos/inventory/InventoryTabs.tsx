@@ -2,7 +2,7 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
-  Package, Truck, FileMinus, History, BarChart3, Boxes,
+  Package, Truck, FileMinus, History, BarChart3, Boxes, ClipboardList,
 } from 'lucide-react'
 import { memo } from 'react'
 import dynamic from 'next/dynamic'
@@ -15,6 +15,7 @@ const ProcurementTab = dynamic(() => import('./ProcurementTab').then(m => ({ def
 const WriteOffTab = dynamic(() => import('./WriteOffTab').then(m => ({ default: m.WriteOffTab })), { ssr: false })
 const HistoryTab = dynamic(() => import('./HistoryTab').then(m => ({ default: m.HistoryTab })), { ssr: false })
 const BatchesTab = dynamic(() => import('./BatchesTab').then(m => ({ default: m.BatchesTab })), { ssr: false })
+const StocktakeTab = dynamic(() => import('./StocktakeTab').then(m => ({ default: m.StocktakeTab })), { ssr: false })
 
 type InventoryState = ReturnType<typeof useInventoryState>
 
@@ -25,7 +26,7 @@ interface InventoryTabsProps {
 export const InventoryTabs = memo(function InventoryTabs({ s }: InventoryTabsProps) {
   return (
     <Tabs value={s.activeTab} onValueChange={s.setActiveTab}>
-      <TabsList className="grid w-full grid-cols-6">
+      <TabsList className="grid w-full grid-cols-4 sm:grid-cols-7">
         <TabsTrigger value="stock" className="gap-1.5">
           <Package className="h-3.5 w-3.5" /> Zaloge
         </TabsTrigger>
@@ -34,6 +35,9 @@ export const InventoryTabs = memo(function InventoryTabs({ s }: InventoryTabsPro
         </TabsTrigger>
         <TabsTrigger value="batches" className="gap-1.5">
           <Boxes className="h-3.5 w-3.5" /> Serije
+        </TabsTrigger>
+        <TabsTrigger value="stocktake" className="gap-1.5">
+          <ClipboardList className="h-3.5 w-3.5" /> Inventura
         </TabsTrigger>
         <TabsTrigger value="procurement" className="gap-1.5">
           <Truck className="h-3.5 w-3.5" /> Nabava
@@ -54,6 +58,11 @@ export const InventoryTabs = memo(function InventoryTabs({ s }: InventoryTabsPro
       {/* TAB: SERIJE (batch/lot/expiry — epic #115 §4) */}
       <TabsContent value="batches" className="mt-4">
         <BatchesTab />
+      </TabsContent>
+
+      {/* TAB: INVENTURA (stocktake — epic #115 P0-01) */}
+      <TabsContent value="stocktake" className="mt-4">
+        <StocktakeTab />
       </TabsContent>
 
       {/* TAB: ZALOGE */}
