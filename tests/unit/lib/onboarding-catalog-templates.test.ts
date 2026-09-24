@@ -39,7 +39,7 @@ interface Row {
   locationId?: string | null
   menuId?: string
   categoryId?: string
-  name: string
+  name?: string // opcionalno (R119 tsc-gate): ledger vrstice ne nosijo imena
   [key: string]: unknown
 }
 

@@ -18,7 +18,10 @@ export const WasteByItemTab = memo(function WasteByItemTab({
         <CardTitle className="text-sm">Top 5 artiklov z največ odpadki</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-3">
+        {summary.topWasteItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">Ni odpadkov v izbranem obdobju.</p>
+        ) : (
+          <div className="space-y-3">
           {summary.topWasteItems.map((item, idx) => (
             <div key={item.name} className="flex items-center gap-3">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 font-bold text-sm">
@@ -34,7 +37,8 @@ export const WasteByItemTab = memo(function WasteByItemTab({
               <span className="text-xs text-muted-foreground w-10 text-right">{item.percentage}%</span>
             </div>
           ))}
-        </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

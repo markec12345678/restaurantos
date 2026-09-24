@@ -18,7 +18,10 @@ export const WasteByReasonTab = memo(function WasteByReasonTab({
         <CardTitle className="text-sm">Odpadki po razlogu</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-3">
+        {summary.wasteByReason.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">Ni odpadkov v izbranem obdobju.</p>
+        ) : (
+          <div className="space-y-3">
           {summary.wasteByReason.map(item => (
             <div key={item.reason}>
               <div className="flex justify-between items-center mb-1">
@@ -36,7 +39,8 @@ export const WasteByReasonTab = memo(function WasteByReasonTab({
               <p className="text-xs text-muted-foreground mt-1">{item.count} dogodkov</p>
             </div>
           ))}
-        </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

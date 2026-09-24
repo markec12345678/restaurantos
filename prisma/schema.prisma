@@ -984,6 +984,7 @@ model InventoryItem {
   // --- Transakcije ---
   transactions    StockTransaction[]
   recipeItems     RecipeItem[]
+  wasteRecords    WasteRecord[]     // R119 (epic #115 §3): waste ledger
   purchaseOrderItems PurchaseOrderItem[]
   // --- AI Predictive Ordering ---
   reorderRule     ReorderRule?
@@ -1030,6 +1031,50 @@ model StockTransaction {
   @@index([createdAt])
   @@index([inventoryItemId, type]) // FIX: Compound index for common queries (e.g., find sales per item)
   @@index([orderId])              // FIX: Index for stock transactions linked to orders
+  // R119 (epic #115 §3): povratne povezave na waste ledger
+  wasteRecords    WasteRecord[] @relation("WasteStockTx")
+  wasteReversals  WasteRecord[] @relation("WasteReversal")
+}
+
+// ============================================
+// ODPAD — namenski waste ledger (epic #115 §3, runda 119)
+// ============================================
+// Prodajna poraba (StockTransaction 'sale') ≠ ODPAD (ta model + 'write-off')
+// ≠ popravek zaloge ('adjustment'). Vsak zapis je LEDGER dogodek: atomarno
+// povzroči zaščiten odpis zaloge (R106 kanon — skupni advisory lock ključ
+// 'inv-stock:' + itemId, pogojni decrement) in pusti sled: razlog, vrednost,
+// uporabnik, lokacija, povezana StockTransaction. Batch/lot povezava pride
+// z batch/lot fazo epica (§P0-04) — takrat se model razširi z batch FK.
+model WasteRecord {
+  id               String    @id @default(cuid())
+  // MODEL A tenant scope — odpad je vedno dogodek na konkretni lokaciji
+  locationId       String
+  location         Location  @relation(fields: [locationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  inventoryItemId  String
+  inventoryItem    InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  quantity         Decimal   @db.Decimal(12, 3)  // deklarirana količina odpada (> 0)
+  unit             String    @default("")        // snapshot enote artikla ob odpisu
+  reason           String    // canonical reason (src/lib/waste-reasons.ts): SPOILED, EXPIRED, BROKEN, ...
+  note             String    @default("")
+  costPerUnit      Decimal   @db.Decimal(12, 2)  // snapshot nabavne cene ob odpisu (food cost source of truth)
+  totalCost        Decimal   @db.Decimal(12, 2)  // quantity × costPerUnit — za poročila po razlogu/artiklu/lokaciji
+  // Povezani zalogovni dogodek ('write-off') — ena transakcija ustvari OBA zapisa
+  stockTransactionId String? @unique
+  stockTransaction StockTransaction? @relation("WasteStockTx", fields: [stockTransactionId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // Reversal = kompenzacijski 'return' + označba (ledger vrstica se NIKOLI briše)
+  reversedAt       DateTime?
+  reversalStockTransactionId String? @unique
+  reversalStockTransaction StockTransaction? @relation("WasteReversal", fields: [reversalStockTransactionId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  // Retry/duplicate zaščita (R116 kanon): enak (locationId, idempotencyKey) = replay iste vrstice
+  idempotencyKey   String?
+  recordedByUserId String?   // zaposleni, ki je zabeležil odpad
+  createdAt        DateTime  @default(now())
+
+  @@index([locationId, createdAt])
+  @@index([inventoryItemId])
+  @@index([reason])
+  @@index([idempotencyKey])
+  @@unique([locationId, idempotencyKey])
 }
 
 model RecipeItem {
@@ -1415,6 +1460,7 @@ model Location {
   guests                Guest[]           // R87: per-location CRM (tenant scope)
   integrations          Integration[]     // R88: delivery webhooki žigajo na to lokacijo (tenant scope)
   webauthnCredentials  WebAuthnCredential[] // R97-a: WebAuthn/passkey device attestation poverilnice
+  wasteRecords          WasteRecord[]     // R119 (epic #115 §3): waste ledger po lokaciji
   // R89 — per-location ordering token revokacija (rotate = increment; stari
   // tokeni instant neveljavni; glej lib/ordering-token).
   tokenVersion     Int      @default(0)

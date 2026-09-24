@@ -18,7 +18,10 @@ export const WasteByCategoryTab = memo(function WasteByCategoryTab({
         <CardTitle className="text-sm">Odpadki po kategoriji</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-2">
+        {summary.wasteByCategory.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">Ni odpadkov v izbranem obdobju.</p>
+        ) : (
+          <div className="space-y-2">
           {summary.wasteByCategory.map(cat => {
             const percent = summary.totalWasteCost > 0 ? (cat.cost / summary.totalWasteCost) * 100 : 0
             return (
@@ -34,7 +37,8 @@ export const WasteByCategoryTab = memo(function WasteByCategoryTab({
               </div>
             )
           })}
-        </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

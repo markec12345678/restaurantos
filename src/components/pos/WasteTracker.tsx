@@ -14,17 +14,21 @@ const WasteByItemTab = dynamic(() => import('./waste/WasteByItemTab').then(m => 
 const WasteByCategoryTab = dynamic(() => import('./waste/WasteByCategoryTab').then(m => ({ default: m.WasteByCategoryTab })), { ssr: false })
 const WasteLogTab = dynamic(() => import('./waste/WasteLogTab').then(m => ({ default: m.WasteLogTab })), { ssr: false })
 
+// R119 (epic #115 §3): WasteTracker je zdaj vezan na NAMENSKI waste ledger
+// (/api/waste → WasteRecord). Zabeležba odpada = razknjižba zaloge + ledger
+// v eni transakciji; razveljavitev = kompenzacijski vnos. Nič več fabriciranih
+// vzorčnih podatkov.
 export const WasteTracker = memo(function WasteTracker() {
   const [period, setPeriod] = useState<'week' | 'month' | 'quarter'>('month')
-  const { entries, summary } = useWasteData(period)
+  const { entries, summary, refresh } = useWasteData(period)
 
   if (!summary) {
     return <WasteLoadingState />
   }
-  const isOnTarget = summary.currentWasteRate <= summary.wasteTarget
+  const isOnTarget = summary.currentWasteRate <= 2
   return (
     <div className="p-4 space-y-4 h-full overflow-auto">
-      <WasteHeader period={period} onPeriodChange={setPeriod} />
+      <WasteHeader period={period} onPeriodChange={setPeriod} onRecorded={() => void refresh()} />
 
       {/* KPI */}
       <WasteKpiCards summary={summary} isOnTarget={isOnTarget} formatCurrency={formatCurrency} />
@@ -46,7 +50,7 @@ export const WasteTracker = memo(function WasteTracker() {
           <WasteByCategoryTab summary={summary} formatCurrency={formatCurrency} />
         </TabsContent>
         <TabsContent value="log" className="space-y-3">
-          <WasteLogTab entries={entries} formatCurrency={formatCurrency} />
+          <WasteLogTab entries={entries} formatCurrency={formatCurrency} onReversed={() => void refresh()} />
         </TabsContent>
       </Tabs>
     </div>
