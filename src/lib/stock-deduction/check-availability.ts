@@ -4,6 +4,7 @@
 
 import { db } from '../db'
 import { toNum, multiply } from '../decimal'
+import { rawFromUsable } from '../recipes/yield'
 import type { StockDeductionItem } from './types'
 
 export async function checkStockAvailability(
@@ -44,7 +45,11 @@ export async function checkStockAvailability(
 
     if (recipeItems.length > 0) {
       for (const recipe of recipeItems) {
-        const needed = toNum(multiply(recipe.quantityPerServing, item.quantity))
+        // R123 (P0-05): availability mora biti SKLADNA z deduction — RAW količina
+        const needed = toNum(multiply(
+          rawFromUsable(toNum(recipe.quantityPerServing), toNum(recipe.yieldPercent)),
+          item.quantity,
+        ))
         if (toNum(recipe.inventoryItem.quantity) < needed) {
           warnings.push({
             menuItemId: item.menuItemId,

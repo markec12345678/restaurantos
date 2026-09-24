@@ -3,6 +3,7 @@
 import { db } from '@/lib/db'
 import { Prisma } from '@prisma/client'
 import { toNum, calcVat, type DecimalLike } from '@/lib/decimal'
+import { rawFromUsable } from '@/lib/recipes/yield'
 import { logger } from '@/lib/logger'
 import { wsBroadcastEvent } from '@/lib/ws-server-broadcast'
 import { parseOrderItemModifiers } from '@/lib/json-fields'
@@ -26,6 +27,7 @@ export async function calculateOrderItems(
     vatRate: DecimalLike
     recipeItems: Array<{
       quantityPerServing: DecimalLike
+      yieldPercent?: DecimalLike | null
       inventoryItem: { id: string; quantity: DecimalLike; costPerUnit: DecimalLike; unit?: string } | null
     }>
   }>,
@@ -87,6 +89,7 @@ export async function deductInventoryInTx(
     name: string
     recipeItems: Array<{
       quantityPerServing: DecimalLike
+      yieldPercent?: DecimalLike | null
       inventoryItem: { id: string; quantity: DecimalLike; costPerUnit: DecimalLike; unit?: string } | null
     }>
   }>,
@@ -99,7 +102,8 @@ export async function deductInventoryInTx(
 
     for (const recipe of menuItem.recipeItems) {
       if (!recipe.inventoryItem) continue
-      const deductQty = toNum(recipe.quantityPerServing) * qty
+      // R123 (P0-05): RAW odvod = usable / yield%
+      const deductQty = rawFromUsable(toNum(recipe.quantityPerServing), toNum(recipe.yieldPercent)) * qty
       // FIX MEDIUM: Preberi trenutno količino ZNOTRAJ transakcije — prepreči stale previousQty
       const currentInvItem = await tx.inventoryItem.findUnique({ where: { id: recipe.inventoryItem.id } })
       if (!currentInvItem) continue

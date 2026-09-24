@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { BookOpen, Plus, Trash2, Pencil, ChefHat, Package } from 'lucide-react'
 import type { MenuItemData, RecipeItemData } from './constants'
@@ -106,10 +107,22 @@ export const RecipeDetail = memo(function RecipeDetail({
                     <Package className="h-4 w-4 text-muted-foreground" />
                   </div>
                   <div>
-                    <p className="font-medium text-sm">{recipe.inventoryItem.name}</p>
+                    <p className="font-medium text-sm flex items-center gap-1.5">
+                      {recipe.inventoryItem.name}
+                      {/* R123 (P0-05): yield značka le pri deklarirani izgubi (100% = brez šuma) */}
+                      {recipe.yieldPercent < 100 && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">Yield {recipe.yieldPercent}%</Badge>
+                      )}
+                    </p>
                     <p className="text-xs text-muted-foreground">
                       {recipe.quantityPerServing} {recipe.unit || recipe.inventoryItem.unit} · {formatEUR(recipe.inventoryItem.costPerUnit)}/{recipe.inventoryItem.unit}
                     </p>
+                    {/* R123 (P0-05): RAW količina iz API-ja (usable / (yield/100)) — le če je > usable */}
+                    {recipe.rawQuantityPerServing != null && recipe.rawQuantityPerServing > recipe.quantityPerServing && (
+                      <p className="text-[10px] text-muted-foreground">
+                        surovo: {safeToFixed(recipe.rawQuantityPerServing, 3)} {recipe.unit || recipe.inventoryItem.unit}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">

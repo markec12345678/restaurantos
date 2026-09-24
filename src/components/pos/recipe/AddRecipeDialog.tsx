@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label'
 import { Plus } from 'lucide-react'
 import type { MenuItemData, InventoryData, AddFormState } from './constants'
-import { formatEUR } from '@/lib/safe-format'
+import { formatEUR, safeToFixed } from '@/lib/safe-format'
 
 // ============================================
 // TIPI PROPS
@@ -49,6 +49,9 @@ export const AddRecipeDialog = memo(function AddRecipeDialog({
   isPending,
   onSubmit,
 }: AddRecipeDialogProps) {
+  // R123 (P0-05): yield % validacija (1-100) — izven range-a je gumb disabled (fail-closed)
+  const yieldNum = parseFloat(form.yieldPercent)
+  const yieldValid = Number.isFinite(yieldNum) && yieldNum >= 1 && yieldNum <= 100
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -110,16 +113,36 @@ export const AddRecipeDialog = memo(function AddRecipeDialog({
                 aria-label="npr. kg, L, kos"
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="add-yield">Yield %</Label>
+              <p className="text-xs text-muted-foreground">Delež uporabnega po pripravi (100% = brez izgube)</p>
+              <DecimalInput
+                id="add-yield"
+                value={form.yieldPercent}
+                onValueChange={n => onFormChange({ ...form, yieldPercent: String(n) })}
+                placeholder="100"
+              />
+              {!yieldValid && (
+                <p className="text-xs text-destructive">Yield mora biti med 1% in 100%.</p>
+              )}
+            </div>
           </div>
           {/* Predračun stroška */}
           {form.inventoryItemId && form.quantityPerServing && (() => {
             const inv = inventoryItems?.find(i => i.id === form.inventoryItemId)
             if (!inv) return null
-            const cost = parseFloat(form.quantityPerServing) * inv.costPerUnit
+            // R123 (P0-05): predračun skozi yield — RAW = usable / (yield/100),
+            // strošek = RAW × nabavna cena (= usable × cena / (yield/100))
+            const yieldPct = yieldValid ? yieldNum : 100
+            const rawQty = (parseFloat(form.quantityPerServing) || 0) / (yieldPct / 100)
+            const cost = rawQty * inv.costPerUnit
             return (
               <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-sm">
                 <div className="flex justify-between"><span className="text-muted-foreground">Nabavna cena/enoto:</span><span>{formatEUR(inv.costPerUnit)}/{inv.unit}</span></div>
                 <div className="flex justify-between"><span className="text-muted-foreground">Količina na porcijo:</span><span>{form.quantityPerServing} {form.unit || inv.unit}</span></div>
+                {yieldPct < 100 && (
+                  <div className="flex justify-between"><span className="text-muted-foreground">Potrebno surovo (z izgubo):</span><span>{safeToFixed(rawQty, 3)} {form.unit || inv.unit}</span></div>
+                )}
                 <div className="flex justify-between font-semibold"><span>Strošek na porcijo:</span><span className="text-red-600">{formatEUR(cost)}</span></div>
               </div>
             )
@@ -139,7 +162,7 @@ export const AddRecipeDialog = memo(function AddRecipeDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>Prekliči</Button>
           <Button
             onClick={onSubmit}
-            disabled={!form.menuItemId || !form.inventoryItemId || !form.quantityPerServing || isPending}
+            disabled={!form.menuItemId || !form.inventoryItemId || !form.quantityPerServing || !yieldValid || isPending}
           >
             {isPending ? 'Dodajam...' : 'Dodaj sestavino'}
           </Button>

@@ -8,6 +8,10 @@ export interface RecipeItemData {
   menuItemId: string
   inventoryItemId: string
   quantityPerServing: number
+  /** R123 (P0-05): deklarirani yield % sestavine (1-100; 100 = brez izgube) */
+  yieldPercent: number
+  /** R123 (P0-05): RAW kolicina (usable / (yield/100)) iz GET /api/recipes */
+  rawQuantityPerServing?: number
   unit: string
   notes: string
   menuItem: { id: string; name: string; price: number }
@@ -70,6 +74,8 @@ export interface AddFormState {
   menuItemId: string
   inventoryItemId: string
   quantityPerServing: string
+  /** R123 (P0-05): yield % kot niz iz DecimalInput ("100" = brez izgube) */
+  yieldPercent: string
   unit: string
   notes: string
 }
@@ -77,6 +83,8 @@ export interface AddFormState {
 /** Oblika za urejanje sestavine */
 export interface EditFormState {
   quantityPerServing: string
+  /** R123 (P0-05): yield % kot niz iz DecimalInput */
+  yieldPercent: string
   unit: string
   notes: string
 }

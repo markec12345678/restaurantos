@@ -8,6 +8,7 @@
 
 import { db } from '@/lib/db'
 import { toNum, type DecimalLike } from '@/lib/decimal'
+import { rawFromUsable } from '@/lib/recipes/yield'
 import { logger } from '@/lib/logger'
 import { recordBatchConsumption } from '@/lib/stock-deduction/batch-allocation'
 
@@ -18,6 +19,7 @@ export async function deductInventory(
     id: string; price: DecimalLike; vatRate: DecimalLike
     recipeItems: Array<{
       quantityPerServing: DecimalLike
+      yieldPercent?: DecimalLike | null
       inventoryItem: { id: string; quantity: DecimalLike; costPerUnit: DecimalLike } | null
     }>
   }>,
@@ -29,7 +31,8 @@ export async function deductInventory(
     if (!menuItem) continue
     for (const recipe of menuItem.recipeItems) {
       if (!recipe.inventoryItem) continue
-      const deductQty = toNum(recipe.quantityPerServing) * item.quantity
+      // R123 (P0-05): RAW odvod = usable / yield%
+      const deductQty = rawFromUsable(toNum(recipe.quantityPerServing), toNum(recipe.yieldPercent)) * item.quantity
       const currentInvItem = await tx.inventoryItem.findUnique({ where: { id: recipe.inventoryItem.id } })
       if (!currentInvItem) continue
       const updated = await tx.inventoryItem.updateMany({

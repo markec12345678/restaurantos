@@ -1318,6 +1318,11 @@ model RecipeItem {
   inventoryItemId String
   inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   quantityPerServing Decimal    @default(0)  @db.Decimal(12, 3) // P1-8: 3 dec
+  // R123 (epic #115 P0-05): deklarirani yield % — raw → prep loss → usable.
+  // quantityPerServing je USABLE količina (tisto, kar gre v jed); prodaja
+  // porabi RAW = usable / (yield/100), food cost = raw × nabavna cena.
+  // 100 = brez izgube (back-compat: obstoječe vrstice delujejo kot doslej).
+  yieldPercent     Decimal       @default(100) @db.Decimal(5, 2)
   unit            String        @default("")
   notes           String        @default("")
   // FIX F5-4: Multi-level recipes — sub-recepti (npr. "pica testo" uporabljen v "margherita")

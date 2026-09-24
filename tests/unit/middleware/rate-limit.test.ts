@@ -107,11 +107,25 @@ describe('API_RATE_LIMITS konfiguracija', () => {
     expect(names).toContain('feedback-public')
   })
 
-  it('auth-login je najbolj omejen (5 poskusov / 15 min)', () => {
-    const authRule = API_RATE_LIMITS.find(r => r.name === 'auth-login')
-    expect(authRule).toBeTruthy()
-    expect(authRule!.config.maxRequests).toBeLessThanOrEqual(5)
-    expect(authRule!.config.windowMs).toBeGreaterThanOrEqual(15 * 60 * 1000)
+  it('auth-login je najbolj omejen (5 poskusov / 15 min — PRIVZET brez env override-a)', async () => {
+    // R123: test mora preverjati PRIVZETI kanon (maxRequests || 5), ne okoljske
+    // override vrednosti — .env peskovnikov (LOGIN_RATE_LIMIT_MAX=30) in CI
+    // (e2e.yml:200) sta legalna produkcijska override-a, ki ne spreminjata
+    // privzetega kontrakta. Izoliraj module z odstranjenim env in ponovno
+    // import-aj, da se konstante preračunajo z default vrednostjo.
+    vi.resetModules()
+    const saved = process.env.LOGIN_RATE_LIMIT_MAX
+    delete process.env.LOGIN_RATE_LIMIT_MAX
+    try {
+      const mod = await import('@/lib/middleware/rate-limit')
+      const authRule = mod.API_RATE_LIMITS.find(r => r.name === 'auth-login')
+      expect(authRule).toBeTruthy()
+      expect(authRule!.config.maxRequests).toBeLessThanOrEqual(5)
+      expect(authRule!.config.windowMs).toBeGreaterThanOrEqual(15 * 60 * 1000)
+    } finally {
+      if (saved !== undefined) process.env.LOGIN_RATE_LIMIT_MAX = saved
+      vi.resetModules()
+    }
   })
 
   it('catch-all pravilo obstaja za /api/', () => {

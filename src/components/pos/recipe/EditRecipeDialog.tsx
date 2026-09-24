@@ -41,6 +41,9 @@ export const EditRecipeDialog = memo(function EditRecipeDialog({
   isPending,
   onSubmit,
 }: EditRecipeDialogProps) {
+  // R123 (P0-05): yield % validacija (1-100) — izven range-a je gumb disabled (fail-closed)
+  const yieldNum = parseFloat(form.yieldPercent)
+  const yieldValid = Number.isFinite(yieldNum) && yieldNum >= 1 && yieldNum <= 100
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -74,6 +77,18 @@ export const EditRecipeDialog = memo(function EditRecipeDialog({
                   onChange={e => onFormChange({ ...form, unit: e.target.value })}
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-yield">Yield %</Label>
+                <p className="text-xs text-muted-foreground">Delež uporabnega po pripravi (100% = brez izgube)</p>
+                <DecimalInput
+                  id="edit-yield"
+                  value={form.yieldPercent}
+                  onValueChange={n => onFormChange({ ...form, yieldPercent: String(n) })}
+                />
+                {!yieldValid && (
+                  <p className="text-xs text-destructive">Yield mora biti med 1% in 100%.</p>
+                )}
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="edit-notes">Opombe</Label>
@@ -87,7 +102,7 @@ export const EditRecipeDialog = memo(function EditRecipeDialog({
         )}
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Prekliči</Button>
-          <Button onClick={onSubmit} disabled={isPending}>
+          <Button onClick={onSubmit} disabled={isPending || !yieldValid}>
             {isPending ? 'Shranjujem...' : 'Shrani'}
           </Button>
         </DialogFooter>

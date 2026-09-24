@@ -26,6 +26,8 @@ export function useRecipeMutations(callbacks: RecipeMutationCallbacks) {
           menuItemId: data.menuItemId,
           inventoryItemId: data.inventoryItemId,
           quantityPerServing: parseFloat(data.quantityPerServing) || 0,
+          // R123 (P0-05): yield % (1-100); neveljavno/prazno -> default 100
+          yieldPercent: parseFloat(data.yieldPercent) || 100,
           unit: data.unit,
           notes: data.notes,
         }),
@@ -47,6 +49,8 @@ export function useRecipeMutations(callbacks: RecipeMutationCallbacks) {
         body: JSON.stringify({
           id: data.id,
           quantityPerServing: parseFloat(data.quantityPerServing) || 0,
+          // R123 (P0-05): yield % (1-100); neveljavno/prazno -> default 100
+          yieldPercent: parseFloat(data.yieldPercent) || 100,
           unit: data.unit,
           notes: data.notes,
         }),

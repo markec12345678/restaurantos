@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
 import { toNum, round2, multiply } from '@/lib/decimal'
+import { rawFromUsable } from '@/lib/recipes/yield'
 import { handleApiError } from '@/lib/api-utils'
 
 
@@ -45,11 +46,17 @@ export async function GET(req: Request) {
       // Calculate total ingredient cost
       let totalIngredientCost = 0
       const ingredientDetails = item.recipeItems.map(ri => {
-        const cost = round2(multiply(ri.quantityPerServing, ri.inventoryItem?.costPerServing))
+        // R123 (epic #115 P0-05): food cost skozi deklarirani yield —
+        // RAW × nabavna cena (usable × cena / yield%); yield=100 → kot doslej.
+        const yieldPct = toNum(ri.yieldPercent)
+        const rawQty = rawFromUsable(toNum(ri.quantityPerServing), yieldPct)
+        const cost = round2(multiply(rawQty, toNum(ri.inventoryItem?.costPerServing)))
         totalIngredientCost += cost
         return {
           name: ri.inventoryItem?.name || 'Neznano',
           quantity: toNum(ri.quantityPerServing),
+          rawQuantity: rawQty,
+          yieldPercent: yieldPct,
           unit: ri.unit,
           costPerUnit: toNum(ri.inventoryItem?.costPerServing),
           totalCost: cost,

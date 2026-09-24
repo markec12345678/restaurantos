@@ -31,6 +31,7 @@ import { db } from '../db'
 import { toNum, round2, multiply, subtract } from '../decimal'
 import type { StockDeductionResult } from './types'
 import { restoreBatchesFromAllocations } from './batch-allocation'
+import { rawFromUsable } from '../recipes/yield'
 import { Prisma } from '@prisma/client'
 
 type TransactionClient = Prisma.TransactionClient
@@ -165,7 +166,11 @@ export async function returnStockForOrder(
 
       if (recipeItems.length > 0) {
         for (const recipe of recipeItems) {
-          const qtyToReturn = toNum(multiply(recipe.quantityPerServing, oi.quantity))
+          // R123 (P0-05): vračilo zrcali deduction — RAW količina (usable / yield%)
+          const qtyToReturn = toNum(multiply(
+            rawFromUsable(toNum(recipe.quantityPerServing), toNum(recipe.yieldPercent)),
+            oi.quantity,
+          ))
 
           const invItem = await client.inventoryItem.findUnique({
             where: { id: recipe.inventoryItemId },

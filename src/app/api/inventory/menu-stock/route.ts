@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
+import { rawFromUsable } from '@/lib/recipes/yield'
 import { toNum, isPositive, greaterThan, multiply, divide } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
 
@@ -37,6 +38,7 @@ export async function GET(req: Request) {
         menuItemId: true,
         inventoryItemId: true,
         quantityPerServing: true,
+        yieldPercent: true,
         inventoryItem: {
           select: {
             id: true,
@@ -94,9 +96,11 @@ export async function GET(req: Request) {
         const inv = recipe.inventoryItem
         units.add(inv.unit)
 
-        if (toNum(recipe.quantityPerServing) <= 0) continue
+        // R123 (P0-05): možne porcije glede na RAW potrebo (usable / yield%)
+        const rawPerServing = rawFromUsable(toNum(recipe.quantityPerServing), toNum(recipe.yieldPercent))
+        if (rawPerServing <= 0) continue
 
-        const possibleServings = Math.floor(toNum(divide(inv.quantity, recipe.quantityPerServing)))
+        const possibleServings = Math.floor(toNum(divide(inv.quantity, rawPerServing)))
         minServings = Math.min(minServings, possibleServings)
 
         if (!isPositive(inv.quantity)) worstStatus = 'out'

@@ -28,6 +28,7 @@ export function useRecipeHandlers(
       inventoryItemId: '',
       quantityPerServing: '',
       unit: '',
+      yieldPercent: '100',
       notes: '',
     })
     setAddDialogOpen(true)
@@ -38,6 +39,7 @@ export function useRecipeHandlers(
     setEditForm({
       quantityPerServing: String(item.quantityPerServing),
       unit: item.unit,
+      yieldPercent: String(item.yieldPercent ?? 100),
       notes: item.notes,
     })
     setEditDialogOpen(true)

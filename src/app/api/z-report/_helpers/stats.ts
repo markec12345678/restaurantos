@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db'
 import { toNum, round2, multiply } from '@/lib/decimal'
+import { yieldAdjustedLineCost } from '@/lib/recipes/yield'
 import { getCountryConfig, type CountryCode } from '@/lib/country-config'
 
 // Tip za rezultat izračuna statistik
@@ -108,7 +109,12 @@ export async function calculateReportStats(
         if (oi.menuItem.recipeItems && oi.menuItem.recipeItems.length > 0) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           totalCost += oi.menuItem.recipeItems.reduce((cost: number, ri: any) => {
-            return cost + round2(multiply(multiply(toNum(ri.quantityPerServing), toNum(ri.inventoryItem?.costPerUnit ?? 0)), oi.quantity))
+            // R123 (P0-05): teoretični food cost skozi yield (RAW × cena) —
+            // skladno z dejansko RAW dedukcijo v zalogovnem ledgerju
+            return cost + round2(multiply(
+              yieldAdjustedLineCost(toNum(ri.quantityPerServing), toNum(ri.inventoryItem?.costPerUnit ?? 0), toNum(ri.yieldPercent)),
+              oi.quantity,
+            ))
           }, 0)
         } else {
           totalCost += round2(multiply(multiply(toNum(oi.price), oi.quantity), 0.3)) // Fallback: 30%

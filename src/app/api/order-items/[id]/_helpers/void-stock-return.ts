@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db'
 import { toNum, isPositive, greaterThan } from '@/lib/decimal'
+import { rawFromUsable } from '@/lib/recipes/yield'
 import { broadcastLowStockAlert } from '@/lib/stock-deduction'
 
 // Vrni zalogo za voidan artikel
@@ -24,7 +25,10 @@ export async function returnStockForVoidedItem(
 
     await db.$transaction(async (tx) => {
       for (const recipe of recipeItems) {
-        const qtyToReturn = toNum(greaterThan(recipe.quantityPerServing, 0) ? recipe.quantityPerServing : 0) * quantity
+        // R123 (P0-05): vračilo zrcali deduction — RAW količina (usable / yield%)
+        const qtyToReturn = (greaterThan(recipe.quantityPerServing, 0)
+          ? rawFromUsable(toNum(recipe.quantityPerServing), toNum(recipe.yieldPercent))
+          : 0) * quantity
 
         const updated = await tx.inventoryItem.update({
           where: { id: recipe.inventoryItemId },

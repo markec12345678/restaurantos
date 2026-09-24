@@ -1,6 +1,7 @@
 
 import { db } from '@/lib/db'
-import { deepToNumbers, toNum, multiply } from '@/lib/decimal'
+import { deepToNumbers, toNum } from '@/lib/decimal'
+import { yieldAdjustedLineCost, rawFromUsable } from '@/lib/recipes/yield'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
@@ -12,6 +13,8 @@ const createRecipeSchema = z.object({
   menuItemId: z.string().min(1, 'menuItemId je obvezen'),
   inventoryItemId: z.string().min(1, 'inventoryItemId je obvezen'),
   quantityPerServing: z.number().positive('Količina mora biti pozitivna'),
+  // R123 (epic #115 P0-05): deklarirani yield % sestavine (1–100; 100 = brez izgube)
+  yieldPercent: z.number().min(1, 'Yield mora biti vsaj 1%').max(100, 'Yield ne more presegati 100%').default(100),
   unit: z.string().max(30).default(''),
   notes: z.string().max(500).default(''),
 })
@@ -19,6 +22,8 @@ const createRecipeSchema = z.object({
 const updateRecipeSchema = z.object({
   id: z.string().min(1, 'ID je obvezen'),
   quantityPerServing: z.number().positive().optional(),
+  // R123 (P0-05): yield % (1–100) — fail-closed validacija
+  yieldPercent: z.number().min(1, 'Yield mora biti vsaj 1%').max(100, 'Yield ne more presegati 100%').optional(),
   unit: z.string().max(30).optional(),
   notes: z.string().max(500).optional(),
 })
@@ -73,7 +78,9 @@ export async function GET(req: Request) {
     // Obogatitev s stroški na porcijo
     const enriched = recipes.map(r => ({
       ...r,
-      costPerServing: toNum(multiply(r.quantityPerServing, r.inventoryItem.costPerUnit)),
+      // R123 (P0-05): efektivni strošek = RAW × nabavna cena (usable × cena / yield%)
+      costPerServing: yieldAdjustedLineCost(toNum(r.quantityPerServing), toNum(r.inventoryItem.costPerUnit), toNum(r.yieldPercent)),
+      rawQuantityPerServing: rawFromUsable(toNum(r.quantityPerServing), toNum(r.yieldPercent)),
     }))
 
     return NextResponse.json({ recipes: deepToNumbers(enriched), total, limit, offset })
@@ -120,6 +127,7 @@ export async function POST(req: Request) {
         menuItemId: data.menuItemId,
         inventoryItemId: data.inventoryItemId,
         quantityPerServing: data.quantityPerServing,
+        yieldPercent: data.yieldPercent,
         unit: data.unit,
         notes: data.notes,
       },
@@ -176,6 +184,8 @@ export async function PUT(req: Request) {
 
     const updateData: Record<string, unknown> = {}
     if (data.quantityPerServing !== undefined) updateData.quantityPerServing = data.quantityPerServing
+    // R123 (P0-05): yield % posodobitev
+    if (data.yieldPercent !== undefined) updateData.yieldPercent = data.yieldPercent
     if (data.unit !== undefined) updateData.unit = data.unit
     if (data.notes !== undefined) updateData.notes = data.notes
 

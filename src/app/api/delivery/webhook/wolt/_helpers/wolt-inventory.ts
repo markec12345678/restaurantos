@@ -10,6 +10,7 @@
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { toNum } from '@/lib/decimal'
+import { rawFromUsable } from '@/lib/recipes/yield'
 import { recordBatchConsumption } from '@/lib/stock-deduction/batch-allocation'
 import type { WebhookOrderItem } from './wolt-schema'
 
@@ -31,7 +32,8 @@ export async function deductInventoryForOrder(
       if (!menuItem) continue
       for (const recipe of menuItem.recipeItems) {
         if (!recipe.inventoryItem) continue
-        const deductQty = toNum(recipe.quantityPerServing) * item.quantity
+        // R123 (P0-05): RAW odvod = usable / yield%
+        const deductQty = rawFromUsable(toNum(recipe.quantityPerServing), toNum(recipe.yieldPercent)) * item.quantity
         const currentInv = await tx.inventoryItem.findUnique({ where: { id: recipe.inventoryItem.id } })
         if (!currentInv) continue
         const updated = await tx.inventoryItem.updateMany({

@@ -16,13 +16,13 @@ export function useRecipeState() {
   // Dodajanje sestavine dialog
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [addForm, setAddForm] = useState<AddFormState>({
-    menuItemId: '', inventoryItemId: '', quantityPerServing: '', unit: '', notes: ''
+    menuItemId: '', inventoryItemId: '', quantityPerServing: '', unit: '', yieldPercent: '100', notes: ''
   })
 
   // Urejanje sestavine dialog
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [editItem, setEditItem] = useState<RecipeItemData | null>(null)
-  const [editForm, setEditForm] = useState<EditFormState>({ quantityPerServing: '', unit: '', notes: '' })
+  const [editForm, setEditForm] = useState<EditFormState>({ quantityPerServing: '', unit: '', yieldPercent: '100', notes: '' })
 
   return {
     activeTab, setActiveTab,

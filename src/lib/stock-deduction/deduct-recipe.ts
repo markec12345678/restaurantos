@@ -10,6 +10,7 @@ import { toNum, round2, multiply, subtract } from '../decimal'
 import type { StockDeductionItem, StockDeductionResult } from './types'
 import { Prisma } from '@prisma/client'
 import { recordBatchConsumption } from './batch-allocation'
+import { rawFromUsable } from '../recipes/yield'
 
 type TransactionClient = Prisma.TransactionClient
 
@@ -34,7 +35,12 @@ export async function deductRecipeItems(
     handledIndices.add(i)
 
     for (const recipe of recipeItems) {
-      const qtyToDeduct = toNum(multiply(recipe.quantityPerServing, item.quantity))
+      // R123 (epic #115 P0-05): prodaja porabi RAW sestavino — usable / yield%
+      // (kupiš 1.2 kg, da dobiš 1 kg uporabnega; yield=100 → kot doslej).
+      const qtyToDeduct = toNum(multiply(
+        rawFromUsable(toNum(recipe.quantityPerServing), toNum(recipe.yieldPercent)),
+        item.quantity,
+      ))
 
       const invItem = await tx.inventoryItem.findUnique({
         where: { id: recipe.inventoryItemId },
