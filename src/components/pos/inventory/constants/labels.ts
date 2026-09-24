@@ -33,6 +33,9 @@ export const transactionTypeLabels: Record<string, string> = {
   'write-off': 'Odpis',
   adjustment: 'Popravek',
   return: 'Vrnitev',
+  // R122 (epic #115 P0-04): priprava vmesnih produktov
+  'batch-consumption': 'Poraba v pripravo',
+  'batch-production': 'Proizvodnja priprave',
 }
 
 export const transactionTypeColors: Record<string, string> = {
@@ -41,6 +44,9 @@ export const transactionTypeColors: Record<string, string> = {
   'write-off': 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
   adjustment: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
   return: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
+  // R122 (epic #115 P0-04): priprava vmesnih produktov
+  'batch-consumption': 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+  'batch-production': 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
 }
 
 export const writeOffReasons = [

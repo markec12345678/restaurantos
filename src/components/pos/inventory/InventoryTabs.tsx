@@ -2,7 +2,7 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
-  Package, Truck, FileMinus, History, BarChart3, Boxes, ClipboardList,
+  Package, Truck, FileMinus, History, BarChart3, Boxes, ClipboardList, CookingPot,
 } from 'lucide-react'
 import { memo } from 'react'
 import dynamic from 'next/dynamic'
@@ -16,6 +16,7 @@ const WriteOffTab = dynamic(() => import('./WriteOffTab').then(m => ({ default: 
 const HistoryTab = dynamic(() => import('./HistoryTab').then(m => ({ default: m.HistoryTab })), { ssr: false })
 const BatchesTab = dynamic(() => import('./BatchesTab').then(m => ({ default: m.BatchesTab })), { ssr: false })
 const StocktakeTab = dynamic(() => import('./StocktakeTab').then(m => ({ default: m.StocktakeTab })), { ssr: false })
+const BatchPreparationTab = dynamic(() => import('./BatchPreparationTab').then(m => ({ default: m.BatchPreparationTab })), { ssr: false })
 
 type InventoryState = ReturnType<typeof useInventoryState>
 
@@ -26,7 +27,7 @@ interface InventoryTabsProps {
 export const InventoryTabs = memo(function InventoryTabs({ s }: InventoryTabsProps) {
   return (
     <Tabs value={s.activeTab} onValueChange={s.setActiveTab}>
-      <TabsList className="grid w-full grid-cols-4 sm:grid-cols-7">
+      <TabsList className="grid w-full grid-cols-4 sm:grid-cols-8">
         <TabsTrigger value="stock" className="gap-1.5">
           <Package className="h-3.5 w-3.5" /> Zaloge
         </TabsTrigger>
@@ -38,6 +39,9 @@ export const InventoryTabs = memo(function InventoryTabs({ s }: InventoryTabsPro
         </TabsTrigger>
         <TabsTrigger value="stocktake" className="gap-1.5">
           <ClipboardList className="h-3.5 w-3.5" /> Inventura
+        </TabsTrigger>
+        <TabsTrigger value="preparation" className="gap-1.5">
+          <CookingPot className="h-3.5 w-3.5" /> Priprava
         </TabsTrigger>
         <TabsTrigger value="procurement" className="gap-1.5">
           <Truck className="h-3.5 w-3.5" /> Nabava
@@ -63,6 +67,11 @@ export const InventoryTabs = memo(function InventoryTabs({ s }: InventoryTabsPro
       {/* TAB: INVENTURA (stocktake — epic #115 P0-01) */}
       <TabsContent value="stocktake" className="mt-4">
         <StocktakeTab />
+      </TabsContent>
+
+      {/* TAB: PRIPRAVA (batch preparation — epic #115 P0-04, runda 122) */}
+      <TabsContent value="preparation" className="mt-4">
+        <BatchPreparationTab />
       </TabsContent>
 
       {/* TAB: ZALOGE */}

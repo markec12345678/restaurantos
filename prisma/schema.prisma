@@ -987,6 +987,8 @@ model InventoryItem {
   wasteRecords    WasteRecord[]     // R119 (epic #115 §3): waste ledger
   batches         InventoryBatch[]  // R120 (epic #115 §4): batch/lot/expiry + FEFO
   stocktakeItems  StocktakeItem[]   // R121 (epic #115 P0-01): fizična inventura
+  batchInputLines BatchPreparationLine[] // R122 (epic #115 P0-04): sestavina v pripravah
+  batchOutputPreparations BatchPreparation[] @relation("BatchPreparationOutput") // R122: izdelek priprav
   purchaseOrderItems PurchaseOrderItem[]
   // --- AI Predictive Ordering ---
   reorderRule     ReorderRule?
@@ -1040,6 +1042,9 @@ model StockTransaction {
   batchAllocations StockBatchAllocation[]
   // R121 (epic #115 P0-01): aplicirane inventurne korekcije
   stocktakeItems  StocktakeItem[]
+  // R122 (epic #115 P0-04): poraba sestavin ('batch-consumption') + proizvodnja izdelka ('batch-production')
+  batchPreparationInputs  BatchPreparationLine[] @relation("BatchPreparationInputTx")
+  batchPreparationOutputs BatchPreparation[]      @relation("BatchPreparationOutputTx")
 }
 
 // ============================================
@@ -1219,6 +1224,90 @@ model StocktakeItem {
   updatedAt       DateTime @updatedAt
 
   @@unique([stocktakeId, inventoryItemId])
+  @@index([inventoryItemId])
+}
+
+
+// ============================================
+// BATCH PREPARATION — sub-recepture / priprava vmesnih produktov
+// (epic #115 P0-04, runda 122)
+// ============================================
+// Kanon P0-04 (§31 točka 6, nasledstvo po R121 stocktake): sestavine
+// (input InventoryItem) → proizveden vmesni produkt (output InventoryItem)
+// v eni seriji priprave. Tipičen primer: "domača omaka" (izdelek) iz
+// paradižnika/olja/bazilike (sestavine) — izdelek se nato porablja prek
+// receptur (RecipeItem) v prodanih jedeh.
+//
+// Življenjski ciklus: DRAFT (sestava, urejanje) → COMPLETED | CANCELLED.
+// COMPLETED je ENA Serializabilna transakcija skozi R106 pisalni kanon:
+//   • input sestavine: CAS decrement + StockTransaction 'batch-consumption'
+//     + FEFO razknjižba po serijah (R120 — sledljivost serij se ne izgubi)
+//   • output izdelek: CAS increment + StockTransaction 'batch-production'
+//     z izračunanim cost basis = Σ(input.totalCost) / outputQuantity
+//   • vsi zalogovni pisci na SKUPNEM advisory ključu 'inv-stock:<itemId>'
+//     (determinističen vrstni red po itemId — brez deadlockov)
+// Zaščiti: pogojni status claim (dvojni complete → natanko ENA poraba, 409)
+// + CAS quantity guard (sočasna prodaja/odpad → 409 retry). Ponovljen
+// complete ne podvoji porabe (status guard). Nova kanonična tipa ledgerja:
+// 'batch-consumption' (odvod) in 'batch-production' (vhod) — aditivna
+// razširitev StockTransaction.type kanona.
+model BatchPreparation {
+  id             String   @id @default(cuid())
+  // MODEL A tenant scope — priprava je vedno dogodek na konkretni lokaciji
+  locationId     String
+  location       Location @relation(fields: [locationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  status         String   @default("DRAFT") // DRAFT | COMPLETED | CANCELLED
+  // Izhodni artikel (vmesni produkt) — ena priprava = en izhodni artikel
+  outputItemId   String
+  outputItem     InventoryItem @relation("BatchPreparationOutput", fields: [outputItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  outputQuantity Decimal  @db.Decimal(12, 3) // proizvedena količina (> 0)
+  outputUnit     String   @default("") // snapshot enote izhodnega artikla ob complete
+  // Cost basis izdelka ob zaključku = Σ(input totalCost) / outputQuantity
+  // (snapshot; avtoritativna resnica = povezana StockTransaction)
+  outputCostPerUnit Decimal @default(0) @db.Decimal(12, 2)
+  totalInputCost    Decimal @default(0) @db.Decimal(12, 2)
+  note            String   @default("")
+  // Actor snapshot-i (preživijo brisanje uporabnikov — revizijska sled)
+  createdByName   String   @default("")
+  completedByName String   @default("")
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  // R116 kanon: client ključ ob kreiranju — retry ne ustvari dveh priprav
+  idempotencyKey  String?
+  lines           BatchPreparationLine[]
+  // Povezani zalogovni dogodek izdelka ob complete (ledger je edina resnica)
+  outputStockTransactionId String? @unique
+  outputStockTransaction   StockTransaction? @relation("BatchPreparationOutputTx", fields: [outputStockTransactionId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([locationId, createdAt])
+  @@index([status])
+  @@index([outputItemId])
+  @@index([idempotencyKey])
+  @@unique([locationId, idempotencyKey])
+}
+
+// Vrstica priprave: input sestavina + količina. Snapshot-i ob kreiranju so
+// pregledna informacija; avtoritativna poraba ob COMPLETED = povezani
+// StockTransaction ('batch-consumption', previousQty → newQty) + FEFO razknjižba.
+model BatchPreparationLine {
+  id              String @id @default(cuid())
+  preparationId   String
+  preparation     BatchPreparation @relation(fields: [preparationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  itemName        String @default("") // snapshot imena ob kreiranju (preživi brisanje)
+  unit            String @default("") // snapshot enote sestavine
+  quantity        Decimal @db.Decimal(12, 3) // potrebna količina (> 0)
+  costPerUnit     Decimal @db.Decimal(12, 2) // snapshot nabavne cene ob kreiranju (pregled)
+  // Aplicirana poraba ob complete
+  inputStockTransactionId String? @unique
+  inputStockTransaction   StockTransaction? @relation("BatchPreparationInputTx", fields: [inputStockTransactionId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([preparationId, inventoryItemId]) // vsaka sestavina enkrat na pripravo
   @@index([inventoryItemId])
 }
 
@@ -1607,6 +1696,7 @@ model Location {
   webauthnCredentials  WebAuthnCredential[] // R97-a: WebAuthn/passkey device attestation poverilnice
   wasteRecords          WasteRecord[]     // R119 (epic #115 §3): waste ledger po lokaciji
   stocktakes            Stocktake[]       // R121 (epic #115 P0-01): fizična inventura po lokaciji
+  batchPreparations     BatchPreparation[] // R122 (epic #115 P0-04): priprava vmesnih produktov po lokaciji
   // R89 — per-location ordering token revokacija (rotate = increment; stari
   // tokeni instant neveljavni; glej lib/ordering-token).
   tokenVersion     Int      @default(0)
