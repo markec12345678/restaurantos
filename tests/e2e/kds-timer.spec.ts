@@ -103,10 +103,21 @@ test.describe('R116: KDS timer temelji na firedAt', () => {
     )
     await page.goto('/kds', { timeout: 120_000 })
 
-    // Kartica naročila (po orderNumber — word-boundary, ne substring)
+    // Kartica naročila — po orderNumber kot TOČNIM žetonom glave kartice
+    // (<span class="text-lg font-black">{orderNumber}</span> — celotno besedilo
+    // elementa je točno številka).
+    //
+    // FORENZIKA (CI #121): filter({ hasText: /\bN\b/ }) je bil VEDNO prazen —
+    // Playwrightov REGEX hasText operira nad textContent, ki je med inline
+    // elementi BREZ ločil ("9ZA SEBOJ00:46...") → \b med številko in "ZA" ne
+    // obstaja → 0 zadetkov kljub vidni kartici (video + a11y snapshot to
+    // potrjujeta). Poleg tega bi \b regex lažno ujel NAPAČNO kartico prek
+    // teksta alergenov ("ALERGENI: 1, 3, 7" → \b7\b). has + getByText
+    // { exact: true } daje pravo "celo-žetona" semantiko: ujame element,
+    // katerega normalizirano besedilo je točno orderNumber.
     const card = page
       .locator('.card-lift')
-      .filter({ hasText: new RegExp(`\\b${order.orderNumber}\\b`) })
+      .filter({ has: page.getByText(String(order.orderNumber), { exact: true }) })
     await expect(card).toBeVisible({ timeout: 45_000 })
 
     // ── 4. časovnik iz DOM = elapsed(firedAt) ± 10 s ──
