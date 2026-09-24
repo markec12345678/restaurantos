@@ -36,6 +36,9 @@ const createWasteSchema = z.object({
   // R116 kanon: client generira stabilen ključ ob submitu — retry/duplicate
   // submit vrne ISTO vrstico brez sekundarnega odpisa.
   idempotencyKey: z.string().min(1).max(100).optional(),
+  // R120 (epic #115 §4): opcijska ciljna serija (lot). Brez nje se odpad
+  // razporedi FEFO (First Expired, First Out).
+  batchId: z.string().min(1).max(100).optional(),
 })
 
 /** Pogoj odpisa, ki je bil uspešno zabeležen (reversal NIKOLI ne briše vrstice). */
@@ -254,6 +257,7 @@ export async function POST(req: Request) {
       note: data.note,
       idempotencyKey,
       recordedByUserId: authResult.session?.employeeId ?? null,
+      batchId: data.batchId ?? null,
     })
 
     const record = result.record as {

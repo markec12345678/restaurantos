@@ -9,6 +9,7 @@
 import { toNum, round2, multiply, subtract } from '../decimal'
 import type { StockDeductionItem, StockDeductionResult } from './types'
 import { Prisma } from '@prisma/client'
+import { recordBatchConsumption } from './batch-allocation'
 
 type TransactionClient = Prisma.TransactionClient
 
@@ -107,7 +108,15 @@ export async function deductRecipeItems(
             reason: `Prodaja - naročilo #${orderNumber}`,
             orderId,
           },
-        })
+        }).then((stockTx) =>
+          // R120 (epic #115 §4): FEFO razporeditev odbitka po serijah —
+          // sledljivost se NE sme podreti prodaje (unbatched preostanek dovoljen).
+          recordBatchConsumption(tx, {
+            inventoryItemId: invItem.id,
+            quantity: actualDeducted,
+            stockTransactionId: stockTx.id,
+          }),
+        )
       }
 
       result.deducted.push({

@@ -9,6 +9,7 @@
 import { toNum, round2, multiply, subtract } from '../decimal'
 import type { StockDeductionItem, StockDeductionResult } from './types'
 import { Prisma } from '@prisma/client'
+import { recordBatchConsumption } from './batch-allocation'
 
 type TransactionClient = Prisma.TransactionClient
 
@@ -74,7 +75,14 @@ export async function deductRecipeItems(
           costPerUnit: invItem.costPerUnit, totalCost: round2(multiply(-actualDeducted, invItem.costPerUnit)),
           reason: `Dodano k naročilu #${orderNumber}`, orderId,
         },
-      })
+      }).then((stockTx) =>
+        // R120 (epic #115 §4): FEFO razporeditev odbitka po serijah
+        recordBatchConsumption(tx, {
+          inventoryItemId: invItem.id,
+          quantity: actualDeducted,
+          stockTransactionId: stockTx.id,
+        }),
+      )
     }
 
     result.deducted.push({ inventoryItemId: invItem.id, name: invItem.name, quantityDeducted: actualDeducted, previousQty, newQty, method: 'recipe' })
@@ -144,7 +152,14 @@ export async function deductDirectItem(
         costPerUnit: invItem.costPerUnit, totalCost: round2(multiply(-actualDeducted, invItem.costPerUnit)),
         reason: `Dodano k naročilu #${orderNumber}`, orderId,
       },
-    })
+    }).then((stockTx) =>
+      // R120 (epic #115 §4): FEFO razporeditev odbitka po serijah
+      recordBatchConsumption(tx, {
+        inventoryItemId: invItem.id,
+        quantity: actualDeducted,
+        stockTransactionId: stockTx.id,
+      }),
+    )
   }
 
   result.deducted.push({ inventoryItemId: invItem.id, name: invItem.name, quantityDeducted: actualDeducted, previousQty, newQty, method: 'direct' })

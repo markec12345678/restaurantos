@@ -62,6 +62,8 @@ export async function POST(req: Request) {
       note: data.note,
       supplierDoc: data.supplierDoc,
       employeeName: data.employeeName || authResult.session?.employeeId || '',
+      // R120 (epic #115 §4): opcijska serija (lot) ob prevzemu
+      batch: data.batch ?? null,
     })
     return NextResponse.json(deepToNumbers(result))
   } catch (error: unknown) {

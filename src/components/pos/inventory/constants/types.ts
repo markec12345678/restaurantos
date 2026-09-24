@@ -76,6 +76,9 @@ export interface RestockFormData {
   supplierDoc: string
   employeeName: string
   note: string
+  // R120 (epic #115 §4): opcijska serija (lot) ob prevzemu
+  lotNumber: string
+  expiryDate: string
 }
 
 export interface WriteOffFormData {

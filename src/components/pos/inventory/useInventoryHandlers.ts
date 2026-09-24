@@ -98,12 +98,25 @@ export function useInventoryHandlers(
 
   const handleRestock = useCallback(() => {
     if (!restockItemId || !restockData.quantity) { toast.error('Izpolpite količino'); return }
+    // R120 (epic #115 §4): opcijska serija (lot) ob prevzemu — ko je lot
+    // izpolnjen, se ustvari InventoryBatch (sledljivost do dobavitelja/roka).
+    // Nabavna cena se uporabi kot cost basis serije (unitCost).
+    const lotNumber = restockData.lotNumber.trim()
+    const unitCost = restockData.costPerUnit ? parseFloat(restockData.costPerUnit) : undefined
     mutations.restockMutation.mutate({
       inventoryItemId: restockItemId,
       quantity: parseFloat(restockData.quantity),
-      costPerUnit: restockData.costPerUnit ? parseFloat(restockData.costPerUnit) : undefined,
       supplierDoc: restockData.supplierDoc, employeeName: restockData.employeeName,
       note: restockData.note,
+      ...(lotNumber
+        ? {
+            batch: {
+              lotNumber,
+              expiryDate: restockData.expiryDate || null,
+              unitCost: unitCost ?? null,
+            },
+          }
+        : {}),
     })
   }, [restockItemId, restockData, mutations])
 

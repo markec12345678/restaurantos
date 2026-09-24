@@ -30,6 +30,7 @@
 import { db } from '../db'
 import { toNum, round2, multiply, subtract } from '../decimal'
 import type { StockDeductionResult } from './types'
+import { restoreBatchesFromAllocations } from './batch-allocation'
 import { Prisma } from '@prisma/client'
 
 type TransactionClient = Prisma.TransactionClient
@@ -116,7 +117,17 @@ export async function returnStockForOrder(
             reason: `${reason} - naročilo #${orderNumber}`,
             orderId,
           },
-        })
+        }).then((returnTx) =>
+          // R120 (epic #115 §4): mirror vračanje serij — količina se vrne v
+          // TOČNO TE serije, ki jih je prodaja odvzela (snapshot alokacij).
+          restoreBatchesFromAllocations(client, {
+            sourceStockTransactionIds: saleRows
+              .filter((r) => r.inventoryItemId === invItem.id)
+              .map((r) => r.id),
+            newStockTransactionId: returnTx.id,
+            inventoryItemId: invItem.id,
+          }).then(() => undefined),
+        )
 
         result.deducted.push({
           inventoryItemId: invItem.id,

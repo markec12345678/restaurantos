@@ -80,6 +80,18 @@ export const inventoryRestockSchema = z.object({
   note: z.string().max(500).default(''),
   employeeName: z.string().max(100).default(''),
   supplierDoc: z.string().max(100).default(''),
+  // R120 (epic #115 §4): opcijska serija (lot) ob prevzemu — supplier →
+  // prevzem → batch → poraba sledljivost. Brez nje je prevzem unbatched
+  // (popolnoma nazaj-kompatibilno vedenje).
+  batch: z
+    .object({
+      lotNumber: z.string().min(1, 'Lot številka je obvezna').max(100),
+      expiryDate: z.string().nullable().optional(),
+      supplierId: cuid.optional(),
+      supplierName: z.string().max(200).optional(),
+      unitCost: z.number().min(0).nullable().optional(),
+    })
+    .optional(),
 })
 
 // ============================================

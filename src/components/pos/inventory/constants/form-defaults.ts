@@ -14,6 +14,7 @@ export const emptyItemForm: ItemFormData = {
 // Prazna oblika za nabavo
 export const emptyRestockForm: RestockFormData = {
   quantity: '', costPerUnit: '', supplierDoc: '', employeeName: '', note: '',
+  lotNumber: '', expiryDate: '',
 }
 
 // Prazna oblika za razknjižbo

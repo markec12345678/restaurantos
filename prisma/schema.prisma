@@ -985,6 +985,7 @@ model InventoryItem {
   transactions    StockTransaction[]
   recipeItems     RecipeItem[]
   wasteRecords    WasteRecord[]     // R119 (epic #115 §3): waste ledger
+  batches         InventoryBatch[]  // R120 (epic #115 §4): batch/lot/expiry + FEFO
   purchaseOrderItems PurchaseOrderItem[]
   // --- AI Predictive Ordering ---
   reorderRule     ReorderRule?
@@ -1034,6 +1035,73 @@ model StockTransaction {
   // R119 (epic #115 §3): povratne povezave na waste ledger
   wasteRecords    WasteRecord[] @relation("WasteStockTx")
   wasteReversals  WasteRecord[] @relation("WasteReversal")
+  // R120 (epic #115 §4): per-batch razknjižbe te transakcije (FEFO sledljivost)
+  batchAllocations StockBatchAllocation[]
+}
+
+// ============================================
+// BATCH / LOT / EXPIRY — sledljivost serij (epic #115 §4, runda 120)
+// ============================================
+// Veriga sledljivosti: supplier → prevzem (restock/StockTransaction
+// 'procurement') → InventoryBatch → poraba/odpad (StockBatchAllocation).
+// Batch NI neodvisen vir zaloge — InventoryItem.quantity + StockTransaction
+// ostata edina source-of-truth za količino (§28 arhitekturno pravilo); batch
+// je sledljivostna projekcija prevzemov na zalogovni ledger. FEFO poraba
+// (First Expired, First Out) poteka po expiryDate ASC (NULL = brez roka
+// uporabe, porabljen zadnji), nato receivedAt ASC.
+model InventoryBatch {
+  id                String    @id @default(cuid())
+  inventoryItemId   String
+  inventoryItem     InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  // Snapshot lokacije artikla ob prevzemu (NULL = skupni vir, enaka semantika
+  // kot InventoryItem.locationId)
+  locationId        String?
+  lotNumber         String    // "LOT-2026-09-001" — človeku berljiva oznaka serije
+  supplierId        String?
+  supplier          Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  supplierName      String    @default("") // snapshot imena dobavitelja (preživi brisanje)
+  receivedAt        DateTime  @default(now())
+  expiryDate        DateTime? // NULL = artikel brez roka uporabe
+  quantityInitial   Decimal   @db.Decimal(12, 3)
+  quantityRemaining Decimal   @db.Decimal(12, 3) // FEFO poraba/odpad ga decrementira; nikoli negativen (pogojni guard)
+  unit              String    @default("")
+  unitCost          Decimal?  @db.Decimal(12, 2) // cost basis serije (P0-05 food cost pripravlja tla)
+  status            String    @default("ACTIVE") // ACTIVE | EXHAUSTED (remaining == 0)
+  note              String    @default("")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  allocations       StockBatchAllocation[]
+
+  @@index([inventoryItemId, expiryDate]) // FEFO bralna pot
+  @@index([inventoryItemId, status])
+  @@index([locationId])
+  @@index([expiryDate])                  // pretečeno/uskoro preteče po vseh artiklih
+  @@index([lotNumber])
+}
+
+// ============================================
+// STOCK BATCH ALLOCATION — per-batch razknjižba (epic #115 §4, runda 120)
+// ============================================
+// Vsak premik zaloge, ki se dotakne serije, pusti vrstico: + vnos (prevzem,
+// vračilo, reversala odpada), − odvod (prodaja, odpad, odpis). Skozi njo je
+// poraba/odpad POVždy sledljiv do serije — "ne izgubi sledljivosti batch-a
+// pri porabi ali odpadu" (§4).
+model StockBatchAllocation {
+  id                 String    @id @default(cuid())
+  batchId            String
+  batch              InventoryBatch @relation(fields: [batchId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  stockTransactionId String
+  stockTransaction   StockTransaction @relation(fields: [stockTransactionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  // Denormalizirano za scope poizvedbe brez joina (batch je vezan na isti artikel)
+  inventoryItemId    String
+  // + vnos v serijo / − odvod iz serije (Decimal(12,3), paritetno z ledgerjem)
+  quantity           Decimal   @db.Decimal(12, 3)
+  createdAt          DateTime  @default(now())
+
+  @@index([batchId])
+  @@index([stockTransactionId])
+  @@index([inventoryItemId])
 }
 
 // ============================================
@@ -1910,6 +1978,7 @@ model Supplier {
   notes           String   @default("")
   // --- Relations ---
   purchaseOrders  PurchaseOrder[]
+  batches         InventoryBatch[] // R120 (epic #115 §4): serije po dobavitelju
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

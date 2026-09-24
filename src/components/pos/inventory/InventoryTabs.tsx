@@ -2,7 +2,7 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
-  Package, Truck, FileMinus, History, BarChart3,
+  Package, Truck, FileMinus, History, BarChart3, Boxes,
 } from 'lucide-react'
 import { memo } from 'react'
 import dynamic from 'next/dynamic'
@@ -14,6 +14,7 @@ const StockTab = dynamic(() => import('./StockTab').then(m => ({ default: m.Stoc
 const ProcurementTab = dynamic(() => import('./ProcurementTab').then(m => ({ default: m.ProcurementTab })), { ssr: false })
 const WriteOffTab = dynamic(() => import('./WriteOffTab').then(m => ({ default: m.WriteOffTab })), { ssr: false })
 const HistoryTab = dynamic(() => import('./HistoryTab').then(m => ({ default: m.HistoryTab })), { ssr: false })
+const BatchesTab = dynamic(() => import('./BatchesTab').then(m => ({ default: m.BatchesTab })), { ssr: false })
 
 type InventoryState = ReturnType<typeof useInventoryState>
 
@@ -24,12 +25,15 @@ interface InventoryTabsProps {
 export const InventoryTabs = memo(function InventoryTabs({ s }: InventoryTabsProps) {
   return (
     <Tabs value={s.activeTab} onValueChange={s.setActiveTab}>
-      <TabsList className="grid w-full grid-cols-5">
+      <TabsList className="grid w-full grid-cols-6">
         <TabsTrigger value="stock" className="gap-1.5">
           <Package className="h-3.5 w-3.5" /> Zaloge
         </TabsTrigger>
         <TabsTrigger value="dashboard" className="gap-1.5">
           <BarChart3 className="h-3.5 w-3.5" /> Pregled
+        </TabsTrigger>
+        <TabsTrigger value="batches" className="gap-1.5">
+          <Boxes className="h-3.5 w-3.5" /> Serije
         </TabsTrigger>
         <TabsTrigger value="procurement" className="gap-1.5">
           <Truck className="h-3.5 w-3.5" /> Nabava
@@ -45,6 +49,11 @@ export const InventoryTabs = memo(function InventoryTabs({ s }: InventoryTabsPro
       {/* TAB: PREGLED ZALOGE (Dashboard) */}
       <TabsContent value="dashboard" className="mt-4">
         <StockDashboard />
+      </TabsContent>
+
+      {/* TAB: SERIJE (batch/lot/expiry — epic #115 §4) */}
+      <TabsContent value="batches" className="mt-4">
+        <BatchesTab />
       </TabsContent>
 
       {/* TAB: ZALOGE */}

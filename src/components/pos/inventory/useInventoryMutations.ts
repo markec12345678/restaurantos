@@ -67,6 +67,7 @@ export function useInventoryMutations(callbacks: InventoryMutationCallbacks) {
       toast.success('Nabava uspešno vnešena')
       queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.inventory.transactions })
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.batches })
       callbacks.onCloseRestockDialog()
     },
     onError: (err) => toast.error(errorSl(err, 'Napaka pri zalogi')),

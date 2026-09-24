@@ -19,8 +19,9 @@
 
 import { db } from '@/lib/db'
 import { Prisma } from '@prisma/client'
-import { toNum, round2, multiply } from '@/lib/decimal'
+import { toNum, round2, round3, multiply } from '@/lib/decimal'
 import { inventoryStockLockKey } from '@/app/api/inventory/_helpers/stock-mutations'
+import { allocateBatchesFEFO, applyBatchAllocations, restoreBatchesFromAllocations } from '@/lib/stock-deduction/batch-allocation'
 import { wasteReasonLabel, type WasteReason } from '@/lib/waste-reasons'
 
 const TX_OPTS = {
@@ -52,10 +53,80 @@ function wasteItemWhere(inventoryItemId: string, locationId: string) {
 }
 
 /**
+ * R120 (epic #115 §4): razporeditev odpada po serijah.
+ *  • batchId podan → fail-closed validacija (status/remaining/lokacija/artikel)
+ *    + pogojni decrement serije; napaka → strukturirani throw (uporabnik je
+ *    izbral KONKRETNO serijo, tiho FEFO ne bi bil pošten).
+ *  • batchId NI podan → FEFO avtomatska razporeditev (sale-safety: preostanek
+ *    brez serij je dovoljen, odpad zaradi sledljivosti ne pade).
+ */
+async function allocateWasteToBatches(
+  tx: Prisma.TransactionClient,
+  opts: {
+    inventoryItemId: string
+    locationId: string
+    quantity: number
+    stockTransactionId: string
+    batchId: string | null
+  },
+): Promise<void> {
+  const { inventoryItemId, locationId, quantity, stockTransactionId, batchId } = opts
+
+  if (batchId) {
+    // Tx-fresh re-read + fail-closed validacija izbrane serije
+    const batch = await tx.inventoryBatch.findFirst({
+      where: { id: batchId, inventoryItemId },
+    })
+    if (!batch) {
+      throw { error: 'Izbrana serija ni najdena za ta artikel', status: 400 }
+    }
+    if (batch.locationId != null && batch.locationId !== locationId) {
+      // Serija tuge lokacije — nikoli ne odpišemo tuj zaloge (tenant kanon)
+      throw { error: 'Izbrana serija ne pripada tej lokaciji', status: 400 }
+    }
+    if (batch.status !== 'ACTIVE') {
+      throw { error: 'Izbrana serija ni več aktivna', status: 400 }
+    }
+    const remaining = round3(toNum(batch.quantityRemaining))
+    if (remaining < quantity) {
+      throw {
+        error: `Serija ${batch.lotNumber} ima samo ${remaining} preostanek (potrebno ${quantity})`,
+        status: 400,
+      }
+    }
+    const guard = await tx.inventoryBatch.updateMany({
+      where: { id: batchId, status: 'ACTIVE', quantityRemaining: { gte: quantity } },
+      data: { quantityRemaining: { decrement: quantity } },
+    })
+    if (guard.count === 0) {
+      throw { error: 'Serija je bila spremenjena sočasno — poskusite znova', status: 409 }
+    }
+    await tx.inventoryBatch.updateMany({
+      where: { id: batchId, status: 'ACTIVE', quantityRemaining: { lte: 0 } },
+      data: { status: 'EXHAUSTED' },
+    })
+    await applyBatchAllocations(tx, {
+      stockTransactionId,
+      inventoryItemId,
+      slices: [{ batchId, quantity: -quantity }],
+    })
+    return
+  }
+
+  // FEFO avtomatska razporeditev (First Expired, First Out)
+  const slices = await allocateBatchesFEFO(tx, { inventoryItemId, quantity })
+  if (slices.length > 0) {
+    await applyBatchAllocations(tx, { stockTransactionId, inventoryItemId, slices })
+  }
+}
+
+/**
  * R119: zabeleži odpad — atomarno: zaščiten odpis + StockTransaction
  * ('write-off') + WasteRecord snapshot v ENI Serializable transakciji.
  * Idempotency (R116 kanon): enak (locationId, idempotencyKey) → replay iste
  * vrstice (retry NIKOLI ne odpiše zaloge dvakrat).
+ * R120 (epic #115 §4): opcijski batchId — odpad lahko cilja KONKRETNO serijo
+ * (npr. pretečen lot); brez njega se razporedi FEFO.
  */
 export async function createWasteRecord(opts: {
   locationId: string
@@ -65,8 +136,9 @@ export async function createWasteRecord(opts: {
   note: string
   idempotencyKey: string | null
   recordedByUserId: string | null
+  batchId?: string | null
 }): Promise<WasteRecordResult> {
-  const { locationId, inventoryItemId, quantity, reason, note, idempotencyKey, recordedByUserId } = opts
+  const { locationId, inventoryItemId, quantity, reason, note, idempotencyKey, recordedByUserId, batchId } = opts
 
   return await db.$transaction(async (tx: TransactionClient) => {
     // Advisory lock per item — SKUPNI ključ z vsemi zalogovnimi pisci (R106):
@@ -130,6 +202,15 @@ export async function createWasteRecord(opts: {
         note,
         employeeName: recordedByUserId ?? '',
       },
+    })
+
+    // R120 (epic #115 §4): razporeditev odpada po serijah (izbrana lot ali FEFO)
+    await allocateWasteToBatches(tx, {
+      inventoryItemId,
+      locationId,
+      quantity,
+      stockTransactionId: stockTx.id,
+      batchId: batchId ?? null,
     })
 
     const record = await tx.wasteRecord.create({
@@ -214,6 +295,17 @@ export async function reverseWasteRecord(opts: {
       where: { id: record.inventoryItemId },
       data: { quantity: { increment: qty } },
     })
+
+    // R120 (epic #115 §4): mirror vračanje serij — reversala vrne količino v
+    // TOČNO TE serije, ki jih je odpis odvzel (snapshot alokacij write-off tx);
+    // odpad brez serij (legacy/unbatched) ostane unbatched vračilo.
+    if (record.stockTransactionId) {
+      await restoreBatchesFromAllocations(tx, {
+        sourceStockTransactionIds: [record.stockTransactionId],
+        newStockTransactionId: stockTx.id,
+        inventoryItemId: record.inventoryItemId,
+      })
+    }
 
     const reversed = await tx.wasteRecord.update({
       where: { id: record.id },

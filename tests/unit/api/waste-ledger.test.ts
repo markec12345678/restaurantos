@@ -208,6 +208,20 @@ function createDb() {
         return { _sum: { total: rows.reduce((s, o) => s + o.total, 0) } }
       },
     },
+    // R120 (epic #115 §4): batch/lot stubi — FEFO alokacija na praznih
+    // serijah = no-op (brez alokacijskih vrstic), ostali klici se v teh
+    // testih ne smejo zgoditi (odpad brez izrecnega batchId).
+    inventoryBatch: {
+      findMany: async () => [],
+      findFirst: async () => null,
+      findUnique: async () => null,
+      updateMany: async () => ({ count: 1 }),
+      create: async ({ data }: { data: Record<string, unknown> }) => ({ id: 'bat-stub', ...data }),
+    },
+    stockBatchAllocation: {
+      create: async ({ data }: { data: Record<string, unknown> }) => ({ id: 'al-stub', ...data }),
+      findMany: async () => [],
+    },
   })
 
   const tx = {

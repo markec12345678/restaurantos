@@ -9,6 +9,7 @@
 import { db } from '@/lib/db'
 import { toNum, type DecimalLike } from '@/lib/decimal'
 import { logger } from '@/lib/logger'
+import { recordBatchConsumption } from '@/lib/stock-deduction/batch-allocation'
 
 export async function deductInventory(
   tx: Parameters<Parameters<typeof db.$transaction>[0]>[0],
@@ -36,14 +37,23 @@ export async function deductInventory(
         data: { quantity: { decrement: deductQty } },
       })
       if (updated.count > 0) {
+        // Narrowing v .then closure — artikel zajamemo prej (TS18047)
+        const invItemId = recipe.inventoryItem.id
         await tx.stockTransaction.create({
           data: {
-            inventoryItemId: recipe.inventoryItem.id, type: 'sale', quantity: -deductQty,
+            inventoryItemId: invItemId, type: 'sale', quantity: -deductQty,
             previousQty: toNum(currentInvItem.quantity), newQty: toNum(currentInvItem.quantity) - deductQty,
             costPerUnit: toNum(currentInvItem.costPerUnit), totalCost: deductQty * toNum(currentInvItem.costPerUnit),
             reason: `Online naročilo #${nextOrderNumber}`, orderId: newOrderId,
           },
-        })
+        }).then((stockTx) =>
+          // R120 (epic #115 §4): FEFO razporeditev odbitka po serijah
+          recordBatchConsumption(tx, {
+            inventoryItemId: invItemId,
+            quantity: deductQty,
+            stockTransactionId: stockTx.id,
+          }),
+        )
       } else {
         // FIX P4: Nezadostna zaloga — throw da se transakcija roll-back-a
         await tx.stockTransaction.create({

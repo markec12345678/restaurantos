@@ -29,6 +29,14 @@ interface InventoryPickItem {
   costPerUnit: number | string
 }
 
+interface BatchPickItem {
+  id: string
+  lotNumber: string
+  quantityRemaining: number
+  expiryDate: string | null
+  isExpired: boolean
+}
+
 interface LocationPickItem {
   id: string
   name: string
@@ -54,6 +62,9 @@ export const WasteRecordDialog = memo(function WasteRecordDialog({
   const [reason, setReason] = useState<string>('')
   const [note, setNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  // R120 (epic #115 §4): opcijska ciljna serija — prazno = FEFO (auto)
+  const [batches, setBatches] = useState<BatchPickItem[]>([])
+  const [batchId, setBatchId] = useState('')
 
   // Stabilen idempotency ključ na VSAKO odprtje dialoga (R116 kanon)
   const idempotencyKey = useMemo(
@@ -69,6 +80,8 @@ export const WasteRecordDialog = memo(function WasteRecordDialog({
     setReason('')
     setNote('')
     setLocationId('')
+    setBatches([])
+    setBatchId('')
     setItemsLoading(true)
     // MODEL A: seja je avtoritativna, AMPAK super-admin brez lokacije MORA
     // podati izrecen locationId (fail-closed 400 na strežniku). /api/locations
@@ -106,6 +119,37 @@ export const WasteRecordDialog = memo(function WasteRecordDialog({
   const selectedItem = items.find(i => i.id === inventoryItemId)
   const quantityNum = Number(quantity.replace(',', '.'))
   const needsLocationPick = locations.length > 1
+
+  // R120 (epic #115 §4): ob izbiri artikla naloži aktivne serije (FEFO vrstni
+  // red od strežnika — expiryDate ASC). Napaka nalaganja serij NE blokira
+  // odpada (serija je opcijska; FEFO potekne na strežniku samodejno).
+  useEffect(() => {
+    if (!open || !inventoryItemId) {
+      setBatches([])
+      setBatchId('')
+      return
+    }
+    let cancelled = false
+    authFetch(`/api/inventory/batches?inventoryItemId=${encodeURIComponent(inventoryItemId)}&status=ACTIVE`)
+      .then(async res => {
+        if (!res.ok) return []
+        const data = await res.json()
+        return Array.isArray(data.batches) ? data.batches : []
+      })
+      .then((list: BatchPickItem[]) => {
+        if (cancelled) return
+        setBatches(list.filter(b => b && typeof b.id === 'string' && b.quantityRemaining > 0))
+        setBatchId('')
+      })
+      .catch(() => {
+        if (!cancelled) setBatches([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, inventoryItemId])
+
+  const selectedBatch = batches.find(b => b.id === batchId)
   const isValid =
     inventoryItemId.length > 0 &&
     reason.length > 0 &&
@@ -128,6 +172,7 @@ export const WasteRecordDialog = memo(function WasteRecordDialog({
           note: note.trim(),
           idempotencyKey,
           ...(locationId ? { locationId } : {}),
+          ...(batchId ? { batchId } : {}),
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -211,6 +256,32 @@ export const WasteRecordDialog = memo(function WasteRecordDialog({
               </Select>
             </div>
           </div>
+          {selectedBatch && quantityNum > selectedBatch.quantityRemaining && (
+            <p className="text-xs text-destructive">
+              Serija {selectedBatch.lotNumber} ima samo {selectedBatch.quantityRemaining} — zmanjšaj količino ali izberi
+              FEFO (samodejno razporedi po vseh serijah).
+            </p>
+          )}
+          {batches.length > 0 && (
+            <div>
+              <Label htmlFor="waste-batch">Serija (opcijsko)</Label>
+              <Select value={batchId || 'auto'} onValueChange={(v) => setBatchId(v === 'auto' ? '' : v)}>
+                <SelectTrigger id="waste-batch" aria-label="Izberi serijo odpada">
+                  <SelectValue placeholder="FEFO (samodejno)" />
+                </SelectTrigger>
+                <SelectContent className="max-h-64 overflow-y-auto">
+                  <SelectItem value="auto">FEFO — samodejno po roku uporabe</SelectItem>
+                  {batches.map(b => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.lotNumber}
+                      {b.expiryDate ? ` · rok ${new Date(b.expiryDate).toLocaleDateString('sl-SI')}` : ' · brez roka'}
+                      {' '}· preostanek {b.quantityRemaining}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div>
             <Label htmlFor="waste-note">Opomba</Label>
             <Textarea id="waste-note" value={note} onChange={e => setNote(e.target.value)} rows={2} maxLength={1000} />

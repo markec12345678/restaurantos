@@ -66,6 +66,20 @@ export const RestockDialog = memo(function RestockDialog({
             <Label htmlFor="restock-dialog-po">Št. dobavnice</Label>
             <Input id="restock-dialog-po" placeholder="npr. DN-2024-001" value={restockData.supplierDoc} onChange={(e) => onRestockDataChange({ ...restockData, supplierDoc: e.target.value })} aria-label="npr. DN-2024-001"/>
           </div>
+          {/* R120 (epic #115 §4): opcijska serija (lot) — sledljivost prevzema */}
+          <div className="rounded-lg border border-dashed p-3 space-y-3">
+            <p className="text-xs font-medium text-muted-foreground">Serija / lot (opcijsko — za sledljivost in FEFO)</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="restock-dialog-lot">Lot št.</Label>
+                <Input id="restock-dialog-lot" placeholder="npr. LOT-2026-001" value={restockData.lotNumber} onChange={(e) => onRestockDataChange({ ...restockData, lotNumber: e.target.value })} aria-label="Lot številka serije"/>
+              </div>
+              <div>
+                <Label htmlFor="restock-dialog-expiry">Rok uporabe</Label>
+                <Input id="restock-dialog-expiry" type="date" value={restockData.expiryDate} onChange={(e) => onRestockDataChange({ ...restockData, expiryDate: e.target.value })} aria-label="Rok uporabe serije"/>
+              </div>
+            </div>
+          </div>
           <div>
             <Label htmlFor="restock-dialog-received-by">Prevzel</Label>
             <Input id="restock-dialog-received-by" placeholder="Ime zaposlenega" value={restockData.employeeName} onChange={(e) => onRestockDataChange({ ...restockData, employeeName: e.target.value })} aria-label="Ime zaposlenega"/>

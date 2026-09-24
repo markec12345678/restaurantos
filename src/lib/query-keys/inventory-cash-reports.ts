@@ -11,6 +11,7 @@ export const inventoryKeys = {
   forecast: ['inventory-forecast'] as const,
   reorder: ['inventory-reorder'] as const,
   transactions: ['inventory-transactions'] as const,
+  batches: ['inventory-batches'] as const,
   lowStock: ['notification-low-stock'] as const,
 }
 

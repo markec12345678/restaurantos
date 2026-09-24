@@ -44,6 +44,15 @@
 import { db } from '@/lib/db'
 import { Prisma } from '@prisma/client'
 import { toNum, round2, multiply, divide, isPositive } from '@/lib/decimal'
+import { recordBatchConsumption, recordBatchReceipt } from '@/lib/stock-deduction/batch-allocation'
+
+export interface RestockBatchInput {
+  lotNumber: string
+  expiryDate?: Date | string | null
+  supplierId?: string | null
+  supplierName?: string
+  unitCost?: number | null
+}
 
 export interface StockMutationResult {
   item: Record<string, unknown>
@@ -131,6 +140,8 @@ export async function adjustInventoryItemStock(opts: {
     // odpis NIKOLI ne pade pod 0, tudi če Serializable sodbni konflikt ubeži
     // validaciji (pariteta s P3 fixom v batch PUT poti).
     let updated: Record<string, unknown>
+    let createdStockTxId: string | null = null
+    let deductedQty = 0
     if (delta < 0) {
       const guard = await tx.inventoryItem.updateMany({
         where: { id: inventoryItemId, quantity: { gte: Math.abs(delta) } },
@@ -142,6 +153,7 @@ export async function adjustInventoryItemStock(opts: {
           status: 400,
         }
       }
+      deductedQty = Math.abs(delta)
       updated = (await tx.inventoryItem.findUnique({
         where: { id: inventoryItemId },
         include: { menuItem: true },
@@ -170,6 +182,18 @@ export async function adjustInventoryItemStock(opts: {
         employeeName,
       },
     })) as unknown as Record<string, unknown>
+    createdStockTxId = String((transaction as { id?: string }).id ?? '')
+
+    // R120 (epic #115 §4): odpis/prilagoditev v minus razporedi FEFO po
+    // serijah — sledljivost ostaja do lota (sale-safety: napaka alokacije
+    // ne podre odpisa).
+    if (createdStockTxId && deductedQty > 0) {
+      await recordBatchConsumption(tx, {
+        inventoryItemId,
+        quantity: deductedQty,
+        stockTransactionId: createdStockTxId,
+      })
+    }
 
     return { item: updated, transaction }
   }, TX_OPTS)
@@ -188,8 +212,9 @@ export async function restockInventoryItem(opts: {
   note: string
   supplierDoc: string
   employeeName: string
-}): Promise<StockMutationResult> {
-  const { inventoryItemId, sessionLocationId, quantity, reason, note, supplierDoc, employeeName } = opts
+  batch?: RestockBatchInput | null
+}): Promise<StockMutationResult & { batch?: Record<string, unknown> }> {
+  const { inventoryItemId, sessionLocationId, quantity, reason, note, supplierDoc, employeeName, batch } = opts
 
   return await db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${inventoryStockLockKey(inventoryItemId)}))`
@@ -232,7 +257,26 @@ export async function restockInventoryItem(opts: {
       },
     })) as unknown as Record<string, unknown>
 
-    return { item: updated, transaction }
+    // R120 (epic #115 §4): prevzem z lot podatki → InventoryBatch + vhodna
+    // alokacija v ledger serij (supplier → prevzem → batch → poraba).
+    let createdBatch: Record<string, unknown> | undefined
+    if (batch?.lotNumber?.trim()) {
+      createdBatch = await recordBatchReceipt(tx, {
+        inventoryItemId,
+        locationId: item.locationId ?? null,
+        unit: item.unit ?? '',
+        quantity,
+        stockTransactionId: String((transaction as { id?: string }).id ?? ''),
+        lotNumber: batch.lotNumber.trim(),
+        expiryDate: batch.expiryDate ? new Date(batch.expiryDate) : null,
+        supplierId: batch.supplierId ?? null,
+        supplierName: batch.supplierName ?? '',
+        unitCost: batch.unitCost ?? null,
+        note,
+      })
+    }
+
+    return { item: updated, transaction, ...(createdBatch ? { batch: createdBatch } : {}) }
   }, TX_OPTS)
 }
 
@@ -303,6 +347,16 @@ export async function setInventoryItemQuantity(opts: {
         employeeName,
       },
     })) as unknown as Record<string, unknown>
+
+    // R120 (epic #115 §4): ročna nastavitev v minus = odpis → FEFO alokacija
+    // po serijah (sledljivost do lota tudi pri PUT/PATCH absolutni nastavitvi).
+    if (diff < 0) {
+      await recordBatchConsumption(tx, {
+        inventoryItemId,
+        quantity: Math.abs(diff),
+        stockTransactionId: String((transaction as { id?: string }).id ?? ''),
+      })
+    }
 
     return { item: updated, transaction }
   }, TX_OPTS)

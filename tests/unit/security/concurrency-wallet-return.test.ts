@@ -201,6 +201,14 @@ function makeReturnTx(overrides: {
         return { quantity: 100 }
       }),
     },
+    // R120 (epic #115 §4): batch/lot stub — mirror vračanje serij brez
+    // alokacij (legacy sale vrstice brez serij) = no-op
+    stockBatchAllocation: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    inventoryBatch: {
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
   }
   mockDb.__setCurrentTx(tx)
   return { tx, calls }

@@ -10,6 +10,7 @@
 import { db } from '@/lib/db'
 import { logger } from '@/lib/logger'
 import { toNum } from '@/lib/decimal'
+import { recordBatchConsumption } from '@/lib/stock-deduction/batch-allocation'
 import type { WebhookOrderItem } from './wolt-schema'
 
 // ---- Inventory Deduction ----
@@ -50,7 +51,14 @@ export async function deductInventoryForOrder(
               reason: `${providerLabel} naročilo #${orderNumber}`,
               orderId,
             },
-          })
+          }).then((stockTx) =>
+            // R120 (epic #115 §4): FEFO razporeditev odbitka po serijah
+            recordBatchConsumption(tx, {
+              inventoryItemId: recipe.inventoryItem.id,
+              quantity: deductQty,
+              stockTransactionId: stockTx.id,
+            }),
+          )
         } else {
           // FIX P4: Nezadostna zaloga — zabeleži v audit + throw da caller ve
           await tx.stockTransaction.create({
