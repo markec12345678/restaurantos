@@ -121,11 +121,11 @@ export async function validateAndSubmitStorno(req: Request): Promise<StornoValid
   // v multi-lokacijskem setupu različna ključa → FURS zavrne. Zdaj oba iz
   // config. ensureDecrypted: certPassword je lahko shranjen šifriran
   // (isti vzorec kot config-resolver.ts).
+  // R125 (issue #37): podpisni ključ IZKLJUČNO iz Location configa — settings.furs*
+  // fallback odstranjen (polja so MRTVA; migration 0012 prenesla vrednosti na lokacije).
   const privateKey = (config.certPath && config.certPassword)
     ? loadCertificatePrivateKey(config.certPath, ensureDecrypted(config.certPassword))
-    : (settings.fursCertPath && settings.fursCertPassword)
-      ? loadCertificatePrivateKey(settings.fursCertPath, ensureDecrypted(settings.fursCertPassword))
-      : undefined
+    : undefined
 
   // Generiraj ZOI za storno račun
   const zoi = generateZOI({

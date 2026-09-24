@@ -5,7 +5,7 @@
 // Uporabno v setup wizard-u in pri diagnosticiranju multi-tenant težav.
 //
 // Vrne:
-//   - source: 'location' | 'restaurant-settings' | 'env' | 'missing'
+//   - source: 'location' | 'env' | 'missing' (R125: 'restaurant-settings' odstranjen, issue #37)
 //   - locationId: ID uporabljene lokacije (ali null)
 //   - configured: ali je FURS konfiguriran
 //
@@ -39,14 +39,13 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ...source,
       configured,
+      // R125 (issue #37): 'restaurant-settings' vir ne obstaja več — Location-only fiskalizacija
       message:
         source.source === 'location'
           ? `FURS certifikat pridobljen iz Location ${source.locationId}`
-          : source.source === 'restaurant-settings'
-            ? '⚠️ FURS certifikat iz RestaurantSettings (deprecated — nastavi na Location za multi-tenant)'
-            : source.source === 'env'
-              ? 'FURS certifikat iz env spremenljivk (FURS_CERT_PATH)'
-              : '❌ FURS certifikat ni konfiguriran',
+          : source.source === 'env'
+            ? 'FURS certifikat iz env spremenljivk (FURS_CERT_PATH)'
+            : '❌ FURS certifikat ni konfiguriran',
     })
   } catch (error: unknown) {
     return handleApiError(

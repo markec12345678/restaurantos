@@ -2,12 +2,13 @@
 // FURS CONFIG RESOLVER — Unit testi (Issue #37)
 //
 // Preverjamo:
-// - getFursConfig(locationId): prioriteta Location > RestaurantSettings > env
+// - getFursConfig(locationId): prioriteta Location > env > missing
+//   (R125: RestaurantSettings fallback ODSTRANJEN — settings.furs* MRTVA,
+//   migration 0012_furs_location_only je vrednosti prenesel na lokacije)
 // - isFursConfigured: boolean check
 // - getFursConfigSource: diagnostika
 // - Multi-tenant: različne lokacije imajo različne FURS certifikate
-// - Single-tenant fallback: RestaurantSettings ali env
-// - Missing config: vrne error response
+// - Missing config: vrne error response (fail-closed 503)
 // ============================================
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
@@ -122,7 +123,7 @@ describe('getFursConfig — Issue #37 prioritetna veriga', () => {
     })
   })
 
-  it('3. prioriteta: Location brez fursCertPath → fallback na RestaurantSettings', async () => {
+  it('3. R125: Location obstaja ampak brez fursCertPath → NI fallbacka na RestaurantSettings → missing', async () => {
     mocks.mockLocationFindUnique.mockResolvedValue({
       id: 'loc-empty',
       businessId: '',
@@ -133,6 +134,7 @@ describe('getFursConfig — Issue #37 prioritetna veriga', () => {
       fursCertPassword: '',
       fursEnvironment: '',
     })
+    // Legacy settings vrednosti (npr. pred migracijo 0012) se MORAJO ignorirati
     mocks.mockRestaurantSettingsFindFirst.mockResolvedValue({
       businessId: '11111111',
       taxId: 'SI11111111',
@@ -144,13 +146,46 @@ describe('getFursConfig — Issue #37 prioritetna veriga', () => {
 
     const result = await getFursConfig('loc-empty')
 
-    expect(result.source).toBe('restaurant-settings')
-    expect(result.fursConfig?.certPath).toBe('/certs/fallback.p12')
+    // R125 (issue #37): settings fallback odstranjen → fail-closed missing
+    expect(result.source).toBe('missing')
+    expect(result.fursConfig).toBeNull()
+    expect(result.error).not.toBeNull()
+    expect(mocks.mockRestaurantSettingsFindFirst).not.toHaveBeenCalled()
   })
 
-  it('4. prioriteta: nobena Location + noben RestaurantSettings → fallback na env', async () => {
+  it('3b. R125: Location brez cert + env nastavljen → fallback na env (ne settings)', async () => {
+    mocks.mockLocationFindUnique.mockResolvedValue({
+      id: 'loc-empty',
+      businessId: '',
+      taxId: '',
+      registerNumber: '',
+      premisesId: '',
+      fursCertPath: '',
+      fursCertPassword: '',
+      fursEnvironment: '',
+    })
+    mocks.mockRestaurantSettingsFindFirst.mockResolvedValue({
+      businessId: '11111111',
+      taxId: 'SI11111111',
+      registerNumber: 'BLG-FB',
+      fursCertPath: '/certs/fallback.p12',
+      fursCertPassword: 'fbpass',
+      fursEnvironment: 'test',
+    })
+    setEnv('FURS_CERT_PATH', '/env/cert.p12')
+    setEnv('FURS_CERT_PASSWORD', 'envpass')
+
+    const result = await getFursConfig('loc-empty')
+
+    // Ne-konfigurirana lokacija nadaljuje na env (machine-level config) —
+    // settings se ignorira tudi, ko ima legacy furs vrednosti
+    expect(result.source).toBe('env')
+    expect(result.fursConfig?.certPath).toBe('/env/cert.p12')
+    expect(mocks.mockRestaurantSettingsFindFirst).not.toHaveBeenCalled()
+  })
+
+  it('4. prioriteta: nobena Location → fallback na env', async () => {
     mocks.mockLocationFindFirst.mockResolvedValue(null)
-    mocks.mockRestaurantSettingsFindFirst.mockResolvedValue(null)
     setEnv('FURS_CERT_PATH', '/env/cert.p12')
     setEnv('FURS_CERT_PASSWORD', 'envpass')
     setEnv('FURS_ENV', 'production')
@@ -166,7 +201,6 @@ describe('getFursConfig — Issue #37 prioritetna veriga', () => {
 
   it('5. prioriteta: nič konfigurirano → source=missing + error', async () => {
     mocks.mockLocationFindFirst.mockResolvedValue(null)
-    mocks.mockRestaurantSettingsFindFirst.mockResolvedValue(null)
     setEnv('FURS_CERT_PATH', undefined)
 
     const result = await getFursConfig()
@@ -191,7 +225,7 @@ describe('getFursConfig — Issue #37 prioritetna veriga', () => {
     const result = await getFursConfig('nonexistent-loc')
 
     // Prej (fail-open): fallback na globalni cert → podpis s TUJIM certifikatom.
-    // Zdaj (fail-closed): brez configa + error 503 — globalni cert NI dovoljen.
+    // Zdaj (fail-closed): brez configa + error 503 — globalni cert ali env NI dovoljen.
     expect(result.source).toBe('missing')
     expect(result.fursConfig).toBeNull()
     expect(result.error).not.toBeNull()
@@ -223,7 +257,6 @@ describe('isFursConfigured — Issue #37', () => {
 
   it('vrne true če je env FURS_CERT_PATH nastavljen', async () => {
     mocks.mockLocationFindFirst.mockResolvedValue(null)
-    mocks.mockRestaurantSettingsFindFirst.mockResolvedValue(null)
     setEnv('FURS_CERT_PATH', '/env/cert.p12')
 
     const result = await isFursConfigured()
@@ -232,7 +265,6 @@ describe('isFursConfigured — Issue #37', () => {
 
   it('vrne false če ni nobene konfiguracije', async () => {
     mocks.mockLocationFindFirst.mockResolvedValue(null)
-    mocks.mockRestaurantSettingsFindFirst.mockResolvedValue(null)
     setEnv('FURS_CERT_PATH', undefined)
 
     const result = await isFursConfigured()
@@ -250,7 +282,6 @@ describe('isFursConfigured — Issue #37', () => {
       fursCertPassword: '',
       fursEnvironment: '',
     })
-    mocks.mockRestaurantSettingsFindFirst.mockResolvedValue(null)
     setEnv('FURS_CERT_PATH', undefined)
 
     const result = await isFursConfigured()
@@ -286,7 +317,6 @@ describe('getFursConfigSource — diagnostika', () => {
 
   it('vrne source=missing ko ni konfigurirano', async () => {
     mocks.mockLocationFindFirst.mockResolvedValue(null)
-    mocks.mockRestaurantSettingsFindFirst.mockResolvedValue(null)
     setEnv('FURS_CERT_PATH', undefined)
 
     const result = await getFursConfigSource()

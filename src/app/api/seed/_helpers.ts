@@ -23,8 +23,9 @@ export async function cleanupExistingData() {
   // --- Child tabele pred parenti (Restrict kaskade) ---
   await db.guestVisit.deleteMany().catch(() => {})
   await db.timeEntry.deleteMany().catch(() => {})
+  // ISSUE #36 R125: legacy Shift model ukinjen (migracija 0011_shift_dedup) —
+  // cleanup samo še StaffShift.
   await db.staffShift.deleteMany().catch(() => {})
-  await db.shift.deleteMany().catch(() => {})
   await db.stockTransaction.deleteMany().catch(() => {})
   await db.loyaltyTransaction.deleteMany().catch(() => {})
   await db.giftCardTransaction.deleteMany().catch(() => {})

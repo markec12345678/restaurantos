@@ -76,10 +76,12 @@ export async function GET(req: Request) {
           locationId: true,
           createdAt: true,
           updatedAt: true,
-          shifts: {
-            orderBy: { date: 'desc' },
+          // ISSUE #36 R125: legacy Shift model ukinjen — beremo staffShifts
+          // (spodaj preslikano nazaj v `shifts` + `date` alias za back-compat)
+          staffShifts: {
+            orderBy: { shiftDate: 'desc' },
             take: 20,
-            select: { id: true, date: true, startTime: true, endTime: true, status: true },
+            select: { id: true, shiftDate: true, startTime: true, endTime: true, status: true },
           },
           jobs: { include: { job: { select: { id: true, name: true, code: true } } } },
         },
@@ -87,8 +89,10 @@ export async function GET(req: Request) {
       db.employee.count({ where }),
     ])
     // FIX C-06: Nikoli ne vračaj PIN-ov v odgovoru
-    const safeEmployees = employees.map(emp => ({
+    // ISSUE #36 R125: staffShifts → legacy `shifts` oblika (shiftDate → date)
+    const safeEmployees = employees.map(({ staffShifts, ...emp }) => ({
       ...emp,
+      shifts: staffShifts.map(({ shiftDate, ...s }) => ({ ...s, date: shiftDate })),
       pin: emp.pin ? '****' : '',
     }))
     return NextResponse.json({ employees: safeEmployees, total, limit, offset })

@@ -94,6 +94,8 @@ vi.mock('@/lib/db', () => ({
     happyHourSchedule: { findUnique: mockHhFindUnique, findMany: vi.fn(), update: vi.fn(), delete: mockHhDelete },
     priceGroup: { findFirst: vi.fn(), findUnique: vi.fn() },
     shift: { count: mockShiftCount },
+    // ISSUE #36 R125: gdpr/anonymize šteje aktivne izmene prek StaffShift
+    staffShift: { count: mockShiftCount },
     session: { count: mockSessionCount, deleteMany: vi.fn() },
     auditLog: { create: mockAuditCreate, findMany: vi.fn() },
     // R111: KOT POST teče v Serializable $transaction — tx klient deli iste

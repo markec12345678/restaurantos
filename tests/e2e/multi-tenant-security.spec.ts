@@ -214,7 +214,7 @@ test.describe('Multi-Tenant Security: P0-C1..C5 Validation', () => {
       // Admin-only endpoint — lahko 200 ali 403
       if (res.ok()) {
         const body = await res.json().catch(() => ({}))
-        expect(['location', 'restaurant-settings', 'env', 'missing']).toContain(body.source)
+        expect(['location', 'env', 'missing']).toContain(body.source)
       } else {
         expect([403, 401]).toContain(res.status())
       }

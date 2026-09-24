@@ -28,9 +28,11 @@ export async function GET(req: Request) {
     // padla na GLOBALNI RestaurantSettings fallback → certPath/certPassword
     // prisotnost/environment TUJEGA tenanta + count-i nepotrjenih računov VSEH
     // tenantov. Zdaj: regular/manager NULL → 403 fail-closed; lokacijsko vezan
-    // admin → per-location cert override + scoped counts; super-admin (vloga
-    // admin/super_admin, NULL lokacija) → dokumentiran globalni settings
-    // pogled (P0-C3B/R77 dual-config izključitev — CONFIG model ni spremenjen).
+    // admin → per-location cert + scoped counts; super-admin (vloga
+    // admin/super_admin, NULL lokacija) → env-only pogled.
+    // R125 (issue #37): settings FURS fallback ODSTRANJEN — settings.furs* polja
+    // so MRTVA (Location-only fiskalizacija; migration 0012_furs_location_only je
+    // legacy vrednosti prenesel na lokacije). Cert podatki: Location → env → prazno.
     const scope = resolveTenantLocationIdOrThrow(authResult.session, new URL(req.url).searchParams, {
       endpoint: 'GET /api/furs/cert-status',
     })
@@ -44,11 +46,11 @@ export async function GET(req: Request) {
     // FIX P0-C3A: Pridobi FURS cert podatke iz Location (vezano na scope lokacijo
     // iz resolverja — R87-4). Prej: vedno settings (globalno) — v multi-tenant
     // setupu prikaz napačne lokacije. sessionLocId je null SAMO za super-admina
-    // (dokumentiran globalni pogled, zgoraj).
+    // (env-only pogled, zgoraj — R125: settings.furs* NI več bran).
     const sessionLocId = scope.locationId
-    let certPath = settings.fursCertPath
-    let certPassword = settings.fursCertPassword
-    let environment = settings.fursEnvironment
+    let certPath = ''
+    let certPassword = ''
+    let environment = ''
     if (sessionLocId) {
       const location = await db.location.findUnique({
         where: { id: sessionLocId },

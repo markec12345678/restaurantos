@@ -68,7 +68,11 @@ export async function GET(req: Request) {
 
     // FIX SECURITY: maskiraj fursCertPassword v odgovoru
     // (prejšnja koda je vračala polno vrstico vključno z geslom certifikata)
-    const _maskedLocations = locations.map(maskLocationSecrets)
+    // R125 (issue #37): hasFursCert flag SEŠTEJE pred maskiranjem — UI bere
+    // FURS stanje lokacije (Location je edini vir FURS konfiguracije).
+    const withFursFlag = <T extends { fursCertPath?: string | null; fursCertPassword?: string | null }>(l: T) =>
+      ({ ...l, hasFursCert: !!(l.fursCertPath && l.fursCertPassword) })
+    const _maskedLocations = locations.map(l => maskLocationSecrets(withFursFlag(l)))
 
     // FIX R86-2c1 (cross-tenant aggregate leak): števeci so bili VEDNO
     // globalni (db.location.count() brez filtra) — lokacijsko vezan admin je
@@ -80,7 +84,7 @@ export async function GET(req: Request) {
     const openNow = await db.location.count({ where: { ...statsWhere, isOpen: true, isActive: true } })
 
     return NextResponse.json({
-      locations: locations.map(maskLocationSecrets),
+      locations: locations.map(l => maskLocationSecrets(withFursFlag(l))),
       stats: { total: totalLocations, active: activeLocations, open: openNow },
     })
   } catch (error: unknown) {

@@ -106,19 +106,21 @@ export async function GET(
     const twelveMonthsAgo = new Date()
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12)
 
-    const [shifts, timeEntries] = await Promise.all([
-      db.shift.findMany({
-        where: { employeeId, date: { gte: twelveMonthsAgo } },
+    // ISSUE #36 R125: legacy Shift model ukinjen — izvoz bere StaffShift;
+    // shiftDate se v JS preslika nazaj v `date`, da oblika izvoza ostane identična.
+    const [staffShiftRows, timeEntries] = await Promise.all([
+      db.staffShift.findMany({
+        where: { employeeId, shiftDate: { gte: twelveMonthsAgo } },
         select: {
           id: true,
-          date: true,
+          shiftDate: true,
           startTime: true,
           endTime: true,
           status: true,
           breakMinutes: true,
           createdAt: true,
         },
-        orderBy: { date: 'desc' },
+        orderBy: { shiftDate: 'desc' },
         take: 365, // zadnje leto
       }),
       db.timeEntry.findMany({
@@ -134,6 +136,7 @@ export async function GET(
         take: 365,
       }),
     ])
+    const shifts = staffShiftRows.map(({ shiftDate, ...rest }) => ({ ...rest, date: shiftDate }))
 
     // ─── 3. Naročila, ki jih je ustvaril (zadnjih 12 mesecev) ─
     const orders = await db.order.findMany({

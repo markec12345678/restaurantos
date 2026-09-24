@@ -74,8 +74,10 @@ vi.mock('@/lib/db', () => ({
   createAuditLog: vi.fn().mockResolvedValue(undefined),
 }))
 
-// api-utils: validateRequest = lahek JSON parse (shema-validacija ni predmet
-// te wave-e); handleApiError passthrough (isti vzorec kot r89-token-rotate).
+// api-utils: validateRequest/parseJsonBody = lahek JSON parse (shema-validacija
+// ni predmet te wave-e); validateBody passthrough (R125: locations/[id] PUT je
+// prešel na parseJsonBody+validateBody zaradi mask-keep _clear flag-ov);
+// handleApiError passthrough (isti vzorec kot r89-token-rotate).
 vi.mock('@/lib/api-utils', () => ({
   handleApiError: vi.fn((_e: unknown, _ctx: string, msg: string) =>
     new Response(JSON.stringify({ error: msg }), { status: 500, headers: { 'content-type': 'application/json' } })),
@@ -87,7 +89,15 @@ vi.mock('@/lib/api-utils', () => ({
       return { data: null, error: new Response(JSON.stringify({ error: 'Neveljavni podatki' }), { status: 400 }) }
     }
   }),
-  parseJsonBody: vi.fn(),
+  parseJsonBody: vi.fn(async (req: Request) => {
+    try {
+      const text = await req.text()
+      return { data: text ? JSON.parse(text) : {}, error: null }
+    } catch {
+      return { data: null, error: new Response(JSON.stringify({ error: 'Neveljavni podatki' }), { status: 400 }) }
+    }
+  }),
+  validateBody: vi.fn((_schema: unknown, data: unknown) => ({ data, error: null })),
 }))
 
 // Route importi (PO mockih); tenant-scope + secret-masks + ordering-token +

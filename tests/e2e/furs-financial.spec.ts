@@ -63,7 +63,7 @@ test.describe('FURS & Financial Correctness', () => {
     expect([200, 401, 403, 429]).toContain(res.status())
     if (res.ok()) {
       const body = await res.json().catch(() => ({}))
-      expect(['location', 'restaurant-settings', 'env', 'missing']).toContain(body.source)
+      expect(['location', 'env', 'missing']).toContain(body.source)
     }
   })
 

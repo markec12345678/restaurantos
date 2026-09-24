@@ -15,9 +15,10 @@ export const updateSettingsSchema = z.object({
   businessId: z.string().max(50).optional(),
   taxId: z.string().max(50).optional(),
   registerNumber: z.string().max(50).optional(),
-  fursCertPath: z.string().max(500).optional(),
-  fursCertPassword: z.string().max(200).optional(),
-  fursEnvironment: z.enum(['test', 'production']).optional(),
+  // R125 (issue #37): fursCertPath/fursCertPassword/fursEnvironment ODSTRANJENI —
+  // Location je edini vir FURS konfiguracije (settings polja so MRTVA; migration
+  // 0012_furs_location_only). Zod strips unknown keys → legacy klienti, ki polja
+  // še pošiljajo, jih nevede posredujejo = varna backward compat.
   // Task 24: CIS (Hrvaška fiskalizacija — FINA P12) — zrcali FURS polja
   cisCertPath: z.string().max(500).optional(),
   cisCertPassword: z.string().max(200).optional(),

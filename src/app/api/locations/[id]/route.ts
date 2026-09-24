@@ -10,7 +10,7 @@ import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rat
 // R93-b: enoten 429 helper (rate-limit/response.ts) — DIREKTEN import, ne barrel:
 // testi mockajo '@/lib/rate-limit' z vi.hoisted, direkten path teče realen helper.
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
-import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { updateLocationSchema } from './_helpers'
 import { maskLocationSecrets } from '@/lib/secret-masks'
 import { isWithinScope, notInScopeResponse, resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
@@ -98,8 +98,10 @@ export async function GET(
     })
 
     // FIX SECURITY: maskiraj fursCertPassword + fursCertPath pred vračanjem klientu
+    // R125 (issue #37): hasFursCert flag SEŠTEJE pred maskiranjem — UI bere FURS
+    // stanje lokacije (Location je edini vir FURS konfiguracije).
     return NextResponse.json({
-      ...maskLocationSecrets(location),
+      ...maskLocationSecrets({ ...location, hasFursCert: !!(location.fursCertPath && location.fursCertPassword) }),
       todayStats: {
         totalSales: todayStats._sum.total || 0,
         totalTips: todayStats._sum.tip || 0,
@@ -141,8 +143,35 @@ export async function PUT(
     const denied = guardLocationScope(authResult.session, id)
     if (denied) return denied
 
-    const { data, error: validationError } = await validateRequest(req, updateLocationSchema)
+    // R125: parseJsonBody + validateBody (namesto validateRequest) — raw body je
+    // potreben za _clearCertPassword/_clearCertPath flag-e (mask-keep vzorec).
+    const bodyResult = await parseJsonBody(req)
+    if (bodyResult.error) return bodyResult.error
+    const body = bodyResult.data as Record<string, unknown>
+    const { data, error: validationError } = validateBody(updateLocationSchema, bodyResult.data)
     if (validationError) return validationError
+
+    // R125 (issue #37): FURS cert polja na Location — mask-keep vzorec (zrcali
+    // /api/settings): maskirana vrednost iz GET ('****' iz maskLocationSecrets oz.
+    // legacy '••••••') NE sme prepisati shranjene skrivnosti;
+    // prazen string ohrani staro, razen z eksplicitnim _clear flag-om.
+    const updateData: Record<string, unknown> = { ...data }
+    if (updateData.fursCertPassword === '••••••' || updateData.fursCertPassword === '****') {
+      delete updateData.fursCertPassword
+    }
+    if (updateData.fursCertPassword === '' && body._clearCertPassword === true) {
+      updateData.fursCertPassword = '' // eksplicitno počiščenje
+    } else if (updateData.fursCertPassword === '') {
+      delete updateData.fursCertPassword // ohrani staro, če ni ekspliciten _clear
+    }
+    if (updateData.fursCertPath === '••••••' || updateData.fursCertPath === '****') {
+      delete updateData.fursCertPath
+    }
+    if (updateData.fursCertPath === '' && body._clearCertPath === true) {
+      updateData.fursCertPath = '' // eksplicitno počiščenje
+    } else if (updateData.fursCertPath === '') {
+      delete updateData.fursCertPath // ohrani staro, če ni ekspliciten _clear
+    }
 
     // Preveri, da lokacija obstaja
     const existing = await db.location.findUnique({ where: { id } })
@@ -160,7 +189,7 @@ export async function PUT(
 
     const location = await db.location.update({
       where: { id },
-      data,
+      data: updateData as typeof data,
     })
 
     // FIX SECURITY: maskiraj fursCertPassword + fursCertPath v odgovoru

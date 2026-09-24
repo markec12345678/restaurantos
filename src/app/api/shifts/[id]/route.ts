@@ -8,6 +8,10 @@ import { deepToNumbers } from '@/lib/decimal'
 
 export const dynamic = 'force-dynamic'
 
+// ISSUE #36 R125 (Faza 2): legacy Shift model je UKINJEN — PUT/DELETE pišeta
+// v StaffShift. Kontrakt ostane kompatibilen: `date` (legacy) se preslika v
+// StaffShift.shiftDate in v odgovoru vrne kot alias poleg shiftDate.
+
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authResult = await requireAuth(req, { permission: 'manage_employees' })
@@ -30,7 +34,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       endpoint: 'PUT /api/shifts/[id]',
     })
     if ('error' in scope) return scope.error
-    const existing = await db.shift.findFirst({
+    const existing = await db.staffShift.findFirst({
       where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!existing) {
@@ -38,15 +42,18 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     const updateData: Record<string, unknown> = {}
-    if (data.date !== undefined) updateData.date = new Date(data.date)
+    if (data.date !== undefined) updateData.shiftDate = new Date(data.date) // ISSUE #36 R125: date → shiftDate
     if (data.startTime !== undefined) updateData.startTime = data.startTime
     if (data.endTime !== undefined) updateData.endTime = data.endTime
     if (data.status !== undefined) updateData.status = data.status
     if (data.jobId !== undefined) updateData.jobId = data.jobId || null
     if (data.breakMinutes !== undefined) updateData.breakMinutes = data.breakMinutes
     if (data.notes !== undefined) updateData.notes = data.notes
+    // ISSUE #36 R125: StaffShift polja (superset parity)
+    if (data.shiftType !== undefined) updateData.shiftType = data.shiftType
+    if (data.role !== undefined) updateData.role = data.role
 
-    const shift = await db.shift.update({
+    const shift = await db.staffShift.update({
       where: { id },
       data: updateData,
       include: {
@@ -54,7 +61,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         job: { select: { id: true, name: true, basePayRate: true } },
       },
     })
-    return NextResponse.json(deepToNumbers(shift))
+    // Back-compat kontrakt: legacy UI bere `date`
+    return NextResponse.json(deepToNumbers({ ...shift, date: shift.shiftDate }))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/shifts/[id]', 'Napaka pri posodobitvi izmene')
   }
@@ -74,7 +82,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       endpoint: 'DELETE /api/shifts/[id]',
     })
     if ('error' in scope) return scope.error
-    const shift = await db.shift.findFirst({
+    const shift = await db.staffShift.findFirst({
       where: { id, ...(scope.locationId ? { locationId: scope.locationId } : {}) },
     })
     if (!shift) {
@@ -82,7 +90,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     }
 
     // FIX MEDIUM: Soft-delete namesto hard-delete — ohrani evidenco za plačilne izračune
-    await db.shift.update({ where: { id }, data: { status: 'cancelled' } })
+    // (StaffShift status 'cancelled' — enako semantiko kot legacy Shift)
+    await db.staffShift.update({ where: { id }, data: { status: 'cancelled' } })
     return NextResponse.json({ success: true, message: 'Izmena preklicana' })
   } catch (error: unknown) {
     return handleApiError(error, 'DELETE /api/shifts/[id]', 'Napaka pri brisanju izmene')

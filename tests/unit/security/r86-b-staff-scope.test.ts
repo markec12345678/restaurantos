@@ -100,6 +100,10 @@ vi.mock('@/lib/db', () => ({
       findFirst: mocks.staffShiftFindFirst,
       create: mocks.staffShiftCreate,
       update: mocks.staffShiftUpdate,
+      // ISSUE #36 R125: GDPR export bere izmene prek StaffShift.findMany,
+      // anonymize števec pa prek StaffShift.count
+      findMany: vi.fn().mockResolvedValue([]),
+      count: mocks.shiftCount,
       // R103: PATCH/DELETE [id] → CAS updateMany / scoped deleteMany
       updateMany: mocks.staffShiftUpdateMany,
       deleteMany: mocks.staffShiftDeleteMany,
@@ -107,6 +111,7 @@ vi.mock('@/lib/db', () => ({
       delete: mocks.staffShiftDelete,
     },
     shift: { findFirst: mocks.shiftFindFirst, update: mocks.shiftUpdate, count: mocks.shiftCount, findMany: vi.fn().mockResolvedValue([]) },
+
     timeEntry: { findFirst: mocks.timeEntryFindFirst, update: mocks.timeEntryUpdate, updateMany: mocks.timeEntryUpdateMany, findUnique: mocks.timeEntryFindUnique, count: vi.fn().mockResolvedValue(0), findMany: vi.fn().mockResolvedValue([]) },
     order: { findMany: vi.fn().mockResolvedValue([]) },
     payment: { findMany: vi.fn().mockResolvedValue([]) },

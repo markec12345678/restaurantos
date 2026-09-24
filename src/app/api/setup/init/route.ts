@@ -137,7 +137,9 @@ export async function POST(req: Request) {
         name: data.restaurantName, address: data.locationAddress, postCode: data.locationPostCode,
         city: data.locationCity, country: 'SI', phone: data.locationPhone, email: data.locationEmail || '',
         businessId: data.businessId, taxId: data.taxId, registerNumber: data.registerNumber,
-        fursEnvironment: data.fursEnvironment, isActive: true,
+        // R125 (issue #37): fursEnvironment se NE piše več na Settings (MRTVA polja,
+        // Location-only fiskalizacija) — nastavi se na lokaciji zgoraj.
+        isActive: true,
       },
     })
 

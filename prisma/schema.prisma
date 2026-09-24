@@ -779,7 +779,7 @@ model Employee {
   // poviša; vse seje s stare različico takoj postanejo neveljavne (revocation).
   sessionVersion Int @default(0)
   // --- Relations ---
-  shifts       Shift[]
+  // ISSUE #36 (R125): Shift model odstranjen — StaffShift je edini model izmen.
   staffShifts  StaffShift[]
   availability StaffAvailability[]
   timeOffRequests TimeOffRequest[]
@@ -823,7 +823,8 @@ model Job {
   sortOrder   Int      @default(0)
   // --- Relations ---
   employees   EmployeeJob[]
-  shifts      Shift[]
+  // ISSUE #36 (R125): Shift model odstranjen — Job je vezan prek StaffShift.jobId.
+  staffShifts StaffShift[]
   timeEntries TimeEntry[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -849,38 +850,15 @@ model EmployeeJob {
   @@index([jobId])  // FIX: FK index — "kateri zaposleni imajo to delovno mesto?"
 }
 
-// ⚠️ ISSUE #36 @deprecated: Uporabljaj StaffShift model namesto Shift.
-// StaffShift je bolj bogat (shiftType, role, actualStart/End, confirmedAt, createdBy)
-// in je primarni model za razporejanje osebja. Shift se ohranja za backward
-// compat — getUnifiedShifts() helper združi oba v skupen format.
-// Načrtovano odstranjevanje: v1.0.0 release (po migration period).
-model Shift {
-  id         String   @id @default(cuid())
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade) // FIX: Restrict — ohrani plačilno zgodovino (soft-delete preko status='cancelled')
-  jobId      String?
-  job        Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull, onUpdate: SetNull)
-  date       DateTime
-  startTime  String   @default("09:00")
-  endTime    String   @default("17:00")
-  status     String   @default("scheduled") // scheduled, in_progress, completed, absent
-  // --- Toast: Break Types ---
-  breakMinutes Int    @default(30) // Skupaj minut odmora
-  notes      String   @default("")
-  // --- Multi-location (FIX: izmene so na lokaciji) ---
-  locationId String?
-  location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+// ISSUE #36 (R125, migracija 0011_shift_dedup): model Shift je UKINJEN.
+// Vse vrstice so preseljene v StaffShift (date→shiftDate, absent→no_show,
+// jobId→jobId); /api/shifts je kompatibilni sloj nad StaffShift. TimeEntry je
+// vir dogodkov prijava/odjava (clock-in/out); StaffShift.actualStart/End je
+// izračunano/plačano okno izmene — sinhronizirano iz TimeEntry ob clock-out.
 
-  @@index([employeeId])
-  @@index([date])
-  @@index([status])
-  @@index([employeeId, date]) // Index for shift queries
-  @@index([jobId])             // FIX: FK index — poizvedbe po delovnem mestu
-  @@index([locationId]) // FIX: per-lokacija izmene
-}
-
+// ISSUE #36 (R125): TimeEntry je VIR dogodkov prijava/odjava (clock-in/out).
+// StaffShift.actualStart/actualEnd je izračunano/plačano okno izmene —
+// sinhronizirano iz TimeEntry ob clock-out (src/app/api/time-entries).
 model TimeEntry {
   id          String   @id @default(cuid())
   employeeId  String
@@ -1542,11 +1520,11 @@ model RestaurantSettings {
   taxId             String   @default("")           // ID za DDV (SIxxxxxxxxx)
   registerNumber    String   @default("BLG-001")    // Številka blagajne
   // --- FURS certifikat ---
-  // ⚠️ ISSUE #37 @deprecated: FURS konfiguracija je sedaj na Location modelu
-  // (per-lokacija). Ta polja se uporabljajo samo kot fallback v buildFursConfigFromSettings()
-  // za single-tenant backward compat. V multi-tenant deploy mora vsaka lokacija
-  // imeti svoj premisesId + fursCertPath + fursCertPassword v Location modelu.
-  // Načrtovano odstranjevanje: v1.0.0 release (po migration period).
+  // ⚠️ ISSUE #37 (R125, migracija 0012_furs_location_only): MRTVA polja —
+  // FURS konfiguracija se bere IZKLJUČNO iz Location modela (per-lokacija;
+  // FURS zahteva registracijo vsakega poslovnega prostora posebej). Vrednosti so
+  // preseljene na Location v migraciji 0012; koda jih ne bere/ne piše več.
+  // Odstranjevanje polj: v1.0.0 schema cleanup.
   fursCertPath      String   @default("")
   fursCertPassword  String   @default("")
   fursEnvironment   String   @default("test")
@@ -1659,7 +1637,7 @@ model Location {
   menus            Menu[]
   // --- Multi-location relations (FIX: per-lokacija evidence) ---
   haccpEntries     HaccpEntry[]
-  shifts           Shift[]
+  // ISSUE #36 (R125): Shift model odstranjen — izmene so StaffShift (locationId).
   timeEntries      TimeEntry[]
   purchaseOrders   PurchaseOrder[]
   taxRates         TaxRate[]
@@ -1896,6 +1874,9 @@ model StaffShift {
   location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Vloga ---
   role            String   @default("server")  // server, chef, bartender, host, manager, prep, dishwasher
+  // --- Delovno mesto (ISSUE #36 R125: iz legacy Shift — superset parity) ---
+  jobId           String?
+  job             Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // --- Opombe ---
   notes           String   @default("")
   // --- Status ---
@@ -1917,6 +1898,7 @@ model StaffShift {
   @@index([locationId])
   @@index([status])
   @@index([shiftType])
+  @@index([jobId]) // ISSUE #36 R125: FK index — poizvedbe po delovnem mestu
   @@index([employeeId, shiftDate]) // Index for staff shift queries
   // FIX SCHEMA-10: Composite index za StaffShift — aktivne izmene danes
   @@index([status, shiftDate])

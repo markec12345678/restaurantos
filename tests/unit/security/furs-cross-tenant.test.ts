@@ -138,16 +138,18 @@ describe('P0-C3A: Cross-Tenant FURS Config Regression', () => {
       expect(result.fursConfig?.certPath).not.toBe('/certs/loc-b.p12')
     })
 
-    it('brez locationId: fallback na RestaurantSettings (single-tenant compat)', async () => {
+    it('R125: brez locationId → NI fallbacka na RestaurantSettings (settings.furs* MRTVA)', async () => {
       // Auto-detect: prva aktivna lokacija = null (simulira single-tenant brez lokacij)
       mockLocationFindFirst.mockResolvedValue(null)
       mockRestaurantSettingsFindFirst.mockResolvedValue(settingsGlobal)
 
       const result = await getFursConfig(null)
 
-      // Source mora biti 'restaurant-settings' (fallback), ne 'location'
-      expect(result.source).toBe('restaurant-settings')
-      expect(result.fursConfig?.taxId).toBe('SI-GLOBAL')
+      // R125 (issue #37): settings fallback odstranjen — legacy globalni cert se
+      // ignorira tudi, ko je nastavljen (migration 0012 je vrednosti prenesel na lokacije)
+      expect(result.source).toBe('missing')
+      expect(result.fursConfig).toBeNull()
+      expect(mockRestaurantSettingsFindFirst).not.toHaveBeenCalled()
     })
   })
 

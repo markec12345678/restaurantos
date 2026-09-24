@@ -1,9 +1,17 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Badge } from '@/components/ui/badge'
 import { MapPinned, Monitor } from 'lucide-react'
 import { getCountryConfig } from '@/lib/country-config'
+import { authFetch } from '@/components/pos/PinLogin'
+import { readDeviceLocation } from '@/components/pos/pin-login/resolveDeviceLocation'
+import {
+  FURS_LOCATIONS_KEY,
+  normalizeLocationsResponse,
+  pickCurrentLocation,
+} from '../furs/constants'
 import type { SettingsStatusBarProps } from './constants'
 
 // --- Komponenta ---
@@ -21,7 +29,28 @@ export const SettingsStatusBar = memo(function SettingsStatusBar({
   // ozaveščeni (fiskalni modul je določen z izbrano državo)
   const isCisCountry = currentCountryCode === 'HR'
   const fiscalStatus = isCisCountry ? cisStatus : fursStatus
-  const fiscalEnvironment = isCisCountry ? form.cisEnvironment : form.fursEnvironment
+
+  // ISSUE #37 R125: fiskalno okolje za SI pride iz LOKACIJE (per poslovni prostor)
+  // — isti vir kot FursTab/FursManager (device binding > prva aktivna lokacija).
+  // CIS (HR) ostane na settings formi (cisEnvironment).
+  const [deviceLocationId, setDeviceLocationId] = useState<string | null | undefined>(undefined)
+  useEffect(() => {
+    const timer = setTimeout(() => setDeviceLocationId(readDeviceLocation()), 0)
+    return () => clearTimeout(timer)
+  }, [])
+
+  const { data: locations } = useQuery({
+    queryKey: FURS_LOCATIONS_KEY,
+    queryFn: async () => {
+      const res = await authFetch('/api/locations')
+      if (!res.ok) throw new Error(`Locations failed (${res.status})`)
+      return normalizeLocationsResponse(await res.json())
+    },
+    enabled: !isCisCountry,
+  })
+
+  const fursLocation = pickCurrentLocation(locations ?? [], deviceLocationId)
+  const fiscalEnvironment = isCisCountry ? form.cisEnvironment : fursLocation?.fursEnvironment
 
   return (
     <div className="flex items-center justify-between text-xs text-muted-foreground border-t pt-4">

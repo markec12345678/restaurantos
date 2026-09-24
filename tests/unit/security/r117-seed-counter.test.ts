@@ -51,6 +51,8 @@ vi.mock('@/lib/db', () => ({
     employee: { upsert: mocks.employeeUpsert },
     inventoryItem: { create: mocks.inventoryItemCreate },
     shift: { create: mocks.shiftCreate },
+    // ISSUE #36 R125: demo seed ustvarja izmene prek StaffShift
+    staffShift: { create: mocks.shiftCreate },
     order: { create: mocks.orderCreate, findFirst: mocks.orderFindFirst },
   },
   createAuditLog: vi.fn().mockResolvedValue(undefined),

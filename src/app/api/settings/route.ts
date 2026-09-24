@@ -21,6 +21,7 @@ import { updateSettingsSchema } from '@/lib/validations'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
+import { logger } from '@/lib/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,6 +74,10 @@ export async function GET(req: Request) {
       // apiKeys ni valid JSON — ignore
     }
 
+    // R125 (issue #37): maskirana fursCert*/fursEnvironment v odgovoru so
+    // DEPRECATED read-only legacy echo (vrednosti ostanejo od pred migracijo
+    // 0012; fiskalizacija jih NIKOLI več uporablja — Location je edini vir).
+    // UI naj FURS stanje bere prek /api/locations (hasFursCert flag).
     return NextResponse.json({
       ...safeSettings,
       fursCertPassword: fursCertPassword ? '••••••' : '',
@@ -140,9 +145,8 @@ export async function PUT(req: Request) {
           businessId: data.businessId || '',
           taxId: data.taxId || '',
           registerNumber: data.registerNumber || 'BLG-001',
-          fursCertPath: data.fursCertPath || '',
-          fursCertPassword: data.fursCertPassword || '',
-          fursEnvironment: data.fursEnvironment || 'test',
+          // R125 (issue #37): fursCert* / fursEnvironment se NE pišejo več na
+          // Settings (MRTVA polja, DB defaulti) — FURS konfiguracija živi na Location.
           cisCertPath: data.cisCertPath || '',
           cisCertPassword: data.cisCertPassword || '',
           cisEnvironment: data.cisEnvironment || 'test',
@@ -160,23 +164,20 @@ export async function PUT(req: Request) {
     } else {
       // FIX MEDIUM: Ne shrani maskirane vrednosti — ohrani staro (razen če je _clear poslan)
       const updateData = { ...data }
-      if (updateData.fursCertPassword === '••••••') {
-        delete updateData.fursCertPassword
+      // R125 (issue #37): FURS polja na Settings so MRTVA — Location je EDINI vir
+      // FURS konfiguracije (migration 0012_furs_location_only). Vsak update jih
+      // STRIPA pred persisto; Zod shema jih že odstrani (unknown keys) — delete je
+      // obrambni. Legacy klienti (UI < R125) ostanejo kompatibilni (tiho ignorirano).
+      const legacyFursFields = ['fursCertPath', 'fursCertPassword', 'fursEnvironment'] as const
+      if (legacyFursFields.some(f => f in body)) {
+        logger.warn(
+          'API',
+          'FURS polja na Settings so deprecated — nastavite na lokaciji (Location). ' +
+            'Zahteva ignorirana (R125, issue #37).',
+        )
       }
-      // FIX HIGH: Omogoči počiščenje cert polj — prazen string z _clear flagom
-      if (updateData.fursCertPassword === '' && body._clearCertPassword === true) {
-        updateData.fursCertPassword = ''
-      } else if (updateData.fursCertPassword === '') {
-        delete updateData.fursCertPassword // Ohrani staro če ni ekspliciten _clear
-      }
-      if (updateData.fursCertPath === '••••••') {
-        delete updateData.fursCertPath
-      }
-      // FIX HIGH: Omogoči počiščenje cert poti — prazen string z _clear flagom
-      if (updateData.fursCertPath === '' && body._clearCertPath === true) {
-        updateData.fursCertPath = ''
-      } else if (updateData.fursCertPath === '') {
-        delete updateData.fursCertPath // Ohrani staro če ni ekspliciten _clear
+      for (const f of legacyFursFields) {
+        delete (updateData as Record<string, unknown>)[f]
       }
       // Task 24: CIS cert polja — zrcali FURS mask/clear vzorec
       if (updateData.cisCertPassword === '••••••') {
@@ -256,6 +257,8 @@ export async function PUT(req: Request) {
       // apiKeys ni valid JSON — ignore
     }
 
+    // R125 (issue #37): maskirana furs polja v odgovoru = deprecated read-only
+    // legacy echo (nikoli več uporabljena za fiskalizacijo; UI bere /api/locations).
     return NextResponse.json({
       ...safeSettings,
       fursCertPassword: fursCertPassword ? '••••••' : '',

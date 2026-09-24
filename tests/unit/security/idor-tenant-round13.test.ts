@@ -475,16 +475,18 @@ describe('Webhooks [id] — cross-tenant zaščita (location-scoped admin)', () 
 // 8) SHIFTS — manage_employees uporabnik
 // ============================================
 describe('Shifts [id] — cross-tenant zaščita', () => {
+  // ISSUE #36 R125: /api/shifts/[id] DELETE bere/piše StaffShift — mocki
+  // staffShiftFindFirst/staffShiftUpdate (trap staffShift ključ)
   it('DELETE: manager lokacije A ne more preklicati izmene lokacije B (404)', async () => {
-    mocks.shiftFindFirst.mockResolvedValue(null)
+    mocks.staffShiftFindFirst.mockResolvedValue(null)
 
     const res = await shiftDelete(makeReq('DELETE'), params('shift-b'))
 
     expect(res.status).toBe(404)
-    expect(mocks.shiftFindFirst).toHaveBeenCalledWith(
+    expect(mocks.staffShiftFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ id: 'shift-b', locationId: LOC_A }) }),
     )
-    expect(mocks.shiftUpdate).not.toHaveBeenCalled()
+    expect(mocks.staffShiftUpdate).not.toHaveBeenCalled()
   })
 })
 

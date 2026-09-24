@@ -5,6 +5,7 @@ import { updateTimeEntrySchema } from '@/lib/validations'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
 import { toNum, round2, multiply, deepToNumbers } from '@/lib/decimal'
+import { syncActualTimesFromTimeEntry } from '@/lib/scheduling/actual-times-sync'
 
 export const dynamic = 'force-dynamic'
 
@@ -95,6 +96,19 @@ export async function PUT(
         job: { select: { id: true, name: true } },
       },
     })
+
+    // ISSUE #36 R125: sinhronizacija dejanskih časov v StaffShift ob clock-out
+    // (updateData.clockOut je vedno nastavljen, ko je bil data.clockOut prisoten).
+    // Helper je notranje toleranten (try/catch + logger.warn) — nikoli ne
+    // prelomi clock-out odgovora in ne spreminja statusa izmene.
+    if (updateData.clockOut instanceof Date && existingEntry.employeeId) {
+      await syncActualTimesFromTimeEntry({
+        employeeId: existingEntry.employeeId,
+        clockIn: existingEntry.clockIn,
+        clockOut: updateData.clockOut,
+        locationId: existingEntry.locationId ?? null,
+      })
+    }
 
     return NextResponse.json(deepToNumbers(timeEntry))
   } catch (error: unknown) {

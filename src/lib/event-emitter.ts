@@ -25,7 +25,7 @@ interface EventPayloadMap {
   'stock.low': { inventoryItemId: string; itemName: string; currentQty: number; minQty: number }
   'stock.critical': { inventoryItemId: string; itemName: string; currentQty: number; minQty: number }
   'stock.restocked': { inventoryItemId: string; itemName: string; newQty: number; previousQty: number }
-  'shift.started': { shiftId: string; employeeName: string; jobName: string }
+  'shift.started': { shiftId: string; employeeName: string; jobName: string; role?: string }
   'shift.ended': { shiftId: string; employeeName: string; totalMinutes: number }
   'cash_register.opened': { shiftId: string; employeeName: string; startingCash: number }
   'cash_register.closed': { shiftId: string; employeeName: string; totalSales: number; cashDifference: number }

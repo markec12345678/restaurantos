@@ -8,24 +8,29 @@ import { parseVatBreakdown } from '../shared'
 import { logger } from '@/lib/logger'
 
 // Zgradi FURS konfiguracijo iz nastavitev
-export function buildFursConfig(settings: {
+// R125 (issue #37): cert polja (fursCertPath/fursCertPassword/fursEnvironment) so
+// OPCIJONI in prihajajo IZKLJUČNO iz Location — klicatelj ne sme več padati na
+// settings.furs* (polja so MRTVA; migration 0012_furs_location_only). premisesId
+// prav tako iz lokacije (businessId heuristic fallback odstranjen).
+// `cfg` = vnaprej razrešen bag (identiteta: Location || Settings; cert polja: IZKLJUČNO Location)
+export function buildFursConfig(cfg: {
   businessId: string
   taxId: string
   registerNumber: string
-  fursCertPath: string
-  fursCertPassword: string
-  fursEnvironment: string
+  fursCertPath?: string
+  fursCertPassword?: string
+  fursEnvironment?: string
   premisesId?: string
 }): FursConfig {
   return {
-    businessId: settings.businessId || '',
-    taxId: settings.taxId || '',
-    registerId: settings.registerNumber || 'BLG-001',
-    premisesId: settings.premisesId || settings.businessId || '',
+    businessId: cfg.businessId || '',
+    taxId: cfg.taxId || '',
+    registerId: cfg.registerNumber || 'BLG-001',
+    premisesId: cfg.premisesId || '',
     deviceIp: '',
-    environment: (settings.fursEnvironment === 'production' ? 'production' : 'test') as FursConfig['environment'],
-    certPath: settings.fursCertPath || undefined,
-    certPassword: settings.fursCertPassword || undefined,
+    environment: (cfg.fursEnvironment === 'production' ? 'production' : 'test') as FursConfig['environment'],
+    certPath: cfg.fursCertPath || undefined,
+    certPassword: cfg.fursCertPassword || undefined,
   }
 }
 

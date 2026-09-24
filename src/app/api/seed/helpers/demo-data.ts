@@ -101,10 +101,15 @@ export async function seedDemoData(menuItems: { id: string; price: number; vatRa
       if (emp.status === 'inactive') continue
       const isWeekend = date.getDay() === 0 || date.getDay() === 6
       if (isWeekend && emp.role === 'staff') continue
-      await db.shift.create({
+      // ISSUE #36 R125: Shift model ukinjen — demo izmene gredo v StaffShift.
+      // shiftType rotira morning/afternoon/evening; role preslikana iz
+      // Employee.role (najbližja StaffShift vloga, privzeto 'server').
+      await db.staffShift.create({
         data: {
           employeeId: emp.id,
-          date,
+          shiftDate: date,
+          shiftType: ['morning', 'afternoon', 'evening'][i % 3],
+          role: emp.role === 'chef' ? 'chef' : emp.role === 'manager' || emp.role === 'admin' ? 'manager' : 'server',
           startTime: emp.role === 'chef' ? '07:00' : '09:00',
           endTime: emp.role === 'chef' ? '15:00' : '17:00',
           status: i === 0 ? 'completed' : 'scheduled',

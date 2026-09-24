@@ -165,7 +165,9 @@ vi.mock('@/lib/db', () => ({
     reservation: { findFirst: mockReservationFindFirst, findMany: mockReservationFindMany, update: mockReservationUpdate },
     table: { findFirst: mockTableFindFirst, updateMany: vi.fn() },
     employee: { findUnique: mockEmployeeFindUnique },
-    staffShift: { findFirst: mockStaffShiftFindFirst, create: mockStaffShiftCreate, findMany: vi.fn() },
+    // ISSUE #36 R125: tip-pool bere izmene prek StaffShift — isti mock
+    // kot prej legacy shift (assertiran where.locationId ostaja enak)
+    staffShift: { findFirst: mockStaffShiftFindFirst, create: mockStaffShiftCreate, findMany: mockShiftFindMany },
     timeEntry: { findFirst: mockTimeEntryFindFirst, create: mockTimeEntryCreate },
     supplier: { findUnique: mockSupplierFindUnique },
     virtualBrand: { findMany: mockVirtualBrandFindMany, findUnique: vi.fn(), create: vi.fn() },

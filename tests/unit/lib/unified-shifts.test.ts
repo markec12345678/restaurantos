@@ -1,35 +1,28 @@
 // ============================================
-// UNIFIED SHIFTS — Unit testi (Issue #36)
+// UNIFIED SHIFTS — Unit testi (Issue #36, Faza 2 / R125)
 //
 // Preverjamo:
-// - getUnifiedShifts združi Shift + StaffShift v en rezultat
-// - Filtri (employeeId, locationId, dateFrom/dateTo, status) delujejo
+// - getUnifiedShifts bere IZKLJUČNO StaffShift (legacy Shift model ukinjen)
+// - Vsak vnos: source='staff-shift', polna polja iz superset parity
+//   (shiftType, role, confirmedAt, actualStart/End, createdBy, jobId passthrough)
+// - Filtri (employeeId, locationId, dateFrom/dateTo → shiftDate, status) delujejo
 // - Sort po datumu je pravilen
-// - Polja iz StaffShift so null za Shift vnose (in obratno)
-// - getShiftSourceStats vrne števce in migration progress
+// - getShiftSourceStats: shift=0, total=staffShift, progress=100 (back-compat kontrakt)
 // ============================================
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
-  const mockShiftFindMany = vi.fn()
   const mockStaffShiftFindMany = vi.fn()
-  const mockShiftCount = vi.fn()
   const mockStaffShiftCount = vi.fn()
   return {
-    mockShiftFindMany,
     mockStaffShiftFindMany,
-    mockShiftCount,
     mockStaffShiftCount,
   }
 })
 
 vi.mock('@/lib/db', () => ({
   db: {
-    shift: {
-      findMany: mocks.mockShiftFindMany,
-      count: mocks.mockShiftCount,
-    },
     staffShift: {
       findMany: mocks.mockStaffShiftFindMany,
       count: mocks.mockStaffShiftCount,
@@ -44,24 +37,7 @@ import {
   type UnifiedShift,
 } from '@/lib/scheduling/unified-shifts'
 
-// Helper: mock Shift record
-const mockShiftRow = (overrides: Partial<Record<string, unknown>> = {}) => ({
-  id: 'shift-1',
-  employeeId: 'emp-1',
-  jobId: 'job-1',
-  date: new Date('2026-08-28T10:00:00Z'),
-  startTime: '09:00',
-  endTime: '17:00',
-  status: 'scheduled',
-  breakMinutes: 30,
-  notes: '',
-  locationId: null,
-  createdAt: new Date('2026-08-27T00:00:00Z'),
-  updatedAt: new Date('2026-08-27T00:00:00Z'),
-  ...overrides,
-})
-
-// Helper: mock StaffShift record
+// Helper: mock StaffShift record (superset parity — vključno z jobId)
 const mockStaffShiftRow = (overrides: Partial<Record<string, unknown>> = {}) => ({
   id: 'ss-1',
   employeeId: 'emp-1',
@@ -78,15 +54,15 @@ const mockStaffShiftRow = (overrides: Partial<Record<string, unknown>> = {}) => 
   actualEnd: null,
   breakMinutes: 30,
   createdBy: 'admin-1',
+  jobId: 'job-1',
   createdAt: new Date('2026-08-27T00:00:00Z'),
   updatedAt: new Date('2026-08-27T00:00:00Z'),
   ...overrides,
 })
 
-describe('getUnifiedShifts — Issue #36', () => {
+describe('getUnifiedShifts — Issue #36 Faza 2 (R125)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.mockShiftFindMany.mockResolvedValue([])
     mocks.mockStaffShiftFindMany.mockResolvedValue([])
   })
 
@@ -95,35 +71,31 @@ describe('getUnifiedShifts — Issue #36', () => {
     expect(result).toEqual([])
   })
 
-  it('združi Shift in StaffShift v en rezultat', async () => {
-    mocks.mockShiftFindMany.mockResolvedValue([mockShiftRow({ id: 'shift-1' })])
-    mocks.mockStaffShiftFindMany.mockResolvedValue([mockStaffShiftRow({ id: 'ss-1' })])
-
-    const result = await getUnifiedShifts()
-    expect(result).toHaveLength(2)
-    expect(result.map((r) => r.source).sort()).toEqual(['shift', 'staff-shift'])
-  })
-
-  it('Shift → source=shift, jobId nastavljen, shiftType=null', async () => {
-    mocks.mockShiftFindMany.mockResolvedValue([mockShiftRow({ id: 'shift-1', jobId: 'job-x' })])
-
-    const result = await getUnifiedShifts()
-    expect(result).toHaveLength(1)
-    const shift = result[0]
-
-    expect(shift.source).toBe('shift')
-    expect(shift.jobId).toBe('job-x')
-    expect(shift.shiftType).toBeNull()
-    expect(shift.role).toBeNull()
-    expect(shift.confirmedAt).toBeNull()
-    expect(shift.actualStart).toBeNull()
-    expect(shift.actualEnd).toBeNull()
-    expect(shift.createdBy).toBeNull()
-  })
-
-  it('StaffShift → source=staff-shift, shiftType in role nastavljena, jobId=null', async () => {
+  it('bere izključno StaffShift — en findMany klic, brez legacy modela', async () => {
     mocks.mockStaffShiftFindMany.mockResolvedValue([
-      mockStaffShiftRow({ id: 'ss-1', shiftType: 'evening', role: 'chef' }),
+      mockStaffShiftRow({ id: 'ss-1' }),
+      mockStaffShiftRow({ id: 'ss-2', shiftDate: new Date('2026-08-29T10:00:00Z') }),
+    ])
+
+    const result = await getUnifiedShifts()
+
+    expect(mocks.mockStaffShiftFindMany).toHaveBeenCalledTimes(1)
+    expect(result).toHaveLength(2)
+    expect(result.every((r: UnifiedShift) => r.source === 'staff-shift')).toBe(true)
+  })
+
+  it('StaffShift → source=staff-shift, vsa polja iz superset parity', async () => {
+    mocks.mockStaffShiftFindMany.mockResolvedValue([
+      mockStaffShiftRow({
+        id: 'ss-1',
+        shiftType: 'evening',
+        role: 'chef',
+        jobId: 'job-x',
+        confirmedAt: new Date('2026-08-27T18:00:00Z'),
+        actualStart: new Date('2026-08-28T17:55:00Z'),
+        actualEnd: new Date('2026-08-29T01:10:00Z'),
+        createdBy: 'admin-9',
+      }),
     ])
 
     const result = await getUnifiedShifts()
@@ -131,127 +103,102 @@ describe('getUnifiedShifts — Issue #36', () => {
     const shift = result[0]
 
     expect(shift.source).toBe('staff-shift')
+    expect(shift.date).toEqual(new Date('2026-08-28T10:00:00Z')) // date = shiftDate
     expect(shift.shiftType).toBe('evening')
     expect(shift.role).toBe('chef')
-    expect(shift.jobId).toBeNull()
-    expect(shift.confirmedAt).not.toBeNull()
-    expect(shift.createdBy).toBe('admin-1')
+    expect(shift.jobId).toBe('job-x') // pravi jobId (FK superset parity)
+    expect(shift.confirmedAt).toEqual(new Date('2026-08-27T18:00:00Z'))
+    expect(shift.actualStart).toEqual(new Date('2026-08-28T17:55:00Z'))
+    expect(shift.actualEnd).toEqual(new Date('2026-08-29T01:10:00Z'))
+    expect(shift.createdBy).toBe('admin-9')
+    expect(shift.startTime).toBe('06:00')
+    expect(shift.breakMinutes).toBe(30)
   })
 
-  it('filter po employeeId propagira v oba modela', async () => {
-    mocks.mockShiftFindMany.mockResolvedValue([])
-    mocks.mockStaffShiftFindMany.mockResolvedValue([])
-
+  it('filter po employeeId propagira v where', async () => {
     await getUnifiedShifts({ employeeId: 'emp-99' })
 
-    expect(mocks.mockShiftFindMany.mock.calls[0][0].where.employeeId).toBe('emp-99')
-    expect(mocks.mockStaffShiftFindMany.mock.calls[0][0].where.employeeId).toBe('emp-99')
+    const where = mocks.mockStaffShiftFindMany.mock.calls[0][0].where
+    expect(where.employeeId).toBe('emp-99')
   })
 
-  it('filter po locationId propagira v oba modela', async () => {
+  it('filter po locationId propagira v where', async () => {
     await getUnifiedShifts({ locationId: 'loc-x' })
 
-    expect(mocks.mockShiftFindMany.mock.calls[0][0].where.locationId).toBe('loc-x')
-    expect(mocks.mockStaffShiftFindMany.mock.calls[0][0].where.locationId).toBe('loc-x')
+    const where = mocks.mockStaffShiftFindMany.mock.calls[0][0].where
+    expect(where.locationId).toBe('loc-x')
   })
 
-  it('filter po status propagira v oba modela', async () => {
+  it('filter po status propagira v where', async () => {
     await getUnifiedShifts({ status: 'completed' })
 
-    expect(mocks.mockShiftFindMany.mock.calls[0][0].where.status).toBe('completed')
-    expect(mocks.mockStaffShiftFindMany.mock.calls[0][0].where.status).toBe('completed')
+    const where = mocks.mockStaffShiftFindMany.mock.calls[0][0].where
+    expect(where.status).toBe('completed')
   })
 
-  it('datumski filter: Shift.date, StaffShift.shiftDate', async () => {
+  it('datumski filter: dateFrom/dateTo → StaffShift.shiftDate', async () => {
     const dateFrom = new Date('2026-08-01')
     const dateTo = new Date('2026-08-31')
 
     await getUnifiedShifts({ dateFrom, dateTo })
 
-    const shiftWhere = mocks.mockShiftFindMany.mock.calls[0][0].where
-    const staffShiftWhere = mocks.mockStaffShiftFindMany.mock.calls[0][0].where
-
-    expect(shiftWhere.date.gte).toBe(dateFrom)
-    expect(shiftWhere.date.lte).toBe(dateTo)
-    expect(staffShiftWhere.shiftDate.gte).toBe(dateFrom)
-    expect(staffShiftWhere.shiftDate.lte).toBe(dateTo)
+    const where = mocks.mockStaffShiftFindMany.mock.calls[0][0].where
+    expect(where.shiftDate.gte).toBe(dateFrom)
+    expect(where.shiftDate.lte).toBe(dateTo)
   })
 
-  it('sort po datumu (skupaj)', async () => {
-    mocks.mockShiftFindMany.mockResolvedValue([
-      mockShiftRow({ id: 's3', date: new Date('2026-08-30T10:00:00Z') }),
-      mockShiftRow({ id: 's1', date: new Date('2026-08-28T10:00:00Z') }),
-    ])
+  it('brez datumskih filtrov ni shiftDate ključa v where', async () => {
+    await getUnifiedShifts({ employeeId: 'emp-1' })
+
+    const where = mocks.mockStaffShiftFindMany.mock.calls[0][0].where
+    expect(where.shiftDate).toBeUndefined()
+  })
+
+  it('sort po datumu', async () => {
     mocks.mockStaffShiftFindMany.mockResolvedValue([
-      mockStaffShiftRow({ id: 'ss2', shiftDate: new Date('2026-08-29T10:00:00Z') }),
+      mockStaffShiftRow({ id: 'ss-3', shiftDate: new Date('2026-08-30T10:00:00Z') }),
+      mockStaffShiftRow({ id: 'ss-1', shiftDate: new Date('2026-08-28T10:00:00Z') }),
+      mockStaffShiftRow({ id: 'ss-2', shiftDate: new Date('2026-08-29T10:00:00Z') }),
     ])
 
     const result = await getUnifiedShifts()
 
-    expect(result.map((r) => r.id)).toEqual(['s1', 'ss2', 's3'])
+    expect(result.map((r) => r.id)).toEqual(['ss-1', 'ss-2', 'ss-3'])
   })
 
-  it('paralelna poizvedba (Promise.all)', async () => {
-    mocks.mockShiftFindMany.mockResolvedValue([])
-    mocks.mockStaffShiftFindMany.mockResolvedValue([])
-
+  it('orderBy shiftDate asc je poslan bazi', async () => {
     await getUnifiedShifts()
 
-    expect(mocks.mockShiftFindMany).toHaveBeenCalledTimes(1)
-    expect(mocks.mockStaffShiftFindMany).toHaveBeenCalledTimes(1)
+    expect(mocks.mockStaffShiftFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { shiftDate: 'asc' } }),
+    )
   })
 })
 
-describe('getShiftSourceStats — migracijski dashboard', () => {
+describe('getShiftSourceStats — back-compat kontrakt po Fazi 2', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('vrne števce in progress', async () => {
-    mocks.mockShiftCount.mockResolvedValue(20)
+  it('shift=0, total=staffShift, migrationProgress=100 (legacy vir ne obstaja več)', async () => {
     mocks.mockStaffShiftCount.mockResolvedValue(80)
 
     const result = await getShiftSourceStats()
 
     expect(result).toEqual({
-      shift: 20,
+      shift: 0,
       staffShift: 80,
-      total: 100,
-      migrationProgress: 80.0,
+      total: 80,
+      migrationProgress: 100,
     })
+    expect(mocks.mockStaffShiftCount).toHaveBeenCalledTimes(1)
   })
 
-  it('100% če so vse izmene v StaffShift', async () => {
-    mocks.mockShiftCount.mockResolvedValue(0)
-    mocks.mockStaffShiftCount.mockResolvedValue(50)
-
-    const result = await getShiftSourceStats()
-    expect(result.migrationProgress).toBe(100)
-    expect(result.shift).toBe(0)
-  })
-
-  it('0% če so vse izmene v Shift', async () => {
-    mocks.mockShiftCount.mockResolvedValue(50)
-    mocks.mockStaffShiftCount.mockResolvedValue(0)
-
-    const result = await getShiftSourceStats()
-    expect(result.migrationProgress).toBe(0)
-  })
-
-  it('prazna baza → 100% (default, nič za migrirat)', async () => {
-    mocks.mockShiftCount.mockResolvedValue(0)
+  it('prazna baza → total 0 in 100%', async () => {
     mocks.mockStaffShiftCount.mockResolvedValue(0)
 
     const result = await getShiftSourceStats()
     expect(result.total).toBe(0)
     expect(result.migrationProgress).toBe(100)
-  })
-
-  it('zaokroži progress na 1 decimalno mesto', async () => {
-    mocks.mockShiftCount.mockResolvedValue(3)
-    mocks.mockStaffShiftCount.mockResolvedValue(7)
-
-    const result = await getShiftSourceStats()
-    expect(result.migrationProgress).toBe(70.0) // 7/10 = 70.0%
   })
 })

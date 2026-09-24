@@ -97,6 +97,8 @@ vi.mock('@/lib/db', () => ({
     receipt: { count: mocks.receiptCount },
     purchaseOrder: { create: mocks.purchaseOrderCreate },
     shift: { create: mocks.shiftCreate },
+    // ISSUE #36 R125: /api/shifts POST kreacija gre v StaffShift
+    staffShift: { create: mocks.shiftCreate },
     timeEntry: { findFirst: mocks.timeEntryFindFirst, create: mocks.timeEntryCreate },
     employee: { findUnique: mocks.employeeFindUnique },
     employeeJob: { findUnique: vi.fn().mockResolvedValue(null) },
@@ -232,7 +234,7 @@ describe('R87-4 A: /api/furs/cert-status — resolver takoj za requireAuth', () 
     expect(body.certificate.hasPassword).toBe(true)
   })
 
-  it('super-admin (vloga, NULL lokacija) → dokumentiran globalni settings pogled (brez location override)', async () => {
+  it('R125: super-admin (vloga, NULL lokacija) → env-only pogled (settings.furs* MRTVA, brez location override)', async () => {
     mockSession({ role: 'super_admin', locationId: null })
     const res = await certStatusGET(new Request('http://localhost:3000/api/furs/cert-status'))
     expect(res.status).toBe(200)
@@ -240,7 +242,11 @@ describe('R87-4 A: /api/furs/cert-status — resolver takoj za requireAuth', () 
     // count-i brez locationId ključa (nikoli { locationId: null })
     expect(Object.prototype.hasOwnProperty.call(mocks.receiptCount.mock.calls[0][0].where, 'locationId')).toBe(false)
     const body = await res.json()
-    expect(body.certificate.environment).toBe('test') // global settings fallback
+    // env fallback default (settings.fursEnvironment se ne bere več — R125, issue #37)
+    expect(body.certificate.environment).toBe('test')
+    // R125 dokaz: settings.fursCertPassword ('global-pw' v beforeEach mocku) se
+    // IGNORIRA — cert podatki prihajajo samo iz Location ali env
+    expect(body.certificate.hasPassword).toBe(false)
   })
 })
 

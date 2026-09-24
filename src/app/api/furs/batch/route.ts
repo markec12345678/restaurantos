@@ -91,14 +91,18 @@ export async function POST(req: Request) {
         })
       }
 
-      const premisesId = location?.premisesId || settings!.businessId || ''
+      // R125 (issue #37): FURS cert polja izključno iz Location — settings.furs*
+      // fallback odstranjen (polja so MRTVA; migration 0012 prenesla vrednosti na
+      // lokacije). Poslovna identiteta (businessId/taxId/registerNumber) sme še
+      // vedno pasti na Settings (NI del duplikata).
+      const premisesId = location?.premisesId || ''
       const config = buildFursConfig({
         businessId: location?.businessId || settings!.businessId,
         taxId: location?.taxId || settings!.taxId,
         registerNumber: location?.registerNumber || settings!.registerNumber,
-        fursCertPath: location?.fursCertPath || settings!.fursCertPath,
-        fursCertPassword: location?.fursCertPassword || settings!.fursCertPassword,
-        fursEnvironment: location?.fursEnvironment || settings!.fursEnvironment,
+        fursCertPath: location?.fursCertPath || '',
+        fursCertPassword: location?.fursCertPassword || '',
+        fursEnvironment: location?.fursEnvironment || '',
         premisesId,
       })
 
@@ -109,8 +113,9 @@ export async function POST(req: Request) {
         return entry
       }
 
-      const certPath = location?.fursCertPath || settings!.fursCertPath
-      const certPassword = location?.fursCertPassword || settings!.fursCertPassword
+      // R125 (issue #37): podpisni ključ izključno iz Location (settings.furs* MRTVA)
+      const certPath = location?.fursCertPath || ''
+      const certPassword = location?.fursCertPassword || ''
       const privateKey = (certPath && certPassword)
         ? loadCertificatePrivateKey(certPath, certPassword)
         : undefined

@@ -19,6 +19,9 @@ export interface SettingsData {
   businessId: string
   taxId: string
   registerNumber: string
+  // ISSUE #37 R125: legacy read-only echo — FURS UI zdaj bere Location
+  // (GET /api/locations; zapis prek PUT /api/locations/[id]). Ti polja ostanejo
+  // samo kot maskiran read-only odmev /api/settings (zapis ignorira furs*).
   fursCertPath: string
   fursCertPassword: string
   fursEnvironment: string
@@ -93,9 +96,12 @@ export interface TaxTabProps {
   bulkVatPending: boolean
 }
 
+/**
+ * ISSUE #37 R125: FURS konfiguracija je vezana na lokacijo (per poslovni
+ * prostor) — tab upravlja svojo Location FURS state (GET/PUT /api/locations)
+ * namesto polij settings forme; forma ne prenaša več form/updateField.
+ */
 export interface FursTabProps {
-  form: Partial<SettingsData>
-  updateField: (_field: string, _value: unknown) => void
   fursStatus: FursStatus
   onTestFursConnection: () => void
   currentCountryCode: CountryCode

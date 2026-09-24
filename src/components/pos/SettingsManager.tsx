@@ -142,7 +142,7 @@ export const SettingsManager = memo(function SettingsManager() {
           />
         </TabsContent>
 
-        {/* TAB: FISKALIZACIJA — FURS (SI) oz. CIS (HR, Task 24-c) */}
+        {/* TAB: FISKALIZACIJA — FURS (SI) oz. CIS (HR, Task 24-c); ISSUE #37 R125: FursTab ne dela več s settings formo — lastna Location FURS state */}
         <TabsContent value="fiscal" className="space-y-4 mt-4">
           {selectedCountry === 'HR' ? (
             <CisTab
@@ -157,8 +157,6 @@ export const SettingsManager = memo(function SettingsManager() {
             />
           ) : (
             <FursTab
-              form={form}
-              updateField={updateField}
               fursStatus={fursStatus}
               onTestFursConnection={testFursConnection}
               currentCountryCode={selectedCountry}

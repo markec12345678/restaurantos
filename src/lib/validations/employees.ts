@@ -48,6 +48,9 @@ export const updateEmployeeSchema = z.object({
 // IZMENE (Shifts)
 // ============================================
 
+// ISSUE #36 R125 (Faza 2): /api/shifts piše v StaffShift (Shift model ukinjen).
+// shiftType/role = StaffShift polja (superset parity) — legacy UI ju ne pošilja,
+// Zod defaulta 'custom'/'server' ohranita back-compat kontrakt.
 export const createShiftSchema = z.object({
   employeeId: cuid,
   jobId: z.string().nullable().optional(),
@@ -57,6 +60,8 @@ export const createShiftSchema = z.object({
   status: z.enum(['scheduled', 'in_progress', 'completed', 'absent']).default('scheduled'),
   breakMinutes: z.number().int().min(0).default(30),
   notes: z.string().max(500).default(''),
+  shiftType: z.enum(['morning', 'afternoon', 'evening', 'night', 'split', 'custom']).default('custom'),
+  role: z.enum(['server', 'chef', 'bartender', 'host', 'manager', 'prep', 'dishwasher']).default('server'),
 })
 
 export const updateShiftSchema = z.object({
@@ -67,6 +72,9 @@ export const updateShiftSchema = z.object({
   jobId: z.string().nullable().optional(),
   breakMinutes: z.number().int().min(0).max(480).optional(),
   notes: z.string().max(500).optional(),
+  // ISSUE #36 R125: StaffShift polja (opcionalno — undefined = brez spremembe)
+  shiftType: z.enum(['morning', 'afternoon', 'evening', 'night', 'split', 'custom']).optional(),
+  role: z.enum(['server', 'chef', 'bartender', 'host', 'manager', 'prep', 'dishwasher']).optional(),
 })
 
 // ============================================

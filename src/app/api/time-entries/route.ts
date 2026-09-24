@@ -8,6 +8,7 @@ import { toNum, round2, multiply, deepToNumbers } from '@/lib/decimal'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { isWithinScope, notInScopeResponse, resolveWriteLocationId } from '@/lib/tenant-scope'
 import { structuredErrorResponse } from '@/lib/structured-error'
+import { syncActualTimesFromTimeEntry } from '@/lib/scheduling/actual-times-sync'
 
 export const dynamic = 'force-dynamic'
 
@@ -197,6 +198,19 @@ export async function POST(req: Request) {
     }, {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     })
+
+    // ISSUE #36 R125: sinhronizacija dejanskih časov v StaffShift (vir resnice:
+    // TimeEntry = dogodki, StaffShift.actualStart/End = izračunano okno).
+    // Samo za vnose s clockOut; helper je notranje toleranten (try/catch +
+    // logger.warn) — nikoli ne prelomi clock-out odgovora in ne spreminja statusa.
+    if (clockOut) {
+      await syncActualTimesFromTimeEntry({
+        employeeId: data.employeeId,
+        clockIn,
+        clockOut,
+        locationId,
+      })
+    }
 
     return NextResponse.json(deepToNumbers(timeEntry), { status: 201 })
   } catch (error: unknown) {

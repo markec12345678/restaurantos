@@ -21,20 +21,36 @@ export function useShiftOverview() {
       const today = new Date().toISOString().split('T')[0]
 
       // Naloži razpored
-      const shiftRes = await authFetch(`/api/staff-shifts?date=${today}`)
-      const shiftData = await shiftRes.json()
+      // FIX R125 (najdba pri P4 dedup E2E): route /api/staff-shifts vrača
+      // { shifts, stats } (ne array) in podpira startDate/endDate (ne `date`).
+      // Prej: date filter tiho ignoriran + shiftData.map() TypeError → vedno
+      // prazen pregled izmen.
+      const shiftRes = await authFetch(`/api/staff-shifts?startDate=${today}&endDate=${today}`)
+      const shiftPayload = await shiftRes.json()
+      const shiftData = (
+        Array.isArray(shiftPayload)
+          ? shiftPayload
+          : Array.isArray(shiftPayload?.shifts)
+            ? shiftPayload.shifts
+            : []
+      ) as ShiftRow[]
 
       // Naloži zaposlene
+      // FIX R125: /api/employees in /api/time-entries vračata ovite objekta
+      // ({ employees, ... } / { timeEntries, ... }) — prej je `.find?.()` tiho
+      // odpadel (lookup v {} → ime = raw employeeId, urne evidence brez parov).
       const empRes = await authFetch('/api/employees')
-      const empData = await empRes.json()
+      const empPayload = await empRes.json()
+      const empData = Array.isArray(empPayload) ? empPayload : (empPayload?.employees ?? [])
 
       // Naloži časovne evidence
       const timeRes = await authFetch('/api/time-entries')
-      const timeData = await timeRes.json()
+      const timePayload = await timeRes.json()
+      const timeData = Array.isArray(timePayload) ? timePayload : (timePayload?.timeEntries ?? [])
 
-      const shiftEmployees: ShiftEmployee[] = (shiftData || []).map((shift: ShiftRow) => {
-        const emp = empData?.find?.((e: EmployeeRow) => e.id === shift.employeeId) || {}
-        const timeEntry = timeData?.find?.((t: TimeEntryRow) =>
+      const shiftEmployees: ShiftEmployee[] = shiftData.map((shift: ShiftRow) => {
+        const emp = empData.find((e: EmployeeRow) => e.id === shift.employeeId) || {}
+        const timeEntry = timeData.find((t: TimeEntryRow) =>
           t.employeeId === shift.employeeId &&
           t.clockIn && new Date(t.clockIn).toISOString().split('T')[0] === today
         )
@@ -73,7 +89,7 @@ export function useShiftOverview() {
           id: shift.employeeId || shift.id,
           name: emp.name || shift.employeeId || 'Neznan',
           role: emp.primaryJob || emp.role || shift.shiftType || 'Osebje',
-          shiftType: shift.shiftType || 'full',
+          shiftType: (shift.shiftType as ShiftEmployee['shiftType']) || 'full',
           shiftStart: shift.startTime || '08:00',
           shiftEnd: shift.endTime || '16:00',
           status,

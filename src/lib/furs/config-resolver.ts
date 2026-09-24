@@ -8,8 +8,13 @@
 // Ta modul centralizira logiko za izbiro prave FURS konfiguracije:
 //   1. Če je podan locationId → preberi iz te lokacije
 //   2. Drugače → preberi iz prve aktivne lokacije (auto-detect)
-//   3. Fallback → RestaurantSettings (single-tenant backward compat)
-//   4. Končni fallback → env spremenljivke (FURS_CERT_PATH, itd.)
+//   3. Fallback → env spremenljivke (FURS_CERT_PATH, itd.)
+//   4. Sicer → 'missing' (fail-closed 503)
+//
+// R125 (issue #37): RestaurantSettings FURS polja so MRTVA — Location je EDINI
+// vir per-lokacijske FURS konfiguracije. Legacy fallback na Settings je
+// odstranjen (migration 0012_furs_location_only je non-empty vrednosti prenesel
+// na aktivne lokacije, tako da nobena namestitev ne izgubi fiskalizacije).
 //
 // Uporaba:
 //   const config = await getFursConfig(locationId)
@@ -26,8 +31,8 @@ import { logger } from '@/lib/logger'
 export interface FursConfigResult {
   /** Pripravljen FursConfig (ali null če manjkajo obvezna polja) */
   fursConfig: FursConfig | null
-  /** Vir konfiguracije (za debug) */
-  source: 'location' | 'restaurant-settings' | 'env' | 'missing'
+  /** Vir konfiguracije (za debug) — R125: 'restaurant-settings' odstranjen (issue #37) */
+  source: 'location' | 'env' | 'missing'
   /** ID uporabljene lokacije (ali null) */
   locationId: string | null
   /** Napaka (če manjkajo obvezna polja) */
@@ -37,11 +42,13 @@ export interface FursConfigResult {
 /**
  * Pridobi FURS konfiguracijo za določeno lokacijo.
  *
- * Logika po prioriteti:
+ * Logika po prioriteti (R125, issue #37 — Location-only):
  * 1. Location z podanim locationId (multi-tenant)
  * 2. Prva aktivna Location (single-tenant auto-detect)
- * 3. RestaurantSettings (legacy fallback)
- * 4. env spremenljivke (zadnji fallback)
+ * 3. env spremenljivke (zadnji fallback)
+ * 4. 'missing' → 503 fail-closed
+ *
+ * RestaurantSettings fallback je ODSTRANJEN — settings.furs* polja so MRTVA.
  *
  * @param locationId - opcijsko ID lokacije. Če ni podan, se auto-detect-a prva aktivna.
  */
@@ -112,8 +119,8 @@ export async function getFursConfig(locationId?: string | null): Promise<FursCon
   // globalni RestaurantSettings/env. Prej: neveljaven/izbrisan locationId je utihnil
   // padel na globalni cert drugi lokacije → podpis računa s TUJIM certifikatom
   // (cross-tenant key use, napačen premisesId, ZOI/JWS mismatch, davčna kršitev).
-  // Lokacija, ki OBSTAJA ampak ni konfigurirana, ŠE VEDNO pade na settings fallback
-  // (single-tenant backward compat, issue #37) — spreminjamo samo invalid-location pot.
+  // R125 (issue #37): lokacija, ki OBSTAJA ampak ni konfigurirana, prav tako NE
+  // pade več na settings fallback (polja so MRTVA) — nadaljuje na env fallback / 'missing'.
   if (locationId && !location) {
     return {
       fursConfig: null,
@@ -130,48 +137,9 @@ export async function getFursConfig(locationId?: string | null): Promise<FursCon
     }
   }
 
-  // 3. Fallback na RestaurantSettings (single-tenant backward compat)
-  const settings = await db.restaurantSettings.findFirst({
-    select: {
-      businessId: true,
-      taxId: true,
-      registerNumber: true,
-      fursCertPath: true,
-      fursCertPassword: true,
-      fursEnvironment: true,
-    },
-  })
-
-  if (settings && settings.fursCertPath) {
-    // ⚠️ ISSUE #37: deprecated path — admin naj nastavi FURS na Location nivoju
-    logger.warn(
-      'furs',
-      'Uporabljam RestaurantSettings FURS konfiguracijo (deprecated). ' +
-        'Prosimo, nastavite FURS certifikat na Location nivoju za multi-tenant podporo.',
-    )
-
-    // Pridobi premisesId iz Location (če obstaja) ali fallback na businessId
-    let premisesId = settings.businessId
-    if (location?.premisesId) {
-      premisesId = location.premisesId
-    }
-
-    return {
-      fursConfig: {
-        businessId: settings.businessId || '',
-        taxId: settings.taxId || '',
-        registerId: settings.registerNumber || 'BLG-001',
-        premisesId,
-        deviceIp: '',
-        environment: (settings.fursEnvironment === 'production' ? 'production' : 'test') as FursConfig['environment'],
-        certPath: settings.fursCertPath || undefined,
-        certPassword: ensureDecrypted(settings.fursCertPassword || '') || undefined,
-      },
-      source: 'restaurant-settings',
-      locationId: location?.id || null,
-      error: null,
-    }
-  }
+  // 3. R125 (issue #37): RestaurantSettings fallback ODSTRANJEN — settings.furs*
+  // polja so MRTVA (migration 0012_furs_location_only je vrednosti prenesel na
+  // aktivne lokacije). Ne-konfigurirana lokacija nadaljuje na env fallback.
 
   // 4. Zadnji fallback: env spremenljivke
   const envCertPath = process.env.FURS_CERT_PATH
@@ -205,7 +173,7 @@ export async function getFursConfig(locationId?: string | null): Promise<FursCon
     error: NextResponse.json(
       {
         error: 'FURS certifikat ni konfiguriran.',
-        hint: 'Nastavite FURS certifikat na Location nivoju (priporočeno za multi-tenant) ali v RestaurantSettings (deprecated) ali v .env (FURS_CERT_PATH).',
+        hint: 'Nastavite FURS certifikat na Location nivoju (priporočeno za multi-tenant) ali v .env (FURS_CERT_PATH).',
         docs: '/SECURITY.md#furs',
       },
       { status: 503 },
@@ -231,7 +199,7 @@ export async function isFursConfigured(locationId?: string | null): Promise<bool
  * Uporabno za diagnosticiranje "odkod bere FURS certifikat".
  */
 export async function getFursConfigSource(locationId?: string | null): Promise<{
-  source: 'location' | 'restaurant-settings' | 'env' | 'missing'
+  source: 'location' | 'env' | 'missing'
   locationId: string | null
 }> {
   const result = await getFursConfig(locationId)

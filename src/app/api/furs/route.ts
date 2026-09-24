@@ -56,8 +56,10 @@ export async function GET(req: Request) {
 
     const config = await buildFursConfigFromSettings(settings, scope.locationId)
     const validation = validateFursConfig(config)
-    const hasCert = !!(settings.fursCertPath && settings.fursCertPassword)
-    const environment = config.environment || settings.fursEnvironment || 'test'
+    // R125 (issue #37): hasCert/environment iz Location configa — settings.furs*
+    // polja so MRTVA (migration 0012_furs_location_only prenesla legacy na lokacije).
+    const hasCert = !!(config.certPath && config.certPassword)
+    const environment = config.environment || 'test'
 
     // Preveri povezljivost s FURS strežnikom
     const connectivity = await checkFursConnectivity(environment as 'test' | 'production')

@@ -118,13 +118,14 @@ export async function POST(req: Request) {
     const { totalTips, cashTips, cardTips } = await fetchDayPayments(dayStart, dayEnd, effectiveLocationId)
 
     // Pridobi zaposlene, ki so delali ta dan
-    // FIX R81-G (LEAK-MEDIUM, cross-tenant): shift.findMany je bil brez
-    // lokacijskega filtra — distribucije so vključevale izmene VSEH lokacij.
-    // Shift.locationId je nullable (NULL = legacy/fail-closed za lokacijsko
-    // vezane seje); super-admin = globalni pogled.
-    const shifts = await db.shift.findMany({
+    // FIX R81-G (LEAK-MEDIUM, cross-tenant): findMany je bil brez lokacijskega
+    // filtra — distribucije so vključevale izmene VSEH lokacij.
+    // StaffShift.locationId je nullable (NULL = fail-closed za lokacijsko vezane
+    // seje); super-admin = globalni pogled.
+    // ISSUE #36 R125: legacy Shift model ukinjen — branje iz StaffShift.
+    const shifts = await db.staffShift.findMany({
       where: {
-        date: { gte: dayStart, lt: dayEnd },
+        shiftDate: { gte: dayStart, lt: dayEnd },
         status: { in: ['completed', 'in_progress'] },
         ...(sessionLocId ? { locationId: sessionLocId } : {}),
       },

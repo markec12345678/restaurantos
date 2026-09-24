@@ -90,7 +90,8 @@ export async function POST(
 
     // Preveri aktivne izmene in seje
     const [activeShifts, activeSessions] = await Promise.all([
-      db.shift.count({ where: { employeeId, status: 'in_progress' } }),
+      // ISSUE #36 R125: legacy Shift model ukinjen — števec bere StaffShift
+      db.staffShift.count({ where: { employeeId, status: 'in_progress' } }),
       db.session.count({ where: { employeeId, expiresAt: { gt: new Date() } } }).catch(() => 0),
     ])
 

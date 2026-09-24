@@ -7,6 +7,11 @@ import { Progress } from '@/components/ui/progress'
 import { CheckCircle2, AlertCircle, XCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { authFetch } from '@/components/pos/PinLogin'
+import {
+  FURS_LOCATIONS_KEY,
+  locationHasFursCert,
+  normalizeLocationsResponse,
+} from '../furs/constants'
 
 // ============================================
 // SETUP PROGRESS — Pokaže kaj je nastavljeno, kaj manjka
@@ -31,6 +36,17 @@ export function SetupProgress() {
     },
   })
 
+  // ISSUE #37 R125: FURS certifikat je per lokacija — isti vir kot FursManager/FursTab
+  // (GET /api/locations, maskirane skrivnosti + hasFursCert)
+  const { data: locations } = useQuery({
+    queryKey: FURS_LOCATIONS_KEY,
+    queryFn: async () => {
+      const res = await authFetch('/api/locations')
+      if (!res.ok) throw new Error('Napaka')
+      return normalizeLocationsResponse(await res.json())
+    },
+  })
+
   if (isLoading) {
     return (
       <Card>
@@ -45,8 +61,10 @@ export function SetupProgress() {
 
   const checks: CheckItem[] = [
     {
+      // ISSUE #37 R125: konfigurirano = katerakoli lokacija ima nastavljen FURS certifikat
+      // (per poslovni prostor; ni več 'test okolje = configured')
       label: 'FURS certifikat',
-      configured: !!(settings.hasFursCert || settings.fursEnvironment === 'test'),
+      configured: (locations ?? []).some(locationHasFursCert),
       tab: 'furs',
       critical: true,
     },
