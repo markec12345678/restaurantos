@@ -9,10 +9,14 @@ import type { PinDisplayProps } from './constants'
 // ============================================
 
 export const PinDisplay = memo(function PinDisplay({ pinLength }: PinDisplayProps) {
-  /* NOVO (runda 25 — Toast vzorec za spremenljivo dolžino PIN-a): običajno
-     vidnih 4 rež; 5. in 6. se pojavita ŠELE, ko uporabnik vpiše 5. števko
-     (dinamične reže) — manj vizualnega šuma na prijavnem ekranu. */
-  const slots = Math.max(PIN_MIN_LENGTH, Math.min(pinLength + 1, PIN_MAX_LENGTH))
+  /* FIX (živi pregled — povratna informacija uporabnika): prej `pinLength + 1`
+     je pri 4 vnesenih števkah prikazal peto PRAZNO režo ("duhovo polje") —
+     zmedlo je uporabnike s 4-mestnim PIN-om, ker je izgledalo, kot da sistem
+     zahteva več kot 4 števke. Zdaj: prikaže se TOČNO toliko rež, kolikor je
+     vnesenih (4 števke = 4 polna polja, vizualno "zaključeno" stanje).
+     5./6. reža se še vedno pojavi, ko uporabnik dejansko vpiše 5. števko
+     (6-mestni PIN-i ostanejo podprti, avto-submit pri 6 se ne spreminja). */
+  const slots = Math.max(PIN_MIN_LENGTH, Math.min(pinLength, PIN_MAX_LENGTH))
   return (
     /* FIX runda 25: aria-label je trdil "od 4 števk" — PIN je lahko 4–6. */
     <div
