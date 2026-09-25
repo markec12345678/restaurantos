@@ -34,6 +34,12 @@ export default defineConfig({
 
     globals: true,
 
+    // R127 (P0-6): integracijske datoteke ZAPOREDNO — restore test dela
+    // TRUNCATE nad celotno bazo; vzporedni zagon druge datoteke bi obIran
+    // njene vrstice sredi trditev. Ob enem se izogne konkurenčnemu odpiranju
+    // PGlite instanci (isti PGLITE_DATA_DIR).
+    fileParallelism: false,
+
     setupFiles: ['./tests/setup.ts'],
   },
 

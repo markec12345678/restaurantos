@@ -133,3 +133,4 @@ test-shots/
 .pglite-qa/
 qa-*.png
 .ref-imgs/
+.backup-status.json

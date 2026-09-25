@@ -126,6 +126,25 @@ export const SEED_LIMIT: RateLimitConfig = {
 }
 
 /**
+ * P0-6 backup/restore (epic #115): GET /api/backup — poln dump je drag
+ * (findMany čez ~100 tabel) → 12 na uro pokrije dnevni cron + ročne kopije
+ * + DR drill (backup + manifest preverjanja v enem drillskem valu).
+ */
+export const BACKUP_LIMIT: RateLimitConfig = {
+  maxRequests: 12,
+  windowMs: 60 * 60 * 1000, // 1 ura
+}
+
+/**
+ * P0-6 restore — najbolj destruktivna operacija v sistemu (TRUNCATE vseh
+ * tabel + insert). 6 na uro: DR drill + izredna obnova, brez brutenja.
+ */
+export const RESTORE_LIMIT: RateLimitConfig = {
+  maxRequests: 6,
+  windowMs: 60 * 60 * 1000, // 1 ura
+}
+
+/**
  * R83: Setup init — 5 zahtev / 15 min. Setup izvaja bcrypt cost 12 + DDL-like
  * seed operacije na ANONIMEN klic (bootstrap) — brez rate limita je bil CPU
  * DoS vektor + first-caller-wins race. Enkratni setup porabi 1 zahtevo.
