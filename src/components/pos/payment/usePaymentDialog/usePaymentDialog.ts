@@ -2,6 +2,7 @@
 
 import { useCallback } from 'react'
 import { toast } from 'sonner'
+import { isOnline } from '@/lib/offline-orders'
 import type { PaymentDialogProps } from '../types'
 import { usePaymentHandlers } from '../usePaymentHandlers'
 import { useProcessPayment } from '../useProcessPayment'
@@ -57,6 +58,12 @@ export function usePaymentDialog({ order, open, onClose, onPaymentSuccess }: Pay
   )
 
   const handleSinglePayment = useCallback(() => {
+    // R128: OFFLINE PLAČILO NI VARNO — fail-closed (abort, NE vrsti se).
+    // Plačila se zaključijo samo ob aktivni povezavi (offline queue za plačila NE obstaja).
+    if (!isOnline()) {
+      toast.error('Plačilo ni mogoče izvesti offline — plačila se zaključijo samo ob aktivni povezavi.')
+      return
+    }
     // P2-UX FIX (dvojni klik): React-Query NE deduplicira .mutate() klicev — dva
     // hitra klika v istem frame-u bi izvedla mutationFn dvakrat. Gumb je sicer
     // disabled med isPending, a to velja šele po re-renderju; ta sync varovalka

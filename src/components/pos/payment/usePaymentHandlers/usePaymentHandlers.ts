@@ -4,6 +4,7 @@ import { useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { queryKeys } from '@/lib/query-keys'
+import { isOnline } from '@/lib/offline-orders'
 import { executeSplitPayment, executePayByItems } from './payment-handlers'
 import type { PaymentHandlersProps } from './payment-handlers'
 
@@ -32,6 +33,11 @@ export function usePaymentHandlers({
   // FIX H-04: Split payment — ustvari N ločenih plačil namesto enega
   const handleSplitPayment = useCallback(async () => {
     if (!order || isProcessing) return
+    // R128: OFFLINE PLAČILO NI VARNO — fail-closed (abort, NE vrsti se)
+    if (!isOnline()) {
+      toast.error('Plačilo ni mogoče izvesti offline — plačila se zaključijo samo ob aktivni povezavi.')
+      return
+    }
     setIsProcessing(true)
     try {
       await executeSplitPayment({
@@ -67,6 +73,11 @@ export function usePaymentHandlers({
   // FIX: By-items payment handler — ustvari ločen check za vsakega gosta
   const handlePayByItems = useCallback(async () => {
     if (!order || isProcessing) return
+    // R128: OFFLINE PLAČILO NI VARNO — fail-closed (abort, NE vrsti se)
+    if (!isOnline()) {
+      toast.error('Plačilo ni mogoče izvesti offline — plačila se zaključijo samo ob aktivni povezavi.')
+      return
+    }
     setIsProcessing(true)
     try {
       await executePayByItems({

@@ -90,12 +90,27 @@ function matchesFilter(entry: PendingOrder, filter: FilterValue): boolean {
   return entry.status === filter
 }
 
+// R128: orderData je unija (order.create | order.cancel) — 'in' narrowanja
 function itemCount(entry: PendingOrder): number {
-  return entry.orderData?.orderItems?.length ?? 0
+  const data = entry.orderData
+  return data && 'orderItems' in data ? data.orderItems.length : 0
 }
 
 function totalQuantity(entry: PendingOrder): number {
-  return (entry.orderData?.orderItems ?? []).reduce((sum, i) => sum + (i.quantity || 0), 0)
+  const data = entry.orderData
+  return data && 'orderItems' in data
+    ? data.orderItems.reduce((sum, i) => sum + (i.quantity || 0), 0)
+    : 0
+}
+
+/** R128: naslov vnosa — preklici kažejo ciljno naročilo, ostali gost. */
+function entryLabel(entry: PendingOrder): string {
+  if (entry.opType === 'order.cancel') {
+    const orderId = 'orderId' in entry.orderData ? entry.orderData.orderId : entry.id
+    return `Preklic naročila ${orderId.slice(0, 12)}`
+  }
+  const data = entry.orderData
+  return data && 'customerName' in data && data.customerName ? data.customerName : 'Naročilo'
 }
 
 export function OfflineQueueDashboard() {
@@ -124,7 +139,7 @@ export function OfflineQueueDashboard() {
     try {
       const result = await syncSingleOrder(entry.id, authFetch)
       if (result.ok) {
-        toast.success(`Naročilo ${entry.orderData?.customerName || entry.id} sinhronizirano`)
+        toast.success(`${entryLabel(entry)} sinhronizirano`)
       } else {
         toast.error(`Ponovna poskus ni uspel: ${result.message}`)
       }
@@ -281,16 +296,23 @@ export function OfflineQueueDashboard() {
                             <StatusIcon className={`h-3.5 w-3.5 ${entry.status === 'PROCESSING' ? 'animate-spin' : ''}`} />
                             {cfg.label}
                           </span>
+                          {/* R128: tip operacije — order.create je privzeti (brez značke) */}
+                          {entry.opType === 'order.cancel' && (
+                            <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                              <XCircle className="h-3 w-3 mr-1" aria-hidden="true" />
+                              Preklic
+                            </Badge>
+                          )}
                           <div className="min-w-0">
                             <div className="font-medium text-sm truncate">
-                              {entry.orderData?.customerName || 'Naročilo'}
+                              {entryLabel(entry)}
                               <span className="text-muted-foreground font-normal">
                                 {' · '}{itemCount(entry)} postavk · {totalQuantity(entry)} kos
                               </span>
                             </div>
                             <div className="text-xs text-muted-foreground truncate">
                               {format(entry.createdAt, 'dd.MM.yyyy HH:mm:ss')}
-                              {entry.orderData?.tableId ? ` · miza ${entry.orderData.tableId}` : ''}
+                              {entry.orderData && 'tableId' in entry.orderData && entry.orderData.tableId ? ` · miza ${entry.orderData.tableId}` : ''}
                               {` · poskusi: ${entry.retryCount}`}
                             </div>
                           </div>
@@ -306,8 +328,10 @@ export function OfflineQueueDashboard() {
                           <Button
                             size="sm" variant="outline"
                             onClick={() => handleRetry(entry)}
-                            disabled={busy || entry.status === 'PENDING'}
-                            title={entry.status === 'PENDING' ? 'Čaka na samodejno sinhronizacijo' : 'Ponovno pošlji na strežnik'}
+                            disabled={busy || entry.status === 'PENDING' || entry.opType === 'order.cancel'}
+                            title={entry.opType === 'order.cancel'
+                              ? 'Preklici se pošiljajo samodejno prek /api/device-sync (ne prek /api/orders)'
+                              : entry.status === 'PENDING' ? 'Čaka na samodejno sinhronizacijo' : 'Ponovno pošlji na strežnik'}
                           >
                             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                           </Button>
@@ -326,6 +350,13 @@ export function OfflineQueueDashboard() {
                       {entry.lastError && (
                         <div className="text-xs bg-red-50 border border-red-200 text-red-700 rounded px-2.5 py-1.5 font-mono break-all">
                           {entry.lastError}
+                        </div>
+                      )}
+
+                      {/* R128: potrditev strežnika (server acknowledgment) */}
+                      {entry.serverAck && (
+                        <div className="text-xs text-green-700 dark:text-green-400">
+                          Potrjeno na strežniku: {format(new Date(entry.serverAck.syncedAt), 'dd.MM.yyyy HH:mm:ss')} ({entry.serverAck.serverStatus})
                         </div>
                       )}
                     </div>
@@ -347,7 +378,7 @@ export function OfflineQueueDashboard() {
                   {(() => {
                     const cfg = statusConfig[detail.status]
                     const Icon = cfg.icon
-                    return <><Icon className="h-5 w-5" /> {cfg.label} — {detail.orderData?.customerName || 'Naročilo'}</>
+                    return <><Icon className="h-5 w-5" /> {cfg.label} — {entryLabel(detail)}</>
                   })()}
                 </DialogTitle>
                 <DialogDescription>
@@ -366,6 +397,17 @@ export function OfflineQueueDashboard() {
                   <MetaRow label="Lokacija (ID)" value={detail.locationId ?? '— (server resolva)'} mono />
                   <MetaRow label="payloadVersion" value={String(detail.payloadVersion)} />
                   <MetaRow label="Poskusi / retryCount" value={String(detail.retryCount)} />
+                  {/* R128: tip operacije + potrditev strežnika */}
+                  <MetaRow label="Tip operacije" value={detail.opType ?? 'order.create'} mono />
+                  {detail.serverAck && (
+                    <div className="col-span-2">
+                      <MetaRow
+                        label="Potrditev strežnika (serverAck)"
+                        value={`${detail.serverAck.serverStatus} · ${format(new Date(detail.serverAck.syncedAt), 'dd.MM.yyyy HH:mm:ss')}${detail.serverAck.orderId ? ` · orderId: ${detail.serverAck.orderId}` : ''}`}
+                        mono
+                      />
+                    </div>
+                  )}
                   {detail.lastError && (
                     <div className="col-span-2">
                       <MetaRow label="Zadnja napaka" value={detail.lastError} mono />
@@ -393,7 +435,7 @@ export function OfflineQueueDashboard() {
                 <Button
                   variant="outline"
                   onClick={() => handleRetry(detail)}
-                  disabled={busyId === detail.id || detail.status === 'PENDING'}
+                  disabled={busyId === detail.id || detail.status === 'PENDING' || detail.opType === 'order.cancel'}
                 >
                   {busyId === detail.id ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Send className="h-4 w-4 mr-1" />}
                   Ponovno pošlji

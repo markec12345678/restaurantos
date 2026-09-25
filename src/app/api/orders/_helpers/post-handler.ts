@@ -11,6 +11,9 @@ import { validateRequest } from '@/lib/api-utils'
 import { buildOrderItemsData, calculateOrderTotals, validateMenuItems, fetchModifierPriceMap, type MenuItemVatMap } from './order-items'
 import { handleStockDeduction, handlePostCreationEffects } from './stock'
 import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
+// R128 (P0-5): best-effort offline ledger — zapis DeviceSyncOperation ob uspehu,
+// kadar zahtevek prihaja iz offline vrste naprave (x-offline-sync headerji).
+import { recordOfflineOrderLedger } from './offline-ledger'
 
 // P1-6: session kontekst, ki ga POST pot potrebuje za resolucijo lokacije
 // R88-3: + scope (rezultat resolveTenantLocationIdOrThrow v routi — obvezen
@@ -162,6 +165,12 @@ export async function handlePostOrder(
   // obstaja NA TEJ LOKACIJI, ga vrni (R116: scoped — tuj ključ = ni replay-a).
   const existing = await findExistingOrderByIdempotencyKey(idempotencyKey, orderLocationId)
   if (existing) {
+    // R128 (P0-5): offline replay — 200 z istim body-jem + ledger 'duplicate'
+    await recordOfflineOrderLedger(req, {
+      orderId: existing.id, idempotencyKey, status: 'duplicate',
+      locationId: orderLocationId,
+      employeeId: authSession.session?.employeeId, payload: data,
+    })
     return NextResponse.json(deepToNumbers(existing), { status: 200 })
   }
 
@@ -373,6 +382,12 @@ export async function handlePostOrder(
       // R82-C mobile/order in R83 kiosk; brez podatkov o tujem orderju).
       const existing = await findExistingOrderByIdempotencyKey(idempotencyKey, orderLocationId)
       if (existing) {
+        // R128 (P0-5): tudi P2002 race replay nosi offline ledger 'duplicate'
+        await recordOfflineOrderLedger(req, {
+          orderId: existing.id, idempotencyKey, status: 'duplicate',
+          locationId: orderLocationId,
+          employeeId: authSession.session?.employeeId, payload: data,
+        })
         return NextResponse.json(deepToNumbers(existing), { status: 200 })
       }
       return NextResponse.json(
@@ -391,6 +406,13 @@ export async function handlePostOrder(
 
   // Sproži stranske učinke (WS, tisk, webhook, revizija)
   await handlePostCreationEffects(order, authSession.session?.employeeId, stockDeducted)
+
+  // R128 (P0-5): offline uspeh — 201 + ledger 'applied' (best-effort)
+  await recordOfflineOrderLedger(req, {
+    orderId: order.id, idempotencyKey, status: 'applied',
+    locationId: orderLocationId,
+    employeeId: authSession.session?.employeeId, payload: data,
+  })
 
   // Vrni naročilo z informacijami o zalogi
   return NextResponse.json(deepToNumbers({

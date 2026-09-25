@@ -12,6 +12,8 @@ import { setCurrentUser, setAuthToken } from '../PinLogin'
 import { cacheOfflineSession, getOfflineSessionHint } from './offline-auth'
 import { performLogin } from './login-request'
 import { readDeviceLocation, persistDeviceLocation } from './resolveDeviceLocation'
+import { getDeviceId } from '@/lib/offline-orders'
+import { logger } from '@/lib/logger'
 
 // NOVO (QA 2026-09-17, runda 25 — UI/UX primerjava z najboljšimi POS):
 // Square/Clover na fizičnih tipkovnicah POS terminalov dovoljujeta vpis PIN-a
@@ -34,6 +36,31 @@ import { readDeviceLocation, persistDeviceLocation } from './resolveDeviceLocati
 
 /** staleTime za seznam zaposlenih — med korakoma 1↔2 brez refetch ping-ponga */
 const EMPLOYEES_STALE_TIME_MS = 5 * 60 * 1000
+
+/**
+ * R128: registracija naprave v DeviceRegistry — fire-and-forget ob uspešni
+ * ONLINE prijavi (offline seja nima žetona → preskočena). Tiha napaka:
+ * strežnik napravo vseeno avtomatsko registrira ob prvem syncu. Namerno
+ * NE uporablja authFetch (401 iz /api/devices NE sme počistiti sveže seje)
+ * in NE blokira ne zakasni prijave.
+ */
+async function registerDeviceAfterLogin(token: string): Promise<void> {
+  const deviceId = getDeviceId()
+  try {
+    await fetch('/api/devices', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        deviceId,
+        name: `POS-${deviceId.slice(0, 8)}`,
+        type: 'pos',
+        appVersion: '',
+      }),
+    })
+  } catch (err) {
+    logger.warn('PinLogin', `R128: registracija naprave ni uspela (strežnik jo opravi ob prvem syncu): ${String(err)}`)
+  }
+}
 
 export function usePinLogin(_props: PinLoginProps) {
   const [pin, setPin] = useState('')
@@ -142,6 +169,8 @@ export function usePinLogin(_props: PinLoginProps) {
         setAuthToken(data.token ?? null)
         // Shrani sejo za prihodnje offline prijave (tiho — ne sme pokvariti online toka)
         void cacheOfflineSession(data.employee, variables.pinCode)
+        // R128: registracija naprave — fire-and-forget (ne blokira ne zakasni prijave)
+        if (data.token) void registerDeviceAfterLogin(data.token)
         // R95-b ODLOČITEV: device lokacijo OBNOVIMO/potrdimo SAMO, če je bil
         // dvostopenjski tok aktiven (deviceLocationId je že resolvan iz
         // URL/localStorage virov). NAMERNO NE beremo data.employee.locationId —

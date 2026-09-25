@@ -145,6 +145,17 @@ export const RESTORE_LIMIT: RateLimitConfig = {
 }
 
 /**
+ * R128 (epic #115 P0-5): batch sync offline naprav — 60 batchov / min.
+ * Vsak batch zajame do 50 operacij (order.create / order.cancel), zato
+ * 60/min pokrije reconnect backlog (do 3000 operacij / min / naprava)
+ * brez brutenja strežnika ob množičnem reconnectu POS naprav.
+ */
+export const DEVICE_SYNC_LIMIT: RateLimitConfig = {
+  maxRequests: 60,
+  windowMs: 60 * 1000,
+}
+
+/**
  * R83: Setup init — 5 zahtev / 15 min. Setup izvaja bcrypt cost 12 + DDL-like
  * seed operacije na ANONIMEN klic (bootstrap) — brez rate limita je bil CPU
  * DoS vektor + first-caller-wins race. Enkratni setup porabi 1 zahtevo.

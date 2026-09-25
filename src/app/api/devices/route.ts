@@ -11,6 +11,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
 import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
+import { isAdminTenantRole } from '@/lib/tenant-scope'
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
 
@@ -77,12 +78,30 @@ export async function POST(req: Request) {
     const apiKey = req.headers.get('x-device-api-key')
     const expectedKey = process.env.DEVICE_API_KEY
     let session: import('@/lib/auth-middleware').Session | null = null
+    // R128 (epic #115 P0-5): tretja auth veja — non-admin seja PRISILI
+    // lokacijo iz seje (undefined = veja ni aktivna; null = 403).
+    let nonAdminForcedLocationId: string | undefined = undefined
     if (expectedKey && apiKey === expectedKey) {
       // Trusted device (skupni ključ) — brez sessiona; locationId se validira na obstoj
     } else {
       const authResult = await requireAuth(req, { permission: 'admin' })
-      if (authResult.error) return authResult.error
-      session = authResult.session ?? null
+      if (authResult.error) {
+        // R128: katerikoli avtenticiran zaposleni lahko registrira/utripa
+        // napravo SAMO svoje lokacije (POS tablet natakarja ne rabi admin
+        // pravic za reconnect). Admin/super-admin in device-key poti
+        // ostajata nespremenjeni (IDOR guardi intaktni).
+        const anyAuth = await requireAuth(req)
+        if (anyAuth.error) return authResult.error
+        session = anyAuth.session ?? null
+        if (session && !isAdminTenantRole(session.role)) {
+          if (!session.locationId) {
+            return NextResponse.json({ error: 'TENANT_REQUIRED' }, { status: 403 })
+          }
+          nonAdminForcedLocationId = session.locationId
+        }
+      } else {
+        session = authResult.session ?? null
+      }
     }
 
     const body = await req.json().catch(() => ({}))
@@ -99,7 +118,11 @@ export async function POST(req: Request) {
     // lokacijo: body.locationId uporabljen BREZ validacije → registracija/
     // prevzem naprave poljubnega tenanta. Zdaj: 403 fail-closed.
     let resolvedLocationId: string | null = input.locationId ?? null
-    if (session) {
+    if (nonAdminForcedLocationId !== undefined) {
+      // R128 tretja veja: body.locationId se IGNORIRA — non-admin sme
+      // upravljati izključno naprave svoje lokacije (fail-closed).
+      resolvedLocationId = nonAdminForcedLocationId
+    } else if (session) {
       const scope = resolveTenantLocationIdOrThrow(session, new URL(req.url).searchParams, {
         endpoint: 'POST /api/devices',
       })

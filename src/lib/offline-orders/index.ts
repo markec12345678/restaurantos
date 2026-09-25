@@ -26,6 +26,13 @@
 // INDEXEDDB STORES v isti bazi:
 //   1. pendingOrders   — naročila ko ni povezave (ta modul)
 //   2. pendingReceipts — FURS računi ko ni povezave (offline-furs)
+//
+// R128 (epic #115 P0-5): ISTA store vnaprej sprejme TUDI 'order.cancel'
+// operacije (preklici sinhroniziranih naročil) — nova OPCIJSKA polja
+// opType + serverAck (stari vnosi brez njih = 'order.create', polna
+// nazaj-združljivost, PAYLOAD_VERSION ostaja 1, brez spremembe sheme/
+// indeksov). Batch pošiljanje cancel op-ov: cancel-ops.ts (POST
+// /api/device-sync); startSyncPolling zdaj sinhronizira OBE vrste.
 // ============================================
 
 import {
@@ -37,6 +44,10 @@ import {
   type OfflineOpStatus,
 } from './sync-status'
 import { logger } from '@/lib/logger'
+// R128: kombinirani sync (orders + cancel ops). Cirkularni import je NAMERNO
+// varen: obe moduli kličejo funkcije iz obeh strani šele OB KLICU (hoisted
+// function declarations, brez top-level dostopov do tujih vezav).
+import { syncAllOfflineOps, getPendingCancelOpCount } from './cancel-ops'
 
 export {
   OFFLINE_OP_STATUSES,
@@ -48,11 +59,67 @@ export {
   resolveSyncFailure,
 } from './sync-status'
 export type { OfflineOpStatus } from './sync-status'
+// R128: cancel ops — javni API teče skozi isto fasado ('@/lib/offline-orders')
+export {
+  enqueueCancelOrder,
+  buildCancelOp,
+  getPendingCancelOps,
+  getPendingCancelOpCount,
+  syncCancelOps,
+  syncAllOfflineOps,
+  handleOfflineCancel,
+  applySyncResults,
+  chunkOperations,
+  DEVICE_SYNC_CHUNK_SIZE,
+  type CancelSyncResult,
+  type SyncAllResult,
+  type OfflineCancelOutcome,
+  type DeviceSyncResultRow,
+} from './cancel-ops'
 
 const DB_NAME = 'restaurantos-offline-queue'
 const DB_VERSION = 1
 const STORE_NAME = 'pendingOrders'
 const DEVICE_ID_STORAGE_KEY = 'restaurantos-device-id'
+
+/** R128: tip offline operacije — stari vnosi (brez polja) = 'order.create'. */
+export type QueueOpType = 'order.create' | 'order.cancel'
+
+/** Payload naročila (order.create) — izvorna P1-14 oblika. */
+export interface OrderCreateData {
+  type: string
+  tableId: string | null
+  diningOptionId: string | null
+  customerName: string
+  customerPhone: string
+  discount: number
+  appliedDiscountId: string | null
+  taxRate?: number
+  notes: string
+  orderItems: Array<{
+    menuItemId: string
+    quantity: number
+    price?: number
+    notes: string
+    modifiersJson: string
+  }>
+  employeeId?: string | null
+}
+
+/** R128: payload preklica sinhroniziranega naročila (order.cancel). */
+export interface OrderCancelData {
+  orderId: string
+  reason?: string
+}
+
+export type QueueOpData = OrderCreateData | OrderCancelData
+
+/** R128: potrditev strežnika (server acknowledgment) ob uspešnem syncu. */
+export interface ServerAck {
+  orderId?: string
+  syncedAt: string
+  serverStatus: string
+}
 
 /** Queue vnos — polja po P1-14 specifikaciji + legacy/interna polja. */
 export interface PendingOrder {
@@ -81,29 +148,17 @@ export interface PendingOrder {
   /** Zadnja napaka pri sinhronizaciji (`syncError` = legacy zrcalo) */
   lastError: string | null
 
+  // ── R128: dodatna (OPCIJSKA) polja — stari vnosi jih nimajo ──
+  /** Tip operacije — manjkajoče polje = 'order.create' (nazaj-združljivost). */
+  opType?: QueueOpType
+  /** Potrditev strežnika — zapolnjena ob uspešnem syncu (status SYNCED). */
+  serverAck?: ServerAck
+
   // ── interna / legacy polja ──
   attempts: number // legacy zrcalo retryCount
   syncError: string | null // legacy zrcalo lastError
   lastAttemptAt: number | null
-  orderData: {
-    type: string
-    tableId: string | null
-    diningOptionId: string | null
-    customerName: string
-    customerPhone: string
-    discount: number
-    appliedDiscountId: string | null
-    taxRate?: number
-    notes: string
-    orderItems: Array<{
-      menuItemId: string
-      quantity: number
-      price?: number
-      notes: string
-      modifiersJson: string
-    }>
-    employeeId?: string | null
-  }
+  orderData: QueueOpData
   syncedOrderId?: string // ID naročila na serverju (po uspešnem sync)
 }
 
@@ -178,11 +233,16 @@ function normalizeEntry(raw: unknown): PendingOrder | null {
 
   const attempts = typeof e.attempts === 'number' ? e.attempts
     : typeof e.retryCount === 'number' ? e.retryCount : 0
-  const orderData = e.orderData as PendingOrder['orderData']
+  // R128: orderData je unija (order.create | order.cancel) — legacy branje
+  // poteka prek Record cast (stari vnosi so izključno order.create oblike)
+  const rawOrderData = e.orderData as Record<string, unknown>
   const employeeId =
     typeof e.employeeId === 'string' ? e.employeeId
-      : typeof orderData.employeeId === 'string' ? (orderData.employeeId as string)
+      : typeof rawOrderData.employeeId === 'string' ? (rawOrderData.employeeId as string)
         : null
+  // R128: manjkajoče opType = 'order.create' (stari vnosi); cancel op-i ga
+  // zapišejo izrecno
+  const opType: QueueOpType = e.opType === 'order.cancel' ? 'order.cancel' : 'order.create'
 
   return {
     id: e.id,
@@ -197,11 +257,30 @@ function normalizeEntry(raw: unknown): PendingOrder | null {
     status: normalizeStatus(e.status),
     lastError: typeof e.lastError === 'string' ? e.lastError
       : typeof e.syncError === 'string' ? e.syncError : null,
+    opType,
+    serverAck: normalizeServerAck(e.serverAck),
     attempts,
     syncError: typeof e.syncError === 'string' ? e.syncError : null,
     lastAttemptAt: typeof e.lastAttemptAt === 'number' ? e.lastAttemptAt : null,
-    orderData: { ...orderData, employeeId },
+    orderData: opType === 'order.cancel'
+      ? (e.orderData as OrderCancelData)
+      : { ...(e.orderData as OrderCreateData), employeeId },
     syncedOrderId: typeof e.syncedOrderId === 'string' ? e.syncedOrderId : undefined,
+  }
+}
+
+/**
+ * R128: tolerantna normalizacija serverAck iz IndexedDB (stare/okvarjene
+ * vrstice → undefined namesto crasha).
+ */
+function normalizeServerAck(raw: unknown): ServerAck | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const a = raw as Record<string, unknown>
+  if (typeof a.syncedAt !== 'string' || typeof a.serverStatus !== 'string') return undefined
+  return {
+    orderId: typeof a.orderId === 'string' ? a.orderId : undefined,
+    syncedAt: a.syncedAt,
+    serverStatus: a.serverStatus,
   }
 }
 
@@ -247,10 +326,22 @@ export async function enqueueOrder(
     syncError: lastError,
     lastAttemptAt: order.lastAttemptAt ?? null,
   }
-  if (entry.orderData && entry.employeeId) {
+  // R128: samo order.create payload podeduje employeeId ('type' = diskriminanta)
+  if (entry.orderData && entry.employeeId && 'type' in entry.orderData) {
     entry.orderData.employeeId = entry.employeeId
   }
 
+  return putEntry(db, entry)
+}
+
+/**
+ * R128: generičen zapis vnosa v ISTO IndexedDB store ('pendingOrders') —
+ * uporablja ga tudi cancel-ops (order.cancel živi v isti vrsti; brez
+ * spremembe sheme/indeksa — samo dodatne lastnosti zapisa).
+ */
+export async function putOp(entry: PendingOrder): Promise<boolean> {
+  const db = await openDB()
+  if (!db) return false
   return putEntry(db, entry)
 }
 
@@ -319,6 +410,7 @@ export async function markOrderStatus(
   id: string,
   status: OfflineOpStatus,
   error?: string,
+  serverAck?: ServerAck,
 ): Promise<boolean> {
   const db = await openDB()
   if (!db) return false
@@ -336,6 +428,10 @@ export async function markOrderStatus(
         if (error !== undefined) {
           order.lastError = error.substring(0, 500)
           order.syncError = order.lastError
+        }
+        // R128: potrditev strežnika (server acknowledgment) na zapisu
+        if (serverAck !== undefined) {
+          order.serverAck = serverAck
         }
         if (status === 'RETRY' || status === 'FAILED' || status === 'MANUAL_REVIEW' || status === 'EXPIRED') {
           order.retryCount = (order.retryCount || 0) + 1
@@ -589,6 +685,8 @@ export async function syncPendingOrders(
   let failed = 0
   let conflicts = 0
   let authExpired = false
+  // R128: stabilen deviceId za ledger headerje (DeviceSyncOperation)
+  const deviceId = getDeviceId()
 
   for (const order of pending) {
     // Označi kot processing
@@ -601,7 +699,14 @@ export async function syncPendingOrders(
     try {
       const res = await authFetch('/api/orders', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          // R128: strežnik zapiše ledger vrstico (DeviceSyncOperation) za to
+          // offline operacijo — idempotentna potrditev (server acknowledgement)
+          'x-offline-sync': 'true',
+          'x-client-operation-id': order.operationId,
+          'x-device-id': deviceId,
+        },
         body: JSON.stringify({
           ...order.orderData,
           idempotencyKey: order.idempotencyKey,
@@ -616,8 +721,15 @@ export async function syncPendingOrders(
     }
 
     if (ok) {
-      // Označi kot synced in odstrani iz queue
-      await dequeueOrder(order.id)
+      // R128: potrditev strežnika — vnos ostane SYNCED do 7-dnevne retencije
+      // (prej: takojšnje brisanje prek dequeueOrder; serverAck je viden v
+      // OfflineQueueDashboard in pokrije revizijo). SYNCED NI obdelovalen —
+      // vnos se NE pošlje znova.
+      await markOrderStatus(order.id, 'SYNCED', undefined, {
+        orderId: json?.id,
+        syncedAt: new Date().toISOString(),
+        serverStatus: 'applied',
+      })
       succeeded++
       logger.info('OfflineQueue', `Order synced: ${order.idempotencyKey} → ${json?.id}`)
       continue
@@ -678,7 +790,7 @@ export function isOnline(): boolean {
 
 /**
  * Začni polling fallback za sinhronizacijo.
- * Klice syncPendingOrders vsake 5s ko je online.
+ * R128: klice syncAllOfflineOps (order.create + order.cancel) vsake 5s ko je online.
  * Vrne funkcijo za ustavitev polling-a.
  */
 export function startSyncPolling(
@@ -690,10 +802,11 @@ export function startSyncPolling(
   const poll = async () => {
     if (!running) return
     if (isOnline()) {
-      const pending = await getPendingCount()
-      if (pending > 0) {
-        logger.debug('OfflineQueue', `Polling: ${pending} pending orders to sync`)
-        await syncPendingOrders(authFetch)
+      // R128: vrata štejeta TUDI order.cancel op-e (cancel-ops.ts)
+      const [pending, pendingCancels] = await Promise.all([getPendingCount(), getPendingCancelOpCount()])
+      if (pending + pendingCancels > 0) {
+        logger.debug('OfflineQueue', `Polling: ${pending} orders + ${pendingCancels} cancel ops to sync`)
+        await syncAllOfflineOps(authFetch)
       }
     }
     if (running) {

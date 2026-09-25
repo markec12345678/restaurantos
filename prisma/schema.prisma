@@ -1649,6 +1649,7 @@ model Location {
   accountsReceivables AccountsReceivable[] // ISSUE #31: multi-tenant AR
   virtualBrands    VirtualBrand[]   // Ghost kitchen hub
   devices          DeviceRegistry[] // FIX: Offline-first POS device tracking
+  deviceSyncOperations DeviceSyncOperation[] // R128 (P0-5): ledger offline operacij (server acknowledgement)
   videoAnalytics   VideoAnalyticsSession[] // FIX: Video analytics per location
   // FIX Test 7.2: Multi-tenant isolation back-relations
   receipts         Receipt[]
@@ -3358,6 +3359,51 @@ model DeviceRegistry {
 
   @@index([locationId])
   @@index([status])
+}
+
+// ============================================
+// DEVICE SYNC LEDGER — server acknowledgement za offline operacije
+// (R128, epic #115 P0-5: offline-first POS + varen reconnect/sync)
+//
+// Kanon P0-5: "Vsaka queued operation mora imeti: stable client operation ID,
+// tenant/location, device/session, createdAt, operation type, payload,
+// retry count, status, server acknowledgement."
+//
+// Ta model je STREŽNIŠKA polovica envelope-a: vsaka operacija iz klient
+// offline vrste (IndexedDB) se deduplificira po (deviceId, clientOperationId)
+// — exactly-once dokaz na nivoju naprave. Domain idempotencija
+// (Order.idempotencyKey @unique, CAS status prehodi, advisory locki) ostane
+// AVTORITATIVNA zaščita; ledger je ack + forenzika + monitoring vhoda.
+// ============================================
+model DeviceSyncOperation {
+  id                String   @id @default(cuid())
+  // --- Naprava: klient identiteta (DeviceRegistry.deviceId claim). BREZ FK
+  //     namerno — brisanje naprave iz registra ne sme izgubiti forenzične sledi.
+  deviceId          String
+  // --- Tenant scope (kanon: tenant/location na vsaki operaciji) ---
+  locationId        String
+  location          Location @relation(fields: [locationId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  // --- Envelope iz klient vrste ---
+  clientOperationId String              // stable client operation ID (queue item id)
+  operationType     String              // order.create | order.cancel (whitelist, fail-closed)
+  payload           Json?               // snapshot posredovanega payloada (strežniški dokaz)
+  clientRetryCount  Int      @default(0) // retryCount iz klient vrste ob sprejemu
+  // --- Rezultat aplikacije (server acknowledgement) ---
+  status            String   @default("applied") // applied | duplicate | rejected
+  orderId           String?             // rezultat za order.* operacije
+  ack               Json?               // povzetek ack odgovora (dokaz replaya/duplikata)
+  lastError         String?
+  // --- Akter (iz seje ob sinhronizaciji, snapshot preživi brisanje) ---
+  employeeId        String?
+  // --- Čas ---
+  receivedAt        DateTime @default(now())
+  processedAt       DateTime?
+
+  // Exactly-once na nivoju (naprava, operacija)
+  @@unique([deviceId, clientOperationId])
+  @@index([locationId, receivedAt])
+  @@index([deviceId, receivedAt])
+  @@index([status, receivedAt])
 }
 
 // ============================================

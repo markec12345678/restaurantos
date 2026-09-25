@@ -13,6 +13,7 @@ import {
   registerOrderBackgroundSync,
   startSyncPolling,
   getPendingCount,
+  getPendingCancelOpCount,
 } from '@/lib/offline-orders'
 import { logger } from '@/lib/logger'
 
@@ -36,29 +37,31 @@ export function useOrderPanelMutations() {
     // Registriraj Background Sync
     registerOrderBackgroundSync()
 
-    // Začni polling fallback (vsake 5s)
+    // Začni polling fallback (vsake 5s) — R128: orders + cancel ops
     const stopPolling = startSyncPolling(authFetch)
 
-    // Preveri pending orders ob mountu
-    getPendingCount().then(count => {
-      if (count > 0) {
-        toast.info(`${count} naročil čaka na sinhronizacijo`)
+    // Preveri pending offline operacije ob mountu (R128: naročila + preklici)
+    Promise.all([getPendingCount(), getPendingCancelOpCount()]).then(([orders, cancels]) => {
+      const total = orders + cancels
+      if (total > 0) {
+        toast.info(`${total} offline operacij čaka na sinhronizacijo`)
       }
     })
 
     // Sync ko pride online
+    // R128: kombinirani sync (order.create + order.cancel prek /api/device-sync)
     const handleOnline = () => {
-      logger.info('OfflineQueue', 'Network restored — syncing pending orders')
-      import('@/lib/offline-orders').then(({ syncPendingOrders }) => {
-        syncPendingOrders(authFetch).then(result => {
+      logger.info('OfflineQueue', 'Network restored — syncing pending offline ops')
+      import('@/lib/offline-orders').then(({ syncAllOfflineOps }) => {
+        syncAllOfflineOps(authFetch).then(result => {
           if (result.succeeded > 0) {
-            toast.success(`${result.succeeded} naročil sinhroniziranih`)
+            toast.success(`${result.succeeded} offline operacij sinhroniziranih`)
             queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
           }
-          // P1-15: konflikti/zadržana naročila → obvesti uporabnika
+          // P1-15: konflikti/zadržane operacije → obvesti uporabnika
           // (ročni pregled — ne tiho odpusti)
           if (result.conflicts > 0) {
-            toast.warning(`${result.conflicts} naročil zadržanih (konflikt) — potreben ročni pregled`)
+            toast.warning(`${result.conflicts} operacij zadržanih (konflikt) — potreben ročni pregled`)
           }
           if (result.authExpired) {
             toast.error('Seja je potekla — ponovno se prijavite za sinhronizacijo offline naročil')

@@ -1,3 +1,4 @@
+import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { createPaymentSchema } from '@/lib/validations'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
@@ -36,6 +37,22 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    // R128 (epic #115 P0-5, kanon): plačilo offline NI varno podprto →
+    // fail-closed 422 ŠE PRED rate-limit/auth obdelavo (poceni header check).
+    // Offline naročila se sinhronizirajo prek /api/device-sync; denarna
+    // operacija pa se zaključi IZKLJUČNO ob aktivni povezavi (FURS ZDDV +
+    // dvomenska varnost: brez povezave ni validacije čeka/kartice niti
+    // storno poti).
+    if (req.headers.get('x-offline-sync') === 'true') {
+      return NextResponse.json(
+        {
+          error: 'PAYMENT_OFFLINE_NOT_ALLOWED',
+          message: 'Plačilo ni mogoče izvesti offline — plačila se zaključijo samo ob aktivni povezavi.',
+        },
+        { status: 422 },
+      )
+    }
+
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 

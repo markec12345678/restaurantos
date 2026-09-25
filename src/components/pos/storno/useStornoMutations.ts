@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
+import { isOnline, handleOfflineCancel } from '@/lib/offline-orders'
 import { STORNO_REASONS, CANCEL_REASONS } from './constants'
 import type { StornoDialogProps } from './constants'
 
@@ -84,6 +85,18 @@ export function useStornoMutations(
         ? customReason
         : CANCEL_REASONS.find(r => r.id === selectedReason)?.name || customReason
 
+      // R128: OFFLINE PREKLIC — prestreži vstop v handler (trije primeri):
+      //   (a) naročilo obstaja SAMO v lokalni IndexedDB vrsti (še ni poslano)
+      //       → odstrani vnos lokalno,
+      //   (b) sinhronizirano naročilo + !isOnline() → order.cancel op
+      //       (posreduje se samodejno ob ponovni povezavi),
+      //   (c) online → pade skozi na obstoječi tok (NESPREMJEN).
+      // Offline + IndexedDB nedosegljiv → pade naprej (authFetch vrže napako).
+      if (!isOnline()) {
+        const offlineHandled = await handleOfflineCancel(order.id, reasonText || 'Preklicano')
+        if (offlineHandled) return { offlineCancel: offlineHandled }
+      }
+
       const res = await authFetch(`/api/orders/${order.id}`, {
         method: 'PUT',
         body: JSON.stringify({ status: 'cancelled', cancelReason: reasonText || 'Preklicano' }),
@@ -91,8 +104,15 @@ export function useStornoMutations(
       if (!res.ok) throw new Error('Napaka pri preklicu naročila')
       return res.json()
     },
-    onSuccess: () => {
-      toast.success('Naročilo preklicano')
+    onSuccess: (data) => {
+      // R128: ločena obvestila za offline preklica (a)/(b); online tok nespremenjen
+      if (data?.offlineCancel === 'removed-local') {
+        toast.info('Naročilo preklicano lokalno (še ni bilo poslano)')
+      } else if (data?.offlineCancel === 'queued') {
+        toast.info('Preklic bo posredovan ob ponovni povezavi.')
+      } else {
+        toast.success('Naročilo preklicano')
+      }
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all })
       queryClient.invalidateQueries({ queryKey: queryKeys.zReport.all }) // živi Z-osnutek (runda 11)
