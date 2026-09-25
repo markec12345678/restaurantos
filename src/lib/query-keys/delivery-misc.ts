@@ -20,6 +20,10 @@ export const suppliersKeys = {
   priceHistory: (supplierId: string) => ['suppliers', 'price-history', supplierId] as const,
   // R131 (P1-13): katalog dobavitelja (GET/POST/DELETE /api/suppliers/[id]/catalog)
   catalog: (supplierId: string) => ['suppliers', 'catalog', supplierId] as const,
+  // R132 (P1-12): GRN prevzemi naročilnice (GET /api/purchase-orders/[id]/receipts)
+  poReceipts: (poId: string) => ['suppliers', 'po-receipts', poId] as const,
+  // R132 (P1-12): račun dobavitelja + match poročilo (GET/POST /api/purchase-orders/[id]/invoice)
+  poInvoice: (poId: string) => ['suppliers', 'po-invoice', poId] as const,
 }
 
 export const purchaseOrdersKeys = {

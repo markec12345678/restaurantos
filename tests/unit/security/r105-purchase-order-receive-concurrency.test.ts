@@ -46,6 +46,9 @@ const mocks = vi.hoisted(() => ({
   txApFindFirst: vi.fn(),
   txApCount: vi.fn(),
   txApCreate: vi.fn(),
+  // R132 (P1-12): vsak prevzem ustvari GRN dokument v istem tx — aditivni stub
+  txGrCount: vi.fn(),
+  txGrCreate: vi.fn(),
 }))
 
 // Privzeti tx klient — rute kličejo $transaction(fn, options)
@@ -63,6 +66,12 @@ const txClient = {
     findFirst: mocks.txApFindFirst,
     count: mocks.txApCount,
     create: mocks.txApCreate,
+  },
+  // R132 (P1-12): GRN kanon — vsak prevzem ustvari dokument (aditivni stub;
+  // mocki txGrCount/txGrCreate se defaultirajo v beforeEach)
+  goodsReceipt: {
+    count: mocks.txGrCount,
+    create: mocks.txGrCreate,
   },
 }
 
@@ -97,6 +106,8 @@ vi.mock('@/lib/auth-middleware', async () => {
 vi.mock('@/lib/decimal', () => ({
   toNum: (v: unknown) => (typeof v === 'number' ? v : Number(v) || 0),
   round2: (v: number) => Math.round(v * 100) / 100,
+  // R132 (P1-12): kumulacija quantityRejected gre na 3 decimalki (Decimal(12,3))
+  round3: (v: number) => Math.round(v * 1000) / 1000,
   multiply: (a: number, b: number) => a * b,
   greaterThan: (a: unknown, b: unknown) => Number(a) > Number(b),
   greaterThanOrEqual: (a: unknown, b: unknown) => Number(a) >= Number(b),
@@ -181,6 +192,9 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.transaction.mockImplementation(defaultTxImpl)
   mocks.txExecuteRaw.mockResolvedValue(1)
+  // R132 (P1-12): GRN kanon — count 0 + create vrne dokument (aditivno)
+  mocks.txGrCount.mockResolvedValue(0)
+  mocks.txGrCreate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: 'gr-trap', ...data }))
   mockAuth()
 })
 

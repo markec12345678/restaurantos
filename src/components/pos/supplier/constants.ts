@@ -42,6 +42,9 @@ export interface PurchaseOrderType {
   notes: string
   items: PurchaseOrderItemType[]
   createdAt: string
+  // R132 (P1-12): 'none' | 'partial' | 'invoiced' | 'variance' (ADDITIVNO;
+  // starejši odgovori brez polja → defenzivno 'none' = brez badge-a)
+  invoiceStatus?: string
 }
 
 export interface PurchaseOrderItemType {
@@ -60,6 +63,9 @@ export interface PurchaseOrderItemType {
   // = legacy vrstica v osnovnih enotah — stari tok se ne spreminja)
   packQty?: number | string | null
   packUnit?: string | null
+  // R132 (P1-12): kumulirana zavrnjena/odkovana količina (ADDITIVNO; string iz
+  // Decimal čez API mejo — vedno pretvori z Number() || 0 ali toNum, NIKOLI parseFloat)
+  quantityRejected?: number | string | null
 }
 
 // ============================================
@@ -76,8 +82,9 @@ export const poStatusLabels: Record<string, string> = {
 
 export const poStatusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
-  sent: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-  confirmed: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400',
+  // R132: sent/confirmed prebarvana na hišno paleto (emerald/amber/red/zinc)
+  sent: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-900/30 dark:text-zinc-400',
+  confirmed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
   partial: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
   received: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
   cancelled: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',

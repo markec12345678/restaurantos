@@ -60,7 +60,14 @@ export const purchaseOrderUpdateSchema = z.object({
   receivedItems: z.array(z.object({
     itemId: z.string().max(100, 'ID postavke je predolg'),
     quantityReceived: z.number().min(0.01, 'Količina mora biti pozitivna').max(99999, 'Količina je prevelika'),
+    // R132 (epic #115 P1-12): zavrnjena/odkvana količina (NE vstopi v zalogo;
+    // cap-check kanon: accepted + rejected ≤ ordered). Default 0 = legacy
+    // vedenje BIT-FOR-BIT nespremenjeno.
+    quantityRejected: z.number().min(0, 'Zavrnjena količina ne sme biti negativna').max(99999, 'Zavrnjena količina je prevelika').default(0),
+    rejectReason: z.string().max(200, 'Razlog zavrnitve je predolg').default(''),
   })).max(100, 'Največ 100 postavk na prevzem').optional(),
+  // R132: št. dobavnice dobavitelja (GRN dokumentacija dostave)
+  supplierDocNumber: z.string().max(100, 'Številka dobavnice je predolga').default(''),
   status: z.enum(['draft', 'submitted', 'approved', 'partial', 'received', 'cancelled']).optional(),
   expectedDate: z.string().max(30, 'Datum je predolg').optional(),
   notes: z.string().max(2000, 'Opombe so predolge').optional(),
@@ -83,6 +90,9 @@ export interface ReceivePurchaseOrderItemsResult {
   po: Record<string, unknown>
   allReceived: boolean
   anyPartial: boolean
+  // R132 (epic #115 P1-12): prevzemni dokument (GRN) ustvarjen v istem tx —
+  // vsak prevzem (tudi legacy delni) je dokumentiran (kanon #3).
+  grn: { id: string; grnNumber: string; status: string; supplierDocNumber: string }
 }
 
 /**
@@ -96,11 +106,22 @@ export async function receivePurchaseOrderItems(opts: {
   // R86-2b pariteta: scope.locationId iz resolveTenantLocationIdOrThrow
   // (string | null — super-admin brez lokacije = globalni nadzor).
   sessionLocationId: string | null
-  receivedItems: { itemId: string; quantityReceived: number }[]
+  receivedItems: {
+    itemId: string
+    quantityReceived: number
+    // R132 (P1-12): zavrnjena/odkvana količina v ISTI enoti kot quantityReceived
+    // (pack kanon: paketi, če je pack snapshot veljaven; sicer osnovne enote).
+    quantityRejected?: number
+    rejectReason?: string
+  }[]
   employeeId: string | null
+  // R132: snapshot imena zaposlenega (revizija GRN — route ga razreši iz seje)
+  employeeName?: string
   notes?: string
+  // R132: št. dobavnice dobavitelja (GRN dokumentacija dostave)
+  supplierDocNumber?: string
 }): Promise<ReceivePurchaseOrderItemsResult> {
-  const { poId, sessionLocationId, receivedItems, employeeId, notes } = opts
+  const { poId, sessionLocationId, receivedItems, employeeId, employeeName, notes, supplierDocNumber } = opts
 
   return await db.$transaction(async (tx) => {
     // R105 PO-1: advisory lock per PO — serializira sočasne prevzeme ISTEGA
@@ -126,6 +147,10 @@ export async function receivePurchaseOrderItems(opts: {
       throw { error: 'Naročila ni mogoče prevzeti — je preklicano', status: 400 }
     }
 
+    // R132 (epic #115 P1-12): GRN linije se zbirajo med zanko (snapshot iz
+    // tx-fresh PO postavke) — dokument se ustvari PO uspešnem item roll-upu.
+    const grnItems: Prisma.GoodsReceiptItemUncheckedCreateWithoutGoodsReceiptInput[] = []
+
     for (const receivedItem of receivedItems) {
       // R105 PO-1/PO-4: item se išče v TX-FRESH items; neznan itemId je
       // fail-closed 400 (prej tihi `continue` = 200 brez vsakega pisanja).
@@ -134,8 +159,18 @@ export async function receivePurchaseOrderItems(opts: {
         throw { error: `Postavka ${receivedItem.itemId} ni najdena v naročilu`, status: 400 }
       }
 
+      // R132 (P1-12): zavrnjena/odkvana količina vrstice (default 0 = legacy).
+      const quantityRejected = receivedItem.quantityRejected ?? 0
+      const rejectReason = receivedItem.rejectReason ?? ''
+
       // Cap-check proti svežim podatkom (pod lockom + Serializable sta dva
       // sočasna prevzema serializirana — stale prebereta ne obstajata več).
+      // R132 AMANDMA kanona #2: cap gre IZKLJUČNO na SPREJETO količino
+      // (BIT-FOR-BIT R105). quantityRejected je dokumentacija dostave in NE
+      // porablja naročilne kapacitete — sicer bi nadomestni prevzem poškodovanih
+      // enot (10 naročenih, 1 odkvano, 1 nadomestilo) in odklonitev prevelike
+      // dobave (12 poslano, 2 zavrnjeno) bili blokirani. Brez zavrnjenih je
+      // formula identična obstoječemu cap-checku.
       const totalReceived = round2(toNum(poItem.quantityReceived) + receivedItem.quantityReceived)
       if (greaterThan(totalReceived, toNum(poItem.quantityOrdered))) {
         throw {
@@ -144,11 +179,30 @@ export async function receivePurchaseOrderItems(opts: {
         }
       }
 
+      // R132 (P1-12): GRN linija — snapshot opisa/enote/cene/pakiranja iz PO
+      // postavke; accepted = delta (v ISTI enoti kot quantityReceived — pack
+      // kanon R131), rejected/reason iz vrstice prevzema.
+      grnItems.push({
+        purchaseOrderItemId: poItem.id,
+        inventoryItemId: poItem.inventoryItemId,
+        description: poItem.description,
+        unit: poItem.unit,
+        quantityAccepted: receivedItem.quantityReceived,
+        quantityRejected,
+        rejectReason,
+        packQty: poItem.packQty,
+        packUnit: poItem.packUnit,
+        unitPriceOrdered: poItem.unitPrice,
+      })
+
       // Posodobi postavko naročila
       await tx.purchaseOrderItem.update({
         where: { id: poItem.id },
         data: {
           quantityReceived: totalReceived,
+          // R132 (P1-12): kumulacija zavrnjenih/odkvanih (cap-check zgoraj
+          // zagotavlja accepted + rejected ≤ ordered). 0 = legacy vedenje.
+          quantityRejected: round3(toNum(poItem.quantityRejected) + quantityRejected),
           status: greaterThanOrEqual(totalReceived, poItem.quantityOrdered) ? 'received' : 'partial',
         },
       })
@@ -279,6 +333,28 @@ export async function receivePurchaseOrderItems(opts: {
       }
     }
 
+    // R132 (epic #115 P1-12, kanon #3): vsak prevzem ustvari GRN dokument +
+    // linije v ISTEM tx (tudi legacy delni prevzem). grnNumber = count+1
+    // (pariteta PO-2: @unique + P2002 → 409 retry — catch v ruti). GRN ni
+    // imutiben dokument v tej rundi (cancel NI v scope).
+    const grnYear = new Date().getFullYear()
+    const grnCount = await tx.goodsReceipt.count({ where: { grnNumber: { startsWith: `GR-${grnYear}-` } } })
+    const grnNumber = `GR-${grnYear}-${String(grnCount + 1).padStart(6, '0')}`
+    const grn = await tx.goodsReceipt.create({
+      data: {
+        grnNumber,
+        purchaseOrderId: po.id,
+        supplierId: po.supplierId,
+        status: 'confirmed',
+        supplierDocNumber: supplierDocNumber ?? '',
+        notes: notes ?? '',
+        receivedById: employeeId,
+        receivedByName: employeeName ?? '',
+        locationId: po.locationId ?? null,
+        items: { create: grnItems },
+      },
+    })
+
     // Status roll-up iz TX-FRESH items
     const updatedPo = await tx.purchaseOrder.findUnique({
       where: { id: poId },
@@ -328,12 +404,25 @@ export async function receivePurchaseOrderItems(opts: {
             totalAmount: toNum(po.totalAmount),
             status: 'open',
             notes: `Avtomatsko kreirano ob prejemu ${po.poNumber}`,
+            // R132 (P1-12): AP nosi lokacijo PO-ja (pariteta invoice POST poti)
+            // — sicer AP list (tenant scope) ne vidi avto-obveznosti.
+            locationId: po.locationId ?? null,
           },
         })
       }
     }
 
-    return { po: finalPo as unknown as Record<string, unknown>, allReceived, anyPartial }
+    return {
+      po: finalPo as unknown as Record<string, unknown>,
+      allReceived,
+      anyPartial,
+      grn: {
+        id: grn.id,
+        grnNumber: grn.grnNumber,
+        status: grn.status,
+        supplierDocNumber: grn.supplierDocNumber,
+      },
+    }
   }, {
     isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     timeout: 10_000,
@@ -345,9 +434,12 @@ export async function receivePurchaseOrderItems(opts: {
 // (sessionLocationId je OBVEZEN parameter — brez defaulta, R86-2b).
 export async function handleReceiveAction(
   id: string,
-  receivedItems: { itemId: string; quantityReceived: number }[],
+  receivedItems: { itemId: string; quantityReceived: number; quantityRejected?: number; rejectReason?: string }[],
   employeeId: string | null,
   sessionLocationId: string | null,
+  // R132 (P1-12): GRN dokumentacija — PUT/PATCH entry poda dobavnico iz bodyja
+  // (employeeName snapshot je POST-route avtoriteta; tu ostane prazen).
+  opts?: { supplierDocNumber?: string },
 ) {
   try {
     await receivePurchaseOrderItems({
@@ -355,6 +447,7 @@ export async function handleReceiveAction(
       sessionLocationId,
       receivedItems,
       employeeId,
+      supplierDocNumber: opts?.supplierDocNumber,
     })
     return NextResponse.json({ success: true, message: 'Blago prevzeto in zaloga posodobljena' })
   } catch (error: unknown) {

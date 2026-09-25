@@ -17,7 +17,7 @@
 // apNumber @unique (count+1 števec) → 500 (R104 Q1 razred: uspeh → 500).
 // Zdaj: P2002/P2034 race-path → 409 (nikoli 500).
 
-import { createAuditLog } from '@/lib/db'
+import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
@@ -33,7 +33,14 @@ const receiveSchema = z.object({
   receivedItems: z.array(z.object({
     itemId: z.string().min(1, 'ID postavke je obvezen'),
     quantityReceived: z.number().min(0.01, 'Količina mora biti pozitivna').max(99999, 'Količina je prevelika'),
+    // R132 (epic #115 P1-12): zavrnjena/odkvana količina (NE vstopi v zalogo;
+    // cap-check kanon: accepted + rejected ≤ ordered). Default 0 = legacy
+    // vedenje BIT-FOR-BIT nespremenjeno.
+    quantityRejected: z.number().min(0, 'Zavrnjena količina ne sme biti negativna').max(99999, 'Zavrnjena količina je prevelika').default(0),
+    rejectReason: z.string().max(200, 'Razlog zavrnitve je predolg').default(''),
   })).min(1, 'Vsaj ena postavka je obvezna').max(100, 'Največ 100 postavk na prevzem'),
+  // R132: št. dobavnice dobavitelja (GRN dokumentacija dostave)
+  supplierDocNumber: z.string().max(100, 'Številka dobavnice je predolga').default(''),
   notes: z.string().max(2000, 'Opombe so predolge').optional(),
 })
 
@@ -56,14 +63,30 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     })
     if ('error' in scope) return scope.error
 
+    // R132 (P1-12): snapshot imena zaposlenega za GRN (revizija). Best-effort
+    // — napaka lookupa ne sme blokirati prevzema (pariteta audit-log try/catch).
+    let employeeName = ''
+    try {
+      const emp = await db.employee.findUnique({
+        where: { id: authResult.session?.employeeId ?? '' },
+        select: { name: true },
+      })
+      employeeName = emp?.name ?? ''
+    } catch {
+      // snapshot ostane prazen
+    }
+
     // R105: skupni prevzemni kanon (advisory lock + Serializable + tx-fresh).
     // Prej: stale po findFirst izven transakcije + status check proti stale
     // podatkom + read-modify-write po itemih + nepogojen AP create.
+    // R132 (P1-12): isti tx ustvari tudi GRN dokument + linije (kanon #3).
     const result = await receivePurchaseOrderItems({
       poId: id,
       sessionLocationId: scope.locationId,
       receivedItems: body.receivedItems,
       employeeId: authResult.session?.employeeId ?? null,
+      employeeName,
+      supplierDocNumber: body.supplierDocNumber,
       notes: body.notes,
     })
 
@@ -86,6 +109,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             quantity: ri.quantityReceived,
           })),
           allReceived: result.allReceived,
+          // R132 (P1-12): GRN dokument (additivno — kanon #3 + #8)
+          grnNumber: result.grn.grnNumber,
+          supplierDocNumber: result.grn.supplierDocNumber,
+          rejectedItems: body.receivedItems
+            .filter((ri: { quantityRejected?: number }) => (ri.quantityRejected ?? 0) > 0)
+            .map((ri: { itemId: string; quantityRejected?: number; rejectReason?: string }) => ({
+              itemId: ri.itemId,
+              quantityRejected: ri.quantityRejected ?? 0,
+              rejectReason: ri.rejectReason ?? '',
+            })),
         },
       })
     } catch {
@@ -99,6 +132,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         : 'Blago delno prevzeto — zaloga posodobljena',
       purchaseOrder: deepToNumbers(result.po),
       status: (result.po as { status?: string }).status,
+      // R132 (P1-12): prevzemni dokument (GRN) — klient prikaže grnNumber
+      grn: result.grn,
     }, { status: 200 })
   } catch (error: unknown) {
     // R105: race-pathi nikoli 500 — P2002 (apNumber @unique count+1 števec

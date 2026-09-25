@@ -79,6 +79,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         body.receivedItems,
         authResult.session?.employeeId ?? null,
         scope.locationId,
+        { supplierDocNumber: body.supplierDocNumber },
       )
     }
 
@@ -154,6 +155,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         body.receivedItems,
         authResult.session?.employeeId ?? null,
         scope.locationId,
+        { supplierDocNumber: body.supplierDocNumber },
       )
     }
 

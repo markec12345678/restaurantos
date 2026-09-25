@@ -799,6 +799,7 @@ model Employee {
   createdStaffShifts StaffShift[] @relation("StaffShiftCreatedBy")
   requestedPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderRequestedBy")
   approvedPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderApprovedBy")
+  goodsReceipts   GoodsReceipt[] @relation("GoodsReceiptReceivedBy") // R132: prevzeli (GRN snapshot imena)
   // --- Multi-location ---
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -1692,6 +1693,7 @@ model Location {
   batchPreparations     BatchPreparation[] // R122 (epic #115 P0-04): priprava vmesnih produktov po lokaciji
   dailyCloses           DailyClose[]       // R126 (epic #115 P0-02): dnevni zaključek / reconciliation po lokaciji
   supplierPriceHistorys SupplierPriceHistory[] // R130 (epic #115 P1-08): zgodovina nabavnih cen (tenant metadata)
+  goodsReceipts   GoodsReceipt[]               // R132 (epic #115 P1-12): prevzemi (tenant metadata, pariteta PO)
   // R126 (epic #115 P0-02): prag denarne razlike za dnevni zaključek.
   // |countedCash - expectedCash| > prag → DailyClose zahteva odobritev (PENDING_APPROVAL).
   dailyCloseVarianceThreshold Decimal @default(5.00) @db.Decimal(12, 2)
@@ -2151,6 +2153,7 @@ model Supplier {
   batches         InventoryBatch[] // R120 (epic #115 §4): serije po dobavitelju
   supplierPrices  SupplierPriceHistory[] // R130 (epic #115 P1-08): zgodovina nabavnih cen po dobavitelju
   supplierItems   SupplierItem[]   // R131 (epic #115 P1-13): katalog dobavitelja (cenik v paketih)
+  goodsReceipts   GoodsReceipt[]   // R132 (epic #115 P1-12): prevzemni dokumenti (GRN) dobavitelja
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -2171,6 +2174,9 @@ model PurchaseOrder {
   supplier        Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   // --- Status ---
   status          String   @default("draft")    // draft, sent, confirmed, partial, received, cancelled
+  // R132 (epic #115 P1-12): three-way match roll-up (list filtering) —
+  // none | partial | invoiced | variance (persistirana; živo poročilo = GET invoice)
+  invoiceStatus   String   @default("none")
   // --- Datumi ---
   orderDate       DateTime @default(now())
   expectedDate    DateTime?                     // Pričakovana dostava
@@ -2196,6 +2202,7 @@ model PurchaseOrder {
   // --- Relations ---
   items           PurchaseOrderItem[]
   priceHistory    SupplierPriceHistory[] // R130 (epic #115 P1-08): zajete cene ob prevzemu (onDelete: SetNull)
+  goodsReceipts   GoodsReceipt[]         // R132 (epic #115 P1-12): prevzemni dokumenti (GRN) naročila
   // --- FASE 3: Povezava z AccountsPayable ---
   accountsPayableId String?                      // ID AP vnosa, če je PO knjižen kot obveznost
   createdAt       DateTime @default(now())
@@ -2219,7 +2226,10 @@ model PurchaseOrderItem {
   description     String                           // Opis artikla
   // --- Količine ---
   quantityOrdered Decimal        @default(0) // FIX: Decimal za natančnost
-  quantityReceived Decimal       @default(0) // FIX: Decimal za natančnost
+  quantityReceived Decimal       @default(0) // FIX: Decimal za natančnost — SPREJETA količina (vstopi v zalogo)
+  // R132 (epic #115 P1-12): kumulirana zavrnjena/odkvana količina (NE vstopi v
+  // zalogo). Cap-check kanon: accepted + rejected ≤ ordered.
+  quantityRejected Decimal       @default(0) @db.Decimal(12, 3)
   unit            String        @default("pcs")
   // --- Cene ---
   unitPrice       Decimal        @default(0)  // Nabavna cena na enoto  // FIX: Decimal za valuto
@@ -2235,6 +2245,9 @@ model PurchaseOrderItem {
   // konsistenten tudi če se katalog spremeni).
   packQty         Decimal?      @db.Decimal(12, 3) // osnovnih enot na 1 paket (snapshot)
   packUnit        String?                          // oznaka paketa ("vrečka", "sod", "karton")
+  // --- R132 (epic #115 P1-12): recon backlinki ---
+  goodsReceiptItems GoodsReceiptItem[]                                      // GRN linije te PO postavke
+  apLines           AccountsPayableLine[] @relation("APLinePOItem")         // AP linije te PO postavke
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -2242,6 +2255,71 @@ model PurchaseOrderItem {
   @@index([inventoryItemId])
   @@index([status])
   @@index([purchaseOrderId, status]) // FIX: Pogosta poizvedba — pridobi postavke naročila po statusu
+}
+
+// ============================================
+// PREVZEMNI DOKUMENTI (GOODS RECEIPT / GRN) — P1-12
+// ============================================
+// R132 (epic #115 P1-12): vsak fizični prevzem blaga (receivePurchaseOrderItems
+// kanon) ustvari GoodsReceipt dokument + linije v ISTEM tx. GRN je evidenca
+// prevzema: sprejeto (quantityAccepted — vstopi v zalogo) vs zavrnjeno/odkvano
+// (quantityRejected — NE vstopi v zalogo). Three-way match kanon:
+// PO (naročeno) ↔ GRN (prejeto) ↔ Supplier Invoice (zaračunano).
+//
+// Pariteta z nabavnim grozdom (PO/PH/AP): locationId je nullable tenant
+// metadata (MODEL A ne velja — metadata za prihodnji tenant filtering).
+// GRN ni imutiben dokument v tej rundi (cancel NI v scope).
+// ============================================
+model GoodsReceipt {
+  id              String   @id @default(cuid())
+  grnNumber       String   @unique              // "GR-2026-000001"
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  supplierId      String
+  supplier        Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  status          String   @default("confirmed") // confirmed | cancelled
+  // Dokumentacija dostave
+  supplierDocNumber String @default("")         // št. dobavnice dobavitelja
+  notes           String   @default("")
+  // Prevzem meta
+  receivedById    String?
+  receivedByEmp   Employee? @relation("GoodsReceiptReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  receivedByName  String   @default("")         // snapshot imena (revizija)
+  receivedAt      DateTime @default(now())
+  // Metadata (pariteta PO.locationId — nabavni grozd je nullable)
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  items           GoodsReceiptItem[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([purchaseOrderId])
+  @@index([supplierId])
+  @@index([receivedAt])
+  @@index([locationId])
+}
+
+model GoodsReceiptItem {
+  id                 String       @id @default(cuid())
+  goodsReceiptId     String
+  goodsReceipt       GoodsReceipt @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  purchaseOrderItemId String?
+  purchaseOrderItem  PurchaseOrderItem? @relation(fields: [purchaseOrderItemId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  inventoryItemId    String?
+  description        String                     // snapshot opisa PO postavke
+  unit               String       @default("pcs") // ENOTA VNOSA (pack ali base — enaka PO item enoti)
+  quantityAccepted   Decimal      @default(0) @db.Decimal(12, 3)
+  quantityRejected   Decimal      @default(0) @db.Decimal(12, 3)
+  rejectReason       String       @default("")
+  // Pack snapshot (pariteta PO item — provenance razlaga)
+  packQty            Decimal?     @db.Decimal(12, 3)
+  packUnit           String?
+  unitPriceOrdered   Decimal      @default(0)   // snapshot PO unitPrice (isto enoto)
+  createdAt          DateTime     @default(now())
+
+  @@index([goodsReceiptId])
+  @@index([purchaseOrderItemId])
+  @@index([inventoryItemId])
 }
 
 // ============================================
@@ -3135,6 +3213,8 @@ model AccountsPayable {
   // --- Status ---
   status          String     @default("open")   // open, partial, paid, overdue, cancelled
   paidAt          DateTime?
+  // R132 (epic #115 P1-12): three-way match roll-up — unmatched | matched | variance
+  matchStatus     String     @default("unmatched")
   // --- Multi-location (issue #31): AP pripada specifični lokaciji ---
   locationId      String?
   location        Location?  @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -3148,6 +3228,36 @@ model AccountsPayable {
   @@index([dueDate])
   @@index([status, dueDate])  // Aging report: open/overdue po datumu
   @@index([locationId])  // ISSUE #31: multi-tenant AP poizvedbe
+  lines           AccountsPayableLine[] // R132 (epic #115 P1-12): linije računa dobavitelja (three-way match)
+}
+
+// ============================================
+// LINIJE RAČUNA DOBAVITELJA (Accounts Payable Line) — P1-12
+// ============================================
+// R132 (epic #115 P1-12): prave linije računa dobavitelja na AP. Vsaka linija
+// je vezana na PO postavko (purchaseOrderItemId, SetNull) in nosi snapshot
+// zaračunane količine/cene + per-line variance status iz three-way matcha
+// (PO naročeno ↔ GRN sprejeto ↔ račun zaračunano). Variance se PRIKAŽE,
+// nabavna cena se NE tiho prepše (kanon #6: price history se iz računa
+// nikoli ne prepisuje).
+// ============================================
+model AccountsPayableLine {
+  id                 String          @id @default(cuid())
+  accountsPayableId  String
+  accountsPayable    AccountsPayable @relation(fields: [accountsPayableId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  purchaseOrderItemId String?
+  purchaseOrderItem  PurchaseOrderItem? @relation("APLinePOItem", fields: [purchaseOrderItemId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  description        String                        // snapshot opisa PO postavke
+  quantityInvoiced   Decimal         @default(0) @db.Decimal(12, 3)
+  unitPriceInvoiced  Decimal         @default(0) @db.Decimal(12, 4)
+  vatRateInvoiced    Decimal?        @db.Decimal(5, 2)
+  lineTotal          Decimal         @default(0) @db.Decimal(12, 2)
+  varianceStatus     String          @default("match") // match | variance_qty | variance_price | variance_both | unreceived
+  varianceNote       String          @default("")
+  createdAt          DateTime        @default(now())
+
+  @@index([accountsPayableId])
+  @@index([purchaseOrderItemId])
 }
 
 // ============================================

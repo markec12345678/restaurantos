@@ -56,6 +56,9 @@ function createDb() {
   const stockTxs: Array<Record<string, unknown>> = []
   const priceHistory: Array<Record<string, unknown>> = []
   const ap: Array<Record<string, unknown>> = []
+  // R132 (P1-12): vsak prevzem ustvari GRN dokument + linije v istem tx —
+  // aditivni trap stub (asercije ostajajo nespremenjene).
+  const grns: Array<Record<string, unknown>> = []
   const captured = {
     invUpdates: [] as Array<{ id: string; increment: number }>,
     poiUpdates: [] as Array<Record<string, unknown>>,
@@ -119,6 +122,16 @@ function createDb() {
         return { id: `ph-${priceHistory.length}`, ...data }
       },
     },
+    goodsReceipt: {
+      count: async ({ where }: { where?: { grnNumber?: { startsWith?: string } } } = {}) => {
+        const prefix = where?.grnNumber?.startsWith ?? 'GR-'
+        return grns.filter(g => String(g.grnNumber).startsWith(prefix)).length
+      },
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        grns.push({ ...data })
+        return { id: `gr-${grns.length}`, ...data }
+      },
+    },
     accountsPayable: {
       findFirst: async () => null,
       count: async () => 0,
@@ -134,7 +147,7 @@ function createDb() {
     $transaction: async <T>(fn: (t: typeof tx) => Promise<T>) => fn(tx),
   }
 
-  return { db, pos, inventory, stockTxs, priceHistory, ap, captured }
+  return { db, pos, inventory, stockTxs, priceHistory, ap, grns, captured }
 }
 
 // ---------- Mocki (vi.hoisted ref + getter, hišni stil) ----------
@@ -176,6 +189,7 @@ function seedBase() {
   state.stockTxs.length = 0
   state.priceHistory.length = 0
   state.ap.length = 0
+  state.grns.length = 0
   state.captured.invUpdates.length = 0
   state.captured.poiUpdates.length = 0
 
