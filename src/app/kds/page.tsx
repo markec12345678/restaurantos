@@ -12,6 +12,7 @@ import { useKDSPage } from './useKDSPage'
 const KDSLogin = dynamic(() => import('./KDSLogin').then(m => ({ default: m.KDSLogin })), { ssr: false })
 const KDSHeader = dynamic(() => import('./KDSHeader').then(m => ({ default: m.KDSHeader })), { ssr: false })
 const KDSOrderGrid = dynamic(() => import('./KDSOrderGrid').then(m => ({ default: m.KDSOrderGrid })), { ssr: false })
+const KDSMetricsPanel = dynamic(() => import('./KDSMetricsPanel').then(m => ({ default: m.KDSMetricsPanel })), { ssr: false })
 
 // ─── Glavna KDS stran ──────────────────────────────────────────
 export default function KDSPage() {
@@ -32,6 +33,8 @@ export default function KDSPage() {
     handleBump, handleBumpItem, handleRecall,
     refetch,
     toggleFullscreen,
+    showMetrics, toggleMetrics,
+    metrics,
   } = useKDSPage()
 
   // ─── Če ni prijavljen ───
@@ -58,7 +61,20 @@ export default function KDSPage() {
         wsConnected={wsConnected}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
+        showMetrics={showMetrics}
+        onToggleMetrics={toggleMetrics}
       />
+      {/* R133: metrike panel — med headerjem in mrežo (shrink-0 + max-h +
+          scroll; mreža ostane flex-1 overflow-hidden, ne pokanjena) */}
+      {showMetrics && (
+        <KDSMetricsPanel
+          metrics={metrics.data}
+          isLoading={metrics.isLoading}
+          isError={metrics.isError}
+          onRetry={() => metrics.refetch()}
+          onClose={toggleMetrics}
+        />
+      )}
       <div className="flex-1 overflow-hidden">
         <KDSOrderGrid
           isLoading={isLoading}

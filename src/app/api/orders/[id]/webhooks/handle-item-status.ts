@@ -17,9 +17,23 @@ import { wsBroadcastEvent } from '@/lib/ws-server-broadcast'
 // Sedaj: Serializable tx + advisory lock 'order-write:{orderId}' (isti ključ
 // kot add-items / void recalc / checks / qr-pay kanon) + tx-fresh guardi +
 // CAS updateMany na artiklu IN naročilu.
+//
+// R133 (epic #115 P1-09): KDS bump je zdaj MERLJIV in AVTORSKI — workflow
+// NESPREMENJEN (isti CAS/lock/guardi, samo enrichment data v ISTEM update-u):
+// `actor` (kdo je bumpal — resolved v ruti SAMO ob status='ready') se ob
+// prehodu v 'ready' zapiše skupaj s strežniškim readyAt (atomarno). Non-ready
+// statusi NE pišejo readyAt; ready→preparing→ready OVERWRITE (čas zadnje
+// priprave). actor je opcijski (null/izpuščen = starejši klicatelji — R112
+// testi, serve path) → readyById null / readyByName ''.
+export interface KdsReadyActor {
+  employeeId: string | null
+  employeeName: string
+}
+
 export async function handleItemStatusUpdate(
   id: string, itemId: string, status: string,
   _order: { id: string; status: string; orderNumber: number; locationId?: string | null },
+  actor?: KdsReadyActor | null,
 ) {
   // Zastarel argument je SAMO fallback za broadcast metadata — avtoritativni
   // guardi tečejo tx-fresh (spodaj).
@@ -52,9 +66,20 @@ export async function handleItemStatusUpdate(
 
     // CAS na artiklu — tekmuje z void claimom (PUT /api/order-items/[id]):
     // void VEDNO zmaga nad KDS status tapom (count 0 = void je pravkar zmagal).
+    // R133 kanon: readyAt = čas ZADNJEGA prehoda v 'ready' (ponovni vstop
+    // ready→preparing→ready OVERWRITE — "čas zadnje priprave"); non-ready
+    // statusi NE pišejo readyAt. Actor snapshot gre v ISTI update (atomarno,
+    // pariteta GRN receivedBy R132). CAS where (voided:false) NESPREMENJEN.
     const itemClaim = await tx.orderItem.updateMany({
       where: { id: itemId, orderId: id, voided: false },
-      data: { status },
+      data: status === 'ready'
+        ? {
+            status,
+            readyAt: new Date(),
+            readyById: actor?.employeeId ?? null,
+            readyByName: actor?.employeeName ?? '',
+          }
+        : { status },
     })
     if (itemClaim.count === 0) {
       return { error: 'Artikel je v obdelavi (void/sočasna sprememba) — osvežite', status: 409 }

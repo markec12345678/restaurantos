@@ -150,6 +150,20 @@ export async function POST(req: Request) {
       }
     }
 
+    // R133 (epic #115 P1-09): prepStationId lokacijski guard — postaja mora
+    // biti na ISTI lokaciji kot artikel (veriga Category → Menu → locationId),
+    // pariteta modifierGroupIds MODEL A #9. Brez tega je bil čez POST možen
+    // cross-lokacijski prepStation link (KDS routing + metrike target).
+    if (itemData.prepStationId) {
+      const station = await db.prepStation.findUnique({
+        where: { id: itemData.prepStationId },
+        select: { id: true, locationId: true },
+      })
+      if (!station || station.locationId !== parentCategory.menu.locationId) {
+        return notInScopeResponse('Postaja priprave')
+      }
+    }
+
     const item = await db.menuItem.create({
       data: {
         ...itemData,

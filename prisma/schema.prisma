@@ -598,6 +598,16 @@ model OrderItem {
   status         String   @default("pending")
   // FIX WORKFLOW-3: firedAt — čas, kdaj je artikel poslan v kuhinjo (KDS urgency timer)
   firedAt        DateTime?
+  // R133 (epic #115 P1-09): KDS metrike — strežniški čas ZADNJEGA prehoda v
+  // 'ready' (bump). Ponovni vstop ready→preparing→ready OVERWRITE ("čas zadnje
+  // priprave"); prehod v 'served' readyAt NE spreminja; non-ready statusi NE
+  // pišejo readyAt. Legacy vrstice (NULL) so iz prep-time metrik izključene.
+  readyAt        DateTime?
+  // R133: kdo je bumpal — FK SetNull + ime snapshot (pariteta GRN receivedBy
+  // R132): izbris zaposlenega ne sme izgubiti forenzike (ime ostane).
+  readyById      String?
+  readyBy        Employee?  @relation("KdsReadyItems", fields: [readyById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  readyByName    String     @default("")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -800,6 +810,7 @@ model Employee {
   requestedPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderRequestedBy")
   approvedPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderApprovedBy")
   goodsReceipts   GoodsReceipt[] @relation("GoodsReceiptReceivedBy") // R132: prevzeli (GRN snapshot imena)
+  kdsReadyItems   OrderItem[]    @relation("KdsReadyItems") // R133: KDS bump forenzika (readyAt/readyByName snapshot)
   // --- Multi-location ---
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)

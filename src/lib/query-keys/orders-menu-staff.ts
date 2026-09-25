@@ -11,6 +11,8 @@ export const ordersKeys = {
   sidebar: ['sidebar-orders'] as const,
   waiter: ['waiter-orders'] as const,
   kds: ['kds-orders'] as const,
+  // R133: /api/kitchen/metrics (KDS metrike panel)
+  kdsMetrics: ['kds-metrics'] as const,
 }
 
 export const kitchenKeys = {

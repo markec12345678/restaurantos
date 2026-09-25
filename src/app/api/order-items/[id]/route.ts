@@ -37,6 +37,25 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (data.status) updateData.status = data.status
     if (data.notes !== undefined) updateData.notes = data.notes
 
+    // R133 (epic #115 P1-09): readyAt stamping v status branchu — enrichment
+    // gre v ISTI CAS updateMany (statusClaim spodaj, where nespremenjen).
+    // SAMO ob 'ready' (non-ready statusi NE pišejo readyAt; void operacija
+    // nikoli — void branch prisili status 'voided'). Actor = seja (employeeId)
+    // + ime snapshot best-effort (try/catch, fallback '') — pariteta GRN
+    // receivedBy R132; ready→preparing→ready OVERWRITE (čas zadnje priprave).
+    if (data.status === 'ready' && !isVoidOperation) {
+      updateData.readyAt = new Date()
+      updateData.readyById = authResult.session?.employeeId ?? null
+      let employeeName = ''
+      try {
+        const employee = authResult.session?.employeeId
+          ? await db.employee.findUnique({ where: { id: authResult.session.employeeId }, select: { name: true } })
+          : null
+        employeeName = employee?.name ?? ''
+      } catch { employeeName = '' }
+      updateData.readyByName = employeeName
+    }
+
     // FIX (IDOR doslednost): tenant scope za VSE update-e (prej samo za void)
     // FIX R86-2a (M2 fail-open): centralni resolver namesto raw spread-a
     const { searchParams } = new URL(req.url)

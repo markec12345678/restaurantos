@@ -5,6 +5,7 @@ import { useKDSSound } from './use-kds-sound'
 import { useKDSReminder } from './use-kds-reminder'
 import { useKDSSession, useKDSWebSocket } from './use-kds-page/use-kds-session'
 import { useKDSOrders } from './use-kds-page/use-kds-orders'
+import { useKDSMetrics } from './use-kds-page/use-kds-metrics'
 import { KDS_DANGER_MINUTES } from '@/lib/kds-reminder'
 
 // ═══════════════════════════════════════════════════════════════
@@ -14,6 +15,8 @@ import { KDS_DANGER_MINUTES } from '@/lib/kds-reminder'
 export function useKDSPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [stationFilter, setStationFilter] = useState<string>('all')
+  // R133: metrike panel — UI stanje ob vzorcu viewMode (barrel hook)
+  const [showMetrics, setShowMetrics] = useState(false)
   const [_showRecall, setShowRecall] = useState(false)
   const [bumpedOrders, setBumpedOrders] = useState<string[]>([])
   const { play: playSound, playBump, playReminder, toggle: toggleSound, isEnabled: isSoundEnabled, unlock: unlockSound } = useKDSSound()
@@ -34,6 +37,9 @@ export function useKDSPage() {
   const session = useKDSSession()
   const { wsConnected } = useKDSWebSocket(session.employee, playSound)
   const orders = useKDSOrders(session.employee, bumpedOrders, stationFilter, setBumpedOrders)
+  // R133: metrike — useQuery enabled SAMO ko je panel odprt (ni prometa ob zaprtem)
+  const metrics = useKDSMetrics(showMetrics)
+  const toggleMetrics = useCallback(() => setShowMetrics(v => !v), [])
   const { getElapsed } = session
 
   // R64: opomnik nevarne cone — zvočna eskalacija vsakih 60 s za naročila
@@ -80,5 +86,7 @@ export function useKDSPage() {
     handleBump, handleBumpItem, handleRecall,
     refetch: orders.refetch,
     toggleFullscreen: session.toggleFullscreen,
+    showMetrics, toggleMetrics,
+    metrics,
   }
 }

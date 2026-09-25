@@ -83,7 +83,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       })
       if (!order) return NextResponse.json({ error: 'Naročilo ni najdeno' }, { status: 404 })
 
-      const result = await handleItemStatusUpdate(id, itemId, status, order)
+      // R133 (epic #115 P1-09): actor resolve SAMO ob status='ready' (bump je
+      // človeški tempo — 1 poizvedba je OK); ime best-effort (try/catch,
+      // fallback '') — FK readyById (SetNull) + snapshot readyByName pariteta
+      // GRN receivedBy R132. Non-ready statusi gredo brez lookupa (actor null).
+      let actor: { employeeId: string | null; employeeName: string } | null = null
+      if (status === 'ready') {
+        let employeeName = ''
+        try {
+          const employee = authResult.session?.employeeId
+            ? await db.employee.findUnique({ where: { id: authResult.session.employeeId }, select: { name: true } })
+            : null
+          employeeName = employee?.name ?? ''
+        } catch { employeeName = '' }
+        actor = { employeeId: authResult.session?.employeeId ?? null, employeeName }
+      }
+
+      const result = await handleItemStatusUpdate(id, itemId, status, order, actor)
       if ('error' in result) return NextResponse.json({ error: result.error }, { status: result.status })
       return NextResponse.json(deepToNumbers(result))
     }
