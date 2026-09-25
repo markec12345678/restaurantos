@@ -199,6 +199,17 @@ export const IOT_LIMIT: RateLimitConfig = {
   windowMs: 60 * 1000,
 }
 
+/**
+ * R130 (epic #115 P1-08): ročni vnosi zgodovine nabavnih cen — 30/min.
+ * Prevzemi cene zajamejo SAMODEJNO (goods_receipt kanon), manual vnosi so
+ * redke korekcije; strožje od AUTHENTICATED_LIMIT, ker je Write z auditom.
+ * GET zgodovine uporablja AUTHENTICATED_LIMIT (blago branje).
+ */
+export const PRICE_HISTORY_MANUAL_LIMIT: RateLimitConfig = {
+  maxRequests: 30,
+  windowMs: 60 * 1000,
+}
+
 /** FIX P5 (audit 2026-09-06): Client error monitoring — 10 poročil na minuto
  * Preprečuje log injection DoS (napadalec spam-a fake error reports da
  * preplavi Vercel logs ali izčrpa Sentry quota). */

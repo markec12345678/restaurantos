@@ -50,6 +50,9 @@ function makeSuggestion(overrides: Partial<ReorderCenterSuggestion> = {}): Reord
     openPos: [],
     expectedDelivery: null,
     leadTimeDays: 3,
+    // R130-b (P1-08): nova polja vira cene (aditivna; tovarnica privzame 'item-cost')
+    unitPriceSource: 'item-cost',
+    unitPriceAsOf: null,
     ...overrides,
   }
 }

@@ -120,6 +120,10 @@ export function processItemForSuggestion(
     openPos: canon.openPos,
     expectedDelivery: canon.expectedDelivery,
     unitPrice: costPerUnit,
+    // R130 (P1-08): privzeti vir cene — enrichment v suggestions.ts OVERIDE-a
+    // z zadnjo dobaviteljsko ceno, če zgodovina obstaja.
+    unitPriceSource: 'item-cost',
+    unitPriceAsOf: null,
     itemId: item.id,
     name: item.name,
     avgDailyUsage: avg,

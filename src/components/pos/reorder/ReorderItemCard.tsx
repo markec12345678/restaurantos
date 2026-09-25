@@ -12,9 +12,10 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
-import { ChevronDown, Truck } from 'lucide-react'
+import { ChevronDown, History, Tag, Truck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatEUR } from '@/lib/safe-format'
+import { t } from '@/lib/i18n'
 import { isActionable, fmtQty, formatDateSafe, type ReorderCenterSuggestion } from './helpers'
 import { StatusBadge } from './StatusBadge'
 import { FactorsList } from './FactorsList'
@@ -115,6 +116,26 @@ export const ReorderItemCard = memo(function ReorderItemCard({ suggestion: s, se
 
         {expanded && (
           <div className="mt-3 space-y-2 border-t pt-3">
+            {/* R130-b (P1-08): vir enotne cene — razložljiva veriga dobavitelj → cena */}
+            {s.unitPriceSource === 'supplier-history' ? (
+              <p className="flex flex-wrap items-center text-xs">
+                <Badge
+                  variant="outline"
+                  className="whitespace-nowrap border-zinc-300 bg-zinc-100 text-[10px] text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300"
+                >
+                  <History className="mr-0.5 h-3 w-3" aria-hidden="true" />
+                  {t('suppliers.priceHistory.sourceSupplierHistory')}
+                  {formatDateSafe(s.unitPriceAsOf) && (
+                    <span className="font-normal"> · {formatDateSafe(s.unitPriceAsOf)}</span>
+                  )}
+                </Badge>
+              </p>
+            ) : (
+              <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <Tag className="h-3 w-3" aria-hidden="true" />
+                {t('suppliers.priceHistory.sourceItemCost')}
+              </p>
+            )}
             <FactorsList factors={s.factors} />
             {/* odprte naročilnice + pričakovana dobava (nova polja R129-server; skrito proti staremu odgovoru) */}
             {(openPoLabel || s.expectedDelivery) && (

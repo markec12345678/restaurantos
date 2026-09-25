@@ -975,6 +975,7 @@ model InventoryItem {
   batchInputLines BatchPreparationLine[] // R122 (epic #115 P0-04): sestavina v pripravah
   batchOutputPreparations BatchPreparation[] @relation("BatchPreparationOutput") // R122: izdelek priprav
   purchaseOrderItems PurchaseOrderItem[]
+  priceHistory    SupplierPriceHistory[] // R130 (epic #115 P1-08): zgodovina nabavnih cen artikla
   // --- AI Predictive Ordering ---
   reorderRule     ReorderRule?
   // --- Multi-location ---
@@ -1689,6 +1690,7 @@ model Location {
   stocktakes            Stocktake[]       // R121 (epic #115 P0-01): fizična inventura po lokaciji
   batchPreparations     BatchPreparation[] // R122 (epic #115 P0-04): priprava vmesnih produktov po lokaciji
   dailyCloses           DailyClose[]       // R126 (epic #115 P0-02): dnevni zaključek / reconciliation po lokaciji
+  supplierPriceHistorys SupplierPriceHistory[] // R130 (epic #115 P1-08): zgodovina nabavnih cen (tenant metadata)
   // R126 (epic #115 P0-02): prag denarne razlike za dnevni zaključek.
   // |countedCash - expectedCash| > prag → DailyClose zahteva odobritev (PENDING_APPROVAL).
   dailyCloseVarianceThreshold Decimal @default(5.00) @db.Decimal(12, 2)
@@ -2146,6 +2148,7 @@ model Supplier {
   // --- Relations ---
   purchaseOrders  PurchaseOrder[]
   batches         InventoryBatch[] // R120 (epic #115 §4): serije po dobavitelju
+  supplierPrices  SupplierPriceHistory[] // R130 (epic #115 P1-08): zgodovina nabavnih cen po dobavitelju
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -2190,6 +2193,7 @@ model PurchaseOrder {
   notes           String   @default("")
   // --- Relations ---
   items           PurchaseOrderItem[]
+  priceHistory    SupplierPriceHistory[] // R130 (epic #115 P1-08): zajete cene ob prevzemu (onDelete: SetNull)
   // --- FASE 3: Povezava z AccountsPayable ---
   accountsPayableId String?                      // ID AP vnosa, če je PO knjižen kot obveznost
   createdAt       DateTime @default(now())
@@ -2229,6 +2233,47 @@ model PurchaseOrderItem {
   @@index([inventoryItemId])
   @@index([status])
   @@index([purchaseOrderId, status]) // FIX: Pogosta poizvedba — pridobi postavke naročila po statusu
+}
+
+// ============================================
+// ZGODOVINA NABAVNIH CEN DOBAVITELJEV (P1-08)
+// ============================================
+// R130 (epic #115 P1-08): Goods Receipt → Supplier → Price History →
+// Recipe Cost → Margin. Vsak prevzem blaga (receivePurchaseOrderItems)
+// SAMODEJNO zajame nabavno ceno postavke (source 'goods_receipt'); ročni
+// vnosi prihajajo prek POST /api/inventory/price-history (source 'manual').
+// Poraba: recepture (strošek linije) + reorder center (enota cena).
+//
+// ZASEDNOST (kanon): vrstice z unitPrice <= 0 se NE zajamejo (darila/
+// vzorci ne smejo pokvariti povprečij). Decimal(12,4) je natančnejši od
+// InventoryItem.costPerUnit (12,2) ker je zgodovina/analitika.
+// locationId je METADATA iz PO/izvora (nullable) za prihodnji tenant
+// filtering — pariteta z PurchaseOrder.locationId.
+// ============================================
+model SupplierPriceHistory {
+  id              String         @id @default(cuid())
+  supplierId      String
+  supplier        Supplier       @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  inventoryItemId String
+  inventoryItem   InventoryItem  @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  unitPrice       Decimal        @db.Decimal(12, 4) // Nabavna cena na enoto (zgodovina — 4 dec)
+  vatRate         Decimal?       @db.Decimal(5, 2)  // DDV stopnja iz PO postavke (razlaga neto/bruto)
+  unit            String         @default("pcs")
+  source          String         @default("goods_receipt") // 'goods_receipt' | 'manual'
+  purchaseOrderId String?
+  purchaseOrder   PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  // --- Interna (tenant metadata) ---
+  locationId      String?
+  location        Location?      @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
+  observedAt      DateTime       @default(now()) // Kdaj je bila cena opažena (manual vnosi so lahko backdated)
+  createdAt       DateTime       @default(now())
+  note            String         @default("")
+
+  @@index([inventoryItemId, observedAt])
+  @@index([supplierId, inventoryItemId, observedAt])
+  @@index([source])
+  @@index([locationId])       // prihodnji tenant filtering (pariteta PO)
+  @@index([purchaseOrderId])  // FK lookup — vrstice prevzema per naročilnica
 }
 
 // ============================================

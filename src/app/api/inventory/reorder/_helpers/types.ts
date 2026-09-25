@@ -43,6 +43,12 @@ export interface ReorderSuggestion {
   openPos: Array<{ poNumber: string; expectedDate: string | null }>
   expectedDelivery: string | null
   unitPrice: number
+  // --- R130 (epic #115 P1-08): vir enotne cene — zgodovina dobavitelja
+  // OVERIDE-a costPerUnit; brez zgodovine 'item-cost' (back-compat: unitPrice
+  // ostane costPerUnit, nova polja so čisto aditivna).
+  unitPriceSource: 'supplier-history' | 'item-cost'
+  /** ISO čas zadnjega opažanja cene; null pri 'item-cost'. */
+  unitPriceAsOf: string | null
   itemId: string
   name: string
   avgDailyUsage: number

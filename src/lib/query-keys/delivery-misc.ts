@@ -16,6 +16,8 @@ export const locationsKeys = {
 
 export const suppliersKeys = {
   all: ['suppliers'] as const,
+  // R130-b (P1-08): zgodovina nabavnih cen dobavitelja (GET /api/inventory/price-history?supplierId=)
+  priceHistory: (supplierId: string) => ['suppliers', 'price-history', supplierId] as const,
 }
 
 export const purchaseOrdersKeys = {

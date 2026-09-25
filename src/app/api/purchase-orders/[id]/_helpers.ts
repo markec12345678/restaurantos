@@ -47,6 +47,7 @@ import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { toNum, round2, greaterThan, greaterThanOrEqual, isPositive, multiply } from '@/lib/decimal'
 import { structuredErrorResponse } from '@/lib/structured-error'
+import { logger } from '@/lib/logger'
 
 export const purchaseOrderUpdateSchema = z.object({
   action: z.enum(['receive']).optional(),
@@ -174,6 +175,31 @@ export async function receivePurchaseOrderItems(opts: {
             employeeName: employeeId || '',
           },
         })
+
+        // R130 (epic #115 P1-08): zgodovina nabavnih cen — cena je del
+        // prevzemnega poslovnega eventa, zato gre v ISTO transakcijo (kanon:
+        // Serializable + advisory lock pokrijejo tudi zajem cene).
+        // ZASEDNOST: unitPrice <= 0 (darilo/vzorec) se PRESKOČI — ne sme
+        // pokvariti povprečij; prevzem pa zato NE SME pasti (best-effort per
+        // vrstico: napaka zajema → logger.warn, tx nadaljuje).
+        if (greaterThan(toNum(poItem.unitPrice), 0)) {
+          try {
+            await tx.supplierPriceHistory.create({
+              data: {
+                supplierId: po.supplierId,
+                inventoryItemId: poItem.inventoryItemId,
+                unitPrice: poItem.unitPrice,
+                vatRate: poItem.vatRate,
+                unit: poItem.unit,
+                source: 'goods_receipt',
+                purchaseOrderId: poId,
+                locationId: po.locationId ?? null,
+              },
+            })
+          } catch (priceErr) {
+            logger.warn('R130', 'Zajem nabavne cene (goods_receipt) ni uspel — prevzem nadaljuje', priceErr)
+          }
+        }
       }
     }
 

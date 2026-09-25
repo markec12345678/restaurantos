@@ -2,6 +2,13 @@
 import { db } from '@/lib/db'
 import { deepToNumbers, toNum } from '@/lib/decimal'
 import { yieldAdjustedLineCost, rawFromUsable } from '@/lib/recipes/yield'
+import { computeMarginPercent } from '@/lib/suppliers/price-history'
+import {
+  collectLatestSupplierPrices,
+  resolveSupplierIdsByNames,
+  pickLatestPrice,
+  type LatestSupplierPrice,
+} from '@/lib/suppliers/price-history-db'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
@@ -61,12 +68,26 @@ export async function GET(req: Request) {
       where.menuItem = { category: { menu: { locationId: scope.locationId } } }
     }
 
+    // R130 (epic #115 P1-08): ?priceSource=supplier — nabavna cena sestavine
+    // se prebere iz zgodovine dobavitelja (zadnja cena per (dobavitelj,
+    // artikel)) namesto InventoryItem.costPerUnit. DEFAULT (brez parametra) =
+    // današnje vedenje, NIČ se ne spremeni (back-compat).
+    const priceSourceParam = searchParams.get('priceSource')
+    const useSupplierPrices = priceSourceParam === 'supplier'
+
     const [recipes, total] = await Promise.all([
       db.recipeItem.findMany({
         where,
         include: {
           menuItem: { select: { id: true, name: true, price: true } },
-          inventoryItem: { select: { id: true, name: true, unit: true, costPerUnit: true, quantity: true } },
+          inventoryItem: {
+            select: {
+              id: true, name: true, unit: true, costPerUnit: true, quantity: true,
+              // R130: soft-ref dobavitelj je potreben samo v supplier načinu
+              // (default odgovor ostane brez novega polja).
+              ...(useSupplierPrices ? { supplier: true } : {}),
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -75,13 +96,45 @@ export async function GET(req: Request) {
       db.recipeItem.count({ where }),
     ])
 
+    // R130: bulk fetch zgodovine (ena poizvedba) — preslikava ime dobavitelja
+    // → Supplier.id (@@unique name, hišni vzorec draft-po) → zadnja cena per par.
+    let supplierIdByName = new Map<string, string>()
+    let latestPrices = new Map<string, LatestSupplierPrice>()
+    if (useSupplierPrices && recipes.length > 0) {
+      const itemIds = [...new Set(recipes.map(r => r.inventoryItemId))]
+      const names = recipes.map(r => (r.inventoryItem as { supplier?: string }).supplier ?? '')
+      supplierIdByName = await resolveSupplierIdsByNames(db, names)
+      latestPrices = await collectLatestSupplierPrices(db, itemIds)
+    }
+
     // Obogatitev s stroški na porcijo
-    const enriched = recipes.map(r => ({
-      ...r,
+    const enriched = recipes.map(r => {
       // R123 (P0-05): efektivni strošek = RAW × nabavna cena (usable × cena / yield%)
-      costPerServing: yieldAdjustedLineCost(toNum(r.quantityPerServing), toNum(r.inventoryItem.costPerUnit), toNum(r.yieldPercent)),
-      rawQuantityPerServing: rawFromUsable(toNum(r.quantityPerServing), toNum(r.yieldPercent)),
-    }))
+      const line = {
+        ...r,
+        costPerServing: yieldAdjustedLineCost(toNum(r.quantityPerServing), toNum(r.inventoryItem.costPerUnit), toNum(r.yieldPercent)),
+        rawQuantityPerServing: rawFromUsable(toNum(r.quantityPerServing), toNum(r.yieldPercent)),
+      }
+      if (!useSupplierPrices) return line
+
+      // R130 (P1-08): cena iz zgodovine dobavitelja — priceSource/priceAsOf/
+      // costPerServingSupplier/marginPercent so NOVA polja (aditivna).
+      const supplierName = ((r.inventoryItem as unknown as { supplier?: string }).supplier ?? '').trim()
+      const supplierId = supplierIdByName.get(supplierName)
+      const price = pickLatestPrice(latestPrices, supplierId, r.inventoryItemId)
+      const priceSource: 'supplier-history' | 'item-cost' = price ? 'supplier-history' : 'item-cost'
+      const supplierCost = price
+        ? yieldAdjustedLineCost(toNum(r.quantityPerServing), toNum(price.unitPrice), toNum(r.yieldPercent))
+        : line.costPerServing
+      const marginPercent = computeMarginPercent(toNum(r.menuItem?.price), supplierCost)
+      return {
+        ...line,
+        priceSource,
+        priceAsOf: price ? price.observedAt.toISOString() : null,
+        costPerServingSupplier: supplierCost,
+        ...(marginPercent !== null ? { marginPercent } : {}),
+      }
+    })
 
     return NextResponse.json({ recipes: deepToNumbers(enriched), total, limit, offset })
   } catch (error: unknown) {

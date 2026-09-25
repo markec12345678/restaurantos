@@ -38,6 +38,9 @@ export interface RawReorderSuggestion {
   openPos?: Array<{ poNumber?: string; expectedDate?: string | null }>
   expectedDelivery?: string | null
   unitPrice?: number
+  // --- R130 (epic #115 P1-08): vir enotne cene (kontrakt reorder enrichment) ---
+  unitPriceSource?: 'supplier-history' | 'item-cost'
+  unitPriceAsOf?: string | null
   // --- STARA oblika (obstoječi GET, razastranjen med prehodom) ---
   inventoryItemId?: string
   itemName?: string
@@ -79,6 +82,10 @@ export interface ReorderCenterSuggestion {
   openPos: Array<{ poNumber: string; expectedDate: string | null }>
   expectedDelivery: string | null
   leadTimeDays: number | null
+  /** R130: vir enotne cene — zgodovina dobavitelja OVERIDE-a costPerUnit; 'item-cost' = back-compat */
+  unitPriceSource: 'supplier-history' | 'item-cost'
+  /** ISO čas zadnjega opažanja cene (samo pri 'supplier-history'; sicer null) */
+  unitPriceAsOf: string | null
 }
 
 /** Varno številsko koerciranje (null/NaN/undefined → 0 oz. default) */
@@ -146,6 +153,9 @@ export function normalizeSuggestion(raw: RawReorderSuggestion): ReorderCenterSug
     openPos,
     expectedDelivery: raw.expectedDelivery ?? null,
     leadTimeDays: toNullableNum(raw.leadTimeDays),
+    // R130: vir cene — koda defenzivno (neznana vrednost → 'item-cost' = staro vedenje)
+    unitPriceSource: raw.unitPriceSource === 'supplier-history' ? 'supplier-history' : 'item-cost',
+    unitPriceAsOf: typeof raw.unitPriceAsOf === 'string' && raw.unitPriceAsOf.length > 0 ? raw.unitPriceAsOf : null,
   }
 }
 

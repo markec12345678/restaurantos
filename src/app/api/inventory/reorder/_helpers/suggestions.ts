@@ -17,6 +17,12 @@ import {
   resolveRuleLeadTimeMap,
 } from '@/lib/reorder/canon'
 import type { UsageFacts } from '@/lib/reorder/canon'
+import { toNum, round2, multiply } from '@/lib/decimal'
+import {
+  collectLatestSupplierPrices,
+  resolveSupplierIdsByNames,
+  pickLatestPrice,
+} from '@/lib/suppliers/price-history-db'
 import { groupBy } from './utils'
 import type { ReorderSuggestion, ReorderSummary, ReorderResult } from './types'
 import { processItemForSuggestion } from './process-item'
@@ -96,6 +102,28 @@ export async function getReorderSuggestions(
     if (!(statusFilter ?? DEFAULT_STATUSES).has(suggestion.status)) continue
 
     suggestions.push(suggestion)
+  }
+
+  // R130 (epic #115 P1-08): zgodovina nabavnih cen — zadnja cena per
+  // (dobavitelj, artikel) OVERIDE-a unitPrice (sicer obstoječi costPerUnit
+  // — back-compat: brez zgodovine se NIČ ne spremeni). Kanon
+  // ('@/lib/reorder/canon') ostane ČIST — bulk fetch + preslikava tukaj,
+  // PRED povzetkom, da totalEstimatedCost ostane konsistenten s unitPrice.
+  // Best-effort: brez zgodovine/modela → 'item-cost' (price-history-db kolektorji).
+  const supplierNames = suggestions.map(s => s.supplier)
+  const supplierIdByName = await resolveSupplierIdsByNames(db, supplierNames)
+  const latestPrices = await collectLatestSupplierPrices(db, suggestions.map(s => s.itemId))
+  for (const s of suggestions) {
+    s.unitPriceSource = 'item-cost'
+    s.unitPriceAsOf = null
+    const price = pickLatestPrice(latestPrices, supplierIdByName.get(s.supplier.trim()), s.itemId)
+    if (!price) continue
+    const lastPriceNum = toNum(price.unitPrice)
+    if (!(lastPriceNum > 0)) continue
+    s.unitPrice = lastPriceNum
+    s.totalCost = round2(multiply(s.suggestedQty, lastPriceNum))
+    s.unitPriceSource = 'supplier-history'
+    s.unitPriceAsOf = price.observedAt.toISOString()
   }
 
   // Razvrsti po nujnosti (legacy urgency mapiranje)

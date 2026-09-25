@@ -31,15 +31,16 @@ import { restaurantSl, restaurantEn, restaurantIt, restaurantHr, restaurantDe } 
 import { reportsSl, reportsEn, reportsIt, reportsHr, reportsDe } from './reports'
 import { operationsSl, operationsEn, operationsIt, operationsHr, operationsDe } from './operations'
 import { settingsSl, settingsEn, settingsIt, settingsHr, settingsDe } from './settings'
+import { suppliersSl, suppliersEn, suppliersIt, suppliersHr, suppliersDe } from './suppliers'
 
 // ============================================
 // TRANSLATIONS MAP — Združevanje domenskih prevodov
 // ============================================
-const sl: Record<string, string> = { ...commonSl, ...navSl, ...ordersSl, ...restaurantSl, ...reportsSl, ...operationsSl, ...settingsSl }
-const en: Record<string, string> = { ...commonEn, ...navEn, ...ordersEn, ...restaurantEn, ...reportsEn, ...operationsEn, ...settingsEn }
-const it: Record<string, string> = { ...commonIt, ...navIt, ...ordersIt, ...restaurantIt, ...reportsIt, ...operationsIt, ...settingsIt }
-const hr: Record<string, string> = { ...commonHr, ...navHr, ...ordersHr, ...restaurantHr, ...reportsHr, ...operationsHr, ...settingsHr }
-const de: Record<string, string> = { ...commonDe, ...navDe, ...ordersDe, ...restaurantDe, ...reportsDe, ...operationsDe, ...settingsDe }
+const sl: Record<string, string> = { ...commonSl, ...navSl, ...ordersSl, ...restaurantSl, ...reportsSl, ...operationsSl, ...settingsSl, ...suppliersSl }
+const en: Record<string, string> = { ...commonEn, ...navEn, ...ordersEn, ...restaurantEn, ...reportsEn, ...operationsEn, ...settingsEn, ...suppliersEn }
+const it: Record<string, string> = { ...commonIt, ...navIt, ...ordersIt, ...restaurantIt, ...reportsIt, ...operationsIt, ...settingsIt, ...suppliersIt }
+const hr: Record<string, string> = { ...commonHr, ...navHr, ...ordersHr, ...restaurantHr, ...reportsHr, ...operationsHr, ...settingsHr, ...suppliersHr }
+const de: Record<string, string> = { ...commonDe, ...navDe, ...ordersDe, ...restaurantDe, ...reportsDe, ...operationsDe, ...settingsDe, ...suppliersDe }
 
 const translations: Record<Locale, Record<string, string>> = { sl, en, it, hr, de }
 
