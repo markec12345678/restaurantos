@@ -106,13 +106,17 @@ export function useInventoryAlerts() {
             unit: alert.unit,
           }],
           status: 'pending',
-          notes: `Samodejno naročilo — zaloga kritična (${alert.currentStock} ${alert.unit})`,
+          // R129 (P1-07): jasnejša oznaka — to je HITRO NAROČILO dobavitelju (nastane
+          // naročilnica s statusom 'pending'), NE direkten prevzem zaloge. Za
+          // osnutke naročilnic z razlago uporabi Center naročil (reorder-center).
+          notes: `Hitro naročilo dobavitelju (osnutek naročilnice) — zaloga kritična (${alert.currentStock} ${alert.unit})`,
         }),
       })
       // Osveži alerte
       await loadAlerts()
     } catch {
-      toast.error('Napaka pri ustvarjanju naročila')
+      // R129: jasnejša oznaka napake hitrega naročila
+      toast.error('Napaka pri hitrem naročilu dobavitelju')
     } finally {
       setAutoOrdering(prev => {
         const next = new Set(prev)

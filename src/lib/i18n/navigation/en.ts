@@ -69,4 +69,5 @@ export const navEn: Record<string, string> = {
   'nav.fraudDetection': 'Fraud Detection',
   'nav.laborReports': 'Labor Reports',
   'nav.inventoryAlerts': 'Inventory Alerts',
+  'nav.reorderCenter': 'Reorder Center',
 }

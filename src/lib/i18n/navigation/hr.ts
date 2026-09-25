@@ -69,4 +69,5 @@ export const navHr: Record<string, string> = {
   'nav.fraudDetection': 'Otkrivanje prijevara',
   'nav.laborReports': 'Izvještaji o radu',
   'nav.inventoryAlerts': 'Upozorenja o zalihi',
+  'nav.reorderCenter': 'Centar naručivanja',
 }

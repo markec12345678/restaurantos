@@ -1,6 +1,15 @@
 // Obdelava posameznega artikla za predloge naročanja zaloge
+//
+// R129 (epic #115 P1-07): izračun je delegiran na KANON
+// ('@/lib/reorder/canon' — enoten vir resnice). Ta adapter le:
+//   1. prevodi Prisma Decimal polja v kanonske number vhode,
+//   2. doda kompatibilna polja starega odgovora (urgency/reason/trend/
+//      daysUntilEmpty/...), da UI tok ostane nespremenjen.
+// Business logika (formula, statusi, viri) živi IZKLJUČNO v kanonu.
 
-import { toNum, round2, greaterThan, multiply, abs } from '@/lib/decimal'
+import { toNum, round2, multiply, greaterThan } from '@/lib/decimal'
+import { computeReorderSuggestion } from '@/lib/reorder/canon'
+import type { UsageFacts, ReorderContext } from '@/lib/reorder/canon'
 import { generateReorderReason } from './utils'
 import type { ReorderSuggestion } from './types'
 
@@ -13,79 +22,110 @@ interface InventoryItem {
   minQuantity: Parameters<typeof toNum>[0]
   costPerUnit: Parameters<typeof toNum>[0]
   category: string
+  // R129: kanonska eksplicitna polja (nullable — ko manjkajo, kanon izpelje)
+  reorderPoint?: Parameters<typeof toNum>[0] | null
+  safetyStock?: Parameters<typeof toNum>[0] | null
+  leadTimeDays?: number | null
 }
 
-interface SalesTx {
-  createdAt: Date
-  quantity: Parameters<typeof toNum>[0]
+export interface ReorderPipelineContext extends ReorderContext {
+  /** Zadnji prevzem (ISO) — kompatibilno polje lastOrderDate. */
+  lastProcurementDate?: string | null
 }
 
 export function processItemForSuggestion(
   item: InventoryItem,
-  recentSales: SalesTx[],
-  sevenDaysAgo: Date,
-  avgDeliveryDays: number,
-  urgency?: string,
-  lastProcurementDate?: string | null,
-): ReorderSuggestion | null {
-  const last7DaysSales = recentSales.filter(t => new Date(t.createdAt) >= sevenDaysAgo)
-  const totalSold7d = last7DaysSales.reduce((s, t) => s + toNum(abs(t.quantity)), 0)
-  const totalSold30d = recentSales.reduce((s, t) => s + toNum(abs(t.quantity)), 0)
+  facts: UsageFacts,
+  ctx: ReorderPipelineContext = {},
+): ReorderSuggestion {
+  const costPerUnit = toNum(item.costPerUnit)
+  const minQuantity = toNum(item.minQuantity)
 
-  const avgDailyConsumption = totalSold30d > 0 ? totalSold30d / 30 : 0
-  const recentDailyConsumption = totalSold7d > 0 ? totalSold7d / 7 : 0
-
-  // Trend: ali poraba narašča?
-  const trend = recentDailyConsumption > avgDailyConsumption * 1.2 ? 'increasing' :
-                recentDailyConsumption < avgDailyConsumption * 0.5 ? 'decreasing' : 'stable'
-
-  const isLowStock = !greaterThan(item.quantity, item.minQuantity)
-  const daysUntilEmpty = avgDailyConsumption > 0 ? Math.floor(toNum(item.quantity) / avgDailyConsumption) : 999
-
-  // Določi nujnost
-  let riskLevel: 'critical' | 'high' | 'medium' | 'low' = 'low'
-  if (toNum(item.quantity) <= 0 || daysUntilEmpty <= 1) riskLevel = 'critical'
-  else if (isLowStock || daysUntilEmpty <= 3) riskLevel = 'high'
-  else if (daysUntilEmpty <= 7 || trend === 'increasing') riskLevel = 'medium'
-
-  const needsReorder = isLowStock || daysUntilEmpty <= 7 || riskLevel !== 'low'
-
-  if (!needsReorder && riskLevel === 'low') return null
-  if (urgency && riskLevel !== urgency) return null
-
-  // Predlagana količina: pokrij 14 dni porabe ali dopolni do 2x minimalne zaloge
-  const suggestedOrderQty = Math.max(
-    Math.ceil(avgDailyConsumption * 14),
-    Math.max(toNum(item.minQuantity) * 2 - toNum(item.quantity), 0),
-    1
+  // Kanonski izračun (pure) — vse številke + statusi + faktorji + viri.
+  const canon = computeReorderSuggestion(
+    {
+      id: item.id,
+      name: item.name,
+      unit: item.unit,
+      supplier: item.supplier,
+      quantity: toNum(item.quantity),
+      minQuantity,
+      reorderPoint: item.reorderPoint == null ? null : toNum(item.reorderPoint),
+      safetyStock: item.safetyStock == null ? null : toNum(item.safetyStock),
+      leadTimeDays: item.leadTimeDays ?? null,
+      costPerUnit,
+    },
+    facts,
+    ctx,
   )
 
-  const reason = generateReorderReason(
+  // --- Kompatibilna polja starega odgovora (obstoječa semantika) ---
+  const avg = facts.avgDailyUsage
+  const recent = facts.recentDailyUsage
+  const trend: ReorderSuggestion['trend'] =
+    recent > avg * 1.2 ? 'increasing' :
+    recent < avg * 0.5 ? 'decreasing' : 'stable'
+  const isLowStock = !greaterThan(item.quantity, item.minQuantity)
+  const daysUntilEmpty = avg > 0 ? Math.floor(canon.available / avg) : 999
+
+  // Mapiranje kanon status → legacy urgency (UI riskConfig ostaja delujoč):
+  //   critical → critical, low → high, covered-by-po → medium, ok → low.
+  const urgency: ReorderSuggestion['urgency'] =
+    canon.status === 'critical' ? 'critical' :
+    canon.status === 'low' ? 'high' :
+    canon.status === 'covered-by-po' ? 'medium' : 'low'
+
+  let reason = generateReorderReason(
     {
       daysUntilEmpty,
-      currentStock: toNum(item.quantity),
-      minStock: toNum(item.minQuantity),
+      currentStock: canon.available,
+      minStock: minQuantity,
       trend,
       seasonalityFactor: 1,
-      riskLevel,
-      needsReorder,
+      riskLevel: urgency,
+      needsReorder: canon.status !== 'ok',
     } as Record<string, unknown>,
     item as unknown as Record<string, unknown>,
   )
+  if (canon.status === 'covered-by-po') {
+    reason += ' · Pokrito z odprto naročilnico'
+  }
 
   return {
+    // kompatibilna polja
     inventoryItemId: item.id,
     itemName: item.name,
     unit: item.unit,
     supplier: item.supplier,
-    currentStock: toNum(item.quantity),
-    suggestedQty: suggestedOrderQty,
-    costPerUnit: toNum(item.costPerUnit),
-    totalCost: round2(multiply(suggestedOrderQty, item.costPerUnit)),
-    urgency: riskLevel as ReorderSuggestion['urgency'],
+    currentStock: canon.available,
+    suggestedQty: canon.suggestedQty,
+    costPerUnit,
+    totalCost: round2(multiply(canon.suggestedQty, costPerUnit)),
+    urgency,
     reason,
-    lastOrderDate: lastProcurementDate || null,
-    avgDeliveryDays: avgDeliveryDays || 3,
+    lastOrderDate: ctx.lastProcurementDate ?? null,
+    avgDeliveryDays: ctx.avgDeliveryDays ?? 3,
     category: item.category,
+    // R129 kanon polja
+    status: canon.status,
+    dataStatus: canon.dataStatus,
+    factors: canon.factors,
+    reorderPoint: canon.reorderPoint,
+    reorderPointSource: canon.reorderPointSource,
+    safetyStock: canon.safetyStock,
+    safetyStockSource: canon.safetyStockSource,
+    leadTimeDays: canon.leadTimeDays,
+    leadTimeSource: canon.leadTimeSource,
+    openPoQty: canon.openPoQty,
+    openPos: canon.openPos,
+    expectedDelivery: canon.expectedDelivery,
+    unitPrice: costPerUnit,
+    itemId: item.id,
+    name: item.name,
+    avgDailyUsage: avg,
+    recentUsage: recent,
+    trend,
+    isLowStock,
+    daysUntilEmpty,
   }
 }

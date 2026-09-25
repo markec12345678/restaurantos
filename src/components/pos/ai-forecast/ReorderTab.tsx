@@ -44,6 +44,8 @@ export const ReorderTab = memo(function ReorderTab({
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           Skupni predlagani strošek: <strong>{formatEUR(fmt(reorders.reduce((s, r) => s + r.totalCost, 0)))}</strong>
+          {/* R129 (P1-07): jasnejša oznaka — ta tok direktno poveča zalogo (brez naročilnice) */}
+          <span className="ml-1 hidden text-[10px] sm:inline">(hitri prevzem — direktno poveča zalogo)</span>
         </p>
         <div className="flex gap-2">
           <Button
@@ -59,7 +61,7 @@ export const ReorderTab = memo(function ReorderTab({
             disabled={selectedItems.size === 0 || isReorderPending}
           >
             <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />
-            Naroči {selectedItems.size > 0 ? `(${selectedItems.size})` : ''}
+            Hitri prevzem {selectedItems.size > 0 ? `(${selectedItems.size})` : ''}
           </Button>
         </div>
       </div>

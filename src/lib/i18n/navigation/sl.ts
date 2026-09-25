@@ -70,4 +70,5 @@ export const navSl: Record<string, string> = {
   'nav.fraudDetection': 'Zaznavanje prevare',
   'nav.laborReports': 'Poročila o delu',
   'nav.inventoryAlerts': 'Opozorila o zalogi',
+  'nav.reorderCenter': 'Center naročil',
 }

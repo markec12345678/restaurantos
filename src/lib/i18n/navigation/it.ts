@@ -69,4 +69,5 @@ export const navIt: Record<string, string> = {
   'nav.fraudDetection': 'Rilevamento frodi',
   'nav.laborReports': 'Report sul personale',
   'nav.inventoryAlerts': 'Avvisi inventario',
+  'nav.reorderCenter': 'Centro riordini',
 }

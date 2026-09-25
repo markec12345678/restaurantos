@@ -20,6 +20,8 @@ export const suppliersKeys = {
 
 export const purchaseOrdersKeys = {
   all: ['purchase-orders'] as const,
+  // R129 (P1-07): seznami naročilnic — invalidacija iz Centra naročil po POST /api/reorder/draft-po
+  lists: () => ['purchase-orders', 'list'] as const,
 }
 
 export const haccpKeys = {

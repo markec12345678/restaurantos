@@ -89,6 +89,8 @@ const OfflineQueueDashboard = dynamic(() => import('@/components/pos/offline-que
 const WalletPaymentTerminal = dynamic(() => import('@/components/pos/WalletPaymentTerminal').then(m => ({ default: m.WalletPaymentTerminal })), { ssr: false, loading: () => loadingFallback })
 const FraudDetectionDashboard = dynamic(() => import('@/components/pos/FraudDetectionDashboard').then(m => ({ default: m.FraudDetectionDashboard })), { ssr: false, loading: () => loadingFallback })
 const LaborReportsDashboard = dynamic(() => import('@/components/pos/LaborReportsDashboard').then(m => ({ default: m.LaborReportsDashboard })), { ssr: false, loading: () => loadingFallback })
+// R129 (epic #115 P1-07): Center naročil — predlogi naročanja + osnutki naročilnic
+const ReorderCenter = dynamic(() => import('@/components/pos/reorder/ReorderCenter').then(m => ({ default: m.ReorderCenter })), { ssr: false, loading: () => loadingFallback })
 // Default exports
 const GuestManager = dynamic(() => import('@/components/pos/GuestManager').then(m => ({ default: m.GuestManager })), { ssr: false, loading: () => loadingFallback })
 const FoodCostCalculator = dynamic(() => import('@/components/pos/food-cost/FoodCostCalculator'), { ssr: false, loading: () => loadingFallback })
@@ -109,6 +111,7 @@ export const moduleComponents: Record<string, ComponentType> = {
   'food-cost': FoodCostCalculator,
   inventory: InventoryManager,
   suppliers: SupplierManager,
+  'reorder-center': ReorderCenter,
   'ai-forecast': AIForecastDashboard,
   recipes: RecipeManager,
   reservations: ReservationManager,

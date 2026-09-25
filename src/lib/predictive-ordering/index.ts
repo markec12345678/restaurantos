@@ -16,6 +16,9 @@ import { logger } from '@/lib/logger'
 import { toNum, round2 } from '@/lib/decimal'
 
 import { formatEUR } from '@/lib/safe-format'
+// R129 (epic #115 P1-07): kanon je ENOTEN vir resnice za odprte PO statuse,
+// porabne tx tipe in varnostno zalogo (konstante prej stale/duplirane tukaj).
+import { OPEN_PO_STATUSES, CONSUMPTION_TX_TYPES, SAFETY_STOCK_DAYS } from '@/lib/reorder/canon'
 // --- Tipi ---
 export type TriggerType = 'min_qty' | 'forecast_7d' | 'forecast_14d' | 'manual'
 
@@ -62,7 +65,7 @@ export interface PredictiveOrderingResult {
 // --- Konstante ---
 const HISTORY_DAYS = 90 // 3 meseci zgodovine za forecast
 const _MIN_DATA_DAYS = 7 // Najmanj 7 dni podatkov za smiseln forecast
-const SAFETY_STOCK_DAYS = 2 // 2 dni varnostne zaloge
+// SAFETY_STOCK_DAYS (2 dni) je zdaj v kanonu '@/lib/reorder/canon' (R129)
 
 // --- Glavne funkcije ---
 
@@ -77,7 +80,9 @@ export async function calculateAvgDailyConsumption(
   const transactions = await db.stockTransaction.findMany({
     where: {
       inventoryItemId,
-      type: 'sale', // samo prodaja = poraba
+      // R129: realna poraba = prodaja + poraba sestavin pri pripravah
+      // (kanon CONSUMPTION_TX_TYPES — prej samo 'sale').
+      type: { in: [...CONSUMPTION_TX_TYPES] },
       createdAt: { gte: since },
     },
     select: { quantity: true },
@@ -246,7 +251,8 @@ export async function generateReorderRecommendations(
     const pendingPO = await db.purchaseOrderItem.findFirst({
       where: {
         inventoryItemId: item.id,
-        purchaseOrder: { status: { in: ['draft', 'sent', 'confirmed'] } },
+        // R129: kanonski OPEN_PO_STATUSES — prej stale ['draft','sent','confirmed']
+        purchaseOrder: { status: { in: [...OPEN_PO_STATUSES] } },
       },
       include: { purchaseOrder: { select: { poNumber: true } } },
     })
@@ -291,7 +297,8 @@ export async function generateReorderRecommendations(
     const pendingPO = await db.purchaseOrderItem.findFirst({
       where: {
         inventoryItemId: item.id,
-        purchaseOrder: { status: { in: ['draft', 'sent', 'confirmed'] } },
+        // R129: kanonski OPEN_PO_STATUSES — prej stale ['draft','sent','confirmed']
+        purchaseOrder: { status: { in: [...OPEN_PO_STATUSES] } },
       },
     })
     if (pendingPO) continue // že naročeno

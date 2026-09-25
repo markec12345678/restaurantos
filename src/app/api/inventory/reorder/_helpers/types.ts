@@ -1,8 +1,21 @@
 // ============================================
 // PAMETNO NAROČANJE ZALOGE — Tipi
 // ============================================
+// R129 (epic #115 P1-07): ReorderSuggestion je razširjen s kanonskimi
+// polji iz '@/lib/reorder/canon' (status/dataStatus/factors + viri podatkov).
+// STARA polja ostanejo nespremenjena (UI ReorderTab konsumira strukturno).
+// ============================================
+
+import type {
+  ReorderStatus,
+  DataStatus,
+  LeadTimeSource,
+  SafetyStockSource,
+  ReorderPointSource,
+} from '@/lib/reorder/canon'
 
 export interface ReorderSuggestion {
+  // --- kompatibilna polja (obstoječi UI tok) ---
   inventoryItemId: string
   itemName: string
   unit: string
@@ -16,6 +29,27 @@ export interface ReorderSuggestion {
   lastOrderDate: string | null
   avgDeliveryDays: number
   category: string
+  // --- R129 kanon (explainable reorder) ---
+  status: ReorderStatus
+  dataStatus: DataStatus
+  factors: string[]
+  reorderPoint: number
+  reorderPointSource: ReorderPointSource
+  safetyStock: number | null
+  safetyStockSource: SafetyStockSource
+  leadTimeDays: number
+  leadTimeSource: LeadTimeSource
+  openPoQty: number
+  openPos: Array<{ poNumber: string; expectedDate: string | null }>
+  expectedDelivery: string | null
+  unitPrice: number
+  itemId: string
+  name: string
+  avgDailyUsage: number
+  recentUsage: number
+  trend: 'increasing' | 'decreasing' | 'stable'
+  isLowStock: boolean
+  daysUntilEmpty: number
 }
 
 export interface ReorderSummary {

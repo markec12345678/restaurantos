@@ -4,14 +4,23 @@
 // ============================================
 
 import { db } from '@/lib/db'
+import { CONSUMPTION_TX_TYPES } from '@/lib/reorder/canon'
 import type { ForecastResult, ForecastSummary, ForecastData } from './types'
 import { processInventoryItem } from './forecast-item'
 
 // ─── Pridobivanje in obdelava podatkov ──────────────────────
 
-export async function getForecastData(days: number, category: string): Promise<ForecastData> {
-  // Pridobi vse artikle zaloge
-  const whereClause: Record<string, unknown> = {}
+export async function getForecastData(
+  days: number,
+  category: string,
+  // R129: tenant scope — null (super-admin) = globalno (isti pravilnik kot
+  // reorder ruta, R85-4c). Prej: findMany brez filtra → LEAK tujih zalog.
+  locationId?: string | null,
+): Promise<ForecastData> {
+  // Pridobi vse artikle zaloge (scoped — pogojni spread, NIKOLI { locationId: null })
+  const whereClause: Record<string, unknown> = {
+    ...(locationId ? { locationId } : {}),
+  }
   if (category) whereClause.category = category
   const inventoryItems = await db.inventoryItem.findMany({
     where: whereClause,
@@ -30,7 +39,8 @@ export async function getForecastData(days: number, category: string): Promise<F
     db.stockTransaction.findMany({
       where: {
         inventoryItemId: { in: allItemIds },
-        type: 'sale',
+        // R129: realna poraba = prodaja + poraba priprav (kanon CONSUMPTION_TX_TYPES)
+        type: { in: [...CONSUMPTION_TX_TYPES] },
         createdAt: { gte: since },
       },
       orderBy: { createdAt: 'asc' },

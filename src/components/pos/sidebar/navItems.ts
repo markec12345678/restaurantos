@@ -44,7 +44,7 @@ export const navGroups: NavGroup[] = [
   ] },
   { id: 'menu', label: 'Meni & zaloge', itemIds: [
     'menu', 'inventory', 'inventory-alerts', 'food-cost', 'recipes', 'recipe-scaling',
-    'suppliers', 'waste-tracker', 'allergen-matrix', 'nutrition', 'vendor-scorecard',
+    'suppliers', 'reorder-center', 'waste-tracker', 'allergen-matrix', 'nutrition', 'vendor-scorecard',
   ] },
   { id: 'staff', label: 'Osebje', itemIds: [
     'employees', 'staff-schedule', 'shift-overview', 'tip-manager', 'staff-performance', 'labor-reports',
@@ -76,6 +76,8 @@ export const navItems: NavItem[] = [
   { id: 'food-cost', labelKey: 'nav.food-cost', icon: Calculator, adminOnly: true },
   { id: 'inventory', labelKey: 'nav.inventory', icon: Package, adminOnly: true },
   { id: 'suppliers', labelKey: 'nav.suppliers', icon: Factory, adminOnly: true },
+  // R129 (P1-07): Center naročil — predlogi + osnutki naročilnic
+  { id: 'reorder-center', labelKey: 'nav.reorderCenter', icon: ClipboardList, adminOnly: true },
   { id: 'ai-forecast', labelKey: 'nav.ai-forecast', icon: Brain, adminOnly: true },
   { id: 'recipes', labelKey: 'nav.recipes', icon: BookOpen, adminOnly: true },
   { id: 'reservations', labelKey: 'nav.reservations', icon: Calendar, permission: 'take_orders' },

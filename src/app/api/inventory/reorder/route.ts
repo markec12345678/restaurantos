@@ -13,13 +13,23 @@ import { getReorderSuggestions, createReorderOrder } from './_helpers'
 
 export const dynamic = 'force-dynamic'
 
+// R129 (P1-07): legacy ?urgency= mapiranje na canon status filter.
+// Paritetne opombe: 'critical' → kritični; 'high'/'medium' → status 'low'
+// (pod točko naročila); 'low' → 'ok' (stari tok je bil za to vrednost
+// v praksi prazen — zdaj pokaže zdrave artikle).
+const URGENCY_TO_STATUSES: Record<string, string[]> = {
+  critical: ['critical'],
+  high: ['critical', 'low'],
+  medium: ['low'],
+  low: ['ok'],
+}
+
 export async function GET(req: Request) {
   try {
     const authResult = await requireAuth(req, { permission: 'manage_inventory' })
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
-    const urgency = searchParams.get('urgency') || '' // filter by urgency
 
     // FIX R85-4c M7: predlogi so izračunani IZ zalogo — prej findMany brez filtra
     // (zaloga + nabavna zgodovina vseh tenantov). Scope: fail-closed 403 za
@@ -29,7 +39,23 @@ export async function GET(req: Request) {
     })
     if ('error' in scope) return scope.error
 
-    const { summary, suggestions } = await getReorderSuggestions(urgency, scope.locationId)
+    // R129 (P1-07): novi filtri — ?status=low,critical (canon statusi) in
+    // ?supplier=; legacy ?urgency= se mapira na canon statusi (kompatibilnost).
+    const statusParam = searchParams.get('status') || ''
+    const urgencyParam = searchParams.get('urgency') || ''
+    const supplierParam = searchParams.get('supplier') || ''
+
+    let statuses: string[] | undefined
+    if (statusParam) {
+      statuses = statusParam.split(',').map(s => s.trim()).filter(Boolean)
+    } else if (urgencyParam) {
+      statuses = URGENCY_TO_STATUSES[urgencyParam]
+    }
+
+    const { summary, suggestions } = await getReorderSuggestions(scope.locationId, {
+      statuses,
+      supplier: supplierParam || undefined,
+    })
 
     return NextResponse.json({ summary, suggestions })
   } catch (error: unknown) {

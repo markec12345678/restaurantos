@@ -943,6 +943,13 @@ model InventoryItem {
   unit            String    @default("pcs")       // Enota zaloge: steklenica, keg, kos, L, kg
   quantity        Decimal    @default(0)   @db.Decimal(12, 3) // Količina na zalogi  // P1-8: 3 dec
   minQuantity     Decimal    @default(0)   @db.Decimal(12, 3) // Minimalna količina  // P1-8: 3 dec
+  // R129 (epic #115 P1-07 reorder center): eksplicitni reorder parametri.
+  // Nullable — ko manjkajo, kanon pada na verigo: ReorderRule → izpeljava iz
+  // porabe/dobavnih intervalov → varna privzeta vrednost; brez podatkov se
+  // NE izmišljuje napoved (status 'insufficient-data').
+  reorderPoint    Decimal?                 @db.Decimal(12, 3) // točka naročila (kanon P1-07)
+  safetyStock     Decimal?                 @db.Decimal(12, 3) // varnostna zaloga (kanon P1-07)
+  leadTimeDays    Int?                                      // dobavni čas v dneh (kanon P1-07)
   costPerUnit     Decimal    @default(0)   @db.Decimal(12, 2) // Nabavna cena  // P1-8
   supplier        String    @default("")           // Dobavitelj
   category        String    @default("general")    // Kategorija zaloge

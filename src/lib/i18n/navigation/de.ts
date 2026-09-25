@@ -69,4 +69,5 @@ export const navDe: Record<string, string> = {
   'nav.fraudDetection': 'Betrugserkennung',
   'nav.laborReports': 'Personalberichte',
   'nav.inventoryAlerts': 'Bestandswarnungen',
+  'nav.reorderCenter': 'Nachbestell-Center',
 }

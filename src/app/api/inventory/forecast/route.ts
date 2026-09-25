@@ -5,7 +5,7 @@
 // ============================================
 
 import { NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/auth-middleware'
+import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { getForecastData } from './_helpers'
 
@@ -25,7 +25,15 @@ export async function GET(req: Request) {
     const days = Math.min(Math.max(Number.isNaN(rawDays) ? 90 : rawDays, 7), 365)
     const category = searchParams.get('category') || ''
 
-    const { summary, forecasts } = await getForecastData(days, category)
+    // R129 (audit R129-a — LEAK fix): forecast je prej bral zaloge VSEH
+    // tenantov (brez scope-a). Fail-closed 403 za uporabnika brez lokacije;
+    // super-admin (null) = globalni pregled. Response shape nespremenjen.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/inventory/forecast',
+    })
+    if ('error' in scope) return scope.error
+
+    const { summary, forecasts } = await getForecastData(days, category, scope.locationId)
 
     return NextResponse.json({ summary, forecasts })
   } catch (error: unknown) {
