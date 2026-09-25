@@ -24,6 +24,7 @@ import {
   formatSuggestionNote,
   type ReorderCenterSuggestion,
   type RawReorderSuggestion,
+  type RawDraftPoPackItem,
 } from './helpers'
 
 export interface DraftPoOrder {
@@ -33,6 +34,8 @@ export interface DraftPoOrder {
   itemCount: number
   totalAmount: number
   expectedDate?: string | null
+  /** R131 (P1-13): pack povzetek vrstic — ADDITIVNO, lahko manjka (stari odgovor) */
+  items?: RawDraftPoPackItem[]
 }
 
 export interface DraftPoSkipped {

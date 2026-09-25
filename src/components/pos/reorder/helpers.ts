@@ -41,6 +41,14 @@ export interface RawReorderSuggestion {
   // --- R130 (epic #115 P1-08): vir enotne cene (kontrakt reorder enrichment) ---
   unitPriceSource?: 'supplier-history' | 'item-cost'
   unitPriceAsOf?: string | null
+  // --- R131 (epic #115 P1-13): pack-size enrichment (samo z aktivno katalog linijo;
+  //     brez linije polja NE obstajajo — back-compat čisto aditivno) ---
+  packQty?: number | string | null
+  packUnit?: string | null
+  baseUnit?: string | null
+  packsNeeded?: number | string | null
+  pricePerPack?: number | string | null
+  packSource?: string
   // --- STARA oblika (obstoječi GET, razastranjen med prehodom) ---
   inventoryItemId?: string
   itemName?: string
@@ -86,6 +94,15 @@ export interface ReorderCenterSuggestion {
   unitPriceSource: 'supplier-history' | 'item-cost'
   /** ISO čas zadnjega opažanja cene (samo pri 'supplier-history'; sicer null) */
   unitPriceAsOf: string | null
+  /** R131: pack kontekst iz kataloga dobavitelja — null, ko katalog linija ne obstaja */
+  packQty: number | null
+  packUnit: string | null
+  baseUnit: string | null
+  /** advisory št. paketov (ceil) — suggestedQty ostane kanonska številka */
+  packsNeeded: number | null
+  pricePerPack: number | null
+  /** samo 'catalog' je veljaven vir pack konteksta (neznana vrednost → null), pariteta unitPriceSource */
+  packSource: 'catalog' | null
 }
 
 /** Varno številsko koerciranje (null/NaN/undefined → 0 oz. default) */
@@ -156,6 +173,14 @@ export function normalizeSuggestion(raw: RawReorderSuggestion): ReorderCenterSug
     // R130: vir cene — koda defenzivno (neznana vrednost → 'item-cost' = staro vedenje)
     unitPriceSource: raw.unitPriceSource === 'supplier-history' ? 'supplier-history' : 'item-cost',
     unitPriceAsOf: typeof raw.unitPriceAsOf === 'string' && raw.unitPriceAsOf.length > 0 ? raw.unitPriceAsOf : null,
+    // R131: pack kontekst — defenzivno (številke samo kadar končne; packUnit/baseUnit
+    // samo kadar neprazni nizi; packSource samo dobesedno 'catalog')
+    packQty: toNullableNum(raw.packQty),
+    packUnit: typeof raw.packUnit === 'string' && raw.packUnit.trim().length > 0 ? raw.packUnit.trim() : null,
+    baseUnit: typeof raw.baseUnit === 'string' && raw.baseUnit.trim().length > 0 ? raw.baseUnit.trim() : null,
+    packsNeeded: toNullableNum(raw.packsNeeded),
+    pricePerPack: toNullableNum(raw.pricePerPack),
+    packSource: raw.packSource === 'catalog' ? 'catalog' : null,
   }
 }
 
@@ -259,4 +284,82 @@ export function formatDateSafe(value: string | null | undefined): string | null 
   } catch {
     return d.toISOString().slice(0, 10)
   }
+}
+
+// ============================================
+// R131 (epic #115 P1-13) — PACK-SIZE kontekst
+// ============================================
+
+export interface PackHintParts {
+  /** advisory št. paketov (celo število, min 1 — kanon: naroči cele pakete) */
+  packs: number
+  packQty: number
+  packUnit: string
+  baseUnit: string
+  /** packs × packQty (3 decimalki, kanon zaloga Decimal(12,3)) */
+  baseQty: number
+}
+
+/**
+ * Pack kontekst iz kataloga dobavitelja za reorder kartico —
+ * razčlenjen v dele za i18n template. Vrne null, ko pack kontekst ni
+ * veljaven (packSource ni 'catalog', packQty ≤ 0 / nekonečno ali
+ * packsNeeded manjka) — parity z unitPriceSource obravnavo (R130-b).
+ */
+export function packHintParts(
+  s: Pick<ReorderCenterSuggestion, 'packSource' | 'packQty' | 'packUnit' | 'baseUnit' | 'unit' | 'packsNeeded'>,
+): PackHintParts | null {
+  if (s.packSource !== 'catalog') return null
+  const packQty = toNullableNum(s.packQty)
+  const packsNeeded = toNullableNum(s.packsNeeded)
+  if (packQty === null || packQty <= 0 || packsNeeded === null) return null
+  const packs = Math.max(1, Math.ceil(packsNeeded))
+  return {
+    packs,
+    packQty,
+    packUnit: s.packUnit ?? 'paket',
+    baseUnit: s.baseUnit ?? s.unit ?? '',
+    baseQty: Math.round(packs * packQty * 1000) / 1000,
+  }
+}
+
+/** Surova vrstica iz draft-po odgovora orders[].items (ADDITIVNO — lahko manjka) */
+export interface RawDraftPoPackItem {
+  name?: string | null
+  packs?: number | string | null
+  packUnit?: string | null
+  packQty?: number | string | null
+  baseQty?: number | string | null
+  pricePerPack?: number | string | null
+  totalPrice?: number | string | null
+}
+
+/**
+ * Pack povzetek ene vrstice osnutka naročilnice:
+ * zapakirana → "Moka: 2 × vrečka po 25 kg = 50 kg";
+ * legacy vrstica (packQty neveljaven) → "Pivo: 24" (osnovne enote).
+ * Defenzivno: neveljavni/manjkajoči podatki → '—' (nikoli crash).
+ */
+export function formatDraftPoPackItem(item: RawDraftPoPackItem): string {
+  const safe = (item ?? {}) as RawDraftPoPackItem
+  const name = typeof safe.name === 'string' && safe.name.trim().length > 0 ? safe.name.trim() : '?'
+  const packQty = toNullableNum(safe.packQty)
+  const packs = toNullableNum(safe.packs)
+  const baseQty = toNullableNum(safe.baseQty)
+  if (packQty !== null && packQty > 0 && packs !== null) {
+    const packUnit = typeof safe.packUnit === 'string' && safe.packUnit.trim().length > 0 ? safe.packUnit.trim() : 'paket'
+    const total = baseQty !== null ? baseQty : Math.round(packs * packQty * 1000) / 1000
+    return `${name}: ${fmtQty(packs)} × ${packUnit} po ${fmtQty(packQty)} = ${fmtQty(total)}`
+  }
+  return `${name}: ${baseQty !== null ? fmtQty(baseQty) : '—'}`
+}
+
+/**
+ * Pack povzetek vseh vrstic enega osnutka naročilnice (orders[].items) →
+ * en niz ali null, če items ne obstajajo / niso array / so prazni
+ * (back-compat: stari draft-po odgovor NE dobi nobenega dodatnega izpisa).
+ */
+export function formatDraftPoPackSummary(items: unknown): string | null {
+  if (!Array.isArray(items) || items.length === 0) return null
+  return items.map(i => formatDraftPoPackItem(i as RawDraftPoPackItem)).join('; ')
 }

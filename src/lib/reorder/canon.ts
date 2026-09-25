@@ -24,6 +24,7 @@
 
 import type { Prisma } from '@prisma/client'
 import { toNum } from '@/lib/decimal'
+import { isValidPack, packsToBaseQty } from '@/lib/procurement/pack-size'
 
 // ---------- Kanonske konstante ----------
 
@@ -298,6 +299,11 @@ export async function collectOpenPurchaseOrders(
       inventoryItemId: true,
       quantityOrdered: true,
       quantityReceived: true,
+      // R131 (epic #115 P1-13): pack snapshot — odprta naročilnica v PAKETIH se
+      // pretvori v OSNOVNE enote (kanon: zaloga/poraba/odprto so VSE v osnovnih
+      // enotah, sicer suggestedQty pod-naroči — dvojna naročila). Legacy vrstice
+      // (packQty NULL) ostanejo nespremenjene.
+      packQty: true,
       purchaseOrder: { select: { poNumber: true, expectedDate: true } },
     },
   })
@@ -306,7 +312,11 @@ export async function collectOpenPurchaseOrders(
     if (!row.inventoryItemId) continue
     const entry = result.get(row.inventoryItemId) ?? { qty: 0, refs: [] }
     // Ne-prejeto = quantityOrdered − quantityReceived (delni prejem ne šteje kot odprto)
-    entry.qty += Math.max(0, toNum(row.quantityOrdered) - toNum(row.quantityReceived))
+    // R131: ko je vrstica v PAKETIH (veljaven packQty snapshot), se odprta
+    // količina pretvori v osnovne enote: (qo − qr) × packQty.
+    const openRaw = Math.max(0, toNum(row.quantityOrdered) - toNum(row.quantityReceived))
+    const packQtyNum = toNum((row as { packQty?: Prisma.Decimal | number | string | null }).packQty)
+    entry.qty += isValidPack(packQtyNum) ? packsToBaseQty(openRaw, packQtyNum) : openRaw
     const poNumber = row.purchaseOrder.poNumber
     if (!entry.refs.some(r => r.poNumber === poNumber)) {
       entry.refs.push({ poNumber, expectedDate: row.purchaseOrder.expectedDate?.toISOString() ?? null })

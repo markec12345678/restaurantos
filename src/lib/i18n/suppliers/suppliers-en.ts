@@ -1,5 +1,6 @@
 // ============================================
 // SUPPLIERS — PRICE HISTORY (R130-b, epic #115 P1-08)
+//             + CATALOG / PACK-SIZE (R131, epic #115 P1-13)
 // English
 // ============================================
 
@@ -20,4 +21,46 @@ export const suppliersEn: Record<string, string> = {
   'suppliers.priceHistory.retry': 'Try again',
   'suppliers.priceHistory.sourceSupplierHistory': "Supplier's last price",
   'suppliers.priceHistory.sourceItemCost': 'Item purchase cost',
+
+  // --- R131 (P1-13): supplier catalog ---
+  'suppliers.catalog.title': 'Supplier catalog',
+  'suppliers.catalog.item': 'Item',
+  'suppliers.catalog.sku': 'SKU',
+  'suppliers.catalog.packaging': '{packUnit} of {packQty} {unit}',
+  'suppliers.catalog.pricePerPack': 'Price / pack',
+  'suppliers.catalog.basePrice': 'Price / base unit',
+  'suppliers.catalog.minOrder': 'Min. order',
+  'suppliers.catalog.status': 'Status',
+  'suppliers.catalog.actions': 'Actions',
+  'suppliers.catalog.active': 'Active',
+  'suppliers.catalog.inactive': 'Inactive',
+  'suppliers.catalog.empty': 'Catalog is empty — add the first item.',
+  'suppliers.catalog.error': 'Failed to load catalog.',
+  'suppliers.catalog.retry': 'Try again',
+  'suppliers.catalog.addItem': 'Add item',
+  'suppliers.catalog.editItem': 'Edit item',
+  'suppliers.catalog.inventoryItem': 'Inventory item',
+  'suppliers.catalog.packQty': 'Qty per pack',
+  'suppliers.catalog.packUnit': 'Pack label',
+  'suppliers.catalog.vatRate': 'VAT % (optional)',
+  'suppliers.catalog.minOrderPacks': 'Min. packs',
+  'suppliers.catalog.supplierSku': 'Supplier SKU (optional)',
+  'suppliers.catalog.save': 'Save',
+  'suppliers.catalog.cancel': 'Cancel',
+  'suppliers.catalog.edit': 'Edit',
+  'suppliers.catalog.delete': 'Delete',
+  'suppliers.catalog.deleteConfirm': 'Delete "{name}" from catalog?',
+  'suppliers.catalog.toggleActive': 'Activate / deactivate',
+  'suppliers.catalog.saved': 'Catalog updated.',
+  'suppliers.catalog.deleted': 'Item removed from catalog.',
+  'suppliers.catalog.saveError': 'Failed to save catalog item.',
+  'suppliers.catalog.invalidPackQty': 'Quantity per pack must be greater than 0.',
+
+  // --- R131 (P1-13): pack hints (reorder center + PO + receiving) ---
+  'suppliers.packHint.line': '≈ {packs} × {packUnit} of {packQty} {baseUnit} ({baseQty} {baseUnit})',
+  'suppliers.packHint.note': 'Suggestion rounded to whole packs (advisory).',
+  'suppliers.po.packHint': '{packs} × {packUnit} of {packQty} {unit} = {baseQty} {unit}',
+  'suppliers.po.packContext': '{packs} {packUnit} × {packQty}',
+  'suppliers.po.receivePacks': 'quantity in packs',
+  'suppliers.po.baseEquivalent': '≈ {qty} base units',
 }

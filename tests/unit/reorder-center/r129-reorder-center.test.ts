@@ -53,6 +53,13 @@ function makeSuggestion(overrides: Partial<ReorderCenterSuggestion> = {}): Reord
     // R130-b (P1-08): nova polja vira cene (aditivna; tovarnica privzame 'item-cost')
     unitPriceSource: 'item-cost',
     unitPriceAsOf: null,
+    // R131 (P1-13): pack kontekst (aditiven; tovarnica privzame BREZ katalog linije)
+    packQty: null,
+    packUnit: null,
+    baseUnit: null,
+    packsNeeded: null,
+    pricePerPack: null,
+    packSource: null,
     ...overrides,
   }
 }

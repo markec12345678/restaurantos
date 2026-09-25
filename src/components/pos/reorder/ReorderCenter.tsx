@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils'
 import { formatEUR } from '@/lib/safe-format'
 import { useReorderCenter } from './useReorderCenter'
 import { ReorderItemCard } from './ReorderItemCard'
+import { formatDraftPoPackSummary } from './helpers'
 
 export function ReorderCenter() {
   const {
@@ -113,9 +114,21 @@ export function ReorderCenter() {
 
       {/* zabeležba zadnjega osnutka (preskočeni artikli / ustvarjene naročilnice) */}
       {lastDraft && lastDraft.orders.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          Nazadnje ustvarjeno: {lastDraft.orders.map(o => o.poNumber).join(', ')}
-        </p>
+        <div className="space-y-0.5 text-xs text-muted-foreground">
+          <p>
+            Nazadnje ustvarjeno: {lastDraft.orders.map(o => o.poNumber).join(', ')}
+          </p>
+          {/* R131 (P1-13): pack povzetek vrstic — defenzivno, samo ko odgovor vsebuje
+              orders[].items (stari draft-po odgovor NE dobi dodatnega izpisa) */}
+          {lastDraft.orders.map(o => {
+            const packSummary = formatDraftPoPackSummary(o.items)
+            return packSummary ? (
+              <p key={o.id ?? o.poNumber} className="text-[11px]">
+                {o.poNumber} · {packSummary}
+              </p>
+            ) : null
+          })}
+        </div>
       )}
 
       {/* seznam predlogov */}

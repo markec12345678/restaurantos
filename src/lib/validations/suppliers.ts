@@ -18,6 +18,11 @@ export const createPurchaseOrderSchema = z.object({
     unitPrice: z.number().min(0).default(0),
     vatRate: z.number().min(0).max(100).default(22.0),
     notes: z.string().max(500).default(''),
+    // R131 (epic #115 P1-13): pack-size snapshot — NULL/izpuščeno = legacy
+    // semantika (vrstica v osnovnih enotah). Denar je nespremenjen (na nivoju
+    // vrstice); prevzem konvertira po tem snapshotu.
+    packQty: z.number().min(0).max(100000).nullable().optional(),
+    packUnit: z.string().max(30).nullable().optional(),
   })).min(1, 'Naročilo mora vsebovati vsaj eno postavko'),
   expectedDate: z.string().nullable().optional(),
   deliveryAddress: z.string().max(200).default(''),

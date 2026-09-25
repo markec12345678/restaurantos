@@ -976,6 +976,7 @@ model InventoryItem {
   batchOutputPreparations BatchPreparation[] @relation("BatchPreparationOutput") // R122: izdelek priprav
   purchaseOrderItems PurchaseOrderItem[]
   priceHistory    SupplierPriceHistory[] // R130 (epic #115 P1-08): zgodovina nabavnih cen artikla
+  supplierItems   SupplierItem[]   // R131 (epic #115 P1-13): katalog dobavitelja (pakiranja)
   // --- AI Predictive Ordering ---
   reorderRule     ReorderRule?
   // --- Multi-location ---
@@ -2149,6 +2150,7 @@ model Supplier {
   purchaseOrders  PurchaseOrder[]
   batches         InventoryBatch[] // R120 (epic #115 §4): serije po dobavitelju
   supplierPrices  SupplierPriceHistory[] // R130 (epic #115 P1-08): zgodovina nabavnih cen po dobavitelju
+  supplierItems   SupplierItem[]   // R131 (epic #115 P1-13): katalog dobavitelja (cenik v paketih)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -2226,6 +2228,13 @@ model PurchaseOrderItem {
   // --- Status ---
   status          String        @default("pending") // pending, partial, received, cancelled
   notes           String        @default("")
+  // --- R131 (epic #115 P1-13): pack-size snapshot ob kreaciji PO ---
+  // NULL = legacy semantika (vrstica je v osnovnih enotah). Ko je nastavljeno:
+  // quantityOrdered/Received/unit/unitPrice so v PAKETIH, prevzem konvertira
+  // po tem snapshotu (NE po trenutnem katalogu — zgodovinski PO ostane
+  // konsistenten tudi če se katalog spremeni).
+  packQty         Decimal?      @db.Decimal(12, 3) // osnovnih enot na 1 paket (snapshot)
+  packUnit        String?                          // oznaka paketa ("vrečka", "sod", "karton")
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -2274,6 +2283,42 @@ model SupplierPriceHistory {
   @@index([source])
   @@index([locationId])       // prihodnji tenant filtering (pariteta PO)
   @@index([purchaseOrderId])  // FK lookup — vrstice prevzema per naročilnica
+}
+
+// ============================================
+// KATALOG DOBAVITELJA / SUPPLIER ITEMS (P1-13)
+// ============================================
+// R131 (epic #115 P1-13): dobavitelj prodaja v PAKETIH (vrečka 25 kg, sod
+// 50 L, karton 12 kos), zaloga se vodi v OSNOVNIH enotah (kg, L, kos).
+// Katalog je vezni člen: Katalog → PO v paketih → GRN (prevzem) → zaloga v
+// osnovnih enotah → Price History na osnovno enoto (P1-08 kanon ostane
+// konsistenten — unitPrice v zgodovini je VEDNO osnovna cena).
+//
+// packQty = koliko OSNOVNIH enot je 1 paket (Decimal 12,3 — pariteta zaloge);
+// pricePerPack = QUOTED cena iz cenika na PAKET (Decimal 12,4 — pariteta
+// price history P1-08). Denarni zneski ostanejo na nivoju naročilne vrstice.
+// Ena katalog vrstica per (dobavitelj, artikel) — upsert po paru.
+// ============================================
+model SupplierItem {
+  id              String        @id @default(cuid())
+  supplierId      String
+  supplier        Supplier      @relation(fields: [supplierId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  inventoryItemId String
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  supplierSku     String        @default("")                       // dobaviteljeva šifra artikla
+  packQty         Decimal       @default(1) @db.Decimal(12, 3)     // osnovnih enot na 1 paket
+  packUnit        String        @default("paket")                  // vrečka / sod / karton / paleta
+  pricePerPack    Decimal       @default(0) @db.Decimal(12, 4)     // cena na PAKET (P1-08 natančnost)
+  vatRate         Decimal?      @db.Decimal(5, 2)
+  minOrderPacks   Int           @default(1)                        // min. št. paketov na naročilo
+  isActive        Boolean       @default(true)
+  note            String        @default("")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([supplierId, inventoryItemId])
+  @@index([supplierId, isActive])
+  @@index([inventoryItemId])
 }
 
 // ============================================

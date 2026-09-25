@@ -12,11 +12,11 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
-import { ChevronDown, History, Tag, Truck } from 'lucide-react'
+import { ChevronDown, History, Package, Tag, Truck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatEUR } from '@/lib/safe-format'
 import { t } from '@/lib/i18n'
-import { isActionable, fmtQty, formatDateSafe, type ReorderCenterSuggestion } from './helpers'
+import { isActionable, fmtQty, formatDateSafe, packHintParts, type ReorderCenterSuggestion } from './helpers'
 import { StatusBadge } from './StatusBadge'
 import { FactorsList } from './FactorsList'
 
@@ -136,6 +136,27 @@ export const ReorderItemCard = memo(function ReorderItemCard({ suggestion: s, se
                 {t('suppliers.priceHistory.sourceItemCost')}
               </p>
             )}
+            {/* R131 (P1-13): pack hint iz kataloga dobavitelja — advisory (ceil);
+                suggestedQty ostane kanonska številka, hint je SAMO razlaga */}
+            {(() => {
+              const packHint = packHintParts(s)
+              if (!packHint) return null
+              return (
+                <div className="flex items-start gap-1 text-xs text-muted-foreground">
+                  <Package className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+                  <span>
+                    {t('suppliers.packHint.line', {
+                      packs: fmtQty(packHint.packs),
+                      packUnit: packHint.packUnit,
+                      packQty: fmtQty(packHint.packQty),
+                      baseUnit: packHint.baseUnit,
+                      baseQty: fmtQty(packHint.baseQty),
+                    })}
+                    <span className="block text-[10px]">{t('suppliers.packHint.note')}</span>
+                  </span>
+                </div>
+              )
+            })()}
             <FactorsList factors={s.factors} />
             {/* odprte naročilnice + pričakovana dobava (nova polja R129-server; skrito proti staremu odgovoru) */}
             {(openPoLabel || s.expectedDelivery) && (

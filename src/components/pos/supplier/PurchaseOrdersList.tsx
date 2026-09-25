@@ -14,8 +14,10 @@ import { Truck, FileText, Calendar, Clock, Package, Send, CheckCircle2 } from 'l
 import { formatEUR } from '@/lib/safe-format'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
+import { t } from '@/lib/i18n'
 import type { PurchaseOrderType, PurchaseOrderItemType } from './constants'
 import { poStatusLabels, poStatusColors } from './constants'
+import { isValidPack, fmtPackQty, round3Safe } from './pack-format'
 
 interface PurchaseOrdersListProps {
   orders: PurchaseOrderType[]
@@ -137,17 +139,35 @@ const ReceiveDialog = memo(function ReceiveDialog({
                   <p className="text-sm font-medium truncate">{item.description}</p>
                   <p className="text-xs text-muted-foreground">
                     Naročeno: {item.quantityOrdered} {item.unit}
+                    {/* R131 (P1-13): pack kontekst (defenzivno — samo ko packQty obstaja) */}
+                    {isValidPack(item.packQty) && ` · ${t('suppliers.po.packContext', {
+                      packs: fmtPackQty(item.quantityOrdered),
+                      packUnit: item.packUnit ?? 'paket',
+                      packQty: fmtPackQty(item.packQty),
+                    })}`}
                     {item.quantityReceived > 0 && ` · Že prejeto: ${item.quantityReceived}`}
                   </p>
+                  {/* R131 (P1-13): vnos v paketih + živi osnovni ekvivalent (prejeto pakete × packQty) */}
+                  {isValidPack(item.packQty) && (
+                    <p className="text-[10px] text-muted-foreground">
+                      {t('suppliers.po.receivePacks')}
+                      {(Number(receivedQtys[item.id]) || 0) > 0 && ` · ${t('suppliers.po.baseEquivalent', {
+                        qty: fmtPackQty(round3Safe((Number(receivedQtys[item.id]) || 0) * Number(item.packQty))),
+                      })}`}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <DecimalInput
                     value={receivedQtys[item.id] ?? 0}
                     onValueChange={n => setReceivedQtys(prev => ({ ...prev, [item.id]: n }))}
                     className="w-20 h-8 text-xs"
-                    aria-label={`Prejeto količina za ${item.description}`}
+                    aria-label={`Prejeto količina za ${item.description}${isValidPack(item.packQty) ? ` (${t('suppliers.po.receivePacks')})` : ''}`}
                   />
-                  <span className="text-xs text-muted-foreground w-8">{item.unit}</span>
+                  {/* R131: pri zapakiranih vrsticah je enota PAKET (snapshot iz kataloga) */}
+                  <span className={isValidPack(item.packQty) ? 'text-xs text-muted-foreground max-w-24 truncate' : 'text-xs text-muted-foreground w-8'}>
+                    {isValidPack(item.packQty) ? (item.packUnit ?? item.unit) : item.unit}
+                  </span>
                 </div>
               </div>
             ))}
@@ -245,6 +265,12 @@ export const PurchaseOrdersList = memo(function PurchaseOrdersList({ orders, onR
                           <span className="truncate">{item.description}</span>
                           <span className="ml-2 whitespace-nowrap">
                             {item.quantityReceived}/{item.quantityOrdered} {item.unit}
+                            {/* R131 (P1-13): pack kontekst ob postavki (defenzivno, ko packQty obstaja) */}
+                            {isValidPack(item.packQty) && ` · ${t('suppliers.po.packContext', {
+                              packs: fmtPackQty(item.quantityOrdered),
+                              packUnit: item.packUnit ?? 'paket',
+                              packQty: fmtPackQty(item.packQty),
+                            })}`}
                             {Number(item.quantityReceived) > 0 && Number(item.quantityReceived) < Number(item.quantityOrdered) && (
                               <span className="text-amber-600 ml-1">(delno)</span>
                             )}

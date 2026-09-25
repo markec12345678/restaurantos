@@ -45,7 +45,13 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { Prisma } from '@prisma/client'
-import { toNum, round2, greaterThan, greaterThanOrEqual, isPositive, multiply } from '@/lib/decimal'
+import { toNum, round2, round3, greaterThan, greaterThanOrEqual, isPositive, multiply } from '@/lib/decimal'
+import {
+  isValidPack,
+  packsToBaseQty,
+  baseUnitPrice,
+  describePack,
+} from '@/lib/procurement/pack-size'
 import { structuredErrorResponse } from '@/lib/structured-error'
 import { logger } from '@/lib/logger'
 
@@ -150,54 +156,124 @@ export async function receivePurchaseOrderItems(opts: {
       // Posodobi zalogo, če je povezana (atomic increment + forenzika iz
       // post-op vrednosti — R103 G3 ledger kanon)
       if (poItem.inventoryItemId) {
-        const receivedQty = round2(receivedItem.quantityReceived)
-        const updatedInv = await tx.inventoryItem.update({
-          where: { id: poItem.inventoryItemId },
-          data: {
-            quantity: { increment: receivedQty },
-            lastRestocked: new Date(),
-          },
-        })
-        const newQty = round2(toNum(updatedInv.quantity))
-        const prevQty = round2(newQty - receivedQty)
+        // R131 (epic #115 P1-13): pack-size konverzija. Ko ima PO postavka
+        // veljaven packQty SNAPSHOT, je quantityReceived v PAKETIH — zaloga,
+        // ledger in price history pa se vodijo v OSNOVNIH enotah (kanon
+        // #4/#5). NULL/neveljaven packQty → legacy pot, BIT-FOR-BIT
+        // nespremenjena (obstoječi prevzemni testi ostajajo zeleni).
+        const packQtyNum = toNum(poItem.packQty)
+        if (isValidPack(packQtyNum)) {
+          const receivedPacks = receivedItem.quantityReceived
+          // Osnovna količina = paketi × velikost paketa (round3 — zaloga 12,3)
+          const baseQty = packsToBaseQty(receivedPacks, packQtyNum)
+          // Osnovna cena = cena/paket ÷ packQty (round4 — price history 12,4)
+          const basePrice = baseUnitPrice(toNum(poItem.unitPrice), packQtyNum)
 
-        await tx.stockTransaction.create({
-          data: {
-            inventoryItemId: poItem.inventoryItemId,
-            type: 'procurement',
-            quantity: receivedQty,
-            previousQty: prevQty,
-            newQty: newQty,
-            costPerUnit: round2(toNum(poItem.unitPrice)),
-            totalCost: round2(multiply(receivedQty, poItem.unitPrice)),
-            reason: `Prejem ${po.poNumber}`,
-            supplierDoc: po.poNumber,
-            employeeName: employeeId || '',
-          },
-        })
+          const updatedInv = await tx.inventoryItem.update({
+            where: { id: poItem.inventoryItemId },
+            data: {
+              quantity: { increment: baseQty }, // BASE enote, NE paketi!
+              lastRestocked: new Date(),
+            },
+          })
+          // Forenzika iz post-op vrednosti (R103 G3 kanon ostane) — v BASE enotah
+          const newQty = round3(toNum(updatedInv.quantity))
+          const prevQty = round3(newQty - baseQty)
 
-        // R130 (epic #115 P1-08): zgodovina nabavnih cen — cena je del
-        // prevzemnega poslovnega eventa, zato gre v ISTO transakcijo (kanon:
-        // Serializable + advisory lock pokrijejo tudi zajem cene).
-        // ZASEDNOST: unitPrice <= 0 (darilo/vzorec) se PRESKOČI — ne sme
-        // pokvariti povprečij; prevzem pa zato NE SME pasti (best-effort per
-        // vrstico: napaka zajema → logger.warn, tx nadaljuje).
-        if (greaterThan(toNum(poItem.unitPrice), 0)) {
-          try {
-            await tx.supplierPriceHistory.create({
-              data: {
-                supplierId: po.supplierId,
-                inventoryItemId: poItem.inventoryItemId,
-                unitPrice: poItem.unitPrice,
-                vatRate: poItem.vatRate,
-                unit: poItem.unit,
-                source: 'goods_receipt',
-                purchaseOrderId: poId,
-                locationId: po.locationId ?? null,
-              },
-            })
-          } catch (priceErr) {
-            logger.warn('R130', 'Zajem nabavne cene (goods_receipt) ni uspel — prevzem nadaljuje', priceErr)
+          await tx.stockTransaction.create({
+            data: {
+              inventoryItemId: poItem.inventoryItemId,
+              type: 'procurement',
+              quantity: baseQty,
+              previousQty: prevQty,
+              newQty: newQty,
+              // Ledger costPerUnit je Decimal(12,2) — osnovna cena se pripiše
+              // na 2 decimalki (pariteta legacy vrstice). DENAR pa ostane na
+              // nivoju vrstice: totalCost = paketi × cena/paket (kanon #5 —
+              // pariteta baseQty × basePrice na 2 decimalki).
+              costPerUnit: round2(basePrice),
+              totalCost: round2(multiply(receivedPacks, poItem.unitPrice)),
+              reason: `Prejem ${po.poNumber}`,
+              supplierDoc: po.poNumber,
+              employeeName: employeeId || '',
+            },
+          })
+
+          // Kanon #4: SupplierPriceHistory je VEDNO na OSNOVNI enoti
+          // (unitPrice = baseUnitPrice, unit = InventoryItem.unit) — sicer bi
+          // recipe cost in reorder center prejela NAPAČNO ceno (P1-08
+          // nestrožnostna zaščita). Provenance opomba: "pack: 2 × vrečka po 25 kg".
+          // ZASEDNOST: unitPrice (na paket) <= 0 se preskoči — pariteta R130.
+          if (greaterThan(toNum(poItem.unitPrice), 0)) {
+            try {
+              await tx.supplierPriceHistory.create({
+                data: {
+                  supplierId: po.supplierId,
+                  inventoryItemId: poItem.inventoryItemId,
+                  unitPrice: basePrice,
+                  vatRate: poItem.vatRate,
+                  unit: updatedInv.unit,
+                  source: 'goods_receipt',
+                  purchaseOrderId: poId,
+                  locationId: po.locationId ?? null,
+                  note: `pack: ${receivedPacks} × ${describePack(packQtyNum, poItem.packUnit ?? '', updatedInv.unit)}`,
+                },
+              })
+            } catch (priceErr) {
+              logger.warn('R131', 'Zajem nabavne cene (goods_receipt, pack) ni uspel — prevzem nadaljuje', priceErr)
+            }
+          }
+        } else {
+          // LEGACY pot (packQty NULL/neveljaven) — BIT-FOR-BIT nespremenjena.
+          const receivedQty = round2(receivedItem.quantityReceived)
+          const updatedInv = await tx.inventoryItem.update({
+            where: { id: poItem.inventoryItemId },
+            data: {
+              quantity: { increment: receivedQty },
+              lastRestocked: new Date(),
+            },
+          })
+          const newQty = round2(toNum(updatedInv.quantity))
+          const prevQty = round2(newQty - receivedQty)
+
+          await tx.stockTransaction.create({
+            data: {
+              inventoryItemId: poItem.inventoryItemId,
+              type: 'procurement',
+              quantity: receivedQty,
+              previousQty: prevQty,
+              newQty: newQty,
+              costPerUnit: round2(toNum(poItem.unitPrice)),
+              totalCost: round2(multiply(receivedQty, poItem.unitPrice)),
+              reason: `Prejem ${po.poNumber}`,
+              supplierDoc: po.poNumber,
+              employeeName: employeeId || '',
+            },
+          })
+
+          // R130 (epic #115 P1-08): zgodovina nabavnih cen — cena je del
+          // prevzemnega poslovnega eventa, zato gre v ISTO transakcijo (kanon:
+          // Serializable + advisory lock pokrijejo tudi zajem cene).
+          // ZASEDNOST: unitPrice <= 0 (darilo/vzorec) se PRESKOČI — ne sme
+          // pokvariti povprečij; prevzem pa zato NE SME pasti (best-effort per
+          // vrstico: napaka zajema → logger.warn, tx nadaljuje).
+          if (greaterThan(toNum(poItem.unitPrice), 0)) {
+            try {
+              await tx.supplierPriceHistory.create({
+                data: {
+                  supplierId: po.supplierId,
+                  inventoryItemId: poItem.inventoryItemId,
+                  unitPrice: poItem.unitPrice,
+                  vatRate: poItem.vatRate,
+                  unit: poItem.unit,
+                  source: 'goods_receipt',
+                  purchaseOrderId: poId,
+                  locationId: po.locationId ?? null,
+                },
+              })
+            } catch (priceErr) {
+              logger.warn('R130', 'Zajem nabavne cene (goods_receipt) ni uspel — prevzem nadaljuje', priceErr)
+            }
           }
         }
       }

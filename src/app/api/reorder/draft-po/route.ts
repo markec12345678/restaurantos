@@ -39,6 +39,16 @@ import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { getNextCounter } from '@/lib/counters'
 import { toNum, round2, multiply } from '@/lib/decimal'
 import {
+  isValidPack,
+  packsForBaseQty,
+  packsToBaseQty,
+  describePack,
+} from '@/lib/procurement/pack-size'
+import {
+  collectActiveCatalogLines,
+  catalogLineKey,
+} from '@/lib/suppliers/catalog-db'
+import {
   collectUsageFactsBatch,
   collectDeliveryFacts,
   collectOpenPurchaseOrders,
@@ -55,6 +65,16 @@ const draftPoSchema = z.object({
     .max(100, 'Največ 100 artiklov na osnutek'),
 })
 
+interface DraftOrderItemSummary {
+  name: string
+  packs: number
+  packUnit: string | null
+  packQty: number | null
+  baseQty: number
+  pricePerPack: number | null
+  totalPrice: number
+}
+
 interface DraftOrder {
   id: string
   poNumber: string
@@ -62,6 +82,8 @@ interface DraftOrder {
   itemCount: number
   totalAmount: number
   expectedDate: string
+  /** R131 (P1-13): povzetek postavk — pack vrstice v paketih, legacy v osnovnih enotah (packUnit/packQty/pricePerPack = null). */
+  items: DraftOrderItemSummary[]
 }
 
 export async function POST(req: Request) {
@@ -206,6 +228,16 @@ export async function POST(req: Request) {
     }
     const supplierByName = new Map(suppliers.map(s => [s.name, s]))
 
+    // R131 (epic #115 P1-13): batch load AKTIVNIH katalog vrstic za pare
+    // (dobavitelj, artikel) — ENA poizvedba (brez N+1). Strukturni guard v
+    // kolektorju: brez supplierItem modela (starejši mocki) → prazna mapa →
+    // vse vrstice legacy (NESPREMENJENO vedenje).
+    const catalogLines = await collectActiveCatalogLines(
+      db,
+      suppliers.map(s => s.id),
+      keepers.map(k => k.itemId),
+    )
+
     // Grupiranje po dobavitelju → ENA draft PO per dobavitelj (lastna transakcija)
     const groups = new Map<string, typeof keepers>()
     for (const keeper of keepers) {
@@ -225,18 +257,58 @@ export async function POST(req: Request) {
         .map(k => `${k.name}: ${k.factors.join(' · ')}`)
         .join('\n')
 
-      // ENA transakcija per PO (števec + glava + postavke atomarno)
-      const po = await db.$transaction(async (tx) => {
-        // Obstoječi številčni kanon (pariteta POST /api/purchase-orders)
-        const counterName = `purchaseOrderNumber-${year}`
-        const seq = await getNextCounter(counterName, tx)
-        const poNumber = `ND-${year}-${String(seq).padStart(6, '0')}`
-
-        let subtotal = 0
-        const poItems = group.map(keeper => {
-          const totalPrice = round2(multiply(keeper.suggestedQty, keeper.costPerUnit))
-          subtotal += totalPrice
+      // R131 (P1-13): katalog-driven pack naročanje per vrstico. Katalog linija
+      // velja ŠELE ko je packQty veljaven IN pricePerPack > 0 (kanon #6 —
+      // nikoli ne izmišljuj cene); sicer legacy base-unit vrstica.
+      const resolved = group.map(keeper => {
+        const catalog = catalogLines.get(catalogLineKey(supplier.id, keeper.itemId))
+        const packQtyNum = catalog ? toNum(catalog.packQty) : 0
+        const pricePerPackNum = catalog ? toNum(catalog.pricePerPack) : 0
+        if (catalog && isValidPack(packQtyNum) && pricePerPackNum > 0) {
+          // CELE pakete (ceil advisory), vsaj minOrderPacks (pogodbeno minimum).
+          const packs = Math.max(
+            packsForBaseQty(keeper.suggestedQty, packQtyNum),
+            Math.max(1, catalog.minOrderPacks || 1),
+          )
+          const baseQty = packsToBaseQty(packs, packQtyNum)
+          const packUnit = catalog.packUnit || 'paket'
+          const totalPrice = round2(multiply(packs, pricePerPackNum))
           return {
+            isPack: true,
+            explanation: `${keeper.name}: naročeno ${packs} × ${describePack(packQtyNum, packUnit, keeper.unit)} = ${baseQty} ${keeper.unit} (predlog ${keeper.suggestedQty} ${keeper.unit})`,
+            line: {
+              inventoryItemId: keeper.itemId,
+              description: keeper.name,
+              quantityOrdered: packs,
+              quantityReceived: 0,
+              unit: packUnit,
+              unitPrice: pricePerPackNum,
+              vatRate: 22.0,
+              totalPrice,
+              status: 'pending',
+              notes: '',
+              // Pack snapshot (kanon #3) — prevzem konvertira po TEM, ne po
+              // trenutnem katalogu (zgodovinski PO ostane konsistenten).
+              packQty: catalog.packQty,
+              packUnit,
+            },
+            summary: {
+              name: keeper.name,
+              packs,
+              packUnit,
+              packQty: packQtyNum,
+              baseQty,
+              pricePerPack: pricePerPackNum,
+              totalPrice,
+            },
+          }
+        }
+        // Legacy base-unit vrstica (NESPREMENJENA — pariteta R129)
+        const totalPrice = round2(multiply(keeper.suggestedQty, keeper.costPerUnit))
+        return {
+          isPack: false,
+          explanation: null as string | null,
+          line: {
             inventoryItemId: keeper.itemId,
             description: keeper.name,
             quantityOrdered: keeper.suggestedQty,
@@ -247,8 +319,38 @@ export async function POST(req: Request) {
             totalPrice,
             status: 'pending',
             notes: '',
-          }
-        })
+            packQty: null,
+            packUnit: null,
+          },
+          summary: {
+            name: keeper.name,
+            packs: keeper.suggestedQty,
+            packUnit: null,
+            packQty: null,
+            baseQty: keeper.suggestedQty,
+            pricePerPack: null,
+            totalPrice,
+          },
+        }
+      })
+
+      // Pack razlaga v opombi PO (razložljivost — pariteta factors R129)
+      const packExplanations = resolved
+        .map(r => r.explanation)
+        .filter((e): e is string => e !== null)
+      const poNotes = packExplanations.length > 0
+        ? `${factorsNote}\n${packExplanations.join('\n')}`
+        : factorsNote
+
+      // ENA transakcija per PO (števec + glava + postavke atomarno)
+      const po = await db.$transaction(async (tx) => {
+        // Obstoječi številčni kanon (pariteta POST /api/purchase-orders)
+        const counterName = `purchaseOrderNumber-${year}`
+        const seq = await getNextCounter(counterName, tx)
+        const poNumber = `ND-${year}-${String(seq).padStart(6, '0')}`
+
+        const poItems = resolved.map(r => r.line)
+        const subtotal = poItems.reduce((sum, i) => sum + i.totalPrice, 0)
         const vatAmount = round2(poItems.reduce((sum, i) => sum + (i.totalPrice * 22.0) / 100, 0))
         const totalAmount = round2(subtotal + vatAmount)
 
@@ -268,7 +370,8 @@ export async function POST(req: Request) {
             deliveryNotes: 'R129 reorder center — razložljiv predlog (factors v opombi)',
             requestedBy: authResult.session?.employeeId || '',
             approvedBy: '',
-            notes: factorsNote,
+            // R131: pack razlaga se PRIDRUŽI faktorjem (brez podvajanja)
+            notes: poNotes,
             items: { create: poItems },
           },
         })
@@ -281,6 +384,8 @@ export async function POST(req: Request) {
         itemCount: group.length,
         totalAmount: round2(toNum(po.totalAmount)),
         expectedDate: expectedDate.toISOString(),
+        // R131 (P1-13): aditiven povzetek postavk (pack vrstice v paketih)
+        items: resolved.map(r => r.summary),
       })
     }
 

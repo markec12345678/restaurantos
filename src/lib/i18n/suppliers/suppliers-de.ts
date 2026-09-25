@@ -1,5 +1,6 @@
 // ============================================
 // LIEFERANTEN — PREISHISTORIE (R130-b, epic #115 P1-08)
+//             + KATALOG / PACK-SIZE (R131, epic #115 P1-13)
 // Deutsch
 // ============================================
 
@@ -20,4 +21,46 @@ export const suppliersDe: Record<string, string> = {
   'suppliers.priceHistory.retry': 'Erneut versuchen',
   'suppliers.priceHistory.sourceSupplierHistory': 'Letzter Lieferantenpreis',
   'suppliers.priceHistory.sourceItemCost': 'Artikeleinkaufspreis',
+
+  // --- R131 (P1-13): Lieferantenkatalog ---
+  'suppliers.catalog.title': 'Lieferantenkatalog',
+  'suppliers.catalog.item': 'Artikel',
+  'suppliers.catalog.sku': 'Art.-Nr.',
+  'suppliers.catalog.packaging': '{packUnit} à {packQty} {unit}',
+  'suppliers.catalog.pricePerPack': 'Preis / Gebinde',
+  'suppliers.catalog.basePrice': 'Preis / Basiseinheit',
+  'suppliers.catalog.minOrder': 'Mindestbestellung',
+  'suppliers.catalog.status': 'Status',
+  'suppliers.catalog.actions': 'Aktionen',
+  'suppliers.catalog.active': 'Aktiv',
+  'suppliers.catalog.inactive': 'Inaktiv',
+  'suppliers.catalog.empty': 'Katalog ist leer — ersten Artikel hinzufügen.',
+  'suppliers.catalog.error': 'Fehler beim Laden des Katalogs.',
+  'suppliers.catalog.retry': 'Erneut versuchen',
+  'suppliers.catalog.addItem': 'Artikel hinzufügen',
+  'suppliers.catalog.editItem': 'Artikel bearbeiten',
+  'suppliers.catalog.inventoryItem': 'Lagerartikel',
+  'suppliers.catalog.packQty': 'Menge pro Gebinde',
+  'suppliers.catalog.packUnit': 'Gebinde-Bezeichnung',
+  'suppliers.catalog.vatRate': 'MwSt. % (optional)',
+  'suppliers.catalog.minOrderPacks': 'Min. Gebinde',
+  'suppliers.catalog.supplierSku': 'Lieferanten-Art.-Nr. (optional)',
+  'suppliers.catalog.save': 'Speichern',
+  'suppliers.catalog.cancel': 'Abbrechen',
+  'suppliers.catalog.edit': 'Bearbeiten',
+  'suppliers.catalog.delete': 'Löschen',
+  'suppliers.catalog.deleteConfirm': '"{name}" aus dem Katalog löschen?',
+  'suppliers.catalog.toggleActive': 'Aktivieren / deaktivieren',
+  'suppliers.catalog.saved': 'Katalog aktualisiert.',
+  'suppliers.catalog.deleted': 'Artikel aus dem Katalog entfernt.',
+  'suppliers.catalog.saveError': 'Fehler beim Speichern des Katalogs.',
+  'suppliers.catalog.invalidPackQty': 'Menge pro Gebinde muss größer als 0 sein.',
+
+  // --- R131 (P1-13): Pack-Hinweise (Nachbestell-Center + Bestellungen + Wareneingang) ---
+  'suppliers.packHint.line': '≈ {packs} × {packUnit} à {packQty} {baseUnit} ({baseQty} {baseUnit})',
+  'suppliers.packHint.note': 'Vorschlag auf ganze Gebinde gerundet (orientierend).',
+  'suppliers.po.packHint': '{packs} × {packUnit} à {packQty} {unit} = {baseQty} {unit}',
+  'suppliers.po.packContext': '{packs} {packUnit} × {packQty}',
+  'suppliers.po.receivePacks': 'Menge in Gebinden',
+  'suppliers.po.baseEquivalent': '≈ {qty} Basiseinheiten',
 }

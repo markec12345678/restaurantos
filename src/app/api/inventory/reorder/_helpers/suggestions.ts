@@ -18,11 +18,16 @@ import {
 } from '@/lib/reorder/canon'
 import type { UsageFacts } from '@/lib/reorder/canon'
 import { toNum, round2, multiply } from '@/lib/decimal'
+import { isValidPack, packsForBaseQty } from '@/lib/procurement/pack-size'
 import {
   collectLatestSupplierPrices,
   resolveSupplierIdsByNames,
   pickLatestPrice,
 } from '@/lib/suppliers/price-history-db'
+import {
+  collectActiveCatalogLines,
+  catalogLineKey,
+} from '@/lib/suppliers/catalog-db'
 import { groupBy } from './utils'
 import type { ReorderSuggestion, ReorderSummary, ReorderResult } from './types'
 import { processItemForSuggestion } from './process-item'
@@ -124,6 +129,32 @@ export async function getReorderSuggestions(
     s.totalCost = round2(multiply(s.suggestedQty, lastPriceNum))
     s.unitPriceSource = 'supplier-history'
     s.unitPriceAsOf = price.observedAt.toISOString()
+  }
+
+  // R131 (epic #115 P1-13): pack hint enrichment — kadar artikel ima aktivno
+  // katalog linijo za svojega dobavitelja (resolve prek item.supplier ime →
+  // Supplier → SupplierItem; supplierIdByName mapa je že naložena zgoraj).
+  // Batched lookup (brez N+1); brez linije polja NE obstajajo (čisto aditivno,
+  // pariteta R130-a2). Pogoj je ISTI kot pri draft-po pack naročanju
+  // (isValidPack IN pricePerPack > 0) — hint nikoli ne obljubi pakirne
+  // vrstice, ki je ne bo (kanon #6: nikoli ne izmišljuj cene).
+  const catalogLines = await collectActiveCatalogLines(
+    db,
+    [...supplierIdByName.values()],
+    suggestions.map(s => s.itemId),
+  )
+  for (const s of suggestions) {
+    const line = catalogLines.get(catalogLineKey(supplierIdByName.get(s.supplier.trim()) ?? '', s.itemId))
+    if (!line) continue
+    const packQtyNum = toNum(line.packQty)
+    const pricePerPackNum = toNum(line.pricePerPack)
+    if (!isValidPack(packQtyNum) || !(pricePerPackNum > 0)) continue
+    s.packQty = packQtyNum
+    s.packUnit = line.packUnit
+    s.baseUnit = s.unit
+    s.packsNeeded = packsForBaseQty(s.suggestedQty, packQtyNum)
+    s.pricePerPack = pricePerPackNum
+    s.packSource = 'catalog'
   }
 
   // Razvrsti po nujnosti (legacy urgency mapiranje)

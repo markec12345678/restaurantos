@@ -1,5 +1,6 @@
 // ============================================
 // DOBAVLJAČI — POVIJEST CIJENA (R130-b, epic #115 P1-08)
+//             + KATALOG / PACK-SIZE (R131, epic #115 P1-13)
 // Hrvatski
 // ============================================
 
@@ -20,4 +21,46 @@ export const suppliersHr: Record<string, string> = {
   'suppliers.priceHistory.retry': 'Pokušaj ponovno',
   'suppliers.priceHistory.sourceSupplierHistory': 'Zadnja cijena dobavljača',
   'suppliers.priceHistory.sourceItemCost': 'Nabavna cijena artikla',
+
+  // --- R131 (P1-13): katalog dobavljača ---
+  'suppliers.catalog.title': 'Katalog dobavljača',
+  'suppliers.catalog.item': 'Artikl',
+  'suppliers.catalog.sku': 'Šifra',
+  'suppliers.catalog.packaging': '{packUnit} po {packQty} {unit}',
+  'suppliers.catalog.pricePerPack': 'Cijena / paket',
+  'suppliers.catalog.basePrice': 'Cijena / osnovna jedinica',
+  'suppliers.catalog.minOrder': 'Min. naručivanje',
+  'suppliers.catalog.status': 'Status',
+  'suppliers.catalog.actions': 'Akcije',
+  'suppliers.catalog.active': 'Aktivan',
+  'suppliers.catalog.inactive': 'Neaktivan',
+  'suppliers.catalog.empty': 'Katalog je prazan — dodajte prvi artikl.',
+  'suppliers.catalog.error': 'Greška pri učitavanju kataloga.',
+  'suppliers.catalog.retry': 'Pokušaj ponovno',
+  'suppliers.catalog.addItem': 'Dodaj artikl',
+  'suppliers.catalog.editItem': 'Uredi artikl',
+  'suppliers.catalog.inventoryItem': 'Artikl zalihe',
+  'suppliers.catalog.packQty': 'Količina po paketu',
+  'suppliers.catalog.packUnit': 'Oznaka pakiranja',
+  'suppliers.catalog.vatRate': 'PDV % (opcionalno)',
+  'suppliers.catalog.minOrderPacks': 'Min. br. paketa',
+  'suppliers.catalog.supplierSku': 'Šifra dobavljača (opcionalno)',
+  'suppliers.catalog.save': 'Spremi',
+  'suppliers.catalog.cancel': 'Odustani',
+  'suppliers.catalog.edit': 'Uredi',
+  'suppliers.catalog.delete': 'Izbriši',
+  'suppliers.catalog.deleteConfirm': 'Izbrisati "{name}" iz kataloga?',
+  'suppliers.catalog.toggleActive': 'Aktiviraj / deaktiviraj',
+  'suppliers.catalog.saved': 'Katalog ažuriran.',
+  'suppliers.catalog.deleted': 'Artikl izbrisan iz kataloga.',
+  'suppliers.catalog.saveError': 'Greška pri spremanju kataloga.',
+  'suppliers.catalog.invalidPackQty': 'Količina po paketu mora biti veća od 0.',
+
+  // --- R131 (P1-13): pack hinti (centar naručivanja + narudžbe + prijem) ---
+  'suppliers.packHint.line': '≈ {packs} × {packUnit} po {packQty} {baseUnit} ({baseQty} {baseUnit})',
+  'suppliers.packHint.note': 'Prijedlog zaokružen na cijele pakete (preporučeno).',
+  'suppliers.po.packHint': '{packs} × {packUnit} po {packQty} {unit} = {baseQty} {unit}',
+  'suppliers.po.packContext': '{packs} {packUnit} × {packQty}',
+  'suppliers.po.receivePacks': 'količina u paketima',
+  'suppliers.po.baseEquivalent': '≈ {qty} osnovnih jedinica',
 }

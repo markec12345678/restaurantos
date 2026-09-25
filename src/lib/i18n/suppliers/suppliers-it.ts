@@ -1,5 +1,6 @@
 // ============================================
 // FORNITORI — STORICO PREZZI (R130-b, epic #115 P1-08)
+//            + CATALOGO / PACK-SIZE (R131, epic #115 P1-13)
 // Italiano
 // ============================================
 
@@ -20,4 +21,46 @@ export const suppliersIt: Record<string, string> = {
   'suppliers.priceHistory.retry': 'Riprova',
   'suppliers.priceHistory.sourceSupplierHistory': 'Ultimo prezzo del fornitore',
   'suppliers.priceHistory.sourceItemCost': 'Costo di acquisto articolo',
+
+  // --- R131 (P1-13): catalogo fornitore ---
+  'suppliers.catalog.title': 'Catalogo fornitore',
+  'suppliers.catalog.item': 'Articolo',
+  'suppliers.catalog.sku': 'SKU',
+  'suppliers.catalog.packaging': '{packUnit} da {packQty} {unit}',
+  'suppliers.catalog.pricePerPack': 'Prezzo / confezione',
+  'suppliers.catalog.basePrice': 'Prezzo / unità base',
+  'suppliers.catalog.minOrder': 'Ordine minimo',
+  'suppliers.catalog.status': 'Stato',
+  'suppliers.catalog.actions': 'Azioni',
+  'suppliers.catalog.active': 'Attivo',
+  'suppliers.catalog.inactive': 'Inattivo',
+  'suppliers.catalog.empty': 'Il catalogo è vuoto — aggiungi il primo articolo.',
+  'suppliers.catalog.error': 'Errore durante il caricamento del catalogo.',
+  'suppliers.catalog.retry': 'Riprova',
+  'suppliers.catalog.addItem': 'Aggiungi articolo',
+  'suppliers.catalog.editItem': 'Modifica articolo',
+  'suppliers.catalog.inventoryItem': 'Articolo di inventario',
+  'suppliers.catalog.packQty': 'Quantità per confezione',
+  'suppliers.catalog.packUnit': 'Etichetta confezione',
+  'suppliers.catalog.vatRate': 'IVA % (opzionale)',
+  'suppliers.catalog.minOrderPacks': 'Nr. min. confezioni',
+  'suppliers.catalog.supplierSku': 'SKU fornitore (opzionale)',
+  'suppliers.catalog.save': 'Salva',
+  'suppliers.catalog.cancel': 'Annulla',
+  'suppliers.catalog.edit': 'Modifica',
+  'suppliers.catalog.delete': 'Elimina',
+  'suppliers.catalog.deleteConfirm': 'Eliminare "{name}" dal catalogo?',
+  'suppliers.catalog.toggleActive': 'Attiva / disattiva',
+  'suppliers.catalog.saved': 'Catalogo aggiornato.',
+  'suppliers.catalog.deleted': 'Articolo rimosso dal catalogo.',
+  'suppliers.catalog.saveError': 'Errore durante il salvataggio del catalogo.',
+  'suppliers.catalog.invalidPackQty': 'La quantità per confezione deve essere maggiore di 0.',
+
+  // --- R131 (P1-13): pack hint (centro riordini + ordini + carico) ---
+  'suppliers.packHint.line': '≈ {packs} × {packUnit} da {packQty} {baseUnit} ({baseQty} {baseUnit})',
+  'suppliers.packHint.note': 'Suggerimento arrotondato a confezioni intere (indicativo).',
+  'suppliers.po.packHint': '{packs} × {packUnit} da {packQty} {unit} = {baseQty} {unit}',
+  'suppliers.po.packContext': '{packs} {packUnit} × {packQty}',
+  'suppliers.po.receivePacks': 'quantità in confezioni',
+  'suppliers.po.baseEquivalent': '≈ {qty} unità base',
 }

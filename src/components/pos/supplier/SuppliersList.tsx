@@ -12,6 +12,7 @@ import { formatEUR } from '@/lib/safe-format'
 import { Truck, Phone, Mail, MapPin, Building2, Star, Edit, FileText, Clock, ChevronDown, ChevronUp, Hash } from 'lucide-react'
 import type { SupplierType } from './constants'
 import { SupplierPriceHistory } from './SupplierPriceHistory'
+import { SupplierCatalog } from './SupplierCatalog'
 
 interface SuppliersListProps {
   suppliers: SupplierType[]
@@ -150,6 +151,10 @@ export const SuppliersList = memo(function SuppliersList({
                 {/* R130-b (P1-08): zgodovina nabavnih cen — fetch se zgodi šele ob razširitvi
                     (komponenta mounta samo v tem bloku) */}
                 <SupplierPriceHistory supplierId={supplier.id} />
+
+                {/* R131 (P1-13): katalog dobavitelja / pack-size — enak mount-in-expanded-card
+                    vzorec (fetch šele ob razširitvi) */}
+                <SupplierCatalog supplierId={supplier.id} />
               </div>
             )}
           </CardContent>

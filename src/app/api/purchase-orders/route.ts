@@ -132,6 +132,11 @@ export async function POST(req: Request) {
         totalPrice,
         status: 'pending',
         notes: item.notes || '',
+        // R131 (epic #115 P1-13): pack snapshot — NULL = legacy semantika
+        // (vrstica v osnovnih enotah). Denar NESPREMENJEN (totalPrice =
+        // quantityOrdered × unitPrice — znesek je na nivoju vrstice).
+        packQty: item.packQty ?? null,
+        packUnit: item.packUnit ?? null,
       }
     })
 

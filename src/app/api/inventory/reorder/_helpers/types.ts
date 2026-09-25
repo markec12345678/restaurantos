@@ -49,6 +49,23 @@ export interface ReorderSuggestion {
   unitPriceSource: 'supplier-history' | 'item-cost'
   /** ISO čas zadnjega opažanja cene; null pri 'item-cost'. */
   unitPriceAsOf: string | null
+  // --- R131 (epic #115 P1-13): pack hint (aditivno, OPCIJSKO) ---
+  // Polja obstajajo ŠELE, kadar artikel ima aktivno katalog linijo za svojega
+  // dobavitelja (packQty veljaven IN pricePerPack > 0 — isti pogoj kot
+  // draft-po pack naročanje). Brez linije polja NE obstajajo (back-compat,
+  // pariteta R130-a2 enrichment).
+  /** Osnovnih enot na 1 paket (katalog). */
+  packQty?: number
+  /** Oznaka pakiranja ("vrečka", "sod", "karton"). */
+  packUnit?: string
+  /** Osnovna enota zaloge (paritetno z unit; za UI "vrečka po 25 kg"). */
+  baseUnit?: string
+  /** Advisory: št. celih paketov, ki pokrije suggestedQty (ceil, min 1). */
+  packsNeeded?: number
+  /** QUOTED cena na PAKET iz kataloga (> 0). */
+  pricePerPack?: number
+  /** Vir pack podatkov — katalog dobavitelja. */
+  packSource?: 'catalog'
   itemId: string
   name: string
   avgDailyUsage: number

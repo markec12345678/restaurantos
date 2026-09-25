@@ -56,6 +56,10 @@ export interface PurchaseOrderItemType {
   vatRate: number
   totalPrice: number
   status: string
+  // R131 (P1-13): pack-size snapshot iz kataloga (ADDITIVNO; NULL/string iz Decimal
+  // = legacy vrstica v osnovnih enotah — stari tok se ne spreminja)
+  packQty?: number | string | null
+  packUnit?: string | null
 }
 
 // ============================================
