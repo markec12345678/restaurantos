@@ -7,7 +7,7 @@ import { handleApiError, validateRequest } from '@/lib/api-utils'
 
 // Shema za posodobitev kursa — podpira akcije (fire/ready/served) in urejanje polj
 const updateCourseSchema = z.object({
-  action: z.enum(['fire', 'ready', 'served'], { message: 'Neveljavna akcija' }).optional(),
+  action: z.enum(['fire', 'ready', 'served', 'hold', 'unhold'], { message: 'Neveljavna akcija' }).optional(),
   name: z.string().min(1, 'Ime je obvezno').max(100, 'Ime ne sme preseči 100 znakov').optional(),
   courseNumber: z.number().int().min(1, 'Številka kursa mora biti vsaj 1').max(50, 'Številka kursa ne sme preseči 50').optional(),
   pacingNote: z.string().max(500, 'Opomba o tempu ne sme preseči 500 znakov').optional(),
@@ -46,44 +46,76 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     }
 
     // FIX HIGH: State machine validacija za course statuse
+    // R134 (P1-10, kanon 4): dopolnjen z 'held' — pending<->held (hold/unhold),
+    // held→fired (eksplicitni fire na zadržan tok je DOVOLJEN), held→cancelled.
     const validCourseTransitions: Record<string, string[]> = {
-      pending: ['fired', 'cancelled'],
+      pending: ['fired', 'cancelled', 'held'],
+      held: ['fired', 'cancelled', 'pending'],
       fired: ['ready', 'cancelled'],
       ready: ['served'],
       served: [],
       cancelled: [],
     }
 
-    const updateData: Record<string, unknown> = {}
+    // R134: akcija → ciljni status (hold/unhold sta aditivna)
+    const actionTargets: Record<string, string> = {
+      fire: 'fired',
+      ready: 'ready',
+      served: 'served',
+      hold: 'held',
+      unhold: 'pending',
+    }
 
-    if (body.action === 'fire') {
-      // Preveri veljaven prehod
-      if (!validCourseTransitions[existing.status]?.includes('fired')) {
+    const updateData: Record<string, unknown> = {}
+    // R134 (kanon 5): en strežniški `now` za course IN orderItem žig (isti trenutek)
+    const now = new Date()
+    const target = body.action ? actionTargets[body.action] : null
+    // R134: replay NO-OP velja SAMO za status akcije (kanon 6); hold/unhold imata
+    // STROG kanon 4 ("hold/unhold na non-pending/non-held → 400").
+    const isStateAction = body.action === 'fire' || body.action === 'ready' || body.action === 'served'
+
+    if (target) {
+      // R134 (kanon 6): IDEMPOTENT REPLAY — fire na fired / ready na ready /
+      // served na served → 200 z trenutnim stanjem (NO-OP, NE 400; retry-varno:
+      // "refresh ne sme izgubiti course state"). Ne piše firedAt/readyAt znova
+      // (prvi fire/ready čas ostane avtoritativen — razliko od OVERWRITE
+      // semantike item-level R133 določa kanon 6: course replay je NO-OP).
+      if (isStateAction && existing.status === target) {
+        const current = await db.course.findFirst({
+          where: { id, ...(scope.locationId ? { order: { locationId: scope.locationId } } : {}) },
+          include: { orderItems: { include: { menuItem: true } } },
+        })
+        if (!current) {
+          return NextResponse.json({ error: 'Course ni najden' }, { status: 404 })
+        }
+        return NextResponse.json(deepToNumbers(current), { status: 200 })
+      }
+
+      // Preveri veljaven prehod (neveljaven → 400 z currentStatus)
+      if (!validCourseTransitions[existing.status]?.includes(target)) {
         return NextResponse.json({
-          error: `Neveljaven prehod: ${existing.status} → fired`,
+          error: `Neveljaven prehod: ${existing.status} → ${target}`,
           currentStatus: existing.status,
         }, { status: 400 })
       }
-      updateData.status = 'fired'
-      updateData.firedAt = new Date()
-    } else if (body.action === 'ready') {
-      if (!validCourseTransitions[existing.status]?.includes('ready')) {
-        return NextResponse.json({
-          error: `Neveljaven prehod: ${existing.status} → ready`,
-          currentStatus: existing.status,
-        }, { status: 400 })
+
+      if (body.action === 'fire') {
+        updateData.status = 'fired'
+        updateData.firedAt = now
+      } else if (body.action === 'ready') {
+        updateData.status = 'ready'
+        updateData.readyAt = now
+      } else if (body.action === 'served') {
+        updateData.status = 'served'
+        updateData.servedAt = now
+      } else if (body.action === 'hold') {
+        // R134 (kanon 4): pending → held. BREZ item propagacije (itemi ostanejo
+        // pending — zadržan tok se ne požge sam od sebe; fire next/all ga
+        // preskočita dokler ni unhold-an ali eksplicitno fire-an).
+        updateData.status = 'held'
+      } else if (body.action === 'unhold') {
+        updateData.status = 'pending'
       }
-      updateData.status = 'ready'
-      updateData.readyAt = new Date()
-    } else if (body.action === 'served') {
-      if (!validCourseTransitions[existing.status]?.includes('served')) {
-        return NextResponse.json({
-          error: `Neveljaven prehod: ${existing.status} → served`,
-          currentStatus: existing.status,
-        }, { status: 400 })
-      }
-      updateData.status = 'served'
-      updateData.servedAt = new Date()
     } else {
       if (body.name !== undefined) updateData.name = body.name
       if (body.courseNumber !== undefined) updateData.courseNumber = body.courseNumber
@@ -98,16 +130,19 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         include: { orderItems: { include: { menuItem: true } } },
       })
 
-      // Posodobi orderItems status, če je action
+      // R134 (kanon 5): propagacija na orderItems v ISTI transakciji — fire
+      // piše tudi firedAt (prej manjkalo → KDS časovnik pokvarjen), ready piše
+      // tudi readyAt (R133 pariteta), served SAMO status (servedAt je
+      // course-level). hold/unhold NE propagirata (kanon 4).
       if (body.action === 'fire') {
         await tx.orderItem.updateMany({
           where: { courseId: id },
-          data: { status: 'fired' },
+          data: { status: 'fired', firedAt: now },
         })
       } else if (body.action === 'ready') {
         await tx.orderItem.updateMany({
           where: { courseId: id },
-          data: { status: 'ready' },
+          data: { status: 'ready', readyAt: now },
         })
       } else if (body.action === 'served') {
         await tx.orderItem.updateMany({

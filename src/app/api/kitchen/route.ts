@@ -52,6 +52,9 @@ export async function GET(req: Request) {
                 category: { select: { id: true, name: true, menu: { select: { id: true, name: true } } } },
               },
             },
+            // R134 (P1-10, kanon 8): course za FOH/KDS pariteto (isto stanje).
+            // Legacy itemi brez toka → course: null (flatten je NULL-varno).
+            course: { select: { id: true, courseNumber: true, name: true, status: true } },
           },
           orderBy: { createdAt: 'asc' },
         },
@@ -83,14 +86,25 @@ export async function GET(req: Request) {
       const preparingCount = order.orderItems.filter(oi => oi.status === 'preparing').length
       const readyCount = order.orderItems.filter(oi => oi.status === 'ready').length
 
+      // R134 (P1-10, kanon 8): flattened course fields na vsakem artiklu
+      // (NULL-varno: legacy itemi brez course dobijo null — KDS badge skrit).
+      // deepToNumbers meja ostaja nespremenjena (ruta je ne uporablja).
+      const enrichedItems = order.orderItems.map(oi => ({
+        ...oi,
+        courseNumber: oi.course?.courseNumber ?? null,
+        courseName: oi.course?.name ?? null,
+        courseStatus: oi.course?.status ?? null,
+      }))
+
       return {
         ...order,
+        orderItems: enrichedItems,
         waitMinutes,
         urgency,
         pendingCount,
         preparingCount,
         readyCount,
-        totalItems: order.orderItems.length,
+        totalItems: enrichedItems.length,
       }
     }
 
@@ -113,6 +127,9 @@ export async function GET(req: Request) {
                 category: { select: { id: true, name: true, menu: { select: { id: true, name: true } } } },
               },
             },
+            // R134 (P1-10, kanon 8): course za FOH/KDS pariteto (isto stanje).
+            // Legacy itemi brez toka → course: null (flatten je NULL-varno).
+            course: { select: { id: true, courseNumber: true, name: true, status: true } },
           },
           orderBy: { createdAt: 'asc' },
         },

@@ -65,6 +65,11 @@ export function useKDSOrders(
             })(),
             firedAt: oi.firedAt || null,
             prepTimeMinutes: menuItem?.prepTimeMinutes || prepStation?.avgPrepTime || null,
+            // R134 (P1-10): flattened course polja — NULL-varno (legacy itemi
+            // brez course dobijo null → brez badge). FOH/KDS isto stanje.
+            courseNumber: typeof oi.courseNumber === 'number' && Number.isFinite(oi.courseNumber) ? oi.courseNumber : null,
+            courseName: typeof oi.courseName === 'string' && oi.courseName.trim() !== '' ? oi.courseName : null,
+            courseStatus: typeof oi.courseStatus === 'string' && oi.courseStatus.trim() !== '' ? oi.courseStatus : null,
           }
         })
         return {

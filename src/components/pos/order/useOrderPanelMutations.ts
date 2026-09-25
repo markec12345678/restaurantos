@@ -113,7 +113,24 @@ export function useOrderPanelMutations() {
       customerName: string
       customerPhone: string
       orderNotes: string
+      /** R134 (P1-10): opt-in tokovi — ko ON, vsak item dobi courseNumber 1..8 (default 3) */
+      coursesEnabled?: boolean
+      courseMap?: Record<string, number>
     }) => {
+      const { coursesEnabled, courseMap } = params
+
+      // R134: courseNumber per item SAMO ko toggle 'Tokovi' ON — OFF = popolnoma
+      // legacy body (bit-for-bit). Urejanje obstoječega naročila (add-items pot)
+      // ostane legacy: Course vrstice ustvarja izključno POST /api/orders ob
+      // oddaji (strežniški kanon R134/3). Offline queue (R128) pošlje body
+      // as-is — courseNumber preživi sync, brez novih offline vej.
+      const withCourses = coursesEnabled === true && !editingOrderId
+      const courseNumberFor = (cartKey: string): number | null => {
+        if (!withCourses) return null
+        const raw = courseMap?.[cartKey]
+        const n = typeof raw === 'number' ? raw : Number(raw)
+        return Number.isInteger(n) && n >= 1 && n <= 8 ? n : 3
+      }
       // BUG-FIX (živ pregled 2026-09-24): idempotencyKey je prej bil direktna
       // konkatenacija vseh ID-jev artiklov v košarici — pri 3+ različnih
       // artiklih (CUID ≈ 25 znakov/kos) je presegel 100-znakovno Zod omejitev
@@ -142,13 +159,18 @@ export function useOrderPanelMutations() {
           appliedDiscountId: appliedDiscountId || null,
           taxRate,
           notes: params.orderNotes,
-          orderItems: cart.map(item => ({
-            menuItemId: item.id,
-            quantity: item.quantity,
-            price: item.price,
-            notes: item.notes,
-            modifiersJson: JSON.stringify(item.modifiers.map(m => ({ name: m.name, price: m.price, modifierGroupName: m.modifierGroupName }))),
-          })),
+          orderItems: cart.map(item => {
+            const courseNumber = courseNumberFor(item.cartKey)
+            return {
+              menuItemId: item.id,
+              quantity: item.quantity,
+              price: item.price,
+              notes: item.notes,
+              modifiersJson: JSON.stringify(item.modifiers.map(m => ({ name: m.name, price: m.price, modifierGroupName: m.modifierGroupName }))),
+              // R134: spread SAMO ko toggle ON — legacy oddaja je bit-for-bit
+              ...(courseNumber !== null ? { courseNumber } : {}),
+            }
+          }),
         }
 
         // P1-14: polni format queue vnosa — operationId/idempotencyKey/deviceId/
@@ -208,13 +230,18 @@ export function useOrderPanelMutations() {
           appliedDiscountId: appliedDiscountId || undefined,
           taxRate,
           notes: params.orderNotes,
-          orderItems: cart.map(item => ({
-            menuItemId: item.id,
-            quantity: item.quantity,
-            price: item.price,
-            notes: item.notes,
-            modifiersJson: JSON.stringify(item.modifiers.map(m => ({ name: m.name, price: m.price, modifierGroupName: m.modifierGroupName }))),
-          })),
+          orderItems: cart.map(item => {
+            const courseNumber = courseNumberFor(item.cartKey)
+            return {
+              menuItemId: item.id,
+              quantity: item.quantity,
+              price: item.price,
+              notes: item.notes,
+              modifiersJson: JSON.stringify(item.modifiers.map(m => ({ name: m.name, price: m.price, modifierGroupName: m.modifierGroupName }))),
+              // R134: spread SAMO ko toggle ON — legacy oddaja je bit-for-bit
+              ...(courseNumber !== null ? { courseNumber } : {}),
+            }
+          }),
         }),
       })
       if (!res.ok) throw new Error('Failed to place order')

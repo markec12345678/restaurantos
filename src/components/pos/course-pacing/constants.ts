@@ -1,102 +1,141 @@
 // ============================================
-// TIPI IN KONSTANTE ZA COURSE PACING
+// TIPI IN KONSTANTE ZA COURSE PACING (R134)
+// ============================================
+// KANON R134 (epic #115 P1-10): Course entiteta je edini vir resnice.
+// Prejšnja heuristika (classifyItem / COURSE_KEYWORDS po imenu artikla,
+// izmišljeni statusi 'waiting'/'firing', DEFAULT_COURSE_ORDER, trdo kodiran
+// avgGapMinutes) je IZBRISANA — UI prikazuje samo realne Course podatke iz
+// /api/kitchen (flattened courseNumber/courseName/courseStatus/courseId).
+//
+// Realni statusi (state machine na strežniku):
+//   pending <-> held; pending|held -> fired -> ready -> served (+cancelled).
+//   'preparing' je v modelu prisoten (legacy ročni vpisi) — prikazan, brez akcij.
 // ============================================
 
-interface CourseGroup {
-  id: string
-  name: string // Predjed, Glavna jed, Sladica, itd.
-  sortOrder: number
-  items: CourseItem[]
-  status: 'waiting' | 'firing' | 'preparing' | 'ready' | 'served'
-  firedAt?: string
-  readyAt?: string
-}
+// ─── Statusi ──────────────────────────────────────────────────────
+export type CourseStatus =
+  | 'pending'
+  | 'held'
+  | 'fired'
+  | 'preparing'
+  | 'ready'
+  | 'served'
+  | 'cancelled'
 
-interface CourseItem {
+/** Vse akcije nad tokom (PUT /api/courses/[id] body { action }) */
+export type CourseAction = 'fire' | 'hold' | 'unhold' | 'ready' | 'served'
+
+/** Status posameznega orderItem-a (item-level, ne course-level) */
+export type CourseItemStatus = 'pending' | 'fired' | 'preparing' | 'ready' | 'served' | 'cancelled' | 'held'
+
+// ─── Tipi (podatki iz /api/kitchen) ──────────────────────────────
+export interface CourseItem {
   id: string
   name: string
   quantity: number
   modifiers: string[]
   notes: string
-  status: 'pending' | 'preparing' | 'ready' | 'served'
-  prepStation: string // kuhinja, šank, itd.
+  /** Item status iz /api/kitchen (nastavljen s course fire/ready propagacijo) */
+  status: CourseItemStatus
+  /** Flattened course polja — vsa OPTIONAL (legacy itemi brez course) */
+  courseNumber: number | null
+  courseName: string | null
+  courseStatus: string | null
+  courseId: string | null
 }
 
-interface PacedOrder {
+/** Skupina postavk istega toka znotraj naročila */
+export interface CourseGroup {
+  /** Številka toka (1..8); null = 'Brez toka' (legacy itemi brez course) */
+  courseNumber: number | null
+  name: string
+  /** Course row id — AKCIJE so možne SAMO če obstaja (fire/hold/ready/...) */
+  courseId: string | null
+  /** Course-level status (iz courseStatus flattened polja); null = neznano */
+  status: string | null
+  items: CourseItem[]
+}
+
+export interface PacedOrder {
   id: string
   orderNumber: number
   tableNumber: number | null
   tableName: string | null
   customerName: string
   orderType: string
-  createdAt: string
+  createdAt: string | null
   courses: CourseGroup[]
-  currentCourseIndex: number
-  pacing: 'auto' | 'manual'
-  avgGapMinutes: number
+  /** Vsaj en tok v statusu 'pending' → fire next/all sta smiselna */
+  hasPending: boolean
 }
 
-export type { CourseGroup, CourseItem, PacedOrder }
+// ─── Kanonska imena tokov (kanon 3: 1..4 fiksno, >=5 'Tok {n}') ──
+export const COURSE_NAMES: Record<number, string> = {
+  1: 'Predjed',
+  2: 'Juha',
+  3: 'Glavna jed',
+  4: 'Sladica',
+}
 
-// ─── Standardni jedilni red ──────────────────────────────────────
-export const DEFAULT_COURSE_ORDER = [
-  { id: 'predjed', name: 'Predjed', sortOrder: 1 },
-  { id: 'juha', name: 'Juha', sortOrder: 2 },
-  { id: 'medkrožnik', name: 'Medkrožnik', sortOrder: 3 },
-  { id: 'glavna', name: 'Glavna jed', sortOrder: 4 },
-  { id: 'sir', name: 'Sir', sortOrder: 5 },
-  { id: 'sladica', name: 'Sladica', sortOrder: 6 },
-  { id: 'kava', name: 'Kava / Čaj', sortOrder: 7 },
+/** Ime toka po številki — neznane številke → 'Tok {n}' (pariteta strežnika) */
+export function courseNameFor(courseNumber: number): string {
+  return COURSE_NAMES[courseNumber] ?? `Tok ${courseNumber}`
+}
+
+// ─── Opcije za izbiro toka v košarici (opt-in toggle 'Tokovi') ───
+export const CART_COURSE_OPTIONS: { value: number; label: string }[] = [
+  { value: 1, label: '1 · Predjed' },
+  { value: 2, label: '2 · Juha' },
+  { value: 3, label: '3 · Glavna jed' },
+  { value: 4, label: '4 · Sladica' },
 ]
 
-// ─── Avtomatsko razvrščanje artiklov v jedi ──────────────────────
-export const COURSE_KEYWORDS: Record<string, string[]> = {
-  predjed: ['predjed', 'antipasti', 'starter', 'bruschetta', 'tartar', 'carpaccio', 'pršut', 'narezki'],
-  juha: ['juha', 'supa', 'minestra', 'kremna', 'goveja'],
-  medkrožnik: ['medkrožnik', 'sorbet', 'palčka'],
-  glavna: ['steak', 'file', 'rižota', 'rižoto', 'testenine', 'paste', 'pizza', 'ribe', 'losos', 'tuna', 'puran', 'piščanec', 'svinjina', 'teletina', 'govedina', 'mongolski', 'burger', 'želodec', 'ocvrti', 'pečeno', 'žara', 'foliji', 'mošnjički', 'njoke', 'štruklji'],
-  sir: ['sir', 'sirna', 'pladanj'],
-  sladica: ['sladica', 'torta', 'tiramisu', 'panna', 'cotta', 'čokolada', 'cheesecake', 'palačinke', 'sladoled', 'kremšnita', 'gibanica', 'štrudelj', 'macaron', 'praline', 'fruit'],
-  kava: ['kava', 'cappuccino', 'espresso', 'latte', 'čaj', 'matcha'],
+/** Default tok pri oddaji s prižganimi Tokovi (kanon 3: 'Glavna jed') */
+export const DEFAULT_CART_COURSE = 3
+
+// ─── Status barve (paleta: emerald/amber/red/zinc + orange za ogenj) ──
+export const COURSE_STATUS_CONFIG: Record<string, { color: string; bg: string; label: string }> = {
+  pending: { color: 'text-zinc-600 dark:text-zinc-400', bg: 'bg-zinc-50 dark:bg-zinc-900/40', label: 'Čaka' },
+  held: { color: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/30', label: 'Zadržan' },
+  fired: { color: 'text-orange-700 dark:text-orange-400', bg: 'bg-orange-50 dark:bg-orange-950/30', label: 'Požgan' },
+  preparing: { color: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/30', label: 'V pripravi' },
+  ready: { color: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30', label: 'Pripravljeno' },
+  served: { color: 'text-zinc-500 dark:text-zinc-500', bg: 'bg-zinc-50 dark:bg-zinc-900/40', label: 'Postreženo' },
+  cancelled: { color: 'text-red-700 dark:text-red-400', bg: 'bg-red-50 dark:bg-red-950/30', label: 'Preklicano' },
 }
 
-export function classifyItem(itemName: string): string {
-  const lower = itemName.toLowerCase()
-  for (const [courseId, keywords] of Object.entries(COURSE_KEYWORDS)) {
-    if (keywords.some(kw => lower.includes(kw))) {
-      return courseId
-    }
-  }
-  return 'glavna' // Privzeto: glavna jed
+/** Item-level barva/status znak (pariteta z današnjim prikazom) */
+export const COURSE_ITEM_STATUS_MARK: Record<string, { text: string; mark: string }> = {
+  pending: { text: 'text-zinc-500', mark: '○' },
+  held: { text: 'text-amber-600', mark: '○' },
+  fired: { text: 'text-orange-600', mark: '⏳' },
+  preparing: { text: 'text-amber-600', mark: '⏳' },
+  ready: { text: 'text-emerald-600', mark: '✓' },
+  served: { text: 'text-zinc-500', mark: '✓' },
+  cancelled: { text: 'text-red-600', mark: '×' },
 }
 
-// ─── Status barve ────────────────────────────────────────────────
-export const STATUS_CONFIG: Record<string, { color: string; bg: string; label: string; icon: React.ReactNode }> = {
-  waiting: { color: 'text-gray-500', bg: 'bg-gray-100 dark:bg-gray-800', label: 'Čaka', icon: undefined },
-  firing: { color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20', label: 'FIRE!', icon: undefined },
-  preparing: { color: 'text-blue-600', bg: 'bg-blue-50 dark:bg-blue-900/20', label: 'V pripravi', icon: undefined },
-  ready: { color: 'text-emerald-600', bg: 'bg-emerald-50 dark:bg-emerald-900/20', label: 'Pripravljeno', icon: undefined },
-  served: { color: 'text-gray-500', bg: 'bg-gray-50 dark:bg-gray-900/30', label: 'Postreženo', icon: undefined },
-}
-
-/** Props za PacingHeader */
+// ─── Props podkomponent ──────────────────────────────────────────
 export interface PacingHeaderProps {
   orderCount: number
 }
 
-/** Props za PacedOrderCard */
 export interface PacedOrderCardProps {
   order: PacedOrder
-  onFireCourse: (_orderId: string, _courseIndex: number) => void
-  onReadyCourse: (_orderId: string, _courseIndex: number) => void
+  /** Order-level: POST /api/orders/[id]/courses/fire { mode: 'next' } */
+  onFireNext: (orderId: string) => void
+  /** Order-level: POST /api/orders/[id]/courses/fire { mode: 'all' } */
+  onFireAll: (orderId: string) => void
+  /** Course-level: PUT /api/courses/[courseId] { action } */
+  onCourseAction: (courseId: string, action: CourseAction) => void
+  /** Busy zastavice (disabled med mutation v teku) */
+  busyCourseId: string | null
+  busyOrderFire: boolean
 }
 
-/** Props za CourseCard */
 export interface CourseCardProps {
   course: CourseGroup
   isCurrentCourse: boolean
-  canFire: boolean
-  canMarkReady: boolean
-  onFire: () => void
-  onReady: () => void
+  onAction: (action: CourseAction) => void
+  disabled: boolean
 }

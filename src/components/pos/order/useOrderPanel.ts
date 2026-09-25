@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { usePOSStore } from '@/lib/store'
 import { usePOSShortcuts } from '@/lib/use-pos-shortcuts'
@@ -66,6 +66,29 @@ export function useOrderPanel() {
   const [clearCartConfirm, setClearCartConfirm] = useState(false)
   const [lastAddedId, setLastAddedId] = useState<string | null>(null)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  // R134 (epic #115 P1-10): opt-in tokovi — toggle je CLIENT-ONLY stanje
+  // (namenoma NI v zustand/persist; offline queue pošlje body as-is).
+  // courseMap: cartKey → courseNumber (1..4; default 3 'Glavna jed').
+  const [coursesEnabled, setCoursesEnabled] = useState(false)
+  const [courseMap, setCourseMap] = useState<Record<string, number>>({})
+
+  const handleToggleCourses = useCallback(() => {
+    setCoursesEnabled((prev) => {
+      const next = !prev
+      // Izključitev tokov počisti per-item izbiro (ni ostankov v naslednjem naročilu)
+      if (!next) setCourseMap({})
+      return next
+    })
+  }, [])
+
+  const handleSetCourse = useCallback((cartKey: string, courseNumber: number) => {
+    setCourseMap((prev) => ({ ...prev, [cartKey]: courseNumber }))
+  }, [])
+
+  const resetCourses = useCallback(() => {
+    setCoursesEnabled(false)
+    setCourseMap({})
+  }, [])
 
   // Mutations sub-hook
   const {
@@ -77,7 +100,7 @@ export function useOrderPanel() {
   // Keyboard shortcuts
   usePOSShortcuts({
     onNewOrder: () => { clearCart(); setCustomerName(''); setCustomerPhone(''); setOrderNotes(''); setDiscount(0); setEditingOrderId(null); setEditingOrderNumber(null); setMainTab('new-order') },
-    onPay: () => { if (cart.length > 0) placeOrderMutation.mutate({ customerName, customerPhone, orderNotes }) },
+    onPay: () => { if (cart.length > 0) placeOrderMutation.mutate({ customerName, customerPhone, orderNotes, coursesEnabled, courseMap }) },
     onSearch: () => { /* Search is handled inside MenuBrowser */ },
     onClearCart: () => { if (cart.length > 0) setClearCartConfirm(true) },
     onOrderList: () => setMainTab('order-list'),
@@ -194,6 +217,8 @@ export function useOrderPanel() {
     tables, tablesLoading, orders, ordersLoading, discounts, diningOptions, menuStockMap,
     subtotal, vatBreakdown, totalTax, total,
     placeOrderMutation, updateOrderStatusMutation,
+    // R134: tokovi (opt-in) — toggle + per-item izbira
+    coursesEnabled, handleToggleCourses, courseMap, handleSetCourse, resetCourses,
     ...handlers, handleVoided, handleStornoComplete, handleAddToOrder, handleExitEditing,
   }
 }

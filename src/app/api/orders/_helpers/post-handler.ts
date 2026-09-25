@@ -316,44 +316,112 @@ export async function handlePostOrder(
       // vrstico s PVODNO vrednostjo — dvopisem ne nastane. Eksplicitni fire
       // (re-fire) firedAt kasneje prezapiše (obstoječa semantika re-fire-a).
       const firedAt = new Date()
-      const newOrder = await tx.order.create({
-        data: {
-          orderNumber,
-          idempotencyKey, // FIX Test 3.2: unikatni ključ za deduplikacijo
-          type: data.type,
-          status: 'pending',
-          firedAt,
-          tableId: data.tableId || null,
-          diningOptionId: data.diningOptionId || null,
-          revenueCenterId: data.revenueCenterId || null,
-          customerName: data.customerName,
-          customerPhone: data.customerPhone,
-          customerEmail: data.customerEmail || '', // FIX MEDIUM: Shrani e-pošto stranke
-          subtotal,
-          tax: totalTax,
-          discount: totalDiscountAmount,
-          total,
-          tip: toNum(data.tip),
-          totalWithTip: total + toNum(data.tip),
-          paymentStatus: 'unpaid',
-          paymentMethod: '',
-          notes: data.notes,
-          employeeId: data.employeeId || authSession.session?.employeeId || null,
-          inventoryDeducted: false,
-          // P1-6: lokacija naročila — resolvirana server-side (session/miza/fallback),
-          // nikoli iz bodyja (tenant isolation: body ni vir zaupanja)
-          locationId: orderLocationId,
-          orderItems: {
-            // OrderItemData matches unchecked create input
+
+      // R134 (P1-10, kanon 3): TOKI (courses) — opt-in aditivno. ČE ima vsaj 1
+      // artikel courseNumber → v ISTI transakciji: itemi BREZ courseNumber dobijo
+      // default 3 ('Glavna jed'), za vsako distinktno številko nastane Course
+      // vrstica (status 'pending', kanonsko ime) + orderItem.courseId wiring.
+      // Itemi so v course poti ustvarjeni EKSPPLICITNO (ne nested), da je wiring
+      // determinističen (nested create ne garantira vrstnega reda vrstic v
+      // odgovoru). ČE nihče nima courseNumber → nested create BIT-FOR-BIT legacy
+      // (0 Course vrstic, 0 sprememb v odgovoru).
+      const hasCourses = data.orderItems.some(it => it.courseNumber !== undefined)
+
+      // Unchecked variant: scalar FK (tableId/diningOptionId/revenueCenterId/
+      // employeeId/locationId) namesto nested relation connect-ov
+      const orderCreateData: Prisma.OrderUncheckedCreateInput = {
+        orderNumber,
+        idempotencyKey, // FIX Test 3.2: unikatni ključ za deduplikacijo
+        type: data.type,
+        status: 'pending',
+        firedAt,
+        tableId: data.tableId || null,
+        diningOptionId: data.diningOptionId || null,
+        revenueCenterId: data.revenueCenterId || null,
+        customerName: data.customerName,
+        customerPhone: data.customerPhone,
+        customerEmail: data.customerEmail || '', // FIX MEDIUM: Shrani e-pošto stranke
+        subtotal,
+        tax: totalTax,
+        discount: totalDiscountAmount,
+        total,
+        tip: toNum(data.tip),
+        totalWithTip: total + toNum(data.tip),
+        paymentStatus: 'unpaid',
+        paymentMethod: '',
+        notes: data.notes,
+        employeeId: data.employeeId || authSession.session?.employeeId || null,
+        inventoryDeducted: false,
+        // P1-6: lokacija naročila — resolvirana server-side (session/miza/fallback),
+        // nikoli iz bodyja (tenant isolation: body ni vir zaupanja)
+        locationId: orderLocationId,
+        // R134: nested create SAMO v legacy poti (nihče nima courseNumber);
+        // course pot ustvari iteme eksplicitno spodaj (determinističen courseId
+        // wiring). undefined = Prisma polje tretira kot nepodano.
+        orderItems: hasCourses ? undefined : {
+          // OrderItemData matches unchecked create input
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           create: orderItemsData as any,
-          },
         },
+      }
+
+      const newOrder = await tx.order.create({
+        data: orderCreateData,
         include: {
           table: true,
           orderItems: { include: { menuItem: true } },
         },
       })
+
+      let txOrder = newOrder
+
+      // R134: course wiring — V ISTI transakciji kot order + itemi (atomarnost).
+      if (hasCourses) {
+        // Kanonska imena tokov (kontrakt R134): 1='Predjed', 2='Juha',
+        // 3='Glavna jed', 4='Sladica', >=5='Tok {n}'.
+        const canonicalCourseNames: Record<number, string> = {
+          1: 'Predjed',
+          2: 'Juha',
+          3: 'Glavna jed',
+          4: 'Sladica',
+        }
+        // Itemi brez explicitnega courseNumber dobijo default 3 ('Glavna jed').
+        const itemCourseNumbers = data.orderItems.map(it => it.courseNumber ?? 3)
+        const distinctNumbers = Array.from(new Set(itemCourseNumbers)).sort((a, b) => a - b)
+        const courseIds = new Map<number, string>()
+        for (const n of distinctNumbers) {
+          const course = await tx.course.create({
+            data: {
+              orderId: newOrder.id,
+              courseNumber: n,
+              name: canonicalCourseNames[n] ?? `Tok ${n}`,
+              status: 'pending',
+            },
+          })
+          courseIds.set(n, course.id)
+        }
+        for (let i = 0; i < orderItemsData.length; i++) {
+          await tx.orderItem.create({
+            // OrderItemData matches unchecked create input (isti cast kot legacy)
+            data: {
+              ...orderItemsData[i],
+              orderId: newOrder.id,
+              courseId: courseIds.get(itemCourseNumbers[i]) ?? null,
+            } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+          })
+        }
+        // Osveži odgovor: itemi zdaj nosijo courseId (+ aditivno `courses`).
+        // Enaka vključenost kot legacy pot (table + orderItems.menuItem).
+        const fresh = await tx.order.findUnique({
+          where: { id: newOrder.id },
+          include: {
+            table: true,
+            orderItems: { include: { menuItem: true } },
+            courses: true,
+          },
+        })
+        if (fresh) txOrder = fresh
+      }
 
     // Posodobi mizo znotraj transakcije
     if (data.tableId && data.type === 'dine-in') {
@@ -367,7 +435,7 @@ export async function handlePostOrder(
       // Če miza ne obstaja, ignoriramo — naročilo se ustvari brez mize
     }
 
-      return newOrder
+      return txOrder
     })
   } catch (error: unknown) {
     // FIX CRITICAL (Test 3.2): Race path — če sta 2 vzporedna requesta z istim idempotencyKey

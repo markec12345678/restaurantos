@@ -102,6 +102,10 @@ export interface OrderCreateData {
     price?: number
     notes: string
     modifiersJson: string
+    /** R134 (P1-10): opcijski tok (1..8) — prisoten SAMO ko je oddaja tekla s
+     *  prižganimi 'Tokovi'. Queue pošlje body as-is (kanon 11) — brez novih
+     *  offline vej; legacy oddaje to polje nikoli ne nastavijo. */
+    courseNumber?: number
   }>
   employeeId?: string | null
 }

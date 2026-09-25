@@ -31,6 +31,7 @@ export const OrderPanel = memo(function OrderPanel() {
     receiptOrder, autoPayOrder, setAutoPayOrder, voidItem, setVoidItem, stornoOrder,
     clearCartConfirm, setClearCartConfirm, lastAddedId, setLastAddedId,
     shortcutsOpen, setShortcutsOpen,
+    coursesEnabled, handleToggleCourses, courseMap, handleSetCourse, resetCourses,
     menus, menusLoading, menuItems, menuLoading,
     tables, orders, ordersLoading, discounts, diningOptions, menuStockMap,
     subtotal, vatBreakdown, totalTax, total,
@@ -136,7 +137,7 @@ export const OrderPanel = memo(function OrderPanel() {
                   discounts={discounts}
                   editingOrderId={editingOrderId}
                   editingOrderNumber={editingOrderNumber}
-                  onExitEditing={handleExitEditing}
+                  onExitEditing={() => { handleExitEditing(); resetCourses() }}
                   /* BUG FIX (runda 5): "Oddaj in plačaj" je oddal naročilo, ampak
                      plačilni dialog se NI nikoli odprl — onSuccess je vračal podatke
                      "za samodejno plačilo", a jih nihče ni obdelal (komentar v
@@ -145,8 +146,10 @@ export const OrderPanel = memo(function OrderPanel() {
                      obstoječega plačila preskočita auto-pay. */
                   onSubmit={() =>
                     placeOrderMutation
-                      .mutateAsync({ customerName, customerPhone, orderNotes })
+                      .mutateAsync({ customerName, customerPhone, orderNotes, coursesEnabled, courseMap })
                       .then(data => {
+                        // R134: tokovi so per-oddaja (opt-in) — po oddaji nazaj na OFF
+                        resetCourses()
                         if (
                           data && typeof data === 'object' &&
                           !('offline' in data && data.offline) &&
@@ -164,6 +167,11 @@ export const OrderPanel = memo(function OrderPanel() {
                      ve, na kateri mizi je — ne glede na drsenje po meniju) */
                   tableNumber={tables?.find(t => t.id === selectedTable)?.number ?? null}
                   onCloseMobile={() => setMobileCartOpen(false)}
+                  /* R134: opt-in tokovi — toggle + per-item izbira toka */
+                  coursesEnabled={coursesEnabled}
+                  onToggleCourses={handleToggleCourses}
+                  courseMap={courseMap}
+                  onSetCourse={handleSetCourse}
                 />
               </div>
             </div>

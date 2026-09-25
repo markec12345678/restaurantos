@@ -2,8 +2,9 @@
 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
 import { AnimatePresence } from 'framer-motion'
-import { Trash2, ShoppingBag, ArrowLeft, UtensilsCrossed, Plus, Table2, X } from 'lucide-react'
+import { Trash2, ShoppingBag, ArrowLeft, UtensilsCrossed, Plus, Table2, X, Layers } from 'lucide-react'
 import type { CartItemType } from '@/lib/store'
 import { usePOSStore } from '@/lib/store'
 import { CartItemRow } from './CartItemRow'
@@ -44,6 +45,11 @@ export interface OrderCartProps {
   tableNumber?: number | null
   /** ISSUE #113 §3: zapri mobilni drawer (<md); na desktopu ni prikazan */
   onCloseMobile?: () => void
+  /** R134 (P1-10): opt-in tokovi — toggle + per-item izbira toka (client-only) */
+  coursesEnabled?: boolean
+  onToggleCourses?: () => void
+  courseMap?: Record<string, number>
+  onSetCourse?: (cartKey: string, courseNumber: number) => void
 }
 
 // ============================================
@@ -58,6 +64,7 @@ export function OrderCart({
   editingOrderId, editingOrderNumber, onExitEditing,
   onSubmit, isPending, setClearCartConfirm,
   tableNumber, onCloseMobile,
+  coursesEnabled = false, onToggleCourses, courseMap, onSetCourse,
 }: OrderCartProps) {
   const cartItemCount = cart.reduce((s, i) => s + i.quantity, 0)
   const bumpCartQuickAddSignal = usePOSStore((s) => s.bumpCartQuickAddSignal)
@@ -127,7 +134,17 @@ export function OrderCart({
           <div className="p-2 space-y-1">
             <AnimatePresence mode="popLayout">
               {cart.map((item) => (
-                <CartItemRow key={item.cartKey} item={item} removeFromCart={removeFromCart} updateCartQuantity={updateCartQuantity} />
+                <CartItemRow
+                  key={item.cartKey}
+                  item={item}
+                  removeFromCart={removeFromCart}
+                  updateCartQuantity={updateCartQuantity}
+                  /* R134: izbira toka je vidna SAMO ko je toggle prižgan (default 3) */
+                  courseNumber={coursesEnabled ? (courseMap?.[item.cartKey] ?? 3) : undefined}
+                  onCourseChange={coursesEnabled && onSetCourse
+                    ? (courseNumber: number) => onSetCourse(item.cartKey, courseNumber)
+                    : undefined}
+                />
               ))}
             </AnimatePresence>
             {/* UI-REFACTOR: "Dodaj še kaj?" — fokus iskalnega polja v menijski
@@ -145,6 +162,33 @@ export function OrderCart({
       </div>
       {/* Bottom Section */}
       <div className="border-t border-border flex-shrink-0">
+        {/* R134 (P1-10): opt-in toggle 'Tokovi' — viden samo z artikli v košarici
+            in pri NOVI oddaji (urejanje obstoječega = legacy brez tokov).
+            Celotna vrstica je velika tarča (pointer-coarse >= 44px). */}
+        {cart.length > 0 && !editingOrderId && onToggleCourses && (
+          <div
+            role="switch"
+            aria-checked={coursesEnabled}
+            tabIndex={0}
+            aria-label="Tokovi — razporedi artikle v tokove (predjed, juha, glavna jed, sladica)"
+            onClick={onToggleCourses}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleCourses() } }}
+            className="w-full flex items-center justify-between gap-2 px-4 py-2.5 border-b border-border cursor-pointer select-none hover:bg-muted/40 transition-colors pointer-coarse:py-3 pointer-coarse:min-h-[44px]"
+          >
+            <span className="flex items-center gap-1.5 min-w-0">
+              <Layers className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+              <span className="min-w-0">
+                <span className="block text-xs font-semibold leading-tight">Tokovi</span>
+                <span className="block text-[10px] text-muted-foreground leading-tight truncate">
+                  Tek jedi: predjed → juha → glavna → sladica
+                </span>
+              </span>
+            </span>
+            {/* Vizualni indikator — klik lovi vrstica (pointer-events-none,
+                da ni dvojnega preklopa; tipkovnica uporablja vrstico) */}
+            <Switch checked={coursesEnabled} tabIndex={-1} aria-hidden="true" className="pointer-events-none flex-shrink-0" />
+          </div>
+        )}
         <CustomerInfoSection
           customerName={customerName} setCustomerName={setCustomerName}
           customerPhone={customerPhone} setCustomerPhone={setCustomerPhone}

@@ -73,12 +73,29 @@ export async function GET(req: Request) {
         include: {
           table: true,
           virtualBrand: { select: { id: true, name: true, code: true, color: true } },
-          orderItems: { include: { menuItem: { include: { prepStation: true, category: { include: { menu: true } } } } } },  // FIX FASE 2: prepStation za DB-driven KDS routing
+          orderItems: {
+            include: {
+              menuItem: { include: { prepStation: true, category: { include: { menu: true } } } },
+              // R134 (P1-10, kanon 8): course za FOH/KDS pariteto — KDS bere
+              // /api/orders (pending/in-progress/ready),flatten je NULL-varno.
+              course: { select: { courseNumber: true, name: true, status: true } },
+            },
+          },  // FIX FASE 2: prepStation za DB-driven KDS routing
         },
       }),
       db.order.count({ where }),
     ])
-    return NextResponse.json({ orders: deepToNumbers(orders), total, limit, offset })
+    // R134 (P1-10): flattened course fields per item (NULL-varno za legacy iteme)
+    const enriched = orders.map(o => ({
+      ...o,
+      orderItems: o.orderItems.map(oi => ({
+        ...oi,
+        courseNumber: oi.course?.courseNumber ?? null,
+        courseName: oi.course?.name ?? null,
+        courseStatus: oi.course?.status ?? null,
+      })),
+    }))
+    return NextResponse.json({ orders: deepToNumbers(enriched), total, limit, offset })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/orders', 'Napaka pri pridobivanju naročil')
   }

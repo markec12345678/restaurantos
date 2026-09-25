@@ -15,6 +15,11 @@ export interface OrderItemKDS {
   allergens?: string | null  // FIX FASE 1: EU alergeni (1-14) za kuhinjsko varnost
   firedAt: string | null
   prepTimeMinutes: number | null
+  // R134 (epic #115 P1-10): flattened course polja — NULL-varno, legacy itemi
+  // brez course jih nimajo (badge se ne izriše). FOH/KDS vidita ISTO stanje.
+  courseNumber?: number | null
+  courseName?: string | null
+  courseStatus?: string | null
 }
 
 export interface OrderKDS {

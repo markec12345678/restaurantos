@@ -4,8 +4,44 @@ import { memo } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { Clock, Flame, CheckCircle2, AlertTriangle } from 'lucide-react'
-import type { OrderKDS } from './types'
+import type { OrderKDS, OrderItemKDS } from './types'
 import { ElapsedTimer } from './ElapsedTimer'
+
+// R134 (epic #115 P1-10): course badge barve po REALNEM statusu toka
+// (pending/held/fired/preparing/ready/served/cancelled). Paleta hiše:
+// zinc/amber/orange (ogenj, pariteta KDS)/emerald/red. NULL-varno —
+// legacy itemi brez course polj ne dobijo badge (aditivno).
+const COURSE_BADGE_STYLES: Record<string, string> = {
+  pending: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300',
+  held: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+  fired: 'bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-300',
+  preparing: 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
+  ready: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
+  served: 'bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400',
+  cancelled: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300',
+}
+
+/** Badge 'T1 · Predjed' — null, če item nima course podatkov (legacy) */
+function courseBadgeText(item: OrderItemKDS): string | null {
+  if (typeof item.courseNumber !== 'number' || !Number.isFinite(item.courseNumber)) return null
+  const name = item.courseName?.trim() || `Tok ${item.courseNumber}`
+  return `T${item.courseNumber} · ${name}`
+}
+
+/** Vizualni course badge (status-barva); brez course → brez izrisa */
+function CourseBadge({ item }: { item: OrderItemKDS }) {
+  const label = courseBadgeText(item)
+  if (!label) return null
+  const cls = COURSE_BADGE_STYLES[item.courseStatus ?? ''] ?? COURSE_BADGE_STYLES.pending
+  return (
+    <span
+      className={`flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${cls}`}
+      title={`Tok: ${item.courseStatus ?? 'neznano'}`}
+    >
+      {label}
+    </span>
+  )
+}
 
 // ─── Naročilna kartica ─────────────────────────────────────────
 
@@ -49,7 +85,7 @@ export const OrderCard = memo(function OrderCard({
     )}>
       {/* F7-4: QR badge za spletna naročila */}
       {(order.customerName?.includes('QR') || order.notes?.includes('QR')) && (
-        <div className="absolute top-0 right-0 bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-bl-lg z-10">
+        <div className="absolute top-0 right-0 bg-zinc-700 text-white text-[10px] font-bold px-2 py-0.5 rounded-bl-lg z-10">
           QR
         </div>
       )}
@@ -106,10 +142,12 @@ export const OrderCard = memo(function OrderCard({
             }}
           >
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <span className="font-black text-base">{item.quantity}x</span>
                 {/* P2-UX (dolga imena): celoten naziv v title orisalu */}
                 <span className="font-semibold truncate" title={item.name}>{item.name}</span>
+                {/* R134: course badge (NULL-varno — legacy brez badge) */}
+                <CourseBadge item={item} />
               </div>
               {item.modifiers?.length > 0 && (
                 <div className="ml-7 text-xs text-muted-foreground">
@@ -155,9 +193,11 @@ export const OrderCard = memo(function OrderCard({
             }}
           >
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
                 <span className="font-black text-base">{item.quantity}x</span>
                 <span className="font-semibold truncate line-through opacity-60" title={item.name}>{item.name}</span>
+                {/* R134: course badge (NULL-varno — legacy brez badge) */}
+                <CourseBadge item={item} />
               </div>
             </div>
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />

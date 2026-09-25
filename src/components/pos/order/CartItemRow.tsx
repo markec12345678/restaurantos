@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { motion } from 'framer-motion'
 import { Plus, Minus, X, UtensilsCrossed } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { CART_COURSE_OPTIONS, DEFAULT_CART_COURSE } from '@/components/pos/course-pacing/constants'
 import type { CartItemType } from '@/lib/store'
 
 // --- Props ---
@@ -15,6 +17,9 @@ interface CartItemRowProps {
   item: CartItemType
   removeFromCart: (_cartKey: string) => void
   updateCartQuantity: (_cartKey: string, _quantity: number) => void
+  /** R134 (P1-10): izbira toka — podana SAMO ko je toggle 'Tokovi' prižgan */
+  courseNumber?: number
+  onCourseChange?: (_courseNumber: number) => void
 }
 
 // --- Komponenta ---
@@ -28,6 +33,8 @@ export const CartItemRow = memo(function CartItemRow({
   item,
   removeFromCart,
   updateCartQuantity,
+  courseNumber,
+  onCourseChange,
 }: CartItemRowProps) {
   return (
     <motion.div
@@ -71,6 +78,32 @@ export const CartItemRow = memo(function CartItemRow({
           </div>
         )}
         {item.notes && <p className="text-[9px] text-primary italic mt-0.5">📝 {item.notes}</p>}
+        {/* R134 (P1-10): per-item tok — viden samo ko je toggle 'Tokovi' prižgan.
+            Radix Select (pariteta ostalih kontrol košarice); touch target >= 44px
+            na pointer-coarse, namizje kompaktno (h-7). */}
+        {onCourseChange && (
+          <div className="flex items-center gap-1.5 mt-1.5">
+            <UtensilsCrossed className="h-3 w-3 text-muted-foreground flex-shrink-0" aria-hidden="true" />
+            <Select
+              value={String(courseNumber ?? DEFAULT_CART_COURSE)}
+              onValueChange={(v) => onCourseChange(Number(v))}
+            >
+              <SelectTrigger
+                aria-label={`Tok za ${item.name}`}
+                className="h-7 min-w-0 flex-1 text-[11px] px-2 gap-1 pointer-coarse:h-11"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent position="popper" className="min-w-[10rem]">
+                {CART_COURSE_OPTIONS.map(opt => (
+                  <SelectItem key={opt.value} value={String(opt.value)} className="text-[11px] pointer-coarse:h-11">
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         {/* Stepper + cena — jasna vrstica: [−] količina [+] .... skupaj */}
         <div className="flex items-center justify-between mt-1.5">
           <div className="flex items-center gap-0.5 rounded-lg border border-border bg-background p-0.5">

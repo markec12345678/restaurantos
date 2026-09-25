@@ -65,6 +65,11 @@ export const createOrderItemSchema = z.object({
   price: positiveNumber.optional(), // FIX HIGH: Price je opcijski — strežnik uporabi ceno iz baze (edini vir resnice)
   notes: z.string().max(500, 'Opombe ne smejo preseči 500 znakov').default(''),
   modifiersJson: modifiersJsonSchema,
+  // R134 (P1-10, kanon 3): opcijska številka toka (course) — opt-in aditivno.
+  // ČE ima vsaj 1 artikel naročila courseNumber, POST /api/orders v ISTI
+  // transakciji ustvari Course vrstice (itemi BREZ courseNumber dobijo
+  // default 3 'Glavna jed'). ČE nihče nima → bit-for-bit legacy pot.
+  courseNumber: z.number().int().min(1, 'Številka toka mora biti vsaj 1').max(8, 'Številka toka ne more preseči 8').optional(),
 })
 
 export const createOrderSchema = z.object({
