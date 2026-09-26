@@ -12,6 +12,7 @@ import { UnauthorizedError, authPostJson, extractErrorMessage } from './driver-c
 import { isCashOnDelivery, orderTotal, useDriverAssignments } from './useDriverAssignments'
 import type { ActiveDriverStatus, MineDelivery, ReadyDelivery } from './useDriverAssignments'
 import { useDriverLocation } from './useDriverLocation'
+import { useDriverWs } from './useDriverWs'
 import type { GpsState } from './useDriverLocation'
 
 // =====================================================================
@@ -64,6 +65,11 @@ export function DriverApp({ onLogout }: DriverAppProps) {
   const { mine, ready, timestamp, connected, isLoading, loggedOut, refresh } = useDriverAssignments()
   const { gpsState } = useDriverLocation(mine, !loggedOut)
   const gps = GPS_INDICATOR[gpsState]
+  // R139: WS push — ob DELIVERY_UPDATED / NEW_ORDER(delivery) takojšen refetch
+  // prek refresh() (fetchSeq dedupe prepreči podvojene tike). Poll 15 s ostane
+  // nespremenjen kot fallback; v devu (next dev) se WS ne povezuje
+  // (produkciski-only — runda 12 kanon).
+  useDriverWs({ onSignal: refresh, enabled: !loggedOut })
 
   // Akcije v teku — per-dostava loading (idempotentni self-claim: gumb disable med klicem)
   const [claimingId, setClaimingId] = useState<string | null>(null)

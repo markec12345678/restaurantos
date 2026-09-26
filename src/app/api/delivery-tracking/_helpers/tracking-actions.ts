@@ -1,6 +1,9 @@
 // Delivery tracking — Status update in driver assignment
 
 import { db, createAuditLog } from '@/lib/db'
+// R139: WS push — coarse refetch signal za voznikov zaslon (isti proces
+// custom server; next dev/Vercel = __wsBroadcast undefined → tiho preskoči)
+import { wsBroadcastEvent } from '@/lib/ws-server-broadcast'
 import { NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { notInScopeResponse } from '@/lib/tenant-scope'
@@ -222,6 +225,18 @@ export async function handleStatusUpdate(
   // Sproži webhook
   try {
     const deliveryInfo = await db.deliveryInfo.findUnique({ where: { id: deliveryInfoId }, include: { order: true } })
+    // R139: WS push voznikovemu zaslonu — coarse refetch signal. Payload
+    // whitelist = ids/status/locationId (NIKOLI PII — PII ostane za
+    // GET /api/delivery/assignments whitelist). wsBroadcastEvent je
+    // fire-and-forget (napake požere sam) — ne sme vplivati na odgovor.
+    // locationId poganja per-location fan-out na strežniku (server.js
+    // broadcastEvent) — brez njega bi signal ušel tujim lokacijam.
+    wsBroadcastEvent('DELIVERY_UPDATED', {
+      deliveryInfoId,
+      reason: 'status_changed',
+      status,
+      locationId: deliveryInfo?.order?.locationId ?? null,
+    })
     if (deliveryInfo?.order) {
       const { emitEvent } = await import('@/lib/event-emitter')
       await emitEvent('delivery.status_changed', {
@@ -367,6 +382,16 @@ export async function handleAssignDriver(
       ...(userId ? { driverEmployeeId: userId } : {}),
     },
     userId,
+  })
+
+  // R139: WS push — voznik dodeljen (self-claim ALI legacy dispatcher v enem
+  // mestu). Coarse refetch signal; payload whitelist brez PII (ime/telefon
+  // voznika so že v audit logu, klient jih dobi prek assignments rute).
+  wsBroadcastEvent('DELIVERY_UPDATED', {
+    deliveryInfoId,
+    reason: 'assigned',
+    status: 'assigned',
+    locationId: stampLocationId,
   })
 
   return NextResponse.json(result, { status: isUpdate ? 200 : 201 })

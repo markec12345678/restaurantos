@@ -1,5 +1,7 @@
 
 import { db } from '@/lib/db'
+// R139: WS push — coarse refetch signal za voznikov zaslon
+import { wsBroadcastEvent } from '@/lib/ws-server-broadcast'
 import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
@@ -106,6 +108,16 @@ export async function PUT(
         throw new Error('DELIVERY_NOT_FOUND')
       }
       return updated
+    })
+
+    // R139: WS push — dispečerjeva ročna sprememba dostave (CAS tx uspel).
+    // Coarse refetch signal; status = svež tx status; locationId iz order
+    // (per-location fan-out). NIKOLI PII v payloadu.
+    wsBroadcastEvent('DELIVERY_UPDATED', {
+      deliveryInfoId: id,
+      reason: 'dispatcher_update',
+      status: delivery.status,
+      locationId: delivery.order?.locationId ?? null,
     })
 
     return NextResponse.json(decimalsToNumbers(delivery, ['deliveryFee', 'packagingFee']))

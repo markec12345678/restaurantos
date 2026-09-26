@@ -45,6 +45,12 @@ const port = parseInt(process.env.PORT || '3000', 10)
 // hidracija se NIKOLI ne zaključi (AuthLoadingScreen zataki, __next_f ostane
 // prazen, efekti ne teknejo). WS ostane produkciski-only; dev uporablja
 // `bunx next dev` + NotificationCenter polling fallback.
+
+// R139 P0 FIX: deklaracija `app` je bila izgubljena (runda-12 poskus je bil
+// narejen lokalno in nikoli commitan) — brez te vrstice je server.js crashal
+// ob zagonu z "ReferenceError: app is not defined" → dev:ws, start:ws IN
+// Dockerfile CMD so bili mrtvi, produkcija WS je tiho degradirala na polling.
+const app = next({ dev, hostname, port })
 const handle = app.getRequestHandler()
 
 // ============================================
