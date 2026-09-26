@@ -14,7 +14,7 @@
  */
 
 import { ordersKeys, kitchenKeys, menusKeys, categoriesKeys, menuItemsKeys, modifierGroupsKeys, tablesKeys, employeesKeys, shiftsKeys, jobsKeys } from './orders-menu-staff'
-import { inventoryKeys, cashRegisterKeys, endOfDayKeys, dailyCloseKeys, reportsKeys, dashboardKeys, reservationsKeys } from './inventory-cash-reports'
+import { inventoryKeys, cashRegisterKeys, endOfDayKeys, dailyCloseKeys, reportsKeys, dashboardKeys, reservationsKeys, briefingKeys } from './inventory-cash-reports'
 import { altPaymentsKeys, checksKeys, giftCardsKeys, loyaltyKeys, tipPoolKeys, configurationKeys } from './payments-loyalty-config'
 import { deliveryKeys, locationsKeys, suppliersKeys, purchaseOrdersKeys, haccpKeys, fursKeys, receiptKeys, zReportKeys, authKeys, webhooksKeys, integrationsKeys, expensesKeys, feedbackKeys, dailyChecklistKeys, discountsKeys, diningOptionsKeys, voidReasonsKeys, recipesKeys, subscriptionKeys, waitlistKeys, notificationsKeys, menuEngineeringKeys, menuItemNutritionKeys, recentOrders7dKeys, offlineQueueKeys } from './delivery-misc'
 
@@ -43,6 +43,8 @@ export const queryKeys = {
   dailyClose: dailyCloseKeys,
   // ---- Poročila ----
   reports: reportsKeys,
+  // ---- Dnevni pregled (R141, P2-28) ----
+  briefing: briefingKeys,
   // ---- Dashboard ----
   dashboard: dashboardKeys,
   // ---- Rezervacije ----

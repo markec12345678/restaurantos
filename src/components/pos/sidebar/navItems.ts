@@ -11,6 +11,7 @@ import {
   MessageSquare, Target, FileText, HandCoins, Navigation, Timer, Trophy, Bell,
   ShieldAlert, Receipt, ClipboardCheck, BellRing, PieChart, Activity, Table2, CloudOff,
   CookingPot, Scale, Star, Trash2, Scale3d, Store, ShieldCheck, BookOpen, GitBranch, Nfc,
+  Sunrise,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -50,7 +51,8 @@ export const navGroups: NavGroup[] = [
     'employees', 'staff-schedule', 'shift-overview', 'tip-manager', 'staff-performance', 'labor-reports',
   ] },
   { id: 'analytics', label: 'Analitika', itemIds: [
-    'dashboard', 'reports', 'menu-engineering', 'table-turnover', 'expenses', 'profit-loss',
+    // R141-c (P2-28): dnevni pregled — prvi element analitike (poleg dashboard/reports)
+    'briefing', 'dashboard', 'reports', 'menu-engineering', 'table-turnover', 'expenses', 'profit-loss',
     'tax-report', 'ghost-kitchen', 'ai-forecast', 'ai-recommendations',
   ] },
   { id: 'system', label: 'Sistem', itemIds: [
@@ -94,6 +96,8 @@ export const navItems: NavItem[] = [
   { id: 'menu-engineering', labelKey: 'nav.menuEngineering', icon: Target, adminOnly: true },
   { id: 'feedback', labelKey: 'nav.feedback', icon: MessageSquare, permission: 'take_orders' },
   { id: 'reports', labelKey: 'nav.reports', icon: BarChart3, permission: 'view_reports' },
+  // R141-c (epic #115 P2-28): dnevni pregled — manager briefing
+  { id: 'briefing', labelKey: 'nav.briefing', icon: Sunrise, permission: 'view_reports' },
   { id: 'configuration', labelKey: 'nav.configuration', icon: SlidersHorizontal, adminOnly: true },
   { id: 'delivery', labelKey: 'nav.delivery', icon: Truck, permission: 'take_orders' },
   { id: 'delivery-tracking', labelKey: 'nav.deliveryTracking', icon: Navigation, permission: 'take_orders' },

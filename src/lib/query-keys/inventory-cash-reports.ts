@@ -51,3 +51,10 @@ export const reservationsKeys = {
   upcoming: ['reservations', 'upcoming'] as const,
   upcomingAdmin: ['reservations-upcoming'] as const,
 }
+
+// R141-c (epic #115 P2-28): dnevni pregled (manager briefing) —
+// EN agregatni endpoint GET /api/reports/briefing (R141-b). UI v1 vedno
+// sprašuje za današnji LJ poslovni datum → ena ključ brez params.
+export const briefingKeys = {
+  all: ['briefing'] as const,
+}
