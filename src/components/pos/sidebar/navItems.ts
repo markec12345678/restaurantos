@@ -5,7 +5,7 @@
 import {
   LayoutDashboard, ShoppingCart, BarChartBig, UtensilsCrossed, Package, Users,
   BarChart3, ChefHat, Wallet, Settings, SlidersHorizontal, Truck, CreditCard,
-  Award, Printer, Webhook, CalendarDays,
+  Award, Printer, Webhook, CalendarDays, Bike,
   Brain, LayoutGrid, Calendar, UserCircle, Sparkles,
   Calculator, ClipboardList, Factory, Plug, MapPin, CalendarClock, Layers,
   MessageSquare, Target, FileText, HandCoins, Navigation, Timer, Trophy, Bell,
@@ -34,7 +34,7 @@ export interface NavGroup {
 export const navGroups: NavGroup[] = [
   { id: 'sales', label: 'Prodaja', itemIds: [
     'orders', 'kitchen', 'floor-plan', 'tables', 'waitlist', 'course-pacing',
-    'kitchen-prep', 'kitchen-stations', 'wait-time', 'delivery', 'delivery-tracking', 'order-bump',
+    'kitchen-prep', 'kitchen-stations', 'wait-time', 'delivery', 'delivery-tracking', 'driver', 'order-bump',
   ] },
   { id: 'cash', label: 'Blagajna', itemIds: [
     'cash-register', 'shifts', 'end-of-day', 'z-report', 'wallet-payment',
@@ -97,6 +97,8 @@ export const navItems: NavItem[] = [
   { id: 'configuration', labelKey: 'nav.configuration', icon: SlidersHorizontal, adminOnly: true },
   { id: 'delivery', labelKey: 'nav.delivery', icon: Truck, permission: 'take_orders' },
   { id: 'delivery-tracking', labelKey: 'nav.deliveryTracking', icon: Navigation, permission: 'take_orders' },
+  // R137 (epic #115 P1-13): voznikov mobilni zaslon — isti DriverApp tudi standalone /driver
+  { id: 'driver', labelKey: 'nav.driver', icon: Bike, permission: 'take_orders' },
   { id: 'z-report', labelKey: 'nav.zReport', icon: FileText, permission: 'manage_cash' },
   { id: 'tip-manager', labelKey: 'nav.tipManager', icon: HandCoins, permission: 'manage_employees' },
   { id: 'wait-time', labelKey: 'nav.waitTime', icon: Timer, permission: 'take_orders' },

@@ -89,8 +89,8 @@ export async function seedE2eData(executor, ctx) {
   //     P0-C4 loyalty/email polji prihajata iz shemskih defaultov (false/1/0.01/
   //     '[]'/false) — enako vrsticam kot prejšnji eksplicitni INSERT init-e2e-db.
   await run(`
-  INSERT INTO "Location" (id, name, code, type, address, city, "postCode", country, phone, email, "businessId", "taxId", "registerNumber", "fursEnvironment", timezone, currency, locale, "isOpen", "isActive", "createdAt", "updatedAt")
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, true, true, NOW(), NOW())
+  INSERT INTO "Location" (id, name, code, type, address, city, "postCode", country, phone, email, "businessId", "taxId", "registerNumber", "premisesId", "fursEnvironment", timezone, currency, locale, "isOpen", "isActive", "createdAt", "updatedAt")
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'PREM-TEST01', $14, $15, $16, $17, true, true, NOW(), NOW())
   ON CONFLICT (code) DO NOTHING
 `, ['loc-1', 'Test Restavracija', 'HQ', 'restaurant', 'Testna 1', 'Ljubljana', '1000', 'SI', '+386 1 234 5678', 'test@test.si', '12345678', 'SI12345678', 'TEST01', 'test', 'Europe/Ljubljana', 'EUR', 'sl-SI'])
   console.log('[seed] ✅ Location seedan')

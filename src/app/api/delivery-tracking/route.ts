@@ -67,6 +67,8 @@ export async function POST(req: Request) {
     if ('status' in data) {
       return await handleStatusUpdate(
         data.deliveryInfoId, data.status, data.customerRating, data.customerFeedback, locationId,
+        // R137-b (P1-13): POD opomba + gotovina pobrana (delivered close-out)
+        data.podNotes, data.cashCollected,
       )
     }
 

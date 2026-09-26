@@ -811,6 +811,7 @@ model Employee {
   approvedPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderApprovedBy")
   goodsReceipts   GoodsReceipt[] @relation("GoodsReceiptReceivedBy") // R132: prevzeli (GRN snapshot imena)
   kdsReadyItems   OrderItem[]    @relation("KdsReadyItems") // R133: KDS bump forenzika (readyAt/readyByName snapshot)
+  deliveryTrackings DeliveryTracking[] @relation("DeliveryTrackingDriver") // R137-b: voznik dostav (self-claim)
   // --- Multi-location ---
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -3013,6 +3014,15 @@ model DeliveryTracking {
   driverName      String   @default("")
   driverPhone     String   @default("")
   vehicleInfo     String   @default("")              // Npr. "Rdeč Fiat 500, LJ-123-AB"
+  // R137-b (P1-13): vezava voznika na prijavljenega zaposlenega (self-claim
+  // iz seje ALI dispatcher dodelitev). NULL = legacy/free-text dodelitev
+  // (prosto besedilo brez seje). SetNull: izbris zaposlenega ne sme izgubiti
+  // dostavne forenzike (driverName snapshot ostane) — pariteta readyById 0019.
+  driverEmployeeId String?
+  driverEmployee   Employee? @relation("DeliveryTrackingDriver", fields: [driverEmployeeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  // R137-b (P1-13): proof-of-delivery opomba voznika ob 'delivered'
+  // (customerFeedback ostane ocena GOSTA — to je forenzika voznika)
+  podNotes        String?
   // --- GPS koordinate ---
   currentLat      Float?
   currentLng      Float?
@@ -3038,6 +3048,7 @@ model DeliveryTracking {
   @@index([deliveryInfoId])
   @@index([status])
   @@index([driverName])
+  @@index([driverEmployeeId])  // R137-b: moja dostavna opravila (GET /api/delivery/assignments)
   @@index([locationId])  // FIX: Multi-location poizvedbe po lokaciji
   @@index([estimatedArrival])  // FIX: Iskanje aktivnih dostav po času prihoda
 }

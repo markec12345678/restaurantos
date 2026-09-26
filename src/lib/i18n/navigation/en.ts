@@ -70,4 +70,7 @@ export const navEn: Record<string, string> = {
   'nav.laborReports': 'Labor Reports',
   'nav.inventoryAlerts': 'Inventory Alerts',
   'nav.reorderCenter': 'Reorder Center',
+  // R137 (epic #115 P1-13): voznikov mobilni zaslon
+  'nav.driver': 'Delivery',
+
 }

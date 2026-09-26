@@ -35,12 +35,16 @@ function structuredToResponse(error: unknown): NextResponse | null {
   return null
 }
 
+// R137-b (P1-13): podNotes (POD opomba voznika) + cashCollected (gotovina
+// pobrana ob dostavi) — oba opcijska, relevantna SAMO za 'delivered' vejo.
 export async function handleStatusUpdate(
   deliveryInfoId: string,
   status: string,
   customerRating?: number,
   customerFeedback?: string,
   scopeLocationId: string | null = null,
+  podNotes?: string,
+  cashCollected?: boolean,
 ) {
   const tracking = await db.deliveryTracking.findUnique({ where: { deliveryInfoId } })
   if (!tracking) return NextResponse.json({ error: 'Sledenje ne obstaja' }, { status: 404 })
@@ -71,6 +75,8 @@ export async function handleStatusUpdate(
       updateData.deliveredAt = new Date()
       if (customerRating) updateData.customerRating = customerRating
       if (customerFeedback) updateData.customerFeedback = customerFeedback
+      // R137-b (P1-13): POD opomba voznika (customerFeedback ostane ocena GOSTA)
+      if (podNotes) updateData.podNotes = podNotes
       break
   }
 
@@ -92,9 +98,11 @@ export async function handleStatusUpdate(
   }
   const nextInfoStatus = deliveryStatusMap[status] || status
 
-  let updated: { driverName: string; estimatedArrival: Date | null } | null
+    let updated: { driverName: string; estimatedArrival: Date | null } | null
   try {
     updated = await db.$transaction(async (tx) => {
+      // R137-b: forenzika close-outa (lokalni akumulator znotraj tx)
+      let deliveredAudit: { orderId: string; locationId: string | null } | null = null
       // tx-fresh status read — zastarel pre-read izven tx NE sme odločati
       const fresh = await tx.deliveryTracking.findUnique({ where: { deliveryInfoId } })
       if (!fresh) {
@@ -115,9 +123,16 @@ export async function handleStatusUpdate(
 
       // DeliveryInfo: tx-fresh read + prehod + CAS — brez tega bi ročna UI pot
       // (delivered) lahko bila REGRESIRANA na picked_up prek voznikove preslikave.
+      // R137-b (P1-13): select razširjen z order (tx-fresh) za close-out —
+      // DeliveryInfo NIMA orderId skalarnega polja (FK deliveryInfoId živi na
+      // Order), zato se order bere prek back-relacije v ISTEM poizvedbenem
+      // koraku (ceneje kot ločen tx.order.findUnique, enako tx-fresh).
       const freshInfo = await tx.deliveryInfo.findUnique({
         where: { id: deliveryInfoId },
-        select: { id: true, status: true },
+        select: {
+          id: true, status: true,
+          order: { select: { id: true, status: true, paymentStatus: true, locationId: true, type: true } },
+        },
       })
       if (freshInfo) {
         if (!canTransitionDeliveryStatus(freshInfo.status, nextInfoStatus)) {
@@ -133,6 +148,56 @@ export async function handleStatusUpdate(
         if (casInfo.count === 0) {
           throw { error: STALE_DELIVERY_STATUS_MESSAGE, status: 409 }
         }
+
+        // R137-b (P1-13) DELIVERED CLOSE-OUT — samo 'delivered', šele PO uspelem
+        // CAS-u na obeh dostavnih vrsticah (obstoječa CAS logika se NE spreminja):
+        //   1. Order.status pending/in-progress/ready → 'completed' (CAS-ovski
+        //      pogojni updateMany — NIKOLI ne downgradiraj completed/cancelled;
+        //      guard na tx-fresh statusu, pogoj tudi v where klavzuli).
+        //   2. cashCollected === true → neplačani Checki + Order.paymentStatus
+        //      unpaid → 'paid' (COD zaprtje po online-order kanonu; check lahko
+        //      ne obstaja — webhook dostava je že paid — updateMany no-op je pravilen).
+        if (status === 'delivered' && freshInfo.order) {
+          const openOrderStatuses = ['pending', 'in-progress', 'ready']
+          const order = freshInfo.order
+          if (openOrderStatuses.includes(order.status)) {
+            await tx.order.updateMany({
+              where: { id: order.id, status: { in: openOrderStatuses } },
+              data: { status: 'completed' },
+            })
+          }
+          if (cashCollected === true) {
+            await tx.check.updateMany({
+              where: { orderId: order.id, paymentStatus: 'unpaid' },
+              data: { paymentStatus: 'paid' },
+            })
+            await tx.order.updateMany({
+              where: { id: order.id, paymentStatus: 'unpaid' },
+              data: { paymentStatus: 'paid' },
+            })
+          }
+          deliveredAudit = { orderId: order.id, locationId: order.locationId }
+        }
+      }
+
+      // R137-b (P1-13): audit log 'delivery_delivered' — ZNOTRAJ tx (atomarno
+      // s prehodom: audit obstaja ⇔ prehod obstaja; createAuditLog(entry, tx)
+      // kanon — hash veriga beremo in pišemo v isti transakciji). Samo
+      // 'delivered' prehod ga sproži (tudi standalone brez ordera — orderId null).
+      if (status === 'delivered') {
+        const auditLocationId = deliveredAudit?.locationId ?? tracking.locationId ?? null
+        await createAuditLog({
+          action: 'delivery_delivered',
+          entityType: 'delivery',
+          entityId: deliveryInfoId,
+          details: {
+            podNotes: podNotes ?? null,
+            cashCollected: cashCollected === true,
+            orderId: deliveredAudit?.orderId ?? null,
+            locationId: auditLocationId,
+          },
+          locationId: auditLocationId,
+        }, tx)
       }
 
       // Ponovno branje za odgovor (ista vrstica — CAS je pravkar uspel;
@@ -178,11 +243,16 @@ export async function handleStatusUpdate(
 // DRIVER ASSIGNMENT HELPER
 // ============================================
 
+// R137-b (P1-13) SELF-CLAIM: driverName/driverPhone/vehicleInfo so izbirni —
+// manjkajoč/prazen driverName = voznik si dostavo prevzame SAM: identiteta
+// pride IZKLJUČNO iz seje (userId = Session.employeeId, route ga že pošilja),
+// driverEmployeeId se NIKOLI ne sprejme od klienta. Legacy dispatcher pot
+// (prosto besedilo) ostane nespremenjena.
 export async function handleAssignDriver(
   deliveryInfoId: string,
-  driverName: string,
-  driverPhone: string,
-  vehicleInfo: string,
+  driverName?: string,
+  driverPhone?: string,
+  vehicleInfo?: string,
   userId?: string,
   scopeLocationId: string | null = null,
 ) {
@@ -205,6 +275,26 @@ export async function handleAssignDriver(
   }
   const stampLocationId = derivedLocationId ?? scopeLocationId ?? null
 
+  // R137-b (P1-13): resolvanje identitete voznika. Prazen/manjkajoč driverName
+  // = SELF-CLAIM → ime (in telefon, če klient ni podal svojega) iz Employee
+  // zapisa seje. Manjkajoča seja ALI neobstoječ zaposleni → 400 'Voznik ni
+  // najden' (IZBRANI hišni kontrakt: 400, ker je napaka rešljiva na strani
+  // klicatelja — seja nima veljavne voznikove identitete; 404 bi lažno
+  // sugeriral, da dostava ne obstaja, ki obstaja).
+  let resolvedName = typeof driverName === 'string' ? driverName.trim() : ''
+  let resolvedPhone = typeof driverPhone === 'string' ? driverPhone.trim() : ''
+  const resolvedVehicle = typeof vehicleInfo === 'string' ? vehicleInfo.trim() : ''
+  if (!resolvedName) {
+    if (!userId) return NextResponse.json({ error: 'Voznik ni najden' }, { status: 400 })
+    const employee = await db.employee.findUnique({
+      where: { id: userId },
+      select: { name: true, phone: true },
+    })
+    if (!employee) return NextResponse.json({ error: 'Voznik ni najden' }, { status: 400 })
+    resolvedName = employee.name
+    if (!resolvedPhone) resolvedPhone = employee.phone
+  }
+
   let isUpdate = false
   let outOfScope = false
   const result = await db.$transaction(async (tx) => {
@@ -217,14 +307,26 @@ export async function handleAssignDriver(
         outOfScope = true
         return null
       }
-      if (existing.driverName && existing.driverName !== driverName) {
+      // R137-b (P1-13) idempotency guard #1 (obstoječ, nespremenjen): drugo
+      // ime na zasedeni dostavi → 409 DRIVER_ALREADY_ASSIGNED.
+      if (existing.driverName && existing.driverName !== resolvedName) {
+        throw new Error('DRIVER_ALREADY_ASSIGNED')
+      }
+      // R137-b (P1-13) idempotency guard #2 (NOV): drug employeeId na zasedeni
+      // dostavi → 409. Pokrije dva različna zaposlena z ISTIM imenom (guard #1
+      // ne ujame) in zapre race okno dveh sočasnih self-claimov.
+      if (existing.driverEmployeeId && existing.driverEmployeeId !== userId) {
         throw new Error('DRIVER_ALREADY_ASSIGNED')
       }
       isUpdate = true
       const updated = await tx.deliveryTracking.update({
         where: { deliveryInfoId },
         data: {
-          driverName, driverPhone, vehicleInfo, status: 'assigned', assignedAt: new Date(),
+          driverName: resolvedName, driverPhone: resolvedPhone, vehicleInfo: resolvedVehicle,
+          status: 'assigned', assignedAt: new Date(),
+          // R137-b (P1-13): vezava voznika IZ SEJE (nikoli od klienta). Legacy
+          // free-text update jo žigosi na klicatelja (kdo je dodelil).
+          driverEmployeeId: userId ?? null,
           // FIX R85-H2: self-heal žigosanje legacy NULL locationId
           ...(scopeLocationId && !existing.locationId ? { locationId: stampLocationId } : {}),
         },
@@ -234,9 +336,11 @@ export async function handleAssignDriver(
 
     const created = await tx.deliveryTracking.create({
       data: {
-        deliveryInfoId, driverName, driverPhone, vehicleInfo,
+        deliveryInfoId, driverName: resolvedName, driverPhone: resolvedPhone, vehicleInfo: resolvedVehicle,
         status: 'assigned', assignedAt: new Date(),
         estimatedArrival: new Date(Date.now() + 30 * 60 * 1000),
+        // R137-b (P1-13): vezava voznika IZ SEJE (nikoli od klienta)
+        driverEmployeeId: userId ?? null,
         // FIX R85-H2: žigosanje lokacije ob ustvarjanju (prej vedno NULL)
         locationId: stampLocationId,
       },
@@ -244,7 +348,7 @@ export async function handleAssignDriver(
 
     await tx.deliveryInfo.update({
       where: { id: deliveryInfoId },
-      data: { courierName: driverName, courierPhone: driverPhone, status: 'preparing' },
+      data: { courierName: resolvedName, courierPhone: resolvedPhone, status: 'preparing' },
     })
 
     return created
@@ -255,7 +359,13 @@ export async function handleAssignDriver(
   await createAuditLog({
     action: 'driver_assigned',
     entityType: 'delivery',
-    details: { driverName, message: `Voznik ${driverName} dodeljen dostavi`, locationId: stampLocationId },
+    // R137-b (P1-13): details dopolnjen z driverEmployeeId (self-claim vezava)
+    details: {
+      driverName: resolvedName,
+      message: `Voznik ${resolvedName} dodeljen dostavi`,
+      locationId: stampLocationId,
+      ...(userId ? { driverEmployeeId: userId } : {}),
+    },
     userId,
   })
 

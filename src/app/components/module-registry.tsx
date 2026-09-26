@@ -91,6 +91,8 @@ const FraudDetectionDashboard = dynamic(() => import('@/components/pos/FraudDete
 const LaborReportsDashboard = dynamic(() => import('@/components/pos/LaborReportsDashboard').then(m => ({ default: m.LaborReportsDashboard })), { ssr: false, loading: () => loadingFallback })
 // R129 (epic #115 P1-07): Center naročil — predlogi naročanja + osnutki naročilnic
 const ReorderCenter = dynamic(() => import('@/components/pos/reorder/ReorderCenter').then(m => ({ default: m.ReorderCenter })), { ssr: false, loading: () => loadingFallback })
+// R137 (epic #115 P1-13): voznikov mobilni zaslon — isti DriverApp tudi standalone /driver
+const DriverApp = dynamic(() => import('@/app/driver/DriverApp').then(m => ({ default: m.DriverApp })), { ssr: false, loading: () => loadingFallback })
 // Default exports
 const GuestManager = dynamic(() => import('@/components/pos/GuestManager').then(m => ({ default: m.GuestManager })), { ssr: false, loading: () => loadingFallback })
 const FoodCostCalculator = dynamic(() => import('@/components/pos/food-cost/FoodCostCalculator'), { ssr: false, loading: () => loadingFallback })
@@ -142,6 +144,7 @@ export const moduleComponents: Record<string, ComponentType> = {
   subscription: SubscriptionManager,
   furs: FursManager,
   'delivery-tracking': DeliveryTracker,
+  driver: DriverApp,
   'z-report': ZReportManager,
   'tip-manager': TipManager,
   'wait-time': WaitTimeEstimator,
