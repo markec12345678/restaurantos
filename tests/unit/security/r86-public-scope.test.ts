@@ -39,6 +39,18 @@ const mocks = vi.hoisted(() => ({
   discountFindFirst: vi.fn(),
   getNextOrderNumber: vi.fn(),
   resolveDefaultLocationId: vi.fn(),
+  // R135 (P1-11): plačilna/zaloga/vezava kanoni — novi trap-DB traki
+  getNextCounter: vi.fn(),
+  checkCreate: vi.fn(),
+  paymentCreate: vi.fn(),
+  orderItemUpdateMany: vi.fn(),
+  orderUpdate: vi.fn(),
+  deviceRegistryUpsert: vi.fn(),
+  computeMenuStockMap: vi.fn(),
+  verifyOrderingToken: vi.fn(),
+  isOrderingSecretConfigured: vi.fn(),
+  kioskIsOpen: vi.fn(),
+  deductInventoryInTx: vi.fn(),
 }))
 
 vi.mock('@/lib/db', () => ({
@@ -46,8 +58,20 @@ vi.mock('@/lib/db', () => ({
     location: { findFirst: mocks.locationFindFirst },
     menu: { findMany: mocks.menuFindMany },
     menuItem: { findMany: mocks.menuItemFindMany },
-    order: { findFirst: mocks.orderFindFirst, create: mocks.orderCreate },
+    order: { findFirst: mocks.orderFindFirst, create: mocks.orderCreate, update: mocks.orderUpdate },
     discount: { findFirst: mocks.discountFindFirst },
+    check: { create: mocks.checkCreate },
+    payment: { create: mocks.paymentCreate },
+    orderItem: { updateMany: mocks.orderItemUpdateMany },
+    deviceRegistry: { upsert: mocks.deviceRegistryUpsert },
+    // R135: pisna pot teče v transakciji — trap pošlje tx klienta z ISTIMI
+    // traki (order.create → mocks.orderCreate, da ostanejo žig-asserti živi)
+    $transaction: vi.fn(async (fn: (tx: object) => unknown) => fn({
+      order: { create: mocks.orderCreate, update: mocks.orderUpdate },
+      check: { create: mocks.checkCreate },
+      payment: { create: mocks.paymentCreate },
+      orderItem: { updateMany: mocks.orderItemUpdateMany },
+    })),
   },
   createAuditLog: vi.fn(async () => ({})),
 }))
@@ -64,6 +88,25 @@ vi.mock('@/lib/rate-limit', () => ({
 vi.mock('@/lib/counters', () => ({
   getNextOrderNumber: mocks.getNextOrderNumber,
   resolveDefaultLocationId: mocks.resolveDefaultLocationId,
+  getNextCounter: mocks.getNextCounter,
+}))
+
+// R135 (P1-11): kiosk POST je zdaj token-bound (R88 kanon) + sold-out gate +
+// odbitek zaloge (barrel order/_helpers) — trap-DB trakovi
+vi.mock('@/lib/availability/menu-availability', () => ({
+  computeMenuStockMap: mocks.computeMenuStockMap,
+}))
+vi.mock('@/lib/ordering-token', () => ({
+  verifyOrderingToken: mocks.verifyOrderingToken,
+  isOrderingSecretConfigured: mocks.isOrderingSecretConfigured,
+}))
+vi.mock('@/app/api/public/order/_helpers', () => ({
+  isRestaurantOpen: mocks.kioskIsOpen,
+  deductInventoryInTx: mocks.deductInventoryInTx,
+  MAX_ORDER_TOTAL: 2000,
+}))
+vi.mock('@/lib/logger', () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
 
 vi.mock('@/lib/api-utils', () => ({
@@ -108,6 +151,9 @@ const LOC_DEFAULT = 'locDefault'
 function makeKioskBody(over: Record<string, unknown> = {}) {
   return {
     orderItems: [{ menuItemId: 'mi-1', quantity: 1, notes: '' }],
+    // R135 (P1-11): pisna pot kioska je token-bound (R88 kanon) — vsak telo
+    // nosi veljaven token (negativni token testi ga izrecno povozijo)
+    orderingToken: 'kiosk-token-123',
     ...over,
   }
 }
@@ -132,6 +178,18 @@ beforeEach(() => {
   mocks.discountFindFirst.mockResolvedValue(null)
   mocks.getNextOrderNumber.mockResolvedValue(7)
   mocks.resolveDefaultLocationId.mockResolvedValue(LOC_DEFAULT)
+  // R135 defaults: token veljaven, restavracija odprta, zaloga OK, tranzakcija mirna
+  mocks.verifyOrderingToken.mockReturnValue(true)
+  mocks.isOrderingSecretConfigured.mockReturnValue(true)
+  mocks.kioskIsOpen.mockResolvedValue(true)
+  mocks.deductInventoryInTx.mockResolvedValue(undefined)
+  mocks.computeMenuStockMap.mockResolvedValue({})
+  mocks.checkCreate.mockResolvedValue({ id: 'chk-1' })
+  mocks.paymentCreate.mockResolvedValue({ id: 'pay-1' })
+  mocks.orderItemUpdateMany.mockResolvedValue({ count: 1 })
+  mocks.orderUpdate.mockResolvedValue({})
+  mocks.deviceRegistryUpsert.mockResolvedValue({})
+  mocks.getNextCounter.mockResolvedValue(5)
 })
 
 // ══════════════════════════════════════════════════════════════════
@@ -209,6 +267,32 @@ describe('R86-3 A: POST /api/public/kiosk — fail-closed lokacijski kontekst', 
     expect(mocks.orderCreate.mock.calls[0][0].data.locationId).toBe(LOC_A)
   })
 })
+
+  // ─── R135 (epic #115 P1-11): token vezava pisne poti ───
+  it('R135: manjkajoč orderingToken → 404 notInScope + ZERO pisnih klicev (token = vezava kioska na lokacijo)', async () => {
+    const res = await kioskPOST(makeKioskReq(`http://x/api/public/kiosk?locationId=${LOC_A}`, makeKioskBody({ orderingToken: undefined })))
+    expect(res.status).toBe(404)
+    const body = await res.json() as { error: string }
+    expect(body.error).toBe('Lokacija ni najden')
+    // token verify ni niti klican (short-circuit na manjkajočem tokenu)
+    expect(mocks.verifyOrderingToken).not.toHaveBeenCalled()
+    // ZERO pisnih operacij: ni menu fetcha, ni counterja, ni tranzakcije
+    expect(mocks.menuItemFindMany).not.toHaveBeenCalled()
+    expect(mocks.getNextOrderNumber).not.toHaveBeenCalled()
+    expect(mocks.orderCreate).not.toHaveBeenCalled()
+    expect(mocks.kioskIsOpen).not.toHaveBeenCalled()
+  })
+
+  it('R135: rotiran/tuj token → ISTI 404 (ni oraklja) + verify prejel (token, lokacija, tokenVersion)', async () => {
+    mocks.locationFindFirst.mockResolvedValue({ id: LOC_A, tokenVersion: 3 })
+    mocks.verifyOrderingToken.mockReturnValue(false)
+    const res = await kioskPOST(makeKioskReq(`http://x/api/public/kiosk?locationId=${LOC_A}`, makeKioskBody()))
+    expect(res.status).toBe(404)
+    // token verificiran z EXAKTNO vezavo: token + lokacija + tokenVersion (R89 rotacija)
+    expect(mocks.verifyOrderingToken).toHaveBeenCalledWith('kiosk-token-123', LOC_A, 3)
+    expect(mocks.menuItemFindMany).not.toHaveBeenCalled()
+    expect(mocks.orderCreate).not.toHaveBeenCalled()
+  })
 
 // ══════════════════════════════════════════════════════════════════
 // B. KIOSK GET (M4 sibling) — izrecen ?locationId zdaj validiran;

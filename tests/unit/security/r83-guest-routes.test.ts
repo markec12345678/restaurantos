@@ -56,6 +56,17 @@ const mocks = vi.hoisted(() => ({
   getNextOrderNumber: vi.fn(),
   resolveDefaultLocationId: vi.fn(),
   deliverWebhook: vi.fn(),
+  // R135 (P1-11): kiosk POST kanoni — token, sold-out, plačilo, zaloga
+  getNextCounter: vi.fn(),
+  checkCreate: vi.fn(),
+  paymentCreate: vi.fn(),
+  orderItemUpdateMany: vi.fn(),
+  orderUpdate: vi.fn(),
+  kioskStockMap: vi.fn(),
+  kioskVerifyToken: vi.fn(),
+  kioskSecretConfigured: vi.fn(),
+  kioskIsOpen: vi.fn(),
+  kioskDeductInventory: vi.fn(),
 }))
 
 vi.mock('@/lib/auth-middleware', () => ({
@@ -80,18 +91,27 @@ vi.mock('@/lib/db', () => ({
     employee: { findUnique: mocks.employeeFindUnique, findMany: mocks.employeeFindMany, create: mocks.employeeCreate },
     employeeJob: { create: mocks.employeeJobCreate },
     location: { findUnique: mocks.locationFindUnique, findFirst: mocks.locationFindFirst },
-    order: { findMany: mocks.orderFindMany, findFirst: mocks.orderFindFirst, create: mocks.orderCreate },
+    order: { findMany: mocks.orderFindMany, findFirst: mocks.orderFindFirst, create: mocks.orderCreate, update: mocks.orderUpdate },
+    payment: { create: mocks.paymentCreate },
+    orderItem: { updateMany: mocks.orderItemUpdateMany },
     menu: { findMany: mocks.menuFindMany },
     menuItem: { findMany: mocks.menuItemFindMany },
     webhook: { findMany: mocks.webhookFindMany, create: mocks.webhookCreate },
     webhookDelivery: { create: mocks.webhookDeliveryCreate, update: mocks.webhookDeliveryUpdate },
     restaurantSettings: { findFirst: mocks.restaurantSettingsFindFirst },
-    check: { findMany: mocks.checkFindMany, findFirst: mocks.checkFindFirst, findUnique: mocks.checkFindUnique },
+    check: { findMany: mocks.checkFindMany, findFirst: mocks.checkFindFirst, findUnique: mocks.checkFindUnique, create: mocks.checkCreate },
     walletPayment: { findMany: mocks.walletPaymentFindMany, groupBy: mocks.walletPaymentGroupBy, aggregate: mocks.walletPaymentAggregate, create: mocks.walletPaymentCreate },
     openingHours: { findMany: mocks.openingHoursFindMany },
     table: { findFirst: mocks.tableFindFirst, findUnique: mocks.tableFindUnique, update: mocks.tableUpdate },
     guestFeedback: { create: mocks.guestFeedbackCreate },
-    $transaction: vi.fn(async (fn: (tx: object) => unknown) => fn({})),
+    // R135: transakcijski tx klient — order.create usmerjen v isti trak,
+    // ostale tx operacije (check/payment/orderItem) dobijo lastne trake
+    $transaction: vi.fn(async (fn: (tx: object) => unknown) => fn({
+      order: { create: mocks.orderCreate, update: mocks.orderUpdate },
+      check: { create: mocks.checkCreate },
+      payment: { create: mocks.paymentCreate },
+      orderItem: { updateMany: mocks.orderItemUpdateMany },
+    })),
   },
   createAuditLog: vi.fn(async () => ({})),
 }))
@@ -148,6 +168,24 @@ vi.mock('@/lib/safe-format', () => ({
 vi.mock('@/lib/counters', () => ({
   getNextOrderNumber: mocks.getNextOrderNumber,
   resolveDefaultLocationId: mocks.resolveDefaultLocationId,
+  getNextCounter: mocks.getNextCounter,
+}))
+
+// R135 (P1-11): kiosk POST je token-bound + sold-out gate + odbitek zaloge.
+// BARREL '@/app/api/public/order/_helpers' je mockan SAMO za kiosk ruto —
+// r83 testi isRestaurantOpen izhajajo iz neposredne poti '.../_helpers/table'
+// (druga enota v grafu, ostane realna). computeMenuStockMap mockan (R124 mapa).
+vi.mock('@/lib/availability/menu-availability', () => ({
+  computeMenuStockMap: mocks.kioskStockMap,
+}))
+vi.mock('@/lib/ordering-token', () => ({
+  verifyOrderingToken: mocks.kioskVerifyToken,
+  isOrderingSecretConfigured: mocks.kioskSecretConfigured,
+}))
+vi.mock('@/app/api/public/order/_helpers', () => ({
+  isRestaurantOpen: mocks.kioskIsOpen,
+  deductInventoryInTx: mocks.kioskDeductInventory,
+  MAX_ORDER_TOTAL: 2000,
 }))
 
 vi.mock('@/app/api/orders/_helpers/order-items', () => ({
@@ -231,6 +269,17 @@ beforeEach(() => {
   mocks.getNextOrderNumber.mockResolvedValue(7)
   mocks.deliverWebhook.mockResolvedValue({ success: true, statusCode: 200, responseBody: 'ok' })
   mocks.walletPaymentCreate.mockResolvedValue({ id: 'wp-1', status: 'pending', amount: 10, currency: 'EUR', walletType: 'apple_pay', checkId: 'ck-1' })
+  // R135 defaults: token veljaven, odprto, zaloga OK, tranzakcijski traki mirni
+  mocks.kioskVerifyToken.mockReturnValue(true)
+  mocks.kioskSecretConfigured.mockReturnValue(true)
+  mocks.kioskIsOpen.mockResolvedValue(true)
+  mocks.kioskDeductInventory.mockResolvedValue(undefined)
+  mocks.kioskStockMap.mockResolvedValue({})
+  mocks.checkCreate.mockResolvedValue({ id: 'chk-1' })
+  mocks.paymentCreate.mockResolvedValue({ id: 'pay-1' })
+  mocks.orderItemUpdateMany.mockResolvedValue({ count: 1 })
+  mocks.orderUpdate.mockResolvedValue({})
+  mocks.getNextCounter.mockResolvedValue(5)
 })
 
 // ============================================
@@ -399,7 +448,7 @@ describe('R83: public/kiosk', () => {
     // lokacija katerega koli tenanta). Zdaj: ekspliciten ?locationId +
     // validacija (obstaja + aktiven); brez konteksta → 400 fail-closed.
     mocks.locationFindFirst.mockResolvedValue({ id: 'lockiosk' })
-    mocks.parseJsonBody.mockResolvedValue({ data: { orderItems: [{ menuItemId: 'mi-1', quantity: 1, notes: '' }], idempotencyKey: 'k-1' }, error: null })
+    mocks.parseJsonBody.mockResolvedValue({ data: { orderItems: [{ menuItemId: 'mi-1', quantity: 1, notes: '' }], idempotencyKey: 'k-1', orderingToken: 'kiosk-token-123' }, error: null })
     mocks.menuItemFindMany.mockResolvedValue([{ id: 'mi-1', name: 'Kava', price: 2, vatRate: 22 }])
     mocks.orderFindFirst.mockResolvedValue(null)
     mocks.orderCreate.mockResolvedValue({ id: 'ord-9', orderNumber: 7, total: 2.44, orderItems: [{ id: 'oi-1' }] })
@@ -417,7 +466,7 @@ describe('R83: public/kiosk', () => {
 
   it('POST: idempotency replay lookup je lokacijsko scoped (prej globalni @unique namespace). R86-3: ekspliciten ?locationId + validacija', async () => {
     mocks.locationFindFirst.mockResolvedValue({ id: 'lockiosk' })
-    mocks.parseJsonBody.mockResolvedValue({ data: { orderItems: [{ menuItemId: 'mi-1', quantity: 1, notes: '' }], idempotencyKey: 'k-foreign' }, error: null })
+    mocks.parseJsonBody.mockResolvedValue({ data: { orderItems: [{ menuItemId: 'mi-1', quantity: 1, notes: '' }], idempotencyKey: 'k-foreign', orderingToken: 'kiosk-token-123' }, error: null })
     mocks.menuItemFindMany.mockResolvedValue([{ id: 'mi-1', name: 'Kava', price: 2, vatRate: 22 }])
     // replay obstaja na TUJI lokaciji → scoped findFirst vrne null → NOVO naročilo
     mocks.orderFindFirst.mockResolvedValue(null)
