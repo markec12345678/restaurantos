@@ -42,12 +42,27 @@ export function useGiftCardMutations({
       balance: number
       initialBalance: number
       expiresAt: string | null
+      // R144 #31 (MODEL A): opcijska izrecna lokacija (skrbnik brez seje) — gre
+      // v query (?locationId= za scope) IN v body (resolveWriteLocationId žig).
+      locationId?: string
     }) => {
-      const res = await authFetch('/api/gift-cards', {
+      const qs = data.locationId ? `?locationId=${encodeURIComponent(data.locationId)}` : ''
+      const res = await authFetch(`/api/gift-cards${qs}`, {
         method: 'POST',
         body: JSON.stringify(data),
       })
-      if (!res.ok) throw new Error('Napaka pri ustvarjanju kartice')
+      if (!res.ok) {
+        // R143 kanon: povrži točno strežnikovo sporočilo (npr. MODEL A 400),
+        // da uporabnik vidi resnični vzrok namesto generične napake.
+        let message = 'Napaka pri ustvarjanju kartice'
+        try {
+          const body = (await res.json()) as { error?: string }
+          if (body?.error) message = body.error
+        } catch {
+          // body ni JSON — obdrži generično sporočilo
+        }
+        throw new Error(message)
+      }
       return res.json()
     },
     onSuccess: () => {
@@ -55,8 +70,8 @@ export function useGiftCardMutations({
       queryClient.invalidateQueries({ queryKey: queryKeys.giftCards.all })
       setNewCardDialogOpen(false)
     },
-    onError: () => {
-      toast.error('Napaka pri ustvarjanju darilne kartice')
+    onError: (error: Error) => {
+      toast.error(error.message || 'Napaka pri ustvarjanju darilne kartice')
     },
   })
 

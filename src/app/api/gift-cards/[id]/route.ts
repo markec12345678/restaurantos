@@ -1,4 +1,4 @@
-import { db } from '@/lib/db'
+import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { updateGiftCardSchema } from '@/lib/validations'
@@ -6,6 +6,7 @@ import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { toNum, greaterThan, deepToNumbers } from '@/lib/decimal'
 import { canDeleteGiftCard } from '@/lib/gift-card-guard'
+import { giftCardLast4 } from '@/lib/gift-cards/constants'
 import { structuredErrorResponse } from '@/lib/structured-error'
 
 export const dynamic = 'force-dynamic'
@@ -26,7 +27,11 @@ export async function PUT(
     if (validationError) return validationError
     const existing = await db.giftCard.findUnique({ where: { id } })
     if (!existing) {
-      return NextResponse.json({ error: 'Darilna kartica ni najdena' }, { status: 404 })
+      // FIX R144-d (zero-oracle): hardcoded 'najdena' je bil 1-znakovni ID-enumeration
+      // oracle proti notInScopeResponse('Darilna kartica') = 'Darilna kartica ni
+      // najden' — tuja kartica ≡ neobstoječa zahteva IDENTIČNO telo (r142 kanon,
+      // kontrakt R144-a). EN vir resnice: isti helper kot scope 404 spodaj.
+      return notInScopeResponse('Darilna kartica')
     }
     // FIX R80 (HIGH, cross-tenant): parent findUnique je bil nescopecan —
     // take_orders staff je lahko bral/manipuliral STANJE kartice poljubne
@@ -69,6 +74,10 @@ export async function PUT(
       if (data.status !== undefined) updateData.status = data.status
       if (data.ownerName !== undefined) updateData.ownerName = data.ownerName
       if (data.expiresAt !== undefined) updateData.expiresAt = data.expiresAt ? new Date(data.expiresAt) : null
+
+      // R144-b: balanceBefore iz tx-svežega branja (forenzika — pariteta
+      // balanceAfter iz post-op stanja).
+      const balanceBefore = toNum(existing.balance)
 
       // Dejansko uporabljena sprememba stanja (za knjigovodski zapis)
       let appliedDelta: number | null = null
@@ -154,6 +163,46 @@ export async function PUT(
           },
         })
       }
+
+      // R144-b: AUDIT V ISTEM tx (createAuditLog(entry, tx) kanon — feedback
+      // ruta; hash veriga bere/piše v isti transakciji). DIFF-ONLY canon (R142
+      // PATCH devices): samo DEJANSKE spremembe se auditrajo — no-op PUT
+      // (appliedDelta null IN status nespremenjen) ne zapiše NIČESA.
+      // PII kanon: NIKOLI poln cardNumber v details — samo last4.
+      const balanceAfter = toNum(giftCard?.balance ?? 0)
+      if (appliedDelta !== null) {
+        await createAuditLog({
+          userId: authResult.session?.employeeId,
+          action: 'GIFT_CARD_ADJUSTED',
+          entityType: 'GiftCard',
+          entityId: id,
+          details: {
+            delta: appliedDelta,
+            balanceBefore,
+            balanceAfter,
+            cardLast4: giftCardLast4(existing.cardNumber),
+          },
+          locationId: existing.locationId,
+        }, tx)
+      }
+      const statusAfter = giftCard?.status ?? existing.status
+      if (statusAfter !== existing.status) {
+        // Vključno z depleted→active reaktivacijo ob load-u (klasifikator,
+        // ne ekonomija) in eksplicitnim data.status prehodom.
+        await createAuditLog({
+          userId: authResult.session?.employeeId,
+          action: 'GIFT_CARD_STATUS_CHANGED',
+          entityType: 'GiftCard',
+          entityId: id,
+          details: {
+            before: existing.status,
+            after: statusAfter,
+            cardLast4: giftCardLast4(existing.cardNumber),
+          },
+          locationId: existing.locationId,
+        }, tx)
+      }
+
       return giftCard
     })
     // Re-fetch z transakcijami
@@ -188,7 +237,9 @@ export async function DELETE(
     const { id } = await params
     const existing = await db.giftCard.findUnique({ where: { id } })
     if (!existing) {
-      return NextResponse.json({ error: 'Darilna kartica ni najdena' }, { status: 404 })
+      // FIX R144-d (zero-oracle): isti 1-znakovni oracle kot v PUT zgoraj —
+      // pre-check 404 MORA biti telo-identičen notInScopeResponse('Darilna kartica').
+      return notInScopeResponse('Darilna kartica')
     }
     // FIX R80 (HIGH, cross-tenant): isti scope check kot PUT — admin brez
     // lokacijske pripadnosti ne sme brisati kartic tujih tenantov (count
@@ -218,6 +269,25 @@ export async function DELETE(
     if (deleted.count === 0) {
       return NextResponse.json({ error: 'Darilna kartica ni najdena' }, { status: 404 })
     }
+    // R144-b: audit GIFT_CARD_DELETED — SAMO po uspešnem izbrisu (audit
+    // obstaja ⇔ prehod obstaja). IZBIRA (dokumentirana): deleteMany ostane
+    // db-level klic (R103 G5 kanon), audit teče prek createAuditLog lastne
+    // transakcije (fail-safe — nikoli ne podre requesta); pariteta in-tx
+    // (deleteMany v $transaction) bi zahtevala tx-level deleteMany, kar bi
+    // lomilo obstoječe trap-DB mocke (r80-b2/r103) brez funkcionalne koristi.
+    // PII kanon: samo last4 — poln cardNumber nikoli v details.
+    await createAuditLog({
+      userId: authResult.session?.employeeId,
+      action: 'GIFT_CARD_DELETED',
+      entityType: 'GiftCard',
+      entityId: id,
+      details: {
+        cardLast4: giftCardLast4(existing.cardNumber),
+        balanceAtDelete: toNum(fresh?.balance ?? existing.balance),
+        txnCount,
+      },
+      locationId: existing.locationId,
+    })
     return NextResponse.json({ ok: true, id })
   } catch (error: unknown) {
     if (

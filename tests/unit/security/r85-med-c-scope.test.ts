@@ -70,6 +70,9 @@ vi.mock('@/lib/auth-middleware', async () => {
 })
 
 vi.mock('@/lib/db', () => ({
+  // R144-b: createAuditLog je TOP-LEVEL export (bil je neravilno gnezden v db
+  // objektu) — POST /api/gift-cards zdaj piše GIFT_CARD_CREATED audit v tx.
+  createAuditLog: vi.fn().mockResolvedValue({}),
   db: {
     reorderRule: {
       findMany: mocks.reorderRuleFindMany,
@@ -111,7 +114,6 @@ vi.mock('@/lib/db', () => ({
         giftCardTransaction: { create: mocks.giftCardTransactionCreate },
       }),
     ),
-    createAuditLog: vi.fn().mockResolvedValue({}),
   },
 }))
 

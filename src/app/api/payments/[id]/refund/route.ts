@@ -282,6 +282,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             amount, reason, previousRefund: currentRefunded, newRefund: newRefundAmount,
             fullyRefunded: isFullyRefunded,
             giftCardReversed: !!payment.giftCardId,
+            // R144-b: forenzika darilne kartice — samo ID (cardNumber je
+            // spendable secret, NIKOLI v audit; last4 ni na voljo brez extra
+            // reada — ID poveže vrstico z GiftCard ledger/audit sledjo).
+            giftCardId: payment.giftCardId ?? null,
             loyaltyReversed: !!payment.loyaltyAccountId,
             checkUpdated: !!payment.checkId,
           }),

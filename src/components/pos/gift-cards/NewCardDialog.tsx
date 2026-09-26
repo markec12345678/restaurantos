@@ -1,22 +1,20 @@
 'use client'
 
 import { memo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { DecimalInput } from '@/components/ui/decimal-input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog'
 import { Plus, Gift, RefreshCw } from 'lucide-react'
 import { generateCardNumber } from './constants'
+import { authFetch } from '@/components/pos/PinLogin'
+import { useAuthUser } from '@/components/pos/sidebar/useAuthUser'
+import type { NewCardForm } from './useGiftCardDialogs'
 
 // --- Props ---
-
-interface NewCardForm {
-  cardNumber: string
-  ownerName: string
-  initialBalance: string
-  expiresAt: string
-}
 
 interface NewCardDialogProps {
   open: boolean
@@ -25,6 +23,34 @@ interface NewCardDialogProps {
   onFormChange: (_form: NewCardForm) => void
   onSubmit: () => void
   isPending: boolean
+}
+
+// --- R144 #31 (MODEL A): lokacije za izrecno izbiro (samo skrbniki) ---
+
+interface FormLocationOption {
+  id: string
+  name: string
+  isActive: boolean
+}
+
+function useFormLocations(enabled: boolean) {
+  return useQuery({
+    queryKey: ['gift-cards', 'form-locations'] as const,
+    queryFn: async (): Promise<FormLocationOption[]> => {
+      const res = await authFetch('/api/locations')
+      if (!res.ok) return []
+      const json = await res.json() as unknown
+      const rows: Array<Record<string, unknown>> = Array.isArray(json)
+        ? json as Array<Record<string, unknown>>
+        : ((json as { locations?: Array<Record<string, unknown>> })?.locations ?? [])
+      return rows
+        .map((r) => ({ id: String(r.id ?? ''), name: String(r.name ?? ''), isActive: r.isActive !== false }))
+        .filter((r) => r.id && r.name)
+    },
+    enabled,
+    staleTime: 60_000,
+    retry: 1,
+  })
 }
 
 // --- Komponenta ---
@@ -37,6 +63,15 @@ export const NewCardDialog = memo(function NewCardDialog({
   onSubmit,
   isPending,
 }: NewCardDialogProps) {
+  // R144 #31 (MODEL A): skrbniška seja lahko nima dodeljene lokacije — takrat
+  // mora izrecno izbrati lokacijo (ruta: ?locationId= + body, sicer 400 fail-closed).
+  // Vzorec R143 LoyaltyFormFields — reuse useAuthUser/authFetch, brez cross-module importov.
+  const authUser = useAuthUser()
+  const isTenantAdmin = authUser?.role === 'admin' || authUser?.role === 'super_admin'
+  const { data: locations } = useFormLocations(isTenantAdmin)
+  const showLocationSelect = isTenantAdmin && (locations?.length ?? 0) > 0
+  const locationValue = form.locationId
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -106,6 +141,31 @@ export const NewCardDialog = memo(function NewCardDialog({
             />
             <p className="text-xs text-muted-foreground">Pustite prazno za kartico brez roka veljavnosti</p>
           </div>
+
+          {/* R144 #31 (MODEL A): izrecna lokacija (samo skrbniki) */}
+          {showLocationSelect && (
+            <div className="space-y-1.5">
+              <Label htmlFor="gc-new-location" className="text-sm font-semibold">Lokacija</Label>
+              <Select
+                value={locationValue}
+                onValueChange={(v) => onFormChange({ ...form, locationId: v })}
+              >
+                <SelectTrigger id="gc-new-location">
+                  <SelectValue placeholder="Izberite lokacijo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {locations!.map((l) => (
+                    <SelectItem key={l.id} value={l.id} disabled={!l.isActive}>
+                      {l.name}{!l.isActive ? ' (neaktivna)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Obvezno, če vaš profil nima dodeljene lokacije
+              </p>
+            </div>
+          )}
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">

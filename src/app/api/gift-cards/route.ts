@@ -1,10 +1,12 @@
 
-import { db } from '@/lib/db'
+import { db, createAuditLog } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { resolveWriteLocationId } from '@/lib/tenant-scope'
 import { createGiftCardSchema } from '@/lib/validations'
-import { greaterThan, deepToNumbers } from '@/lib/decimal'
+import { greaterThan, toNum, deepToNumbers } from '@/lib/decimal'
+import { giftCardLast4 } from '@/lib/gift-cards/constants'
+import { GIFT_CARD_SELECT, GIFT_CARD_TRANSACTION_SELECT } from './_helpers/gift-card-select'
 import { logger } from '@/lib/logger'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
@@ -42,20 +44,35 @@ export async function GET(req: Request) {
     // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
     const { limit, offset } = parsePaginationParams(searchParams)
 
+    // R144-b: SELECT whitelist (GIFT_CARD_SELECT kanon R142-b/R140-b) — prej
+    // include polnih vrstic; whitelist je edina obramba proti uhaju polj, ki
+    // jih UI ne bere (payments relacija, prihodnji stolpci). Response shape
+    // { giftCards, total, limit, offset } NESESPEMLJENA (UI/prefetch/plačilni
+    // dialog konsumenti — polja ostanejo 1:1).
     const [giftCards, total] = await Promise.all([
       db.giftCard.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         take: limit,
         skip: offset,
-        include: {
-          transactions: { orderBy: { createdAt: 'desc' }, take: 10 },
+        select: {
+          ...GIFT_CARD_SELECT,
+          transactions: {
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+            select: GIFT_CARD_TRANSACTION_SELECT,
+          },
         },
       }),
       db.giftCard.count({ where }),
     ])
 
-    return NextResponse.json({ giftCards: deepToNumbers(giftCards), total, limit, offset })
+    // R144-b: Cache-Control no-store (denarni pregled, ni cache-friendly —
+    // kanon R142/R143 za vse avtenticirane liste).
+    return NextResponse.json(
+      { giftCards: deepToNumbers(giftCards), total, limit, offset },
+      { headers: { 'Cache-Control': 'no-store' } },
+    )
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/gift-cards', 'Failed to fetch gift cards')
   }
@@ -119,6 +136,26 @@ export async function POST(req: Request) {
           },
         })
       }
+
+      // R144-b: audit V ISTEM tx (createAuditLog(entry, tx) kanon — feedback
+      // ruta; hash veriga bere/piše v isti transakciji, audit obstaja ⇔ kartica
+      // obstaja). PII kanon: NIKOLI poln cardNumber (spendable secret) — samo
+      // last4 prek giftCardLast4(); locationId iz entitete (R81 kanon).
+      await createAuditLog({
+        userId: authResult.session?.employeeId,
+        action: 'GIFT_CARD_CREATED',
+        entityType: 'GiftCard',
+        entityId: card.id,
+        details: {
+          cardLast4: giftCardLast4(card.cardNumber),
+          initialBalance: toNum(card.initialBalance),
+          expiresAt: card.expiresAt ? card.expiresAt.toISOString() : null,
+          ownerName: card.ownerName,
+          // pariteta feedback rute: lokacija v detailsah IN kot entry polje
+          locationId: card.locationId,
+        },
+        locationId: card.locationId,
+      }, tx)
 
       return card
     })

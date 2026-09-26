@@ -4,6 +4,8 @@
 // ============================================
 
 import { formatEUR } from '@/lib/safe-format'
+// R144-c (epic #115 #31): prag "poteče kmalu" iz ENOTNEGA vira (strežnik IN UI)
+import { GIFT_CARD_EXPIRING_SOON_DAYS } from '@/lib/gift-cards/constants'
 
 // RUNDA 51: transactionTypeConfig preseljena v src/lib/gift-card-tx-category.ts
 // (GIFT_CARD_TX_CATEGORY_META — ENOTEN VIR; ikone ostanejo v TransactionHistoryDialog)
@@ -96,4 +98,87 @@ export function generateCardNumber(): string {
   const timestamp = Date.now().toString(36).toUpperCase()
   const random = Math.random().toString(36).substring(2, 6).toUpperCase()
   return `${prefix}-${timestamp.slice(-4)}-${random}`
+}
+
+// ============================================
+// ODPUSTNA OBVEZNOST (R144-c, epic #115 #31) — UI mape + pomožniki
+// Vir praga je src/lib/gift-cards/constants.ts (ENOTEN VIR za strežnik IN
+// UI — BUG-04: brez dupliciranja števil; precedens lifecycle-constants).
+// Meta mapa je POLNI literal (nikoli konkatenacij/objektov kot ključev),
+// brez modrih/indigo tonov (hišno pravilo). Barve sledijo jeziku obstoječega
+// statusConfig (emerald/nevtralno/amber/red) — nevtralna je zinc (pariteta
+// LIFECYCLE_BUCKET_META).
+// ============================================
+
+/** Literarni statusi liability poročila (BUG-04 — iteracija po tej tupli). */
+export const GIFT_CARD_LIABILITY_STATUSES = ['active', 'depleted', 'suspended', 'expired'] as const
+
+export type GiftCardLiabilityStatus = (typeof GIFT_CARD_LIABILITY_STATUSES)[number]
+
+export interface GiftCardLiabilityStatusUiMeta {
+  label: string
+  /** Barvni namig besedila (emerald/zinc/amber/red — brez blue/indigo) */
+  textClass: string
+  /** Literal razred barvne pike per status */
+  dotClass: string
+  /** Pošten podnaslov številca (definicijska semantika statusa) */
+  hint: string
+}
+
+/** Številci statusov — oznake/pika/hint kot POLNI literali (BUG-04). */
+export const GIFT_CARD_LIABILITY_STATUS_META: Record<GiftCardLiabilityStatus, GiftCardLiabilityStatusUiMeta> = {
+  active: {
+    label: 'Aktivne',
+    textClass: 'text-emerald-700 dark:text-emerald-400',
+    dotClass: 'bg-emerald-500',
+    hint: 'Z nespotrošenim saldom',
+  },
+  depleted: {
+    label: 'Izčrpane',
+    textClass: 'text-zinc-700 dark:text-zinc-300',
+    dotClass: 'bg-zinc-400 dark:bg-zinc-500',
+    hint: 'Saldo popolnoma potrošen',
+  },
+  suspended: {
+    label: 'Suspendirane',
+    textClass: 'text-amber-700 dark:text-amber-400',
+    dotClass: 'bg-amber-500',
+    hint: 'Začasno onemogočene za porabo',
+  },
+  expired: {
+    label: 'Poteče',
+    textClass: 'text-red-700 dark:text-red-400',
+    dotClass: 'bg-red-500',
+    hint: 'Po datumu veljavnosti (lazy odpis)',
+  },
+}
+
+/** Strukturni vir števcev (zadostuje LiabilityTotals iz useGiftCardLiability). */
+export interface LiabilityStatusCountSource {
+  activeCards: number
+  depletedCards: number
+  suspendedCards: number
+  expiredCards: number
+}
+
+/** Števec per status — literal switch (BUG-04: nikoli objekti kot ključi). */
+export function liabilityStatusCount(
+  status: GiftCardLiabilityStatus,
+  totals: LiabilityStatusCountSource,
+): number {
+  switch (status) {
+    case 'active':
+      return totals.activeCards
+    case 'depleted':
+      return totals.depletedCards
+    case 'suspended':
+      return totals.suspendedCards
+    case 'expired':
+      return totals.expiredCards
+  }
+}
+
+/** Oznaka KPI "poteče kmalu" — dnevi IZ enotnega vira, NIKOLI hardcode 30. */
+export function giftCardExpiringSoonLabel(): string {
+  return `Poteče v ${GIFT_CARD_EXPIRING_SOON_DAYS} dneh`
 }

@@ -9,6 +9,9 @@ export interface NewCardForm {
   ownerName: string
   initialBalance: string
   expiresAt: string
+  // R144 #31 (MODEL A): skrbniška seja brez dodeljene lokacije mora izbrati
+  // lokacijo eksplicitno (ruta 400 fail-closed brez nje — vzorec R143 loyalty).
+  locationId: string
 }
 
 export interface EditCardForm {
@@ -25,7 +28,7 @@ export function useGiftCardDialogs() {
   const dialogOpen = useGiftCardDialogOpen()
 
   const [newCardForm, setNewCardForm] = useState<NewCardForm>({
-    cardNumber: '', ownerName: '', initialBalance: '', expiresAt: '',
+    cardNumber: '', ownerName: '', initialBalance: '', expiresAt: '', locationId: '',
   })
   const [editTarget, setEditTarget] = useState<GiftCard | null>(null)
   const [editForm, setEditForm] = useState<EditCardForm>({ status: 'active', expiresAt: '' })
@@ -50,7 +53,7 @@ export function useGiftCardDialogs() {
   }, [dialogOpen])
 
   const openNewCard = useCallback(() => {
-    setNewCardForm({ cardNumber: generateCardNumber(), ownerName: '', initialBalance: '', expiresAt: '' })
+    setNewCardForm({ cardNumber: generateCardNumber(), ownerName: '', initialBalance: '', expiresAt: '', locationId: '' })
     dialogOpen.setNewCardDialogOpen(true)
   }, [dialogOpen])
 

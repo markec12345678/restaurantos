@@ -13,6 +13,12 @@ export const checksKeys = {
 
 export const giftCardsKeys = {
   all: ['gift-cards'] as const,
+  // R144-c (epic #115 #31): agregat pasivne obveznosti darilnih kartic
+  // (GET /api/gift-cards/liability) — loyaltyKeys.lifecycle precedens.
+  // Podrejena tipka ['gift-cards', 'liability'] je HIERARHIČNO pokrita z
+  // invalidateQueries({ queryKey: ['gift-cards'] }) (useGiftCardMutations)
+  // → po create/load/edit/delete se sekcija sama osveži.
+  liability: () => ['gift-cards', 'liability'] as const,
 }
 
 export const loyaltyKeys = {

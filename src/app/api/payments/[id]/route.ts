@@ -163,6 +163,11 @@ export async function PUT(
                 ? `${existingPayment.status} → ${String(updateData.status)}`
                 : null,
               reversalApplied: !!isRefundOrVoid,
+              // R144-b: forenzika darilne kartice ob reverzu (void) — samo ID
+              // (cardNumber je spendable secret, NIKOLI v audit); ID poveže
+              // vrstico z GiftCard ledger/audit sledjo.
+              giftCardId: existingPayment.giftCardId ?? null,
+              loyaltyAccountId: existingPayment.loyaltyAccountId ?? null,
             }),
             ipAddress: '',
           },

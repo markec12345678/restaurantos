@@ -35,6 +35,10 @@ const mockTx = {
 }
 
 vi.mock('@/lib/db', () => ({
+  // R144-b: top-level createAuditLog — PUT/DELETE /api/gift-cards/[id] zdaj
+  // pišeta audit trail (GIFT_CARD_ADJUSTED/STATUS_CHANGED/DELETED); tukaj
+  // samo mock, brez count pinov (obnašanje pina r144-gift-cards.test.ts).
+  createAuditLog: vi.fn().mockResolvedValue(undefined),
   db: {
     giftCard: {
       findUnique: mockGiftCardFindUnique,

@@ -22,6 +22,9 @@ const EditCardDialog = dynamic(() => import('./gift-cards/EditCardDialog').then(
 const LoadFundsDialog = dynamic(() => import('./gift-cards/LoadFundsDialog').then(m => ({ default: m.LoadFundsDialog })), { ssr: false })
 const TransactionHistoryDialog = dynamic(() => import('./gift-cards/TransactionHistoryDialog').then(m => ({ default: m.TransactionHistoryDialog })), { ssr: false })
 const DeleteCardDialog = dynamic(() => import('./gift-cards/DeleteCardDialog').then(m => ({ default: m.DeleteCardDialog })), { ssr: false })
+// R144-c (epic #115 #31): odpustna obveznost (liability) — lastna sekcija z lastnim
+// agregatom GET /api/gift-cards/liability (next/dynamic ssr:false kanon težjih sekcij)
+const GiftCardLiabilitySection = dynamic(() => import('./gift-cards/GiftCardLiabilitySection').then(m => ({ default: m.GiftCardLiabilitySection })), { ssr: false })
 
 // ============================================
 // GLAVNA KOMPONENTA
@@ -110,6 +113,14 @@ export const GiftCardManager = memo(function GiftCardManager() {
         onSuspendCard={suspendCard}
         onReactivateCard={reactivateCard}
       />
+
+      {/* R144-c: Odpustna obveznost — računovodski pregled POD registrom kartic.
+          Izbira mesta: zgornji povzetek (GiftCardSummaryCards) ostane glavni
+          operativni overview (iz izrisanih kartic), ta sekcija je strežniško-
+          avtoritativno poročilo (view_reports, scope, expiring/byLocation) —
+          poročni blok pod seznamom, brez dveh sosednjih KPI zidov. Mutacije
+          invalidirajo ['gift-cards'] → tudi ['gift-cards','liability']. */}
+      <GiftCardLiabilitySection />
 
       {/* Dijalog za novo kartico */}
       <NewCardDialog

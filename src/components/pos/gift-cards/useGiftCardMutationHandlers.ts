@@ -9,7 +9,7 @@ import { type GiftCard, generateCardNumber } from './constants'
 // ============================================
 
 interface DialogState {
-  newCardForm: { cardNumber: string; ownerName: string; initialBalance: string; expiresAt: string }
+  newCardForm: { cardNumber: string; ownerName: string; initialBalance: string; expiresAt: string; locationId: string }
   editTarget: GiftCard | null
   editForm: { status: string; expiresAt: string }
   loadTarget: GiftCard | null
@@ -49,6 +49,8 @@ export function useGiftCardMutationHandlers(
       balance: parseFloat(dlg.newCardForm.initialBalance),
       initialBalance: parseFloat(dlg.newCardForm.initialBalance),
       expiresAt: dlg.newCardForm.expiresAt || null,
+      // R144 #31 (MODEL A): locationId samo kadar je izbran (diff-only payload)
+      ...(dlg.newCardForm.locationId ? { locationId: dlg.newCardForm.locationId } : {}),
     })
   }, [dlg.newCardForm, createMutate])
 
