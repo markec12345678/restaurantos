@@ -65,7 +65,9 @@ export async function POST(req: Request) {
     if (job === 'all' || job === 'birthday') {
       const birthdayResult = await processBirthdayBatch(DEFAULT_CONFIG, null)
       results.birthday = birthdayResult
-      logger.info('Cron', `Birthday batch: ${birthdayResult.sent} SMS sent, ${birthdayResult.pointsAwarded} pts awarded`)
+      // R143-b: skippedNoBirthday = računi brez ujemajočega Guest rojstnega
+      // dneva (soft-join) — brez PII, samo števec (kontrakt (d))
+      logger.info('Cron', `Birthday batch: ${birthdayResult.sent} SMS sent, ${birthdayResult.pointsAwarded} pts awarded, ${birthdayResult.skippedNoBirthday} skipped (no birthday)`)
     }
 
     // 5. Loyalty automation — winback (tedensko)

@@ -18,6 +18,8 @@ export const giftCardsKeys = {
 export const loyaltyKeys = {
   all: ['loyalty'] as const,
   search: (query: string) => ['loyalty', { query }] as const,
+  // R143-c (epic #115 #30): agregat življenjskega cikla (GET /api/loyalty/lifecycle)
+  lifecycle: () => ['loyalty', 'lifecycle'] as const,
 }
 
 export const tipPoolKeys = {

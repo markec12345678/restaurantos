@@ -8,7 +8,7 @@ import { useLoyaltyMutations } from '../useLoyaltyMutations'
 export function useLoyaltyHandlers(
   setDialogOpen: (_open: boolean) => void,
   setEditingAccount: (_account: LoyaltyAccount | null) => void,
-  formData: { customerName: string; customerPhone: string; customerEmail: string; tier: string; isActive: boolean },
+  formData: { customerName: string; customerPhone: string; customerEmail: string; tier: string; isActive: boolean; locationId?: string },
   editingAccount: LoyaltyAccount | null,
   adjustAccount: LoyaltyAccount | null,
   adjustData: { type: 'earn' | 'redeem' | 'adjust'; points: string; reason: string; monetaryValue: string },
@@ -46,8 +46,9 @@ export function useLoyaltyHandlers(
       customerName: formData.customerName, customerPhone: formData.customerPhone,
       customerEmail: formData.customerEmail, tier: formData.tier, isActive: formData.isActive,
     }
+    // R143 #30 (MODEL A): izrecna lokacija samo za create (PUT lokacije ne spreminja)
     if (editingAccount) { updateMutation.mutate({ id: editingAccount.id, ...payload }) }
-    else { createMutation.mutate(payload) }
+    else { createMutation.mutate({ ...payload, locationId: formData.locationId }) }
   }, [formData, editingAccount, updateMutation, createMutation])
 
   const openAdjust = useCallback((account: LoyaltyAccount) => {

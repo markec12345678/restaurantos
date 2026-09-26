@@ -8,6 +8,7 @@ import { handleApiError } from '@/lib/api-utils'
 import {
   processBirthdayBatch,
   processWinbackBatch,
+  processExpiryNotifyBatch,
   getLoyaltyAutomationStats,
   DEFAULT_CONFIG,
   type LoyaltyAutomationConfig,
@@ -37,7 +38,9 @@ export async function GET(req: Request) {
 
 // POST — ročno sproži batch procese (admin/cron)
 const actionSchema = z.object({
-  action: z.enum(['birthday_batch', 'winback_batch', 'all']).default('all'),
+  // R143-b: + 'expiry_notify' — NOTIFY-ONLY pregled potečnih točk (brez
+  // 'expire' zapisov, brez SMS strankam; 'all' ostane birthday+winback).
+  action: z.enum(['birthday_batch', 'winback_batch', 'expiry_notify', 'all']).default('all'),
   config: z.object({
     enabled: z.boolean().optional(),
     smsEnabled: z.boolean().optional(),
@@ -86,6 +89,11 @@ export async function POST(req: Request) {
 
     if (input.action === 'winback_batch' || input.action === 'all') {
       results.winback = await processWinbackBatch(config, scope.locationId)
+    }
+
+    // R143-b: NOTIFY-ONLY — brez params (vedno dry-run narava: samo števci).
+    if (input.action === 'expiry_notify') {
+      results.expiryNotify = await processExpiryNotifyBatch(scope.locationId)
     }
 
     return NextResponse.json({ success: true, results })

@@ -18,6 +18,10 @@ import { sendSms, type SmsMessage } from '@/lib/sms'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { createOutboxEvent } from '@/lib/outbox'
 import { tierLabelSi } from '@/lib/loyalty-tiers'
+// R143-b (epic #115 #30): birthday fix (mesec/dan v LJ času) + FIFO
+// expiring približek za notify-only akcijo (skupen vir z lifecycle ruta)
+import { isBirthdayToday } from '@/lib/loyalty/birthday'
+import { computeExpiringPoints } from '@/lib/loyalty/lifecycle'
 
 // --- Konstante ---
 export const POINTS_EXPIRY_DAYS = 365 // Točke potečejo po 1 letu
@@ -307,15 +311,22 @@ export async function triggerWelcome(
 // tenantom (cross-tenant SMS odhodi + točke na tujе račune!). Pogojni spread —
 // NIKOLI { locationId: null }.
 
-// Poišče vse stranke, ki jim je danes rojstni dan
+// Poišče vse stranke, ki jim je DANES (Europe/Ljubljana) rojstni dan.
+//
+// R143-b (epic #115 #30 — DENAR+SMS bug): prej je ta batch podelil 100 točk
+// in rojstnodnevni SMS VSAKEMU aktivnemu računu s telefonsko številko ob
+// VSAKEM dnevnem cronu (MVP hevristika brez birthday pogoja — zgodovinski
+// komentar "v produkciji bi dodali birthday polje"). Rojstni dan ŽE OBSTAJA
+// na Guest.birthday (prisma Guest) — povezava je SOFT-JOIN prek telefona:
+//   LoyaltyAccount.customerPhone → Guest.phone
+// z lokacijskim usklajevanjem po R143-a kontraktu (d): ujema Guest z
+// guest.locationId === account.locationId ALI globalen gost (locationId
+// null); brez ujemanja ALI brez rojstnega dneva → skip (števec
+// skippedNoBirthday, brez napake). VIP soft-join precedent:
+// src/app/api/reports/briefing/_helpers.ts (phone IN-list, select brez PII
+// odgovora). Idempotenca podelitve ostane v awardDailyBonusOnce (advisory
+// lock + tx-fresh re-check, R111) — ta batch odloča SAMO KDO je kandidat.
 export async function processBirthdayBatch(config: LoyaltyAutomationConfig = DEFAULT_CONFIG, locationId: string | null) {
-  const today = new Date()
-  const _month = today.getMonth() + 1
-  const _day = today.getDate()
-
-  // Poišči vse aktivne accounts s customerPhone in rojstnim dnevom danes
-  // (Predpostavljamo da je rojstni dan shranjen v customerEmail ali posebnem polju)
-  // Za MVP: uporabimo customerName kot hevristiko (v produkciji bi dodali birthday polje)
   const accounts = await db.loyaltyAccount.findMany({
     where: {
       isActive: true,
@@ -323,20 +334,62 @@ export async function processBirthdayBatch(config: LoyaltyAutomationConfig = DEF
       // R86-4: pogojni spread — legacy NULL računi vidni samo super-adminu
       ...(locationId ? { locationId } : {}),
     },
-    select: { id: true, customerName: true, customerPhone: true },
+    select: { id: true, customerName: true, customerPhone: true, locationId: true },
   })
 
+  // Soft-join Guest po telefonu (ENA poizvedba na batch) — iz seznama
+  // telefonov kandidatov. Guest.locationId NULL = globalen gost.
+  const phones = [...new Set(accounts.map((a) => a.customerPhone).filter(Boolean))]
+  const guests = phones.length > 0
+    ? await db.guest.findMany({
+        where: { phone: { in: phones } },
+        select: { phone: true, birthday: true, locationId: true },
+      })
+    : []
+  const guestsByPhone = new Map<string, { phone: string; birthday: Date | null; locationId: string | null }[]>()
+  for (const g of guests) {
+    const list = guestsByPhone.get(g.phone) ?? []
+    list.push(g)
+    guestsByPhone.set(g.phone, list)
+  }
+
+  /** Lokacijsko usklajen match: guest.locationId === account.locationId ALI
+   *  globalen gost (null); prvi tak z zapisanim rojstnim dnem zmaga. */
+  const birthdayForAccount = (accountLocationId: string | null, phone: string): Date | null => {
+    const candidates = guestsByPhone.get(phone)
+    if (!candidates) return null
+    const match = candidates.find(
+      (g) => (g.locationId === null || g.locationId === accountLocationId) && g.birthday != null,
+    )
+    return match ? match.birthday : null
+  }
+
+  // Števci odražajo DEJANSKE podelitve (awardDailyBonusOnce vrne points=0 na
+  // idempotenten skip "že podeljeno danes") — prej je `sent` štel klice, zato
+  // je ponovni isti-dnevni tek lažno poročal sent/pointsAwarded > 0.
   let sent = 0
+  let pointsAwarded = 0
+  let skippedNoBirthday = 0
   for (const account of accounts) {
+    const birthday = birthdayForAccount(account.locationId ?? null, account.customerPhone)
+    // 29. 2. ujema SAMO na 29. 2. (prestopno leto) — na neprestopnih letih NE
+    // ujema 28. 2. (konservativna izbira, dokumentirana v lib/loyalty/birthday).
+    if (!isBirthdayToday(birthday)) {
+      skippedNoBirthday++
+      continue
+    }
     try {
-      await triggerBirthdayBonus(account.id, config)
-      sent++
+      const award = await triggerBirthdayBonus(account.id, config)
+      if (award.points > 0) {
+        sent++
+        pointsAwarded += award.points
+      }
     } catch (err) {
       logger.error('LoyaltyAuto', `Birthday bonus failed for ${account.id}: ${err}`)
     }
   }
 
-  return { processed: accounts.length, sent, pointsAwarded: sent * BIRTHDAY_BONUS_POINTS }
+  return { processed: accounts.length, sent, skippedNoBirthday, pointsAwarded }
 }
 
 // Poišče stranke, ki so bile neaktivne > 60 dni
@@ -370,6 +423,28 @@ export async function processWinbackBatch(config: LoyaltyAutomationConfig = DEFA
   }
 
   return { processed: inactiveAccounts.length, sent, pointsAwarded: sent * WINBACK_BONUS_POINTS }
+}
+
+// R143-b (epic #115 #30, kontrakt (c)): NOTIFY-ONLY pregled potečnih točk.
+// Izračuna expiringSoon30d figuro z ISTIM FIFO približkom kot
+// GET /api/loyalty/lifecycle (computeExpiringPoints — skupen vir). NE piše
+// LoyaltyTransaction z type='expire' in NE decrementa balansov — to je
+// DEFER na migracijo/business odločitev. Brez SMS strankam (nobenega
+// outbox eventa) — rezultat je samo povzetek števcev za admin/ops odgovor.
+export async function processExpiryNotifyBatch(locationId: string | null) {
+  const summary = await computeExpiringPoints(locationId)
+  logger.info(
+    'LoyaltyAuto',
+    `Expiry notify (notify-only): ${summary.accounts} računov, ${summary.points} točk poteče v 30 dneh` +
+      `${summary.capped ? ` (cap dosežen, scanned ${summary.scanned})` : ''}`,
+  )
+  return {
+    processed: summary.scanned,
+    accountsExpiring: summary.accounts,
+    expiringPoints: summary.points,
+    capped: summary.capped,
+    notifyOnly: true,
+  }
 }
 
 // --- Pomožne funkcije ---

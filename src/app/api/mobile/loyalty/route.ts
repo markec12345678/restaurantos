@@ -11,7 +11,11 @@ import { verifyApiKey } from '@/lib/api-security'
 // direktno iz '/response' (ne barrel) — testni mocki so lastniki barrel-a.
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
-// odstranjen prazen import (runda 12 lint cleanup)
+// R143-b (epic #115 #30, kontrakt (e)): tier kanon — lokalni helper je imel
+// DRIFTOVANE prage (bronze:100/silver:500/gold:1500) ≠ kanon lib/loyalty-tiers
+// (500/2000/5000). Napredek se zdaj računa IZKLJUČNO prek kanonskega
+// tierProgress() (ročno dodeljen višji nivo se šteje kot trenutni).
+import { tierProgress } from '@/lib/loyalty-tiers'
 
 export const dynamic = 'force-dynamic'
 
@@ -95,6 +99,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Račun je deaktiviran' }, { status: 403 })
     }
 
+    // R143-b: kanonski tier napredek (enoten vir pragov). Oblika odgovora
+    // (current/nextTier/pointsToNext) ostane IDENTIČNA mobilnim klientom —
+    // spreminjajo se samo VREDNOSTI (prej driftane prage).
+    const progress = tierProgress(account.lifetimePoints, account.tier)
+
     // Pridobi reward-je za ta tier (uporabi LoyaltyTransaction kot proxy)
     // V produkciji bi imeli LoyaltyReward model
     const recentTransactions = await db.loyaltyTransaction.findMany({
@@ -122,29 +131,11 @@ export async function GET(req: Request) {
       recentRedemptions: recentTransactions,
       tierInfo: {
         current: account.tier,
-        nextTier: getNextTier(account.tier),
-        pointsToNext: getPointsToNextTier(account.tier, account.lifetimePoints),
+        nextTier: progress.next,
+        pointsToNext: progress.pointsToNext,
       },
     })
   } catch (err) {
     return handleApiError(err, 'mobile/loyalty GET')
   }
-}
-
-// --- Helper za tier progression ---
-function getNextTier(currentTier: string): string | null {
-  const tiers = ['bronze', 'silver', 'gold', 'platinum']
-  const idx = tiers.indexOf(currentTier)
-  return idx >= 0 && idx < tiers.length - 1 ? tiers[idx + 1] : null
-}
-
-function getPointsToNextTier(currentTier: string, lifetimePoints: number): number {
-  const thresholds: Record<string, number> = {
-    bronze: 100,
-    silver: 500,
-    gold: 1500,
-    platinum: 0, // max tier
-  }
-  const threshold = thresholds[currentTier] || 0
-  return threshold > 0 ? Math.max(0, threshold - lifetimePoints) : 0
 }

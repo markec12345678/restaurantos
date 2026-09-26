@@ -15,6 +15,7 @@ export function useLoyaltyState() {
   const [editingAccount, setEditingAccount] = useState<LoyaltyAccount | null>(null)
   const [formData, setFormData] = useState({
     customerName: '', customerPhone: '', customerEmail: '', tier: 'bronze', isActive: true,
+    locationId: '' as string, // R143 #30: izrecna lokacija (MODEL A, skrbnik brez sejske lokacije)
   })
 
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false)

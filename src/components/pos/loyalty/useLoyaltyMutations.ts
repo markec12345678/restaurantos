@@ -38,8 +38,21 @@ export function useLoyaltyMutations({
 
   const createMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const res = await authFetch('/api/loyalty', { method: 'POST', body: JSON.stringify(data) })
-      if (!res.ok) throw new Error('Napaka pri ustvarjanju računa')
+      // R143 #30 (MODEL A canon): račun zvestobe je vezan na lokacijo. Super-admin
+      // (sea brez lokacije) MORA podati izrecno lokacijo — ruta jo bere iz
+      // ?locationId= (resolveTenantLocationIdOrThrow), body locationId pa NI del
+      // createLoyaltySchema. Location-bound adminu je ?locationId neškodljiv
+      // (resolver ga ignorira, seja je avtoritativna).
+      const { locationId, ...body } = data
+      const qs = typeof locationId === 'string' && locationId.trim()
+        ? `?locationId=${encodeURIComponent(locationId.trim())}`
+        : ''
+      const res = await authFetch(`/api/loyalty${qs}`, { method: 'POST', body: JSON.stringify(body) })
+      if (!res.ok) {
+        // R143: povrni točno sporočilo strežnika (npr. 'locationId je obvezen…')
+        const err = await res.json().catch(() => null) as { error?: string } | null
+        throw new Error(err?.error || 'Napaka pri ustvarjanju računa')
+      }
       return res.json()
     },
     onSuccess: () => {
@@ -47,7 +60,7 @@ export function useLoyaltyMutations({
       queryClient.invalidateQueries({ queryKey: queryKeys.loyalty.all })
       onCloseDialog()
     },
-    onError: () => { toast.error('Napaka pri ustvarjanju zvestobnega računa') },
+    onError: (e: Error) => { toast.error(e.message || 'Napaka pri ustvarjanju zvestobnega računa') },
   })
 
   const updateMutation = useMutation({

@@ -42,7 +42,22 @@ export async function GET(req: Request) {
 
     // FIX HIGH: Paginacija z NaN varnostjo — prepreči nalaganje preveč zapisov
     // P1-16: centralna pagination validacija (limit max, offset, search dolžina)
-    const { limit, offset } = parsePaginationParams(searchParams)
+    const { limit, offset, search } = parsePaginationParams(searchParams)
+
+    // R143-b (epic #115 #30, kontrakt (a)): `search` je bil prej parsan a
+    // IGNORIRAN → iskanje v plačilnem dialogu (usePaymentQueries pošilja
+    // GET /api/loyalty?search=…) je vračalo NEFILTRIRAN seznam. Zdaj: OR
+    // contains (insensitive) na imenu/telefonu/e-pošti, KOMPOZIBILNO z
+    // obstoječimi filtri tier/isActive/customerPhone in scope-om zgoraj.
+    // Trim ≥ 1 znak; dolžina je že omejena na 100 (P1-16 MAX_SEARCH_LENGTH).
+    const trimmedSearch = search.trim()
+    if (trimmedSearch.length > 0) {
+      where.OR = [
+        { customerName: { contains: trimmedSearch, mode: 'insensitive' } },
+        { customerPhone: { contains: trimmedSearch, mode: 'insensitive' } },
+        { customerEmail: { contains: trimmedSearch, mode: 'insensitive' } },
+      ]
+    }
 
     const [accounts, total] = await Promise.all([
       db.loyaltyAccount.findMany({
@@ -57,7 +72,12 @@ export async function GET(req: Request) {
       db.loyaltyAccount.count({ where }),
     ])
 
-    return NextResponse.json({ accounts, total, limit, offset })
+    // R143-b: no-store — živi podatki o točkah (plačilni dialog attach),
+    // nikoli cache-friendly (kanon briefing/loyalty-lifecycle).
+    return NextResponse.json(
+      { accounts, total, limit, offset },
+      { headers: { 'Cache-Control': 'no-store' } },
+    )
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/loyalty', 'Napaka pri pridobivanju zvestobnih računov')
   }

@@ -2,7 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { Plus, Crown } from 'lucide-react'
-import { memo } from 'react'
+import { memo, useCallback } from 'react'
 import dynamic from 'next/dynamic'
 import { useLoyaltyState } from './loyalty/useLoyaltyState'
 
@@ -16,6 +16,7 @@ const LoyaltyHistoryDialog = dynamic(() => import('./loyalty/LoyaltyHistoryDialo
 const LoyaltyDeleteDialog = dynamic(() => import('./loyalty/LoyaltyDeleteDialog').then(m => ({ default: m.LoyaltyDeleteDialog })), { ssr: false })
 const LoyaltyLoadingSkeleton = dynamic(() => import('./loyalty/LoyaltyLoadingSkeleton').then(m => ({ default: m.LoyaltyLoadingSkeleton })), { ssr: false })
 const LoyaltyTierDistribution = dynamic(() => import('./loyalty/LoyaltyTierDistribution').then(m => ({ default: m.LoyaltyTierDistribution })), { ssr: false })
+const LifecycleSection = dynamic(() => import('./loyalty/LifecycleSection').then(m => ({ default: m.LifecycleSection })), { ssr: false })
 
 // ============================================
 // GLAVNA KOMPONENTA
@@ -23,6 +24,16 @@ const LoyaltyTierDistribution = dynamic(() => import('./loyalty/LoyaltyTierDistr
 
 export const LoyaltyManager = memo(function LoyaltyManager() {
   const s = useLoyaltyState()
+
+  // R143-c: globoko povezovanje sekcije 'Življenjski cikel' na obstoječi
+  // zgodovinski dialog — top račun iz agregata se uredi prek polnega
+  // računa iz obstoječega seznama (ni PII sklepanja, ni mrtvih klikov:
+  // brez ujemanja gumb sploh ne nastane).
+  const findLifecycleAccount = useCallback(
+    (id: string) => s.allAccounts.find((a) => a.id === id),
+    [s.allAccounts],
+  )
+  const openLifecycleHistory = s.openHistory
 
   // Nalaganje
   if (s.isLoading) {
@@ -69,6 +80,12 @@ export const LoyaltyManager = memo(function LoyaltyManager() {
         accounts={s.allAccounts}
         activeFilter={s.tierFilter}
         onSelectTier={s.setTierFilter}
+      />
+
+      {/* R143-c: življenjski cikel — segmenti + točke, ki potečejo + top računi */}
+      <LifecycleSection
+        resolveHistoryAccount={findLifecycleAccount}
+        onOpenHistory={openLifecycleHistory}
       />
 
       {/* Filtri */}

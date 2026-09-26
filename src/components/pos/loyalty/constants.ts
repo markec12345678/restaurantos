@@ -4,6 +4,11 @@
 // ============================================
 
 import { Star, Award, Trophy, Gem } from 'lucide-react'
+import {
+  LIFECYCLE_ACTIVE_MAX_DAYS,
+  LIFECYCLE_AT_RISK_MAX_DAYS,
+  type LifecycleBucket,
+} from '@/lib/loyalty/lifecycle-constants'
 
 // --- Tipi ---
 
@@ -92,4 +97,79 @@ export function formatDateSI(dateStr: string): string {
 
 export function formatPoints(points: number): string {
   return points.toLocaleString('sl-SI')
+}
+
+// ============================================
+// ŽIVLJENJSKI CIKEL (R143-c, epic #115 #30) — UI mape + pomožniki
+// Vir pragov je src/lib/loyalty/lifecycle-constants.ts (enoten vir za
+// strežnik IN UI — BUG-04: brez dupliciranja števil). Badge/razredne mape
+// so polni literali (nikoli konkatenacij), brez modrih/indigo tonov
+// (hišno pravilo). Nivo oznake/barve prihajajo iz obstoječih map
+// tierConfig/tierBadgeStyles zgoraj — NI novih vzporednih map.
+// ============================================
+
+export interface LifecycleBucketUiMeta {
+  label: string
+  /** Barvni namig besedila (emerald/neutral/amber/red — brez blue/indigo) */
+  textClass: string
+  /** Literal razred barvne pike per segment */
+  dotClass: string
+}
+
+/** Segmenti življenjskega cikla — iteracija po LIFECYCLE_BUCKETS (BUG-04). */
+export const LIFECYCLE_BUCKET_META: Record<LifecycleBucket, LifecycleBucketUiMeta> = {
+  new: {
+    label: 'Nov',
+    textClass: 'text-zinc-700 dark:text-zinc-300',
+    dotClass: 'bg-zinc-400 dark:bg-zinc-500',
+  },
+  active: {
+    label: 'Aktiven',
+    textClass: 'text-emerald-700 dark:text-emerald-400',
+    dotClass: 'bg-emerald-500',
+  },
+  at_risk: {
+    label: 'Ogrožen',
+    textClass: 'text-amber-700 dark:text-amber-400',
+    dotClass: 'bg-amber-500',
+  },
+  churned: {
+    label: 'Izgubljen',
+    textClass: 'text-red-700 dark:text-red-400',
+    dotClass: 'bg-red-500',
+  },
+}
+
+/** Pošten podnaslov segmenta — dnevi IZ konstant, nikoli hardcode. */
+export function lifecycleBucketHint(bucket: LifecycleBucket): string {
+  switch (bucket) {
+    case 'new':
+      return 'Brez transakcij'
+    case 'active':
+      return `Zadnja transakcija ≤ ${LIFECYCLE_ACTIVE_MAX_DAYS} dni`
+    case 'at_risk':
+      return `${LIFECYCLE_ACTIVE_MAX_DAYS + 1}–${LIFECYCLE_AT_RISK_MAX_DAYS} dni od zadnje transakcije`
+    case 'churned':
+      return `Več kot ${LIFECYCLE_AT_RISK_MAX_DAYS} dni brez transakcije`
+  }
+}
+
+/** Barvni gradient vrstice napredka per nivo (isti design jezik kot LoyaltyTierProgress). */
+export const tierBarGradients: Record<string, string> = {
+  bronze: 'from-amber-500 to-amber-400',
+  silver: 'from-gray-400 to-gray-300',
+  gold: 'from-yellow-500 to-yellow-400',
+  platinum: 'from-purple-500 to-purple-400',
+}
+
+/** Nevtralni fallback za neznan nivo (BUG-04: nikoli undefined, brez ugibanja). */
+export const TIER_BADGE_UNKNOWN: { label: string; className: string } = {
+  label: 'Neznano',
+  className: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-900/30 dark:text-zinc-300',
+}
+
+/** Varen nivo badge: label iz tierConfig + razred iz tierBadgeStyles + fallback. */
+export function tierBadge(tier: string | null | undefined): { label: string; className: string } {
+  if (!tier || !(tier in tierBadgeStyles) || !(tier in tierConfig)) return TIER_BADGE_UNKNOWN
+  return { label: tierConfig[tier].label, className: tierBadgeStyles[tier] }
 }
