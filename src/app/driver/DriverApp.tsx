@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Bike, LogOut, RefreshCw } from 'lucide-react'
+import { Bike, LogOut, MapPin, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,8 @@ import type { DeliverDialogResult } from './DeliverDialog'
 import { UnauthorizedError, authPostJson, extractErrorMessage } from './driver-context'
 import { isCashOnDelivery, orderTotal, useDriverAssignments } from './useDriverAssignments'
 import type { ActiveDriverStatus, MineDelivery, ReadyDelivery } from './useDriverAssignments'
+import { useDriverLocation } from './useDriverLocation'
+import type { GpsState } from './useDriverLocation'
 
 // =====================================================================
 // DriverApp — glavni voznikov zaslon (R137-c, epic #115 P1-13).
@@ -21,11 +23,9 @@ import type { ActiveDriverStatus, MineDelivery, ReadyDelivery } from './useDrive
 //   assigned → Prevzel sem (picked_up) → Na poti (on_the_way) →
 //   Prihajam (arriving) → Dostavljeno (delivered, dialog) | Težava (failed, dialog)
 // Self-claim (ready[]): POST BREZ driverName — server uporabi sejo zaposlenega.
-//
-// TODO(P1-13 naslednja runda): GPS pošiljanje — navigator.geolocation →
-// POST /api/delivery-tracking { deliveryInfoId, latitude, longitude };
-// server ga že podpira, UI ga v tej rundi NAMENOMA ne pošilja
-// (minimal-patch, privolitev + baterija so odprta vprašanja).
+// GPS (R138): useDriverLocation pošilja pozicijo med aktivno dostavo
+// (permission šele ob claimu, POST samo ob vidnem zaslonu, 30 s throttle);
+// dispečer vidi pozicijo prek DeliveryTracker (GET /api/delivery-tracking).
 // =====================================================================
 
 /** Naslednji prehod po trenutnem statusu (undefined = ni primarnega gumba) */
@@ -51,8 +51,19 @@ function EmptyHint({ text }: { text: string }) {
   )
 }
 
+/** GPS indikator: statični razredi (BUG-04 kanon) + slovenski opis stanja */
+const GPS_INDICATOR: Record<GpsState, { dot: string; label: string } | null> = {
+  idle: null,
+  requesting: { dot: 'bg-amber-400 animate-pulse', label: 'Lokacija: pridobivanje …' },
+  granted: { dot: 'bg-emerald-500', label: 'Lokacija: deluje' },
+  denied: { dot: 'bg-muted-foreground/40', label: 'Lokacija: izklopljena v brskalniku' },
+  unavailable: { dot: 'bg-muted-foreground/40', label: 'Lokacija ni na voljo' },
+}
+
 export function DriverApp({ onLogout }: DriverAppProps) {
   const { mine, ready, timestamp, connected, isLoading, loggedOut, refresh } = useDriverAssignments()
+  const { gpsState } = useDriverLocation(mine, !loggedOut)
+  const gps = GPS_INDICATOR[gpsState]
 
   // Akcije v teku — per-dostava loading (idempotentni self-claim: gumb disable med klicem)
   const [claimingId, setClaimingId] = useState<string | null>(null)
@@ -190,6 +201,18 @@ export function DriverApp({ onLogout }: DriverAppProps) {
               role="status"
               aria-label={connected ? 'Povezano' : 'Brez povezave'}
             />
+            {gps && (
+              <span
+                className="inline-flex items-center gap-1"
+                role="status"
+                aria-label={gps.label}
+                title={gps.label}
+              >
+                <MapPin className="size-3.5 text-muted-foreground" aria-hidden />
+                <span className={`inline-block size-2 rounded-full ${gps.dot}`} />
+                <span className="sr-only">{gps.label}</span>
+              </span>
+            )}
             <span className="text-xs tabular-nums text-muted-foreground">{timeLabel}</span>
             <Button
               variant="ghost"
