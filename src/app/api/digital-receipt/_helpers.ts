@@ -148,5 +148,11 @@ export async function buildDigitalReceiptResponse(
     receiptFooter: '',
     tableNumber: order?.table?.number || null,
     orderType: order?.type || '',
+    // P1-14 (R140-c): passthrough za /receipt CTA 'Ocenite obisk' → /feedback
+    // (additivno, ne krši fiskalnega kontrakta). Vir: Receipt.orderId že obstaja
+    // na vrstici, locationId prihaja iz ISTEGA order lookupa kot QR content.
+    // Klient gradi RELATIVNO povezavo /feedback?location=&order=&source=receipt.
+    orderId: receipt.orderId || null,
+    locationId: order?.locationId || null,
   }
 }

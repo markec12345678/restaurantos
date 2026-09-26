@@ -14,6 +14,10 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { createGuestFeedbackSchema } from '@/lib/validations'
 import { handleApiError, parseJsonBody, parsePaginationParams, validateBody } from '@/lib/api-utils'
 import { resolveTenantLocationIdOrThrow, resolveWriteLocationId } from '@/lib/tenant-scope'
+// P1-14 (R140-b): skupni SELECT whitelist (GET + PATCH pariteta) — brez
+// notranjih/workerskih stolpcev, nova polja (status/tableNumber/orderRef/...)
+// so vključena; glej _helpers/feedback-select.ts
+import { FEEDBACK_SELECT } from './_helpers/feedback-select'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,6 +52,8 @@ export async function GET(req: Request) {
         where,
         orderBy: { createdAt: 'desc' },
         take: limit,
+        // P1-14 (R140-b): whitelist namesto celotnih vrstic (canon r85/r137)
+        select: FEEDBACK_SELECT,
       }),
       db.guestFeedback.count({ where }),
     ])
@@ -96,11 +102,13 @@ export async function GET(req: Request) {
         : 0,
     }
 
+    // P1-14 (R140-b): no-store — staff PII odgovor se ne sme predpomniti
+    // (R124b konsistenca kanon)
     return NextResponse.json({
       feedbacks,
       stats,
       total: totalCount,
-    })
+    }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/guests/feedback', 'Napaka pri pridobivanju povratnih informacij')
   }

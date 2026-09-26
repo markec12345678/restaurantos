@@ -9,7 +9,9 @@
 import { Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
+import { Star } from 'lucide-react'
 import { useReceipt } from './use-receipt'
+import type { ReceiptData } from './types'
 
 // Leno nalaganje podkomponent (ssr: false za client-only interaktivnost)
 const ReceiptLoadingState = dynamic(
@@ -107,6 +109,18 @@ function ReceiptContent() {
             <p className="text-center text-sm text-amber-700 font-medium mt-4">
               Hvala za obisk!
             </p>
+
+            {/* P1-14 (R140-c): diskretna CTA — zapre verigo bill → feedback.
+                Relativna povezava (kanon), parami iz podatkov, ki jih receipt že ima;
+                manjkajoči param se spusti. Neposredno <a> (javna stran, full-nav OK). */}
+            <a
+              href={buildFeedbackHref(receipt)}
+              className="flex items-center justify-center gap-1.5 text-xs text-amber-600 hover:text-amber-700 underline underline-offset-4 mt-3"
+              aria-label="Ocenite svoj obisk"
+            >
+              <Star className="h-3.5 w-3.5" aria-hidden="true" />
+              Ocenite obisk
+            </a>
           </div>
         </div>
 
@@ -134,4 +148,15 @@ export default function ReceiptPage() {
       <ReceiptContent />
     </Suspense>
   )
+}
+
+// P1-14 (R140-c): URL javne /feedback strani iz podatkov, ki jih receipt že ima
+// (locationId + orderId passthrough iz /api/digital-receipt). Param se spusti,
+// če ni na voljo; source=receipt vedno. URLSearchParams poskrbi za encoding.
+function buildFeedbackHref(receipt: ReceiptData): string {
+  const params = new URLSearchParams()
+  if (receipt.locationId) params.set('location', receipt.locationId)
+  if (receipt.orderId) params.set('order', receipt.orderId)
+  params.set('source', 'receipt')
+  return `/feedback?${params.toString()}`
 }

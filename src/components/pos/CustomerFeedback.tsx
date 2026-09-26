@@ -39,6 +39,10 @@ const NewFeedbackDialog = dynamic(
   () => import('./customer-feedback/NewFeedbackDialog').then(m => m.NewFeedbackDialog),
   { ssr: false },
 )
+const ResolveFeedbackDialog = dynamic(
+  () => import('./customer-feedback/ResolveFeedbackDialog').then(m => m.ResolveFeedbackDialog),
+  { ssr: false },
+)
 
 // ─── Glavna komponenta ──────────────────────────────────────────
 export const CustomerFeedback = memo(function CustomerFeedback() {
@@ -49,6 +53,12 @@ export const CustomerFeedback = memo(function CustomerFeedback() {
     newFeedback, setNewFeedback,
     filteredFeedbacks, avgRatings, ratingDistribution, nps,
     createFeedbackMutation,
+    // P1-14 (R140-c): resolution workflow + status filter
+    filterStatus, setFilterStatus,
+    resolveTarget, responseText, setResponseText,
+    openResolveDialog, closeResolveDialog,
+    startReview, submitResolve,
+    updateFeedbackMutation, busyId,
   } = useFeedbackData()
 
   return (
@@ -75,8 +85,18 @@ export const CustomerFeedback = memo(function CustomerFeedback() {
           <>
             <FeedbackStatsCards avgRatings={avgRatings} nps={nps} />
             <FeedbackRatingChart ratingDistribution={ratingDistribution} />
-            <FeedbackFilterBar filterRating={filterRating} onFilterChange={setFilterRating} />
-            <FeedbackList feedbacks={filteredFeedbacks} />
+            <FeedbackFilterBar
+              filterRating={filterRating}
+              onFilterChange={setFilterRating}
+              filterStatus={filterStatus}
+              onStatusFilterChange={setFilterStatus}
+            />
+            <FeedbackList
+              feedbacks={filteredFeedbacks}
+              onStartReview={startReview}
+              onResolve={openResolveDialog}
+              busyId={busyId}
+            />
           </>
         )}
       </div>
@@ -88,6 +108,16 @@ export const CustomerFeedback = memo(function CustomerFeedback() {
         onNewFeedbackChange={setNewFeedback}
         onSubmit={() => createFeedbackMutation.mutate()}
         isSubmitting={createFeedbackMutation.isPending}
+      />
+      {/* P1-14 (R140-c): dialog 'Odgovori in reši' */}
+      <ResolveFeedbackDialog
+        open={resolveTarget !== null}
+        onOpenChange={open => { if (!open) closeResolveDialog() }}
+        feedback={resolveTarget}
+        responseText={responseText}
+        onResponseTextChange={setResponseText}
+        onSubmit={submitResolve}
+        isSubmitting={updateFeedbackMutation.isPending}
       />
     </div>
   )

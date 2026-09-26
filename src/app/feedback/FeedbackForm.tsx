@@ -13,6 +13,13 @@ function FeedbackForm() {
   const searchParams = useSearchParams()
   const tableId = searchParams.get('table') || ''
   const locationId = searchParams.get('location') || ''
+  // P1-14 (R140-c): opcijski ?order= (orderId → strežniški zero-oracle orderRef
+  // snapshot) in parametriziran ?source= (public POST Zod enum: qr_kiosk|web|receipt;
+  // neznana/absentna vrednost → 'qr_kiosk' = pariteta obstoječega hardcodanega
+  // vedenja, da strežniški Zod NIKOLI ne vrne 400 zaradi vira).
+  const order = searchParams.get('order') || ''
+  const sourceParam = searchParams.get('source')
+  const source = sourceParam === 'web' || sourceParam === 'receipt' ? sourceParam : 'qr_kiosk'
 
   const [ratings, setRatings] = useState<Record<string, number>>({})
   const [comment, setComment] = useState('')
@@ -45,8 +52,11 @@ function FeedbackForm() {
           comment: [comment, ...quickFeedback].filter(Boolean).join('. '),
           tableId,
           locationId,
+          // P1-14 (R140-c): passthrough opcijskih parametrov (orderId gre na
+          // strežnik samo če obstaja ?order=; strežnik sam shrani snapshot ali tiho null)
+          ...(order ? { orderId: order } : {}),
+          source,
           avgRating,
-          source: 'qr_kiosk',
         }),
       })
       if (res.ok) {

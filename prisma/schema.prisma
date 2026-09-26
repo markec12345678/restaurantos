@@ -2783,6 +2783,18 @@ model GuestFeedback {
   respondedAt     DateTime?
   // --- Vir ---
   source          String   @default("pos")  // pos, website, email, sms
+  // --- P1-14 (R140-b): kontekst mize/naročila — LOOSE ref + SNAPSHOT
+  //     (pariteta guestId/orderId: brez FK relacij na tem modelu) +
+  //     driverName vzorec (DeliveryTracking): snapshot vrednosti preživijo
+  //     brisanje vira (P2-07 historična integriteta / display resiliency)
+  tableId         String?
+  tableNumber     String?  // SNAPSHOT št. mize (mize se lahko brišejo)
+  orderRef        String?  // SNAPSHOT številke naročila (Order.orderNumber; NIKOLI FK)
+  // --- P1-14 (R140-b): resolution workflow — 'new' | 'in_review' | 'resolved'
+  status          String   @default("new")
+  resolvedById    String?  // LOOSE ref Employee (brez FK, pariteta guestId/orderId)
+  resolvedByName  String?  // SNAPSHOT imena (izbris zaposlenega ne sme izgubiti forenzike)
+  resolvedAt      DateTime?
   // --- Multi-location (FIX: povratne informacije so per-lokacija za poročila) ---
   locationId      String?
   location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -2797,6 +2809,7 @@ model GuestFeedback {
   @@index([source])
   @@index([createdAt])
   @@index([responded])  // FIX: Pogosta poizvedba — odgovarjanje na neodgovorjene povratne informacije
+  @@index([status])     // P1-14: status filter (staff pregled new/in_review/resolved)
 }
 
 // ============================================

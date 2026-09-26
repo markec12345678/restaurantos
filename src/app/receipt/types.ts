@@ -49,4 +49,8 @@ export interface ReceiptData {
   receiptFooter: string
   tableNumber: number | null
   orderType: string
+  // P1-14 (R140-c): passthrough za CTA 'Ocenite obisk' → /feedback (source=receipt).
+  // locationId iz order lookupa, orderId iz Receipt vrstice — oba opcijska.
+  locationId: string | null
+  orderId: string | null
 }
