@@ -95,6 +95,8 @@ const ReorderCenter = dynamic(() => import('@/components/pos/reorder/ReorderCent
 const DriverApp = dynamic(() => import('@/app/driver/DriverApp').then(m => ({ default: m.DriverApp })), { ssr: false, loading: () => loadingFallback })
 // R141-c (epic #115 P2-28): Dnevni pregled — manager briefing agregat (EN endpoint /api/reports/briefing)
 const BriefingModule = dynamic(() => import('@/components/pos/briefing/BriefingModule').then(m => ({ default: m.BriefingModule })), { ssr: false, loading: () => loadingFallback })
+// R142-c (epic #115 #29): Center naprav — inventar naprav (GET/PATCH /api/devices)
+const DevicesModule = dynamic(() => import('@/components/pos/devices/DevicesModule').then(m => ({ default: m.DevicesModule })), { ssr: false, loading: () => loadingFallback })
 // Default exports
 const GuestManager = dynamic(() => import('@/components/pos/GuestManager').then(m => ({ default: m.GuestManager })), { ssr: false, loading: () => loadingFallback })
 const FoodCostCalculator = dynamic(() => import('@/components/pos/food-cost/FoodCostCalculator'), { ssr: false, loading: () => loadingFallback })
@@ -123,6 +125,7 @@ export const moduleComponents: Record<string, ComponentType> = {
   employees: EmployeeManager,
   reports: ReportsView,
   briefing: BriefingModule,
+  devices: DevicesModule,
   configuration: ConfigurationManager,
   delivery: DeliveryManager,
   'gift-cards': GiftCardManager,

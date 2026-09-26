@@ -15,6 +15,8 @@
 
 import { ordersKeys, kitchenKeys, menusKeys, categoriesKeys, menuItemsKeys, modifierGroupsKeys, tablesKeys, employeesKeys, shiftsKeys, jobsKeys } from './orders-menu-staff'
 import { inventoryKeys, cashRegisterKeys, endOfDayKeys, dailyCloseKeys, reportsKeys, dashboardKeys, reservationsKeys, briefingKeys } from './inventory-cash-reports'
+// R142-c (epic #115 #29): Device center — inventar naprav (GET/PATCH /api/devices)
+import { devicesKeys } from './devices'
 import { altPaymentsKeys, checksKeys, giftCardsKeys, loyaltyKeys, tipPoolKeys, configurationKeys } from './payments-loyalty-config'
 import { deliveryKeys, locationsKeys, suppliersKeys, purchaseOrdersKeys, haccpKeys, fursKeys, receiptKeys, zReportKeys, authKeys, webhooksKeys, integrationsKeys, expensesKeys, feedbackKeys, dailyChecklistKeys, discountsKeys, diningOptionsKeys, voidReasonsKeys, recipesKeys, subscriptionKeys, waitlistKeys, notificationsKeys, menuEngineeringKeys, menuItemNutritionKeys, recentOrders7dKeys, offlineQueueKeys } from './delivery-misc'
 
@@ -45,6 +47,8 @@ export const queryKeys = {
   reports: reportsKeys,
   // ---- Dnevni pregled (R141, P2-28) ----
   briefing: briefingKeys,
+  // ---- Naprave (R142, #29 Device center) ----
+  devices: devicesKeys,
   // ---- Dashboard ----
   dashboard: dashboardKeys,
   // ---- Rezervacije ----

@@ -72,6 +72,8 @@ export const navIt: Record<string, string> = {
   'nav.reorderCenter': 'Centro riordini',
   // R141-c (epic #115 P2-28): dnevni pregled (manager briefing)
   'nav.briefing': 'Riepilogo giornaliero',
+  // R142-c (epic #115 #29): Center naprav
+  'nav.devices': 'Dispositivi',
 
   // R137 (epic #115 P1-13): voznikov mobilni zaslon
   'nav.driver': 'Consegne',

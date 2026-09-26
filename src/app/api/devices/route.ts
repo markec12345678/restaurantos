@@ -5,17 +5,34 @@
 // Uporablja se za:
 //   - Dashboard "katere naprave so online"
 //   - Outbox prioritizacijo (offline naprave imajo večji backlog)
-//   - Diagnostiko (kdaj je bila nazadnje vidna)
+//   - Diagnostiko (kdaj je bila nazadnje videna)
+//
+// R142-b (epic #115 #29 Device center) — GET dograjen po kanonu:
+//   • DEVICE_SELECT compile-time whitelist (pariteta FEEDBACK_SELECT R140-b;
+//     prej `include location` = polne vrstice — PII/leak canon),
+//   • Cache-Control: no-store,
+//   • rate limit AUTHENTICATED_LIMIT bucket 'devices-list' (briefing vzorec),
+//   • sweep (write-on-GET updateMany) ODSTRANJEN — GET je čisto read-only;
+//     online svežina je izračunana (isOnline = lastSeenAt ≥ now − 5 min, isti
+//     5-min pravilnik kot prejšnji sweep); DB `status` stolpec ostane, kot je
+//     (klient domena). Noben obstoječi test ni odvisen od sweepa
+//     (idor-round13 + r86-c2 pokrivata samo POST/DELETE).
 // ============================================
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
 import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { isAdminTenantRole } from '@/lib/tenant-scope'
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
+import { DEVICE_SELECT } from './_helpers/device-select'
 
 export const dynamic = 'force-dynamic'
+
+/** Online svežina (R142-b): lastSeenAt ≥ now − 5 min = isOnline (pariteta sweepa). */
+const ONLINE_WINDOW_MS = 5 * 60 * 1000
 
 const registerSchema = z.object({
   deviceId: z.string().min(1).max(200),
@@ -25,9 +42,13 @@ const registerSchema = z.object({
   appVersion: z.string().max(50).default(''),
 })
 
-// GET — seznam naprav
+// GET — seznam naprav (R142-b: whitelist + no-store + rate limit + read-only)
 export async function GET(req: Request) {
   try {
+    // Rate limiting — prepreči zlorabo API-ja (briefing/dashboard pariteta)
+    const rl = await checkRateLimitAsync('devices-list', getClientIp(req), AUTHENTICATED_LIMIT)
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
+
     const authResult = await requireAuth(req, { permission: 'view_reports' })
     if (authResult.error) return authResult.error
 
@@ -45,23 +66,25 @@ export async function GET(req: Request) {
     }
     if (status) where.status = status
 
-    // Označi naprave kot offline, če niso bile vidne >5min
-    const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000)
-    await db.deviceRegistry.updateMany({
-      where: {
-        status: 'online',
-        lastSeenAt: { lt: fiveMinAgo },
-      },
-      data: { status: 'offline' },
-    })
-
+    // R142-b: sweep (write-on-GET) odstranjen — branje NE piše; stanje "online"
+    // se izračuna iz lastSeenAt (isti 5-min pravilnik). DB `status` ostane,
+    // kot je (vzdržujejo ga POST/heartbeat/device-sync — klient domena).
     const devices = await db.deviceRegistry.findMany({
       where,
-      include: { location: { select: { id: true, name: true, code: true } } },
+      select: DEVICE_SELECT,
       orderBy: { lastSeenAt: 'desc' },
     })
 
-    return NextResponse.json({ devices, count: devices.length })
+    const onlineCutoff = Date.now() - ONLINE_WINDOW_MS
+    const withFreshness = devices.map((device) => ({
+      ...device,
+      isOnline: device.lastSeenAt != null && device.lastSeenAt.getTime() >= onlineCutoff,
+    }))
+
+    return NextResponse.json(
+      { devices: withFreshness, count: withFreshness.length },
+      { headers: { 'Cache-Control': 'no-store' } },
+    )
   } catch (err) {
     return handleApiError(err, 'devices GET')
   }

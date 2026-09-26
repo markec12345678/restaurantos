@@ -12,6 +12,8 @@ import {
   ShieldAlert, Receipt, ClipboardCheck, BellRing, PieChart, Activity, Table2, CloudOff,
   CookingPot, Scale, Star, Trash2, Scale3d, Store, ShieldCheck, BookOpen, GitBranch, Nfc,
   Sunrise,
+  // R142-c (epic #115 #29): Center naprav
+  MonitorSmartphone,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -56,7 +58,7 @@ export const navGroups: NavGroup[] = [
     'tax-report', 'ghost-kitchen', 'ai-forecast', 'ai-recommendations',
   ] },
   { id: 'system', label: 'Sistem', itemIds: [
-    'configuration', 'settings', 'locations', 'multi-location', 'printers', 'integrations',
+    'configuration', 'settings', 'locations', 'devices', 'multi-location', 'printers', 'integrations',
     'webhooks', 'furs', 'subscription', 'compliance', 'haccp', 'audit-log',
     'outbox', 'conflicts', 'offline-queue', 'notifications', 'fraud-detection', 'daily-checklist',
   ] },
@@ -98,6 +100,8 @@ export const navItems: NavItem[] = [
   { id: 'reports', labelKey: 'nav.reports', icon: BarChart3, permission: 'view_reports' },
   // R141-c (epic #115 P2-28): dnevni pregled — manager briefing
   { id: 'briefing', labelKey: 'nav.briefing', icon: Sunrise, permission: 'view_reports' },
+  // R142-c (epic #115 #29): Center naprav — inventar naprav (GET view_reports; mutacije admin)
+  { id: 'devices', labelKey: 'nav.devices', icon: MonitorSmartphone, permission: 'view_reports' },
   { id: 'configuration', labelKey: 'nav.configuration', icon: SlidersHorizontal, adminOnly: true },
   { id: 'delivery', labelKey: 'nav.delivery', icon: Truck, permission: 'take_orders' },
   { id: 'delivery-tracking', labelKey: 'nav.deliveryTracking', icon: Navigation, permission: 'take_orders' },
