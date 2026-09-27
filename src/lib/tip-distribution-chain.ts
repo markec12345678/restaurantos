@@ -68,9 +68,13 @@ export async function createTipDistributionWithChain(
 
   // Če je tx podan, uporabi njega; sicer odpre svojo lastno transakcijo.
   const runInside = async (client: TransactionClient) => {
-    // Pridobi zadnji chainHash ZNOTRAJ transakcije
+    // Pridobi zadnji chainHash ZNOTRAJ transakcije.
+    // R150 CI-fix #133: tie-breaker po id — batch zapisi v istem tx imajo ISTE
+    // millisekunde createdAt, orderBy createdAt pa je na Postgresu tedaj
+    // nedoločen (repo kanon: determinističen orderBy tie-breaker). V nasprotnem
+    // primeru payout veže na NAPAČEN rep verige (CI flake r145-tips).
     const lastEntry = await client.tipDistribution.findFirst({
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       select: { chainHash: true },
     })
     let previousHash = lastEntry?.chainHash || ''
@@ -123,7 +127,8 @@ export async function createTipDistributionWithChain(
 export async function verifyTipDistributionChainIntegrity(): Promise<{ id: string; employeeName: string } | null> {
   try {
     const entries = await db.tipDistribution.findMany({
-      orderBy: { createdAt: 'asc' },
+      // isti tie-breaker kanon kot pri pisanju (glej createTipDistributionWithChain)
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       select: { id: true, employeeName: true, amount: true, status: true, createdAt: true, previousHash: true, chainHash: true },
       take: 10000,
     })

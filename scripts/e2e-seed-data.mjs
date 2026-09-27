@@ -64,9 +64,11 @@ export async function seedE2eData(executor, ctx) {
   console.log('[seed] ✅ Admin (PIN 1111) seedan')
 
   // 2. Job z admin dovoljenji
+  // R150 (#33): permissions je ZDAJ jsonb — raw param $4 je text → obvezen ::jsonb cast
+  // (PG 42804 'column "permissions" is of type jsonb but expression is of type text')
   await run(`
   INSERT INTO "Job" (id, name, code, "basePayRate", "overtimeRate", permissions, "isActive", "sortOrder", "createdAt", "updatedAt")
-  VALUES ($1, $2, $3, 0, 0, $4, true, 0, NOW(), NOW())
+  VALUES ($1, $2, $3, 0, 0, $4::jsonb, true, 0, NOW(), NOW())
   ON CONFLICT (name) DO NOTHING
 `, ['job-admin', 'Administrator', 'ADMIN', JSON.stringify(['take_orders','void_item','apply_discounts','manage_cash','manage_inventory','manage_employees','view_reports','admin'])])
 
