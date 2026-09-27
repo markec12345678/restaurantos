@@ -702,5 +702,6 @@
   "nav.outbox": "Outbox",
   "nav.ghostKitchen": "Ghost Kitchen",
   "nav.conflicts": "Conflicts",
-  "nav.auditLog": "Audit Log"
+  "nav.auditLog": "Audit Log",
+  "nav.advancedAnalytics": "Advanced analytics"
 }

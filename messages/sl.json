@@ -704,5 +704,6 @@
   "nav.outbox": "Outbox",
   "nav.ghostKitchen": "Ghost Kitchen",
   "nav.conflicts": "Konflikti",
-  "nav.auditLog": "Revizijski dnevnik"
+  "nav.auditLog": "Revizijski dnevnik",
+  "nav.advancedAnalytics": "Napredna analitika"
 }

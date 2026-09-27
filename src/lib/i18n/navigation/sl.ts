@@ -77,6 +77,8 @@ export const navSl: Record<string, string> = {
   'nav.devices': 'Naprave',
   // R147-c (epic #115 #34): Prenos podatkov
   'nav.dataPortability': 'Prenos podatkov',
+  // R149-c (epic #115 #36): Napredna analitika
+  'nav.advancedAnalytics': 'Napredna analitika',
 
   // R137 (epic #115 P1-13): voznikov mobilni zaslon
   'nav.driver': 'Dostave',

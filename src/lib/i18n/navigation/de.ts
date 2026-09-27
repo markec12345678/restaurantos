@@ -76,6 +76,8 @@ export const navDe: Record<string, string> = {
   'nav.devices': 'Geräte',
   // R147-c (epic #115 #34): Datenübertragbarkeit
   'nav.dataPortability': 'Datenübertragbarkeit',
+  // R149-c (epic #115 #36): Napredna analitika
+  'nav.advancedAnalytics': 'Erweiterte Analysen',
 
   // R137 (epic #115 P1-13): voznikov mobilni zaslon
   'nav.driver': 'Lieferungen',

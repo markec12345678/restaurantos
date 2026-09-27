@@ -76,6 +76,8 @@ export const navEn: Record<string, string> = {
   'nav.devices': 'Devices',
   // R147-c (epic #115 #34): Data portability
   'nav.dataPortability': 'Data portability',
+  // R149-c (epic #115 #36): Napredna analitika
+  'nav.advancedAnalytics': 'Advanced analytics',
 
   // R137 (epic #115 P1-13): voznikov mobilni zaslon
   'nav.driver': 'Delivery',

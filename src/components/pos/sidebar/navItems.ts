@@ -16,6 +16,8 @@ import {
   MonitorSmartphone,
   // R147-c (epic #115 #34): Prenos podatkov
   DatabaseBackup,
+  // R149-c (epic #115 #36): Napredna analitika
+  TrendingUp,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -56,7 +58,7 @@ export const navGroups: NavGroup[] = [
   ] },
   { id: 'analytics', label: 'Analitika', itemIds: [
     // R141-c (P2-28): dnevni pregled — prvi element analitike (poleg dashboard/reports)
-    'briefing', 'dashboard', 'reports', 'menu-engineering', 'table-turnover', 'expenses', 'profit-loss',
+    'briefing', 'dashboard', 'reports', 'advanced-analytics', 'menu-engineering', 'table-turnover', 'expenses', 'profit-loss',
     'tax-report', 'ghost-kitchen', 'ai-forecast', 'ai-recommendations',
   ] },
   { id: 'system', label: 'Sistem', itemIds: [
@@ -100,6 +102,8 @@ export const navItems: NavItem[] = [
   { id: 'menu-engineering', labelKey: 'nav.menuEngineering', icon: Target, adminOnly: true },
   { id: 'feedback', labelKey: 'nav.feedback', icon: MessageSquare, permission: 'take_orders' },
   { id: 'reports', labelKey: 'nav.reports', icon: BarChart3, permission: 'view_reports' },
+  // R149-c (epic #115 #36): Napredna analitika — okno/granularnost/comparison (GET /api/analytics/overview)
+  { id: 'advanced-analytics', labelKey: 'nav.advancedAnalytics', icon: TrendingUp, permission: 'view_reports' },
   // R141-c (epic #115 P2-28): dnevni pregled — manager briefing
   { id: 'briefing', labelKey: 'nav.briefing', icon: Sunrise, permission: 'view_reports' },
   // R142-c (epic #115 #29): Center naprav — inventar naprav (GET view_reports; mutacije admin)
