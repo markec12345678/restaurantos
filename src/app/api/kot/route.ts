@@ -15,6 +15,9 @@ import { structuredErrorResponse } from '@/lib/structured-error'
 import { getNextCounter } from '@/lib/counters'
 import { logger } from '@/lib/logger'
 import { z } from 'zod'
+// R150 (repo issue #33): KotDocument.itemsJson je zdaj JSONB (0022) —
+// tolerantno pisanje (wire string ALI array → NATIVNO) + wire mapping GET.
+import { safeJsonParse, toJsonWireDeep } from '@/lib/json-fields'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,7 +78,8 @@ export async function GET(req: Request) {
     })
 
     return NextResponse.json({
-      kots: deepToNumbers(kots),
+      // R150 (#33): wire mapping — JSONB struct → JSON string (byte-identical wire)
+      kots: toJsonWireDeep(deepToNumbers(kots)),
       total: kots.length,
     })
   } catch (error: unknown) {
@@ -166,7 +170,9 @@ export async function POST(req: Request) {
           kotNumber,
           orderId: data.orderId,
           type: data.type,
-          itemsJson: data.itemsJson,
+          // R150 (#33): wire sprejema JSON string, DB dobi NATIVNO Json
+          // vrednost (tolerantno — items so objekti {name, qty, notes, station})
+          itemsJson: safeJsonParse<unknown[]>(data.itemsJson, []),
           orderNotes: data.orderNotes,
           tableNumber: tableNumber ?? null,
           orderType: data.orderType,
@@ -188,7 +194,8 @@ export async function POST(req: Request) {
 
     logger.info('KOT', `Ustvarjen KOT #${kot.kotNumber} (${data.type}) za naročilo #${freshOrder.orderNumber}`)
 
-    return NextResponse.json(deepToNumbers(kot), { status: 201 })
+    // R150 (#33): wire mapping na POST odgovoru (byte-identical wire)
+    return NextResponse.json(toJsonWireDeep(deepToNumbers(kot)), { status: 201 })
   } catch (error: unknown) {
     // FIX R111: error kontrakt — P2034 Serializable konflikt / P2002 → 409
     // (canonical mapping iz R107/R109); strukturirani { error, status } throws

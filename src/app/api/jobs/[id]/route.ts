@@ -2,7 +2,9 @@
 // FIX CRITICAL: Dovoljene vrednosti za permissions — prepreči injection admin dovoljenja
 // P1-13: seznam uvožen iz centralne matrike (+ manage_accounting)
 import { db, createAuditLog } from '@/lib/db'
-import { parsePermissions } from '@/lib/json-fields'
+// R150 (repo issue #33): Job.permissions je zdaj JSONB (0022_json_fields) —
+// kanonska plast za pisanje nativnih vrednosti + wire mapping GET odgovorov.
+import { parsePermissions, toJsonWireDeep } from '@/lib/json-fields'
 import { requireAuth, revokeEmployeeSessions } from '@/lib/auth-middleware'
 import { ALL_PERMISSIONS } from '@/lib/auth-middleware/permission-matrix'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
@@ -61,7 +63,8 @@ export async function PUT(
     if (data.code !== undefined) updateData.code = data.code
     if (data.basePayRate !== undefined) updateData.basePayRate = data.basePayRate
     if (data.overtimeRate !== undefined) updateData.overtimeRate = data.overtimeRate
-    if (data.permissions !== undefined) updateData.permissions = data.permissions
+    // R150 (#33): wire sprejema JSON string, DB dobi NATIVNO Json vrednost
+    if (data.permissions !== undefined) updateData.permissions = parsePermissions(data.permissions)
     if (data.isActive !== undefined) updateData.isActive = data.isActive
     if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder
 
@@ -96,7 +99,8 @@ export async function PUT(
       }).catch(() => {})
     }
 
-    return NextResponse.json(deepToNumbers(job))
+    // R150 (#33): wire mapping — JSONB struct → JSON string (byte-identical wire)
+    return NextResponse.json(toJsonWireDeep(deepToNumbers(job)))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/jobs/[id]', 'Napaka pri posodabljanju delovnega mesta')
   }

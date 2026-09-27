@@ -1,7 +1,9 @@
 
 // Zod validacija za kreiranje delovnega mesta
 import { db } from '@/lib/db'
-import { parsePermissions } from '@/lib/json-fields'
+// R150 (repo issue #33): Job.permissions je zdaj JSONB (0022_json_fields) —
+// kanonska plast za pisanje nativnih vrednosti + wire mapping GET odgovorov.
+import { parsePermissions, toJsonWireDeep } from '@/lib/json-fields'
 import { requireAuth } from '@/lib/auth-middleware'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 import { NextResponse } from 'next/server'
@@ -40,7 +42,9 @@ export async function GET(req: Request) {
       },
     })
 
-    return NextResponse.json(deepToNumbers(jobs))
+    // R150 (#33): wire mapping — JSONB struct → JSON string (byte-identical
+    // wire; UI dela JSON.parse(job.permissions)).
+    return NextResponse.json(toJsonWireDeep(deepToNumbers(jobs)))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/jobs', 'Napaka pri pridobivanju delovnih mest')
   }
@@ -73,7 +77,9 @@ export async function POST(req: Request) {
         code: data.code,
         basePayRate: data.basePayRate,
         overtimeRate: data.overtimeRate,
-        permissions: data.permissions,
+        // R150 (#33): wire sprejema JSON string, DB dobi NATIVNO Json vrednost
+        // (JSON.stringify na Json stolpcu = tiho dvojno kodiranje).
+        permissions: parsePermissions(data.permissions),
         isActive: data.isActive,
         sortOrder: data.sortOrder,
       },
@@ -82,7 +88,7 @@ export async function POST(req: Request) {
       },
     })
 
-    return NextResponse.json(job, { status: 201 })
+    return NextResponse.json(toJsonWireDeep(job), { status: 201 })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/jobs', 'Napaka pri ustvarjanju delovnega mesta')
   }

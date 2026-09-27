@@ -15,20 +15,26 @@ const vatEntrySchema = z.object({
 })
 
 /**
- * Razčleni vatBreakdown JSON niz v strukturo za FURS overitev
+ * Razčleni vatBreakdown v strukturo za FURS overitev
  * Format v bazi: {"22": {"base": 10.0, "vat": 2.2}, "9.5": {"base": 5.0, "vat": 0.475}}
  *
- * @param vatBreakdownStr JSON niz iz Receipt.vatBreakdown
+ * R150 (repo issue #33): Receipt.vatBreakdown je po migraciji 0022 JSONB —
+ * tolerantni vhod: legacy JSON string ALI native object (struct iz baze).
+ *
+ * @param vatBreakdownInput JSON niz ALI native object iz Receipt.vatBreakdown
  * @param fallbackTotal Če je vatBreakdown prazen, generiraj fallback s to vsoto
  * @param fallbackVatRate DDV stopnja za fallback (privzeto 22%)
  */
 export function parseVatBreakdown(
-  vatBreakdownStr: string,
+  vatBreakdownInput: string | Record<string, unknown> | null | undefined,
   fallbackTotal?: number,
   fallbackVatRate?: number
 ): Array<{ rate: number; baseAmount: number; vatAmount: number }> {
   try {
-    const parsed: unknown = JSON.parse(vatBreakdownStr || '{}')
+    // R150 (#33): struct (JSONB) gre DIREKTNO v obdelavo, string skozi JSON.parse
+    const parsed: unknown = (vatBreakdownInput !== null && typeof vatBreakdownInput === 'object')
+      ? vatBreakdownInput
+      : JSON.parse((vatBreakdownInput as string) || '{}')
     // P1-9: validiraj strukturo {stopnja: {base, vat}} — neveljavni vnosi
     // (npr. null, string vrednosti, NaN stopnje) se preskočijo
     const result = (parsed && typeof parsed === 'object' ? Object.entries(parsed as Record<string, unknown>) : [])

@@ -97,7 +97,7 @@ beforeAll(async () => {
   await db.location.create({ data: { id: IDS.locationA, name: 'R135 Kiosk Lokacija', code: `${RUN_ID}-A`, premisesId: `${RUN_ID}-pa`, isActive: true } })
   await db.location.create({ data: { id: IDS.locationB, name: 'R135 Tuja Lokacija', code: `${RUN_ID}-B`, premisesId: `${RUN_ID}-pb`, isActive: true } })
   await db.employee.create({
-    data: { id: IDS.employee, name: 'R135 Kuhar', email: `${RUN_ID}@r135-test.local`, role: 'admin', status: 'active', locationId: IDS.locationA },
+    data: { id: IDS.employee, name: 'R135 Kuhar', email: `${RUN_ID}@r135-test.local`, role: 'admin', status: 'active', /* CI fix #133: pin @unique @default("") — ekspliciten RUN_ID pin (P2002) */ pin: `pin-${RUN_ID}`, locationId: IDS.locationA },
   })
   await db.menu.create({ data: { id: IDS.menu, name: `R135 Meni ${RUN_ID}`, locationId: IDS.locationA, isActive: true } })
   await db.category.create({ data: { id: IDS.category, name: `R135 Kat ${RUN_ID}`, menuId: IDS.menu } })

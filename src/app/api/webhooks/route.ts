@@ -10,6 +10,9 @@ import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { maskWebhookSecret } from '@/lib/secret-masks'
+// R150 (repo issue #33): Webhook.events je zdaj JSONB (0022) — NATIVNA
+// vrednost v DB, wire mapping GET/POST odgovorov.
+import { parseWebhookEvents, toJsonWireDeep } from '@/lib/json-fields'
 
 // Validacijska shema za kreiranje webhooka
 const createWebhookSchema = z.object({
@@ -51,7 +54,8 @@ export async function GET(req: Request) {
     })
 
     // FIX SECURITY: maskiraj webhook secret v GET odgovoru
-    return NextResponse.json(deepToNumbers(webhooks.map(maskWebhookSecret)))
+    // R150 (#33): wire mapping — JSONB struct → JSON string
+    return NextResponse.json(toJsonWireDeep(deepToNumbers(webhooks.map(maskWebhookSecret))))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/webhooks', 'Napaka pri pridobivanju spletnih kljuk')
   }
@@ -115,7 +119,8 @@ export async function POST(req: Request) {
       data: {
         name: data.name,
         url: data.url,
-        events: data.events,
+        // R150 (#33): wire sprejema JSON string, DB dobi NATIVNO Json vrednost
+        events: parseWebhookEvents(data.events),
         isActive: data.isActive,
         secret,
         ...(webhookLocationId ? { locationId: webhookLocationId } : {}),
@@ -124,7 +129,8 @@ export async function POST(req: Request) {
 
     // NOTE: POST vrne neo-maskiran secret — uporabnik ga mora videti enkrat
     // ob kreiranju, da ga lahko kopira. Vsi nadaljnji GET klici ga maskirajo.
-    return NextResponse.json(webhook, { status: 201 })
+    // R150 (#33): wire mapping na POST odgovoru (byte-identical wire)
+    return NextResponse.json(toJsonWireDeep(webhook), { status: 201 })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/webhooks', 'Napaka pri ustvarjanju spletne kljuke')
   }

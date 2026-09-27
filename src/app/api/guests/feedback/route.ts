@@ -18,6 +18,7 @@ import { resolveTenantLocationIdOrThrow, resolveWriteLocationId } from '@/lib/te
 // notranjih/workerskih stolpcev, nova polja (status/tableNumber/orderRef/...)
 // so vključena; glej _helpers/feedback-select.ts
 import { FEEDBACK_SELECT } from './_helpers/feedback-select'
+import { parseStringArray } from '@/lib/json-fields'
 
 export const dynamic = 'force-dynamic'
 
@@ -157,7 +158,7 @@ export async function POST(req: Request) {
         serviceRating: data.serviceRating,
         atmosphereRating: data.atmosphereRating,
         comment: data.comment,
-        tags: JSON.stringify(data.tags),
+        tags: parseStringArray(data.tags), // R150: JSONB native
         wouldReturn: data.wouldReturn,
         wouldRecommend: data.wouldRecommend,
         source: data.source,

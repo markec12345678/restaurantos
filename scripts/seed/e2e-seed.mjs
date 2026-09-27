@@ -16,8 +16,8 @@ async function main() {
   console.log('✓ 2 tax rates')
 
   // 2. Jobs with permissions
-  const adminJob = await prisma.job.create({ data: { name: 'Administrator', code: 'ADM', permissions: JSON.stringify(['admin']), isActive: true, sortOrder: 0 } })
-  const serverJob = await prisma.job.create({ data: { name: 'Natakar', code: 'NAT', permissions: JSON.stringify(['take_orders', 'view_reports']), isActive: true, sortOrder: 1 } })
+  const adminJob = await prisma.job.create({ data: { name: 'Administrator', code: 'ADM', permissions: ['admin'], isActive: true, sortOrder: 0 } })
+  const serverJob = await prisma.job.create({ data: { name: 'Natakar', code: 'NAT', permissions: ['take_orders', 'view_reports'], isActive: true, sortOrder: 1 } })
   console.log('✓ 2 jobs')
 
   // 3. Employees (admin 1234, staff 0000) — bcrypt hashed PIN + pinLookup

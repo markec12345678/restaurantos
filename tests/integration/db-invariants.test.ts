@@ -124,7 +124,9 @@ describe('Integracija D: write roundtrip + unique violation (P2002)', () => {
         role: 'waiter',
         status: 'active',
         hireDate: new Date(),
-        pin: 'pin-hash-placeholder',
+        // CI fix #133: pin je @unique — fiksna vrednost bi P2002-ala na umazani
+        // bazi (ostanek prejšnjega runa); RUN_ID pin je deterministično izoliran.
+        pin: `pin-${RUN_ID}`,
       },
     })
 
@@ -133,7 +135,9 @@ describe('Integracija D: write roundtrip + unique violation (P2002)', () => {
         token: `hash-${RUN_ID}`,
         employeeId: EMP_ID,
         role: 'waiter',
-        permissions: JSON.stringify([]),
+        // R150 (repo issue #33): Session.permissions je zdaj Json (0022_json_fields)
+        // — nativna vrednost, sicer tiho double-encode ('"[]"' kot jsonb string).
+        permissions: [],
         sessionVersion: 0,
         createdAt: new Date(),
         expiresAt: new Date(Date.now() + 60_000),
@@ -154,7 +158,8 @@ describe('Integracija D: write roundtrip + unique violation (P2002)', () => {
           token: `hash-${RUN_ID}`, // isti token kot v prejšnjem testu
           employeeId: EMP_ID,
           role: 'waiter',
-          permissions: JSON.stringify([]),
+          // R150 (repo issue #33): nativna vrednost — glej komentar zgoraj.
+          permissions: [],
           sessionVersion: 0,
           createdAt: new Date(),
           expiresAt: new Date(Date.now() + 60_000),

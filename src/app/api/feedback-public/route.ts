@@ -122,7 +122,7 @@ export async function POST(req: Request) {
         serviceRating: Math.round((ratings as Record<string, number>)['service'] || 0),
         atmosphereRating: Math.round((ratings as Record<string, number>)['ambience'] || 0),
         comment: (comment || '').slice(0, 500),
-        tags: JSON.stringify(quickFeedback || []),
+        tags: quickFeedback || [], // R150: JSONB native
         wouldReturn: (avgRating || 3) >= 4,
         wouldRecommend: (avgRating || 3) >= 4,
         source: source || 'qr_kiosk',

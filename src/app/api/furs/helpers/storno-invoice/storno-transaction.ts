@@ -34,14 +34,12 @@ export async function executeStornoTransaction(
         fiscalVerified: fursResult.success,
         verificationDate: fursResult.verifiedAt,
         subtotal: originalReceipt.subtotal.negated(),
-        vatBreakdown: JSON.stringify(
-          Object.fromEntries(
-            Object.entries(vatBreakdownForStorno).map(([rate, data]) => [
-              rate,
-              { base: -(data as { base: number; vat: number }).base, vat: -(data as { base: number; vat: number }).vat }
-            ])
-          )
-        ),
+        vatBreakdown: Object.fromEntries(
+          Object.entries(vatBreakdownForStorno).map(([rate, data]) => [
+            rate,
+            { base: -(data as { base: number; vat: number }).base, vat: -(data as { base: number; vat: number }).vat }
+          ])
+        ), // R150: JSONB native
         totalVat: originalReceipt.totalVat.negated(),
         discount: originalReceipt.discount.negated(),
         total: originalReceipt.total.negated(),

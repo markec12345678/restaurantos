@@ -11,6 +11,9 @@ import { z } from 'zod'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { parseJsonBody, handleApiError } from '@/lib/api-utils'
 import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
+// R150 (repo issue #33): DeliveryZone.postCodes/cities sta zdaj JSONB (0022)
+// — NATIVNI vrednosti v DB, wire mapping PATCH odgovora.
+import { parseStringArray, toJsonWireDeep } from '@/lib/json-fields'
 
 
 const updateSchema = z.object({
@@ -70,6 +73,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     // super-admin sme reassign samo na NE-PRAZEN value (nastavljanje NULL
     // ni dovoljeno — legacy NULL vrstice postanejo fail-closed).
     const updateData: Record<string, unknown> = { ...parsed.data }
+    // R150 (#33): wire sprejema JSON string, DB dobi NATIVNI Json vrednosti
+    if (parsed.data.postCodes !== undefined) updateData.postCodes = parseStringArray(parsed.data.postCodes)
+    if (parsed.data.cities !== undefined) updateData.cities = parseStringArray(parsed.data.cities)
     if ('locationId' in updateData) {
       if (scope.locationId || !updateData.locationId) {
         delete updateData.locationId
@@ -77,7 +83,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     }
 
     const zone = await db.deliveryZone.update({ where: { id }, data: updateData })
-    return NextResponse.json(decimalsToNumbers(zone, ['deliveryFee', 'minOrderAmount', 'freeDeliveryAbove']))
+    // R150 (#33): wire mapping — JSONB struct → JSON string
+    return NextResponse.json(toJsonWireDeep(decimalsToNumbers(zone, ['deliveryFee', 'minOrderAmount', 'freeDeliveryAbove'])))
   } catch (error: unknown) {
     return handleApiError(error, 'PATCH /api/delivery-zones/[id]', 'Napaka pri posodabljanju cone')
   }

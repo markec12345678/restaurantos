@@ -8,7 +8,7 @@ import { getNextOrderNumber } from '@/lib/counters' // R88-3: resolveDefaultLoca
 import { createOrderSchema } from '@/lib/validations'
 import { checkStockAvailability } from '@/lib/stock-deduction'
 import { validateRequest } from '@/lib/api-utils'
-import { buildOrderItemsData, calculateOrderTotals, validateMenuItems, fetchModifierPriceMap, type MenuItemVatMap } from './order-items'
+import { buildOrderItemsData, calculateOrderTotals, validateMenuItems, fetchModifierPriceMap, pairOrderItemsWithInput, writeOrderItemModifiersInTx, type MenuItemVatMap } from './order-items'
 import { handleStockDeduction, handlePostCreationEffects } from './stock'
 import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 // R128 (P0-5): best-effort offline ledger — zapis DeviceSyncOperation ob uspehu,
@@ -373,6 +373,17 @@ export async function handlePostOrder(
         },
       })
 
+      // R150 (repo issue #33): DUAL-WRITE — normalizirane OrderItemModifier
+      // join vrstice v ISTI transakciji (legacy OrderItem.modifiersJson string
+      // je zapisan nespremenjen). Nested create → deterministično parjenje po
+      // podpisu (menuItemId, quantity, notes, modifiersJson); prazni
+      // modifiersJson → 0 vrstic (zero churn za legacy naročila brez dodatkov).
+      await writeOrderItemModifiersInTx(
+        tx,
+        pairOrderItemsWithInput(newOrder.orderItems, orderItemsData)
+          .map(({ db, input }) => ({ orderItemId: db.id, modifiersJson: input.modifiersJson })),
+      )
+
       let txOrder = newOrder
 
       // R134: course wiring — V ISTI transakciji kot order + itemi (atomarnost).
@@ -400,8 +411,10 @@ export async function handlePostOrder(
           })
           courseIds.set(n, course.id)
         }
+        // R150 (#33): dual-write par za vsak eksplicitno kreiran item
+        const courseItemPairs: Array<{ orderItemId: string; modifiersJson: unknown }> = []
         for (let i = 0; i < orderItemsData.length; i++) {
-          await tx.orderItem.create({
+          const createdItem = await tx.orderItem.create({
             // OrderItemData matches unchecked create input (isti cast kot legacy)
             data: {
               ...orderItemsData[i],
@@ -409,7 +422,10 @@ export async function handlePostOrder(
               courseId: courseIds.get(itemCourseNumbers[i]) ?? null,
             } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
           })
+          courseItemPairs.push({ orderItemId: createdItem.id, modifiersJson: orderItemsData[i].modifiersJson })
         }
+        // R150 (#33): join vrstice za course pot (isti tx, direktno parjenje)
+        await writeOrderItemModifiersInTx(tx, courseItemPairs)
         // Osveži odgovor: itemi zdaj nosijo courseId (+ aditivno `courses`).
         // Enaka vključenost kot legacy pot (table + orderItems.menuItem).
         const fresh = await tx.order.findUnique({

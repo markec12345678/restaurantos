@@ -108,7 +108,9 @@ export async function handlePostReceipt(
         eor: '',
         fiscalVerified: false,
         subtotal: order.subtotal,
-        vatBreakdown: JSON.stringify(vatBreakdownForReceipt),
+        // R150 (repo issue #33): Receipt.vatBreakdown je zdaj JSONB (0022) —
+        // NATIVNA vrednost (JSON.stringify bi tiho dvojno kodiral JSON string)
+        vatBreakdown: vatBreakdownForReceipt,
         totalVat: order.tax,
         discount: order.discount,
         total: order.total,

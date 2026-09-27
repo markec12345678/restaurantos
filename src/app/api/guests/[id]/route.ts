@@ -9,6 +9,9 @@ import { deepToNumbers } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { resolveTenantLocationIdOrThrow, notInScopeResponse } from '@/lib/tenant-scope'
 import { updateGuestSchema } from '@/lib/validations'
+// R150 (repo issue #33): Guest JSON polja so zdaj JSONB (0022_json_fields) —
+// NATIVNE vrednosti v DB, wire mapping na GET/PUT odgovorih.
+import { parseAllergens, parseStringArray, toJsonWireDeep } from '@/lib/json-fields'
 import { parseJsonBody, handleApiError, validateBody } from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
@@ -89,7 +92,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       return notInScopeResponse('Gost')
     }
 
-    return NextResponse.json(deepToNumbers(guest))
+    // R150 (#33): wire mapping — JSONB struct → JSON string (byte-identical wire)
+    return NextResponse.json(toJsonWireDeep(deepToNumbers(guest)))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/guests/[id]', 'Napaka pri pridobivanju gosta')
   }
@@ -143,10 +147,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       updateData.isVip = data.isVip
       if (data.isVip && !existing.isVip) updateData.vipSince = new Date()
     }
-    if (data.allergens !== undefined) updateData.allergens = JSON.stringify(data.allergens)
-    if (data.dietaryPrefs !== undefined) updateData.dietaryPrefs = JSON.stringify(data.dietaryPrefs)
-    if (data.dislikes !== undefined) updateData.dislikes = JSON.stringify(data.dislikes)
-    if (data.favoriteItems !== undefined) updateData.favoriteItems = JSON.stringify(data.favoriteItems)
+    // R150 (#33): tolerantni parserji (sprejmejo wire string ALI array) —
+    // DB dobi NATIVNO Json vrednost
+    if (data.allergens !== undefined) updateData.allergens = parseAllergens(data.allergens)
+    if (data.dietaryPrefs !== undefined) updateData.dietaryPrefs = parseStringArray(data.dietaryPrefs)
+    if (data.dislikes !== undefined) updateData.dislikes = parseStringArray(data.dislikes)
+    if (data.favoriteItems !== undefined) updateData.favoriteItems = parseStringArray(data.favoriteItems)
     if (data.birthday !== undefined) updateData.birthday = data.birthday ? new Date(data.birthday) : null
     if (data.anniversary !== undefined) updateData.anniversary = data.anniversary ? new Date(data.anniversary) : null
     if (data.company !== undefined) updateData.company = data.company
@@ -158,7 +164,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       include: { loyaltyAccount: true },
     })
 
-    return NextResponse.json(deepToNumbers(guest))
+    // R150 (#33): wire mapping na PUT odgovoru (byte-identical wire)
+    return NextResponse.json(toJsonWireDeep(deepToNumbers(guest)))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/guests/[id]', 'Napaka pri posodabljanju gosta')
   }
@@ -219,10 +226,11 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         company: '',
         birthday: null,
         anniversary: null,
-        allergens: '[]',
-        dietaryPrefs: '[]',
-        dislikes: '[]',
-        favoriteItems: '[]',
+        // R150 (#33): JSONB stolpci — NATIVNE vrednosti (ne stringi)
+        allergens: [],
+        dietaryPrefs: [],
+        dislikes: [],
+        favoriteItems: [],
       },
     })
 

@@ -6,6 +6,9 @@ import { woltOrderSchema } from './wolt-schema'
 import type { WebhookOrderItem } from './wolt-schema'
 import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
+// R150 (repo issue #33): IntegrationLog.requestData/responseData sta zdaj JSONB
+// (0022_json_fields) — tolerantno branje (legacy JSON string ALI native struct).
+import { parseJsonPayload, type JsonFieldInput } from '@/lib/json-fields'
 
 // ---- Idempotency Check ----
 // FIX D-02: Natančno ujemanje order_id, NE substring contains
@@ -30,19 +33,23 @@ export async function findExistingWoltOrder(
       direction: 'inbound',
       status: 'success',
       OR: [
-        { requestData: { contains: `"order_id":"${orderId}"` } },
-        { requestData: { contains: `"order_id": "${orderId}"` } },
+        // R150 (#33): stolpec je zdaj JSONB — string `contains` ne dela.
+        // Wolt logi (wolt-inventory) shranjujejo RAW body kot jsonb STRING
+        // scalar → string_contains; migrirane/nove object vrstice → path.
+        { requestData: { string_contains: `"order_id":"${orderId}"` } },
+        { requestData: { string_contains: `"order_id": "${orderId}"` } },
+        { requestData: { path: ['order_id'], equals: orderId } },
       ],
     },
   })
   const existingLog = candidateLogs.find(log => {
-    try {
-      const data = JSON.parse(log.requestData || '{}')
-      return data.order_id === orderId
-    } catch { return false }
+    // R150 (#33): tolerantno branje — native jsonb struct ali legacy string
+    const data = parseJsonPayload(log.requestData as unknown as JsonFieldInput)
+    return data.order_id === orderId
   })
   if (existingLog) {
-    const existingOrderId = (() => { try { return JSON.parse(existingLog.responseData || '{}').orderId } catch { return null } })()
+    const resp = parseJsonPayload(existingLog.responseData as unknown as JsonFieldInput)
+    const existingOrderId = typeof resp.orderId === 'string' ? resp.orderId : null
     return { type: 'log' as const, orderId: existingOrderId }
   }
   // Backward compat: preveri tudi notes

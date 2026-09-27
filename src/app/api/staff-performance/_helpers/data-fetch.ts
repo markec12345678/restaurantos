@@ -53,7 +53,12 @@ export async function fetchPerformanceData(startDate: Date, locationId: string |
       select: { employeeId: true, createdAt: true, updatedAt: true },
     }),
     db.order.findMany({
-      where: { createdAt: { gte: startDate }, employeeId: { not: null }, orderItems: { some: { modifiersJson: { not: '[]' } } }, ...loc },
+      // R150 (repo issue #33): OrderItem.modifiersJson je legacy String
+      // (dual-write stolpec) — queryability poteka prek NOVE join tabele
+      // OrderItemModifier (`some: {}` join-exists; točka B issue-a #33).
+      // Prej: `modifiersJson: { not: '[]' }` — Prisma Json filter na string
+      // pa se na JSONB ne poštuje (in po 0022 so join vrstice backfillane).
+      where: { createdAt: { gte: startDate }, employeeId: { not: null }, orderItems: { some: { orderItemModifiers: { some: {} } } }, ...loc },
       select: { employeeId: true },
     }),
   ])

@@ -106,7 +106,8 @@ model MealtimeRule {
   menuItem    MenuItem  @relation(fields: [menuItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   name        String   @default("")       // "Zajtrk", "Kosilo", "Happy Hour"
   // Dnevi v tednu: 0=nedelja, 1=ponedelnik, ..., 6=sobota
-  daysOfWeek  String   @default("[1,2,3,4,5]")  // JSON array
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("[1,2,3,4,5]"))
+  daysOfWeek  Json     @default("[1,2,3,4,5]")  // JSON array
   // Časovno okno (prazno = cel dan)
   timeFrom    String   @default("")       // "06:00"
   timeTo      String   @default("")       // "11:00"
@@ -128,6 +129,8 @@ model ModifierGroup {
   sortOrder   Int      @default(0)
   modifiers   Modifier[]
   menuItems   MenuItemModifierGroup[]
+  // R150 (#33): normalizirane join vrstice modifikatorjev (snapshot skupinskega imena)
+  orderItemModifiers OrderItemModifier[]
   // MODEL A — #9 tenant scope audit 2026-09-09: skupine modifikatorjev so PO
   // LOKACIJI, NOT NULL (cene v EUR / dostopnost so operativni podatek lokacije).
   // Prej popolnoma globalne: GET /api/modifier-groups je izpisal VSE najemnike,
@@ -388,7 +391,7 @@ model Printer {
   ipAddress   String   @default("") // IP naslov omrežnega tiskalnika
   isActive    Boolean  @default(true)
   // Kaj se tiska na tem tiskalniku (JSON array)
-  printRules  String   @default("[]") // [{type: "order", prepStationId: "..."}, {type: "receipt"}]
+  printRules  Json     @default("[]") // R150 #33: Json (Phase 3) — [{type: "order", prepStationId: "..."}, {type: "receipt"}]
   sortOrder   Int      @default(0)
   // MODEL A — tenant scope audit 2026-09-09: PO LOKACIJI, NOT NULL
   // (polje `location` je OPIS fizičnega mesta; `locationId` je tenant dodelitev)
@@ -581,7 +584,11 @@ model OrderItem {
   vatRate        Decimal   @default(22.00) @db.Decimal(5, 2)  // P1-8: DDV stopnja artikla
   vatAmount      Decimal   @default(0) @db.Decimal(12, 2)  // P1-8: DDV znesek artikla
   notes          String   @default("")
+  // R150 (#33): LEGACY wire stolpec — ostaja String (dual-write z OrderItemModifier
+  // join vrsticami; drop je odložen na cleanup rundi, wire/UI bereta string).
   modifiersJson  String   @default("[]") // JSON array of selected modifiers [{name, price}]
+  // R150 (#33): normalizirane join vrstice modifikatorjev (queryability + FK integriteta)
+  orderItemModifiers OrderItemModifier[]
   menuItemName   String   @default("") // FIX: Denormalizirano ime artikla za naročila
   // --- Toast: Void/Poničitev ---
   voided         Boolean  @default(false)
@@ -624,6 +631,34 @@ model OrderItem {
   @@index([orderId, status])  // KDS: prikaz statusa postavk za naročilo
   @@index([voidReasonId])     // FIX: FK index — EOD poročila o razlogih za poničenje
   @@index([appliedDiscountId]) // FIX: FK index — analiza popustov po postavkah
+}
+
+// ============================================
+// POSTAVKE NAROČILA — MODIFIKATORJI (R150, repo issue #33 "JSON-as-String", HIGH del)
+// ============================================
+// Normalizirana razčlenitev OrderItem.modifiersJson (legacy String wire stolpec
+// ostane — dual-write v isti transakciji; drop = cleanup runda). NAMEN:
+//   - FK integriteta (prej: flatten v JSON string brez referenc)
+//   - queryability: "kolikokrat je bil modifier X uporabljen?" → COUNT po vrsticah
+//   - snapshot cene v času naročila (Decimal(12,2)) — pariteta OrderItem.price
+// modifierGroupId je MEHKA referenca na ModifierGroup (SetNull): legacy wire
+// vnosi brez skupine ali s izbrisano skupino → NULL + snapshot imena ostane.
+model OrderItemModifier {
+  id                String        @id @default(cuid())
+  orderItemId       String
+  orderItem         OrderItem     @relation(fields: [orderItemId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  name              String                          // snapshot imena modifierja (wire)
+  price             Decimal       @db.Decimal(12, 2) // snapshot cene v času naročila (EUR, neto)
+  quantity          Int?                            // wire: opcijska količina modifierja
+  modifierGroupId   String?
+  modifierGroup     ModifierGroup? @relation(fields: [modifierGroupId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  modifierGroupName String        @default("")      // snapshot imena skupine (izbris odporne forenzike)
+  sortOrder         Int           @default(0)       // vrstni red v wire arrayu (0-based)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@index([orderItemId])
+  @@index([modifierGroupId])
 }
 
 // ============================================
@@ -831,7 +866,8 @@ model Job {
   basePayRate Decimal  @default(0) @db.Decimal(12, 2) // Osnovna urna postavka  // P1-8
   overtimeRate Decimal  @default(0) // Osnovna + 50% za presežek  // FIX: Decimal za valuto
   // --- Dovoljenja (JSON) ---
-  permissions String   @default("[]") // ["take_orders", "void_items", "apply_discounts", "manage_cash", "admin"]
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("[]"))
+  permissions Json     @default("[]") // ["take_orders", "void_items", "apply_discounts", "manage_cash", "admin"]
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
   // --- Relations ---
@@ -1373,7 +1409,7 @@ model Receipt {
   cisSubmittedAt    DateTime?
   // --- Vsebina računa ---
   subtotal          Decimal           @db.Decimal(12, 2) // P1-8
-  vatBreakdown      String   @default("{}")
+  vatBreakdown      Json     @default("{}") // R150 #33: Json (Phase 3)
   totalVat          Decimal           @db.Decimal(12, 2) // P1-8
   discount          Decimal   @default(0) @db.Decimal(12, 2)  // P1-8
   total             Decimal           @db.Decimal(12, 2) // P1-8
@@ -1584,7 +1620,8 @@ model RestaurantSettings {
   emailSmtpUser       String   @default("")      // SMTP uporabniško ime
   emailSmtpPassword   String   @default("")      // SMTP geslo (naj bo encrypted v produkciji)
   emailFromAddress    String   @default("")      // Naslov pošiljatelja (npr. reports@restaurant.com)
-  emailReportRecipients String @default("[]")   // JSON: ["knjigovodja@racunovodja.si"] za dnevne Z-report
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("[]"))
+  emailReportRecipients Json @default("[]")   // JSON: ["knjigovodja@racunovodja.si"] za dnevne Z-report
   isActive          Boolean  @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -1633,7 +1670,8 @@ model Location {
   loyaltyEnabled        Boolean  @default(false)
   loyaltyPointsPerEuro  Int      @default(1)
   loyaltyPointsValue    Decimal  @default(0.01) @db.Decimal(12, 2)  // P1-8
-  emailReportRecipients String   @default("[]")        // JSON: ["knjigovodja@racunovodja.si"]
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("[]"))
+  emailReportRecipients Json     @default("[]")        // JSON: ["knjigovodja@racunovodja.si"]
   emailEnabled          Boolean  @default(false)        // Per-lokacija email (override global)
   // --- Koordinate ---
   latitude        Float?
@@ -1728,8 +1766,9 @@ model DeliveryZone {
   id              String   @id @default(cuid())
   name            String                             // "Center Ljubljana", "Rožna dolina", "Šiška"
   // --- Območje ---
-  postCodes       String   @default("[]")            // JSON: ["1000","1001"] — poštne številke v coni
-  cities          String   @default("[]")            // JSON: ["Ljubljana"] — mesta v coni
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("[]"))
+  postCodes       Json     @default("[]")            // JSON: ["1000","1001"] — poštne številke v coni
+  cities          Json     @default("[]")            // JSON: ["Ljubljana"] — mesta v coni
   // --- Radij (alternativa poštnim številkam) ---
   radiusKm        Float?                             // Radij v km od lokacije (null = uporabi postCodes)
   centerLat       Float?
@@ -1822,7 +1861,8 @@ model Webhook {
   id          String   @id @default(cuid())
   name        String   // "Poslano v kuhinjo", "Plačilo prejeto", "Zaloga nizka"
   url         String   // Endpoint URL
-  events      String   @default("[]") // JSON: ["order.created", "order.paid", "stock.low", "shift.started"]
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("[]"))
+  events      Json     @default("[]") // JSON: ["order.created", "order.paid", "stock.low", "shift.started"]
   isActive    Boolean  @default(true)
   secret      String   @default("") // Za podpisovanje payloada
   lastTriggered DateTime?
@@ -2051,10 +2091,11 @@ model Guest {
   isVip           Boolean  @default(false)
   vipSince        DateTime?
   // --- Alergeni in preference ---
-  allergens       String   @default("[]")       // JSON: ["1","3","7"] (EU številke alergenov)
-  dietaryPrefs    String   @default("[]")       // JSON: ["vegetarijansko","brez glutena","halal"]
-  dislikes        String   @default("[]")       // JSON: ["lignji","gobe"] — kaj gost ne mara
-  favoriteItems   String   @default("[]")       // JSON: ["Beefsteak","Laški teran"] — najljubše jedi
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("[]")) — 4× PII polja
+  allergens       Json     @default("[]")       // JSON: ["1","3","7"] (EU številke alergenov)
+  dietaryPrefs    Json     @default("[]")       // JSON: ["vegetarijansko","brez glutena","halal"]
+  dislikes        Json     @default("[]")       // JSON: ["lignji","gobe"] — kaj gost ne mara
+  favoriteItems   Json     @default("[]")       // JSON: ["Beefsteak","Laški teran"] — najljubše jedi
   // --- Osebni podatki ---
   birthday        DateTime?
   anniversary     DateTime?
@@ -2151,7 +2192,8 @@ model Supplier {
   bank            String   @default("")
   // --- Pogoji ---
   paymentTerms    String   @default("30 dni")   // "15 dni", "30 dni", "2% popust 10 dni"
-  deliveryDays    String   @default("[]")       // JSON: ["pon","sre","pet"]
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("[]"))
+  deliveryDays    Json     @default("[]")       // JSON: ["pon","sre","pet"]
   minOrderAmount  Decimal   @default(0) // FIX: Decimal za valuto
   // --- FASE 3: Accounts Payable relation ---
   accountsPayables AccountsPayable[]
@@ -2563,7 +2605,8 @@ model HappyHourSchedule {
   discountType    String   @default("none") // none, percentage, fixed_amount
   discountAmount  Decimal   @default(0) // Odstotek ali znesek  // FIX: Decimal za valuto
   // --- Časovni razpored ---
-  daysOfWeek      String   @default("[1,2,3,4,5]") // JSON: 1=pon, 7=ned
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("[1,2,3,4,5]"))
+  daysOfWeek      Json     @default("[1,2,3,4,5]") // JSON: 1=pon, 7=ned
   startTime       String   // "16:00"
   endTime         String   // "18:00"
   // --- Datumsko obdobje (opcijsko — za sezonske akcije) ---
@@ -2571,7 +2614,8 @@ model HappyHourSchedule {
   validTo         DateTime?
   // --- Omejitve ---
   appliesTo       String   @default("all") // all, category_ids, menu_item_ids
-  appliesToIds    String   @default("[]")  // JSON array ID-jev
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("[]"))
+  appliesToIds    Json     @default("[]")  // JSON array ID-jev
   // --- Status ---
   isActive        Boolean  @default(true)
   autoActivate    Boolean  @default(true)  // Samodejno aktiviraj ob času
@@ -2627,7 +2671,8 @@ model Integration {
   baseUrl         String   @default("") // API URL ponudnika
   apiKey          String   @default("") // Šifriran API ključ
   apiSecret       String   @default("") // Šifriran API skrivnost
-  config          String   @default("{}") // JSON: dodatne nastavitve (podjetje_id, mapa_id, itd.)
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("{}"))
+  config          Json     @default("{}") // JSON: dodatne nastavitve (podjetje_id, mapa_id, itd.)
   // --- Sinhronizacija ---
   syncEnabled     Boolean  @default(true)
   syncInterval    Int      @default(300) // Sekunde med sinhronizacijami (5 min privzeto)
@@ -2635,7 +2680,8 @@ model Integration {
   lastSyncStatus  String   @default("") // success, error, partial
   lastSyncError   String   @default("")
   // --- Dogodki, ki sprožijo sinhronizacijo ---
-  events          String   @default("[]") // JSON: ["order.paid", "receipt.created", "daily.close"]
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("[]"))
+  events          Json     @default("[]") // JSON: ["order.paid", "receipt.created", "daily.close"]
   // --- Status ---
   isActive        Boolean  @default(true)
   connectionStatus String  @default("disconnected") // connected, disconnected, error
@@ -2669,8 +2715,9 @@ model IntegrationLog {
   // --- Status ---
   status          String     @default("pending") // pending, success, error, timeout
   statusCode      Int        @default(0) // HTTP status code
-  requestData     String     @default("{}") // JSON: poslani podatki
-  responseData    String     @default("{}") // JSON: prejeti odziv
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("{}"))
+  requestData     Json       @default("{}") // JSON: poslani podatki
+  responseData    Json       @default("{}") // JSON: prejeti odziv
   errorMessage    String     @default("")
   // --- Čas ---
   durationMs      Int        @default(0) // Trajanje v ms
@@ -2773,7 +2820,8 @@ model GuestFeedback {
   atmosphereRating Int     @default(0)   // Atmosfera
   // --- Komentarji ---
   comment         String   @default("")
-  tags            String   @default("[]") // JSON: ["Odlična hrana", "Hitra postrežba"]
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("[]"))
+  tags            Json     @default("[]") // JSON: ["Odlična hrana", "Hitra postrežba"]
   // --- Ali bi se vrnil / priporočil ---
   wouldReturn     Boolean  @default(true)
   wouldRecommend  Boolean  @default(true)
@@ -3077,7 +3125,8 @@ model Session {
   token           String   @unique              // SHA-256 hash Bearer tokena (64 hex) — plain token se nikjer ne persistira (FIX SECURITY)
   employeeId      String                        // ID zaposlenega
   role            String                        // admin, manager, staff
-  permissions     String   @default("[]")       // JSON array: ["take_orders", "void_item", ...]
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("[]"))
+  permissions     Json     @default("[]")       // JSON array: ["take_orders", "void_item", ...]
   // P1-11: Različica Employee.sessionVersion ob prijavi — če se poviša
   // (PIN/role/status sprememba), seja takoj postane neveljavna.
   sessionVersion  Int      @default(0)
@@ -3113,7 +3162,8 @@ model BiometricCredential {
   // Če naslednji assertion pride z nižjim/enačim counterjem → sum kloniranja.
   counter       Int      @default(0)
   // Transports (internal/usb/nfc/ble/hybrid/smart-card) — JSON array.
-  transports    String   @default("[]")
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("[]"))
+  transports    Json     @default("[]")
   // Bitflag ali besedilna oznaka vrste naprave (platform | cross-platform).
   deviceType    String   @default("")
   // Ali je authenticator backt-up (FIDO2 attestation bit). true → Multi-Device Credential.
@@ -3395,7 +3445,8 @@ model KotDocument {
   order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   type            String   @default("original") // original, modified, partially_cancelled, cancelled
   // --- Vsebina KOT (snapshot ob trenutku izdaje) ---
-  itemsJson       String   @default("[]")       // JSON: [{name, qty, notes, station}]
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("[]"))
+  itemsJson       Json     @default("[]")       // JSON: [{name, qty, notes, station}]
   orderNotes      String   @default("")
   tableNumber     Int?
   orderType       String   @default("dine-in")  // dine-in, takeaway, delivery
@@ -3858,7 +3909,8 @@ model ApiKey {
   keyPrefix       String                          // Prvih 12 znakov (za identifikacijo: "posr_xxxxxxxx")
   keyHash         String   @unique                // SHA-256 hash (nikoli ne shranjujemo plain key)
   // --- Authorization ---
-  scopes          String   @default("[]")         // JSON: ["read:orders", "write:orders", "admin"]
+  // R150 (#33 Phase 3): Json tip (prvotno String @default("[]"))
+  scopes          Json     @default("[]")         // JSON: ["read:orders", "write:orders", "admin"]
   rateLimit       Int      @default(60)            // requests per minute
   // --- Status ---
   isActive        Boolean  @default(true)

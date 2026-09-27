@@ -48,10 +48,13 @@ const mocks = vi.hoisted(() => ({
   txTableUpdateMany: vi.fn(),
 }))
 
-// Skupni tx objekt — iste funkcije kot db top-level (vzorec r85/r88)
+// Skupni tx objekt — iste funkcije kot db top-level (vzorec r85/r88).
+// R150 (#33): + orderItemModifier.createMany (dual-write delegate — realni tx
+// klient ga ima; trap-DB mora zrcaliti tx obliko tudi, če ga te testi ne sprožijo).
 const tx = {
   order: { create: mocks.txOrderCreate },
   table: { findUnique: mocks.txTableFindUnique, updateMany: mocks.txTableUpdateMany },
+  orderItemModifier: { createMany: vi.fn(async () => ({ count: 0 })) },
 }
 
 // Auth middleware: mock requireAuth, REALNI tenant-scope resolver
@@ -88,23 +91,32 @@ vi.mock('@/lib/stock-deduction', () => ({
   checkStockAvailability: mocks.checkStockAvailability,
 }))
 
-vi.mock('@/app/api/orders/_helpers/order-items', () => ({
-  buildOrderItemsData: vi.fn((items: { menuItemId: string; quantity: number }[]) => ({
-    orderItemsData: items.map((i) => ({
-      menuItemId: i.menuItemId,
-      quantity: i.quantity,
-      price: 10,
-      vatRate: 22,
-      vatAmount: 2.2,
-      notes: '',
-      status: 'pending',
+// R150 (repo issue #33): modul je dobil nova exports pairOrderItemsWithInput +
+// writeOrderItemModifiersInTx (dual-write OrderItemModifier join vrstic) —
+// REALNA implementacija ostane (importOriginal spread), mockani so samo
+// izračuni (kot prej). Realni dual-write helper pri praznem parjenju (mockani
+// db orderItems brez podpisa) ne naredi nič → 500 regresija odpravljena.
+vi.mock('@/app/api/orders/_helpers/order-items', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/app/api/orders/_helpers/order-items')>()
+  return {
+    ...actual,
+    buildOrderItemsData: vi.fn((items: { menuItemId: string; quantity: number }[]) => ({
+      orderItemsData: items.map((i) => ({
+        menuItemId: i.menuItemId,
+        quantity: i.quantity,
+        price: 10,
+        vatRate: 22,
+        vatAmount: 2.2,
+        notes: '',
+        status: 'pending',
+      })),
+      subtotal: 10,
     })),
-    subtotal: 10,
-  })),
-  calculateOrderTotals: vi.fn(() => ({ totalTax: 2.2, totalDiscountAmount: 0, total: 12.2 })),
-  validateMenuItems: vi.fn(() => null),
-  fetchModifierPriceMap: vi.fn(async () => new Map()),
-}))
+    calculateOrderTotals: vi.fn(() => ({ totalTax: 2.2, totalDiscountAmount: 0, total: 12.2 })),
+    validateMenuItems: vi.fn(() => null),
+    fetchModifierPriceMap: vi.fn(async () => new Map()),
+  }
+})
 
 vi.mock('@/app/api/orders/_helpers/stock', () => ({
   handleStockDeduction: mocks.handleStockDeduction,

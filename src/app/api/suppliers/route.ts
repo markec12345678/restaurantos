@@ -10,6 +10,9 @@ import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
 import { createSupplierSchema } from '@/lib/validations'
+// R150 (repo issue #33): Supplier.deliveryDays je zdaj JSONB (0022) —
+// NATIVNA vrednost v DB, wire mapping GET.
+import { parseDeliveryDays, toJsonWireDeep } from '@/lib/json-fields'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 
 export const dynamic = 'force-dynamic'
@@ -53,7 +56,8 @@ export async function GET(req: Request) {
       db.supplier.count({ where }),
     ])
 
-    return NextResponse.json({ suppliers, total, limit, offset })
+    // R150 (#33): wire mapping — JSONB struct → JSON string (byte-identical wire)
+    return NextResponse.json({ suppliers: toJsonWireDeep(suppliers), total, limit, offset })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/suppliers', 'Napaka pri pridobivanju dobaviteljev')
   }
@@ -86,14 +90,16 @@ export async function POST(req: Request) {
         iban: data.iban,
         bank: data.bank,
         paymentTerms: data.paymentTerms,
-        deliveryDays: data.deliveryDays,
+        // R150 (#33): wire sprejema JSON string, DB dobi NATIVNO Json vrednost
+        deliveryDays: parseDeliveryDays(data.deliveryDays),
         minOrderAmount: data.minOrderAmount,
         rating: data.rating,
         isActive: data.isActive,
       },
     })
 
-    return NextResponse.json(supplier, { status: 201 })
+    // R150 (#33): wire mapping na POST odgovoru (byte-identical wire)
+    return NextResponse.json(toJsonWireDeep(supplier), { status: 201 })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/suppliers', 'Napaka pri ustvarjanju dobavitelja')
   }

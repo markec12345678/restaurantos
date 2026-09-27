@@ -28,6 +28,8 @@ import {
   broadcastNewOrder,
   MAX_ORDER_TOTAL,
 } from './_helpers'
+// R150 (repo issue #33): dual-write OrderItemModifier join vrstic (isti tx)
+import { pairOrderItemsWithInput, writeOrderItemModifiersInTx } from '@/app/api/orders/_helpers/order-items'
 
 export const dynamic = 'force-dynamic'
 
@@ -216,6 +218,15 @@ export async function POST(req: Request) {
         },
         include: { orderItems: true, table: true }
       })
+
+      // R150 (repo issue #33): DUAL-WRITE — OrderItemModifier join vrstice v
+      // ISTI transakciji (legacy modifiersJson string v nested create zgoraj
+      // nespremenjen). Nested create → parjenje po podpisu; prazen wire → 0.
+      await writeOrderItemModifiersInTx(
+        tx,
+        pairOrderItemsWithInput(newOrder.orderItems, orderItemsData)
+          .map(({ db: item, input }) => ({ orderItemId: item.id, modifiersJson: input.modifiersJson })),
+      )
 
       // Zmanjšaj zalogo znotraj transakcije (atomarno - prepreči race condition)
       await deductInventoryInTx(tx, items, menuItemMap, nextOrderNumber)

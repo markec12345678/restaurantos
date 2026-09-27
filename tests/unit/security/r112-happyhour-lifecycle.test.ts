@@ -126,7 +126,9 @@ beforeEach(() => {
   mocks.txHHCreate.mockResolvedValue({
     id: 'hh-new',
     ...VALID_BODY,
-    daysOfWeek: JSON.stringify(VALID_BODY.daysOfWeek),
+    // R150 (repo issue #33): HappyHourSchedule.daysOfWeek je zdaj Json (0022) —
+    // create mock vrača DB vrstico z NATIVNIM arrayom (wire string naredi toJsonWire).
+    daysOfWeek: [...VALID_BODY.daysOfWeek],
     priceGroup: { ...PRICE_GROUP },
   })
   // B/C defaults
@@ -197,7 +199,7 @@ describe('R112 A: POST /api/happy-hour — overlap lock + Serializable tx (HH-1)
 
   it('PREKRIVANJE (aktiven obstoječi, isti cenik, skupen dan) → 409 structured + NI create-a', async () => {
     mocks.txHHFindMany.mockResolvedValue([
-      { id: 'hh-existing', startTime: '17:00', endTime: '19:00', daysOfWeek: '[1,2,3]' },
+      { id: 'hh-existing', startTime: '17:00', endTime: '19:00', daysOfWeek: [1, 2, 3] },
     ])
     const res = await hhPOST(jsonPost('http://localhost/api/happy-hour', VALID_BODY))
     expect(res.status).toBe(409)
@@ -210,13 +212,13 @@ describe('R112 A: POST /api/happy-hour — overlap lock + Serializable tx (HH-1)
   it('brez prekrivanja: sosednji okni (16-18 ∥ 18-20, polodprt presek) IN različna dneva → 201', async () => {
     // sosednji intervali (end == start) se NE sekata — polodprti intervali
     mocks.txHHFindMany.mockResolvedValue([
-      { id: 'hh-1', startTime: '18:00', endTime: '20:00', daysOfWeek: '[1,2,3]' },
+      { id: 'hh-1', startTime: '18:00', endTime: '20:00', daysOfWeek: [1, 2, 3] },
     ])
     const res1 = await hhPOST(jsonPost('http://localhost/api/happy-hour', VALID_BODY))
     expect(res1.status).toBe(201)
     // isti čas, ampak ni skupnega dneva → prav tako 201
     mocks.txHHFindMany.mockResolvedValue([
-      { id: 'hh-2', startTime: '16:00', endTime: '18:00', daysOfWeek: '[4,5]' },
+      { id: 'hh-2', startTime: '16:00', endTime: '18:00', daysOfWeek: [4, 5] },
     ])
     const res2 = await hhPOST(jsonPost('http://localhost/api/happy-hour', VALID_BODY))
     expect(res2.status).toBe(201)
@@ -233,7 +235,7 @@ describe('R112 A: POST /api/happy-hour — overlap lock + Serializable tx (HH-1)
 
   it('čeznočno legacy okno (23:00-02:00) se pravilno seka z jutranjim oknom → 409', async () => {
     mocks.txHHFindMany.mockResolvedValue([
-      { id: 'hh-night', startTime: '23:00', endTime: '02:00', daysOfWeek: '[1]' },
+      { id: 'hh-night', startTime: '23:00', endTime: '02:00', daysOfWeek: [1] },
     ])
     const res = await hhPOST(
       jsonPost('http://localhost/api/happy-hour', { ...VALID_BODY, startTime: '01:00', endTime: '03:00', daysOfWeek: [1] }),

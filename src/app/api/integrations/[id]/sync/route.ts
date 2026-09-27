@@ -5,6 +5,7 @@
 
 import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { requireAuth } from '@/lib/auth-middleware'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
@@ -13,6 +14,7 @@ import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rat
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError } from '@/lib/api-utils'
 import { syncEracuni, syncAccounting, syncGeneric, syncQuickBooks, syncXero } from './_helpers'
+import { safeJsonSerialize } from '@/lib/json-fields'
 
 
 export const dynamic = 'force-dynamic'
@@ -50,16 +52,25 @@ export async function POST(
       return NextResponse.json({ error: 'Sinhronizacija je onemogočena' }, { status: 400 })
     }
 
+    // R150 (#33): config je JSONB struct — konektorji (legacy podpisi) še naprej
+    // delajo z wire stringom; string passthrough, struct re-serializacija.
+    const conn = {
+      baseUrl: integration.baseUrl,
+      apiKey: integration.apiKey,
+      apiSecret: integration.apiSecret ?? undefined,
+      config: typeof integration.config === 'string' ? integration.config : safeJsonSerialize(integration.config ?? {}),
+    }
+
     const startTime = Date.now()
     let syncStatus = 'success'
     let syncError = ''
     let statusCode = 200
-    let responseData = '{}'
+    let responseData: unknown = {}
 
     try {
       // Sinhronizacija glede na tip integracije
       if (integration.type === 'eracuni') {
-        const result = await syncEracuni(integration)
+        const result = await syncEracuni(conn)
         statusCode = result.statusCode
         responseData = result.responseData
         syncStatus = result.success ? 'success' : 'error'
@@ -67,19 +78,19 @@ export async function POST(
       } else if (integration.type === 'accounting') {
         // FIX FASE 2: QuickBooks + Xero imajo lastne sync helperje
         if (integration.provider === 'quickbooks') {
-          const result = await syncQuickBooks(integration)
+          const result = await syncQuickBooks(conn)
           statusCode = result.statusCode
           responseData = result.responseData
           syncStatus = result.success ? 'success' : 'error'
           syncError = result.error
         } else if (integration.provider === 'xero') {
-          const result = await syncXero(integration)
+          const result = await syncXero(conn)
           statusCode = result.statusCode
           responseData = result.responseData
           syncStatus = result.success ? 'success' : 'error'
           syncError = result.error
         } else {
-          const result = await syncAccounting(integration)
+          const result = await syncAccounting(conn)
           statusCode = result.statusCode
           responseData = result.responseData
           syncStatus = result.success ? 'success' : 'error'
@@ -99,6 +110,19 @@ export async function POST(
 
     const durationMs = Date.now() - startTime
 
+    // R150 (#33): requestData/responseData sta zdaj JSONB (0022_json_fields) —
+    // helperji vračajo serializiran JSON string (ali raw body) → normaliziraj
+    // v NATIVNO vrednost (JSON.stringify bi tiho dvojno kodiral); ne-JSON
+    // raw body ostane jsonb string scalar (debug info se ohrani).
+    const normalizeJsonLogValue = (raw: unknown): Prisma.InputJsonValue => {
+      if (typeof raw === 'string') {
+        if (raw.trim() === '') return {}
+        try { return JSON.parse(raw) as Prisma.InputJsonValue } catch { return raw }
+      }
+      if (raw !== null && typeof raw === 'object') return raw as Prisma.InputJsonValue
+      return {}
+    }
+
     // Zabeleži sinhronizacijo v log
     await db.integrationLog.create({
       data: {
@@ -107,8 +131,8 @@ export async function POST(
         direction: 'outbound',
         status: syncStatus,
         statusCode,
-        requestData: JSON.stringify({ triggered: 'manual' }),
-        responseData,
+        requestData: { triggered: 'manual' },
+        responseData: normalizeJsonLogValue(responseData),
         errorMessage: syncError,
         durationMs,
       },

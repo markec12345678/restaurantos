@@ -5,6 +5,7 @@ import { toNum } from '@/lib/decimal'
 import { generateFursQRContent } from '@/lib/furs'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 import { parseOrderItemModifiers, parseVatBreakdown } from '@/lib/json-fields'
+import type { JsonFieldInput } from '@/lib/json-fields'
 
 // SECURITY: HMAC-SHA256 žeton za digitalne račune — prepreči enumeracijo ID-jev
 //
@@ -55,7 +56,7 @@ export interface ReceiptRow {
   tip: Parameters<typeof toNum>[0]
   totalWithTip: Parameters<typeof toNum>[0]
   paymentMethod: string
-  vatBreakdown: string
+  vatBreakdown: JsonFieldInput
   createdAt: Date
 }
 
@@ -100,7 +101,7 @@ export async function buildDigitalReceiptResponse(
 
   // DDV po stopnjah — P1-9: Zod-validiran tolerant parser (številka ali {base, vat})
   const vatBreakdown: Array<{ rate: number; base: number; vat: number }> = []
-  for (const [rate, amounts] of Object.entries(parseVatBreakdown(receipt.vatBreakdown as string))) {
+  for (const [rate, amounts] of Object.entries(parseVatBreakdown(receipt.vatBreakdown))) {
     const a = typeof amounts === 'number' ? { base: amounts, vat: 0 } : amounts
     vatBreakdown.push({ rate: Number(rate), base: Number(a?.base ?? 0), vat: Number(a?.vat ?? 0) })
   }

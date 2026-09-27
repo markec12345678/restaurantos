@@ -14,6 +14,9 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { happyHourStatusSchema } from '@/lib/validations'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
+// R150 (repo issue #33): HappyHourSchedule JSONB polja — wire mapping
+// (PATCH/DELETE odgovori ostanejo JSON string na wire-u).
+import { toJsonWireDeep } from '@/lib/json-fields'
 
 export const dynamic = 'force-dynamic'
 
@@ -94,7 +97,8 @@ export async function PATCH(
       if (!stillThere) {
         return NextResponse.json({ error: 'Happy ura ne obstaja' }, { status: 404 })
       }
-      return NextResponse.json(stillThere)
+      // R150 (#33): wire mapping — JSONB struct → JSON string
+      return NextResponse.json(toJsonWireDeep(stillThere))
     }
     const updated = await db.happyHourSchedule.findUnique({
       where: { id },
@@ -104,7 +108,8 @@ export async function PATCH(
       // obrambno: izbrisana tik po uspešnem CAS-u → 404 namesto praznega body-a
       return NextResponse.json({ error: 'Happy ura ne obstaja' }, { status: 404 })
     }
-    return NextResponse.json(updated)
+    // R150 (#33): wire mapping — JSONB struct → JSON string
+    return NextResponse.json(toJsonWireDeep(updated))
   } catch (error: unknown) {
     return handleApiError(error, 'PATCH /api/happy-hour/[id]', 'Napaka pri preklopu Happy Hour urnika')
   }

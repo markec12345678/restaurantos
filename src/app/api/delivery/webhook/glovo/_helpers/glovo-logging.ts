@@ -24,8 +24,10 @@ export async function logAndSyncIntegration(
       direction: 'inbound',
       status: 'success',
       statusCode: 200,
+      // R150 (#33): responseData je zdaj JSONB — NATIVNA vrednost. requestData
+      // ostane RAW body (jsonb string scalar — debug zapisi ostanejo berljivi).
       requestData: body.substring(0, 2000),
-      responseData: JSON.stringify({ orderId, orderNumber }),
+      responseData: { orderId, orderNumber },
       durationMs: 0,
     },
   })

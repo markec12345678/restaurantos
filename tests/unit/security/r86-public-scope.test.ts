@@ -66,11 +66,14 @@ vi.mock('@/lib/db', () => ({
     deviceRegistry: { upsert: mocks.deviceRegistryUpsert },
     // R135: pisna pot teče v transakciji — trap pošlje tx klienta z ISTIMI
     // traki (order.create → mocks.orderCreate, da ostanejo žig-asserti živi)
+    // R150 (#33): + orderItemModifier.createMany (dual-write delegate — realni
+    // tx klient ga ima; pri praznem parjenju se ne sproži)
     $transaction: vi.fn(async (fn: (tx: object) => unknown) => fn({
       order: { create: mocks.orderCreate, update: mocks.orderUpdate },
       check: { create: mocks.checkCreate },
       payment: { create: mocks.paymentCreate },
       orderItem: { updateMany: mocks.orderItemUpdateMany },
+      orderItemModifier: { createMany: vi.fn(async () => ({ count: 0 })) },
     })),
   },
   createAuditLog: vi.fn(async () => ({})),
@@ -124,14 +127,22 @@ vi.mock('@/lib/safe-format', () => ({
   formatEUR: vi.fn((v: string) => `${v} €`),
 }))
 
-vi.mock('@/app/api/orders/_helpers/order-items', () => ({
-  buildOrderItemsData: vi.fn(() => ({
-    orderItemsData: [{ menuItemId: 'mi-1', quantity: 1, unitPrice: 2, totalPrice: 2, vatRate: 22, modifiers: '[]', menuItemName: 'Kava' }],
-    subtotal: 2,
-  })),
-  calculateOrderTotals: vi.fn(() => ({ totalTax: 0.44, total: 2.44 })),
-  fetchModifierPriceMap: vi.fn(async () => new Map()),
-}))
+// R150 (repo issue #33): modul je dobil nova exports pairOrderItemsWithInput +
+// writeOrderItemModifiersInTx (dual-write OrderItemModifier join vrstic) —
+// REALNA implementacija ostane (importOriginal spread), mockani so samo
+// izračuni (kot prej).
+vi.mock('@/app/api/orders/_helpers/order-items', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/app/api/orders/_helpers/order-items')>()
+  return {
+    ...actual,
+    buildOrderItemsData: vi.fn(() => ({
+      orderItemsData: [{ menuItemId: 'mi-1', quantity: 1, unitPrice: 2, totalPrice: 2, vatRate: 22, modifiers: '[]', menuItemName: 'Kava' }],
+      subtotal: 2,
+    })),
+    calculateOrderTotals: vi.fn(() => ({ totalTax: 0.44, total: 2.44 })),
+    fetchModifierPriceMap: vi.fn(async () => new Map()),
+  }
+})
 
 vi.mock('@/lib/prisma-column-fallback', () => ({
   withLocationColumnFallback: vi.fn(async (_key: string, fn: (withLoc: boolean) => unknown) => fn(true)),

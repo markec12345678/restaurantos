@@ -10,6 +10,9 @@ import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 // R88-2: tenant scope kanon (R80 centralni resolver) + MODEL A write guard
 import { isWithinScope, notInScopeResponse, resolveTenantLocationIdOrThrow, resolveWriteLocationId } from '@/lib/tenant-scope'
+// R150 (repo issue #33): Integration.config/events je zdaj JSONB (0022)
+// — tolerantno branje/pisanje + wire mapping (logi nosijo JSONB request/response).
+import { parseIntegrationConfig, parseStringArray, toJsonWireDeep } from '@/lib/json-fields'
 // R88-2: webhook envelope izdaja za delivery integracije (wolt/glovo/bolt)
 import { getAppUrl } from '@/lib/utils'
 import { isOrderingSecretConfigured, webhookEnvelopeTokenFor } from '@/lib/ordering-token'
@@ -79,7 +82,9 @@ export async function GET(
       sanitized.webhookUrl = `${getAppUrl()}/api/delivery/webhook/${integration.provider}?t=${webhookEnvelopeTokenFor(integration.id)}`
     }
 
-    return NextResponse.json(deepToNumbers(sanitized))
+    // R150 (#33): wire mapping — JSONB struct → JSON string (tudi nested
+    // logs: IntegrationLog.requestData/responseData ostanejo stringi na wire).
+    return NextResponse.json(toJsonWireDeep(deepToNumbers(sanitized)))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/integrations/[id]', 'Napaka pri pridobivanju integracije')
   }
@@ -155,10 +160,11 @@ export async function PUT(
     // FIX CRITICAL: Ne shrani maskiranih API ključev v bazo
     if (data.apiKey !== undefined && data.apiKey !== '••••••••') updateData.apiKey = data.apiKey
     if (data.apiSecret !== undefined && data.apiSecret !== '••••••••') updateData.apiSecret = data.apiSecret
-    if (data.config !== undefined) updateData.config = data.config
+    // R150 (#33): wire sprejema JSON string, DB dobi NATIVNO Json vrednost
+    if (data.config !== undefined) updateData.config = parseIntegrationConfig(data.config)
     if (data.syncEnabled !== undefined) updateData.syncEnabled = data.syncEnabled
     if (data.syncInterval !== undefined) updateData.syncInterval = data.syncInterval
-    if (data.events !== undefined) updateData.events = data.events
+    if (data.events !== undefined) updateData.events = parseStringArray(data.events)
     if (data.isActive !== undefined) updateData.isActive = data.isActive
 
     // R88-2: locationId — MODEL A write kanon (R87 guests POST vzorec):
@@ -190,11 +196,12 @@ export async function PUT(
     })
 
     // FIX SECURITY: maskiraj apiKey + apiSecret v PUT odgovoru (enako kot GET)
-    return NextResponse.json(deepToNumbers({
+    // R150 (#33): wire mapping — JSONB struct → JSON string
+    return NextResponse.json(toJsonWireDeep(deepToNumbers({
       ...integration,
       apiKey: integration.apiKey ? '••••••••' : '',
       apiSecret: integration.apiSecret ? '••••••••' : '',
-    }))
+    })))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/integrations/[id]', 'Napaka pri posodobitvi integracije')
   }

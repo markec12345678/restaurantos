@@ -63,7 +63,7 @@ export async function POST(req: Request) {
       { name: 'loyaltyEnabled', type: 'BOOLEAN DEFAULT false' },
       { name: 'loyaltyPointsPerEuro', type: 'INTEGER DEFAULT 1' },
       { name: 'loyaltyPointsValue', type: 'DECIMAL DEFAULT 0.01' },
-      { name: 'emailReportRecipients', type: 'TEXT DEFAULT \'[]\'' },
+      { name: 'emailReportRecipients', type: 'JSONB DEFAULT \'[]\'' },
       { name: 'emailEnabled', type: 'BOOLEAN DEFAULT false' },
     ]
 
@@ -228,7 +228,7 @@ export async function POST(req: Request) {
       { name: 'emailSmtpUser', type: `TEXT NOT NULL DEFAULT ''` },
       { name: 'emailSmtpPassword', type: `TEXT NOT NULL DEFAULT ''` },
       { name: 'emailFromAddress', type: `TEXT NOT NULL DEFAULT ''` },
-      { name: 'emailReportRecipients', type: `TEXT NOT NULL DEFAULT '[]'` },
+      { name: 'emailReportRecipients', type: `JSONB NOT NULL DEFAULT '[]'` },
       { name: 'isActive', type: `BOOLEAN NOT NULL DEFAULT true` },
       { name: 'createdAt', type: `TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP` },
       { name: 'updatedAt', type: `TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP` },
@@ -528,7 +528,7 @@ export async function POST(req: Request) {
                     name: key.name as string,
                     keyPrefix: key.keyPrefix as string,
                     keyHash: key.keyHash as string,
-                    scopes: JSON.stringify(key.scopes || []),
+                    scopes: key.scopes ?? [],
                     rateLimit: (key.rateLimit as number) || 60,
                     isActive: (key.isActive as boolean) !== false,
                     createdAt: key.createdAt ? new Date(key.createdAt as string) : new Date(),

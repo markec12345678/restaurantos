@@ -102,7 +102,9 @@ function makeDbSession(overrides: Record<string, unknown> = {}) {
     token: TOKEN_HASH,
     employeeId: EMP_ID,
     role: 'waiter',
-    permissions: JSON.stringify([]),
+    // R150 (repo issue #33): Session.permissions je zdaj Json (0022) — mocki
+    // modelirajo DB vrstico, ki PRISMA vrne kot nativni array (ne string).
+    permissions: [] as unknown,
     createdAt: new Date(NOW - 1000),
     expiresAt: new Date(NOW + 60_000),
     absoluteExpiry: new Date(NOW + 3_600_000),
@@ -262,7 +264,7 @@ describe('P1-21 #4: revoked session → 401', () => {
 // ─────────────────────────────────────────────
 describe('P1-21 #5: wrong role → 403', () => {
   it('waiter brez "manage_employees" → 403 (nimate dovoljenja)', async () => {
-    mocks.sessionFindUnique.mockResolvedValue(makeDbSession({ role: 'waiter', permissions: '[]' }))
+    mocks.sessionFindUnique.mockResolvedValue(makeDbSession({ role: 'waiter', permissions: [] }))
     mocks.employeeFindUnique.mockResolvedValue(makeEmployee())
 
     const res = await requireAuth(authReq(), { permission: 'manage_employees' })
@@ -274,7 +276,7 @@ describe('P1-21 #5: wrong role → 403', () => {
 
   it('manager zahteva "admin" permisijo → 403 (admin-only rute)', async () => {
     mocks.sessionFindUnique.mockResolvedValue(
-      makeDbSession({ role: 'manager', permissions: JSON.stringify(['take_orders']) })
+      makeDbSession({ role: 'manager', permissions: ['take_orders'] })
     )
     mocks.employeeFindUnique.mockResolvedValue(makeEmployee())
 
@@ -498,7 +500,7 @@ describe('P1-21 #10: duplicate offline event → idempotenten upsert (brez dvojn
 
     // Avtentikacija: admin session
     mocks.sessionFindUnique.mockResolvedValue(
-      makeDbSession({ role: 'admin', permissions: JSON.stringify(['admin']) })
+      makeDbSession({ role: 'admin', permissions: ['admin'] })
     )
     mocks.employeeFindUnique.mockResolvedValue(makeEmployee({ status: 'active' }))
 

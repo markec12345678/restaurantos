@@ -13,6 +13,8 @@ import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
 import { modelMap, allowedFields, coerceFieldTypes, validateConfigRefs, createConfigItem, extractConfigData } from '../_helpers'
+// R150 (repo issue #33): wire mapping — JSONB polja (printRules) → JSON string
+import { toJsonWireDeep } from '@/lib/json-fields'
 import { resolveCatalogScope, locationFilter } from '@/lib/tenant-scope'
 import { withLocationColumnFallback } from '@/lib/prisma-column-fallback'
 
@@ -194,7 +196,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ tab: str
     const responseKey = prismaModel.charAt(0).toLowerCase() + prismaModel.slice(1)
     // Poseben primer: alternatePaymentType → alternatePaymentTypes (množina)
     const finalKey = responseKey.endsWith('s') ? responseKey : `${responseKey}s`
-    return NextResponse.json({ [finalKey]: deepToNumbers(result) })
+    // R150 (#33): wire mapping — JSONB struct → JSON string (byte-identical wire)
+    return NextResponse.json({ [finalKey]: toJsonWireDeep(deepToNumbers(result)) })
   } catch (error: unknown) {
     return handleApiError(error, `GET /api/configuration/${(await params).tab}`, 'Napaka pri pridobivanju konfiguracije')
   }
@@ -367,7 +370,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ tab: str
       if (!item) return NextResponse.json({ error: 'Zapis ne obstaja' }, { status: 404 })
     }
 
-    return NextResponse.json(deepToNumbers(item))
+    // R150 (#33): wire mapping — JSONB struct → JSON string (byte-identical wire)
+    return NextResponse.json(toJsonWireDeep(deepToNumbers(item)))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/configuration/[tab]', 'Napaka pri posodabljanju konfiguracije')
   }

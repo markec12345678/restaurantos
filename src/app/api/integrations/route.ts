@@ -13,6 +13,9 @@ import { handleApiError, validateRequest } from '@/lib/api-utils'
 // integracijska rake: GET je vseh tenantov integration.findMany, POST pa
 // ustvarjal GLOBALNE integracije brez locationId žiga).
 import { notInScopeResponse, resolveTenantLocationIdOrThrow, resolveWriteLocationId } from '@/lib/tenant-scope'
+// R150 (repo issue #33): Integration.config/events sta zdaj JSONB (0022)
+// — kanonska plast za pisanje nativnih vrednosti + wire mapping GET odgovorov.
+import { parseIntegrationConfig, parseStringArray, toJsonWireDeep } from '@/lib/json-fields'
 // R90-3: webhook envelope izdaja za delivery integracije (wolt/glovo/bolt)
 import { getAppUrl } from '@/lib/utils'
 import { isOrderingSecretConfigured, webhookEnvelopeTokenFor } from '@/lib/ordering-token'
@@ -84,7 +87,9 @@ export async function GET(req: Request) {
       return row
     })
 
-    return NextResponse.json(deepToNumbers(sanitized))
+    // R150 (#33): wire mapping — JSONB struct → JSON string (byte-identical
+    // wire; integracijski UI dela JSON.parse(config/events)).
+    return NextResponse.json(toJsonWireDeep(deepToNumbers(sanitized)))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/integrations', 'Napaka pri pridobivanju integracij')
   }
@@ -174,10 +179,11 @@ export async function POST(req: Request) {
         baseUrl: data.baseUrl,
         apiKey: data.apiKey,
         apiSecret: data.apiSecret,
-        config: data.config,
+        // R150 (#33): wire sprejema JSON string, DB dobi NATIVNO Json vrednost
+        config: parseIntegrationConfig(data.config),
         syncEnabled: data.syncEnabled,
         syncInterval: data.syncInterval,
-        events: data.events,
+        events: parseStringArray(data.events),
         isActive: data.isActive,
         locationId: stampedLocationId,
       },
@@ -199,7 +205,8 @@ export async function POST(req: Request) {
       sanitized.webhookUrl = `${getAppUrl()}/api/delivery/webhook/${integration.provider}?t=${webhookEnvelopeTokenFor(integration.id)}`
     }
 
-    return NextResponse.json(deepToNumbers(sanitized), { status: 201 })
+    // R150 (#33): wire mapping na POST odgovoru (byte-identical wire)
+    return NextResponse.json(toJsonWireDeep(deepToNumbers(sanitized)), { status: 201 })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/integrations', 'Napaka pri ustvarjanju integracije')
   }

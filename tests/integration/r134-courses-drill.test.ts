@@ -126,7 +126,7 @@ async function fireAll(orderId: string): Promise<Response> {
 beforeAll(async () => {
   await db.location.create({ data: { id: IDS.location, name: 'R134 Lokacija', code: `${RUN_ID}-L`, premisesId: `${RUN_ID}-p`, isActive: true } })
   await db.employee.create({
-    data: { id: IDS.employee, name: 'R134 Natakar', email: `${RUN_ID}@r134-test.local`, role: 'manager', status: 'active', locationId: IDS.location },
+    data: { id: IDS.employee, name: 'R134 Natakar', email: `${RUN_ID}@r134-test.local`, role: 'manager', status: 'active', /* CI fix #133: pin @unique @default("") — ekspliciten RUN_ID pin (P2002) */ pin: `pin-${RUN_ID}`, locationId: IDS.location },
   })
   await db.menu.create({ data: { id: IDS.menu, name: `R134 Meni ${RUN_ID}`, locationId: IDS.location } })
   await db.category.create({ data: { id: IDS.category, name: `R134 Kat ${RUN_ID}`, menuId: IDS.menu } })

@@ -1,6 +1,9 @@
 // Pomožne funkcije za configuration API — Shema in konstante
 
 import { z, ZodError } from 'zod'
+// R150 (repo issue #33): Printer.printRules je zdaj JSONB (0022) —
+// kanonski tolerantni parser za wire (string ALI array) → NATIVNA vrednost.
+import { parsePrintRules, type JsonFieldInput } from '@/lib/json-fields'
 
 // Zod validacijska shema za POST body
 export const configPostSchema = z.object({
@@ -133,6 +136,8 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
 import { resolveCatalogScope } from '@/lib/tenant-scope'
+// R150 (#33): wire mapping — JSONB struct (printRules) → JSON string
+import { toJsonWireDeep } from '@/lib/json-fields'
 
 /** RUNDA 41 (R87-4 posodobitev): lokacijska resolucija za config WRITE —
  *  seja → ?locationId= (samo admin brez seje lokacije). FAIL-CLOSED: prej je
@@ -261,7 +266,8 @@ export async function createConfigItem(
       return item
     })
 
-    return NextResponse.json(item, { status: 201 })
+    // R150 (#33): wire mapping na create odgovoru (byte-identical wire)
+    return NextResponse.json(toJsonWireDeep(item), { status: 201 })
   } catch (error: unknown) {
     return handleApiError(error, `POST /api/configuration (${model})`, 'Failed to create configuration item')
   }
@@ -343,8 +349,10 @@ export async function validateConfigRefs(
           return { ok: false, error: 'printRules: port mora biti veljavna številka vrat (1–65535)' }
         }
       }
-      // shranimo kot kanonični JSON string (schema tip)
-      filteredData.printRules = JSON.stringify(rules)
+      // shranimo NATIVNO vrednost (R150 #33: stolpec je JSONB —
+      // JSON.stringify bi tiho dvojno kodiral JSON string; tolerantni
+      // kanonski parser normalizira wire string ALI array v pravila)
+      filteredData.printRules = parsePrintRules(raw as JsonFieldInput)
     }
   }
 

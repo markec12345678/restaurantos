@@ -112,6 +112,10 @@ beforeAll(async () => {
       email: `${RUN_ID}@r128-test.local`,
       role: 'manager',
       status: 'active',
+      // CI fix #133: Employee.pin je @unique @default("") — brez eksplicitnega
+      // pin-a vsak take create zahteva '', dovoljeno ENKRAT na bazi; puščena
+      // vrstica (swallowed cleanup napaka) → P2002 kaskada na naslednje fajle.
+      pin: `pin-${RUN_ID}`,
       locationId: IDS.locationA,
     },
   })

@@ -81,8 +81,9 @@ export async function POST(
         direction: 'outbound',
         status: 'success',
         statusCode: 200,
-        requestData: JSON.stringify({ field, autoGenerate }),
-        responseData: JSON.stringify({ rotated: true }),
+        // R150 (#33): requestData/responseData sta zdaj JSONB — NATIVNE vrednosti
+        requestData: { field, autoGenerate },
+        responseData: { rotated: true },
         durationMs: 0,
       },
     })

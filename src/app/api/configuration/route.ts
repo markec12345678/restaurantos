@@ -4,6 +4,8 @@ import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { configPostSchema, createConfigItem } from './_helpers'
+// R150 (repo issue #33): wire mapping — JSONB polja (printRules) → JSON string
+import { toJsonWireDeep } from '@/lib/json-fields'
 import { withETag } from '@/lib/middleware/cache-headers'
 import { resolveCatalogScope, locationFilter } from '@/lib/tenant-scope'
 import { isMissingLocationColumnError } from '@/lib/prisma-column-fallback'
@@ -90,7 +92,8 @@ export async function GET(req: Request) {
       discounts,
     }
     // FIX P15: ETag za configuration — konfiguracija se redko spreminja
-    return withETag(req, NextResponse.json(responseBody), responseBody)
+    // R150 (#33): wire mapping — JSONB struct → JSON string (byte-identical wire)
+    return withETag(req, NextResponse.json(toJsonWireDeep(responseBody)), responseBody)
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/configuration', 'Failed to fetch configuration')
   }

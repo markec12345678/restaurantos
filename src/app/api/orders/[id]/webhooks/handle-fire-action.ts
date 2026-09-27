@@ -7,6 +7,9 @@ import { NextResponse } from 'next/server'
 import { broadcastWSEvent } from '@/lib/websocket-client'
 import { getNextCounter } from '@/lib/counters'
 import { logger } from '@/lib/logger'
+// R150 (repo issue #33): KotDocument.itemsJson je zdaj JSONB (0022) —
+// NATIVNA vrednost v DB (JSON.stringify bi tiho dvojno kodiral).
+import { toJsonWireDeep } from '@/lib/json-fields'
 
 // FIX R112-A (ORD-1, HIGH — TOCTOU razred iz R100–R111): fire je bil
 // NEPOGOJEN update — klic na 'cancelled' ALI 'completed' (plačano,
@@ -66,16 +69,16 @@ export async function handleFireAction(id: string) {
       if (!order) return
 
       const kotNumber = await getNextCounter('kotNumber', tx)
-      const itemsJson = JSON.stringify(
-        order.orderItems
-          .filter(i => !i.voided)
-          .map(i => ({
-            name: i.menuItem?.name || i.menuItemName || 'Neznan artikel',
-            qty: i.quantity,
-            notes: i.notes || '',
-            station: i.menuItem?.prepStation?.name || 'kuhinja',
-          }))
-      )
+      // R150 (#33): NATIVNA vrednost v JSONB stolpec (wire nespremenjen —
+      // itemsJson je strežniško generiran, ne wire input)
+      const itemsJson = order.orderItems
+        .filter(i => !i.voided)
+        .map(i => ({
+          name: i.menuItem?.name || i.menuItemName || 'Neznan artikel',
+          qty: i.quantity,
+          notes: i.notes || '',
+          station: i.menuItem?.prepStation?.name || 'kuhinja',
+        }))
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (tx.kotDocument as any).create({
         data: {
@@ -130,5 +133,7 @@ export async function handleFireAction(id: string) {
       },
     },
   })
-  return NextResponse.json(deepToNumbers(updated))
+  // R150 (#33): wire mapping — orderItems.modifiersJson je legacy String
+  // (nespremenjen), a mapping z ulovo prihodnjih JSONB polj ni škodljiv.
+  return NextResponse.json(toJsonWireDeep(deepToNumbers(updated)))
 }

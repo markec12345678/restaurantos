@@ -316,7 +316,9 @@ describe('R82-B: /api/receipts/rebuild platform-admin gate', () => {
     )
     const updateArg = mockReceiptUpdate.mock.calls[0][0]
     expect(updateArg.where).toEqual({ id: 'r-1' })
-    expect(JSON.parse(updateArg.data.vatBreakdown)).toEqual({
+    // R150 (repo issue #33): Receipt.vatBreakdown je JSONB — update payload je
+    // NATIVNI object (prej JSON string → JSON.parse; stringify bi dvojno kodiral)
+    expect(updateArg.data.vatBreakdown).toEqual({
       '22': { base: 20, vat: 4.4 },
     })
   })

@@ -108,7 +108,7 @@ async function patchItemReady(orderId: string, itemId: string) {
 beforeAll(async () => {
   await db.location.create({ data: { id: IDS.location, name: 'R133 Lokacija', code: `${RUN_ID}-L`, premisesId: `${RUN_ID}-p`, isActive: true } })
   await db.employee.create({
-    data: { id: IDS.employee, name: KUHAR_NAME, email: `${RUN_ID}@r133-test.local`, role: 'manager', status: 'active', locationId: IDS.location },
+    data: { id: IDS.employee, name: KUHAR_NAME, email: `${RUN_ID}@r133-test.local`, role: 'manager', status: 'active', /* CI fix #133: pin @unique @default("") — ekspliciten RUN_ID pin (P2002) */ pin: `pin-${RUN_ID}`, locationId: IDS.location },
   })
   await db.prepStation.create({
     data: { id: IDS.prepStation, name: 'R133 Vroča kuhinja', type: 'kitchen', avgPrepTime: TARGET_MIN, locationId: IDS.location },

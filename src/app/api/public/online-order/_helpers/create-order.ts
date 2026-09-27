@@ -10,6 +10,8 @@ import { upsertGuest } from './upsert-guest'
 import type { CreateOnlineOrderInput } from './create-order-types'
 export type { CreateOnlineOrderInput } from './create-order-types'
 import { extractCustomerData, buildOrderNotes } from './create-order-utils'
+// R150 (repo issue #33): dual-write OrderItemModifier join vrstic (isti tx)
+import { pairOrderItemsWithInput, writeOrderItemModifiersInTx } from '@/app/api/orders/_helpers/order-items'
 
 // ─── Ustvari online naročilo znotraj transakcije ───
 
@@ -81,6 +83,15 @@ export async function createOnlineOrder(input: CreateOnlineOrderInput) {
       },
       include: { orderItems: true },
     })
+
+    // R150 (repo issue #33): DUAL-WRITE — OrderItemModifier join vrstice v
+    // ISTI transakciji (legacy modifiersJson string v nested create zgoraj
+    // nespremenjen). Nested create → parjenje po podpisu; prazen wire → 0.
+    await writeOrderItemModifiersInTx(
+      tx,
+      pairOrderItemsWithInput(newOrder.orderItems, orderItemsData)
+        .map(({ db: item, input }) => ({ orderItemId: item.id, modifiersJson: input.modifiersJson })),
+    )
 
     const check = await tx.check.create({
       data: {

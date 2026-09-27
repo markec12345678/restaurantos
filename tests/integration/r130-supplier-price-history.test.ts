@@ -103,7 +103,7 @@ function authedReq(url: string, init?: RequestInit): Request {
 beforeAll(async () => {
   await db.location.create({ data: { id: IDS.location, name: 'R130 Lokacija', code: `${RUN_ID}-L`, premisesId: `${RUN_ID}-p`, isActive: true } })
   await db.employee.create({
-    data: { id: IDS.employee, name: 'R130 Test Skladovnik', email: `${RUN_ID}@r130-test.local`, role: 'manager', status: 'active', locationId: IDS.location },
+    data: { id: IDS.employee, name: 'R130 Test Skladovnik', email: `${RUN_ID}@r130-test.local`, role: 'manager', status: 'active', /* CI fix #133: pin @unique @default("") — ekspliciten RUN_ID pin (P2002) */ pin: `pin-${RUN_ID}`, locationId: IDS.location },
   })
   await db.supplier.create({ data: { id: IDS.supplier, name: SUPPLIER_NAME, code: `${RUN_ID}-S` } })
   await db.menu.create({ data: { id: IDS.menu, name: `R130 Meni ${RUN_ID}`, locationId: IDS.location } })

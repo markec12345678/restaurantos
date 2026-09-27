@@ -5,6 +5,9 @@ import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/
 import { z } from 'zod'
 import { decimalsToNumbers } from '@/lib/decimal'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+// R150 (repo issue #33): DeliveryZone.postCodes/cities sta zdaj JSONB (0022)
+// — NATIVNI vrednosti v DB, wire mapping GET/POST.
+import { parseStringArray, toJsonWireDeep } from '@/lib/json-fields'
 
 // =====================================================================
 // DELIVERY ZONES API — CRUD za cone dostave
@@ -49,7 +52,8 @@ export async function GET(req: Request) {
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     })
 
-    return NextResponse.json({ zones: zones.map(z => decimalsToNumbers(z, ['deliveryFee', 'minOrderAmount', 'freeDeliveryAbove'])) })
+    // R150 (#33): wire mapping — JSONB struct → JSON string (byte-identical wire)
+    return NextResponse.json({ zones: toJsonWireDeep(zones.map(z => decimalsToNumbers(z, ['deliveryFee', 'minOrderAmount', 'freeDeliveryAbove']))) })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/delivery-zones', 'Napaka pri pridobivanju con dostave')
   }
@@ -64,8 +68,15 @@ export async function POST(req: Request) {
     const { data, error: validationError } = await validateRequest(req, deliveryZoneSchema)
     if (validationError) return validationError
 
-    const zone = await db.deliveryZone.create({ data })
-    return NextResponse.json(decimalsToNumbers(zone, ['deliveryFee', 'minOrderAmount', 'freeDeliveryAbove']), { status: 201 })
+    // R150 (#33): wire sprejema JSON string, DB dobi NATIVNI Json vrednosti
+    const zone = await db.deliveryZone.create({
+      data: {
+        ...data,
+        postCodes: parseStringArray(data.postCodes),
+        cities: parseStringArray(data.cities),
+      },
+    })
+    return NextResponse.json(toJsonWireDeep(decimalsToNumbers(zone, ['deliveryFee', 'minOrderAmount', 'freeDeliveryAbove'])), { status: 201 })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/delivery-zones', 'Napaka pri ustvarjanju cone dostave')
   }

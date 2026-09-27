@@ -103,10 +103,10 @@ export async function seedAllConfig() {
   await db.webhook.create({ data: { name: 'Test webhook', url: 'https://hooks.example.com/pos', events: 'order.created,order.completed,payment.received', isActive: false, secret: webhookSecret, locationId } }).catch(() => {})
   // Jobs
   await Promise.all([
-    db.job.create({ data: { name: 'Natakar', code: 'WAIT', basePayRate: 9.50, overtimeRate: 14.25, permissions: JSON.stringify(['take_orders', 'void_items', 'apply_discounts']) } }),
-    db.job.create({ data: { name: 'Kuhar', code: 'CHEF', basePayRate: 10.50, overtimeRate: 15.75, permissions: JSON.stringify(['manage_kitchen', 'view_inventory']) } }),
-    db.job.create({ data: { name: 'Barman', code: 'BAR', basePayRate: 9.80, overtimeRate: 14.70, permissions: JSON.stringify(['take_orders', 'manage_bar']) } }),
-    db.job.create({ data: { name: 'Vodja smene', code: 'LEAD', basePayRate: 13.00, overtimeRate: 19.50, permissions: JSON.stringify(['take_orders', 'manage_cash', 'void_items', 'apply_discounts', 'view_reports']) } }),
-    db.job.create({ data: { name: 'Upravljalec', code: 'ADMIN', basePayRate: 16.00, overtimeRate: 24.00, permissions: JSON.stringify(['admin']) } }),
+    db.job.create({ data: { name: 'Natakar', code: 'WAIT', basePayRate: 9.50, overtimeRate: 14.25, permissions: ['take_orders', 'void_items', 'apply_discounts'] } }),
+    db.job.create({ data: { name: 'Kuhar', code: 'CHEF', basePayRate: 10.50, overtimeRate: 15.75, permissions: ['manage_kitchen', 'view_inventory'] } }),
+    db.job.create({ data: { name: 'Barman', code: 'BAR', basePayRate: 9.80, overtimeRate: 14.70, permissions: ['take_orders', 'manage_bar'] } }),
+    db.job.create({ data: { name: 'Vodja smene', code: 'LEAD', basePayRate: 13.00, overtimeRate: 19.50, permissions: ['take_orders', 'manage_cash', 'void_items', 'apply_discounts', 'view_reports'] } }),
+    db.job.create({ data: { name: 'Upravljalec', code: 'ADMIN', basePayRate: 16.00, overtimeRate: 24.00, permissions: ['admin'] } }),
   ])
 }

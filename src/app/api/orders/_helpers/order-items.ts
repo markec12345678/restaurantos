@@ -20,6 +20,9 @@
 
 import { toNum } from '@/lib/decimal'
 import { Prisma } from '@prisma/client'
+// R150 (repo issue #33): kanonski par za dual-write join vrstic —
+// parseOrderItemModifiers (Zod-toleranten: legacy string ALI native struct).
+import { parseOrderItemModifiers, type JsonFieldInput } from '@/lib/json-fields'
 
 const D = Prisma.Decimal
 
@@ -225,4 +228,124 @@ export function validateMenuItems(
     }
   }
   return null
+}
+
+// ============================================
+// R150 (repo issue #33 "JSON-as-String") — DUAL-WRITE OrderItemModifier
+// ============================================
+// Kjer koli se persistirajo OrderItems z modifierji, se v ISTI transakciji
+// zapišejo tudi normalizirane OrderItemModifier join vrstice (FK integriteta +
+// queryability "kolikokrat je bil modifier X uporabljen?" + snapshot cene),
+// legacy OrderItem.modifiersJson STRING pa se zapiše NESPREMENJEN
+// (byte-kompatibilen wire za obstoječe UI/teste — drop na cleanup rundi).
+
+/** ENA join vrstica OrderItemModifier (UncheckedCreateInput subset). */
+export interface OrderItemModifierJoinRow {
+  orderItemId: string
+  name: string
+  price: number
+  quantity: number | null
+  modifierGroupId: string | null
+  modifierGroupName: string
+  sortOrder: number
+}
+
+/**
+ * R150 (#33): zgradi join vrstice za EN OrderItem.
+ * Semantika pariteta backfill v 0022_json_fields:
+ *   - modifierGroupId: iz wire vnosa, ampak SAMO če ModifierGroup obstaja
+ *     (neznana skupina → NULL + SetNull semantika; bogus FK iz wire-a NE sme
+ *     porušiti kreacije naročila z 500).
+ *   - modifierGroupName: snapshot DB imena skupine, sicer '' (legacy wire
+ *     string ohrani original vsebino).
+ *   - price: snapshot >= 0 (ista defenzivna klamra kot parseModifiersJson —
+ *     join snapshot je enak zaračunani vrednosti).
+ *   - vnosi brez imena se izločijo (ista pravila kot pri izračunu cene).
+ */
+export async function buildOrderItemModifierRows(
+  orderItemId: string,
+  modifiersJson: unknown,
+  exec: Pick<typeof import('@/lib/db').db, 'modifierGroup'>,
+): Promise<OrderItemModifierJoinRow[]> {
+  const mods = parseOrderItemModifiers((modifiersJson ?? null) as JsonFieldInput)
+  const usable = mods.filter((m) => m.name.length > 0)
+  if (usable.length === 0) return []
+
+  // Group lookup — samo kadar wire nosi modifierGroupId (en query na item,
+  // znotraj tx klicatelja; prazna množica = zero query).
+  const groupIds = [...new Set(
+    usable
+      .map((m) => m.modifierGroupId)
+      .filter((g): g is string => typeof g === 'string' && g.length > 0),
+  )]
+  const groupMap = new Map<string, string>()
+  if (groupIds.length > 0) {
+    const groups = await exec.modifierGroup.findMany({
+      where: { id: { in: groupIds } },
+      select: { id: true, name: true },
+    })
+    for (const g of groups) groupMap.set(g.id, g.name)
+  }
+
+  return usable.map((m, idx) => {
+    const groupId = m.modifierGroupId
+    const validGroupId = typeof groupId === 'string' && groupMap.has(groupId) ? groupId : null
+    return {
+      orderItemId,
+      name: m.name,
+      price: m.price >= 0 ? m.price : 0,
+      quantity: m.quantity ?? null,
+      modifierGroupId: validGroupId,
+      modifierGroupName: validGroupId ? groupMap.get(validGroupId)! : '',
+      sortOrder: idx,
+    }
+  })
+}
+
+/**
+ * R150 (#33): parjenje ustvarjenih DB vrstic z input podatki za NESTED create
+ * (Prisma NE garantira vrstnega reda odgovora nested create-ov). Podpis =
+ * (menuItemId, quantity, notes, modifiersJson) — pri identičnih podpisih so
+ * tudi join vrstice identične, zato je dodelitev med njimi deterministično
+ * neškodljiva. Vrne pare v vrstnem redu inputa (preskoči input brez db par).
+ */
+export function pairOrderItemsWithInput<
+  TDb extends { menuItemId: string; quantity: number; notes?: string | null; modifiersJson?: unknown },
+  TIn extends { menuItemId: string; quantity: number; notes?: string | null; modifiersJson?: unknown },
+>(dbItems: TDb[], inputItems: TIn[]): Array<{ db: TDb; input: TIn }> {
+  const sig = (v: { menuItemId: string; quantity: number; notes?: string | null; modifiersJson?: unknown }): string =>
+    JSON.stringify([v.menuItemId, v.quantity, v.notes ?? null, JSON.stringify(v.modifiersJson ?? null)])
+  const pool = new Map<string, TDb[]>()
+  for (const db of dbItems) {
+    const s = sig(db)
+    const list = pool.get(s)
+    if (list) list.push(db)
+    else pool.set(s, [db])
+  }
+  const pairs: Array<{ db: TDb; input: TIn }> = []
+  for (const input of inputItems) {
+    const list = pool.get(sig(input))
+    const db = list?.shift()
+    if (db) pairs.push({ db, input })
+  }
+  return pairs
+}
+
+/**
+ * R150 (#33): zapiši OrderItemModifier join vrstice ZNOTRAJ tx klicatelja
+ * (dual-write kanon: join rows + legacy modifiersJson string v isti
+ * transakciji). Vrne število zapisanih vrstic (0 = nič modifierjev).
+ */
+export async function writeOrderItemModifiersInTx(
+  tx: Prisma.TransactionClient,
+  pairs: Array<{ orderItemId: string; modifiersJson: unknown }>,
+): Promise<number> {
+  if (pairs.length === 0) return 0
+  const rows: OrderItemModifierJoinRow[] = []
+  for (const p of pairs) {
+    rows.push(...await buildOrderItemModifierRows(p.orderItemId, p.modifiersJson, tx))
+  }
+  if (rows.length === 0) return 0
+  await tx.orderItemModifier.createMany({ data: rows })
+  return rows.length
 }

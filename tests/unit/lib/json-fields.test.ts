@@ -36,6 +36,9 @@ import {
   isPermission,
   parsePrintRules,
   parseDaysOfWeek,
+  toJsonWire,
+  toJsonWireDeep,
+  JSON_WIRE_FIELDS,
   JSON_FIELD_VERSION,
   detectPayloadVersion,
   migrateJsonPayload,
@@ -320,14 +323,19 @@ describe('getJsonFieldStats — migracijski dashboard', () => {
     expect(stats.hasHelpers).toBe(true)
   })
 
-  it('usesPrismaJson je false (Phase 3 še ni narejen)', () => {
+  it('usesPrismaJson je true (R150 #33: Phase 3 KONČAN — 0022_json_fields)', () => {
     const stats = getJsonFieldStats()
-    expect(stats.usesPrismaJson).toBe(false)
+    expect(stats.usesPrismaJson).toBe(true)
   })
 
   it('recommendations vključuje Phase 3 načrt', () => {
     const stats = getJsonFieldStats()
     expect(stats.recommendations.some((r) => r.includes('Phase 3'))).toBe(true)
+  })
+
+  it('recommendations poroča o zaključeni migraciji 0022_json_fields', () => {
+    const stats = getJsonFieldStats()
+    expect(stats.recommendations.some((r) => r.includes('0022_json_fields'))).toBe(true)
   })
 
   it('modelsAffected >= 10 (veliko modelov)', () => {
@@ -501,5 +509,166 @@ describe('P1-9: parseOrderItemModifiers — per-element filter', () => {
   it('id polje preživi parse (server-side DB price lookup potrebuje)', () => {
     const result = parseOrderItemModifiers(JSON.stringify([{ id: 'mod-7', name: 'Ekstra', price: 0.5 }]))
     expect(result[0].id).toBe('mod-7')
+  })
+})
+
+// ════════════════════════════════════════════════════════════════
+// R150 (#33) RAZŠIRITEV — JsonValue-toleranca (native JSONB vhodi) +
+// wire mapping (toJsonWire/toJsonWireDeep). Po 0022_json_fields Prisma
+// vrača/sprejema NATIVNE struct vrednosti — vsi parserji sprejmejo OBE
+// obliki (legacy JSON string ALI native struct), wire API-jev pa ostane
+// JSON string (toJsonWire preslika SAMO znana wire polja).
+// ════════════════════════════════════════════════════════════════
+
+describe('R150: tolerantni parserji — native struct (JSONB) vhodi', () => {
+  it('parseOrderItemModifiers sprejme native array', () => {
+    const native = [{ name: 'Sir', price: 1.5 }, { name: 'Slanina', price: 2 }]
+    expect(parseOrderItemModifiers(native)).toEqual(native)
+  })
+
+  it('parsePermissions sprejme native array (Job/Session.permissions po 0022)', () => {
+    expect(parsePermissions(['admin', 'take_orders', 'invalid_perm', 42])).toEqual(['admin', 'take_orders'])
+  })
+
+  it('parseWebhookEvents sprejme native array', () => {
+    expect(parseWebhookEvents(['order.created', 'unknown.event'])).toEqual(['order.created'])
+  })
+
+  it('parseAllergens sprejme native array (Guest.allergens je JSONB)', () => {
+    expect(parseAllergens(['1', '15', 'abc', '3'])).toEqual(['1', '3'])
+  })
+
+  it('parseDeliveryDays sprejme native array', () => {
+    expect(parseDeliveryDays(['pon', 'xyz', 'sre'])).toEqual(['pon', 'sre'])
+  })
+
+  it('parseDaysOfWeek sprejme native array (HappyHourSchedule po 0022)', () => {
+    expect(parseDaysOfWeek([1, 0.5, 8, '2', 7])).toEqual([1, 7])
+  })
+
+  it('parseJsonPayload sprejme native object', () => {
+    expect(parseJsonPayload({ action: 'login', userId: 'u1' })).toEqual({ action: 'login', userId: 'u1' })
+  })
+
+  it('parseVatBreakdown sprejme native object (Receipt.vatBreakdown po 0022)', () => {
+    expect(parseVatBreakdown({ '22': 12.34, '9.5': { base: 5, vat: 0.475 } })).toEqual({
+      '22': 12.34,
+      '9.5': { base: 5, vat: 0.475 },
+    })
+  })
+
+  it('parseStringArray sprejme native array', () => {
+    expect(parseStringArray(['a', 1, 'b', true, null])).toEqual(['a', 'b'])
+  })
+
+  it('parseIntegrationConfig sprejme native object (Integration.config po 0022)', () => {
+    expect(parseIntegrationConfig({ companyId: '123', autoSync: true })).toEqual({ companyId: '123', autoSync: true })
+  })
+
+  it('parsePrintRules sprejme native array (Printer.printRules po 0022)', () => {
+    expect(parsePrintRules([{ type: 'order', prepStationId: 'ps-1' }])).toEqual([
+      { type: 'order', prepStationId: 'ps-1' },
+    ])
+  })
+
+  it('safeParseJson sprejme native struct (brez JSON.parse poti, Zod odloča)', () => {
+    const numberArraySchema = z.array(z.number())
+    expect(safeParseJson(numberArraySchema, [1, 2, 3], [])).toEqual([1, 2, 3])
+    expect(safeParseJson(numberArraySchema, { a: 1 }, [])).toEqual([])
+  })
+
+  it('string in native vhod data ISTI rezultat (tolerantna pariteta)', () => {
+    const legacy = JSON.stringify(['pon', 'sre'])
+    expect(parseDeliveryDays(legacy)).toEqual(parseDeliveryDays(['pon', 'sre']))
+  })
+})
+
+describe('R150: normalizeJsonInput robovi (prek javnih parserjev)', () => {
+  it('prazen string → fallback (legacy DEFAULT(\'\') vrstice)', () => {
+    expect(safeJsonParse('', ['fb'])).toEqual(['fb'])
+    expect(safeJsonParse('   ', 'fb')).toBe('fb')
+    expect(parseStringArray('')).toEqual([])
+  })
+
+  it('malformed JSON string → fallback, NIKOLI throw', () => {
+    expect(safeJsonParse('{broken', 'fb')).toBe('fb')
+    expect(safeJsonParse('not-json', 'fb')).toBe('fb')
+    expect(parseVatBreakdown('ni-json')).toEqual({})
+    expect(parseOrderItemModifiers('{incomplete')).toEqual([])
+  })
+
+  it('null/undefined → fallback', () => {
+    expect(safeJsonParse(null, 'fb')).toBe('fb')
+    expect(safeJsonParse(undefined, 'fb')).toBe('fb')
+    expect(parseIntegrationConfig(null)).toEqual({})
+    expect(parseIntegrationConfig(undefined)).toEqual({})
+  })
+
+  it('primitivni native vhodi (number/boolean) gredo 1:1 skozi (Zod/oblika odloči)', () => {
+    expect(safeJsonParse(42, 'fb')).toBe(42)
+    expect(safeJsonParse(true, 'fb')).toBe(true)
+    // primitiv ni array/object → poljski parserji vrnejo fallback
+    expect(parseStringArray(42)).toEqual([])
+    expect(parseVatBreakdown(42)).toEqual({})
+    expect(parseOrderItemModifiers(42)).toEqual([])
+  })
+})
+
+describe('R150: toJsonWire — struct → JSON string (SAMO wire polja)', () => {
+  it('stringify-a SAMO JSON_WIRE_FIELDS struct vrednosti', () => {
+    const row = { id: 'j1', name: 'Kuhinja', permissions: ['admin'], printRules: [{ type: 'receipt' }] }
+    const wire = toJsonWire(row) as Record<string, unknown>
+    expect(wire.permissions).toBe('["admin"]')
+    expect(wire.printRules).toBe('[{"type":"receipt"}]')
+    expect(wire.name).toBe('Kuhinja') // non-wire polje nedotaknjeno
+    expect(wire.id).toBe('j1')
+  })
+
+  it('string vrednosti ostanejo nespremenjene (že-wire / legacy / CSV)', () => {
+    const row = { permissions: '["admin"]', allergens: '1,3', vatBreakdown: '{}', details: '{"a":1}' }
+    const wire = toJsonWire(row) as Record<string, unknown>
+    expect(wire.permissions).toBe('["admin"]')
+    expect(wire.allergens).toBe('1,3')
+    expect(wire.vatBreakdown).toBe('{}')
+    expect(wire.details).toBe('{"a":1}') // DEFER stolpec (byte-pinned) — ni wire polje
+  })
+
+  it('null/undefined wire polja se pustijo (nikoli "null" string)', () => {
+    const wire = toJsonWire({ permissions: null, printRules: undefined }) as Record<string, unknown>
+    expect(wire.permissions).toBeNull()
+    expect(wire.printRules).toBeUndefined()
+  })
+
+  it('ne-object vhodi gredo 1:1 (string, null, array)', () => {
+    expect(toJsonWire('str' as never)).toBe('str')
+    expect(toJsonWire(null)).toBeNull()
+    expect(toJsonWire([1, 2] as never)).toEqual([1, 2])
+  })
+
+  it('toJsonWireDeep: nested vrstice (include-i) se preslikajo rekurzivno', () => {
+    const data = {
+      id: 'g1',
+      favoriteItems: ['pizza'],
+      visits: [{ id: 'v1', tags: ['x'], config: { a: 1 } }],
+    }
+    const wire = toJsonWireDeep(data) as unknown as { favoriteItems: string; visits: Array<{ tags: string; config: string }> }
+    expect(wire.favoriteItems).toBe('["pizza"]')
+    expect(wire.visits[0].tags).toBe('["x"]')
+    expect(wire.visits[0].config).toBe('{"a":1}')
+    expect(JSON.parse(wire.visits[0].config)).toEqual({ a: 1 })
+  })
+
+  it('toJsonWireDeep: Date/[[Primitive]] razredi ostanejo nedotaknjeni', () => {
+    const d = new Date('2026-01-01T00:00:00.000Z')
+    const wire = toJsonWireDeep({ createdAt: d, items: [{ tags: ['a'] }] }) as unknown as { createdAt: Date; items: Array<{ tags: string }> }
+    expect(wire.createdAt).toBe(d)
+    expect(wire.items[0].tags).toBe('["a"]')
+  })
+
+  it('JSON_WIRE_FIELDS ne vsebuje legacy/DEFER stolpcev (modifiersJson, details, payload, apiKeys)', () => {
+    expect(JSON_WIRE_FIELDS.has('modifiersJson')).toBe(false) // legacy dual-write string wire
+    expect(JSON_WIRE_FIELDS.has('details')).toBe(false) // AuditLog.details — DEFER
+    expect(JSON_WIRE_FIELDS.has('payload')).toBe(false) // WebhookDelivery.payload — DEFER
+    expect(JSON_WIRE_FIELDS.has('apiKeys')).toBe(false) // RestaurantSettings.apiKeys — DEFER
   })
 })

@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import type { PrinterModel } from '@/lib/escpos'
 import * as net from 'net'
 import { parsePrintRules } from '@/lib/json-fields'
+import type { JsonFieldInput } from '@/lib/json-fields'
 
 // ============================================
 // Printer utility functions
@@ -77,7 +78,7 @@ export interface PrinterInfo {
 }
 
 /** P2-UX FIX (tiskanje na različnih printerjih): izlušči PrinterInfo iz zapisa */
-function toPrinterInfo(printer: { id: string; name: string; ipAddress: string; type: string; printRules: string }): PrinterInfo {
+function toPrinterInfo(printer: { id: string; name: string; ipAddress: string; type: string; printRules: JsonFieldInput }): PrinterInfo {
   // FIX EP5: konfigurabilni port iz printRules, sicer 9100
   const rules = parsePrintRules(printer.printRules)
   const customPort = rules.find(r => r.port)?.port

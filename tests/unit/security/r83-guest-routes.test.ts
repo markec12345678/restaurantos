@@ -106,11 +106,14 @@ vi.mock('@/lib/db', () => ({
     guestFeedback: { create: mocks.guestFeedbackCreate },
     // R135: transakcijski tx klient — order.create usmerjen v isti trak,
     // ostale tx operacije (check/payment/orderItem) dobijo lastne trake
+    // R150 (#33): + orderItemModifier.createMany (dual-write delegate — realni
+    // tx klient ga ima; pri praznem parjenju se ne sproži)
     $transaction: vi.fn(async (fn: (tx: object) => unknown) => fn({
       order: { create: mocks.orderCreate, update: mocks.orderUpdate },
       check: { create: mocks.checkCreate },
       payment: { create: mocks.paymentCreate },
       orderItem: { updateMany: mocks.orderItemUpdateMany },
+      orderItemModifier: { createMany: vi.fn(async () => ({ count: 0 })) },
     })),
   },
   createAuditLog: vi.fn(async () => ({})),
@@ -188,14 +191,22 @@ vi.mock('@/app/api/public/order/_helpers', () => ({
   MAX_ORDER_TOTAL: 2000,
 }))
 
-vi.mock('@/app/api/orders/_helpers/order-items', () => ({
-  buildOrderItemsData: vi.fn(() => ({
-    orderItemsData: [{ menuItemId: 'mi-1', quantity: 1, unitPrice: 2, totalPrice: 2, vatRate: 22, modifiers: '[]', menuItemName: 'Kava' }],
-    subtotal: 2,
-  })),
-  calculateOrderTotals: vi.fn(() => ({ totalTax: 0.44, total: 2.44 })),
-  fetchModifierPriceMap: vi.fn(async () => new Map()),
-}))
+// R150 (repo issue #33): modul je dobil nova exports pairOrderItemsWithInput +
+// writeOrderItemModifiersInTx (dual-write OrderItemModifier join vrstic) —
+// REALNA implementacija ostane (importOriginal spread), mockani so samo
+// izračuni (kot prej).
+vi.mock('@/app/api/orders/_helpers/order-items', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/app/api/orders/_helpers/order-items')>()
+  return {
+    ...actual,
+    buildOrderItemsData: vi.fn(() => ({
+      orderItemsData: [{ menuItemId: 'mi-1', quantity: 1, unitPrice: 2, totalPrice: 2, vatRate: 22, modifiers: '[]', menuItemName: 'Kava' }],
+      subtotal: 2,
+    })),
+    calculateOrderTotals: vi.fn(() => ({ totalTax: 0.44, total: 2.44 })),
+    fetchModifierPriceMap: vi.fn(async () => new Map()),
+  }
+})
 
 vi.mock('@/lib/webhook-engine/signing', () => ({
   signPayload: vi.fn(() => 'sig'),
@@ -213,7 +224,11 @@ vi.mock('@/lib/crypto/secrets', () => ({
   ensureDecrypted: vi.fn((v: string) => v),
 }))
 
-vi.mock('@/lib/json-fields', () => ({
+// R150 (repo issue #33): webhooks/gost-sorodne rute uvažajo tudi toJsonWire/
+// toJsonWireDeep wire mapperje — REALNI ostanejo (importOriginal spread);
+// parseWebhookEvents override ostane (kot prej).
+vi.mock('@/lib/json-fields', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
   parseWebhookEvents: vi.fn((v: string) => {
     try { return JSON.parse(v || '[]') as string[] } catch { return [] as string[] }
   }),

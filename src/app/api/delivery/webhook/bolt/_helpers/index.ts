@@ -6,6 +6,9 @@
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import type { Prisma } from '@prisma/client'
+// R150 (repo issue #33): IntegrationLog.requestData/responseData sta zdaj JSONB
+// (0022_json_fields) — tolerantno branje (legacy JSON string ALI native struct).
+import { parseJsonPayload, type JsonFieldInput } from '@/lib/json-fields'
 
 // Bolt signature header name
 export const BOLT_SIGNATURE_HEADER = 'x-bolt-signature'
@@ -157,17 +160,22 @@ export async function findExistingBoltOrder(
       direction: 'inbound',
       status: 'success',
       OR: [
-        { requestData: { contains: `"boltOrderId":"${boltOrderId}"` } },
-        { requestData: { contains: `"boltOrderId": "${boltOrderId}"` } },
+        // R150 (#33): stolpec je zdaj JSONB — Prisma string `contains` na jsonb
+        // NE dela substring ujemanja. Legacy vrstice so migrirane v jsonb
+        // OBJECT (USING cast), nove pišejo native object → `path: equals`
+        // filtrira po ključu; `string_contains` pokrije morebitne legacy
+        // zapise shranjene kot jsonb STRING scalar (raw body logi).
+        { requestData: { path: ['boltOrderId'], equals: boltOrderId } },
+        { requestData: { string_contains: `"boltOrderId":"${boltOrderId}"` } },
+        { requestData: { string_contains: `"boltOrderId": "${boltOrderId}"` } },
       ],
     },
     select: { requestData: true, responseData: true },
   })
   const exactLog = candidateLogs.find(log => {
-    try {
-      const data = JSON.parse(log.requestData || '{}')
-      return data.boltOrderId === boltOrderId
-    } catch { return false }
+    // R150 (#33): tolerantno branje — native jsonb struct ali legacy string
+    const data = parseJsonPayload(log.requestData as unknown as JsonFieldInput)
+    return data.boltOrderId === boltOrderId
   })
   if (exactLog) {
     // Log obstaja = naročilo je bilo ustvarjeno (fail-closed proti
@@ -175,11 +183,9 @@ export async function findExistingBoltOrder(
     // responseData → null orderId, redelivery dobi 200 brez novega create-a).
     let orderId: string | null = null
     let orderNumber: number | null = null
-    try {
-      const resp = JSON.parse(exactLog.responseData || '{}')
-      orderId = typeof resp.orderId === 'string' ? resp.orderId : null
-      orderNumber = typeof resp.orderNumber === 'number' ? resp.orderNumber : null
-    } catch { /* okvarjen responseData → null */ }
+    const resp = parseJsonPayload(exactLog.responseData as unknown as JsonFieldInput)
+    orderId = typeof resp.orderId === 'string' ? resp.orderId : null
+    orderNumber = typeof resp.orderNumber === 'number' ? resp.orderNumber : null
     return { type: 'log' as const, orderId, orderNumber }
   }
 

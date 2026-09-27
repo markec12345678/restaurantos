@@ -99,7 +99,7 @@ function params(id: string) {
 beforeAll(async () => {
   await db.location.create({ data: { id: IDS.location, name: 'R132 Lokacija', code: `${RUN_ID}-L`, premisesId: `${RUN_ID}-p`, isActive: true } })
   await db.employee.create({
-    data: { id: IDS.employee, name: 'R132 Test Skladovnik', email: `${RUN_ID}@r132-test.local`, role: 'manager', status: 'active', locationId: IDS.location },
+    data: { id: IDS.employee, name: 'R132 Test Skladovnik', email: `${RUN_ID}@r132-test.local`, role: 'manager', status: 'active', /* CI fix #133: pin @unique @default("") — ekspliciten RUN_ID pin (P2002) */ pin: `pin-${RUN_ID}`, locationId: IDS.location },
   })
   await db.supplier.create({ data: { id: IDS.supplier, name: `Dobavitelj ${RUN_ID}`, code: `${RUN_ID}-S` } })
 

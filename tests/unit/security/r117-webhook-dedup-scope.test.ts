@@ -42,7 +42,9 @@ const state = vi.hoisted(() => ({
   // Order vrstice — modelira NOT NULL locationId (schema kanon)
   orders: [] as Array<{ id: string; orderNumber: number; locationId: string; customerName: string; notes: string }>,
   // IntegrationLog vrstice — modelira realne writerje (bolt route + wolt/glovo logAndSync)
-  logs: [] as Array<{ integrationId: string; action: string; direction: string; status: string; requestData: string; responseData: string }>,
+  // R150 (repo issue #33): requestData = RAW body (jsonb string scalar),
+  // responseData = NATIVNI object (jsonb struct, 0022) — kot realni writerji.
+  logs: [] as Array<{ integrationId: string; action: string; direction: string; status: string; requestData: string; responseData: unknown }>,
   // pg_advisory_xact_lock emulacija: per-ključ FIFO veriga
   lockChains: new Map<string, Promise<void>>(),
   // envelope ?t= mock vir (route prebere integrationId iz envelope)
@@ -348,7 +350,8 @@ beforeEach(() => {
       direction: 'inbound',
       status: 'success',
       requestData: body.substring(0, 2000),
-      responseData: JSON.stringify({ orderId, orderNumber }),
+      // R150 (#33): nativna vrednost — realni writer (wolt-inventory.ts) pisal je.
+      responseData: { orderId, orderNumber },
     })
   })
   mocks.logAndSyncGlovo.mockImplementation(async (integrationId: string, body: string, orderId: string, orderNumber: number) => {
@@ -358,7 +361,8 @@ beforeEach(() => {
       direction: 'inbound',
       status: 'success',
       requestData: body.substring(0, 2000),
-      responseData: JSON.stringify({ orderId, orderNumber }),
+      // R150 (#33): nativna vrednost — glej komentar zgoraj.
+      responseData: { orderId, orderNumber },
     })
   })
   mocks.menuItemFindMany.mockResolvedValue([MENU_ITEM])

@@ -185,7 +185,9 @@ export async function createSession(employee: {
         token: tokenHash,
         employeeId: employee.id,
         role: employee.role,
-        permissions: JSON.stringify(employee.permissions),
+        // R150 (repo issue #33): Session.permissions je zdaj JSONB (0022) —
+        // NATIVNA vrednost (JSON.stringify bi tiho dvojno kodiral JSON string).
+        permissions: employee.permissions,
         sessionVersion,
         // FIX WORKFLOW-45: prej BigInt(now) — sedaj DateTime (Date object)
         createdAt: new Date(now),

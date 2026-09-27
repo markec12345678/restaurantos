@@ -343,7 +343,7 @@ describe('R140 P1-14: feedback loop (prava PGlite)', () => {
     expect(fb!.serviceRating).toBe(4)
     expect(fb!.atmosphereRating).toBe(4)
     expect(fb!.guestName).toBe('Anonimen')
-    expect(JSON.parse(fb!.tags)).toEqual(['Hitra postrežba'])
+    expect(fb!.tags).toEqual(['Hitra postrežba'])
 
     // Audit zapis obstaja (details vsebuje tableId)
     const audit = await db.auditLog.findFirst({

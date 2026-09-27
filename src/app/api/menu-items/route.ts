@@ -7,6 +7,9 @@ import { createMenuItemSchema } from '@/lib/validations'
 import { z } from 'zod'
 import { handleApiError, validateRequest, parsePaginationParams, BULK_MAX_LIMIT } from '@/lib/api-utils'
 import { isItemAvailableNow } from '@/lib/mealtimes'
+// R150 (repo issue #33): MealtimeRule.daysOfWeek je zdaj JSONB (0022) —
+// wire mapping (odgovor ostane JSON string; UI/mealtimes berejo tolerantno).
+import { toJsonWireDeep } from '@/lib/json-fields'
 import { withETag } from '@/lib/middleware/cache-headers'
 import { resolveCatalogScope, menuItemLocationFilter, isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 
@@ -107,7 +110,7 @@ export async function GET(request: Request) {
           .filter((item) => !hideUnavailable || item.isAvailable)
       : itemsRaw
 
-    const responseBody = { menuItems: deepToNumbers(items), total, limit, offset }
+    const responseBody = { menuItems: toJsonWireDeep(deepToNumbers(items)), total, limit, offset }
     // FIX P15: ETag za menu-items — prepreči redundantne DB query-je
     return withETag(request, NextResponse.json(responseBody), responseBody)
   } catch (error: unknown) {

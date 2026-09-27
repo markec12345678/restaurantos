@@ -22,6 +22,9 @@ import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rat
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
+// R150 (repo issue #33): RestaurantSettings.emailReportRecipients je zdaj JSONB
+// (0022; apiKeys ostane DEFER String) — NATIVNA vrednost v DB + wire mapping.
+import { parseStringArray, toJsonWireDeep } from '@/lib/json-fields'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,7 +81,10 @@ export async function GET(req: Request) {
     // DEPRECATED read-only legacy echo (vrednosti ostanejo od pred migracijo
     // 0012; fiskalizacija jih NIKOLI več uporablja — Location je edini vir).
     // UI naj FURS stanje bere prek /api/locations (hasFursCert flag).
-    return NextResponse.json({
+    // R150 (#33): wire mapping — JSONB struct (emailReportRecipients) → JSON
+    // string (byte-identical wire; UI EmailTab dela JSON.parse). apiKeys je
+    // DEFER String (byte-pinned) — ostane kot je.
+    return NextResponse.json(toJsonWireDeep({
       ...safeSettings,
       fursCertPassword: fursCertPassword ? '••••••' : '',
       fursCertPath: fursCertPath ? '••••••' : '', // Skrij pot do certifikata
@@ -104,7 +110,7 @@ export async function GET(req: Request) {
       hasGlovo: !!integrationSettings.glovoWebhookSecret,
       hasWolt: !!integrationSettings.woltWebhookSecret,
       hasEracuni: !!integrationSettings.eracuniApiToken,
-    })
+    }))
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/settings', 'Napaka pri pridobivanju nastavitev')
   }
@@ -225,6 +231,12 @@ export async function PUT(req: Request) {
 
       // FIX: emailSmtpPort je sedaj z.coerce.number() v Zod — avtomatska pretvorba
 
+      // R150 (#33): wire sprejema JSON string, DB dobi NATIVNO Json vrednost
+      // (apiKeys je DEFER String — byte-pinned, ostane serializiran string)
+      if (updateData.emailReportRecipients !== undefined) {
+        ;(updateData as Record<string, unknown>).emailReportRecipients = parseStringArray(updateData.emailReportRecipients)
+      }
+
       // Če imamo integration podatke, jih zlij v apiKeys JSON
       if (Object.keys(integrationData).length > 0) {
         // Preberi obstoječi apiKeys JSON
@@ -259,7 +271,8 @@ export async function PUT(req: Request) {
 
     // R125 (issue #37): maskirana furs polja v odgovoru = deprecated read-only
     // legacy echo (nikoli več uporabljena za fiskalizacijo; UI bere /api/locations).
-    return NextResponse.json({
+    // R150 (#33): wire mapping na PUT odgovoru (byte-identical wire)
+    return NextResponse.json(toJsonWireDeep({
       ...safeSettings,
       fursCertPassword: fursCertPassword ? '••••••' : '',
       fursCertPath: fursCertPath ? '••••••' : '',
@@ -285,7 +298,7 @@ export async function PUT(req: Request) {
       hasGlovo: !!integrationSettings.glovoWebhookSecret,
       hasWolt: !!integrationSettings.woltWebhookSecret,
       hasEracuni: !!integrationSettings.eracuniApiToken,
-    })
+    }))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/settings', 'Napaka pri posodabljanju nastavitev')
   }

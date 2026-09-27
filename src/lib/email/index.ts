@@ -8,6 +8,7 @@ import { logger } from '@/lib/logger'
 import { ensureDecrypted } from '@/lib/crypto/secrets'
 
 import { formatEUR } from '@/lib/safe-format'
+import { parseStringArray } from '@/lib/json-fields'
 interface EmailConfig {
   smtpHost: string
   smtpPort: number
@@ -165,26 +166,19 @@ export async function getReportRecipients(_locationId?: string | null): Promise<
       where: { id: _locationId },
       select: { emailReportRecipients: true },
     })
+    // R150 (#33): emailReportRecipients je JSONB — tolerantni parse (string ali struct)
     if (location?.emailReportRecipients) {
-      try {
-        const recipients = JSON.parse(location.emailReportRecipients)
-        if (Array.isArray(recipients) && recipients.length > 0) {
-          return recipients
-        }
-      } catch {
-        // Neveljaven JSON — fallthrough na global
+      const recipients = parseStringArray(location.emailReportRecipients)
+      if (recipients.length > 0) {
+        return recipients
       }
     }
   }
   // Fallback: RestaurantSettings (global)
   const settings = await db.restaurantSettings.findFirst()
   if (!settings) return []
-  try {
-    const recipients = JSON.parse(settings.emailReportRecipients || '[]')
-    return Array.isArray(recipients) ? recipients : []
-  } catch {
-    return []
-  }
+  // R150 (#33): JSONB tolerantni parse
+  return parseStringArray(settings.emailReportRecipients)
 }
 
 // ============================================

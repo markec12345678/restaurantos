@@ -102,8 +102,9 @@ export async function POST(req: Request) {
           direction: 'outbound',
           status: syncStatus,
           statusCode: syncStatus === 'success' ? 200 : 0,
-          requestData: JSON.stringify({ triggered: 'scheduler', interval: integration.syncInterval }),
-          responseData: '{}',
+          // R150 (#33): requestData/responseData sta zdaj JSONB — NATIVNE vrednosti
+          requestData: { triggered: 'scheduler', interval: integration.syncInterval },
+          responseData: {},
           errorMessage: syncError,
           durationMs,
         },

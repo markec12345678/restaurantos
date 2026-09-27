@@ -9,6 +9,9 @@ import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { resolveWriteLocationId } from '@/lib/tenant-scope'
 import { createGuestSchema } from '@/lib/validations'
+// R150 (repo issue #33): Guest.allergens/dietaryPrefs/dislikes/favoriteItems so
+// zdaj JSONB (0022_json_fields) — NATIVNE vrednosti v DB, wire mapping GET.
+import { parseAllergens, parseStringArray, toJsonWireDeep } from '@/lib/json-fields'
 import { emitEvent } from '@/lib/event-emitter'
 import { handleApiError, parsePaginationParams, validateRequest } from '@/lib/api-utils'
 import { logger } from '@/lib/logger'
@@ -81,7 +84,8 @@ export async function GET(req: Request) {
       db.guest.count({ where }),
     ])
 
-    return NextResponse.json({ guests, total, limit: safeLimit, offset: safeOffset })
+    // R150 (#33): wire mapping — JSONB struct → JSON string (byte-identical wire)
+    return NextResponse.json({ guests: toJsonWireDeep(guests), total, limit: safeLimit, offset: safeOffset })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/guests', 'Napaka pri pridobivanju gostov')
   }
@@ -122,10 +126,12 @@ export async function POST(req: Request) {
         phone: data.phone || '',
         isVip: data.isVip || false,
         vipSince: data.isVip ? new Date() : null,
-        allergens: JSON.stringify(data.allergens || []),
-        dietaryPrefs: JSON.stringify(data.dietaryPrefs || []),
-        dislikes: JSON.stringify(data.dislikes || []),
-        favoriteItems: JSON.stringify(data.favoriteItems || []),
+        // R150 (#33): tolerantni parserji (sprejmejo wire string ALI array) —
+        // DB dobi NATIVNO Json vrednost
+        allergens: parseAllergens(data.allergens || []),
+        dietaryPrefs: parseStringArray(data.dietaryPrefs || []),
+        dislikes: parseStringArray(data.dislikes || []),
+        favoriteItems: parseStringArray(data.favoriteItems || []),
         birthday: data.birthday ? new Date(data.birthday) : null,
         anniversary: data.anniversary ? new Date(data.anniversary) : null,
         company: data.company || '',
@@ -143,7 +149,8 @@ export async function POST(req: Request) {
       email: guest.email,
     }, scope.locationId).catch(err => logger.error('API', '[Webhook] guest.created napaka:', err))
 
-    return NextResponse.json(guest, { status: 201 })
+    // R150 (#33): wire mapping na POST odgovoru (byte-identical wire)
+    return NextResponse.json(toJsonWireDeep(guest), { status: 201 })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/guests', 'Napaka pri ustvarjanju gosta')
   }

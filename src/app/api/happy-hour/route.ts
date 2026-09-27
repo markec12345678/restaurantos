@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server'
 // odstranjen prazen import (runda 12 lint cleanup)
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { structuredErrorResponse } from '@/lib/structured-error'
-import { parseDaysOfWeek } from '@/lib/json-fields'
+import { parseDaysOfWeek, parseStringArray, toJsonWireDeep } from '@/lib/json-fields'
 
 export const dynamic = 'force-dynamic'
 
@@ -71,12 +71,15 @@ export async function GET(req: Request) {
       return true
     })
 
-    return NextResponse.json({
-      schedules,
-      activeSchedules,
+    // R150 (#33): wire mapping — JSONB struct (daysOfWeek/appliesToIds) →
+    // JSON string (byte-identical wire; UI dela JSON.parse(s.daysOfWeek)).
+    const responseBody = {
+      schedules: toJsonWireDeep(schedules),
+      activeSchedules: toJsonWireDeep(activeSchedules),
       currentlyActive: activeSchedules.length > 0,
       activePriceGroupIds: activeSchedules.map((s) => s.priceGroupId),
-    })
+    }
+    return NextResponse.json(responseBody)
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/happy-hour', 'Napaka pri pridobivanju Happy Hour')
   }
@@ -196,13 +199,15 @@ export async function POST(req: Request) {
           priceGroupId: data.priceGroupId,
           discountType: data.discountType || 'none',
           discountAmount: data.discountAmount || 0,
-          daysOfWeek: JSON.stringify(data.daysOfWeek || [1, 2, 3, 4, 5]),
           startTime: data.startTime,
           endTime: data.endTime,
           validFrom: data.validFrom ? new Date(data.validFrom) : null,
           validTo: data.validTo ? new Date(data.validTo) : null,
           appliesTo: data.appliesTo || 'all',
-          appliesToIds: JSON.stringify(data.appliesToIds || []),
+          // R150 (#33): wire sprejema JSON string / array, DB dobi NATIVNO
+          // Json vrednost (tolerantna kanonska plast)
+          daysOfWeek: parseDaysOfWeek(data.daysOfWeek ?? [1, 2, 3, 4, 5]),
+          appliesToIds: parseStringArray(data.appliesToIds ?? []),
           isActive: data.isActive ?? true,
           autoActivate: data.autoActivate ?? true,
         },
@@ -212,7 +217,8 @@ export async function POST(req: Request) {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     })
 
-    return NextResponse.json(schedule, { status: 201 })
+    // R150 (#33): wire mapping na POST odgovoru (byte-identical wire)
+    return NextResponse.json(toJsonWireDeep(schedule), { status: 201 })
   } catch (error: unknown) {
     // FIX R112 (HH-1): error kontrakt — P2034 Serializable konflikt / P2002 →
     // 409 (canonical mapping iz R107/R109/R111); strukturirani { error, status }

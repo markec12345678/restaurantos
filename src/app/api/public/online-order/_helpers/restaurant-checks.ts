@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server'
 import { DELIVERY_FEE } from './schemas'
 
 import { formatEUR } from '@/lib/safe-format'
+import { parseStringArray } from '@/lib/json-fields'
 // ─── Preveri, ali je restavracija odprta ───
 // FIX MEDIUM: Fail-CLOSED, ne fail-open — če nastavitv ni mogoče prebrati, ZAPRI naročila
 export async function checkRestaurantOpen(): Promise<NextResponse | null> {
@@ -47,8 +48,8 @@ export async function calculateDeliveryFee(
   const zones = await db.deliveryZone.findMany({ where: { isActive: true } })
   const matchingZone = zones.find(zone => {
     try {
-      const postCodes: string[] = JSON.parse(zone.postCodes)
-      const cities: string[] = JSON.parse(zone.cities)
+      const postCodes = parseStringArray(zone.postCodes)
+      const cities = parseStringArray(zone.cities)
       const postCodeMatch = postCodes.includes(customer.postCode)
       const cityMatch = cities.some(c => customer.city.toLowerCase().includes(c.toLowerCase()))
       return postCodeMatch || cityMatch

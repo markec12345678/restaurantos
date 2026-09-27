@@ -28,6 +28,8 @@ import {
   findExistingBoltOrder,
   mapBoltItemsToOrderItems,
 } from './_helpers'
+// R150 (repo issue #33): dual-write OrderItemModifier join vrstic (isti tx)
+import { pairOrderItemsWithInput, writeOrderItemModifiersInTx } from '@/app/api/orders/_helpers/order-items'
 
 export const dynamic = 'force-dynamic'
 
@@ -249,6 +251,15 @@ export async function POST(req: Request) {
         include: { orderItems: true, deliveryInfo: true },
       })
 
+      // R150 (repo issue #33): DUAL-WRITE — OrderItemModifier join vrstice v
+      // ISTI transakciji (legacy modifiersJson string v nested create zgoraj
+      // nespremenjen). Nested create → parjenje po podpisu; prazen wire → 0.
+      await writeOrderItemModifiersInTx(
+        tx,
+        pairOrderItemsWithInput(order.orderItems, orderItemsData)
+          .map(({ db: item, input }) => ({ orderItemId: item.id, modifiersJson: input.modifiersJson })),
+      )
+
       return { duplicate: false as const, order }
     }, {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
@@ -269,6 +280,8 @@ export async function POST(req: Request) {
     const total = toNum(order.total)
 
     // Zabeleži v integration log (izven tx — log ni kritičen za poslovni tok)
+    // R150 (#33): requestData/responseData sta zdaj JSONB (0022_json_fields) —
+    // NATIVNE vrednosti (JSON.stringify bi tiho dvojno kodiral JSON string).
     await db.integrationLog.create({
       data: {
         integrationId: boltIntegration.id,
@@ -276,8 +289,8 @@ export async function POST(req: Request) {
         direction: 'inbound',
         status: 'success',
         statusCode: 200,
-        requestData: JSON.stringify({ boltOrderId: data.order_id, itemCount: data.items.length }),
-        responseData: JSON.stringify({ orderNumber: order.orderNumber, orderId: order.id }),
+        requestData: { boltOrderId: data.order_id, itemCount: data.items.length },
+        responseData: { orderNumber: order.orderNumber, orderId: order.id },
         durationMs: 0,
       },
     })

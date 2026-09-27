@@ -79,7 +79,7 @@ export async function POST(req: Request) {
       where: { name: 'Administrator' },
       create: {
         name: 'Administrator',
-        permissions: JSON.stringify(['admin']),
+        permissions: ['admin'],
         basePayRate: 0,
       },
       update: {},

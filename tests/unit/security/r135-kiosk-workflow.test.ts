@@ -44,6 +44,8 @@ const mocks = vi.hoisted(() => ({
   buildOrderItemsData: vi.fn(),
   calculateOrderTotals: vi.fn(),
   fetchModifierPriceMap: vi.fn(),
+  // R150 (#33): dual-write OrderItemModifier join vrstice — tx delegate
+  orderItemModifierCreateMany: vi.fn(),
   transaction: vi.fn(),
 }))
 
@@ -56,6 +58,8 @@ vi.mock('@/lib/db', () => ({
     check: { create: mocks.checkCreate },
     payment: { create: mocks.paymentCreate },
     orderItem: { updateMany: mocks.orderItemUpdateMany },
+    // R150 (#33): dual-write delegate (realni tx klient ima orderItemModifier)
+    orderItemModifier: { createMany: mocks.orderItemModifierCreateMany },
     deviceRegistry: { upsert: mocks.deviceRegistryUpsert },
     counter: { upsert: vi.fn() },
     $transaction: mocks.transaction,
@@ -112,11 +116,20 @@ vi.mock('@/app/api/public/order/_helpers', () => ({
   MAX_ORDER_TOTAL: 2000,
 }))
 
-vi.mock('@/app/api/orders/_helpers/order-items', () => ({
-  buildOrderItemsData: mocks.buildOrderItemsData,
-  calculateOrderTotals: mocks.calculateOrderTotals,
-  fetchModifierPriceMap: mocks.fetchModifierPriceMap,
-}))
+vi.mock('@/app/api/orders/_helpers/order-items', async (importOriginal) => {
+  // R150 (repo issue #33): modul je dobil nova exports pairOrderItemsWithInput +
+  // writeOrderItemModifiersInTx (dual-write OrderItemModifier join vrstic v tx)
+  // — REALNA implementacija ostane (importOriginal spread), mockani so samo
+  // izračuni (kot prej). Pri praznem parjenju (trap db orderItems brez podpisa
+  // menuItemId/quantity/notes/modifiersJson) realni dual-write ne naredi nič.
+  const actual = await importOriginal<typeof import('@/app/api/orders/_helpers/order-items')>()
+  return {
+    ...actual,
+    buildOrderItemsData: mocks.buildOrderItemsData,
+    calculateOrderTotals: mocks.calculateOrderTotals,
+    fetchModifierPriceMap: mocks.fetchModifierPriceMap,
+  }
+})
 
 // Route imports (PO mockih)
 import { GET as kioskGET, POST as kioskPOST } from '@/app/api/public/kiosk/route'
@@ -179,6 +192,8 @@ beforeEach(() => {
     check: { create: mocks.checkCreate },
     payment: { create: mocks.paymentCreate },
     orderItem: { updateMany: mocks.orderItemUpdateMany },
+    // R150 (#33): dual-write delegate — trap tx zrcali realni Prisma tx klient
+    orderItemModifier: { createMany: mocks.orderItemModifierCreateMany },
   }))
 })
 

@@ -82,11 +82,14 @@ describe('MODEL A #8: DiningOption cross-scope reference (serviceChargeId/taxRat
 })
 
 describe('MODEL A #9: Printer.printRules validacija (oblika + prepStation scope)', () => {
-  it('veljaven printRules JSON (splošno pravilo) → OK + kanonična serializacija', async () => {
+  it('veljaven printRules JSON (splošno pravilo) → OK + NATIVNA vrednost (R150 #33: JSONB — JSON.stringify bi tiho dvojno kodiral)', async () => {
     const data = { printRules: '[{"type":"receipt"}]' }
     const res = await validateConfigRefs('printers', data, LOC_A)
     expect(res.ok).toBe(true)
-    expect(data.printRules).toBe('[{"type":"receipt"}]')
+    // R150 (repo issue #33): writerji zapisujejo NATIVNO vrednost (wire string
+    // → parsePrintRules → array); wire mapping (struct → string) je LE na GET/
+    // POST odgovorih prek toJsonWire.
+    expect(data.printRules).toEqual([{ type: 'receipt' }])
   })
 
   it('NEVELJAVEN JSON → zavrnjeno', async () => {

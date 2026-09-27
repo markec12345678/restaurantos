@@ -15,6 +15,7 @@ import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { toNum } from '@/lib/decimal'
 import { z } from 'zod'
 import { handleApiError } from '@/lib/api-utils'
+import { parseStringArray } from '@/lib/json-fields'
 
 
 const deliveryCheckSchema = z.object({
@@ -79,8 +80,8 @@ export async function GET(req: Request) {
     // Poišči prvo cono, ki ustreza naslovu
     for (const zone of zones) {
       try {
-        const postCodes: string[] = JSON.parse(zone.postCodes || '[]')
-        const cities: string[] = JSON.parse(zone.cities || '[]')
+        const postCodes = parseStringArray(zone.postCodes)
+        const cities = parseStringArray(zone.cities)
 
         // Preveri poštno številko
         const postCodeMatch = postCodes.length === 0 || postCodes.includes(postCode)
@@ -109,8 +110,8 @@ export async function GET(req: Request) {
     // Preveri ali obstaja kakšna cona s privzetimi nastavitvami (brez omejitev)
     const defaultZone = zones.find(z => {
       try {
-        const pc = JSON.parse(z.postCodes || '[]')
-        const ct = JSON.parse(z.cities || '[]')
+        const pc = parseStringArray(z.postCodes)
+        const ct = parseStringArray(z.cities)
         return pc.length === 0 && ct.length === 0 && z.isActive
       } catch { return false }
     })

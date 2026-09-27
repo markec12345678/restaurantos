@@ -28,6 +28,20 @@ import { logger } from '@/lib/logger'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
+// R150 (repo issue #33): Receipt.vatBreakdown je zdaj JSONB (0022) —
+// prazna vrednost je native object {} ALI legacy string ''/'{}' (pre-mig).
+function isEmptyVatBreakdown(v: unknown): boolean {
+  if (v === null || v === undefined) return true
+  if (typeof v === 'string') {
+    const t = v.trim()
+    return t === '' || t === '{}'
+  }
+  if (typeof v === 'object' && !Array.isArray(v)) {
+    return Object.keys(v as Record<string, unknown>).length === 0
+  }
+  return false
+}
+
 // Kanonični gate = mirror /api/subscription (R81) + /api/subscription/invoices (R82-A).
 function platformAdminGate(authResult: { session: { role: string; locationId?: string | null } | null }): NextResponse | null {
   const session = authResult.session
@@ -53,9 +67,8 @@ export async function POST(req: Request) {
     })
 
     // Filter to those with empty/null/{} vatBreakdown
-    const receiptsToUpdate = receipts.filter(r =>
-      !r.vatBreakdown || r.vatBreakdown === '' || r.vatBreakdown === '{}'
-    )
+    // R150 (#33): Json-aware prazna preverba (objekt brez ključev ALI legacy string)
+    const receiptsToUpdate = receipts.filter(r => isEmptyVatBreakdown(r.vatBreakdown))
 
     if (receiptsToUpdate.length === 0) {
       return NextResponse.json({
@@ -102,10 +115,11 @@ export async function POST(req: Request) {
         }
 
         // Update receipt
+        // R150 (#33): NATIVNA vrednost v JSONB stolpec
         await db.receipt.update({
           where: { id: receipt.id },
           data: {
-            vatBreakdown: JSON.stringify(vatBreakdown),
+            vatBreakdown,
           },
         })
         updated++

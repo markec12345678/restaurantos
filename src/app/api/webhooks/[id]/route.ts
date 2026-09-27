@@ -10,6 +10,9 @@ import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { maskWebhookSecret } from '@/lib/secret-masks'
+// R150 (repo issue #33): Webhook.events je zdaj JSONB (0022) — NATIVNA
+// vrednost v DB, wire mapping PUT odgovora.
+import { parseWebhookEvents, toJsonWireDeep } from '@/lib/json-fields'
 
 // FIX HIGH: Zod validacija za posodobitev webhooka — prepreči injection
 const updateWebhookSchema = z.object({
@@ -72,7 +75,8 @@ export async function PUT(
     const updateData: Record<string, unknown> = {}
     if (data.name !== undefined) updateData.name = data.name
     if (data.url !== undefined) updateData.url = data.url
-    if (data.events !== undefined) updateData.events = data.events
+    // R150 (#33): wire sprejema JSON string, DB dobi NATIVNO Json vrednost
+    if (data.events !== undefined) updateData.events = parseWebhookEvents(data.events)
     if (data.isActive !== undefined) updateData.isActive = data.isActive
     if (data.secret !== undefined) updateData.secret = data.secret
 
@@ -82,7 +86,8 @@ export async function PUT(
     })
 
     // FIX SECURITY: maskiraj webhook secret v PUT odgovoru
-    return NextResponse.json(deepToNumbers(maskWebhookSecret(webhook)))
+    // R150 (#33): wire mapping — JSONB struct → JSON string
+    return NextResponse.json(toJsonWireDeep(deepToNumbers(maskWebhookSecret(webhook))))
   } catch (error: unknown) {
     return handleApiError(error, 'PUT /api/webhooks/[id]', 'Napaka pri posodobitvi webhooka')
   }

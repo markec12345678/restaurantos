@@ -31,6 +31,7 @@ import { sendRacunZahtjev } from './send'
 import { loadCisP12 } from './p12'
 import type { CisEnvironment, CisConfigValidation } from './types'
 import type { CisPorezStopa, CisRacunData } from './invoice'
+import type { JsonFieldInput } from '@/lib/json-fields'
 
 /** Minimum polj Receipt-a, ki jih oddaja bere (Prisma Receipt delegate). */
 export interface ReceiptForCis {
@@ -40,7 +41,7 @@ export interface ReceiptForCis {
   registerId: string
   totalWithTip: DecimalLike // Prisma Decimal | number | string
   paymentMethod: string
-  vatBreakdown: string // JSON string
+  vatBreakdown: JsonFieldInput // R150: JSONB struct ali legacy JSON string
   isStorno: boolean
   createdAt: Date
   cisStatus: string
@@ -88,10 +89,12 @@ export function receiptNumberToBrOznRac(receiptNumber: string): string {
   return stripped.slice(0, 20)
 }
 
-/** Varno parseaj vatBreakdown JSON (Receipt.vatBreakdown je JSON string). */
-function parseVatBreakdown(json: string): Record<string, { base: number; vat: number; total: number }> {
+/** Varno parseaj vatBreakdown (R150: Receipt.vatBreakdown je JSONB struct ali legacy JSON string). */
+function parseVatBreakdown(json: JsonFieldInput): Record<string, { base: number; vat: number; total: number }> {
   try {
-    const parsed: unknown = JSON.parse(json || '{}')
+    const parsed: unknown = (json !== null && json !== undefined && typeof json === 'object')
+      ? json
+      : JSON.parse((json as string) || '{}')
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       return parsed as Record<string, { base: number; vat: number; total: number }>
     }

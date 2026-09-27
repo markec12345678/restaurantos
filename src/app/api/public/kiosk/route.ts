@@ -27,7 +27,7 @@ import { getNextOrderNumber, getNextCounter } from '@/lib/counters'
 import { notInScopeResponse } from '@/lib/tenant-scope'
 import { verifyOrderingToken, isOrderingSecretConfigured } from '@/lib/ordering-token'
 import { isRestaurantOpen, deductInventoryInTx, MAX_ORDER_TOTAL } from '@/app/api/public/order/_helpers'
-import { buildOrderItemsData, calculateOrderTotals, fetchModifierPriceMap, type MenuItemVatMap } from '@/app/api/orders/_helpers/order-items'
+import { buildOrderItemsData, calculateOrderTotals, fetchModifierPriceMap, pairOrderItemsWithInput, writeOrderItemModifiersInTx, type MenuItemVatMap } from '@/app/api/orders/_helpers/order-items'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
@@ -400,6 +400,15 @@ export async function POST(req: Request) {
         },
         include: { orderItems: true },
       })
+
+      // R150 (repo issue #33): DUAL-WRITE — OrderItemModifier join vrstice v
+      // ISTI transakciji (legacy modifiersJson string v nested create zgoraj
+      // nespremenjen). Nested create → parjenje po podpisu; prazen wire → 0.
+      await writeOrderItemModifiersInTx(
+        tx,
+        pairOrderItemsWithInput(newOrder.orderItems, orderItemsData)
+          .map(({ db: item, input }) => ({ orderItemId: item.id, modifiersJson: input.modifiersJson })),
+      )
 
       const check = await tx.check.create({
         data: {

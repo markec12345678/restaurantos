@@ -319,7 +319,8 @@ describe('WS AUDIT: session.locationId se obnovi iz Employee zapisa', () => {
       token: sha256(TOKEN),
       employeeId: 'emp-1',
       role: 'waiter',
-      permissions: JSON.stringify(['take_orders']),
+      // R150 (repo issue #33): DB vrstica zdaj vrača nativni array (jsonb 0022)
+      permissions: ['take_orders'],
       createdAt: new Date(Date.now() - 1000),
       expiresAt: new Date(Date.now() + 60_000),
       absoluteExpiry: new Date(Date.now() + 3600_000),
@@ -340,7 +341,8 @@ describe('WS AUDIT: session.locationId se obnovi iz Employee zapisa', () => {
       token: sha256(TOKEN),
       employeeId: 'emp-2',
       role: 'super_admin',
-      permissions: JSON.stringify(['*']),
+      // R150 (repo issue #33): DB vrstica zdaj vrača nativni array (jsonb 0022)
+      permissions: ['*'],
       createdAt: new Date(Date.now() - 1000),
       expiresAt: new Date(Date.now() + 60_000),
       absoluteExpiry: new Date(Date.now() + 3600_000),

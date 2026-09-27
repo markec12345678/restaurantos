@@ -36,7 +36,7 @@
 import { db } from '@/lib/db'
 import { Prisma } from '@prisma/client'
 import { toNum, round2, isPositive } from '@/lib/decimal'
-import { parseModifiersJson, fetchModifierPriceMap } from '../../_helpers/order-items'
+import { parseModifiersJson, fetchModifierPriceMap, writeOrderItemModifiersInTx } from '../../_helpers/order-items'
 import { deductStockForItemsInTx } from '@/lib/stock-deduction/deduct-added'
 import type { StockDeductionItem, StockDeductionResult } from '@/lib/stock-deduction/types'
 
@@ -149,6 +149,12 @@ export async function addItemsToOrder(data: AddItemsToOrderData): Promise<AddIte
           },
           include: { menuItem: true },
         })
+        // R150 (repo issue #33): DUAL-WRITE — OrderItemModifier join vrstice v
+        // ISTI transakciji (legacy modifiersJson string zgoraj nespremenjen;
+        // prazen wire → 0 vrstic).
+        await writeOrderItemModifiersInTx(tx, [
+          { orderItemId: orderItem.id, modifiersJson: item.modifiersJson },
+        ])
         created.push(orderItem)
       }
 

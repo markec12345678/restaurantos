@@ -115,7 +115,7 @@ export async function createApiKey(input: CreateApiKeyInput): Promise<CreatedApi
       name: input.name,
       keyPrefix,
       keyHash,
-      scopes: JSON.stringify(input.scopes),
+      scopes: input.scopes, // R150: JSONB native (wire nič ne spreminja)
       rateLimit: input.rateLimit || 60,
       isActive: true,
       expiresAt: input.expiresAt,
@@ -307,7 +307,7 @@ export async function rotateApiKey(keyId: string, subscriptionScope?: string): P
       name: oldKey.name + ' (rotated)',
       keyPrefix,
       keyHash,
-      scopes: oldKey.scopes,
+      scopes: oldKey.scopes ?? [],
       rateLimit: oldKey.rateLimit,
       isActive: true,
       expiresAt: oldKey.expiresAt,
