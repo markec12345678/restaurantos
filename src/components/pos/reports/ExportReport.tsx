@@ -1,13 +1,16 @@
 'use client'
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Download, ShoppingBag, Package, Receipt, Users, Clock, FileText, FileSpreadsheet, FileCode, FileDown } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Download, ShoppingBag, Package, Receipt, Users, Clock, FileText, FileSpreadsheet, FileCode, FileDown, CreditCard, Undo2, Truck, CalendarCheck, BookOpen } from 'lucide-react'
 import { format, subDays } from 'date-fns'
 import { toast } from 'sonner'
 import { authFetch } from '@/components/pos/PinLogin'
+import { useAuthUser } from '@/components/pos/sidebar/useAuthUser'
 
 // ============================================
 // IZVOZ POROČIL — CSV / PDF / Excel / eDavki XML
@@ -68,14 +71,58 @@ const FORMAT_CONFIGS: FormatConfig[] = [
   },
 ]
 
-const EXPORT_TYPES: ExportTypeConfig[] = [
+export const EXPORT_TYPES: ExportTypeConfig[] = [
   { value: 'orders', label: 'Naročila', description: 'Vsa naročila s podrobnostmi in artikli', icon: ShoppingBag, formats: ['csv', 'pdf', 'excel'] },
   { value: 'items', label: 'Artikli', description: 'Prodaja po artiklih s kategorijami in DDV', icon: Package, formats: ['csv', 'pdf', 'excel'] },
   { value: 'vat', label: 'DDV', description: 'DDV razčlenitev po stopnjah za FURS', icon: Receipt, formats: ['csv', 'pdf', 'excel', 'xml'] },
   { value: 'employees', label: 'Zaposleni', description: 'Prodaja in napitnine po zaposlenih', icon: Users, formats: ['csv', 'pdf', 'excel'] },
   { value: 'shifts', label: 'Izmene', description: 'Podatki o izmenah blagajne', icon: Clock, formats: ['csv', 'pdf', 'excel'] },
   { value: 'inventory', label: 'Zaloga', description: 'Trenutno stanje zaloge', icon: Package, formats: ['csv', 'pdf', 'excel'] },
+  // R146 #33 Accounting exports — računovodski izvozi (samo CSV, reproducibilni)
+  { value: 'payments', label: 'Plačila', description: 'Vsa plačila po metodah s statusi in napitninami', icon: CreditCard, formats: ['csv'] },
+  { value: 'refunds', label: 'Povračila', description: 'Povračila plačil po obdobju', icon: Undo2, formats: ['csv'] },
+  { value: 'purchases', label: 'Nabava', description: 'Naročila dobaviteljem s statusi računov in DDV', icon: Truck, formats: ['csv'] },
+  { value: 'expenses', label: 'Stroški', description: 'Knjiženi stroški iz revizijske sledi', icon: Receipt, formats: ['csv'] },
+  { value: 'daily-close', label: 'Dnevni zaključek', description: 'Dnevni zaključki poslovalnic (Z-poročila)', icon: CalendarCheck, formats: ['csv'] },
+  { value: 'journal', label: 'Dnevnik', description: 'Knjigovodski dnevnik (dvojno knjiženje)', icon: BookOpen, formats: ['csv'] },
 ]
+
+// --- R146 #33 (MODEL A): lokacije za izvoz po posamezni poslovalnici (samo skrbniki) ---
+
+/** Sentinel za 'Vse lokacije (globalno)' — Radix SelectItem ne sprejme praznega value. */
+export const ALL_LOCATIONS_VALUE = 'all'
+
+interface FormLocationOption {
+  id: string
+  name: string
+  isActive: boolean
+}
+
+function useFormLocations(enabled: boolean) {
+  return useQuery({
+    queryKey: ['reports', 'form-locations'] as const,
+    queryFn: async (): Promise<FormLocationOption[]> => {
+      const res = await authFetch('/api/locations')
+      if (!res.ok) return []
+      const json = await res.json() as unknown
+      const rows: Array<Record<string, unknown>> = Array.isArray(json)
+        ? json as Array<Record<string, unknown>>
+        : ((json as { locations?: Array<Record<string, unknown>> })?.locations ?? [])
+      return rows
+        .map((r) => ({ id: String(r.id ?? ''), name: String(r.name ?? ''), isActive: r.isActive !== false }))
+        .filter((r) => r.id && r.name)
+    },
+    enabled,
+    staleTime: 60_000,
+    retry: 1,
+  })
+}
+
+/** R146 #33: URL izvoza — locationId je dodan SAMO ko je izbran (prazen = globalno, MODEL A). */
+export function buildExportUrl(exportType: string, exportFormat: string, startDate: string, endDate: string, locationId?: string | null): string {
+  const locationParam = locationId ? `&locationId=${encodeURIComponent(locationId)}` : ''
+  return `/api/reports/export?type=${exportType}&format=${exportFormat}&startDate=${startDate}&endDate=${endDate}${locationParam}`
+}
 
 export function ExportReport() {
   const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), 'yyyy-MM-dd'))
@@ -83,6 +130,15 @@ export function ExportReport() {
   const [exportType, setExportType] = useState('orders')
   const [exportFormat, setExportFormat] = useState<ExportFormat>('csv')
   const [exporting, setExporting] = useState(false)
+  // R146 #33 (MODEL A): skrbniška seja lahko izvozi po posamezni poslovalnici
+  // (?locationId=) ali globalno (prazno = vse lokacije). Regular uporabnik s
+  // session lokacijo selecta NE vidi — server rezolvira obseg iz seje.
+  const authUser = useAuthUser()
+  const isTenantAdmin = authUser?.role === 'admin' || authUser?.role === 'super_admin'
+  const { data: locations } = useFormLocations(isTenantAdmin)
+  const showLocationSelect = isTenantAdmin && (locations?.length ?? 0) > 0
+  const [locationFilter, setLocationFilter] = useState<string>(ALL_LOCATIONS_VALUE)
+  const selectedLocationId = locationFilter === ALL_LOCATIONS_VALUE ? '' : locationFilter
 
   const currentType = EXPORT_TYPES.find(t => t.value === exportType) || EXPORT_TYPES[0]
   const availableFormats = currentType.formats
@@ -97,7 +153,7 @@ export function ExportReport() {
     setExporting(true)
     try {
       const res = await authFetch(
-        `/api/reports/export?type=${exportType}&format=${exportFormat}&startDate=${startDate}&endDate=${endDate}`
+        buildExportUrl(exportType, exportFormat, startDate, endDate, selectedLocationId)
       )
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({ error: 'Napaka pri izvozu' }))
@@ -136,6 +192,29 @@ export function ExportReport() {
       <p className="text-sm text-muted-foreground">
         Izberite vrsto poročila in format izvoza. Na voljo so CSV (Excel), PDF (tiskanje), Excel (XLSX) in eDavki XML (FURS predaja).
       </p>
+
+      {/* R146 #33 (MODEL A): izbira lokacije za izvoz (samo skrbniki) */}
+      {showLocationSelect && (
+        <div className="space-y-2">
+          <Label htmlFor="export-location" className="text-sm font-semibold">Lokacija</Label>
+          <Select value={locationFilter} onValueChange={v => setLocationFilter(v)}>
+            <SelectTrigger id="export-location" className="w-full sm:max-w-xs">
+              <SelectValue placeholder="Vse lokacije (globalno)" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_LOCATIONS_VALUE}>Vse lokacije (globalno)</SelectItem>
+              {locations!.map(l => (
+                <SelectItem key={l.id} value={l.id} disabled={!l.isActive}>
+                  {l.name}{!l.isActive ? ' (neaktivna)' : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Izberite lokacijo za izvoz po posamezni poslovalnici. Pustite prazno za vse lokacije (globalno).
+          </p>
+        </div>
+      )}
 
       {/* Izbira vrste izvoza */}
       <div className="space-y-2">
@@ -230,6 +309,7 @@ export function ExportReport() {
               <li><strong>eDavki XML:</strong> Slovenski standard za FURS predajo DDV (dostopen samo za DDV poročilo)</li>
               <li>Naročila vsebujejo vse statuse (tudi preklicana) z razlogom</li>
               <li>Zaloga izvozi trenutno stanje ne glede na izbrano obdobje</li>
+              <li>Računovodski izvozi (Plačila, Povračila, Nabava, Stroški, Dnevni zaključek, Dnevnik) so na voljo izključno v CSV formatu</li>
             </ul>
           </div>
         </CardContent>

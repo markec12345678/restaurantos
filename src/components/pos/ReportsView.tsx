@@ -54,7 +54,7 @@ export const ReportsView = memo(function ReportsView() {
         </div>
       </div>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-14">
+        <TabsList className="grid w-full max-w-full grid-cols-14 overflow-x-auto">
           <TabsTrigger value="overview" className="gap-1 text-xs"><BarChart3 className="h-3 w-3" /> Pregled</TabsTrigger>
           <TabsTrigger value="daily" className="gap-1 text-xs"><Calendar className="h-3 w-3" /> Dnevno</TabsTrigger>
           <TabsTrigger value="weekly" className="gap-1 text-xs"><Calendar className="h-3 w-3" /> Tedensko</TabsTrigger>

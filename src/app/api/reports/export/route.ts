@@ -1,18 +1,40 @@
 // ============================================
 // GET /api/reports/export — Izvoz poročil v CSV / PDF / Excel / eDavki XML
-// Parametri: type=orders|items|vat|employees|shifts|inventory, format=csv|pdf|excel|xml, startDate, endDate
+// Parametri: type=orders|items|vat|employees|shifts|inventory|payments|refunds|purchases|expenses|daily-close|journal, format=csv|pdf|excel|xml|ubl, startDate, endDate, locationId
 // Vrne datoteko v ustreznem formatu z UTF-8 podporo
+//
+// R146-b (epic #115 #33 Accounting exports):
+//   • 6 novih računovodskih CSV tipov (payments/refunds/purchases/expenses/
+//     daily-close/journal) — reproducibilni izvoz iz istega source of truth
+//     (Decimal(12,2) EUR, ISO datumi, determinističen orderBy),
+//   • rate-limit bucket 'reports-export' PRED authom (pariteta liability),
+//   • MODEL A scope: ročni blok zamenjan z resolveTenantLocationIdOrThrow
+//     (regular brez lokacije → 403 fail-closed; super-admin brez ?locationId
+//     = global, z ?locationId = cross-branch),
+//   • audit ACCOUNTING_EXPORTED SAMO ob uspešnem izvozu (epic P2-04:
+//     "…export → authorization → audit"); NIČ ob 400/401/403/429,
+//   • Cache-Control: no-store na uspešnih odgovorih (R144 kanon — občutljivi
+//     finančni podatki se ne cache-irajo).
 // ============================================
 
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
-import { isAdminTenantRole } from '@/lib/tenant-scope'
+// R146-b: resolver iz '@/lib/tenant-scope' (NIČ skozi barrel '@/lib/auth-middleware'
+// — regresijski mocki, ki mockajo barrel z samo requireAuth, ostanejo združljivi;
+// implementacija je ista — auth-middleware/tenant-scope je re-export shim).
+import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
+import { createAuditLog } from '@/lib/db'
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { validateReportDateRange } from '@/lib/validations'
 import { endOfDayParam, handleApiError } from '@/lib/api-utils'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 import {
   generateOrdersCsv, generateItemsCsv, generateVatCsv,
   generateEmployeesCsv, generateShiftsCsv, generateInventoryCsv,
+  generatePaymentsCsv, generateRefundsCsv, generatePurchasesCsv,
+  generateExpensesCsv, generateDailyCloseCsv, generateJournalCsv,
+  countCsvRows, ACCOUNTING_CSV_TYPES,
   fetchReportData, generateReportPdf, generateReportExcel, generateEdavkiXml, generateUblInvoice,
   getFilename, ALLOWED_TYPES, ALLOWED_FORMATS,
 } from './_helpers'
@@ -23,6 +45,10 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   try {
+    // R146-b: rate limit PRED authom (pariteta gift-cards-liability / reports-vat)
+    const rl = await checkRateLimitAsync('reports-export', getClientIp(req), AUTHENTICATED_LIMIT)
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
+
     const { searchParams } = new URL(req.url)
     const type = searchParams.get('type') || 'orders'
     const format = (searchParams.get('format') || 'csv') as ExportFormat
@@ -31,13 +57,15 @@ export async function GET(req: Request) {
     const authResult = await requireAuth(req, { permission })
     if (authResult.error) return authResult.error
 
-    // FIX R82-F (LEAK-HIGH): izvoz je bil GLOBALNO čez VSE tenante (naročila,
-    // PII zaposlenih, DDV, zaloge). Zdaj: scoped na session lokacijo;
-    // view_reports staff BREZ lokacije → 403 fail-closed; super-admin = global.
-    const sessionLocId = authResult.session?.locationId ?? null
-    if (!sessionLocId && !isAdminTenantRole(authResult.session?.role)) {
-      return NextResponse.json({ error: 'Izvoz poročil zahteva dodeljeno lokacijo.' }, { status: 403 })
-    }
+    // R146-b (MODEL A; nadgradnja FIX R82-F): scope iz ENOTNEGA resolverja —
+    // regular brez lokacije → 403 fail-closed (NO_LOCATION_MESSAGE);
+    // lokacijska seja avtoritativna (?locationId ignoriran); super-admin brez
+    // ?locationId = null scope (globalni izvoz), z ?locationId = cross-branch.
+    const scope = resolveTenantLocationIdOrThrow(authResult.session, searchParams, {
+      endpoint: 'GET /api/reports/export',
+    })
+    if ('error' in scope) return scope.error
+    const locId = scope.locationId
 
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
@@ -51,6 +79,11 @@ export async function GET(req: Request) {
     if (!ALLOWED_FORMATS.includes(format)) {
       return NextResponse.json({ error: `Neznan format. Dovoljeni: ${ALLOWED_FORMATS.join(', ')}` }, { status: 400 })
     }
+    // R146-b: računovodski tipi izvažajo SAMO CSV (reproducibilnost — glej
+    // _helpers/accounting-reports.ts header); PDF/Excel/XML/UBL = DEFER.
+    if (ACCOUNTING_CSV_TYPES.includes(type as ReportType) && format !== 'csv') {
+      return NextResponse.json({ error: 'Neznan format. Dovoljeni: csv' }, { status: 400 })
+    }
 
     const dateFilter: Record<string, Date> = {}
     if (startDate) dateFilter.gte = new Date(startDate)
@@ -59,41 +92,75 @@ export async function GET(req: Request) {
     const reportType = type as ReportType
     const filename = getFilename(reportType, startDate, endDate, format)
 
-    // ═══ CSV (originalna logika) ═══
+    // ═══ CSV (originalna logika + R146-b računovodski tipi) ═══
     if (format === 'csv') {
       let csv = ''
       switch (reportType) {
-        case 'orders': { csv = (await generateOrdersCsv(dateFilter, sessionLocId)).csv; break }
-        case 'items': { csv = (await generateItemsCsv(dateFilter, sessionLocId)).csv; break }
-        case 'vat': { csv = (await generateVatCsv(dateFilter, sessionLocId)).csv; break }
-        case 'employees': { csv = (await generateEmployeesCsv(dateFilter, sessionLocId)).csv; break }
-        case 'shifts': { csv = (await generateShiftsCsv(dateFilter, sessionLocId)).csv; break }
-        case 'inventory': { csv = (await generateInventoryCsv(sessionLocId)).csv; break }
+        case 'orders': { csv = (await generateOrdersCsv(dateFilter, locId)).csv; break }
+        case 'items': { csv = (await generateItemsCsv(dateFilter, locId)).csv; break }
+        case 'vat': { csv = (await generateVatCsv(dateFilter, locId)).csv; break }
+        case 'employees': { csv = (await generateEmployeesCsv(dateFilter, locId)).csv; break }
+        case 'shifts': { csv = (await generateShiftsCsv(dateFilter, locId)).csv; break }
+        case 'inventory': { csv = (await generateInventoryCsv(locId)).csv; break }
+        // R146-b: računovodski izvozi (MODEL A scope — payments/refunds prek
+        // check.order.locationId, ostali prek lastnega/pogojnega locationId)
+        case 'payments': { csv = (await generatePaymentsCsv(dateFilter, locId)).csv; break }
+        case 'refunds': { csv = (await generateRefundsCsv(dateFilter, locId)).csv; break }
+        case 'purchases': { csv = (await generatePurchasesCsv(dateFilter, locId)).csv; break }
+        case 'expenses': { csv = (await generateExpensesCsv(dateFilter, locId)).csv; break }
+        case 'daily-close': { csv = (await generateDailyCloseCsv(dateFilter, locId)).csv; break }
+        case 'journal': { csv = (await generateJournalCsv(dateFilter, locId)).csv; break }
       }
+
+      // R146-b audit: SAMO ob uspešnem izvozu (audit obstaja ⇔ izvoz uspel);
+      // NIKOLI ob 400/401/403/429. Details = številki/counters brez PII.
+      await createAuditLog({
+        action: 'ACCOUNTING_EXPORTED',
+        entityType: 'ReportExport',
+        entityId: `${type}:${format}`,
+        userId: authResult.session?.employeeId,
+        locationId: locId,
+        details: { type, format, startDate, endDate, rows: countCsvRows(csv) },
+      })
+
       const bom = '\uFEFF'
       return new NextResponse(bom + csv, {
         status: 200,
         headers: {
           'Content-Type': 'text/csv; charset=utf-8',
           'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+          'Cache-Control': 'no-store', // R144 kanon: finančni izvoz se ne cache-ira
         },
       })
     }
 
     // ═══ PDF / Excel / XML — uporabljajo skupni ReportData fetcher ═══
     // Za te formate uporabimo orders tip (popoln promet z DDV razčlenitvijo)
-    const data = await fetchReportData(dateFilter, sessionLocId)
+    const data = await fetchReportData(dateFilter, locId)
 
     // Pridobi davčno številko in ime iz Location (za XML)
     // FIX P0-C3A: Prej je bil `findFirst()` BREZ where filtra — vrne naključni record!
-    // Sedaj uporablja getRestaurantInfoForLocation z session.locationId.
+    // Sedaj uporablja getRestaurantInfoForLocation z scoped lokacijo (R146-b:
+    // locId — super-admin z ?locationId dobi pravo lokacijo, ne null lookup).
     let taxNumber = ''
     let taxpayerName = 'RestaurantOS'
     if (format === 'xml') {
-      const info = await getRestaurantInfoForLocation(authResult.session?.locationId)
+      const info = await getRestaurantInfoForLocation(locId)
       taxNumber = info.taxId || info.registerNumber || ''
       taxpayerName = info.name || 'RestaurantOS'
     }
+
+    // R146-b audit: PDF/Excel/XML/UBL so obstoječi (orders) formati — isti
+    // audit kanon kot CSV, rows = število naročil v poročilu. Postavljen ŠELE
+    // za vsemi rejection točkami (audit obstaja ⇔ izvoz res uspel / 200).
+    await createAuditLog({
+      action: 'ACCOUNTING_EXPORTED',
+      entityType: 'ReportExport',
+      entityId: `${type}:${format}`,
+      userId: authResult.session?.employeeId,
+      locationId: locId,
+      details: { type, format, startDate, endDate, rows: data.orders.length },
+    })
 
     if (format === 'pdf') {
       const buffer = await generateReportPdf(data)
@@ -102,6 +169,7 @@ export async function GET(req: Request) {
         headers: {
           'Content-Type': 'application/pdf',
           'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+          'Cache-Control': 'no-store',
         },
       })
     }
@@ -113,6 +181,7 @@ export async function GET(req: Request) {
         headers: {
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+          'Cache-Control': 'no-store',
         },
       })
     }
@@ -124,6 +193,7 @@ export async function GET(req: Request) {
         headers: {
           'Content-Type': 'application/xml; charset=utf-8',
           'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+          'Cache-Control': 'no-store',
         },
       })
     }
@@ -143,6 +213,7 @@ export async function GET(req: Request) {
         headers: {
           'Content-Type': 'application/xml; charset=utf-8',
           'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+          'Cache-Control': 'no-store',
         },
       })
     }
