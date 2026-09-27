@@ -74,6 +74,8 @@ export const navIt: Record<string, string> = {
   'nav.briefing': 'Riepilogo giornaliero',
   // R142-c (epic #115 #29): Center naprav
   'nav.devices': 'Dispositivi',
+  // R147-c (epic #115 #34): Portabilità dei dati
+  'nav.dataPortability': 'Portabilità dei dati',
 
   // R137 (epic #115 P1-13): voznikov mobilni zaslon
   'nav.driver': 'Consegne',

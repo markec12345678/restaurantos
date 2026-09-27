@@ -97,6 +97,8 @@ const DriverApp = dynamic(() => import('@/app/driver/DriverApp').then(m => ({ de
 const BriefingModule = dynamic(() => import('@/components/pos/briefing/BriefingModule').then(m => ({ default: m.BriefingModule })), { ssr: false, loading: () => loadingFallback })
 // R142-c (epic #115 #29): Center naprav — inventar naprav (GET/PATCH /api/devices)
 const DevicesModule = dynamic(() => import('@/components/pos/devices/DevicesModule').then(m => ({ default: m.DevicesModule })), { ssr: false, loading: () => loadingFallback })
+// R147-c (epic #115 #34): Prenos podatkov — portability arhiv (GET /api/export/portability)
+const DataPortabilityModule = dynamic(() => import('@/components/pos/portability/DataPortabilityModule').then(m => ({ default: m.DataPortabilityModule })), { ssr: false, loading: () => loadingFallback })
 // Default exports
 const GuestManager = dynamic(() => import('@/components/pos/GuestManager').then(m => ({ default: m.GuestManager })), { ssr: false, loading: () => loadingFallback })
 const FoodCostCalculator = dynamic(() => import('@/components/pos/food-cost/FoodCostCalculator'), { ssr: false, loading: () => loadingFallback })
@@ -126,6 +128,7 @@ export const moduleComponents: Record<string, ComponentType> = {
   reports: ReportsView,
   briefing: BriefingModule,
   devices: DevicesModule,
+  'data-portability': DataPortabilityModule,
   configuration: ConfigurationManager,
   delivery: DeliveryManager,
   'gift-cards': GiftCardManager,

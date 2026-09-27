@@ -17,6 +17,8 @@ import { ordersKeys, kitchenKeys, menusKeys, categoriesKeys, menuItemsKeys, modi
 import { inventoryKeys, cashRegisterKeys, endOfDayKeys, dailyCloseKeys, reportsKeys, dashboardKeys, reservationsKeys, briefingKeys } from './inventory-cash-reports'
 // R142-c (epic #115 #29): Device center — inventar naprav (GET/PATCH /api/devices)
 import { devicesKeys } from './devices'
+// R147-c (epic #115 #34): Prenos podatkov — portability manifest (GET /api/export/portability)
+import { portabilityKeys } from './portability'
 import { altPaymentsKeys, checksKeys, giftCardsKeys, loyaltyKeys, tipPoolKeys, configurationKeys } from './payments-loyalty-config'
 import { deliveryKeys, locationsKeys, suppliersKeys, purchaseOrdersKeys, haccpKeys, fursKeys, receiptKeys, zReportKeys, authKeys, webhooksKeys, integrationsKeys, expensesKeys, feedbackKeys, dailyChecklistKeys, discountsKeys, diningOptionsKeys, voidReasonsKeys, recipesKeys, subscriptionKeys, waitlistKeys, notificationsKeys, menuEngineeringKeys, menuItemNutritionKeys, recentOrders7dKeys, offlineQueueKeys } from './delivery-misc'
 
@@ -49,6 +51,8 @@ export const queryKeys = {
   briefing: briefingKeys,
   // ---- Naprave (R142, #29 Device center) ----
   devices: devicesKeys,
+  // ---- Prenos podatkov (R147, #34 Data portability) ----
+  portability: portabilityKeys,
   // ---- Dashboard ----
   dashboard: dashboardKeys,
   // ---- Rezervacije ----

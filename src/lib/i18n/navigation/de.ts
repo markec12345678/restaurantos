@@ -74,6 +74,8 @@ export const navDe: Record<string, string> = {
   'nav.briefing': 'Tagesübersicht',
   // R142-c (epic #115 #29): Center naprav
   'nav.devices': 'Geräte',
+  // R147-c (epic #115 #34): Datenübertragbarkeit
+  'nav.dataPortability': 'Datenübertragbarkeit',
 
   // R137 (epic #115 P1-13): voznikov mobilni zaslon
   'nav.driver': 'Lieferungen',
