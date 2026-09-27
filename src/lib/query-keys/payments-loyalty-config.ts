@@ -29,8 +29,14 @@ export const loyaltyKeys = {
 }
 
 export const tipPoolKeys = {
+  // R145-c (epic #115 #32): ENOTEN koren. Prej sta obstajali DVE nesorjeni
+  // korena — `all: ['tip-pools']` (listing) in `byDate: ['tip-pool', date]`
+  // (aktualni pool) — zato invalidacija ['tip-pool'] NI pokrila listinga in
+  // obratno (audit R145-a Q3-8). byDate je zdaj PODREJEN pluralnemu korenu →
+  // invalidateQueries({ queryKey: tipPoolKeys.all }) hierarhično pokrije
+  // VSE tip-pool poizvedbe (giftCardsKeys precedens).
   all: ['tip-pools'] as const,
-  byDate: (date: string) => ['tip-pool', date] as const,
+  byDate: (date: string) => ['tip-pools', date] as const,
 }
 
 export const configurationKeys = {

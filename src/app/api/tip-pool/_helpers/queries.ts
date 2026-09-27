@@ -6,7 +6,7 @@
 // lahko ostanejo partial distribucije.
 //
 
-import { db } from '@/lib/db'
+import { db, createAuditLog } from '@/lib/db'
 import { sumBy, toNum } from '@/lib/decimal'
 import type { Distribution } from './schemas'
 import { createTipDistributionWithChain } from '@/lib/tip-distribution-chain'
@@ -52,7 +52,10 @@ export async function persistTipPoolWithDistributions(
     status: 'pending'
     locationId: string | null
   },
-  distributions: Distribution[]
+  distributions: Distribution[],
+  // R145-b (epic #115 #32): actor za in-tx audit TIP_POOL_GENERATED
+  // (route poda session.employeeId; null = sistemski vnos po AuditLog kanonu)
+  actor?: { userId?: string | null },
 ): Promise<string> {
   // FIX P1: Vse mutacije v eni transakciji — atomarno.
   // Če je existing pool že 'paid', ne dovolimo override-a.
@@ -93,6 +96,27 @@ export async function persistTipPoolWithDistributions(
       })),
       tx, // ← predamo outer tx
     )
+
+    // R145-b: audit ZNOTRAJ transakcije (put-handler kanon :100–109) —
+    // tudi ob update-poti obstoječega poola (regeneracija = vsak poseben
+    // audit, ni diff-only). PII kanon: details = datum/metoda/zneski/števci
+    // SAMO — NIKOLI per-employee imena ali zneski (audit ≠ UI).
+    await createAuditLog({
+      action: 'TIP_POOL_GENERATED',
+      entityType: 'TipPool',
+      entityId: pool.id,
+      details: {
+        date: poolData.date.toISOString(),
+        distributionMethod: poolData.distributionMethod,
+        totalTips: poolData.totalTips,
+        cashTips: poolData.cashTips,
+        cardTips: poolData.cardTips,
+        employeeCount: distributions.length,
+        locationId: poolData.locationId,
+      },
+      userId: actor?.userId ?? undefined,
+      locationId: poolData.locationId,
+    }, tx) // ← predamo tx
 
     return pool.id
   }, {

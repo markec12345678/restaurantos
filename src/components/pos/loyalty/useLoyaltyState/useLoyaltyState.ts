@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { type LoyaltyAccount } from '../constants'
+import { type FormData } from '../LoyaltyFormFields'
 import { useLoyaltyQueries } from './useLoyaltyQueries'
 import { useLoyaltyHandlers } from './useLoyaltyHandlers'
 
@@ -13,9 +14,12 @@ export function useLoyaltyState() {
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingAccount, setEditingAccount] = useState<LoyaltyAccount | null>(null)
-  const [formData, setFormData] = useState({
+  // R145: tip eksplicitno = FormData (enoten vir) — svež bun install je pripeljal
+  // novejši TypeScript, ki je odkril latentno neusklajenost (useState locationId:
+  // required vs FormData.locationId?: optional) — tip-only fix, nič obnašanja.
+  const [formData, setFormData] = useState<FormData>({
     customerName: '', customerPhone: '', customerEmail: '', tier: 'bronze', isActive: true,
-    locationId: '' as string, // R143 #30: izrecna lokacija (MODEL A, skrbnik brez sejske lokacije)
+    locationId: '', // R143 #30: izrecna lokacija (MODEL A, skrbnik brez sejske lokacije)
   })
 
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false)

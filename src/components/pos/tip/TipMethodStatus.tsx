@@ -2,7 +2,7 @@
 
 import { memo } from 'react'
 import { Badge } from '@/components/ui/badge'
-import { METHOD_LABELS, STATUS_LABELS } from './constants'
+import { METHOD_LABELS, tipPoolStatusMeta } from './constants'
 import { Equal } from 'lucide-react'
 
 interface TipMethodStatusProps {
@@ -26,8 +26,8 @@ export const TipMethodStatus = memo(function TipMethodStatus({
           {m?.label || distributionMethod}
         </Badge>
       </div>
-      <Badge className={STATUS_LABELS[status]?.color || 'bg-gray-100 text-gray-800'}>
-        {STATUS_LABELS[status]?.label || status}
+      <Badge className={tipPoolStatusMeta(status).color}>
+        {tipPoolStatusMeta(status).label}
       </Badge>
     </div>
   )

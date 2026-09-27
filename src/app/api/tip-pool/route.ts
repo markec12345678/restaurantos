@@ -8,6 +8,8 @@ import { deepToNumbers } from '@/lib/decimal'
 import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationId, tenantScopeToWhere } from '@/lib/auth-middleware'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
+import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import {
 
   createTipPoolSchema,
@@ -39,11 +41,20 @@ function requireLocationScope(
   return { sessionLocId }
 }
 
+// R145-b (epic #115 #32): rate limit na VSEH handlerjih modula — R112 kanon
+// (direktni importi checkRateLimitAsync/getClientIp + preset AUTHENTICATED_LIMIT;
+// bucket 'tip-pool' je prosto polje string ključ — skupen GET/POST/PUT/payout,
+// vzorci 'gift-cards' oz. 'gift-cards-liability' iz R144). Umeščen PRED auth po
+// večinskem vzorcu codebase-a (gift-cards, gift-cards-liability, reports-financial).
+
 // GET — Pridobi tip poole
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   try {
+    const rl = await checkRateLimitAsync('tip-pool', getClientIp(req), AUTHENTICATED_LIMIT)
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
+
     const authResult = await requireAuth(req, { permission: 'manage_employees' })
     if (authResult.error) return authResult.error
 
@@ -75,7 +86,11 @@ export async function GET(req: Request) {
       take: 30,
     })
 
-    return NextResponse.json(deepToNumbers(pools))
+    // R145-b: Cache-Control no-store (denarni podatki — kanon R142/R143/R144 za
+    // avtenticirane denarne liste; force-dynamic sam ne zadošča).
+    return NextResponse.json(deepToNumbers(pools), {
+      headers: { 'Cache-Control': 'no-store' },
+    })
   } catch (error: unknown) {
     return handleApiError(error, 'GET /api/tip-pool', 'Napaka pri pridobivanju napitnin')
   }
@@ -84,6 +99,10 @@ export async function GET(req: Request) {
 // POST — Ustvari tip pool za dan
 export async function POST(req: Request) {
   try {
+    // R145-b: rate limit (isti 'tip-pool' bucket)
+    const rl = await checkRateLimitAsync('tip-pool', getClientIp(req), AUTHENTICATED_LIMIT)
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
+
     const authResult = await requireAuth(req, { permission: 'manage_employees' })
     if (authResult.error) return authResult.error
 
@@ -147,10 +166,12 @@ export async function POST(req: Request) {
     const distributions = calculateDistributions(distributionMethod, employees, totalTips)
 
     // Upsert tip pool + distribucije
+    // R145-b: actor userId za in-tx audit TIP_POOL_GENERATED (persist helper)
     const poolId = await persistTipPoolWithDistributions(
       existing,
       { date: dayStart, totalTips, cashTips, cardTips, distributionMethod, status: 'pending', locationId: effectiveLocationId || null },
-      distributions
+      distributions,
+      { userId: authResult.session?.employeeId ?? null },
     )
 
     const result = await db.tipPool.findUnique({
@@ -167,6 +188,10 @@ export async function POST(req: Request) {
 // PUT — Posodobi distribucijo / odobri
 export async function PUT(req: Request) {
   try {
+    // R145-b: rate limit (isti 'tip-pool' bucket)
+    const rl = await checkRateLimitAsync('tip-pool', getClientIp(req), AUTHENTICATED_LIMIT)
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
+
     const authResult = await requireAuth(req, { permission: 'manage_employees' })
     if (authResult.error) return authResult.error
 

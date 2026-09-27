@@ -3,7 +3,7 @@
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { DollarSign, HandCoins, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Banknote, DollarSign, HandCoins, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { TipPoolData } from './constants'
 
 // ============================================
@@ -17,10 +17,15 @@ interface TipManagerHeaderProps {
   onDateNext: () => void
   pool: TipPoolData | null
   onGenerate: () => void
+  // R145-c: izplačilo — SAMO za status 'distributed' (state machine pariteta
+  // s strežnikom R145-b: pending/approved → 400, paid → 409; dead buttons
+  // so prepovedani → gumb skrit na vseh ostalih statusih).
+  onPayout: () => void
+  isPayoutPending: boolean
 }
 
 export const TipManagerHeader = memo(function TipManagerHeader({
-  selectedDate, onDateChange, onDatePrev, onDateNext, pool, onGenerate,
+  selectedDate, onDateChange, onDatePrev, onDateNext, pool, onGenerate, onPayout, isPayoutPending,
 }: TipManagerHeaderProps) {
   return (
     <div className="flex items-center justify-between">
@@ -45,6 +50,12 @@ export const TipManagerHeader = memo(function TipManagerHeader({
           <Button onClick={onGenerate}>
             <DollarSign className="h-4 w-4 mr-2" />
             Generiraj
+          </Button>
+        )}
+        {pool && pool.status === 'distributed' && (
+          <Button onClick={onPayout} disabled={isPayoutPending} aria-label="Izplačaj napitnine">
+            <Banknote className="h-4 w-4 mr-2" />
+            Izplačaj
           </Button>
         )}
       </div>

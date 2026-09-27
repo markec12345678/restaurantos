@@ -14,6 +14,7 @@ import { format, addDays, subDays } from 'date-fns'
 import { toast } from 'sonner'
 import type { TipPoolData } from './tip/constants'
 import { TipManagerHeader } from './tip/TipManagerHeader'
+import { useTipPoolPayout } from './tip/useTipPoolPayout'
 
 // Lazy-loaded sub-komponente
 const TipLoadingSkeleton = dynamic(() => import('./tip/TipLoadingSkeleton').then((m) => m.TipLoadingSkeleton), { ssr: false })
@@ -23,12 +24,14 @@ const TipDistributionTable = dynamic(() => import('./tip/TipDistributionTable').
 const TipDistributionChart = dynamic(() => import('./tip/TipDistributionChart').then((m) => m.TipDistributionChart), { ssr: false })
 const TipEmptyState = dynamic(() => import('./tip/TipEmptyState').then((m) => m.TipEmptyState), { ssr: false })
 const TipGenerateDialog = dynamic(() => import('./tip/TipGenerateDialog').then((m) => m.TipGenerateDialog), { ssr: false })
+const TipPayoutDialog = dynamic(() => import('./tip/TipPayoutDialog').then((m) => m.TipPayoutDialog), { ssr: false })
 
 export const TipManager = memo(function TipManager() {
   const queryClient = useQueryClient()
   const [selectedDate, setSelectedDate] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [method, setMethod] = useState('equal')
   const [showGenerateDialog, setShowGenerateDialog] = useState(false)
+  const [showPayoutDialog, setShowPayoutDialog] = useState(false)
   const [editingAmounts, setEditingAmounts] = useState<Record<string, string>>({})
 
   const { data: _pools, isLoading } = useQuery({
@@ -56,7 +59,8 @@ export const TipManager = memo(function TipManager() {
       if (!res.ok) throw new Error('Napaka pri generiranju')
       return res.json()
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['tip-pool'] }); queryClient.invalidateQueries({ queryKey: queryKeys.tipPool.all }); toast.success('Tip pool generiran!'); setShowGenerateDialog(false) },
+    // R145-c: ENOTEN koren ['tip-pools'] (prej odvečni raw ['tip-pool'] dvojček, ki NI pokril listinga ['tip-pools'])
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.tipPool.all }); toast.success('Tip pool generiran!'); setShowGenerateDialog(false) },
     onError: () => toast.error('Napaka pri generiranju tip poola'),
   })
 
@@ -69,21 +73,29 @@ export const TipManager = memo(function TipManager() {
       if (!res.ok) throw new Error('Napaka pri shranjevanju')
       return res.json()
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.tipPool.byDate(selectedDate) }); toast.success('Napitnine shranjene!') },
+    // R145-c: koren pokrije byDate + listing (unifikacija ključev)
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: queryKeys.tipPool.all }); toast.success('Napitnine shranjene!') },
     onError: () => toast.error('Napaka pri shranjevanju'),
   })
+
+  // R145-c: izplačilo — toast + invalidacija živita v hooku; dialog se zapre ob uspehu
+  const payoutMutation = useTipPoolPayout(() => setShowPayoutDialog(false))
 
   const pool = currentPool as TipPoolData | null
   const handleDatePrev = useCallback(() => setSelectedDate(format(subDays(new Date(selectedDate), 1), 'yyyy-MM-dd')), [selectedDate])
   const handleDateNext = useCallback(() => setSelectedDate(format(addDays(new Date(selectedDate), 1), 'yyyy-MM-dd')), [selectedDate])
   const handleAmountChange = useCallback((employeeId: string, value: string) => setEditingAmounts(prev => ({ ...prev, [employeeId]: value })), [])
   const handleGenerateDialogOpenChange = useCallback((open: boolean) => setShowGenerateDialog(open), [])
+  const handlePayoutDialogOpenChange = useCallback((open: boolean) => setShowPayoutDialog(open), [])
+  const handlePayoutConfirm = useCallback(() => {
+    if (pool) payoutMutation.mutate(pool.id)
+  }, [pool, payoutMutation])
 
   if (isLoading) return <TipLoadingSkeleton />
 
   return (
     <div className="space-y-4 p-2 overflow-y-auto h-full custom-scrollbar">
-      <TipManagerHeader selectedDate={selectedDate} onDateChange={setSelectedDate} onDatePrev={handleDatePrev} onDateNext={handleDateNext} pool={pool} onGenerate={() => setShowGenerateDialog(true)} />
+      <TipManagerHeader selectedDate={selectedDate} onDateChange={setSelectedDate} onDatePrev={handleDatePrev} onDateNext={handleDateNext} pool={pool} onGenerate={() => setShowGenerateDialog(true)} onPayout={() => setShowPayoutDialog(true)} isPayoutPending={payoutMutation.isPending} />
       {pool && (
         <>
           <TipSummaryCards totalTips={pool.totalTips} cashTips={pool.cashTips} cardTips={pool.cardTips} employeeCount={pool.distributions.length} />
@@ -94,6 +106,7 @@ export const TipManager = memo(function TipManager() {
       )}
       {!pool && <TipEmptyState selectedDate={selectedDate} onGenerate={() => setShowGenerateDialog(true)} />}
       <TipGenerateDialog open={showGenerateDialog} onOpenChange={handleGenerateDialogOpenChange} method={method} onMethodChange={setMethod} onGenerate={() => generateMutation.mutate()} isPending={generateMutation.isPending} />
+      <TipPayoutDialog open={showPayoutDialog} onOpenChange={handlePayoutDialogOpenChange} pool={pool} onConfirm={handlePayoutConfirm} isPending={payoutMutation.isPending} />
     </div>
   )
 })

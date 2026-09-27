@@ -237,6 +237,10 @@ vi.mock('@/lib/db', () => ({
   get db() {
     return ref.current.db
   },
+  // R145-b: tip-pool persist helper zdaj uvaža createAuditLog (in-tx
+  // TIP_POOL_GENERATED) — mock factory mora export definiral, sicer Vitest
+  // vrže "No export is defined on the mock". Ni pina vedenja, samo export.
+  createAuditLog: vi.fn().mockResolvedValue(undefined),
 }))
 vi.mock('@/lib/auth-middleware', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/auth-middleware')>()

@@ -41,10 +41,10 @@ export const TipSummaryCards = memo(function TipSummaryCards({
       <Card>
         <CardContent className="p-4">
           <div className="flex items-center gap-2 mb-1">
-            <CreditCard className="h-4 w-4 text-blue-600" />
+            <CreditCard className="h-4 w-4 text-zinc-600" />
             <span className="text-xs text-muted-foreground">Kartične</span>
           </div>
-          <div className="text-xl font-bold text-blue-600">{formatCurrency(cardTips)}</div>
+          <div className="text-xl font-bold text-zinc-600">{formatCurrency(cardTips)}</div>
         </CardContent>
       </Card>
       <Card>

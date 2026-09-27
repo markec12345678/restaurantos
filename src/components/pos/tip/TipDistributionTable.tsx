@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DecimalInput } from '@/components/ui/decimal-input'
 import { CheckCircle2 } from 'lucide-react'
+import { format } from 'date-fns'
 import type { TipDistribution, TipPoolData } from './constants'
 import { formatCurrency } from './constants'
 import { safeToFixed } from '@/lib/safe-format'
@@ -66,7 +67,14 @@ export const TipDistributionTable = memo(function TipDistributionTable({
                   <span className="font-bold text-green-600">{formatCurrency(d.amount)}</span>
                 )}
                 {d.status === 'paid' && (
-                  <Badge variant="outline" className="text-green-600 border-green-300 text-xs">Izplačano</Badge>
+                  <div className="flex flex-col items-end">
+                    <Badge variant="outline" className="text-emerald-700 border-emerald-300 text-xs">Izplačano</Badge>
+                    {d.paidAt && (
+                      <span className="text-[10px] text-muted-foreground">
+                        {format(new Date(d.paidAt), 'd. MM. yyyy HH:mm')}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
