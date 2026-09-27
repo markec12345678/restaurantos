@@ -19,6 +19,8 @@ import { inventoryKeys, cashRegisterKeys, endOfDayKeys, dailyCloseKeys, reportsK
 import { devicesKeys } from './devices'
 // R147-c (epic #115 #34): Prenos podatkov — portability manifest (GET /api/export/portability)
 import { portabilityKeys } from './portability'
+// R148-c (epic #115 #35): Audit/retention — verify-chain + retention preview (kontrakt R148-b)
+import { auditKeys } from './audit'
 import { altPaymentsKeys, checksKeys, giftCardsKeys, loyaltyKeys, tipPoolKeys, configurationKeys } from './payments-loyalty-config'
 import { deliveryKeys, locationsKeys, suppliersKeys, purchaseOrdersKeys, haccpKeys, fursKeys, receiptKeys, zReportKeys, authKeys, webhooksKeys, integrationsKeys, expensesKeys, feedbackKeys, dailyChecklistKeys, discountsKeys, diningOptionsKeys, voidReasonsKeys, recipesKeys, subscriptionKeys, waitlistKeys, notificationsKeys, menuEngineeringKeys, menuItemNutritionKeys, recentOrders7dKeys, offlineQueueKeys } from './delivery-misc'
 
@@ -53,6 +55,8 @@ export const queryKeys = {
   devices: devicesKeys,
   // ---- Prenos podatkov (R147, #34 Data portability) ----
   portability: portabilityKeys,
+  // ---- Audit/retencija (R148, #35 Audit/retention) ----
+  audit: auditKeys,
   // ---- Dashboard ----
   dashboard: dashboardKeys,
   // ---- Rezervacije ----

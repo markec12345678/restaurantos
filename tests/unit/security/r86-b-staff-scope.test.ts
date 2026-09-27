@@ -169,6 +169,8 @@ vi.mock('@/lib/rate-limit', () => ({
   checkRateLimitAsync: vi.fn(async () => ({ allowed: true, retryAfterMs: 0 })),
   getClientIp: () => '1.2.3.4',
   AUTHENTICATED_LIMIT: { maxRequests: 120, windowMs: 60000 },
+  // R148 drive-by (epic #115 #35): GDPR ruti zdaj vlečejo GDPR_LIMIT
+  GDPR_LIMIT: { maxRequests: 120, windowMs: 60000 },
 }))
 
 vi.mock('@/lib/logger', () => ({

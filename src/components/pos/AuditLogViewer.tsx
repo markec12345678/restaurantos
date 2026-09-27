@@ -7,8 +7,9 @@
 // Podpira filtriranje po akciji, entiteti, uporabniku, datumu
 // ============================================
 
-import { useState, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useMemo, useTransition } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -17,8 +18,10 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Search, Filter, Download, ShieldCheck, AlertCircle, Activity, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Search, Filter, Download, ShieldCheck, AlertCircle, Activity, ChevronLeft, ChevronRight, DatabaseBackup, RefreshCw, Lock, Trash2 } from 'lucide-react'
 import { authFetch } from '@/components/pos/PinLogin'
+import { auditKeys } from '@/lib/query-keys/audit'
 // odstranjen prazen import (runda 12 lint cleanup)
 
 interface AuditLogEntry {
@@ -60,8 +63,8 @@ const ENTITY_TYPES = [
   'Order', 'OrderItem', 'Payment', 'Receipt', 'Check',
   'Employee', 'MenuItem', 'Table', 'Reservation', 'WaitlistEntry',
   'InventoryItem', 'StockTransaction', 'HaccpEntry', 'CashRegisterShift',
-  'EndOfDay', 'Reservation', 'Supplier', 'PurchaseOrder',
-]
+  'EndOfDay', 'Supplier', 'PurchaseOrder',
+] // FIX R148: 'Reservation' je bil podvojen (duplikat React key v Entiteta Select — r12 dednost)
 
 const ACTION_TYPES = [
   'CREATE_ORDER', 'UPDATE_ORDER', 'CANCEL_ORDER', 'DELETE_ORDER',
@@ -72,6 +75,49 @@ const ACTION_TYPES = [
   'CREATE_EMPLOYEE', 'UPDATE_EMPLOYEE', 'DELETE_EMPLOYEE',
   'EOD_COMPLETED', 'LOGIN', 'LOGOUT',
 ]
+
+// ── R148 (#35 Audit/retention) — kontrakt R148-b ─────────────────────────
+
+interface VerifyChainResponse {
+  total: number
+  verified: number
+  broken: number
+  chainIntact: boolean
+  documentedTruncations: number
+  anchor: { id: string; previousHash: string; timestamp: string } | null
+  head: { id: string; chainHash: string; timestamp: string } | null
+  brokenEntries?: Array<{ id: string; expected: string; actual: string }>
+}
+
+interface RetentionResponse {
+  format: string
+  version: number
+  generatedAt: string
+  policy: Array<{ entity: string; days: number | null; dateField: string | null; basis: string }>
+  documentedIndefinite: Array<{ entity: string; models: string[]; reason: string }>
+  notes: string[]
+  eligible: Record<string, { cutoff: string | null; count: number; basis?: string }>
+  chain: {
+    anchor: { id: string; previousHash: string; timestamp: string } | null
+    head: { id: string; chainHash: string; timestamp: string } | null
+  }
+}
+
+interface ArchivePreview {
+  applied: boolean
+  wouldPurge: number
+  counts: { auditLog: number; webhookDelivery: number; scheduledEmailLog: number }
+  anchorIn: string | null
+  anchorOut: string | null
+  checksum: string
+  cap: number
+}
+
+/** Izvleči filename iz Content-Disposition (kanon R147-c). */
+function filenameFromDisposition(disposition: string | null): string {
+  const match = disposition?.match(/filename="([^"]+)"/)
+  return match?.[1] ?? 'audit-arhiv.json'
+}
 
 export function AuditLogViewer() {
   const [filters, setFilters] = useState({
@@ -84,6 +130,76 @@ export function AuditLogViewer() {
   const [page, setPage] = useState(0)
   const pageSize = 50
   const [search, setSearch] = useState('')
+
+  // ── R148 (#35): retencija — state + query + handlerji ────────────────
+  const [cutoffDate, setCutoffDate] = useState('')
+  const [archivePreview, setArchivePreview] = useState<ArchivePreview | null>(null)
+  const [isArchiving, startArchiving] = useTransition()
+  const queryClient = useQueryClient()
+
+  // Integriteta verige — REALNA preveritev (prej statični badge — R148-c fix)
+  const chainQuery = useQuery<VerifyChainResponse>({
+    queryKey: auditKeys.verifyChain,
+    queryFn: async () => {
+      const res = await authFetch('/api/audit/verify-chain')
+      if (!res.ok) throw new Error('Napaka pri preverjanju verige')
+      return res.json()
+    },
+    staleTime: 30_000,
+  })
+
+  // Retencijski preview — policy + eligible counts + chain anchor/head
+  const retentionQuery = useQuery<RetentionResponse>({
+    queryKey: auditKeys.retention,
+    queryFn: async () => {
+      const res = await authFetch('/api/audit/retention')
+      if (!res.ok) throw new Error('Napaka pri nalaganju hrambe')
+      return res.json()
+    },
+  })
+
+  /** POST /api/audit/archive — dry-run (apply=false) ali arhiv + purge (apply=true). */
+  function runArchive(apply: boolean) {
+    if (!cutoffDate) {
+      toast.error('Izberite cutoff datum za arhiv.')
+      return
+    }
+    const cutoffIso = new Date(`${cutoffDate}T00:00:00.000Z`).toISOString()
+    const params = new URLSearchParams({ cutoff: cutoffIso })
+    if (apply) params.set('apply', '1')
+    startArchiving(() => {
+      void (async () => {
+        try {
+          const res = await authFetch(`/api/audit/archive?${params.toString()}`, { method: 'POST' })
+          if (!res.ok) {
+            const body = (await res.json().catch(() => null)) as { error?: string } | null
+            toast.error(body?.error || 'Napaka pri izdelavi arhiva revizije')
+            return
+          }
+          if (!apply) {
+            const preview = (await res.json()) as ArchivePreview
+            setArchivePreview(preview)
+            toast.success(`Predogled pripravljen — ${preview.wouldPurge} vrstic za arhiviranje`)
+            return
+          }
+          const blob = await res.blob()
+          const filename = filenameFromDisposition(res.headers.get('content-disposition'))
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = filename
+          a.click()
+          URL.revokeObjectURL(url)
+          setArchivePreview(null)
+          toast.success('Arhiv prenesen — retencija izvršena (purge + anchor zapisi)')
+          void queryClient.invalidateQueries({ queryKey: auditKeys.all })
+          void queryClient.invalidateQueries({ queryKey: ['audit-logs'] })
+        } catch {
+          toast.error('Napaka pri izdelavi arhiva revizije')
+        }
+      })()
+    })
+  }
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams()
@@ -283,21 +399,183 @@ export function AuditLogViewer() {
         </CardContent>
       </Card>
 
-      {/* Hash chain integrity check */}
+      {/* Hash chain integrity check — R148: REALNA preveritev (/api/audit/verify-chain) */}
       <Card>
         <CardContent className="pt-4">
-          <div className="flex items-center gap-3 text-sm">
-            <Activity className="h-4 w-4 text-emerald-500" />
-            <span className="font-medium">Integriteta verige:</span>
-            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-              ✅ SHA-256 hash chain aktiven
-            </Badge>
-            <span className="text-muted-foreground ml-auto">
-              Zadnji hash: <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                {logs[0]?.chainHash?.slice(0, 16) || '—'}...
-              </code>
-            </span>
-          </div>
+          {chainQuery.isLoading ? (
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-6 w-32" />
+            </div>
+          ) : chainQuery.isError || !chainQuery.data ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>Napaka pri preverjanju verige.</AlertDescription>
+            </Alert>
+          ) : (
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <Activity className="h-4 w-4 text-emerald-500" />
+              <span className="font-medium">Integriteta verige:</span>
+              {chainQuery.data.chainIntact ? (
+                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                  ✅ Intaktna — {chainQuery.data.verified}/{chainQuery.data.total} preverjenih
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200">
+                  ⚠️ Prelomljena — {chainQuery.data.broken} vnosov
+                </Badge>
+              )}
+              {chainQuery.data.documentedTruncations > 0 && (
+                <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                  {chainQuery.data.documentedTruncations} dokumentiranih retencij
+                </Badge>
+              )}
+              <span className="text-muted-foreground ml-auto flex items-center gap-2 min-w-0">
+                <span className="truncate">
+                  Glava: <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{chainQuery.data.head?.chainHash?.slice(0, 16) || '—'}...</code>
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => void chainQuery.refetch()}
+                  aria-label="Ponovno preveri verigo"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </Button>
+              </span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ── R148 (#35): Hramba podatkov & integriteta (retencija) ───────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <DatabaseBackup className="h-4 w-4" />
+            Hramba podatkov &amp; integriteta
+          </CardTitle>
+          <CardDescription>
+            Retencijska politika (epic P2-07) — kaj se briše, kaj se arhivira in kaj se hrani neomejeno
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {retentionQuery.isLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-16" />
+              <Skeleton className="h-16" />
+            </div>
+          ) : retentionQuery.isError || !retentionQuery.data ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>Napaka pri nalaganju hrambe.</AlertDescription>
+            </Alert>
+          ) : (
+            <>
+              {/* Aktivna retencija */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {retentionQuery.data.policy.map(p => (
+                  <div key={p.entity} className="border rounded-lg p-3 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium truncate">{p.entity}</span>
+                      <Badge variant="secondary" className="bg-zinc-100 text-zinc-800 shrink-0">
+                        {p.days === null ? 'samo po poteku' : `${p.days} dni`}
+                      </Badge>
+                    </div>
+                    <details className="mt-1">
+                      <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                        Utemeljitev
+                      </summary>
+                      <p className="mt-1 text-xs text-muted-foreground">{p.basis}</p>
+                    </details>
+                  </div>
+                ))}
+              </div>
+
+              {/* Neomejena hramba (FURS / dokazna veriga) */}
+              <div className="border rounded-lg p-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Lock className="h-3.5 w-3.5 text-amber-600" />
+                  Neomejena hramba (se NE briše)
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {retentionQuery.data.documentedIndefinite.map(d => d.entity).join(' · ')}
+                </p>
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                    Utemeljitve ({retentionQuery.data.documentedIndefinite.length})
+                  </summary>
+                  <ul className="mt-1 space-y-1">
+                    {retentionQuery.data.documentedIndefinite.map(d => (
+                      <li key={d.entity} className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">{d.entity}</span> — {d.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </div>
+
+              {/* Eligible števci */}
+              <div className="flex flex-wrap gap-2 text-xs">
+                {Object.entries(retentionQuery.data.eligible).map(([entity, info]) => (
+                  <Badge key={entity} variant="outline" className="bg-muted/50">
+                    {entity}: {info.count} {info.basis === 'expired' ? 'poteklih' : 'za izbris'}
+                  </Badge>
+                ))}
+              </div>
+
+              {/* Arhiv + purge — destruktivni tok s 2-koračno potrditvijo */}
+              <div className="border-t pt-3 space-y-2">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                  Arhiv &amp; izbris po cutoffu
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Purge je GLOBALEN (veriga nima lokacij) — vrstice se izbrišejo ŠELE po uspešni
+                  pairwise verifikaciji rezine; verify-chain purge prepozna kot dokumentirano
+                  odstranitev (anchor zapisi).
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+                  <div className="space-y-1 min-w-0">
+                    <Label className="text-xs">Cutoff (vse pred tem datumom)</Label>
+                    <Input
+                      type="date"
+                      aria-label="Cutoff datum za arhiv"
+                      value={cutoffDate}
+                      onChange={(e) => { setCutoffDate(e.target.value); setArchivePreview(null) }}
+                      className="h-9"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9"
+                    disabled={!cutoffDate || isArchiving}
+                    onClick={() => runArchive(false)}
+                  >
+                    Pripravi predogled arhiva
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-9"
+                    disabled={!archivePreview || archivePreview.applied || isArchiving}
+                    onClick={() => runArchive(true)}
+                  >
+                    Arhiviraj in izbriši ({archivePreview?.wouldPurge ?? 0})
+                  </Button>
+                </div>
+                {archivePreview && (
+                  <div className="border rounded-lg p-3 bg-muted/30 text-xs space-y-1">
+                    <p className="font-medium">Predogled: {archivePreview.wouldPurge} vrstic (cap {archivePreview.cap})</p>
+                    <p>AuditLog: {archivePreview.counts.auditLog} · WebhookDelivery: {archivePreview.counts.webhookDelivery} · ScheduledEmailLog: {archivePreview.counts.scheduledEmailLog}</p>
+                    <p className="truncate">Checksum: <code className="bg-muted px-1 py-0.5 rounded">{archivePreview.checksum.slice(0, 32)}…</code></p>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 

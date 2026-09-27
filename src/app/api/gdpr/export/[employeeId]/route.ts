@@ -23,6 +23,9 @@ import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middlewa
 import { handleApiError } from '@/lib/api-utils'
 import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { toNum, deepToNumbers } from '@/lib/decimal'
+// R148 drive-by (epic #115 #35): rate-limit 'gdpr' + no-store (PII izvoz)
+import { checkRateLimitAsync, getClientIp, GDPR_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +35,10 @@ export async function GET(
 ) {
   try {
     const { employeeId } = await params
+    // R148 kanon: rate limit PRED authom (bucket 'gdpr', presets.ts GDPR_LIMIT)
+    const rl = await checkRateLimitAsync('gdpr', getClientIp(req), GDPR_LIMIT)
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
+
     const authResult = await requireAuth(req, { permission: 'take_orders' })
     if (authResult.error) return authResult.error
 
@@ -283,6 +290,8 @@ export async function GET(
     }, {
       headers: {
         'Content-Disposition': `attachment; filename="gdpr-export-${employeeId}-${Date.now()}.json"`,
+        // R148 drive-by: PII odgovor se NIKOLI ne cache-a
+        'Cache-Control': 'no-store',
       },
     })
   } catch (error: unknown) {

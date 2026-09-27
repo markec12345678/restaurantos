@@ -31,6 +31,9 @@ import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middlewa
 import { handleApiError } from '@/lib/api-utils'
 import { isWithinScope, notInScopeResponse } from '@/lib/tenant-scope'
 import { invalidateEmployeeStatusCache } from '@/lib/auth-middleware'
+// R148 drive-by (epic #115 #35): rate-limit 'gdpr' + no-store (PII izbris)
+import { checkRateLimitAsync, getClientIp, GDPR_LIMIT } from '@/lib/rate-limit'
+import { rateLimitedResponse } from '@/lib/rate-limit/response'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,6 +43,10 @@ export async function POST(
 ) {
   try {
     const { employeeId } = await params
+    // R148 kanon: rate limit PRED authom (bucket 'gdpr', presets.ts GDPR_LIMIT)
+    const rl = await checkRateLimitAsync('gdpr', getClientIp(req), GDPR_LIMIT)
+    if (!rl.allowed) return rateLimitedResponse(rl.retryAfterMs, 'Preveč zahtevkov')
+
     const authResult = await requireAuth(req, { permission: 'admin' })
     if (authResult.error) return authResult.error
 
@@ -195,6 +202,9 @@ export async function POST(
         'PIN → prazen (prijava onemogočena)',
         'pinLookup → null',
       ],
+    }, {
+      // R148 drive-by: odgovor o izbrisu PII se NIKOLI ne cache-a
+      headers: { 'Cache-Control': 'no-store' },
     })
   } catch (error: unknown) {
     return handleApiError(error, 'POST /api/gdpr/anonymize/[employeeId]', 'Napaka pri GDPR anonimizaciji')

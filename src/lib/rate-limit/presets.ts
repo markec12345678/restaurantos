@@ -217,3 +217,24 @@ export const MONITORING_LIMIT: RateLimitConfig = {
   maxRequests: 10,
   windowMs: 60 * 1000,
 }
+
+/**
+ * R148 (epic #115 #35 Audit/retention): preview hrambe + arhiv/purge —
+ * 120/min (pariteta AUTHENTICATED_LIMIT). Vedro 'audit-retention' delita
+ * GET /api/audit/retention in POST /api/audit/archive; purge je destruktiven,
+ * ampak CAP 20000 + fail-closed verificiranje rezine so glavna zaščita.
+ */
+export const AUDIT_RETENTION_LIMIT: RateLimitConfig = {
+  maxRequests: 120,
+  windowMs: 60 * 1000,
+}
+
+/**
+ * R148 drive-by (zapora R146/R147 deferred): GDPR export (Art. 15) in
+ * anonymize (Art. 17) — 120/min (pariteta AUTHENTICATED_LIMIT). Obe ruti
+ * vlečeta PII zaposlenih, zato hitrostna omejitev + no-store.
+ */
+export const GDPR_LIMIT: RateLimitConfig = {
+  maxRequests: 120,
+  windowMs: 60 * 1000,
+}
