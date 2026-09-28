@@ -119,6 +119,10 @@ export async function handleItemStatusUpdate(
   // Broadcast za KDS (orderNumber/locationId tx-fresh)
   broadcastWS('ITEM_STATUS_UPDATE', {
     orderId: id, orderNumber: freshOrderNumber, itemId, status,
+    // R151-b (FU-3): menuItemName za fine granularnost — paritetno z
+    // ITEM_STATUS_CHANGED (PUT /api/order-items/[id]); fallback kot pri
+    // order_ready itemName (updatedItem je best-effort re-fetch, sme biti null)
+    menuItemName: updatedItem?.menuItem?.name || 'Neznan artikel',
     // WS AUDIT: locationId za per-location dostavo (KDS druge lokacije ne vidi)
     locationId: freshLocationId ?? null,
   })

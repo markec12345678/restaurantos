@@ -36,7 +36,8 @@ export function useKDSPage() {
 
   const session = useKDSSession()
   const { wsConnected } = useKDSWebSocket(session.employee, playSound)
-  const orders = useKDSOrders(session.employee, bumpedOrders, stationFilter, setBumpedOrders)
+  // R151-c (FU-1): wsConnected → KDS polling backoff 30 s (sicer 5 s fallback)
+  const orders = useKDSOrders(session.employee, bumpedOrders, stationFilter, setBumpedOrders, wsConnected)
   // R133: metrike — useQuery enabled SAMO ko je panel odprt (ni prometa ob zaprtem)
   const metrics = useKDSMetrics(showMetrics)
   const toggleMetrics = useCallback(() => setShowMetrics(v => !v), [])

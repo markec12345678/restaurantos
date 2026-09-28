@@ -8,7 +8,10 @@ import { UnauthorizedError, authFetch, getStoredToken } from './driver-context'
 // Vzorec: display/useDisplayBoard.ts (poll + fetchSeq ref-guard +
 // stale-while-error + refetch ob focus/visibilitychange).
 // Razlike od display table:
-//  - poll 15 s (voznik pod pohodom — frekvenčnejše od table je dovolj)
+//  - poll 15 s (voznik pod pohodom — frekvenčnejše od table je dovolj);
+//    R151-c (FU-1): ko je WS povezava živa (DriverApp wsLive), poll 60 s
+//    — WS push (useDriverWs → onSignal=refresh) pokrije svežino,
+//    po R139 kontraktu. Focus/visibility refetch ostane nespremenjen.
 //  - 401 → loggedOut (re-login), ne config napaka
 //  - BREZ self-heal reloada: občasni izpad signala pod pogojem je
 //    normalen — stale-while-error + naslednji poll to pozdravita
@@ -18,7 +21,12 @@ import { UnauthorizedError, authFetch, getStoredToken } from './driver-context'
 // podpira, glej TODO v DriverApp.tsx.
 // =====================================================================
 
-export const DRIVER_POLL_INTERVAL_MS = 15_000
+/** R151-c: poll interval ob živi WS povezavi (R139 kontrakt — push pokrije svežino) */
+export const DRIVER_POLL_ACTIVE_MS = 60_000
+/** R151-c: poll fallback brez WS (obstoječih 15 s) */
+export const DRIVER_POLL_FALLBACK_MS = 15_000
+/** Zastarelo ime (R137-c) — isto kot fallback, ohranjeno za obstoječe pine */
+export const DRIVER_POLL_INTERVAL_MS = DRIVER_POLL_FALLBACK_MS
 
 /** Aktivni statusi moje dostave (delivered/failed odpadata iz mine[]) */
 export type ActiveDriverStatus = 'assigned' | 'picked_up' | 'on_the_way' | 'arriving'
@@ -168,7 +176,7 @@ export interface DriverAssignmentsState {
   refresh: () => Promise<void>
 }
 
-export function useDriverAssignments(): DriverAssignmentsState {
+export function useDriverAssignments(pollIntervalMs: number = DRIVER_POLL_FALLBACK_MS): DriverAssignmentsState {
   const [mine, setMine] = useState<MineDelivery[]>([])
   const [ready, setReady] = useState<ReadyDelivery[]>([])
   const [timestamp, setTimestamp] = useState<string | null>(null)
@@ -214,8 +222,11 @@ export function useDriverAssignments(): DriverAssignmentsState {
     }
   }, [])
 
-  // Poll 15 s + takojšen refetch ob focus / visibilitychange 'visible'
-  // (display/useDisplayBoard vzor; cleanup počisti interval + listenere)
+  // Poll pollIntervalMs (15 s fallback / 60 s ob živem WS) + takojšen
+  // refetch ob focus / visibilitychange 'visible' (display/useDisplayBoard
+  // vzor; cleanup počisti interval + listenere). Sprememba intervala
+  // (WS live ↔ offline) znova postavi interval — začetni refresh ob tem
+  // je neškodljiv (fetchSeq dedupe prepreči podvojene tike).
   useEffect(() => {
     if (loggedOut) return
     // await v async IIFE — vsi setState so v async continuation
@@ -225,7 +236,7 @@ export function useDriverAssignments(): DriverAssignmentsState {
     })()
     const interval = setInterval(() => {
       void refresh()
-    }, DRIVER_POLL_INTERVAL_MS)
+    }, pollIntervalMs)
     const refetch = () => {
       void refresh()
     }
@@ -239,7 +250,7 @@ export function useDriverAssignments(): DriverAssignmentsState {
       window.removeEventListener('focus', refetch)
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
-  }, [loggedOut, refresh])
+  }, [loggedOut, refresh, pollIntervalMs])
 
   return { mine, ready, timestamp, connected, isLoading, loggedOut, refresh }
 }

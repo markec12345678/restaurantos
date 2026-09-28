@@ -10,11 +10,19 @@ import type { OrderKDS } from '../types'
 // KDS Orders — Poizvedbe, filtriranje in akcije
 // ═══════════════════════════════════════════════════════════════
 
+// R151-c (FU-1): polling backoff — ko je WS povezava živa, real-time
+// invalidacije (useKDSWebSocket → queryKeys.orders.kds) pokrijejo svežino
+// → polling le še varovalka 30 s (KitchenDisplay precedent :57); brez WS
+// fallback 5 s. Konstanti izvoženi za teste.
+export const KDS_POLL_ACTIVE_MS = 30_000
+export const KDS_POLL_FALLBACK_MS = 5_000
+
 export function useKDSOrders(
   employee: { id: string; name: string; role: string } | null,
   bumpedOrders: string[],
   stationFilter: string,
   setBumpedOrders: (_ids: string[]) => void,
+  wsConnected = false,
 ) {
   const queryClient = useQueryClient()
 
@@ -97,7 +105,7 @@ export function useKDSOrders(
       const seen = new Set<string>()
       return allOrders.filter(o => { if (seen.has(o.id)) return false; seen.add(o.id); return true })
     },
-    refetchInterval: 5000,
+    refetchInterval: wsConnected ? KDS_POLL_ACTIVE_MS : KDS_POLL_FALLBACK_MS,
     enabled: !!employee,
   })
 

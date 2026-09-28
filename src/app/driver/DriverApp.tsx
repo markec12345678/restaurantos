@@ -9,7 +9,7 @@ import { DeliveryCard } from './DeliveryCard'
 import { DeliverDialog } from './DeliverDialog'
 import type { DeliverDialogResult } from './DeliverDialog'
 import { UnauthorizedError, authPostJson, extractErrorMessage } from './driver-context'
-import { isCashOnDelivery, orderTotal, useDriverAssignments } from './useDriverAssignments'
+import { DRIVER_POLL_ACTIVE_MS, DRIVER_POLL_FALLBACK_MS, isCashOnDelivery, orderTotal, useDriverAssignments } from './useDriverAssignments'
 import type { ActiveDriverStatus, MineDelivery, ReadyDelivery } from './useDriverAssignments'
 import { useDriverLocation } from './useDriverLocation'
 import { useDriverWs } from './useDriverWs'
@@ -62,14 +62,20 @@ const GPS_INDICATOR: Record<GpsState, { dot: string; label: string } | null> = {
 }
 
 export function DriverApp({ onLogout }: DriverAppProps) {
-  const { mine, ready, timestamp, connected, isLoading, loggedOut, refresh } = useDriverAssignments()
+  // R151-c (FU-1): poll interval — 15 s fallback, 60 s ob živi WS povezavi
+  // (R139 kontrakt; onConnectionChange je ref-pattern v useDriverWs — stanje
+  // drži ta komponenta, hook sam ne povzroča re-renderov).
+  const [wsLive, setWsLive] = useState(false)
+  const { mine, ready, timestamp, connected, isLoading, loggedOut, refresh } = useDriverAssignments(
+    wsLive ? DRIVER_POLL_ACTIVE_MS : DRIVER_POLL_FALLBACK_MS,
+  )
   const { gpsState } = useDriverLocation(mine, !loggedOut)
   const gps = GPS_INDICATOR[gpsState]
   // R139: WS push — ob DELIVERY_UPDATED / NEW_ORDER(delivery) takojšen refetch
   // prek refresh() (fetchSeq dedupe prepreči podvojene tike). Poll 15 s ostane
   // nespremenjen kot fallback; v devu (next dev) se WS ne povezuje
   // (produkciski-only — runda 12 kanon).
-  useDriverWs({ onSignal: refresh, enabled: !loggedOut })
+  useDriverWs({ onSignal: refresh, enabled: !loggedOut, onConnectionChange: setWsLive })
 
   // Akcije v teku — per-dostava loading (idempotentni self-claim: gumb disable med klicem)
   const [claimingId, setClaimingId] = useState<string | null>(null)

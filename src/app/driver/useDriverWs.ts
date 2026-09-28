@@ -21,6 +21,21 @@
 // WS samo pospeši refetch (NotificationCenter vzorec). V devu (next dev)
 // se WS ne povezuje: produkciski-only (runda 12 — server.js dev RSC
 // hidracija pokvarjena; next dev nima /ws upgrade handlerja).
+//
+// R151-c (FU-1/FU-3):
+//  - onConnectionChange opcionalni callback (ref-pattern — hook ostane
+//    state-free; true ob AUTH_SUCCESS, false ob close). DriverApp ga
+//    uporabi za poll backoff 60 s (useDriverAssignments pollIntervalMs).
+//  - App-level ping vsakih 25 s med povezavo: strežnik ima DVA srčna
+//    utripa — protokolni ping (server.js heartbeatCheck, 30 s, smeri
+//    strežnik→klient) in JSON ping/pong (klient {type:'ping'} →
+//    {type:'pong'}, server.js:547-549, pingMessageSchema v server-ws-core).
+//    Protokolni ping pokrije samo STREŽNIKOVO stran pol-odprte TCP
+//    povezave — voznik na mobilni mreži ( menjava cell/site ) ne zazna
+//    mrtve poti, dokler NEKAJ ne pošlje: klientov ping sproži TCP
+//    retransmisijo → browser odpali close → reconnect z backoffom.
+//    Vzorec: src/lib/websocket-client/use-heartbeat.ts:24. JSON pong se
+//    namerno ignorira (že pade v »nezanimive tipe« vejo) — brez stanja.
 // =====================================================================
 
 import { useEffect, useRef } from 'react'
@@ -28,6 +43,8 @@ import { getStoredToken } from './driver-context'
 
 export const WS_RECONNECT_BASE_MS = 1000
 export const WS_RECONNECT_MAX_MS = 30_000
+/** App-level ping med povezavo (25 s < strežnikov 30 s protokolni heartbeat) */
+export const DRIVER_WS_PING_INTERVAL_MS = 25_000
 
 // --- čisti helperji (izvoženi za testiranje — R138 vzorec) ---
 
@@ -79,6 +96,13 @@ interface UseDriverWsOptions {
   onSignal: () => void
   /** false (odjava) → cleanup povezave; true → (re)connect */
   enabled: boolean
+  /**
+   * R151-c: obvestilo o stanju povezave — true šele po AUTH_SUCCESS
+   * (strežniško potrjena seja), false ob close (error se vedno izteče v
+   * close → enojen klic). Ref-pattern — hook NE povzroča re-renderov;
+   * klicatelj (DriverApp) drži state za poll backoff.
+   */
+  onConnectionChange?: (connected: boolean) => void
 }
 
 /**
@@ -87,11 +111,17 @@ interface UseDriverWsOptions {
  * retries se resetirajo ob AUTH_SUCCESS (4003 po restartu strežnika se
  * pozdravi sam — naslednji REST poll sinhronizira wsSessions store).
  */
-export function useDriverWs({ onSignal, enabled }: UseDriverWsOptions): void {
+export function useDriverWs({ onSignal, enabled, onConnectionChange }: UseDriverWsOptions): void {
   const onSignalRef = useRef(onSignal)
   useEffect(() => {
     onSignalRef.current = onSignal
   }, [onSignal])
+
+  // R151-c: ref namesto state — hook ostane state-free (brez re-renderov)
+  const onConnectionChangeRef = useRef(onConnectionChange)
+  useEffect(() => {
+    onConnectionChangeRef.current = onConnectionChange
+  }, [onConnectionChange])
 
   useEffect(() => {
     if (!enabled) return
@@ -110,6 +140,7 @@ export function useDriverWs({ onSignal, enabled }: UseDriverWsOptions): void {
     let ws: WebSocket | null = null
     let retries = 0
     let timer: ReturnType<typeof setTimeout> | null = null
+    let pingTimer: ReturnType<typeof setInterval> | null = null
     let disposed = false
 
     const scheduleReconnect = () => {
@@ -117,6 +148,23 @@ export function useDriverWs({ onSignal, enabled }: UseDriverWsOptions): void {
       const delay = Math.min(WS_RECONNECT_BASE_MS * 2 ** retries, WS_RECONNECT_MAX_MS)
       retries += 1
       timer = setTimeout(connect, delay)
+    }
+
+    // R151-c: app-level ping — glej glavo fajla (half-open detekcija na
+    // klientovi strani). Požene po AUTH_SUCCESS, počisti ob close/cleanup.
+    const stopPing = () => {
+      if (pingTimer !== null) {
+        clearInterval(pingTimer)
+        pingTimer = null
+      }
+    }
+    const startPing = () => {
+      stopPing()
+      pingTimer = setInterval(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }))
+        }
+      }, DRIVER_WS_PING_INTERVAL_MS)
     }
 
     const connect = () => {
@@ -149,6 +197,8 @@ export function useDriverWs({ onSignal, enabled }: UseDriverWsOptions): void {
         const rec = msg as Record<string, unknown>
         if (rec.type === 'AUTH_SUCCESS') {
           retries = 0 // povezava + avtentikacija OK — backoff nazaj na 1 s
+          onConnectionChangeRef.current?.(true)
+          startPing()
           return
         }
         // CONNECTED greeting / AUTH_REQUIRED / pong / RATE_LIMITED / tuji
@@ -160,10 +210,12 @@ export function useDriverWs({ onSignal, enabled }: UseDriverWsOptions): void {
       }
       ws.onclose = () => {
         ws = null
+        stopPing()
+        onConnectionChangeRef.current?.(false)
         scheduleReconnect()
       }
       ws.onerror = () => {
-        ws?.close()
+        ws?.close() // error se vedno izteče v close → enojen false callback
       }
     }
 
@@ -171,6 +223,7 @@ export function useDriverWs({ onSignal, enabled }: UseDriverWsOptions): void {
 
     return () => {
       disposed = true
+      stopPing()
       if (timer !== null) clearTimeout(timer)
       if (ws) {
         ws.onclose = null // namerni cleanup ne sproži reconnecta

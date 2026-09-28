@@ -35,7 +35,6 @@ interface EventPayloadMap {
   'loyalty.tier_upgraded': { loyaltyAccountId: string; customerName: string; oldTier: string; newTier: string }
   'daily_report.ready': { date: string; totalSales: number; totalOrders: number }
   'delivery.status_changed': { orderId: string; orderNumber: string; status: string; driverName: string; estimatedArrival: string | null }
-  'delivery.driver_assigned': { deliveryInfoId: string; driverName: string; driverPhone: string }
   'tip_pool.distributed': { tipPoolId: string; totalTips: number; employeeCount: number }
   'z_report.generated': { reportId: string; date: string; totalSales: number }
   'z_report.finalized': { reportId: string; date: string; totalSales: number; finalizedBy: string }
@@ -85,21 +84,6 @@ export async function emitOrderCreated(params: {
 }): Promise<void> {
   const { locationId, ...data } = params
   await emitEvent('order.created', data, locationId)
-}
-
-/**
- * Sproži dogodek ob plačilu naročila
- */
-export async function emitOrderPaid(params: {
-  orderId: string
-  orderNumber: number
-  total: number
-  paymentMethod: string
-  tip: number
-  locationId?: string | null
-}): Promise<void> {
-  const { locationId, ...data } = params
-  await emitEvent('order.paid', data, locationId)
 }
 
 /**
