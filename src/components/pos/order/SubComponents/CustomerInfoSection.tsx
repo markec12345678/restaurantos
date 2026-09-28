@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { DecimalInput } from '@/components/ui/decimal-input'
 import { Badge } from '@/components/ui/badge'
 import { ChevronDown, UserRound, Phone, StickyNote, Percent } from 'lucide-react'
+import { usePOSStore } from '@/lib/store'
 
 import { formatEUR } from '@/lib/safe-format'
 // ============================================
@@ -46,6 +47,8 @@ export const CustomerInfoSection = memo(function CustomerInfoSection({
 }: CustomerInfoSectionProps) {
   const hasDetails = Boolean(customerName || customerPhone || orderNotes || discount > 0)
   const [expanded, setExpanded] = useState(hasDetails)
+  // R153: prodajni način (sank) — ime/telefon skrita; popust in opomba OBVEZNO ostane
+  const salesMode = usePOSStore(s => s.salesMode)
 
   if (!expanded) {
     // SKRČENO: ena vrstica s čipi obstoječih podatkov (ali neopazen poziv)
@@ -108,9 +111,14 @@ export const CustomerInfoSection = memo(function CustomerInfoSection({
       </div>
       {/* TABLET (runda 11): pointer-coarse = tablice/telefoni dobijo 44px tarče,
           namizje ostane kompaktno (h-7) — WCAG 2.5.5 brez žrtvovanja gostote */}
-      <Input placeholder="Ime stranke" value={customerName} onChange={e => setCustomerName(e.target.value)} className="h-7 text-xs pointer-coarse:h-11" aria-label="Ime stranke" />
+      {/* R153: ime/telefon samo izven prodajnega načina (sank ne vpisuje strank) */}
+      {!salesMode && (
+        <Input placeholder="Ime stranke" value={customerName} onChange={e => setCustomerName(e.target.value)} className="h-7 text-xs pointer-coarse:h-11" aria-label="Ime stranke" />
+      )}
       <div className="flex gap-1.5">
-        <Input placeholder="Telefon" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="h-7 text-xs flex-1 pointer-coarse:h-11" aria-label="Telefon stranke" />
+        {!salesMode && (
+          <Input placeholder="Telefon" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} className="h-7 text-xs flex-1 pointer-coarse:h-11" aria-label="Telefon stranke" />
+        )}
         <DecimalInput placeholder="Popust €" value={discount || ''} onValueChange={n => { setDiscount(n); setAppliedDiscountId(null) }} className="h-7 text-xs w-20 pointer-coarse:h-11" aria-label="Popust v evrih" />
       </div>
       {discounts && discounts.length > 0 && (

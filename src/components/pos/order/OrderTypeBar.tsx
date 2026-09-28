@@ -2,6 +2,7 @@
 
 import { memo, useEffect } from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { usePOSStore } from '@/lib/store'
 import { Loader2, UtensilsCrossed, ShoppingBag, Truck, Table2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -43,6 +44,8 @@ export const OrderTypeBar = memo(function OrderTypeBar({
   tables,
   diningOptions,
 }: OrderTypeBarProps) {
+  // R153: prodajni način (sank) — "način postrežbe" select skrit (blagajna brez te izbire)
+  const salesMode = usePOSStore(s => s.salesMode)
   // FIX BUG #1 + NAPAKA 2: Filter mize, ki so na voljo ali zasedene — te lahko izbere uporabnik
   // Array.isArray check prepreči TypeError: t?.filter is not a function, če bi API
   // vrnil napačen tip (npr. null ali object namesto array)
@@ -155,8 +158,9 @@ export const OrderTypeBar = memo(function OrderTypeBar({
         <Loader2 className="h-3 w-3 animate-spin text-muted-foreground flex-shrink-0" />
       )}
 
-      {/* Način postrežbe — sekundarna izbira (samo če je konfigurirana) */}
-      {diningOptions && diningOptions.length > 0 && (
+      {/* Način postrežbe — sekundarna izbira (samo če je konfigurirana);
+          R153: v prodajnem načinu skrita */}
+      {!salesMode && diningOptions && diningOptions.length > 0 && (
         <Select
           value={diningOptionId || 'none'}
           onValueChange={(v) => setDiningOptionId(v === 'none' ? null : v)}

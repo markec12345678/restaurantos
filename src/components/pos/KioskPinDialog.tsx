@@ -20,6 +20,8 @@ interface PinDialogProps {
   pinError: string
   setPinError: (_error: string) => void
   onPinSubmit: () => void
+  /** R153: naslov prilagojen glede na način (kiosk/prodajni) */
+  title?: string
 }
 
 export const KioskPinDialog = memo(function KioskPinDialog({
@@ -30,12 +32,13 @@ export const KioskPinDialog = memo(function KioskPinDialog({
   pinError,
   setPinError,
   onPinSubmit,
+  title = 'Izhod iz kiosk načina',
 }: PinDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xs">
         <DialogHeader>
-          <DialogTitle className="text-center">Izhod iz kiosk načina</DialogTitle>
+          <DialogTitle className="text-center">{title}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground text-center">

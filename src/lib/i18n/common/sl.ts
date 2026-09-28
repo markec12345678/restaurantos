@@ -43,6 +43,7 @@ export const commonSl: Record<string, string> = {
   'nav.waitlistFull': 'Čakalna vrsta',
   'nav.guestCRM': 'Gost CRM',
   'nav.kiosk': 'Kiosk način',
+  'nav.salesMode': 'Prodajni način',
   'nav.fullscreen': 'Celozaslonski način',
   'nav.exitFullscreen': 'Izhod iz cel. zaslona',
   'nav.posSystem': 'Prodajna točka',

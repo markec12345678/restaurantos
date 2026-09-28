@@ -1,6 +1,6 @@
 'use client'
 
-import { ChefHat, Sun, Moon, Maximize, Minimize, Monitor, ExternalLink, HandMetal } from 'lucide-react'
+import { ChefHat, Sun, Moon, Maximize, Minimize, Monitor, Coins, ExternalLink, HandMetal } from 'lucide-react'
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
 import { t } from '@/lib/i18n'
@@ -10,6 +10,8 @@ interface SidebarBottomProps {
   isFullscreen: boolean
   toggleFullscreen: () => void
   setKioskMode: (_mode: boolean) => void
+  /** R153: prodajni način (sank) — samo blagajniški nabor, izhod prek PIN */
+  setSalesMode: (_mode: boolean) => void
   theme: string | undefined
   setTheme: (_theme: string) => void
   mounted: boolean
@@ -19,6 +21,7 @@ export const SidebarBottom = memo(function SidebarBottom({
   isFullscreen,
   toggleFullscreen,
   setKioskMode,
+  setSalesMode,
   theme,
   setTheme,
   mounted,
@@ -43,6 +46,10 @@ export const SidebarBottom = memo(function SidebarBottom({
       </Button>
       <Button variant="ghost" className="w-full justify-start gap-2 text-xs h-8 touch-manipulation" onClick={() => setKioskMode(true)}>
         <Monitor className="h-3.5 w-3.5" /> {t('nav.kiosk')}
+      </Button>
+      {/* R153: prodajni način (sank) — isti izhod-vzorec kot kiosk (PIN admin/manager) */}
+      <Button variant="ghost" className="w-full justify-start gap-2 text-xs h-8 touch-manipulation" onClick={() => setSalesMode(true)}>
+        <Coins className="h-3.5 w-3.5" /> {t('nav.salesMode')}
       </Button>
       {mounted && (
         <div className="flex items-center gap-1">

@@ -16,6 +16,9 @@ import { NotificationItem } from './notifications/NotificationItem'
 // ============================================
 export const GlobalNotifications = memo(function GlobalNotifications() {
   const activeModule = usePOSStore(s => s.activeModule)
+  // R153: prodajni/kiosk način — admin skoki (zaloga) skriti; poll ostane
+  const salesMode = usePOSStore(s => s.salesMode)
+  const kioskMode = usePOSStore(s => s.kioskMode)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [soundEnabled, setSoundEnabled] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -126,7 +129,7 @@ export const GlobalNotifications = memo(function GlobalNotifications() {
           <ShoppingCart className="h-3.5 w-3.5" />{orderStats.totalActive} aktivnih
         </button>
       )}
-      {activeModule !== 'inventory' && activeModule !== 'kitchen' && lowStockData && lowStockData.count > 0 && (
+      {activeModule !== 'inventory' && activeModule !== 'kitchen' && !salesMode && !kioskMode && lowStockData && lowStockData.count > 0 && (
         /* QA 2026-09-17 (runda 4): kompaktna različica (samo ikona + števec) —
            prej širok pill je prekrival vsebino modula (npr. mize, plačilni gumb);
        na Kuhinji (KDS) je skrit čisto — kuhar ne ureja zalog.

@@ -38,6 +38,7 @@ export const commonEn: Record<string, string> = {
   'nav.waitlistFull': 'Waitlist',
   'nav.guestCRM': 'Guest CRM',
   'nav.kiosk': 'Kiosk Mode',
+  'nav.salesMode': 'Sales mode',
   'nav.fullscreen': 'Fullscreen',
   'nav.exitFullscreen': 'Exit Fullscreen',
   'nav.posSystem': 'Point of Sale',

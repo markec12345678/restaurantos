@@ -27,6 +27,7 @@ export const Sidebar = memo(function Sidebar() {
   const sidebarOpen = usePOSStore(s => s.sidebarOpen)
   const setSidebarOpen = usePOSStore(s => s.setSidebarOpen)
   const setKioskMode = usePOSStore(s => s.setKioskMode)
+  const setSalesMode = usePOSStore(s => s.setSalesMode)
   const country = usePOSStore(s => s.country)
   const { theme, setTheme } = useTheme()
   const mounted = useMounted()
@@ -102,7 +103,7 @@ export const Sidebar = memo(function Sidebar() {
           onModuleHover={onModuleHover}
         />
         <UserIndicator />
-        <SidebarBottom isFullscreen={isFullscreen} toggleFullscreen={toggleFullscreen} setKioskMode={setKioskMode} theme={theme} setTheme={setTheme} mounted={mounted} />
+        <SidebarBottom isFullscreen={isFullscreen} toggleFullscreen={toggleFullscreen} setKioskMode={setKioskMode} setSalesMode={setSalesMode} theme={theme} setTheme={setTheme} mounted={mounted} />
       </aside>
     </>
   )

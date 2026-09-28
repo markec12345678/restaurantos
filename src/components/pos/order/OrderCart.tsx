@@ -68,6 +68,8 @@ export function OrderCart({
 }: OrderCartProps) {
   const cartItemCount = cart.reduce((s, i) => s + i.quantity, 0)
   const bumpCartQuickAddSignal = usePOSStore((s) => s.bumpCartQuickAddSignal)
+  // R153: prodajni način (sank) — tokovi toggle skrit (hitra blagajna brez razporeditve jedi)
+  const salesMode = usePOSStore((s) => s.salesMode)
 
   return (
     <div className="w-[280px] sm:w-[320px] md:w-[340px] xl:w-[380px] border-l border-border bg-card flex flex-col flex-shrink-0">
@@ -165,7 +167,7 @@ export function OrderCart({
         {/* R134 (P1-10): opt-in toggle 'Tokovi' — viden samo z artikli v košarici
             in pri NOVI oddaji (urejanje obstoječega = legacy brez tokov).
             Celotna vrstica je velika tarča (pointer-coarse >= 44px). */}
-        {cart.length > 0 && !editingOrderId && onToggleCourses && (
+        {cart.length > 0 && !editingOrderId && !salesMode && onToggleCourses && (
           <div
             role="switch"
             aria-checked={coursesEnabled}

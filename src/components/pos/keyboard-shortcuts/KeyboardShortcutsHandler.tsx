@@ -37,6 +37,11 @@ export function KeyboardShortcutsHandler() {
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey) {
         const key = e.key
         if (SHORTCUT_NAV[key]) {
+          // R153: prodajni/kiosk način — admin modulski skoki (Blagajna,
+          // Nadzorna plošča, …) tiho ignorirani (sank = brez admin navigacije).
+          // getState ob dogodku → sveže stanje brez re-subskripcije.
+          const s = usePOSStore.getState()
+          if (s.salesMode || s.kioskMode) return
           e.preventDefault()
           setActiveModule(SHORTCUT_NAV[key])
           haptic('light')

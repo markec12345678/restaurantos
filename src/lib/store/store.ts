@@ -111,6 +111,11 @@ export const usePOSStore = create<POSStore>()(
   setKioskMode: (mode) => set({ kioskMode: mode }),
   kioskAllowedModules: ['orders', 'kitchen', 'tables'],
   setKioskAllowedModules: (modules) => set({ kioskAllowedModules: modules }),
+  // R153: prodajni način (sank) — za razliko od kioskMode je persistiran
+  // (partialize spodaj): sank tablica MORA preživeti refresh. Stare sesije
+  // brez polja zustand persist merge pusti na privzetem false (varno).
+  salesMode: false,
+  setSalesMode: (mode) => set({ salesMode: mode }),
   // Večjezičnost
   locale: (typeof window !== 'undefined' ? getLocale() : 'sl'),
   setLocale: (locale) => {
@@ -150,6 +155,10 @@ export const usePOSStore = create<POSStore>()(
         editingOrderNumber: state.editingOrderNumber,
         appliedDiscountId: state.appliedDiscountId,
         diningOptionId: state.diningOptionId,
+        // R153: prodajni način preživi refresh (sank tablica) — namerna
+        // razlika od kioskMode, ki ostane session-only. clearCart() tega
+        // polja ne resetira (samo košarica/naročilo kontekst).
+        salesMode: state.salesMode,
       }),
     }
   )

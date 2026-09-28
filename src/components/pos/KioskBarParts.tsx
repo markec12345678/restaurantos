@@ -18,7 +18,8 @@ export const moduleConfig: Record<string, { label: string; icon: React.ReactNode
 interface ModuleTabsProps {
   activeModule: string
   onModuleChange: (_moduleId: string) => void
-  allowedModules: string[]
+  // R153: readonly — page.tsx poda resolveAllowedModules (readonly tuple)
+  allowedModules: readonly string[]
 }
 
 export const ModuleTabs = memo(function ModuleTabs({ activeModule, onModuleChange, allowedModules }: ModuleTabsProps) {

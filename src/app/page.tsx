@@ -1,6 +1,7 @@
 'use client'
 
 import { usePOSStore } from '@/lib/store'
+import { resolveAllowedModules } from '@/lib/sales-mode'
 import { Sidebar } from '@/components/pos/sidebar/Sidebar'
 import { KioskBar } from '@/components/pos/KioskBar'
 import { HappyHourBanner } from '@/components/pos/HappyHourBanner'
@@ -24,7 +25,7 @@ import { SwUpdateToast } from '@/components/pwa/sw-update-toast'
 export const dynamic = "force-dynamic"
 
 export default function POSPage() {
-  const { activeModule, kioskMode } = usePOSStore()
+  const { activeModule, kioskMode, salesMode, kioskAllowedModules } = usePOSStore()
   const ActiveComponent = useMemo(() => moduleComponents[activeModule] || moduleComponents['orders'], [activeModule])
 
   // Prednalaganje podatkov ob preklopu modula — hitrejši prehod za uporabnika
@@ -63,10 +64,11 @@ export default function POSPage() {
       {/* Happy Hour Banner — vidno kadar aktiven */}
       <HappyHourBanner />
       <div className="flex flex-1 overflow-hidden">
-      {/* Kiosk način: KioskBar namesto Sidebar */}
-      {kioskMode ? (
+      {/* Kiosk način / Prodajni način (R153): KioskBar namesto Sidebar —
+          prodajni način pusti samo blagajniški nabor (allowedModules=orders) */}
+      {(kioskMode || salesMode) ? (
         <div className="flex flex-col flex-1 overflow-hidden">
-          <KioskBar />
+          <KioskBar allowedModules={resolveAllowedModules(salesMode, kioskAllowedModules)} />
           <main id="main-content" className="flex-1 overflow-hidden" tabIndex={-1}>
             <ActiveModuleView activeModule={activeModule} ActiveComponent={ActiveComponent} />
           </main>
@@ -81,7 +83,8 @@ export default function POSPage() {
       )}
       </div>
       <GlobalNotifications />
-      <AIAssistant />
+      {/* R153: AI pomočnik skrit v prodajnem/kiosk načinu (sank = brez admin površin) */}
+      {!salesMode && !kioskMode && <AIAssistant />}
       {/* Notification Center — real-time obvestila iz WebSocket-a */}
       <NotificationCenter />
       {/* Command Palette (Cmd+K / Ctrl+K) — hitra navigacija + akcije */}

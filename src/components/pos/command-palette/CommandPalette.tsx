@@ -26,6 +26,7 @@ import {
   CommandSeparator,
 } from '@/components/ui/command'
 import { navItems } from '@/components/pos/sidebar/navItems'
+import { isModuleAllowed, resolveAllowedModules } from '@/lib/sales-mode'
 import { usePOSStore } from '@/lib/store'
 import { useRecentsStore } from '@/lib/recents-store'
 import { haptic } from '@/lib/haptic'
@@ -179,7 +180,11 @@ function ArtikliGroup({
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false)
-  const { setActiveModule, activeModule, setPendingItemClickId } = usePOSStore()
+  const { setActiveModule, activeModule, setPendingItemClickId, salesMode, kioskMode, kioskAllowedModules } = usePOSStore()
+
+  // R153: prodajni/kiosk način — samo blagajniški nabor (sank = orders)
+  const restricted = salesMode || kioskMode
+  const allowedModules = resolveAllowedModules(salesMode, kioskAllowedModules)
 
   // RUNDA 41: okno upodabljanja Artiklov — 437+ artiklov = 5000+ DOM vozlišč
   // (merjeno 509 cmdk-itemov / 5302 vozlišča na prod), kar upočasni odpiranje
@@ -272,9 +277,16 @@ export function CommandPalette() {
     },
   ]
 
+  // R153: v omejenih načinih izpusti admin skoke (Dashboard/Nastavitve)
+  const visibleActions = restricted
+    ? actions.filter((a) => a.id !== 'go-dashboard' && a.id !== 'go-settings')
+    : actions
+
   // Navigacijski elementi iz navItems
+  // R153: v omejenih načinih samo dovoljeni moduli (salesMode → orders)
   const navCommands: CommandNav[] = navItems
     .filter((item) => item.id !== activeModule) // skrij trenutni
+    .filter((item) => !restricted || isModuleAllowed(item.id, allowedModules))
     .map((item) => ({
       id: item.id,
       label: t(item.labelKey),
@@ -386,7 +398,7 @@ export function CommandPalette() {
         )}
 
         <CommandGroup heading="⚡ Hitre akcije">
-          {actions.map((action) => (
+          {visibleActions.map((action) => (
             <CommandItem
               key={action.id}
               value={action.label}
@@ -406,21 +418,25 @@ export function CommandPalette() {
 
         <CommandSeparator />
 
-        <CommandGroup heading="🧭 Moduli">
-          {navCommands.map((nav) => (
-            <CommandItem
-              key={nav.id}
-              value={nav.label}
-              onSelect={() => handleSelect(nav)}
-              className="cursor-pointer"
-            >
-              <nav.icon className="mr-2 h-4 w-4" />
-              <span>{nav.label}</span>
-            </CommandItem>
-          ))}
-        </CommandGroup>
-
-        <CommandSeparator />
+        {/* R153: v omejenih načinih je lahko skupina prazna → ne upodobi */}
+        {navCommands.length > 0 && (
+          <>
+            <CommandGroup heading="🧭 Moduli">
+              {navCommands.map((nav) => (
+                <CommandItem
+                  key={nav.id}
+                  value={nav.label}
+                  onSelect={() => handleSelect(nav)}
+                  className="cursor-pointer"
+                >
+                  <nav.icon className="mr-2 h-4 w-4" />
+                  <span>{nav.label}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandSeparator />
+          </>
+        )}
 
         <CommandGroup heading="💡 Nasvet">
           <CommandItem disabled className="opacity-60">

@@ -80,6 +80,10 @@ export interface POSStore {
   setKioskMode: (_mode: boolean) => void
   kioskAllowedModules: string[]
   setKioskAllowedModules: (_modules: string[]) => void
+  // Prodajni način (R153 — sank): samo blagajniški nabor, izhod prek PIN.
+  // Za razliko od kioskMode je PERSISTIRAN — sank tablica preživi refresh.
+  salesMode: boolean
+  setSalesMode: (_mode: boolean) => void
   // Večjezičnost
   locale: Locale
   setLocale: (_locale: Locale) => void
