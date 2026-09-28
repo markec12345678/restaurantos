@@ -9,6 +9,9 @@
 //   • osnovni del = floor((total / count) × 100) / 100  (centna natančnost, navzdol)
 //   • zadnji del absorbira razliko zaokroževanja (round × 100 / 100)
 //   • vsota delov = TOČNO total (centno natančno)
+//   • R152 #122: total ≤ 0 / NaN (sanitiziran na 0) → točno `count` delov po
+//     0,00 € — executor indeksira amounts[i] z RAW splitCount, krajši array bi
+//     pomenil `undefined` indeks (POST brez amount → Zod 400)
 // ============================================
 
 /**
@@ -23,7 +26,12 @@ export function splitAmountBreakdown(total: number, count: number): number[] {
   const safeTotal = Number.isFinite(total) && total > 0 ? total : 0
   // necel count (pokvarjen klic) → floor (2.9 → 2); count < 1 → 1
   const safeCount = count >= 1 ? Math.floor(count) : 1
-  if (safeCount === 1 || safeTotal === 0) return [Math.round(safeTotal * 100) / 100]
+  if (safeCount === 1) return [Math.round(safeTotal * 100) / 100]
+  // R152 #122: total ≤ 0 / NaN → sanitiziran na 0 → VEDNO `safeCount` delov po
+  // 0,00 € (executor split-payment.ts:77-81 indeksira amounts[i] z RAW
+  // splitCount — krajši array bi dal `undefined` → POST brez amount → Zod 400;
+  // JSDoc kontrakt "seznam `count` zneskov" drži zdaj tudi pri 0,00 €)
+  if (safeTotal === 0) return new Array<number>(safeCount).fill(0)
   const base = Math.floor((safeTotal / safeCount) * 100) / 100
   const parts: number[] = []
   for (let i = 0; i < safeCount; i++) {

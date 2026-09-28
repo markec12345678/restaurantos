@@ -67,6 +67,15 @@ import {
 
 const MULTI_ORIGINS = ['https://pos.example.com', 'https://www.pos.example.com']
 
+// R152 #123: ambient env (npr. NEXT_PUBLIC_APP_URL iz .env.example-rebuild
+// peskovnika) uhaja v getWebAuthnOrigins() — resolver bere env ob KLICU
+// (src/lib/webauthn/index.ts:56-79, NE ob importu → vi.resetModules NI
+// potreben) → expectedOrigin postane superset MULTI_ORIGINS → exact-set
+// assertion (toEqual) pade. Izolacija po R123 rate-limit precedensu:
+// save → delete → assert → restore.
+const ENV_KEYS = ['NEXTAUTH_URL', 'NEXT_PUBLIC_APP_URL', 'WEBAUTHN_EXTRA_ORIGINS'] as const
+const savedEnv: Partial<Record<(typeof ENV_KEYS)[number], string>> = {}
+
 function stubEnv() {
   process.env.NEXTAUTH_URL = 'https://pos.example.com'
   process.env.WEBAUTHN_EXTRA_ORIGINS = 'https://www.pos.example.com'
@@ -100,6 +109,12 @@ const STORED = { credentialId: 'cred-1', publicKey: 'QUJD', counter: 4, transpor
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // R152 #123: izoliraj vse tri env ključe (shrani → izbriši) PRED stubEnv,
+  // da ambient vrednosti ne morejo uhajati v expectedOrigin
+  for (const key of ENV_KEYS) {
+    savedEnv[key] = process.env[key]
+    delete process.env[key]
+  }
   stubEnv()
   mocks.verifyRegistrationResponse.mockResolvedValue({
     verified: true,
@@ -112,9 +127,12 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  delete process.env.NEXTAUTH_URL
-  delete process.env.WEBAUTHN_EXTRA_ORIGINS
-  delete process.env.NEXT_PUBLIC_APP_URL
+  // R152 #123: restore izoliranih ključev (obstajal → vrni; bil undefined → izbriši)
+  for (const key of ENV_KEYS) {
+    const saved = savedEnv[key]
+    if (saved === undefined) delete process.env[key]
+    else process.env[key] = saved
+  }
 })
 
 // ══════════════════════════════════════════════════════════════════

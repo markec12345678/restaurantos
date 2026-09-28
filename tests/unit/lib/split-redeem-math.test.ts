@@ -33,10 +33,19 @@ describe('splitAmountBreakdown', () => {
     expect(splitAmountBreakdown(42.42, 1)).toEqual([42.42])
   })
 
-  it('guardi: total 0 / negativen / NaN → [0]', () => {
-    expect(splitAmountBreakdown(0, 3)).toEqual([0])
-    expect(splitAmountBreakdown(-5, 3)).toEqual([0])
-    expect(splitAmountBreakdown(NaN, 3)).toEqual([0])
+  it('guardi: total 0 / negativen / NaN → točno count delov po 0,00 € (R152 #122)', () => {
+    expect(splitAmountBreakdown(0, 3)).toEqual([0, 0, 0])
+    expect(splitAmountBreakdown(-5, 3)).toEqual([0, 0, 0])
+    expect(splitAmountBreakdown(NaN, 3)).toEqual([0, 0, 0])
+  })
+
+  it('R152 #122 edge: minimalni totali → nicle + zadnji del absorbira razliko (vsota = total)', () => {
+    expect(splitAmountBreakdown(0.01, 2)).toEqual([0, 0.01])
+    expect(splitAmountBreakdown(0.02, 3)).toEqual([0, 0, 0.02])
+    // total 0 → točno count delov, vsi 0,00 € — vsota invarianta: Σ delov === total
+    const zeroParts = splitAmountBreakdown(0, 5)
+    expect(zeroParts).toEqual([0, 0, 0, 0, 0])
+    expect(zeroParts.reduce((s, p) => s + p, 0)).toBe(0)
   })
 
   it('guardi: count 0 / negativen / ne-cel število → normaliziran', () => {
