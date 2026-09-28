@@ -58,7 +58,7 @@ export async function seedE2eData(executor, ctx) {
 
   await run(`
   INSERT INTO "Employee" (id, name, email, phone, role, status, "hireDate", pin, "pinLookup", "createdAt", "updatedAt")
-  VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7, $8, NOW(), NOW())
+  VALUES ($1, $2, $3, $4, $5::"EmployeeRole", $6::"EmployeeStatus", NOW(), $7, $8, NOW(), NOW())
   ON CONFLICT (email) DO UPDATE SET pin = $7, "pinLookup" = $8
 `, ['test-admin', 'Test Admin', 'admin@e2e.test', '', 'admin', 'active', pinHash, pinLookup])
   console.log('[seed] ✅ Admin (PIN 1111) seedan')
@@ -149,7 +149,7 @@ export async function seedE2eData(executor, ctx) {
     const fpinLookup = createHmac('sha256', NEXTAUTH_SECRET).update(fpin).digest('hex')
     await run(`
     INSERT INTO "Employee" (id, name, email, phone, role, status, "hireDate", pin, "pinLookup", "locationId", "createdAt", "updatedAt")
-    VALUES ($1, $2, $3, $4, $5, $6, NOW(), $7, $8, 'loc-2', NOW(), NOW())
+    VALUES ($1, $2, $3, $4, $5::"EmployeeRole", $6::"EmployeeStatus", NOW(), $7, $8, 'loc-2', NOW(), NOW())
     ON CONFLICT (email) DO UPDATE SET pin = $7, "pinLookup" = $8, "locationId" = 'loc-2'
   `, ['filiala-admin', 'Filiala Admin', 'filiala-admin@e2e.test', '', 'admin', 'active', fpinHash, fpinLookup])
     await run(`
@@ -250,7 +250,7 @@ export async function seedE2eData(executor, ctx) {
     ['7020', 'Promet — dostava', 'revenue'],
     ['7600', 'Stroški materiala', 'expense'],
   ]) {
-    await run(`INSERT INTO "ChartOfAccount" (id, code, name, "accountType", "isActive", "sortOrder", description, "createdAt", "updatedAt") VALUES ($1,$2,$3,$4,true,0,'',NOW(),NOW()) ON CONFLICT (code) DO NOTHING`, [randomUUID(), code, name, type])
+    await run(`INSERT INTO "ChartOfAccount" (id, code, name, "accountType", "isActive", "sortOrder", description, "createdAt", "updatedAt") VALUES ($1,$2,$3,$4::"AccountType",true,0,'',NOW(),NOW()) ON CONFLICT (code) DO NOTHING`, [randomUUID(), code, name, type])
   }
   console.log('[seed] ✅ ChartOfAccount seedan (7 kontov)')
 }
