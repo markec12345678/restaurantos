@@ -34,6 +34,11 @@ export const commonIt: Record<string, string> = {
   'common.phone': 'Telefono',
   'common.email': 'E-mail',
   'common.address': 'Indirizzo',
+
+  // Sezioni dashboard (R157-b)
+  'dashboard.section.today': 'Oggi',
+  'dashboard.section.analytics': 'Analisi',
+  'dashboard.section.operations': 'Operativo',
   'nav.sales': 'Vendita',
   'nav.waitlistFull': 'Lista d\'attesa',
   'nav.guestCRM': 'CRM Clienti',

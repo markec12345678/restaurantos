@@ -15,6 +15,9 @@ export interface FloorTable {
   height: number
   shape: string
   rotation: number
+  // R157 (#111): pride iz GET /api/tables (polna vrstica) — potreben za
+  // predizpolnitev izbirnika lokacije pri urejanju (MODEL A pariteta)
+  locationId?: string
   revenueCenterId: string | null
   // FEATURE R43: sinhronizacija tloris ↔ rezervacije — današnja dodeljena
   // rezervacija (tableId) povzdigne prosto mizo v 'reserved' z podatki o gostu
@@ -83,6 +86,9 @@ export interface TableFormState {
   shape: string
   width: string
   height: string
+  // R157 (#111) MODEL A: izrecna lokacija za admine brez sejne lokacije
+  // (API fail-closed 400 brez ?locationId=); prazno = ni izbrane
+  locationId?: string
 }
 
 // Privzeta vrednost obrazca mize

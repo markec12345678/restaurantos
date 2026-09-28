@@ -119,10 +119,14 @@ function useMutationForDrag() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const id = data.id as string
-      const res = await authFetch(`/api/tables/${id}`, {
+      const { id, locationId, ...body } = data
+      // R157 (#111) MODEL A: enako kot create — lokacija gre v query parameter
+      const qs = typeof locationId === 'string' && locationId
+        ? `?locationId=${encodeURIComponent(locationId)}`
+        : ''
+      const res = await authFetch(`/api/tables/${id}${qs}`, {
         method: 'PUT',
-        body: JSON.stringify(data),
+        body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error('Failed')
       return res.json()

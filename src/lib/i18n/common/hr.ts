@@ -34,6 +34,11 @@ export const commonHr: Record<string, string> = {
   'common.phone': 'Telefon',
   'common.email': 'E-pošta',
   'common.address': 'Adresa',
+
+  // Nadzorna ploča — sekcije (R157-b)
+  'dashboard.section.today': 'Danas',
+  'dashboard.section.analytics': 'Analitika',
+  'dashboard.section.operations': 'Operativno',
   'nav.sales': 'Prodaja',
   'nav.waitlistFull': 'Lista čekanja',
   'nav.guestCRM': 'Gost CRM',

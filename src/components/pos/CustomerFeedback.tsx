@@ -67,7 +67,7 @@ export const CustomerFeedback = memo(function CustomerFeedback() {
       <div className="flex items-center justify-between px-4 py-3 border-b bg-card flex-shrink-0">
         <div className="flex items-center gap-3">
           <MessageSquare className="h-5 w-5 text-primary" />
-          <h1 className="text-lg font-bold">Mnenja gostov</h1>
+          <h2 className="text-lg font-bold">Mnenja gostov</h2>
           <Badge variant="outline" className="text-xs">{feedbacks.length} mnenj</Badge>
         </div>
         <Button size="sm" className="gap-1.5" onClick={() => setShowNewDialog(true)}>

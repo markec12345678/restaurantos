@@ -10,10 +10,12 @@ export const createTableSchema = z.object({
   status: z.enum(['available', 'occupied', 'reserved', 'cleaning']).default('available'),
   area: z.string().max(50).default('main'),
   // FIX HIGH: Vizualni tloris — validiraj z Zod namesto direktnega branja iz body-ja
+  // R157 (#111): width/height so ODSTOTKI platna (dialog privzeto 60) — max 50 je
+  // odklonil vsako ustvarjanje mize z UI (400). Odstotek je lahko do 100.
   posX: z.number().min(0).max(100).optional(),
   posY: z.number().min(0).max(100).optional(),
-  width: z.number().min(1).max(50).optional(),
-  height: z.number().min(1).max(50).optional(),
+  width: z.number().min(1).max(100).optional(),
+  height: z.number().min(1).max(100).optional(),
   shape: z.enum(['round', 'square', 'rectangular', 'booth']).optional(),
   rotation: z.number().min(0).max(360).optional(),
 })
@@ -24,10 +26,11 @@ export const updateTableSchema = z.object({
   status: z.enum(['available', 'occupied', 'reserved', 'cleaning']).optional(),
   area: z.string().max(50).optional(),
   // FIX HIGH: Vizualni tloris — validiraj z Zod
+  // R157 (#111): enako kot create — odstotki do 100 (dialog privzeto 60)
   posX: z.number().min(0).max(100).optional(),
   posY: z.number().min(0).max(100).optional(),
-  width: z.number().min(1).max(50).optional(),
-  height: z.number().min(1).max(50).optional(),
+  width: z.number().min(1).max(100).optional(),
+  height: z.number().min(1).max(100).optional(),
   shape: z.enum(['round', 'square', 'rectangular', 'booth']).optional(),
   rotation: z.number().min(0).max(360).optional(),
 })

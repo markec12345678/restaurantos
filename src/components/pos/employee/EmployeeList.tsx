@@ -17,6 +17,15 @@ import type { EmployeeListProps } from './constants'
 // SEZNAM ZAPOSLENIH — Iskanje, filtri, kartice in izmene
 // ============================================
 
+// R157-b: inicialki avatara — prva črka imena + priimka (čista vizualna
+// derivacija iz obstoječega imena, nič API)
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  const first = parts[0]?.charAt(0) ?? ''
+  const last = parts.length > 1 ? parts[parts.length - 1].charAt(0) : ''
+  return (first + last).toUpperCase()
+}
+
 export const EmployeeList = memo(function EmployeeList({
   employees,
   isLoading,
@@ -60,12 +69,18 @@ export const EmployeeList = memo(function EmployeeList({
           {employees.map((emp: Record<string, unknown>) => (
             <Card key={emp.id as string} className={`hover:shadow-md transition-shadow ${emp.status === 'inactive' ? 'opacity-60' : ''}`}>
               <CardContent className="p-4 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="font-semibold">{String(emp.name)}</p>
-                    <p className="text-sm text-muted-foreground">{String(emp.email)}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* R157-b: avatar z inicialkami (nevtralen krog, konvencija MenuItemsGrid) */}
+                    <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                      {initialsOf(String(emp.name))}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-semibold truncate">{String(emp.name)}</p>
+                      <p className="text-sm text-muted-foreground truncate">{String(emp.email)}</p>
+                    </div>
                   </div>
-                  <Badge className={roleColors[String(emp.role)] || ''}>{roleLabels[String(emp.role)] || String(emp.role)}</Badge>
+                  <Badge className={`shrink-0 ${roleColors[String(emp.role)] || ''}`}>{roleLabels[String(emp.role)] || String(emp.role)}</Badge>
                 </div>
 
                 <div className="text-sm space-y-1">
@@ -81,12 +96,13 @@ export const EmployeeList = memo(function EmployeeList({
                     />
                     <span className="text-xs text-muted-foreground">{emp.status === 'active' ? 'aktiven' : 'neaktiven'}</span>
                   </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" aria-label="Uredi" className="h-7 w-7" onClick={() => onEdit(emp)}>
-                      <Pencil className="h-3 w-3" />
+                  {/* R157-b: večji razmik + 44px tarče na dotik (pointer-coarse kanon) */}
+                  <div className="flex gap-2">
+                    <Button variant="ghost" size="icon" aria-label="Uredi" className="h-7 w-7 pointer-coarse:h-11 pointer-coarse:w-11" onClick={() => onEdit(emp)}>
+                      <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" aria-label="Izbriši" className="h-7 w-7 text-destructive" onClick={() => onDelete(emp)}>
-                      <Trash2 className="h-3 w-3" />
+                    <Button variant="ghost" size="icon" aria-label="Izbriši" className="h-7 w-7 text-destructive pointer-coarse:h-11 pointer-coarse:w-11" onClick={() => onDelete(emp)}>
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>

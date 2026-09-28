@@ -1,9 +1,10 @@
 'use client'
 
 import { memo } from 'react'
-import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Plus, LayoutGrid } from 'lucide-react'
+import { LayoutGrid } from 'lucide-react'
+import { EmptyState } from '@/components/ui/empty-state'
+import { useI18n } from '@/hooks/useI18n'
 import type { FloorPlanCanvasProps } from './constants'
 import { areaLabels, statusLabels } from './constants'
 import { FloorTableItem } from './FloorTableItem'
@@ -23,6 +24,7 @@ export const FloorPlanCanvas = memo(function FloorPlanCanvas({
   onTableClick,
   onOpenCreate,
 }: FloorPlanCanvasProps) {
+  const { t } = useI18n()
   return (
     <div className="flex-1 overflow-auto p-4">
       <div
@@ -60,14 +62,13 @@ export const FloorPlanCanvas = memo(function FloorPlanCanvas({
             <p className="text-muted-foreground">Nalaganje...</p>
           </div>
         ) : tables.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-4 text-muted-foreground">
-            <LayoutGrid className="h-16 w-16 opacity-20" />
-            <div className="text-center">
-              <p className="text-lg font-medium">Tloris je prazen</p>
-              <p className="text-sm">Dodajte mize in jih razporedite z vlečenjem</p>
-            </div>
-            <Button onClick={onOpenCreate}><Plus className="h-4 w-4 mr-2" />Dodaj prvo mizo</Button>
-          </div>
+          <EmptyState
+            icon={LayoutGrid}
+            title={t('tables.empty.title')}
+            description={t('tables.empty.description')}
+            action={{ label: t('tables.add'), onClick: onOpenCreate }}
+            className="h-full"
+          />
         ) : (
           tables.map(table => (
             <TooltipProvider key={table.id}>

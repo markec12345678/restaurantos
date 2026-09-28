@@ -46,7 +46,7 @@ export const ReportsView = memo(function ReportsView() {
   })
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 md:p-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Poročila</h2>
@@ -54,21 +54,24 @@ export const ReportsView = memo(function ReportsView() {
         </div>
       </div>
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full max-w-full grid-cols-14 overflow-x-auto">
-          <TabsTrigger value="overview" className="gap-1 text-xs"><BarChart3 className="h-3 w-3" /> Pregled</TabsTrigger>
-          <TabsTrigger value="daily" className="gap-1 text-xs"><Calendar className="h-3 w-3" /> Dnevno</TabsTrigger>
-          <TabsTrigger value="weekly" className="gap-1 text-xs"><Calendar className="h-3 w-3" /> Tedensko</TabsTrigger>
-          <TabsTrigger value="monthly" className="gap-1 text-xs"><Calendar className="h-3 w-3" /> Mesečno</TabsTrigger>
-          <TabsTrigger value="yearly" className="gap-1 text-xs"><Calendar className="h-3 w-3" /> Letno</TabsTrigger>
-          <TabsTrigger value="vat" className="gap-1 text-xs"><Receipt className="h-3 w-3" /> DDV</TabsTrigger>
-          <TabsTrigger value="tips" className="gap-1 text-xs"><Wallet className="h-3 w-3" /> Napitnine</TabsTrigger>
-          <TabsTrigger value="tables" className="gap-1 text-xs"><UtensilsCrossed className="h-3 w-3" /> Mize</TabsTrigger>
-          <TabsTrigger value="heatmap" className="gap-1 text-xs"><Flame className="h-3 w-3" /> Toplotna</TabsTrigger>
-          <TabsTrigger value="booking" className="gap-1 text-xs"><FileText className="h-3 w-3" /> Izpiski</TabsTrigger>
-          <TabsTrigger value="employees" className="gap-1 text-xs"><Users className="h-3 w-3" /> Zaposleni</TabsTrigger>
-          <TabsTrigger value="shifts" className="gap-1 text-xs"><Clock className="h-3 w-3" /> Izmene</TabsTrigger>
-          <TabsTrigger value="ap-aging" className="gap-1 text-xs"><Building2 className="h-3 w-3" /> AP Aging</TabsTrigger>
-          <TabsTrigger value="export" className="gap-1 text-xs"><Download className="h-3 w-3" /> Izvoz</TabsTrigger>
+        {/* R157-b (#111): 14 zavihkov ne spravi v eno vrsto grid-cols-14 —
+            odziven trak: flex + vodoravni pomik s snap točkami; večje tarče na
+            dotik (pointer-coarse) in text-sm od md naprej */}
+        <TabsList className="flex w-full max-w-full justify-start overflow-x-auto snap-x pointer-coarse:h-12">
+          <TabsTrigger value="overview" className="gap-1.5 flex-none snap-start px-2.5 text-xs md:text-sm pointer-coarse:h-10"><BarChart3 className="h-3 w-3" /> Pregled</TabsTrigger>
+          <TabsTrigger value="daily" className="gap-1.5 flex-none snap-start px-2.5 text-xs md:text-sm pointer-coarse:h-10"><Calendar className="h-3 w-3" /> Dnevno</TabsTrigger>
+          <TabsTrigger value="weekly" className="gap-1.5 flex-none snap-start px-2.5 text-xs md:text-sm pointer-coarse:h-10"><Calendar className="h-3 w-3" /> Tedensko</TabsTrigger>
+          <TabsTrigger value="monthly" className="gap-1.5 flex-none snap-start px-2.5 text-xs md:text-sm pointer-coarse:h-10"><Calendar className="h-3 w-3" /> Mesečno</TabsTrigger>
+          <TabsTrigger value="yearly" className="gap-1.5 flex-none snap-start px-2.5 text-xs md:text-sm pointer-coarse:h-10"><Calendar className="h-3 w-3" /> Letno</TabsTrigger>
+          <TabsTrigger value="vat" className="gap-1.5 flex-none snap-start px-2.5 text-xs md:text-sm pointer-coarse:h-10"><Receipt className="h-3 w-3" /> DDV</TabsTrigger>
+          <TabsTrigger value="tips" className="gap-1.5 flex-none snap-start px-2.5 text-xs md:text-sm pointer-coarse:h-10"><Wallet className="h-3 w-3" /> Napitnine</TabsTrigger>
+          <TabsTrigger value="tables" className="gap-1.5 flex-none snap-start px-2.5 text-xs md:text-sm pointer-coarse:h-10"><UtensilsCrossed className="h-3 w-3" /> Mize</TabsTrigger>
+          <TabsTrigger value="heatmap" className="gap-1.5 flex-none snap-start px-2.5 text-xs md:text-sm pointer-coarse:h-10"><Flame className="h-3 w-3" /> Toplotna</TabsTrigger>
+          <TabsTrigger value="booking" className="gap-1.5 flex-none snap-start px-2.5 text-xs md:text-sm pointer-coarse:h-10"><FileText className="h-3 w-3" /> Izpiski</TabsTrigger>
+          <TabsTrigger value="employees" className="gap-1.5 flex-none snap-start px-2.5 text-xs md:text-sm pointer-coarse:h-10"><Users className="h-3 w-3" /> Zaposleni</TabsTrigger>
+          <TabsTrigger value="shifts" className="gap-1.5 flex-none snap-start px-2.5 text-xs md:text-sm pointer-coarse:h-10"><Clock className="h-3 w-3" /> Izmene</TabsTrigger>
+          <TabsTrigger value="ap-aging" className="gap-1.5 flex-none snap-start px-2.5 text-xs md:text-sm pointer-coarse:h-10"><Building2 className="h-3 w-3" /> AP Aging</TabsTrigger>
+          <TabsTrigger value="export" className="gap-1.5 flex-none snap-start px-2.5 text-xs md:text-sm pointer-coarse:h-10"><Download className="h-3 w-3" /> Izvoz</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="space-y-4 mt-4">
           <OverviewTab salesData={salesData} popularData={popularData} salesLoading={salesLoading} />

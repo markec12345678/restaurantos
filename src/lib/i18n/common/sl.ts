@@ -38,6 +38,11 @@ export const commonSl: Record<string, string> = {
   'common.email': 'E-pošta',
   'common.address': 'Naslov',
 
+  // Nadzorna plošča — sekcije (R157-b)
+  'dashboard.section.today': 'Danes',
+  'dashboard.section.analytics': 'Analitika',
+  'dashboard.section.operations': 'Operativno',
+
   // Sidebar posebno
   'nav.sales': 'Prodaja',
   'nav.waitlistFull': 'Čakalna vrsta',

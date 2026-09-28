@@ -6,6 +6,7 @@ import { StatsCard } from './StatsCard'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DollarSign, ShoppingBag, Calculator, BarChartBig, PiggyBank, Shield } from 'lucide-react'
 import { usePOSStore } from '@/lib/store'
+import { useI18n } from '@/hooks/useI18n'
 import { useMemo, memo } from 'react'
 import dynamic from 'next/dynamic'
 import { formatEUR } from '@/lib/safe-format'
@@ -30,6 +31,7 @@ const ZReportQuickView = dynamic(() => import('./dashboard/ZReportQuickView').th
 
 export const Dashboard = memo(function Dashboard() {
   const { setActiveModule } = usePOSStore()
+  const { t } = useI18n()
 
   const { data, isLoading } = useQuery({
     queryKey: queryKeys.dashboard.all,
@@ -91,73 +93,92 @@ export const Dashboard = memo(function Dashboard() {
         <p className="text-muted-foreground">Pregled dneva in ključni kazalniki</p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-        {/* RUNDA 57: eliotska srednja oblika — "2 čakajoči", ne "2 čakajočih" */}
-        <StatsCard title="Današnji prihodek" value={`${formatEUR(data?.todayRevenue || 0)}`} subtitle={(data?.pendingOrders || 0) > 0 ? slCount(data?.pendingOrders || 0, CAKAJOC_FORMS) : undefined} icon={DollarSign} trend="up" />
-        <StatsCard title="Skupno naročil" value={data?.totalOrders || 0} subtitle={`${data?.completedOrders || 0} končanih · ${data?.cancelledOrders || 0} preklicanih`} icon={ShoppingBag} />
-        <StatsCard title="Povpr. naročilo" value={`${formatEUR(data?.avgOrderValue || 0)}`} subtitle={(data?.todayTips || 0) > 0 ? `Napitnine: ${formatEUR(data?.todayTips || 0)}` : undefined} icon={Calculator} />
-        <StatsCard title="Zasedene mize" value={`${data?.activeTables || 0}/${data?.totalTables || 0}`} subtitle={(data?.readyOrders || 0) > 0 ? slCount(data?.readyOrders || 0, PRIPRAVLJENO_FORMS) : undefined} icon={BarChartBig} />
-        <StatsCard title="Bruto dobiček" value={`${formatEUR(data?.grossProfit || 0)}`} subtitle={(data?.grossMargin || 0) > 0 ? `Marža: ${data?.grossMargin}%` : undefined} icon={PiggyBank} trend={(data?.grossMargin || 0) > 50 ? 'up' : 'down'} />
-        <StatsCard title="FURS overjeno" value={data?.fursStatus?.todayVerified || 0} subtitle={(data?.fursStatus?.todayUnverified || 0) > 0 ? `${data?.fursStatus?.todayUnverified} brez overjanja` : 'Vse overjeno'} icon={Shield} trend={(data?.fursStatus?.todayUnverified || 0) === 0 ? 'up' : 'down'} />
-      </div>
+      {/* ── SEKCIJA: DANES (R157-b, samo vizualno) — trenutno stanje: KPI
+          kazalniki, nastavitev, dnevni zaključek, meni KPI, primerjava tednov,
+          aktivna izmena. VRSTNI RED BLOKOV NESPREMENJEN. */}
+      <section className="space-y-6">
+        <h2 className="text-lg font-semibold">{t('dashboard.section.today')}</h2>
 
-      {/* Setup Progress — pokazuje kaj je nastavljeno, kaj manjka */}
-      <SetupProgress />
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          {/* RUNDA 57: eliotska srednja oblika — "2 čakajoči", ne "2 čakajočih" */}
+          <StatsCard title="Današnji prihodek" value={`${formatEUR(data?.todayRevenue || 0)}`} subtitle={(data?.pendingOrders || 0) > 0 ? slCount(data?.pendingOrders || 0, CAKAJOC_FORMS) : undefined} icon={DollarSign} trend="up" />
+          <StatsCard title="Skupno naročil" value={data?.totalOrders || 0} subtitle={`${data?.completedOrders || 0} končanih · ${data?.cancelledOrders || 0} preklicanih`} icon={ShoppingBag} />
+          <StatsCard title="Povpr. naročilo" value={`${formatEUR(data?.avgOrderValue || 0)}`} subtitle={(data?.todayTips || 0) > 0 ? `Napitnine: ${formatEUR(data?.todayTips || 0)}` : undefined} icon={Calculator} />
+          <StatsCard title="Zasedene mize" value={`${data?.activeTables || 0}/${data?.totalTables || 0}`} subtitle={(data?.readyOrders || 0) > 0 ? slCount(data?.readyOrders || 0, PRIPRAVLJENO_FORMS) : undefined} icon={BarChartBig} />
+          <StatsCard title="Bruto dobiček" value={`${formatEUR(data?.grossProfit || 0)}`} subtitle={(data?.grossMargin || 0) > 0 ? `Marža: ${data?.grossMargin}%` : undefined} icon={PiggyBank} trend={(data?.grossMargin || 0) > 50 ? 'up' : 'down'} />
+          <StatsCard title="FURS overjeno" value={data?.fursStatus?.todayVerified || 0} subtitle={(data?.fursStatus?.todayUnverified || 0) > 0 ? `${data?.fursStatus?.todayUnverified} brez overjanja` : 'Vse overjeno'} icon={Shield} trend={(data?.fursStatus?.todayUnverified || 0) === 0 ? 'up' : 'down'} />
+        </div>
 
-      {/* NOVO (QA runda 8): dnevni zaključek na en pogled — status osnutka/zaključka,
-          žive številke dneva in razčlenitev plačil; skrito za vloge brez manage_cash */}
-      <ZReportQuickView
-        todayRevenue={data?.todayRevenue || 0}
-        totalOrders={data?.totalOrders || 0}
-        paidOrders={data?.paidOrderCount}
-        avgOrderValue={data?.avgOrderValue || 0}
-      />
+        {/* Setup Progress — pokazuje kaj je nastavljeno, kaj manjka */}
+        <SetupProgress />
 
-      {/* NOVO (QA 2026-09-17, runda 3): Menu Engineering KPI — kvadranti menija,
-          top zvezde in akcijska priporočila za menedžerja */}
-      <MenuEngineeringKpi />
+        {/* NOVO (QA runda 8): dnevni zaključek na en pogled — status osnutka/zaključka,
+            žive številke dneva in razčlenitev plačil; skrito za vloge brez manage_cash */}
+        <ZReportQuickView
+          todayRevenue={data?.todayRevenue || 0}
+          totalOrders={data?.totalOrders || 0}
+          paidOrders={data?.paidOrderCount}
+          avgOrderValue={data?.avgOrderValue || 0}
+        />
 
-      {/* WoW primerjava */}
-      <WoWComparison wow={computed.wow} wowChartData={computed.wowChartData} />
+        {/* NOVO (QA 2026-09-17, runda 3): Menu Engineering KPI — kvadranti menija,
+            top zvezde in akcijska priporočila za menedžerja */}
+        <MenuEngineeringKpi />
 
-      {/* Aktivna izmena + FURS status */}
-      <ShiftFursStatus activeShift={data?.activeShift ?? null} fursStatus={data?.fursStatus ?? { todayVerified: 0, todayUnverified: 0, configured: false, environment: '' }} />
+        {/* WoW primerjava */}
+        <WoWComparison wow={computed.wow} wowChartData={computed.wowChartData} />
 
-      {/* Prihodek diagram + kategorije tortni */}
-      <ChartsSection dailyRevenue={data?.dailyRevenue || []} categoryBreakdown={data?.categoryBreakdown || []} />
+        {/* Aktivna izmena + FURS status */}
+        <ShiftFursStatus activeShift={data?.activeShift ?? null} fursStatus={data?.fursStatus ?? { todayVerified: 0, todayUnverified: 0, configured: false, environment: '' }} />
+      </section>
 
-      {/* Toplotna karta prometa */}
-      <HeatmapSection heatmapData={computed.heatmapData} heatmapMax={computed.heatmapMax} />
+      {/* ── SEKCIJA: ANALITIKA (R157-b, samo vizualno) — globja analiza:
+          diagram prihodka, toplotna karta prometa, urne/vrstne/DDV razčlenitve */}
+      <section className="space-y-6">
+        <h2 className="text-lg font-semibold">{t('dashboard.section.analytics')}</h2>
 
-      {/* Urni pregled + vrsta naročila + DDV */}
-      <BreakdownSection
-        hourlyRevenue={data?.hourlyRevenue || []}
-        orderTypeBreakdown={data?.orderTypeBreakdown || []}
-        vatBreakdown={data?.vatBreakdown || []}
-        typeLabels={computed.typeLabels}
-        todayRevenue={data?.todayRevenue || 0}
-      />
+        {/* Prihodek diagram + kategorije tortni */}
+        <ChartsSection dailyRevenue={data?.dailyRevenue || []} categoryBreakdown={data?.categoryBreakdown || []} />
 
-      {/* Zadnja naročila + najbolj prodajani + analitika gostov */}
-      <RecentActivity
-        recentOrders={data?.recentOrders || []}
-        topSellingItems={data?.topSellingItems || []}
-        guestAnalytics={computed.guestAnalytics}
-        statusColors={computed.statusColors}
-        statusLabels={computed.statusLabels}
-        typeLabels={computed.typeLabels}
-      />
+        {/* Toplotna karta prometa */}
+        <HeatmapSection heatmapData={computed.heatmapData} heatmapMax={computed.heatmapMax} />
 
-      {/* Stanje zaloge + kuhinjski zaslon */}
-      <StockAndKitchen
-        lowStockItems={data?.lowStockItems || []}
-        recentOrders={data?.recentOrders || []}
-        statusColors={computed.statusColors}
-        statusLabels={computed.statusLabels}
-        typeLabels={computed.typeLabels}
-        onNavigateInventory={() => setActiveModule('inventory')}
-      />
+        {/* Urni pregled + vrsta naročila + DDV */}
+        <BreakdownSection
+          hourlyRevenue={data?.hourlyRevenue || []}
+          orderTypeBreakdown={data?.orderTypeBreakdown || []}
+          vatBreakdown={data?.vatBreakdown || []}
+          typeLabels={computed.typeLabels}
+          todayRevenue={data?.todayRevenue || 0}
+        />
+      </section>
+
+      {/* ── SEKCIJA: OPERATIVNO (R157-b, samo vizualno) — živo stanje:
+          zadnja naročila, stanje zaloge + kuhinja */}
+      <section className="space-y-6">
+        <h2 className="text-lg font-semibold">{t('dashboard.section.operations')}</h2>
+
+        {/* Zadnja naročila + najbolj prodajani + analitika gostov */}
+        <RecentActivity
+          recentOrders={data?.recentOrders || []}
+          topSellingItems={data?.topSellingItems || []}
+          guestAnalytics={computed.guestAnalytics}
+          statusColors={computed.statusColors}
+          statusLabels={computed.statusLabels}
+          typeLabels={computed.typeLabels}
+        />
+
+        {/* Stanje zaloge + kuhinjski zaslon */}
+        <StockAndKitchen
+          lowStockItems={data?.lowStockItems || []}
+          recentOrders={data?.recentOrders || []}
+          statusColors={computed.statusColors}
+          statusLabels={computed.statusLabels}
+          typeLabels={computed.typeLabels}
+          onNavigateInventory={() => setActiveModule('inventory')}
+        />
+      </section>
     </div>
   )
 })

@@ -15,7 +15,7 @@ export const PacingHeader = memo(function PacingHeader({
     <div className="flex items-center justify-between px-4 py-3 border-b bg-card flex-shrink-0">
       <div className="flex items-center gap-3">
         <Layers className="h-5 w-5 text-primary" />
-        <h1 className="text-lg font-bold">Tempo jedi</h1>
+        <h2 className="text-lg font-bold">Tempo jedi</h2>
         <Badge variant="outline" className="text-xs">{orderCount} naročil</Badge>
       </div>
       <div className="flex items-center gap-2">

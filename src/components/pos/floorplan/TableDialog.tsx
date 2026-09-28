@@ -1,11 +1,13 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { DecimalInput } from '@/components/ui/decimal-input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Plus, LayoutGrid } from 'lucide-react'
+import { authFetch } from '@/components/pos/PinLogin'
+import { useI18n } from '@/hooks/useI18n'
 import type { TableDialogProps } from './constants'
 
 // Dialog za dodajanje/urejanje mize
@@ -20,6 +22,28 @@ export const TableDialog = memo(function TableDialog({
   onShapeChange,
   onStatusChange,
 }: TableDialogProps) {
+  const { t } = useI18n()
+  // R157 (#111) MODEL A pariteta z WasteRecordDialog/StocktakeTab (R119/R120):
+  // /api/locations je scoped — vezan zaposleni vidi točno svojo (izbirnik se
+  // ne prikaže), admin z več lokacijami mora izbrati (API je sicer fail-closed 400)
+  const [locations, setLocations] = useState<Array<{ id: string; name: string }>>([])
+  useEffect(() => {
+    if (!dialogOpen || locations.length > 0) return
+    let alive = true
+    void (async () => {
+      try {
+        const res = await authFetch('/api/locations')
+        if (!res.ok) return
+        const json = await res.json()
+        const list = Array.isArray(json?.locations) ? json.locations : []
+        if (alive) setLocations(list.map((l: { id: string; name: string }) => ({ id: l.id, name: l.name })))
+      } catch {
+        // brez seznama se izbirnik ne prikaže — API je za pisanje še vedno fail-closed
+      }
+    })()
+    return () => { alive = false }
+  }, [dialogOpen, locations.length])
+  const needsLocationPick = locations.length > 1
   return (
     <Dialog open={dialogOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -30,6 +54,24 @@ export const TableDialog = memo(function TableDialog({
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {needsLocationPick && (
+            <div>
+              <label htmlFor="floor-table-location" className="text-sm font-medium">{t('tables.location.label')}</label>
+              <Select
+                value={formData.locationId ?? ''}
+                onValueChange={v => onSetFormData(prev => ({ ...prev, locationId: v }))}
+              >
+                <SelectTrigger id="floor-table-location" aria-label={t('tables.location.label')} className="w-full">
+                  <SelectValue placeholder={t('tables.location.placeholder')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {locations.map(l => (
+                    <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label htmlFor="floor-table-number" className="text-sm font-medium">Številka mize</label>
@@ -91,7 +133,7 @@ export const TableDialog = memo(function TableDialog({
         </div>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Prekliči</Button>
-          <Button onClick={onSubmit} disabled={!formData.number}>
+          <Button onClick={onSubmit} disabled={!formData.number || (needsLocationPick && !formData.locationId)}>
             {editingTable ? 'Posodobi' : <><Plus className="h-4 w-4 mr-1.5" />Ustvari</>}
           </Button>
         </DialogFooter>

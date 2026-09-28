@@ -28,7 +28,7 @@ export function useFloorPlanFormActions(deps: FormActionsDeps) {
 
   const openCreate = useCallback(() => {
     setEditingTable(null)
-    setFormData({ number: '', capacity: '4', area: 'main', status: 'available', shape: 'round', width: '60', height: '60' })
+    setFormData({ number: '', capacity: '4', area: 'main', status: 'available', shape: 'round', width: '60', height: '60', locationId: '' })
     setDialogOpen(true)
   }, [setEditingTable, setFormData, setDialogOpen])
 
@@ -42,6 +42,7 @@ export function useFloorPlanFormActions(deps: FormActionsDeps) {
       shape: table.shape,
       width: String(table.width),
       height: String(table.height),
+      locationId: table.locationId ?? '',
     })
     setDialogOpen(true)
   }, [setEditingTable, setFormData, setDialogOpen])
@@ -58,6 +59,8 @@ export function useFloorPlanFormActions(deps: FormActionsDeps) {
       posX: editingTable?.posX || Math.random() * 70 + 5,
       posY: editingTable?.posY || Math.random() * 70 + 5,
       rotation: editingTable?.rotation || 0,
+      // R157 (#111) MODEL A: mutacije izvlečejo v query parameter (?locationId=)
+      locationId: formData.locationId || undefined,
     }
     if (editingTable) {
       updateMutation.mutate({ id: editingTable.id, ...payload })

@@ -24,9 +24,14 @@ export function useFloorPlanMutations({
   // Ustvari mizo
   const createMutation = useMutation({
     mutationFn: async (data: Record<string, unknown>) => {
-      const res = await authFetch('/api/tables', {
+      // R157 (#111) MODEL A: API bere lokacijo iz query parametra, ne telesa
+      const { locationId, ...body } = data
+      const qs = typeof locationId === 'string' && locationId
+        ? `?locationId=${encodeURIComponent(locationId)}`
+        : ''
+      const res = await authFetch(`/api/tables${qs}`, {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error('Failed')
       return res.json()
