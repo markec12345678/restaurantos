@@ -208,6 +208,16 @@ describe('R156/#41 — src/lib/enums (ground truth + re-export + dash unije)', (
   })
 })
 
+describe('R156/#41 — backup/restore round-trip varnost (r127 CI regresija)', () => {
+  it('restore sanitizer vključuje DMMF enum polja (prej scalar-only → izpust polja → defaulti namesto backup vrednosti)', () => {
+    const restore = SRC('src/lib/backup/restore.ts')
+    expect(restore).toContain("f.kind === 'scalar' || f.kind === 'enum'")
+    // manifest chunk-sizing enako:
+    const manifest = SRC('src/lib/backup/manifest.ts')
+    expect(manifest).toContain("f.kind === 'scalar' || f.kind === 'enum'")
+  })
+})
+
 describe('R156/#41 — zod + seeds v enum domeni', () => {
   it('zod orders updateOrderSchema.status filter vsebuje served (poseben action endpoint)', () => {
     const zod = SRC('src/lib/validations/orders.ts')

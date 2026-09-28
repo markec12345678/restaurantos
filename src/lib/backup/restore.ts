@@ -89,8 +89,12 @@ function scalarFieldsFor(model: string): ScalarFieldInfo[] {
   if (!dmmfModel) {
     throw new BackupError('MANIFEST', `Model ${model} ni v DMMF`)
   }
+  // R156-b #41: enum polja so v DMMF kind 'enum' (ne 'scalar' kot prej String) —
+  // brez njih bi sanitizer izpustil pretvorjene stolpce in createMany bi ob
+  // restore-u zapisal DEFAULTE namesto backup vrednosti (checksum round-trip
+  // bi sel — r127 CI failure, empirično: Employee.role 'admin' → 'staff').
   const info = dmmfModel.fields
-    .filter((f: DmmfFieldInfo) => f.kind === 'scalar')
+    .filter((f: DmmfFieldInfo) => f.kind === 'scalar' || f.kind === 'enum')
     .map((f: DmmfFieldInfo) => ({
       name: f.name,
       type: f.type,

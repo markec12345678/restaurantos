@@ -312,7 +312,7 @@ export function getBackupManifest(): BackupManifest {
   // 6) Chunk velikosti: proračun bind parametrov (strop 500, minimum 1)
   const chunkSizes: Record<string, number> = {}
   for (const m of dmmfModels) {
-    const scalarCount = Math.max(1, m.fields.filter(f => f.kind === 'scalar').length)
+    const scalarCount = Math.max(1, m.fields.filter(f => f.kind === 'scalar' || f.kind === 'enum').length)
     chunkSizes[m.name] = Math.min(CHUNK_MAX, Math.max(1, Math.floor(CHUNK_PARAM_BUDGET / scalarCount)))
   }
 
