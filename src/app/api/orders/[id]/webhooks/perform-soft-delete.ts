@@ -47,6 +47,8 @@ export async function performOrderSoftDelete(
       data: {
         status: 'cancelled', cancelReason: 'Izbrisano iz seznama',
         cancelledAt: new Date(), cancelledBy: employeeId || '',
+        // R155/#43: dual-write FK (employeeId je session cuid)
+        cancelledById: employeeId ?? null,
       },
     })
     return res.count === 1

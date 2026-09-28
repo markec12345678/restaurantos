@@ -49,6 +49,8 @@ export async function returnStockForVoidedItem(
             reason: `VOID: ${menuItemName} - ${voidReason}`,
             orderId,
             employeeName: employeeId || '',
+            // R155/#43: employeeName JE session cuid → FK = isti vir
+            employeeId: employeeId ?? null,
           },
         })
 
@@ -96,6 +98,8 @@ export async function returnStockForVoidedItem(
             reason: `VOID: ${menuItemName} - ${voidReason}`,
             orderId,
             employeeName: employeeId || '',
+            // R155/#43: employeeName JE session cuid → FK = isti vir
+            employeeId: employeeId ?? null,
           },
         })
 

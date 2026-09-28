@@ -153,6 +153,8 @@ export async function generateJournalForPayment(
           status: 'posted',
           postedAt: new Date(),
           postedBy: employeeId || null,
+          // R155/#43: dual-write FK
+          postedById: employeeId || null,
           // FIX issue #31: nastavi locationId iz povezanega naročila za multi-location accounting
           locationId: order.locationId || null,
           lines: {
@@ -303,6 +305,8 @@ export async function generateJournalForRefund(
           status: 'posted',
           postedAt: new Date(),
           postedBy: input.employeeId || null,
+          // R155/#43: dual-write FK
+          postedById: input.employeeId || null,
           locationId: input.locationId || null,
           lines: {
             create: [
@@ -485,6 +489,8 @@ export async function generateJournalForStorno(
           status: 'posted',
           postedAt: new Date(),
           postedBy: input.employeeId || null,
+          // R155/#43: dual-write FK
+          postedById: input.employeeId || null,
           locationId: input.locationId || null,
           lines: {
             create: [

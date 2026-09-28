@@ -168,6 +168,8 @@ export async function POST(req: Request) {
           notes,
           status,
           createdBy: authResult.session?.employeeId || null,
+          // R155/#43: dual-write FK (isti vir — session.employeeId)
+          createdById: authResult.session?.employeeId ?? null,
         },
         include: {
           employee: { select: { id: true, name: true, role: true } },

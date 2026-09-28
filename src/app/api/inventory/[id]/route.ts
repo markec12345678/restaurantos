@@ -96,6 +96,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         reasonNegative: 'Ročna razknjižba zaloge',
         note: 'Posodobitev preko API',
         employeeName: authResult.session?.employeeId || '',
+        // R155/#43: FK = session.employeeId (isti cuid)
+        employeeId: authResult.session?.employeeId ?? null,
       })
 
       return NextResponse.json(deepToNumbers(result.item))
@@ -176,6 +178,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         reasonNegative: 'Ročna razknjižba (PATCH)',
         note: 'Posodobitev preko API',
         employeeName: authResult.session?.employeeId || '',
+        // R155/#43: FK = session.employeeId (isti cuid)
+        employeeId: authResult.session?.employeeId ?? null,
       })
       return NextResponse.json(deepToNumbers(result.item))
     }

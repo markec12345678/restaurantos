@@ -101,6 +101,10 @@ export async function GET(req: Request) {
       'ALTER TABLE "PurchaseOrder" ADD COLUMN IF NOT EXISTS "approvedById" TEXT',
       'ALTER TABLE "JournalEntry" ADD COLUMN IF NOT EXISTS "locationId" TEXT',
       'ALTER TABLE "JournalEntry" ADD COLUMN IF NOT EXISTS "postedById" TEXT',
+      // R155/#43: nova FK stolpca (backfill/constrainte piše migracija 0023_employee_fk_backfill;
+      // GuestVisit.employeeId/TipDistribution.employeeId obstajata že od ustanovitve)
+      'ALTER TABLE "StockTransaction" ADD COLUMN IF NOT EXISTS "employeeId" TEXT',
+      'ALTER TABLE "ZReport" ADD COLUMN IF NOT EXISTS "finalizedById" TEXT',
       'ALTER TABLE "Session" ADD COLUMN IF NOT EXISTS "absoluteExpiry" TIMESTAMP(3)',
       'ALTER TABLE "MenuItem" ADD COLUMN IF NOT EXISTS "menuId" TEXT',
       'ALTER TABLE "MenuItem" ADD COLUMN IF NOT EXISTS "prepStationId" TEXT',

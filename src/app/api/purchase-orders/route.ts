@@ -161,6 +161,8 @@ export async function POST(req: Request) {
         deliveryAddress: data.deliveryAddress || '',
         deliveryNotes: data.deliveryNotes || '',
         requestedBy: authResult.session?.employeeId || '',
+        // R155/#43: dual-write FK (isti vir — session.employeeId)
+        requestedById: authResult.session?.employeeId ?? null,
         approvedBy: '',
         notes: data.notes || '',
         items: { create: items },

@@ -250,6 +250,8 @@ export async function receivePurchaseOrderItems(opts: {
               reason: `Prejem ${po.poNumber}`,
               supplierDoc: po.poNumber,
               employeeName: employeeId || '',
+              // R155/#43: employeeName JE session cuid → FK = isti vir
+              employeeId: employeeId ?? null,
             },
           })
 
@@ -302,6 +304,8 @@ export async function receivePurchaseOrderItems(opts: {
               reason: `Prejem ${po.poNumber}`,
               supplierDoc: po.poNumber,
               employeeName: employeeId || '',
+              // R155/#43: employeeName JE session cuid → FK = isti vir
+              employeeId: employeeId ?? null,
             },
           })
 

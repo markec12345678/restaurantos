@@ -321,8 +321,10 @@ export async function approveStocktake(opts: {
   stocktakeId: string
   locationScope: string | null
   approvedByName: string
+  // R155/#43: opcijski FK do Employee (session cuid; approvedByName je session cuid)
+  employeeId?: string | null
 }): Promise<{ stocktake: Record<string, unknown>; summary: StocktakeApprovalSummary }> {
-  const { stocktakeId, locationScope, approvedByName } = opts
+  const { stocktakeId, locationScope, approvedByName, employeeId } = opts
 
   return await db.$transaction(async (tx: TransactionClient) => {
     // 1. Tx-fresh scoped re-read
@@ -412,6 +414,8 @@ export async function approveStocktake(opts: {
             reason: `Inventura: ${line.itemName}`,
             note: line.lineNote || stocktake.note || '',
             employeeName: approvedByName,
+            // R155/#43: FK = session.employeeId (isti cuid)
+            employeeId: employeeId ?? null,
           },
         })
 

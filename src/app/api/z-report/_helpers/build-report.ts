@@ -54,6 +54,8 @@ export function buildReportData(
     grossMargin,
     status: finalize ? 'finalized' : 'draft',
     finalizedBy: finalize ? (employeeId || '') : '',
+    // R155/#43: dual-write FK (employeeId je session cuid; draft → NULL)
+    finalizedById: finalize ? (employeeId || null) : null,
     notes,
     locationId: locationId || null,
   }

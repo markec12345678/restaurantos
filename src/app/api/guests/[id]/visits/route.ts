@@ -44,6 +44,21 @@ export async function POST(
     const { data, error: validationError } = await validateRequest(req, createVisitSchema)
     if (validationError) return validationError
 
+    // R155/#43 BONUS content fix: employeeName naj vsebuje DEJANSKO ime (prej je
+    // pisal cuid). Hash-chain varno: chainHash se računa ob ZAPISU iz vsebine —
+    // kontinuiteta verige se ohranja, vsebina se sme spremeniti samo za NOVE
+    // zapise (historijske vrstice ostanejo z cuid; migracija 0023 employeeName
+    // NE spreminja). PK lookup brez cache — izognimo stale imenom po
+    // preimenovanju zaposlenega; neznani id → fallback na cuid (starejše vedenje).
+    let visitEmployeeName = authResult.session?.employeeId || ''
+    if (authResult.session?.employeeId) {
+      const visitEmployee = await db.employee.findUnique({
+        where: { id: authResult.session.employeeId },
+        select: { name: true },
+      })
+      if (visitEmployee) visitEmployeeName = visitEmployee.name
+    }
+
     const visit = await createGuestVisitWithChain({
       guestId,
       orderId: data.orderId,
@@ -53,8 +68,10 @@ export async function POST(
       tipAmount: data.tipAmount,
       feedbackScore: data.feedbackScore,
       feedbackComment: data.feedbackComment,
+      // FK scalar (employeeId) se piše že od ustanovitve — relacija R155 je samo
+      // shematska potrditev obstoječega podatka; dual-write tu NI potreben.
       employeeId: authResult.session?.employeeId || null,
-      employeeName: authResult.session?.employeeId || '',
+      employeeName: visitEmployeeName,
       departedAt: data.departedAt ? new Date(data.departedAt) : null,
       durationMinutes: data.durationMinutes,
     })

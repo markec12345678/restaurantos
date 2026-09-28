@@ -69,6 +69,8 @@ export async function executeStornoTransaction(
         cancelReason: `STORNO: ${reason || reasonCode}`,
         cancelledAt: new Date(),
         cancelledBy: employeeId || '',
+        // R155/#43: dual-write FK (employeeId je session cuid)
+        cancelledById: employeeId ?? null,
       },
     })
 

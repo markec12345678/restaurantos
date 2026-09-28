@@ -105,7 +105,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (body.status) updateData.status = body.status
     if (body.expectedDate) updateData.expectedDate = new Date(body.expectedDate)
     if (body.notes !== undefined) updateData.notes = body.notes
-    if (body.approvedBy) updateData.approvedBy = body.approvedBy
+    if (body.approvedBy) {
+      updateData.approvedBy = body.approvedBy
+      // R155/#43: dual-write FK — approver = session (klientov string ostane snapshot)
+      updateData.approvedById = authResult.session?.employeeId ?? null
+    }
     if (body.deliveryAddress !== undefined) updateData.deliveryAddress = body.deliveryAddress
     if (body.deliveryNotes !== undefined) updateData.deliveryNotes = body.deliveryNotes
 
@@ -180,7 +184,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (body.status) updateData.status = body.status
     if (body.expectedDate) updateData.expectedDate = new Date(body.expectedDate)
     if (body.notes !== undefined) updateData.notes = body.notes
-    if (body.approvedBy) updateData.approvedBy = body.approvedBy
+    if (body.approvedBy) {
+      updateData.approvedBy = body.approvedBy
+      // R155/#43: dual-write FK — approver = session (klientov string ostane snapshot)
+      updateData.approvedById = authResult.session?.employeeId ?? null
+    }
     if (body.deliveryAddress !== undefined) updateData.deliveryAddress = body.deliveryAddress
     if (body.deliveryNotes !== undefined) updateData.deliveryNotes = body.deliveryNotes
 

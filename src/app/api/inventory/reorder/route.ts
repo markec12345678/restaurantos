@@ -97,7 +97,7 @@ export async function POST(req: Request) {
 
     // FIX HIGH: Ovij VSE postavke v eno transakcijo — prej je vsaka postavka bila v svoji
     // transakciji, kar je pustilo delne posodobitve ob napaki na 3. postavki
-    const { results, errors } = await createReorderOrder(items, employeeName || '', scope.locationId)
+    const { results, errors } = await createReorderOrder(items, employeeName || '', scope.locationId, authResult.session?.employeeId ?? null)
 
     // Če so napake in noben artikel ni veljaven, vrni napako
     if (errors.length > 0 && errors.length === items.length) {

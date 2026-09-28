@@ -33,6 +33,8 @@ export async function POST(
       preparationId: id,
       locationScope,
       completedByName: authResult.session?.employeeId ?? '',
+      // R155/#43: dual-write FK
+      employeeId: authResult.session?.employeeId ?? null,
     })
 
     const preparation = result.preparation as { id: string; locationId: string; status: string }

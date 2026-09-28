@@ -557,6 +557,7 @@ model Order {
   @@index([paidAt]) // FIX: Index for financial/paidAt queries (EOD, VAT, financial reports)
   @@index([locationId])
   @@index([employeeId]) // FIX: Index for employee reports and tips-by-employee queries
+  @@index([cancelledById]) // ISSUE #43/R155: FK index — preklici/storno po zaposlenem
   @@index([status, paymentStatus]) // FIX: Compound index for common filter pattern
   @@index([paidAt, paymentStatus]) // Index for financial reports
   @@index([type]) // Index for order type filtering
@@ -847,6 +848,11 @@ model Employee {
   goodsReceipts   GoodsReceipt[] @relation("GoodsReceiptReceivedBy") // R132: prevzeli (GRN snapshot imena)
   kdsReadyItems   OrderItem[]    @relation("KdsReadyItems") // R133: KDS bump forenzika (readyAt/readyByName snapshot)
   deliveryTrackings DeliveryTracking[] @relation("DeliveryTrackingDriver") // R137-b: voznik dostav (self-claim)
+  // --- R155/#43: FK back-relacije (4 nove: StockTransaction/ZReport/GuestVisit/TipDistribution) ---
+  stockTransactions StockTransaction[] @relation("StockTransactionEmployee")
+  zReportsFinalized ZReport[] @relation("ZReportFinalizedBy")
+  guestVisits GuestVisit[] @relation("GuestVisitEmployee")
+  tipDistributions TipDistribution[] @relation("TipDistributionEmployee")
   // --- Multi-location ---
   locationId String?
   location   Location? @relation(fields: [locationId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -1063,6 +1069,9 @@ model StockTransaction {
   note            String        @default("")
   supplierDoc     String        @default("")
   employeeName    String        @default("")
+  // R155/#43: FK do Employee (pravi reference) — employeeName ostane snapshot (nikoli se ne spreminja)
+  employeeId      String?
+  employee        Employee?     @relation("StockTransactionEmployee", fields: [employeeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   orderId         String?
   createdAt       DateTime      @default(now())
 
@@ -1071,6 +1080,7 @@ model StockTransaction {
   @@index([createdAt])
   @@index([inventoryItemId, type]) // FIX: Compound index for common queries (e.g., find sales per item)
   @@index([orderId])              // FIX: Index for stock transactions linked to orders
+  @@index([employeeId])           // ISSUE #43/R155: FK index
   // R119 (epic #115 §3): povratne povezave na waste ledger
   wasteRecords    WasteRecord[] @relation("WasteStockTx")
   wasteReversals  WasteRecord[] @relation("WasteReversal")
@@ -1968,6 +1978,7 @@ model StaffShift {
   @@index([status])
   @@index([shiftType])
   @@index([jobId]) // ISSUE #36 R125: FK index — poizvedbe po delovnem mestu
+  @@index([createdById]) // ISSUE #43/R155: FK index
   @@index([employeeId, shiftDate]) // Index for staff shift queries
   // FIX SCHEMA-10: Composite index za StaffShift — aktivne izmene danes
   @@index([status, shiftDate])
@@ -2150,6 +2161,8 @@ model GuestVisit {
   // --- Kdo je strežil ---
   employeeId      String?
   employeeName    String   @default("")
+  // R155/#43: FK do Employee na obstoječem employeeId (employeeName = snapshot, hash-chain: NIKOLI se ne spreminja)
+  employee        Employee? @relation("GuestVisitEmployee", fields: [employeeId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // FIX F5-8: Kriptografska zaščita (hash chain) — EU 852/2004
   previousHash    String   @default("")  // Hash prejšnjega vnosa
   chainHash       String   @default("")  // SHA-256(previousHash + title + value + status + date)
@@ -2268,6 +2281,8 @@ model PurchaseOrder {
   // FIX: Composite index — nadzorna plošča dobavitelja: naročila po statusu
   @@index([supplierId, status])
   @@index([locationId]) // FIX: per-lokacija nabava
+  @@index([requestedById]) // ISSUE #43/R155: FK index
+  @@index([approvedById]) // ISSUE #43/R155: FK index
 }
 
 model PurchaseOrderItem {
@@ -2911,7 +2926,10 @@ model ZReport {
   grossMargin       Decimal   @default(0)  // Bruto marža (%)  // FIX: Decimal za odstotek
   // --- Status ---
   status            String   @default("draft")          // draft, finalized, approved
-  finalizedBy       String   @default("")               // Kdo je zaključil
+  finalizedBy       String   @default("")               // ⚠️ ISSUE #43 @deprecated: Kdo je zaključil (employeeId ali ime) — soft ref
+  // R155/#43: FK do Employee (pravi reference)
+  finalizedById     String?                            // ISSUE #43: FK do Employee
+  finalizedByEmp    Employee? @relation("ZReportFinalizedBy", fields: [finalizedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
   // --- Opombe ---
   notes             String   @default("")
   // --- Multi-location ---
@@ -2926,6 +2944,7 @@ model ZReport {
   // FIX SCHEMA-08 HIGH: Compound unique — eno Z-poročilo na dan na lokacijo, ne globalno
   @@unique([reportDate, locationId])
   @@index([closedAt])  // FIX SCHEMA-09: Iskanje zaključenih poročil po datumu
+  @@index([finalizedById])  // ISSUE #43/R155: FK index
 }
 
 // ============================================
@@ -3042,6 +3061,9 @@ model TipDistribution {
   // --- Zaposleni ---
   employeeId      String
   employeeName    String   @default("")
+  // R155/#43: FK do Employee — required scalar, zato onDelete: Restrict (Employee je soft-delete-only → varen);
+  // employeeName ostane snapshot (hash-chain: NIKOLI se ne spreminja)
+  employee        Employee  @relation("TipDistributionEmployee", fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   // FIX F5-8: Kriptografska zaščita (hash chain) — EU 852/2004
   previousHash    String   @default("")  // Hash prejšnjega vnosa
   chainHash       String   @default("")  // SHA-256(previousHash + title + value + status + date)
@@ -3213,6 +3235,7 @@ model JournalEntry {
   @@index([source])
   @@index([date, status])
   @@index([locationId])
+  @@index([postedById]) // ISSUE #43/R155: FK index
 }
 
 // ============================================

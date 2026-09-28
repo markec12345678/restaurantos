@@ -36,6 +36,8 @@ export async function POST(
       stocktakeId: id,
       locationScope,
       approvedByName: authResult.session?.employeeId ?? '',
+      // R155/#43: dual-write FK
+      employeeId: authResult.session?.employeeId ?? null,
     })
 
     const stocktake = result.stocktake as { id: string; locationId: string; status: string }

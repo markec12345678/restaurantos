@@ -62,6 +62,8 @@ export async function POST(req: Request) {
       note: data.note,
       supplierDoc: data.supplierDoc,
       employeeName: data.employeeName || authResult.session?.employeeId || '',
+      // R155/#43: client ime (data.employeeName) → FK = session.employeeId
+      employeeId: authResult.session?.employeeId ?? null,
       // R120 (epic #115 §4): opcijska serija (lot) ob prevzemu
       batch: data.batch ?? null,
     })

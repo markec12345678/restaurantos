@@ -60,6 +60,8 @@ export async function createInventoryItem(
           totalCost: round2(multiply(created.quantity, created.costPerUnit)),
           reason: 'Začetna zaloga',
           employeeName: employeeId || '',
+          // R155/#43: employeeName JE session cuid → FK = isti vir
+          employeeId: employeeId ?? null,
         },
       })
     }

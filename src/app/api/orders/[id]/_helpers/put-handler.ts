@@ -82,7 +82,14 @@ export async function handlePutOrder(req: Request, params: Promise<{ id: string 
     if (data.customerName !== undefined) updateData.customerName = data.customerName
     if (data.customerPhone !== undefined) updateData.customerPhone = data.customerPhone
     if (data.cancelReason !== undefined) updateData.cancelReason = data.cancelReason
-    if (data.cancelledBy !== undefined) updateData.cancelledBy = data.cancelledBy
+    if (data.cancelledBy !== undefined) {
+      updateData.cancelledBy = data.cancelledBy
+      // R155/#43: dual-write FK — izvajalec = session (ne klientov string); brez
+      // sessiona FK NE nastavljamo (stays NULL, soft-ref ostane kot je poslal klient)
+      if (authResult.session?.employeeId) {
+        updateData.cancelledById = authResult.session.employeeId
+      }
+    }
     if (data.tip !== undefined) updateData.tip = data.tip
     // FIX R112 (VAL-2): klientov totalWithTip se NE zapiše več (bil je client-
     // authoritative — klient je lahko poslal poljuben znesek, ki ni ustrezal
@@ -140,6 +147,8 @@ export async function handlePutOrder(req: Request, params: Promise<{ id: string 
       updateData.cancelledAt = new Date()
       if (!data.cancelledBy && authResult.session) {
         updateData.cancelledBy = authResult.session.employeeId
+        // R155/#43: dual-write FK (isti vir — session.employeeId)
+        updateData.cancelledById = authResult.session.employeeId
       }
     }
 

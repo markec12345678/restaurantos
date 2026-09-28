@@ -158,6 +158,8 @@ export async function POST(req: Request) {
           reason: reason || `Ročna transakcija: ${type}`,
           note,
           employeeName: authResult.session?.employeeId || '',
+          // R155/#43: employeeName JE session cuid → FK = isti vir
+          employeeId: authResult.session?.employeeId ?? null,
         },
       })
 

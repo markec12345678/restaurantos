@@ -94,8 +94,10 @@ export async function adjustInventoryItemStock(opts: {
   note: string
   supplierDoc: string
   employeeName: string
+  // R155/#43: opcijski FK do Employee (session cuid) — sistemski klicatelji izpustijo → NULL
+  employeeId?: string | null
 }): Promise<StockMutationResult> {
-  const { inventoryItemId, sessionLocationId, type, quantity, newQuantity, reason, note, supplierDoc, employeeName } = opts
+  const { inventoryItemId, sessionLocationId, type, quantity, newQuantity, reason, note, supplierDoc, employeeName, employeeId } = opts
 
   return await db.$transaction(async (tx) => {
     // R106 INV-1: advisory lock per item — serializira sočasne odpise,
@@ -180,6 +182,7 @@ export async function adjustInventoryItemStock(opts: {
         note,
         supplierDoc,
         employeeName,
+        employeeId: employeeId ?? null,
       },
     })) as unknown as Record<string, unknown>
     createdStockTxId = String((transaction as { id?: string }).id ?? '')
@@ -213,8 +216,10 @@ export async function restockInventoryItem(opts: {
   supplierDoc: string
   employeeName: string
   batch?: RestockBatchInput | null
+  // R155/#43: opcijski FK do Employee (session cuid)
+  employeeId?: string | null
 }): Promise<StockMutationResult & { batch?: Record<string, unknown> }> {
-  const { inventoryItemId, sessionLocationId, quantity, reason, note, supplierDoc, employeeName, batch } = opts
+  const { inventoryItemId, sessionLocationId, quantity, reason, note, supplierDoc, employeeName, batch, employeeId } = opts
 
   return await db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${inventoryStockLockKey(inventoryItemId)}))`
@@ -254,6 +259,7 @@ export async function restockInventoryItem(opts: {
         note,
         supplierDoc,
         employeeName,
+        employeeId: employeeId ?? null,
       },
     })) as unknown as Record<string, unknown>
 
@@ -296,8 +302,10 @@ export async function setInventoryItemQuantity(opts: {
   reasonNegative: string
   note: string
   employeeName: string
+  // R155/#43: opcijski FK do Employee (session cuid)
+  employeeId?: string | null
 }): Promise<StockMutationResult> {
-  const { inventoryItemId, sessionLocationId, newQuantity, extraUpdate, reasonPositive, reasonNegative, note, employeeName } = opts
+  const { inventoryItemId, sessionLocationId, newQuantity, extraUpdate, reasonPositive, reasonNegative, note, employeeName, employeeId } = opts
 
   return await db.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${inventoryStockLockKey(inventoryItemId)}))`
@@ -345,6 +353,7 @@ export async function setInventoryItemQuantity(opts: {
         reason: diff > 0 ? reasonPositive : reasonNegative,
         note,
         employeeName,
+        employeeId: employeeId ?? null,
       },
     })) as unknown as Record<string, unknown>
 

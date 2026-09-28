@@ -77,6 +77,8 @@ export async function POST(req: Request) {
       note: data.note,
       supplierDoc: data.supplierDoc,
       employeeName: data.employeeName || authResult.session?.employeeId || '',
+      // R155/#43: client ime (data.employeeName) → FK = session.employeeId
+      employeeId: authResult.session?.employeeId ?? null,
     })
 
     const transaction = result.transaction as {
@@ -196,6 +198,8 @@ export async function PUT(req: Request) {
               reason: `POSKUS (nezadostna zaloga): ${data.reason || entry.reason || ''}`.slice(0, 500),
               note: entry.note || '',
               employeeName: data.employeeName || authResult.session?.employeeId || '',
+              // R155/#43: FK = session.employeeId (client ime ostane snapshot)
+              employeeId: authResult.session?.employeeId ?? null,
             },
           })
           continue
@@ -222,6 +226,8 @@ export async function PUT(req: Request) {
             reason: data.reason || entry.reason || '',
             note: entry.note || '',
             employeeName: data.employeeName || authResult.session?.employeeId || '',
+            // R155/#43: FK = session.employeeId (client ime ostane snapshot)
+            employeeId: authResult.session?.employeeId ?? null,
           },
         })
         processed.push({ updated: updated as Record<string, unknown>, transaction: transaction as unknown as Record<string, unknown> })

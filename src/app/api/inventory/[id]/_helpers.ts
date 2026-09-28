@@ -79,6 +79,8 @@ export async function handleDeleteInventory(req: Request, id: string) {
           reason: 'Izbris artikla iz zaloge',
           note: 'Artikel odstranjen iz sistema',
           employeeName: authResult.session?.employeeId || '',
+          // R155/#43: employeeName JE session cuid → FK = isti vir
+          employeeId: authResult.session?.employeeId ?? null,
         },
       })
     })

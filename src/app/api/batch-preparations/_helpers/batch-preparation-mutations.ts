@@ -350,8 +350,10 @@ export async function completeBatchPreparation(opts: {
   preparationId: string
   locationScope: string | null
   completedByName: string
+  // R155/#43: opcijski FK do Employee (session cuid; completedByName je session cuid)
+  employeeId?: string | null
 }): Promise<{ preparation: Record<string, unknown>; summary: BatchPreparationSummary }> {
-  const { preparationId, locationScope, completedByName } = opts
+  const { preparationId, locationScope, completedByName, employeeId } = opts
 
   return await db.$transaction(async (tx: TransactionClient) => {
     // 1. Tx-fresh scoped re-read
@@ -453,6 +455,8 @@ export async function completeBatchPreparation(opts: {
           reason: `Priprava: izdelek × ${outputQuantity}`,
           note: preparation.note || '',
           employeeName: completedByName,
+          // R155/#43: FK = session.employeeId (isti cuid)
+          employeeId: employeeId ?? null,
         },
       })
 
@@ -512,6 +516,8 @@ export async function completeBatchPreparation(opts: {
         reason: `Priprava: ${preparation.lines.length} sestavin → izdelek`,
         note: preparation.note || '',
         employeeName: completedByName,
+        // R155/#43: FK = session.employeeId (isti cuid)
+        employeeId: employeeId ?? null,
       },
     })
 

@@ -10,7 +10,9 @@ export async function createReorderOrder(
   items: Array<{ inventoryItemId: string; quantity: number; costPerUnit: number }>,
   employeeName: string,
   // FIX R85-4c M7: tenant scope — null (super-admin) = globalno, string = samo ta lokacija
-  locationId?: string | null
+  locationId?: string | null,
+  // R155/#43: opcijski FK do Employee (employeeName je client-podan → FK = session cuid)
+  employeeId?: string | null
 ): Promise<{ results: ReorderOrderResult[]; errors: Array<{ inventoryItemId: string; error: string }> }> {
   const results: ReorderOrderResult[] = []
   const errors: Array<{ inventoryItemId: string; error: string }> = []
@@ -62,6 +64,8 @@ export async function createReorderOrder(
           totalCost: round2(multiply(item.quantity, item.costPerUnit)),
           reason: `Samodejno naročilo (${employeeName || 'sistem'})`,
           employeeName: employeeName || '',
+          // R155/#43: FK = session.employeeId (client ime ostane snapshot)
+          employeeId: employeeId ?? null,
         },
       })
 
