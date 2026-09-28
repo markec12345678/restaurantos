@@ -25,7 +25,7 @@ import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import { toNum } from '@/lib/decimal'
 import { formatEUR } from '@/lib/safe-format'
-import { t } from '@/lib/i18n'
+import { useI18n } from '@/hooks/useI18n'
 import { cn } from '@/lib/utils'
 
 // --- Kontrakt GET /api/inventory/price-history?supplierId= (Mode B) ---
@@ -69,6 +69,8 @@ const TREND_STYLES: Record<PriceTrend, { className: string; icon: typeof Trendin
 }
 
 function TrendBadge({ trend }: { trend: PriceTrend }) {
+  // R154 (#44): reaktiven t prek useI18n hooka (locale iz zustand store-a)
+  const { t } = useI18n()
   const style = TREND_STYLES[trend] ?? TREND_STYLES.insufficient
   const Icon = style.icon
   const labelKey = trend === 'up'
@@ -103,6 +105,8 @@ function formatDateSafe(value: string | null | undefined): string | null {
 }
 
 export const SupplierPriceHistory = memo(function SupplierPriceHistory({ supplierId, className }: SupplierPriceHistoryProps) {
+  // R154 (#44): reaktiven t prek useI18n hooka (locale iz zustand store-a)
+  const { t } = useI18n()
   const query = useQuery({
     queryKey: queryKeys.suppliers.priceHistory(supplierId),
     enabled: Boolean(supplierId),

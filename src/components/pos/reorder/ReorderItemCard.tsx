@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button'
 import { ChevronDown, History, Package, Tag, Truck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatEUR } from '@/lib/safe-format'
-import { t } from '@/lib/i18n'
+import { useI18n } from '@/hooks/useI18n'
 import { isActionable, fmtQty, formatDateSafe, packHintParts, type ReorderCenterSuggestion } from './helpers'
 import { StatusBadge } from './StatusBadge'
 import { FactorsList } from './FactorsList'
@@ -52,6 +52,8 @@ function QtyBar({ suggestion: s }: { suggestion: ReorderCenterSuggestion }) {
 }
 
 export const ReorderItemCard = memo(function ReorderItemCard({ suggestion: s, selected, onToggle }: ReorderItemCardProps) {
+  // R154 (#44): reaktiven t prek useI18n hooka (locale iz zustand store-a)
+  const { t } = useI18n()
   const [expanded, setExpanded] = useState(false)
   const actionable = isActionable(s)
 

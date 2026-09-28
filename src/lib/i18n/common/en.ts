@@ -39,6 +39,8 @@ export const commonEn: Record<string, string> = {
   'nav.guestCRM': 'Guest CRM',
   'nav.kiosk': 'Kiosk Mode',
   'nav.salesMode': 'Sales mode',
+  'nav.exitSalesMode': 'Exit sales mode',
+  'nav.exitKioskMode': 'Exit kiosk mode',
   'nav.fullscreen': 'Fullscreen',
   'nav.exitFullscreen': 'Exit Fullscreen',
   'nav.posSystem': 'Point of Sale',

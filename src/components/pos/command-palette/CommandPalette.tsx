@@ -30,7 +30,7 @@ import { isModuleAllowed, resolveAllowedModules } from '@/lib/sales-mode'
 import { usePOSStore } from '@/lib/store'
 import { useRecentsStore } from '@/lib/recents-store'
 import { haptic } from '@/lib/haptic'
-import { t } from '@/lib/i18n'
+import { useI18n } from '@/hooks/useI18n'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import { formatEUR } from '@/lib/safe-format'
@@ -179,6 +179,8 @@ function ArtikliGroup({
 }
 
 export function CommandPalette() {
+  // R154 (#44): reaktiven t prek useI18n hooka (locale iz zustand store-a)
+  const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const { setActiveModule, activeModule, setPendingItemClickId, salesMode, kioskMode, kioskAllowedModules } = usePOSStore()
 

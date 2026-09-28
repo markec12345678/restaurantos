@@ -35,7 +35,7 @@ import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import { toNum } from '@/lib/decimal'
 import { formatEUR } from '@/lib/safe-format'
-import { t } from '@/lib/i18n'
+import { useI18n } from '@/hooks/useI18n'
 import { cn } from '@/lib/utils'
 import { isValidPack, fmtPackQty, baseUnitPriceFromPack } from './pack-format'
 
@@ -91,6 +91,8 @@ const EMPTY_FORM: CatalogFormState = {
 }
 
 export const SupplierCatalog = memo(function SupplierCatalog({ supplierId, className }: SupplierCatalogProps) {
+  // R154 (#44): reaktiven t prek useI18n hooka (locale iz zustand store-a)
+  const { t } = useI18n()
   const queryClient = useQueryClient()
   const [formOpen, setFormOpen] = useState(false)
   // null = dodajanje novega; objekt = urejanje obstoječe katalog vrstice

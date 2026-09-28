@@ -28,7 +28,7 @@ import { Truck, FileText, Calendar, Clock, Package, Send, CheckCircle2, ChevronD
 import { formatEUR } from '@/lib/safe-format'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
-import { t } from '@/lib/i18n'
+import { useI18n } from '@/hooks/useI18n'
 import { authFetch } from '@/components/pos/PinLogin'
 import { queryKeys } from '@/lib/query-keys'
 import { toNum } from '@/lib/decimal'
@@ -88,6 +88,8 @@ interface GrnReceipt {
 }
 
 const PoReceiptsSection = memo(function PoReceiptsSection({ poId }: { poId: string }) {
+  // R154 (#44): reaktiven t prek useI18n hooka (locale iz zustand store-a)
+  const { t } = useI18n()
   const query = useQuery({
     queryKey: queryKeys.suppliers.poReceipts(poId),
     enabled: Boolean(poId),
@@ -191,6 +193,8 @@ const PoInvoiceSection = memo(function PoInvoiceSection({
   po: PurchaseOrderType
   onRecordInvoice: () => void
 }) {
+  // R154 (#44): reaktiven t prek useI18n hooka (locale iz zustand store-a)
+  const { t } = useI18n()
   const invoiceEnabled = (po.invoiceStatus ?? 'none') !== 'none'
   const query = useQuery({
     queryKey: queryKeys.suppliers.poInvoice(po.id),
@@ -271,6 +275,8 @@ const ReceiveDialog = memo(function ReceiveDialog({
   onClose: () => void
   onSuccess: () => void
 }) {
+  // R154 (#44): reaktiven t prek useI18n hooka (locale iz zustand store-a)
+  const { t } = useI18n()
   // Inicializiraj prejete količine z naročenimi količinami
   const [receivedQtys, setReceivedQtys] = useState<Record<string, number>>({})
   // R132: zavrnjene količine + razlogi (default 0 / '') + collapsed stanje vrstice
@@ -489,6 +495,8 @@ const ReceiveDialog = memo(function ReceiveDialog({
 })
 
 export const PurchaseOrdersList = memo(function PurchaseOrdersList({ orders, onRefresh }: PurchaseOrdersListProps) {
+  // R154 (#44): reaktiven t prek useI18n hooka (locale iz zustand store-a)
+  const { t } = useI18n()
   // FIX TypeError: e.map is not a function — orders je lahko undefined ali objekt
   const orderList = Array.isArray(orders) ? orders : []
   const [receivePo, setReceivePo] = useState<PurchaseOrderType | null>(null)

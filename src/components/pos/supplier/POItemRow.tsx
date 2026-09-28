@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button'
 import { Package, X } from 'lucide-react'
 import { formatEUR } from '@/lib/safe-format'
-import { t } from '@/lib/i18n'
+import { useI18n } from '@/hooks/useI18n'
 import { isValidPack, fmtPackQty, round3Safe } from './pack-format'
 import type { SupplierCatalogItem } from './SupplierCatalog'
 
@@ -48,6 +48,8 @@ export const POItemRow = memo(function POItemRow({
   onUpdate,
   onRemove,
 }: POItemRowProps) {
+  // R154 (#44): reaktiven t prek useI18n hooka (locale iz zustand store-a)
+  const { t } = useI18n()
   // FIX BUG-PO-6: Kadar uporabnik izbere obstoječi inventory item, samodejno
   // izpolni opis, enoto in ceno iz baze
   const handleInventorySelect = (inventoryItemId: string) => {

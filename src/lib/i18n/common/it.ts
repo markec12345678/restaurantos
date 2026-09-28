@@ -39,6 +39,8 @@ export const commonIt: Record<string, string> = {
   'nav.guestCRM': 'CRM Clienti',
   'nav.kiosk': 'Modalità Kiosk',
   'nav.salesMode': 'Modalità vendita',
+  'nav.exitSalesMode': 'Esci dalla modalità vendita',
+  'nav.exitKioskMode': 'Esci dalla modalità kiosk',
   'nav.fullscreen': 'Schermo intero',
   'nav.exitFullscreen': 'Esci schermo intero',
   'nav.posSystem': 'Punto vendita',

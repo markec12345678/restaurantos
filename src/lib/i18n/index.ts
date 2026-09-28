@@ -45,7 +45,10 @@ const de: Record<string, string> = { ...commonDe, ...navDe, ...ordersDe, ...rest
 const translations: Record<Locale, Record<string, string>> = { sl, en, it, hr, de }
 
 // ============================================
-// T() — Glavna funkcija za prevod
+// T()/TFOR() — Glavna funkcija za prevod
+// R154 (#44): tFor je ČISTA funkcija (locale je parameter, brez module-state) —
+// uporablja jo reaktiven hook useI18n (src/hooks/useI18n.ts). t() ostane kot
+// backward-compat delegat (i18n-consolidation legacy veriga + ne-react klicalci).
 // ============================================
 let currentLocale: Locale = 'sl'
 
@@ -66,13 +69,22 @@ export function getLocale(): Locale {
   return currentLocale
 }
 
-export function t(key: string, params?: Record<string, string | number>): string {
-  const translation = translations[currentLocale]?.[key] || translations.sl[key] || key
+// R154 (#44): čista prevajalna funkcija — SL-fallback + {param} interpolacija
+// (logika 1:1 iz bivšega t()), samo izvor locale je zdaj parameter namesto
+// module var. Reaktivnost zagotavlja hook (zustand locale → re-render).
+export function tFor(locale: Locale, key: string, params?: Record<string, string | number>): string {
+  const translation = translations[locale]?.[key] || translations.sl[key] || key
   if (!params) return translation
   return Object.entries(params).reduce(
     (str, [k, v]) => str.replace(new RegExp(`\\{${k}\\}`, 'g'), String(v)),
     translation
   )
+}
+
+// Backward-compat delegat — getLocale() sinhronizira module var z localStorage
+// (persist kanon: 'pos_locale' ostane edini vir resnice za ne-react klicalce).
+export function t(key: string, params?: Record<string, string | number>): string {
+  return tFor(getLocale(), key, params)
 }
 
 // Hook za uporabo v React komponentah

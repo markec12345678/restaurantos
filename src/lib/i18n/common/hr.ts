@@ -39,6 +39,8 @@ export const commonHr: Record<string, string> = {
   'nav.guestCRM': 'Gost CRM',
   'nav.kiosk': 'Kiosk način',
   'nav.salesMode': 'Prodajni način',
+  'nav.exitSalesMode': 'Izlaz iz prodajnog načina',
+  'nav.exitKioskMode': 'Izlaz iz kiosk načina',
   'nav.fullscreen': 'Cjelozaslonski način',
   'nav.exitFullscreen': 'Izlaz iz cjelozaslonskog',
   'nav.posSystem': 'Točka prodaje',

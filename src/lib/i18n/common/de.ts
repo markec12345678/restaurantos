@@ -39,6 +39,8 @@ export const commonDe: Record<string, string> = {
   'nav.guestCRM': 'Gäste-CRM',
   'nav.kiosk': 'Kiosk-Modus',
   'nav.salesMode': 'Verkaufsmodus',
+  'nav.exitSalesMode': 'Verkaufsmodus beenden',
+  'nav.exitKioskMode': 'Kioskmodus beenden',
   'nav.fullscreen': 'Vollbildmodus',
   'nav.exitFullscreen': 'Vollbild beenden',
   'nav.posSystem': 'Verkaufsstelle',

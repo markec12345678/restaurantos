@@ -2,7 +2,7 @@
 
 import { memo, useMemo, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { t } from '@/lib/i18n'
+import { useI18n } from '@/hooks/useI18n'
 import { ChevronDown } from 'lucide-react'
 import type { NavItem } from './navItems'
 import { navGroups } from './navItems'
@@ -35,6 +35,8 @@ export const SidebarNav = memo(function SidebarNav({
   onModuleClick,
   onModuleHover,
 }: SidebarNavProps) {
+  // R154 (#44): reaktiven t prek useI18n hooka (locale iz zustand store-a)
+  const { t } = useI18n()
   // Komponenta je dynamic({ ssr: false }) → localStorage je varno berljiv
   // že v lazy initializerju (brez hidracijskega nesoglasja).
   const [expanded, setExpanded] = useState<string[]>(() => {

@@ -2,7 +2,7 @@
 
 import { usePOSStore } from '@/lib/store'
 import { cn } from '@/lib/utils'
-import { t } from '@/lib/i18n'
+import { useI18n } from '@/hooks/useI18n'
 import { getCountryConfig, type CountryCode } from '@/lib/country-config'
 import { Menu, X, Store } from 'lucide-react'
 import { useTheme } from 'next-themes'
@@ -22,6 +22,8 @@ const SidebarBottom = dynamic(() => import('./SidebarBottom').then(m => ({ defau
 const SidebarNav = dynamic(() => import('./SidebarNav').then(m => ({ default: m.SidebarNav })), { ssr: false })
 
 export const Sidebar = memo(function Sidebar() {
+  // R154 (#44): reaktiven t prek useI18n hooka (locale iz zustand store-a)
+  const { t } = useI18n()
   const activeModule = usePOSStore(s => s.activeModule)
   const setActiveModule = usePOSStore(s => s.setActiveModule)
   const sidebarOpen = usePOSStore(s => s.sidebarOpen)

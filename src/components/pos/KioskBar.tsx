@@ -6,6 +6,7 @@ import { Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { KioskPinDialog } from './KioskPinDialog'
 import { ModuleTabs, KioskClock, KioskBrand } from './KioskBarParts'
+import { useI18n } from '@/hooks/useI18n'
 
 // ============================================
 // KIOSK BAR KOMPONENTA
@@ -20,6 +21,8 @@ interface KioskBarProps {
 
 export const KioskBar = memo(function KioskBar({ allowedModules }: KioskBarProps) {
   const { activeModule, setActiveModule, salesMode, kioskAllowedModules, setKioskMode, setSalesMode } = usePOSStore()
+  // R154 (#44): reaktiven t prek useI18n hooka (naslov izhoda v aktivnem jeziku)
+  const { t } = useI18n()
   const [currentTime, setCurrentTime] = useState('')
   const [showPinDialog, setShowPinDialog] = useState(false)
   const [pin, setPin] = useState('')
@@ -113,7 +116,7 @@ export const KioskBar = memo(function KioskBar({ allowedModules }: KioskBarProps
         pinError={pinError}
         setPinError={setPinError}
         onPinSubmit={handlePinSubmit}
-        title={salesMode ? 'Izhod iz prodajnega načina' : 'Izhod iz kiosk načina'}
+        title={salesMode ? t('nav.exitSalesMode') : t('nav.exitKioskMode')}
       />
     </>
   )

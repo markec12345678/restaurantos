@@ -3,7 +3,7 @@
 import { ChefHat, Sun, Moon, Maximize, Minimize, Monitor, Coins, ExternalLink, HandMetal } from 'lucide-react'
 import { memo } from 'react'
 import { Button } from '@/components/ui/button'
-import { t } from '@/lib/i18n'
+import { useI18n } from '@/hooks/useI18n'
 import { LanguageSwitcher } from '@/components/pos/LanguageSwitcher'
 
 interface SidebarBottomProps {
@@ -26,6 +26,8 @@ export const SidebarBottom = memo(function SidebarBottom({
   setTheme,
   mounted,
 }: SidebarBottomProps) {
+  // R154 (#44): reaktiven t prek useI18n hooka (locale iz zustand store-a)
+  const { t } = useI18n()
   return (
     <div className="px-2 py-2 border-t border-border space-y-0.5">
       <div className="grid grid-cols-2 gap-1 px-0.5 pb-1">

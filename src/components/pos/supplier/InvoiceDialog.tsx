@@ -36,7 +36,7 @@ import { toNum } from '@/lib/decimal'
 import { formatEUR } from '@/lib/safe-format'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
-import { t } from '@/lib/i18n'
+import { useI18n } from '@/hooks/useI18n'
 import { cn } from '@/lib/utils'
 import type { PurchaseOrderType, PurchaseOrderItemType } from './constants'
 
@@ -86,6 +86,8 @@ export interface InvoiceApiResponse {
 
 // --- Badge kanon (match=emerald, variance_*=amber, unreceived=red — outline) ---
 export function VarianceBadge({ status, className }: { status: string; className?: string }) {
+  // R154 (#44): reaktiven t prek useI18n hooka (locale iz zustand store-a)
+  const { t } = useI18n()
   const s = status ?? ''
   const label = s === 'match'
     ? t('suppliers.recon.match')
@@ -130,6 +132,8 @@ function fmtQty(value: unknown): string {
 
 // --- Match poročilo tabela (SKUPNI kanon: InvoiceDialog + expanded card PO) ---
 export function InvoiceMatchTable({ match, className }: { match: InvoiceMatchReport; className?: string }) {
+  // R154 (#44): reaktiven t prek useI18n hooka (locale iz zustand store-a)
+  const { t } = useI18n()
   const lines = Array.isArray(match?.lines) ? match.lines : []
   return (
     <div className={cn('max-h-96 overflow-auto custom-scrollbar', className)}>
@@ -197,6 +201,8 @@ function isoDate(d: Date): string {
 }
 
 export const InvoiceDialog = memo(function InvoiceDialog({ po, open, onClose, onSaved }: InvoiceDialogProps) {
+  // R154 (#44): reaktiven t prek useI18n hooka (locale iz zustand store-a)
+  const { t } = useI18n()
   const queryClient = useQueryClient()
   const [invoiceNumber, setInvoiceNumber] = useState('')
   const [invoiceDate, setInvoiceDate] = useState('')
