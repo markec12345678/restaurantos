@@ -486,8 +486,8 @@ describe('R87-4 D: ai-tools check_fraud — tenant scope iz konteksta', () => {
     expect(mocks.runAllFraudChecks.mock.calls[0][3]).toBe(LOC_B)
   })
 
-  it('employee super_admin brez lokacije → null (dokumentiran globalni pogled, admin-gated tool)', async () => {
-    mocks.employeeFindUnique.mockResolvedValue({ locationId: null, role: 'super_admin' })
+  it('employee admin brez lokacije → null (dokumentiran globalni pogled, admin-gated tool; R156-b #41: super_admin ni EmployeeRole član — ni write poti)', async () => {
+    mocks.employeeFindUnique.mockResolvedValue({ locationId: null, role: 'admin' })
     const result = await executeTool('check_fraud', {}, { permissions: ['admin'], employeeId: 'emp-root' })
     expect(result.success).toBe(true)
     expect(mocks.runAllFraudChecks.mock.calls[0][3]).toBeNull()

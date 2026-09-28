@@ -96,7 +96,7 @@ export const createOrderSchema = z.object({
 })
 
 export const updateOrderSchema = z.object({
-  status: z.enum(['pending', 'in-progress', 'ready', 'completed', 'cancelled']).optional(),
+  status: z.enum(['pending', 'in-progress', 'ready', 'completed', 'cancelled', 'served']).optional(), // R156-b #41: 'served' je veljaven status (poseben action endpoint ga piše)
   paymentStatus: z.enum(['unpaid', 'partial', 'paid', 'storno']).optional(), // FIX BUG 17: Dodan 'storno'
   paymentMethod: z.string().max(50).optional(),
   notes: z.string().max(1000).optional(),

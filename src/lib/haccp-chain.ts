@@ -21,7 +21,7 @@ import { logger } from '@/lib/logger'
 
 export interface HaccpChainEntry {
   date: Date
-  category: string
+  category: import('@prisma/client').HaccpCategory
   title: string
   description?: string
   value: string

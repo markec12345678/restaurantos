@@ -296,10 +296,10 @@ beforeAll(async () => {
   // 2) Zaposleni: admin (seja), 2 per lokacijo (A2 z IMENOM '' — pin passthrougha),
   //    manager brez lokacije (MODEL A fail-closed 403 test)
   await db.employee.create({ data: { id: EMP_ID, name: nm('Test Admin'), email: `r149-${RUN_ID}@test.local`, pin: `pin-${RUN_ID}-0`, role: 'admin', locationId: IDS.locA } })
-  await db.employee.create({ data: { id: IDS.empA1, name: nm('Natakar A1'), email: `r149a1-${RUN_ID}@test.local`, pin: `pin-${RUN_ID}-1`, role: 'waiter', locationId: IDS.locA } })
-  await db.employee.create({ data: { id: IDS.empA2, name: '', email: `r149a2-${RUN_ID}@test.local`, pin: `pin-${RUN_ID}-2`, role: 'waiter', locationId: IDS.locA } })
-  await db.employee.create({ data: { id: IDS.empB1, name: nm('Natakar B1'), email: `r149b1-${RUN_ID}@test.local`, pin: `pin-${RUN_ID}-3`, role: 'waiter', locationId: IDS.locB } })
-  await db.employee.create({ data: { id: IDS.empB2, name: nm('Vodja B2'), email: `r149b2-${RUN_ID}@test.local`, pin: `pin-${RUN_ID}-4`, role: 'waiter', locationId: IDS.locB } })
+  await db.employee.create({ data: { id: IDS.empA1, name: nm('Natakar A1'), email: `r149a1-${RUN_ID}@test.local`, pin: `pin-${RUN_ID}-1`, role: 'staff', locationId: IDS.locA } })
+  await db.employee.create({ data: { id: IDS.empA2, name: '', email: `r149a2-${RUN_ID}@test.local`, pin: `pin-${RUN_ID}-2`, role: 'staff', locationId: IDS.locA } })
+  await db.employee.create({ data: { id: IDS.empB1, name: nm('Natakar B1'), email: `r149b1-${RUN_ID}@test.local`, pin: `pin-${RUN_ID}-3`, role: 'staff', locationId: IDS.locB } })
+  await db.employee.create({ data: { id: IDS.empB2, name: nm('Vodja B2'), email: `r149b2-${RUN_ID}@test.local`, pin: `pin-${RUN_ID}-4`, role: 'staff', locationId: IDS.locB } })
   await db.employee.create({ data: { id: IDS.empNoLoc, name: nm('Vodja brez lokacije'), email: `r149nl-${RUN_ID}@test.local`, pin: `pin-${RUN_ID}-5`, role: 'manager', locationId: null } })
 
   // 3) Katalog (MODEL A: menu/category po lokaciji)

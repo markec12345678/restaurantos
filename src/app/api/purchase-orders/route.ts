@@ -130,7 +130,7 @@ export async function POST(req: Request) {
         unitPrice: item.unitPrice,
         vatRate: item.vatRate || 22.0,
         totalPrice,
-        status: 'pending',
+        status: 'pending' as const,
         notes: item.notes || '',
         // R131 (epic #115 P1-13): pack snapshot — NULL = legacy semantika
         // (vrstica v osnovnih enotah). Denar NESPREMENJEN (totalPrice =

@@ -230,7 +230,8 @@ describe('R103 A: POST /api/time-entries — Serializable tx + scope reorder', (
       where: {
         employeeId: 'emp-1',
         clockOut: null,
-        status: { notIn: ['cancelled'] },
+        // R156-b #41: dead filter notIn:['cancelled'] odstranjen (TimeEntry.status
+        // nima 'cancelled' write poti)
       },
     })
     expect(mocks.txTimeEntryCreate).toHaveBeenCalledWith(

@@ -9,6 +9,179 @@ datasource db {
 }
 
 // ============================================
+// ENUMI (R156-b, repo issue #41) — 20 native Prisma enumov
+//
+// Vrednosti so GROUND TRUTH iz zod validatorjev + dejanskih write mest
+// (seznam v issueju #41 je zastarel — NE "popravljaj" vrednosti nazaj nanj).
+// Wire kontrakt: enum se serializira kot navaden string → API zunanja
+// podoba ostane byte-identična ('storno' ostane 'storno' itd.).
+//
+// IZKLJUČENA (ostanejo String + app-layer string-literal unije v
+// src/lib/enums/index.ts): Order.status ('in-progress'), Order.type
+// ('dine-in'), StockTransaction.type ('write-off') — vsebujejo pomlajevalec:
+// Prisma P1012 prepoveduje `-` v Enum vrednostih, @map pa bi na wire poslal
+// ime člana namesto DB vrednosti (zlom API kontrakta — prepovedano R156-b).
+// ============================================
+
+enum OrderItemStatus {
+  pending
+  fired
+  preparing
+  ready
+  served
+  cancelled
+  voided
+}
+
+enum PaymentStatus {
+  unpaid
+  partial
+  paid
+  storno
+  cancelled
+}
+
+enum PaymentType {
+  cash
+  card
+  mobile
+  voucher
+  loyalty
+  giftcard
+  alternate
+}
+
+enum EmployeeRole {
+  admin
+  manager
+  staff
+  chef
+  kitchen
+}
+
+enum EmployeeStatus {
+  active
+  inactive
+  terminated
+  anonymized
+}
+
+enum TableStatus {
+  available
+  occupied
+  reserved
+  cleaning
+}
+
+enum FiscalStatus {
+  none
+  pending
+  processing
+  verifying
+  verified
+  failed
+}
+
+enum PurchaseOrderStatus {
+  draft
+  submitted
+  approved
+  partial
+  received
+  cancelled
+}
+
+enum PurchaseOrderItemStatus {
+  pending
+  partial
+  received
+  cancelled
+}
+
+enum JournalEntryStatus {
+  draft
+  posted
+  reversed
+}
+
+enum AccountType {
+  asset
+  liability
+  equity
+  revenue
+  expense
+  unknown
+}
+
+enum HaccpCategory {
+  temperature
+  cleaning
+  delivery
+  cooling
+  training
+}
+
+enum HaccpStatus {
+  ok
+  warning
+  critical
+  archived
+}
+
+enum SubscriptionPlan {
+  starter
+  professional
+  enterprise
+}
+
+enum SubscriptionStatus {
+  trial
+  active
+  past_due
+  cancelled
+  expired
+}
+
+enum StaffShiftStatus {
+  scheduled
+  confirmed
+  in_progress
+  completed
+  absent
+  cancelled
+  no_show
+}
+
+enum TimeEntryType {
+  regular
+  overtime
+  holiday
+  sick
+  vacation
+}
+
+enum TimeEntryStatus {
+  active
+  approved
+  disputed
+}
+
+enum ReservationStatus {
+  confirmed
+  seated
+  completed
+  cancelled
+  no_show
+}
+
+enum ReservationSource {
+  walk_in
+  phone
+  website
+  app
+}
+
+// ============================================
 // PROFESIONALNA MENU HIERARHIJA (Toast POS standard)
 // Menu → Category → MenuItem → ModifierGroup → Modifier
 // ============================================
@@ -447,7 +620,7 @@ model Table {
   id              String   @id @default(cuid())
   number          Int      // FIX SCHEMA-03: Odstranjen @unique — tabela number mora biti unikat samo znotraj lokacije
   capacity        Int      @default(4)
-  status          String   @default("available")
+  status          TableStatus @default(available)
   area            String   @default("main")
   // --- Vizualni tloris (drag-and-drop koordinate) ---
   posX            Float    @default(0)     // X pozicija na tlorisu (0-100%)
@@ -510,7 +683,7 @@ model Order {
   total           Decimal     @default(0) @db.Decimal(12, 2)  // P1-8: valuta EUR — 2 dec
   totalWithTip    Decimal     @default(0) @db.Decimal(12, 2)  // P1-8: valuta EUR — 2 dec
   // --- Status plačila ---
-  paymentStatus   String     @default("unpaid")
+  paymentStatus   PaymentStatus @default(unpaid)
   paymentMethod   String     @default("")
   splitCount      Int        @default(1)
   notes           String     @default("")
@@ -603,7 +776,7 @@ model OrderItem {
   courseId        String?
   course          Course?   @relation(fields: [courseId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Status ---
-  status         String   @default("pending")
+  status         OrderItemStatus @default(pending)
   // FIX WORKFLOW-3: firedAt — čas, kdaj je artikel poslan v kuhinjo (KDS urgency timer)
   firedAt        DateTime?
   // R133 (epic #115 P1-09): KDS metrike — strežniški čas ZADNJEGA prehoda v
@@ -680,7 +853,7 @@ model Check {
   tip             Decimal     @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
   totalWithTip    Decimal     @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
   // --- Plačilo čeka ---
-  paymentStatus   String     @default("unpaid") // unpaid, partial, paid
+  paymentStatus   PaymentStatus @default(unpaid) // unpaid, partial, paid, storno
   paymentMethod   String     @default("")
   // --- Popusti na ček ---
   appliedDiscountId String?
@@ -708,7 +881,7 @@ model Payment {
   refundAmount          Decimal   @default(0) // FIX: Delni povračila — znesek, ki je bil povrnjen
   tipAmount             Decimal   @default(0) @db.Decimal(12, 2) // Napitnina  // P1-8
   // --- Vrsta plačila ---
-  type                  String                // cash, card, mobile, voucher, loyalty, giftcard, alternate
+  type                  PaymentType           // cash, card, mobile, voucher, loyalty, giftcard, alternate
   // --- Toast: Alternate Payment Type ---
   alternatePaymentTypeId String?
   alternatePaymentType  AlternatePaymentType? @relation(fields: [alternatePaymentTypeId], references: [id], onDelete: SetNull, onUpdate: SetNull)
@@ -815,8 +988,8 @@ model Employee {
   name      String
   email     String   @unique  // TODO multi-tenant: spremeni v @@unique([email, locationId]) — trenutno globalno unikatno preprečuje isti email v različnih lokacijah
   phone     String   @default("")
-  role      String   @default("staff")
-  status    String   @default("active")
+  role      EmployeeRole @default(staff)
+  status    EmployeeStatus @default(active)
   hireDate  DateTime @default(now())
   // --- Toast: PIN za prijavo v POS ---
   pin       String   @unique @default("") // FIX SECURITY: 4-mestni PIN za hitro prijavo — @unique prepreči duplikate (impersonacijo)
@@ -932,8 +1105,8 @@ model TimeEntry {
   payRate     Decimal   @default(0) @db.Decimal(12, 2) // Urna postavka  // P1-8
   totalPay    Decimal   @default(0) @db.Decimal(12, 2) // totalMinutes / 60 * payRate  // P1-8
   // --- Tip ---
-  type        String   @default("regular") // regular, overtime, holiday, sick, vacation
-  status      String   @default("active") // active, approved, disputed
+  type        TimeEntryType @default(regular) // regular, overtime, holiday, sick, vacation
+  status      TimeEntryStatus @default(active) // active, approved, disputed
   notes       String   @default("")
   // --- Multi-location (FIX: delovne ure so per-lokacija za plače) ---
   locationId  String?
@@ -1404,7 +1577,7 @@ model Receipt {
   zoi               String   @default("")
   eor               String   @default("")
   fiscalVerified    Boolean  @default(false)
-  fiscalStatus      String   @default("none")       // none, pending, verified, failed
+  fiscalStatus      FiscalStatus @default(none)       // none, pending, verified, failed
   verificationDate  DateTime?
   // --- Davčno potrjevanje (CIS — Hrvaška, runda 29) ---
   // ZKI/JIR vzporedno s FURS ZOI/EOR: multi-državni račun nosi oba fiskalna
@@ -1840,11 +2013,11 @@ model OpeningHours {
 model HaccpEntry {
   id              String   @id @default(cuid())
   date            DateTime @default(now())
-  category        String                        // temperature, cleaning, delivery, cooling, training
+  category        HaccpCategory                 // temperature, cleaning, delivery, cooling, training
   title           String
   description     String   @default("")
   value           String   @default("")
-  status          String   @default("ok")        // ok, warning, critical
+  status          HaccpStatus @default(ok)        // ok, warning, critical
   correctiveAction String  @default("")
   employeeName    String   @default("")
   // FIX F5-8: Kriptografska zaščita (hash chain) — EU 852/2004
@@ -1959,7 +2132,7 @@ model StaffShift {
   // --- Opombe ---
   notes           String   @default("")
   // --- Status ---
-  status          String   @default("scheduled") // scheduled, confirmed, in_progress, completed, cancelled, no_show
+  status          StaffShiftStatus @default(scheduled) // scheduled, confirmed, in_progress, completed, absent, cancelled, no_show (zod write domen — staff-shifts/_helpers.ts)
   confirmedAt     DateTime?
   // --- Ure ---
   actualStart     DateTime?
@@ -2051,12 +2224,12 @@ model Reservation {
   tableId         String?
   table           Table?   @relation(fields: [tableId], references: [id], onDelete: SetNull, onUpdate: SetNull)
   // --- Status ---
-  status          String   @default("confirmed") // confirmed, seated, completed, cancelled, no_show
+  status          ReservationStatus @default(confirmed) // confirmed, seated, completed, cancelled, no_show
   // --- Opombe ---
   notes           String   @default("")          // Posebne želje, alergije, praznovanja
   specialRequests String   @default("")          // Npr. "Otroški stol", "Ob oknu"
   // --- Sledenje ---
-  source          String   @default("walk_in")   // walk_in, phone, website, app
+  source          ReservationSource @default(walk_in)   // walk_in, phone, website, app
   employeeId      String?
   waitlistEntries WaitlistEntry[]
   // --- Potrditev ---
@@ -2240,7 +2413,7 @@ model PurchaseOrder {
   supplierId      String
   supplier        Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   // --- Status ---
-  status          String   @default("draft")    // draft, sent, confirmed, partial, received, cancelled
+  status          PurchaseOrderStatus @default(draft)    // draft, sent, confirmed, partial, received, cancelled
   // R132 (epic #115 P1-12): three-way match roll-up (list filtering) —
   // none | partial | invoiced | variance (persistirana; živo poročilo = GET invoice)
   invoiceStatus   String   @default("none")
@@ -2305,7 +2478,7 @@ model PurchaseOrderItem {
   vatRate         Decimal        @default(22.00)  // FIX: Decimal za davčno stopnjo
   totalPrice      Decimal        @default(0)  // FIX: Decimal za valuto
   // --- Status ---
-  status          String        @default("pending") // pending, partial, received, cancelled
+  status          PurchaseOrderItemStatus @default(pending) // pending, partial, received, cancelled
   notes           String        @default("")
   // --- R131 (epic #115 P1-13): pack-size snapshot ob kreaciji PO ---
   // NULL = legacy semantika (vrstica je v osnovnih enotah). Ko je nastavljeno:
@@ -2757,8 +2930,8 @@ model Subscription {
   taxId             String   @default("")               // DDV ID
   businessId        String   @default("")               // Matična št.
   // --- Paket ---
-  plan              String   @default("starter")        // starter, professional, enterprise
-  status            String   @default("trial")          // trial, active, past_due, cancelled, expired
+  plan              SubscriptionPlan @default(starter)        // starter, professional, enterprise
+  status            SubscriptionStatus @default(trial)          // trial, active, past_due, cancelled, expired
   // --- Cenitev ---
   monthlyPrice      Decimal   @default(0) @db.Decimal(12, 2)  // EUR/mesec  // FIX: Decimal za valuto
   locationCount     Int      @default(1)                // Št. lokacij
@@ -3214,7 +3387,7 @@ model JournalEntry {
   referenceType String        @default("")      // order, payment, expense, refund, adjustment
   description  String         @default("")
   source       String         @default("manual") // manual, auto-order, auto-payment, auto-expense
-  status       String         @default("posted") // draft, posted, reversed
+  status       JournalEntryStatus @default(posted) // draft, posted, reversed
   postedAt     DateTime?
   postedBy     String?         // Employee ID
   postedById   String?                            // FIX issue #43: FK do Employee
@@ -3247,7 +3420,7 @@ model ChartOfAccount {
   id          String   @id @default(cuid())
   code        String   @unique              // 1010, 2600, 7000, itd.
   name        String                        // "Blagajna", "DDV izhodni", "Promet — na mestu"
-  accountType String                        // asset, liability, equity, revenue, expense
+  accountType AccountType                   // asset, liability, equity, revenue, expense
   parentId    String?                       // Hierarhija: 7000 → 7000.01 (subkonta)
   parent      ChartOfAccount?  @relation("AccountHierarchy", fields: [parentId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   subAccounts ChartOfAccount[]  @relation("AccountHierarchy")
@@ -3278,7 +3451,7 @@ model JournalLine {
   chartOfAccountCode String?
   chartOfAccount    ChartOfAccount? @relation("JournalLineAccountCode", fields: [chartOfAccountCode], references: [code], onDelete: NoAction, onUpdate: Cascade)
   accountName    String                     // Ime konta
-  accountType    String                     // asset, liability, equity, revenue, expense
+  accountType    AccountType                // asset, liability, equity, revenue, expense
   // --- Zneski (double-entry: vsaj 2 vrstici, debiti == krediti) ---
   debit          Decimal       @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto
   credit         Decimal       @default(0) @db.Decimal(12, 2)  // FIX: Decimal za valuto

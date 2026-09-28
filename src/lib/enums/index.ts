@@ -1,78 +1,153 @@
 // ============================================
-// ENUMS — Centralni TypeScript enum slovar
+// ENUMS — Centralni TypeScript enum slovar (posodobljeno R156-b)
 //
-// ISSUE #41: 0 enumov — 20+ status polj so prosto-besedilni String-i.
-// Prisma shema uporablja String (brez Prisma Enum-a) za backward compat
-// in fleksibilnost. Ta modul doda typed layer nad obstoječimi String-i:
+// ISSUE #41 (R156-b): Prisma schema ZDAJ uporablja 20 NATIVNIH enumov
+// (prisma/schema.prisma). Ta modul je app-layer most:
 //
-//   - TS const objects (literal union types) za type-safety v novi kodi
-//   - Validatorji (isXxxStatus) za runtime validacijo
-//   - Maps za prikaz v UI (labeli, ikone, barve)
-//   - getEnumStats() za migracijski dashboard
+//   - NATIVNI enumi: re-export runtime objektov + tipov iz @prisma/client;
+//     const objects (UPPERCASE ključi) se vežejo na Prisma člane — en vir
+//     resnice, ni ročnih seznamov ki bi zdrsali (prej: ORDER_STATUS je imel
+//     preparing/refunded, PAYMENT_STATUS je manjkal storno — R156-a audit).
+//   - DASH unije (Order.status 'in-progress', Order.type 'dine-in',
+//     StockTransaction.type 'write-off'): DB stolpci ostanejo TEXT, ker
+//     Prisma P1012 prepoveduje `-` v enum vrednostih, @map pa bi na wire
+//     poslal IME člana namesto DB vrednosti (zlom API kontrakta). Zato
+//     eksplicitne string-literal unije tukaj.
+//   - OSTALI (deferred) statusi: TS const objects kot prej (prihodnja runda).
 //
-// Pristop:
-//   1. NE spreminjaj Prisma sheme (prevelika sprememba)
-//   2. DODAJ typed const objects (TS-time safety)
-//   3. DODAJ runtime validatorje (catch typo-je v API input)
-//   4. V prihodnosti: Prisma @map na Enum (Faza 3, v1.0.0)
+// Wire kontrakt: Prisma enum se serializira kot navaden string — vrednosti
+// so byte-identične z dosedanjimi String vrednostmi (ground truth: zod +
+// dejanska write mesta, R156-a audit; seznami v issueju #41 so zastareli).
 // ============================================
 
+import {
+  OrderItemStatus,
+  PaymentStatus,
+  PaymentType,
+  EmployeeRole,
+  EmployeeStatus,
+  TableStatus,
+  FiscalStatus,
+  PurchaseOrderStatus,
+  PurchaseOrderItemStatus,
+  JournalEntryStatus,
+  AccountType,
+  HaccpCategory,
+  HaccpStatus,
+  SubscriptionPlan,
+  SubscriptionStatus,
+  StaffShiftStatus,
+  TimeEntryType,
+  TimeEntryStatus,
+  ReservationStatus,
+  ReservationSource,
+} from '@prisma/client'
+
 // ────────────────────────────────────────────
-// ORDER STATUS
+// NATIVNI PRISMA ENUMI (R156-b, 20) — re-export runtime objektov + tipov.
+// Uporaba: `import { OrderItemStatus } from '@/lib/enums'` (ali direktno iz
+// '@prisma/client' — ista vrednost). Runtime: OrderItemStatus.ready === 'ready'.
 // ────────────────────────────────────────────
+export {
+  OrderItemStatus,
+  PaymentStatus,
+  PaymentType,
+  EmployeeRole,
+  EmployeeStatus,
+  TableStatus,
+  FiscalStatus,
+  PurchaseOrderStatus,
+  PurchaseOrderItemStatus,
+  JournalEntryStatus,
+  AccountType,
+  HaccpCategory,
+  HaccpStatus,
+  SubscriptionPlan,
+  SubscriptionStatus,
+  StaffShiftStatus,
+  TimeEntryType,
+  TimeEntryStatus,
+  ReservationStatus,
+  ReservationSource,
+}
+
+// ────────────────────────────────────────────
+// ORDER STATUS — DASH unija (Order.status; DB stolpec ostaja TEXT)
+// Ground truth (R156-a audit): pending, in-progress, ready, completed,
+// cancelled, served. ('preparing' je OrderItem.status, 'paid' je
+// paymentStatus, 'served' se piše prek posebnega action endpointa.)
+// ────────────────────────────────────────────
+export const ORDER_STATUSES = ['pending', 'in-progress', 'ready', 'completed', 'cancelled', 'served'] as const
+export type OrderStatus = (typeof ORDER_STATUSES)[number]
+
 export const ORDER_STATUS = {
   PENDING: 'pending',
-  PREPARING: 'preparing',
+  IN_PROGRESS: 'in-progress',
   READY: 'ready',
   COMPLETED: 'completed',
   CANCELLED: 'cancelled',
-  REFUNDED: 'refunded',
+  SERVED: 'served',
 } as const
-export type OrderStatus = (typeof ORDER_STATUS)[keyof typeof ORDER_STATUS]
 
 export function isOrderStatus(value: string): value is OrderStatus {
-  return Object.values(ORDER_STATUS).includes(value as OrderStatus)
+  return (ORDER_STATUSES as readonly string[]).includes(value)
 }
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   pending: 'Na čakanju',
-  preparing: 'V pripravi',
+  'in-progress': 'V obdelavi',
   ready: 'Pripravljeno',
   completed: 'Zaključeno',
   cancelled: 'Preklicano',
-  refunded: 'Vrnjeno',
+  served: 'Postreženo',
 }
 
 // ────────────────────────────────────────────
-// ORDER TYPE
+// ORDER TYPE — DASH unija (Order.type; DB stolpec ostaja TEXT)
 // ────────────────────────────────────────────
+export const ORDER_TYPES = ['dine-in', 'takeout', 'delivery'] as const
+export type OrderType = (typeof ORDER_TYPES)[number]
+
 export const ORDER_TYPE = {
   DINE_IN: 'dine-in',
   TAKEOUT: 'takeout',
   DELIVERY: 'delivery',
 } as const
-export type OrderType = (typeof ORDER_TYPE)[keyof typeof ORDER_TYPE]
 
 export function isOrderType(value: string): value is OrderType {
-  return Object.values(ORDER_TYPE).includes(value as OrderType)
+  return (ORDER_TYPES as readonly string[]).includes(value)
 }
 
 // ────────────────────────────────────────────
-// PAYMENT STATUS
+// STOCK TRANSACTION TYPE — DASH unija (StockTransaction.type; DB ostaja TEXT)
+// Ground truth: procurement, sale, write-off, adjustment, return.
+// API zod namerno sprejema samo 3 od 5 (sale/return so interni) — tukaj je
+// POLNA množica (ledger resnica), validacija API meje ostane v zod.
+// ────────────────────────────────────────────
+export const STOCK_TRANSACTION_TYPES = ['procurement', 'sale', 'write-off', 'adjustment', 'return'] as const
+export type StockTransactionType = (typeof STOCK_TRANSACTION_TYPES)[number]
+
+export function isStockTransactionType(value: string): value is StockTransactionType {
+  return (STOCK_TRANSACTION_TYPES as readonly string[]).includes(value)
+}
+
+// ────────────────────────────────────────────
+// PAYMENT STATUS (Order.paymentStatus / Check.paymentStatus — NATIVNI enum)
 // ────────────────────────────────────────────
 export const PAYMENT_STATUS = {
-  UNPAID: 'unpaid',
-  PARTIAL: 'partial',
-  PAID: 'paid',
+  UNPAID: PaymentStatus.unpaid,
+  PARTIAL: PaymentStatus.partial,
+  PAID: PaymentStatus.paid,
+  STORNO: PaymentStatus.storno,
 } as const
-export type PaymentStatus = (typeof PAYMENT_STATUS)[keyof typeof PAYMENT_STATUS]
 
 export function isPaymentStatus(value: string): value is PaymentStatus {
-  return Object.values(PAYMENT_STATUS).includes(value as PaymentStatus)
+  return (Object.values(PaymentStatus) as string[]).includes(value)
 }
 
 // ────────────────────────────────────────────
-// PAYMENT RESULT STATUS (Payment model — completed/refunded/voided)
+// PAYMENT RESULT STATUS (Payment.model — completed/refunded/voided;
+// DEFERRED: ni pretvorjen v enum v tej rundi)
 // ────────────────────────────────────────────
 export const PAYMENT_RESULT_STATUS = {
   COMPLETED: 'completed',
@@ -86,7 +161,7 @@ export function isPaymentResultStatus(value: string): value is PaymentResultStat
 }
 
 // ────────────────────────────────────────────
-// SHIFT STATUS
+// SHIFT STATUS (legacy Shift model — odstranjen v #36; obdržano za compat)
 // ────────────────────────────────────────────
 export const SHIFT_STATUS = {
   SCHEDULED: 'scheduled',
@@ -101,24 +176,26 @@ export function isShiftStatus(value: string): value is ShiftStatus {
 }
 
 // ────────────────────────────────────────────
-// STAFF SHIFT STATUS (StaffShift model — extended)
+// STAFF SHIFT STATUS (StaffShift.status — NATIVNI enum)
+// SAMO 4 člani: confirmed/cancelled/no_show iz starega schema komentarja sta
+// bila ASPIRATIVNA (0 write mest — R156-a audit).
 // ────────────────────────────────────────────
 export const STAFF_SHIFT_STATUS = {
-  SCHEDULED: 'scheduled',
-  CONFIRMED: 'confirmed',
-  IN_PROGRESS: 'in_progress',
-  COMPLETED: 'completed',
-  CANCELLED: 'cancelled',
-  NO_SHOW: 'no_show',
+  SCHEDULED: StaffShiftStatus.scheduled,
+  CONFIRMED: StaffShiftStatus.confirmed,
+  IN_PROGRESS: StaffShiftStatus.in_progress,
+  COMPLETED: StaffShiftStatus.completed,
+  ABSENT: StaffShiftStatus.absent,
+  CANCELLED: StaffShiftStatus.cancelled,
+  NO_SHOW: StaffShiftStatus.no_show,
 } as const
-export type StaffShiftStatus = (typeof STAFF_SHIFT_STATUS)[keyof typeof STAFF_SHIFT_STATUS]
 
 export function isStaffShiftStatus(value: string): value is StaffShiftStatus {
-  return Object.values(STAFF_SHIFT_STATUS).includes(value as StaffShiftStatus)
+  return (Object.values(StaffShiftStatus) as string[]).includes(value)
 }
 
 // ────────────────────────────────────────────
-// STAFF SHIFT TYPE
+// STAFF SHIFT TYPE (StaffShift.shiftType — DEFERRED: String v DB)
 // ────────────────────────────────────────────
 export const SHIFT_TYPE = {
   MORNING: 'morning',
@@ -135,7 +212,7 @@ export function isShiftType(value: string): value is ShiftType {
 }
 
 // ────────────────────────────────────────────
-// ACCOUNTS PAYABLE / RECEIVABLE STATUS
+// ACCOUNTS PAYABLE / RECEIVABLE STATUS (DEFERRED: String v DB)
 // ────────────────────────────────────────────
 export const AP_AR_STATUS = {
   OPEN: 'open',
@@ -151,37 +228,35 @@ export function isApArStatus(value: string): value is ApArStatus {
 }
 
 // ────────────────────────────────────────────
-// JOURNAL ENTRY STATUS
+// JOURNAL ENTRY STATUS (JournalEntry.status — NATIVNI enum)
 // ────────────────────────────────────────────
 export const JOURNAL_ENTRY_STATUS = {
-  DRAFT: 'draft',
-  POSTED: 'posted',
-  REVERSED: 'reversed',
+  DRAFT: JournalEntryStatus.draft,
+  POSTED: JournalEntryStatus.posted,
+  REVERSED: JournalEntryStatus.reversed,
 } as const
-export type JournalEntryStatus = (typeof JOURNAL_ENTRY_STATUS)[keyof typeof JOURNAL_ENTRY_STATUS]
 
 export function isJournalEntryStatus(value: string): value is JournalEntryStatus {
-  return Object.values(JOURNAL_ENTRY_STATUS).includes(value as JournalEntryStatus)
+  return (Object.values(JournalEntryStatus) as string[]).includes(value)
 }
 
 // ────────────────────────────────────────────
-// ACCOUNT TYPE (ChartOfAccount)
+// ACCOUNT TYPE (ChartOfAccount.accountType / JournalLine.accountType — NATIVNI enum)
 // ────────────────────────────────────────────
 export const ACCOUNT_TYPE = {
-  ASSET: 'asset',
-  LIABILITY: 'liability',
-  EQUITY: 'equity',
-  REVENUE: 'revenue',
-  EXPENSE: 'expense',
+  ASSET: AccountType.asset,
+  LIABILITY: AccountType.liability,
+  EQUITY: AccountType.equity,
+  REVENUE: AccountType.revenue,
+  EXPENSE: AccountType.expense,
 } as const
-export type AccountType = (typeof ACCOUNT_TYPE)[keyof typeof ACCOUNT_TYPE]
 
 export function isAccountType(value: string): value is AccountType {
-  return Object.values(ACCOUNT_TYPE).includes(value as AccountType)
+  return (Object.values(AccountType) as string[]).includes(value)
 }
 
 // ────────────────────────────────────────────
-// LOCATION TYPE
+// LOCATION TYPE (Location.type — IZKLJUČEN: odprt nabor, ostaja String)
 // ────────────────────────────────────────────
 export const LOCATION_TYPE = {
   RESTAURANT: 'restaurant',
@@ -197,37 +272,35 @@ export function isLocationType(value: string): value is LocationType {
 }
 
 // ────────────────────────────────────────────
-// SUBSCRIPTION PLAN
+// SUBSCRIPTION PLAN (Subscription.plan — NATIVNI enum)
 // ────────────────────────────────────────────
 export const SUBSCRIPTION_PLAN = {
-  STARTER: 'starter',
-  PROFESSIONAL: 'professional',
-  ENTERPRISE: 'enterprise',
+  STARTER: SubscriptionPlan.starter,
+  PROFESSIONAL: SubscriptionPlan.professional,
+  ENTERPRISE: SubscriptionPlan.enterprise,
 } as const
-export type SubscriptionPlan = (typeof SUBSCRIPTION_PLAN)[keyof typeof SUBSCRIPTION_PLAN]
 
 export function isSubscriptionPlan(value: string): value is SubscriptionPlan {
-  return Object.values(SUBSCRIPTION_PLAN).includes(value as SubscriptionPlan)
+  return (Object.values(SubscriptionPlan) as string[]).includes(value)
 }
 
 // ────────────────────────────────────────────
-// SUBSCRIPTION STATUS
+// SUBSCRIPTION STATUS (Subscription.status — NATIVNI enum)
 // ────────────────────────────────────────────
 export const SUBSCRIPTION_STATUS = {
-  TRIAL: 'trial',
-  ACTIVE: 'active',
-  PAST_DUE: 'past_due',
-  CANCELLED: 'cancelled',
-  EXPIRED: 'expired',
+  TRIAL: SubscriptionStatus.trial,
+  ACTIVE: SubscriptionStatus.active,
+  PAST_DUE: SubscriptionStatus.past_due,
+  CANCELLED: SubscriptionStatus.cancelled,
+  EXPIRED: SubscriptionStatus.expired,
 } as const
-export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUS)[keyof typeof SUBSCRIPTION_STATUS]
 
 export function isSubscriptionStatus(value: string): value is SubscriptionStatus {
-  return Object.values(SUBSCRIPTION_STATUS).includes(value as SubscriptionStatus)
+  return (Object.values(SubscriptionStatus) as string[]).includes(value)
 }
 
 // ────────────────────────────────────────────
-// FURS ENVIRONMENT
+// FURS ENVIRONMENT (ni DB stolpec — konfiguracija)
 // ────────────────────────────────────────────
 export const FURS_ENVIRONMENT = {
   TEST: 'test',
@@ -256,7 +329,7 @@ export interface EnumStats {
   totalValues: number
   /** Število TS type-guards (isXxxStatus funkcije) */
   totalTypeGuards: number
-  /** Ali Prisma schema uporablja @map ali Enum tip */
+  /** Ali Prisma schema uporablja native Enum tip (R156-b: TRUE za 20 polj) */
   usesPrismaEnum: boolean
   /** Priporočila za migracijo */
   recommendations: string[]
@@ -287,12 +360,12 @@ export function getEnumStats(): EnumStats {
     totalEnums: enums.length,
     totalValues,
     totalTypeGuards,
-    usesPrismaEnum: false,
+    usesPrismaEnum: true, // R156-b: 20 polj je zdaj native Prisma enumov
     recommendations: [
       `✅ ${enums.length} TS enumov definiranih z ${totalValues} veljavnimi vrednostmi.`,
       `✅ ${totalTypeGuards} TS type-guards funkcij za runtime validacijo API input.`,
-      '📋 Phase 2: postopno uporabljaj type-guards v API rutah (npr. `assertOrderStatus(body.status)`).',
-      '🔧 Phase 3 (v1.0.0): Prisma @map na Enum za DB-level constraint.',
+      '✅ Phase 3 (R156-b, issue #41): 20 polj je zdaj NATIVNIH Prisma enumov — DB-level integriteta, wire nespremenjen.',
+      '📋 Phase 3 preostanek (prihodnja runda): dash vrednosti (Order.status/type, StockTransaction.type — app-layer unije) + UPPERCASE grozd (InventoryBatch/Stocktake/DailyClose...) ostajajo String.',
       '💡 Prednosti: catch typo-je pri compile-time (npr. "pendig" namesto "pending").',
     ],
   }

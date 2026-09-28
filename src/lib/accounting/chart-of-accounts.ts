@@ -16,6 +16,7 @@
 // ============================================
 
 import { db } from '@/lib/db'
+import type { AccountType } from '@prisma/client'
 
 /** Prisma transakcijski klient (interaktivni callback parameter) */
 export type ChartOfAccountTx = Parameters<Parameters<typeof db.$transaction>[0]>[0]
@@ -27,8 +28,8 @@ export interface ResolvedAccount {
   chartOfAccountCode: string | null
   /** Ime konta (iz ChartOfAccount če obstaja) */
   accountName: string
-  /** Tip konta (asset/liability/equity/revenue/expense) — iz ChartOfAccount */
-  accountType: string
+  /** Tip konta (AccountType) — iz ChartOfAccount; 'unknown' = legacy fallback (koda ne obstaja) */
+  accountType: AccountType | 'unknown'
   /** Ali je bila koda najdena v ChartOfAccount */
   isValid: boolean
 }
@@ -64,7 +65,7 @@ export async function lookupAccount(
 ): Promise<{
   code: string
   name: string
-  accountType: string
+  accountType: AccountType
   isActive: boolean
 } | null> {
   const dbx = client ?? db

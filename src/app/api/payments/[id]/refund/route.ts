@@ -232,7 +232,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         const netPaid = toNum(totalCheckPaid._sum.amount) - toNum(totalRefunded._sum.refundAmount)
         const checkTotal = toNum(payment.check.total)
 
-        let checkStatus = 'paid'
+        let checkStatus: import('@prisma/client').PaymentStatus = 'paid'
         if (netPaid <= 0) checkStatus = 'storno' // FIX Test 4.2: fully refunded → storno (not unpaid)
         else if (netPaid < checkTotal) checkStatus = 'partial'
 

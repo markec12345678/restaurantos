@@ -14,7 +14,7 @@ export interface WebhookOrderItem {
   vatAmount: number
   discountAmount: number
   notes: string
-  status: string
+  status: import('@prisma/client').OrderItemStatus
 }
 
 // ---- Zod Schema ----

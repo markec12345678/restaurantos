@@ -352,7 +352,7 @@ beforeAll(async () => {
   // 5) Supplier + 2 PurchaseOrder (A 'invoiced' + NULL-lokacija 'none')
   await db.supplier.create({ data: { id: IDS.supplier, name: SUPPLIER_NAME, code: `SUP-${RUN_ID}`, isActive: true } })
   await db.purchaseOrder.create({ data: { id: IDS.poA, poNumber: PO_A_NUMBER, supplierId: IDS.supplier, status: 'received', invoiceStatus: 'invoiced', orderDate: at(12), subtotal: 100, vatAmount: 22, totalAmount: 122, locationId: IDS.locA } })
-  await db.purchaseOrder.create({ data: { id: IDS.poNull, poNumber: PO_NULL_NUMBER, supplierId: IDS.supplier, status: 'sent', invoiceStatus: 'none', orderDate: at(13), subtotal: 10, vatAmount: 2.2, totalAmount: 12.2, locationId: null } })
+  await db.purchaseOrder.create({ data: { id: IDS.poNull, poNumber: PO_NULL_NUMBER, supplierId: IDS.supplier, status: 'submitted', invoiceStatus: 'none', orderDate: at(13), subtotal: 10, vatAmount: 2.2, totalAmount: 12.2, locationId: null } })
 
   // 6) DailyClose A (variance −15 → CSV-injection "'" prefix pin) + B
   await db.dailyClose.create({ data: { id: IDS.dcA, locationId: IDS.locA, businessDate: new Date(DAY_BASE), status: 'CLOSED', totalSales: 500, cashSales: 200, cardSales: 250, mobileSales: 30, alternateSales: 20, totalDiscounts: 10, totalTips: 40, totalVoided: 5, totalRefunds: 12.5, expectedCash: 210, countedCash: 195, cashVariance: -15, idempotencyKey: `${RUN_ID}-dc-a-key` } })

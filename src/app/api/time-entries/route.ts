@@ -161,7 +161,8 @@ export async function POST(req: Request) {
           where: {
             employeeId: data.employeeId,
             clockOut: null,
-            status: { notIn: ['cancelled'] },
+            // (odstranjen dead filter notIn:['cancelled'] — TimeEntry.status nima
+            // 'cancelled' write poti; R156-b #41 enum integracija)
           },
         })
         if (openEntry) {

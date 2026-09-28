@@ -56,8 +56,8 @@ describe('Issue #41 — Enum const objects', () => {
     expect(ORDER_TYPE.DINE_IN).toBe('dine-in')
   })
 
-  it('PAYMENT_STATUS vsebuje 3 vrednosti', () => {
-    expect(Object.keys(PAYMENT_STATUS)).toHaveLength(3)
+  it('PAYMENT_STATUS vsebuje 4 vrednosti (R156-b: +storno, ground truth)', () => {
+    expect(Object.keys(PAYMENT_STATUS)).toHaveLength(4)
   })
 
   it('PAYMENT_RESULT_STATUS vsebuje 3 vrednosti', () => {
@@ -71,8 +71,8 @@ describe('Issue #41 — Enum const objects', () => {
     expect(Object.keys(SHIFT_STATUS)).toHaveLength(4)
   })
 
-  it('STAFF_SHIFT_STATUS vsebuje 6 vrednosti (extended)', () => {
-    expect(Object.keys(STAFF_SHIFT_STATUS)).toHaveLength(6)
+  it('STAFF_SHIFT_STATUS vsebuje 7 vrednosti (R156-b: zod write domen — confirmed/cancelled/no_show so write mesta)', () => {
+    expect(Object.keys(STAFF_SHIFT_STATUS)).toHaveLength(7)
     expect(STAFF_SHIFT_STATUS.NO_SHOW).toBe('no_show')
   })
 
@@ -160,11 +160,11 @@ describe('Issue #41 — Type-guards', () => {
     expect(isShiftStatus('no_show')).toBe(false) // StaffShift-only
   })
 
-  it('isStaffShiftStatus prepozna 6 statusov', () => {
+  it('isStaffShiftStatus prepozna 7 statusov (R156-b: absent je zdaj član)', () => {
     expect(isStaffShiftStatus('scheduled')).toBe(true)
     expect(isStaffShiftStatus('confirmed')).toBe(true)
     expect(isStaffShiftStatus('no_show')).toBe(true)
-    expect(isStaffShiftStatus('absent')).toBe(false) // Shift-only
+    expect(isStaffShiftStatus('absent')).toBe(true) // R156-b: StaffShiftStatus član
   })
 
   it('isShiftType prepozna 6 tipov', () => {
@@ -274,9 +274,9 @@ describe('getEnumStats — migracijski dashboard', () => {
     expect(stats.totalValues).toBeGreaterThan(stats.totalEnums)
   })
 
-  it('usesPrismaEnum je false (Phase 3 še ni narejen)', () => {
+  it('usesPrismaEnum je true (R156-b: 20 polj je native Prisma enumov)', () => {
     const stats = getEnumStats()
-    expect(stats.usesPrismaEnum).toBe(false)
+    expect(stats.usesPrismaEnum).toBe(true)
   })
 
   it('recommendations vključuje Phase 3 načrt', () => {

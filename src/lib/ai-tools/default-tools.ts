@@ -217,7 +217,9 @@ async function resolveFraudScanLocationId(context: ToolExecutionContext): Promis
     })
     if (emp) {
       if (emp.locationId) return { ok: true, locationId: emp.locationId }
-      if (emp.role === 'admin' || emp.role === 'super_admin') {
+      // (odstranjen dead `|| emp.role === 'super_admin'` — EmployeeRole nima
+      // super_admin člana in ni write poti; R156-b #41)
+      if (emp.role === 'admin') {
         // Super-admin (vloga!) brez lokacije — globalni pogled je dokumentiran
         // (check_fraud je adminOnly; executeTool vrata gardirajo permissions).
         return { ok: true, locationId: null }

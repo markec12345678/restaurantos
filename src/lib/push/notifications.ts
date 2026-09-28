@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger'
  * Pošlji push notification vsem aktivnim zaposlenim z določeno vlogo
  */
 async function notifyRole(
-  roles: string[],
+  roles: import('@prisma/client').EmployeeRole[],
   payload: PushPayload
 ): Promise<void> {
   try {

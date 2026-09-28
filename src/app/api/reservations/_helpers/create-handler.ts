@@ -37,7 +37,7 @@ export async function handleCreateReservation(
     customerEmail?: string
     notes?: string
     specialRequests?: string
-    source?: string
+    source?: import('@prisma/client').ReservationSource
   },
   employeeId: string | undefined,
   scope: { locationId: string | null },

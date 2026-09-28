@@ -439,7 +439,7 @@ export async function generateJournalForStorno(
       accountCode: string
       chartOfAccountCode: string | null
       accountName: string
-      accountType: string
+      accountType: import('@prisma/client').AccountType
       debit: number
       credit: number
       description: string

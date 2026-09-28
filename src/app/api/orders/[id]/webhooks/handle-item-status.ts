@@ -31,7 +31,7 @@ export interface KdsReadyActor {
 }
 
 export async function handleItemStatusUpdate(
-  id: string, itemId: string, status: string,
+  id: string, itemId: string, status: import('@prisma/client').OrderItemStatus,
   _order: { id: string; status: string; orderNumber: number; locationId?: string | null },
   actor?: KdsReadyActor | null,
 ) {

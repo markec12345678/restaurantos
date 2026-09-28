@@ -473,7 +473,7 @@ export async function handleReceiveAction(
 /** R105 PO-5: CAS state-machine write za PUT/PATCH (count 0 → 409 race). */
 export async function casUpdatePurchaseOrder(
   id: string,
-  expectedStatus: string,
+  expectedStatus: import('@prisma/client').PurchaseOrderStatus,
   sessionLocationId: string | null,
   updateData: Record<string, unknown>,
 ): Promise<{ ok: true; po: Record<string, unknown> } | { ok: false; conflict: true }> {

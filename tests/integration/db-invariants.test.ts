@@ -121,7 +121,7 @@ describe('Integracija D: write roundtrip + unique violation (P2002)', () => {
         name: 'P21 Integracija',
         email: `${RUN_ID}@test.local`,
         phone: '',
-        role: 'waiter',
+        role: 'staff',
         status: 'active',
         hireDate: new Date(),
         // CI fix #133: pin je @unique — fiksna vrednost bi P2002-ala na umazani

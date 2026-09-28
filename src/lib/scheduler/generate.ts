@@ -29,12 +29,12 @@ import {
 interface EmployeeWithRelations {
   id: string
   name: string
-  role: string
-  status: string
+  role: import('@prisma/client').EmployeeRole
+  status: import('@prisma/client').EmployeeStatus
   jobs: Array<{ jobId: string; isPrimary: boolean; payRate: unknown; job: { name: string; basePayRate: unknown } }>
   availability: Array<{ dayOfWeek: number; startTime: string; endTime: string; isPreferred: boolean }>
   timeOffRequests: Array<{ startDate: Date; endDate: Date; status: string }>
-  staffShifts: Array<{ shiftDate: Date; startTime: string; endTime: string; status: string }>
+  staffShifts: Array<{ shiftDate: Date; startTime: string; endTime: string; status: import('@prisma/client').StaffShiftStatus }>
 }
 
 // --- Pridobi zgodovino za forecast ---

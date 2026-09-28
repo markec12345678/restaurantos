@@ -280,7 +280,9 @@ describe('R82-F: tables/qr-batch scope', () => {
     expect(res.status).toBe(200)
     expect(mocks.tableFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { status: { not: 'out-of-service' }, locationId: 'loc-1' },
+        // R156-b #41: dead filter not:'out-of-service' odstranjen (TableStatus
+        // write domen ne pozna te vrednosti)
+        where: { locationId: 'loc-1' },
       }),
     )
   })

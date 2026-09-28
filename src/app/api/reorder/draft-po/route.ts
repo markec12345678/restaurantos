@@ -285,7 +285,7 @@ export async function POST(req: Request) {
               unitPrice: pricePerPackNum,
               vatRate: 22.0,
               totalPrice,
-              status: 'pending',
+              status: 'pending' as const,
               notes: '',
               // Pack snapshot (kanon #3) — prevzem konvertira po TEM, ne po
               // trenutnem katalogu (zgodovinski PO ostane konsistenten).
@@ -317,7 +317,7 @@ export async function POST(req: Request) {
             unitPrice: keeper.costPerUnit,
             vatRate: 22.0,
             totalPrice,
-            status: 'pending',
+            status: 'pending' as const,
             notes: '',
             packQty: null,
             packUnit: null,

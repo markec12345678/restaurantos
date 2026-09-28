@@ -432,12 +432,12 @@ export async function fetchYesterdaySection(
   d2Bounds: { start: Date; end: Date },
 ): Promise<BriefingYesterdaySection> {
   const paidWhere = {
-    paymentStatus: 'paid',
+    paymentStatus: 'paid' as const,
     paidAt: { gte: yBounds.start, lt: yBounds.end },
     ...locWhere(locationId),
   }
   const d2Where = {
-    paymentStatus: 'paid',
+    paymentStatus: 'paid' as const,
     paidAt: { gte: d2Bounds.start, lt: d2Bounds.end },
     ...locWhere(locationId),
   }

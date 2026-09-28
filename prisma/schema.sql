@@ -1,3 +1,63 @@
+-- CreateEnum
+CREATE TYPE "OrderItemStatus" AS ENUM ('pending', 'fired', 'preparing', 'ready', 'served', 'cancelled', 'voided');
+
+-- CreateEnum
+CREATE TYPE "PaymentStatus" AS ENUM ('unpaid', 'partial', 'paid', 'storno', 'cancelled');
+
+-- CreateEnum
+CREATE TYPE "PaymentType" AS ENUM ('cash', 'card', 'mobile', 'voucher', 'loyalty', 'giftcard', 'alternate');
+
+-- CreateEnum
+CREATE TYPE "EmployeeRole" AS ENUM ('admin', 'manager', 'staff', 'chef', 'kitchen');
+
+-- CreateEnum
+CREATE TYPE "EmployeeStatus" AS ENUM ('active', 'inactive', 'terminated', 'anonymized');
+
+-- CreateEnum
+CREATE TYPE "TableStatus" AS ENUM ('available', 'occupied', 'reserved', 'cleaning');
+
+-- CreateEnum
+CREATE TYPE "FiscalStatus" AS ENUM ('none', 'pending', 'processing', 'verifying', 'verified', 'failed');
+
+-- CreateEnum
+CREATE TYPE "PurchaseOrderStatus" AS ENUM ('draft', 'submitted', 'approved', 'partial', 'received', 'cancelled');
+
+-- CreateEnum
+CREATE TYPE "PurchaseOrderItemStatus" AS ENUM ('pending', 'partial', 'received', 'cancelled');
+
+-- CreateEnum
+CREATE TYPE "JournalEntryStatus" AS ENUM ('draft', 'posted', 'reversed');
+
+-- CreateEnum
+CREATE TYPE "AccountType" AS ENUM ('asset', 'liability', 'equity', 'revenue', 'expense', 'unknown');
+
+-- CreateEnum
+CREATE TYPE "HaccpCategory" AS ENUM ('temperature', 'cleaning', 'delivery', 'cooling', 'training');
+
+-- CreateEnum
+CREATE TYPE "HaccpStatus" AS ENUM ('ok', 'warning', 'critical', 'archived');
+
+-- CreateEnum
+CREATE TYPE "SubscriptionPlan" AS ENUM ('starter', 'professional', 'enterprise');
+
+-- CreateEnum
+CREATE TYPE "SubscriptionStatus" AS ENUM ('trial', 'active', 'past_due', 'cancelled', 'expired');
+
+-- CreateEnum
+CREATE TYPE "StaffShiftStatus" AS ENUM ('scheduled', 'confirmed', 'in_progress', 'completed', 'absent', 'cancelled', 'no_show');
+
+-- CreateEnum
+CREATE TYPE "TimeEntryType" AS ENUM ('regular', 'overtime', 'holiday', 'sick', 'vacation');
+
+-- CreateEnum
+CREATE TYPE "TimeEntryStatus" AS ENUM ('active', 'approved', 'disputed');
+
+-- CreateEnum
+CREATE TYPE "ReservationStatus" AS ENUM ('confirmed', 'seated', 'completed', 'cancelled', 'no_show');
+
+-- CreateEnum
+CREATE TYPE "ReservationSource" AS ENUM ('walk_in', 'phone', 'website', 'app');
+
 -- CreateTable
 CREATE TABLE "Menu" (
     "id" TEXT NOT NULL,
@@ -299,7 +359,7 @@ CREATE TABLE "Table" (
     "id" TEXT NOT NULL,
     "number" INTEGER NOT NULL,
     "capacity" INTEGER NOT NULL DEFAULT 4,
-    "status" TEXT NOT NULL DEFAULT 'available',
+    "status" "TableStatus" NOT NULL DEFAULT 'available',
     "area" TEXT NOT NULL DEFAULT 'main',
     "posX" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "posY" DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -335,7 +395,7 @@ CREATE TABLE "Order" (
     "tip" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "total" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "totalWithTip" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "paymentStatus" TEXT NOT NULL DEFAULT 'unpaid',
+    "paymentStatus" "PaymentStatus" NOT NULL DEFAULT 'unpaid',
     "paymentMethod" TEXT NOT NULL DEFAULT '',
     "splitCount" INTEGER NOT NULL DEFAULT 1,
     "notes" TEXT NOT NULL DEFAULT '',
@@ -374,7 +434,7 @@ CREATE TABLE "OrderItem" (
     "discountAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "appliedDiscountId" TEXT,
     "courseId" TEXT,
-    "status" TEXT NOT NULL DEFAULT 'pending',
+    "status" "OrderItemStatus" NOT NULL DEFAULT 'pending',
     "firedAt" TIMESTAMP(3),
     "readyAt" TIMESTAMP(3),
     "readyById" TEXT,
@@ -413,7 +473,7 @@ CREATE TABLE "Check" (
     "total" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "tip" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "totalWithTip" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "paymentStatus" TEXT NOT NULL DEFAULT 'unpaid',
+    "paymentStatus" "PaymentStatus" NOT NULL DEFAULT 'unpaid',
     "paymentMethod" TEXT NOT NULL DEFAULT '',
     "appliedDiscountId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -429,7 +489,7 @@ CREATE TABLE "Payment" (
     "amount" DECIMAL(12,2) NOT NULL,
     "refundAmount" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "tipAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "type" TEXT NOT NULL,
+    "type" "PaymentType" NOT NULL,
     "alternatePaymentTypeId" TEXT,
     "cardType" TEXT NOT NULL DEFAULT '',
     "cardLast4" TEXT NOT NULL DEFAULT '',
@@ -499,8 +559,8 @@ CREATE TABLE "Employee" (
     "name" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "phone" TEXT NOT NULL DEFAULT '',
-    "role" TEXT NOT NULL DEFAULT 'staff',
-    "status" TEXT NOT NULL DEFAULT 'active',
+    "role" "EmployeeRole" NOT NULL DEFAULT 'staff',
+    "status" "EmployeeStatus" NOT NULL DEFAULT 'active',
     "hireDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "pin" TEXT NOT NULL DEFAULT '',
     "pinLookup" TEXT,
@@ -554,8 +614,8 @@ CREATE TABLE "TimeEntry" (
     "totalMinutes" INTEGER NOT NULL DEFAULT 0,
     "payRate" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "totalPay" DECIMAL(12,2) NOT NULL DEFAULT 0,
-    "type" TEXT NOT NULL DEFAULT 'regular',
-    "status" TEXT NOT NULL DEFAULT 'active',
+    "type" "TimeEntryType" NOT NULL DEFAULT 'regular',
+    "status" "TimeEntryStatus" NOT NULL DEFAULT 'active',
     "notes" TEXT NOT NULL DEFAULT '',
     "locationId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -809,7 +869,7 @@ CREATE TABLE "Receipt" (
     "zoi" TEXT NOT NULL DEFAULT '',
     "eor" TEXT NOT NULL DEFAULT '',
     "fiscalVerified" BOOLEAN NOT NULL DEFAULT false,
-    "fiscalStatus" TEXT NOT NULL DEFAULT 'none',
+    "fiscalStatus" "FiscalStatus" NOT NULL DEFAULT 'none',
     "verificationDate" TIMESTAMP(3),
     "cisStatus" TEXT NOT NULL DEFAULT 'none',
     "cisZki" TEXT NOT NULL DEFAULT '',
@@ -1027,11 +1087,11 @@ CREATE TABLE "OpeningHours" (
 CREATE TABLE "HaccpEntry" (
     "id" TEXT NOT NULL,
     "date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "category" TEXT NOT NULL,
+    "category" "HaccpCategory" NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL DEFAULT '',
     "value" TEXT NOT NULL DEFAULT '',
-    "status" TEXT NOT NULL DEFAULT 'ok',
+    "status" "HaccpStatus" NOT NULL DEFAULT 'ok',
     "correctiveAction" TEXT NOT NULL DEFAULT '',
     "employeeName" TEXT NOT NULL DEFAULT '',
     "previousHash" TEXT NOT NULL DEFAULT '',
@@ -1099,7 +1159,7 @@ CREATE TABLE "StaffShift" (
     "role" TEXT NOT NULL DEFAULT 'server',
     "jobId" TEXT,
     "notes" TEXT NOT NULL DEFAULT '',
-    "status" TEXT NOT NULL DEFAULT 'scheduled',
+    "status" "StaffShiftStatus" NOT NULL DEFAULT 'scheduled',
     "confirmedAt" TIMESTAMP(3),
     "actualStart" TIMESTAMP(3),
     "actualEnd" TIMESTAMP(3),
@@ -1154,10 +1214,10 @@ CREATE TABLE "Reservation" (
     "partySize" INTEGER NOT NULL,
     "duration" INTEGER NOT NULL DEFAULT 120,
     "tableId" TEXT,
-    "status" TEXT NOT NULL DEFAULT 'confirmed',
+    "status" "ReservationStatus" NOT NULL DEFAULT 'confirmed',
     "notes" TEXT NOT NULL DEFAULT '',
     "specialRequests" TEXT NOT NULL DEFAULT '',
-    "source" TEXT NOT NULL DEFAULT 'walk_in',
+    "source" "ReservationSource" NOT NULL DEFAULT 'walk_in',
     "employeeId" TEXT,
     "confirmedAt" TIMESTAMP(3),
     "reminderSent" BOOLEAN NOT NULL DEFAULT false,
@@ -1257,7 +1317,7 @@ CREATE TABLE "PurchaseOrder" (
     "id" TEXT NOT NULL,
     "poNumber" TEXT NOT NULL,
     "supplierId" TEXT NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'draft',
+    "status" "PurchaseOrderStatus" NOT NULL DEFAULT 'draft',
     "invoiceStatus" TEXT NOT NULL DEFAULT 'none',
     "orderDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "expectedDate" TIMESTAMP(3),
@@ -1293,7 +1353,7 @@ CREATE TABLE "PurchaseOrderItem" (
     "unitPrice" DECIMAL(65,30) NOT NULL DEFAULT 0,
     "vatRate" DECIMAL(65,30) NOT NULL DEFAULT 22.00,
     "totalPrice" DECIMAL(65,30) NOT NULL DEFAULT 0,
-    "status" TEXT NOT NULL DEFAULT 'pending',
+    "status" "PurchaseOrderItemStatus" NOT NULL DEFAULT 'pending',
     "notes" TEXT NOT NULL DEFAULT '',
     "packQty" DECIMAL(12,3),
     "packUnit" TEXT,
@@ -1547,8 +1607,8 @@ CREATE TABLE "Subscription" (
     "phone" TEXT NOT NULL DEFAULT '',
     "taxId" TEXT NOT NULL DEFAULT '',
     "businessId" TEXT NOT NULL DEFAULT '',
-    "plan" TEXT NOT NULL DEFAULT 'starter',
-    "status" TEXT NOT NULL DEFAULT 'trial',
+    "plan" "SubscriptionPlan" NOT NULL DEFAULT 'starter',
+    "status" "SubscriptionStatus" NOT NULL DEFAULT 'trial',
     "monthlyPrice" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "locationCount" INTEGER NOT NULL DEFAULT 1,
     "currency" TEXT NOT NULL DEFAULT 'EUR',
@@ -1813,7 +1873,7 @@ CREATE TABLE "JournalEntry" (
     "referenceType" TEXT NOT NULL DEFAULT '',
     "description" TEXT NOT NULL DEFAULT '',
     "source" TEXT NOT NULL DEFAULT 'manual',
-    "status" TEXT NOT NULL DEFAULT 'posted',
+    "status" "JournalEntryStatus" NOT NULL DEFAULT 'posted',
     "postedAt" TIMESTAMP(3),
     "postedBy" TEXT,
     "postedById" TEXT,
@@ -1829,7 +1889,7 @@ CREATE TABLE "ChartOfAccount" (
     "id" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "name" TEXT NOT NULL,
-    "accountType" TEXT NOT NULL,
+    "accountType" "AccountType" NOT NULL,
     "parentId" TEXT,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "description" TEXT NOT NULL DEFAULT '',
@@ -1847,7 +1907,7 @@ CREATE TABLE "JournalLine" (
     "accountCode" TEXT NOT NULL,
     "chartOfAccountCode" TEXT,
     "accountName" TEXT NOT NULL,
-    "accountType" TEXT NOT NULL,
+    "accountType" "AccountType" NOT NULL,
     "debit" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "credit" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "description" TEXT NOT NULL DEFAULT '',

@@ -253,7 +253,7 @@ beforeAll(async () => {
     data: { id: IDS.oY2, orderNumber: ORDER_BASE + 3, type: 'dine-in', status: 'completed', paymentStatus: 'paid', paidAt: Y2_PAID_AT, locationId: IDS.locA, total: 20, tip: 2 },
   })
   await db.order.create({
-    data: { id: IDS.oYP, orderNumber: ORDER_BASE + 4, type: 'dine-in', status: 'pending', paymentStatus: 'pending', locationId: IDS.locA, total: 999 },
+    data: { id: IDS.oYP, orderNumber: ORDER_BASE + 4, type: 'dine-in', status: 'pending', paymentStatus: 'unpaid', locationId: IDS.locA, total: 999 },
   })
   await db.order.create({
     data: { id: IDS.oY3, orderNumber: ORDER_BASE + 5, type: 'dine-in', status: 'completed', paymentStatus: 'paid', paidAt: Y3_PAID_AT, locationId: IDS.locA, total: 77 },

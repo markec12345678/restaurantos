@@ -152,7 +152,7 @@ export async function recalculatePaymentStatus(
   const totalPaid = sumBy(allPayments, p => p.amount)
   const check = await tx.check.findUnique({ where: { id: checkId } })
 
-  let paymentStatus = 'unpaid'
+  let paymentStatus: import('@prisma/client').PaymentStatus = 'unpaid'
   if (check) {
     if (greaterThanOrEqual(totalPaid, subtract(check.total, 0.01))) {
       paymentStatus = 'paid'

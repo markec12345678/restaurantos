@@ -28,7 +28,8 @@ export async function GET(req: Request) {
     const baseUrl = getAppUrl()
     const tables = await db.table.findMany({
       where: {
-        status: { not: 'out-of-service' },
+        // (odstranjen dead filter not:'out-of-service' — TableStatus nima te
+        // vrednosti v write domeni; R156-b #41 enum integracija)
         ...(scope.locationId ? { locationId: scope.locationId } : {}),
       },
       select: { id: true, number: true, area: true, capacity: true },
