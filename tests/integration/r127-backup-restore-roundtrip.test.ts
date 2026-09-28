@@ -128,6 +128,29 @@ describe('R127 integracija: backup → clean restore → round-trip', () => {
     // ROUND-TRIP DOKAZ: ponoven backup ima ISTI checksum (vsebina byte-točno enaka)
     const b2 = await createBackup()
     expect(b2.counts).toEqual(b1.counts)
+    // R156 DIAG: per-table checksum diff za flake root-cause ( začasno )
+    if (b2.checksum !== b1.checksum) {
+      const { computeChecksum } = await import('@/lib/backup/serialize')
+      for (const t of Object.keys(b1.tables)) {
+        const c1 = computeChecksum(b1.tables[t])
+        const c2 = computeChecksum(b2.tables[t])
+        if (c1 !== c2) {
+          const r1 = (b1.tables[t] as unknown[]).length
+          const r2 = (b2.tables[t] as unknown[]).length
+          console.error(`[R156-DIAG] TABLE DIFF: ${t} rows ${r1}/${r2}`)
+          const a1 = b1.tables[t] as Array<Record<string, unknown>>
+          const a2 = b2.tables[t] as Array<Record<string, unknown>>
+          for (let i = 0; i < Math.max(r1, r2); i++) {
+            if (JSON.stringify(a1[i]) !== JSON.stringify(a2[i])) {
+              console.error(`[R156-DIAG] row ${i}:`)
+              console.error(`  b1=${JSON.stringify(a1[i])?.slice(0, 600)}`)
+              console.error(`  b2=${JSON.stringify(a2[i])?.slice(0, 600)}`)
+              break
+            }
+          }
+        }
+      }
+    }
     expect(b2.checksum).toBe(b1.checksum)
     expect(b2.countsChecksum).toBe(b1.countsChecksum)
 
