@@ -78,7 +78,12 @@ describe('PRODUCT-STATUS.md — zahtevana polja (#144 §12 seznam)', () => {
 
   it('testEvidence ima CI dokazni kanon (file-based proof + verification politika)', () => {
     const te = status?.['testEvidence'] as Record<string, unknown>
-    expect(String(te['ciLastFileBasedProof'])).toContain('fe6c1b32')
+    // R172-b lekcija: NE pinati konkretnega sha — polje opisuje HEAD status
+    // commita in se spreminja z vsakim docs commitom (samoreferenčna past,
+    // ki je podrla Unit na CI). Pinamo STRUKTURO dokaza, ne številko.
+    expect(String(te['ciLastFileBasedProof'])).toContain('CI run ')
+    expect(String(te['ciLastFileBasedProof'])).toContain('Monitor ×2')
+    expect(String(te['ciLastFileBasedProof'])).toContain('attempt=1')
     expect(String(te['ciVerification'])).toContain('deterministično')
     expect(String(te['evidenceSource'])).toContain('PRODUCTION-VALIDATION.md')
   })
