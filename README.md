@@ -429,7 +429,7 @@
 | 🔄 **PWA pametne posodobitve** | Service Worker v11 z SKIP_WAITING protokolom: samodejni reload ko je stran sveža/ozadje, sicer toast "Nova različica" — varno za naročila v teku |
 | 📅 **Rezervacije stil pass** | Statusni časovni chip, leva obroba barve statusa, staggered animacije, aria-pressed filtri statusov |
 | 🧱 **Design jezik R42+** | Skupni vzorci: `card-lift` hover, `animate-fade-in-up` staggered (40 ms, respects prefers-reduced-motion), accent zgornji rob, ikonski čipi, `tabular-nums` na vseh zneskih/števcih |
-| 🧪 **Kakovost** | 5250/5250 unit testov (290 datotek) + 1949 security testov v CI, 0 tsc napak, 0 eslint errorjev |
+| 🧪 **Kakovost** | 5251/5251 unit testov (290 datotek) + 1949 security testov v CI, 0 tsc napak, 0 eslint errorjev |
 
 ### ✨ Nove funkcije v v1.4.0 (QA runde 22–26)
 

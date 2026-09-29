@@ -274,8 +274,8 @@ verzija povezana na package.json z unit testom) + dokumentacijska resnica
 FINAL-SUMMARY.md + PRODUCTION-READINESS-CHECKLIST.md dobita ZGODOVINSKI baner
 (stare "Production READY" ocene iz v1.0.2/v1.0.3 niso več evidence-backed),
 CLIENT-ONBOARDING-GUIDE.md PIN-i označeni DEMO/TEST ONLY, README:508/511
-zastareli test counts (54/1798) prevezani na 1949 security / 5250 unit
-(290 fajlov; skupaj z CI-only security = 7199). Nov test: product-status.test.ts
+zastareli test counts (54/1798) prevezani na 1949 security / 5251 unit
+(290 fajlov; skupaj z CI-only security = 7200, CI-log potrjeno za ta HEAD). Nov test: product-status.test.ts
 (15 pinov: verzija ↔ package.json, §12 polja, notranja konsistenca evidence,
 ZGODOVINSKI banerji, offline-furs odsoten iz ARCHITECTURE, DEMO opozorilo,
 brez 1798). BONUS (epic §19.17): 2 TZ-latentna testna buga popravljena —
