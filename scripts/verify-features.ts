@@ -17,7 +17,7 @@ import {
   isPermission as isPermissionJson,
 } from '@/lib/json-fields'
 import { ORDER_STATUS, isOrderStatus } from '@/lib/enums'
-import { isSupportedLocale } from '@/lib/i18n/i18n-consolidation'
+import { localeNames, localeFlags } from '@/lib/i18n'
 import { validateDatabaseConfig } from '@/lib/db-config-validator'
 import { INDEXEDDB_STORES, INDEXEDDB_STORE_COUNT } from '@/lib/offline-furs'
 
@@ -146,19 +146,19 @@ results.push({
 })
 
 // ════════════════════════════════════════════
-// 6. I18N CONSOLIDATION (Issue #44)
+// 6. I18N — živi custom sistem (mrtev next-intl sloj izbrisan R167, #143)
 // ════════════════════════════════════════════
 results.push({
-  test: 'isSupportedLocale("sl") = true',
-  passed: isSupportedLocale('sl') === true,
+  test: 'localeNames pokriva natanko 5 jezikov (sl/en/it/hr/de)',
+  passed: Object.keys(localeNames).length === 5,
 })
 results.push({
-  test: 'isSupportedLocale("en") = true',
-  passed: isSupportedLocale('en') === true,
+  test: 'localeNames vsebuje sl, en, it, hr, de',
+  passed: 'sl' in localeNames && 'en' in localeNames && 'it' in localeNames && 'hr' in localeNames && 'de' in localeNames,
 })
 results.push({
-  test: 'isSupportedLocale("ar") = false',
-  passed: isSupportedLocale('ar') === false,
+  test: '"ar" NI podprt (Locale union brez ar — R167)',
+  passed: !('ar' in localeNames) && !('ar' in localeFlags),
 })
 
 // ════════════════════════════════════════════

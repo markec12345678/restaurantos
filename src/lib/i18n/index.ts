@@ -48,7 +48,8 @@ const translations: Record<Locale, Record<string, string>> = { sl, en, it, hr, d
 // T()/TFOR() — Glavna funkcija za prevod
 // R154 (#44): tFor je ČISTA funkcija (locale je parameter, brez module-state) —
 // uporablja jo reaktiven hook useI18n (src/hooks/useI18n.ts). t() ostane kot
-// backward-compat delegat (i18n-consolidation legacy veriga + ne-react klicalci).
+// backward-compat delegat za ne-react klicalce (legacy i18n-consolidation
+// veriga izbrisana R167 — mrtev next-intl sloj, issue #143).
 // ============================================
 let currentLocale: Locale = 'sl'
 

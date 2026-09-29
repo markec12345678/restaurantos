@@ -667,7 +667,7 @@ DATABASE_URL="<neon-url>" bun scripts/audit-location.ts
 | **Hosting** | Vercel (Edge + Serverless) |
 | **Monitoring** | Sentry (error + performance + replay) |
 | **PWA** | Service Worker z Background Sync |
-| **i18n** | next-intl (sl, en, it, hr, de) |
+| **i18n** | custom flat dict `src/lib/i18n` (sl, en, it, hr, de) — LanguageSwitcher v sidebarju |
 | **Auth** | NextAuth + bcrypt + HMAC-SHA256 |
 | **Realtime** | WebSocket z auto-reconnect |
 | **Validation** | Zod schemas |

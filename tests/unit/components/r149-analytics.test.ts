@@ -21,7 +21,7 @@
 //      subtract) + analyticsKeys oblika (EN koren ['analytics'])
 //   G) fs-pini: navItems vnos v 'analytics' grupi (permission view_reports,
 //      NI adminOnly), module-registry dynamic path (ssr:false), i18n ×5
-//      (navigation/*.ts kanon R147-c + messages/*.json), query-keys barrel,
+//      (navigation/*.ts kanon R147-c — messages sloj izbrisan R167), query-keys barrel,
 //      brez blue/indigo, brez grid-cols-14
 //
 // Tehnične opombe (r96/r142–r147 kanon):
@@ -667,7 +667,7 @@ describe('Registracija modula (fs-pin, R149-c)', () => {
     expect(dynamicLine).toContain('loadingFallback')
   })
 
-  it('i18n: nav.advancedAnalytics v vseh 5 jezikih (navigation/*.ts kanon + messages/*.json)', () => {
+  it('i18n: nav.advancedAnalytics v vseh 5 jezikih (navigation/*.ts kanon — messages sloj izbrisan R167)', () => {
     const translations: Array<[string, string]> = [
       ['sl', 'Napredna analitika'],
       ['en', 'Advanced analytics'],
@@ -678,8 +678,6 @@ describe('Registracija modula (fs-pin, R149-c)', () => {
     for (const [lang, translation] of translations) {
       const navSrc = readFileSync(join(process.cwd(), 'src', 'lib', 'i18n', 'navigation', `${lang}.ts`), 'utf8')
       expect(navSrc, `nav.advancedAnalytics manjka v navigation/${lang}.ts`).toContain(`'nav.advancedAnalytics': '${translation}'`)
-      const msgSrc = readFileSync(join(process.cwd(), 'messages', `${lang}.json`), 'utf8')
-      expect(msgSrc, `nav.advancedAnalytics manjka v messages/${lang}.json`).toContain(`"nav.advancedAnalytics": "${translation}"`)
     }
   })
 
