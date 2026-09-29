@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { NextResponse } from 'next/server'
 import { eodCloseSchema } from '@/lib/validations'
 import { parseJsonBody, validateBody, handleApiError } from '@/lib/api-utils'
+import { ljubljanaDayBounds, ljubljanaTodayStr } from '@/lib/timezone-sl'
 import { computeEodCloseData, closeShiftTransaction, logEodClose } from './eod-close'
 
 export async function handleEodPost(
@@ -20,9 +21,13 @@ export async function handleEodPost(
 
   const { date, closingCash, notes } = data
 
-  const targetDate = date || new Date().toISOString().split('T')[0]
-  const dayStart = new Date(targetDate + 'T00:00:00.000Z')
-  const dayEnd = new Date(targetDate + 'T23:59:59.999Z')
+  // R158-4 (R159-b): privzeti datum = LJ danes (prej UTC — EOD POST ob
+  // LJ 00:30 brez datuma bi zaprl izmeno s povzetkom PREJŠNJEGA dne);
+  // okno po LJ mejah (konzumenti uporabljajo lte → zadnja ms LJ dneva).
+  const targetDate = date || ljubljanaTodayStr()
+  const ljBounds = ljubljanaDayBounds(targetDate)
+  const dayStart = ljBounds.start
+  const dayEnd = new Date(ljBounds.end.getTime() - 1)
 
   // FIX R84-1 HIGH: pendingOrders count mora biti scoped — prej je štel odprta
   // naročila VSEH lokacij (tuj tenant je lahko blokiral zaključek dneva)

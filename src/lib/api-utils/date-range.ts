@@ -11,7 +11,9 @@
  * wallet-payment in shifts) — QA r35 repro: dashboard 61,65 € vs reports 0,00 €.
  *
  * Za polne ISO datetime stringe (z 'T') se obnaša kot new Date() — ni spremembe.
- * gte strani ostane new Date(startDate) = polnoč UTC (obstoječe vedenje).
+ * R159 (R158-4): finančno-vidne rute (sales/vat/export) so prešle na LJ meje
+ * (ljubljanaDayBounds) — ta helper ostane za employees/popular/shifts/
+ * wallet-payment, ki (za zdaj) še vedno rabcijo UTC okno (P3 backlog).
  */
 export function endOfDayParam(dateStr: string): Date {
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) {

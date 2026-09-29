@@ -119,6 +119,27 @@ describe('P2-UX: ljubljanaDayBounds (Europe/Ljubljana)', () => {
     expect(end.getTime() - start.getTime()).toBe(25 * 3600 * 1000)
   })
 
+  // ── R159 (R158-4): letnica UTC → LJ poslovni dan (year-boundary pin) ──
+  it('LETNICA: bounds 2025-01-01 = [2024-12-31T23:00Z, 2025-01-01T23:00Z) — plačilo 30 min po UTC polnoči je LJ dan 2025-01-01', () => {
+    const { start, end } = ljubljanaDayBounds('2025-01-01')
+    expect(start.toISOString()).toBe('2024-12-31T23:00:00.000Z')
+    expect(end.toISOString()).toBe('2025-01-01T23:00:00.000Z')
+    expect(ljubljanaDateTimeParts('2024-12-31T23:30:00.000Z')).toEqual({ date: '2025-01-01', time: '00:30' })
+    expect(ljubljanaDateTimeParts('2025-01-01T00:30:00.000Z')).toEqual({ date: '2025-01-01', time: '01:30' })
+  })
+
+  // ── R159: DST-konec (2024: preklop 03:00 CEST → 02:00 CET) — 25-h dan ──
+  it('DST-konec: 2024-10-27 je 25 h dan (start 2024-10-26T22:00Z CEST, end 2024-10-27T23:00Z CET); isti LJ dan na obeh straneh preklopa', () => {
+    const { start, end } = ljubljanaDayBounds('2024-10-27')
+    expect(start.toISOString()).toBe('2024-10-26T22:00:00.000Z')
+    expect(end.toISOString()).toBe('2024-10-27T23:00:00.000Z')
+    expect(end.getTime() - start.getTime()).toBe(25 * 3600 * 1000)
+    // 22:30Z 26.10. je še CEST (+2) → LJ 00:30 27.10. (začetek 25-h dneva)
+    expect(ljubljanaDateTimeParts('2024-10-26T22:30:00.000Z')).toEqual({ date: '2024-10-27', time: '00:30' })
+    // 23:30Z 27.10. je že CET (+1) → LJ 00:30 NASLEDNJEGA dne (28.10.)
+    expect(ljubljanaDateTimeParts('2024-10-27T23:30:00.000Z')).toEqual({ date: '2024-10-28', time: '00:30' })
+  })
+
   it('zahteva format YYYY-MM-DD — drugače vrže (varovalka pred tiho napačno mejo)', () => {
     expect(() => ljubljanaDayBounds('15.01.2026')).toThrow()
     expect(() => ljubljanaDayBounds('')).toThrow()

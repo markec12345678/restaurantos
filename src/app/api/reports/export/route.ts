@@ -27,7 +27,8 @@ import { createAuditLog } from '@/lib/db'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { validateReportDateRange } from '@/lib/validations'
-import { endOfDayParam, handleApiError } from '@/lib/api-utils'
+import { handleApiError } from '@/lib/api-utils'
+import { ljubljanaDayBounds } from '@/lib/timezone-sl'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 import {
   generateOrdersCsv, generateItemsCsv, generateVatCsv,
@@ -85,9 +86,12 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Neznan format. Dovoljeni: csv' }, { status: 400 })
     }
 
+    // R158-4 (R159-b): računovodsko izvozno okno po LJ poslovnemu dnevu
+    // (prej UTC polnoč / 23:59:59.999Z). end = ekskluzivna LJ polnoč
+    // naslednjega dne (lt) — konzumenti (generate*Csv) širijo filter v where.
     const dateFilter: Record<string, Date> = {}
-    if (startDate) dateFilter.gte = new Date(startDate)
-    if (endDate) dateFilter.lte = endOfDayParam(endDate) // FIX r35: konec dneva, ne polnoč
+    if (startDate) dateFilter.gte = ljubljanaDayBounds(startDate).start
+    if (endDate) dateFilter.lt = ljubljanaDayBounds(endDate).end
 
     const reportType = type as ReportType
     const filename = getFilename(reportType, startDate, endDate, format)

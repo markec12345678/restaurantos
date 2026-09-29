@@ -130,8 +130,10 @@ export async function fetchReportData(dateFilter: Record<string, Date>, location
       totalOrders: orders.length,
       paymentMethodBreakdown,
     },
+    // R159 (R158-4): route zdaj poda lt (ekskluzivna LJ polnoč) namesto lte —
+    // oznaka konca obdobja za PDF/Excel/XML poti.
     startDate: dateFilter.gte ? dateFilter.gte.toISOString().split('T')[0] : null,
-    endDate: dateFilter.lte ? dateFilter.lte.toISOString().split('T')[0] : null,
+    endDate: (dateFilter.lt ?? dateFilter.lte) ? ((dateFilter.lt ?? dateFilter.lte) as Date).toISOString().split('T')[0] : null,
     generatedAt: new Date().toISOString(),
   }
 }

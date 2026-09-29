@@ -16,6 +16,8 @@ import {
   fetchGuestAnalytics,
 } from './_helpers'
 import { fetchAnalyticsBreakdowns } from './_helpers-analytics'
+import { addDaysToYmd } from './_helpers/ymd'
+import { ljubljanaDayBounds, ljubljanaTodayStr } from '@/lib/timezone-sl'
 
 
 export const dynamic = 'force-dynamic'
@@ -47,12 +49,14 @@ export async function GET(req: Request) {
     if ('error' in scope) return scope.error
     const locationId = scope.locationId
 
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    const sevenDaysAgo = new Date()
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    // R158-4 (R159-b): LJ poslovni dan — prej setHours po strežniškem TZ (na
+    // UTC strežniku = UTC dan; naročila/plačila 00:00–01:59 LJ so padla v
+    // prejšnji dan vs. Z-report/DailyClose LJ kanon = znani razkol
+    // "dashboard vs Z-report"). Helperji dobijo ISTE signature (today,
+    // tomorrow, sevenDaysAgo: Date) — samo vrednosti so zdaj LJ meje.
+    const todayStr = ljubljanaTodayStr()
+    const { start: today, end: tomorrow } = ljubljanaDayBounds(todayStr)
+    const sevenDaysAgo = ljubljanaDayBounds(addDaysToYmd(todayStr, -6)).start
 
     // FIX NAPAKA 5 (HTTP 503): Prej so bili query-ji izvedeni ZAPOREDNO (8x await),
     // kar je lahko trajalo 8-16s in preseglo Vercel Hobby 10s timeout.

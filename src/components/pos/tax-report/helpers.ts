@@ -2,6 +2,7 @@
 
 import { OrderRow, OrderItemRow, ZReportRow } from '@/lib/types'
 import { authFetch } from '@/components/pos/PinLogin'
+import { ljubljanaDayBounds, ljubljanaDateTimeParts, ljubljanaTodayStr } from '@/lib/timezone-sl'
 import type { TaxReportData } from './constants'
 
 // ============================================
@@ -13,16 +14,21 @@ export function getPeriodRange(period: 'month' | 'quarter' | 'year') {
   let periodStart: Date
   const periodEnd = now
 
+  // R158-4 (R159-b): začetek obdobja po LJ poslovnemu dnevu (prej
+  // new Date(y, m, 1) po brskalniškem TZ). Konstruktor `new Date(y, m, ...)`
+  // je pustil `now.getFullYear()/getMonth()` (brskalniški TZ) v navzkrižju z
+  // LJ kanonom — sedaj YMD string → ljubljanaDayBounds (LJ polnoč).
+  const [y, m] = ljubljanaTodayStr(now).split('-').map(Number)
   switch (period) {
     case 'month':
-      periodStart = new Date(now.getFullYear(), now.getMonth(), 1)
+      periodStart = ljubljanaDayBounds(`${y}-${String(m).padStart(2, '0')}-01`).start
       break
     case 'quarter':
-      const quarter = Math.floor(now.getMonth() / 3)
-      periodStart = new Date(now.getFullYear(), quarter * 3, 1)
+      const quarter = Math.floor((m - 1) / 3)
+      periodStart = ljubljanaDayBounds(`${y}-${String(quarter * 3 + 1).padStart(2, '0')}-01`).start
       break
     case 'year':
-      periodStart = new Date(now.getFullYear(), 0, 1)
+      periodStart = ljubljanaDayBounds(`${y}-01-01`).start
       break
   }
 
@@ -86,7 +92,8 @@ export async function loadReportData(period: 'month' | 'quarter' | 'year'): Prom
   // FIX CRITICAL: Dnevni pregled — pravilen DDV izracun po posameznih postnjah (ne 18%!)
   const dailyMap: Record<string, { revenue: number; tax: number; zReport: boolean }> = {}
   completedOrders.forEach((order: OrderRow) => {
-    const date = new Date(order.createdAt || order.completedAt || '').toISOString().split('T')[0]
+    // R158-4 (R159-b): dnevni DDV pregled po LJ poslovnemu dnevu (prej UTC 'T'-split)
+    const date = ljubljanaDateTimeParts(order.createdAt || order.completedAt || '').date
     if (!dailyMap[date]) dailyMap[date] = { revenue: 0, tax: 0, zReport: false }
     dailyMap[date].revenue += order.total || 0
     // Izracunaj DDV iz posameznih artiklov, ne s fiksno stopnjo
@@ -104,7 +111,12 @@ export async function loadReportData(period: 'month' | 'quarter' | 'year'): Prom
 
   // Označi dneve z Z-poročili
   ;(zData || []).forEach((z: ZReportRow) => {
-    const date = new Date(z.createdAt || z.date).toISOString().split('T')[0]
+    // R158-4 (R159-b): Z-join po POSLOVNEM dnevu — ZReport.reportDate (z.date)
+    // je day-start žig ljubljanskega poslovnega dne (kanon briefing/_helpers
+    // header; upsert-z-report.ts). Prej UTC 'T'-split z.createdAt → nočni
+    // zaključki (Z generiran zgodaj naslednji dan) so prikazali "brez Z".
+    // Fallback za trape brez reportDate: LJ datum iz createdAt.
+    const date = z.date || ljubljanaDateTimeParts(z.createdAt || '').date
     if (dailyMap[date]) dailyMap[date].zReport = true
   })
 

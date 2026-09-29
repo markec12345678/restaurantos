@@ -3,6 +3,7 @@
 
 import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
+import { ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 
 // FIX R85-H1: Tenant scope helper — null = super-admin (globalni pogled,
 // NIKOLI { locationId: null } filter).
@@ -48,7 +49,8 @@ export async function fetchAnalyticsBreakdowns(today: Date, tomorrow: Date, loca
       const hourlyMap: Record<number, number> = {}
       for (let h = 0; h < 24; h++) hourlyMap[h] = 0
       for (const o of orders) {
-        const hour = new Date(o.createdAt).getHours()
+        // R158-4 (R159-b): ura po LJ (prej strežniški TZ getHours)
+        const hour = Number(ljubljanaDateTimeParts(new Date(o.createdAt).toISOString()).time.slice(0, 2))
         hourlyMap[hour] += toNum(o._sum.total)
       }
       return Object.entries(hourlyMap).map(([hour, revenue]) => ({

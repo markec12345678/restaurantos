@@ -6,6 +6,7 @@ import { validateReportDateRange } from '@/lib/validations'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError } from '@/lib/api-utils'
+import { ljubljanaTodayStr } from '@/lib/timezone-sl'
 import { calcDateRange, fetchFinancialData } from './_helpers-queries'
 import { computeFinancialMetrics } from './_helpers-compute'
 
@@ -36,7 +37,8 @@ export async function GET(req: Request) {
     if ('error' in scope) return scope.error
 
     const period = searchParams.get('period') || 'daily'
-    const refDateStr = searchParams.get('date') || new Date().toISOString().split('T')[0]
+    // R158-4 (R159-b): privzeti referenčni datum = LJ danes (prej UTC)
+    const refDateStr = searchParams.get('date') || ljubljanaTodayStr()
 
     // FIX HIGH: Validiraj datumski format in omeji obdobje
     const dateError = validateReportDateRange(refDateStr, refDateStr)

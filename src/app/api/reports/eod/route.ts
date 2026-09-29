@@ -11,6 +11,7 @@ import { validateReportDateRange } from '@/lib/validations'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError } from '@/lib/api-utils'
+import { ljubljanaDayBounds, ljubljanaTodayStr } from '@/lib/timezone-sl'
 import { fetchEodData, computeEodMetrics, computeCategoryBreakdown, enrichEmployeeNames } from './_helpers'
 import { handleEodPost, handleEodPostError } from './_helpers/post-handler'
 
@@ -29,14 +30,20 @@ export async function GET(req: Request) {
     if (authResult.error) return authResult.error
 
     const { searchParams } = new URL(req.url)
-    const date = searchParams.get('date') || new Date().toISOString().split('T')[0]
+    // R158-4 (R159-b): privzeti datum = LJ danes (prej UTC)
+    const date = searchParams.get('date') || ljubljanaTodayStr()
 
     // FIX HIGH: Validiraj datumski format
     const dateError = validateReportDateRange(date, date)
     if (dateError) return dateError
 
-    const dayStart = new Date(date + 'T00:00:00.000Z')
-    const dayEnd = new Date(date + 'T23:59:59.999Z')
+    // R158-4 (R159-b): okno po LJ poslovnemu dnevu (prej fiksno UTC okno,
+    // ki je hranilo eod-close gotovinske vsote za napačno izmeno). Konzumenti
+    // (fetchEodData/computeEodCloseData) uporabljajo lte → zadnja milisekunda
+    // LJ dneva (pariteta s starim 23:59:59.999 vključno semantiko).
+    const ljBounds = ljubljanaDayBounds(date)
+    const dayStart = ljBounds.start
+    const dayEnd = new Date(ljBounds.end.getTime() - 1)
 
     // FIX P0-C2: Centralni tenant scope resolver — fail-closed, no ?locationId bypass
     const scope = resolveTenantLocationId(authResult.session, searchParams, {

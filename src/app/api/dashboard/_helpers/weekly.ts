@@ -2,6 +2,8 @@
 
 import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
+import { ljubljanaDayBounds, ljubljanaTodayStr } from '@/lib/timezone-sl'
+import { addDaysToYmd } from './ymd'
 
 // FIX R85-H1: Tenant scope helper — null = super-admin (globalni pogled,
 // NIKOLI { locationId: null } filter).
@@ -17,21 +19,21 @@ export async function computeWeeklyRevenue(sevenDaysAgo: Date, locationId: strin
   })
 
   // Zgradi dailyRevenue iz groupBy rezultatov
+  // R158-4 (R159-b): vedra po LJ poslovnemu dnevu (prej setHours po
+  // strežniškem TZ + UTC oznaka). Signature NE spreminjata — sevenDaysAgo
+  // prihaja iz route kot LJ meja.
   const dailyRevenue: { date: string; revenue: number }[] = []
+  const todayYmd = ljubljanaTodayStr()
   for (let i = 6; i >= 0; i--) {
-    const day = new Date()
-    day.setDate(day.getDate() - i)
-    day.setHours(0, 0, 0, 0)
-    const nextDay = new Date(day)
-    nextDay.setDate(nextDay.getDate() + 1)
-    const dayStr = day.toISOString().split('T')[0]
+    const ymd = addDaysToYmd(todayYmd, -i)
+    const { start: day, end: nextDay } = ljubljanaDayBounds(ymd)
     const dayRevenue = weeklyRevenueByDay
       .filter(g => {
         const d = new Date(g.createdAt)
         return d >= day && d < nextDay
       })
       .reduce((sum, g) => sum + toNum(g._sum.total), 0)
-    dailyRevenue.push({ date: dayStr, revenue: round2(dayRevenue) })
+    dailyRevenue.push({ date: ymd, revenue: round2(dayRevenue) })
   }
 
   return dailyRevenue

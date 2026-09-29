@@ -146,10 +146,12 @@ import { NO_LOCATION_MESSAGE } from '@/lib/tenant-scope'
 const RUN_ID = `r146-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const EMP_ID = `${RUN_ID}-admin`
 
-// ---------- Datumi: ZASEBNO okno (2031, DAY_OFF iz RUN_ID) — vsi datumi v
-// UTC, tako da je obseg [startDate 00:00:00Z, endDate 23:59:59.999Z]
-// neodvisen od TZ peskovnika (route: new Date('yyyy-MM-dd') = UTC polnoč,
-// endOfDayParam = <end>T23:59:59.999Z).
+// ---------- Datumi: ZASEBNO okno (2031, DAY_OFF iz RUN_ID) — vsi datumi
+// daleč od polnoči (06:00–17:00 UTC), tako da so znotraj okna NEODVISNO od
+// TZ peskovnika. R159 (R158-4): route zdaj rabi LJ meje (ljubljanaDayBounds;
+// gte = LJ polnoč = 23:00/22:00Z prejšnjega dne, lt = LJ polnoč naslednjega
+// dne) — okno se je razširilo na robovih, seedi (06:00–17:00Z) ostanejo
+// znotraj.
 const rawOff = parseInt(RUN_ID.slice(-6), 36)
 const DAY_OFF = (Number.isNaN(rawOff) ? 42 : rawOff) % 400
 const DAY_BASE = Date.UTC(2031, 2, 1 + DAY_OFF) // polnoč UTC zasebnega okna

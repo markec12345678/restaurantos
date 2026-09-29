@@ -20,8 +20,9 @@
 //   • brez createAuditLog (read-only GET — vsi report GET-i).
 //
 // ČASOVNI KANON P2-08/R126: "danes"/"včeraj" sekcije rabi ljubljanaDayBounds
-// (LJ poslovni dan). Obstoječi /api/reports/sales rabi UTC meje — briefing
-// tega NAMERNO ne posnema (R126 lekcija: UTC meje prestavijo nočna plačila v
+// (LJ poslovni dan). R159 (R158-4): /api/reports/sales, /api/reports/eod,
+// dashboard, vat in export so prešli na isti LJ kanon — nič več
+// NAMERNO-odstopanja (R126 lekcija: UTC meje prestavijo nočna plačila v
 // napačen poslovni dan). Podrobnosti per-model v _helpers.ts headerju.
 
 import { NextResponse } from 'next/server'

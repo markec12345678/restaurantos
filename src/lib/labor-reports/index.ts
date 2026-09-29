@@ -12,6 +12,7 @@
 
 import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
+import { ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 
 // --- Tipi ---
 export interface ScheduledVsActualEntry {
@@ -145,12 +146,16 @@ export async function getScheduledVsActualReport(
   const entries: ScheduledVsActualEntry[] = []
 
   for (const shift of shifts) {
-    const shiftDate = new Date(shift.shiftDate)
-    const shiftDateStr = shiftDate.toISOString().split('T')[0]
+    // R159 opomba: shiftDateStr ostane UTC-split NAMERNO — StaffShift.shiftDate
+    // se PIŠE kot new Date('YYYY-MM-DD') = UTC polnoč (write-path pariteta,
+    // staff-shifts route:140/156; glej briefing/_helpers.ts header).
+    const shiftDateStr = new Date(shift.shiftDate).toISOString().split('T')[0]
 
     // Najdi time entry za ta employee na ta dan
     const matchingEntry = timeEntries.find((te) => {
-      const teDate = new Date(te.clockIn).toISOString().split('T')[0]
+      // R158-4 (R159-b): join ključ prisotnosti po LJ poslovnemu dnevu
+      // (prej UTC — clockIn 00:00–01:59 LJ je false-negative 'absent')
+      const teDate = ljubljanaDateTimeParts(new Date(te.clockIn).toISOString()).date
       return te.employeeId === shift.employeeId && teDate === shiftDateStr
     })
 
@@ -161,9 +166,10 @@ export async function getScheduledVsActualReport(
     let arrivedLate = false
     let lateMinutes = 0
     if (matchingEntry) {
-      const scheduledStart = parseTimeOnDate(shiftDate, shift.startTime)
-      const actualStart = new Date(matchingEntry.clockIn)
-      const diffMin = (actualStart.getTime() - scheduledStart.getTime()) / 60000
+      // R158-4 (R159-b): late po minutah od LJ polnoči (prej parseTimeOnDate =
+      // strežniški TZ setHours). wallClockDiffMin reši izmene čez LJ polnoč
+      // (vzorec calcShiftHours wrap-a).
+      const diffMin = wallClockDiffMin(timeToMinutes(shift.startTime), minutesFromLjMidnight(matchingEntry.clockIn))
       if (diffMin > 5) {
         // 5 min tolerance
         arrivedLate = true
@@ -175,9 +181,10 @@ export async function getScheduledVsActualReport(
     let leftEarly = false
     let earlyMinutes = 0
     if (matchingEntry?.clockOut) {
-      const scheduledEnd = parseTimeOnDate(shiftDate, shift.endTime)
-      const actualEnd = new Date(matchingEntry.clockOut)
-      const diffMin = (scheduledEnd.getTime() - actualEnd.getTime()) / 60000
+      // R158-4 (R159-b): early po minutah od LJ polnoči — pravilno tudi za
+      // izmene čez polnoč (prej je bil scheduledEnd računan na datum ZAČETKA
+      // izmene, kar je nočnim izmenam prikazoval napačne minute).
+      const diffMin = wallClockDiffMin(minutesFromLjMidnight(matchingEntry.clockOut), timeToMinutes(shift.endTime))
       if (diffMin > 5) {
         leftEarly = true
         earlyMinutes = Math.round(diffMin)
@@ -203,8 +210,9 @@ export async function getScheduledVsActualReport(
       scheduledStart: shift.startTime,
       scheduledEnd: shift.endTime,
       scheduledHours: round2(scheduledHours),
-      actualStart: matchingEntry ? new Date(matchingEntry.clockIn).toTimeString().substring(0, 5) : undefined,
-      actualEnd: matchingEntry?.clockOut ? new Date(matchingEntry.clockOut).toTimeString().substring(0, 5) : undefined,
+      // R158-4 (R159-b): prikaz dejanskih ur po LJ (prej strežniški toTimeString)
+      actualStart: matchingEntry ? ljubljanaDateTimeParts(new Date(matchingEntry.clockIn).toISOString()).time : undefined,
+      actualEnd: matchingEntry?.clockOut ? ljubljanaDateTimeParts(new Date(matchingEntry.clockOut).toISOString()).time : undefined,
       actualHours: round2(actualHours),
       arrivedLate,
       lateMinutes,
@@ -287,7 +295,8 @@ export async function getOvertimeReport(
     // Group by day
     const byDay: Record<string, typeof timeEntries> = {}
     for (const te of data.entries) {
-      const dateKey = new Date(te.clockIn).toISOString().split('T')[0]
+      // R158-4 (R159-b): dnevno grupiranje (overtime >8h/dan) po LJ dnevu
+      const dateKey = ljubljanaDateTimeParts(new Date(te.clockIn).toISOString()).date
       if (!byDay[dateKey]) byDay[dateKey] = []
       byDay[dateKey].push(te)
     }
@@ -384,9 +393,10 @@ export async function getAttendanceReport(
   const entries: AttendanceEntry[] = timeEntries.map((te) => ({
     employeeId: te.employeeId,
     employeeName: te.employee.name,
-    date: new Date(te.clockIn).toISOString().split('T')[0],
-    clockIn: new Date(te.clockIn).toTimeString().substring(0, 5),
-    clockOut: te.clockOut ? new Date(te.clockOut).toTimeString().substring(0, 5) : undefined,
+    // R158-4 (R159-b): datum + prikaz ur po LJ (prej UTC datum + strežniški toTimeString)
+    date: ljubljanaDateTimeParts(new Date(te.clockIn).toISOString()).date,
+    clockIn: ljubljanaDateTimeParts(new Date(te.clockIn).toISOString()).time,
+    clockOut: te.clockOut ? ljubljanaDateTimeParts(new Date(te.clockOut).toISOString()).time : undefined,
     totalMinutes: te.totalMinutes,
     totalHours: round2(te.totalMinutes / 60),
     breakMinutes: te.breakMinutes,
@@ -433,11 +443,24 @@ function calcShiftHours(startTime: string, endTime: string): number {
   return hours
 }
 
-function parseTimeOnDate(date: Date, time: string): Date {
-  const [h, m] = time.split(':').map(Number)
-  const result = new Date(date)
-  result.setHours(h, m, 0, 0)
-  return result
+// R158-4 (R159-b): minute od LJ polnoči namesto parseTimeOnDate (strežniški TZ)
+function timeToMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number)
+  return h * 60 + m
+}
+
+function minutesFromLjMidnight(clockAt: Date | string): number {
+  const time = ljubljanaDateTimeParts(new Date(clockAt).toISOString()).time
+  return Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5))
+}
+
+/** Najbližja podpisana razlika dejansko − načrtovano v minutah stene ure
+ *  (kandidata ±24 h — izmene čez LJ polnoč; vzorec calcShiftHours wrap-a). */
+function wallClockDiffMin(scheduledMin: number, actualMin: number): number {
+  let diff = actualMin - scheduledMin
+  if (diff > 12 * 60) diff -= 24 * 60
+  else if (diff < -12 * 60) diff += 24 * 60
+  return diff
 }
 
 // --- Export constants ---

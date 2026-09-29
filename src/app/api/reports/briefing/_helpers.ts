@@ -9,9 +9,10 @@
 // ČASOVNI KANON (P2-08 / R126 lekcija — obvezni LJ poslovni dan):
 //   • Order.paidAt / WasteRecord.createdAt / InventoryBatch.expiryDate /
 //     Reservation.dateTime so VREMENSKI žigi → LJ meje (ljubljanaDayBounds).
-//     Obstoječi /reports/sales in /reports/eod rabita UTC meje — briefing ju
-//     NAMERNO ne posnema (R126: UTC meje prestavijo nočna plačila v napačen
-//     poslovni dan; digest-trend/daily-close kanon je LJ day-start).
+//     R159 (R158-4): /reports/sales in /reports/eod sta prešla na LJ meje —
+//     briefing ni več edini na LJ kanonu (R126: UTC meje prestavijo nočna
+//     plačila v napačen poslovni dan; digest-trend/daily-close kanon je LJ
+//     day-start).
 //   • StaffShift.shiftDate je "samo-datum" stolpec, ki se PIŠE kot
 //     new Date('YYYY-MM-DD') (UTC polnoč — staff-shifts route:140), zato je
 //     okno po shiftDate UTC-polnočno (write-path pariteta; buildShiftsWhere

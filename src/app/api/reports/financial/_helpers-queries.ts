@@ -2,6 +2,14 @@
 // GET /api/reports/financial — pomožni modul za poizvedbe
 
 import { db } from '@/lib/db'
+import { ljubljanaDayBounds, ljubljanaDateTimeParts } from '@/lib/timezone-sl'
+
+// R158-4 (R159-b): 'YYYY-MM-DD' + n dni (čisti koledarski add/sub po vzorcu
+// briefing/_helpers addDaysToYmd — DST-varno, brez start-24h).
+function addDaysToYmd(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10)
+}
 
 // ─── Tipi ───
 export interface DateRange {
@@ -13,7 +21,20 @@ export interface DateRange {
 }
 
 // ─── Izračunaj obdobje glede na tip ───
+// R158-4 (R159-b): vsa obdobja po LJ poslovnemu dnevu (P2-08 kanon) — prej
+// setHours po strežniškem TZ. refDate prihaja kot new Date('YYYY-MM-DD')
+// (UTC polnoč) — LJ datum izpeljemo prek ljubljanaDateTimeParts; meje so LJ
+// polnoči, konzumenti (fetchFinancialData) uporabljajo lte → konec obdobja =
+// zadnja milisekunda LJ končnega dne (pariteta s starim 23:59:59.999).
+// prev okna = čisti koledarski odštevek po YMD (DST-varno, brez setDate-24h).
 export function calcDateRange(refDate: Date, period: string): DateRange {
+  const ymd = ljubljanaDateTimeParts(refDate.toISOString()).date
+  const [y, m, d] = ymd.split('-').map(Number)
+  const pad = (n: number): string => String(n).padStart(2, '0')
+
+  const dayStart = (day: string): Date => ljubljanaDayBounds(day).start
+  const dayEndIncl = (day: string): Date => new Date(ljubljanaDayBounds(day).end.getTime() - 1)
+
   let startDate: Date
   let endDate: Date
   let prevStartDate: Date
@@ -22,44 +43,51 @@ export function calcDateRange(refDate: Date, period: string): DateRange {
 
   switch (period) {
     case 'daily': {
-      startDate = new Date(refDate); startDate.setHours(0, 0, 0, 0)
-      endDate = new Date(refDate); endDate.setHours(23, 59, 59, 999)
-      prevStartDate = new Date(refDate); prevStartDate.setDate(prevStartDate.getDate() - 1); prevStartDate.setHours(0, 0, 0, 0)
-      prevEndDate = new Date(refDate); prevEndDate.setDate(prevEndDate.getDate() - 1); prevEndDate.setHours(23, 59, 59, 999)
-      periodLabel = startDate.toLocaleDateString('sl-SI', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      startDate = dayStart(ymd)
+      endDate = dayEndIncl(ymd)
+      const prevYmd = addDaysToYmd(ymd, -1)
+      prevStartDate = dayStart(prevYmd)
+      prevEndDate = dayEndIncl(prevYmd)
+      periodLabel = startDate.toLocaleDateString('sl-SI', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Ljubljana' })
       break
     }
     case 'weekly': {
-      const dayOfWeek = refDate.getDay() || 7 // Ponedeljek = 1
-      startDate = new Date(refDate); startDate.setDate(refDate.getDate() - dayOfWeek + 1); startDate.setHours(0, 0, 0, 0)
-      endDate = new Date(startDate); endDate.setDate(startDate.getDate() + 6); endDate.setHours(23, 59, 59, 999)
-      prevStartDate = new Date(startDate); prevStartDate.setDate(prevStartDate.getDate() - 7)
-      prevEndDate = new Date(endDate); prevEndDate.setDate(prevEndDate.getDate() - 7)
-      periodLabel = `${startDate.toLocaleDateString('sl-SI', { day: '2-digit', month: '2-digit' })} - ${endDate.toLocaleDateString('sl-SI', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+      const mondayOffset = (new Date(Date.UTC(y, m - 1, d)).getUTCDay() + 6) % 7 // Pon=0
+      const mondayYmd = addDaysToYmd(ymd, -mondayOffset)
+      const sundayYmd = addDaysToYmd(mondayYmd, 6)
+      startDate = dayStart(mondayYmd)
+      endDate = dayEndIncl(sundayYmd)
+      prevStartDate = dayStart(addDaysToYmd(mondayYmd, -7))
+      prevEndDate = dayEndIncl(addDaysToYmd(mondayYmd, -1))
+      periodLabel = `${startDate.toLocaleDateString('sl-SI', { day: '2-digit', month: '2-digit', timeZone: 'Europe/Ljubljana' })} - ${endDate.toLocaleDateString('sl-SI', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Europe/Ljubljana' })}`
       break
     }
     case 'monthly': {
-      startDate = new Date(refDate.getFullYear(), refDate.getMonth(), 1)
-      endDate = new Date(refDate.getFullYear(), refDate.getMonth() + 1, 0, 23, 59, 59, 999)
-      prevStartDate = new Date(refDate.getFullYear(), refDate.getMonth() - 1, 1)
-      prevEndDate = new Date(refDate.getFullYear(), refDate.getMonth(), 0, 23, 59, 59, 999)
-      periodLabel = startDate.toLocaleDateString('sl-SI', { month: 'long', year: 'numeric' })
+      const lastDay = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10) // zadnji dan meseca
+      startDate = dayStart(`${y}-${pad(m)}-01`)
+      endDate = dayEndIncl(lastDay)
+      const prevFirst = new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 10)
+      const prevLast = new Date(Date.UTC(y, m - 1, 0)).toISOString().slice(0, 10)
+      prevStartDate = dayStart(prevFirst)
+      prevEndDate = dayEndIncl(prevLast)
+      periodLabel = startDate.toLocaleDateString('sl-SI', { month: 'long', year: 'numeric', timeZone: 'Europe/Ljubljana' })
       break
     }
     case 'yearly': {
-      startDate = new Date(refDate.getFullYear(), 0, 1)
-      endDate = new Date(refDate.getFullYear(), 11, 31, 23, 59, 59, 999)
-      prevStartDate = new Date(refDate.getFullYear() - 1, 0, 1)
-      prevEndDate = new Date(refDate.getFullYear() - 1, 11, 31, 23, 59, 59, 999)
-      periodLabel = String(refDate.getFullYear())
+      startDate = dayStart(`${y}-01-01`)
+      endDate = dayEndIncl(`${y}-12-31`)
+      prevStartDate = dayStart(`${y - 1}-01-01`)
+      prevEndDate = dayEndIncl(`${y - 1}-12-31`)
+      periodLabel = String(y)
       break
     }
     default: {
-      startDate = new Date(refDate); startDate.setHours(0, 0, 0, 0)
-      endDate = new Date(refDate); endDate.setHours(23, 59, 59, 999)
-      prevStartDate = new Date(refDate); prevStartDate.setDate(prevStartDate.getDate() - 1); prevStartDate.setHours(0, 0, 0, 0)
-      prevEndDate = new Date(refDate); prevEndDate.setDate(prevEndDate.getDate() - 1); prevEndDate.setHours(23, 59, 59, 999)
-      periodLabel = startDate.toLocaleDateString('sl-SI')
+      startDate = dayStart(ymd)
+      endDate = dayEndIncl(ymd)
+      const prevYmd = addDaysToYmd(ymd, -1)
+      prevStartDate = dayStart(prevYmd)
+      prevEndDate = dayEndIncl(prevYmd)
+      periodLabel = startDate.toLocaleDateString('sl-SI', { timeZone: 'Europe/Ljubljana' })
     }
   }
   return { startDate, endDate, prevStartDate, prevEndDate, periodLabel }

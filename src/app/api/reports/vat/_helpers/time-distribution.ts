@@ -1,6 +1,7 @@
 // Časovna razdelitev po DDV stopnjah
 
 import { toNum, round2 } from '@/lib/decimal'
+import { ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 import type { TimeVatEntry } from './types'
 
 // ─── Izračunaj časovno razdelitev po DDV stopnjah ───
@@ -36,7 +37,8 @@ export function computeTimeVatDistribution(
     } else if (period === 'monthly') {
       periodKey = String(d.getDate())
     } else {
-      periodKey = d.toISOString().split('T')[0]
+      // R158-4 (R159-b): periodKey (letno) po LJ poslovnemu dnevu (prej UTC)
+      periodKey = ljubljanaDateTimeParts(d.toISOString()).date
     }
 
     if (!timeVatDistribution[periodKey]) {

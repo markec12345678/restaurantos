@@ -7,7 +7,8 @@ import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middlewa
 import { validateReportDateRange } from '@/lib/validations'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
-import { endOfDayParam, handleApiError } from '@/lib/api-utils'
+import { handleApiError } from '@/lib/api-utils'
+import { ljubljanaDayBounds, ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 
 
 export const dynamic = 'force-dynamic'
@@ -50,8 +51,12 @@ export async function GET(req: Request) {
     // Naročila, ki so bila plačana v tem obdobju (ne ustvarjena!)
     if (startDate || endDate) {
       const paidAt: Record<string, Date> = {}
-      if (startDate) paidAt.gte = new Date(startDate)
-      if (endDate) paidAt.lte = endOfDayParam(endDate) // FIX r35: konec dneva, ne polnoč
+      // R158-4 (R159-b): meje po LJ poslovnemu dnevu (P2-08 kanon) — prej
+      // UTC polnoč / 23:59:59.999Z (plačila 00:00–01:59 LJ so izgina iz
+      // enodnevnega okna ali padla v prejšnji UTC dan). end = ekskluzivna
+      // LJ polnoč naslednjega dne (lt).
+      if (startDate) paidAt.gte = ljubljanaDayBounds(startDate).start
+      if (endDate) paidAt.lt = ljubljanaDayBounds(endDate).end
       where.paidAt = paidAt
     }
 
@@ -75,7 +80,8 @@ export async function GET(req: Request) {
 
     const dailyRevenue: Record<string, { date: string; revenue: number; orders: number }> = {}
     orders.forEach(order => {
-      const dateKey = new Date(order.paidAt || order.createdAt).toISOString().split('T')[0]
+      // R158-4 (R159-b): dnevni bucket po LJ poslovnemu dnevu (prej UTC 'T'-split)
+      const dateKey = ljubljanaDateTimeParts(new Date(order.paidAt || order.createdAt).toISOString()).date
       if (!dailyRevenue[dateKey]) {
         dailyRevenue[dateKey] = { date: dateKey, revenue: 0, orders: 0 }
       }

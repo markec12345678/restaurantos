@@ -12,6 +12,7 @@ import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
+import { ljubljanaDayBounds, ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 import { getRestaurantInfoForLocation } from '@/lib/furs/config-resolver'
 
 export const dynamic = 'force-dynamic'
@@ -42,8 +43,11 @@ export async function GET(req: Request) {
     if ('error' in scope) return scope.error
     const scopedLocationId = scope.locationId
 
-    const startDate = new Date(dateFrom)
-    const endDate = new Date(dateTo + 'T23:59:59')
+    // R158-4 (R159-b): okno po LJ poslovnemu dnevu — prej new Date(dateFrom)
+    // (UTC polnoč) + 'T23:59:59' BREZ Z (parse po strežniškem TZ —
+    // inkonzistenten par mej istega okna). end = ekskluzivna LJ polnoč.
+    const startDate = ljubljanaDayBounds(dateFrom).start
+    const endDate = ljubljanaDayBounds(dateTo).end
 
     // FIX Test 4.3: Filter by order.paidAt (not receipt.createdAt) for reconciliation with VAT report
     // Prej: createdAt filter je povzročal mismatch z VAT report (ki uporablja paidAt)
@@ -73,7 +77,7 @@ export async function GET(req: Request) {
     // Filter by order.paidAt (fall back to receipt.createdAt if paidAt is null)
     const receipts = allReceipts.filter(r => {
       const dateToCheck = r.order?.paidAt || r.createdAt
-      return dateToCheck >= startDate && dateToCheck <= endDate
+      return dateToCheck >= startDate && dateToCheck < endDate
     })
 
     // Pridobi storno račune (isti scope kot izdani — R76: prej je super-admin override
@@ -93,7 +97,7 @@ export async function GET(req: Request) {
 
     const stornos = allStornos.filter(r => {
       const dateToCheck = r.order?.paidAt || r.createdAt
-      return dateToCheck >= startDate && dateToCheck <= endDate
+      return dateToCheck >= startDate && dateToCheck < endDate
     })
 
     // FIX P0-C3A: Pridobi poslovne podatke iz Location (vezano na resolved scope)
@@ -106,7 +110,9 @@ export async function GET(req: Request) {
     const issuedInvoices = receipts.map(r => ({
       zaporednaStevilka: r.receiptNumber,
       stevilkaRacuna: r.receiptNumber.toString().padStart(6, '0'),
-      datumIzdaje: new Date(r.createdAt).toISOString().split('T')[0],
+      // R158-4 (R159-b): ZAKONSKI datum izdaje po LJ (prej UTC 'T'-split —
+      // nočni računi 00:00–01:59 LJ so imeli datum izdaje prejšnji dan)
+      datumIzdaje: ljubljanaDateTimeParts(new Date(r.createdAt).toISOString()).date,
       // FIX P0-C3A: uporabi snapshot iz receipta (zapisan ob kreaciji) ali Location info
       davcnaStevilkaIzdajatelja: r.taxId || info.taxId || '',
       nazivIzdajatelja: r.businessName || info.name || '',
@@ -133,7 +139,9 @@ export async function GET(req: Request) {
     const stornoInvoices = stornos.map(r => ({
       zaporednaStevilka: r.receiptNumber,
       stevilkaRacuna: r.receiptNumber.toString().padStart(6, '0'),
-      datumIzdaje: new Date(r.createdAt).toISOString().split('T')[0],
+      // R158-4 (R159-b): ZAKONSKI datum izdaje po LJ (prej UTC 'T'-split —
+      // nočni računi 00:00–01:59 LJ so imeli datum izdaje prejšnji dan)
+      datumIzdaje: ljubljanaDateTimeParts(new Date(r.createdAt).toISOString()).date,
       davcnaStevilkaIzdajatelja: r.taxId || info.taxId || '',
       nazivIzdajatelja: r.businessName || info.name || '',
       zoi: r.zoi,

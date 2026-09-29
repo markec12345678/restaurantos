@@ -13,7 +13,8 @@ import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middlewa
 import { validateReportDateRange } from '@/lib/validations'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
-import { endOfDayParam, handleApiError } from '@/lib/api-utils'
+import { handleApiError } from '@/lib/api-utils'
+import { ljubljanaDayBounds } from '@/lib/timezone-sl'
 import { computeVatBreakdown, computeTimeVatDistribution } from './_helpers'
 
 
@@ -59,8 +60,11 @@ export async function GET(req: Request) {
     }
     if (startDate || endDate) {
       const paidAt: Record<string, Date> = {}
-      if (startDate) paidAt.gte = new Date(startDate)
-      if (endDate) paidAt.lte = endOfDayParam(endDate) // FIX r35: konec dneva, ne polnoč
+      // R158-4 (R159-b): meje po LJ poslovnemu dnevu (prej UTC — DDV napoved
+      // je izgubila plačila 00:00–01:59 LJ iz enodnevnega okna). end =
+      // ekskluzivna LJ polnoč naslednjega dne (lt).
+      if (startDate) paidAt.gte = ljubljanaDayBounds(startDate).start
+      if (endDate) paidAt.lt = ljubljanaDayBounds(endDate).end
       // FIX CRITICAL: Uporabi paidAt za finančno/DDV poročilo namesto createdAt
       where.paidAt = paidAt
     }

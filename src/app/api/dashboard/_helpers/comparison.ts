@@ -2,6 +2,8 @@
 
 import { db } from '@/lib/db'
 import { toNum, round2 } from '@/lib/decimal'
+import { ljubljanaDayBounds, ljubljanaDateTimeParts } from '@/lib/timezone-sl'
+import { addDaysToYmd } from './ymd'
 import type { WowComparisonResult } from './types'
 
 // FIX R85-H1: Tenant scope helper — null = super-admin (globalni pogled,
@@ -11,12 +13,15 @@ const locationWhere = (locationId: string | null) => (locationId ? { locationId 
 // ─── WoW primerjava ─────────────────────────────────────────
 
 export async function computeWowComparison(today: Date, locationId: string | null = null): Promise<WowComparisonResult> {
-  const thisWeekStart = new Date(today)
-  thisWeekStart.setDate(today.getDate() - today.getDay() + 1) // Ponedeljek
-  thisWeekStart.setHours(0, 0, 0, 0)
-  const lastWeekStart = new Date(thisWeekStart)
-  lastWeekStart.setDate(lastWeekStart.getDate() - 7)
-  const lastWeekEnd = new Date(thisWeekStart)
+  // R158-4 (R159-b): ponedeljek tedna po LJ poslovnemu dnevu — prej
+  // setDate/setHours po strežniškem TZ. today prihaja iz route kot LJ polnoč.
+  const todayYmd = ljubljanaDateTimeParts(today.toISOString()).date
+  const [ty, tm, td] = todayYmd.split('-').map(Number)
+  const mondayOffset = (new Date(Date.UTC(ty, tm - 1, td)).getUTCDay() + 6) % 7 // Pon=0
+  const mondayYmd = addDaysToYmd(todayYmd, -mondayOffset)
+  const thisWeekStart = ljubljanaDayBounds(mondayYmd).start
+  const lastWeekStart = ljubljanaDayBounds(addDaysToYmd(mondayYmd, -7)).start
+  const lastWeekEnd = thisWeekStart
 
   const [thisWeekAgg, lastWeekAgg, thisWeekDailyRaw, lastWeekDailyRaw] = await Promise.all([
     db.order.aggregate({
@@ -61,24 +66,21 @@ export async function computeWowComparison(today: Date, locationId: string | nul
   // Zgravi daily array iz groupBy
   const thisWeekDaily: { date: string; revenue: number; orders: number }[] = []
   const lastWeekDaily: { date: string; revenue: number; orders: number }[] = []
+  // R158-4 (R159-b): vedra + oznake po LJ dnevih (YMD stringi, LJ bounds)
   for (let i = 0; i < 7; i++) {
-    const dayStart = new Date(thisWeekStart)
-    dayStart.setDate(dayStart.getDate() + i)
-    const dayEnd = new Date(dayStart)
-    dayEnd.setDate(dayEnd.getDate() + 1)
+    const thisYmd = addDaysToYmd(mondayYmd, i)
+    const { start: dayStart, end: dayEnd } = ljubljanaDayBounds(thisYmd)
 
     const thisDayRev = thisWeekDailyRaw.filter(g => new Date(g.createdAt) >= dayStart && new Date(g.createdAt) < dayEnd).reduce((s, g) => s + toNum(g._sum.total), 0)
     const thisDayCount = thisWeekDailyRaw.filter(g => new Date(g.createdAt) >= dayStart && new Date(g.createdAt) < dayEnd).reduce((s, g) => s + g._count, 0)
-    thisWeekDaily.push({ date: dayStart.toISOString().split('T')[0], revenue: round2(thisDayRev), orders: thisDayCount })
+    thisWeekDaily.push({ date: thisYmd, revenue: round2(thisDayRev), orders: thisDayCount })
 
-    const lastDayStart = new Date(lastWeekStart)
-    lastDayStart.setDate(lastDayStart.getDate() + i)
-    const lastDayEnd = new Date(lastDayStart)
-    lastDayEnd.setDate(lastDayEnd.getDate() + 1)
+    const lastYmd = addDaysToYmd(mondayYmd, i - 7)
+    const { start: lastDayStart, end: lastDayEnd } = ljubljanaDayBounds(lastYmd)
 
     const lastDayRev = lastWeekDailyRaw.filter(g => new Date(g.createdAt) >= lastDayStart && new Date(g.createdAt) < lastDayEnd).reduce((s, g) => s + toNum(g._sum.total), 0)
     const lastDayCount = lastWeekDailyRaw.filter(g => new Date(g.createdAt) >= lastDayStart && new Date(g.createdAt) < lastDayEnd).reduce((s, g) => s + g._count, 0)
-    lastWeekDaily.push({ date: lastDayStart.toISOString().split('T')[0], revenue: round2(lastDayRev), orders: lastDayCount })
+    lastWeekDaily.push({ date: lastYmd, revenue: round2(lastDayRev), orders: lastDayCount })
   }
 
   return {
@@ -105,9 +107,11 @@ export async function computeHeatmapData(locationId: string | null = null): Prom
   for (let d = 0; d < 7; d++) {
     for (let h = 6; h <= 23; h++) {
       const matching = heatmapRaw.filter(g => {
-        const date = new Date(g.createdAt)
-        const dayOfWeek = (date.getDay() + 6) % 7 // Pon=0, Ned=6
-        return dayOfWeek === d && date.getHours() === h
+        // R158-4 (R159-b): day×hour po LJ delih (prej strežniški TZ)
+        const parts = ljubljanaDateTimeParts(new Date(g.createdAt).toISOString())
+        const [gy, gm, gd] = parts.date.split('-').map(Number)
+        const dayOfWeek = (new Date(Date.UTC(gy, gm - 1, gd)).getUTCDay() + 6) % 7 // Pon=0, Ned=6
+        return dayOfWeek === d && Number(parts.time.slice(0, 2)) === h
       })
       const rev = matching.reduce((s, g) => s + toNum(g._sum.total), 0)
       const count = matching.reduce((s, g) => s + g._count, 0)
