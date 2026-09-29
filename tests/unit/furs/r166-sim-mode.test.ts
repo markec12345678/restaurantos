@@ -181,8 +181,10 @@ describe('R166 T3: POST /api/furs core — sim 400 + X-Fiscal-Warning + eor prop
       expect(body.success).toBe(false)
       expect(body.isSimulation).toBe(true)
       expect(body.fiscalStatus).toBe('pending')
-      // F5: sim EOR je zdaj VIDEN v odgovoru (prej stalno '')
-      expect(body.eor).toMatch(/^[0-9a-f-]{36}$/i)
+      // F5 (končno): sim EOR je result-internen — response.eor ostane ''
+      // (cross-layer kontrakt E2E core-flow :288/:310: response.eor === DB.eor;
+      // propagacija poskusena in VRNJENA v R166 na E2E dokaz)
+      expect(body.eor).toBe('')
       // R111: CAS claim updateMany (1×) — pending reset pri FURS-failu NI tu,
       // ampak v handleFailedVerification (db.receipt.update + FURS_VERIFY_FAILED
       // audit, post-verify.ts:88-99); release-vaja updateMany je samo za

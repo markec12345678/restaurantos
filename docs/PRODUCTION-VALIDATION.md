@@ -173,7 +173,7 @@ blocked po zasnovi) · **1 removed/replaced**: QR (→ /api/public/menu).
 | R166-F2 | P2 | src/lib/env.ts mrtev sloj — superRefine "FURS_ALLOW_SIMULATION v produkciji" se nikoli ne izvede (0 importov v src/ in tests/) | **DOCUMENT (R166)** — fajl-header opomba (NI se zanašati na ta sloj); živi guardi: server.js:17-33 + boot-guard.ts (health detailed); priklop prek instrumentation = ločena odločitev |
 | R166-F3 | P3 | health checkFurs bere FURS_ENVIRONMENT, koda/dokumentacija konfigurirata FURS_ENV → furs check skozi dokumentirano konfiguracijo vedno not_configured | **FIXAN (R166)** — tolerantno `FURS_ENV ?? FURS_ENVIRONMENT` + detail tekst; r96 regresija zelena (pina statusa, ne tekst) |
 | R166-F4 | P3 | Storno sim asimetrija: FURS_ALLOW_SIMULATION=true → storno IZVEDEN, stornoReceipt fiscalVerified=true (namerna "Test 5.3" izjema) — nepinana | **PINAN (R166)** — T4/T5 v r166-sim-mode (z flagom: izveden + success=true; brez: 400 + FURS_STORNO_FAILED + zero transakcije); obnašanje nespremenjeno |
-| R166-F5 | P3 | Sim EOR generiran a zavrnjen (failResponse eor:'', DB nikoli ne vidi vrednosti) + mrtva "(SIMULACIJA)" success veja | **FIXAN (R166)** — eor propagiran v 400 odgovor (UI debug; DB ostane EOR-prazen — ni overitev); mrtva veja dokumentirana komentarjem (obrambna) |
+| R166-F5 | P3 | Sim EOR generiran a zavrnjen (failResponse eor:'', DB nikoli ne vidi vrednosti) + mrtva "(SIMULACIJA)" success veja | **RAZREŠEN (R166, 2. iteracija)** — propagacija eor-ja v odgovor je bila implementirana in **VRNJENA**: E2E kontrakt core-flow.spec.ts :288/:310 pina response.eor === DB/preview.eor ("V simulaciji EOR ostane prazen"); končno stanje = dokumentiran kontrakt (core.ts komentar) + sim EOR ostane result-internen; mrtva veja dokumentirana (obrambna) |
 | R166-F6 | P3 | generateFursVerificationUrl hardkodira prod validator URL (tudi za test okolje), 0 klicalcev | DEFER — mrtvi helper; pri morebitnem brisanju/priklopu odločiti o URL strategiji |
 | R166-F7 | P3 | sw.js FURS Background Sync POST brez Authorization headerja → 401/403 (sync funkcionalno mrtev) + hipotetično pobere celoten queue brez per-receipt preverjanja | DEFER — skladno z "FURS receipt sync PARTIAL" (§7 S12, mehanika sedaj imenovana); SW auth = ločen obseg |
 | R166-F8 | P3 | FURS cert gesla se pišejo PLAINTEXT (ensureEncrypted 0 klicalcev; .env.example trditev o AES-256-GCM ne drži za FURS polja) | DEFER — pred sim→real: šifriranje write-path (locations POST/PUT) ALI popravek .env.example trditve |
@@ -214,8 +214,10 @@ GET stats-only → registrirani cron 0 2 verjetno ne procesira; issue #140, [ANA
 mest ohranjena); dashboard stats kontrakt ostaja nespremenjen (issue #140 zaprt).
 **Dodatek (R166)**: FURS sim-mode validacija poglobitev (forenzični audit R166-a, 9
 findings). FIX: R166-F1 (batch ZOI ključ union + ensureDecrypted), R166-F3 (health
-FURS_ENV tolerantno), R166-F5 (sim EOR propagacija); PIN: R166-F4 (storno sim
-asimetrija); DOCUMENT: R166-F2 (env.ts mrtev sloj), R166-F9a/c; DEFER: R166-F6/F7/F8.
+FURS_ENV tolerantno); R166-F5 RAZREŠEN v 2. iteraciji (propagacija VRNJENA na
+E2E kontrakt dokaz core-flow :310 — dokumentacija namesto spremembe); PIN:
+R166-F4 (storno sim asimetrija); DOCUMENT: R166-F2 (env.ts mrtev sloj),
+R166-F9a/c; DEFER: R166-F6/F7/F8.
 NOVI testi: r166-sim-mode (5), r166-batch-key (3), r166-timezone-dst (5). Anti-overclaim
 ostaja: FURS je koda-complete + sim-mode strukturno validiran, **NOT PHYSICALLY
 VALIDATED** z realnim FURS okoljem (mTLS/JWS/EOR — §7 točka 7).

@@ -112,10 +112,13 @@ export async function verifyInvoice(req: Request): Promise<Response> {
         const failResponse = NextResponse.json({
           success: false,
           zoi,
-          // R166 (F5): sim veja generira determinističen EOR (verify-invoice :140) —
-          // prej je bil tiho zavrnjen (odgovor/DB nikoli nista videla vrednosti);
-          // propagacija je uporabna za UI debug, DB ostane EOR-prazna (ni overitev).
-          eor: result.eor || '',
+          // R166 (F5): eor ostane '' — cross-layer kontrakt (E2E core-flow.spec.ts
+          // :288/:310, komentar "V simulaciji EOR ostane prazen") pina
+          // response.eor === DB/preview.eor; sim EOR (verify-invoice :140) je
+          // result-internen. Propagacija v odgovor je bila poskusena in VRNJENA
+          // v R166 (E2E fail na :310 = dokaz kontrakta). DB ostane EOR-prazna
+          // (ni overitve — ZDDV-1).
+          eor: '',
           fiscalVerified: false,
           fiscalStatus: 'pending',
           isSimulation: result.isSimulation,
