@@ -27,21 +27,21 @@ Metodologija:
 
 ---
 
-## 2. CI / repository evidence (HEAD `8cf5f100` — osveženo R169)
+## 2. CI / repository evidence (HEAD `bb7d422f` — osveženo R171)
 
 | Dokaz | Vrednost |
 | --- | --- |
-| CI run | `36621751827` — **success**, 7/7 jobov (Security Audit, Lint & Typecheck, Build (production), Migration Test (schema drift), Integration Tests (real DB), Unit Tests (1300+), E2E Security Tests (30)) |
-| E2E run | `36621752006` — **success** (Playwright: 226 passed / 4 skipped) |
-| CI Monitor | 2× success (`36622720543`, `36622261140`) |
+| CI run | `36630369663` — **success**, 7/7 jobov (Security Audit, Lint & Typecheck, Build (production), Migration Test (schema drift), Integration Tests (real DB), Unit Tests (1300+), E2E Security Tests (30)) |
+| E2E run | `36630369953` — **success** (Playwright: 226 passed / 4 skipped) |
+| CI Monitor | 2× success (`36630945530`, `36631234786`) |
 | run_attempt | 1 povsod — NI re-runov, NI rerun-failed-jobs mehanike (playwright `retries: CI ? 2 : 0`) |
-| Unit (CI log) | 289 fajlov / **5226** testov + 100 fajlov / **1949** (tests/unit/security) = **7175, 0 skipped** |
+| Unit (CI log) | 289 fajlov / **5231** testov + 100 fajlov / **1949** (tests/unit/security) = **7180, 0 skipped** |
 | Integration (CI log) | 23 fajlov / **235** testov, 0 skipped |
 | E2E Security | **88 passed** |
-| Lokalna reprodukcija | vitest run 5226/5226 (289 fajlov), exit 0 — CI count natančen (R168-final ×2 + R169 gates) |
+| Lokalna reprodukcija | vitest run 5231/5231 (289 fajlov), exit 0 — CI count natančen (R170-final ×2 + R171 gates) |
 | Production Build | job zelen — edini buildability dokaz (sandbox ne zna graditi) |
 
-Skipped/todo sweep (re-verificirano R169): 15 zadetkov `.skip/.todo/.only` — VSE v
+Skipped/todo sweep (re-verificirano R171): 15 zadetkov `.skip/.todo/.only` — VSE v
 tests/e2e/ (3 permanentni critical-path + 12 pogojnih data-guard: device-tab 1,
 furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT.
 
