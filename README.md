@@ -696,7 +696,6 @@ src/
 │   ├── gift-card-tx-category.ts # Kategorizacija transakcij darilnih kartic
 │   ├── split-math.ts      # Delitev računa (enoten vir UI + executor)
 │   ├── offline-orders/    # IndexedDB queue
-│   ├── offline-furs/      # FURS offline queue
 │   ├── accounting/        # Journal entries, Trial Balance
 │   └── websocket-client/  # WebSocket z auto-reconnect
 └── prisma/

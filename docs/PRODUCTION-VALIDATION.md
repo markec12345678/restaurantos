@@ -144,9 +144,11 @@ guard gte, obe seriji EXHAUSTED). Trap DB pina DEJANSKE produkcije WHERE-pogoje
 - **Offline (S12)**: orders/cancel **OFFLINE-SAFE** (IndexedDB + ledger exactly-once +
   r128 IT + živi E2E); payment **OFFLINE-BLOCKED** (client guard + 422 — po zasnovi);
   DailyClose **OFFLINE-BLOCKED** de facto (zdaj tudi dokumentirano tu); FURS receipt
-  sync **PARTIAL** (mehanika imenovana R166-F7: sw.js POST brez Authorization
-  headerja → 401/403 — sync ne teče; batch auth/platformAdminGate kontrakt je
-  fail-closed po zasnovi).
+  sync — SW Background Sync veja **ODSTRANJENA (R170, R166-F7)**: veriga je bila
+  mrtva na 3 neodvisnih členih (tag se ni nikoli registriral, IndexedDB queue se
+  ni nikoli napolnila, POST bi bil 401 — requireAuth Bearer-only); pravi FURS
+  retry = server-side outbox (processors/furs.ts, retry + dead_letter); batch
+  auth/platformAdminGate kontrakt ostaja fail-closed po zasnovi.
 - **Backup/restore (S13)**: **PHYSICALLY VALIDATED** v sandboxu (živi 6-fazni drill,
   RTO 22 s; r127 round-trip IT teče v CI) — omejitev: PGlite ≠ Neon.
 
@@ -175,7 +177,7 @@ blocked po zasnovi) · **1 removed/replaced**: QR (→ /api/public/menu).
 | R166-F4 | P3 | Storno sim asimetrija: FURS_ALLOW_SIMULATION=true → storno IZVEDEN, stornoReceipt fiscalVerified=true (namerna "Test 5.3" izjema) — nepinana | **PINAN (R166)** — T4/T5 v r166-sim-mode (z flagom: izveden + success=true; brez: 400 + FURS_STORNO_FAILED + zero transakcije); obnašanje nespremenjeno |
 | R166-F5 | P3 | Sim EOR generiran a zavrnjen (failResponse eor:'', DB nikoli ne vidi vrednosti) + mrtva "(SIMULACIJA)" success veja | **RAZREŠEN (R166, 2. iteracija)** — propagacija eor-ja v odgovor je bila implementirana in **VRNJENA**: E2E kontrakt core-flow.spec.ts :288/:310 pina response.eor === DB/preview.eor ("V simulaciji EOR ostane prazen"); končno stanje = dokumentiran kontrakt (core.ts komentar) + sim EOR ostane result-internen; mrtva veja dokumentirana (obrambna) |
 | R166-F6 | P3 | generateFursVerificationUrl hardkodira prod validator URL (tudi za test okolje), 0 klicalcev | DEFER — mrtvi helper; pri morebitnem brisanju/priklopu odločiti o URL strategiji |
-| R166-F7 | P3 | sw.js FURS Background Sync POST brez Authorization headerja → 401/403 (sync funkcionalno mrtev) + hipotetično pobere celoten queue brez per-receipt preverjanja | DEFER — skladno z "FURS receipt sync PARTIAL" (§7 S12, mehanika sedaj imenovana); SW auth = ločen obseg |
+| R166-F7 | P3 | sw.js FURS Background Sync POST brez Authorization headerja → 401/403 (sync funkcionalno mrtev) + hipotetično pobere celoten queue brez per-receipt preverjanja | **REŠEN (R170, CLEANUP)**: veriga mrtva na 3 neodvisnih členih — sw.js furs-receipt-sync veja + syncFursReceipts + 3 helperji (~100 v), registerFursBackgroundSync + celoten offline-furs modul (233 v) izbrisani; INDEXEDDB_STORES prenesen v offline-orders (zdaj 1 store); FIX (Bearer v SW) bi bil gradnja novega feature-a, ne popravilo buga |
 | R166-F8 | P3 | FURS cert gesla se pišejo PLAINTEXT (ensureEncrypted 0 klicalcev; .env.example trditev o AES-256-GCM ne drži za FURS polja) | DEFER — pred sim→real: šifriranje write-path (locations POST/PUT) ALI popravek .env.example trditve |
 | R166-F9 | P3 | Drobnarije: (a) .env.example FURS_ALLOW_SIMULATION komentar obrnjena formulacija, (c) zoi.ts hint "FURS_ENVIRONMENT=test" ne-obstoječa varjanta; (b) route.ts:92-94 URL duplikat, (d) checklist:31 brez cross-ref na README:532 | **FIXANI (R166): a + c; DEFER: b + d** |
 
@@ -247,3 +249,18 @@ Aktivacija v produkciji zahteva ENCRYPTION_KEY v Vercel envs (uporabniški korak
 izven sandboxa; fail-closed brez njega). Novi pini: r168-furs-password-encryption
 (11 testov: write round-trip, mask-keep, idempotencija, read decrypt, legacy
 passthrough, source pini). Anti-overclaim: FURS ostaja NOT PHYSICALLY VALIDATED.
+**Dodatek (R169)**: docs §2 CI evidence refresh na HEAD 8cf5f100 (unit 7175 =
+5226+1949, IT 235, run IDs iz R168, vsi attempt=1, file-based preverjeno).
+**Dodatek (R170)**: R166-F7 REŠEN kot CLEANUP — FURS SW Background Sync veriga
+izbrisana (odločitev FIX vs CLEANUP: forenzika je pokazala mrtvo verigo na 3
+neodvisnih členih — registerFursBackgroundSync 0 klicalcev → tag se nikoli
+registrira; enqueueReceipt 0 klicalcev → queue se nikoli ne napolni; requireAuth
+je Bearer-only → sw.js POST bi bil 401 kljub napačnemu "cookie auth" komentarju).
+Izbrisano: sw.js furs-receipt-sync veja + syncFursReceipts + openFursQueueDB +
+getFursPendingReceipts + removeFursReceipt (~100 v), offline-furs modul (233 v,
+edini živi izvoz = INDEXEDDB_STORES konstante → prenesen v offline-orders,
+store count 2 → 1), README:699 directory vnos. Živi mehanizmi nedotaknjeni:
+orders/cancel Background Sync (sync-pending-orders/offline-order-sync), FURS
+server-side retry = outbox processors/furs.ts. Re-target: verify-features
+(INDEXEDDB pina) + indexeddb-stores.test (4 pini → 1 store + 5 novih R170
+source pinov). ZDDV-1 48h obveza ostaja pokrita na strežniški strani.

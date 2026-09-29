@@ -276,7 +276,6 @@ story.append(CODE('''restaurantos/
 │   │   ├── auth-middleware/   # PIN auth, session, permissions
 │   │   ├── furs/              # FURS API, ZOI, EOR, certifikati
 │   │   ├── offline-orders/    # IndexedDB queue za naročila
-│   │   ├── offline-furs/      # FURS offline queue
 │   │   ├── accounting/        # Journal entries, Trial Balance
 │   │   ├── websocket-client/  # WebSocket z auto-reconnect
 │   │   ├── payment-gateways/  # Stripe, SumUp integracije

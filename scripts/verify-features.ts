@@ -19,7 +19,7 @@ import {
 import { ORDER_STATUS, isOrderStatus } from '@/lib/enums'
 import { localeNames, localeFlags } from '@/lib/i18n'
 import { validateDatabaseConfig } from '@/lib/db-config-validator'
-import { INDEXEDDB_STORES, INDEXEDDB_STORE_COUNT } from '@/lib/offline-furs'
+import { INDEXEDDB_STORES, INDEXEDDB_STORE_COUNT } from '@/lib/offline-orders'
 
 // Setup test environment
 ;(process.env as Record<string, string>).WEBAUTHN_ENABLED = 'true'
@@ -195,13 +195,17 @@ results.push({
 // 8. INDEXEDDB STORES (Issue #42)
 // ════════════════════════════════════════════
 results.push({
-  test: 'INDEXEDDB_STORE_COUNT = 2 (ne 22)',
-  passed: INDEXEDDB_STORE_COUNT === 2,
+  test: 'INDEXEDDB_STORE_COUNT = 1 (2→1 po R170; ne 22)',
+  passed: INDEXEDDB_STORE_COUNT === 1,
   evidence: `count=${INDEXEDDB_STORE_COUNT}`,
 })
 results.push({
-  test: 'INDEXEDDB_STORES = ["pendingOrders","pendingReceipts"]',
-  passed: JSON.stringify([...INDEXEDDB_STORES]) === '["pendingOrders","pendingReceipts"]',
+  test: 'INDEXEDDB_STORES = ["pendingOrders"] (FURS store izbrisan R170, R166-F7)',
+  passed: JSON.stringify([...INDEXEDDB_STORES]) === '["pendingOrders"]',
+})
+results.push({
+  test: 'INDEXEDDB_STORE_COUNT = 1',
+  passed: INDEXEDDB_STORE_COUNT === 1,
 })
 
 // ════════════════════════════════════════════

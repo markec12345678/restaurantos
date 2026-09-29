@@ -23,9 +23,9 @@
 // 'pending', cleanup ni čistil 'processing'). Sedaj isProcessableStatus
 // obravnava zastareli PROCESSING (5 min) kot ponovno obdelavo.
 //
-// INDEXEDDB STORES v isti bazi:
-//   1. pendingOrders   — naročila ko ni povezave (ta modul)
-//   2. pendingReceipts — FURS računi ko ni povezave (offline-furs)
+// INDEXEDDB STORES: točno 1 trgovina — pendingOrders (ta modul).
+// ('pendingReceipts' FURS vrsta + modul offline-furs izbrisana R170 —
+// R166-F7 mrtva veriga; FURS retry = server-side outbox processors/furs.ts.)
 //
 // R128 (epic #115 P0-5): ISTA store vnaprej sprejme TUDI 'order.cancel'
 // operacije (preklici sinhroniziranih naročil) — nova OPCIJSKA polja
@@ -34,6 +34,13 @@
 // indeksov). Batch pošiljanje cancel op-ov: cancel-ops.ts (POST
 // /api/device-sync); startSyncPolling zdaj sinhronizira OBE vrste.
 // ============================================
+
+// ISSUE #42: dokumentacija o dejanskem številu IndexedDB trgovin.
+// R170 (R166-F7): Aplikacija ima TOČNO 1 IndexedDB trgovino — pendingOrders
+// (ta modul; pred R170 še 'pendingReceipts' FURS vrsta v offline-furs — izbrisana
+// kot mrtva veriga). Stara verzija README je trdila "22 trgovin" — napačno.
+export const INDEXEDDB_STORES = ['pendingOrders'] as const
+export const INDEXEDDB_STORE_COUNT = INDEXEDDB_STORES.length // = 1 (od R170; prej 2)
 
 import {
   normalizeStatus,

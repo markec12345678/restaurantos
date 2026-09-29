@@ -5,7 +5,7 @@
 // FIX MEDIUM: Cache version auto-incremented — change version when deploying
 // ============================================
 
-const CACHE_VERSION = 'v10' // RUNDA 45: bump — message handler + smart update flow
+const CACHE_VERSION = 'v11' // RUNDA 170 (R166-F7): bump — FURS Background Sync veriga izbrisana (mrtva: 0 registracij, 0 enqueue, 401 Bearer-only)
 const CACHE_NAME = `restos-pos-${CACHE_VERSION}`
 const STATIC_CACHE = `restos-static-${CACHE_VERSION}`
 const API_CACHE = `restos-api-${CACHE_VERSION}`
@@ -330,10 +330,12 @@ self.addEventListener('sync', (event) => {
     event.waitUntil(syncPendingOrders())
   }
 
-  // FIX F4-3b: Background Sync za offline FURS receipt queue (48h ZDDV-1)
-  if (event.tag === 'furs-receipt-sync') {
-    event.waitUntil(syncFursReceipts())
-  }
+  // R170 (R166-F7): furs-receipt-sync Background Sync veja IZBRISANA — mrtva
+  // veriga: registerFursBackgroundSync() ni imela klicalcev (tag se nikoli
+  // registrira), IndexedDB FURS queue ni imela enqueue klicalcev (nikoli ne
+  // nastane), sam POST pa bi vseeno končal 401 (requireAuth je Bearer-only —
+  // "cookie auth" komentar je bil napačen). Pravi FURS retry mehanizem =
+  // server-side outbox (src/lib/outbox/processors/furs.ts, retry + dead_letter).
 
   if (event.tag === 'sync-cache-refresh') {
     event.waitUntil(refreshApiCache())
@@ -678,93 +680,12 @@ self.addEventListener('notificationclick', (event) => {
   )
 })
 
-// ============================================
-// F4-3b: FURS RECEIPT SYNC — Avtomatski retry nepotrjenih računov
-// Slovenski zakon (ZDDV-1) zahteva davčno potrjevanje v 48h.
-// Ta funkcija se sproži ob vzpostavitvi povezave (Background Sync).
-// ============================================
-
-async function syncFursReceipts() {
-  try {
-    // Odpri FURS queue IndexedDB
-    const db = await openFursQueueDB()
-    if (!db) return
-
-    const pendingReceipts = await getFursPendingReceipts(db)
-    if (pendingReceipts.length === 0) return
-
-    console.log(`[SW FURS] Syncing ${pendingReceipts.length} pending receipts`)
-
-    // Pridobi auth token iz clients
-    const clients = await self.clients.matchAll({ includeUncontrolled: true })
-    let authToken = null
-    for (const client of clients) {
-      try {
-        const msg = await client.postMessage({ type: 'GET_AUTH_TOKEN' })
-        // Client ne more neposredno vrniti — uporabimo localStorage broadcast
-      } catch {}
-    }
-
-    // Alternativa: pošlji batch direktno na /api/furs/batch (admin endpoint)
-    // SW ne more brati localStorage, zato kličemo batch endpoint ki sam najde neoverjene
-    const response = await fetch('/api/furs/batch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include', // pošlji cookie za avtentikacijo
-    })
-
-    if (response.ok) {
-      const result = await response.json()
-      console.log(`[SW FURS] Batch sync complete: ${result.successful || 0} successful, ${result.failed || 0} failed`)
-
-      // Počisti uspešno poslane račune iz lokalne queue
-      for (const receipt of pendingReceipts) {
-        await removeFursReceipt(db, receipt.id)
-      }
-    } else {
-      console.error('[SW FURS] Batch sync failed:', response.status)
-    }
-  } catch (error) {
-    console.error('[SW FURS] Sync error:', error)
-  }
-}
-
-function openFursQueueDB() {
-  return new Promise((resolve) => {
-    try {
-      const request = indexedDB.open('restaurantos-furs-queue', 1)
-      request.onsuccess = () => resolve(request.result)
-      request.onerror = () => resolve(null)
-    } catch {
-      resolve(null)
-    }
-  })
-}
-
-function getFursPendingReceipts(db) {
-  return new Promise((resolve) => {
-    try {
-      const tx = db.transaction('pendingReceipts', 'readonly')
-      const store = tx.objectStore('pendingReceipts')
-      const index = store.index('status')
-      const request = index.getAll('pending')
-      request.onsuccess = () => resolve(request.result || [])
-      request.onerror = () => resolve([])
-    } catch {
-      resolve([])
-    }
-  })
-}
-
-function removeFursReceipt(db, id) {
-  return new Promise((resolve) => {
-    try {
-      const tx = db.transaction('pendingReceipts', 'readwrite')
-      tx.objectStore('pendingReceipts').delete(id)
-      tx.oncomplete = () => resolve(true)
-      tx.onerror = () => resolve(false)
-    } catch {
-      resolve(false)
-    }
-  })
-}
+// R170 (R166-F7, #143 sled): FURS RECEIPT SYNC sekcija izbrisana — syncFursReceipts
+// + IndexedDB helperji (openFursQueueDB, getFursPendingReceipts, removeFursReceipt).
+// Veriga je bila mrtva na 3 neodvisnih členih: tag 'furs-receipt-sync' se ni nikoli
+// registriral (registerFursBackgroundSync brez klicalcev), queue se ni nikoli
+// napolnil (enqueueReceipt brez klicalcev), POST /api/furs/batch pa zahteva
+// Authorization: Bearer (requireAuth Bearer-only — credentials:'include' cookie
+// komentar je bil napačen) → 401 ob vsakem hipotetičnem zagonu. ZDDV-1 48h retry
+// je pokrit na strežniški strani: outbox processors/furs.ts (verifyInvoiceWithFURS,
+// retry + dead_letter). Offline FURS queue bi bilo NOVO product feature, ne fix.

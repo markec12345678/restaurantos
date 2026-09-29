@@ -252,8 +252,8 @@ for tc in test_case('FURS-07', 'FURS verify invoice - test okolje', 'P0-Kritičn
 
 for tc in test_case('FURS-08', 'FURS offline mode (brez interneta)', 'P0-Visoko',
     'Admin prijavljen; FURS cert aktiven; aplikacija deluje',
-    '1. Onemogoči internet (DevTools → Network → Offline)\n2. Ustvari naročilo\n3. Poskusi FURS verify\n4. Povravi internet\n5. Preveri offline-furs queue',
-    'FURS zahtevek shranjen v offline-furs queue; prikaže se toast "FURS bo potrjen ko bo povezava"; po povrnitvi povezave se zahtevek samodejno pošlje; EOR prejet z zamikom'):
+    '1. Onemogoči internet (DevTools → Network → Offline)\n2. Ustvari naročilo\n3. Poskusi FURS verify\n4. Povravi internet\n5. Ponovi FURS verify',
+    'FURS verify offline NE gre v client vrsto (client IndexedDB FURS queue izbrisana R170, R166-F7 — bila mrtva veriga); zahtevek faila z jasno napako; po povrnitvi povezave uporabnik ponovi; strežniški retry = outbox processors/furs.ts (48h ZDDV-1)'):
     story.append(tc)
 
 for tc in test_case('FURS-09', 'FURS storno račun', 'P0-Visoko',

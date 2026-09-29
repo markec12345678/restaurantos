@@ -771,10 +771,10 @@ story.append(P('PWA (Progressive Web App) omogoča natakarjem uporabo Restaurant
 story.append(H2('4.1 Obstoječi moduli (production-ready)'))
 story.append(TBL([
     ['Modul', 'Datoteka', 'Status', 'Opis'],
-    ['Service Worker', 'public/sw.js', 'Production', '681 vrstic, v9, cache strategije'],
+    ['Service Worker', 'public/sw.js', 'Production', 'Cache strategije + orders Background Sync (FURS sync veja izbrisana R170)'],
     ['Manifest', 'public/manifest.json', 'Production', '8 ikon, standalone display'],
     ['Offline Orders', 'src/lib/offline-orders/index.ts', 'Production', 'IndexedDB queue'],
-    ['Offline FURS', 'src/lib/offline-furs/index.ts', 'Production', 'FURS queue z 48h dovoljenim zamikom'],
+    ['FURS retry (outbox)', 'src/lib/outbox/processors/furs.ts', 'Production', 'Strežniški 48h ZDDV-1 retry; client FURS queue izbrisana R170'],
     ['Background Sync', 'public/sw.js', 'Production', 'Auto sinhronizacija'],
     ['Offline fallback', 'public/offline.html', 'Production', 'Cache fallback stran'],
 ], [105, 200, 60, CONTENT_W-365]))
