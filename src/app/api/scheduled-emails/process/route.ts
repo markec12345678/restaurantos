@@ -1,15 +1,21 @@
 // ============================================
 // POST /api/scheduled-emails/process — Obdelaj čakajoča email poročila
 // ============================================
-// Ta API se pokliče iz cron job-a (DNEVNO ob 02:00 UTC).
 // Preveri ScheduledEmailLog z status='pending' in jih pošlje.
 //
+// R164 (R163-S1): Vercel Cron GET pot je preusmerjena na ločen cron path
+// /api/cron/scheduled-emails-process (GET === POST delegacija sem, vzorec
+// /api/cron/outbox) — vercel.json vnos 0 2 kaže na wrapper, ker je GET TE
+// rute read-only statistika za admin dashboard (R85-4c platformAdminGate +
+// R160 LJ poslovni dan) brez CRON_SECRET poti. POST ostane za ročne klice
+// (CRON_SECRET Bearer ALI platform-admin seja).
+//
 // Za cron: v Linux dodaj crontab:
-//   0 2 * * * curl -X POST https://tvoj-domena.com/api/scheduled-emails/process \
+//   0 2 * * * curl -X POST https://tvoj-domena.com/api/cron/scheduled-emails-process \
 //     -H "Authorization: Bearer $CRON_SECRET"
 //
-// Za Vercel: uporabi Vercel Cron Jobs (vercel.json — avtoritativni vir urnikov):
-//   { "crons": [{ "path": "/api/scheduled-emails/process", "schedule": "0 2 * * *" }] }
+// Vercel Cron (vercel.json — avtoritativni vir urnikov, R164):
+//   { "crons": [{ "path": "/api/cron/scheduled-emails-process", "schedule": "0 2 * * *" }] }
 // ============================================
 
 import { NextResponse } from 'next/server'

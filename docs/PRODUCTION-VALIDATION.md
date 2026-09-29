@@ -166,7 +166,7 @@ blocked po zasnovi) · **1 removed/replaced**: QR (→ /api/public/menu).
 | R158-4 | P2 | 7 finančno-vidnih UTC-bucket mest (e-invoice-book datumIzdaja, tax-report, reports/sales, dashboard, labor, financial/eod privzeti) | **FIXAN (R159-b)** — 10 mest (7 + vat route/time-distribution/export re-sweep) na LJ kanon; year-boundary + trap-DB testi; **P3 ostanki FIXANI (R160-b)** — 17 mest (7 P3 + N1–N8 re-sweep, vključno tihi izpad mesečnih naročil v financial grafu + eDavki XML Period); DEFER seznam dokumentiran |
 | R158-5 | P3 | DailyClose `totalRefunds` snapshot vedno 0 → export "Povračila" napačen | **FIXAN (R161)** — refund agregat v calculateReportStats (tx klient = R110 ZR-2, LJ meje, kanon izmene); 9 testov r161-totalrefunds.test.ts |
 | R158-6 | P3 | Ni namenskega "sočasni zadnji 2 enoti" testa | **FIXAN (R161)** — r161-last2-units.test.ts (V1a/V1b/V2, DB-pogojni guard pini) |
-| R163-S1 | P2 | scheduled-emails/process: registrirani Vercel cron (0 2) pošilja GET, GET pa je stats-only z requireAuth(admin)+platformAdminGate brez CRON_SECRET poti → cron dobi 401, email processing prek Vercel Crona verjetno NE teče | ODPRT [ANALIZA] — koda potrjena (route :188-231; nasprotje: outbox GET===POST :18-20); prevzem GET-a ni 1-vrstičen (R85-4c + R160 pina stats kontrakt); opcije v issue #140 — uporabniška odločitev (R164) |
+| R163-S1 | P2 | scheduled-emails/process: registrirani Vercel cron (0 2) pošilja GET, GET pa je stats-only z requireAuth(admin)+platformAdminGate brez CRON_SECRET poti → cron dobi 401, email processing prek Vercel Crona verjetno NE teče | **FIXAN (R164)** — opcija 1 iz issue #140: ločen cron path `/api/cron/scheduled-emails-process` z GET===POST delegacijo na POST obdelavo (vzorec outbox :18-20); vercel.json vnos 0 2 PREUSMERJEN (ostane 2/2 Hobby cron mest); stats kontrakt GET /api/scheduled-emails/process nespremenjen (R85-4c + R160 pini nedotaknjeni); pini r164 unit: vercel.json registracija + maxDuration, 401 fail-closed, cron GET 200 + obdelava, lokacijski admin 403, GET===POST pariteta |
 
 ---
 
@@ -198,3 +198,6 @@ formalno zaprt v R162; parked scope je dokumentiran v zaključnem komentarju epi
 (schedule 0 4 * * *, plan-neodvisno; vercel.json vnos zavrnjen zaradi dokazanega
 Hobby limita 2 crona @ 398c24fb). NOV finding R163-S1 (scheduled-emails/process
 GET stats-only → registrirani cron 0 2 verjetno ne procesira; issue #140, [ANALIZA]).
+**Dodatek (R164)**: R163-S1 FIXAN — ločen cron path `/api/cron/scheduled-emails-process`
+(GET===POST delegacija po outbox vzorcu), vercel.json vnos 0 2 preusmerjen (2/2 Hobby
+mest ohranjena); dashboard stats kontrakt ostaja nespremenjen (issue #140 zaprt).
