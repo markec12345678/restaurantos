@@ -15,6 +15,7 @@ import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { z } from 'zod'
 import { handleApiError, validateRequest } from '@/lib/api-utils'
 import { maskLocationSecrets } from '@/lib/secret-masks'
+import { ensureEncrypted } from '@/lib/crypto/secrets'
 
 // ============================================
 // GET /api/locations — Seznam lokacij
@@ -173,9 +174,15 @@ export async function POST(req: Request) {
       subscriptionId = own?.subscriptionId ?? null
     }
 
+    // R168 (R166-F8, issue #143 P2): geslo skozi ensureEncrypted — encryption
+    // at-rest (AES-256-GCM, secrets.ts). Idempotent (že-encryptana vrednost
+    // ostane), prazen string ostane ''. Bralna stran (config-resolver,
+    // build-config, batch, cert-status) bere skozi ensureDecrypted — oba
+    // formata (plaintext legacy + enc:v1) sta berljiva.
     const location = await db.location.create({
       data: {
         ...data,
+        fursCertPassword: ensureEncrypted(data.fursCertPassword),
         subscriptionId,
       },
     })

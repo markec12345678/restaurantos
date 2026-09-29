@@ -234,5 +234,16 @@ ostanki izrecno utemeljeni (modifiersJson dual-write drop odložen, AuditLog.det
 hash veriga, WebhookDelivery.payload HMAC, apiKeys backfill TODO, allergens CSV
 neodločena). DEFER: Sidebar IA tiering (75 modulov potrjeno, data-driven, 0 mrtvih —
 produktna odločitev), R166-F7 sw.js auth, 165/371 neuporabljenih ključev živega i18n,
-C4-a/b. NASLEDNJA RUNDA: R166-F8 FURS gesla šifriranje (write-path + cert-status +
-build-config bralca + backfill; issue #143 P2).
+C4-a/b.
+**Dodatek (R168)**: R166-F8 FIXAN — FURS gesla šifriranje at-rest (issue #143 P2).
+Write-path: locations POST/PUT skozi ensureEncrypted (AES-256-GCM, secrets.ts;
+idempotent, mask-keep vzorec ostane). Read-path: cert-status + build-config skozi
+ensureDecrypted (bralni kanon config-resolver/batch/validate-and-submit; legacy
+plaintext vrstice ostanejo berljive). Backfill: scripts/migrate-encrypt-secrets.ts
+(obstajal je nedokumentiran, R168 wire-an kot `bun run db:encrypt-secrets` —
+idempotenten, isEncrypted skip; pokriva 6 skrivnosti: Location.fursCertPassword,
+RestaurantSettings furs/SMTP, Webhook.secret, Integration apiKey/apiSecret).
+Aktivacija v produkciji zahteva ENCRYPTION_KEY v Vercel envs (uporabniški korak,
+izven sandboxa; fail-closed brez njega). Novi pini: r168-furs-password-encryption
+(11 testov: write round-trip, mask-keep, idempotencija, read decrypt, legacy
+passthrough, source pini). Anti-overclaim: FURS ostaja NOT PHYSICALLY VALIDATED.

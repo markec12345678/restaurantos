@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { handleApiError } from '@/lib/api-utils'
+import { ensureDecrypted } from '@/lib/crypto/secrets'
 // odstranjen prazen import (runda 12 lint cleanup)
 import fs from 'fs'
 import path from 'path'
@@ -58,7 +59,9 @@ export async function GET(req: Request) {
       })
       if (location) {
         if (location.fursCertPath) certPath = location.fursCertPath
-        if (location.fursCertPassword) certPassword = location.fursCertPassword
+        // R168 (R166-F8, issue #143 P2): geslo skozi ensureDecrypted —
+        // write-path encrypta (locations POST/PUT); idempotent za legacy plaintext.
+        if (location.fursCertPassword) certPassword = ensureDecrypted(location.fursCertPassword)
         if (location.fursEnvironment) environment = location.fursEnvironment
       }
     }

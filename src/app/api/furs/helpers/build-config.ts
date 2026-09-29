@@ -18,6 +18,7 @@
 import { db } from '@/lib/db'
 import type { FursConfig } from '@/lib/furs'
 import { logger } from '@/lib/logger'
+import { ensureDecrypted } from '@/lib/crypto/secrets'
 
 /**
  * Zgradi FURS konfiguracijo za določeno lokacijo.
@@ -81,7 +82,9 @@ export async function buildFursConfigFromSettings(
       // Location je EDINI vir FURS cert polj (R125, issue #37)
       if (location.premisesId) premisesId = location.premisesId
       if (location.fursCertPath) fursCertPath = location.fursCertPath
-      if (location.fursCertPassword) fursCertPassword = location.fursCertPassword
+      // R168 (R166-F8, issue #143 P2): geslo skozi ensureDecrypted — isti
+      // bralni kanon kot config-resolver/batch/validate-and-submit.
+      if (location.fursCertPassword) fursCertPassword = ensureDecrypted(location.fursCertPassword)
       if (location.fursEnvironment) fursEnvironment = location.fursEnvironment
       // FIX P0-C3A: tudi businessId/taxId/registerNumber se razlikujejo med lokacijami
       if (location.businessId) businessId = location.businessId

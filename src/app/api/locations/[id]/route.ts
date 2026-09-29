@@ -13,6 +13,7 @@ import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { updateLocationSchema } from './_helpers'
 import { maskLocationSecrets } from '@/lib/secret-masks'
+import { ensureEncrypted } from '@/lib/crypto/secrets'
 import { isWithinScope, notInScopeResponse, resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 
 // FIX R80 (tenant scope): lokacija JE tenant root (runda 76 /locations/sync vzorec).
@@ -171,6 +172,13 @@ export async function PUT(
       updateData.fursCertPath = '' // eksplicitno počiščenje
     } else if (updateData.fursCertPath === '') {
       delete updateData.fursCertPath // ohrani staro, če ni ekspliciten _clear
+    }
+    // R168 (R166-F8, issue #143 P2): NOVO geslo skozi ensureEncrypted —
+    // encryption at-rest (AES-256-GCM). Mask-keep vrednosti ('****'/'••••••'/''
+    // brez _clear) so že odstranjene zgoraj — tu pride samo realen nov plaintext
+    // (ali že-encryptana vrednost; ensureEncrypted je idempotent).
+    if (typeof updateData.fursCertPassword === 'string' && updateData.fursCertPassword !== '') {
+      updateData.fursCertPassword = ensureEncrypted(updateData.fursCertPassword)
     }
 
     // Preveri, da lokacija obstaja

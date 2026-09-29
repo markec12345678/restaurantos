@@ -33,6 +33,7 @@
     "verify": "npx tsx scripts/verify-features.ts",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:verify": "node scripts/verify-db.mjs",
+    "db:encrypt-secrets": "bun run scripts/migrate-encrypt-secrets.ts",
     "furs:check": "bash scripts/furs-test-connection.sh",
     "fina:check": "bash scripts/cis-test-connection.sh"
   },
