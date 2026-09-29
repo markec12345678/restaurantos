@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { formatEUR, formatNumberSl, parseDecimalInput, safeToFixed, safeNum } from '@/lib/safe-format'
-import { ljubljanaDayBounds, ljubljanaTodayStr, ljubljanaDateTimeParts, ljubljanaYesterdayStr } from '@/lib/timezone-sl'
+import { ljubljanaDayBounds, ljubljanaTodayStr, ljubljanaDateTimeParts, ljubljanaYesterdayStr, ljubljanaDayOfWeek } from '@/lib/timezone-sl'
 import { errorSl } from '@/lib/error-messages'
 
 // ─────────────────────────────────────────────
@@ -257,5 +257,40 @@ describe('P2-UX regresija: safeToFixed/safeNum', () => {
   it('safeNum še vedno deluje', () => {
     expect(safeNum('7.25')).toBe(7.25)
     expect(safeNum(null)).toBe(0)
+  })
+})
+
+// ─────────────────────────────────────────────
+// R172: ljubljanaDayOfWeek — kanon za openingHours.dayOfWeek
+// (r135 IT lekcija: new Date().getDay() na UTC stroju ob LJ polnoči
+// vrne prejšnji dan; kanon mora biti izpeljan iz LJ koledarskega dneva)
+// ─────────────────────────────────────────────
+describe('P2-UX R172: ljubljanaDayOfWeek', () => {
+  it('sobota 2026-10-03 00:30 UTC (sobota 02:30 LJ) → 6', () => {
+    // 2026-10-03 je sobota; 00:30 UTC = 02:30 LJ — isti LJ dan
+    expect(ljubljanaDayOfWeek(new Date('2026-10-03T00:30:00Z'))).toBe(6)
+  })
+
+  it('nedelja 00:30 UTC (01:30/02:30 LJ) → 0 (LJ dan, ne UTC petek)', () => {
+    // 2026-10-04 je nedelja; 00:30 UTC je po LJ polnoči → LJ dan je že nedelja
+    expect(ljubljanaDayOfWeek(new Date('2026-10-04T00:30:00Z'))).toBe(0)
+  })
+
+  it('ponedeljek 21:30 UTC (23:30 LJ ponedeljek, CEST) → 1 (ne torek)', () => {
+    // 2026-10-05 je ponedeljek; 21:30 UTC = 23:30 LJ — še ponedeljek po LJ
+    expect(ljubljanaDayOfWeek(new Date('2026-10-05T21:30:00Z'))).toBe(1)
+  })
+
+  it('torek 22:30 UTC (00:30 LJ sreda) → 3 (LJ dan je že sreda — zgreši v1 bug)', () => {
+    // 2026-10-06 je torek; 22:30 UTC = 00:30 LJ SREDA (2026-10-07) → getDay() na
+    // UTC stroju bi vrnil 2 (torek), kanon mora vrniti 3 (sreda)
+    expect(ljubljanaDayOfWeek(new Date('2026-10-06T22:30:00Z'))).toBe(3)
+  })
+
+  it('izpeljan iz ljubljanaTodayStr (ist kanon kot loyalty todayKey)', () => {
+    const now = new Date('2026-10-06T22:30:00Z')
+    const ymd = ljubljanaTodayStr(now)
+    expect(ymd).toBe('2026-10-07')
+    expect(ljubljanaDayOfWeek(now)).toBe(new Date(`${ymd}T00:00:00Z`).getUTCDay())
   })
 })

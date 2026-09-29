@@ -1,5 +1,11 @@
 # Production Readiness Checklist — Final
 
+> **⚠️ ZGODOVINSKI DOKUMENT (arhivska vrednost)** — odseva stanje **v1.0.2** (11 audit rund,
+> posodobljeno 2026-09-06). NE odseva trenutnega produkta (v1.26.0).
+> Ocena "Overall: A+ (Production Ready)" spodaj je **zgodovinska ocena iz časa pisanja** —
+> ni evidence-backed za trenutni HEAD. Avtoritativni status: [docs/PRODUCT-STATUS.md](./PRODUCT-STATUS.md);
+> trenutna CI evidence: [docs/PRODUCTION-VALIDATION.md §2](./PRODUCTION-VALIDATION.md).
+
 **RestaurantOS v1.0.2 — 11 audit rounds complete**
 **Last updated: 2026-09-06**
 

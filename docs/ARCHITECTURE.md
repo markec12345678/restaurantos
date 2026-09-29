@@ -65,9 +65,8 @@
 | Module | Purpose | Key Features |
 |--------|---------|-------------|
 | `auth-middleware/` | PIN authentication | Triple-check, fail-closed, 8h+24h TTL, RBAC |
-| `furs/` | FURS/ZDDV-1 compliance | ZOI, EOR, QR, storno, offline queue |
+| `furs/` | FURS/ZDDV-1 compliance | ZOI, EOR, QR, storno; retry = strežniški outbox `outbox/processors/furs.ts` (48h ZDDV-1) |
 | `offline-orders/` | Offline order queue | IndexedDB, Background Sync, idempotencyKey |
-| `offline-furs/` | Offline FURS queue | IndexedDB, 48h TTL, 5 retries |
 | `accounting/` | Double-entry bookkeeping | Journal entries, Trial Balance, P&L |
 | `decimal/` | Financial arithmetic | Prisma.Decimal, ROUND_HALF_UP, /0 throw |
 | `rate-limit/` | API rate limiting | Memory + Redis adapter, per-endpoint config |

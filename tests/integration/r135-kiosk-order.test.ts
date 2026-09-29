@@ -59,6 +59,10 @@ import { db } from '@/lib/db'
 import { GET as kioskGET, POST as kioskPOST } from '@/app/api/public/kiosk/route'
 import { GET as kitchenGET } from '@/app/api/kitchen/route'
 import { orderingTokenFor } from '@/lib/ordering-token'
+// R172: dayOfWeek seed mora slediti LJ kanonu (produkcija odpira po LJ dnevu) —
+// new Date().getDay() na UTC stroju ob LJ polnoči vrne prejšnji dan → 403
+// fail-closed kljub odprtemu (ist koren kot r111 UTC-daturni pin).
+import { ljubljanaDayOfWeek } from '@/lib/timezone-sl'
 
 const RUN_ID = `r135-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 const DAY_MS = 86_400_000
@@ -134,7 +138,7 @@ beforeAll(async () => {
 
   // Urnik: danes odprto 00:00–23:59 (lokacija A); lokacija B BREZ urnika = zaprto
   await db.openingHours.create({
-    data: { dayOfWeek: new Date().getDay(), openTime: '00:00', closeTime: '23:59', locationId: IDS.locationA },
+    data: { dayOfWeek: ljubljanaDayOfWeek(), openTime: '00:00', closeTime: '23:59', locationId: IDS.locationA },
   })
 
   authRef.current = { employeeId: IDS.employee, role: 'admin', locationId: IDS.locationA, permissions: ['take_orders'] }

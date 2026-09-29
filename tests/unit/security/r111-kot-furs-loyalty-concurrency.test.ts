@@ -133,6 +133,11 @@ vi.spyOn(console, 'error').mockImplementation(() => {})
 import { POST as kotPOST } from '@/app/api/kot/route'
 import { verifyInvoice } from '@/app/api/furs/helpers/verify-invoice/core'
 import { triggerBirthdayBonus, triggerWinback, DEFAULT_CONFIG } from '@/lib/loyalty-automation'
+// R172: pin mora uporabljati ISTI vir datuma kot produkcija (loyalty-automation
+// line 179: todayKey = ljubljanaTodayStr()) — prej toISOString() = UTC datum,
+// ki ob 22:00–24:00 UTC (= 00:00–02:00 LJ) zaostaja za LJ ključem → test padal
+// ob LJ polnoči (latentno od R160 P3-5, ko je produkcija prešla na LJ kanon).
+import { ljubljanaTodayStr } from '@/lib/timezone-sl'
 
 const ACTIVE_ORDER = {
   id: ORD,
@@ -344,7 +349,7 @@ describe('R111 C: loyalty bonus — advisory lock + tx-fresh dedup + SMS po comm
     expect(result).toMatchObject({ points: 100, smsSent: true })
     expect(mocks.txExecuteRaw).toHaveBeenCalledTimes(1)
     const lockParam = mocks.txExecuteRaw.mock.calls[0][1]
-    expect(lockParam).toBe(`loyalty-bonus:${ACC}:birthday_bonus:${new Date().toISOString().slice(0, 10)}`)
+    expect(lockParam).toBe(`loyalty-bonus:${ACC}:birthday_bonus:${ljubljanaTodayStr()}`)
     // tx-fresh dedup check z reason + dnevnim spodnjim boundom
     expect(mocks.txLoyaltyTxFindFirst).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -389,7 +394,7 @@ describe('R111 C: loyalty bonus — advisory lock + tx-fresh dedup + SMS po comm
     const result = await triggerWinback(ACC, DEFAULT_CONFIG)
     expect(result).toMatchObject({ points: 200, smsSent: true })
     const lockParam = mocks.txExecuteRaw.mock.calls[0][1]
-    expect(lockParam).toBe(`loyalty-bonus:${ACC}:winback:${new Date().toISOString().slice(0, 10)}`)
+    expect(lockParam).toBe(`loyalty-bonus:${ACC}:winback:${ljubljanaTodayStr()}`)
     expect(mocks.txLoyaltyTxCreate.mock.calls[0][0].data.reason).toBe('Win-back bonus')
   })
 

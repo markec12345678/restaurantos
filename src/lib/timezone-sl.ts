@@ -89,6 +89,20 @@ export function ljubljanaTodayStr(now: Date = new Date()): string {
 }
 
 /**
+ * Dan tedna (0 = nedelja ... 6 = sobota) za LJUBLJANSKI koledarski dan —
+ * ne UTC in ne strojna TZ. Kanon za openingHours.dayOfWeek poizvedbe.
+ * R172 lekcija (r135 IT): new Date().getDay() na UTC stroju ob LJ polnoči
+ * (22:00–24:00 UTC = 00:00–02:00 LJ) vrne PREJŠNJI dan → kiosk/zaklep
+ * logika vidi napačen dan (fail-closed zaprto kljub odprtemu).
+ * DST-varen: izpeljan iz ljubljanaTodayStr (koledarski datum), getUTCDay
+ * na polnoč tega datuma je čist koledarski weekday (brez časovnih robov).
+ */
+export function ljubljanaDayOfWeek(now: Date = new Date()): number {
+  const ymd = ljubljanaTodayStr(now) // 'YYYY-MM-DD' (LJ kanon)
+  return new Date(`${ymd}T00:00:00Z`).getUTCDay()
+}
+
+/**
  * Včerajšnji datum kot 'YYYY-MM-DD' v ljubljanskem času (digest semantika).
  * NOVO R48: prej dupliciran lokalno v /reports/digest/page.tsx — sedaj ENOTEN
  * vir resnice (uporablja tudi EmailTab za privzeti datum povzetka).

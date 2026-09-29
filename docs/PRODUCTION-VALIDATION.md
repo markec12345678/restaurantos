@@ -264,3 +264,22 @@ orders/cancel Background Sync (sync-pending-orders/offline-order-sync), FURS
 server-side retry = outbox processors/furs.ts. Re-target: verify-features
 (INDEXEDDB pina) + indexeddb-stores.test (4 pini → 1 store + 5 novih R170
 source pinov). ZDDV-1 48h obveza ostaja pokrita na strežniški strani.
+**Dodatek (R171)**: docs §2 CI evidence refresh na HEAD bb7d422f (unit 7180 =
+5231+1949, IT 235, run IDs iz R170, vsi attempt=1).
+**Dodatek (R172)**: issue #144 P0 koraka 1–2 — re-audit baseline (v1.26.0 ✓,
+75 nav modulov ✓, delovne površine ✓, module-registry.tsx osnova ✓) + NOVI
+avtoritativni status vir docs/PRODUCT-STATUS.md (§12: machine-readable JSON,
+verzija povezana na package.json z unit testom) + dokumentacijska resnica
+(§11): ARCHITECTURE.md offline-furs vrstica odstranjena (modul brisan R170),
+FINAL-SUMMARY.md + PRODUCTION-READINESS-CHECKLIST.md dobita ZGODOVINSKI baner
+(stare "Production READY" ocene iz v1.0.2/v1.0.3 niso več evidence-backed),
+CLIENT-ONBOARDING-GUIDE.md PIN-i označeni DEMO/TEST ONLY, README:508/511
+zastareli test counts (54/1798) prevezani na 1949 security / 5250 unit
+(290 fajlov; skupaj z CI-only security = 7199). Nov test: product-status.test.ts
+(15 pinov: verzija ↔ package.json, §12 polja, notranja konsistenca evidence,
+ZGODOVINSKI banerji, offline-furs odsoten iz ARCHITECTURE, DEMO opozorilo,
+brez 1798). BONUS (epic §19.17): 2 TZ-latentna testna buga popravljena —
+r111 loyalty pina (347/392) UTC datum → ljubljanaTodayStr kanon (latentno
+od R160 P3-5; padalo ob 00:00–02:00 LJ) in r135 kiosk IT seed dayOfWeek
+new Date().getDay() → NOVI kanonski helper ljubljanaDayOfWeek()
+(timezone-sl.ts; +5 pinov v p2-ux-formatting). Unit 290f/5250, IT 235.

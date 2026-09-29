@@ -1,6 +1,12 @@
 # RestaurantOS — Final Summary
 
-**v1.0.3 — 17 audit rund — 965 testov — Production READY**
+> **⚠️ ZGODOVINSKI DOKUMENT (arhivska vrednost)** — odseva stanje **v1.0.3** (17 audit rund,
+> 965 testov, 7. september 2026). NE odseva trenutnega produkta (v1.26.0).
+> Trditev "Production READY" spodaj je **zgodovinska ocena iz časa pisanja** in ni evidence-backed
+> za trenutni HEAD. Avtoritativni status: [docs/PRODUCT-STATUS.md](./PRODUCT-STATUS.md);
+> trenutna CI evidence: [docs/PRODUCTION-VALIDATION.md §2](./PRODUCTION-VALIDATION.md).
+
+**v1.0.3 — 17 audit rund — 965 testov — Production READY** *(zgodovinski naslov)*
 **Datum: 7. september 2026**
 
 ---

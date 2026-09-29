@@ -13,8 +13,14 @@ URL: https://restaurantos-oqa3h4ru3-robertpezdirc12-designs-projects.vercel.app
 ```
 
 ### PIN kode
-| Vloga | PIN | Dostop |
-|-------|-----|--------|
+
+> **⚠️ DEMO / TEST ONLY** — spodnji PIN-i so **seed/demo vrednosti** (iz `.env.example`:
+> `DEMO_ADMIN_PIN`, `DEMO_SUPERADMIN_PIN`) in veljajo SAMO za demo/seed okolje.
+> V produkciji je OBVEZNO takoj po prvi prijavi nastaviti unikatne, močne PIN-e —
+> privzete vrednosti so javno dokumentirane in predstavljajo varnostno tveganje.
+
+| Vloga | PIN (demo) | Dostop |
+|-------|-----------|--------|
 | Admin | `1234` | Vsi moduli, konfiguracija, poročila |
 | Super-admin | `5555` | Vse lokacije, cross-branch audit |
 | Natakar | `0000` | Naročila, plačila, mize |

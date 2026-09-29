@@ -426,10 +426,10 @@
 | 🕐 **Zgodovina s filtri + KPI** | Zvestoba IN darilne kartice: filter čipi po kategoriji transakcij (prislužene/bonus/povišanje/unovčene/potekle oz. naloženo/porabljeno/prenos/prilagoditev) s števci, živ KPI povzetek filtrirane množice, prazno stanje + "Pokaži vse" — zrcalna generična lib (`loyalty-tx-category`, `gift-card-tx-category`) |
 | 📧 **Digest e-pošta: poljuben datum** | Datumski izbirnik povzetka (predogled/tisk/ponovno pošiljanje za poljuben pretekli dan) + mehka validacija prihodnjega datuma (amber opozorilo + zaklep akcij); tisk verzija z istim datumom |
 | 📱 **QR menu polish** | Sticky kategorije pod glavo (ResizeObserver merjena višina, snap scrolling, aktivni chip scrollIntoView); FloatingCartBar z iOS safe-area; amber ring na artiklih v košarici |
-| 🔄 **PWA pametne posodobitve** | Service Worker v10 z SKIP_WAITING protokolom: samodejni reload ko je stran sveža/ozadje, sicer toast "Nova različica" — varno za naročila v teku |
+| 🔄 **PWA pametne posodobitve** | Service Worker v11 z SKIP_WAITING protokolom: samodejni reload ko je stran sveža/ozadje, sicer toast "Nova različica" — varno za naročila v teku |
 | 📅 **Rezervacije stil pass** | Statusni časovni chip, leva obroba barve statusa, staggered animacije, aria-pressed filtri statusov |
 | 🧱 **Design jezik R42+** | Skupni vzorci: `card-lift` hover, `animate-fade-in-up` staggered (40 ms, respects prefers-reduced-motion), accent zgornji rob, ikonski čipi, `tabular-nums` na vseh zneskih/števcih |
-| 🧪 **Kakovost** | 1798/1798 unit testov (102 datotek), 0 tsc napak, 0 eslint errorjev |
+| 🧪 **Kakovost** | 5250/5250 unit testov (290 datotek) + 1949 security testov v CI, 0 tsc napak, 0 eslint errorjev |
 
 ### ✨ Nove funkcije v v1.4.0 (QA runde 22–26)
 
@@ -478,8 +478,8 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 | **HR fiskalizacija (CIS)** | ✅ ZKI + XML-dsig + živi Echo | ❌ | ❌ | ❌ | ❌ |
 | **Multi-tenant** | ✅ (24 TENANT_REQUIRED + 5 OPTIONAL, glej [P0-C4 Classification](docs/P0-C4-CLASSIFICATION.md)) | ✅ | ✅ | ✅ | ❌ |
 | **5 jezikov** | ✅ sl/en/it/hr/de | ❌ | ❌ | Delno | ❌ |
-| **Varnost (A+)** | ✅ 0 HIGH, 54 security testov, CI 7/7 green, P0-C1..C5 complete | ✅ | ✅ | ✅ | ❌ |
-| **Mobilna PWA** | ✅ (SW v10 + pametne posodobitve) | ✅ Native | ✅ Native | ⚠ Slaba | ❌ |
+| **Varnost (A+)** | ✅ 0 HIGH, 1949 security testov, CI 7/7 green, P0-C1..C5 complete | ✅ | ✅ | ✅ | ❌ |
+| **Mobilna PWA** | ✅ (SW v11 + pametne posodobitve) | ✅ Native | ✅ Native | ⚠ Slaba | ❌ |
 
 ### 📄 Deliverables
 
@@ -507,8 +507,8 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 
 - **4x ceneje od Toast**, 2x ceneje od Square pri primerljivi funkcionalnosti
 - **FURS-ready Next.js POS** na slovenskem trgu (certifikat pending — pridobitev na eDavki portal)
-- **A+ varnostna ocena** (0 HIGH odprtih, 54 security testov, P0-C1..C5 hardening complete) — glej [Security Policy](SECURITY.md) za celoten pregled
-- **9.2/10 realna ocena** — production-ready za single-tenant pilot (P0-C1..C5 hardening complete, 1798/1798 unit testov pass)
+- **A+ varnostna ocena** (0 HIGH odprtih, 1949 security testov v CI, P0-C1..C5 hardening complete) — glej [Security Policy](SECURITY.md) za celoten pregled
+- **Evidence-based status** — 7180 testov v CI (5231 unit + 1949 security), IT 235, E2E 226 — avtoritativni status in omejitve: [docs/PRODUCT-STATUS.md](docs/PRODUCT-STATUS.md) (P0-C1..C5 hardening complete)
 - **0 kritičnih vrzeli** — vse IDOR/FURS/tenant isolation ranljivosti zaprte. Preostalo: FURS certifikat (pridobitev na eDavki), Stripe production keys, FINA P12.
 
 ---
@@ -589,7 +589,7 @@ DATABASE_URL="<neon-url>" bun scripts/audit-location.ts
 | **Z-Report** | Zapiranje izmene z gotovinskim usklajevanjem + avtomatski osnutek (živ na plošči) | ✅ |
 | **Multi-tenant** | Branch isolation z locationId (30+ modelov, glej [Known Issues](docs/KNOWN_ISSUES.md)) | ✅ |
 | **Offline** | IndexedDB queue + Background Sync | ✅ |
-| **PWA** | Service Worker v10 (pametne posodobitve z toast), offline-capable, installable (push TBD) | ✅ |
+| **PWA** | Service Worker v11 (pametne posodobitve z toast), offline-capable, installable (push TBD) | ✅ |
 | **Plačilni gateway** | Stripe/SumUp integracija | ⏳ P0-2 |
 | **Loyalty** | Nivoji bronze→platinasti, earn/redeem na vseh 3 plačilnih poteh, tier bonus, samodejno povišanje, zgodovina s filtri | ✅ |
 | **Rezervacije** | Seznam z filtri statusov, datumski kalendar, statusni tok | ✅ |
@@ -707,7 +707,7 @@ src/
 ### P0 - Kritično (0-3 meseci)
 - [ ] P0-1: FURS produkcijska certifikacija (.p12) — zahteva na sd.fu@gov.si
 - [ ] P0-2: Stripe/SumUp plačilni gateway
-- [x] P0-3: PWA (offline + SW v10 s pametnimi posodobitvami) — push notifications TBD
+- [x] P0-3: PWA (offline + SW v11 s pametnimi posodobitvami) — push notifications TBD
 - [x] P0-4: Sentry monitoring
 - [x] P0-5: Custom domena (restaurantos.app)
 
