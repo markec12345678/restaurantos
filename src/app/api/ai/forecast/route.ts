@@ -20,6 +20,9 @@ import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleApiError } from '@/lib/api-utils'
 import { z } from 'zod'
 import { autoForecast, type ForecastMethod, type TimeSeriesPoint } from '@/lib/forecast'
+// R160 (P3-3): dnevni bucket zgodovine + oznake napovedanih dni po LJ
+import { ljubljanaDateTimeParts, ljubljanaTodayStr } from '@/lib/timezone-sl'
+import { addDaysToYmd } from '@/app/api/dashboard/_helpers/ymd'
 
 export const dynamic = 'force-dynamic'
 
@@ -74,7 +77,9 @@ export async function POST(req: Request) {
     const dailyData: Record<string, { revenue: number; orders: number; tips: number; items: Record<string, number> }> = {}
     for (const order of historicalOrders) {
       if (!order.paidAt) continue
-      const dateKey = new Date(order.paidAt).toISOString().split('T')[0]
+      // R160 (P3-3): LJ poslovni dan (prej UTC split — naročilo plačano
+      // LJ 00:30 je prišlo prejšnjemu UTC dnevu → zamaknjen day-of-week vzorec)
+      const dateKey = ljubljanaDateTimeParts(new Date(order.paidAt).toISOString()).date
       if (!dailyData[dateKey]) dailyData[dateKey] = { revenue: 0, orders: 0, tips: 0, items: {} }
       dailyData[dateKey].revenue += toNum(order.total)
       dailyData[dateKey].tips += toNum(order.tip)
@@ -116,15 +121,19 @@ export async function POST(req: Request) {
       confidence: 'high' | 'medium' | 'low'
     }> = []
 
+    // R160 (P3-3): YMD iteracija od LJ danes (prej Date.now() + 24h koraki —
+    // DST-nevarno štetje + UTC oznaka; ob LJ 22:00–24:00 je 'jutri' kazalo
+    // dan za LJ). Weekday iz YMD prek getUTCDay (R159-b vzorec).
+    const todayYmd = ljubljanaTodayStr()
     for (let i = 0; i < days; i++) {
-      const forecastDate = new Date(Date.now() + (i + 1) * 24 * 60 * 60 * 1000)
-      const dow = forecastDate.getDay()
+      const ymd = addDaysToYmd(todayYmd, i + 1)
+      const dow = new Date(`${ymd}T00:00:00Z`).getUTCDay()
       const revValue = revenueForecast.forecast[i]?.value || 0
       const ordValue = ordersForecast.forecast[i]?.value || 0
       const tipValue = tipsForecast.forecast[i]?.value || 0
 
       forecast.push({
-        date: forecastDate.toISOString().split('T')[0],
+        date: ymd,
         dayOfWeek: dayNames[dow],
         predictedRevenue: round2(revValue),
         predictedOrders: Math.round(ordValue),

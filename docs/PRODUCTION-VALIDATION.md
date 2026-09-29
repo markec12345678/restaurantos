@@ -80,9 +80,20 @@ bilo samoozdravitvene poti. → **R158-1 [P1], popravljeno** (glej §8).
     vat time-distribution periodKey, export route) na LJ kanon prek
     `ljubljanaDayBounds`/`ljubljanaDateTimeParts`; meje ekskluzivna LJ polnoč (lt);
     `datumIzdaje` (zakonski datum) po LJ. Zero-migration.
-  - P3 ostanejo: ai/forecast:77, email daily-digest, scheduled-emails, cash-register
-    label, loyalty-automation cache key, vat time-distribution daily/weekly/monthly
-    vedra (ure/dnevi po strežniškem TZ).
+  - P3 ostanki → **POPRAVLJENI (R160-b)**: vat time-distribution daily/weekly/
+    monthly vedra, employees/popular/shifts/wallet-payment okna (+wallet stats
+    branch r35-luknja), ai/forecast (day-key + YMD oznake), digest družina
+    (daily-digest/digest-preview/digest-send/scheduled-emails create+process/
+    email dup-check — kanonski reportDate = UTC polnoč LJ dneva, dup-check
+    preklopljen v ISTEM editu), loyalty-automation idempotenčni ključi (lock,
+    re-check okno, SMS outbox), cash-register webhook daily_report.ready,
+    financial N1 time-distribution (tihi izpad mesečnih naročil odstranjen),
+    tips heatmap, employees hourly, happy-hour/order-config open-closed,
+    send-report-email okno, eDavki XML <Period> = mesec obdobja (ne
+    generiranja). DEFER (dokumentirano): api/shifts write-path pariteta,
+    tip-pool/actual-times-sync, privzeta okna expenses/staff-performance,
+    statistična družina, klient-TZ razred, restaurant-checks toLocaleString-hack,
+    e2e workflow startDate (test-infra).
   - Year-boundary testi: p2-ux-formatting.test.ts (letnica 2024→2025 + DST-konec
     2024-10-27 25 h) + trap-DB r159-utc-buckets.test.ts (meje/bucketi per ruta).
 - DST/leap pokritost potrjena (p2-ux-formatting.test.ts: 23h/25h dnevi, 22:00 UTC
@@ -141,7 +152,7 @@ blocked po zasnovi) · **1 removed/replaced**: QR (→ /api/public/menu).
 | R158-1 | P1 | DailyClose CLOSED + Z DRAFT dosegljiv ob finalize failu; fast-path replay maskiral dejansko Z stanje | **FIXAN** — replay preveri dejanski Z (po shranjenem businessDate) in ob napačnem stanju izvede idempotenten re-finalize (isti vzorec kot glavna pot; brez audita/draft upserta/tx); strukturirane napake fail-closed passthrough; `Z_REPORT_FINALIZED` toleriran; nove polji `zReportFinalized` (dejansko) + `zReportReFinalized` (marker, backwards-compatible). Testi: 4 v r126-daily-close.test.ts |
 | R158-2 | P1 | Legacy POST /api/z-report (finalize=true) obide DailyClose admin odobritev na PENDING_APPROVAL/REOPENED danu | **FIXAN** — gate pred upsertom: 409 `DAILY_CLOSE_PENDING_APPROVAL` / `DAILY_CLOSE_REOPENED` / `DAILY_CLOSE_ALREADY_CLOSED`; brez DailyClose vrstice legacy 1:1; draft (finalize:false) pot odprta. Testi: 6 v r158-zreport-gate.test.ts |
 | R158-3 | P2 | data-retention cron ni registriran v vercel.json | ODPRT — uporabniška odločitev (R148 znan defer) |
-| R158-4 | P2 | 7 finančno-vidnih UTC-bucket mest (e-invoice-book datumIzdaja, tax-report, reports/sales, dashboard, labor, financial/eod privzeti) | **FIXAN (R159-b)** — 10 mest (7 + vat route/time-distribution/export re-sweep) na LJ kanon; year-boundary + trap-DB testi; P3 ostali UTC/NAMERNO-UTC mesta ostajajo backlog |
+| R158-4 | P2 | 7 finančno-vidnih UTC-bucket mest (e-invoice-book datumIzdaja, tax-report, reports/sales, dashboard, labor, financial/eod privzeti) | **FIXAN (R159-b)** — 10 mest (7 + vat route/time-distribution/export re-sweep) na LJ kanon; year-boundary + trap-DB testi; **P3 ostanki FIXANI (R160-b)** — 17 mest (7 P3 + N1–N8 re-sweep, vključno tihi izpad mesečnih naročil v financial grafu + eDavki XML Period); DEFER seznam dokumentiran |
 | R158-5 | P3 | DailyClose `totalRefunds` snapshot vedno 0 → export "Povračila" napačen | ODPRT — backlog |
 | R158-6 | P3 | Ni namenskega "sočasni zadnji 2 enoti" testa | ODPRT — backlog |
 

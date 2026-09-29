@@ -4,7 +4,8 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
-import { endOfDayParam, handleApiError, parsePaginationParams } from '@/lib/api-utils'
+import { handleApiError, parsePaginationParams } from '@/lib/api-utils'
+import { ljubljanaDayBounds } from '@/lib/timezone-sl'
 // FIX R112 (RL-2): rate-limit importi — helper po hišnem kanonu DIREKTNO iz
 // rate-limit/response (NE prek barrela; barrel mockajo testi brez helperja).
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
@@ -59,8 +60,12 @@ export async function GET(req: Request) {
     if ('error' in scope) return scope.error
 
     if (stats) {
-      const from = dateFrom ? new Date(dateFrom) : undefined
-      const to = dateTo ? new Date(dateTo) : undefined
+      // R160 (N6): stats branch je imel SUROVO new Date(dateTo) = UTC polnoč
+      // z lte → zadnji dan obsega SKORAJ popolnoma izključen iz statistike
+      // (r35-razred; list branch ga je imel, stats NE). getWalletPaymentStats
+      // bere lte → dayEnd = LJ end − 1 ms (vključna pariteta, R159-b kanon).
+      const from = dateFrom ? ljubljanaDayBounds(dateFrom).start : undefined
+      const to = dateTo ? new Date(ljubljanaDayBounds(dateTo).end.getTime() - 1) : undefined
       const result = await getWalletPaymentStats(from, to, scope.locationId)
       return NextResponse.json({ stats: result })
     }
@@ -72,8 +77,9 @@ export async function GET(req: Request) {
     if (scope.locationId) where.locationId = scope.locationId
     if (dateFrom || dateTo) {
       where.createdAt = {}
-      if (dateFrom) (where.createdAt as Record<string, unknown>).gte = new Date(dateFrom)
-      if (dateTo) (where.createdAt as Record<string, unknown>).lte = endOfDayParam(dateTo) // FIX r35: konec dneva
+      // R160 (P3-2): LJ meje (prej UTC polnoč + lte 23:59:59.999Z)
+      if (dateFrom) (where.createdAt as Record<string, unknown>).gte = ljubljanaDayBounds(dateFrom).start
+      if (dateTo) (where.createdAt as Record<string, unknown>).lt = ljubljanaDayBounds(dateTo).end // ekskluzivna LJ polnoč
     }
 
     const payments = await db.walletPayment.findMany({

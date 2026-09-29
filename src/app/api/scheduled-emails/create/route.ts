@@ -9,6 +9,9 @@ import { handleApiError, parseJsonBody } from '@/lib/api-utils'
 import { requireAuth } from '@/lib/auth-middleware'
 import { z } from 'zod'
 import { isEmailEnabled, getReportRecipients } from '@/lib/email'
+// R160 (P3-4): LJ poslovni dan + kanonski reportDate (UTC polnoč LJ YMD) —
+// dup-check in shramba SKUPAJ z email/index.ts + digest-send (idempotenca)
+import { ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,16 +67,20 @@ export async function POST(req: Request) {
       )
     }
 
-    const reportDate = data.reportDate ? new Date(data.reportDate) : new Date()
-    const dateStr = reportDate.toISOString().split('T')[0]
+    const reportDateInput = data.reportDate ? new Date(data.reportDate) : new Date()
+    // R160 (P3-4): LJ poslovni dne (prej UTC split) + kanonsko shranjevanje
+    // reportDate = UTC polnoč LJ YMD (enaka normalizacija kot createScheduledEmailLog)
+    const ymd = ljubljanaDateTimeParts(reportDateInput.toISOString()).date
+    const dateStr = ymd
+    const reportDate = new Date(`${ymd}T00:00:00.000Z`)
 
     // Preveri ali že obstaja pending/sent email za ta datum in tip
     const existing = await db.scheduledEmailLog.findFirst({
       where: {
         reportType: data.reportType,
         reportDate: {
-          gte: new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 0, 0, 0),
-          lte: new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 23, 59, 59),
+          gte: reportDate,
+          lt: new Date(reportDate.getTime() + 24 * 60 * 60 * 1000),
         } as never,
         status: { in: ['pending', 'sent'] },
       },

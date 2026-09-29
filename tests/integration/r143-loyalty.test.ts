@@ -924,8 +924,8 @@ describe('R143 #30: POST action birthday_batch — Guest soft-join po telefonu (
     // honest queued surface: pending (SMS provider v testnem okolju ni
     // konfiguriran → direktni sendSms je no-op, outbox ostane vrsta)
     expect(ev.status).toBe('pending')
-    // per-day idempotencyKey (sendLoyaltySms kanon)
-    expect(ev.idempotencyKey).toBe(`loyalty:${IDS.bd1}:birthday_bonus:${new Date().toISOString().slice(0, 10)}`)
+    // per-day idempotencyKey (sendLoyaltySms kanon) — LJ dan (R160 P3-5)
+    expect(ev.idempotencyKey).toBe(`loyalty:${IDS.bd1}:birthday_bonus:${ljubljanaTodayStr()}`)
 
     // payload: prejemnik = A1 telefon, telo vsebuje ime in 100 točk
     const payload = ev.payload as { to: string; body: string; type: string }

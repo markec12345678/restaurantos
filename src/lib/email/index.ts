@@ -9,6 +9,8 @@ import { ensureDecrypted } from '@/lib/crypto/secrets'
 
 import { formatEUR } from '@/lib/safe-format'
 import { parseStringArray } from '@/lib/json-fields'
+// R160 (P3-4): kanonski reportDate = UTC polnoč LJ poslovnega dne
+import { ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 interface EmailConfig {
   smtpHost: string
   smtpPort: number
@@ -218,13 +220,21 @@ export async function createScheduledEmailLog(
   reportDate: Date = new Date(),
 ): Promise<CreateScheduledEmailResult> {
   try {
+    // R160 (P3-4): reportDate se NORMALIZIRA na UTC polnoč LJ poslovnega
+    // dne (write-path pariteta, vzorec api/shifts + send-report-email log);
+    // dup-check in shramba delujeta nad kanonsko vrednostjo. digest-send in
+    // scheduled-emails/create sta preklopila V ISTEM editu — dup-check je
+    // drugače razpadel na dva neskladna svetova (dvojni/izgubljeni emaili).
+    const reportYmd = ljubljanaDateTimeParts(reportDate.toISOString()).date
+    const canonicalReportDate = new Date(`${reportYmd}T00:00:00.000Z`)
+    const dayAfterCanonical = new Date(canonicalReportDate.getTime() + 24 * 60 * 60 * 1000)
     const emailEnabled = await isEmailEnabled()
     if (!emailEnabled) {
       return {
         success: false,
         created: 0,
         recipients: [],
-        reportDate: reportDate.toISOString().split('T')[0],
+        reportDate: reportYmd,
         reportType,
         reason: 'Email ni konfiguriran (emailEnabled=false ali manjkajo SMTP nastavitve)',
       }
@@ -236,21 +246,22 @@ export async function createScheduledEmailLog(
         success: false,
         created: 0,
         recipients: [],
-        reportDate: reportDate.toISOString().split('T')[0],
+        reportDate: reportYmd,
         reportType,
         reason: 'Ni konfiguriranih prejemnikov (emailReportRecipients prazen)',
       }
     }
 
-    const dateStr = reportDate.toISOString().split('T')[0]
+    const dateStr = reportYmd
 
     // Preveri ali že obstaja pending/sent email za ta datum in tip
+    // (kanonsko okno [YMD 00:00Z, YMD+1 00:00Z) — R160 P3-4)
     const existing = await db.scheduledEmailLog.findFirst({
       where: {
         reportType,
         reportDate: {
-          gte: new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 0, 0, 0),
-          lte: new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 23, 59, 59),
+          gte: canonicalReportDate,
+          lt: dayAfterCanonical,
         } as never,
         status: { in: ['pending', 'sent'] },
       },
@@ -283,7 +294,7 @@ export async function createScheduledEmailLog(
           body,
           attachmentName,
           status: 'pending',
-          reportDate,
+          reportDate: canonicalReportDate,
         },
       })
     }

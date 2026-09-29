@@ -1,6 +1,7 @@
 // Agregacija order itemov v statistiko zaposlenega
 
 import { toNum, multiply } from '@/lib/decimal'
+import { ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 import type { EmployeeStatsEntry } from './types'
 
 export function aggregateOrderItems(
@@ -44,16 +45,15 @@ export function aggregateOrderItems(
     stats.topItems[itemKey].quantity += oi.quantity
     stats.topItems[itemKey].revenue += toNum(multiply(oi.price, oi.quantity))
 
-    // Urna porazdelitev
-    const hour = String(new Date(order.createdAt).getHours()).padStart(2, '0')
+    // Urna porazdelitev — R160 (N3): LJ ura (prej getHours po strežniškem TZ)
+    const hour = ljubljanaDateTimeParts(order.createdAt.toISOString()).time.slice(0, 2)
     if (!stats.hourlyBreakdown[hour]) {
       stats.hourlyBreakdown[hour] = { hour: `${hour}:00`, revenue: 0, orders: 0 }
     }
     stats.hourlyBreakdown[hour].revenue += toNum(multiply(oi.price, oi.quantity))
   }
 
-  // Dodaj urno porazdelitev naročil
-  const hour = String(new Date(order.createdAt).getHours()).padStart(2, '0')
+  const hour = ljubljanaDateTimeParts(order.createdAt.toISOString()).time.slice(0, 2)
   if (stats.hourlyBreakdown[hour]) {
     stats.hourlyBreakdown[hour].orders += 1
   }

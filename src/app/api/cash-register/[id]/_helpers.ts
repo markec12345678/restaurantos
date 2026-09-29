@@ -57,8 +57,11 @@ export async function postShiftCloseActions(
   }, closedShift.locationId ?? null).catch(err => logger.error('API', '[Webhook] cash_register.closed napaka:', err))
 
   // Webhook: daily_report.ready
+  // R160 (P3-6): datum po LJ poslovnemu dnevu (prej UTC split — zaprtje
+  // izmene ob LJ 00:00–01:59 bi zunanjim accounting konektorjem priknjižilo
+  // dnevno poročilo na prejšnji dan).
   emitEvent('daily_report.ready', {
-    date: new Date().toISOString().split('T')[0],
+    date: ljubljanaTodayStr(),
     totalSales: toNum(closedShift.totalSales),
     totalOrders: closedShift.totalOrders,
   }, closedShift.locationId ?? null).catch(err => logger.error('API', '[Webhook] daily_report.ready napaka:', err))

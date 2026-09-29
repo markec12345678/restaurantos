@@ -5,7 +5,8 @@ import { NextResponse } from 'next/server'
 import { requireAuth, resolveTenantLocationIdOrThrow } from '@/lib/auth-middleware'
 import { validateReportDateRange } from '@/lib/validations'
 import { toNum, multiply, round2 } from '@/lib/decimal'
-import { endOfDayParam, handleApiError } from '@/lib/api-utils'
+import { handleApiError } from '@/lib/api-utils'
+import { ljubljanaDayBounds } from '@/lib/timezone-sl'
 
 
 export const dynamic = 'force-dynamic'
@@ -41,8 +42,9 @@ export async function GET(req: Request) {
     }
     if (startDate || endDate) {
       const paidAt: Record<string, Date> = {}
-      if (startDate) paidAt.gte = new Date(startDate)
-      if (endDate) paidAt.lte = endOfDayParam(endDate) // FIX r35: konec dneva, ne polnoč
+      // R160 (P3-2): LJ meje poslovnega dne (prej UTC polnoč + lte 23:59:59.999Z)
+      if (startDate) paidAt.gte = ljubljanaDayBounds(startDate).start
+      if (endDate) paidAt.lt = ljubljanaDayBounds(endDate).end // ekskluzivna LJ polnoč naslednjega dne
       orderWhere.paidAt = paidAt
     }
 

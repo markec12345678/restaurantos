@@ -12,6 +12,7 @@
 // ============================================
 
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { ljubljanaDayBounds } from '@/lib/timezone-sl'
 
 const mocks = vi.hoisted(() => ({
   orderAggregate: vi.fn(),
@@ -166,9 +167,12 @@ describe('fetchDailyDigestData — agregacije', () => {
   })
 
   it('R76: urna razporeditev — findMany dobi where/select obliko, hourly teče iz vrstic', async () => {
-    // naročila: 2 ob 12. uri (po lokalni uri serverja), 1 ob 19. uri
-    const base = new Date(2026, 8, 17)
-    const at = (h: number, m = 0) => new Date(base.getFullYear(), base.getMonth(), base.getDate(), h, m, 0)
+    // naročila: 2 ob 12. uri, 1 ob 19. uri — LJ stenski čas (R160 P3-4:
+    // prej server-local konstruktor; LJ instant je determinističen neodvisno
+    // od server TZ; 2026-09-17 nima DST prehoda)
+    const LJ_DAY = '2026-09-17'
+    const ljStart = ljubljanaDayBounds(LJ_DAY).start.getTime()
+    const at = (h: number, m = 0) => new Date(ljStart + (h * 60 + m) * 60_000)
     mocks.orderFindMany.mockResolvedValue([
       { total: '25.50', createdAt: at(12) },
       { total: 14.5, createdAt: at(12, 30) },

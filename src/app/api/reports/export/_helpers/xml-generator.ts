@@ -5,6 +5,7 @@
 
 import type { ReportData } from './report-data'
 import { round2 } from '@/lib/decimal'
+import { ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 
 const escapeXml = (s: string | number): string =>
   String(s)
@@ -28,9 +29,16 @@ const escapeXml = (s: string | number): string =>
  * ustvari surov XML — podpis se izvede ločeno pred uploadom.
  */
 export function generateEdavkiXml(data: ReportData, opts: { taxNumber?: string; taxpayerName?: string }): string {
-  const now = new Date(data.generatedAt)
-  const year = now.getFullYear()
-  const month = String(now.getMonth() + 1).padStart(2, '0')
+  // R160 (N8): DDV-O je MESEČNA napoved — <Period> = mesec OBDOBJA
+  // POROČILA (endDate = zadnji pokrit dan, R159-b report-data kanon),
+  // NE trenutek generiranja: generacija eDavki XML ob LJ 1. v mesecu
+  // 00:00–01:59 bi sicer oznako priknjižila napačnemu (naslednjemu) mesecu.
+  // Brez obdobja → LJ mesec generatedAt (LJ, ne UTC). <DatumIzdelave> =
+  // LJ datum generiranja (prej UTC split).
+  const generatedLj = ljubljanaDateTimeParts(data.generatedAt)
+  const periodSource = data.endDate || generatedLj.date
+  const year = Number(periodSource.slice(0, 4))
+  const month = periodSource.slice(5, 7)
 
   // DDV postavke po stopnjah (eDavki pričakuje vrstni red: 22% S, 9.5% R, 0% Z)
   const sorted = [...data.vatBreakdown].sort((a, b) => b.rate - a.rate)
@@ -58,7 +66,7 @@ export function generateEdavkiXml(data: ReportData, opts: { taxNumber?: string; 
 <envelope xmlns="http://edavki.durs.si/Documents/Schemas/Doh_DdvO_2.xsd">
   <DohDdvO>
     <Period>${year}${month}</Period>
-    <DatumIzdelave>${now.toISOString().split('T')[0]}</DatumIzdelave>
+    <DatumIzdelave>${generatedLj.date}</DatumIzdelave>
     <DavcnaStevilka>${escapeXml(taxNum)}</DavcnaStevilka>
     <ImeZavezanca>${escapeXml(taxpayer)}</ImeZavezanca>
     <VrstaDokumenta>Izvenobdobjna</VrstaDokumenta>

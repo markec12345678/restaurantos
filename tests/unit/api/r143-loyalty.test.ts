@@ -399,10 +399,11 @@ describe('R143 3: birthday batch — idempotenca guard ohranjen (R111 kanon)', (
     expect(mocks.txCreate).toHaveBeenCalledTimes(1)
     expect(mocks.accUpdate).toHaveBeenCalledTimes(1)
     // advisory lock ključ (obstoječi kanon, r111 pin: 2. argument tagged templatea):
-    // per account + type + UTC dan — idempotenca guard je NESPREMENJEN
+    // per account + type + LJ dan (R160 P3-5: prej UTC dan) — idempotenca
+    // guard je NESPREMENJEN, samo vir "danes" je LJ kanon
     const lockParam = mocks.executeRaw.mock.calls[0][1]
     expect(lockParam).toBe(
-      `loyalty-bonus:acc-a:birthday_bonus:${new Date().toISOString().slice(0, 10)}`,
+      `loyalty-bonus:acc-a:birthday_bonus:${ljubljanaTodayStr()}`,
     )
   })
 })

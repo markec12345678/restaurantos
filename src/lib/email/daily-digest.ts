@@ -22,6 +22,9 @@ import { formatEUR } from '@/lib/safe-format'
 // z naročili, povprečnim računom IN napitninami)
 import { pctChange } from '@/lib/percent-change'
 import { computeHourlyDistribution } from '@/lib/digest-hours' // R76: urna razporeditev prometa
+// R160 (P3-4): okna + oznake dneva po LJ poslovnemu dnevu (prej server-local
+// dayBounds + UTC dateKey — na UTC strežniku ~1–2 h zamik obeh strani)
+import { ljubljanaDayBounds, ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 import { sendEmail, createScheduledEmailLog, type CreateScheduledEmailResult } from '@/lib/email'
 // Task 21: HTML builder izluščen v client-safe modul (brez db) — enak HTML
 // uporablja produkcija (email) IN predogled v Email zavihku (client).
@@ -35,16 +38,23 @@ export {
   type TopItemRow,
 } from '@/lib/email/digest-html'
 
-/** Dan (00:00:00–23:59:59) za podaten Date — lokalno (server TZ). */
-function dayBounds(date: Date): { gte: Date; lte: Date } {
-  return {
-    gte: new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0),
-    lte: new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59),
-  }
+// R160 (P3-4): LJ poslovni dan podanega trenutka. Prisma bralci z lte →
+// dayEnd = LJ end − 1 ms (vključna pariteta 23:59:59.999, R159-b kanon).
+// Prejšnji dan = čisti koledarski odštevek po LJ YMD (vzorec
+// ljubljanaYesterdayStr — DST-varno, brez start-24h).
+function ljDayWindow(date: Date): { gte: Date; lte: Date } {
+  const ymd = ljubljanaDateTimeParts(date.toISOString()).date
+  const bounds = ljubljanaDayBounds(ymd)
+  return { gte: bounds.start, lte: new Date(bounds.end.getTime() - 1) }
+}
+
+function prevYmdOf(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10)
 }
 
 function dateKey(date: Date): string {
-  return date.toISOString().split('T')[0]
+  return ljubljanaDateTimeParts(date.toISOString()).date
 }
 
 function toNum(v: unknown): number {
@@ -58,8 +68,8 @@ function toNum(v: unknown): number {
  * Z-report semantiko: paymentStatus='paid').
  */
 export async function fetchDailyDigestData(date: Date): Promise<DailyDigestData> {
-  const bounds = dayBounds(date)
-  const prevBounds = dayBounds(new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1))
+  const bounds = ljDayWindow(date)
+  const prevBounds = ljDayWindow(new Date(`${prevYmdOf(dateKey(date))}T12:00:00.000Z`))
 
   const orderWhere = {
     paymentStatus: 'paid',

@@ -2,7 +2,7 @@
 // DIGEST HOURS — Unit testi (R76: "Promet po urah")
 //
 // Preverjamo:
-// - computeHourlyDistribution: vedrčenje po lokalnih urah, 24 polnih vedrov,
+// - computeHourlyDistribution: vedrčenje po LJ urah (R160 P3-4), 24 polnih vedrov,
 //   fail-safe (Decimal/string/null totali, neveljavni datumi), vrh (izenačeni
 //   → najzgodnejša), višine %, oznake (vsaka 3. + vrh)
 // - summarizeHourly: vrh, zasedenost, najboljše zvezno okno, prazni vhodi
@@ -17,10 +17,16 @@ import {
   BUSY_WINDOW_HOURS,
   type HourlyPoint,
 } from '@/lib/digest-hours'
+import { ljubljanaDayBounds } from '@/lib/timezone-sl'
 
-/** Deterministični Date za testi (lokalna cona — enako kot getHours bere). */
+/** Deterministični LJ instant za testi (R160 P3-4): LJ stenski čas
+ *  '2026-09-17 HH:MM' → UTC instant (start LJ dneva + stenske minute —
+ *  17. 9. 2026 nima DST prehoda; deterministično NEODVISNO od server TZ,
+ *  prej: new Date(2026, 8, 17, hour) = server-local fixture). */
+const LJ_DAY = '2026-09-17'
 function at(hour: number, minute = 0): Date {
-  return new Date(2026, 8, 17, hour, minute, 0)
+  const { start } = ljubljanaDayBounds(LJ_DAY)
+  return new Date(start.getTime() + (hour * 60 + minute) * 60_000)
 }
 
 describe('computeHourlyDistribution — vedrčenje', () => {
@@ -69,10 +75,13 @@ describe('computeHourlyDistribution — vedrčenje', () => {
     expect(pts.reduce((s, p) => s + p.orders, 0)).toBe(1)
   })
 
-  it('časovni žig niz z T se razporedi po lokalni uri', () => {
-    // brez Z → lokalna razčlemitev (specifikacija) → 10. ura
+  it('časovni žig niz z T: naiven niz = LJ stenska ura, offset niz = instant → LJ ura', () => {
+    // naiven niz (brez offseta) = LJ stenski čas zapisovalca (R160 P3-4) → 10. ura
     const pts = computeHourlyDistribution([{ total: 5, createdAt: '2026-09-17T10:30:00' }])
     expect(pts[10].orders).toBe(1)
+    // offset niz: 08:30Z = 10:30 LJ (CEST +2) → 10. ura
+    const ptsZ = computeHourlyDistribution([{ total: 5, createdAt: '2026-09-17T08:30:00Z' }])
+    expect(ptsZ[10].orders).toBe(1)
   })
 
   it('prazen/neveljaven vhod → 24 praznih točk', () => {

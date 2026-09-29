@@ -21,6 +21,9 @@ import { fetchReportData, generateReportPdf } from '@/app/api/reports/export/_he
 import { round2 } from '@/lib/decimal'
 import { requireAuth } from '@/lib/auth-middleware'
 import { fetchDailyDigestData, sendDailyDigestEmail, ensureDailySummaryLog } from '@/lib/email/daily-digest'
+// R160 (P3-4): self-heal dan, oznaka loga, PDF okno in "danes" statistika
+// po LJ poslovnemu dnevu (prej now−24h / UTC split / server-local)
+import { ljubljanaDayBounds, ljubljanaDateTimeParts, ljubljanaTodayStr, ljubljanaYesterdayStr } from '@/lib/timezone-sl'
 
 export const dynamic = 'force-dynamic'
 
@@ -77,7 +80,9 @@ export async function POST(req: Request) {
     // Tudi če EOD closeShift ni sprožil pošiljanja (pade server, pozabljen EOD),
     // digest pride naslednje jutro. Idempotentno (preveri duplikate).
     // Non-throwing: pri napaki samo loggiramo in nadaljujemo z obstoječimi logi.
-    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    // R160 (P3-4): self-heal "včeraj" po LJ poslovnemu dnevu (prej now−24 h —
+    // ročni klic med LJ 00:00–02:00 je označil NAPAČEN dan)
+    const yesterday = new Date(`${ljubljanaYesterdayStr()}T12:00:00.000Z`)
     const digestResult = await ensureDailySummaryLog(yesterday)
     if (digestResult.created > 0) {
       logger.info('EMAIL', `Daily digest self-heal: ustvarjenih ${digestResult.created} logov za ${digestResult.reportDate}`)
@@ -104,7 +109,9 @@ export async function POST(req: Request) {
     for (const emailLog of pendingEmails) {
       try {
         const reportDate = emailLog.reportDate || new Date()
-        const dateStr = reportDate.toISOString().split('T')[0]
+        // R160 (P3-4): LJ poslovni dan loga (prej UTC split); kanonski logi
+        // nosijo UTC polnoč LJ YMD → LJ branje je stabilno tudi za legacy vrstice
+        const dateStr = ljubljanaDateTimeParts(reportDate.toISOString()).date
 
         // Task 20: daily_summary = menedžerski HTML digest (brez PDF)
         // FIX duplikatov: log je per-recipient → pošlji SAMO temu prejemniku
@@ -117,9 +124,12 @@ export async function POST(req: Request) {
           }
         } else {
           // z_report / weekly_summary / vat_report — Z-report PDF pot (obstoječa)
+          // R160 (P3-4): LJ meje poslovnega dne loga (prej server-local Y/M/D);
+          // fetchReportData bere lte → end − 1 ms (vključna pariteta)
+          const logBounds = ljubljanaDayBounds(dateStr)
           const dateFilter: Record<string, Date> = {
-            gte: new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 0, 0, 0),
-            lte: new Date(reportDate.getFullYear(), reportDate.getMonth(), reportDate.getDate(), 23, 59, 59),
+            gte: logBounds.start,
+            lte: new Date(logBounds.end.getTime() - 1),
           }
 
           const data = await fetchReportData(dateFilter)
@@ -184,18 +194,20 @@ export async function GET(req: Request) {
     const platformGate = platformAdminGate(authResult)
     if (platformGate) return platformGate
 
+    // R160 (P3-4): "danes" po LJ poslovnemu dnevu (prej server-local setHours polnoč)
+    const todayStart = ljubljanaDayBounds(ljubljanaTodayStr()).start
     const [pending, sentToday, failedToday] = await Promise.all([
       db.scheduledEmailLog.count({ where: { status: 'pending' } }),
       db.scheduledEmailLog.count({
         where: {
           status: 'sent',
-          sentAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+          sentAt: { gte: todayStart },
         },
       }),
       db.scheduledEmailLog.count({
         where: {
           status: 'failed',
-          createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) },
+          createdAt: { gte: todayStart },
         },
       }),
     ])

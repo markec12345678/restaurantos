@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db'
 import { toNum, round2, abs, type DecimalLike } from '@/lib/decimal'
+import { ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 import type { PaidOrder, StockCostGroup, OrderItemRow } from './types'
 
 export async function computeTips(
@@ -68,7 +69,9 @@ export function computeHourlyHeatmap(
   const hourlyBuckets: Record<number, { revenue: number; orders: number }> = {}
   for (let h = 0; h < 24; h++) { hourlyBuckets[h] = { revenue: 0, orders: 0 } }
   for (const order of completedOrdersLight) {
-    const hour = new Date(order.paidAt || order.createdAt).getHours()
+    // R160 (N2): LJ ura (prej getHours po strežniškem TZ — oznake
+    // Noč/Jutro/Kosilo so bile zamaknjene 1–2 h)
+    const hour = Number(ljubljanaDateTimeParts((order.paidAt || order.createdAt).toISOString()).time.slice(0, 2))
     hourlyBuckets[hour].revenue += toNum(order.total)
     hourlyBuckets[hour].orders += 1
     if (hourlyBuckets[hour].revenue > maxHourlyRevenue) maxHourlyRevenue = hourlyBuckets[hour].revenue

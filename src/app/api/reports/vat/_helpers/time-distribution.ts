@@ -29,13 +29,19 @@ export function computeTimeVatDistribution(
     // FIX MEDIUM: Uporabi paidAt (datum plačila) namesto createdAt za časovno razdelitev
     const d = new Date(order.paidAt || order.createdAt)
 
+    // R160 (P3-1): vedra po LJ stenskem času (prej getHours/getDay/getDate
+    // po strežniškem TZ — plačilo ob LJ 00:30 je padlo v '22:00'/'Ned'/
+    // fantovski '30'/'31' ključ prejšnjega meseca). Yearly (:41) je ŽE LJ.
+    const lj = ljubljanaDateTimeParts(d.toISOString())
     if (period === 'daily') {
-      periodKey = `${String(d.getHours()).padStart(2, '0')}:00`
+      periodKey = `${lj.time.slice(0, 2)}:00`
     } else if (period === 'weekly') {
       const dayNames = ['Pon', 'Tor', 'Sre', 'Čet', 'Pet', 'Sob', 'Ned']
-      periodKey = dayNames[(d.getDay() + 6) % 7]
+      // ponedeljkov indeks iz LJ YMD (getUTCDay na YMD polnoč — R159-b vzorec)
+      const dow = new Date(`${lj.date}T00:00:00Z`).getUTCDay()
+      periodKey = dayNames[(dow + 6) % 7]
     } else if (period === 'monthly') {
-      periodKey = String(d.getDate())
+      periodKey = String(Number(lj.date.slice(8, 10)))
     } else {
       // R158-4 (R159-b): periodKey (letno) po LJ poslovnemu dnevu (prej UTC)
       periodKey = ljubljanaDateTimeParts(d.toISOString()).date

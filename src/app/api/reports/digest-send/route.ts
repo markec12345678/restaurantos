@@ -28,6 +28,9 @@ import {
   sendDailyDigestEmail,
   ensureDailySummaryLog,
 } from '@/lib/email/daily-digest'
+// R160 (P3-4): LJ dan + kanonsko reportDate okno (idempotenca z
+// createScheduledEmailLog + scheduled-emails/create — SKUPEN preklop!)
+import { ljubljanaDateTimeParts, ljubljanaYesterdayStr } from '@/lib/timezone-sl'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,17 +53,19 @@ const sendSchema = z.object({
     .optional(),
 })
 
-/** Včeraj (server-local, konsistentno z digest/cron semantiko). */
+/** Včeraj po LJ poslovnemu dnevu (R160 P3-4 — prej server-local). */
 function yesterday(): Date {
-  const now = new Date()
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+  return new Date(`${ljubljanaYesterdayStr()}T12:00:00.000Z`)
 }
 
-function dayBounds(date: Date) {
-  return {
-    gte: new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0),
-    lte: new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59),
-  }
+// R160 (P3-4): logi se shranjujejo s kanonskim reportDate = UTC polnoč LJ
+// poslovnega dne (createScheduledEmailLog normalizira enako) → iskanje logov
+// po [YMD 00:00Z, YMD+1 00:00Z). Prej server-local dayBounds — poizvedba in
+// dup-check sta se preklopili SKUPAJ z email/index.ts + create (idempotenca).
+function reportDateWindow(target: Date) {
+  const ymd = ljubljanaDateTimeParts(target.toISOString()).date
+  const start = new Date(`${ymd}T00:00:00.000Z`)
+  return { gte: start, lt: new Date(start.getTime() + 24 * 60 * 60 * 1000) }
 }
 
 export async function POST(req: Request) {
@@ -86,11 +91,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: validationError.issues[0]?.message }, { status: 400 })
     }
 
-    // YYYY-MM-DD → lokalni Date (opoldne — deterministične dnevne meje)
+    // YYYY-MM-DD → opoldanski UTC instant (vedno isti LJ dan; R160 P3-4)
     let target = yesterday()
     if (parsed.date) {
-      const [y, m, d] = parsed.date.split('-').map(Number)
-      target = new Date(y, m - 1, d, 12, 0, 0)
+      target = new Date(`${parsed.date}T12:00:00.000Z`)
     }
 
     // 1) Idempotentno zagotovi loge (non-throwing; razlog opisuje, če je onemogočeno)
@@ -103,7 +107,7 @@ export async function POST(req: Request) {
     }
 
     // 2) Zberi loge za ta tip+datum — pošiljamo SAMO pending/failed ('sent' = že dostavljeno)
-    const bounds = dayBounds(target)
+    const bounds = reportDateWindow(target)
     const logs = await db.scheduledEmailLog.findMany({
       where: {
         reportType: 'daily_summary',

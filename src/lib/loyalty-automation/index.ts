@@ -22,6 +22,11 @@ import { tierLabelSi } from '@/lib/loyalty-tiers'
 // expiring približek za notify-only akcijo (skupen vir z lifecycle ruta)
 import { isBirthdayToday } from '@/lib/loyalty/birthday'
 import { computeExpiringPoints } from '@/lib/loyalty/lifecycle'
+// R160 (P3-5): dnevi idempotenčnih ključev (advisory lock, tx-fresh
+// re-check okno, SMS outbox idempotencyKey) po LJ poslovnemu dnevu —
+// prej UTC dan: podelitev ob LJ 00:30 + ponovni poskus ob LJ 02:00 istega
+// LJ dneva = dve različni UTC tipa/dneva → dvojni bonus/SMS.
+import { ljubljanaDayBounds, ljubljanaTodayStr } from '@/lib/timezone-sl'
 
 // --- Konstante ---
 export const POINTS_EXPIRY_DAYS = 365 // Točke potečejo po 1 letu
@@ -171,8 +176,10 @@ async function awardDailyBonusOnce(
 ): Promise<{ points: number; smsSent: boolean }> {
   const points = type === 'birthday_bonus' ? BIRTHDAY_BONUS_POINTS : WINBACK_BONUS_POINTS
   const reason = type === 'birthday_bonus' ? 'Rojstni dan bonus' : 'Win-back bonus'
-  const todayKey = new Date().toISOString().slice(0, 10)
-  const dayStart = new Date(`${todayKey}T00:00:00.000Z`)
+  const todayKey = ljubljanaTodayStr()
+  // LJ polnoč (ne UTC polnoč YMD-ja!) — sicer transakcija ob LJ 00:30
+  // (= prejšnji dan 23:30Z) pade IZVEN re-check okna → dvojni bonus.
+  const dayStart = ljubljanaDayBounds(todayKey).start
 
   const account = await db.loyaltyAccount.findUnique({
     where: { id: loyaltyAccountId },
@@ -469,7 +476,7 @@ async function sendLoyaltySms(
     eventType: `loyalty_${type}`,
     payload: { to, body: message, type, loyaltyAccountId },
     target: 'sms',
-    idempotencyKey: `loyalty:${loyaltyAccountId}:${type}:${new Date().toISOString().split('T')[0]}`,
+    idempotencyKey: `loyalty:${loyaltyAccountId}:${type}:${ljubljanaTodayStr()}`,
   })
 
   // Takoj poskusi poslati (outbox je backup)

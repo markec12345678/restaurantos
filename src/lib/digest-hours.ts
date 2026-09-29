@@ -7,9 +7,9 @@
 //
 // Semantika (konsistentna z fetchDailyDigestData):
 //   • vhodne vrstice so plačana naročila iz DNEVSKEGA okna (paymentStatus=
-//     'paid', server-local bounds) — lib samo razporedi po urah
-//   • ura = LOKALNA ura naročila (Date.getHours()) — ista časovna cona kot
-//     dayBounds (server-local dan), sicer bi bile mejne ure zamaknjene
+//     'paid', LJ poslovni dan — R160 P3-4) — lib samo razporedi po urah
+//   • ura = LJ stenska ura naročila (ljubljanaDateTimeParts) — ista cona kot
+//     dnevno okno (prej Date.getHours() po strežniškem TZ; R160 P3-4)
 //   • 24 vedno polnih vedrov (0–23) — stabilna postavitev, kot 30 stolpcev
 //     R72; ure brez prometa ostanejo vidne kot nizki štumpi
 //
@@ -21,6 +21,8 @@
 //   • nizi sprejemi SAMO kot časovni žigi (mora biti 'T' med datumom in
 //     uro) — date-only nizi so zavrnjeni že na vhodu
 // ============================================
+
+import { ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 
 export interface HourlyRowRaw {
   /** Znesek naročila (Prisma Decimal | number | string | null) */
@@ -78,23 +80,32 @@ function toSafeRevenue(v: unknown): number {
   return Number.isFinite(n) && n > 0 ? n : 0
 }
 
-/** Lokalna ura vnosa ali null (neuporaben vnos — vrstica se preskoči).
- *  Date → getHours() (lokalno, konsistentno z dayBounds). Niz → SAMO
- *  časovni žig 'YYYY-MM-DDTHH…' (lokalna razčlemitev po specifikaciji);
- *  date-only nizi so zavrnjeni (dvoumna cona + R72 tiha normalizacija). */
-function hourOf(createdAt: Date | string): number | null {
+/** Ura vnosa po LJ stenskem času ali null (neuporaben vnos — preskoči).
+ *  R160 (P3-4): prej getHours() (strežniška cona) — sedaj LJ kanon.
+ *  Date → ljubljanaDateTimeParts(instant).time. Niz → SAMO časovni žig
+ *  'YYYY-MM-DDTHH…'; z offsetom (Z/±hh:mm) → instant → LJ ura, NAIVEN niz
+ *  (brez offseta) = LJ stenski čas zapisovalca → ura iz niza (round-trip
+ *  lastnost stare implementacije, deterministično neodvisno od server TZ);
+ *  date-only nizi ostajajo zavrnjeni (R72 tiha normalizacija). */
+export function hourOf(createdAt: Date | string): number | null {
   if (createdAt instanceof Date) {
     if (Number.isNaN(createdAt.getTime())) return null
-    return createdAt.getHours()
+    return Number(ljubljanaDateTimeParts(createdAt.toISOString()).time.slice(0, 2))
   }
   if (typeof createdAt === 'string') {
     if (!/^(\d{4})-(\d{2})-(\d{2})T/.test(createdAt)) return null
+    if (!/(Z|[+-]\d{2}:?\d{2})$/.test(createdAt)) {
+      // naiven niz = LJ stenski čas zapisovalca
+      const h = Number(createdAt.slice(11, 13))
+      return Number.isInteger(h) && h >= 0 && h <= 23 ? h : null
+    }
     const d = new Date(createdAt)
     if (Number.isNaN(d.getTime())) return null
-    return d.getHours()
+    return Number(ljubljanaDateTimeParts(d.toISOString()).time.slice(0, 2))
   }
   return null
 }
+
 
 /**
  * Iz surovih vrstic plačanih naročil zgradi 24 urnih točk. Čista funkcija —

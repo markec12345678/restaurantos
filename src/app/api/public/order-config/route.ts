@@ -25,6 +25,8 @@ import { toNum } from '@/lib/decimal'
 import { handleApiError } from '@/lib/api-utils'
 // R89: HMAC ordering token (R88 lib; R89 tokenVersion vezava — R89-1 kanon)
 import { isOrderingSecretConfigured, verifyOrderingToken } from '@/lib/ordering-token'
+// R160 (N5): javni open/closed po LJ stenskem času (urniki so v LJ urah)
+import { ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 
 export const dynamic = 'force-dynamic'
 
@@ -141,9 +143,14 @@ export async function GET(req: Request) {
     })
 
     // Izračunaj ali je trenutno odprto (nespremenjena logika iz R83)
+    // R160 (N5): LJ stenski čas (prej surovi getDay/getHours po strežniškem
+    // TZ — javni gost je videl open/closed zamikano 1–2 h glede na
+    // konfigurirane LJ ure; restaurant-checks.ts/table.ts imata svoj
+    // toLocaleString-hack — deluje, čiščenje je DEFER).
     const now = new Date()
-    const dayOfWeek = now.getDay() // 0=nedelja
-    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    const ljNow = ljubljanaDateTimeParts(now.toISOString())
+    const dayOfWeek = new Date(`${ljNow.date}T00:00:00Z`).getUTCDay() // 0=nedelja
+    const currentTime = ljNow.time // 'HH:mm'
 
     const todayHours = openingHours.find(h => h.dayOfWeek === dayOfWeek)
     let isOpenNow = false

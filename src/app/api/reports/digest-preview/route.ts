@@ -20,6 +20,8 @@ import { handleApiError } from '@/lib/api-utils'
 import { checkRateLimitAsync, getClientIp, AUTHENTICATED_LIMIT } from '@/lib/rate-limit'
 import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { fetchDailyDigestData, buildDailyDigestHtml } from '@/lib/email/daily-digest'
+// R160 (P3-4): privzeti dan po LJ poslovnemu dnevu (prej server-local)
+import { ljubljanaYesterdayStr } from '@/lib/timezone-sl'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,10 +45,10 @@ const dateQuerySchema = z.object({
     .optional(),
 })
 
-/** Včeraj (server-local, konsistentno z digest semantiko). */
+/** Včeraj po LJ poslovnemu dnevu (R160 P3-4 — prej server-local).
+ *  Opoldanski UTC instant je vedno znotraj istega LJ dneva. */
 function yesterday(): Date {
-  const now = new Date()
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+  return new Date(`${ljubljanaYesterdayStr()}T12:00:00.000Z`)
 }
 
 export async function GET(req: Request) {
@@ -69,11 +71,11 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: validationError.issues[0]?.message }, { status: 400 })
     }
 
-    // YYYY-MM-DD → lokalni Date (opoldne, da so bounds deterministični)
+    // YYYY-MM-DD → opoldanski UTC instant (12:00Z = 13:00/14:00 LJ — vedno
+    // isti LJ koledarski dan; R160 P3-4)
     let target = yesterday()
     if (parsed.date) {
-      const [y, m, d] = parsed.date.split('-').map(Number)
-      target = new Date(y, m - 1, d, 12, 0, 0)
+      target = new Date(`${parsed.date}T12:00:00.000Z`)
     }
 
     const data = await fetchDailyDigestData(target)

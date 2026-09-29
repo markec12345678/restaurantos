@@ -9,6 +9,8 @@ import { NextResponse } from 'next/server'
 import { handleApiError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { structuredErrorResponse } from '@/lib/structured-error'
 import { parseDaysOfWeek, parseStringArray, toJsonWireDeep } from '@/lib/json-fields'
+// R160 (N4): aktivno okno po LJ stenskem času (urniki so v LJ urah)
+import { ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 
 export const dynamic = 'force-dynamic'
 
@@ -57,9 +59,15 @@ export async function GET(req: Request) {
     })
 
     // Preveri, kateri so trenutno aktivni
+    // R160 (N4): LJ stenski čas (prej getDay/getHours po strežniškem TZ —
+    // na UTC strežniku se je voziček postavil v cenovno skupino 1–2 h po
+    // konfiguriranem oknu; obmejni primer: UTC 22:00 = LJ polnoč naslednjega
+    // dneva → tudi weekday se lahko razlikuje). Oblika odgovora NESPREMENJENA.
     const now = new Date()
-    const currentDay = now.getDay() === 0 ? 7 : now.getDay() // 1=pon, 7=ned
-    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    const ljNow = ljubljanaDateTimeParts(now.toISOString())
+    const ljDow = new Date(`${ljNow.date}T00:00:00Z`).getUTCDay() // 0=ned … 6=sob
+    const currentDay = ljDow === 0 ? 7 : ljDow // 1=pon, 7=ned
+    const currentTime = ljNow.time // 'HH:mm'
 
     const activeSchedules = schedules.filter((s) => {
       // P1-9: Zod-validiran parser — pokvarjen JSON ne sesuje GET happy-hour

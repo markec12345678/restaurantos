@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth-middleware'
 import { resolveTenantLocationIdOrThrow } from '@/lib/tenant-scope'
 import { handleApiError } from '@/lib/api-utils'
+import { ljubljanaDayBounds, ljubljanaTodayStr } from '@/lib/timezone-sl'
 import { sendZReportEmail, isEmailEnabled, getReportRecipients } from '@/lib/email'
 import { fetchReportData, generateReportPdf } from '@/app/api/reports/export/_helpers'
 
@@ -47,12 +48,16 @@ export async function POST(req: Request) {
     }
 
     const { searchParams } = new URL(req.url)
-    const reportDate = searchParams.get('date') || new Date().toISOString().split('T')[0]
+    // R160 (N7): privzeti datum po LJ poslovnemu dnevu (prej UTC split)
+    const reportDate = searchParams.get('date') || ljubljanaTodayStr()
 
-    // Pridobi Z-report podatke za ta dan
+    // Pridobi Z-report podatke za ta dan — LJ meje (prej 'T00:00:00'/'T23:59:59'
+    // BREZ Z → strežniško-local parse). fetchReportData bere lte → end − 1 ms
+    // (vključna pariteta 23:59:59.999, R159-b kanon).
+    const ljBounds = ljubljanaDayBounds(reportDate)
     const dateFilter: Record<string, Date> = {
-      gte: new Date(reportDate + 'T00:00:00'),
-      lte: new Date(reportDate + 'T23:59:59'),
+      gte: ljBounds.start,
+      lte: new Date(ljBounds.end.getTime() - 1),
     }
     const reportData = await fetchReportData(dateFilter, scope.locationId)
 
