@@ -30,6 +30,10 @@ export interface ZReportStats {
   totalStorno: number
   startingCash: number
   expectedCash: number
+  // R158-5 (epic #115): vsota povračil za poslovni dan — prej je DailyClose
+  // snapshot (daily-close route :300 `?? statsBag.totalRefunds ?? 0`) vedno
+  // padel na 0, ker refund agregata tu ni bilo (vračila so živela per izmena).
+  totalRefunds: number
 }
 
 // Izračunaj vse statistike iz plačanih naročil
@@ -42,7 +46,7 @@ export async function calculateReportStats(
   // FIX R110 (ZR-2): opcionalen tx klient — ko je podan, interni
   // cashRegisterShift.findMany teče ZNOTRAJ klicateljeve Serializable
   // transakcije (tx-fresh snapshot, prej vedno samostojen db read).
-  client: Pick<typeof db, 'cashRegisterShift'> = db,
+  client: Pick<typeof db, 'cashRegisterShift' | 'payment'> = db,
 ): Promise<ZReportStats> {
   let totalSales = 0
   let totalNetSales = 0
@@ -64,6 +68,7 @@ export async function calculateReportStats(
   let totalVoided = 0
   let totalCost = 0
   let totalGuests = 0
+  let totalRefunds = 0
 
   for (const order of paidOrders) {
     // FIX (QA 2026-09-17, runda 10): Prisma Decimal v JSON/API kontekstu prihaja
@@ -159,6 +164,30 @@ export async function calculateReportStats(
   const startingCash = cashShifts.reduce((sum, s) => sum + toNum(s.startingCash), 0)
   const expectedCash = cashShifts.reduce((sum, s) => sum + toNum(s.expectedCash), 0)
 
+  // R158-5: refund agregat — kanon blagajniške izmene (cash-register/[id]/route.ts
+  // :83/:97/:143): payments `status in ['completed','refunded']` (voided izključen),
+  // Σ refundAmount. Order `paymentStatus in ['paid','partial','storno']` je NAMERNO
+  // širši od Z paidOrders (['paid','partial']): vračilo storno orderja je realen
+  // odtegljaj, delno plačan order z delnim povračilom ostane 'partial' (vzorec
+  // izmene :83 `['paid','storno']`). paidAt = ISTI LJ meje kot orders zgoraj
+  // (S6 kanon Z≡DC); agregat teče na `client` (= tx v upsert-z-report) — ni
+  // stale refund read. Prodaja ostane NETO (netting zgoraj), totalRefunds je
+  // bruto vsota povračil — komplementarna, brez dvojnega štetja.
+  const refundAgg = await client.payment.aggregate({
+    where: {
+      status: { in: ['completed', 'refunded'] },
+      check: {
+        order: {
+          paidAt: { gte: dayStart, lt: dayEnd },
+          paymentStatus: { in: ['paid', 'partial', 'storno'] },
+          ...(locationId ? { locationId } : {}),
+        },
+      },
+    },
+    _sum: { refundAmount: true },
+  })
+  totalRefunds = toNum(refundAgg._sum.refundAmount ?? 0)
+
   return {
     totalSales, totalNetSales, totalTax,
     cashSales, cardSales, mobileSales, alternateSales,
@@ -166,5 +195,6 @@ export async function calculateReportStats(
     vatStandard, vatStandardAmount, vatReduced, vatReducedAmount, vatZero,
     totalDiscounts, totalTips, totalVoided, totalCost, totalGuests,
     totalStorno, startingCash, expectedCash,
+    totalRefunds,
   }
 }

@@ -282,8 +282,9 @@ export async function POST(req: Request) {
     })
 
     // Snapshot Z-paritete (report/stats) — Decimal prek toNum. totalRefunds:
-    // Z-report/stats polja trenutno ne izpostavljajo refund agregata (vračila
-    // živijo per izmena); snapshot je varen 0, dokler vir polja ne izpostavi.
+    // R158-5 — calculateReportStats izpostavlja refund agregat (R161), torej
+    // je statsBag.totalRefunds definiran; ZReport vrstica (reportBag) polja še
+    // vedno nima (0 migracij), zato vir ostane stats.
     const reportBag = report as unknown as Record<string, unknown>
     const statsBag = stats as unknown as Record<string, unknown>
     const expectedCash = toNum(report.expectedCash)

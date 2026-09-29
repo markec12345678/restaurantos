@@ -408,7 +408,9 @@ describe('R110 D: fs-pini — kanon pini v viru', () => {
   })
 
   it('stats: opcionalen tx klient (interni cashRegisterShift.findMany prek client)', () => {
-    expect(statsSrc).toContain("client: Pick<typeof db, 'cashRegisterShift'>")
+    // R161 (R158-5): Pick razširjen z 'payment' (refund agregat teče na istem
+    // tx klientu, R110 ZR-2 nadaljevanje) — pin sledi namerni spremembi.
+    expect(statsSrc).toContain("client: Pick<typeof db, 'cashRegisterShift' | 'payment'>")
     expect(statsSrc).toContain('client.cashRegisterShift.findMany')
   })
 

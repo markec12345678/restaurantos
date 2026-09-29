@@ -107,17 +107,27 @@ bilo samoozdravitvene poti. → **R158-1 [P1], popravljeno** (glej §8).
   CashRegisterShift.expectedCash = startingCash + cashSales + cashTips).
 - COGS: R123 `yieldAdjustedLineCost` = ista RAW osnova kot dedukcija (rawFromUsable) —
   stale vir NI uporabljen.
-- Gap (P3, backlog R158-5): `totalRefunds` snapshot v DailyClose je vedno 0 (vir polja
-  trenutno ne izpostavlja refund agregata) → R146 export stolpec "Povračila" napačen.
+- **R158-5 [P3], popravljeno (R161)**: `totalRefunds` snapshot v DailyClose je bil
+  vedno 0 — `calculateReportStats` zdaj izpostavlja refund agregat (tx-fresh
+  `payment.aggregate` na client parametru, Σ refundAmount po kanonu izmene
+  `status in [completed, refunded]`, širši order paymentStatus
+  `[paid, partial, storno]` — namerna deviacija, dokumentirana v stats.ts; iste
+  LJ meje gte/lt; 0 migracij) → route :300 snapshot + export stolpec "Povračila"
+  realen. Testi: 9 v r161-totalrefunds.test.ts (where-pin, LJ meje identity,
+  tx-klient, S6 neto/bruto pariteta, CSV "12.50" format s piko).
 
 ## 6. Inventory / COGS regresija (issue sekcija 7)
 
 Dokazni seznam: yield 20 testov (100/80/50 %); r122 batch (vzporedni complete = ENA
 poraba); r120-batch-lot-fefo A1..F1; r106 A1..C4; concurrency-p19 (`inventoryDeducted`
 atomic claim → retry ≠ second deduction); r124-soldout 12 testov; invarianta
-`needed == deducted`. Manjka namenski test "sočasna prodaja zadnjih 2 enot" →
-**backlog R158-6 (P3)** (vzorec atomic `updateMany where quantity >= needed` je
-enak r122/r19 dokazanim).
+`needed == deducted`. **R158-6 [P3], pokrito (R161)**: namenski test "sočasna
+poraba zadnjih 2 enot" dodan — tests/unit/security/r161-last2-units.test.ts
+(V1a: 2 vzporedni porabi po 1 enoti na 2 enotah → obe uspešni, končno točno 0;
+V1b: tretja vzporedna na izčrpani zalogi → count=0, 'Premalo zaloge', 0 audit
+vrstica, brez oversella; V2: 2 seriji × 1 enota FEFO → stale read + pogojni
+guard gte, obe seriji EXHAUSTED). Trap DB pina DEJANSKE produkcije WHERE-pogoje
+(gte/lte/inventoryDeducted false→true), ne mock vedenja.
 
 ## 7. StaffShift / FURS / izolacija / idempotencija / offline / backup (issue sekcije 8–13)
 
@@ -153,8 +163,8 @@ blocked po zasnovi) · **1 removed/replaced**: QR (→ /api/public/menu).
 | R158-2 | P1 | Legacy POST /api/z-report (finalize=true) obide DailyClose admin odobritev na PENDING_APPROVAL/REOPENED danu | **FIXAN** — gate pred upsertom: 409 `DAILY_CLOSE_PENDING_APPROVAL` / `DAILY_CLOSE_REOPENED` / `DAILY_CLOSE_ALREADY_CLOSED`; brez DailyClose vrstice legacy 1:1; draft (finalize:false) pot odprta. Testi: 6 v r158-zreport-gate.test.ts |
 | R158-3 | P2 | data-retention cron ni registriran v vercel.json | ODPRT — uporabniška odločitev (R148 znan defer) |
 | R158-4 | P2 | 7 finančno-vidnih UTC-bucket mest (e-invoice-book datumIzdaja, tax-report, reports/sales, dashboard, labor, financial/eod privzeti) | **FIXAN (R159-b)** — 10 mest (7 + vat route/time-distribution/export re-sweep) na LJ kanon; year-boundary + trap-DB testi; **P3 ostanki FIXANI (R160-b)** — 17 mest (7 P3 + N1–N8 re-sweep, vključno tihi izpad mesečnih naročil v financial grafu + eDavki XML Period); DEFER seznam dokumentiran |
-| R158-5 | P3 | DailyClose `totalRefunds` snapshot vedno 0 → export "Povračila" napačen | ODPRT — backlog |
-| R158-6 | P3 | Ni namenskega "sočasni zadnji 2 enoti" testa | ODPRT — backlog |
+| R158-5 | P3 | DailyClose `totalRefunds` snapshot vedno 0 → export "Povračila" napačen | **FIXAN (R161)** — refund agregat v calculateReportStats (tx klient = R110 ZR-2, LJ meje, kanon izmene); 9 testov r161-totalrefunds.test.ts |
+| R158-6 | P3 | Ni namenskega "sočasni zadnji 2 enoti" testa | **FIXAN (R161)** — r161-last2-units.test.ts (V1a/V1b/V2, DB-pogojni guard pini) |
 
 ---
 
