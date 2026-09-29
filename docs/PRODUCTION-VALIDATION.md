@@ -1,0 +1,163 @@
+# Produkcijska validacija in forenzični audit
+
+> Issue #124 — "R127 — Production validation + forensic audit po R126"
+> Izvedeno v rundah R158-a (READ-ONLY audit) + R158-b (controlled fixes)
+> HEAD ob auditu: `19303a53` (= origin/main) · FIX HEAD: glej git log
+
+---
+
+## 1. Namen in metodologija
+
+Issue #124 je nastal med rundama R126/R127 kot opomnik: po Daily Close rundi je treba
+dokazati, da je sistem notranje konsistenten (POS → orders → payments → refunds/voids →
+cash shifts → Z-report → inventory/COGS → waste → reports → Daily Close → audit) in da
+ostajajo varni tenant/location scope, avtorizacija, idempotencija, CAS, concurrency,
+business-date/timezone in migracijska integriteta.
+
+Metodologija:
+
+- **R158-a**: READ-ONLY forenzični audit nad aktualnim main (issuejev izvirni HEAD
+  `dfdd36ba` je zastarel — od takrat je bilo ~30 rund). Vse trditve podprte z dokazi
+  (file:line, test imena, CI run/job ID-ji, API odgovori, ukazi + exit kode).
+- **R158-b**: controlled fixes — SAMO dokazane P1 najdbe. Nič ni bilo "popravljeno
+  po občutku".
+- **Anti-overclaim pravilo** (issue sekcija 16, zavezujoče): nič ni PASS brez dokaza.
+  Kjer dokaz ne obstaja, je stanje izrecno označeno (NOT PHYSICALLY VALIDATED /
+  UNKNOWN / PARTIAL / backlog).
+
+---
+
+## 2. CI / repository evidence (HEAD `19303a53`)
+
+| Dokaz | Vrednost |
+| --- | --- |
+| CI run | `36471065916` — **success**, 7/7 jobov (Security Audit, Lint/Typecheck, Build production, Integration real DB, Migration drift, Unit, E2E Security) |
+| E2E run | `36471064676` — **success** (Playwright: 226 passed / 4 skipped) |
+| CI Monitor | 2× success |
+| run_attempt | 1 povsod — NI re-runov, NI rerun-failed-jobs mehanike (playwright `retries: CI ? 2 : 0`) |
+| Unit (CI log) | 280 fajlov / **5159** testov + 99 fajlov / **1946** (tests/unit/security) = **7105, 0 skipped** |
+| Integration (CI log) | 23 fajlov / **235** testov, 0 skipped |
+| E2E Security | **88 passed** |
+| Lokalna reprodukcija | vitest run 5159/5159, exit 0 — CI count natančen |
+| Production Build | job zelen — edini buildability dokaz (sandbox ne zna graditi) |
+
+Skipped/todo sweep: `rg` po tests/ = 0 zadetkov `.skip/.todo/.only` v unit+IT; samo
+pogojni data-guard skipi v Playwright + 3 permanentni skipi v critical-path.spec.ts.
+
+> Issuejeva številka "4152 testov" je zastarela (nanaša se na R126-era HEAD).
+
+---
+
+## 3. DailyClose × ZReport state matrica (issue sekcija 3–4)
+
+| DailyClose \ ZReport | DRAFT | FINALIZED |
+| --- | --- | --- |
+| PENDING_APPROVAL | **VALID** (Z-draft upsert pot; nad pragom) | dosegljiva le prek **approve** poti (zakonita) |
+| CLOSED | ~~dosegljiva prek finalize faila~~ → **REPAIRED (R158-1)**: replay preveri dejanski Z in izvede idempotenten re-finalize | **VALID** (kanon) |
+| REOPENED | **VALID** (reopen de-finalizira Z v tx) | dosegljiva le prek re-close + approve (zakonita) |
+
+Invarianti: `@@unique(locationId, businessDate)` + `@@unique(locationId, idempotencyKey)`
+na DailyClose; CAS `updateMany` prehodi; zgodnji 409 `DAILY_CLOSE_ALREADY_CLOSED`.
+
+**Kritično vprašanje issueja** ("DailyClose=CLOSED + ZReport=DRAFT po uspelem
+commitu — možno?"): **DA, bilo je dosegljivo** — finalize teče izven tx. Fast-path replay
+je maskiral (poročal `zReportFinalized` iz statusa DailyClose brez preverjanja Z) in ni
+bilo samoozdravitvene poti. → **R158-1 [P1], popravljeno** (glej §8).
+
+---
+
+## 4. Business date / Ljubljana timezone (issue sekcija 5)
+
+- Kanonski helper: `src/lib/timezone-sl.ts` (`ljubljanaDayBounds`, `ljubljanaTodayStr`,
+  `ljubljanaDateTimeParts`) — 26 konzumentov; jedro finančnega zaključka (daily-close,
+  z-report, end-of-day, cash-register) **čisto** na njem.
+- Sweep: 78 zadetkov `toISOString().slice(0,10)` / `split('T')` ocenjenih posamično.
+  - **Jedro: OK.**
+  - **7 P2 rizik mest izven zaključne poti** (finančno-vidni prikazi, ne integriteta
+    zaključka): `reports/sales:78`, dashboard comparison/weekly, `tax-report:89/107`,
+    `furs e-invoice-book:109/136`, `labor-reports:149–387`, financial/eod privzeti
+    datumi → **backlog R158-4**.
+  - P3: loyalty-automation cache key; manjka ekspliciten year-boundary test.
+- DST/leap pokritost potrjena (p2-ux-formatting.test.ts: 23h/25h dnevi, 22:00 UTC
+  začetek CEST dneva, 2024-02-29).
+
+## 5. Financial source-of-truth (issue sekcija 6)
+
+- **Z-report ≡ Daily Close: DOKAZANO isti vir** — oba skozi `upsertZReportForDay →
+  calculateReportStats` (isti Ljubljana bounds; paymentStatus ∈ [paid, partial];
+  plačila neto refundAmount; storno posebej; `expectedCash` = Σ
+  CashRegisterShift.expectedCash = startingCash + cashSales + cashTips).
+- COGS: R123 `yieldAdjustedLineCost` = ista RAW osnova kot dedukcija (rawFromUsable) —
+  stale vir NI uporabljen.
+- Gap (P3, backlog R158-5): `totalRefunds` snapshot v DailyClose je vedno 0 (vir polja
+  trenutno ne izpostavlja refund agregata) → R146 export stolpec "Povračila" napačen.
+
+## 6. Inventory / COGS regresija (issue sekcija 7)
+
+Dokazni seznam: yield 20 testov (100/80/50 %); r122 batch (vzporedni complete = ENA
+poraba); r120-batch-lot-fefo A1..F1; r106 A1..C4; concurrency-p19 (`inventoryDeducted`
+atomic claim → retry ≠ second deduction); r124-soldout 12 testov; invarianta
+`needed == deducted`. Manjka namenski test "sočasna prodaja zadnjih 2 enot" →
+**backlog R158-6 (P3)** (vzorec atomic `updateMany where quantity >= needed` je
+enak r122/r19 dokazanim).
+
+## 7. StaffShift / FURS / izolacija / idempotencija / offline / backup (issue sekcije 8–13)
+
+- **StaffShift (S8)**: `model Shift` ODSOTEN; /api/shifts compat layer (date alias,
+  copy_week) z r125 testi; expected cash vir = CashRegisterShift (ne stari Shift).
+- **FURS per-location (S9)**: `buildFursConfigFromSettings` (locationId obvezen,
+  settings.furs* mrtva) + 14 r125 testov; settings PUT ignorira furs polja
+  (:67/:154/:174-177); cert vezan na order.locationId v verify-invoice/storno-invoice.
+- **Tenant/location izolacija (S10)**: 11/11 endpointov z guard + negativnim testom
+  (99 security test fajlov; e2e MODELA-1..16 + IDEMPO-1..5); QR removed-by-design.
+- **Idempotencija/concurrency (S11)**: 6/8 scenarijev s testi; CAS/constraint pattern
+  dokazan; finalize retry toleranca + NOVA repair veja (R158-1).
+- **Offline (S12)**: orders/cancel **OFFLINE-SAFE** (IndexedDB + ledger exactly-once +
+  r128 IT + živi E2E); payment **OFFLINE-BLOCKED** (client guard + 422 — po zasnovi);
+  DailyClose **OFFLINE-BLOCKED** de facto (zdaj tudi dokumentirano tu); FURS receipt
+  sync **PARTIAL**.
+- **Backup/restore (S13)**: **PHYSICALLY VALIDATED** v sandboxu (živi 6-fazni drill,
+  RTO 22 s; r127 round-trip IT teče v CI) — omejitev: PGlite ≠ Neon.
+
+## 7a. Module readiness matrix (issue sekcija 14) — povzetek
+
+**21 complete** (vsak z route + test + živo/e2e dokazom) · **2 partial**: FURS (koda
+complete; živi FURS NI fizično validiran — sim-mode), Offline (payments/DailyClose
+blocked po zasnovi) · **1 removed/replaced**: QR (→ /api/public/menu).
+
+---
+
+## 8. Findings register (issue sekcija 15)
+
+| ID | Sev. | Naslov | Status |
+| --- | --- | --- | --- |
+| R158-1 | P1 | DailyClose CLOSED + Z DRAFT dosegljiv ob finalize failu; fast-path replay maskiral dejansko Z stanje | **FIXAN** — replay preveri dejanski Z (po shranjenem businessDate) in ob napačnem stanju izvede idempotenten re-finalize (isti vzorec kot glavna pot; brez audita/draft upserta/tx); strukturirane napake fail-closed passthrough; `Z_REPORT_FINALIZED` toleriran; nove polji `zReportFinalized` (dejansko) + `zReportReFinalized` (marker, backwards-compatible). Testi: 4 v r126-daily-close.test.ts |
+| R158-2 | P1 | Legacy POST /api/z-report (finalize=true) obide DailyClose admin odobritev na PENDING_APPROVAL/REOPENED danu | **FIXAN** — gate pred upsertom: 409 `DAILY_CLOSE_PENDING_APPROVAL` / `DAILY_CLOSE_REOPENED` / `DAILY_CLOSE_ALREADY_CLOSED`; brez DailyClose vrstice legacy 1:1; draft (finalize:false) pot odprta. Testi: 6 v r158-zreport-gate.test.ts |
+| R158-3 | P2 | data-retention cron ni registriran v vercel.json | ODPRT — uporabniška odločitev (R148 znan defer) |
+| R158-4 | P2 | 7 finančno-vidnih UTC-bucket mest (e-invoice-book datumIzdaja, tax-report, reports/sales, dashboard, labor, financial/eod privzeti) | ODPRT — backlog (predlagan R159) |
+| R158-5 | P3 | DailyClose `totalRefunds` snapshot vedno 0 → export "Povračila" napačen | ODPRT — backlog |
+| R158-6 | P3 | Ni namenskega "sočasni zadnji 2 enoti" testa | ODPRT — backlog |
+
+---
+
+## 9. Anti-overclaim izjava (issue sekcija 16)
+
+- "Production-ready" NI trženo — zelen CI je dokaz konsistentnosti, ne produkcijske
+  zrelosti; FURS ostaja sim-mode (NOT PHYSICALLY VALIDATED z realnim FURS okoljem).
+- "Backup works" je trženo SAMO z restore dokazom (živi drill + CI round-trip).
+- "Offline works" velja SAMO za orders/cancel (exactly-once dokazan); payment in
+  Daily Close so po zasnovi offline-blokirana.
+- Test count je preverjen iz CI logov (ne samo commit claim).
+
+## 10. Definition of Done (issue sekcija 17)
+
+HEAD audit ✅ · CI evidence ✅ · E2E evidence ✅ · dejanski test count ✅ · Daily Close
+forenzika ✅ · state matrica ✅ · finalize failure scenarij (testiran + popravljen) ✅ ·
+timezone audit ✅ · financial source-of-truth ✅ · R123/R124/R125 regresije (dokazane
+z obstoječimi testi) ✅ · tenant/location izolacija ✅ · idempotencija ✅ ·
+concurrency ✅ · offline/reconnect status ✅ (dokumentiran, ne PASS vse) ·
+backup/restore status ✅ (physically validated v sandboxu) · module matrix ✅ ·
+findings P0/P1/P2/P3 ✅ (P1 fixana) · naslednji task ✅ (R158-4).
+
+**Predlog naslednjega najmanjšega taska**: R159 = R158-4 timezone sweep (7 mest +
+year-boundary test) — ali po uporabnikovi izbiri R158-3 (vercel.json cron registracija).

@@ -115,6 +115,21 @@ export async function POST(req: Request) {
     // 400 (mapping spodaj). Prej je bilo Z-poročilo (finančni promet) pisano
     // na PRVO lokacijo KATEREGA KOLI tenanta.
 
+    // R158-2 (issue #124): legacy finalize NE SME obiti R126 admin odobritve —
+    // če DailyClose za ta dan obstaja, se finalize drži stanja zaključka
+    // (zgodnji 409 vzorec iz daily-close). Brez DailyClose vrstice (ali brez
+    // modela v minimalnih trapih — produkcijski Prisma klient ga vedno ima)
+    // je legacy obnašanje nespremenjeno (1:1); draft (finalize:false) pot
+    // ostane vedno odprta.
+    if (finalize && locationId) {
+      const dc = await db.dailyClose?.findUnique({
+        where: { locationId_businessDate: { locationId, businessDate: ljubljanaDayBounds(date).start } },
+      })
+      if (dc?.status === 'PENDING_APPROVAL') return NextResponse.json({ error: 'DAILY_CLOSE_PENDING_APPROVAL' }, { status: 409 })
+      if (dc?.status === 'REOPENED') return NextResponse.json({ error: 'DAILY_CLOSE_REOPENED' }, { status: 409 })
+      if (dc?.status === 'CLOSED') return NextResponse.json({ error: 'DAILY_CLOSE_ALREADY_CLOSED' }, { status: 409 })
+    }
+
     // RUNDA 9 REFAKTOR: celotno jedro (preverjanje finalized, open-shifts check,
     // pridobivanje orderjev, statistike, upsert transakcija) je v upsertZReportForDay.
     const { report, stats, paidOrdersCount } = await upsertZReportForDay({

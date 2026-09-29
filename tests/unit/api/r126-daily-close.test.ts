@@ -281,6 +281,15 @@ function createDb() {
       },
     },
     zReport: {
+      // R158: fast-path replay preveri dejanski Z status po compound unique
+      // ključu reportDate_locationId (@@unique([reportDate, locationId]))
+      findUnique: async ({ where }: { where: Record<string, unknown> }) => {
+        const key = where.reportDate_locationId as { reportDate: Date; locationId: string } | undefined
+        if (!key) return null
+        const t = new Date(key.reportDate).getTime()
+        const row = zReports.find(r => r.reportDate.getTime() === t && r.locationId === key.locationId)
+        return row ? { ...row } : null
+      },
       updateMany: async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
         captured.zReportUpdateMany.push({ where, data })
         let count = 0
@@ -597,6 +606,9 @@ describe('POST /api/daily-close — zaključek dneva', () => {
     const zCallsAfterFirst = state.z.calls.length
     const auditAfterFirst = state.audit.length
     const closeId = (await first.json()).close.id
+
+    // R158: trap emulira persistiran Z finalize
+    state.zReports.push({ id: 'zr-1', reportDate: DAY_START, locationId: LOC_1, status: 'finalized' })
 
     const second = await dailyClosePost(post(baseBody()))
     expect(second.status).toBe(200)
@@ -1090,5 +1102,81 @@ describe('POST /api/daily-close — variance matematika in prag', () => {
     expect(data.close.status).toBe('PENDING_APPROVAL')
     expect(data.close.approvedById).toBeNull()
     expect(data.zReportFinalized).toBe(false)
+  })
+})
+
+// ============================================
+// R158 — fast-path Z repair (issue #124, R158-1)
+// ============================================
+// Replay ni več maskiran: fast-path preveri DEJANSKI Z status po
+// reportDate_locationId (prej: maskiranje iz statusa DailyClose vrstice).
+// Zdrav replay (Z finalized) ostane povsem brez stranskih učinkov;
+// CLOSED + Z-draft/manjkajoč sproži idempotenten re-finalize (repair) —
+// brez audita, brez draft upserta, brez tx; strukturirane napake →
+// fail-closed passthrough (brez maskiranja).
+describe('R158 — fast-path Z repair', () => {
+  it('CLOSED replay z Z FINALIZED → zdrav replay, brez repaira', async () => {
+    const first = await dailyClosePost(post(baseBody()))
+    expect(first.status).toBe(201)
+    // R158: trap emulira persistiran Z finalize
+    state.zReports.push({ id: 'zr-1', reportDate: DAY_START, locationId: LOC_1, status: 'finalized' })
+    const zCallsAfterFirst = state.z.calls.length
+    const auditAfterFirst = state.audit.length
+    const closeUpdateAfterFirst = state.captured.closeUpdate.length
+
+    const replay = await dailyClosePost(post(baseBody()))
+    expect(replay.status).toBe(200)
+    const data = await replay.json()
+    expect(data.replay).toBe(true)
+    expect(data.zReportFinalized).toBe(true)
+    expect(data.zReportReFinalized).toBe(false)
+    // zdrav replay: brez Z upserta, brez audita, brez repair update-a
+    expect(state.z.calls).toHaveLength(zCallsAfterFirst)
+    expect(state.audit).toHaveLength(auditAfterFirst)
+    expect(state.captured.closeUpdate).toHaveLength(closeUpdateAfterFirst)
+  })
+
+  it('CLOSED replay z Z draft/manjkajoč → idempotenten re-finalize', async () => {
+    const first = await dailyClosePost(post(baseBody()))
+    expect(first.status).toBe(201)
+    const zCallsAfterFirst = state.z.calls.length
+    const auditAfterFirst = state.audit.length
+    // brez seeda Z vrstice — trap findUnique vrne null → repair pot
+
+    const replay = await dailyClosePost(post(baseBody()))
+    expect(replay.status).toBe(200)
+    const data = await replay.json()
+    expect(data.replay).toBe(true)
+    expect(data.zReportFinalized).toBe(true)
+    expect(data.zReportReFinalized).toBe(true)
+    // repair: točno EN dodatni finalize klic (z countedCash), brez draft klica
+    expect(state.z.calls).toHaveLength(zCallsAfterFirst + 1)
+    expect(state.z.calls[state.z.calls.length - 1]).toMatchObject({ finalize: true, actualCash: 100 })
+    // repair NE piše audita; brez duplikata DailyClose vrstice
+    expect(state.audit).toHaveLength(auditAfterFirst)
+    expect(state.closes).toHaveLength(1)
+  })
+
+  it('repair konflikt Z_REPORT_FINALIZED → toleriran', async () => {
+    const first = await dailyClosePost(post(baseBody()))
+    expect(first.status).toBe(201)
+
+    state.z.finalizeError = new Error('Z_REPORT_FINALIZED')
+    const replay = await dailyClosePost(post(baseBody()))
+    expect(replay.status).toBe(200)
+    const data = await replay.json()
+    expect(data.zReportFinalized).toBe(true)
+    expect(data.zReportReFinalized).toBe(false)
+  })
+
+  it('repair strukturirana napaka → fail-closed, brez maskiranja', async () => {
+    const first = await dailyClosePost(post(baseBody()))
+    expect(first.status).toBe(201)
+
+    state.z.finalizeError = { error: 'Z_REPORT_CONFLICT', status: 409 }
+    const replay = await dailyClosePost(post(baseBody()))
+    // želeno fail-closed vedenje: 409 passthrough, NE 200 z lažnim finalized
+    expect(replay.status).toBe(409)
+    expect((await replay.json()).error).toBe('Z_REPORT_CONFLICT')
   })
 })

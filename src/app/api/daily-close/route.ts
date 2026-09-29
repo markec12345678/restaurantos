@@ -39,7 +39,7 @@ import { rateLimitedResponse } from '@/lib/rate-limit/response'
 import { handleRouteError, parseJsonBody, validateBody } from '@/lib/api-utils'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
-import { ljubljanaDayBounds } from '@/lib/timezone-sl'
+import { ljubljanaDayBounds, ljubljanaDateTimeParts } from '@/lib/timezone-sl'
 import { upsertZReportForDay } from '@/app/api/z-report/_helpers'
 
 export const dynamic = 'force-dynamic'
@@ -171,17 +171,76 @@ export async function POST(req: Request) {
 
     // Idempotencija fast-path (R116 kanon): replay vrne obstoječo vrstico BREZ
     // ponovnega izračuna (brez Z-report draft upserta, brez audita, brez tx).
+    // R158-1 (issue #124) — repair-only IZJEMA od kanona: finalize je izven
+    // tx (h), zato je stanje CLOSED + Z-draft dosegljivo ob neuspelém
+    // finalize-u. Fast-path zato NE več maskira zReportFinalized iz statusa
+    // DailyClose vrstice, ampak preveri DEJANSKI Z status; ob dokazano
+    // napačnem stanju (Z manjka/draft) izvede idempotenten re-finalize
+    // ISTEGA vzorca kot glavna pot (brez audita, brez draft upserta, brez
+    // tx). Zdrav replay (Z finalized) ostane povsem brez stranskih učinkov.
     const replayed = await db.dailyClose.findUnique({
       where: { locationId_idempotencyKey: { locationId, idempotencyKey } },
     })
     if (replayed) {
+      let zReportFinalized = false
+      let zReportReFinalized = false
+      if (replayed.status === 'CLOSED') {
+        // Vir resnice je SHRANJEN businessDate replikane vrstice (ne body
+        // datum): replay z istim ključem in drugim datumom ne sme dotakniti
+        // Z-poročila drugega dneva (isti razred tveganja kot R158-2 gate).
+        const replayDayStart = replayed.businessDate
+        const replayDateStr = ljubljanaDateTimeParts(replayDayStart.toISOString()).date
+        const zRow = await db.zReport.findUnique({
+          where: {
+            reportDate_locationId: {
+              reportDate: replayDayStart,
+              locationId,
+            },
+          },
+        })
+        if (zRow && zRow.status === 'finalized') {
+          zReportFinalized = true // zdrav replay — brez stranskih učinkov
+        } else {
+          // REPAIR (R158-1): idempotenten re-finalize — isti finalize vzorec
+          // kot glavna pot (h). Strukturirane napake → fail-closed
+          // passthrough (NIČ maskiranja); Z_REPORT_FINALIZED → že
+          // reparirano (tolerirano).
+          try {
+            const finalized = await upsertZReportForDay({
+              date: replayDateStr,
+              locationId,
+              actualCash: countedCash,
+              notes,
+              finalize: true,
+              employeeId,
+            })
+            // Uskladi zReportId, če se je spremenil (enako glavni poti)
+            if (replayed.zReportId !== finalized.report.id) {
+              replayed.zReportId = finalized.report.id
+              await db.dailyClose.update({
+                where: { id: replayed.id },
+                data: { zReportId: finalized.report.id },
+              })
+            }
+            zReportFinalized = true
+            zReportReFinalized = true
+          } catch (zErr) {
+            const structured = asStructuredError(zErr)
+            if (structured) throw structured // fail-closed passthrough
+            const msg = zErr instanceof Error ? zErr.message : String(zErr)
+            if (msg !== 'Z_REPORT_FINALIZED') throw zErr
+            zReportFinalized = true // že finalizirano (sočasen repair) — OK
+          }
+        }
+      }
       return NextResponse.json(
         deepToNumbers({
           close: replayed,
           variance: toNum(replayed.cashVariance),
           threshold: toNum(replayed.varianceThreshold),
           requiresApproval: false,
-          zReportFinalized: replayed.status === 'CLOSED',
+          zReportFinalized, // dejansko stanje Z (R158-1: ne več maskirano)
+          zReportReFinalized, // marker repaira (backwards-compatible dodatek)
           replay: true,
         }),
         { status: 200 },
