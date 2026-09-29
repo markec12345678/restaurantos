@@ -27,22 +27,23 @@ Metodologija:
 
 ---
 
-## 2. CI / repository evidence (HEAD `19303a53`)
+## 2. CI / repository evidence (HEAD `98925c08` — osveženo R162)
 
 | Dokaz | Vrednost |
 | --- | --- |
-| CI run | `36471065916` — **success**, 7/7 jobov (Security Audit, Lint/Typecheck, Build production, Integration real DB, Migration drift, Unit, E2E Security) |
-| E2E run | `36471064676` — **success** (Playwright: 226 passed / 4 skipped) |
-| CI Monitor | 2× success |
+| CI run | `36570968517` — **success**, 7/7 jobov (Security Audit, Lint/Typecheck, Build production, Integration real DB, Migration drift, Unit, E2E Security) |
+| E2E run | `36570968667` — **success** (Playwright: 226 passed / 4 skipped) |
+| CI Monitor | 2× success (`36571553554`, `36571899780`) |
 | run_attempt | 1 povsod — NI re-runov, NI rerun-failed-jobs mehanike (playwright `retries: CI ? 2 : 0`) |
-| Unit (CI log) | 280 fajlov / **5159** testov + 99 fajlov / **1946** (tests/unit/security) = **7105, 0 skipped** |
+| Unit (CI log) | 285 fajlov / **5215** testov + 100 fajlov / **1949** (tests/unit/security) = **7164, 0 skipped** |
 | Integration (CI log) | 23 fajlov / **235** testov, 0 skipped |
 | E2E Security | **88 passed** |
-| Lokalna reprodukcija | vitest run 5159/5159, exit 0 — CI count natančen |
+| Lokalna reprodukcija | vitest run 5215/5215 (285 fajlov), exit 0 — CI count natančen (R161-final ×2 + R162 gates) |
 | Production Build | job zelen — edini buildability dokaz (sandbox ne zna graditi) |
 
-Skipped/todo sweep: `rg` po tests/ = 0 zadetkov `.skip/.todo/.only` v unit+IT; samo
-pogojni data-guard skipi v Playwright + 3 permanentni skipi v critical-path.spec.ts.
+Skipped/todo sweep (re-verificirano R162): 15 zadetkov `.skip/.todo/.only` — VSE v
+tests/e2e/ (3 permanentni critical-path + 12 pogojnih data-guard: device-tab 1,
+furs-financial 2, outbox-worker 3, payment-flow 6); 0 v unit+IT.
 
 > Issuejeva številka "4152 testov" je zastarela (nanaša se na R126-era HEAD).
 
@@ -187,5 +188,9 @@ concurrency ✅ · offline/reconnect status ✅ (dokumentiran, ne PASS vse) ·
 backup/restore status ✅ (physically validated v sandboxu) · module matrix ✅ ·
 findings P0/P1/P2/P3 ✅ (P1 fixana) · naslednji task ✅ (R158-4).
 
-**Predlog naslednjega najmanjšega taska**: R159 = R158-4 timezone sweep (7 mest +
-year-boundary test) — ali po uporabnikovi izbiri R158-3 (vercel.json cron registracija).
+**Zaklep epika (R162)**: evidence osvežena na HEAD `98925c08` (CI 7/7 + E2E + 2×
+Monitor, vse attempt=1; unit 7164 iz CI logov; IT 235). R159 (R158-4), R160 (P3
+ostanki + N1–N8) in R161 (R158-5 + R158-6) izvedeni — findings register (§8) zaprt,
+razen R158-3 (vercel.json data-retention cron — ostaja ODPRT do uporabnikove
+odločitve) in FURS fizične validacije (realno okolje, izven sandboxa). Epik #115
+formalno zaprt v R162; parked scope je dokumentiran v zaključnem komentarju epika.
