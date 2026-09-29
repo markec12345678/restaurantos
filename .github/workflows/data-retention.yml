@@ -1,0 +1,51 @@
+name: Data Retention Cron
+
+# R163 (R158-3): dnevni data-retention purge — plan-neodvisna registracija.
+# vercel.json vnos NAMERNO ni dodan: git zgodovina dokazuje Vercel Hobby plan
+# z max 2 cron jobs (commit 398c24fb "cron_jobs_limits_reached"), obe mesti
+# zasedeni (0 2 scheduled-emails/process, 0 3 cron/outbox).
+#
+# Predpogoj (GitHub repo settings):
+#   secrets.CRON_SECRET — isti token kot Vercel env CRON_SECRET
+#   vars.PROD_URL       — produkcijski URL (npr. https://example.com)
+# Če katera vrednost manjka, se tek varno preskoči z opozorilom (brez rdečega X).
+#
+# Endpoint: POST /api/cron/data-retention (r82 fail-closed; purge po
+# src/lib/retention/policy.ts: AuditLog 730d, WebhookDelivery 30d,
+# Session expired, ScheduledEmailLog 90d + sistemski audit). Urnik 0 4 * * *
+# UTC je isti niz, ki ga kanonizira route komentar.
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  purge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Proži data-retention purge
+        env:
+          PROD_URL: ${{ vars.PROD_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -eu
+          if [ -z "$PROD_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::warning::vars.PROD_URL ali secrets.CRON_SECRET ni nastavljen — purge preskočen (nastavi v repo settings; docs/PRODUCTION-READINESS-CHECKLIST.md)"
+            exit 0
+          fi
+          http_code=$(curl -sS -o /tmp/retention-response.json -w '%{http_code}' \
+            --max-time 120 \
+            -X POST \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            "${PROD_URL}/api/cron/data-retention")
+          echo "HTTP=${http_code}"
+          cat /tmp/retention-response.json
+          if [ "${http_code}" != "200" ]; then
+            echo "::error::data-retention endpoint vrnil HTTP ${http_code}"
+            exit 1
+          fi

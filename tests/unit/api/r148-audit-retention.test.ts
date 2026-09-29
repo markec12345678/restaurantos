@@ -106,7 +106,7 @@ vi.spyOn(console, 'error').mockImplementation(() => {})
 import { GET as retentionGET } from '@/app/api/audit/retention/route'
 import { POST as archivePOST, ARCHIVE_ROW_CAP } from '@/app/api/audit/archive/route'
 import { GET as verifyChainGET } from '@/app/api/audit/verify-chain/route'
-import { POST as cronPOST } from '@/app/api/cron/data-retention/route'
+import { POST as cronPOST, GET as cronGET } from '@/app/api/cron/data-retention/route'
 import { GET as gdprExportGET } from '@/app/api/gdpr/export/[employeeId]/route'
 import { POST as gdprAnonymizePOST } from '@/app/api/gdpr/anonymize/[employeeId]/route'
 import { hasPermission } from '@/lib/auth-middleware/permissions'
@@ -773,6 +773,41 @@ describe('R148 cron data-retention — policy + AUDIT_RETENTION_PURGED', () => {
       anchorOut: '',
       archive: false,
     })
+    vi.unstubAllEnvs()
+  })
+
+  it('27b. GET brez CRON_SECRET + brez seje → 401 fail-closed (Vercel-Cron GET pot, r82 pariteta)', async () => {
+    vi.stubEnv('CRON_SECRET', '')
+    sessionRef.current = null
+    const res = await cronGET(new Request('http://localhost:3000/api/cron/data-retention'))
+    expect(res.status).toBe(401)
+    vi.unstubAllEnvs()
+  })
+
+  it('28b. GET z CRON_SECRET → 200 purge + sistemski audit (Vercel-Cron GET === POST delegacija)', async () => {
+    vi.stubEnv('CRON_SECRET', 'sekret')
+    mocks.auditLogDeleteMany.mockResolvedValue({ count: 1 })
+    mocks.auditLogFindFirst.mockResolvedValue({ id: 'al-kept', previousHash: 'H-first-kept' })
+    mocks.webhookDeleteMany.mockResolvedValue({ count: 0 })
+    mocks.sessionDeleteMany.mockResolvedValue({ count: 0 })
+    mocks.emailDeleteMany.mockResolvedValue({ count: 0 })
+
+    const res = await cronGET(
+      new Request('http://localhost:3000/api/cron/data-retention', {
+        headers: { authorization: 'Bearer sekret' },
+      }),
+    )
+    expect(res.status).toBe(200)
+    expect(res.headers.get('cache-control')).toBe('no-store')
+    const body = await jsonBody(res)
+    expect(body.success).toBe(true)
+    const results = body.results as Record<string, { deleted?: number }>
+    expect(results.auditLog.deleted).toBe(1)
+    expect(mocks.auditLogDeleteMany.mock.calls[0][0].where.timestamp.lt).toBeInstanceOf(Date)
+
+    expect(mocks.createAuditLog).toHaveBeenCalledTimes(1)
+    expect(mocks.createAuditLog.mock.calls[0][0].action).toBe('AUDIT_RETENTION_PURGED')
+    expect(mocks.createAuditLog.mock.calls[0][0].entityType).toBe('SystemRetention')
     vi.unstubAllEnvs()
   })
 

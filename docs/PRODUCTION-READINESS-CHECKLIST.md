@@ -290,7 +290,7 @@
 
 ### Day +7: Post-Launch
 1. [ ] Review Sentry error trends
-2. [ ] Run data retention cron manually: `POST /api/cron/data-retention`
+2. [ ] Run data retention cron manually: `POST /api/cron/data-retention` (ali GitHub Actions `data-retention.yml` — dnevno `0 4 * * *`; predpogoj: secrets.CRON_SECRET + vars.PROD_URL v GitHub settings)
 3. [ ] Verify audit log integrity
 4. [ ] Collect customer feedback
 5. [ ] Start case study documentation

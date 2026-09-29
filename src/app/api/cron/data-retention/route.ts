@@ -17,8 +17,11 @@
 // (chainIntact ostane true). Opomba: cron AuditLog purge je BREZ arhiva —
 // za verificiran arhiv + purge uporabite POST /api/audit/archive?apply=1.
 //
-// Schedule: dnevno ob 04:00 CET (nizka obremenitev)
-// vercel.json: { "crons": [{ "path": "/api/cron/data-retention", "schedule": "0 4 * * *" }] }
+// Schedule: dnevno ob 04:00 UTC (nizka obremenitev)
+// Registracija (R163 / R158-3): .github/workflows/data-retention.yml — schedule 0 4 * * *,
+// POST + Authorization: Bearer $CRON_SECRET (plan-neodvisno; vercel.json na Hobby planu
+// sprejme le 2 cron-a — cron_jobs_limits_reached @ 398c24fb).
+// Na Vercel Pro: { "crons": [{ "path": "/api/cron/data-retention", "schedule": "0 4 * * *" }] }
 //
 // Varnost: CRON_SECRET v headerju (enako kot /api/cron/outbox)
 // ============================================

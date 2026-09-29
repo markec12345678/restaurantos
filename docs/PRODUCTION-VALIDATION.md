@@ -162,10 +162,11 @@ blocked po zasnovi) · **1 removed/replaced**: QR (→ /api/public/menu).
 | --- | --- | --- | --- |
 | R158-1 | P1 | DailyClose CLOSED + Z DRAFT dosegljiv ob finalize failu; fast-path replay maskiral dejansko Z stanje | **FIXAN** — replay preveri dejanski Z (po shranjenem businessDate) in ob napačnem stanju izvede idempotenten re-finalize (isti vzorec kot glavna pot; brez audita/draft upserta/tx); strukturirane napake fail-closed passthrough; `Z_REPORT_FINALIZED` toleriran; nove polji `zReportFinalized` (dejansko) + `zReportReFinalized` (marker, backwards-compatible). Testi: 4 v r126-daily-close.test.ts |
 | R158-2 | P1 | Legacy POST /api/z-report (finalize=true) obide DailyClose admin odobritev na PENDING_APPROVAL/REOPENED danu | **FIXAN** — gate pred upsertom: 409 `DAILY_CLOSE_PENDING_APPROVAL` / `DAILY_CLOSE_REOPENED` / `DAILY_CLOSE_ALREADY_CLOSED`; brez DailyClose vrstice legacy 1:1; draft (finalize:false) pot odprta. Testi: 6 v r158-zreport-gate.test.ts |
-| R158-3 | P2 | data-retention cron ni registriran v vercel.json | ODPRT — uporabniška odločitev (R148 znan defer) |
+| R158-3 | P2 | data-retention cron ni registriran v vercel.json | **FIXAN (R163)** — vercel.json vnos NAMERNO ni dodan (dokazan Hobby limit 2 crona — cron_jobs_limits_reached @ 398c24fb, 2/2 zasedena) → registracija prek GitHub Actions data-retention.yml (schedule 0 4 * * *, POST + Bearer CRON_SECRET, plan-neodvisno; issue #139); GET pini 27b/28b v r148 unit; predpogoj: secrets.CRON_SECRET + vars.PROD_URL; na Vercel Pro 1-vrstični vnos (route komentar) |
 | R158-4 | P2 | 7 finančno-vidnih UTC-bucket mest (e-invoice-book datumIzdaja, tax-report, reports/sales, dashboard, labor, financial/eod privzeti) | **FIXAN (R159-b)** — 10 mest (7 + vat route/time-distribution/export re-sweep) na LJ kanon; year-boundary + trap-DB testi; **P3 ostanki FIXANI (R160-b)** — 17 mest (7 P3 + N1–N8 re-sweep, vključno tihi izpad mesečnih naročil v financial grafu + eDavki XML Period); DEFER seznam dokumentiran |
 | R158-5 | P3 | DailyClose `totalRefunds` snapshot vedno 0 → export "Povračila" napačen | **FIXAN (R161)** — refund agregat v calculateReportStats (tx klient = R110 ZR-2, LJ meje, kanon izmene); 9 testov r161-totalrefunds.test.ts |
 | R158-6 | P3 | Ni namenskega "sočasni zadnji 2 enoti" testa | **FIXAN (R161)** — r161-last2-units.test.ts (V1a/V1b/V2, DB-pogojni guard pini) |
+| R163-S1 | P2 | scheduled-emails/process: registrirani Vercel cron (0 2) pošilja GET, GET pa je stats-only z requireAuth(admin)+platformAdminGate brez CRON_SECRET poti → cron dobi 401, email processing prek Vercel Crona verjetno NE teče | ODPRT [ANALIZA] — koda potrjena (route :188-231; nasprotje: outbox GET===POST :18-20); prevzem GET-a ni 1-vrstičen (R85-4c + R160 pina stats kontrakt); opcije v issue #140 — uporabniška odločitev (R164) |
 
 ---
 
@@ -190,7 +191,10 @@ findings P0/P1/P2/P3 ✅ (P1 fixana) · naslednji task ✅ (R158-4).
 
 **Zaklep epika (R162)**: evidence osvežena na HEAD `98925c08` (CI 7/7 + E2E + 2×
 Monitor, vse attempt=1; unit 7164 iz CI logov; IT 235). R159 (R158-4), R160 (P3
-ostanki + N1–N8) in R161 (R158-5 + R158-6) izvedeni — findings register (§8) zaprt,
-razen R158-3 (vercel.json data-retention cron — ostaja ODPRT do uporabnikove
-odločitve) in FURS fizične validacije (realno okolje, izven sandboxa). Epik #115
+ostanki + N1–N8) in R161 (R158-5 + R158-6) izvedeni — findings register (§8) zaprt
+razen FURS fizične validacije (realno okolje, izven sandboxa). Epik #115
 formalno zaprt v R162; parked scope je dokumentiran v zaključnem komentarju epika.
+**Dodatek (R163)**: R158-3 FIXAN — registracija prek GitHub Actions data-retention.yml
+(schedule 0 4 * * *, plan-neodvisno; vercel.json vnos zavrnjen zaradi dokazanega
+Hobby limita 2 crona @ 398c24fb). NOV finding R163-S1 (scheduled-emails/process
+GET stats-only → registrirani cron 0 2 verjetno ne procesira; issue #140, [ANALIZA]).

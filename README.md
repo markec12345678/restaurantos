@@ -528,6 +528,7 @@ RestaurantOS je bil primerjan z **11 tekmeci** (8 globalnimi + 3 slovenskimi) po
 - **Produkcija teče R95 kodo** — Vercel auto-deploya vsak push na `main` (GitHub integracija); potrjeno z živimi probe-i: `GET /api/auth/employees` → unified 404 `'Lokacija ni najden'` (R95 endpoint) in `GET /api/qr-menu` → generičen catch-all (R91 izbris)
 - **CI + E2E workflow-a zelena na R95 commitu** (GitHub Actions)
 - **Vercel Cron** (vercel.json): `/api/cron/outbox` dnevno `0 3 * * *`, `/api/scheduled-emails/process` dnevno `0 2 * * *` — obe ruti fail-closed zaščiteni (`CRON_SECRET`, R82-F)
+- **Data-retention cron** (R163 / R158-3): `/api/cron/data-retention` dnevno `0 4 * * *` — registriran prek GitHub Actions `.github/workflows/data-retention.yml` (POST + Bearer `CRON_SECRET`), ker vercel.json na Hobby planu sprejme le 2 cron-a (`cron_jobs_limits_reached` @ 398c24fb). Predpogoj: GitHub secrets `CRON_SECRET` + repo variable `PROD_URL`; na Vercel Pro zadostuje 1-vrstični vercel.json vnos (route komentar)
 - ⚠️ **FURS boot guard na produkciji poroča `error`**: `FURS_ALLOW_SIMULATION=true` je v produkciji PREPOVEDAN (R82 boot guard — simulacija proizvaja ne-fiskalizirane račune). Za zeleno health stanje nastavite na Vercel env `FURS_ALLOW_SIMULATION=false` + konfigurirajte certifikat (`FURS_CERT_PATH` ali `Location.fursCertPath`). Do takrat je health `status: error` pričakovano obnašanje guard-a, ne izpad.
 - **Verzija**: package.json je bil od runde 84 ostal na 1.9.4 (health je poročal staro verzijo) — bumpano na 1.11.0; naslednji deploy bo poročal pravilno.
 
@@ -564,7 +565,7 @@ Runda 82 je zaprla dva fail-open vedenja — **brez teh env spremenljivk produkc
 | Env spremenljivka | Učinek, če MANJKA | Kako nastaviti |
 |-------------------|-------------------|----------------|
 | `QR_PAY_SECRET` | QR-pay **init vrne 503** (fail-closed) — gostje ne morejo plačati prek QR | Vercel env: `openssl rand -hex 32` |
-| `CRON_SECRET` | Cron rute (`/api/cron/data-retention`, `/api/cron/outbox`) so zdaj **fail-closed** — brez secret-a zavrnejo VSE klice (prej: anonimen GDPR deleteMany / SMS batchi!) | Vercel env + Vercel Cron header `Authorization` |
+| `CRON_SECRET` | Cron rute (`/api/cron/data-retention`, `/api/cron/outbox`) so zdaj **fail-closed** — brez secret-a zavrnejo VSE klice (prej: anonimen GDPR deleteMany / SMS batchi!) | Vercel env + GitHub secrets (`data-retention.yml`) + Vercel Cron header `Authorization` |
 | `ENCRYPTION_KEY` + `NEXTAUTH_SECRET` | QR-pay token helper fail-closed (enako pravilo kot QR_PAY_SECRET) | že dolgo obvezna — verify |
 
 **Po namestitvi na PROD obvezno pogni census NULL-location vrstic** (samo branje, brez auto-fix — odločitev o backfillu po pregledu rezultatov):
